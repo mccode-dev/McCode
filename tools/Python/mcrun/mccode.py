@@ -376,6 +376,8 @@ class McStas:
         if override_mpi or override_mpi is None and mpi:
             LOG.debug('Running via MPI: %s', self.binpath)
             binpath = self.options.mpirun
+            if sys.platform =='darwin':
+                binpath='leaks --atExit -- ' + binpath
             if self.options.mpi == "auto":
                 LOG.info('Using system default number of mpirun -np processes')
                 if os.name == 'nt':
