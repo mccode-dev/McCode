@@ -184,7 +184,8 @@ int mccode_main(int argc, char *argv[])
 #ifdef USE_MPI
   MPI_Finalize();
 #endif /* USE_MPI */
-
-
+  char cmdline[1024];
+  sprintf(cmdline,"leaks %s.out",instrument_name);
+  system(cmdline);
   return 0;
 } /* mccode_main */
