@@ -12,9 +12,10 @@ int mccode_main(int argc, char *argv[])
   int  mpi_node_name_len;
 #endif /* USE_MPI */
 
-#ifdef MAC
+  /*#ifdef MAC
   argc = ccommand(&argv);
-#endif
+  #endif
+  */
 
 #ifdef USE_MPI
   MPI_Init(&argc,&argv);
