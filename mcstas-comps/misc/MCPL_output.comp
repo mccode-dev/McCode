@@ -54,7 +54,7 @@ DEFINE COMPONENT MCPL_output
   SETTING PARAMETERS (int polarisationuse=0, int doubleprec=0, verbose=0, string userflag="",
   string filename=0, string userflagcomment="", merge_mpi=1, keep_mpi_unmerged=0, buffermax=0)
 
-DEPENDENCY "-Wl,-rpath,CMD(mcpl-config --show libdir) -LCMD(mcpl-config --show libdir) -lmcpl -ICMD(mcpl-config --show includedir)"
+DEPENDENCY "@MCPLFLAGS@"
 
 SHARE
 %{
@@ -93,17 +93,24 @@ INITIALIZE
 %{
     char extension[128]="";
     char *myfilename;
-    
+    char tmpstr[CHAR_BUF_LENGTH];
+
     // Use instance name for base output if no input was given
     if (!strcmp(filename,"\0")) sprintf(filename, "%s", NAME_CURRENT_COMP);
 
 #if defined (USE_MPI)
-  /* In case of MPI, simply redefine the filename used by each node */
-    MPI_MASTER(fprintf(stdout, "Message(%s): You are using MCPL_output with MPI, hence your will get %i filenames %s.node_#i.mcpl{.gz} as output.\n",NAME_CURRENT_COMP,mpi_node_count,filename); );
+    /* In case of MPI, simply redefine the filename used by each node */
+    sprintf(tmpstr, "Message(%s): You are using MCPL_output with MPI, hence you will get %i filenames %s.node_#i.mcpl{.gz} as output.\n",NAME_CURRENT_COMP,mpi_node_count,filename);
     sprintf(extension,"node_%i.mcpl",mpi_node_rank);
 #else
     sprintf(extension,"mcpl");
 #endif
+sprintf(tmpstr, "");
+    MPI_MASTER(
+      fprintf(stdout, "%s",tmpstr );
+    );
+
+
     /*add output dir (if applicable) to the output filename and add extension if */
     // Append the extension to the filename
     //  -- do not use mcfull_file for this since it can not handle absolute filenames with a '.' in them
@@ -170,17 +177,11 @@ INITIALIZE
         mcpl_enable_doubleprec(outputfile);
     }
 
-#if defined (USE_MPI)
-  MPI_MASTER(
-#endif
-
-    if (verbose==1) {
-    printf("MCPL_output verbose mode: after generating the mcpl-file a summary will be printed.\n");
-    }
-
-#if defined (USE_MPI)
-	    );
-#endif
+    MPI_MASTER(
+      if (verbose==1) {
+        printf("MCPL_output verbose mode: after generating the mcpl-file a summary will be printed.\n");
+      }
+    );
 
   /*Add comments on what the orientation and position of this component is.*/
   /*Include the instrument file itself as a binary blob in the mcpl file*/
@@ -288,18 +289,14 @@ TRACE
         particle->userflags = (uint32_t) uvar;
     }
 
-#if defined (USE_MPI)
-  MPI_MASTER(
-#endif
-    if (verbose==3 && mcrun_num<10) {
-      printf("id=%ld\tpdg=2112\tekin=%g MeV\tx=%g cm\ty=%g cm\tz=%g cm\tux=%g\tuy=%g\tuz=%g\tt=%g ms\tweight=%g\tpolx=%g\tpoly=%g\tpolz=%g\n",
-	     mcrun_num, particle->ekin, particle->position[0], particle->position[1], particle->position[2],
-	     particle->direction[0], particle->direction[1], particle->direction[2], particle->time, particle->weight,
-	     particle->polarisation[0], particle->polarisation[1], particle->polarisation[2]);
-    }
-#if defined (USE_MPI)
-  );
-#endif
+    MPI_MASTER(
+      if (verbose==3 && mcrun_num<10) {
+        printf("id=%ld\tpdg=2112\tekin=%g MeV\tx=%g cm\ty=%g cm\tz=%g cm\tux=%g\tuy=%g\tuz=%g\tt=%g ms\tweight=%g\tpolx=%g\tpoly=%g\tpolz=%g\n",
+	       mcrun_num, particle->ekin, particle->position[0], particle->position[1], particle->position[2],
+	       particle->direction[0], particle->direction[1], particle->direction[2], particle->time, particle->weight,
+	       particle->polarisation[0], particle->polarisation[1], particle->polarisation[2]);
+      }
+    );
 
 
     mcpl_add_particle(outputfile,particle);
@@ -369,56 +366,54 @@ FINALLY
   mcpl_closeandgzip_outfile(outputfile);
 #endif
 #ifdef USE_MPI
- MPI_Barrier(MPI_COMM_WORLD);
- MPI_MASTER(
-     /* Only attempt merge if requested and meaningful */
-     if (merge_mpi && mpi_node_count > 1) {
-        char **mpi_node_files;
-        char *merge_outfilename;
-        char extension[128]="mcpl";
-        int j;
-        mcpl_outfile_t merge_outfile;
+  MPI_Barrier(MPI_COMM_WORLD);
+  /* Only attempt merge if requested and meaningful */
+  if (mpi_node_rank==0 && merge_mpi && mpi_node_count > 1) {
+    char **mpi_node_files;
+    char *merge_outfilename;
+    char extension[128]="mcpl";
+    int j;
+    mcpl_outfile_t merge_outfile;
 
-        char * real_filename = (char *) calloc(strlen(filename) + strlen(extension) + 2, sizeof(char));
-        strcpy(real_filename, filename);
-        strcat(real_filename, ".");
-        strcat(real_filename, extension);
+    char * real_filename = (char *) calloc(strlen(filename) + strlen(extension) + 2, sizeof(char));
+    strcpy(real_filename, filename);
+    strcat(real_filename, ".");
+    strcat(real_filename, extension);
 
-        merge_outfilename = mcfull_file(real_filename, NULL);
+    merge_outfilename = mcfull_file(real_filename, NULL);
 
-        mpi_node_files=(char **) calloc(mpi_node_count,sizeof(char *));
-        sprintf(extension,"node_%i.mcpl", mpi_node_count);
-        char * temp_name = (char *) calloc(strlen(filename) + strlen(extension) + 2, sizeof(char));
-        for (j=0;j<mpi_node_count;j++){
-            sprintf(temp_name, "%s.node_%i.mcpl", filename, j);
-            mpi_node_files[j] = mcfull_file(temp_name, NULL);
-        }
-        if (temp_name) free(temp_name);
-
-        /*now do the merge through the call to mcpl_merge_files*/
-        merge_outfile = mcpl_merge_files(merge_outfilename,mpi_node_count,(const char **) mpi_node_files);
-        mcpl_closeandgzip_outfile(merge_outfile);
-
-        /*remove the original unmerged files if wanted*/
-        if(!keep_mpi_unmerged){
-            int status=0;
-            for (j=0;j<mpi_node_count;j++){
-                status+=remove(mpi_node_files[j]);
-            }
-            if (status){
-                fprintf(stderr,"Warning (%s): Could not remove one or more unmerged files.\n",NAME_CURRENT_COMP);
-            }
-        }
-
-        /*free the string storage*/
-	sprintf(finalfile,merge_outfilename);
-        free(merge_outfilename);
-        for (j=0;j<mpi_node_count;j++){
-            free(mpi_node_files[j]);
-        }
-        free(mpi_node_files);
+    mpi_node_files=(char **) calloc(mpi_node_count,sizeof(char *));
+    sprintf(extension,"node_%i.mcpl", mpi_node_count);
+    char * temp_name = (char *) calloc(strlen(filename) + strlen(extension) + 2, sizeof(char));
+    for (j=0;j<mpi_node_count;j++){
+      sprintf(temp_name, "%s.node_%i.mcpl", filename, j);
+      mpi_node_files[j] = mcfull_file(temp_name, NULL);
     }
-  );
+    if (temp_name) free(temp_name);
+
+    /*now do the merge through the call to mcpl_merge_files*/
+    merge_outfile = mcpl_merge_files(merge_outfilename,mpi_node_count,(const char **) mpi_node_files);
+    mcpl_closeandgzip_outfile(merge_outfile);
+
+    /*remove the original unmerged files if wanted*/
+    if(!keep_mpi_unmerged){
+      int status=0;
+      for (j=0;j<mpi_node_count;j++){
+	status+=remove(mpi_node_files[j]);
+      }
+      if (status){
+	fprintf(stderr,"Warning (%s): Could not remove one or more unmerged files.\n",NAME_CURRENT_COMP);
+      }
+    }
+    
+    /*free the string storage*/
+    sprintf(finalfile,merge_outfilename);
+    free(merge_outfilename);
+    for (j=0;j<mpi_node_count;j++){
+      free(mpi_node_files[j]);
+    }
+    free(mpi_node_files);
+  }
 #endif
   if(verbose) {
     MPI_MASTER(

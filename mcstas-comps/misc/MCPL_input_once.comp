@@ -39,7 +39,7 @@ DEFINE COMPONENT MCPL_input_once
 
 SETTING PARAMETERS (string filename=0, polarisationuse=1, Emin=0, Emax=FLT_MAX, v_smear=0, pos_smear=0, dir_smear=0, int always_smear=0, int preload=0, int verbose=0)
 
-DEPENDENCY "-Wl,-rpath,CMD(mcpl-config --show libdir) -LCMD(mcpl-config --show libdir) -lmcpl -ICMD(mcpl-config --show includedir)"
+DEPENDENCY "@MCPLFLAGS@"
 
 SHARE
 %{
@@ -104,14 +104,10 @@ INITIALIZE
     fprintf(stderr, "Error(%s): MCPL-file reports no present particles. Aborting.\n", NAME_CURRENT_COMP);
     exit(-1);
   } else {
-#if defined (USE_MPI)   
     MPI_MASTER(
-#endif
-    printf("Message(%s): MCPL file (%s) produced with %s.\n", NAME_CURRENT_COMP, filename, mcpl_hdr_srcname(inputfile));
-    printf("Message(%s): MCPL file (%s) contains %lu particles.\n", NAME_CURRENT_COMP, filename, (long unsigned)nparticles); 
-#if defined (USE_MPI) 
+      printf("Message(%s): MCPL file (%s) produced with %s.\n", NAME_CURRENT_COMP, filename, mcpl_hdr_srcname(inputfile));
+      printf("Message(%s): MCPL file (%s) contains %lu particles.\n", NAME_CURRENT_COMP, filename, (long unsigned)nparticles); 
     );
-#endif
   }
   first_particle = 0;
   last_particle = nparticles;
@@ -213,7 +209,7 @@ TRACE
 #ifdef OPENACC
     #pragma acc atomic
     current_index++; // track how many particles have been accessed, to ensure we don't exceed our slice of the file
-#else OPENACC
+#else
   }
 #endif
   // copy from the component particle struct to the particle ray struct:
