@@ -48,7 +48,7 @@ if ( ENABLE_CIF2HKL )
     )
   target_compile_options(cif2hkl PUBLIC "-ffree-line-length-512")
   install (
-    PROGRAMS "${PROJECT_BINARY_DIR}/cif2hkl${DOT_EXE_SUFFIX}"
+    TARGETS cif2hkl
     DESTINATION "${DEST_BINDIR}"
     )
 endif()
