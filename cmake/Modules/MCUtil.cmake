@@ -227,7 +227,6 @@ macro(setupMCCODE FLAVOR)
   endif()
 
   # Define suffix-macros that include a leading dot "."
-  addDot(DOT_EXE_SUFFIX "${MCCODE_EXE_SUFFIX}")
   addDot(DOT_OUT_SUFFIX "${OUT_SUFFIX}")
 
   addDot(DOT_PYTHON_SUFFIX "${PYTHON_SUFFIX}")
