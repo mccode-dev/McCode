@@ -250,6 +250,9 @@ class McStas:
                 flags = re.sub(r'\@NEXUSFLAGS\@', mccode_config.compilation['NEXUSFLAGS'], flags)
 
                 # Insert NCRYSTALFLAGS if instrument/comps request this
+                flags = re.sub(r'\@MCPLFLAGS\@', mccode_config.compilation['MCPLFLAGS'], flags)
+
+                # Insert NCRYSTALFLAGS if instrument/comps request this
                 flags = re.sub(r'\@NCRYSTALFLAGS\@', mccode_config.compilation['NCRYSTALFLAGS'], flags)
 
                 # Insert GSLFLAGS if instrument/comps request this
@@ -274,8 +277,8 @@ class McStas:
             if any("NeXus" in cf for cf in cflags):
                 cflags += '-D__GNUC__'+ " "
 
-        # cl.exe under conda needs the linking flags at the end...
-        if os.environ.get('CONDA_PREFIX') and "cl.exe" in mccode_config.compilation['CC'].lower():
+        # cl.exe on Windows needs the linking flags at the end...
+        if os.name == 'nt' and "cl.exe" in mccode_config.compilation['CC'].lower():
             libflags = []
             otherflags = []
             for flag in lexer.split(cflags):

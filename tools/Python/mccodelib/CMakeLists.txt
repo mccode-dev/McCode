@@ -92,7 +92,7 @@ include(CPack)
 
 set(WORK "${PROJECT_BINARY_DIR}/work")
 
-set(entries_with_conda_prefix "CFLAGS;NEXUSFLAGS;MPIFLAGS;NCRYSTALFLAGS;GSLFLAGS;XRLFLAGS;OACCFLAGS;TOOLS_CC;MPIRUN;MPICC")
+set(entries_with_conda_prefix "CFLAGS;NEXUSFLAGS;MPIFLAGS;MCPLFLAGS;NCRYSTALFLAGS;GSLFLAGS;XRLFLAGS;OACCFLAGS;TOOLS_CC;MPIRUN;MPICC")
 foreach( var ${entries_with_conda_prefix} )
   set( MCCODE_FINAL_${var} "${${var}}" )
 endforeach()
