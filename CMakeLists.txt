@@ -36,7 +36,7 @@ endif()
 include(MCUtil)
 
 if ( BUILD_MCSTAS )
-  option( ENSURE_NCRYSTAL "Build Third Party code NCrystal if not already available" ON )
+  option( ENSURE_NCRYSTAL "Build Third Party code NCrystal if not already available" OFF )
   if ( ENSURE_NCRYSTAL )
     set ( NCRYSTAL_LEGACY_USE 1 )
   else()
@@ -74,7 +74,7 @@ endif()
 
 # Find/Fetch dependencies:
 
-option( ENSURE_MCPL "Build Third Party code MCPL if not already available" ON )
+option( ENSURE_MCPL "Build Third Party code MCPL if not already available" OFF )
 if( ENSURE_MCPL )
   include( MCPL )
 endif()
