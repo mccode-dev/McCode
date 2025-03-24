@@ -365,12 +365,12 @@ macro(installMCCODE)
   if(NOT WINDOWS)
     # Binaries
     install (
-      PROGRAMS "${PROJECT_BINARY_DIR}/${FLAVOR}${DOT_EXE_SUFFIX}"
+      TARGETS ${FLAVOR}
       DESTINATION "${DEST_BINDIR}"
     )
 
     install (
-      PROGRAMS "${PROJECT_BINARY_DIR}/${FLAVOR}-pygen${DOT_EXE_SUFFIX}"
+      TARGETS ${FLAVOR}-pygen
       DESTINATION "${DEST_BINDIR}"
     )
 
@@ -423,14 +423,14 @@ macro(installMCCODE)
 
     # Binaries
     install (
-      PROGRAMS "${PROJECT_BINARY_DIR}/${FLAVOR}${DOT_EXE_SUFFIX}"
+      TARGETS ${FLAVOR}
       DESTINATION "${DEST_BINDIR}"
     )
 
     # Binaries
     install (
-      PROGRAMS "${PROJECT_BINARY_DIR}/${FLAVOR}-pygen${DOT_EXE_SUFFIX}"
-      DESTINATION ${DEST_BINDIR}
+      TARGETS ${FLAVOR}-pygen
+      DESTINATION "${DEST_BINDIR}"
     )
     if ( MCCODE_USE_LEGACY_DESTINATIONS )
       install(PROGRAMS

@@ -1,0 +1,193 @@
+name: mcstas-msvc-winbasictest
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    # More platform information available on:
+    # https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
+
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: cmd
+
+    strategy:
+      matrix:
+        os: [windows-2019, windows-2022, windows-2025]
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        path: src
+
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.11
+
+      #Two ways of enabling cl.exe and other tools. One is via an external action...:
+    - name: Setup VS in shell
+      uses: ilammy/msvc-dev-cmd@v1
+      #...but a simpler one might be to simply invoke the correct vcvars64.bat
+      #file first, like...:
+      #
+      #    - name: whatever
+      #      shell: cmd
+      #      run: |
+      #        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+      #        cl /help
+      #
+      #...but since we also want to support VS 2019, we use the above action for now
+
+    - name: Setup MPI
+      uses: mpi4py/setup-mpi@v1
+      with:
+        mpi: 'msmpi'
+
+    - name: Setup MPI cygpath bash...
+      shell: bash
+      run:   |
+        cygpath -sm "$MSMPI_INC" > includepath.txt
+        cygpath -sm "$MSMPI_LIB64" > libpath.txt
+
+    - name: Setup MPI cygpath...
+      run: |
+        set /p MPIINCVAR=<includepath.txt
+        set /p MPILIBVAR=<libpath.txt
+        echo MPIINCVAR=%MPIINCVAR% >> %GITHUB_ENV%
+        echo MPILIBVAR=%MPILIBVAR% >> %GITHUB_ENV%
+
+    - name: choco install deps
+      run: choco install winflexbison3 wget
+
+    - name: CMake cfg
+      run: >
+        cmake -B build -S src
+        "-DCMAKE_INSTALL_PREFIX=./install"
+        -DMCVERSION="3.99.99"
+        -DMCCODE_BUILD_CONDA_PKG=OFF
+        -DMCCODE_CONFIG_MCPL2=ON
+        -DCMAKE_INSTALL_LIBDIR=lib
+        -DBUILD_MCSTAS=ON
+        -DMCCODE_USE_LEGACY_DESTINATIONS=OFF
+        -DBUILD_TOOLS=ON
+        -DENABLE_COMPONENTS=ON
+        -DENABLE_CIF2HKL=OFF
+        -DENABLE_NEUTRONICS=OFF
+        -DMPIINCLUDEDIR=%MPIINCVAR%
+        -DMPILIBDIR=%MPILIBVAR%
+
+    - name: CMake build
+      shell: cmd
+      run: cmake --build build --config Release -j 2
+
+    - name: CMake install
+      run: cmake --install build --config Release
+
+    - name: pip install deps
+      run: pip install PyYAML ply McStasscript ncrystal mslex
+
+    - name: pip install mcpl-core preview
+      run: pip install -v "git+https://github.com/mctools/mcpl@path_to_mcpl2#subdirectory=mcpl_core"
+
+    - name: set MCSTAS env var
+      run: echo MCSTAS=%CD%\install\share\mcstas\resources >> %GITHUB_ENV%
+
+    - name: check MCSTAS env var
+      run: echo %MCSTAS%
+
+    - run: type .\install\share\mcstas\tools\Python\mccodelib\mccode_config.json
+    - run: .\install\bin\mcrun -h
+    - run: .\install\bin\mcstas -v
+    - run: mcpl-config -s
+    - run: ncrystal-config -s
+
+    - name: Prepare rundirs
+      run: mkdir run_std run_mcpl_output run_mcpl_input run_mcpl_input_once run_union run_ncrystal
+
+    - name: Prepare std instrument
+      working-directory: run_std
+      run: copy ..\install\share\mcstas\resources\examples\BNL\BNL_H8\BNL_H8.instr test.instr
+
+    - name: Prepare NCrystal instrument
+      working-directory: run_ncrystal
+      run: copy ..\install\share\mcstas\resources\examples\NCrystal\NCrystal_example\NCrystal_example.instr test.instr
+
+    - name: Prepare MCPL_input instrument
+      working-directory: run_mcpl_input
+      run: |
+        copy ..\install\share\mcstas\resources\examples\Tests_MCPL_etc\Test_MCPL_input\Test_MCPL_input.instr test.instr
+        copy ..\install\share\mcstas\resources\examples\Tests_MCPL_etc\Test_MCPL_input\voutput.mcpl .
+
+    - name: Prepare MCPL_input_once instrument
+      working-directory: run_mcpl_input_once
+      run: |
+        copy ..\install\share\mcstas\resources\examples\Tests_MCPL_etc\Test_MCPL_input_once\Test_MCPL_input_once.instr test.instr
+        copy ..\install\share\mcstas\resources\examples\Tests_MCPL_etc\Test_MCPL_input_once\voutput.mcpl .
+
+    - name: Prepare MCPL_output instrument
+      working-directory: run_mcpl_output
+      run: copy ..\install\share\mcstas\resources\examples\Tests_MCPL_etc\Test_MCPL_output\Test_MCPL_output.instr test.instr
+
+    - name: Run std instrument
+      working-directory: run_std
+      run: ..\install\bin\mcrun --verbose test.instr -d Single_core lambda=2.36
+
+    - name: Run MCPL_output instrument
+      working-directory: run_mcpl_output
+      run: ..\install\bin\mcrun --verbose test.instr -d Single_core Ncount=1e3
+
+    - name: Run MCPL_input instrument
+      working-directory: run_mcpl_input
+      run: ..\install\bin\mcrun --verbose test.instr -d Single_core repeat=1
+
+    - name: Run MCPL_input_once instrument
+      working-directory: run_mcpl_input_once
+      run: ..\install\bin\mcrun --verbose test.instr -d Single_core v_smear=0.1
+
+    - name: Run NCrystal instrument
+      working-directory: run_ncrystal
+      run: ..\install\bin\mcrun --verbose test.instr -d Single_core sample_cfg="Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x"
+
+    - name: Run std instrument MPI
+      working-directory: run_std
+      run: ..\install\bin\mcrun --verbose test.instr -d MPI_multicore -c --mpi=auto lambda=2.36
+
+    - name: Run MCPL_output instrument MPI
+      working-directory: run_mcpl_output
+      run: ..\install\bin\mcrun --verbose test.instr -d MPI_multicore -c --mpi=auto Ncount=1e3
+
+    - name: Run MCPL_input instrument MPI
+      working-directory: run_mcpl_input
+      run: ..\install\bin\mcrun --verbose test.instr -d MPI_multicore -c --mpi=auto repeat=1
+
+    - name: Run MCPL_input_once instrument MPI
+      working-directory: run_mcpl_input_once
+      run: ..\install\bin\mcrun --verbose test.instr -d MPI_multicore -c --mpi=auto v_smear=0.1
+
+    - name: Run NCrystal instrument MPI
+      working-directory: run_ncrystal
+      run: ..\install\bin\mcrun --verbose test.instr -d MPI_multicore -c --mpi=auto sample_cfg="Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x"
+
+    - name: 'Tar output files'
+      id: tar-package
+      if: always()
+      shell: bash
+      run: |
+           set -e
+           set -u
+           set -x
+           tar cvfz mcstas-msvc-${{ matrix.os }}_output.tgz run_*
+
+    - name: 'Upload Artifact'
+      id: tar-upload
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: mcstas-msvc-${{ matrix.os }}_output.tgz
+        path: "mcstas-msvc-${{ matrix.os }}_output.tgz"

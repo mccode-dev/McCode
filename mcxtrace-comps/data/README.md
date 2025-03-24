@@ -1,15 +1,24 @@
-X-ray scattering datafiles (This process MUST be automated in the future! ;) )
+# X-ray scattering datafiles
 
-Obtained from NIST: http://physics.nist.gov/cgi-bin/ffast/ffast.pl
+This directory contains data-files for McXtrace components, e.g. reflectivity, 
+structure, dynamics, absorption, geometry, etc.
 
-1) Use the tool get_xray_db_data - requires bash and wget, e.g.:
+## Reflectivity
 
-./get_xray_db_data Mo Mo.txt
+Use the given script `reflec_xraydb` to generate reflectivity data vs energy,angle
+for (nearly) any material.
 
-2) Edit Mo.txt using an editor and strip out any html tags
+## Absorption
 
-3) "Massage" the header to make it similar to
+Most `.txt` files were obtained from NIST: http://physics.nist.gov/cgi-bin/ffast/ffast.pl
 
+1) Use the tool `get_xray_db_data` - requires bash and wget, e.g. `./get_xray_db_data Mo Mo.txt`.
+
+2) Edit `Mo.txt` using an editor and strip out any html tag.
+
+3) "Massage" the header to make it similar to:
+
+```
 #Be (Z 4) 
 #Atomic weight: A[r] 9.012180
 #Nominal density: rho 1.8450
@@ -29,5 +38,5 @@ Obtained from NIST: http://physics.nist.gov/cgi-bin/ffast/ffast.pl
 #      E            f[1]          f[2]        [mu/rho]      [sigma/rho]      [mu/rho]      [mu/rho][K]      lambda
 #                                      Photoelectric Coh+inc      Total
 #     keV        e atom^-1      e atom^-1   cm^2 g^-1       cm^2 g^-1      cm^2 g^-1   cm^2 g^-1     nm
-
+```
 

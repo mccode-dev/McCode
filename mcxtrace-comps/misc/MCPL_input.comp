@@ -45,11 +45,16 @@ DEFINE COMPONENT MCPL_input
 
 SETTING PARAMETERS (string filename=0, polarisationuse=1,verbose=1, Emin=0, Emax=FLT_MAX, int repeat_count=1, E_smear=0, pos_smear=0, dir_smear=0)
 
-DEPENDENCY "-Wl,-rpath,CMD(mcpl-config --show libdir) -LCMD(mcpl-config --show libdir) -lmcpl -ICMD(mcpl-config --show includedir)"
+DEPENDENCY "@MCPLFLAGS@"
 
 SHARE
 %{
 #include <mcpl.h>
+#ifdef _MSC_EXTENSIONS
+#include <windows.h>
+#define sleep Sleep
+#endif
+
 %}
 
 DECLARE
@@ -59,9 +64,10 @@ long long nparticles;
 long long read_photons;
 long long used_photons;
 int repeat_cnt;
+int repeat_tot;
 int repeating;
 int ismpislave;
-#ifdef OPENACC
+int mpi_cnt;
 DArray1d X;
 DArray1d Y;
 DArray1d Z;
@@ -73,7 +79,6 @@ DArray1d EY;
 DArray1d EZ;
 DArray1d T;
 DArray1d P;
-#endif
 %}
 
 INITIALIZE
@@ -110,41 +115,38 @@ INITIALIZE
 
     if(repeat_count==0) repeat_count=1;
     repeat_cnt = repeat_count;
+    mpi_cnt=1;
     ismpislave=0;
 #if defined (USE_MPI)
     repeat_cnt = ceil(1.0*repeat_cnt/mpi_node_count);
+    mpi_cnt=mpi_node_count;
     ismpislave = mpi_node_rank;
-    MPI_MASTER(
 #endif
-	     fprintf(stdout, "\n\n Warning: You are using MCPL_input with a repeat_count of %lu:\n - Minimum photon count requested is %lu x %lu <= %lu",
+    MPI_MASTER(
+    	     fprintf(stdout, "\n\n Warning: You are using MCPL_input with a repeat_count of %lu:\n - Minimum photon count requested is %lu x %lu <= %lu",
 	       (long unsigned)repeat_count,(long unsigned)nparticles,
 	       (long unsigned)repeat_count,(long unsigned)repeat_cnt*nparticles); 
+	           );
+
+    char tmpstr[CHAR_BUF_LENGTH];
 #if defined (USE_MPI)
-  fprintf(stdout, " x %i MPI nodes = %lu photons total\n",
+  sprintf(tmpstr, " x %i MPI nodes = %lu photons total\n",
     mpi_node_count,(long unsigned)mpi_node_count*repeat_cnt*nparticles);
-     );
-  mcset_ncount(mpi_node_count*repeat_cnt*nparticles);
 #else
-  fprintf(stdout, " photons total\n\n");
-  mcset_ncount(repeat_cnt*nparticles);
+    sprintf(tmpstr, " photons total\n\n");
 #endif
 
-    ncount=mcget_ncount();
-    fprintf(stdout,"Initialize ncount is %lu\n",(long unsigned)ncount);
+    MPI_MASTER(
+      printf(stdout, "%s",tmpstr);
+    );
     read_photons=0;
     used_photons=0;
 
-#if defined (USE_MPI)   
     MPI_MASTER(
-#endif
-
       if (verbose==1) {
         printf("MCPL_input verbose mode - outputting data on the 10 first read photons in MCPL units:\n");
       }
-
-#if defined (USE_MPI) 
     );
-#endif
     repeating = 0;
 #ifdef OPENACC
       X = create_darr1d(nparticles);
@@ -224,10 +226,10 @@ INITIALIZE
 
 TRACE
 %{
-#ifndef OPENACC
-    long long ncount;
 
     double nrm;
+  long long ncount;
+#ifndef OPENACC
     const mcpl_particle_t *particle;// = (mcpl_particle_t *) calloc(sizeof(mcpl_particle_t),1);
     particle = mcpl_read(inputfile);
 
@@ -239,13 +241,10 @@ TRACE
 	repeating++;
 	mcpl_rewind(inputfile);
 	particle = mcpl_read(inputfile);
-#if defined (USE_MPI)   
+
 	MPI_MASTER(
-#endif
        printf("MCPL inputfile %s rewound %i time(s)\n",filename,repeating);
-#if defined (USE_MPI) 
     );
-#endif
       } else
 	ABSORB;
     }
@@ -262,9 +261,7 @@ TRACE
     }
     used_photons++;
 
-#if defined (USE_MPI)   
   MPI_MASTER(
-#endif
 
     if (verbose && used_photons<11) {
       printf("id=%ld\tpdg=22\tekin=%g MeV\tx=%g cm\ty=%g cm\tz=%g cm\tux=%g\tuy=%g\tuz=%g\tt=%g ms\tweight=%g\tpolx=%g\tpoly=%g\tpolz=%g\n",
@@ -272,10 +269,7 @@ TRACE
 	     particle->direction[0], particle->direction[1], particle->direction[2], particle->time, particle->weight,
 	     particle->polarisation[0], particle->polarisation[1], particle->polarisation[2]);
     }
-
-#if defined (USE_MPI)   
-	    );
-#endif    
+   );
 
     /*positions are in cm*/
     x=particle->position[0]/100;

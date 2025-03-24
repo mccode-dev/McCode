@@ -2,9 +2,10 @@
 
 * Please install the [McStas 3.5.24 metapackage](https://download.mcstas.org/mcstas-3.5.24/Windows/McStas-Metapackage-3.5.24-win64.exe)
 * To enable use of MCPL with McStas 3.5.24 on Windows, please:
- 1) Locate and run the executable `mcstas-mcpl-NSIS64-3.5.24-mingw64.exe` from the [single-packages folder](https://download.mcstas.org/mcstas-3.5.24/Windows/single-packages)
- 2) During installation, please specify `c:\mcstas-3.5.24` as installation directory
- 3) After installation, place the mcpl-related `.bat` files from the [extras folder](https://download.mcstas.org/mcstas-3.5.24/Windows/extras) folder in `c:\mcstas-3.5.24\bin`
+ 1) Grant yourself write permission to `c:\mcstas-3.5.24\miniconda3`
+ 2) Locate and run the executable `mcstas-mcpl-NSIS64-3.5.24-mingw64.exe` from the [single-packages folder](https://download.mcstas.org/mcstas-3.5.24/Windows/single-packages)
+ 3) During installation, please specify `c:\mcstas-3.5.24\miniconda3` as installation directory
+ 4) After installation, place the mcpl-related `.bat` files from the [extras folder](https://download.mcstas.org/mcstas-3.5.24/Windows/extras) folder in `c:\mcstas-3.5.24\miniconda3\bin`
 
 
 * An alternative to installing this cross-compiled verison is to follow the instructions
