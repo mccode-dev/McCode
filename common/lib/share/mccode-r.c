@@ -60,6 +60,7 @@ static   long mcseed                 = 0; /* seed for random generator */
 static   long mcstartdate            = 0; /* start simulation time */
 static   int  mcdisable_output_files = 0; /* --no-output-files */
 mcstatic int  mcgravitation          = 0; /* use gravitation flag, for PROP macros */
+mcstatic int  mcusedefaults          = 0; /* assume default value for all parameters */
 mcstatic int  mcdotrace              = 0; /* flag for --trace and messages for DISPLAY */
 mcstatic int  mcnexus_embed_idf      = 0; /* flag to embed xml-formatted IDF file for Mantid */
 #pragma acc declare create ( mcdotrace )
@@ -4432,6 +4433,7 @@ mchelp(char *pgmname)
 "  -h        --help           Show this help message.\n"
 "  -i        --info           Detailed instrument information.\n"
 "  --list-parameters          Print the instrument parameters to standard out\n"
+"  -y        --yes            Assume default values for all parameters with a default\n"
 "  --meta-list                Print names of components which defined metadata\n"
 "  --meta-defined COMP[:NAME] Print component defined metadata names, or (0,1) if NAME provided\n"
 "  --meta-type COMP:NAME      Print metadata format type specified in definition\n"
@@ -4720,6 +4722,10 @@ mcparseoptions(int argc, char *argv[])
       mcgravitation = 1;
     else if(!strcmp("-g", argv[i]))
       mcgravitation = 1;
+    else if(!strcmp("--yes", argv[i]))
+      mcusedefaults = 1;
+    else if(!strcmp("-y", argv[i]))
+      mcusedefaults = 1;
     else if(!strncmp("--format=", argv[i], 9)) {
       mcformat=&argv[i][9];
     }
@@ -4800,6 +4806,20 @@ mcparseoptions(int argc, char *argv[])
     else {
       fprintf(stderr, "Error: unrecognized argument %s (mcparseoptions). Aborting.\n", argv[i]);
       mcusage(argv[0]);
+    }
+  }
+  if (mcusedefaults) {
+    MPI_MASTER(
+     printf("Using all default parameter values\n");
+    );
+    for(j = 0; j < numipar; j++) {
+      int status;
+      if(mcinputtable[j].val && strlen(mcinputtable[j].val)){
+	status = (*mcinputtypes[mcinputtable[j].type].getparm)(mcinputtable[j].val,
+                        mcinputtable[j].par);
+	paramsetarray[j] = 1;
+	paramset = 1;
+      }
     }
   }
   if(!paramset)

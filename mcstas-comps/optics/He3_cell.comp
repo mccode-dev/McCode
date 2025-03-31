@@ -16,7 +16,8 @@
 * Polarised 3He cell
 *
 * %Description
-* Simple cylindrical polarised 3He neutron spin filter cell.
+* Simple polarised 3He neutron spin filter cell, defaults to a cylindrical geometry but may be
+* used with a sphere or box geometry also.
 * The glass container for the cell is not included in the model.
 *
 * This component has been validated against:
@@ -27,29 +28,43 @@
 * %Parameters
 * Input parameters:
 *
-* radius: [m]      radius of the cylinder 
-* length: [m]      length of the cylinder 
-* pressure: [bar]  pressure of the gas in the cell 
-* p3he:      polarisation of the 3He gas [-1 to +1]
-* bx: [tesla]      x component of field at the cell 
-* by: [tesla]      y component of field at the cell 
-* bz: [tesla]      z component of field at the cell 
+* xwidth:   [m]     width of box geometry 
+* yheight:  [m]     height of the box geometry
+* radius:   [m]     radius of the cylinder / sphere geometry
+* length:   [m]     length of the cylinder / box geometry along z 
+* pressure: [bar]   pressure of the gas in the cell 
+* p3he:     [ ]     polarisation of the 3He gas [-1 to +1]
+* bx:       [tesla] x component of field at the cell 
+* by:       [tesla] y component of field at the cell 
+* bz:       [tesla] z component of field at the cell 
 *
 * %End
 ***************************************************************************/
 
 DEFINE COMPONENT He3_cell
 
-SETTING PARAMETERS (radius,length,pressure=3,p3he=0.7,bx=0,by=1e-3,bz=0)
+SETTING PARAMETERS (xwidth=0,yheight=0,radius=0.11,length=0.01,pressure=3,p3he=0.7,bx=0,by=1e-3,bz=0)
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
 DECLARE
 %{
+  int geom;
 %}
 
 INITIALIZE
 %{
+  if (radius && !xwidth && !yheight && length) {
+    geom=0; // Cylindrical geometry
+  } else if (radius && !xwidth && !yheight && !length) {
+    geom=1; // Spherical geometry
+  } else if (!radius && xwidth && yheight && length) {
+    // Box geometry
+    geom=2;
+  } else {
+    fprintf(stderr,"You are runnning He3_cell component %s with a mixed cylindrical/box shape geometry, this is not supported!\n",_comp->_name);
+    exit(-1);
+  }
 %}
 
 TRACE
@@ -68,13 +83,24 @@ TRACE
   const double gyro = 1.832e8; /*absolute value of the gyromagnetic ratio of the neutron (1/(s.T))*/
   const double opac_cnv = 7.33; /*opacity conversion factor to express opacity in (bar.m.angstrom)*/
 
+  int intersect;
 
-  /* calculate the intersection times with the volume of gas, if the neutron
-     goes through the cell, continue with calculation otherwise all done.
-     Note that y and z are swapped - this is because the cylindrical axis of
-     a 3He cell lies along the beam. */
-
-  if(cylinder_intersect(&t0,&t1,x,z,y,vx,vz,vy,radius,length))
+  if (!geom) {
+    // Cylindrical geometry
+      /* calculate the intersection times with the volume of gas, if the neutron
+	 goes through the cell, continue with calculation otherwise all done.
+	 Note that y and z are swapped - this is because the cylindrical axis of
+	 a 3He cell lies along the beam. */
+    intersect=cylinder_intersect(&t0,&t1,x,z,y,vx,vz,vy,radius,length);
+  } else if (geom==1) {
+    // Spherical geometry
+    intersect=sphere_intersect(&t0,&t1,x,y,z,vx,vy,vz,radius);
+  } else if (geom==2) {
+    // Box geometry
+    intersect=box_intersect(&t0,&t1,x,y,z,vx,vy,vz,xwidth,yheight,length);
+  }
+  
+  if(intersect)
   {
     /* Calculate the neutron velocity and wavelength */
     v=sqrt(vx*vx+vy*vy+vz*vz);
@@ -132,13 +158,18 @@ TRACE
 
 MCDISPLAY
 %{
-  
-  circle("xy",0.0,0.0,-length/2.0,radius);
-  circle("xy",0.0,0.0,length/2.0,radius);
-  line(0.0,radius,-length/2.0,0.0,radius,length/2.0);
-  line(radius,0.0,-length/2.0,radius,0.0,length/2.0);
-  line(0.0,-radius,-length/2.0,0.0,-radius,length/2.0);
-  line(-radius,0.0,-length/2.0,-radius,0.0,length/2.0);
+  if (!geom) {
+    circle("xy",0.0,0.0,-length/2.0,radius);
+    circle("xy",0.0,0.0,length/2.0,radius);
+    line(0.0,radius,-length/2.0,0.0,radius,length/2.0);
+    line(radius,0.0,-length/2.0,radius,0.0,length/2.0);
+    line(0.0,-radius,-length/2.0,0.0,-radius,length/2.0);
+    line(-radius,0.0,-length/2.0,-radius,0.0,length/2.0);
+  } else if(geom==1) {
+    sphere(0,0,0,radius);
+  } else if(geom==2) {
+    box(0,0,0,xwidth,yheight,length,0,0,0,1);
+  }
 %}
 
 END

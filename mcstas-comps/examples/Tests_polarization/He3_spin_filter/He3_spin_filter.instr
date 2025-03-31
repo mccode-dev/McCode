@@ -16,6 +16,8 @@
 *
 * %Example: POLHE=0.5 Detector: postpol_monitor_flux_I=1.8e-23
 * %Example: POLHE=0.8 Detector: postpol_monitor_flux_I=2.3e-23
+* %Example: POLHE=0.5 box=1 Detector: postpol_monitor_flux_I=1.8e-23
+* %Example: POLHE=0.8 box=1 Detector: postpol_monitor_flux_I=2.3e-23
 *
 * %P
 * pol: [ ]       If "x","y", or "z" set polarization along that axis. If "0" use a zero polarization.
@@ -24,17 +26,19 @@
 * RANDOM: [ ]    Randomize polarization vector in the (ideal) polariser
 * polval: [ ]    Set polarization to (polval,polval,polval). Gets overridden by pol
 * POLHE: [ ]     Polarization of the 3He-gas in the cell.
+* box:   [ ]     Flag to indicate if cell geometry is cylindrical (0) or box-shaped (1)
 *
 * %L
 * <reference/HTML link>
 *
 * %E
 *******************************************************************************/
-DEFINE INSTRUMENT He3_spin_filter(string pol="y", lamb_1=1, lamb_2=10, RANDOM=0, polval=1, POLHE=0.7)
+DEFINE INSTRUMENT He3_spin_filter(string pol="y", lamb_1=1, lamb_2=10, RANDOM=0, polval=1, POLHE=0.7, int box=0)
 
 DECLARE
 %{
     double mx,my,mz;
+    double radius, xwidth, yheight;
 %}
 
 INITIALIZE
@@ -55,6 +59,15 @@ INITIALIZE
         mx*=polval;
         my*=polval;
         mz*=polval;
+    }
+    if (!box) {
+      radius=0.11;
+      xwidth=0;
+      yheight=0;
+    } else {
+      xwidth=0.11;
+      yheight=0.11;
+      radius=0;
     }
 %}
 
@@ -93,7 +106,7 @@ COMPONENT prepol_monitor_flux = Monitor_nD(
 AT (0, 0, 1E-6) RELATIVE PREVIOUS
 
 COMPONENT He3Cell = He3_cell(
-    radius = 0.11, length = 0.01, pressure = 2, p3he = POLHE,
+    radius = radius, xwidth = xwidth, yheight = yheight, length = 0.01, pressure = 2, p3he = POLHE,
     bx = 0.0, by = 1.00, bz = 0.0)
 AT (0, 0, 0.02+1E-6) RELATIVE PREVIOUS ROTATED (0, 0, 0) RELATIVE PREVIOUS
 

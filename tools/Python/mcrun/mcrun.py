@@ -265,6 +265,10 @@ def add_mcstas_options(parser):
         metavar='trace', type=int, default=0,
         help='Enable trace of %s through instrument' % (mccode_config.configuration["PARTICLE"]))
 
+    add('-y', '--yes',
+        action='store_true', default=False,
+        help='Assume any default parameter value in instrument')
+
     if (mccode_config.configuration["MCCODE"] == 'mcstas'):
         add('-g', '--gravitation', '--gravity',
             action='store_true', default=False,
