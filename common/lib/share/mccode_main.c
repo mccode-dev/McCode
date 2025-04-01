@@ -155,14 +155,25 @@ int mccode_main(int argc, char *argv[])
 
 // main raytrace work loop
 #ifndef FUNNEL
+#ifndef MULTIKERNEL
   // legacy version
   raytrace_all(mcncount, mcseed);
-#else
+#endif
+#endif
+#ifdef FUNNEL
   MPI_MASTER(
   // "funneled" version in which propagation is more parallelizable
   printf("\nNOTE: CPU COMPONENT grammar activated:\n 1) \"FUNNEL\" raytrace algorithm enabled.\n 2) Any SPLIT's are dynamically allocated based on available buffer size. \n");
 	     );
   raytrace_all_funnel(mcncount, mcseed);
+#endif
+
+#ifdef MULTIKERNEL
+  MPI_MASTER(
+  // "multikernel" version 
+  printf("\nNOTE: MULTIKERNEL grammar activated:\n 1) \"MULTIKERNEL\" raytrace algorithm enabled.\n 2) Any SPLIT's are dynamically allocated based on available buffer size. \n");
+	     );
+  raytrace_all_multikernel(mcncount, mcseed);
 #endif
 
 
