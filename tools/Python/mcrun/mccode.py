@@ -220,7 +220,7 @@ class McStas:
             cflags += ' -DFUNNEL '
 
         # multikernel
-        if self.options.funnel:
+        if self.options.multikernel:
             cflags += ' -DMULTIKERNEL ' 
 
         # nosorts
