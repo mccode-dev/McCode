@@ -2406,7 +2406,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
   // init batch
   coutf("    // init particles");
   cout("#ifdef OPENACC");
-  cout("nvtxRangePush(\"Init particles\");");
+  cout("//nvtxRangePush(\"Init particles\");");
   cout("#endif");
   coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
   coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
@@ -2421,7 +2421,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
   coutf("      particle_uservar_init(_particle);");
   coutf("    }");
   cout("#ifdef OPENACC");
-  cout("nvtxRangePop();");
+  cout("//nvtxRangePop();");
   cout("#endif");
   cout( "");
 
@@ -2443,26 +2443,26 @@ int cogen_rt_multikernel(struct instr_def *instr)
 
     if (!first) { // Terminate loop if we are shifting between processing units
       cout("#ifdef OPENACC");
-      cout("nvtxRangePop();");
+      cout("//nvtxRangePop();");
       cout("#endif");
       coutf("    }");
       coutf("");
       coutf("    #ifndef NOSORTS");
       cout("#ifdef OPENACC");
-      coutf("nvtxRangePush(\"Sort before %s\");",comp->name);
+      coutf("//nvtxRangePush(\"Sort before %s\");",comp->name);
       cout("#endif");
       coutf("    // SPLIT with available livebatchsize ");
       coutf("    long mult_%s;",comp->name);
       coutf("    livebatchsize = sort_absorb_last(particles, pbuffer, livebatchsize, gpu_innerloop, 1, &mult_%s);",comp->name);
       coutf("    //printf(\"livebatchsize: %cld, split: %cld\\n\",  livebatchsize, mult);", '%', '%');
       cout("#ifdef OPENACC");
-      cout("nvtxRangePop();");
+      cout("//nvtxRangePop();");
       cout("#endif");
       coutf("    #endif");
       printf("-> GPU kernel from component %s\n",comp->name);
     }
     cout("#ifdef OPENACC");
-    coutf("nvtxRangePush(\"raytrace %s\");",comp->name);
+    coutf("//nvtxRangePush(\"raytrace %s\");",comp->name);
     cout("#endif");
     coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
     coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
@@ -2525,7 +2525,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
   coutf("");
   coutf("    }");
   cout("#ifdef OPENACC");
-  cout("nvtxRangePop();");
+  cout("//nvtxRangePop();");
   cout("#endif");
   cout( "");
   list_iterate_end(liter);
