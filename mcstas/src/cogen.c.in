@@ -2405,9 +2405,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
 
   // init batch
   coutf("    // init particles");
-  cout("#ifdef OPENACC");
-  cout("//nvtxRangePush(\"Init particles\");");
-  cout("#endif");
+  coutf("    //nvtxRangePush(\"Init particles\");");
   coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
   coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
   coutf("      // generate particle state, set loop index and seed");
@@ -2420,9 +2418,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
   coutf("      srandom(_hash((pidx+1)*(seed+1))); // _particle->state usage built into srandom macro");
   coutf("      particle_uservar_init(_particle);");
   coutf("    }");
-  cout("#ifdef OPENACC");
-  cout("//nvtxRangePop();");
-  cout("#endif");
+  coutf("    //nvtxRangePop();");
   cout( "");
 
   // iterate batch through the component list
@@ -2442,28 +2438,20 @@ int cogen_rt_multikernel(struct instr_def *instr)
     }
 
     if (!first) { // Terminate loop if we are shifting between processing units
-      cout("#ifdef OPENACC");
-      cout("//nvtxRangePop();");
-      cout("#endif");
+      cout( "      //nvtxRangePop();");
       coutf("    }");
       coutf("");
       coutf("    #ifndef NOSORTS");
-      cout("#ifdef OPENACC");
-      coutf("//nvtxRangePush(\"Sort before %s\");",comp->name);
-      cout("#endif");
+      coutf("    //nvtxRangePush(\"Sort before %s\");",comp->name);
       coutf("    // SPLIT with available livebatchsize ");
       coutf("    long mult_%s;",comp->name);
       coutf("    livebatchsize = sort_absorb_last(particles, pbuffer, livebatchsize, gpu_innerloop, 1, &mult_%s);",comp->name);
       coutf("    //printf(\"livebatchsize: %cld, split: %cld\\n\",  livebatchsize, mult);", '%', '%');
-      cout("#ifdef OPENACC");
-      cout("//nvtxRangePop();");
-      cout("#endif");
+      cout( "    //nvtxRangePop();");
       coutf("    #endif");
       printf("-> GPU kernel from component %s\n",comp->name);
     }
-    cout("#ifdef OPENACC");
-    coutf("//nvtxRangePush(\"raytrace %s\");",comp->name);
-    cout("#endif");
+    coutf("    //nvtxRangePush(\"raytrace %s\");",comp->name);
     coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
     coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
     coutf("      _class_particle* _particle = &particles[pidx];");
@@ -2524,9 +2512,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
   } /* end while comp list (case) */
   coutf("");
   coutf("    }");
-  cout("#ifdef OPENACC");
-  cout("//nvtxRangePop();");
-  cout("#endif");
+  cout("   //nvtxRangePop();");
   cout( "");
   list_iterate_end(liter);
 
