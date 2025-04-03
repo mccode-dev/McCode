@@ -130,6 +130,14 @@ def add_mcrun_options(parser):
         action='store_true', default=False,
         help='funneling simulation flow, e.g. for mixed CPU/GPU')
 
+    add('--multikernel',
+        action='store_true', default=False,
+        help='multikernel simulation flow, 1 kernel/comp')
+
+    add('--nosorts',
+        action='store_true', default=False,
+        help='suppress calls of sort_absorb_last in funnel or multikernel')
+
     add('--machines',
         metavar='machines',
         help='Defines path of MPI machinefile to use in parallel mode')
@@ -378,6 +386,12 @@ def expand_options(options):
 
     if options.funnel is not None:
         options.use_funnel = True
+
+    if options.multikernel is not None:
+        options.use_multikernel = True
+
+    if options.nosorts is not None:
+        options.use_nosorts = True
 
     # Output dir
     if options.dir is None:

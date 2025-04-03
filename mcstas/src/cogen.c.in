@@ -1788,6 +1788,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("***************************************************************************** */");
   cout("");
   cout("#ifndef FUNNEL");
+  cout("#ifndef MULTIKERNEL");
   cout("#pragma acc routine");
   coutf("int raytrace(_class_particle* _particle) { /* single event propagation, called by mccode_main for %s:%s */", instr->name, "TRACE");
   cout("");
@@ -2072,6 +2073,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("  );");
   coutf("} /* raytrace_all */");
   coutf("");
+  coutf("#endif //no-MULTIKERNEL");
   coutf("#endif //no-FUNNEL");
 
   return(warnings);
@@ -2308,6 +2310,226 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("");
   printf("\n-----------------------------------------------------------\n");
 } /* cogen_rt_funnel */
+
+/*******************************************************************************
+* cogen_rt_funnel : Cogen raytrace_funnel function, an alternative, and more
+*     parallel, raytrace iteration.
+*
+*******************************************************************************/
+int cogen_rt_multikernel(struct instr_def *instr)
+{
+  List_handle liter;
+  struct comp_inst *comp = NULL;
+  int warnings = 0;
+  int i = 0;
+  int split_counts = 0;
+  static char *statepars_all[] =
+    { /* particle state parameter names are used for defines */
+    #if MCCODE_PROJECT == 1     /* neutron */
+    #define NUM_STATE_PARS 17
+            "x", "y", "z", "vx", "vy", "vz",
+            "t", "sx", "sy", "sz", "p", "mcgravitation", "mcMagnet", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+    #elif MCCODE_PROJECT == 2   /* xray */
+    #define NUM_STATE_PARS 15
+            "x", "y", "z", "kx", "ky", "kz",
+            "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+    #endif
+    };
+  List l;
+
+  printf("\n-----------------------------------------------------------\n");
+  printf("\nGenerating GPU/CPU MULTIKERNEL layout:\n");
+  
+  coutf("");
+  coutf("#ifdef MULTIKERNEL");
+  coutf("// Alternative raytrace algorithm which iterates all particles through");
+  coutf("// one component at the time, can remove absorbs from the next loop and");
+  coutf("// switch between cpu/gpu.");
+  coutf("#include <nvtx3/nvToolsExt.h>");
+  coutf("void raytrace_all_multikernel(unsigned long long ncount, unsigned long seed) {");
+  coutf("");
+  coutf("  // set up outer (CPU) loop / particle batches");
+  coutf("  unsigned long long loops;");
+  coutf("");
+  coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
+  cout("   #ifdef OPENACC");
+  cout("   #undef strlen");
+  cout("   #undef strcmp");
+  cout("   #undef exit");
+  cout("   #undef printf");
+  cout("   #undef sprintf");
+  cout("   #undef fprintf");
+  cout("   #endif");
+  /* Check if instrument uses JUMPS */
+  liter = list_iterate(instr->complist);
+  while((comp = list_next(liter)) != NULL) {
+    if (list_len(comp->jump) > 0) { // JUMP ITERATE counters
+        printf("\nWARNING:\n --> JUMP found at COMPONENT %i, %s \n", comp->index, comp->name);
+	printf(" --> JUMPS are not supported in MULTIKERNEL mode and are ignored\n");
+	printf(" --> Your instrument may give different output with MULTIKERNEL\n");
+        coutf("printf(\"\\nWARNING:\\n --> JUMP found at COMPONENT %i, %s\\n\");", comp->index, comp->name);
+	coutf("printf(\" --> JUMPS are not supported in MULTIKERNEL mode and are ignored\\n\");");
+	coutf("printf(\" --> Your instrument may give different output with MULTIKERNEL\\n\");");
+    }
+  }
+  coutf("  #ifdef OPENACC");
+  coutf("  loops = ceil((double)ncount/gpu_innerloop);");
+  coutf("  if (ncount>gpu_innerloop) {");
+  coutf("    printf(\"Defining %%llu CPU loops around kernel and adjusting ncount\\n\",loops);");
+  coutf("    mcset_ncount(loops*gpu_innerloop);");
+  coutf("  } else {");
+  coutf("  #endif");
+  coutf("    loops=1;");
+  coutf("    gpu_innerloop = ncount;");
+  coutf("  #ifdef OPENACC");
+  coutf("  }");
+  coutf("  #endif");
+  coutf("");
+  coutf("  // create particles struct and pointer arrays (same memory used by all batches)");
+  coutf("  _class_particle* particles = malloc(gpu_innerloop*sizeof(_class_particle));");
+  coutf("  _class_particle* pbuffer = malloc(gpu_innerloop*sizeof(_class_particle));");
+  coutf("  long livebatchsize = gpu_innerloop;");
+  coutf("");
+
+  // we need this override, since "comp" is not defined in raytrace() - see section-wide define
+  cout("  #undef ABSORB0");
+  cout("  #undef ABSORB");
+  cout("  #define ABSORB0 do { DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; } while(0)");
+  cout("  #define ABSORB ABSORB0");
+
+  // batches
+  coutf("  // outer loop / particle batches");
+  coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
+  coutf("    if (loops>1) fprintf(stdout, \"%%d..\", (int)cloop); fflush(stdout);");
+  coutf("");
+
+  // init batch
+  coutf("    // init particles");
+  coutf("    //nvtxRangePush(\"Init particles\");");
+  coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
+  coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
+  coutf("      // generate particle state, set loop index and seed");
+  coutf("      particles[pidx] = mcgenstate();");
+  coutf("      _class_particle* _particle = particles + pidx;");
+  coutf("      _particle->_uid = pidx;");
+  coutf("      #ifdef USE_MPI");
+  coutf("      _particle->_uid += mpi_node_rank * ncount; ");
+  coutf("      #endif");
+  coutf("      srandom(_hash((pidx+1)*(seed+1))); // _particle->state usage built into srandom macro");
+  coutf("      particle_uservar_init(_particle);");
+  coutf("    }");
+  coutf("    //nvtxRangePop();");
+  cout( "");
+
+  // iterate batch through the component list
+  cout("    // iterate components");
+  int cpuonly_last=-1;
+  int first=1;
+  int do_split=0;
+  liter = list_iterate(instr->complist);
+  // iterate component list
+  while((comp = list_next(liter)) != NULL) {
+    List_handle liter2;
+    if (comp->def->flag_noacc) {
+      printf("Component %s is NOACC, CPUONLY=%i\n",comp->name,comp->cpuonly);
+      printf("-> FUNNEL mode enabled, SPLIT within buffer.\n");
+      coutf("        #define JUMP_FUNNEL");
+      
+    }
+
+    if (!first) { // Terminate loop if we are shifting between processing units
+      cout( "      //nvtxRangePop();");
+      coutf("    }");
+      coutf("");
+      coutf("    #ifndef NOSORTS");
+      coutf("    //nvtxRangePush(\"Sort before %s\");",comp->name);
+      coutf("    // SPLIT with available livebatchsize ");
+      coutf("    long mult_%s;",comp->name);
+      coutf("    livebatchsize = sort_absorb_last(particles, pbuffer, livebatchsize, gpu_innerloop, 1, &mult_%s);",comp->name);
+      coutf("    //printf(\"livebatchsize: %cld, split: %cld\\n\",  livebatchsize, mult);", '%', '%');
+      cout( "    //nvtxRangePop();");
+      coutf("    #endif");
+      printf("-> GPU kernel from component %s\n",comp->name);
+    }
+    coutf("    //nvtxRangePush(\"raytrace %s\");",comp->name);
+    coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
+    coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
+    coutf("      _class_particle* _particle = &particles[pidx];");
+    coutf("      _class_particle _particle_save;");
+    coutf("");
+    coutf("      // %s", comp->name);
+    coutf("    if (!ABSORBED && _particle->_index == %i) {", comp->index);
+    
+    // coordinate transformations (wrt to PREVIOUS)
+    if (comp->skip_transform == 0) {
+      coutf("#ifndef MULTICORE");
+      coutf("        if (_%s_var._rotation_is_identity)", comp->name);
+      coutf("          coords_get("
+    	"coords_add(coords_set(x,y,z), _%s_var._position_relative),"
+    	"&x, &y, &z);", comp->name);
+      cout( "        else");
+      coutf("#endif");
+      coutf("          mccoordschange(_%s_var._position_relative, _%s_var._rotation_relative, _particle);", comp->name, comp->name);
+      cout( "        _particle_save = *_particle;");
+    }
+    // call the component with TRACE and/or EXTEND lines
+    if (list_len(comp->def->trace_code->lines) > 0 || list_len(comp->extend->lines) > 0) {
+      // WHEN
+      if (comp->when) {
+        char *exp=exp_tostring(comp->when);
+        coutf("        if ((%s)) // conditional WHEN", exp);
+        str_free(exp);
+      }
+      // TRACE
+      coutf("        class_%s_trace(&_%s_var, _particle);%s",
+      comp->def->name,
+      comp->name,
+      list_len(comp->extend->lines) ? " /* contains EXTEND code */" : "");
+
+      cout( "        if (_particle->_restore)");
+      coutf("        particle_restore(_particle, &_particle_save);");
+    };
+    // GROUP
+    if (comp->group) {
+      if (comp->group->first_comp_index == comp->group->last_comp_index) {
+	fprintf(stderr,"\n!!! WARNING: GROUP %s seems to include only one COMPONENT: \n!!!   --> %s <-- \n!!! This may lead to unphysical simulation behaviour!\n",comp->group->name,comp->name);
+      }
+      coutf("      // GROUP %s: from %s [%i] to %s [%i]", comp->group->name,
+        comp->group->first_comp, comp->group->first_comp_index,
+        comp->group->last_comp,  comp->group->last_comp_index);
+      // skip_following_when_scattered (to end of group)
+      coutf("      if (SCATTERED) _particle->_index = %i; // when SCATTERED in GROUP: reach exit of GROUP after %s",
+        comp->group->last_comp_index, comp->group->last_comp);
+      // final_absorb_when_all_not_scattered
+      if (comp->index == comp->group->last_comp_index)
+        coutf("      else ABSORBED=1;     // not SCATTERED at end of GROUP: removes left events", comp->group->last_comp);
+      else // comp_absorb_sends_to_next
+        coutf("      else ABSORBED=0; // not SCATTERED within GROUP: always tries next");
+    }
+    coutf("        _particle->_index++;");
+    coutf("      }");
+    first=0;
+  } /* end while comp list (case) */
+  coutf("");
+  coutf("    }");
+  cout("   //nvtxRangePop();");
+  cout( "");
+  list_iterate_end(liter);
+
+  coutf("    // jump to next viable seed");
+  coutf("    seed = seed + gpu_innerloop;");
+  coutf("  } // outer loop / particle batches");
+  cout( "");
+  coutf("  free(particles);");
+  coutf("  free(pbuffer);");
+  cout( "");
+  coutf("  printf(\"\\n\");");
+
+  coutf("} /* raytrace_all_multikernels */");
+  coutf("#endif // MULTIKERNEL");
+  coutf("");
+  printf("\n-----------------------------------------------------------\n");
+} /* cogen_rt_multikernel */
 
 /*******************************************************************************
 * Output code for the mcstas/mcxtrace runtime system. Default is to copy the runtime
@@ -3165,6 +3387,7 @@ cogen(char *output_name, struct instr_def *instr)
   def_uservars(instr);
   warnings += cogen_raytrace(instr);
   warnings += cogen_rt_funnel(instr);
+  warnings += cogen_rt_multikernel(instr);
   undef_uservars(instr);
   undef_trace_section(instr);
 

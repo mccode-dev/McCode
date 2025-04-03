@@ -3488,7 +3488,7 @@ mcstatic void norm_func(double *x, double *y, double *z) {
 *   flag_split: if set, multiply live particles into absorbed slots, up to buffer_len
 *   multiplier: output arg, becomes the  SPLIT multiplier if flag_split is set
 */
-#ifdef FUNNEL
+#if defined (FUNNEL) || defined(MULTIKERNEL)
 long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long len, long buffer_len, long flag_split, long* multiplier) {
   #define SAL_THREADS 1024 // num parallel sections
   if (len<SAL_THREADS) return sort_absorb_last_serial(particles, len);

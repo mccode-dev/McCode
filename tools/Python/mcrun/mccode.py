@@ -217,8 +217,16 @@ class McStas:
 
         # Funneling
         if self.options.funnel:
-            cflags += ' -DFUNNEL '                                                               
-        
+            cflags += ' -DFUNNEL '
+
+        # multikernel
+        if self.options.multikernel:
+            cflags += ' -DMULTIKERNEL ' 
+
+        # nosorts
+        if self.options.nosorts:
+            cflags += ' -DNOSORTS ' 
+
         # Commandline -D flags
         if self.options.D1 is not None:
             cflags += self.options.D1 + " "
