@@ -1874,6 +1874,7 @@ int cogen_raytrace(struct instr_def *instr)
     // coordinate transformations (wrt to PREVIOUS)
     coutf("    /* begin component %s=%s() [%i] */", comp->name, comp->def->name, comp->index);
     if (comp->skip_transform == 0) {
+      cout( "    #ifndef NO_TRANSFORM_CHECKS");
       cout( "    if (!_particle->flag_nocoordschange) { // flag activated by JUMP to pass coords change");
       coutf("      if (_%s_var._rotation_is_identity) {", comp->name);
       coutf("        if(!_%s_var._position_relative_is_zero) {", comp->name);
@@ -1882,9 +1883,12 @@ int cogen_raytrace(struct instr_def *instr)
             "&x, &y, &z);", comp->name);
       cout( "        }");
       cout( "      } else {");
+      cout( "    #endif");
       coutf("          mccoordschange(_%s_var._position_relative, _%s_var._rotation_relative, _particle);", comp->name, comp->name);
+      cout( "    #ifndef NO_TRANSFORM_CHECKS");
       cout( "      }");
       cout( "    }");
+      cout( "    #endif");
     }
     coutf("    if (!ABSORBED && _particle->_index == %i) {", comp->index);
     coutf("      _particle->flag_nocoordschange=0; /* Reset if we came here from a JUMP */");
@@ -2242,12 +2246,14 @@ int cogen_rt_funnel(struct instr_def *instr)
 
     // coordinate transformations (wrt to PREVIOUS)
     if (comp->skip_transform == 0) {
+      cout( "    #ifndef NO_TRANSFORM_CHECKS");
       coutf("#ifndef MULTICORE");
       coutf("        if (_%s_var._rotation_is_identity)", comp->name);
       coutf("          coords_get("
     	"coords_add(coords_set(x,y,z), _%s_var._position_relative),"
     	"&x, &y, &z);", comp->name);
       cout( "        else");
+      coutf("#endif");
       coutf("#endif");
       coutf("          mccoordschange(_%s_var._position_relative, _%s_var._rotation_relative, _particle);", comp->name, comp->name);
       cout( "        _particle_save = *_particle;");
@@ -2462,12 +2468,14 @@ int cogen_rt_multikernel(struct instr_def *instr)
     
     // coordinate transformations (wrt to PREVIOUS)
     if (comp->skip_transform == 0) {
+      cout( "#ifndef NO_TRANSFORM_CHECKS");
       coutf("#ifndef MULTICORE");
       coutf("        if (_%s_var._rotation_is_identity)", comp->name);
       coutf("          coords_get("
     	"coords_add(coords_set(x,y,z), _%s_var._position_relative),"
     	"&x, &y, &z);", comp->name);
       cout( "        else");
+      coutf("#endif");
       coutf("#endif");
       coutf("          mccoordschange(_%s_var._position_relative, _%s_var._rotation_relative, _particle);", comp->name, comp->name);
       cout( "        _particle_save = *_particle;");
