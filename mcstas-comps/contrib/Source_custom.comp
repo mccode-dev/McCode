@@ -1,0 +1,337 @@
+/*******************************************************************************
+*
+* Mcstas, neutron ray-tracing package
+*         Copyright (C) 1997-2020, All rights reserved
+*         DTU Physics, Kongens Lyngby, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Source_custom
+*
+* %I
+* Written by: Pablo Gila-Herranz, based on 'Source_pulsed' by K. Lieutenant
+* Date: April 2025
+* Version: 2.0
+* Origin: Materials Physics Center (CFM-MPC), CSIC-UPV/EHU
+*
+* A flexible pulsed or continuous source with customisable parameters. Multiple pulses can be simulated over time.
+*
+* %D
+* Produces a custom pulse spectrum with a wavelength distribution as a sum of up to 3 Maxwellian distributions and one of undermoderated neutrons.
+*
+* By default, all Maxwellian distributions are assumed to come from anywhere in the moderator.
+* A custom radius r_i can be defined such that the central circle is at temperature T1,
+* and the surrounding ring is at temperature T2.
+* The third Maxwellian distribution at temperature T3 always comes from anywhere in the moderator.
+*
+* Multiple pulses can be simulated over time with the n_pulses parameter.
+* The input flux is in units of [1/(cm^2 sr s AA)], and the output flux is per second, regardless of the number of pulses.
+* This means that the intensity spreads over n_pulses, so that the units of neutrons per second are preserved.
+* To simulate only the neutron counts of a single pulse, the input flux should be divided by the frequency.
+*
+* To simulate a continuous source, set a pulse length equal to the pulse period (e.g. t_pulse=1.0, freq=1.0).
+* Note that this continuous beam is simulated over time, unlike other continuous sources in McStas which produce a Dirac delta at time 0.
+*
+* Parameters xwidth and yheight must be provided for rectangular moderators, otherwise a circular shape is assumed.
+*
+* The normalised Maxwellian distribution for moderated neutrons is defined by [1]
+*   $M(\lambda)=\frac{2a^2}{T^2\lambda^5}\exp\left(-\frac{a}{T\lambda^{2}}\right)$
+* where
+*   $a=\left(\frac{h^2}{2m_{N}k_{B}}\right)$
+* and the joining function for the under-moderated neutrons is given by [1]
+*   $M(\lambda)_{um}=\frac{1}{\lambda(1+\exp(\lambda\chi-\kappa))}$
+*
+* The normalised time structure of the pulse is defined by [2]
+*   $N_{t<=t_p}=1-\exp\left(-\frac{t}{\tau/n}\right)$
+*   $N_{t>t_p}=\exp\left(-\frac{t-t_p}{\tau}\right)-\exp\left(-\frac{t}{\tau/n}\right)$
+* where tp is the pulse period, tau is the pulse decay time constant, and n is the ratio of decay to ascend time constants.
+*
+* Parameters for some sources:
+*
+*   HBS thermal source:
+*     t_pulse=0.016, freq=24.0, xwidth=0.04, yheight=0.04,
+*     T1=325.0, I1=0.68e+12, tau1=0.000125,
+*     I_um=2.47e+10, chi_um=2.5
+*
+*   HBS cold source:
+*     t_pulse=0.016, freq=24.0, radius=0.010,
+*     T1=60.0, I1=1.75e+12, tau1=0.000170,
+*     I_um=3.82e+10, chi_um=0.9
+*
+*   HBS bi-spectral:
+*     t_pulse=0.016, freq=24.0, radius=0.022, r_i=0.010,
+*     T1= 60.0, I1=1.75e+12, tau1=0.000170,
+*     T2=305.0, I2=0.56e+12, tau2=0.000130,
+*     I_um=3.82e+10, chi_um=2.5
+*
+*   PSI cold source:
+*     t_pulse=1, freq=1, xwidth=0.1, yheight=0.1,
+*     T1=296.2, I1=8.5e+11, T2=40.68, I2=5.2e+11
+*
+* References:
+*   [1] J. M. Carpenter et al, Nuclear Instruments and Methods in Physics Research Section A, 234, 542–551 (1985).
+*   [2] J. M. Carpenter and W. B. Yelon, Methods in Experimental Physics 23, p. 127, Chapter 2, Neutron Sources (1986).
+*
+* %P
+* Input parameters:
+*
+* target_index:   [1]        Relative index of component to focus at, e.g. next is +1 (used to compute 'dist' automatically)
+* dist:           [m]        Distance from the source to the target
+* focus_xw:       [m]        Width of the target (focusing rectangle)
+* focus_yh:       [m]        Height of the target (focusing rectangle)
+* xwidth:         [m]        Width of the source
+* yheight:        [m]        Height of the source
+* radius:         [m]        Outer radius of the source (ignored if xwidth and yheight are set)
+* r_i:            [m]        Radius of a central circle at temperature T1, sorrounded by a ring at temperature T2 (ignored by default)
+* Lmin:           [AA]       Lower edge of the wavelength distribution
+* Lmax:           [AA]       Upper edge of the wavelength distribution
+* freq:           [Hz]       Frequency of pulses
+* t_pulse:        [s]        Proton pulse length
+* tmax_multiplier [1]        Defined maximum emission time at moderator (tmax = tmax_multiplier * t_pulse); 1 for continuous sources
+* n_pulses        [1]        Number of pulses to be simulated (ignored for continuous sources)
+* T1:             [K]        Temperature of the 1st Maxwellian distribution; for r_i > 0 it is only used for the central radii r < r_i
+* I1:    [1/(cm^2 sr s AA)]  Flux per solid angle of the 1st Maxwellian distribution (integrated over the whole wavelength range)
+* tau1:           [s]        Pulse decay time constant of the 1st Maxwellian distribution
+* T2:             [K]        Temperature of the 2nd Maxwellian distribution (0 to disable); for r_i > 0 it is only used for the external ring r > r_i
+* I2:    [1/(cm^2 sr s AA)]  Flux per solid angle of the 2nd Maxwellian distribution
+* tau2:           [s]        Pulse decay time constant of the 2nd Maxwellian distribution
+* T3:             [K]        Temperature of the 3rd Maxwellian distribution (0 to disable)
+* I3:    [1/(cm^2 sr s AA)]  Flux per solid angle of the 3rd Maxwellian distribution
+* tau3:           [s]        Pulse decay time constant of the 3rd Maxwellian distribution
+* n_mod:          [1]        Ratio of pulse decay constant to pulse ascend constant of moderated neutrons (n = tau_decay / tau_ascend)
+* I_um:  [1/(cm^2 sr s AA)]  Flux per solid angle for the under-moderated neutrons
+* tau_um:         [s]        Pulse decay time constant of under-moderated neutrons
+* n_um:           [1]        Ratio of pulse decay constant to pulse ascend constant of under-moderated neutrons
+* chi_um:        [1/AA]      Factor for the wavelength dependence of under-moderated neutrons
+* kap_um:         [1]        Scaling factor for the flux of under-moderated neutrons
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT Source_custom
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS (int target_index=1, dist=0.0, focus_xw=0.02, focus_yh=0.02,
+                    xwidth=0.0, yheight=0.0, radius=0.010, r_i=0.0,
+                    Lmin, Lmax, freq, t_pulse, tmax_multiplier=3.0, int n_pulses=1,
+                    T1=0.0, I1=0.0, tau1=0.000125, T2=0.0, I2=0.0, tau2=0.000125, T3=0.0, I3=0.0, tau3=0.000125, n_mod=1,
+                    I_um=0.0, tau_um=0.000012, n_um=1, chi_um=2.5, kap_um=2.2)
+OUTPUT PARAMETERS ()
+/* Neutron parameters: (x,y,z, vx,vy,vz, t, sx,sy,sz, p) */
+
+
+SHARE
+%{
+  /* Normalized Maxwellian distribution */
+  #pragma acc routine
+  double maxwell(double lmbd, double temperature){
+    double a, M=0.0;
+    if (temperature > 0.0 && lmbd > 0.0){
+      a = 949.29 / temperature;
+      M = 2.0 * a*a * exp(-a/(lmbd*lmbd)) / pow(lmbd, 5);
+    }
+    return M;
+  }
+
+  /* Distribution of under-moderated neutrons */
+  #pragma acc routine
+  double joining_function(double lmbd, double chi, double kappa){
+    if (lmbd > 0.0)
+      return 1.0 / ((1.0 + exp(chi * lmbd - kappa)) * lmbd);
+    else
+      return 0.0;
+  }
+
+  /* Normalised time-dependent pulse structure */
+  #pragma acc routine
+  double pulse_carpenter(double time, double tau, double n, double pulse_length){
+    if (time <= 0.0  || tau <= 0.0 || n <= 0.0 || pulse_length <= 0.0)
+      return 0.0;
+    else if (time <= pulse_length)
+      return (1 - exp(-time/(tau/n))) / pulse_length;
+    else
+      return (exp(-(time-pulse_length)/tau) - exp(-time/(tau/n))) / pulse_length;
+  }
+%}
+
+
+DECLARE
+%{
+  double area;      /*   [cm^2]   Moderator surface area    */
+  double t_period;  /*    [s]     Period of the pulse cycle */
+  double alpha;     /*    [1]     Duty cycle                */
+  double p_in;      /* [1/Ang/s]  Flux normalisation factor */
+%}
+
+
+INITIALIZE
+%{
+  /* Initial check of the input parameters */
+  if (     xwidth < 0.0 ||  yheight  < 0.0 ||           radius < 0.0
+      ||      r_i < 0.0 ||      Lmin < 0.0 ||             Lmax < 0.0
+      ||    dist  < 0.0 || focus_xw  < 0.0 ||         focus_yh < 0.0
+      ||     freq < 0.0 ||   t_pulse < 0.0 ||  tmax_multiplier < 0.0
+      ||       T1 < 0.0 ||        I1 < 0.0 ||             tau1 < 0.0
+      ||       T2 < 0.0 ||        I2 < 0.0 ||             tau2 < 0.0
+      ||       T3 < 0.0 ||        I3 < 0.0 ||             tau3 < 0.0
+      ||    n_mod < 0.0 ||      I_um < 0.0 ||           tau_um < 0.0
+      ||     n_um < 0.0 ||    chi_um < 0.0 ||           kap_um < 0.0){
+    printf("Source_custom: %s: Error: negative input parameter!\n"
+           "ERROR          Exiting\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
+  if (Lmax <= Lmin){
+    printf("Source_custom: %s: Error: wavelengths should be Lmin < Lmax!\n"
+           "ERROR          Exiting\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
+  if (T1 == 0.0 && T2 == 0.0 && T3 == 0.0){
+    printf("Source_custom: %s: Error: No temperature T1, T2 nor T3 defined!\n"
+           "ERROR          Exiting\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
+  if (I1 == 0.0 && I2 == 0.0 && I3 == 0.0){
+    printf("Source_custom: %s: Error: No flux I1, I2 nor I3 defined!\n"
+           "ERROR          Exiting\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
+
+  /* Automatic distance to the target */
+  if (target_index > 0 && dist == 0.0){
+    Coords ToTarget;
+    double tx,ty,tz;
+    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
+    coords_get(ToTarget, &tx, &ty, &tz);
+    dist=sqrt(tx*tx + ty*ty + tz*tz);
+  }
+
+  /* Pulse parameters */
+  t_period = 1.0 / freq;
+  alpha = t_pulse / t_period;
+
+  /* The source is assumed to be continuous if the input pulse length is equal or greater than the pulse period.
+  The pulse length is then matched to the pulse period to avoid spurious neutron counts. */
+  if (t_pulse >= t_period){
+    t_pulse = t_period;
+    tmax_multiplier = 1.0;
+    n_pulses = 1.0;
+  }
+
+  /* Area for different moderator shapes */
+  if (xwidth > 0.0 && yheight > 0.0){
+    area  = 10000.0 * xwidth * yheight;
+  }
+  else if (radius > 0.0){
+    area  = 10000.0 * PI * radius*radius;
+  }
+  else{
+    printf("Source_custom: %s: Error: The shape of the source is not set! Use xwidth/yheight or radius\n"
+           "ERROR          Exiting\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
+  p_in = (Lmax - Lmin) * (t_pulse * tmax_multiplier) / mcget_ncount();
+
+  /* Set the number of desired pulses to an integer */
+  n_pulses = (double)floor(n_pulses);
+  if (n_pulses < 1) n_pulses = 1;
+%}
+
+
+TRACE
+%{
+  double phi,    /* [rad]  Orientation of the starting point for a spherical moderator */
+         r,      /*  [m]   Distance of the starting point from moderator center        */
+         v,      /* [m/s]  Speed of the neutron                                        */
+         time,   /*  [s]   Time                                                        */
+         lambda, /* [Ang]  Wavelength of the neutron                                   */
+         xf,     /*  [m]   Horizontal position on the target                           */
+         yf,     /*  [m]   Vertical position on the target                             */
+         rf,     /*  [m]   Distance between point on moderator and point on target     */
+         dx,     /*  [m]   Horizontal shift from moderator to target                   */
+         dy,     /*  [m]   Vertical shift from moderator to target                     */
+         Omega,  /* [sr]   Solid angle of the target                                   */
+         flux;   /* [1/(cm^2 s Ang sr]  Flux(lambda,time)                              */
+
+  /* Choose the starting point on the moderator surface
+  with uniform distribution for different moderator shapes */
+  if (xwidth > 0.0 && yheight > 0.0){
+    x =  xwidth * (rand01() - 0.5);
+    y = yheight * (rand01() - 0.5);
+  }
+  else{
+    phi = 2 * PI * rand01();
+    r = sqrt(rand01()) * radius;
+    x = r * cos(phi);
+    y = r * sin(phi);
+  }
+  z = 0.0;
+
+  /* Set the starting polarization to zero */
+  sx = 0.0;
+  sy = 0.0;
+  sz = 0.0;
+
+  /* Choose random wavelength and starting time */
+  lambda = Lmin + (Lmax - Lmin) * rand01();
+  t = t_pulse * tmax_multiplier * rand01();
+
+  /* Propagate to the target */
+  randvec_target_rect_real(&xf, &yf, &rf, &Omega,
+                           0, 0, dist, focus_xw, focus_yh,
+                           ROT_A_CURRENT_COMP, x, y, z, 2);
+
+  /* Length of the flight path */
+  dx = xf - x;
+  dy = yf - y;
+  rf = sqrt(dx*dx + dy*dy + dist*dist);
+
+  /* Speed of the neutron */
+  v  = 3956.0346 / lambda;
+  vx = v * dx / rf;
+  vy = v * dy / rf;
+  vz = v * dist / rf;
+
+  /* The input flux variables Ix are in [1/(cm^2 s AA sr)]
+  The flux variable below gets the flux per unit of time (s) */
+  flux = I_um * joining_function(lambda, chi_um, kap_um) * pulse_carpenter(t, tau_um, n_um, t_pulse);
+  if (r_i==0.0 || r <= r_i)
+    flux += I1 * maxwell(lambda, T1) * pulse_carpenter(t, tau1, n_mod, t_pulse);
+  if (r_i==0.0 || r > r_i)
+    flux += I2 * maxwell(lambda, T2) * pulse_carpenter(t, tau2, n_mod, t_pulse);
+  flux   += I3 * maxwell(lambda, T3) * pulse_carpenter(t, tau3, n_mod, t_pulse);
+
+  /* Assign this neutron to a random pulse among the specified n_pulses.
+  The value of p remains consistent since the intensity now spreads over n_pulses */
+  t += (double)floor((n_pulses)*rand01()) * t_period;
+  /* The p McStas parameter gets the neutrons per second that reach the target component */
+  p  = flux * area * Omega * p_in;  /* [1/s] time averaged intensity */
+
+  SCATTER;
+%}
+
+
+MCDISPLAY
+%{
+  double edge;  /* [m] x and y position on the circle */
+
+  if (dist > 0.0){
+    if (xwidth > 0.0 && yheight > 0.0){
+      rectangle("xy", 0,0,0, xwidth,yheight);
+      dashed_line(-xwidth/2, -yheight/2, 0, -focus_xw/2, -focus_yh/2, dist, 4);
+      dashed_line( xwidth/2, -yheight/2, 0,  focus_xw/2, -focus_yh/2, dist, 4);
+      dashed_line( xwidth/2,  yheight/2, 0,  focus_xw/2,  focus_yh/2, dist, 4);
+      dashed_line(-xwidth/2,  yheight/2, 0, -focus_xw/2,  focus_yh/2, dist, 4);
+    }
+    else{
+      circle("xy", 0,0,0, radius);
+      if (r_i > 0.0)
+        circle("xy", 0,0,0, r_i);
+      edge = radius/sqrt(2.0);
+      dashed_line(-edge, -edge, 0, -focus_xw/2, -focus_yh/2, dist, 4);
+      dashed_line( edge, -edge, 0,  focus_xw/2, -focus_yh/2, dist, 4);
+      dashed_line( edge,  edge, 0,  focus_xw/2,  focus_yh/2, dist, 4);
+      dashed_line(-edge,  edge, 0, -focus_xw/2,  focus_yh/2, dist, 4);
+    }
+  }
+%}
+
+END
