@@ -28,25 +28,6 @@
 
 
 /* ---------------------------------------------------------------------------- */
-/* linked list */
-/* ---------------------------------------------------------------------------- */
-struct tl2_list
-{
-	struct tl2_list *next;
-	void *elem;
-};
-
-typedef struct tl2_list tl2_list_type;
-
-extern tl2_list_type* tl2_lst_create(void *elem);
-#pragma acc routine
-extern tl2_list_type* tl2_lst_append(tl2_list_type *lst, void *elem);
-extern void tl2_lst_remove(tl2_list_type *lst, void *elem);
-extern void tl2_lst_free(tl2_list_type *lst);
-/* ---------------------------------------------------------------------------- */
-
-
-/* ---------------------------------------------------------------------------- */
 /* linalg functions */
 /* ---------------------------------------------------------------------------- */
 /**
@@ -102,12 +83,14 @@ extern int tl2_inverse(const double* M, double* I, int N);
 /**
  * matrix-matrix product
  */
-extern void tl2_matmat_mul(const double* M1, const double* M2, double *RES, int I, int J, int K);
+extern void tl2_matmat_mul(const double* M1, const double* M2,
+	double *RES, int I, int J, int K);
 
 /**
  * matrix-vector product
  */
-extern void tl2_matvec_mul(const double* M, const double* v, double *res, int I, int J);
+extern void tl2_matvec_mul(const double* M, const double* v,
+	double *res, int I, int J);
 
 /**
  * transposed matrix
@@ -162,12 +145,14 @@ extern void tl2_vec_div(const double* v, double s, double *res, int N);
 /**
  * matrix addition
  */
-extern void tl2_mat_add(const double* M0, const double* M1, double *RES, int I, int J);
+extern void tl2_mat_add(const double* M0, const double* M1,
+	double *RES, int I, int J);
 
 /**
  * matrix subtraction
  */
-extern void tl2_mat_sub(const double* M0, const double* M1, double *RES, int I, int J);
+extern void tl2_mat_sub(const double* M0, const double* M1,
+	double *RES, int I, int J);
 
 /**
  * negative matrix
@@ -177,35 +162,38 @@ extern void tl2_mat_neg(const double* M, double *RES, int I, int J);
 /**
  * matrix-scalar multiplication
  */
-extern void tl2_mat_mul(const double* M, double s, double *RES, int I, int J);
+extern void tl2_mat_mul(const double* M, double s,
+	double *RES, int I, int J);
 
 /**
  * matrix-scalar division
  */
-extern void tl2_mat_div(const double* M, double s, double *RES, int I, int J);
+extern void tl2_mat_div(const double* M, double s,
+	double *RES, int I, int J);
 
 /**
  * mean vector
  */
-extern void tl2_vec_mean(const tl2_list_type* veclist, const tl2_list_type* problist,
-	double* mean, int N);
-
-/**
- * covariance matrix
- */
-extern int tl2_covariance(const tl2_list_type* veclist, const tl2_list_type* problist,
-	double* COV, double* mean, int N);
+extern void tl2_vec_mean(const double* vecs, const double* probs,
+	double* mean, int N, unsigned int EVTS);
 
 /**
  * matrix trafo
  */
-extern void tl2_mat_trafo(const double* M, const double* T, double* RES, int N, int ortho);
+extern void tl2_mat_trafo(const double* M, const double* T,
+	double* RES, int N, int ortho);
+
+/**
+ * covariance matrix
+ */
+extern int tl2_covariance(const double* vecs, const double* probs,
+	double* COV, double* mean, int N, unsigned int EVTS);
 
 /**
  * resolution matrix
  */
-extern int tl2_reso(const tl2_list_type* veclist, const tl2_list_type* problist,
-	double* COV, double* RESO);
+extern int tl2_reso(const double* vecs, const double* probs,
+	double* COV, double* RESO, unsigned int EVTS);
 /* ---------------------------------------------------------------------------- */
 
 
