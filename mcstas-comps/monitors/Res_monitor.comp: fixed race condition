@@ -88,8 +88,10 @@ DECLARE%{
   MonitornD_Variables_type Vars;
   long buffer_index;
 
-  tl2_list_type *reso_events;
-  tl2_list_type *reso_probabilities;
+  unsigned int num_events;
+  double* reso_events;
+  double* reso_probabilities;
+
   char res_pi_var[20];
   char res_ki_x_var[20];
   char res_ki_y_var[20];
@@ -105,17 +107,19 @@ DECLARE%{
 
 INITIALIZE %{
 
-  // Use instance name for monitor output if no input was given
-  if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
-  
+  /* Use instance name for monitor output if no input was given */
+  if (!strcmp(filename,"\0"))
+    sprintf(filename,"%s",NAME_CURRENT_COMP);
+
   buffer_index = 0;
 
+  num_events = 0;
   reso_events = 0;
   reso_probabilities = 0;
 
   if(live_calc) {
-    reso_events = tl2_lst_create(0);
-    reso_probabilities = tl2_lst_create(0);
+    reso_events = malloc(mcget_ncount()*4*sizeof(double));
+    reso_probabilities = malloc(mcget_ncount()*sizeof(double));
   }
 
   int i;
@@ -134,7 +138,8 @@ INITIALIZE %{
   else
     sprintf(Vars.option, "%s borders list=%f, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10", tmp, bufsize);
 
-  if (radius) xwidth = 2*radius;
+  if (radius)
+    xwidth = 2*radius;
 
   Monitor_nD_Init(&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, 0);
   Vars.Coord_Type[0] = DEFS.COORD_USERDOUBLE0; /* otherwise p is always the first variable */
@@ -176,6 +181,12 @@ INITIALIZE %{
 
 
 TRACE %{
+  unsigned int event_idx = 0;
+  #pragma acc atomic capture
+  {
+    event_idx = num_events++;
+  }
+
   double t0 = 0;
   double t1 = 0;
   int intersect = 0;
@@ -255,18 +266,13 @@ TRACE %{
 
         /* live calculation */
         if(live_calc) {
-          double *reso_event = (double*)malloc(4 * sizeof(double));
-          reso_event[0] = Vars.UserDoubles[0] - Vars.UserDoubles[3];
-          reso_event[1] = Vars.UserDoubles[1] - Vars.UserDoubles[4];
-          reso_event[2] = Vars.UserDoubles[2] - Vars.UserDoubles[5];
-          reso_event[3] = tl2_k_to_E(Vars.UserDoubles[0], Vars.UserDoubles[1], Vars.UserDoubles[2],
-                                     Vars.UserDoubles[3], Vars.UserDoubles[4], Vars.UserDoubles[5]);
+          reso_events[event_idx*4 + 0] = Vars.UserDoubles[0] - Vars.UserDoubles[3];
+          reso_events[event_idx*4 + 1] = Vars.UserDoubles[1] - Vars.UserDoubles[4];
+          reso_events[event_idx*4 + 2] = Vars.UserDoubles[2] - Vars.UserDoubles[5];
+          reso_events[event_idx*4 + 3] = tl2_k_to_E(Vars.UserDoubles[0], Vars.UserDoubles[1], Vars.UserDoubles[2],
+                                         Vars.UserDoubles[3], Vars.UserDoubles[4], Vars.UserDoubles[5]);
 
-          double *reso_prob = (double*)malloc(sizeof(double));
-          *reso_prob = p;
-
-          tl2_lst_append(reso_events, reso_event);
-          tl2_lst_append(reso_probabilities, reso_prob);
+          reso_probabilities[event_idx] = p;
         }
       }
 
@@ -287,7 +293,7 @@ SAVE %{
   /* live calculation */
   if(live_calc) {
     double cov[4*4], reso[4*4];
-    if(tl2_reso(reso_events->next, reso_probabilities->next, cov, reso)) {
+    if(tl2_reso(reso_events, reso_probabilities, cov, reso, num_events)) {
       printf("Resolution matrix:"
         "\n\t%12.4e %12.4e %12.4e %12.4e"
         "\n\t%12.4e %12.4e %12.4e %12.4e"
@@ -309,8 +315,8 @@ FINALLY %{
   /* free pointers */
   Monitor_nD_Finally(&DEFS, &Vars);
 
-  tl2_lst_free(reso_events);
-  tl2_lst_free(reso_probabilities);
+  free(reso_events);
+  free(reso_probabilities);
 %}
 
 
