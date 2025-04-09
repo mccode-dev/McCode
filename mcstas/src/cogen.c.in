@@ -2034,7 +2034,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("");
   coutf("  // Code for allocating memory for particles_soa");
   coutf("  _class_particle_soa *_particles;");      
-  coutf("  particle_allocate(*_particles, gpu_innerloop);");
+  coutf("  particle_allocate(_particles, gpu_innerloop);");
   coutf("");    
   coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
   coutf("    #ifdef OPENACC");
@@ -2062,7 +2062,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("      srandom(_particles, pidx, _hash((pidx+1)*(seed+1)));");
   coutf("      //particle_uservar_init(_particle);"); // SOA_TODO get uservars injected
   coutf("");
-  coutf("      raytrace(_particles, soa_index);");
+  coutf("      raytrace(_particles, (int) pidx);"); // SOA_TODO 
   coutf("    } /* inner for */");
   coutf("    seed = seed+gpu_innerloop;");
   coutf("  } /* CPU for */");
