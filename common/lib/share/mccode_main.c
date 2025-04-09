@@ -35,6 +35,7 @@ int mccode_main(int argc, char *argv[])
   // during init(), finally() and display(). NOTE: during trace, a local
   // "_particle" variable is present and thus used instead.
   int soa_index=0;
+  particle_allocate(_particles, 1); // SOA_TODO this is silly
   srandom(_hash(mcseed-1));
 
 #ifdef USE_MPI
