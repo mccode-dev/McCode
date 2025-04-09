@@ -2034,9 +2034,9 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("");
   coutf("  // Code for allocating memory for particles_soa");
   coutf("  int soa_index;");  
-  coutf("  _class_particle_soa _particles_blob;");
-  coutf("  _class_particle_soa* _particle = &_particles_blob;");
-  coutf("  if (!particle_allocate(_particles, gpu_innerloop)) { printf(\"DEBUG: ERROR in allocate raytrace_all:gpu_innerloop.\\n\"); exit(-1); }");
+  coutf("  _class_particle_soa _particle_container;");      
+  coutf("  _class_particle_soa *_particles = &_particle_container;");      
+  coutf("  particle_allocate(_particles, gpu_innerloop);");
   coutf("");    
   coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
   coutf("    #ifdef OPENACC");
@@ -2053,7 +2053,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("     #undef fprintf");
   cout("     #endif");
   coutf("");
-  coutf("    #pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
+  coutf("    #pragma acc parallel loop present(_particles[0:1]) num_gangs(numgangs) vector_length(vecsize)");
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
   coutf("      mcgenstate(_particles, pidx); // initial particle");
   coutf("      _particles->_uid[pidx] = pidx + cloop*gpu_innerloop;");  
@@ -2078,6 +2078,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("     #undef sprintf");
   cout("     #undef fprintf");
   cout("     #endif");
+  cout("     particle_free(_particles, gpu_innerloop);");
   coutf("  MPI_MASTER(");
   coutf("  printf(\"*** TRACE end *** \\n\");");
   coutf("  );");
@@ -2624,8 +2625,8 @@ cogen_header(struct instr_def *instr, char *output_name)
   /* Basic includes */
   cout("");
   cout("#include <string.h>");
-  cout("#include <stdlib.h>");
-  cout("#include <stdio.h>");
+  cout("#include <stdlib.h>");  
+  cout("#include <stdio.h>");  
   cout("");
 
   /* McCode-specific typedefs */
@@ -2947,43 +2948,73 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#endif");
   cout("  int rval=1;");
   cout("  if (!p) { printf(\"ERROR: particle_allocate: Empty pointer\"); return(0); }");
-  cout("  p->x = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  p->x = (double*) malloc(soa_length*sizeof(double));");    
+  cout("  #pragma acc enter data create(p->x[0:soa_length])");
   cout("  p->y = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->y[0:soa_length])");  
   cout("  p->z = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->z[0:soa_length])");  
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("  p->vx = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->vx[0:soa_length])");    
   cout("  p->vy = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->vy[0:soa_length])");      
   cout("  p->vz = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->vz[0:soa_length])");        
   cout("  p->sx = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->sx[0:soa_length])");          
   cout("  p->sy = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->sy[0:soa_length])");            
   cout("  p->sz = (double*) malloc(soa_length*sizeof(double));");
-  cout("  p->mcgravitation = (int*) malloc(soa_length*sizeof(int));");
+  cout("  #pragma acc enter data create(p->sz[0:soa_length])");              
+  cout("  p->mcgravitation = (int*) malloc(soa_length*sizeof(int));");    
+  cout("  #pragma acc enter data create(p->mcgravitation[0:soa_length])");       
 #elif MCCODE_PROJECT == 2   /* xray */
   cout("  p->kx = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->kx[0:soa_length])");                
   cout("  p->ky = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->ky[0:soa_length])");
   cout("  p->kz = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->kz[0:soa_length])");  
   cout("  p->Ex = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->Ex[0:soa_length])");    
   cout("  p->Ey = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->Ey[0:soa_length])");      
   cout("  p->Ez = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->Ez[0:soa_length])");      
   cout("  p->phi = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->phi[0:soa_length])");    
 #endif
   cout("  p->p = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->p[0:soa_length])");      
   cout("  p->t = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->t[0:soa_length])");      
   
   cout("  p->allow_backprop = (int*) malloc(soa_length*sizeof(int));");  
+  cout("  #pragma acc enter data create(p->allow_backprop[0:soa_length])");        
   cout("  p->_mctmp_a = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->_mctmp_a[0:soa_length])");          
   cout("  p->_mctmp_b = (double*) malloc(soa_length*sizeof(double));");  
+  cout("  #pragma acc enter data create(p->_mctmp_b[0:soa_length])");            
   cout("  p->_mctmp_c = (double*) malloc(soa_length*sizeof(double));");
+  cout("  #pragma acc enter data create(p->_mctmp_c[0:soa_length])");              
   cout("  p->_uid = (long*) malloc(soa_length*sizeof(long));");      
+  cout("  #pragma acc enter data create(p->_uid[0:soa_length])");                
   cout("  p->_index = (int*) malloc(soa_length*sizeof(int));");
+  cout("  #pragma acc enter data create(p->_index[0:soa_length])");                  
   cout("  p->_absorbed = (int*) malloc(soa_length*sizeof(int));");
+  cout("  #pragma acc enter data create(p->_absorbed[0:soa_length])");                    
   cout("  p->_scattered = (int*) malloc(soa_length*sizeof(int));");    
+  cout("  #pragma acc enter data create(p->_scattered[0:soa_length])");  
   cout("  p->_restore = (int*) malloc(soa_length*sizeof(int));");      
+  cout("  #pragma acc enter data create(p->_restore[0:soa_length])");    
   cout("  p->flag_nocoordschange = (int*) malloc(soa_length*sizeof(int));");                 
+  cout("  #pragma acc enter data create(p->flag_nocoordschange[0:soa_length])");      
   
   cout("  p->randstate = (unsigned long **)malloc(soa_length * sizeof(unsigned long *));");  
   cout("    for (size_t i = 0; i < soa_length; i++) {");
   cout("      p->randstate[i] = (unsigned long *)malloc(7 * sizeof(unsigned long));");
+  cout("      #pragma acc enter data create(p->randstate[i][0:7])");
   cout("  }");
   
   /*
@@ -3010,9 +3041,9 @@ cogen_header(struct instr_def *instr, char *output_name)
   liter = list_iterate(instr->user_vars);
   liter2 = list_iterate(instr->user_vars_types);
   cout("#pragma acc routine");
-  cout("int particle_free(_class_particle_soa *);");
+  cout("int particle_free(_class_particle_soa *, int soa_length);");
   cout("");
-  cout("int particle_free(_class_particle_soa *p){");
+  cout("int particle_free(_class_particle_soa *p, int soa_length){");
   cout("#ifndef OPENACC");
   cout("#define str_comp strcmp");
   cout("#endif");
@@ -3049,6 +3080,14 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  free(p->_scattered);");
   cout("  free(p->_restore);");
   cout("  free(p->flag_nocoordschange);");
+ 
+  cout("  #pragma acc exit data delete(p->x, p->y, p->z, p->vx, p->vy, p->vz, p->sx, p->sy, p->sz, p->p, p->t, p->allow_backprop, p->_mctmp_a, p->_mctmp_b, p->_mctmp_c, p->mcgravitation, p->_uid, p->_index, p->_absorbed, p->_scattered, p->_restore, p->flag_nocoordschange)");
+  cout("  ");
+  cout("    for (size_t i = 0; i < soa_length; i++) {");
+  cout("      #pragma acc exit data delete(p->randstate[i])");
+  cout("    }");
+  cout("  ");
+  cout("    #pragma acc exit data delete(p)");
   
   /*
   Check no pointers are null, if that is the case, set return value to 0
