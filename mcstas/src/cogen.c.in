@@ -1637,7 +1637,7 @@ void def_trace_section(struct instr_def *instr)
   coutf("#define %s (_particles->%s[soa_index])", "RESTORE"  , "_restore");
 #if MCCODE_PROJECT == 1     /* neutron */
   coutf("#define RESTORE_NEUTRON(_index, ...) _particles->_restore[soa_index] = _index;");
-  cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; return; } while(0)");
+  cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); ABSORBED++; return; } while(0)"); // TODO_SOA removed MAGNET_OFF
 #elif MCCODE_PROJECT == 2   /* xray */
   coutf("#define RESTORE_XRAY(_index, ...) _particles->_restore[soa_index] = _index;");
   cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); ABSORBED++; return; } while(0)");
@@ -1798,7 +1798,7 @@ int cogen_raytrace(struct instr_def *instr)
   // we need this override, since "comp" is not defined in raytrace() - see section-wide define
   cout("  #undef ABSORB0");
   cout("  #undef ABSORB");
-  cout("  #define ABSORB0 do { DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++;} while(0)");
+  cout("  #define ABSORB0 do { DEBUG_ABSORB(); ABSORBED++;} while(0)"); // TODO_SOA Removed MAGNET_OFF
   cout("  #define ABSORB ABSORB0");
 
   /* Debugging (initial state). */
@@ -2171,7 +2171,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   // we need this override, since "comp" is not defined in raytrace() - see section-wide define
   cout("  #undef ABSORB0");
   cout("  #undef ABSORB");
-  cout("  #define ABSORB0 do { DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; } while(0)");
+  cout("  #define ABSORB0 do { DEBUG_ABSORB(); ABSORBED++; } while(0)"); // TODO_SOA Removed MAGNET_OFF
   cout("  #define ABSORB ABSORB0");
 
   // batches
@@ -2405,7 +2405,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
   // we need this override, since "comp" is not defined in raytrace() - see section-wide define
   cout("  #undef ABSORB0");
   cout("  #undef ABSORB");
-  cout("  #define ABSORB0 do { DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; } while(0)");
+  cout("  #define ABSORB0 do { DEBUG_ABSORB(); ABSORBED++; } while(0)"); // TODO_SOA Removed MAGNET_OFF
   cout("  #define ABSORB ABSORB0");
 
   // batches
@@ -3045,11 +3045,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  free(p->_scattered);");
   cout("  free(p->_restore);");
   cout("  free(p->flag_nocoordschange);");
-  
-  // SOA_TODO may be even later?
-  cout("int soa_index = 0;"); // SOA_TODO this is silly
-  cout("particle_allocate(&_particle_global_randnbuse_var, 1);"); // SOA_TODO this is silly
-
+ 
   
   /*
   Check no pointers are null, if that is the case, set return value to 0
