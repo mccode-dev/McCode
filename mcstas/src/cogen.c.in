@@ -2678,14 +2678,8 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  double *_mctmp_b; /* temp b */");
   cout("  double *_mctmp_c; /* temp c */");
   //cout("  randstate_t randstate[RANDSTATE_LEN]");
-  //cout("  unsigned long randstate[7];"); // for the KISS generator
-  cout("  unsigned long *randstate_0;");
-  cout("  unsigned long *randstate_1;");
-  cout("  unsigned long *randstate_2;");
-  cout("  unsigned long *randstate_3;");     
-  cout("  unsigned long *randstate_4;");
-  cout("  unsigned long *randstate_5;");
-  cout("  unsigned long *randstate_6;");      
+  //cout("  unsigned long randstate[7];"); // for the KISS generator  
+  cout("  unsigned long **randstate;"); // randstate needs 2D memory allocation
   cout("  double *t, *p;     /* time, event weight */");
   cout("  long *long _uid;  /* Unique event ID */");
   cout("  long *_index;     /* component index where to send this event */");
@@ -2759,18 +2753,18 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("_class_particle mcgenstate(void);");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("#pragma acc routine");
-  cout("_class_particle mcsetstate(double x, double y, double z, double vx, double vy, double vz,");
+  cout("void mcsetstate(_class_particle_soa _particles, int soa_index, double x, double y, double z, double vx, double vy, double vz,");
   cout("			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
   cout("#pragma acc routine");
-  cout("_class_particle mcgetstate(_class_particle mcneutron, double *x, double *y, double *z,");
+  cout("void mcgetstate(_class_particle *mcneutron, int soa_index, double *x, double *y, double *z,");
   cout("                           double *vx, double *vy, double *vz, double *t,");
   cout("                           double *sx, double *sy, double *sz, double *p);");
 #elif MCCODE_PROJECT == 2   /* xray */
   cout("#pragma acc routine");
-  cout("_class_particle mcsetstate(double x, double y, double z, double kx, double ky, double kz,");
+  cout("void mcsetstate(_class_particle_soa *_particles, int soa_index, double x, double y, double z, double kx, double ky, double kz,");
   cout("			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
   cout("#pragma acc routine");
-  cout("_class_particle mcgetstate(_class_particle mcphoton, double *x, double *y, double *z, double *kx, double *ky, double *kz,");
+  cout("void mcgetstate(_class_particle_soa *mcphoton, int soa_index, double *x, double *y, double *z, double *kx, double *ky, double *kz,");
   cout("			   double *phi, double *t, double *Ex, double *Ey, double *Ez, double *p);");
 #endif
   cout("");
@@ -2782,11 +2776,11 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("");
   cout("_class_particle mcgenstate(void) {");
 #if MCCODE_PROJECT == 1     /* neutron */
-  cout("  _class_particle particle = mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
+  cout("  mcsetstate(_particles, soa_index, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
 #elif MCCODE_PROJECT == 2   /* xray */
-  cout("  _class_particle particle = mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
+  cout("  mcsetstate(_particles, soa_index, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
 #endif
-  cout("  return(particle);");
+  cout("  return(particle);"); // SOA_TODO
   cout("}");
 
   /*generate uservar return functions*/
@@ -2795,46 +2789,46 @@ cogen_header(struct instr_def *instr, char *output_name)
 
   liter = list_iterate(instr->user_vars);
   cout("#pragma acc routine");
-  cout("double particle_getvar(_class_particle *p, char *name, int *suc);");
+  cout("double particle_getvar(_class_particle_soa *p, int soa_index char *name, int *suc);");
   cout("");
   cout("#ifdef OPENACC");
   cout("#pragma acc routine");
   cout("int str_comp(char *str1, char *str2);");
   cout("#endif");
   cout("");
-  cout("double particle_getvar(_class_particle *p, char *name, int *suc){");
+  cout("double particle_getvar(_class_particle_soa *p, int soa_index char *name, int *suc){");
   cout("#ifndef OPENACC");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int s=1;");
   cout("  double rval=0;");
   char *var, *tpe;
-  cout("  if(!str_comp(\"x\",name)){rval=p->x;s=0;}");
-  cout("  if(!str_comp(\"y\",name)){rval=p->y;s=0;}");
-  cout("  if(!str_comp(\"z\",name)){rval=p->z;s=0;}");
+  cout("  if(!str_comp(\"x\",name)){rval=p->x[soa_index];s=0;}");
+  cout("  if(!str_comp(\"y\",name)){rval=p->y[soa_index];s=0;}");
+  cout("  if(!str_comp(\"z\",name)){rval=p->z[soa_index];s=0;}");
 #if MCCODE_PROJECT == 1     /* neutron */
-  cout("  if(!str_comp(\"vx\",name)){rval=p->vx;s=0;}");
-  cout("  if(!str_comp(\"vy\",name)){rval=p->vy;s=0;}");
-  cout("  if(!str_comp(\"vz\",name)){rval=p->vz;s=0;}");
-  cout("  if(!str_comp(\"sx\",name)){rval=p->sx;s=0;}");
-  cout("  if(!str_comp(\"sy\",name)){rval=p->sy;s=0;}");
-  cout("  if(!str_comp(\"sz\",name)){rval=p->sz;s=0;}");
+  cout("  if(!str_comp(\"vx\",name)){rval=p->vx[soa_index];s=0;}");
+  cout("  if(!str_comp(\"vy\",name)){rval=p->vy[soa_index];s=0;}");
+  cout("  if(!str_comp(\"vz\",name)){rval=p->vz[soa_index];s=0;}");
+  cout("  if(!str_comp(\"sx\",name)){rval=p->sx[soa_index];s=0;}");
+  cout("  if(!str_comp(\"sy\",name)){rval=p->sy[soa_index];s=0;}");
+  cout("  if(!str_comp(\"sz\",name)){rval=p->sz[soa_index];s=0;}");
 #elif MCCODE_PROJECT == 2   /* xray */
-  cout("  if(!str_comp(\"phi\",name)){rval=p->phi;s=0;}");
-  cout("  if(!str_comp(\"kx\",name)){rval=p->kx;s=0;}");
-  cout("  if(!str_comp(\"ky\",name)){rval=p->ky;s=0;}");
-  cout("  if(!str_comp(\"kz\",name)){rval=p->kz;s=0;}");
-  cout("  if(!str_comp(\"Ex\",name)){rval=p->Ex;s=0;}");
-  cout("  if(!str_comp(\"Ey\",name)){rval=p->Ey;s=0;}");
-  cout("  if(!str_comp(\"Ez\",name)){rval=p->Ez;s=0;}");
+  cout("  if(!str_comp(\"phi\",name)){rval=p->phi[soa_index];s=0;}");
+  cout("  if(!str_comp(\"kx\",name)){rval=p->kx[soa_index];s=0;}");
+  cout("  if(!str_comp(\"ky\",name)){rval=p->ky[soa_index];s=0;}");
+  cout("  if(!str_comp(\"kz\",name)){rval=p->kz[soa_index];s=0;}");
+  cout("  if(!str_comp(\"Ex\",name)){rval=p->Ex[soa_index];s=0;}");
+  cout("  if(!str_comp(\"Ey\",name)){rval=p->Ey[soa_index];s=0;}");
+  cout("  if(!str_comp(\"Ez\",name)){rval=p->Ez[soa_index];s=0;}");
 #endif
-  cout("  if(!str_comp(\"t\",name)){rval=p->t;s=0;}");
-  cout("  if(!str_comp(\"p\",name)){rval=p->p;s=0;}");
-  cout("  if(!str_comp(\"_mctmp_a\",name)){rval=p->_mctmp_a;s=0;}");
-  cout("  if(!str_comp(\"_mctmp_b\",name)){rval=p->_mctmp_b;s=0;}");
-  cout("  if(!str_comp(\"_mctmp_c\",name)){rval=p->_mctmp_c;s=0;}");
+  cout("  if(!str_comp(\"t\",name)){rval=p->t[soa_index];s=0;}");
+  cout("  if(!str_comp(\"p\",name)){rval=p->p[soa_index];s=0;}");
+  cout("  if(!str_comp(\"_mctmp_a\",name)){rval=p->_mctmp_a[soa_index];s=0;}");
+  cout("  if(!str_comp(\"_mctmp_b\",name)){rval=p->_mctmp_b[soa_index];s=0;}");
+  cout("  if(!str_comp(\"_mctmp_c\",name)){rval=p->_mctmp_c[soa_index];s=0;}");
   while((var = list_next(liter))) {
-    coutf("  if(!str_comp(\"%s\",name)){rval=*( (double *)(&(p->%s)) );s=0;}",var,var);
+    coutf("  if(!str_comp(\"%s\",name)){rval=*( (double *)(&(p->%s[soa_index])) );s=0;}",var,var);
   }
   list_iterate_end(liter);
   cout("  if (suc!=0x0) {*suc=s;}");
@@ -2844,40 +2838,40 @@ cogen_header(struct instr_def *instr, char *output_name)
 
   liter = list_iterate(instr->user_vars);
   cout("#pragma acc routine");
-  cout("void* particle_getvar_void(_class_particle *p, char *name, int *suc);");
+  cout("void* particle_getvar_void(_class_particle_soa *p, int soa_index, char *name, int *suc);");
   cout("");
   cout("#ifdef OPENACC");
   cout("#pragma acc routine");
   cout("int str_comp(char *str1, char *str2);");
   cout("#endif");
   cout("");
-  cout("void* particle_getvar_void(_class_particle *p, char *name, int *suc){");
+  cout("void* particle_getvar_void(_class_particle_soa *p, int soa_index, char *name, int *suc){");
   cout("#ifndef OPENACC");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int s=1;");
   cout("  void* rval=0;");
-  cout("  if(!str_comp(\"x\",name)) {rval=(void*)&(p->x); s=0;}");
-  cout("  if(!str_comp(\"y\",name)) {rval=(void*)&(p->y); s=0;}");
-  cout("  if(!str_comp(\"z\",name)) {rval=(void*)&(p->z); s=0;}");
+  cout("  if(!str_comp(\"x\",name)) {rval=(void*)&(p->x[soa_index]); s=0;}");
+  cout("  if(!str_comp(\"y\",name)) {rval=(void*)&(p->y[soa_index]); s=0;}");
+  cout("  if(!str_comp(\"z\",name)) {rval=(void*)&(p->z[soa_index]); s=0;}");
 #if MCCODE_PROJECT == 1     /* neutron */
-  cout("  if(!str_comp(\"vx\",name)){rval=(void*)&(p->vx);s=0;}");
-  cout("  if(!str_comp(\"vy\",name)){rval=(void*)&(p->vy);s=0;}");
-  cout("  if(!str_comp(\"vz\",name)){rval=(void*)&(p->vz);s=0;}");
-  cout("  if(!str_comp(\"sx\",name)){rval=(void*)&(p->sx);s=0;}");
-  cout("  if(!str_comp(\"sy\",name)){rval=(void*)&(p->sy);s=0;}");
-  cout("  if(!str_comp(\"sz\",name)){rval=(void*)&(p->sz);s=0;}");
+  cout("  if(!str_comp(\"vx\",name)){rval=(void*)&(p->vx[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"vy\",name)){rval=(void*)&(p->vy[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"vz\",name)){rval=(void*)&(p->vz[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"sx\",name)){rval=(void*)&(p->sx[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"sy\",name)){rval=(void*)&(p->sy[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"sz\",name)){rval=(void*)&(p->sz[soa_index]);s=0;}");
 #elif MCCODE_PROJECT == 2   /* xray */
-  cout("  if(!str_comp(\"kx\",name)){rval=(void*)&(p->kx);s=0;}");
-  cout("  if(!str_comp(\"ky\",name)){rval=(void*)&(p->ky);s=0;}");
-  cout("  if(!str_comp(\"kz\",name)){rval=(void*)&(p->kz);s=0;}");
-  cout("  if(!str_comp(\"Ex\",name)){rval=(void*)&(p->Ex);s=0;}");
-  cout("  if(!str_comp(\"Ey\",name)){rval=(void*)&(p->Ey);s=0;}");
-  cout("  if(!str_comp(\"Ez\",name)){rval=(void*)&(p->Ez);s=0;}");
-  cout("  if(!str_comp(\"phi\",name)){rval=(void*)&(p->phi);s=0;}");
+  cout("  if(!str_comp(\"kx\",name)){rval=(void*)&(p->kx[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"ky\",name)){rval=(void*)&(p->ky[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"kz\",name)){rval=(void*)&(p->kz[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"Ex\",name)){rval=(void*)&(p->Ex[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"Ey\",name)){rval=(void*)&(p->Ey[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"Ez\",name)){rval=(void*)&(p->Ez[soa_index]);s=0;}");
+  cout("  if(!str_comp(\"phi\",name)){rval=(void*)&(p->phi[soa_index]);s=0;}");
 #endif
-  cout("  if(!str_comp(\"t\",name)) {rval=(void*)&(p->t); s=0;}");
-  cout("  if(!str_comp(\"p\",name)) {rval=(void*)&(p->p); s=0;}");
+  cout("  if(!str_comp(\"t\",name)) {rval=(void*)&(p->t[soa_index]); s=0;}");
+  cout("  if(!str_comp(\"p\",name)) {rval=(void*)&(p->p[soa_index]); s=0;}");
 //  char *var, *tpe;
   while((var = list_next(liter))) {
     coutf("  if(!str_comp(\"%s\",name)){rval=(void*)&(p->%s);s=0;}",var,var);
@@ -2891,40 +2885,40 @@ cogen_header(struct instr_def *instr, char *output_name)
   liter = list_iterate(instr->user_vars);
   liter2 = list_iterate(instr->user_vars_types);
   cout("#pragma acc routine");
-  cout("int particle_setvar_void(_class_particle *, char *, void*);");
+  cout("int particle_setvar_void(_class_particle_soa *, int, char *, void*);");
   cout("");
-  cout("int particle_setvar_void(_class_particle *p, char *name, void* value){");
+  cout("int particle_setvar_void(_class_particle_soa *p, int soa_index, char *name, void* value){");
   cout("#ifndef OPENACC");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int rval=1;");
-  cout("  if(!str_comp(\"x\",name)) {memcpy(&(p->x),  value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"y\",name)) {memcpy(&(p->y),  value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"z\",name)) {memcpy(&(p->z),  value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"x\",name)) {memcpy(&(p->x[soa_index]),  value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"y\",name)) {memcpy(&(p->y[soa_index]),  value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"z\",name)) {memcpy(&(p->z[soa_index]),  value, sizeof(double)); rval=0;}");
 #if MCCODE_PROJECT == 1     /* neutron */
-  cout("  if(!str_comp(\"vx\",name)){memcpy(&(p->vx), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"vy\",name)){memcpy(&(p->vy), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"vz\",name)){memcpy(&(p->vz), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"sx\",name)){memcpy(&(p->sx), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"sy\",name)){memcpy(&(p->sy), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"sz\",name)){memcpy(&(p->sz), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"vx\",name)){memcpy(&(p->vx[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"vy\",name)){memcpy(&(p->vy[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"vz\",name)){memcpy(&(p->vz[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"sx\",name)){memcpy(&(p->sx[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"sy\",name)){memcpy(&(p->sy[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"sz\",name)){memcpy(&(p->sz[soa_index]), value, sizeof(double)); rval=0;}");
 #elif MCCODE_PROJECT == 2   /* xray */
-  cout("  if(!str_comp(\"kx\",name)){memcpy(&(p->kx), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"ky\",name)){memcpy(&(p->ky), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"kz\",name)){memcpy(&(p->kz), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"Ex\",name)){memcpy(&(p->Ex), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"Ey\",name)){memcpy(&(p->Ey), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"Ez\",name)){memcpy(&(p->Ez), value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"phi\",name)){memcpy(&(p->phi), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"kx\",name)){memcpy(&(p->kx[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"ky\",name)){memcpy(&(p->ky[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"kz\",name)){memcpy(&(p->kz[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"Ex\",name)){memcpy(&(p->Ex[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"Ey\",name)){memcpy(&(p->Ey[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"Ez\",name)){memcpy(&(p->Ez[soa_index]), value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"phi\",name)){memcpy(&(p->phi[soa_index]), value, sizeof(double)); rval=0;}");
 #endif
-  cout("  if(!str_comp(\"p\",name)) {memcpy(&(p->p),  value, sizeof(double)); rval=0;}");
-  cout("  if(!str_comp(\"t\",name)) {memcpy(&(p->t),  value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"p\",name)) {memcpy(&(p->p[soa_index]),  value, sizeof(double)); rval=0;}");
+  cout("  if(!str_comp(\"t\",name)) {memcpy(&(p->t[soa_index]),  value, sizeof(double)); rval=0;}");
   char *invar;
   while((invar = list_next(liter))) {
     tpe = list_next(liter2);
     if (!(strstr(tpe, "[") || strstr(tpe, "]") || strstr(tpe, "*"))){
       // not an array -- we should be able to use memcopy freely
-      coutf("  if(!str_comp(\"%s\",name)){memcpy(&(p->%s), value, sizeof(%s)); rval=0;}", invar, invar, tpe);
+      coutf("  if(!str_comp(\"%s\",name)){memcpy(&(p->%s[soa_index]), value, sizeof(%s)); rval=0;}", invar, invar, tpe);
     }
   }
   list_iterate_end(liter);
@@ -2936,9 +2930,9 @@ cogen_header(struct instr_def *instr, char *output_name)
   liter = list_iterate(instr->user_vars);
   liter2 = list_iterate(instr->user_vars_types);
   cout("#pragma acc routine");
-  cout("int particle_setvar_void_array(_class_particle *, char *, void*, int);");
+  cout("int particle_setvar_void_array(_class_particle_soa *, int, char *, void*, int);");
   cout("");
-  cout("int particle_setvar_void_array(_class_particle *p, char *name, void* value, int elements){");
+  cout("int particle_setvar_void_array(_class_particle_soa *p, int soa_index, char *name, void* value, int elements){");
   cout("#ifndef OPENACC");
   cout("#define str_comp strcmp");
   cout("#endif");
@@ -2948,7 +2942,7 @@ cogen_header(struct instr_def *instr, char *output_name)
     tpe = list_next(liter2);
     if ((strstr(tpe, "[") || strstr(tpe, "]") || strstr(tpe, "*"))){
       // an array -- we need to know how many elements we're copying
-      coutf("  if(!str_comp(\"%s\",name)){memcpy(&(p->%s), value, elements * sizeof(%s)); rval=0;}", invar, invar, tpe);
+      coutf("  if(!str_comp(\"%s\",name)){memcpy(&(p->%s[soa_index]), value, elements * sizeof(%s)); rval=0;}", invar, invar, tpe);
     }
   }
   list_iterate_end(liter);
