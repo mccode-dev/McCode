@@ -3602,8 +3602,8 @@ long sort_absorb_last(_class_particle_soa* particles, _class_particle_soa* pbuff
       // apply
       particle_copy(particles, targetbuffer, bidx*accumlen + tidx, 0);
     }
-    particle_free(sourcebuffer);
-    particle_free(targetbuffer);
+    particle_free(sourcebuffer, 1);
+    particle_free(targetbuffer, 1);
   }
 
   // set out split multiplier value
