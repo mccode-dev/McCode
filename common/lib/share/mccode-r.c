@@ -3517,12 +3517,12 @@ long sort_absorb_last(_class_particle_soa* particles, _class_particle_soa* pbuff
     #pragma acc loop seq
     while (i < j) {
       #pragma acc loop seq
-      while (!particles._absorbed[i] && i<j) {
+      while (!particles->_absorbed[i] && i<j) {
         particle_copy(pbuffer, particles, i, i);
         i++;
       }
       #pragma acc loop seq
-      while (particles._absorbed[j] && i<j) {
+      while (particles->_absorbed[j] && i<j) {
         particle_copy(pbuffer, particles, j, j);
         j--;
       }
@@ -3538,7 +3538,7 @@ long sort_absorb_last(_class_particle_soa* particles, _class_particle_soa* pbuff
       particle_copy(pbuffer, particles, i, i);
 
     lens[tidx] = i - lo;
-    if (i==j && !particles._absorbed[i]) lens[tidx]++;
+    if (i==j && !particles->_absorbed[i]) lens[tidx]++;
   }
 
   // determine lo's
@@ -3621,13 +3621,13 @@ long sort_absorb_last(_class_particle_soa* particles, _class_particle_soa* pbuff
 long sort_absorb_last_serial(_class_particle_soa* particles, long len) {
   long i = 0;
   long j = len - 1;
-  _class_particle *pbuffer;
+  _class_particle_soa *pbuffer;
   particle_allocate(pbuffer, 1);
 
   // bubble
   while (i < j) {
-    while (!particles._absorbed[i] && i<j) i++;
-    while (particles._absorbed[j] && i<j) j--;
+    while (!particles->_absorbed[i] && i<j) i++;
+    while ( particles->_absorbed[j] && i<j) j--;
     if (i < j) {
       particle_copy(pbuffer,   0, particles, j);
       particle_copy(particles, j, particles, i);
@@ -3640,7 +3640,7 @@ long sort_absorb_last_serial(_class_particle_soa* particles, long len) {
   particle_free(pbuffer);
 
   // return new length
-  if (i==j && !particles._absorbed[i])
+  if (i==j && !particles->_absorbed[i])
     return i + 1;
   else
     return i;
