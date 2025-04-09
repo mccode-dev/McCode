@@ -29,7 +29,45 @@
 	#include <math.h>
 	#include <float.h>
 	#include <stdlib.h>
+	#include <stdio.h>
 #endif
+
+
+
+/* ----------------------------------------------------------------------------- */
+/* Helper functions */
+/* ----------------------------------------------------------------------------- */
+double tl2_k_to_E(double kix, double kiy, double kiz, double kfx, double kfy, double kfz)
+{
+	const double k2_to_E = 2.0721247;  /* from codata values*/
+	return k2_to_E * (kix*kix + kiy*kiy + kiz*kiz - kfx*kfx - kfy*kfy - kfz*kfz);
+}
+
+
+static void tl2_print_vec(const double* vec, const char* title, int I)
+{
+	if(title)
+		printf("%s: ", title);
+	for(int i = 0; i < I; ++i)
+		printf("%12.4e ", vec[i]);
+	printf("\n");
+}
+
+
+static void tl2_print_mat(const double* mat, const char* title, int I, int J)
+{
+	if(title)
+		printf("%s:\n", title);
+	for(int i = 0; i < I; ++i)
+	{
+		printf("\t");
+		for(int j = 0; j < J; ++j)
+			printf("%12.4e ", mat[i*J + j]);
+		printf("\n");
+	}
+}
+/* ----------------------------------------------------------------------------- */
+
 
 
 /* ---------------------------------------------------------------------------- */
@@ -144,7 +182,7 @@ void tl2_submat(const double* M, int N, double* M_new, int iremove, int jremove)
 			if(col == jremove)
 				continue;
 
-			M_new[row_new*(N-1) + col_new] = M[row*N + col];
+			M_new[row_new*(N - 1) + col_new] = M[row*N + col];
 			++col_new;
 		}
 		++row_new;
@@ -204,7 +242,7 @@ double tl2_determinant(const double* M, int N)
 
 		tl2_submat(M, N, submat, row, col);
 		const double sgn = ((row + col) % 2) == 0 ? 1. : -1.;
-		fullDet += elem * tl2_determinant(submat, N-1) * sgn;
+		fullDet += elem * tl2_determinant(submat, N - 1) * sgn;
 	}
 	free(submat);
 
@@ -226,7 +264,7 @@ int tl2_inverse(const double* M, double* I, int N)
 	if(tl2_flt_equals(fullDet, 0., g_tl2_eps))
 		return 0;
 
-	double *submat = (double*)malloc((N-1)*(N-1) * sizeof(double));
+	double *submat = (double*)malloc((N - 1)*(N - 1) * sizeof(double));
 	if(!submat)
 		return 0;
 
@@ -236,7 +274,7 @@ int tl2_inverse(const double* M, double* I, int N)
 		{
 			tl2_submat(M, N, submat, i, j);
 			const double sgn = ((i+j) % 2) == 0 ? 1. : -1.;
-			I[j*N + i] = tl2_determinant(submat, N-1) * sgn / fullDet;
+			I[j*N + i] = tl2_determinant(submat, N - 1) * sgn / fullDet;
 		}
 	}
 	free(submat);
@@ -505,6 +543,8 @@ void tl2_vec_mean(const double* vecs, const double* probs, double* mean,
 		if(probs)
 		{
 			p = probs[idx];
+			if(p < 0.)
+				p = -p;
 			tl2_vec_mul(vec, p, vec, N);
 		}
 
@@ -515,6 +555,33 @@ void tl2_vec_mean(const double* vecs, const double* probs, double* mean,
 	tl2_vec_div(mean, prob, mean, N);
 
 	free(vec);
+}
+
+
+/**
+ * matrix trafo
+ */
+void tl2_mat_trafo(const double* M, const double* T,
+	double* RES, int N, int ortho)
+{
+	if(!M || !T || !RES)
+		return;
+
+	double *Tinv = (double*)malloc(N*N * sizeof(double));
+	double *TMP = (double*)malloc(N*N * sizeof(double));
+	if(!Tinv || !TMP)
+		return;
+
+	if(ortho)
+		tl2_transpose(T, Tinv, N, N);
+	else
+		tl2_inverse(T, Tinv, N);
+
+	tl2_matmat_mul(Tinv, M, TMP, N, N, N);
+	tl2_matmat_mul(TMP, T, RES, N, N, N);
+
+	free(Tinv);
+	free(TMP);
 }
 
 
@@ -548,6 +615,8 @@ int tl2_covariance(const double* vecs, const double* probs,
 		if(probs)
 		{
 			p = probs[idx];
+			if(p < 0.)
+				p = -p;
 			tl2_mat_mul(outer, p, outer, N, N);
 		}
 
@@ -562,33 +631,6 @@ int tl2_covariance(const double* vecs, const double* probs,
 	free(outer);
 
 	return 1;
-}
-
-
-/**
- * matrix trafo
- */
-void tl2_mat_trafo(const double* M, const double* T,
-	double* RES, int N, int ortho)
-{
-	if(!M || !T || !RES)
-		return;
-
-	double *Tinv = (double*)malloc(N*N * sizeof(double));
-	double *TMP = (double*)malloc(N*N * sizeof(double));
-	if(!Tinv || !TMP)
-		return;
-
-	if(ortho)
-		tl2_transpose(T, Tinv, N, N);
-	else
-		tl2_inverse(T, Tinv, N);
-
-	tl2_matmat_mul(Tinv, M, TMP, N, N, N);
-	tl2_matmat_mul(TMP, T, RES, N, N, N);
-
-	free(Tinv);
-	free(TMP);
 }
 
 
@@ -615,11 +657,14 @@ int tl2_reso(const double* vecs, const double* probs,
 		return 0;
 	}
 
+	/*tl2_print_vec(Qmean, "Qmean", 4);*/
+
 	double *Qdir = (double*)malloc(N * sizeof(double));
 	if(!Qdir)
 		return 0;
-	double Qlen = tl2_vec_len(Qmean, N-1);
-	tl2_vec_div(Qmean, Qlen, Qdir, N-1);
+	tl2_vec_zero(Qdir, N);
+	double Qlen = tl2_vec_len(Qmean, N - 1);
+	tl2_vec_div(Qmean, Qlen, Qdir, N - 1);
 
 	double *Qup = (double*)malloc(N * sizeof(double));
 	if(!Qup)
@@ -637,13 +682,15 @@ int tl2_reso(const double* vecs, const double* probs,
 	if(!T)
 		return 0;
 	tl2_mat_zero(T, N, N);
-	for(int i=0; i<N; ++i)
+	for(int i = 0; i < N; ++i)
 	{
 		T[i*N + 0] = Qdir[i];
 		T[i*N + 1] = Qside[i];
 		T[i*N + 2] = Qup[i];
 	}
 	T[3*N + 3] = 1;
+
+	/*tl2_print_mat(T, "Trafo matrix", 4, 4);*/
 
 	tl2_mat_trafo(COV, T, COV, N, 1);
 	tl2_inverse(COV, RESO, N);
@@ -660,12 +707,42 @@ int tl2_reso(const double* vecs, const double* probs,
 
 
 
-/* ----------------------------------------------------------------------------- */
-/* Helper functions */
-/* ----------------------------------------------------------------------------- */
-double tl2_k_to_E(double kix, double kiy, double kiz, double kfx, double kfy, double kfz)
+/* ---------------------------------------------------------------------------- */
+/* Testing */
+/* ---------------------------------------------------------------------------- */
+/*int main(int argc, char** argv)
 {
-	const double k2_to_E = 2.0721247;  /* from codata values*/
-	return k2_to_E * (kix*kix + kiy*kiy + kiz*kiz - kfx*kfx - kfy*kfy - kfz*kfz);
-}
-/* ----------------------------------------------------------------------------- */
+	FILE* f = fopen("reso.dat", "r");
+
+	unsigned int max_evts = 10000;
+	unsigned int evt_idx = 0;
+	double *evts = malloc(max_evts*4*sizeof(double));
+	double *probs = malloc(max_evts*sizeof(double));
+
+	for(evt_idx = 0; evt_idx < max_evts; ++ evt_idx)
+	{
+		double ki_x, ki_y, ki_z, kf_x, kf_y, kf_z, x, y, z, p_i, p_f;
+		unsigned int idx;
+		if(fscanf(f, "%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %d\n",
+			&ki_x, &ki_y, &ki_z, &kf_x, &kf_y, &kf_z, &x, &y, &z, &p_i, &p_f, &idx) == EOF)
+			break;
+
+		evts[evt_idx*4 + 0] = ki_x - kf_x;
+		evts[evt_idx*4 + 1] = ki_y - kf_y;
+		evts[evt_idx*4 + 2] = ki_z - kf_z;
+		evts[evt_idx*4 + 3] = tl2_k_to_E(ki_x, ki_y, ki_z, kf_x, kf_y, kf_z);
+		probs[evt_idx] = p_i * p_f;
+	}
+
+	double *cov = malloc(4*4*sizeof(double));
+	double *res = malloc(4*4*sizeof(double));
+
+	tl2_reso(evts, probs, cov, res, evt_idx);
+
+	tl2_print_mat(cov, "Covariance matrix", 4, 4);
+	tl2_print_mat(res, "Resolution matrix", 4, 4);
+
+	fclose(f);
+	return 0;
+}*/
+/* ---------------------------------------------------------------------------- */
