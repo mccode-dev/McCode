@@ -87,9 +87,9 @@
       } while(0)
 */
 
+// TODO_SOA REMOVED mcmagnet stuff
 #define mcPROP_DT(dt) \
   do { \
-    if (mcMagnet && dt > 0) PROP_MAGNET(dt);\
     x += vx*(dt); \
     y += vy*(dt); \
     z += vz*(dt); \
@@ -97,11 +97,11 @@
     if (isnan(p) || isinf(p)) { ABSORB; }\
   } while(0)
 
+// TODO_SOA REMOVED mcmagnet stuff
 /* ADD: E. Farhi, Aug 6th, 2001 PROP_GRAV_DT propagation with acceleration */
 #define PROP_GRAV_DT(dt, Ax, Ay, Az) \
   do { \
     if(dt < 0 && mcallowbackprop == 0) { ABSORB; }\
-    if (mcMagnet) /*printf("Spin precession gravity\n")*/; \
     x  += vx*(dt) + (Ax)*(dt)*(dt)/2; \
     y  += vy*(dt) + (Ay)*(dt)*(dt)/2; \
     z  += vz*(dt) + (Az)*(dt)*(dt)/2; \
