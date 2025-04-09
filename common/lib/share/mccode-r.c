@@ -3482,25 +3482,22 @@ mcstatic void norm_func(double *x, double *y, double *z) {
 *  particles last.
 *
 *   particles:  the particle array, required to checking _absorbed
-*   buffer:     same-size particle buffer array required for parallel sort
+*   pbuffer:     same-size particle buffer array required for parallel sort
 *   len:        sorting area-of-interest size (e.g. from previous calls)
-*   b_len:      total array size
-*   split:      if set, multiply live particles into absorbed slots, up to buffer_len
+*   buffer_len:      total array size
+*   flag_split:      if set, multiply live particles into absorbed slots, up to buffer_len
 *   multiplier: output arg, becomes the  SPLIT multiplier if flag_split is set
 */
 #ifdef FUNNEL
-long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long len, long b_len, long split, long* multiplier) {
+long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long len, long buffer_len, long flag_split, long* multiplier) {
   #define SAL_THREADS 1024 // num parallel sections
-  if (len<SAL_THREADS) return sort_absorb_last_serial(particles, len);
-
-
   if (multiplier != NULL) *multiplier = -1; // set default out value for multiplier
 
   long target_start_index[SAL_THREADS]; // target array startidxs
   long target_sub_length[SAL_THREADS]; // target array sublens
 
-  long at_least = p_len / SAL_THREADS;  // every thread handles at least this many particles
-  long remainder = p_len % SAL_THREADS; // and the first remainder threads handle one more
+  long at_least = len / SAL_THREADS;  // every thread handles at least this many particles
+  long remainder = len % SAL_THREADS; // and the first remainder threads handle one more
 
   // step 1: sort sub-arrays
 #pragma acc parallel loop present(particles[0:b_len], buffer[0:b_len])
@@ -3509,22 +3506,22 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
     long first = (chunk * thread) + (thread < remainder ? 0 : remainder);
     long i = first, j = first + chunk - 1;
 
-    // write into buffer at i and j
+    // write into pbuffer at i and j
 #pragma acc loop seq
     while (i < j) {
 #pragma acc loop seq
       while (!particles[i]._absorbed && i<j) {
-        buffer[i] = particles[i];
+        pbuffer[i] = particles[i];
         i++;
       }
 #pragma acc loop seq
       while (particles[j]._absorbed && i<j) {
-        buffer[j] = particles[j];
+        pbuffer[j] = particles[j];
         j--;
       }
       if (i < j) {
-        buffer[j] = particles[i];
-        buffer[i] = particles[j];
+        pbuffer[j] = particles[i];
+        pbuffer[i] = particles[j];
         i++;
         j--;
       }
@@ -3533,7 +3530,7 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
 
     // transfer edge case
     if (i==j) {
-      buffer[i] = particles[i];
+      pbuffer[i] = particles[i];
       // and handle the case where the last particle is non-absorbed
       if (!particles[i]._absorbed) {
         target_sub_length[thread]++;
@@ -3559,15 +3556,15 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
     long k = target_start_index[thread];
 #pragma acc loop seq
     for (long i=0; i < target_sub_length[thread]; i++) {
-      particles[k + i] = buffer[j + i];
+      particles[k + i] = pbuffer[j + i];
     }
   }
 
   // SPLIT - repeat the non-absorbed block N-1 times, where len % moved = N + R
-  long mult = b_len / moved; // TODO: possibly use a new arg, bufferlen, rather than len
+  long mult = buffer_len / moved; // TODO: possibly use a new arg, bufferlen, rather than len
 
-  // no split or not enough space for full-block split, return
-  if (split != 1 || mult <= 1) {
+  // no flag_split or not enough space for full-block flag_split, return
+  if (flag_split != 1 || mult <= 1) {
     return moved;
   }
 
@@ -3577,7 +3574,7 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
     // assign reduced weight to all particles
     particles[thread].p = particles[thread].p / (double) mult;
     // copy this particle to replicate (mult-1) times, preserving randstate
-    particle_t source = particles[thread];
+    _class_particle source = particles[thread];
 #pragma acc loop seq
     for (long bidx = 1; bidx < mult; bidx++) { // bidx: block index
       long i = bidx * moved + thread; // this strided access can't be good for performance
@@ -3596,7 +3593,7 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
     }
   }
 
-  // set out split multiplier value
+  // set out flag_split multiplier value
   if (multiplier) *multiplier = mult;
 
   // return expanded array size
