@@ -797,7 +797,7 @@ int cogen_comp_section_class(
     // TRACE add particle parameter to footprint
     if (!strcmp(section, "TRACE")) /* TRACE: need to define particle state */
     {
-      coutf("  , _class_particle *_particle) {",
+      coutf("  , _class_particle_soa *_particles, int soa_index) {",
         comp->def->name, comp->def->name, section_lower, comp->def->name);
       cout("  ABSORBED=SCATTERED=RESTORE=0;");
     } else
@@ -889,21 +889,21 @@ int cogen_comp_section_class(
       cout("  if(isinf(fabs(p) + fabs(t) + fabs(kx) + fabs(ky) + fabs(kz) + fabs(x) + fabs(y) + fabs(z) + fabs(phi))) ABSORB;");
 #endif
       cout("#else");
-      cout("  if(isnan(p)  ||  isinf(p)) printf(\"NAN or INF found in p,  %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
-      cout("  if(isnan(t)  ||  isinf(t)) printf(\"NAN or INF found in t,  %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
+      cout("  if(isnan(p)  ||  isinf(p)) printf(\"NAN or INF found in p,  %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
+      cout("  if(isnan(t)  ||  isinf(t)) printf(\"NAN or INF found in t,  %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
 #if MCCODE_PROJECT == 1     /* neutron */
-      cout("  if(isnan(vx) || isinf(vx)) printf(\"NAN or INF found in vx, %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
-      cout("  if(isnan(vy) || isinf(vy)) printf(\"NAN or INF found in vy, %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
-      cout("  if(isnan(vz) || isinf(vz)) printf(\"NAN or INF found in vz, %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
+      cout("  if(isnan(vx) || isinf(vx)) printf(\"NAN or INF found in vx, %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
+      cout("  if(isnan(vy) || isinf(vy)) printf(\"NAN or INF found in vy, %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
+      cout("  if(isnan(vz) || isinf(vz)) printf(\"NAN or INF found in vz, %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
 #elif MCCODE_PROJECT == 2   /* xray */
-      cout("  if(isnan(phi)  ||  isinf(phi)) printf(\"NAN or INF found in phi, %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
-      cout("  if(isnan(kx) || isinf(kx)) printf(\"NAN or INF found in kx, %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
-      cout("  if(isnan(ky) || isinf(ky)) printf(\"NAN or INF found in ky, %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
-      cout("  if(isnan(kz) || isinf(kz)) printf(\"NAN or INF found in kz, %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
+      cout("  if(isnan(phi)  ||  isinf(phi)) printf(\"NAN or INF found in phi, %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
+      cout("  if(isnan(kx) || isinf(kx)) printf(\"NAN or INF found in kx, %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
+      cout("  if(isnan(ky) || isinf(ky)) printf(\"NAN or INF found in ky, %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
+      cout("  if(isnan(kz) || isinf(kz)) printf(\"NAN or INF found in kz, %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
 #endif
-      cout("  if(isnan(x)  ||  isinf(x)) printf(\"NAN or INF found in x,  %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
-      cout("  if(isnan(y)  ||  isinf(y)) printf(\"NAN or INF found in y,  %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
-      cout("  if(isnan(z)  ||  isinf(z)) printf(\"NAN or INF found in z,  %s (particle %lld)\\n\",_comp->_name,_particle->_uid);");
+      cout("  if(isnan(x)  ||  isinf(x)) printf(\"NAN or INF found in x,  %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
+      cout("  if(isnan(y)  ||  isinf(y)) printf(\"NAN or INF found in y,  %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
+      cout("  if(isnan(z)  ||  isinf(z)) printf(\"NAN or INF found in z,  %s (particle %lld)\\n\",_comp->_name,_particles->_uid[soa_index]);");
       cout("#endif");
       //cout("}");
     }
@@ -915,7 +915,7 @@ int cogen_comp_section_class(
       List_handle uservarsiter = list_iterate(instr->user_vars);
       char *var;
       while((var = list_next(uservarsiter))) {
-        coutf("  #define %s (_particle->%s)", var, var);
+        coutf("  #define %s (_particles->%s[soa_index])", var, var);
       }
       list_iterate_end(uservarsiter);
 
@@ -1150,7 +1150,7 @@ void cogen_getdistance_fct(){
 *******************************************************************************/
 void cogen_getparticlevar_fct(struct instr_def *instr)
 {
-  cout("void* _get_particle_var(char *token, _class_particle *p)");
+  cout("void* _get_particle_var(char *token, _class_particle_soa *p, soa_index)");
   cout("/* enables setpars based use of GET_PARTICLE_DVAR macro and similar */");
   cout("{");
 
@@ -1249,7 +1249,7 @@ int cogen_decls(struct instr_def *instr)
     while((comp = list_next(liter)) != NULL) {
       if (comp->split) {
         coutf("  long Split_%s; /* this is the SPLIT counter decremented down to 0 */", comp->name);
-        coutf("  _class_particle Split_%s_particle; /* this is the particle to duplicate */", comp->name);
+        coutf("  _class_particle_soa Split_%s_particle; /* this is the particle to duplicate */", comp->name); // SOA_TODO allocate and copy?
       }
     }
     cout("};");
@@ -1264,7 +1264,7 @@ int cogen_decls(struct instr_def *instr)
   coutf("  double counter_AbsorbProp[%i]; /* absorbed events in PROP routines */", list_len(instr->complist)+2);
   coutf("  double counter_N[%i], counter_P[%i], counter_P2[%i]; /* event counters after each component instance */",
     list_len(instr->complist)+2, list_len(instr->complist)+2, list_len(instr->complist)+2);
-  coutf("  _class_particle _trajectory[%i]; /* current trajectory for STORE/RESTORE */", list_len(instr->complist)+2);
+  coutf("  _class_particle_soa _trajectory; /* current trajectory for STORE/RESTORE */", list_len(instr->complist)+2); // SOA_TODO removed number of elements from _trajectories
   cout( "/* Components position table (absolute and relative coords) */");
   coutf("  Coords _position_relative[%i]; /* positions of all components */",
     list_len(instr->complist)+2);
@@ -1619,7 +1619,7 @@ void def_trace_section(struct instr_def *instr)
 
   /* define state parameters for all TRACE*/
   for(i=0; i<NUM_STATE_PARS; i++)
-    coutf("#define %s (_particle->%s)", statepars_all[i], statepars_all[i]);
+    coutf("#define %s (_particles->%s[soa_index])", statepars_all[i], statepars_all[i]);
 
   cout("/* if on GPU, globally nullify sprintf,fprintf,printfs   */");
   cout("/* (Similar defines are available in each comp trace but */");
@@ -1633,8 +1633,8 @@ void def_trace_section(struct instr_def *instr)
   cout("#endif");
 
   /* define SCATTERED, ABSORB and RESTORE macros for all TRACE */
-  coutf("#define %s (_particle->%s)", "SCATTERED", "_scattered");
-  coutf("#define %s (_particle->%s)", "RESTORE"  , "_restore");
+  coutf("#define %s (_particles->%s[soa_index])", "SCATTERED", "_scattered");
+  coutf("#define %s (_particles->%s[soa_index])", "RESTORE"  , "_restore");
 #if MCCODE_PROJECT == 1     /* neutron */
   coutf("#define RESTORE_NEUTRON(_index, ...) _particles->_restore[soa_index] = _index;");
   cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; return; } while(0)");
@@ -1704,7 +1704,7 @@ void def_uservars(struct instr_def *instr)
   List_handle uservarsiter = list_iterate(instr->user_vars);
   char *var;
   while((var = list_next(uservarsiter))) {
-    coutf("#define %s (_particle->%s)", var, var);
+    coutf("#define %s (_particles->%s[soa_index])", var, var);
   }
   list_iterate_end(uservarsiter);
 }
@@ -2032,6 +2032,10 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("  }");
   coutf("    #endif");
   coutf("");
+  coutf("  // Code for allocating memory for particles_soa");
+  coutf("  _class_particle_soa *_particles;");      
+  coutf("  particle_allocate(*_particles, gpu_innerloop);");
+  coutf("");    
   coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
   coutf("    #ifdef OPENACC");
   coutf("    if (loops>1) fprintf(stdout, \"%%d..\", (int)cloop); fflush(stdout);");
@@ -2049,17 +2053,16 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("");
   coutf("    #pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
-  coutf("      _class_particle particleN = mcgenstate(); // initial particle");
-  coutf("      _class_particle* _particle = &particleN;");
-  coutf("      particleN._uid = pidx;");
+  coutf("      mcgenstate(_particles, pidx); // initial particle");
+  coutf("      _particles->_uid[pidx] = pidx + cloop*gpu_innerloop;");  
   coutf("      #ifdef USE_MPI");
-  coutf("      particleN._uid += mpi_node_rank * ncount; ");
+  coutf("      _particles->_uid[pidx] += mpi_node_rank * ncount; ");
   coutf("      #endif");
   coutf("");
-  coutf("      srandom(_hash((pidx+1)*(seed+1)));");
-  coutf("      particle_uservar_init(_particle);");
+  coutf("      srandom(_particles, pidx, _hash((pidx+1)*(seed+1)));");
+  coutf("      //particle_uservar_init(_particle);"); // SOA_TODO get uservars injected
   coutf("");
-  coutf("      raytrace(_particle);");
+  coutf("      raytrace(_particles, soa_index);");
   coutf("    } /* inner for */");
   coutf("    seed = seed+gpu_innerloop;");
   coutf("  } /* CPU for */");
@@ -2682,12 +2685,12 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  unsigned long **randstate;"); // randstate needs 2D memory allocation
   cout("  double *t, *p;     /* time, event weight */");
   cout("  long *long _uid;  /* Unique event ID */");
-  cout("  long *_index;     /* component index where to send this event */");
+  cout("  int *_index;     /* component index where to send this event */");
   /* these are needed for SCATTERED, ABSORB and RESTORE macros */
-  cout("  long *_absorbed;  /* flag set to TRUE when this event is to be removed/ignored */");
-  cout("  long *_scattered; /* flag set to TRUE when this event has interacted with the last component instance */");
-  cout("  long *_restore;   /* set to true if neutron event must be restored */");
-  cout("  long *flag_nocoordschange;   /* set to true if particle is jumping */");
+  cout("  int *_absorbed;  /* flag set to TRUE when this event is to be removed/ignored */");
+  cout("  int *_scattered; /* flag set to TRUE when this event has interacted with the last component instance */");
+  cout("  int *_restore;   /* set to true if neutron event must be restored */");
+  cout("  int *flag_nocoordschange;   /* set to true if particle is jumping */");
   /* Include the struct defined earlier holding information on JUMP logic*/
   cout("  struct particle_logic_struct *_logic;");
   /* Append variables from instr USERVARS block to particle struct (user vars,
@@ -2926,6 +2929,134 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  return rval;");
   cout("}");
   cout("");
+  
+  liter = list_iterate(instr->user_vars);
+  liter2 = list_iterate(instr->user_vars_types);
+  cout("#pragma acc routine");
+  cout("int particle_allocate(_class_particle_soa *, int);");
+  cout("");
+  cout("int particle_allocate(_class_particle_soa *p, int soa_length){");
+  cout("#ifndef OPENACC");
+  cout("#define str_comp strcmp");
+  cout("#endif");
+  cout("  int rval=1;");
+  cout("  p->x = malloc(soa_length*sizeof(double));");  
+  cout("  p->y = malloc(soa_length*sizeof(double));");  
+  cout("  p->z = malloc(soa_length*sizeof(double));");  
+#if MCCODE_PROJECT == 1     /* neutron */
+  cout("  p->vx = malloc(soa_length*sizeof(double));");  
+  cout("  p->vy = malloc(soa_length*sizeof(double));");  
+  cout("  p->vz = malloc(soa_length*sizeof(double));");  
+  cout("  p->sx = malloc(soa_length*sizeof(double));");  
+  cout("  p->sy = malloc(soa_length*sizeof(double));");  
+  cout("  p->sz = malloc(soa_length*sizeof(double));");
+#elif MCCODE_PROJECT == 2   /* xray */
+  cout("  p->kx = malloc(soa_length*sizeof(double));");
+  cout("  p->ky = malloc(soa_length*sizeof(double));");
+  cout("  p->kz = malloc(soa_length*sizeof(double));");
+  cout("  p->Ex = malloc(soa_length*sizeof(double));");
+  cout("  p->Ey = malloc(soa_length*sizeof(double));");
+  cout("  p->Ez = malloc(soa_length*sizeof(double));");
+  cout("  p->phi = malloc(soa_length*sizeof(double));");
+#endif
+  cout("  p->p = malloc(soa_length*sizeof(double));");
+  cout("  p->t = malloc(soa_length*sizeof(double));");
+  
+  cout("  p->allow_backprop = malloc(soa_length*sizeof(int));");  
+  cout("  p->_mctmp_a = malloc(soa_length*sizeof(double));");  
+  cout("  p->_mctmp_b = malloc(soa_length*sizeof(double));");  
+  cout("  p->_mctmp_c = malloc(soa_length*sizeof(double));");
+  cout("  p->_uid = malloc(soa_length*sizeof(long));");      
+  cout("  p->_index = malloc(soa_length*sizeof(int));");
+  cout("  p->_absorbed = malloc(soa_length*sizeof(int));");
+  cout("  p->_scattered = malloc(soa_length*sizeof(int));");    
+  cout("  p->_resotre = malloc(soa_length*sizeof(int));");      
+  cout("  p->flag_nocoordschange = malloc(soa_length*sizeof(int));");                 
+  
+  /*
+  Check no pointers are null, if that is the case, set return value to 0
+  */
+
+  /*
+  // SOA_TODO need to allocate arrays? Hardcode?
+  char *invar;
+  while((invar = list_next(liter))) {
+    tpe = list_next(liter2);
+    if (!(strstr(tpe, "[") || strstr(tpe, "]") || strstr(tpe, "*"))){
+      // not an array -- we should be able to use memcopy freely
+      coutf("  if(!str_comp(\"%s\",name)){memcpy(&(p->%s[soa_index]), value, sizeof(%s)); rval=0;}", invar, invar, tpe);
+    }
+  }
+  */
+  list_iterate_end(liter);
+  list_iterate_end(liter2);
+  cout("  return rval;");
+  cout("}");
+  cout("");
+  
+  liter = list_iterate(instr->user_vars);
+  liter2 = list_iterate(instr->user_vars_types);
+  cout("#pragma acc routine");
+  cout("int particle_free(_class_particle_soa *);");
+  cout("");
+  cout("int particle_free(_class_particle_soa *p){");
+  cout("#ifndef OPENACC");
+  cout("#define str_comp strcmp");
+  cout("#endif");
+  cout("  int rval=1;");
+  cout("  free(p->x);");  
+  cout("  free(p->y);");  
+  cout("  free(p->z);;");  
+#if MCCODE_PROJECT == 1     /* neutron */
+  cout("  free(p->vx);");  
+  cout("  free(p->vy);");  
+  cout("  free(p->vz);");  
+  cout("  free(p->sx);");  
+  cout("  free(p->sy);");  
+  cout("  free(p->sz);");
+#elif MCCODE_PROJECT == 2   /* xray */
+  cout("  free(p->kx);");
+  cout("  free(p->ky);");
+  cout("  free(p->kz);");
+  cout("  free(p->Ex);");
+  cout("  free(p->Ey);");
+  cout("  free(p->Ez);");
+  cout("  free(p->phi);");
+#endif
+  cout("  free(p->p);");
+  cout("  free(p->t);");
+  
+  cout("  free(p->allow_backprop)");  
+  cout("  free(p->_mctmp_a);");  
+  cout("  free(p->_mctmp_b);");  
+  cout("  free(p->_mctmp_c);");
+  cout("  free(p->_uid);");     
+  cout("  free(p->_index;");
+  cout("  free(p->_absorbed;");
+  cout("  free(p->_scattered;";
+  cout("  free(p->_resotre);");
+  cout("  free(p->flag_nocoordschange);";
+  
+  /*
+  Check no pointers are null, if that is the case, set return value to 0
+  */
+
+  /*
+  // SOA_TODO need to allocate arrays? Hardcode?
+  char *invar;
+  while((invar = list_next(liter))) {
+    tpe = list_next(liter2);
+    if (!(strstr(tpe, "[") || strstr(tpe, "]") || strstr(tpe, "*"))){
+      // not an array -- we should be able to use memcopy freely
+      coutf("  if(!str_comp(\"%s\",name)){memcpy(&(p->%s[soa_index]), value, sizeof(%s)); rval=0;}", invar, invar, tpe);
+    }
+  }
+  */
+  list_iterate_end(liter);
+  list_iterate_end(liter2);
+  cout("  return rval;");
+  cout("}");
+  cout("");
 
   liter = list_iterate(instr->user_vars);
   liter2 = list_iterate(instr->user_vars_types);
@@ -2954,32 +3085,51 @@ cogen_header(struct instr_def *instr, char *output_name)
 
   /* Function to handle a particle restore of physical particle params */
   cout("#pragma acc routine");
-  cout("void particle_restore(_class_particle *p, _class_particle *p0);");
+  cout("void particle_restore(_class_particle_soa *p, _class_particle_soa *p0, int soa_index);");
   cout("");
-  cout("void particle_restore(_class_particle *p, _class_particle *p0) {");
-  cout("  p->x  = p0->x;  p->y  = p0->y;  p->z  = p0->z;");
+  cout("void particle_restore(_class_particle_soa *p, _class_particle_soa *p0, int soa_index, int flag) {");
+  cout("  p->x[soa_index]  = p0->x[soa_index];  p->y[soa_index]  = p0->y[soa_index];  p->z[soa_index]  = p0->z[soa_index];");
 #if MCCODE_PROJECT == 1     /* neutron */
-  cout("  p->vx = p0->vx; p->vy = p0->vy; p->vz = p0->vz;");
-  cout("  p->sx = p0->sx; p->sy = p0->sy; p->sz = p0->sz;");
-  cout("  p->t = p0->t;  p->p  = p0->p;");
+  cout("  p->vx[soa_index] = p0->vx[soa_index]; p->vy[soa_index] = p0->vy[soa_index]; p->vz[soa_index] = p0->vz[soa_index];");
+  cout("  p->sx[soa_index] = p0->sx[soa_index]; p->sy[soa_index] = p0->sy[soa_index]; p->sz[soa_index] = p0->sz[soa_index];");
+  cout("  p->t[soa_index] = p0->t[soa_index];  p->p[soa_index]  = p0->p[soa_index];");
 #elif MCCODE_PROJECT == 2   /* xray */
-  cout("  p->kx = p0->kx; p->ky = p0->ky; p->kz = p0->kz;");
-  cout("  p->Ex = p0->Ex; p->Ey = p0->Ey; p->Ez = p0->Ez;");
-  cout("  p->t = p0->t;   p->p  = p0->p;  p->phi  = p0->phi;");
+  cout("  p->kx[soa_index] = p0->kx[soa_index]; p->ky[soa_index] = p0->ky[soa_index]; p->kz[soa_index] = p0->kz[soa_index];");
+  cout("  p->Ex[soa_index] = p0->Ex[soa_index]; p->Ey[soa_index] = p0->Ey[soa_index]; p->Ez[soa_index] = p0->Ez[soa_index];");
+  cout("  p->t[soa_index] = p0->t[soa_index];   p->p[soa_index]  = p0->p[soa_index];  p->phi[soa_index]  = p0->phi[soa_index];");
 #endif
-  cout("  p->_absorbed=0; p->_restore=0;");
+  cout("  p->_absorbed[soa_index]=0; p->_restore[soa_index]=0;");
+  cout("  else {p->_absorbed[soa_index]=p0->_absorbed[soa_index]; p->_restore[soa_index]=p0->_restore[soa_index];}");
+  cout("}");
+  cout("");
+  
+  cout("#pragma acc routine");
+  cout("void particle_copy(_class_particle_soa *p, _class_particle_soa *p0, int soa_index, int soa_index0);");
+  cout("");
+  cout("void particle_restore(_class_particle_soa *p, _class_particle_soa *p0, int soa_index) {");
+  cout("  p->x[soa_index]  = p0->x[soa_index0];  p->y[soa_index]  = p0->y[soa_index0];  p->z[soa_index]  = p0->z[soa_index0];");
+#if MCCODE_PROJECT == 1     /* neutron */
+  cout("  p->vx[soa_index] = p0->vx[soa_index0]; p->vy[soa_index] = p0->vy[soa_index0]; p->vz[soa_index] = p0->vz[soa_index0];");
+  cout("  p->sx[soa_index] = p0->sx[soa_index0]; p->sy[soa_index] = p0->sy[soa_index0]; p->sz[soa_index] = p0->sz[soa_index0];");
+  cout("  p->t[soa_index] = p0->t[soa_index0];  p->p[soa_index]  = p0->p[soa_index0];");
+#elif MCCODE_PROJECT == 2   /* xray */
+  cout("  p->kx[soa_index] = p0->kx[soa_index0]; p->ky[soa_index] = p0->ky[soa_index]; p->kz[soa_index] = p0->kz[soa_index0];");
+  cout("  p->Ex[soa_index] = p0->Ex[soa_index0]; p->Ey[soa_index] = p0->Ey[soa_index]; p->Ez[soa_index] = p0->Ez[soa_index0];");
+  cout("  p->t[soa_index] = p0->t[soa_index0];   p->p[soa_index]  = p0->p[soa_index];  p->phi[soa_index]  = p0->phi[soa_index0];");
+#endif
+  cout("  p->_absorbed[soa_index]=p0->_absorbed[soa_index0]; p->_restore[soa_index]=p0->_restore[soa_index0];}");
   cout("}");
   cout("");
 
   liter = list_iterate(instr->user_vars);
   cout("#pragma acc routine");
-  cout("double particle_getuservar_byid(_class_particle *p, int id, int *suc){");
+  cout("double particle_getuservar_byid(_class_particle_soa *p, int soa_index, int id, int *suc){");
   cout("  int s=1;");
   cout("  double rval=0;");
   cout("  switch(id){");
   int jvar=0;
   while((var = list_next(liter))) {
-    coutf("  case %d: { rval=*( (double *)(&(p->%s)) );s=0;break;}",jvar++,var);
+    coutf("  case %d: { rval=*( (double *)(&(p->%s[soa_index])) );s=0;break;}",jvar++,var);
   }
   cout("  }");
   cout("  if (suc!=0x0) {*suc=s;}");
@@ -2990,7 +3140,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   liter = list_iterate(instr->user_vars);
   liter2 = list_iterate(instr->user_vars_types);
   cout("#pragma acc routine");
-  cout("void particle_uservar_init(_class_particle *p){");
+  cout("void particle_uservar_init(_class_particle_soa *p, int soa_index){");
   while((var = list_next(liter))) {
     tpe = list_next(liter2);
     if (strstr(tpe, "double") || strstr(tpe, "MCNUM") || strstr(tpe, "int")){
