@@ -1608,7 +1608,7 @@ void def_trace_section(struct instr_def *instr)
   #elif MCCODE_PROJECT == 2   /* xray */
   #define NUM_STATE_PARS 15
           "x", "y", "z", "kx", "ky", "kz",
-          "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+          "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
   #endif
   };
 
@@ -1665,7 +1665,7 @@ void undef_trace_section(struct instr_def *instr)
     #elif MCCODE_PROJECT == 2   /* xray */
     #define NUM_STATE_PARS 15
             "x", "y", "z", "kx", "ky", "kz",
-            "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+            "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop","_mctmp_a", "_mctmp_b", "_mctmp_c"
     #endif
     };
   List l;
@@ -1774,7 +1774,7 @@ int cogen_raytrace(struct instr_def *instr)
     #elif MCCODE_PROJECT == 2   /* xray */
     #define NUM_STATE_PARS 15
             "x", "y", "z", "kx", "ky", "kz",
-            "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+            "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop","_mctmp_a", "_mctmp_b", "_mctmp_c"
     #endif
     };
   List l;
@@ -2107,7 +2107,7 @@ int cogen_rt_funnel(struct instr_def *instr)
     #elif MCCODE_PROJECT == 2   /* xray */
     #define NUM_STATE_PARS 15
             "x", "y", "z", "kx", "ky", "kz",
-            "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+            "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
     #endif
     };
   List l;
@@ -2142,7 +2142,7 @@ int cogen_rt_funnel(struct instr_def *instr)
         printf("\nWARNING:\n --> JUMP found at COMPONENT %i, %s \n", comp->index, comp->name);
 	printf(" --> JUMPS are not supported in FUNNEL mode and are ignored\n");
 	printf(" --> Your instrument may give different output with FUNNEL\n");
-        coutf("printf(\"\\nWARNING:\\n --> JUMP found at COMPONENT %i, %s\\n\");", comp->index, comp->name);
+    coutf("printf(\"\\nWARNING:\\n --> JUMP found at COMPONENT %i, %s\\n\");", comp->index, comp->name);
 	coutf("printf(\" --> JUMPS are not supported in FUNNEL mode and are ignored\\n\");");
 	coutf("printf(\" --> Your instrument may give different output with FUNNEL\\n\");");
     }
@@ -2341,7 +2341,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
     #elif MCCODE_PROJECT == 2   /* xray */
     #define NUM_STATE_PARS 15
             "x", "y", "z", "kx", "ky", "kz",
-            "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+            "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
     #endif
     };
   List l;
@@ -2621,6 +2621,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   /* Basic includes */
   cout("");
   cout("#include <string.h>");
+  cout("#include <stdlib.h>");  
   cout("");
 
   /* McCode-specific typedefs */
@@ -2668,11 +2669,11 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  double *sx,*sy,*sz; /* spin [0-1] */");
   cout("  int mcgravitation; /* gravity-state */"); // Still just single thing
   cout("  void *mcMagnet;    /* precession-state */"); 
-  cout("  int *allow_backprop; /* allow backprop */");
 #elif MCCODE_PROJECT == 2 /* xray */
   cout("  double *kx,*ky,*kz; /* wave-vector */");
   cout("  double *phi, *Ex,*Ey,*Ez; /* phase and electrical field */");
 #endif
+  cout("  int *allow_backprop; /* allow backprop */");  
   cout("  /* Generic Temporaries: */");
   cout("  /* May be used internally by components e.g. for special */");
   cout("  /* return-values from functions used in trace, thusreturned via */");
@@ -2753,7 +2754,7 @@ cogen_header(struct instr_def *instr, char *output_name)
 
   /* Below lines relating to mcgenstate / setstate are in principle McStas-centric, we ought to generate this function based on "project" */
   cout("#pragma acc routine");
-  cout("int mcgenstate(_class_particle_soa *_particles, int soa_index);");
+  cout("void mcgenstate(_class_particle_soa *_particles, int soa_index);");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("#pragma acc routine");
   cout("void mcsetstate(_class_particle_soa *_particles, int soa_index, double x, double y, double z, double vx, double vy, double vz,");
@@ -2777,13 +2778,12 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#pragma acc declare create ( mcallowbackprop )");
 
   cout("");
-  cout("int mcgenstate(_class_particle_soa *_particles, int soa_index) {");
+  cout("void mcgenstate(_class_particle_soa *_particles, int soa_index) {");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("  mcsetstate(_particles, soa_index, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
 #elif MCCODE_PROJECT == 2   /* xray */
   cout("  mcsetstate(_particles, soa_index, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
 #endif
-  cout("  return 1;");
   cout("}");
 
   /*generate uservar return functions*/
@@ -2972,6 +2972,11 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  p->_scattered = (int*) malloc(soa_length*sizeof(int));");    
   cout("  p->_restore = (int*) malloc(soa_length*sizeof(int));");      
   cout("  p->flag_nocoordschange = (int*) malloc(soa_length*sizeof(int));");                 
+  
+  cout("  p->randstate = (unsigned long **)malloc(soa_length * sizeof(unsigned long *));");  
+  cout("    for (size_t i = 0; i < soa_length; i++) {");
+  cout("      particles->randstate[i] = (unsigned long *)malloc(7 * sizeof(unsigned long));");
+  cout("  }");
   
   /*
   Check no pointers are null, if that is the case, set return value to 0
@@ -3544,8 +3549,8 @@ cogen(char *output_name, struct instr_def *instr)
   warnings += cogen_trace_functions(instr);
   def_uservars(instr);
   warnings += cogen_raytrace(instr);
-  warnings += cogen_rt_funnel(instr);
-  warnings += cogen_rt_multikernel(instr);
+  //warnings += cogen_rt_funnel(instr);
+  //warnings += cogen_rt_multikernel(instr);
   undef_uservars(instr);
   undef_trace_section(instr);
 
