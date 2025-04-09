@@ -1636,15 +1636,15 @@ void def_trace_section(struct instr_def *instr)
   coutf("#define %s (_particle->%s)", "SCATTERED", "_scattered");
   coutf("#define %s (_particle->%s)", "RESTORE"  , "_restore");
 #if MCCODE_PROJECT == 1     /* neutron */
-  coutf("#define RESTORE_NEUTRON(_index, ...) _particle->_restore = _index;");
+  coutf("#define RESTORE_NEUTRON(_index, ...) _particles->_restore[soa_index] = _index;");
   cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; return; } while(0)");
 #elif MCCODE_PROJECT == 2   /* xray */
-  coutf("#define RESTORE_XRAY(_index, ...) _particle->_restore = _index;");
+  coutf("#define RESTORE_XRAY(_index, ...) _particles->_restore[soa_index] = _index;");
   cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); ABSORBED++; return; } while(0)");
 #endif
-  coutf("#define %s (_particle->%s)", "ABSORBED" , "_absorbed");
+  coutf("#define %s (_particles->%s[soa_index])", "ABSORBED" , "_absorbed");
   /* define mcget_run_num within trace scope to refer to the particle */
-  coutf("#define mcget_run_num() _particle->_uid");
+  coutf("#define mcget_run_num() _particles->_uid[soa_index]");
   cout( "#define ABSORB ABSORB0");
 } /* def_trace_section */
 
@@ -1790,7 +1790,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("#ifndef FUNNEL");
   cout("#ifndef MULTIKERNEL");
   cout("#pragma acc routine");
-  coutf("int raytrace(_class_particle* _particle) { /* single event propagation, called by mccode_main for %s:%s */", instr->name, "TRACE");
+  coutf("int raytrace(_class_particle_soa* _particles, int soa_index) { /* single event propagation, called by mccode_main for %s:%s */", instr->name, "TRACE");
   cout("");
 
   cout("  /* init variables and counters for TRACE */");
@@ -1816,7 +1816,7 @@ int cogen_raytrace(struct instr_def *instr)
       while((this_jump = list_next(liter2))) {
         /* create counter for JUMP iteration */
         if (this_jump->iterate)
-          coutf("  _particle->_logic.Jump_%s_%s=0;", comp->name, this_jump->target);
+          coutf("  _particles->_logic[soa_index].Jump_%s_%s=0;", comp->name, this_jump->target);
         /* check that the target_index is defined, else search for the target comp index */
         if (!this_jump->target_index) {
           List_handle liter3 = list_iterate(instr->complist);
@@ -1835,8 +1835,8 @@ int cogen_raytrace(struct instr_def *instr)
   }
   list_iterate_end(liter);
 
-  cout("  _particle->flag_nocoordschange=0; /* Init */");
-  cout("  _class_particle _particle_save=*_particle;");
+  cout("  _particles->flag_nocoordschange[soa_index]=0; /* Init */");
+  cout("  //_class_particle _particle_save=*_particle; // disabled at the momement");
   cout("  /* the main iteration loop for one incoming event */");
   cout("  while (!ABSORBED) { /* iterate event until absorbed */");
   cout("    /* send particle event to component instance, one after the other */");
@@ -1850,7 +1850,7 @@ int cogen_raytrace(struct instr_def *instr)
     if (comp->split) {
       char *exp=exp_tostring(comp->split);
       printf("-> SPLIT N at component %s\n",comp->name);
-      coutf("#ifndef NOSPLIT");
+      coutf("#ifndef NOSPLIT"); // SOA_TODO always run with NOSPLIT
       coutf("    /* start SPLIT at %s */", comp->name);
       coutf("    if (!ABSORBED) {");
       coutf("    _class_particle Split_%s_particle=*_particle;", comp->name); // store incoming particle state at SPLIT
@@ -1875,7 +1875,7 @@ int cogen_raytrace(struct instr_def *instr)
     coutf("    /* begin component %s=%s() [%i] */", comp->name, comp->def->name, comp->index);
     if (comp->skip_transform == 0) {
       cout( "    #ifndef NO_TRANSFORM_CHECKS");
-      cout( "    if (!_particle->flag_nocoordschange) { // flag activated by JUMP to pass coords change");
+      cout( "    if (!_particles->flag_nocoordschange[soa_index]) { // flag activated by JUMP to pass coords change");
       coutf("      if (_%s_var._rotation_is_identity) {", comp->name);
       coutf("        if(!_%s_var._position_relative_is_zero) {", comp->name);
       coutf("          coords_get("
@@ -1884,21 +1884,21 @@ int cogen_raytrace(struct instr_def *instr)
       cout( "        }");
       cout( "      } else {");
       cout( "    #endif");
-      coutf("          mccoordschange(_%s_var._position_relative, _%s_var._rotation_relative, _particle);", comp->name, comp->name);
+      coutf("          mccoordschange(_%s_var._position_relative, _%s_var._rotation_relative, _particles, soa_index);", comp->name, comp->name);
       cout( "    #ifndef NO_TRANSFORM_CHECKS");
       cout( "      }");
       cout( "    }");
       cout( "    #endif");
     }
-    coutf("    if (!ABSORBED && _particle->_index == %i) {", comp->index);
-    coutf("      _particle->flag_nocoordschange=0; /* Reset if we came here from a JUMP */");
+    coutf("    if (!ABSORBED && _particles->_index[soa_index] == %i) {", comp->index);
+    coutf("      _particles->flag_nocoordschange[soa_index]=0; /* Reset if we came here from a JUMP */");
     if (!comp->group || (comp->group && comp->group->first_comp_index == comp->index)) {
       if (comp->skip_transform == 0) {
-        cout( "      _particle_save = *_particle;");
+        cout( "      //_particle_save = *_particle;"); // SOA_TODO
       }
     } else {
       coutf("      // 2nd or higher GROUP member, \"reuse\" coordinate-changed _particle_save from 1st GROUP element.");
-      coutf("      mccoordschange(_%s_var._position_relative, _%s_var._rotation_relative, &_particle_save);", comp->name, comp->name);
+      coutf("      //mccoordschange(_%s_var._position_relative, _%s_var._rotation_relative, &_particle_save);", comp->name, comp->name); // SOA_TODO
     }
     if (comp->skip_transform == 0) {
       coutf("      DEBUG_COMP(_%s_var._name);", comp->name);
@@ -1912,13 +1912,13 @@ int cogen_raytrace(struct instr_def *instr)
         coutf("      if ((%s)) // conditional WHEN execution", exp);
         str_free(exp);
       }
-      coutf("      class_%s_trace(&_%s_var, _particle);%s",
+      coutf("      class_%s_trace(&_%s_var, _particles, soa_index);%s",
         comp->def->name,
         comp->name,
         list_len(comp->extend->lines) ? " /* contains EXTEND code */" : "");
 
-      cout( "      if (_particle->_restore)");
-      coutf("        particle_restore(_particle, &_particle_save);");
+      cout( "      //if (_particles->_restore[soa_index])"); // SOA_TODO
+      coutf("      //  particle_restore(_particles, &_particle_save);"); // SOA_TODO
     };
 
     /* if we have a JUMP, change the index */
@@ -1930,16 +1930,16 @@ int cogen_raytrace(struct instr_def *instr)
         char *exp = exp_tostring(this_jump->condition);
         /* as there will be a neutron->index++, we subtract 1 to the target */
         if (this_jump->iterate) {
-          coutf("      if (++_particle->_logic.Jump_%s_%s < %s) { /* test for iteration */",
+          coutf("      if (++_particles->_logic[soa_index].Jump_%s_%s < %s) { /* test for iteration */",
             comp->name, this_jump->target, exp);
-          coutf("        _particle->_index = %i;", this_jump->target_index-1);
-          cout( "        _particle->flag_nocoordschange=1; /* pass corrdinate transformations when jumping */");
-          coutf("      } else\n" "          _particle->_logic.Jump_%s_%s=0; /* reset Jump loop and go forward */",
+          coutf("        _particles->_index[soa_index] = %i;", this_jump->target_index-1);
+          cout( "        _particles->flag_nocoordschange[soa_index]=1; /* pass corrdinate transformations when jumping */");
+          coutf("      } else\n" "          _particles->_logic[soa_index].Jump_%s_%s=0; /* reset Jump loop and go forward */",
             comp->name, this_jump->target);
         } else {
           coutf("      if (%s) {/* conditional JUMP to %s */", exp, this_jump->target);
-          coutf("        _particle->_index=%i;", this_jump->target_index-1);
-          cout( "        _particle->flag_nocoordschange=1; /* pass corrdinate transformations when jumping */");
+          coutf("        _particles->_index[soa_index]=%i;", this_jump->target_index-1);
+          cout( "        _particles->flag_nocoordschange[soa_index]=1; /* pass corrdinate transformations when jumping */");
           cout( "      }");
         }
       }
@@ -1954,16 +1954,16 @@ int cogen_raytrace(struct instr_def *instr)
         comp->group->first_comp, comp->group->first_comp_index,
         comp->group->last_comp,  comp->group->last_comp_index);
       // skip_following_when_scattered (to end of group)
-      coutf("      if (SCATTERED) _particle->_index = %i; // when SCATTERED in GROUP: reach exit of GROUP after %s",
+      coutf("      if (SCATTERED) _particles->_index[soa_index] = %i; // when SCATTERED in GROUP: reach exit of GROUP after %s",
         comp->group->last_comp_index, comp->group->last_comp);
       // final_absorb_when_all_not_scattered
       if (comp->index == comp->group->last_comp_index)
         coutf("      else ABSORBED=1;     // not SCATTERED at end of GROUP: removes left events", comp->group->last_comp);
       else // comp_absorb_sends_to_next
-        coutf("      else particle_restore(_particle, &_particle_save); // not SCATTERED in GROUP, restore");
+        coutf("      // else particle_restore(_particles, &_particle_save); // not SCATTERED in GROUP, restore"); // SOA_TODO
     }
 
-    coutf("      _particle->_index++;");
+    coutf("      _particles->_index[soa_index]++;");
     if (comp->skip_transform == 0) {
       coutf("      if (!ABSORBED) { DEBUG_STATE(); }");
     }
@@ -1986,19 +1986,19 @@ int cogen_raytrace(struct instr_def *instr)
   }
   list_iterate_end(liter);
   /*   propagate to next component */
-  coutf("    if (_particle->_index > %d)", list_len(instr->complist));
+  coutf("    if (_particles->_index[soa_index] > %d)", list_len(instr->complist));
   /* if we reach the last component, and nothing happened, ABSORB */
   cout( "      ABSORBED++; /* absorbed when passed all components */");
 
   cout("  } /* while !ABSORBED */");
   cout("");
   cout("  DEBUG_LEAVE()");
-  cout("  particle_restore(_particle, &_particle_save);");
+  cout("  // particle_restore(_particles, &_particle_save);"); // SOA_TODO
   /* Debugging (final state). */
   cout("  DEBUG_STATE()");
 
   cout("");
-  cout("  return(_particle->_index);");
+  cout("  return(_particles->_index[soa_index]);");
   coutf("} /* raytrace */");
 
   // write the "raytrace_all()" code (for loop previously in mccode_main.c).
@@ -2658,37 +2658,44 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("");
   
   /* generate particle struct */
-  cout("struct _struct_particle {");
-  cout("  double x,y,z; /* position [m] */");
+  cout("struct _struct_particle_soa {");
+  cout("  double *x,*y,*z; /* position [m] */");
 #if MCCODE_PROJECT == 1   /* neutron */
-  cout("  double vx,vy,vz; /* velocity [m/s] */");
-  cout("  double sx,sy,sz; /* spin [0-1] */");
-  cout("  int mcgravitation; /* gravity-state */");
-  cout("  void *mcMagnet;    /* precession-state */");
-  cout("  int allow_backprop; /* allow backprop */");
+  cout("  double *vx,*vy,*vz; /* velocity [m/s] */");
+  cout("  double *sx,*sy,*sz; /* spin [0-1] */");
+  cout("  int mcgravitation; /* gravity-state */"); // Still just single thing
+  cout("  void *mcMagnet;    /* precession-state */"); 
+  cout("  int *allow_backprop; /* allow backprop */");
 #elif MCCODE_PROJECT == 2 /* xray */
-  cout("  double kx,ky,kz; /* wave-vector */");
-  cout("  double phi, Ex,Ey,Ez; /* phase and electrical field */");
+  cout("  double *kx,*ky,*kz; /* wave-vector */");
+  cout("  double *phi, *Ex,*Ey,*Ez; /* phase and electrical field */");
 #endif
   cout("  /* Generic Temporaries: */");
   cout("  /* May be used internally by components e.g. for special */");
   cout("  /* return-values from functions used in trace, thusreturned via */");
   cout("  /* particle struct. (Example: Wolter Conics from McStas, silicon slabs.) */");
-  cout("  double _mctmp_a; /* temp a */");
-  cout("  double _mctmp_b; /* temp b */");
-  cout("  double _mctmp_c; /* temp c */");
+  cout("  double *_mctmp_a; /* temp a */");
+  cout("  double *_mctmp_b; /* temp b */");
+  cout("  double *_mctmp_c; /* temp c */");
   //cout("  randstate_t randstate[RANDSTATE_LEN]");
-  cout("  unsigned long randstate[7];"); // for the KISS generator
-  cout("  double t, p;     /* time, event weight */");
-  cout("  long long _uid;  /* Unique event ID */");
-  cout("  long _index;     /* component index where to send this event */");
+  //cout("  unsigned long randstate[7];"); // for the KISS generator
+  cout("  unsigned long *randstate_0;");
+  cout("  unsigned long *randstate_1;");
+  cout("  unsigned long *randstate_2;");
+  cout("  unsigned long *randstate_3;");     
+  cout("  unsigned long *randstate_4;");
+  cout("  unsigned long *randstate_5;");
+  cout("  unsigned long *randstate_6;");      
+  cout("  double *t, *p;     /* time, event weight */");
+  cout("  long *long _uid;  /* Unique event ID */");
+  cout("  long *_index;     /* component index where to send this event */");
   /* these are needed for SCATTERED, ABSORB and RESTORE macros */
-  cout("  long _absorbed;  /* flag set to TRUE when this event is to be removed/ignored */");
-  cout("  long _scattered; /* flag set to TRUE when this event has interacted with the last component instance */");
-  cout("  long _restore;   /* set to true if neutron event must be restored */");
-  cout("  long flag_nocoordschange;   /* set to true if particle is jumping */");
+  cout("  long *_absorbed;  /* flag set to TRUE when this event is to be removed/ignored */");
+  cout("  long *_scattered; /* flag set to TRUE when this event has interacted with the last component instance */");
+  cout("  long *_restore;   /* set to true if neutron event must be restored */");
+  cout("  long *flag_nocoordschange;   /* set to true if particle is jumping */");
   /* Include the struct defined earlier holding information on JUMP logic*/
-  cout("  struct particle_logic_struct _logic;");
+  cout("  struct particle_logic_struct *_logic;");
   /* Append variables from instr USERVARS block to particle struct (user vars,
   *  always double). Also store these strings in in the appropriate instrument
   *  list for later def/undef as state variables (see cogen_raytrace). */
@@ -2741,10 +2748,10 @@ cogen_header(struct instr_def *instr, char *output_name)
     list_iterate_end(liter2);
   }
   cout("};");
-  cout("typedef struct _struct_particle _class_particle;");
+  cout("typedef struct _struct_particle_soa _class_particle_soa;");
   cout("");
-  cout("_class_particle _particle_global_randnbuse_var;");
-  cout("_class_particle* _particle = &_particle_global_randnbuse_var;");
+  cout("_class_particle_soa _particle_global_randnbuse_var;");
+  cout("_class_particle_soa* _particle_soa = &_particle_global_randnbuse_var;");
   cout("");
 
   /* Below lines relating to mcgenstate / setstate are in principle McStas-centric, we ought to generate this function based on "project" */
