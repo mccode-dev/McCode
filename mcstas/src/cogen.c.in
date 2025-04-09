@@ -1637,7 +1637,7 @@ void def_trace_section(struct instr_def *instr)
   coutf("#define %s (_particles->%s[soa_index])", "RESTORE"  , "_restore");
 #if MCCODE_PROJECT == 1     /* neutron */
   coutf("#define RESTORE_NEUTRON(_index, ...) _particles->_restore[soa_index] = _index;");
-  cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; return; } while(0)");
+  cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); ABSORBED++; return; } while(0)"); // TODO_SOA removed MAGNET_OFF
 #elif MCCODE_PROJECT == 2   /* xray */
   coutf("#define RESTORE_XRAY(_index, ...) _particles->_restore[soa_index] = _index;");
   cout( "#define ABSORB0 do { DEBUG_STATE(); DEBUG_ABSORB(); ABSORBED++; return; } while(0)");
@@ -1798,7 +1798,7 @@ int cogen_raytrace(struct instr_def *instr)
   // we need this override, since "comp" is not defined in raytrace() - see section-wide define
   cout("  #undef ABSORB0");
   cout("  #undef ABSORB");
-  cout("  #define ABSORB0 do { DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++;} while(0)");
+  cout("  #define ABSORB0 do { DEBUG_ABSORB(); ABSORBED++;} while(0)"); // TODO_SOA Removed MAGNET_OFF
   cout("  #define ABSORB ABSORB0");
 
   /* Debugging (initial state). */
@@ -2172,7 +2172,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   // we need this override, since "comp" is not defined in raytrace() - see section-wide define
   cout("  #undef ABSORB0");
   cout("  #undef ABSORB");
-  cout("  #define ABSORB0 do { DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; } while(0)");
+  cout("  #define ABSORB0 do { DEBUG_ABSORB(); ABSORBED++; } while(0)"); // TODO_SOA Removed MAGNET_OFF
   cout("  #define ABSORB ABSORB0");
 
   // batches
@@ -2406,7 +2406,7 @@ int cogen_rt_multikernel(struct instr_def *instr)
   // we need this override, since "comp" is not defined in raytrace() - see section-wide define
   cout("  #undef ABSORB0");
   cout("  #undef ABSORB");
-  cout("  #define ABSORB0 do { DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++; } while(0)");
+  cout("  #define ABSORB0 do { DEBUG_ABSORB(); ABSORBED++; } while(0)"); // TODO_SOA Removed MAGNET_OFF
   cout("  #define ABSORB ABSORB0");
 
   // batches
@@ -2671,7 +2671,7 @@ cogen_header(struct instr_def *instr, char *output_name)
 #if MCCODE_PROJECT == 1   /* neutron */
   cout("  double *vx,*vy,*vz; /* velocity [m/s] */");
   cout("  double *sx,*sy,*sz; /* spin [0-1] */");
-  cout("  int mcgravitation; /* gravity-state */"); // Still just single thing
+  cout("  int *mcgravitation; /* gravity-state */"); // Still just single thing
   cout("  void *mcMagnet;    /* precession-state */"); 
 #elif MCCODE_PROJECT == 2 /* xray */
   cout("  double *kx,*ky,*kz; /* wave-vector */");
@@ -2973,6 +2973,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  p->_mctmp_a = (double*) malloc(soa_length*sizeof(double));");  
   cout("  p->_mctmp_b = (double*) malloc(soa_length*sizeof(double));");  
   cout("  p->_mctmp_c = (double*) malloc(soa_length*sizeof(double));");
+  cout("  p->mcgravitation = (int*) malloc(soa_length*sizeof(int));");    
   cout("  p->_uid = (long*) malloc(soa_length*sizeof(long));");      
   cout("  p->_index = (int*) malloc(soa_length*sizeof(int));");
   cout("  p->_absorbed = (int*) malloc(soa_length*sizeof(int));");
