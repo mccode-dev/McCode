@@ -2746,7 +2746,7 @@ unsigned long long int mcget_ncount(void)
 }
 
 /* mcget_run_num: get curent number of rays */
-/* Within the TRACE scope we are now using _particle->uid directly */
+/* Within the TRACE scope we are now using _particles->uid directly */
 unsigned long long int mcget_run_num() // should be (_class_particle_soa* _particle) somehow
 {
   /* This function only remains for the few cases outside TRACE where we need to know
@@ -3877,11 +3877,11 @@ int solve_2nd_order(double *t0, double *t1, double A, double B, double C){
  * randvec_target_circle: Choose random direction towards target at (x,y,z)
  * with given radius.
  * If radius is zero, choose random direction in full 4PI, no target.
- * NOTE: _particle is required for rand expansion
+ * NOTE: _particles is required for rand expansion
  ******************************************************************************/
 void _randvec_target_circle(double *xo, double *yo, double *zo, double *solid_angle,
         double xi, double yi, double zi, double radius,
-        _class_particle_soa* _particle, int soa_index)
+        _class_particle_soa* _particles, int soa_index)
 {
   double l2, phi, theta, nx, ny, nz, xt, yt, zt, xu, yu, zu;
 
@@ -3944,11 +3944,11 @@ void _randvec_target_circle(double *xo, double *yo, double *zo, double *solid_an
  * (xi,yi,zi) with given ANGULAR dimension height x width. height=phi_x=[0,PI],
  * width=phi_y=[0,2*PI] (radians)
  * If height or width is zero, choose random direction in full 4PI, no target.
- * NOTE: _particle is required for rand expansion
+ * NOTE: _particles is required for rand expansion
  *******************************************************************************/
 void _randvec_target_rect_angular(double *xo, double *yo, double *zo, double *solid_angle,
         double xi, double yi, double zi, double width, double height, Rotation A,
-        _class_particle_soa* _particle)
+        _class_particle_soa* _particles, int soa_index)
 {
   double theta, phi, nx, ny, nz, xt, yt, zt, xu, yu, zu;
   Coords tmp;
@@ -4020,13 +4020,13 @@ void _randvec_target_rect_angular(double *xo, double *yo, double *zo, double *so
  * Traditionally, this routine had the name randvec_target_rect - this is now a
  * a define (see mcstas-r.h) pointing here. If you use the old rouine, you are NOT
  * taking the local emmission coordinate into account.
- * NOTE: _particle is required for rand expansion
+ * NOTE: _particles is required for rand expansion
 *******************************************************************************/
 void _randvec_target_rect_real(double *xo, double *yo, double *zo, double *solid_angle,
         double xi, double yi, double zi,
         double width, double height, Rotation A,
         double lx, double ly, double lz, int order,
-        _class_particle_soa* _particle)
+        _class_particle_soa* _particles, int soa_index)
 {
   double dx, dy, dist, dist_p, nx, ny, nz, mx, my, mz, n_norm, m_norm;
   double cos_theta;
