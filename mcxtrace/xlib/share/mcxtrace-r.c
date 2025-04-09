@@ -36,8 +36,6 @@
 void mcsetstate(_class_particle_soa *mcphoton, int soa_index, double x, double y, double z, double kx, double ky, double kz,
 			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop)
 {
-  _class_particle mcphoton;
-
   mcphoton->x[soa_index]  = x;
   mcphoton->y[soa_index]  = y;
   mcphoton->z[soa_index]  = z;
@@ -64,7 +62,7 @@ void mcsetstate(_class_particle_soa *mcphoton, int soa_index, double x, double y
 /*******************************************************************************
 * mcgetstate: get photon parameters from particle structure
 *******************************************************************************/
-void mcgetstate(_class_particle *mcphoton, int soa_index,  *x, double *y, double *z,
+void mcgetstate(_class_particle_soa *mcphoton, int soa_index, double *x, double *y, double *z,
                double *kx, double *ky, double *kz, double *phi, double *t,
                double *Ex, double *Ey, double *Ez, double *p)
 {
