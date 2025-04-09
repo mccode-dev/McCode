@@ -182,7 +182,7 @@ class McStas:
         # conservative we (for now?) only apply this when both CONDA_PREFIX and
         # LDFLAGS/CFLAGS are set (C++/Fortran would use CXXFLAGS/FFLAGS instead
         # of CFLAGS):
-        if os.environ.get('CONDA_PREFIX'):
+        if mccode_config.configuration['ISCONDAPKG']=='1' and os.environ.get('CONDA_PREFIX'):
             if os.environ.get('LDFLAGS'):
                 cflags += os.environ.get('LDFLAGS') + " "
             if os.environ.get('CFLAGS'):
