@@ -65,8 +65,8 @@ void mcsetstate(_class_particle_soa *mcneutron, int soa_index, double x, double 
   mcneutron->sy[soa_index] = sy;
   mcneutron->sz[soa_index] = sz;
   mcneutron->p[soa_index]  = p;
-  mcneutron->mcgravitation = mcgravitation;
-  mcneutron->mcMagnet[soa_index] = mcMagnet;
+  mcneutron->mcgravitation[soa_index] = mcgravitation;
+  //mcneutron->mcMagnet[soa_index] = mcMagnet;
   mcneutron->allow_backprop[soa_index] = mcallowbackprop;
   mcneutron->_uid[soa_index]       = 0;
   mcneutron->_index[soa_index]     = 1;
