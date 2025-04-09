@@ -70,7 +70,8 @@ DEFINE COMPONENT Res_monitor
 
 SETTING PARAMETERS (string res_sample_comp,
   string filename=0, string options=0, xwidth=.1, yheight=.1, zdepth=0, radius=0,
-  xmin=0, xmax=0, ymin=0, ymax=0, zmin=0, zmax=0, bufsize=0, int restore_neutron=0, int live_calc=1)
+  xmin=0, xmax=0, ymin=0, ymax=0, zmin=0, zmax=0, bufsize=0, int restore_neutron=0,
+  int live_calc=1)
 
 /* these are protected C variables */
 
@@ -108,8 +109,8 @@ DECLARE%{
 INITIALIZE %{
 
   /* Use instance name for monitor output if no input was given */
-  if (!strcmp(filename,"\0"))
-    sprintf(filename,"%s",NAME_CURRENT_COMP);
+  if (!strcmp(filename, "\0"))
+    sprintf(filename, "%s", NAME_CURRENT_COMP);
 
   buffer_index = 0;
 
@@ -134,9 +135,9 @@ INITIALIZE %{
   if (strstr(tmp, "list"))
     exit(fprintf(stderr, "Res_monitor: %s: Error: Only use geometry keywords (remove list from 'option').\n", NAME_CURRENT_COMP));
   if (!bufsize)
-    sprintf(Vars.option, "%s borders list all, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10", tmp);
+    sprintf(Vars.option, "%s borders list all, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10 n", tmp);
   else
-    sprintf(Vars.option, "%s borders list=%f, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10", tmp, bufsize);
+    sprintf(Vars.option, "%s borders list=%f, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10 n", tmp, bufsize);
 
   if (radius)
     xwidth = 2*radius;
@@ -144,7 +145,7 @@ INITIALIZE %{
   Monitor_nD_Init(&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, 0);
   Vars.Coord_Type[0] = DEFS.COORD_USERDOUBLE0; /* otherwise p is always the first variable */
 
-  if (Vars.Coord_Number != 10)
+  if (Vars.Coord_Number != 11)
     exit(fprintf(stderr,"Res_monitor: %s: Error: Invalid number of variables to monitor (%li).\n", NAME_CURRENT_COMP, Vars.Coord_Number+1));
 
   /* set the labels */
@@ -167,29 +168,24 @@ INITIALIZE %{
   /* Initialize uservar strings */
   int *index_ptr=COMP_GETPAR3(Res_sample, res_sample_comp, compindex);
   int index = *index_ptr;
-  sprintf(res_pi_var,"res_pi_%i",index);
-  sprintf(res_ki_x_var,"res_ki_x_%i",index);
-  sprintf(res_ki_y_var,"res_ki_y_%i",index);
-  sprintf(res_ki_z_var,"res_ki_z_%i",index);
-  sprintf(res_kf_x_var,"res_kf_x_%i",index);
-  sprintf(res_kf_y_var,"res_kf_y_%i",index);
-  sprintf(res_kf_z_var,"res_kf_z_%i",index);
-  sprintf(res_rx_var,"res_rx_%i",index);
-  sprintf(res_ry_var,"res_ry_%i",index);
-  sprintf(res_rz_var,"res_rz_%i",index);
+  sprintf(res_pi_var, "res_pi_%i", index);
+  sprintf(res_ki_x_var, "res_ki_x_%i", index);
+  sprintf(res_ki_y_var, "res_ki_y_%i", index);
+  sprintf(res_ki_z_var, "res_ki_z_%i", index);
+  sprintf(res_kf_x_var, "res_kf_x_%i", index);
+  sprintf(res_kf_y_var, "res_kf_y_%i", index);
+  sprintf(res_kf_z_var, "res_kf_z_%i", index);
+  sprintf(res_rx_var, "res_rx_%i", index);
+  sprintf(res_ry_var, "res_ry_%i", index);
+  sprintf(res_rz_var, "res_rz_%i", index);
 %}
 
 
 TRACE %{
-  unsigned int event_idx = 0;
-  #pragma acc atomic capture
-  {
-    event_idx = num_events++;
-  }
-
   double t0 = 0;
   double t1 = 0;
   int intersect = 0;
+  unsigned int event_idx = 0;
 
   if (abs(Vars.Flag_Shape) == DEFS.SHAPE_SQUARE) /* square xy */
   {
@@ -244,34 +240,38 @@ TRACE %{
       if(particle_getvar(_particle,res_pi_var,NULL))
       {
         /* ki */
-        Vars.UserDoubles[0] = particle_getvar(_particle,res_ki_x_var,NULL);
-        Vars.UserDoubles[1] = particle_getvar(_particle,res_ki_y_var,NULL);
-        Vars.UserDoubles[2] = particle_getvar(_particle,res_ki_z_var,NULL);
+        Vars.UserDoubles[0] = particle_getvar(_particle, res_ki_x_var, NULL);
+        Vars.UserDoubles[1] = particle_getvar(_particle, res_ki_y_var, NULL);
+        Vars.UserDoubles[2] = particle_getvar(_particle, res_ki_z_var, NULL);
 
         /* kf */
-        Vars.UserDoubles[3] = particle_getvar(_particle,res_kf_x_var,NULL);
-        Vars.UserDoubles[4] = particle_getvar(_particle,res_kf_y_var,NULL);
-        Vars.UserDoubles[5] = particle_getvar(_particle,res_kf_z_var,NULL);
+        Vars.UserDoubles[3] = particle_getvar(_particle, res_kf_x_var, NULL);
+        Vars.UserDoubles[4] = particle_getvar(_particle, res_kf_y_var, NULL);
+        Vars.UserDoubles[5] = particle_getvar(_particle, res_kf_z_var, NULL);
 
         /* pos */
-        Vars.UserDoubles[6] = particle_getvar(_particle,res_rx_var,NULL);
-        Vars.UserDoubles[7] = particle_getvar(_particle,res_ry_var,NULL);
-        Vars.UserDoubles[8] = particle_getvar(_particle,res_rz_var,NULL);
+        Vars.UserDoubles[6] = particle_getvar(_particle, res_rx_var, NULL);
+        Vars.UserDoubles[7] = particle_getvar(_particle, res_ry_var, NULL);
+        Vars.UserDoubles[8] = particle_getvar(_particle, res_rz_var, NULL);
 
         /* pi and pf */
-        Vars.UserDoubles[9] = particle_getvar(_particle,res_pi_var,NULL);
-        Vars.UserDoubles[10] = p/particle_getvar(_particle,res_pi_var,NULL);
+        Vars.UserDoubles[9] = particle_getvar(_particle, res_pi_var, NULL);
+        Vars.UserDoubles[10] = p/particle_getvar(_particle, res_pi_var, NULL);
 
         Monitor_nD_Trace(&DEFS, &Vars, _particle);
 
         /* live calculation */
-        if(live_calc) {
+        if(live_calc && p > 0.) {
+          #pragma acc atomic capture
+          {
+            event_idx = num_events++;
+          }
+
           reso_events[event_idx*4 + 0] = Vars.UserDoubles[0] - Vars.UserDoubles[3];
           reso_events[event_idx*4 + 1] = Vars.UserDoubles[1] - Vars.UserDoubles[4];
           reso_events[event_idx*4 + 2] = Vars.UserDoubles[2] - Vars.UserDoubles[5];
           reso_events[event_idx*4 + 3] = tl2_k_to_E(Vars.UserDoubles[0], Vars.UserDoubles[1], Vars.UserDoubles[2],
                                          Vars.UserDoubles[3], Vars.UserDoubles[4], Vars.UserDoubles[5]);
-
           reso_probabilities[event_idx] = p;
         }
       }
@@ -300,9 +300,9 @@ SAVE %{
         "\n\t%12.4e %12.4e %12.4e %12.4e"
         "\n\t%12.4e %12.4e %12.4e %12.4e\n",
         num_events,
-        reso[0], reso[1], reso[2], reso[3],
-        reso[4], reso[5], reso[6], reso[7],
-        reso[8], reso[9], reso[10], reso[11],
+        reso[0],  reso[1],  reso[2],  reso[3],
+        reso[4],  reso[5],  reso[6],  reso[7],
+        reso[8],  reso[9],  reso[10], reso[11],
         reso[12], reso[13], reso[14], reso[15]);
     }
     else {
