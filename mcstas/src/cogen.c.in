@@ -1853,7 +1853,7 @@ int cogen_raytrace(struct instr_def *instr)
       coutf("#ifndef NOSPLIT"); // SOA_TODO always run with NOSPLIT
       coutf("    /* start SPLIT at %s */", comp->name);
       coutf("    if (!ABSORBED) {");
-      coutf("    _class_particle Split_%s_particle=*_particle;", comp->name); // store incoming particle state at SPLIT
+      coutf("    _class_particle_soa Split_%s_particle=*_particle;", comp->name); // store incoming particle state at SPLIT
       coutf("    int Split_%s_counter;", comp->name);
       coutf("    int SplitS_%s = %s;", comp->name, exp);
       coutf("    #pragma acc loop independent");
@@ -2240,8 +2240,8 @@ int cogen_rt_funnel(struct instr_def *instr)
 	coutf("    #endif");
       }
       coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
-      coutf("      _class_particle* _particle = &particles[pidx];");
-      coutf("      _class_particle _particle_save;");
+      coutf("      _class_particle_soa* _particle = &particles[pidx];");
+      coutf("      _class_particle_soa _particle_save;");
     }
     coutf("");
     coutf("      // %s", comp->name);
@@ -2463,8 +2463,8 @@ int cogen_rt_multikernel(struct instr_def *instr)
     coutf("    //nvtxRangePush(\"raytrace %s\");",comp->name);
     coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
     coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
-    coutf("      _class_particle* _particle = &particles[pidx];");
-    coutf("      _class_particle _particle_save;");
+    coutf("      _class_particle_soa* _particles = &particles[pidx];");
+    coutf("      _class_particle_soa _particles_save;");
     coutf("");
     coutf("      // %s", comp->name);
     coutf("    if (!ABSORBED && _particle->_index == %i) {", comp->index);
@@ -2684,7 +2684,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   //cout("  unsigned long randstate[7];"); // for the KISS generator  
   cout("  unsigned long **randstate;"); // randstate needs 2D memory allocation
   cout("  double *t, *p;     /* time, event weight */");
-  cout("  long *long _uid;  /* Unique event ID */");
+  cout("  long *_uid;  /* Unique event ID */");
   cout("  int *_index;     /* component index where to send this event */");
   /* these are needed for SCATTERED, ABSORB and RESTORE macros */
   cout("  int *_absorbed;  /* flag set to TRUE when this event is to be removed/ignored */");
@@ -2753,13 +2753,13 @@ cogen_header(struct instr_def *instr, char *output_name)
 
   /* Below lines relating to mcgenstate / setstate are in principle McStas-centric, we ought to generate this function based on "project" */
   cout("#pragma acc routine");
-  cout("_class_particle mcgenstate(void);");
+  cout("int mcgenstate(_class_particle_soa *_particles, int soa_index);");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("#pragma acc routine");
-  cout("void mcsetstate(_class_particle_soa _particles, int soa_index, double x, double y, double z, double vx, double vy, double vz,");
+  cout("void mcsetstate(_class_particle_soa *_particles, int soa_index, double x, double y, double z, double vx, double vy, double vz,");
   cout("			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
   cout("#pragma acc routine");
-  cout("void mcgetstate(_class_particle *mcneutron, int soa_index, double *x, double *y, double *z,");
+  cout("void mcgetstate(_class_particle_soa *mcneutron, int soa_index, double *x, double *y, double *z,");
   cout("                           double *vx, double *vy, double *vz, double *t,");
   cout("                           double *sx, double *sy, double *sz, double *p);");
 #elif MCCODE_PROJECT == 2   /* xray */
@@ -2777,13 +2777,12 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#pragma acc declare create ( mcallowbackprop )");
 
   cout("");
-  cout("_class_particle mcgenstate(void) {");
+  cout("int mcgenstate(_class_particle_soa *_particles, int soa_index) {");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("  mcsetstate(_particles, soa_index, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
 #elif MCCODE_PROJECT == 2   /* xray */
   cout("  mcsetstate(_particles, soa_index, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
 #endif
-  cout("  return(particle);"); // SOA_TODO
   cout("}");
 
   /*generate uservar return functions*/
@@ -2792,14 +2791,14 @@ cogen_header(struct instr_def *instr, char *output_name)
 
   liter = list_iterate(instr->user_vars);
   cout("#pragma acc routine");
-  cout("double particle_getvar(_class_particle_soa *p, int soa_index char *name, int *suc);");
+  cout("double particle_getvar(_class_particle_soa *p, int soa_index, char *name, int *suc);");
   cout("");
   cout("#ifdef OPENACC");
   cout("#pragma acc routine");
   cout("int str_comp(char *str1, char *str2);");
   cout("#endif");
   cout("");
-  cout("double particle_getvar(_class_particle_soa *p, int soa_index char *name, int *suc){");
+  cout("double particle_getvar(_class_particle_soa *p, int soa_index, char *name, int *suc){");
   cout("#ifndef OPENACC");
   cout("#define str_comp strcmp");
   cout("#endif");
@@ -2940,38 +2939,38 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int rval=1;");
-  cout("  p->x = malloc(soa_length*sizeof(double));");  
-  cout("  p->y = malloc(soa_length*sizeof(double));");  
-  cout("  p->z = malloc(soa_length*sizeof(double));");  
+  cout("  p->x = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->y = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->z = (*double) malloc(soa_length*sizeof(double));");  
 #if MCCODE_PROJECT == 1     /* neutron */
-  cout("  p->vx = malloc(soa_length*sizeof(double));");  
-  cout("  p->vy = malloc(soa_length*sizeof(double));");  
-  cout("  p->vz = malloc(soa_length*sizeof(double));");  
-  cout("  p->sx = malloc(soa_length*sizeof(double));");  
-  cout("  p->sy = malloc(soa_length*sizeof(double));");  
-  cout("  p->sz = malloc(soa_length*sizeof(double));");
+  cout("  p->vx = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->vy = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->vz = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->sx = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->sy = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->sz = (*double) malloc(soa_length*sizeof(double));");
 #elif MCCODE_PROJECT == 2   /* xray */
-  cout("  p->kx = malloc(soa_length*sizeof(double));");
-  cout("  p->ky = malloc(soa_length*sizeof(double));");
-  cout("  p->kz = malloc(soa_length*sizeof(double));");
-  cout("  p->Ex = malloc(soa_length*sizeof(double));");
-  cout("  p->Ey = malloc(soa_length*sizeof(double));");
-  cout("  p->Ez = malloc(soa_length*sizeof(double));");
-  cout("  p->phi = malloc(soa_length*sizeof(double));");
+  cout("  p->kx = (*double) malloc(soa_length*sizeof(double));");
+  cout("  p->ky = (*double) malloc(soa_length*sizeof(double));");
+  cout("  p->kz = (*double) malloc(soa_length*sizeof(double));");
+  cout("  p->Ex = (*double) malloc(soa_length*sizeof(double));");
+  cout("  p->Ey = (*double) malloc(soa_length*sizeof(double));");
+  cout("  p->Ez = (*double) malloc(soa_length*sizeof(double));");
+  cout("  p->phi = (*double) malloc(soa_length*sizeof(double));");
 #endif
-  cout("  p->p = malloc(soa_length*sizeof(double));");
-  cout("  p->t = malloc(soa_length*sizeof(double));");
+  cout("  p->p = (*double) malloc(soa_length*sizeof(double));");
+  cout("  p->t = (*double) malloc(soa_length*sizeof(double));");
   
-  cout("  p->allow_backprop = malloc(soa_length*sizeof(int));");  
-  cout("  p->_mctmp_a = malloc(soa_length*sizeof(double));");  
-  cout("  p->_mctmp_b = malloc(soa_length*sizeof(double));");  
-  cout("  p->_mctmp_c = malloc(soa_length*sizeof(double));");
-  cout("  p->_uid = malloc(soa_length*sizeof(long));");      
-  cout("  p->_index = malloc(soa_length*sizeof(int));");
-  cout("  p->_absorbed = malloc(soa_length*sizeof(int));");
-  cout("  p->_scattered = malloc(soa_length*sizeof(int));");    
-  cout("  p->_resotre = malloc(soa_length*sizeof(int));");      
-  cout("  p->flag_nocoordschange = malloc(soa_length*sizeof(int));");                 
+  cout("  p->allow_backprop = (*int) malloc(soa_length*sizeof(int));");  
+  cout("  p->_mctmp_a = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->_mctmp_b = (*double) malloc(soa_length*sizeof(double));");  
+  cout("  p->_mctmp_c = (*double) malloc(soa_length*sizeof(double));");
+  cout("  p->_uid = (*long) malloc(soa_length*sizeof(long));");      
+  cout("  p->_index = (*int) malloc(soa_length*sizeof(int));");
+  cout("  p->_absorbed = (*int) malloc(soa_length*sizeof(int));");
+  cout("  p->_scattered = (*int) malloc(soa_length*sizeof(int));");    
+  cout("  p->_restore = (*int) malloc(soa_length*sizeof(int));");      
+  cout("  p->flag_nocoordschange = (*int) malloc(soa_length*sizeof(int));");                 
   
   /*
   Check no pointers are null, if that is the case, set return value to 0
@@ -3026,14 +3025,14 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  free(p->p);");
   cout("  free(p->t);");
   
-  cout("  free(p->allow_backprop)");  
+  cout("  free(p->allow_backprop);");  
   cout("  free(p->_mctmp_a);");  
   cout("  free(p->_mctmp_b);");  
   cout("  free(p->_mctmp_c);");
   cout("  free(p->_uid);");     
-  cout("  free(p->_index;");
-  cout("  free(p->_absorbed;");
-  cout("  free(p->_scattered;");
+  cout("  free(p->_index);");
+  cout("  free(p->_absorbed);");
+  cout("  free(p->_scattered);");
   cout("  free(p->_resotre);");
   cout("  free(p->flag_nocoordschange);");
   
@@ -3087,7 +3086,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#pragma acc routine");
   cout("void particle_restore(_class_particle_soa *p, _class_particle_soa *p0, int soa_index);");
   cout("");
-  cout("void particle_restore(_class_particle_soa *p, _class_particle_soa *p0, int soa_index, int flag) {");
+  cout("void particle_restore(_class_particle_soa *p, _class_particle_soa *p0, int soa_index) {");
   cout("  p->x[soa_index]  = p0->x[soa_index];  p->y[soa_index]  = p0->y[soa_index];  p->z[soa_index]  = p0->z[soa_index];");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("  p->vx[soa_index] = p0->vx[soa_index]; p->vy[soa_index] = p0->vy[soa_index]; p->vz[soa_index] = p0->vz[soa_index];");
@@ -3099,14 +3098,13 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  p->t[soa_index] = p0->t[soa_index];   p->p[soa_index]  = p0->p[soa_index];  p->phi[soa_index]  = p0->phi[soa_index];");
 #endif
   cout("  p->_absorbed[soa_index]=0; p->_restore[soa_index]=0;");
-  cout("  else {p->_absorbed[soa_index]=p0->_absorbed[soa_index]; p->_restore[soa_index]=p0->_restore[soa_index];}");
   cout("}");
   cout("");
   
   cout("#pragma acc routine");
   cout("void particle_copy(_class_particle_soa *p, _class_particle_soa *p0, int soa_index, int soa_index0);");
   cout("");
-  cout("void particle_restore(_class_particle_soa *p, _class_particle_soa *p0, int soa_index) {");
+  cout("void particle_copy(_class_particle_soa *p, _class_particle_soa *p0, int soa_index, int soa_index0) {");
   cout("  p->x[soa_index]  = p0->x[soa_index0];  p->y[soa_index]  = p0->y[soa_index0];  p->z[soa_index]  = p0->z[soa_index0];");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("  p->vx[soa_index] = p0->vx[soa_index0]; p->vy[soa_index] = p0->vy[soa_index0]; p->vz[soa_index] = p0->vz[soa_index0];");
