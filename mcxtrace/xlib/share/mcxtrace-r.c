@@ -33,56 +33,53 @@
 /*******************************************************************************
 * mcsetstate: transfer parameters into global McXtrace variables
 *******************************************************************************/
-_class_particle mcsetstate(double x, double y, double z, double kx, double ky, double kz,
+void mcsetstate(_class_particle_soa *mcphoton, int soa_index, double x, double y, double z, double kx, double ky, double kz,
 			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop)
 {
   _class_particle mcphoton;
 
-  mcphoton.x  = x;
-  mcphoton.y  = y;
-  mcphoton.z  = z;
-  mcphoton.kx = kx;
-  mcphoton.ky = ky;
-  mcphoton.kz = kz;
-  mcphoton.phi  = phi;
-  mcphoton.t  = t;
-  mcphoton.Ex = Ex;
-  mcphoton.Ey = Ey;
-  mcphoton.Ez = Ez;
-  mcphoton.p  = p;
+  mcphoton->x[soa_index]  = x;
+  mcphoton->y[soa_index]  = y;
+  mcphoton->z[soa_index]  = z;
+  mcphoton->kx[soa_index] = kx;
+  mcphoton->ky[soa_index] = ky;
+  mcphoton->kz[soa_index] = kz;
+  mcphoton->phi[soa_index]  = phi;
+  mcphoton->t[soa_index]  = t;
+  mcphoton->Ex[soa_index] = Ex;
+  mcphoton->Ey[soa_index] = Ey;
+  mcphoton->Ez[soa_index] = Ez;
+  mcphoton->p[soa_index]  = p;
   /*mcphoton.mcgravitation = mcgravitation;
-  mcphoton.mcMagnet = mcMagnet;
-  mcphoton.allow_backprop = mcallowbackprop;*/
-  mcphoton._uid       = 0;
-  mcphoton._index     = 1;
-  mcphoton._absorbed  = 0;
-  mcphoton._restore   = 0;
-  mcphoton._scattered = 0;
+  mcphoton.mcMagnet = mcMagnet; */
+  mcphoton->allow_backprop[soa_index] = mcallowbackprop;
+  mcphoton->_uid[soa_index]       = 0;
+  mcphoton->_index[soa_index]     = 1;
+  mcphoton->_absorbed[soa_index]  = 0;
+  mcphoton->_restore[soa_index]   = 0;
+  mcphoton->_scattered[soa_index] = 0;
 
-  return(mcphoton);
 } /* mcsetstate */
 
 /*******************************************************************************
 * mcgetstate: get photon parameters from particle structure
 *******************************************************************************/
-_class_particle mcgetstate(_class_particle mcphoton, double *x, double *y, double *z,
+void mcgetstate(_class_particle *mcphoton, int soa_index,  *x, double *y, double *z,
                double *kx, double *ky, double *kz, double *phi, double *t,
                double *Ex, double *Ey, double *Ez, double *p)
 {
-  *x  =  mcphoton.x;
-  *y  =  mcphoton.y;
-  *z  =  mcphoton.z;
-  *kx =  mcphoton.kx;
-  *ky =  mcphoton.ky;
-  *kz =  mcphoton.kz;
-  *phi  =  mcphoton.phi;
-  *t  =  mcphoton.t;
-  *Ex =  mcphoton.Ex;
-  *Ey =  mcphoton.Ey;
-  *Ez =  mcphoton.Ez;
-  *p  =  mcphoton.p;
-
-  return(mcphoton);
+  *x  =  mcphoton->x[soa_index];
+  *y  =  mcphoton->y[soa_index];
+  *z  =  mcphoton->z[soa_index];
+  *kx =  mcphoton->kx[soa_index];
+  *ky =  mcphoton->ky[soa_index];
+  *kz =  mcphoton->kz[soa_index];
+  *phi  =  mcphoton->phi[soa_index];
+  *t  =  mcphoton->t[soa_index];
+  *Ex =  mcphoton->Ex[soa_index];
+  *Ey =  mcphoton->Ey[soa_index];
+  *Ez =  mcphoton->Ez[soa_index];
+  *p  =  mcphoton->p[soa_index];
 } /* mcgetstate */
 
 
