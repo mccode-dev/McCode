@@ -2034,8 +2034,9 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("");
   coutf("  // Code for allocating memory for particles_soa");
   coutf("  int soa_index;");  
-  coutf("  _class_particle_soa *_particles;");      
-  coutf("  particle_allocate(_particles, gpu_innerloop);");
+  coutf("  _class_particle_soa _particles_blob;");
+  coutf("  _class_particle_soa* _particle = &_particles_blob;");
+  coutf("  if (!particle_allocate(_particles, gpu_innerloop)) { printf(\"DEBUG: ERROR in allocate raytrace_all:gpu_innerloop.\\n\"); exit(-1); }");
   coutf("");    
   coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
   coutf("    #ifdef OPENACC");
@@ -2623,7 +2624,8 @@ cogen_header(struct instr_def *instr, char *output_name)
   /* Basic includes */
   cout("");
   cout("#include <string.h>");
-  cout("#include <stdlib.h>");  
+  cout("#include <stdlib.h>");
+  cout("#include <stdio.h>");
   cout("");
 
   /* McCode-specific typedefs */
@@ -2944,6 +2946,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int rval=1;");
+  cout("  if (!p) { printf(\"ERROR: particle_allocate: Empty pointer\"); return(0); }");
   cout("  p->x = (double*) malloc(soa_length*sizeof(double));");  
   cout("  p->y = (double*) malloc(soa_length*sizeof(double));");  
   cout("  p->z = (double*) malloc(soa_length*sizeof(double));");  
@@ -3045,11 +3048,6 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  free(p->_scattered);");
   cout("  free(p->_restore);");
   cout("  free(p->flag_nocoordschange);");
-  
-  // SOA_TODO may be even later?
-  cout("int soa_index = 0;"); // SOA_TODO this is silly
-  cout("particle_allocate(&_particle_global_randnbuse_var, 1);"); // SOA_TODO this is silly
-
   
   /*
   Check no pointers are null, if that is the case, set return value to 0

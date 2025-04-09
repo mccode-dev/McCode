@@ -35,7 +35,7 @@ int mccode_main(int argc, char *argv[])
   // during init(), finally() and display(). NOTE: during trace, a local
   // "_particle" variable is present and thus used instead.
   int soa_index=0;
-  particle_allocate(_particles, 1); // SOA_TODO this is silly
+  if (!particle_allocate(_particles, 1)) { printf("DEBUG: ERROR in allocate mccode_main:_particles\n"); exit(-1); } // SOA_TODO this is silly
   srandom(_hash(mcseed-1));
 
 #ifdef USE_MPI
@@ -81,7 +81,6 @@ int mccode_main(int argc, char *argv[])
     mcseed += mpi_node_rank; /* make sure we use different seeds per node */
   }
 #endif
-
 
 /* *** install sig handler, but only once !! after parameters parsing ******* */
 #ifndef NOSIGNALS
