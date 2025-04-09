@@ -3629,9 +3629,9 @@ long sort_absorb_last_serial(_class_particle_soa* particles, long len) {
     while (!particles->_absorbed[i] && i<j) i++;
     while ( particles->_absorbed[j] && i<j) j--;
     if (i < j) {
-      particle_copy(pbuffer,   0, particles, j);
-      particle_copy(particles, j, particles, i);
-      particle_copy(particles, i, pbuffer,   0);
+      particle_copy(pbuffer,   particles, 0, j);
+      particle_copy(particles, particles, j, i);
+      particle_copy(particles, pbuffer,   i, 0);
       i++;
       j--;
     }
