@@ -186,9 +186,9 @@ TRACE %{
   double t1 = 0;
   int intersect = 0;
   unsigned int event_idx = 0;
-  double event_ki[3];
-  double event_kf[3];
+  double event_ki[3], event_kf[3];
   double event_pi, event_pf;
+  double event_pos[3];
 
   if (abs(Vars.Flag_Shape) == DEFS.SHAPE_SQUARE) /* square xy */
   {
@@ -244,6 +244,9 @@ TRACE %{
       event_pi = particle_getvar(_particle, res_pi_var, NULL);
       if(event_pi > 0.)
       {
+        /* pf */
+        event_pf = p / event_pi;
+
         /* ki */
         event_ki[0] = particle_getvar(_particle, res_ki_x_var, NULL);
         event_ki[1] = particle_getvar(_particle, res_ki_y_var, NULL);
@@ -254,8 +257,15 @@ TRACE %{
         event_kf[1] = particle_getvar(_particle, res_kf_y_var, NULL);
         event_kf[2] = particle_getvar(_particle, res_kf_z_var, NULL);
 
-        /* pf */
-        event_pf = p / event_pi;
+        /* pos */
+        event_pos[0] = particle_getvar(_particle, res_rx_var, NULL);
+        event_pos[1] = particle_getvar(_particle, res_ry_var, NULL);
+        event_pos[2] = particle_getvar(_particle, res_rz_var, NULL);
+
+        #pragma acc atomic capture
+        {
+          event_idx = num_events++;
+        }
 
         /* variables for Monitor_nD */
         Vars.UserDoubles[0] = event_ki[0];
@@ -264,9 +274,9 @@ TRACE %{
         Vars.UserDoubles[3] = event_kf[0];
         Vars.UserDoubles[4] = event_kf[1];
         Vars.UserDoubles[5] = event_kf[2];
-        Vars.UserDoubles[6] = particle_getvar(_particle, res_rx_var, NULL);
-        Vars.UserDoubles[7] = particle_getvar(_particle, res_ry_var, NULL);
-        Vars.UserDoubles[8] = particle_getvar(_particle, res_rz_var, NULL);
+        Vars.UserDoubles[6] = event_pos[0];
+        Vars.UserDoubles[7] = event_pos[1];
+        Vars.UserDoubles[8] = event_pos[2];
         Vars.UserDoubles[9] = event_pi;
         Vars.UserDoubles[10] = event_pf;
 
@@ -274,11 +284,6 @@ TRACE %{
 
         /* live calculation */
         if(live_calc) {
-          #pragma acc atomic capture
-          {
-            event_idx = num_events++;
-          }
-
           reso_events[event_idx*4 + 0] = event_ki[0] - event_kf[0];
           reso_events[event_idx*4 + 1] = event_ki[1] - event_kf[1];
           reso_events[event_idx*4 + 2] = event_ki[2] - event_kf[2];
@@ -289,6 +294,7 @@ TRACE %{
         }
       }
 
+      ++buffer_index;
       SCATTER;
     } /* if p */
   } /* end if intersection */
@@ -312,6 +318,7 @@ SAVE %{
       printf("Resolution calculation used %d neutron events.\n", num_events);
       tl2_print_mat(cov, "Covariance matrix", 4, 4);
       tl2_print_mat(res, "Resolution matrix", 4, 4);
+      printf("Please run \"mcresplot %s\" for a full analysis.\n", filename);
     }
     else {
       printf("Error: Resolution matrix could not be calculated.");
@@ -324,8 +331,10 @@ FINALLY %{
   /* free pointers */
   Monitor_nD_Finally(&DEFS, &Vars);
 
-  free(reso_events);
-  free(reso_probabilities);
+  if(live_calc) {
+    free(reso_events);
+    free(reso_probabilities);
+  }
 %}
 
 
