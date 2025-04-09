@@ -623,8 +623,8 @@ void mcdis_sphere(double x, double y, double z, double r);
 #  define randstate_t unsigned long // this could be anything
 #  define RANDSTATE_LEN 1
 #  define srandom(seed) mt_srandom_empty()
-#  define random() mt_random()
-#  define _random() mt_random()
+#  define random()      mt_random()
+#  define _random()     mt_random()
 #elif RNG_ALG == _RNG_ALG_KISS  // KISS
 #  ifndef ULONG_MAX
 #    define ULONG_MAX ((unsigned long)0xffffffffffffffffUL)
@@ -632,9 +632,9 @@ void mcdis_sphere(double x, double y, double z, double r);
 #  define MC_RAND_MAX ULONG_MAX
 #  define randstate_t unsigned long
 #  define RANDSTATE_LEN 7
-#  define srandom(seed) kiss_srandom(_particle->randstate, soa_index, seed)
-#  define random() kiss_random(_particle->randstate, soa_index)
-#  define _random() kiss_random(state)
+#  define srandom(seed) kiss_srandom(_particle->randstate[soa_index], seed)
+#  define random()      kiss_random( _particle->randstate[soa_index])
+#  define _random()     kiss_random(state)
 #endif
 
 #pragma acc routine
@@ -642,12 +642,12 @@ double _randnorm2(randstate_t* state);
 
 
 // component writers interface
-#define randnorm() _randnorm2(_particle->randstate, soa_index) // NOTE: can not use _randnorm on gpu
-#define rand01() _rand01(_particle->randstate, soa_index)
-#define randpm1() _randpm1(_particle->randstate, soa_index)
-#define rand0max(p1) _rand0max(p1, _particle->randstate, soa_index)
-#define randminmax(p1, p2) _randminmax(p1, p2, _particle->randstate, soa_index)
-#define randtriangle() _randtriangle(_particle->randstate, soa_index)
+#define randnorm()         _randnorm2(_particle->randstate[soa_index]) // NOTE: can not use _randnorm on gpu
+#define rand01()           _rand01(_particle->randstate[soa_index])
+#define randpm1()          _randpm1(_particle->randstate,[soa_index])
+#define rand0max(p1)       _rand0max(p1, _particle->randstate[soa_index])
+#define randminmax(p1, p2) _randminmax(p1, p2, _particle->randstate[soa_index])
+#define randtriangle()     _randtriangle(_particle->randstate[soa_index])
 
 // Mersenne Twister rng
 unsigned long mt_random(void);
@@ -656,9 +656,9 @@ void mt_srandom_empty();
 
 // KISS rng
 #pragma acc routine
-unsigned long *kiss_srandom(unsigned long state[7], int soa_index,  long seed);
+unsigned long *kiss_srandom(unsigned long state[7],  long seed);
 #pragma acc routine
-unsigned long kiss_random(unsigned long state[7], int soa_index);
+unsigned long kiss_random(unsigned long state[7]);
 
 // Scrambler / hash function
 #pragma acc routine seq
@@ -666,15 +666,15 @@ randstate_t _hash(randstate_t x);
 
 // internal RNG (transforms) interface
 #pragma acc routine
-double _rand01(randstate_t* state, int soa_index);
+double _rand01(randstate_t* state);
 #pragma acc routine
-double _randpm1(randstate_t* state, int soa_index);
+double _randpm1(randstate_t* state);
 #pragma acc routine
-double _rand0max(double max, randstate_t* state, int soa_index);
+double _rand0max(double max, randstate_t* state);
 #pragma acc routine
-double _randminmax(double min, double max, randstate_t* state, int soa_index);
+double _randminmax(double min, double max, randstate_t* state);
 #pragma acc routine
-double _randtriangle(randstate_t* state, int soa_index);
+double _randtriangle(randstate_t* state);
 
 
 #ifdef USE_OPENCL

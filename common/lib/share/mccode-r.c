@@ -4299,28 +4299,28 @@ rng.html>
 /*   0  1  2  3  4      5  6   */
 /* [ x, y, z, w, carry, k, m ] */
 
-unsigned long *kiss_srandom(unsigned long state[7], int soa_index, long seed) {
+unsigned long *kiss_srandom(unsigned long state[7], long seed) {
   if (seed == 0) seed = 1ul;
-  state[0][soa_index] = seed | 1ul; // x
-  state[1][soa_index] = seed | 2ul; // y
-  state[2][soa_index] = seed | 4ul; // z
-  state[3][soa_index] = seed | 8ul; // w
-  state[4][soa_index] = 0ul;        // carry
-  state[5][soa_index] = 0ul;        // carry
-  state[6][soa_index] = 0ul;        // carry
+  state[0] = seed | 1ul; // x
+  state[1] = seed | 2ul; // y
+  state[2] = seed | 4ul; // z
+  state[3] = seed | 8ul; // w
+  state[4] = 0ul;        // carry
+  state[5] = 0ul;        // carry
+  state[6] = 0ul;        // carry
   return NULL;
 }
 
-unsigned long kiss_random(unsigned long state[7], int soa_index) {
-    state[0][soa_index]  = state[0][soa_index] * 69069ul + 1ul;
-    state[1][soa_index] ^= state[1][soa_index] << 13ul;
-    state[1][soa_index] ^= state[1][soa_index] >> 17ul;
-    state[1][soa_index] ^= state[1][soa_index] << 5ul;
-    state[5][soa_index]  =(state[2][soa_index] >> 2ul) + (state[3][soa_index] >> 3ul) + (state[4][soa_index] >> 2ul);
-    state[6][soa_index]  = state[3][soa_index] + state[3][soa_index] + state[2][soa_index] + state[4][soa_index];
-    state[2][soa_index]  = state[3][soa_index];
-    state[3][soa_index]  = state[6][soa_index];
-    state[4][soa_index]  = state[5][soa_index] >> 30ul;
+unsigned long kiss_random(unsigned long state[7]) {
+    state[0]  = state[0] * 69069ul + 1ul;
+    state[1] ^= state[1] << 13ul;
+    state[1] ^= state[1] >> 17ul;
+    state[1] ^= state[1] << 5ul;
+    state[5]  =(state[2] >> 2ul) + (state[3] >> 3ul) + (state[4] >> 2ul);
+    state[6]  = state[3] + state[3] + state[2] + state[4];
+    state[2]  = state[3];
+    state[3]  = state[6];
+    state[4]  = state[5] >> 30ul;
     return state[0] + state[1] + state[3];
 }
 /* end of "KISS" rng */
@@ -4350,7 +4350,7 @@ randstate_t _hash(randstate_t x) {
 
 
 // generate a random number from normal law
-double _randnorm(randstate_t* state, int soa_index)
+double _randnorm(randstate_t* state)
 {
   static double v1, v2, s; /* removing static breaks comparison with McStas <= 2.5 */
   static int phase = 0;
@@ -4360,8 +4360,8 @@ double _randnorm(randstate_t* state, int soa_index)
   {
     do
     {
-      u1 = _rand01(state, soa_index);
-      u2 = _rand01(state, soa_index);
+      u1 = _rand01(state);
+      u2 = _rand01(state);
       v1 = 2*u1 - 1;
       v2 = 2*u2 - 1;
       s = v1*v1 + v2*v2;
@@ -4378,23 +4378,23 @@ double _randnorm(randstate_t* state, int soa_index)
   return X;
 }
 // another one
-double _randnorm2(randstate_t* state, int soa_index) {
+double _randnorm2(randstate_t* state) {
   double x, y, r;
   do {
-      x = 2.0 * _rand01(state, soa_index) - 1.0;
-      y = 2.0 * _rand01(state, soa_index) - 1.0;
+      x = 2.0 * _rand01(state) - 1.0;
+      y = 2.0 * _rand01(state,) - 1.0;
       r = x*x + y*y;
   } while (r == 0.0 || r >= 1.0);
   return x * sqrt((-2.0 * log(r)) / r);
 }
 
 // Generate a random number from -1 to 1 with triangle distribution
-double _randtriangle(randstate_t* state, int soa_index) {
-	double randnum = _rand01(state, soa_index);
+double _randtriangle(randstate_t* state) {
+	double randnum = _rand01(state);
 	if (randnum>0.5) return(1-sqrt(2*(randnum-0.5)));
 	else return(sqrt(2*randnum)-1);
 }
-double _rand01(randstate_t* state, int soa_index) {
+double _rand01(randstate_t* state) {
 	double randnum;
 	randnum = (double) _random();
   // TODO: can we mult instead of div?
@@ -4402,7 +4402,7 @@ double _rand01(randstate_t* state, int soa_index) {
 	return randnum;
 }
 // Return a random number between 1 and -1
-double _randpm1(randstate_t* state, int soa_index) {
+double _randpm1(randstate_t* state) {
 	double randnum;
 	randnum = (double) _random();
 	randnum /= ((double) MC_RAND_MAX + 1) / 2;
@@ -4410,15 +4410,15 @@ double _randpm1(randstate_t* state, int soa_index) {
 	return randnum;
 }
 // Return a random number between 0 and max.
-double _rand0max(double max, randstate_t* state, int soa_index) {
+double _rand0max(double max, randstate_t* state) {
 	double randnum;
 	randnum = (double) _random();
 	randnum /= ((double) MC_RAND_MAX + 1) / max;
 	return randnum;
 }
 // Return a random number between min and max.
-double _randminmax(double min, double max, randstate_t* state, int soa_index) {
-	return _rand0max(max - min, state, soa_index) + max;
+double _randminmax(double min, double max, randstate_t* state) {
+	return _rand0max(max - min, state) + max;
 }
 
 
