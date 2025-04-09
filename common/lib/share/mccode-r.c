@@ -2747,7 +2747,7 @@ unsigned long long int mcget_ncount(void)
 
 /* mcget_run_num: get curent number of rays */
 /* Within the TRACE scope we are now using _particle->uid directly */
-unsigned long long int mcget_run_num() // should be (_class_particle* _particle) somehow
+unsigned long long int mcget_run_num() // should be (_class_particle_soa* _particle) somehow
 {
   /* This function only remains for the few cases outside TRACE where we need to know
      the number of simulated particles */
@@ -3948,7 +3948,7 @@ void _randvec_target_circle(double *xo, double *yo, double *zo, double *solid_an
  *******************************************************************************/
 void _randvec_target_rect_angular(double *xo, double *yo, double *zo, double *solid_angle,
         double xi, double yi, double zi, double width, double height, Rotation A,
-        _class_particle* _particle)
+        _class_particle_soa* _particle)
 {
   double theta, phi, nx, ny, nz, xt, yt, zt, xu, yu, zu;
   Coords tmp;
@@ -4026,7 +4026,7 @@ void _randvec_target_rect_real(double *xo, double *yo, double *zo, double *solid
         double xi, double yi, double zi,
         double width, double height, Rotation A,
         double lx, double ly, double lz, int order,
-        _class_particle* _particle)
+        _class_particle_soa* _particle)
 {
   double dx, dy, dist, dist_p, nx, ny, nz, mx, my, mz, n_norm, m_norm;
   double cos_theta;
@@ -4382,7 +4382,7 @@ double _randnorm2(randstate_t* state) {
   double x, y, r;
   do {
       x = 2.0 * _rand01(state) - 1.0;
-      y = 2.0 * _rand01(state,) - 1.0;
+      y = 2.0 * _rand01(state) - 1.0;
       r = x*x + y*y;
   } while (r == 0.0 || r >= 1.0);
   return x * sqrt((-2.0 * log(r)) / r);
