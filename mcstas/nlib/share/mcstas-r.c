@@ -50,59 +50,55 @@ int (*mcMagneticField) (double, double, double, double,
 /*******************************************************************************
 * mcsetstate: transfer parameters into global McStas variables
 *******************************************************************************/
-_class_particle mcsetstate(double x, double y, double z, double vx, double vy, double vz,
+void mcsetstate(_class_particle_soa *mcneutron, int soa_index, double x, double y, double z, double vx, double vy, double vz,
 			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop)
 {
-  _class_particle mcneutron;
 
-  mcneutron.x  = x;
-  mcneutron.y  = y;
-  mcneutron.z  = z;
-  mcneutron.vx = vx;
-  mcneutron.vy = vy;
-  mcneutron.vz = vz;
-  mcneutron.t  = t;
-  mcneutron.sx = sx;
-  mcneutron.sy = sy;
-  mcneutron.sz = sz;
-  mcneutron.p  = p;
-  mcneutron.mcgravitation = mcgravitation;
-  mcneutron.mcMagnet = mcMagnet;
-  mcneutron.allow_backprop = mcallowbackprop;
-  mcneutron._uid       = 0;
-  mcneutron._index     = 1;
-  mcneutron._absorbed  = 0;
-  mcneutron._restore   = 0;
-  mcneutron._scattered = 0;
-  mcneutron.flag_nocoordschange = 0;
+  mcneutron->x[soa_index]  = x;
+  mcneutron->y[soa_index]  = y;
+  mcneutron->z[soa_index]  = z;
+  mcneutron->vx[soa_index] = vx;
+  mcneutron->vy[soa_index] = vy;
+  mcneutron->vz[soa_index] = vz;
+  mcneutron->t[soa_index]  = t;
+  mcneutron->sx[soa_index] = sx;
+  mcneutron->sy[soa_index] = sy;
+  mcneutron->sz[soa_index] = sz;
+  mcneutron->p[soa_index]  = p;
+  mcneutron->mcgravitation = mcgravitation;
+  mcneutron->mcMagnet[soa_index] = mcMagnet;
+  mcneutron->allow_backprop[soa_index] = mcallowbackprop;
+  mcneutron->_uid[soa_index]       = 0;
+  mcneutron->_index[soa_index]     = 1;
+  mcneutron->_absorbed[soa_index]  = 0;
+  mcneutron->_restore[soa_index]   = 0;
+  mcneutron->_scattered[soa_index] = 0;
+  mcneutron->flag_nocoordschange[soa_index] = 0;
   
   /* init tmp-vars - FIXME are they used? */
-  mcneutron._mctmp_a = mcneutron._mctmp_b =  mcneutron._mctmp_c = 0;
+  mcneutron->_mctmp_a[soa_index] = mcneutron->_mctmp_b[soa_index] =  mcneutron->_mctmp_c[soa_index] = 0;
   // what about mcneutron._logic ?
-  mcneutron._logic.dummy=1;
-  return(mcneutron);
+  mcneutron->_logic[soa_index].dummy=1;
 } /* mcsetstate */
 
 /*******************************************************************************
 * mcgetstate: get neutron parameters from particle structure
 *******************************************************************************/
-_class_particle mcgetstate(_class_particle mcneutron, double *x, double *y, double *z,
+void mcgetstate(_class_particle_soa *mcneutron, int soa_index, double *x, double *y, double *z,
                double *vx, double *vy, double *vz, double *t,
                double *sx, double *sy, double *sz, double *p)
 {
-  *x  =  mcneutron.x;
-  *y  =  mcneutron.y;
-  *z  =  mcneutron.z;
-  *vx =  mcneutron.vx;
-  *vy =  mcneutron.vy;
-  *vz =  mcneutron.vz;
-  *t  =  mcneutron.t;
-  *sx =  mcneutron.sx;
-  *sy =  mcneutron.sy;
-  *sz =  mcneutron.sz;
-  *p  =  mcneutron.p;
-
-  return(mcneutron);
+  *x  =  mcneutron->x[soa_index];
+  *y  =  mcneutron->y[soa_index];
+  *z  =  mcneutron->z[soa_index];
+  *vx =  mcneutron->vx[soa_index];
+  *vy =  mcneutron->vy[soa_index];
+  *vz =  mcneutron->vz[soa_index];
+  *t  =  mcneutron->t[soa_index];
+  *sx =  mcneutron->sx[soa_index];
+  *sy =  mcneutron->sy[soa_index];
+  *sz =  mcneutron->sz[soa_index];
+  *p  =  mcneutron->p[soa_index];
 } /* mcgetstate */
 
 
