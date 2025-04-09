@@ -186,6 +186,9 @@ TRACE %{
   double t1 = 0;
   int intersect = 0;
   unsigned int event_idx = 0;
+  double event_ki[3];
+  double event_kf[3];
+  double event_pi, event_pf;
 
   if (abs(Vars.Flag_Shape) == DEFS.SHAPE_SQUARE) /* square xy */
   {
@@ -231,48 +234,58 @@ TRACE %{
     }
 
     /* Now fetch data from the Res_sample. */
-    if(p && (!bufsize || buffer_index<bufsize))
+    if(p > 0. && (!bufsize || buffer_index < bufsize))
     {
       /* old behaviour not supported by openacc:
         struct Res_sample_struct *s =
           (struct Res_sample_struct *)(COMP_GETPAR3(Res_sample, res_sample_comp, res_struct));*/
 
-      if(particle_getvar(_particle,res_pi_var,NULL))
+      /* pi */
+      event_pi = particle_getvar(_particle, res_pi_var, NULL);
+      if(event_pi > 0.)
       {
         /* ki */
-        Vars.UserDoubles[0] = particle_getvar(_particle, res_ki_x_var, NULL);
-        Vars.UserDoubles[1] = particle_getvar(_particle, res_ki_y_var, NULL);
-        Vars.UserDoubles[2] = particle_getvar(_particle, res_ki_z_var, NULL);
+        event_ki[0] = particle_getvar(_particle, res_ki_x_var, NULL);
+        event_ki[1] = particle_getvar(_particle, res_ki_y_var, NULL);
+        event_ki[2] = particle_getvar(_particle, res_ki_z_var, NULL);
 
         /* kf */
-        Vars.UserDoubles[3] = particle_getvar(_particle, res_kf_x_var, NULL);
-        Vars.UserDoubles[4] = particle_getvar(_particle, res_kf_y_var, NULL);
-        Vars.UserDoubles[5] = particle_getvar(_particle, res_kf_z_var, NULL);
+        event_kf[0] = particle_getvar(_particle, res_kf_x_var, NULL);
+        event_kf[1] = particle_getvar(_particle, res_kf_y_var, NULL);
+        event_kf[2] = particle_getvar(_particle, res_kf_z_var, NULL);
 
-        /* pos */
+        /* pf */
+        event_pf = p / event_pi;
+
+        /* variables for Monitor_nD */
+        Vars.UserDoubles[0] = event_ki[0];
+        Vars.UserDoubles[1] = event_ki[1];
+        Vars.UserDoubles[2] = event_ki[2];
+        Vars.UserDoubles[3] = event_kf[0];
+        Vars.UserDoubles[4] = event_kf[1];
+        Vars.UserDoubles[5] = event_kf[2];
         Vars.UserDoubles[6] = particle_getvar(_particle, res_rx_var, NULL);
         Vars.UserDoubles[7] = particle_getvar(_particle, res_ry_var, NULL);
         Vars.UserDoubles[8] = particle_getvar(_particle, res_rz_var, NULL);
-
-        /* pi and pf */
-        Vars.UserDoubles[9] = particle_getvar(_particle, res_pi_var, NULL);
-        Vars.UserDoubles[10] = p/particle_getvar(_particle, res_pi_var, NULL);
+        Vars.UserDoubles[9] = event_pi;
+        Vars.UserDoubles[10] = event_pf;
 
         Monitor_nD_Trace(&DEFS, &Vars, _particle);
 
         /* live calculation */
-        if(live_calc && p > 0.) {
+        if(live_calc) {
           #pragma acc atomic capture
           {
             event_idx = num_events++;
           }
 
-          reso_events[event_idx*4 + 0] = Vars.UserDoubles[0] - Vars.UserDoubles[3];
-          reso_events[event_idx*4 + 1] = Vars.UserDoubles[1] - Vars.UserDoubles[4];
-          reso_events[event_idx*4 + 2] = Vars.UserDoubles[2] - Vars.UserDoubles[5];
-          reso_events[event_idx*4 + 3] = tl2_k_to_E(Vars.UserDoubles[0], Vars.UserDoubles[1], Vars.UserDoubles[2],
-                                         Vars.UserDoubles[3], Vars.UserDoubles[4], Vars.UserDoubles[5]);
-          reso_probabilities[event_idx] = p;
+          reso_events[event_idx*4 + 0] = event_ki[0] - event_kf[0];
+          reso_events[event_idx*4 + 1] = event_ki[1] - event_kf[1];
+          reso_events[event_idx*4 + 2] = event_ki[2] - event_kf[2];
+          reso_events[event_idx*4 + 3] = tl2_k_to_E(
+              event_ki[0], event_ki[1], event_ki[2],
+              event_kf[0], event_kf[1], event_kf[2]);
+          reso_probabilities[event_idx] = event_pi * event_pf;
         }
       }
 
@@ -292,18 +305,13 @@ SAVE %{
 
   /* live calculation */
   if(live_calc && num_events > 0) {
-    double cov[4*4], reso[4*4];
-    if(tl2_reso(reso_events, reso_probabilities, cov, reso, num_events)) {
-      printf("Resolution matrix from %d neutron events:"
-        "\n\t%12.4e %12.4e %12.4e %12.4e"
-        "\n\t%12.4e %12.4e %12.4e %12.4e"
-        "\n\t%12.4e %12.4e %12.4e %12.4e"
-        "\n\t%12.4e %12.4e %12.4e %12.4e\n",
-        num_events,
-        reso[0],  reso[1],  reso[2],  reso[3],
-        reso[4],  reso[5],  reso[6],  reso[7],
-        reso[8],  reso[9],  reso[10], reso[11],
-        reso[12], reso[13], reso[14], reso[15]);
+    /*tl2_save_events(reso_events, reso_probabilities, "reso_events.dat", num_events);*/
+
+    double cov[4*4], res[4*4];
+    if(tl2_reso(reso_events, reso_probabilities, cov, res, num_events)) {
+      printf("Resolution calculation used %d neutron events.\n", num_events);
+      tl2_print_mat(cov, "Covariance matrix", 4, 4);
+      tl2_print_mat(res, "Resolution matrix", 4, 4);
     }
     else {
       printf("Error: Resolution matrix could not be calculated.");
