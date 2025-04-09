@@ -1150,7 +1150,7 @@ void cogen_getdistance_fct(){
 *******************************************************************************/
 void cogen_getparticlevar_fct(struct instr_def *instr)
 {
-  cout("void* _get_particle_var(char *token, _class_particle_soa *p, soa_index)");
+  cout("void* _get_particle_var(char *token, _class_particle_soa *p, int soa_index)");
   cout("/* enables setpars based use of GET_PARTICLE_DVAR macro and similar */");
   cout("{");
 
@@ -2033,6 +2033,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("    #endif");
   coutf("");
   coutf("  // Code for allocating memory for particles_soa");
+  coutf("  int soa_index;");  
   coutf("  _class_particle_soa *_particles;");      
   coutf("  particle_allocate(_particles, gpu_innerloop);");
   coutf("");    
@@ -2059,7 +2060,8 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("      _particles->_uid[pidx] += mpi_node_rank * ncount; ");
   coutf("      #endif");
   coutf("");
-  coutf("      srandom(_particles, pidx, _hash((pidx+1)*(seed+1)));");
+  coutf("      soa_index = pidx;");
+  coutf("      srandom(_hash((pidx+1)*(seed+1)));");
   coutf("      //particle_uservar_init(_particle);"); // SOA_TODO get uservars injected
   coutf("");
   coutf("      raytrace(_particles, (int) pidx);"); // SOA_TODO 
