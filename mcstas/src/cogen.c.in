@@ -3058,6 +3058,8 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  free(p->sx);");  
   cout("  free(p->sy);");  
   cout("  free(p->sz);");
+  cout("  free(p->mcgravitation);");  
+  cout("  #pragma acc exit data delete(p->vx, p->vy, p->vz, p->sx, p->sy, p->sz, p->mcgravitation)");
 #elif MCCODE_PROJECT == 2   /* xray */
   cout("  free(p->kx);");
   cout("  free(p->ky);");
@@ -3066,10 +3068,10 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  free(p->Ey);");
   cout("  free(p->Ez);");
   cout("  free(p->phi);");
+  cout("  #pragma acc exit data delete(p->kx, p->ky, p->kz, p->Ex, p->Ey, p->Ez, p->phi)");
 #endif
   cout("  free(p->p);");
   cout("  free(p->t);");
-  
   cout("  free(p->allow_backprop);");  
   cout("  free(p->_mctmp_a);");  
   cout("  free(p->_mctmp_b);");  
@@ -3080,8 +3082,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  free(p->_scattered);");
   cout("  free(p->_restore);");
   cout("  free(p->flag_nocoordschange);");
- 
-  cout("  #pragma acc exit data delete(p->x, p->y, p->z, p->vx, p->vy, p->vz, p->sx, p->sy, p->sz, p->p, p->t, p->allow_backprop, p->_mctmp_a, p->_mctmp_b, p->_mctmp_c, p->mcgravitation, p->_uid, p->_index, p->_absorbed, p->_scattered, p->_restore, p->flag_nocoordschange)");
+  cout("  #pragma acc exit data delete(p->x, p->y, p->z, p->p, p->t, p->allow_backprop, p->_mctmp_a, p->_mctmp_b, p->_mctmp_c, p->_uid, p->_index, p->_absorbed, p->_scattered, p->_restore, p->flag_nocoordschange)");
   cout("  ");
   cout("    for (size_t i = 0; i < soa_length; i++) {");
   cout("      #pragma acc exit data delete(p->randstate[i])");
