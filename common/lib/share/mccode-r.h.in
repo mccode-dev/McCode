@@ -684,7 +684,7 @@ double _randtriangle(randstate_t* state);
 
 #ifndef DANSE
 int init(void);
-int raytrace(_class_particle*);
+int raytrace(_class_particle_soa*, int);
 int save(FILE *);
 int finally(void);
 int display(void);
@@ -697,9 +697,9 @@ int display(void);
 *  Divide-and-conquer strategy for parallel sort absorbed last.
 */
 #if defined(FUNNEL) || defined(MULTIKERNEL)
-long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long len, long buffer_len, long flag_split, long* multiplier);
+long sort_absorb_last(_class_particle_soa* particles, _class_particle_soa* pbuffer, long len, long buffer_len, long flag_split, long* multiplier);
 #endif
-long sort_absorb_last_serial(_class_particle* particles, long len);
+long sort_absorb_last_serial(_class_particle_soa* particles, long len);
 
 
 /* simple vector algebra ==================================================== */
@@ -806,7 +806,7 @@ void rot_transpose(Rotation src, Rotation dst);
 Coords rot_apply(Rotation t, Coords a);
 
 #pragma acc routine seq
-void mccoordschange(Coords a, Rotation t, _class_particle *particle);
+void mccoordschange(Coords a, Rotation t, _class_particle_soa *particle, int soa_index);
 #pragma acc routine seq
 void mccoordschange_polarisation(Rotation t, double *sx, double *sy, double *sz);
 
@@ -816,7 +816,7 @@ void mcreadparams(void);
 /* this is now in mcstas-r.h and mcxtrace-r.h as the number of state parameters
 is no longer equal */
 
-_class_particle mcgenstate(void);
+void mcgenstate(_class_particle_soa* particles, int soa_index);
 
 // trajectory/shape intersection routines
 #pragma acc routine seq
@@ -851,17 +851,17 @@ int solve_2nd_order(double *t1, double *t2,
 #pragma acc routine seq
 void _randvec_target_circle(double *xo, double *yo, double *zo,
   double *solid_angle, double xi, double yi, double zi, double radius,
-  _class_particle* _particle);
+  _class_particle_soa* _particle, int soa_index);
 #pragma acc routine seq
 void _randvec_target_rect_angular(double *xo, double *yo, double *zo,
   double *solid_angle, double xi, double yi, double zi, double height,
   double width, Rotation A,
-  _class_particle* _particle);
+  _class_particle_soa* _particle, int soa_index);
 #pragma acc routine seq
 void _randvec_target_rect_real(double *xo, double *yo, double *zo, double *solid_angle,
   double xi, double yi, double zi, double height, double width, Rotation A,
   double lx, double ly, double lz, int order,
-  _class_particle* _particle);
+  _class_particle_soa* _particle, int soa_index);
 
 
 // this is the main()

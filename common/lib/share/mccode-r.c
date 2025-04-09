@@ -2747,7 +2747,7 @@ unsigned long long int mcget_ncount(void)
 
 /* mcget_run_num: get curent number of rays */
 /* Within the TRACE scope we are now using _particle->uid directly */
-unsigned long long int mcget_run_num() // shuld be (_class_particle* _particle) somehow
+unsigned long long int mcget_run_num() // should be (_class_particle* _particle) somehow
 {
   /* This function only remains for the few cases outside TRACE where we need to know
      the number of simulated particles */
@@ -3489,7 +3489,7 @@ mcstatic void norm_func(double *x, double *y, double *z) {
 *   multiplier: output arg, becomes the  SPLIT multiplier if flag_split is set
 */
 #if defined (FUNNEL) || defined(MULTIKERNEL)
-long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long len, long buffer_len, long flag_split, long* multiplier) {
+long sort_absorb_last(_class_particle_soa* particles, _class_particle_soa* pbuffer, long len, long buffer_len, long flag_split, long* multiplier) {
   #define SAL_THREADS 1024 // num parallel sections
   if (len<SAL_THREADS) return sort_absorb_last_serial(particles, len);
 
@@ -3516,28 +3516,28 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
     #pragma acc loop seq
     while (i < j) {
       #pragma acc loop seq
-      while (!particles[i]._absorbed && i<j) {
-        pbuffer[i] = particles[i];
+      while (!particles._absorbed[i] && i<j) {
+        particle_copy(pbuffer, particles, i, i);
         i++;
       }
       #pragma acc loop seq
-      while (particles[j]._absorbed && i<j) {
-        pbuffer[j] = particles[j];
+      while (particles._absorbed[j] && i<j) {
+        particle_copy(pbuffer, particles, j, j);
         j--;
       }
       if (i < j) {
-        pbuffer[j] = particles[i];
-        pbuffer[i] = particles[j];
+        particle_copy(pbuffer, particles, j, i);
+        particle_copy(pbuffer, particles, i, j);
         i++;
         j--;
       }
     }
     // transfer edge case
     if (i==j)
-      pbuffer[i] = particles[i];
+      particle_copy(pbuffer, particles, i, i);
 
     lens[tidx] = i - lo;
-    if (i==j && !particles[i]._absorbed) lens[tidx]++;
+    if (i==j && !particles._absorbed[i]) lens[tidx]++;
   }
 
   // determine lo's
@@ -3556,7 +3556,7 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
     for (long i=0; i<lens[tidx]; i++) {
       j = i + l*tidx;
       k = i + los[tidx];
-      particles[k] = pbuffer[j];
+      particle_copy(particles, pbuffer, k, j);
     }
   }
   //for (int ii=0;ii<accumlen;ii++) printf("%ld ", (psorted[ii]->_absorbed));
@@ -3575,28 +3575,35 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
   // copy non-absorbed block
   #pragma acc parallel loop present(particles[0:buffer_len])
   for (long tidx = 0; tidx < accumlen; tidx++) { // tidx: thread index
+    // WARNING TODO still to be done
     unsigned long randstate[7];
-    _class_particle sourcebuffer;
-    _class_particle targetbuffer;
+    _class_particle_soa *sourcebuffer
+    _class_particle_soa *targetbuffer
+    particle_allocate(sourcebuffer, 1);
+    particle_allocate(targetbuffer, 1);
+
     // assign reduced weight to all particles
-    particles[tidx].p=particles[tidx].p/mult;
+    particles.p[tidx]=particles.p[tidx]/mult;
+
     #pragma acc loop seq
     for (long bidx = 1; bidx < mult; bidx++) { // bidx: block index
       // preserve absorbed particle (for randstate)
-      sourcebuffer = particles[bidx*accumlen + tidx];
+      particle_copy(sourcebuffer, particles, 0, bidx*accumlen + tidx);
       // buffer full particle struct
-      targetbuffer = particles[tidx];
+      particle_copy(targetbuffer, particles, 0, tidx);
       // reassign previous randstate
-      targetbuffer.randstate[0] = sourcebuffer.randstate[0];
-      targetbuffer.randstate[1] = sourcebuffer.randstate[1];
-      targetbuffer.randstate[2] = sourcebuffer.randstate[2];
-      targetbuffer.randstate[3] = sourcebuffer.randstate[3];
-      targetbuffer.randstate[4] = sourcebuffer.randstate[4];
-      targetbuffer.randstate[5] = sourcebuffer.randstate[5];
-      targetbuffer.randstate[6] = sourcebuffer.randstate[6];
+      targetbuffer.randstate[0][0] = sourcebuffer.randstate[0][0];
+      targetbuffer.randstate[1][0] = sourcebuffer.randstate[1][0];
+      targetbuffer.randstate[2][0] = sourcebuffer.randstate[2][0];
+      targetbuffer.randstate[3][0] = sourcebuffer.randstate[3][0];
+      targetbuffer.randstate[4][0] = sourcebuffer.randstate[4][0];
+      targetbuffer.randstate[5][0] = sourcebuffer.randstate[5][0];
+      targetbuffer.randstate[6][0] = sourcebuffer.randstate[6][0];
       // apply
-      particles[bidx*accumlen + tidx] = targetbuffer;
+      particle_copy(particles, targetbuffer, bidx*accumlen + tidx, 0);
     }
+    particle_free(sourcebuffer);
+    particle_free(targetbuffer);
   }
 
   // set out split multiplier value
@@ -3611,26 +3618,27 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
 /*
 *  Fallback serial version of the one above.
 */
-long sort_absorb_last_serial(_class_particle* particles, long len) {
+long sort_absorb_last_serial(_class_particle_soa* particles, long len) {
   long i = 0;
   long j = len - 1;
-  _class_particle pbuffer;
+  _class_particle *pbuffer;
+  particle_allocate(pbuffer, 1);
 
   // bubble
   while (i < j) {
-    while (!particles[i]._absorbed && i<j) i++;
-    while (particles[j]._absorbed && i<j) j--;
+    while (!particles._absorbed[i] && i<j) i++;
+    while (particles._absorbed[j] && i<j) j--;
     if (i < j) {
-      pbuffer = particles[j];
-      particles[j] = particles[i];
-      particles[i] = pbuffer;
+      particle_copy(pbuffer,   0, particles, j);
+      particle_copy(particles, j, particles, i);
+      particle_copy(particles, i, pbuffer,   0);
       i++;
       j--;
     }
   }
 
   // return new length
-  if (i==j && !particles[i]._absorbed)
+  if (i==j && !particles._absorbed[i])
     return i + 1;
   else
     return i;
@@ -3639,31 +3647,31 @@ long sort_absorb_last_serial(_class_particle* particles, long len) {
 /*******************************************************************************
 * mccoordschange: applies rotation to (x y z) and (vx vy vz) and Spin (sx,sy,sz)
 *******************************************************************************/
-void mccoordschange(Coords a, Rotation t, _class_particle *particle)
+void mccoordschange(Coords a, Rotation t, _class_particle_soa *particle, int soa_index)
 {
   Coords b, c;
 
-  b.x = particle->x;
-  b.y = particle->y;
-  b.z = particle->z;
+  b.x = particle->x[soa_index];
+  b.y = particle->y[soa_index];
+  b.z = particle->z[soa_index];
   c = rot_apply(t, b);
   b = coords_add(c, a);
-  particle->x = b.x;
-  particle->y = b.y;
-  particle->z = b.z;
+  particle->x[soa_index] = b.x;
+  particle->y[soa_index] = b.y;
+  particle->z[soa_index] = b.z;
 
 #if MCCODE_PARTICLE_CODE == 2112
-    if (particle->vz != 0.0 || particle->vx != 0.0 || particle->vy != 0.0)
-      mccoordschange_polarisation(t, &(particle->vx), &(particle->vy), &(particle->vz));
+    if (particle->vz[soa_index] != 0.0 || particle->vx[soa_index] != 0.0 || particle->vy[soa_index] != 0.0)
+      mccoordschange_polarisation(t, &(particle->vx[soa_index]), &(particle->vy[soa_index]), &(particle->vz[soa_index]));
 
-    if (particle->sz != 0.0 || particle->sx != 0.0 || particle->sy != 0.0)
-      mccoordschange_polarisation(t, &(particle->sx), &(particle->sy), &(particle->sz));
+    if (particle->sz[soa_index] != 0.0 || particle->sx[soa_index] != 0.0 || particle->sy[soa_index] != 0.0)
+      mccoordschange_polarisation(t, &(particle->sx[soa_index]), &(particle->sy[soa_index]), &(particle->sz[soa_index]));
 #elif MCCODE_PARTICLE_CODE == 22
-    if (particle->kz != 0.0 || particle->kx != 0.0 || particle->ky != 0.0)
-      mccoordschange_polarisation(t, &(particle->kx), &(particle->ky), &(particle->kz));
+    if (particle->kz[soa_index] != 0.0 || particle->kx[soa_index] != 0.0 || particle->ky[soa_index] != 0.0)
+      mccoordschange_polarisation(t, &(particle->kx[soa_index]), &(particle->ky[soa_index]), &(particle->kz[soa_index]));
 
-    if (particle->Ez != 0.0 || particle->Ex != 0.0 || particle->Ey != 0.0)
-      mccoordschange_polarisation(t, &(particle->Ex), &(particle->Ey), &(particle->Ez));
+    if (particle->Ez[soa_index] != 0.0 || particle->Ex[soa_index] != 0.0 || particle->Ey[soa_index] != 0.0)
+      mccoordschange_polarisation(t, &(particle->Ex[soa_index]), &(particle->Ey[soa_index]), &(particle->Ez[soa_index]));
 #endif
 }
 
@@ -3867,10 +3875,11 @@ int solve_2nd_order(double *t0, double *t1, double A, double B, double C){
  * randvec_target_circle: Choose random direction towards target at (x,y,z)
  * with given radius.
  * If radius is zero, choose random direction in full 4PI, no target.
+ * NOTE: _particle is required for rand expansion
  ******************************************************************************/
 void _randvec_target_circle(double *xo, double *yo, double *zo, double *solid_angle,
         double xi, double yi, double zi, double radius,
-        _class_particle* _particle)
+        _class_particle_soa* _particle, int soa_index)
 {
   double l2, phi, theta, nx, ny, nz, xt, yt, zt, xu, yu, zu;
 
@@ -3933,6 +3942,7 @@ void _randvec_target_circle(double *xo, double *yo, double *zo, double *solid_an
  * (xi,yi,zi) with given ANGULAR dimension height x width. height=phi_x=[0,PI],
  * width=phi_y=[0,2*PI] (radians)
  * If height or width is zero, choose random direction in full 4PI, no target.
+ * NOTE: _particle is required for rand expansion
  *******************************************************************************/
 void _randvec_target_rect_angular(double *xo, double *yo, double *zo, double *solid_angle,
         double xi, double yi, double zi, double width, double height, Rotation A,
@@ -4008,6 +4018,7 @@ void _randvec_target_rect_angular(double *xo, double *yo, double *zo, double *so
  * Traditionally, this routine had the name randvec_target_rect - this is now a
  * a define (see mcstas-r.h) pointing here. If you use the old rouine, you are NOT
  * taking the local emmission coordinate into account.
+ * NOTE: _particle is required for rand expansion
 *******************************************************************************/
 void _randvec_target_rect_real(double *xo, double *yo, double *zo, double *solid_angle,
         double xi, double yi, double zi,
