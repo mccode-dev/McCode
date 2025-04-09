@@ -313,6 +313,8 @@ class McStas:
 
         # Final assembly of compiler commandline
         args = ['-o', self.binpath, self.cpath] + lexer.split(cflags)
+        # display compile command
+        LOG.info('%s %s', options.cc, ' '.join(args))
         Process(lexer.quote(options.cc)).run(args)
 
     def run(self, pipe=False, extra_opts=None, override_mpi=None):
