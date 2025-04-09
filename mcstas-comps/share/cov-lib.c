@@ -44,7 +44,7 @@ double tl2_k_to_E(double kix, double kiy, double kiz, double kfx, double kfy, do
 }
 
 
-static void tl2_print_vec(const double* vec, const char* title, int I)
+void tl2_print_vec(const double* vec, const char* title, int I)
 {
 	if(title)
 		printf("%s: ", title);
@@ -54,7 +54,7 @@ static void tl2_print_vec(const double* vec, const char* title, int I)
 }
 
 
-static void tl2_print_mat(const double* mat, const char* title, int I, int J)
+void tl2_print_mat(const double* mat, const char* title, int I, int J)
 {
 	if(title)
 		printf("%s:\n", title);
@@ -65,6 +65,30 @@ static void tl2_print_mat(const double* mat, const char* title, int I, int J)
 			printf("%12.4e ", mat[i*J + j]);
 		printf("\n");
 	}
+}
+
+
+/**
+ * save the individual neutron events
+ */
+int tl2_save_events(const double* vecs, const double* probs,
+	const char* filename, unsigned int EVTS)
+{
+	FILE* f = fopen(filename, "wt");
+	if(!f)
+		return 0;
+
+	fprintf(f, "# %10s %12s %12s %12s %12s\n",
+		"Q_x", "Q_y", "Q_z", "E", "p");
+	for(unsigned int idx = 0; idx < EVTS; ++idx)
+	{
+		fprintf(f, "%12.4e %12.4e %12.4e %12.4e %12.4e\n",
+			vecs[idx*4 + 0], vecs[idx*4 + 1], vecs[idx*4 + 2],
+			vecs[idx*4 + 3], probs[idx]);
+	}
+
+	fclose(f);
+	return 1;
 }
 /* ----------------------------------------------------------------------------- */
 
@@ -712,7 +736,7 @@ int tl2_reso(const double* vecs, const double* probs,
 /* ---------------------------------------------------------------------------- */
 /*int main(int argc, char** argv)
 {
-	FILE* f = fopen("reso.dat", "r");
+	FILE* f = fopen("reso.dat", "rt");
 
 	unsigned int max_evts = 10000;
 	unsigned int evt_idx = 0;
