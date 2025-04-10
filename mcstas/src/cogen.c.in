@@ -1853,7 +1853,7 @@ int cogen_raytrace(struct instr_def *instr)
     if (comp->split) {
       char *exp=exp_tostring(comp->split);
       printf("-> SPLIT N at component %s\n",comp->name);
-      coutf("#ifndef NOSPLIT"); // SOA_TODO always run with NOSPLIT
+      coutf("#ifndef NOSPLIT"); // SOA always run with NOSPLIT - define in place above
       coutf("    /* start SPLIT at %s */", comp->name);
       coutf("    if (!ABSORBED) {");
       coutf("    _class_particle_soa Split_%s_particle=*_particle;", comp->name); // store incoming particle state at SPLIT
@@ -2597,6 +2597,13 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("/* In case of cl.exe on Windows, supppress warnings about #pragma acc */");
   coutf("#ifdef _MSC_EXTENSIONS");
   coutf("#pragma warning(disable: 4068)");
+  coutf("#endif");
+  cout("");
+
+  /* In the 'struct of arrays' grammar we can currently not SPLIT */
+  cout("/* In the 'struct of arrays' grammar we can currently not SPLIT */");
+  coutf("#ifdef OPENACC");
+  coutf("#  define NOSPLIT");
   coutf("#endif");
   cout("");
 
