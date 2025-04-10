@@ -3637,7 +3637,7 @@ long sort_absorb_last_serial(_class_particle_soa* particles, long len) {
     }
   }
 
-  particle_free(pbuffer);
+  particle_free(pbuffer, 1);
 
   // return new length
   if (i==j && !particles->_absorbed[i])
