@@ -1058,7 +1058,7 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 /* return values: 0=neutron was absorbed, -1=neutron was outside bounds, 1=neutron was measured*/
 /* ========================================================================= */
 
-int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle* _particle)
+int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle_soa *_particles, int soa_index)
 {
 
   double  XY=0, pp=0;
@@ -1198,34 +1198,34 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
       /* compute the steradian solid angle incoming on the monitor */
       double v;
       double tmp;
-      v=sqrt(_particle->vx*_particle->vx + _particle->vy*_particle->vy + _particle->vz*_particle->vz);
-      tmp=_particle->x;
-      if (Vars->min_x > _particle->x){
+      v=sqrt(_particles->vx[soa_index]*_particles->vx[soa_index] + _particles->vy[soa_index]*_particles->vy[soa_index] + _particles->vz[soa_index]*_particles->vz[soa_index]);
+      tmp=_particles->x[soa_index];
+      if (Vars->min_x > _particles->x[soa_index]){
         #pragma acc atomic write
         Vars->min_x = tmp;
       }
-      if (Vars->max_x < _particle->x){
+      if (Vars->max_x < _particles->x[soa_index]){
         #pragma acc atomic write
         Vars->max_x = tmp;
       }
-      tmp=_particle->y;
-      if (Vars->min_y > _particle->y){
+      tmp=_particles->y[soa_index];
+      if (Vars->min_y > _particles->y[soa_index]){
         #pragma acc atomic write
         Vars->min_y = tmp;
       }
-      if (Vars->max_y < _particle->y){
-	tmp=_particle->y;
+      if (Vars->max_y < _particles->y[soa_index]){
+	tmp=_particles->y[soa_index];
         #pragma acc atomic write
 	Vars->max_y = tmp;
       }
 
       #pragma acc atomic
-      Vars->mean_p = Vars->mean_p + _particle->p;
+      Vars->mean_p = Vars->mean_p + _particles->p[soa_index];
       if (v) {
-        tmp=_particle->p*fabs(_particle->vx/v);
+        tmp=_particles->p[soa_index]*fabs(_particles->vx[soa_index]/v);
         #pragma acc atomic
         Vars->mean_dx = Vars->mean_dx + tmp; //_particle->p*fabs(_particle->vx/v);
-        tmp=_particle->p*fabs(_particle->vy/v);
+        tmp=_particles->p[soa_index]*fabs(_particles->vy[soa_index]/v);
         #pragma acc atomic
         Vars->mean_dy = Vars->mean_dy + tmp; //_particle->p*fabs(_particle->vy/v);
       }
@@ -1235,33 +1235,33 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         XY = 0;
         Set_Vars_Coord_Type = (Vars->Coord_Type[i] & (DEFS->COORD_LOG-1));
         /* get values for variables to monitor */
-        if (Set_Vars_Coord_Type == DEFS->COORD_X) XY = _particle->x;
+        if (Set_Vars_Coord_Type == DEFS->COORD_X) XY = _particles->x[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_Y) XY = _particle->y;
+        if (Set_Vars_Coord_Type == DEFS->COORD_Y) XY = _particles->y[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_Z) XY = _particle->z;
+        if (Set_Vars_Coord_Type == DEFS->COORD_Z) XY = _particles->z[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_VX) XY = _particle->vx;
+        if (Set_Vars_Coord_Type == DEFS->COORD_VX) XY = _particles->vx[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_VY) XY = _particle->vy;
+        if (Set_Vars_Coord_Type == DEFS->COORD_VY) XY = _particles->vy[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_VZ) XY = _particle->vz;
+        if (Set_Vars_Coord_Type == DEFS->COORD_VZ) XY = _particles->vz[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_KX) XY = V2K*_particle->vx;
+        if (Set_Vars_Coord_Type == DEFS->COORD_KX) XY = V2K*_particles->vx[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_KY) XY = V2K*_particle->vy;
+        if (Set_Vars_Coord_Type == DEFS->COORD_KY) XY = V2K*_particles->vy[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_KZ) XY = V2K*_particle->vz;
+        if (Set_Vars_Coord_Type == DEFS->COORD_KZ) XY = V2K*_particles->vz[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_SX) XY = _particle->sx;
+        if (Set_Vars_Coord_Type == DEFS->COORD_SX) XY = _particles->sx[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_SY) XY = _particle->sy;
+        if (Set_Vars_Coord_Type == DEFS->COORD_SY) XY = _particles->sy[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_SZ) XY = _particle->sz;
+        if (Set_Vars_Coord_Type == DEFS->COORD_SZ) XY = _particles->sz[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_T) XY = _particle->t;
+        if (Set_Vars_Coord_Type == DEFS->COORD_T) XY = _particles->t[soa_index];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_P) XY = _particle->p;
+        if (Set_Vars_Coord_Type == DEFS->COORD_P) XY = _particles->p[soa_index];
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE0) XY = Vars->UserDoubles[0];
         else
@@ -1295,59 +1295,59 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE15) XY = Vars->UserDoubles[15];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_HDIV) XY = RAD2DEG*atan2(_particle->vx,_particle->vz);
+        if (Set_Vars_Coord_Type == DEFS->COORD_HDIV) XY = RAD2DEG*atan2(_particles->vx[soa_index],_particles->vz[soa_index]);
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_VDIV) XY = RAD2DEG*atan2(_particle->vy,_particle->vz);
+        if (Set_Vars_Coord_Type == DEFS->COORD_VDIV) XY = RAD2DEG*atan2(_particles->vy[soa_index],_particles->vz[soa_index]);
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_V) XY = sqrt(_particle->vx*_particle->vx+_particle->vy*_particle->vy+_particle->vz*_particle->vz);
+        if (Set_Vars_Coord_Type == DEFS->COORD_V) XY = sqrt(_particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vy[soa_index]*_particles->vy[soa_index]+_particles->vz[soa_index]*_particles->vz[soa_index]);
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_RADIUS)
-          XY = sqrt(_particle->x*_particle->x+_particle->y*_particle->y+_particle->z*_particle->z);
+          XY = sqrt(_particles->x[soa_index]*_particles->x[soa_index]+_particles->y[soa_index]*_particles->y[soa_index]+_particles->z[soa_index]*_particles->z[soa_index]);
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_XY)
-          XY = sqrt(_particle->x*_particle->x+_particle->y*_particle->y)*(_particle->x > 0 ? 1 : -1);
+          XY = sqrt(_particles->x[soa_index]*_particles->x[soa_index]+_particles->y[soa_index]*_particles->y[soa_index])*(_particles->x[soa_index] > 0 ? 1 : -1);
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_YZ) XY = sqrt(_particle->y*_particle->y+_particle->z*_particle->z);
+        if (Set_Vars_Coord_Type == DEFS->COORD_YZ) XY = sqrt(_particles->y[soa_index]*_particles->y[soa_index]+_particles->z[soa_index]*_particles->z[soa_index]);
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_XZ)
-          XY = sqrt(_particle->x*_particle->x+_particle->z*_particle->z);
+          XY = sqrt(_particles->x[soa_index]*_particles->x[soa_index]+_particles->z[soa_index]*_particles->z[soa_index]);
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_VXY) XY = sqrt(_particle->vx*_particle->vx+_particle->vy*_particle->vy);
+        if (Set_Vars_Coord_Type == DEFS->COORD_VXY) XY = sqrt(_particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vy[soa_index]*_particles->vy[soa_index]);
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_VXZ) XY = sqrt(_particle->vx*_particle->vx+_particle->vz*_particle->vz);
+        if (Set_Vars_Coord_Type == DEFS->COORD_VXZ) XY = sqrt(_particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vz[soa_index]*_particles->vz[soa_index]);
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_VYZ) XY = sqrt(_particle->vy*_particle->vy+_particle->vz*_particle->vz);
+        if (Set_Vars_Coord_Type == DEFS->COORD_VYZ) XY = sqrt(_particles->vy[soa_index]*_particles->vy[soa_index]+_particles->vz[soa_index]*_particles->vz[soa_index]);
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_K) { XY = sqrt(_particle->vx*_particle->vx+_particle->vy*_particle->vy+_particle->vz*_particle->vz);  XY *= V2K; }
+        if (Set_Vars_Coord_Type == DEFS->COORD_K) { XY = sqrt(_particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vy[soa_index]*_particles->vy[soa_index]+_particles->vz[soa_index]*_particles->vz[soa_index]);  XY *= V2K; }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_KXY) { XY = sqrt(_particle->vx*_particle->vx+_particle->vy*_particle->vy);  XY *= V2K; }
+        if (Set_Vars_Coord_Type == DEFS->COORD_KXY) { XY = sqrt(_particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vy[soa_index]*_particles->vy[soa_index]);  XY *= V2K; }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_KXZ) { XY = sqrt(_particle->vx*_particle->vx+_particle->vz*_particle->vz);  XY *= V2K; }
+        if (Set_Vars_Coord_Type == DEFS->COORD_KXZ) { XY = sqrt(_particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vz[soa_index]*_particles->vz[soa_index]);  XY *= V2K; }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_KYZ) { XY = sqrt(_particle->vy*_particle->vy+_particle->vz*_particle->vz);  XY *= V2K; }
+        if (Set_Vars_Coord_Type == DEFS->COORD_KYZ) { XY = sqrt(_particles->vy[soa_index]*_particles->vy[soa_index]+_particles->vz[soa_index]*_particles->vz[soa_index]);  XY *= V2K; }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_ENERGY) { XY = _particle->vx*_particle->vx+_particle->vy*_particle->vy+_particle->vz*_particle->vz;  XY *= VS2E; }
+        if (Set_Vars_Coord_Type == DEFS->COORD_ENERGY) { XY = _particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vy[soa_index]*_particles->vy[soa_index]+_particles->vz[soa_index]*_particles->vz[soa_index];  XY *= VS2E; }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_LAMBDA) { XY = sqrt(_particle->vx*_particle->vx+_particle->vy*_particle->vy+_particle->vz*_particle->vz);  XY *= V2K; if (XY != 0) XY = 2*PI/XY; }
+        if (Set_Vars_Coord_Type == DEFS->COORD_LAMBDA) { XY = sqrt(_particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vy[soa_index]*_particles->vy[soa_index]+_particles->vz[soa_index]*_particles->vz[soa_index]);  XY *= V2K; if (XY != 0) XY = 2*PI/XY; }
         else
-	  if (Set_Vars_Coord_Type == DEFS->COORD_NCOUNT) XY = _particle->_uid;
+	  if (Set_Vars_Coord_Type == DEFS->COORD_NCOUNT) XY = _particles->_uid[soa_index];
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_ANGLE)
-        {  XY = sqrt(_particle->vx*_particle->vx+_particle->vy*_particle->vy);
-           if (_particle->vz != 0)
-                XY = RAD2DEG*atan2(XY,_particle->vz)*(_particle->x > 0 ? 1 : -1);
+        {  XY = sqrt(_particles->vx[soa_index]*_particles->vx[soa_index]+_particles->vy[soa_index]*_particles->vy[soa_index]);
+           if (_particles->vz[soa_index] != 0)
+                XY = RAD2DEG*atan2(XY,_particles->vz[soa_index])*(_particles->x[soa_index] > 0 ? 1 : -1);
            else XY = 0;
         }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_THETA)  { if (_particle->z != 0) XY = RAD2DEG*atan2(_particle->x,_particle->z); }
+        if (Set_Vars_Coord_Type == DEFS->COORD_THETA)  { if (_particles->z[soa_index] != 0) XY = RAD2DEG*atan2(_particles->x[soa_index],_particles->z[soa_index]); }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_PHI) { double rr=sqrt(_particle->x*_particle->x+ _particle->y*_particle->y + _particle->z*_particle->z); if (rr != 0) XY = RAD2DEG*asin(_particle->y/rr); }
+        if (Set_Vars_Coord_Type == DEFS->COORD_PHI) { double rr=sqrt(_particles->x[soa_index]*_particles->x[soa_index]+ _particles->y[soa_index]*_particles->y[soa_index] + _particles->z[soa_index]*_particles->z[soa_index]); if (rr != 0) XY = RAD2DEG*asin(_particles->y[soa_index]/rr); }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USER1) {int fail; XY = particle_getvar(_particle,Vars->UserVariable1,&fail); if(fail) XY=0; }
+	if (Set_Vars_Coord_Type == DEFS->COORD_USER1) {int fail; XY = particle_getvar(_particles,soa_index,Vars->UserVariable1,&fail); if(fail) XY=0; }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USER2) {int fail; XY = particle_getvar(_particle,Vars->UserVariable2,&fail); if(fail) XY=0; }
+        if (Set_Vars_Coord_Type == DEFS->COORD_USER2) {int fail; XY = particle_getvar(_particles,soa_index,Vars->UserVariable2,&fail); if(fail) XY=0; }
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USER3) {int fail; XY = particle_getvar(_particle,Vars->UserVariable3,&fail); if(fail) XY=0; }
+        if (Set_Vars_Coord_Type == DEFS->COORD_USER3) {int fail; XY = particle_getvar(_particles,soa_index,Vars->UserVariable3,&fail); if(fail) XY=0; }
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_PIXELID && !Vars->Flag_Auto_Limits) {
           /* compute the PixelID from previous coordinates 
