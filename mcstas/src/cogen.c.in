@@ -1837,6 +1837,9 @@ int cogen_raytrace(struct instr_def *instr)
   cout("int soa_index;");		  
   cout("  #define ABSORB0 do { DEBUG_ABSORB(); ABSORBED++;} while(0)"); // TODO_SOA Removed MAGNET_OFF
   cout("  #define ABSORB ABSORB0");
+  
+  coutf("#pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
+  cout("for (soa_index=0; soa_index<soa_length; soa_index++) {");
 
   /* Debugging (initial state). */
   cout("  DEBUG_ENTER();");
@@ -1871,6 +1874,8 @@ int cogen_raytrace(struct instr_def *instr)
     }
   }
   list_iterate_end(liter);
+  
+
 
   cout("  _particles->flag_nocoordschange[soa_index]=0; /* Init */");
   cout("  //_class_particle _particle_save=*_particle; // disabled at the momement");
@@ -1880,17 +1885,24 @@ int cogen_raytrace(struct instr_def *instr)
   cout("  while (!ABSORBED) { /* iterate event until absorbed */");
   cout("    /* send particle event to component instance, one after the other */");
   }
+  
+  int kernel_number = 10;
+  int comp_in_kernel_counter = 0;
+
+  comp_in_kernel_counter = 0;
 
   /* now we produce the list of statements for each component index, with the attached logic */
   liter = list_iterate(instr->complist);
   while((comp = list_next(liter)) != NULL) {
     List_handle liter2;
 	
-	
-
-	coutf("#pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
-	cout("for (soa_index=0; soa_index<soa_length; soa_index++) {");
-	
+	comp_in_kernel_counter++;
+	if (comp_in_kernel_counter >= kernel_number) {
+	    cout("}");		
+	    coutf("#pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
+	    cout("for (soa_index=0; soa_index<soa_length; soa_index++) {");
+		comp_in_kernel_counter = 0;
+	}
 
     /* the SPLIT loop must be set before we enter further component blocks */
     if (comp->split) {
@@ -2019,10 +2031,9 @@ int cogen_raytrace(struct instr_def *instr)
     }
     coutf("    } /* end component %s [%i] */", comp->name, comp->index);
 	
-	cout("} /* end soa loop */");
-
   } /* end while comp list (case) */
   list_iterate_end(liter);
+
 
   /* handle ABSORB when no more comp, go to next comp, and RESTORE */
 
@@ -2056,6 +2067,8 @@ int cogen_raytrace(struct instr_def *instr)
   //  comp->def->name,
   //  comp->name,
   //  list_len(comp->extend->lines) ? " /* contains EXTEND code */" : "");
+  
+  cout("} /* end soa loop */");
 	
   cout("  return(1);");
   coutf("} /* raytrace */");
