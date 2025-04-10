@@ -60,7 +60,7 @@
 *
 * DEFS: [struct]                structure containing Monitor_nD Defines
 * Vars: [struct]                structure containing Monitor_nD variables
-* buffer_index: [long]          number of recorded events
+* num_events: [long]            number of recorded events
 *
 * %E
 *******************************************************************************/
@@ -87,9 +87,8 @@ SHARE %{
 DECLARE%{
   MonitornD_Defines_type DEFS;
   MonitornD_Variables_type Vars;
-  long buffer_index;
 
-  unsigned int num_events;
+  unsigned long num_events;
   double* reso_events;
   double* reso_probabilities;
 
@@ -111,8 +110,6 @@ INITIALIZE %{
   /* Use instance name for monitor output if no input was given */
   if (!strcmp(filename, "\0"))
     sprintf(filename, "%s", NAME_CURRENT_COMP);
-
-  buffer_index = 0;
 
   num_events = 0;
   reso_events = 0;
@@ -185,7 +182,7 @@ TRACE %{
   double t0 = 0;
   double t1 = 0;
   int intersect = 0;
-  unsigned int event_idx = 0;
+  unsigned long event_idx = 0;
   double event_ki[3], event_kf[3];
   double event_pi, event_pf;
   double event_pos[3];
@@ -234,7 +231,7 @@ TRACE %{
     }
 
     /* Now fetch data from the Res_sample. */
-    if(p > 0. && (!bufsize || buffer_index < bufsize))
+    if(p > 0. && (!bufsize || num_events < bufsize))
     {
       /* old behaviour not supported by openacc:
         struct Res_sample_struct *s =
@@ -294,7 +291,6 @@ TRACE %{
         }
       }
 
-      ++buffer_index;
       SCATTER;
     } /* if p */
   } /* end if intersection */
