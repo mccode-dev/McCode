@@ -1530,10 +1530,13 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
     // (first thing to do in "finally")
     liter = list_iterate(instr->complist);
     while((comp = list_next(liter)) != NULL) {
-      coutf("#pragma acc update host(_%s_var)", comp->name);
+      if(strstr(comp->def->name,"onitor")||strstr(comp->def->name,"MCPL_output")) {
+	printf("Adding GPU #pragma acc update device(%s)\n",comp->name, comp->def->name);
+	coutf("#pragma acc update host(_%s_var)", comp->name);
+      }
     }
     // attach instrument
-    cout("#pragma acc update host(_instrument_var)");
+    //cout("#pragma acc update host(_instrument_var)");
     cout("");
 
     coutf("  siminfo_init(NULL);");
@@ -1893,7 +1896,7 @@ int cogen_raytrace(struct instr_def *instr)
     if (comp->split) {
       char *exp=exp_tostring(comp->split);
       printf("-> SPLIT N at component %s\n",comp->name);
-      coutf("#ifndef NOSPLIT"); // SOA_TODO always run with NOSPLIT
+      coutf("#ifndef NOSPLIT"); // SOA always run with NOSPLIT - define in place above
       coutf("    /* start SPLIT at %s */", comp->name);
       coutf("    if (!ABSORBED) {");
       coutf("    _class_particle_soa Split_%s_particle=*_particle;", comp->name); // store incoming particle state at SPLIT
@@ -2651,6 +2654,13 @@ cogen_header(struct instr_def *instr, char *output_name)
   coutf("#ifdef _MSC_EXTENSIONS");
   coutf("#pragma warning(disable: 4068)");
   coutf("#endif");
+  cout("");
+
+  /* In the 'struct of arrays' grammar we can currently not SPLIT */
+  cout("/* In the 'struct of arrays' grammar we can currently not SPLIT */");
+  coutf("//#ifdef OPENACC");
+  coutf("#  define NOSPLIT");
+  coutf("//#endif");
   cout("");
 
   coutf("#define MCCODE_STRING \"%s\"", MCCODE_STRING);

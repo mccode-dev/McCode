@@ -141,7 +141,7 @@ def calc_covar(Q, E, w, Qpara, Qperp):
 	Q4 = np.insert(Q, 3, E, axis=1)
 
 	# calculate the mean Q 4-vector
-	Qmean = [ np.average(Q4[:,i], weights = w) for i in range(4) ]
+	Qmean = np.array([ np.average(Q4[:, i], weights = w) for i in range(4) ])
 	if options["verbose"]:
 		print("Mean (Q, E) vector in lab system:\n%s\n" % Qmean)
 
