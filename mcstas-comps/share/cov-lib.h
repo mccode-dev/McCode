@@ -202,6 +202,15 @@ extern int tl2_reso(const double* vecs, const double* probs,
 /* ----------------------------------------------------------------------------- */
 #pragma acc routine
 extern double tl2_k_to_E(double kix, double kiy, double kiz, double kfx, double kfy, double kfz);
+
+extern void tl2_print_vec(const double* vec, const char* title, int I);
+extern void tl2_print_mat(const double* mat, const char* title, int I, int J);
+
+/**
+ * save neutron events
+ */
+extern int tl2_save_events(const double* vecs, const double* probs,
+	const char* filename, unsigned int EVTS);
 /* ----------------------------------------------------------------------------- */
 
 

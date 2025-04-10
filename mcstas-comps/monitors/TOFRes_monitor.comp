@@ -21,7 +21,7 @@
 * scattering events in the sample along with their intensities in the
 * detector. The output file may be analyzed with the mcresplot front-end.
 *
-* Example: Res_monitor(filename="Output.res", res_sample_comp="RSample", xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1)
+* Example: TOFRes_monitor(filename="Output.res", res_sample_comp="RSample", xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1)
 *
 * Setting the monitor geometry.
 *   The optional parameter 'options' may be set as a string with the
@@ -60,7 +60,7 @@
 *
 * DEFS: [struct]                structure containing Monitor_nD Defines
 * Vars: [struct]                structure containing Monitor_nD variables
-* buffer_index: [long]          number of recorded events
+* num_events: [long]            number of recorded events
 *
 * %E
 *******************************************************************************/
@@ -70,7 +70,8 @@ DEFINE COMPONENT TOFRes_monitor
 
 SETTING PARAMETERS (string res_sample_comp,
   string filename=0, string options=0, xwidth=.1, yheight=.1, zdepth=0, radius=0,
-  xmin=0, xmax=0, ymin=0, ymax=0, zmin=0, zmax=0, bufsize=0, int restore_neutron=0, live_calc=1)
+  xmin=0, xmax=0, ymin=0, ymax=0, zmin=0, zmax=0, bufsize=0, int restore_neutron=0,
+  int live_calc=1)
 
 /* these are protected C variables */
 
@@ -86,10 +87,11 @@ SHARE %{
 DECLARE%{
   MonitornD_Defines_type DEFS;
   MonitornD_Variables_type Vars;
-  long buffer_index;
 
-  tl2_list_type *reso_events;
-  tl2_list_type *reso_probabilities;
+  unsigned long num_events;
+  double* reso_events;
+  double* reso_probabilities;
+
   char res_pi_var[20];
   char res_ki_x_var[20];
   char res_ki_y_var[20];
@@ -105,17 +107,17 @@ DECLARE%{
 
 INITIALIZE %{
 
-  // Use instance name for monitor output if no input was given
-  if (!strcmp(filename,"\0")) sprintf(filename,NAME_CURRENT_COMP);
+  /* Use instance name for monitor output if no input was given */
+  if (!strcmp(filename, "\0"))
+    sprintf(filename, "%s", NAME_CURRENT_COMP);
   
-  buffer_index = 0;
-
+  num_events = 0;
   reso_events = 0;
   reso_probabilities = 0;
 
   if(live_calc) {
-    reso_events = tl2_lst_create(0);
-    reso_probabilities = tl2_lst_create(0);
+    reso_events = malloc(mcget_ncount()*4*sizeof(double));
+    reso_probabilities = malloc(mcget_ncount()*sizeof(double));
   }
 
   int i;
@@ -128,19 +130,20 @@ INITIALIZE %{
     strcpy(tmp, "");
 
   if (strstr(tmp, "list"))
-    exit(fprintf(stderr, "Res_monitor: %s: Error: Only use geometry keywords (remove list from 'option').\n", NAME_CURRENT_COMP));
+    exit(fprintf(stderr, "TOFRes_monitor: %s: Error: Only use geometry keywords (remove list from 'option').\n", NAME_CURRENT_COMP));
   if (!bufsize)
-    sprintf(Vars.option, "%s borders list all, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10", tmp);
+    sprintf(Vars.option, "%s borders list all, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10 n", tmp);
   else
-    sprintf(Vars.option, "%s borders list=%f, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10", tmp, bufsize);
+    sprintf(Vars.option, "%s borders list=%f, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10 n", tmp, bufsize);
 
-  if (radius) xwidth = 2*radius;
+  if (radius)
+    xwidth = 2*radius;
 
   Monitor_nD_Init(&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, 0);
   Vars.Coord_Type[0] = DEFS.COORD_USERDOUBLE0; /* otherwise p is always the first variable */
 
-  if (Vars.Coord_Number != 10)
-    exit(fprintf(stderr,"Res_monitor: %s: Error: Invalid number of variables to monitor (%li).\n", NAME_CURRENT_COMP, Vars.Coord_Number+1));
+  if (Vars.Coord_Number != 11)
+    exit(fprintf(stderr,"TOFRes_monitor: %s: Error: Invalid number of variables to monitor (%li).\n", NAME_CURRENT_COMP, Vars.Coord_Number+1));
 
   /* set the labels */
   /* we have to record ki_x ki_y ki_z kf_x kf_y kf_z x y z p_i p_f */
@@ -162,16 +165,16 @@ INITIALIZE %{
   /* Initialize uservar strings */
   int *index_ptr=COMP_GETPAR3(TOFRes_sample, res_sample_comp, compindex);
   int index = *index_ptr;
-  sprintf(res_pi_var,"res_pi_%i",index);
-  sprintf(res_ki_x_var,"res_ki_x_%i",index);
-  sprintf(res_ki_y_var,"res_ki_y_%i",index);
-  sprintf(res_ki_z_var,"res_ki_z_%i",index);
-  sprintf(res_kf_x_var,"res_kf_x_%i",index);
-  sprintf(res_kf_y_var,"res_kf_y_%i",index);
-  sprintf(res_kf_z_var,"res_kf_z_%i",index);
-  sprintf(res_rx_var,"res_rx_%i",index);
-  sprintf(res_ry_var,"res_ry_%i",index);
-  sprintf(res_rz_var,"res_rz_%i",index);
+  sprintf(res_pi_var, "res_pi_%i", index);
+  sprintf(res_ki_x_var, "res_ki_x_%i", index);
+  sprintf(res_ki_y_var, "res_ki_y_%i", index);
+  sprintf(res_ki_z_var, "res_ki_z_%i", index);
+  sprintf(res_kf_x_var, "res_kf_x_%i", index);
+  sprintf(res_kf_y_var, "res_kf_y_%i", index);
+  sprintf(res_kf_z_var, "res_kf_z_%i", index);
+  sprintf(res_rx_var, "res_rx_%i", index);
+  sprintf(res_ry_var, "res_ry_%i", index);
+  sprintf(res_rz_var, "res_rz_%i", index);
 %}
 
 
@@ -179,6 +182,10 @@ TRACE %{
   double t0 = 0;
   double t1 = 0;
   int intersect = 0;
+  unsigned long event_idx = 0;
+  double event_ki[3], event_kf[3];
+  double event_pi, event_pf;
+  double event_pos[3];
 
   if (abs(Vars.Flag_Shape) == DEFS.SHAPE_SQUARE) /* square xy */
   {
@@ -224,49 +231,63 @@ TRACE %{
     }
 
     /* Now fetch data from the TOFRes_sample. */
-    if(p && (!bufsize || buffer_index<bufsize))
+    if(p > 0. && (!bufsize || num_events < bufsize))
     {
       /* old behaviour not supported by openacc:
         struct Res_sample_struct *s =
           (struct Res_sample_struct *)(COMP_GETPAR3(Res_sample, res_sample_comp, res_struct));*/
 
-      if(particle_getvar(_particle,res_pi_var,NULL))
+      /* pi */
+      event_pi = particle_getvar(_particle, res_pi_var, NULL);
+      if(event_pi > 0.)
       {
+        /* pf */
+        event_pf = p / event_pi;
+
         /* ki */
-        Vars.UserDoubles[0] = particle_getvar(_particle,res_ki_x_var,NULL);
-        Vars.UserDoubles[1] = particle_getvar(_particle,res_ki_y_var,NULL);
-        Vars.UserDoubles[2] = particle_getvar(_particle,res_ki_z_var,NULL);
+        event_ki[0] = particle_getvar(_particle, res_ki_x_var, NULL);
+        event_ki[1] = particle_getvar(_particle, res_ki_y_var, NULL);
+        event_ki[2] = particle_getvar(_particle, res_ki_z_var, NULL);
 
         /* kf */
-        Vars.UserDoubles[3] = particle_getvar(_particle,res_kf_x_var,NULL);
-        Vars.UserDoubles[4] = particle_getvar(_particle,res_kf_y_var,NULL);
-        Vars.UserDoubles[5] = particle_getvar(_particle,res_kf_z_var,NULL);
+        event_kf[0] = particle_getvar(_particle, res_kf_x_var, NULL);
+        event_kf[1] = particle_getvar(_particle, res_kf_y_var, NULL);
+        event_kf[2] = particle_getvar(_particle, res_kf_z_var, NULL);
 
         /* pos */
-        Vars.UserDoubles[6] = particle_getvar(_particle,res_rx_var,NULL);
-        Vars.UserDoubles[7] = particle_getvar(_particle,res_ry_var,NULL);
-        Vars.UserDoubles[8] = particle_getvar(_particle,res_rz_var,NULL);
+        event_pos[0] = particle_getvar(_particle, res_rx_var, NULL);
+        event_pos[1] = particle_getvar(_particle, res_ry_var, NULL);
+        event_pos[2] = particle_getvar(_particle, res_rz_var, NULL);
 
-        /* pi and pf */
-        Vars.UserDoubles[9] = particle_getvar(_particle,res_pi_var,NULL);
-        Vars.UserDoubles[10] = p/particle_getvar(_particle,res_pi_var,NULL);
+        #pragma acc atomic capture
+        {
+          event_idx = num_events++;
+        }
+
+        /* variables for Monitor_nD */
+        Vars.UserDoubles[0] = event_ki[0];
+        Vars.UserDoubles[1] = event_ki[1];
+        Vars.UserDoubles[2] = event_ki[2];
+        Vars.UserDoubles[3] = event_kf[0];
+        Vars.UserDoubles[4] = event_kf[1];
+        Vars.UserDoubles[5] = event_kf[2];
+        Vars.UserDoubles[6] = event_pos[0];
+        Vars.UserDoubles[7] = event_pos[1];
+        Vars.UserDoubles[8] = event_pos[2];
+        Vars.UserDoubles[9] = event_pi;
+        Vars.UserDoubles[10] = event_pf;
 
         Monitor_nD_Trace(&DEFS, &Vars, _particle);
 
         /* live calculation */
         if(live_calc) {
-          double *reso_event = (double*)malloc(4 * sizeof(double));
-          reso_event[0] = Vars.UserDoubles[0] - Vars.UserDoubles[3];
-          reso_event[1] = Vars.UserDoubles[1] - Vars.UserDoubles[4];
-          reso_event[2] = Vars.UserDoubles[2] - Vars.UserDoubles[5];
-          reso_event[3] = tl2_k_to_E(Vars.UserDoubles[0], Vars.UserDoubles[1], Vars.UserDoubles[2],
-                                     Vars.UserDoubles[3], Vars.UserDoubles[4], Vars.UserDoubles[5]);
-
-          double *reso_prob = (double*)malloc(sizeof(double));
-          *reso_prob = p;
-
-          tl2_lst_append(reso_events, reso_event);
-          tl2_lst_append(reso_probabilities, reso_prob);
+          reso_events[event_idx*4 + 0] = event_ki[0] - event_kf[0];
+          reso_events[event_idx*4 + 1] = event_ki[1] - event_kf[1];
+          reso_events[event_idx*4 + 2] = event_ki[2] - event_kf[2];
+          reso_events[event_idx*4 + 3] = tl2_k_to_E(
+              event_ki[0], event_ki[1], event_ki[2],
+              event_kf[0], event_kf[1], event_kf[2]);
+          reso_probabilities[event_idx] = event_pi * event_pf;
         }
       }
 
@@ -285,18 +306,15 @@ SAVE %{
   Monitor_nD_Save(&DEFS, &Vars);
 
   /* live calculation */
-  if(live_calc) {
-    double cov[4*4], reso[4*4];
-    if(tl2_reso(reso_events->next, reso_probabilities->next, cov, reso)) {
-      printf("Resolution matrix:"
-        "\n\t%12.4e %12.4e %12.4e %12.4e"
-        "\n\t%12.4e %12.4e %12.4e %12.4e"
-        "\n\t%12.4e %12.4e %12.4e %12.4e"
-        "\n\t%12.4e %12.4e %12.4e %12.4e\n",
-        reso[0], reso[1], reso[2], reso[3],
-        reso[4], reso[5], reso[6], reso[7],
-        reso[8], reso[9], reso[10], reso[11],
-        reso[12], reso[13], reso[14], reso[15]);
+  if(live_calc && num_events > 0) {
+    /*tl2_save_events(reso_events, reso_probabilities, "reso_events.dat", num_events);*/
+
+    double cov[4*4], res[4*4];
+    if(tl2_reso(reso_events, reso_probabilities, cov, res, num_events)) {
+      printf("Resolution calculation used %d neutron events.\n", num_events);
+      tl2_print_mat(cov, "Covariance matrix", 4, 4);
+      tl2_print_mat(res, "Resolution matrix", 4, 4);
+      printf("Please run \"mcresplot %s\" for a full analysis.\n", filename);
     }
     else {
       printf("Error: Resolution matrix could not be calculated.");
@@ -309,8 +327,10 @@ FINALLY %{
   /* free pointers */
   Monitor_nD_Finally(&DEFS, &Vars);
 
-  tl2_lst_free(reso_events);
-  tl2_lst_free(reso_probabilities);
+  if(live_calc) {
+    free(reso_events);
+    free(reso_probabilities);
+  }
 %}
 
 
