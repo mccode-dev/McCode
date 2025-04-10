@@ -799,7 +799,7 @@ int cogen_comp_section_class(
     {
       coutf("  , _class_particle_soa *_particles, int soa_index) {",
         comp->def->name, comp->def->name, section_lower, comp->def->name);
-      cout("  ABSORBED=SCATTERED=RESTORE=0;");
+
     } else
       cout(") {");
 
@@ -877,6 +877,16 @@ int cogen_comp_section_class(
 
     // shared comp [section] code here
     //if (!strcmp(section, "TRACE")) cout("{"); // scope it to avoid EXTEND clashes
+	
+	// START MULTIPARTICLE TRACE HERE
+	if (!strcmp(section, "TRACE")) {
+	  cout("// WOULD START TRACE MULTIPARTICLE LOOP HERE");	  
+      //cout("int soa_index;");		
+  	  //coutf("#pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
+      //cout("for (soa_index=0; soa_index<soa_length; soa_index++) {");
+	  cout("  ABSORBED=SCATTERED=RESTORE=0;");
+    } 
+	
     codeblock_out(code); // component definition code common to all instances, needs defines
     if (!strcmp(section, "TRACE")) {
       cout("#ifndef NOABSORB_INF_NAN");
@@ -939,6 +949,30 @@ int cogen_comp_section_class(
       list_iterate_end(uservarsiter);
       cout("");
     }
+	
+	if (!strcmp(section, "TRACE") && 1==2) { // MULTIPARTICLE MOVED OUT FOR NOW
+	
+	  // Do the transform within the component trace
+	  cout( "    /* Transform in component trace instead of outside scope */");	
+      cout( "    #ifndef NO_TRANSFORM_CHECKS");
+      cout( "    if (!_particles->flag_nocoordschange[soa_index]) { // flag activated by JUMP to pass coords change");
+      coutf("      if (_comp->_rotation_is_identity) {");
+      coutf("        if(!_comp->_position_relative_is_zero) {");
+      coutf("          coords_get("
+              "coords_add(coords_set(x,y,z), _comp->_position_relative),"
+              "&x, &y, &z);");
+      cout( "        }");
+      cout( "      } else {");
+      cout( "    #endif");
+      coutf("          mccoordschange(_comp->_position_relative, _comp->_rotation_relative, _particles, soa_index);");
+      cout( "    #ifndef NO_TRANSFORM_CHECKS");
+      cout( "      }");
+      cout( "    }");
+      cout( "    #endif");
+		
+      cout("}  // End of multiparticle loop "); 	// END TRACE MULTIPARTICLE LOOP HERE
+    }
+	
     /* undefine aliases */
     cogen_defundef(comp, comp->def->set_par, PAR_UNDEF);
     cogen_defundef(comp, comp->def->out_par, PAR_UNDEF);
@@ -1790,7 +1824,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("#ifndef FUNNEL");
   cout("#ifndef MULTIKERNEL");
   cout("#pragma acc routine");
-  coutf("int raytrace(_class_particle_soa* _particles, int soa_index) { /* single event propagation, called by mccode_main for %s:%s */", instr->name, "TRACE");
+  coutf("int raytrace(_class_particle_soa* _particles, int soa_length) { /* single event propagation, called by mccode_main for %s:%s */", instr->name, "TRACE");
   cout("");
 
   cout("  /* init variables and counters for TRACE */");
@@ -1798,6 +1832,7 @@ int cogen_raytrace(struct instr_def *instr)
   // we need this override, since "comp" is not defined in raytrace() - see section-wide define
   cout("  #undef ABSORB0");
   cout("  #undef ABSORB");
+  cout("int soa_index;");		  
   cout("  #define ABSORB0 do { DEBUG_ABSORB(); ABSORBED++;} while(0)"); // TODO_SOA Removed MAGNET_OFF
   cout("  #define ABSORB ABSORB0");
 
@@ -1838,13 +1873,22 @@ int cogen_raytrace(struct instr_def *instr)
   cout("  _particles->flag_nocoordschange[soa_index]=0; /* Init */");
   cout("  //_class_particle _particle_save=*_particle; // disabled at the momement");
   cout("  /* the main iteration loop for one incoming event */");
+  int keep_while = 0;
+  if (keep_while==1) { // disable while loop MULTIPARTICLE
   cout("  while (!ABSORBED) { /* iterate event until absorbed */");
   cout("    /* send particle event to component instance, one after the other */");
+  }
 
   /* now we produce the list of statements for each component index, with the attached logic */
   liter = list_iterate(instr->complist);
   while((comp = list_next(liter)) != NULL) {
     List_handle liter2;
+	
+	
+
+	coutf("#pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
+	cout("for (soa_index=0; soa_index<soa_length; soa_index++) {");
+	
 
     /* the SPLIT loop must be set before we enter further component blocks */
     if (comp->split) {
@@ -1872,8 +1916,9 @@ int cogen_raytrace(struct instr_def *instr)
       str_free(exp);
     }
     // coordinate transformations (wrt to PREVIOUS)
+
     coutf("    /* begin component %s=%s() [%i] */", comp->name, comp->def->name, comp->index);
-    if (comp->skip_transform == 0) {
+    if (comp->skip_transform == 0) { // SOA_TODO DISABLED 
       cout( "    #ifndef NO_TRANSFORM_CHECKS");
       cout( "    if (!_particles->flag_nocoordschange[soa_index]) { // flag activated by JUMP to pass coords change");
       coutf("      if (_%s_var._rotation_is_identity) {", comp->name);
@@ -1890,6 +1935,7 @@ int cogen_raytrace(struct instr_def *instr)
       cout( "    }");
       cout( "    #endif");
     }
+
     coutf("    if (!ABSORBED && _particles->_index[soa_index] == %i) {", comp->index);
     coutf("      _particles->flag_nocoordschange[soa_index]=0; /* Reset if we came here from a JUMP */");
     if (!comp->group || (comp->group && comp->group->first_comp_index == comp->index)) {
@@ -1923,7 +1969,8 @@ int cogen_raytrace(struct instr_def *instr)
 
     /* if we have a JUMP, change the index */
     // JUMP
-    if(list_len(comp->jump) > 0) {
+	int enable_jump = 0;
+    if(list_len(comp->jump) > 0 && enable_jump==1) {
       struct jump_struct *this_jump;
       List_handle literJ = list_iterate(comp->jump);
       while((this_jump = list_next(literJ))) {
@@ -1949,7 +1996,8 @@ int cogen_raytrace(struct instr_def *instr)
        if (SCATTERED) index = last comp in group
        if (!SCATTERED && index == last_comp in group) ABSORB; */
     // GROUP
-    if (comp->group) {
+	int enable_group = 0;
+    if (comp->group && enable_group == 1) {
       coutf("      // GROUP %s: from %s [%i] to %s [%i]", comp->group->name,
         comp->group->first_comp, comp->group->first_comp_index,
         comp->group->last_comp,  comp->group->last_comp_index);
@@ -1968,6 +2016,8 @@ int cogen_raytrace(struct instr_def *instr)
       coutf("      if (!ABSORBED) { DEBUG_STATE(); }");
     }
     coutf("    } /* end component %s [%i] */", comp->name, comp->index);
+	
+	cout("} /* end soa loop */");
 
   } /* end while comp list (case) */
   list_iterate_end(liter);
@@ -1990,7 +2040,7 @@ int cogen_raytrace(struct instr_def *instr)
   /* if we reach the last component, and nothing happened, ABSORB */
   cout( "      ABSORBED++; /* absorbed when passed all components */");
 
-  cout("  } /* while !ABSORBED */");
+  if (keep_while == 1) cout("  } /* while !ABSORBED */");
   cout("");
   cout("  DEBUG_LEAVE()");
   cout("  // particle_restore(_particles, &_particle_save);"); // SOA_TODO
@@ -1998,7 +2048,14 @@ int cogen_raytrace(struct instr_def *instr)
   cout("  DEBUG_STATE()");
 
   cout("");
-  cout("  return(_particles->_index[soa_index]);");
+  
+  //} // END OUTCOMMENT if
+  //coutf("      class_%s_trace(&_%s_var, _particles, soa_index);%s",
+  //  comp->def->name,
+  //  comp->name,
+  //  list_len(comp->extend->lines) ? " /* contains EXTEND code */" : "");
+	
+  cout("  return(1);");
   coutf("} /* raytrace */");
 
   // write the "raytrace_all()" code (for loop previously in mccode_main.c).
@@ -2065,8 +2122,8 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("      srandom(_hash((pidx+1)*(seed+1)));");
   coutf("      //particle_uservar_init(_particle);"); // SOA_TODO get uservars injected
   coutf("");
-  coutf("      raytrace(_particles, (int) pidx);"); // SOA_TODO 
-  coutf("    } /* inner for */");
+  coutf("    } /* inner for */");  
+  coutf("    raytrace(_particles, (int) gpu_innerloop);"); // SOA_TODO 
   coutf("    seed = seed+gpu_innerloop;");
   coutf("  } /* CPU for */");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
