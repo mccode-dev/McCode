@@ -302,12 +302,24 @@ TRACE %{
 
 
 SAVE %{
+  int dbg_save_events = 0;
+
   /* save results, but do not free pointers */
   Monitor_nD_Save(&DEFS, &Vars);
 
   /* live calculation */
   if(live_calc && num_events > 0) {
-    /*tl2_save_events(reso_events, reso_probabilities, "reso_events.dat", num_events);*/
+    if(dbg_save_events) {
+      /* save individual neutron events */
+      #ifndef USE_MPI
+        const char* event_filename = "reso_events.dat";
+      #else
+        char event_filename[256];
+        sprintf(event_filename, "reso_events_%d.dat", mpi_node_rank);
+      #endif
+
+      tl2_save_events(reso_events, reso_probabilities, event_filename, num_events);
+    }
 
     double cov[4*4], res[4*4];
     if(tl2_reso(reso_events, reso_probabilities, cov, res, num_events)) {
