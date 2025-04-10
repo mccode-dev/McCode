@@ -1254,7 +1254,8 @@ void off_display(off_struct data)
         double x1=x0,y1=y0,z1=z0;
         double cmx=0,cmy=0,cmz=0;
 
-        int drawthis = rand01() < ratio;
+	// Simply draw for now. 
+        int drawthis = 1; //rand01() < ratio;
         // First pass, calculate center of mass location...
         for (j=1; j<=nbVertex; j++) {
           cmx = cmx+data.vtxArray[data.faceArray[i+j]].x;
