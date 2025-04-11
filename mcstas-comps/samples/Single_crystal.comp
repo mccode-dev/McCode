@@ -283,7 +283,7 @@ vector ki.
 
 DEFINE COMPONENT Single_crystal
 
-SETTING PARAMETERS(string reflections=0, string geometry=0, vector mosaic_AB={0,0, 0,0,0, 0,0,0},
+SETTING PARAMETERS(string reflections=0, vector mosaic_AB={0,0, 0,0,0, 0,0,0},
 xwidth=0, yheight=0, zdepth=0, radius=0, delta_d_d=1e-4,
 mosaic = -1, mosaic_a = -1, mosaic_b = -1, mosaic_c = -1,
 recip_cell=0, barns=0,
@@ -299,7 +299,7 @@ SHARE
 %{
 /* used for reading data table from file */
 %include "read_table-lib"
-%include "interoff-lib"
+//%include "interoff-lib"
 #ifndef OPENACC
     %include "opencl-lib"
 #endif
@@ -1081,7 +1081,7 @@ void PGderotate(double *nx, double *ny, double *nz, double a, double csx, double
 DECLARE
 %{
   struct hkl_info_struct hkl_info;
-  off_struct             offdata;
+  //off_struct             offdata;
   struct hkl_data *hkl_list;
 #ifndef OPENACC
   struct tau_data tau_list[MCSX_REFL_SLIST_SIZE];
@@ -1144,17 +1144,18 @@ INITIALIZE
 
   /*this should not be in hkl_info*/
   hkl_info.shape=-1; /* -1:no shape, 0:cyl, 1:box, 2:sphere, 3:any-shape  */
-  if (geometry && strlen(geometry) && strcmp(geometry, "NULL") && strcmp(geometry, "0")) {
-    #ifndef USE_OFF
-    fprintf(stderr,"Error: You are attempting to use an OFF geometry without -DUSE_OFF. You will need to recompile with that define set!\n");
-    exit(-1);
-    #else
-    if (off_init(geometry, xwidth, yheight, zdepth, 0, &offdata)) {
-      hkl_info.shape=3;
-    }
-    #endif
-  }
-  else
+  // TODO_SOA
+  /* if (geometry && strlen(geometry) && strcmp(geometry, "NULL") && strcmp(geometry, "0")) { */
+  /*   #ifndef USE_OFF */
+  /*   fprintf(stderr,"Error: You are attempting to use an OFF geometry without -DUSE_OFF. You will need to recompile with that define set!\n"); */
+  /*   exit(-1); */
+  /*   #else */
+  /*   if (off_init(geometry, xwidth, yheight, zdepth, 0, &offdata)) { */
+  /*     hkl_info.shape=3; */
+  /*   } */
+  /*   #endif */
+  /* } */
+  /* else */
   if (xwidth && yheight && zdepth)  hkl_info.shape=1; /* box */
   else if (radius > 0 && yheight)        hkl_info.shape=0; /* cylinder */
   else if (radius > 0 && !yheight)       hkl_info.shape=2; /* sphere */
@@ -1254,11 +1255,12 @@ TRACE
   int    itype;     /* type of last event: t=1,c=2 or i=3 */
 
   #ifdef OPENACC
-  #ifdef USE_OFF
-  off_struct thread_offdata = offdata;
+  //TODO_SOA
+  /*#ifdef USE_OFF
+    off_struct thread_offdata = offdata;*/
   #endif
   #else
-  #define thread_offdata offdata
+  //#define thread_offdata offdata
   #endif
   
   /* Intersection neutron trajectory / sample (sample surface) */
@@ -1269,8 +1271,9 @@ TRACE
   else if (hkl_info.shape == 2)
     intersect = sphere_intersect(&t1, &t2, x, y, z, vx, vy, vz, radius);
   #ifdef USE_OFF
-  else if (hkl_info.shape == 3)
-      intersect = off_intersect(&t1, &t2, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata );
+  //TODO_SOA
+  /*else if (hkl_info.shape == 3)
+    intersect = off_intersect(&t1, &t2, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata );*/
   #endif
   if (t2 < 0) intersect=0;  /* we passed sample volume already */
 
@@ -1316,8 +1319,9 @@ TRACE
       else if (hkl_info.shape == 2)
         intersect = sphere_intersect(&t1, &t2, x, y, z, vx, vy, vz, radius);
       #ifdef USE_OFF
-      else if (hkl_info.shape == 3)
-              intersect = off_intersect(&t1, &t2, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata );
+      //TODO_SOA
+      /*else if (hkl_info.shape == 3)
+	intersect = off_intersect(&t1, &t2, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata );*/
       #endif
       if(!intersect || t2*v < -1e-9 || t1*v > 1e-9)
       {
@@ -1733,8 +1737,9 @@ MCDISPLAY
     circle("xz", 0,  0.0, 0, radius);
     circle("yz", 0,  0.0, 0, radius);
   }
-  else if (hkl_info.shape == 3) {        /* OFF file */
-    off_display(offdata);
-  }
+  // TODO_SOA
+  //else if (hkl_info.shape == 3) {        /* OFF file */
+  //  off_display(offdata);
+  //}
 %}
 END
