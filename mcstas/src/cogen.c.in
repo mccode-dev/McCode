@@ -1789,7 +1789,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("");
   cout("#ifndef FUNNEL");
   cout("#pragma acc routine");
-  coutf("int raytrace(_class_particle* _particle) { /* single event propagation, called by mccode_main for %s:%s */", instr->name, "TRACE");
+  coutf("int raytrace(_class_particle* particle_batch, int batch_length) { /* single event propagation, called by mccode_main for %s:%s */", instr->name, "TRACE");
   cout("");
 
   cout("  /* init variables and counters for TRACE */");
@@ -1799,6 +1799,12 @@ int cogen_raytrace(struct instr_def *instr)
   cout("  #undef ABSORB");
   cout("  #define ABSORB0 do { DEBUG_ABSORB(); MAGNET_OFF; ABSORBED++;} while(0)");
   cout("  #define ABSORB ABSORB0");
+  
+  cout("  _class_particle *_particle;");  
+  cout("  int batch_index;");
+  coutf("#pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");     
+  cout("for (batch_index=0;batch_index < batch_length; batch_index++) {;"); 
+  cout("  _particle = &particle_batch[batch_index];"); 
 
   /* Debugging (initial state). */
   cout("  DEBUG_ENTER();");
@@ -1992,7 +1998,7 @@ int cogen_raytrace(struct instr_def *instr)
   /* Debugging (final state). */
   cout("  DEBUG_STATE()");
 
-  cout("");
+  cout(" } /* batch loop */"); 
   cout("  return(_particle->_index);");
   coutf("} /* raytrace */");
 
@@ -2027,6 +2033,12 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("  }");
   coutf("    #endif");
   coutf("");
+  coutf("");
+  coutf(""); // Allocate gpu_innerloop particle structs
+  coutf("  _class_particle* particle_batch;");
+  coutf("  _class_particle* _particle;");  
+  coutf("  particle_batch = (_class_particle*) malloc(gpu_innerloop*sizeof(_class_particle));");
+  coutf("");        
   coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
   coutf("    #ifdef OPENACC");
   coutf("    if (loops>1) fprintf(stdout, \"%%d..\", (int)cloop); fflush(stdout);");
@@ -2044,18 +2056,18 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("");
   coutf("    #pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
-  coutf("      _class_particle particleN = mcgenstate(); // initial particle");
-  coutf("      _class_particle* _particle = &particleN;");
-  coutf("      particleN._uid = pidx;");
+  coutf("      _particle = &particle_batch[pidx]; // grab particle from memory");
+  coutf("      mcgenstate_pointer(_particle); // initialize particle");
+  coutf("      _particle->_uid = pidx;");
   coutf("      #ifdef USE_MPI");
-  coutf("      particleN._uid += mpi_node_rank * ncount; ");
+  coutf("      _particle->_uid += mpi_node_rank * ncount; ");
   coutf("      #endif");
   coutf("");
   coutf("      srandom(_hash((pidx+1)*(seed+1)));");
   coutf("      particle_uservar_init(_particle);");
-  coutf("");
-  coutf("      raytrace(_particle);");
   coutf("    } /* inner for */");
+  coutf("");
+  coutf("    raytrace(particle_batch, gpu_innerloop);");
   coutf("    seed = seed+gpu_innerloop;");
   coutf("  } /* CPU for */");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
@@ -2518,9 +2530,14 @@ cogen_header(struct instr_def *instr, char *output_name)
   /* Below lines relating to mcgenstate / setstate are in principle McStas-centric, we ought to generate this function based on "project" */
   cout("#pragma acc routine");
   cout("_class_particle mcgenstate(void);");
+  cout("#pragma acc routine");
+  cout("void mcgenstate_pointer(_class_particle *);");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("#pragma acc routine");
   cout("_class_particle mcsetstate(double x, double y, double z, double vx, double vy, double vz,");
+  cout("			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
+  cout("#pragma acc routine");
+  cout("void mcsetstate_pointer(_class_particle *particle, double x, double y, double z, double vx, double vy, double vz,");
   cout("			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
   cout("#pragma acc routine");
   cout("_class_particle mcgetstate(_class_particle mcneutron, double *x, double *y, double *z,");
@@ -2529,6 +2546,9 @@ cogen_header(struct instr_def *instr, char *output_name)
 #elif MCCODE_PROJECT == 2   /* xray */
   cout("#pragma acc routine");
   cout("_class_particle mcsetstate(double x, double y, double z, double kx, double ky, double kz,");
+  cout("			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
+  cout("#pragma acc routine");
+  cout("mcsetstate_pointer(_class_particle *particle, double x, double y, double z, double kx, double ky, double kz,");
   cout("			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
   cout("#pragma acc routine");
   cout("_class_particle mcgetstate(_class_particle mcphoton, double *x, double *y, double *z, double *kx, double *ky, double *kz,");
@@ -2548,6 +2568,14 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  _class_particle particle = mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
 #endif
   cout("  return(particle);");
+  cout("}");
+  
+  cout("void mcgenstate_pointer(_class_particle *_particle) {");
+#if MCCODE_PROJECT == 1     /* neutron */
+  cout("  mcsetstate_pointer(_particle, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
+#elif MCCODE_PROJECT == 2   /* xray */
+  cout("  mcsetstate_pointer(_particle, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, mcgravitation, NULL, mcallowbackprop);");
+#endif
   cout("}");
 
   /*generate uservar return functions*/

@@ -84,6 +84,39 @@ _class_particle mcsetstate(double x, double y, double z, double vx, double vy, d
 } /* mcsetstate */
 
 /*******************************************************************************
+* mcsetstate: transfer parameters into global McStas variables
+*******************************************************************************/
+void mcsetstate_pointer(_class_particle *mcneutron, double x, double y, double z, double vx, double vy, double vz,
+			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop)
+{
+  mcneutron->x  = x;
+  mcneutron->y  = y;
+  mcneutron->z  = z;
+  mcneutron->vx = vx;
+  mcneutron->vy = vy;
+  mcneutron->vz = vz;
+  mcneutron->t  = t;
+  mcneutron->sx = sx;
+  mcneutron->sy = sy;
+  mcneutron->sz = sz;
+  mcneutron->p  = p;
+  mcneutron->mcgravitation = mcgravitation;
+  mcneutron->mcMagnet = mcMagnet;
+  mcneutron->allow_backprop = mcallowbackprop;
+  mcneutron->_uid       = 0;
+  mcneutron->_index     = 1;
+  mcneutron->_absorbed  = 0;
+  mcneutron->_restore   = 0;
+  mcneutron->_scattered = 0;
+  mcneutron->flag_nocoordschange = 0;
+  
+  /* init tmp-vars - FIXME are they used? */
+  mcneutron->_mctmp_a = mcneutron->_mctmp_b =  mcneutron->_mctmp_c = 0;
+  // what about mcneutron._logic ?
+  mcneutron->_logic.dummy=1;
+} /* mcsetstate */
+
+/*******************************************************************************
 * mcgetstate: get neutron parameters from particle structure
 *******************************************************************************/
 _class_particle mcgetstate(_class_particle mcneutron, double *x, double *y, double *z,

@@ -4995,6 +4995,7 @@ void neutronics_main_(float *inx, float *iny, float *inz, float *invx, float *in
 
   /* Set neutron state based on input from neutronics code */
   mcsetstate(*inx,*iny,*inz,*invx,*invy,*invz,*intime,*insx,*insy,*insz,*inw);
+  mcsetstate_pointer(_class_particle, *particle, *inx,*iny,*inz,*invx,*invy,*invz,*intime,*insx,*insy,*insz,*inw);  
 
   /* main neutron event loop - runs only one iteration */
 
