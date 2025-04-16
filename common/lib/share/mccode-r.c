@@ -3642,6 +3642,9 @@ int replicate(_class_particle* particles, long len){
       }
     }
   }
+  // For now just return buffersize len,
+  // since content is not 'sorted'
+  return len;
 }
 
 #endif
