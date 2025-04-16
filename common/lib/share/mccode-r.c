@@ -3500,7 +3500,7 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
   long remainder = len % SAL_THREADS; // and the first remainder threads handle one more
 
   // step 1: sort sub-arrays
-#pragma acc parallel loop present(particles[0:b_len], buffer[0:b_len])
+#pragma acc parallel loop present(particles[0:len], pbuffer[0:len])
   for (long thread=0; thread < SAL_THREADS; thread++) {
     long chunk = thread < remainder ? at_least + 1 : at_least;
     long first = (chunk * thread) + (thread < remainder ? 0 : remainder);
@@ -3550,7 +3550,7 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
 
   // step 2: write non-absorbed sub-arrays to psorted/output from the left
   // FIXME can this gather be parallelized efficiently?
-#pragma acc parallel loop present(buffer[0:b_len])
+#pragma acc parallel loop present(pbuffer[0:len])
   for (long thread=0; thread < SAL_THREADS; thread++) {
     long j = thread < remainder ? (at_least + 1) * thread : at_least * thread + remainder;
     long k = target_start_index[thread];
@@ -3569,7 +3569,7 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
   }
 
   // copy non-absorbed block
-#pragma acc parallel loop present(particles[0:b_len])
+#pragma acc parallel loop present(particles[0:len])
   for (long thread = 0; thread < moved; thread++) { // thread: thread index
     // assign reduced weight to all particles
     particles[thread].p = particles[thread].p / (double) mult;
