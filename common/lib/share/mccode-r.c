@@ -3611,7 +3611,7 @@ int replicate(_class_particle* particles, long len){
   #pragma acc data copy(particles[0:len])
   {
   #pragma acc parallel loop
-  for (int i = 0; i < len - 1; ++i) {
+  for (int i = 0; i < len - 1; i+=2) {
       if (!particles[i]._absorbed && particles[i + 1]._absorbed) {
         // particle_copy(pbuffer, particles[i+1], i, i);
 
