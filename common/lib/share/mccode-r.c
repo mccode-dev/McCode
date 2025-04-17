@@ -3613,10 +3613,10 @@ int replicate(_class_particle* particles, long len){
   #pragma acc parallel loop
     for (int i = 0; i < len - 1; i+=2) {
       if (!particles[i]._absorbed && particles[i + 1]._absorbed) {
-	particles[i].p /= 2;
+	particles[i].p /= 2.0;
 	particle_restore(&particles[i+1], &particles[i]);
       } else if (particles[i]._absorbed && !particles[i + 1]._absorbed) {
-	particles[i+1].p /= 2;
+	particles[i+1].p /= 2.0;
 	particle_restore(&particles[i], &particles[i+1]);
       }
     }
