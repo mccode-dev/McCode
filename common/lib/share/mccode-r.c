@@ -3622,7 +3622,7 @@ int replicate(_class_particle* particles, long len){
 	particles[i + 1] = particles[i];
 	for (j = 0; j < 7; ++j){
             particles[i+1].randstate[j] = randstate[j];
-
+	}
       } else if (particles[i]._absorbed && !particles[i + 1]._absorbed) {
 	for (j = 0; j < 7; ++j){
 	  randstate[j] = particles[i].randstate[j];
