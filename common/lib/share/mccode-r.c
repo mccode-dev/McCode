@@ -3611,34 +3611,13 @@ int replicate(_class_particle* particles, long len){
   #pragma acc data copy(particles[0:len])
   {
   #pragma acc parallel loop
-  for (int i = 0; i < len - 1; ++i) {
+    for (int i = 0; i < len - 1; i+=2) {
       if (!particles[i]._absorbed && particles[i + 1]._absorbed) {
-        // particle_copy(pbuffer, particles[i+1], i, i);
-
-        /* possibility storing randstate and replacing it */
-        // store randstate
-        int randstate[7] = {particles[i+1].randstate[0],
-            particles[i+1].randstate[1],
-            particles[i+1].randstate[2],
-            particles[i+1].randstate[3],
-            particles[i+1].randstate[4],
-            particles[i+1].randstate[5],
-            particles[i+1].randstate[6],
-        };
-        double weight = particles[i].p;
-
-        // copy particle
-        particles[i + 1] = particles[i];
-        
-        // modify weight
-        //particles[i + 1] = particles[i];
-        // go back to original randstate
-        for (int j = 0; j < 7; ++j){
-            particles[i+1].randstate[j] = randstate[j];
-        }
-
-        particles[i + 1].p = weight/2.0;
-	particles[i].p = weight/2.0;
+	particles[i].p /= 2;
+	particle_restore(&particles[i+1], &particles[i]);
+      } else if (particles[i]._absorbed && !particles[i + 1]._absorbed) {
+	particles[i+1].p /= 2;
+	particle_restore(&particles[i], &particles[i+1]);
       }
     }
   }
