@@ -2023,22 +2023,16 @@ int cogen_raytrace(struct instr_def *instr)
   cout("  #undef fprintf");
   cout("  #endif");
   coutf("");
-  coutf("  #ifdef OPENACC");
   coutf("  if (ncount>gpu_innerloop) {");
   coutf("    printf(\"Defining %%llu CPU loops around GPU kernel and adjusting ncount\\n\",loops);");
   coutf("    mcset_ncount(loops*gpu_innerloop);");
   coutf("  } else {");
-  coutf("    #endif");
   coutf("    loops=1;");
   coutf("    gpu_innerloop = ncount;");
-  coutf("    #ifdef OPENACC");
   coutf("  }");
-  coutf("    #endif");
   coutf("");
   coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
-  coutf("    #ifdef OPENACC");
   coutf("    if (loops>1) fprintf(stdout, \"%%d..\", (int)cloop); fflush(stdout);");
-  coutf("    #endif");
   coutf("");
   coutf("    /* if on GPU, re-nullify printf */");
   cout("     #ifdef OPENACC");
@@ -2147,18 +2141,14 @@ int cogen_rt_funnel(struct instr_def *instr)
 	coutf("printf(\" --> Your instrument may give different output with FUNNEL\\n\");");
     }
   }
-  coutf("  #ifdef OPENACC");
   coutf("  loops = ceil((double)ncount/gpu_innerloop);");
   coutf("  if (ncount>gpu_innerloop) {");
   coutf("    printf(\"Defining %%llu CPU loops around kernel and adjusting ncount\\n\",loops);");
   coutf("    mcset_ncount(loops*gpu_innerloop);");
   coutf("  } else {");
-  coutf("  #endif");
   coutf("    loops=1;");
   coutf("    gpu_innerloop = ncount;");
-  coutf("  #ifdef OPENACC");
   coutf("  }");
-  coutf("  #endif");
   coutf("");
   coutf("  // create particles struct and pointer arrays (same memory used by all batches)");
   coutf("  _class_particle* particles = malloc(gpu_innerloop*sizeof(_class_particle));");
@@ -2354,7 +2344,6 @@ int cogen_rt_multikernel(struct instr_def *instr)
   coutf("// Alternative raytrace algorithm which iterates all particles through");
   coutf("// one component at the time, can remove absorbs from the next loop and");
   coutf("// switch between cpu/gpu.");
-  coutf("#include <nvtx3/nvToolsExt.h>");
   coutf("void raytrace_all_multikernel(unsigned long long ncount, unsigned long seed) {");
   coutf("");
   coutf("  // set up outer (CPU) loop / particle batches");
@@ -2381,18 +2370,14 @@ int cogen_rt_multikernel(struct instr_def *instr)
 	coutf("printf(\" --> Your instrument may give different output with MULTIKERNEL\\n\");");
     }
   }
-  coutf("  #ifdef OPENACC");
   coutf("  loops = ceil((double)ncount/gpu_innerloop);");
   coutf("  if (ncount>gpu_innerloop) {");
   coutf("    printf(\"Defining %%llu CPU loops around kernel and adjusting ncount\\n\",loops);");
   coutf("    mcset_ncount(loops*gpu_innerloop);");
   coutf("  } else {");
-  coutf("  #endif");
   coutf("    loops=1;");
   coutf("    gpu_innerloop = ncount;");
-  coutf("  #ifdef OPENACC");
   coutf("  }");
-  coutf("  #endif");
   coutf("");
   coutf("  // create particles struct and pointer arrays (same memory used by all batches)");
   coutf("  _class_particle* particles = malloc(gpu_innerloop*sizeof(_class_particle));");
@@ -2414,7 +2399,6 @@ int cogen_rt_multikernel(struct instr_def *instr)
 
   // init batch
   coutf("    // init particles");
-  coutf("    //nvtxRangePush(\"Init particles\");");
   coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
   coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
   coutf("      // generate particle state, set loop index and seed");
@@ -2427,7 +2411,6 @@ int cogen_rt_multikernel(struct instr_def *instr)
   coutf("      srandom(_hash((pidx+1)*(seed+1))); // _particle->state usage built into srandom macro");
   coutf("      particle_uservar_init(_particle);");
   coutf("    }");
-  coutf("    //nvtxRangePop();");
   cout( "");
 
   // iterate batch through the component list
@@ -2447,20 +2430,16 @@ int cogen_rt_multikernel(struct instr_def *instr)
     }
 
     if (!first) { // Terminate loop if we are shifting between processing units
-      cout( "      //nvtxRangePop();");
       coutf("    }");
       coutf("");
       coutf("    #ifndef NOSORTS");
-      coutf("    //nvtxRangePush(\"Sort before %s\");",comp->name);
       coutf("    // SPLIT with available livebatchsize ");
       coutf("    long mult_%s;",comp->name);
       coutf("    livebatchsize = replicate(particles, livebatchsize);");
       coutf("    //printf(\"livebatchsize: %cld, split: %cld\\n\",  livebatchsize, mult);", '%', '%');
-      cout( "    //nvtxRangePop();");
       coutf("    #endif");
       printf("-> GPU kernel from component %s\n",comp->name);
     }
-    coutf("    //nvtxRangePush(\"raytrace %s\");",comp->name);
     coutf("    #pragma acc parallel loop present(particles[0:livebatchsize])");
     coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
     coutf("      _class_particle* _particle = &particles[pidx];");
@@ -2523,7 +2502,6 @@ int cogen_rt_multikernel(struct instr_def *instr)
   } /* end while comp list (case) */
   coutf("");
   coutf("    }");
-  cout("   //nvtxRangePop();");
   cout( "");
   list_iterate_end(liter);
 
