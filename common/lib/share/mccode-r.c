@@ -3612,12 +3612,26 @@ int replicate(_class_particle* particles, long len){
   {
   #pragma acc parallel loop
     for (int i = 0; i < len - 1; i+=2) {
+      int randstate[7];
+      int j;
       if (!particles[i]._absorbed && particles[i + 1]._absorbed) {
+	for (j = 0; j < 7; ++j){
+	  randstate[j] = particles[i+1].randstate[j];
+        }
 	particles[i].p /= 2.0;
-	particle_restore(&particles[i+1], &particles[i]);
+	particles[i + 1] = particles[i];
+	for (j = 0; j < 7; ++j){
+            particles[i+1].randstate[j] = randstate[j];
+
       } else if (particles[i]._absorbed && !particles[i + 1]._absorbed) {
+	for (j = 0; j < 7; ++j){
+	  randstate[j] = particles[i].randstate[j];
+        }
 	particles[i+1].p /= 2.0;
-	particle_restore(&particles[i], &particles[i+1]);
+	particles[i] = particles[i + 1];
+	for (j = 0; j < 7; ++j){
+            particles[i].randstate[j] = randstate[j];
+        }
       }
     }
   }
