@@ -1725,6 +1725,35 @@ void undef_uservars(struct instr_def *instr)
   list_iterate_end(uservarsiter);
 }
 
+int substring_match(struct code_block *code, char *what) {
+
+  List_handle liter;                /* For list iteration. */
+  char *line;                       /* Single code line. */
+  int count = 0;
+  if(list_len(code->lines) <= 0)
+    return count;
+  
+  code_set_source(code->quoted_filename, code->linenum + 1);
+  liter = list_iterate(code->lines);
+  while((line = list_next(liter)))
+  {
+    char *where = line;
+    int what_len = strlen(what);
+    if (what_len)  {
+      while ((where = strstr(where, what))) {
+	//printf("Found %s in %s\n",what,line);
+	where += what_len;
+	count++;
+      }
+    }
+    num_next_output_line++;
+  }
+  list_iterate_end(liter);
+  code_reset_source();
+  
+  return count;
+}
+
 /*******************************************************************************
 * cogen_trace_functions: Generate the component TRACE functions.
 *******************************************************************************/
@@ -1743,6 +1772,16 @@ int cogen_trace_functions(struct instr_def *instr)
   while((comp = list_next(liter)) != NULL) {
     warnings += cogen_comp_section_class(comp, instr, "TRACE", "trace",
       comp->def->trace_code, &(comp->def->flag_defined_trace));
+    /* Count number of random calls in comp trace_code */
+    comp->numrand=0;
+    comp->numrand += substring_match(comp->def->trace_code,"rand01()");
+    comp->numrand += substring_match(comp->def->trace_code,"randpm1()");
+    comp->numrand += substring_match(comp->def->trace_code,"randtriangle()");
+    comp->numrand += substring_match(comp->def->trace_code,"rand0max(");
+    comp->numrand += substring_match(comp->def->trace_code,"randminmax(");
+    comp->numrand += substring_match(comp->def->trace_code,"randnorm()");
+    comp->numrand += substring_match(comp->def->trace_code,"randnorm2()");
+    printf("Component %s has %i random calls\n",comp->name,comp->numrand);
   }
   list_iterate_end(liter);
 
