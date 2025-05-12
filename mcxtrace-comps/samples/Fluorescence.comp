@@ -460,7 +460,6 @@ DECLARE %{
   DArray1d reuse_cum_xs_fluo;
   DArray1d reuse_cum_xs_Compton;
   DArray1d reuse_cum_xs_Rayleigh;
-  char *filename;
 %}
 
 INITIALIZE %{
@@ -973,6 +972,75 @@ FINALLY %{
       printf("INFO: %s: scattered intensity: fluo=%g Compton=%g Rayleigh=%g\n",
              NAME_CURRENT_COMP, p_fluo, p_Compton, p_Rayleigh);
     );
+%}
+
+DISPLAY %{
+    if (shape == 0) { /* cyl */
+      circle("xz", 0,  yheight/2.0, 0, radius);
+      circle("xz", 0, -yheight/2.0, 0, radius);
+      line(-radius, -yheight/2.0, 0, -radius, +yheight/2.0, 0);
+      line(+radius, -yheight/2.0, 0, +radius, +yheight/2.0, 0);
+      line(0, -yheight/2.0, -radius, 0, +yheight/2.0, -radius);
+      line(0, -yheight/2.0, +radius, 0, +yheight/2.0, +radius);
+      if (thickness) {
+        double radius_i=radius-thickness;
+        circle("xz", 0,  yheight/2.0, 0, radius_i);
+        circle("xz", 0, -yheight/2.0, 0, radius_i);
+        line(-radius_i, -yheight/2.0, 0, -radius_i, +yheight/2.0, 0);
+        line(+radius_i, -yheight/2.0, 0, +radius_i, +yheight/2.0, 0);
+        line(0, -yheight/2.0, -radius_i, 0, +yheight/2.0, -radius_i);
+        line(0, -yheight/2.0, +radius_i, 0, +yheight/2.0, +radius_i);
+      }
+    } else if (shape == 1) {  /* box */
+      double xmin = -0.5*xwidth;
+      double xmax =  0.5*xwidth;
+      double ymin = -0.5*yheight;
+      double ymax =  0.5*yheight;
+      double zmin = -0.5*zdepth;
+      double zmax =  0.5*zdepth;
+      multiline(5, xmin, ymin, zmin,
+                   xmax, ymin, zmin,
+                   xmax, ymax, zmin,
+                   xmin, ymax, zmin,
+                   xmin, ymin, zmin);
+      multiline(5, xmin, ymin, zmax,
+                   xmax, ymin, zmax,
+                   xmax, ymax, zmax,
+                   xmin, ymax, zmax,
+                   xmin, ymin, zmax);
+      line(xmin, ymin, zmin, xmin, ymin, zmax);
+      line(xmax, ymin, zmin, xmax, ymin, zmax);
+      line(xmin, ymax, zmin, xmin, ymax, zmax);
+      line(xmax, ymax, zmin, xmax, ymax, zmax);
+      if (zdepth) {
+        xmin = -0.5*xwidth;
+        xmax =  0.5*xwidth;
+        ymin = -0.5*yheight;
+        ymax =  0.5*yheight;
+        zmin = -0.5*zdepth;
+        zmax =  0.5*zdepth;
+        multiline(5, xmin, ymin, zmin,
+                  xmax, ymin, zmin,
+                  xmax, ymax, zmin,
+                  xmin, ymax, zmin,
+                  xmin, ymin, zmin);
+        multiline(5, xmin, ymin, zmax,
+                  xmax, ymin, zmax,
+                  xmax, ymax, zmax,
+                  xmin, ymax, zmax,
+                  xmin, ymin, zmax);
+        line(xmin, ymin, zmin, xmin, ymin, zmax);
+        line(xmax, ymin, zmin, xmax, ymin, zmax);
+        line(xmin, ymax, zmin, xmin, ymax, zmax);
+        line(xmax, ymax, zmin, xmax, ymax, zmax);
+      }
+    } if (shape == 2) { /* sphere */
+      circle("xy",0,0,0,radius);
+      circle("xz",0,0,0,radius);
+      circle("yz",0,0,0,radius);
+    } else if (shape == 3) {        /* OFF file */
+      off_display(offdata);
+    }
 %}
 
 END
