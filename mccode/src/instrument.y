@@ -838,7 +838,7 @@ comp_display_copy_extend:/* empty */
         list_cat(cb->lines, $3->lines);
         $$ = cb;
       }
-     | "EXTEND" codeblock comp_display_copy_extend
+    | "EXTEND" codeblock comp_display_copy_extend
       {
         struct code_block *cb;
         cb  = codeblock_new();
