@@ -29,7 +29,6 @@ DEFINE COMPONENT Event_monitor_simple
 
 SETTING PARAMETERS (nevents=1e6)
 
-/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 DECLARE
 %{
   DArray2d Events; 
@@ -88,6 +87,10 @@ SAVE
   FILE * fp;
   printf("Storing event logfile -->  %s\n",fullfile);
   fp = fopen(fullfile, "w+");
+  if (!fp) {
+    fprintf(stderr,"Could not open file %s in w+ mode\n",fullfile);
+    exit(-1);
+  }
   fprintf(fp,"# Event-file %s, contains %lu events\n",fullfile,Nevents);
   fprintf(fp,"########################################### START EVENT LIST ##############################################\n");
   fprintf(fp,"#   id        x        y        z       vx       vy       vz        t       sx       sy       sz        p # \n");
@@ -95,7 +98,7 @@ SAVE
   unsigned long i;
   int j;
   for (i=0; i<Nevents; i++) {
-    fprintf(fp,"%6i ",i);
+    fprintf(fp,"%6lu ",i);
     for (j=0; j<11; j++) {
       fprintf(fp,"%8.2g ", Events[i][j]);
     }

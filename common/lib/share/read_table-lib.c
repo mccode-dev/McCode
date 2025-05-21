@@ -427,6 +427,10 @@ void *Table_File_List_store(t_Table *tab){
       double *dataf;
       s     = (float*)data;
       dataf = (double*)malloc(sizeof(double)*nelements);
+      if (!dataf) {
+	fprintf(stderr, "Could not allocate data block of size %i\n", nelements);
+	exit(-1);
+      }
       for (i=0; i<nelements; i++)
         dataf[i]=s[i];
       free(data);
@@ -496,6 +500,10 @@ void *Table_File_List_store(t_Table *tab){
       char  *line=malloc(1024*CHAR_BUF_LENGTH*sizeof(char));
       long  back_pos=0;   /* ftell start of line */
 
+      if (!line) {
+	fprintf(stderr,"Could not allocate line buffer\n");
+	exit(-1);
+      }
       back_pos = ftell(hfile);
       if (fgets(line, 1024*CHAR_BUF_LENGTH, hfile) != NULL) { /* analyse line */
         /* first skip blank and tabulation characters */
@@ -714,7 +722,10 @@ void *Table_File_List_store(t_Table *tab){
         return(Table->rows*Table->columns);
       }
       New_Table    = (double*)malloc(Length_Table*Table->columns*sizeof(double));
-
+      if (!New_Table) {
+	fprintf(stderr,"Could not allocate New_Table of size %i x %i\n", Length_Table, Table->columns);
+	exit(-1);
+      }
       for (i=0; i < Length_Table; i++)
       {
         long   j;
