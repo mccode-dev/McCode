@@ -183,10 +183,15 @@ int any_set(int n, ...){
 
 /* SECTION: Dynamic Arrays ================================================== */
 IArray1d create_iarr1d(int n){
-  IArray1d arr2d;
-  arr2d = calloc(n, sizeof(int));
-  return arr2d;
+  IArray1d arr1d;
+  arr1d = calloc(n, sizeof(int));
+  if (!arr1d) {
+    fprintf(stderr, "Error allocating IArray1d of dimension %i\n",n);
+    exit(-1);
+  }
+  return arr1d;
 }
+
 void destroy_iarr1d(IArray1d a){
   free(a);
 }
@@ -194,16 +199,26 @@ void destroy_iarr1d(IArray1d a){
 IArray2d create_iarr2d(int nx, int ny){
   IArray2d arr2d;
   arr2d = calloc(nx, sizeof(int *));
+  if (!arr2d) {
+    fprintf(stderr, "Error allocating IArray2d of dimension %i x %i\n",nx,ny);
+    exit(-1);
+  }
 
   int *p1;
   p1 = calloc(nx*ny, sizeof(int));
 
+  if (!p1) {
+    fprintf(stderr, "Error allocating int* array of dimension %i\n",nx*ny);
+    exit(-1);
+  }
+  
   int i;
   for (i=0; i<nx; i++){
     arr2d[i] = &(p1[i*ny]);
   }
   return arr2d;
 }
+
 void destroy_iarr2d(IArray2d a){
   free(a[0]);
   free(a);
@@ -215,11 +230,20 @@ IArray3d create_iarr3d(int nx, int ny, int nz){
 
   // 1d
   arr3d = calloc(nx, sizeof(int **));
+  if (!arr3d) {
+    fprintf(stderr, "Error allocating IArray3d of dimension %i x %i x %i\n",nx,ny,nz);
+    exit(-1);
+  }
 
   // d2
   int **p1;
   p1 = calloc(nx*ny, sizeof(int *));
 
+  if (!p1) {
+    fprintf(stderr, "Error allocating int** array of dimension %i\n",nx*ny);
+    exit(-1);
+  }
+  
   for (i=0; i<nx; i++){
     arr3d[i] = &(p1[i*ny]);
   }
@@ -227,6 +251,10 @@ IArray3d create_iarr3d(int nx, int ny, int nz){
   // 3d
   int *p2;
   p2 = calloc(nx*ny*nz, sizeof(int));
+  if (!p2) {
+    fprintf(stderr, "Error allocating int* array of dimension %i\n",nx*ny*nz);
+    exit(-1);
+  }
   for (i=0; i<nx; i++){
     for (j=0; j<ny; j++){
       arr3d[i][j] = &(p2[(i*ny+j)*nz]);
@@ -242,9 +270,13 @@ void destroy_iarr3d(IArray3d a){
 }
 
 DArray1d create_darr1d(int n){
-  DArray1d arr2d;
-  arr2d = calloc(n, sizeof(double));
-  return arr2d;
+  DArray1d arr1d;
+  arr1d = calloc(n, sizeof(double));
+  if (!arr1d) {
+    fprintf(stderr, "Error allocating DArray1d of dimension %i\n",n);
+    exit(-1);
+  }
+  return arr1d;
 }
 
 void destroy_darr1d(DArray1d a){
@@ -254,10 +286,16 @@ void destroy_darr1d(DArray1d a){
 DArray2d create_darr2d(int nx, int ny){
   DArray2d arr2d;
   arr2d = calloc(nx, sizeof(double *));
-
+  if (!arr2d) {
+    fprintf(stderr, "Error allocating DArray2d of dimension %i x %i\n",nx,ny);
+    exit(-1);
+  }
   double *p1;
   p1 = calloc(nx*ny, sizeof(double));
-
+  if (!p1) {
+    fprintf(stderr, "Error allocating double* array of dimension %i\n",nx*ny);
+    exit(-1);
+  }
   int i;
   for (i=0; i<nx; i++){
     arr2d[i] = &(p1[i*ny]);
@@ -277,11 +315,17 @@ DArray3d create_darr3d(int nx, int ny, int nz){
 
   // 1d
   arr3d = calloc(nx, sizeof(double **));
-
+  if (!arr3d) {
+    fprintf(stderr, "Error allocating DArray3d of dimension %i x %i x %i\n",nx,ny,nz);
+    exit(-1);
+  }
   // d2
   double **p1;
   p1 = calloc(nx*ny, sizeof(double *));
-
+  if (!p1) {
+    fprintf(stderr, "Error allocating double** array of dimension %i\n",nx*ny);
+    exit(-1);
+  }
   for (i=0; i<nx; i++){
     arr3d[i] = &(p1[i*ny]);
   }
@@ -289,6 +333,10 @@ DArray3d create_darr3d(int nx, int ny, int nz){
   // 3d
   double *p2;
   p2 = calloc(nx*ny*nz, sizeof(double));
+  if (!p2) {
+    fprintf(stderr, "Error allocating double* array of dimension %i\n",nx*ny*nz);
+    exit(-1);
+  }
   for (i=0; i<nx; i++){
     for (j=0; j<ny; j++){
       arr3d[i][j] = &(p2[(i*ny+j)*nz]);
