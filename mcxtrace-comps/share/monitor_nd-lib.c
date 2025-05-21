@@ -1776,7 +1776,7 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
         for(iv = 0; iv < NV; iv++)
         {
           double theta0, phi0, theta1, phi1;          /* angles in spherical coordinates */
-          double x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3; /* vertices at plate edges */
+          double x0,y0=0,z0,x1,y1=0,z1,x2,y2,z2,x3,y3,z3; /* vertices at plate edges */
           phi0 = (hdiv_min+ width*ih-90)*DEG2RAD;        /* in xz plane */
           phi1 = (hdiv_min+ width*(ih+1)-90)*DEG2RAD;
           if (issphere)

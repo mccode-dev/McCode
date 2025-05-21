@@ -9,9 +9,17 @@ char * metadata_table_key_component(char* key){
   char sep[2] = ":\0"; // matches any number of repeated colons
   // look for the separator in the provided key; strtok is allowed to modify the string, so copy it
   char * tok = malloc((strlen(key) + 1) * sizeof(char));
+  if (!tok) {
+    fprintf(stderr,"Error allocating token\n");
+    exit(-1);
+  }
   strcpy(tok, key);
   char * pch = strtok(tok, sep); // this *is* the component name (if provided) -- but we need to move the pointer
   char * comp = malloc((1 + strlen(pch)) * sizeof(char));
+  if (!comp) {
+    fprintf(stderr,"Error allocating comp\n");
+    exit(-1);
+  }
   strcpy(comp, pch);
   if (tok) free(tok);
   return comp;
@@ -20,12 +28,20 @@ char * metadata_table_key_literal(char * key){
   if (strlen(key) == 0) return NULL;
   char sep[3] = ":\0";
   char * tok = malloc((strlen(key) + 1 ) * sizeof(char));
+  if (!tok) {
+    fprintf(stderr,"Error allocating token\n");
+    exit(-1);
+  }
   strcpy(tok, key);
   char * pch = strtok(tok, sep); // this *is* the component name (if provided)
   if (pch) pch = strtok(NULL, sep); // either NULL or the literal name
   char * name = NULL;
   if (pch) {
     name = malloc((1 + strlen(pch)) * sizeof(char));
+    if (!name) {
+      fprintf(stderr,"Error allocating name\n");
+	exit(-1);
+    }
     strcpy(name, pch);
   }
   if (tok) free(tok);
@@ -63,6 +79,10 @@ char * metadata_table_name(int no, metadata_table_t * tab, char *key){
         for (int i=0; i<no; ++i){
             if (!strcmp(comp, tab[i].source)){
                 name = malloc((strlen(tab[i].name) + 1) * sizeof(char));
+		if (!name) {
+		  fprintf(stderr,"Error allocating metadata_table_name\n");
+		  exit(-1);
+		}
                 strcpy(name, tab[i].name);
                 break;
             }
@@ -131,6 +151,10 @@ void metadata_table_print_all_keys(int no, metadata_table_t * tab){
 int metadata_table_print_all_components(int no, metadata_table_t * tab){
   int count = 0;
   char ** known = malloc(no * sizeof(char*));
+  if (!known) {
+    fprintf(stderr,"Error allocating table of known metadata\n");
+    exit(-1);
+  }
   for (int i=0; i<no; ++i){
     int unknown = 1;
     for (int j=0; j<count; ++j) if (!strcmp(tab[i].source, known[j])) unknown = 0;
@@ -140,6 +164,10 @@ int metadata_table_print_all_components(int no, metadata_table_t * tab){
   for (int i=0; i<count; ++i) nchar += strlen(known[i]) + 1;
   char * line = malloc((nchar + 1) * sizeof(char));
   char * linetmp = malloc((nchar + 1) * sizeof(char));
+  if (!line || !linetmp) {
+    fprintf(stderr,"Error allocating metadata print arrays\n");
+    exit(-1);
+  }
   line[0] = '\0';
   for (int i=0; i<count; ++i) sprintf(linetmp, "%s%s ", line, known[i]);
   line=linetmp;

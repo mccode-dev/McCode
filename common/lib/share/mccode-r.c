@@ -3089,7 +3089,10 @@ void mcdis_polygon(int count, ...){
   x=malloc(count*sizeof(double));
   y=malloc(count*sizeof(double));
   z=malloc(count*sizeof(double));
-
+  if (!x || !y || !z) {
+    fprintf(stderr,"Error initializing polygon set size %i\n",count);
+    exit(-1);
+  }
   va_start(ap, count);
   // Fallback for trace==1 is multiline, one rank higher
   if (mcdotrace==1) {

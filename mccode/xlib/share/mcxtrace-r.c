@@ -408,7 +408,7 @@ paraboloid_intersect(double *l0, double *l1, double x, double y, double z,
     double kx, double ky, double kz, double a, double b, int sign)
 {
   double A,B,C,D,k;
-  double a2i,b2i;
+  double a2i=0,b2i=0;
   int retval=0;
   if(a!=0 && b!=0){
     a2i=1.0/(a*a);b2i=1.0/(b*b);

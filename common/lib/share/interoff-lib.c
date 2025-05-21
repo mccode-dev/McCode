@@ -792,6 +792,10 @@ long off_init(  char *offfile, double xwidth, double yheight, double zdepth,
   {
     int    nbVertex=faceArray[i];//nb of vertices of this polygon
     double *vertices=malloc(3*nbVertex*sizeof(double));
+    if (!vertices) {
+      fprintf(stderr,"Error allocating vertex array sized %i\n",nbVertex);
+      exit(-1);
+    }
     int j;
 
     for (j=0; j<nbVertex; ++j)
@@ -868,6 +872,10 @@ int n2 =  r - m;
 intersection *L, *R;
  L = (intersection *)malloc(sizeof(intersection) * n1);
  R = (intersection *)malloc(sizeof(intersection) * n2);
+ if (!L||!R) {
+   fprintf(stderr,"Error allocating intersection arrays\n");
+   exit(-1);
+ }
 /* Copy data to temp arrays L[] and R[] */
  #pragma acc loop independent
 for (i = 0; i < n1; i++)
