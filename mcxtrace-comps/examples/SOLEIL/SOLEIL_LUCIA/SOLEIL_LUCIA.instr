@@ -12,22 +12,31 @@
 *
 * %Description
 * The HU52 undulator, a DCM, a fluorescence sample, and monitors.
+* This model does not contain any focusing mirror.
+* The sample is a kind of biological cell.
 *
-* %Example: -n 1e7 E0=3 Detector: mon_spl_fluo_I=8.42337e+13
+* Position | Element
+* ---------|--------------------------------------------------------------------
+* 0        | HU52 undulator "Apple II" type, 32 periods, gap 15-150mm
+* 20       | Si(111) DCM, 40x40x10 mm^3 E0=5-16 keV
+* 29       | Sample location
+* 29.1     | Fluorescence Detector at 90 deg
+*
+* %Example: -n 1e7 E0=3 Detector: mon_spl_fluo_I=9.77125e+09
 *
 * %Parameters
-* E0: [keV] Nominal energy at the Wiggler.
-* dE: [keV] Energy half-bandwidth at the Wiggler
-* sample_material: [str] Absorption data file for the sample
+* E0: [keV] Nominal energy at the source, in 0.6-8 keV.
+* dE: [keV] Energy half-bandwidth at the source.
+* sample_material: [str] Absorption data file for the sample.
 * sample_geometry: [str] OFF/PLY file name for sample 3D geometry, or NULL for a box.
-* dcm_theta: [deg] Rotation angle of the DCM. 0=set from energy E0
+* dcm_theta: [deg] Rotation angle of the DCM. 0=set from energy E0.
 *
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/lucia
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT SOLEIL_LUCIA(E0=3, dE=0.1, dcm_theta=0, 
+DEFINE INSTRUMENT SOLEIL_LUCIA(E0=3.09, dE=0.02, dcm_theta=38.9, 
   string sample_material="CaCO3AlP", string sample_geometry="plant_cell.ply")
 
 DECLARE
@@ -138,7 +147,7 @@ AT (0,0,8.13) RELATIVE mon_dcm_e
 
 COMPONENT fluo_rotated = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (0,30,0) RELATIVE PREVIOUS
+ROTATED (0,90,0) RELATIVE PREVIOUS
 
 COMPONENT sample = Fluorescence(
   xwidth=100e-6, yheight=100e-6, zdepth=50e-6,
@@ -151,9 +160,9 @@ COMPONENT transmission = COPY(mon_src_xy)(
 AT (0,0,0.1) RELATIVE sample_stage
 
 COMPONENT mon_spl_SDD = Fluo_detector(
-  xwidth=0.1, yheight=0.1, nE=512,
+  radius=0.1, nE=512,
   Emin=0, Emax=E0+dE*1.5, restore_xray=1)
-AT (0,0,0.1) RELATIVE fluo_rotated
+AT (0,0,0) RELATIVE sample
 
 COMPONENT mon_spl_fluo = Monitor_nD(options="energy", 
   xwidth=0.1, yheight=0.1, bins=1000,
