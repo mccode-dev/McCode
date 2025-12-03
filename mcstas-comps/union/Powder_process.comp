@@ -429,7 +429,7 @@ int Powder_physics_my(double *my,double *k_initial, union data_transfer_union da
     
     int method_switch = 1;
     // For test
-    int line_v,line0,line,count;
+    int line_v,line0,line;
     
     // Should not interfer with the global variables
     double vx = k_initial[0]*K2V;
@@ -475,7 +475,7 @@ int Powder_physics_my(double *my,double *k_initial, union data_transfer_union da
           /* not yet set: we compute the sum up to the corresponding speed in the table cache */
           //printf("Nq and sum not yet set, have to do this calculation now\n");
           double line_v = line_info->v_min + line*(line_info->v_max - line_info->v_min)/CHAR_BUF_LENGTH;
-          for(line0=0; line0<count; line0++) {
+          for(line0=0; line0<line_info->count; line0++) {
             if (line_info->q_v[line0] <= 2*line_v) { /* q < 2*kf: restrict structural range */
               line_info->my_s_v2_sum += line_info->my_s_v2[line0];
               if (line_info->Nq < line0+1) line_info->Nq=line0+1; /* determine maximum line index which can scatter */
@@ -491,7 +491,7 @@ int Powder_physics_my(double *my,double *k_initial, union data_transfer_union da
           
         line_info->xs_calls++;
           
-        for(line=line0; line<count; line++) {
+        for(line=line0; line<line_info->count; line++) {
           if (line_info->q_v[line] <= 2*v) { /* q < 2*kf: restrict structural range */
             line_info->my_s_v2_sum += line_info->my_s_v2[line];
             if (line_info->Nq < line+1) line_info->Nq=line+1; /* determine maximum line index which can scatter */
