@@ -4282,7 +4282,7 @@ int r_within_cylinder(Coords pos,struct geometry_struct *geometry) {
     
     // Start with vector that points along the cylinder in the simple frame, and rotate to global
     Coords simple_vector = coords_set(0,1,0);
-    Coords vector1,vector2;
+    Coords vector1;
     if (verbal == 1) printf("Cords start_vector = (%f,%f,%f)\n",simple_vector.x,simple_vector.y,simple_vector.z);
 
     // Rotate the position of the neutron around the center of the cylinder
@@ -4301,7 +4301,7 @@ int r_within_cylinder(Coords pos,struct geometry_struct *geometry) {
     // Test for separation by height
     // if (h0Div2 + h1Div2 − |Dot(W0, Delta )| < 0) seperated = 1;
     
-    if (verbal == 1) printf("vector1 = (%f,%f,%f)\n",vector1.x,vector1.y,vector2.z);
+    if (verbal == 1) printf("vector1 = (%f,%f,%f)\n",vector1.x,vector1.y,vector1.z);
     if (verbal == 1) printf("delta1 = (%f,%f,%f)\n",delta.x,delta.y,delta.z);
     double scalar_prod1 = scalar_prod(vector1.x,vector1.y,vector1.z,delta.x,delta.y,delta.z);
     if (verbal == 1) printf("scalar product = %f \n",scalar_prod1);
