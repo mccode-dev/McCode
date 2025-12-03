@@ -6001,7 +6001,7 @@ int cone_overlaps_box(struct geometry_struct *geometry_cone,struct geometry_stru
     Coords square_points[8];
     double square_offset;
     // PW FIXME: square_center needs init - probably no to 0, but certainly not to "random stuff on memory"
-    Coords square_center=0;
+    Coords square_center=coords_set(0,0,0);
     Coords box_end_point = coords_sub(coords_set(0,0,-z_depth/2),square_center);
 
     int j;
