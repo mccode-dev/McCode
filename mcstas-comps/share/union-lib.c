@@ -6829,7 +6829,8 @@ int within_which_volume_debug(Coords pos, struct pointer_to_1d_int_list input_li
     int ListA_length=0,ListB_length=0;
     int done = 0;
     int i,direct_children_index;
-    int *temp_pointer;
+    // PW FIXME: No clue if 1024 is a reasonable length, but pointer at minimum needs initialisation!
+    int *temp_pointer=malloc(1024*sizeof(int));
     double max_priority=-1000000;
     int residing_volume=0; // 0 can be removed from the input list if default is 0
     
