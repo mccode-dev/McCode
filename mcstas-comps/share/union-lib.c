@@ -1855,7 +1855,6 @@ void printf_history(struct dynamic_history_list *history) {
 void fprintf_total_history(struct saved_history_struct *history, FILE *fp) {
     fprintf(fp,"%d\t N I=%E \t", history->number_of_rays, history->intensity);
         int history_iterate;
-          //printf("History number %d, intensity = %f, number of rays = %d:",hist_num, search_node->intensity, search_node->number_of_rays);
           for (history_iterate=0;history_iterate<history->used_elements-1;history_iterate++) {
             if (history->elements[history_iterate].process_index == -1) {
                 fprintf(fp," V%d ->",history->elements[history_iterate].volume_index);
@@ -1869,25 +1868,6 @@ void fprintf_total_history(struct saved_history_struct *history, FILE *fp) {
                 fprintf(fp," P%d \n",history->elements[history_iterate].process_index);
           }
 }
-
-/*
-int Sample_compare_doubles (const void *a, const void *b) {
-  const double *da = (const double *) a;
-  const double *db = (const double *) b;
-
-  return (*da > *db) - (*da < *db);
-}
-*/
-
-
-/* TK: For osx compilation, changed ordering fct to use void* pointers. Orignal function was:
-int Sample_compare_history_intensities (const struct saved_history_struct *a, const struct saved_history_struct *b) {
-  const double *da = (const double *) &(a->intensity);
-  const double *db = (const double *) &(b->intensity);
-
-  return (*da < *db) - (*da > *db);
-}
-*/
 
 int Sample_compare_history_intensities (const void* a, const void* b) {
   const double da = ((const struct saved_history_struct *)a)->intensity;
@@ -2039,30 +2019,33 @@ void write_tagging_tree(struct list_of_tagging_tree_node_pointers *master_list, 
   }
    
   FILE *fp;
+  
   fp = fopen("union_history.dat","w");
-  
-  fprintf(fp,"History file written by the McStas component Union_master \n");
-  fprintf(fp,"When running with MPI, the results may be from just a single thread, meaning intensities are divided by number of threads\n");
-  fprintf(fp,"----- Description of the used volumes -----------------------------------------------------------------------------------\n");
-  
-  fprintf(fp,"V0: Surrounding vacuum \n");
-  for (volume_iterate=1;volume_iterate<number_of_volumes;volume_iterate++) {
-    fprintf(fp,"V%d: %s  ",volume_iterate,Volumes[volume_iterate]->name);
-    fprintf(fp,"Material: %s  ",Volumes[volume_iterate]->p_physics->name);
-    for (process_iterate=0;process_iterate<Volumes[volume_iterate]->p_physics->number_of_processes;process_iterate++) {
-      fprintf(fp," P%d: %s",process_iterate,Volumes[volume_iterate]->p_physics->p_scattering_array[process_iterate].name);
+  if(!fp) {
+    fprintf(stderr,"WARNING: Could not write to logging output file union_history.dat\n");
+  } else {
+    fprintf(fp,"History file written by the McStas component Union_master \n");
+    fprintf(fp,"When running with MPI, the results may be from just a single thread, meaning intensities are divided by number of threads\n");
+    fprintf(fp,"----- Description of the used volumes -----------------------------------------------------------------------------------\n");
+    
+    fprintf(fp,"V0: Surrounding vacuum \n");
+    for (volume_iterate=1;volume_iterate<number_of_volumes;volume_iterate++) {
+      fprintf(fp,"V%d: %s  ",volume_iterate,Volumes[volume_iterate]->name);
+      fprintf(fp,"Material: %s  ",Volumes[volume_iterate]->p_physics->name);
+      for (process_iterate=0;process_iterate<Volumes[volume_iterate]->p_physics->number_of_processes;process_iterate++) {
+	fprintf(fp," P%d: %s",process_iterate,Volumes[volume_iterate]->p_physics->p_scattering_array[process_iterate].name);
+      }
+      fprintf(fp,"\n");
     }
-    fprintf(fp,"\n");
-  }
-  fprintf(fp,"----- Histories sorted after intensity ----------------------------------------------------------------------------------\n");
-  
-  for (history_iterate=0;history_iterate<total_history.used_elements;history_iterate++) {
-    fprintf_total_history(&total_history.saved_histories[history_iterate],fp);
-    // Garbage collection
-    if (total_history.saved_histories[history_iterate].used_elements > 0) free(total_history.saved_histories[history_iterate].elements);
+    fprintf(fp,"----- Histories sorted after intensity ----------------------------------------------------------------------------------\n");
+    
+    for (history_iterate=0;history_iterate<total_history.used_elements;history_iterate++) {
+      fprintf_total_history(&total_history.saved_histories[history_iterate],fp);
+      // Garbage collection
+      if (total_history.saved_histories[history_iterate].used_elements > 0) free(total_history.saved_histories[history_iterate].elements);
+    }
   }
   fclose(fp);
-  
   )
   
   // Garbage collection
@@ -9168,8 +9151,11 @@ struct abs_event{
 void initialize_absorption_file() {
   FILE *fp;
   fp = fopen("Union_absorption.dat","w");
-  fprintf(fp,"r_old x, r_old y, r_old z, old t, r x, r y, r z, new t, weight change, volume index, neutron id \n");
-  
+  if(!fp) {
+    fprintf(stderr,"WARNING: Could not write initial output to Union_absorption.dat\n");
+  } else {
+    fprintf(fp,"r_old x, r_old y, r_old z, old t, r x, r y, r z, new t, weight change, volume index, neutron id \n");
+  }
   fclose(fp);
 }
 
@@ -9177,20 +9163,22 @@ void write_events_to_file(int last_index, struct abs_event *events) {
 
   FILE *fp;
   fp = fopen("Union_absorption.dat","a");
-  
-  struct abs_event *this_event;
-  int iterate;
-  for (iterate=0; iterate<last_index; iterate++) {
-  
-    this_event = &events[iterate];
-    fprintf(fp,"%g, %g, %g, %g, %g, %g, %g, %g, %e, %i, %i \n",
-           this_event->position1[0], this_event->position1[1], this_event->position1[2], this_event->time1,
-           this_event->position2[0], this_event->position2[1], this_event->position2[2], this_event->time2,
-           this_event->weight_change,
-           this_event->volume_index,
-           this_event->neutron_id);
+  if(!fp) {
+    fprintf(stderr,"WARNING: Could not write logging output to Union_absorption.dat\n");
+  } else {
+    struct abs_event *this_event;
+    int iterate;
+    for (iterate=0; iterate<last_index; iterate++) {
+      
+      this_event = &events[iterate];
+      fprintf(fp,"%g, %g, %g, %g, %g, %g, %g, %g, %e, %i, %i \n",
+	      this_event->position1[0], this_event->position1[1], this_event->position1[2], this_event->time1,
+	      this_event->position2[0], this_event->position2[1], this_event->position2[2], this_event->time2,
+	      this_event->weight_change,
+	      this_event->volume_index,
+	      this_event->neutron_id);
+    }
   }
-
   fclose(fp);
 }
 
