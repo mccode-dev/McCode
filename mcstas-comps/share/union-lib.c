@@ -2044,8 +2044,8 @@ void write_tagging_tree(struct list_of_tagging_tree_node_pointers *master_list, 
       // Garbage collection
       if (total_history.saved_histories[history_iterate].used_elements > 0) free(total_history.saved_histories[history_iterate].elements);
     }
+    fclose(fp);
   }
-  fclose(fp);
   )
   
   // Garbage collection
@@ -9155,8 +9155,8 @@ void initialize_absorption_file() {
     fprintf(stderr,"WARNING: Could not write initial output to Union_absorption.dat\n");
   } else {
     fprintf(fp,"r_old x, r_old y, r_old z, old t, r x, r y, r z, new t, weight change, volume index, neutron id \n");
+    fclose(fp);
   }
-  fclose(fp);
 }
 
 void write_events_to_file(int last_index, struct abs_event *events) {
@@ -9178,8 +9178,8 @@ void write_events_to_file(int last_index, struct abs_event *events) {
 	      this_event->volume_index,
 	      this_event->neutron_id);
     }
+    fclose(fp);
   }
-  fclose(fp);
 }
 
 void record_abs_to_file(double *r, double t1, double *r_old, double t2, double weight_change, int volume, int neutron_id, int *data_index, struct abs_event *events) {
