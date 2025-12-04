@@ -402,6 +402,7 @@ int is_mask_volume; // 1 if volume itself is a mask (masking the ones in it's ma
 int mask_index;
 int is_masked_volume; // 1 if this volume is being masked by another volume, the volumes that mask it is in masked_by_list
 int mask_mode; // ALL/ANY 1/2. In ALL mode, only parts covered by all masks is simulated, in ANY mode, area covered by just one mask is simulated
+int skip_hierarchy_optimization;
 double geometry_p_interact; // fraction of rays that interact with this volume for each scattering (between 0 and 1, 0 for disable)
 union geometry_parameter_union geometry_parameters; // relevant parameters for this shape
 union geometry_parameter_union (*copy_geometry_parameters)(union geometry_parameter_union*);
@@ -680,6 +681,10 @@ struct global_master_element_struct *elements;
 };
 
 
+void geometry_struct_init(struct geometry_struct *geometry){
+  memset(geometry, 0, sizeof(struct geometry_struct));
+  geometry->skip_hierarchy_optimization = 0;
+}
 // -------------    Physics functions   ---------------------------------------------------------
 
 //#include "Test_physics.c"
@@ -2302,17 +2307,25 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
     direction[2] = r2[2] - r1[2];
     int geometry_output;
     
-    // Todo: switch to nicer intersect function call
-    double double_dummy[2];
-    int int_dummy[2];
+	// Todo: switch to nicer intersect function call
+	double *double_dummy = malloc(2*sizeof(double));
+	int int_dummy[2];
 	
 	
     // Find intersections
     for (volume_index = 1;volume_index < number_of_volumes; volume_index++) {
         if (volume_index != N) {
+         if (Geometries[volume_index]->eShape==mesh){
+            double_dummy = realloc(double_dummy, sizeof(double)*1000);
+            temp_intersection = realloc(temp_intersection, sizeof(double)*1000);
+            
+         }
             geometry_output = Geometries[volume_index]->intersect_function(temp_intersection, double_dummy, double_dummy, double_dummy, int_dummy, 
 			                                                               &number_of_solutions, r1, direction, Geometries[volume_index]);
                 for (iterate=0;iterate<number_of_solutions;iterate++) {
+             // printf("No solutions for intersection (Volume %d) with %d \n",N,volume_index);
+         for (iterate=0;iterate<number_of_solutions;iterate++) {
+                    // print_1d_double_list(intersection_list,"intersection_list");
                     if (temp_intersection[iterate] > 0 && temp_intersection[iterate] < 1) {
 		      add_element_to_double_list(&intersection_list,temp_intersection[iterate]);
 		    }
@@ -2536,18 +2549,18 @@ Coords direction_vector;
 struct mesh_storage{
 int n_facets;
 int counter;
-double v1_x[50000];
-double v1_y[50000];
-double v1_z[50000];
-double v2_x[50000];
-double v2_y[50000];
-double v2_z[50000];
-double v3_x[50000];
-double v3_y[50000];
-double v3_z[50000];
-double normal_x[50000];
-double normal_y[50000];
-double normal_z[50000];
+double *v1_x;
+double *v1_y;
+double *v1_z;
+double *v2_x;
+double *v2_y;
+double *v2_z;
+double *v3_x;
+double *v3_y;
+double *v3_z;
+double *normal_x;
+double *normal_y;
+double *normal_z;
 Coords direction_vector;
 Coords Bounding_Box_Center;
 double Bounding_Box_Radius;
@@ -2736,10 +2749,10 @@ int mesh_A_within_B(struct geometry_struct *child, struct geometry_struct *paren
   // If all points on the shell of geometry A is within B, so are all lines between them.
   // This is modified so resolution is not set manually, but all mesh shell points are taken
   
-  printf("shell points mesh A within B \n");
   // resolution selects the number of points to be generated on the shell.
   struct pointer_to_1d_coords_list shell_points;
-  shell_points = child->shell_points(child, 1); // mesh shell points do not use max points
+  int resolution = 300;
+  shell_points = child->shell_points(child, resolution); // mesh shell points do not use max points
   // Shell_points.elements need to be freed before leaving this function
   //printf("\n GOT OUT TEST");
   int iterate;
@@ -3651,6 +3664,8 @@ This function was created by Martin Olsen at NBI on september 20, 2018.
 };
 
 int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
+  //TODO: Make a single intersection algorithm that all the three mesh intersections
+  // Can use
 // Unpack parameters
 
     Coords center = geometry->center;
@@ -3696,18 +3711,13 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
     double a,f,u,V;
     //////printf("\n RWITHIN TEST 1ste");
     for (iter = 0 ; iter < n_facets ; iter++){
-    /*//////printf("\n\n facet v1 = [%f,%f,%f]",v1_x[iter],v1_y[iter],v1_z[iter]);
-    //////printf("\n facet v2 = [%f,%f,%f]",v2_x[iter],v2_y[iter],v2_z[iter]);
-    //////printf("\n facet v3 = [%f,%f,%f]",v3_x[iter],v3_y[iter],v3_z[iter]);*/
         // Intersection with face plane (Möller–Trumbore)
         edge1 = coords_set(*(v2_x+iter)-*(v1_x+iter),*(v2_y+iter)-*(v1_y+iter),*(v2_z+iter)-*(v1_z+iter));
-            //////printf("\n edge 1 = [%f,%f,%f]",edge1.x,edge1.y,edge1.z);
         edge2 = coords_set(*(v3_x+iter)-*(v1_x+iter),*(v3_y+iter)-*(v1_y+iter),*(v3_z+iter)-*(v1_z+iter));
         
         vec_prod(h.x,h.y,h.z,test_vector.x,test_vector.y,test_vector.z,edge2.x,edge2.y,edge2.z);
         
         a = Dot(edge1,h);
-        //////printf("\n a=%f",a);
         if (a > -UNION_EPSILON && a < UNION_EPSILON){
             //////printf("\n UNION_EPSILON fail");
         } else{
@@ -3715,13 +3725,11 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
             s = coords_sub(rotated_coordinates, coords_set(*(v1_x+iter),*(v1_y+iter),*(v1_z+iter)));
             u = f * (Dot(s,h));
             if (u < 0.0 || u > 1.0){
-                //////printf("\n Nope 1");
             }else{
                 //q = vec_prod(s,edge1);
                 vec_prod(q.x,q.y,q.z,s.x,s.y,s.z,edge1.x,edge1.y,edge1.z);
                 V = f * Dot(test_vector,q);
                 if (V < 0.0 || u + V > 1.0){
-                    //////printf("\n Nope 2");
                 } else {
                     // At this stage we can compute t to find out where the intersection point is on the line.
                     if (f* Dot(q,edge2) > 0){
@@ -3744,7 +3752,6 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
     int C1 = counter;
     
     int maxC; int sameNr =0;
-    ////printf("\n first iter: (%i , %i)",counter,neg_counter);
     if (counter % 2 == neg_counter % 2){
         maxC = counter;
         sameNr = 1;
@@ -3758,20 +3765,14 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
      test_vector = coords_set(0,0,1);
     iter =0;
     counter=0;
-    //////printf("\n RWITHIN TEST 1ste");
     for (iter = 0 ; iter < n_facets ; iter++){
-    ///////printf("\n\n facet v1 = [%f,%f,%f]",v1_x[iter],v1_y[iter],v1_z[iter]);
-    //////printf("\n facet v2 = [%f,%f,%f]",v2_x[iter],v2_y[iter],v2_z[iter]);
-    //////printf("\n facet v3 = [%f,%f,%f]",v3_x[iter],v3_y[iter],v3_z[iter]);
         // Intersection with face plane (Möller–Trumbore)
         edge1 = coords_set(*(v2_x+iter)-*(v1_x+iter),*(v2_y+iter)-*(v1_y+iter),*(v2_z+iter)-*(v1_z+iter));
-            //////printf("\n edge 1 = [%f,%f,%f]",edge1.x,edge1.y,edge1.z);
         edge2 = coords_set(*(v3_x+iter)-*(v1_x+iter),*(v3_y+iter)-*(v1_y+iter),*(v3_z+iter)-*(v1_z+iter));
         
         vec_prod(h.x,h.y,h.z,test_vector.x,test_vector.y,test_vector.z,edge2.x,edge2.y,edge2.z);
         
         a = Dot(edge1,h);
-        //////printf("\n a=%f",a);
         if (a > -UNION_EPSILON && a < UNION_EPSILON){
             //////printf("\n UNION_EPSILON fail");
         } else{
@@ -3779,13 +3780,11 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
             s = coords_sub(rotated_coordinates , coords_set(*(v1_x+iter),*(v1_y+iter),*(v1_z+iter)));
             u = f * (Dot(s,h));
             if (u < 0.0 || u > 1.0){
-                //////printf("\n Nope 1");
             }else{
                 //q = vec_prod(s,edge1);
                 vec_prod(q.x,q.y,q.z,s.x,s.y,s.z,edge1.x,edge1.y,edge1.z);
                 V = f * Dot(test_vector,q);
                 if (V < 0.0 || u + V > 1.0){
-                    //////printf("\n Nope 2");
                 } else {
                     // At this stage we can compute t to find out where the intersection point is on the line.
 
@@ -3821,20 +3820,14 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
      test_vector = coords_set(1,0,0);
     iter =0;
     counter=0;
-    //////printf("\n RWITHIN TEST 1ste");
     for (iter = 0 ; iter < n_facets ; iter++){
-    ///////printf("\n\n facet v1 = [%f,%f,%f]",v1_x[iter],v1_y[iter],v1_z[iter]);
-    //////printf("\n facet v2 = [%f,%f,%f]",v2_x[iter],v2_y[iter],v2_z[iter]);
-    //////printf("\n facet v3 = [%f,%f,%f]",v3_x[iter],v3_y[iter],v3_z[iter]);
         // Intersection with face plane (Möller–Trumbore)
         edge1 = coords_set(*(v2_x+iter)-*(v1_x+iter),*(v2_y+iter)-*(v1_y+iter),*(v2_z+iter)-*(v1_z+iter));
-            //////printf("\n edge 1 = [%f,%f,%f]",edge1.x,edge1.y,edge1.z);
         edge2 = coords_set(*(v3_x+iter)-*(v1_x+iter),*(v3_y+iter)-*(v1_y+iter),*(v3_z+iter)-*(v1_z+iter));
         
         vec_prod(h.x,h.y,h.z,test_vector.x,test_vector.y,test_vector.z,edge2.x,edge2.y,edge2.z);
         
         a = Dot(edge1,h);
-        //////printf("\n a=%f",a);
         if (a > -UNION_EPSILON && a < UNION_EPSILON){
             //////printf("\n UNION_EPSILON fail");
         } else{
@@ -3848,7 +3841,6 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
                 vec_prod(q.x,q.y,q.z,s.x,s.y,s.z,edge1.x,edge1.y,edge1.z);
                 V = f * Dot(test_vector,q);
                 if (V < 0.0 || u + V > 1.0){
-                    //////printf("\n Nope 2");
                 } else {
                     // At this stage we can compute t to find out where the intersection point is on the line.
 
@@ -3876,15 +3868,8 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
     if (counter % 2 == neg_counter % 2){
         maxC = counter;
     } else {
-        //printf("\n not the same intersection numbers (3. iteration) (%i , %i)",counter,neg_counter);
-        //printf("\n this point is a bitch: [%f %f %f]",rotated_coordinates.x,rotated_coordinates.y,rotated_coordinates.z);
         return 0;
-        
     }
-    ////printf("\n test point: [%f %f %f]",rotated_coordinates.x,rotated_coordinates.y,rotated_coordinates.z);
-
-////printf("\n maxC: %i",maxC);
-
     if ( maxC % 2 == 0) {
         return 0;
     }else{
@@ -3896,8 +3881,12 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
     };
 
 
-int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry) {
-
+int sample_mesh_intersect(double *t,
+                          double *nx, double *ny, double*nz,
+                          int *surface_index,
+                          int *num_solutions,double *r,double *v,
+                          struct geometry_struct *geometry) {
+    
     int n_facets = geometry->geometry_parameters.p_mesh_storage->n_facets;
     double *normal_x = geometry->geometry_parameters.p_mesh_storage->normal_x;
     double *normal_y = geometry->geometry_parameters.p_mesh_storage->normal_y;
@@ -3913,24 +3902,16 @@ int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struc
     double *v3_z = geometry->geometry_parameters.p_mesh_storage->v3_z;
     Coords Bounding_Box_Center = geometry->geometry_parameters.p_mesh_storage->Bounding_Box_Center;
     double Bounding_Box_Radius = geometry->geometry_parameters.p_mesh_storage->Bounding_Box_Radius;
-    
-    
     int i;
-    
     Coords center = geometry->center;
-
     Coords direction = coords_set(0,1,0);
-
-    // Declare variables for the function
     double x_new,y_new,z_new;
-    
     // Coordinate transformation
     x_new = r[0] - geometry->center.x;
     y_new = r[1] - geometry->center.y;
     z_new = r[2] - geometry->center.z;
     
     double x_bb,y_bb,z_bb;
-    
     x_bb = r[0] - Bounding_Box_Center.x - geometry->center.x;
     y_bb = r[1] - Bounding_Box_Center.y - geometry->center.y;
     z_bb = r[2] - Bounding_Box_Center.z - geometry->center.z;
@@ -3946,7 +3927,6 @@ int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struc
     
     bounding_box_rotated_coordinates = rot_apply(geometry->transpose_rotation_matrix,bounding_box_coordinates);
     
-    
     Coords velocity = coords_set(v[0],v[1],v[2]);
     Coords rotated_velocity;
     
@@ -3957,13 +3937,23 @@ int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struc
     // Test intersection with bounding sphere 
     if ((output = sphere_intersect(&tmpres[0],&tmpres[1],bounding_box_rotated_coordinates.x,bounding_box_rotated_coordinates.y,bounding_box_rotated_coordinates.z,
                                    rotated_velocity.x,rotated_velocity.y,rotated_velocity.z,Bounding_Box_Radius)) == 0) {
+    
+    int output;
+    double tmpres[2];
+    // Test intersection with bounding sphere 
+    if ((output = sphere_intersect(&tmpres[0],&tmpres[1],
+                                   bounding_box_rotated_coordinates.x,
+                                   bounding_box_rotated_coordinates.y,
+                                   bounding_box_rotated_coordinates.z,
+                                   rotated_velocity.x,
+                                   rotated_velocity.y,
+                                   rotated_velocity.z,
+                                   Bounding_Box_Radius)) == 0) {
         t[0] = -1;
         t[1] = -1;
         *num_solutions = 0;
         return 0;
     }
-
-    
     // Check intersections with every single facet:
     int iter =0;
     int counter=0;
@@ -3976,6 +3966,7 @@ int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struc
       fprintf(stderr,"Failure allocating list in Union function sample_mesh_intersect - Exit!\n");
       exit(EXIT_FAILURE);
     }
+    int *facet_index = malloc(n_facets*sizeof(int));
     *num_solutions = 0;
     for (iter = 0 ; iter < n_facets ; iter++){
         // Intersection with face plane (Möller–Trumbore)
@@ -4007,25 +3998,67 @@ int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struc
 	}
     }
     free(t_intersect);
+        //h = vec_prod(rotated_velocity,edge2); 
+        vec_prod(h.x,h.y,h.z,rotated_velocity.x,rotated_velocity.y,rotated_velocity.z,edge2.x,edge2.y,edge2.z);
+        a = Dot(edge1,h);
+        //if (a > -UNION_EPSILON && a < UNION_EPSILON){
+            ////printf("\n UNION_EPSILON fail");
+        //}
+            f = 1.0/a;
+            s = coords_sub(rotated_coordinates, coords_set(*(v1_x+iter),*(v1_y+iter),*(v1_z+iter)));
+            u = f * (Dot(s,h));
+            if (u < 0.0 || u > 1.0){
+            }else{
+                //q = vec_prod(s,edge1);
+                vec_prod(q.x,q.y,q.z,s.x,s.y,s.z,edge1.x,edge1.y,edge1.z);
+                V = f * Dot(rotated_velocity,q);
+                if (V < 0.0 || u + V > 1.0){
+                } else {
+                    // At this stage we can compute t to find out where the intersection point is on the line.
+                    //tmp = Dot(q,edge2)
+                    if (f* Dot(q,edge2) > 0){
+                        
+                        t_intersect[counter] = f* Dot(q,edge2);
+                        facet_index[counter] = iter;
+                        //printf("\nIntersects at time: t= %f\n",t_intersect[counter] );
+                        counter++;
+                    }
+                }
+            }
+    }
     
     // Return all t
     int counter2=0;
+    double x_intersect, y_intersect, z_intersect;
     *num_solutions =0;
     for (iter=0; iter < counter ; iter++){
         if (t_intersect[iter] > 0.0){
-            t[counter2] = t_intersect[iter];
-            counter2++;
-            *num_solutions = counter2;
+          t[counter2] = t_intersect[iter];
+          x_intersect = t[counter2]*v[0] + x_new;
+		      y_intersect = t[counter2]*v[1] + y_new;
+		      z_intersect = t[counter2]*v[2] + z_new;
+          coordinates = coords_set(x_intersect,y_intersect,z_intersect);
+		      NORM(coordinates.x, coordinates.y, coordinates.z);
+		      nx[counter2] = normal_x[facet_index[iter]];
+		      ny[counter2] = normal_x[facet_index[iter]];
+		      nz[counter2] = normal_x[facet_index[iter]];				
+		      surface_index[counter2] = 0;
+		      counter2++;
+          *num_solutions = counter2;
         }
     }
     // Sort t:
     if (*num_solutions == 0){
+        free(t_intersect);
+        free(facet_index);
         return 0;
     }
     qsort(t,*num_solutions,sizeof (double), Sample_compare_doubles);
     if (*num_solutions > 2){
       // PW FIXME This apparently should never happen?
     }
+    free(facet_index);
+    free(t_intersect);
     return 1;
 };
 
@@ -4090,9 +4123,10 @@ int existence_of_intersection(Coords point1, Coords point2, struct geometry_stru
 	// todo: Switch to nicer intersect call
 	double dummy_double[2];
 	int dummy_int[2];
-	
+   printf("\nChecking the existence of intersections");	
     geometry->intersect_function(temp_solution, dummy_double, dummy_double, dummy_double, dummy_int, &number_of_solutions, start_point, vector_between_v, geometry);
     if (number_of_solutions > 0) {
+      printf("\nMore than 1 solution has been found");
         if (temp_solution[0] > 0 && temp_solution[0] < 1) return 1;
         if (number_of_solutions == 2) {
             if (temp_solution[1] > 0 && temp_solution[1] < 1) return 1;
@@ -5383,14 +5417,14 @@ int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct 
 
     int i;
     for (i = 0 ; i < shell_points1.num_elements ; i++){
-        if (r_within_mesh(shell_points1.elements[i],geometry2)){
+        if (geometry2->within_function(shell_points1.elements[i],geometry2)){
             free(shell_points1.elements);
             free(shell_points2.elements);
             return 1;
         }
     }
     for (i = 0 ; i < shell_points2.num_elements ; i++){
-        if (r_within_mesh(shell_points2.elements[i],geometry1)){
+        if (geometry1->within_function(shell_points2.elements[i],geometry1)){
             free(shell_points1.elements);
             free(shell_points2.elements);
             return 1;
@@ -5403,8 +5437,56 @@ int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct 
     return 0;
 
 };
+int mesh_within_box(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
+    // Brute force place holder
+    return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
+};
+
+int box_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
+    // Brute force place holder
+    return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
+};
+
+int mesh_within_sphere(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
+    // Brute force place holder
+    return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
+};
+int sphere_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
+    // Brute force place holder
+    return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
+};
+int cone_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
+    // Brute force place holder
+    return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
+};
+
+
+int mesh_within_cone(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
+    // Brute force place holder
+    return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
+};
+
+int mesh_within_cylinder(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
+    // Brute force place holder
+    return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
+};
+
+
+int cylinder_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
+    // Brute force place holder
+    return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
+};
 
 int mesh_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
+    // WARNING: This may fail as one or both of the meshes may not be convex
     // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
     // Brute force place holder
     return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
@@ -6189,6 +6271,30 @@ int box_overlaps_cone(struct geometry_struct *geometry_box,struct geometry_struc
   return cone_overlaps_box(geometry_cone,geometry_box);
 }
 
+int mesh_overlaps_box(struct geometry_struct *geometry1, struct geometry_struct *geometry2){
+   return mesh_overlaps_mesh(geometry1, geometry2);
+}
+int mesh_overlaps_cone(struct geometry_struct *geometry1, struct geometry_struct *geometry2){
+   return mesh_overlaps_mesh(geometry1, geometry2);
+}
+int mesh_overlaps_sphere(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
+   return mesh_overlaps_mesh(geometry1, geometry2);
+};
+int mesh_overlaps_cylinder(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
+   return mesh_overlaps_mesh(geometry1, geometry2);
+};
+int box_overlaps_mesh(struct geometry_struct *geometry1, struct geometry_struct *geometry2){
+   return mesh_overlaps_mesh(geometry1, geometry2);
+}
+int cone_overlaps_mesh(struct geometry_struct *geometry1, struct geometry_struct *geometry2){
+   return mesh_overlaps_mesh(geometry1, geometry2);
+}
+int sphere_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
+   return mesh_overlaps_mesh(geometry1, geometry2);
+};
+int cylinder_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
+   return mesh_overlaps_mesh(geometry1, geometry2);
+};
 // -------------    Within functions for two different geometries ---------------------------------
 
 double dist_from_point_to_plane(Coords point,Coords plane_p1, Coords plane_p2, Coords plane_p3) {
@@ -6552,7 +6658,9 @@ int intersect_function(double *t, double *nx, double *ny, double *nz, int *surfa
 			printf("Intersection function: mesh not updated for normals yet!");
 			exit(EXIT_FAILURE);
             output = sample_mesh_intersect(t, num_solutions, r, v, geometry);
+            output = sample_mesh_intersect(t, nx, ny, nz, surface_index, num_solutions, r, v, geometry);
             break;
+
         #endif
         default:
             printf("Intersection function: No matching geometry found!");
@@ -7063,6 +7171,30 @@ int inside_function(struct Volume_struct *parent_volume, struct Volume_struct *c
     else if (strcmp("box",parent_volume->geometry.shape) == 0 && strcmp("cone",child_volume->geometry.shape) == 0) {
         if (cone_within_box(&child_volume->geometry,&parent_volume->geometry)) return 1;
     }
+    else if (strcmp("mesh",parent_volume->geometry.shape) == 0 && strcmp("cylinder",child_volume->geometry.shape) == 0) {
+        if (cylinder_within_mesh(&child_volume->geometry,&parent_volume->geometry)) return 1;
+    }
+    else if (strcmp("mesh",parent_volume->geometry.shape) == 0 && strcmp("sphere",child_volume->geometry.shape) == 0) {
+        if (sphere_within_mesh(&child_volume->geometry,&parent_volume->geometry)) return 1;
+    }
+    else if (strcmp("cone",parent_volume->geometry.shape) == 0 && strcmp("mesh",child_volume->geometry.shape) == 0) {
+        if (mesh_within_cone(&child_volume->geometry,&parent_volume->geometry)) return 1;
+    }
+    else if (strcmp("mesh",parent_volume->geometry.shape) == 0 && strcmp("cone",child_volume->geometry.shape) == 0) {
+        if (cone_within_mesh(&child_volume->geometry,&parent_volume->geometry)) return 1;
+    }
+    else if (strcmp("cylinder",parent_volume->geometry.shape) == 0 && strcmp("mesh",child_volume->geometry.shape) == 0) {
+        if (cylinder_within_mesh(&child_volume->geometry,&parent_volume->geometry)) return 1;
+    }
+    else if (strcmp("sphere",parent_volume->geometry.shape) == 0 && strcmp("mesh",child_volume->geometry.shape) == 0) {
+        if (mesh_within_sphere(&child_volume->geometry,&parent_volume->geometry)) return 1;
+    }
+    else if (strcmp("mesh",parent_volume->geometry.shape) == 0 && strcmp("box",child_volume->geometry.shape) == 0) {
+        if (box_within_mesh(&child_volume->geometry,&parent_volume->geometry)) return 1;
+    }
+    else if (strcmp("box",parent_volume->geometry.shape) == 0 && strcmp("mesh",child_volume->geometry.shape) == 0) {
+        if (mesh_within_box(&child_volume->geometry,&parent_volume->geometry)) return 1;
+    }
     else {
         #ifndef OPENACC
         printf("Need within function for type: ");
@@ -7450,6 +7582,30 @@ void generate_overlap_lists(struct pointer_to_1d_int_list **true_overlap_lists, 
         else if (strcmp("box",Volumes[parent]->geometry.shape) == 0 && strcmp("cone",Volumes[child]->geometry.shape) == 0) {
             if (box_overlaps_cone(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
         }
+        else if (strcmp("mesh",Volumes[parent]->geometry.shape) == 0 && strcmp("sphere",Volumes[child]->geometry.shape) == 0) {
+            if (mesh_overlaps_sphere(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
+        }
+        else if (strcmp("mesh",Volumes[parent]->geometry.shape) == 0 && strcmp("cylinder",Volumes[child]->geometry.shape) == 0) {
+            if (mesh_overlaps_cylinder(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
+        }
+        else if (strcmp("mesh",Volumes[parent]->geometry.shape) == 0 && strcmp("box",Volumes[child]->geometry.shape) == 0) {
+            if (mesh_overlaps_box(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
+        }
+        else if (strcmp("mesh",Volumes[parent]->geometry.shape) == 0 && strcmp("cone",Volumes[child]->geometry.shape) == 0) {
+            if (mesh_overlaps_cone(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
+        }
+        else if (strcmp("sphere",Volumes[parent]->geometry.shape) == 0 && strcmp("mesh",Volumes[child]->geometry.shape) == 0) {
+            if (sphere_overlaps_mesh(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
+        }
+        else if (strcmp("cylinder",Volumes[parent]->geometry.shape) == 0 && strcmp("mesh",Volumes[child]->geometry.shape) == 0) {
+            if (cylinder_overlaps_mesh(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
+        }
+        else if (strcmp("box",Volumes[parent]->geometry.shape) == 0 && strcmp("mesh",Volumes[child]->geometry.shape) == 0) {
+            if (box_overlaps_mesh(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
+        }
+        else if (strcmp("cone",Volumes[parent]->geometry.shape) == 0 && strcmp("mesh",Volumes[child]->geometry.shape) == 0) {
+            if (cone_overlaps_mesh(&Volumes[parent]->geometry,&Volumes[child]->geometry)) temp_list_local.elements[used_elements++] = child;
+        }
         else {
             printf("Need overlap function for type: ");
             printf("%s",Volumes[parent]->geometry.shape);
@@ -7458,6 +7614,7 @@ void generate_overlap_lists(struct pointer_to_1d_int_list **true_overlap_lists, 
             printf(".\n");
             printf("It is not yet supported to mix mesh geometries with the basic shapes, but several mesh geometries are allowed.\n");
             exit(EXIT_FAILURE);
+            exit(1);
         }
         }
       }

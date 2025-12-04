@@ -4,31 +4,37 @@
 *  Copyright(C) 2007 Risoe National Laboratory.
 *
 * %I
-* Written by: Martin Olsen
-* On a template by: Mads Bertelsen
+* Written by: Martin Olsen, and expanded upon by Daniel Lomholt Christensen 
 * Date: 17.09.18
-* Origin: University of Copenhagen
+* Origin: University of Copenhagen / ACTNXT project
 *
 * Component for including 3D mesh in Union geometry
 *
 * %D
 * Part of the Union components, a set of components that work together and thus
-*  sperates geometry and physics within McStas.
+*  separates geometry and physics within McStas.
 * The use of this component requires other components to be used.
 *
 * 1) One specifies a number of processes using process components
 * 2) These are gathered into material definitions using Union_make_material
-* 3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
-* 4) A Union_master component placed after all of the above
+* 3) Geometries are placed using Union_box/cylinder/sphere/mesh, assigned a material
+* 4) A Union_master component placed after all the above
 *
 * Only in step 4 will any simulation happen, and per default all geometries
 *  defined before this master, but after the previous will be simulated here.
 *
 * There is a dedicated manual available for the Union_components
 *
-* The mesh component loads a 3D stl file as the geometry. The mesh geometry
-* can not yet be overlapped with the basic geometries (sphere, cylinder, box, cone),
-* but can be overlapped with other mesh geometries.
+* The mesh component loads a 3D off or stl files as the geometry. 
+* The mesh geometry that is loaded must be a watertight mesh.
+* In order to check this, the component implements a simple Euler Pointcare value,
+* To check if the given geometry is watertight. This check is sometimes too rigid,
+* so a user can set the skip_convex_check parameter in order to not have this 
+* check performed.
+*
+*
+* If you load an off file, we currently only support rank 3 polygons, i.e 
+* triangular meshes.
 *
 * It is allowed to overlap components, but it is not allowed to have two
 *  parallel planes that coincides. This will crash the code on run time.
@@ -37,7 +43,7 @@
 *
 * %P
 * INPUT PARAMETERS:
-* filename: [str] Name of stl file that contains the 3D geometry
+* filename: [str] Name of file that contains the 3D geometry. Can be either .OFF, .off, .STL, or .stl
 * material_string: [string]  material name of this volume, defined using Union_make_material
 * priority:   [1]  priotiry of the volume (can not be the same as another volume) A high priority is on top of low.
 * p_interact: [1]  probability to interact with this geometry [0-1]
@@ -54,6 +60,8 @@
 * focus_xw:      [m]   horiz. dimension of a rectangular area
 * focus_xh:      [m]   vert. dimension of a rectangular area
 * focus_r:       [m]   focusing on circle with this radius
+* skip_convex_check: [1] when set to 1, skips the check for whether input .off file is convex.
+* coordinate_scale [1e-3] Multiplier that the vertex positions are multiplied by. Set to 1 for input coordinates in meters. Set to 1e-3 for input coordinates in mm.
 * init:          [string] name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
@@ -65,80 +73,375 @@
 
 DEFINE COMPONENT Union_mesh
 
-SETTING PARAMETERS(string filename = 0,string material_string=0, priority, visualize=1, int target_index=0, target_x=0, target_y=0, target_z=0, focus_aw=0, focus_ah=0, focus_xw=0, focus_xh=0, focus_r=0, p_interact=0, string mask_string=0, string mask_setting=0,number_of_activations=1, string init="init")
+SETTING PARAMETERS(string filename = 0,
+   string material_string=0,
+   priority, 
+   visualize=1, 
+   string all_surfaces=0, 
+   string cut_surface=0,
+   int target_index=0, 
+   target_x=0,
+   target_y=0,
+   target_z=0,
+   focus_aw=0,
+   focus_ah=0,
+   focus_xw=0,
+   focus_xh=0,
+   focus_r=0,
+   p_interact=0,
+   string mask_string=0,
+   string mask_setting=0,
+   number_of_activations=1,
+   int skip_convex_check = 0,
+   coordinate_scale = 1e-3,
+   string init="init")
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+//=============================================================================
+//                            SHARE SECTION
+//=============================================================================
 SHARE
 %{
+%include "read_table-lib"
+%include "interoff-lib"
+
 #ifndef Union
 #error "The Union_init component must be included before this Union_mesh component"
 #endif
 
+#ifndef ANY_GEOMETRY_DETECTOR_DECLARE
+    #define ANY_GEOMETRY_DETECTOR_DECLARE dummy
+    //struct pointer_to_global_geometry_list global_geometry_list = {0,NULL};
+#endif
+
+#ifndef MAX_VERT_DIST 
+	#define MAX_VERT_DIST 1e-30 // Maximum distance between vertex points, before they are the same point.
+#endif
+
+// define struct to import triangles from stl file.
+#pragma pack(push, 1) // Disable padding
+typedef struct {
+    float normal[3];
+    float vertex1[3];
+    float vertex2[3];
+    float vertex3[3];
+    uint16_t attribute_byte_count;
+} Triangle;
+#pragma pack(pop)
+void read_stl(char* filename,
+                     int* n_verts,
+                     int* n_faces,
+                     int* n_edges,
+                     Coords** verts,
+                     int*** faces,
+                     char* comp_name){
+   unsigned char buffer[1000];
+   Triangle *triangles;
+   FILE *file = Open_File(filename, "r", NULL);
+   if (!file) {
+        perror("ERROR: Failed to open file");
+        exit(1);
+   }  
+   // Check if the file is binary or ASCII
+   int file_is_ascii = 0;
+   char word[6]; // "solid" + null terminator
+   if (fscanf(file, "%5s", word) == 1) {
+       file_is_ascii = strcmp(word, "solid") == 0;
+   }
+   fclose(file);
+
+   if (file_is_ascii){
+      
+      FILE *file = Open_File(filename, "r", NULL);
+      char line[256];
+      int capacity = 100; // initial allocation
+      int count = 0;
+
+      // Allocate memory for triangles
+      triangles = (Triangle *)malloc(capacity * sizeof(Triangle));  
+   
+      Triangle current;
+
+      int vertex_index = 0;
+      while (fgets(line, sizeof(line), file)) {
+         
+         char *trimmed = line;
+         while (*trimmed == ' ' || *trimmed == '\t') {
+             trimmed++;
+         }
+         
+         // If line is empty after trimming, skip it
+         if (*trimmed == '\0') {
+            continue;
+         }
+
+          if (strncmp(trimmed, "facet normal", 12) == 0) {  
+             memset(&current, 0, sizeof(Triangle)); 
+
+              sscanf(trimmed, "facet normal %f %f %f",
+                     &current.normal[0], &current.normal[1], &current.normal[2]);
+          } else if (strncmp(trimmed, "vertex", 6) == 0) {
+              float x, y, z;
+              sscanf(trimmed, "vertex %f %f %f", &x, &y, &z);
+              if (vertex_index == 0) {
+                  current.vertex1[0] = x; current.vertex1[1] = y; current.vertex1[2] = z;
+              } else if (vertex_index == 1) {
+                  current.vertex2[0] = x; current.vertex2[1] = y; current.vertex2[2] = z;
+              } else if (vertex_index == 2) {
+                  current.vertex3[0] = x; current.vertex3[1] = y; current.vertex3[2] = z;
+              }
+              vertex_index++;
+              if (vertex_index == 3) {
+                  vertex_index = 0;
+              }
+          } else if (strncmp(trimmed, "endfacet", 8) == 0) {
+               current.attribute_byte_count = 0; // ASCII STL always 0
+              if (count >= capacity) {
+                  capacity *= 2;
+                  triangles = realloc(triangles, capacity * sizeof(Triangle));
+                  if (!triangles) {
+                      perror("ERROR: Memory reallocation failed");
+                      fclose(file);
+                      exit(1);
+                  }
+               }
+               triangles[count++] = current;
+           }
+      }
+      *n_faces = count;
+      fclose(file);  
+      
+   } else {
+       FILE *file = Open_File(filename, "r", NULL);
+       // Read header
+       char header[80];
+       fread(header, sizeof(char), 80, file);
+
+       // Read number of triangles
+       fread(n_faces, sizeof(uint32_t), 1, file);
+       // Allocate memory for triangles
+       triangles = (Triangle *)malloc(*n_faces * sizeof(Triangle));  
+   
 
 
-Coords get_coords_from_string(char *line){
+       if (!triangles) {
+           perror("ERROR: Memory allocation failed");
+           fclose(file);
+           exit(1);
+       }
 
-int i;
+       // Read triangles
+       for (int i = 0; i < *n_faces; i++) {
+           fread(&triangles[i], sizeof(Triangle), 1, file);
+       }
+      
+      fclose(file);  
+   }
 
-// Find index first number
-int first_number_index = 0;
-int chars_in_line = strlen(line);
-//printf("\n length of line = %i",chars_in_line);
+   *n_verts = 3* *n_faces;
+   *verts = (Coords *)malloc(sizeof(Coords)* *n_verts);
+   *faces = (int **)malloc(sizeof(int *)* *n_faces);
 
-for (i=0 ; i < chars_in_line ; i++ ) {
-    ////printf("\n line[%i] = %i",i,line[i]);
-    if (line[i] > 44 && line[i] < 58 && first_number_index == 0 && line[i-1] == 32) {
-        first_number_index = i;
-        i = chars_in_line;
-    }
+   // Now, we make a list of the triangles, and then give them each an index.
+   int j = 0;
+   for (int i = 0; i < *n_faces; i++) {
+      (*faces)[i] = (int *)malloc(sizeof(int)*3);
+      j = i*3;
+      (*verts)[j] = coords_set((double)triangles[i].vertex1[0], (double)triangles[i].vertex1[1], (double)triangles[i].vertex1[2]);
+      (*verts)[j+1] = coords_set((double)triangles[i].vertex2[0], (double)triangles[i].vertex2[1], (double)triangles[i].vertex2[2]);
+      (*verts)[j+2] = coords_set((double)triangles[i].vertex3[0], (double)triangles[i].vertex3[1], (double)triangles[i].vertex3[2]);
+      (*faces)[i][0] = j;
+      (*faces)[i][1] = j+1;
+      (*faces)[i][2] = j+2;
+   }
+   free(triangles);
+   // Loop over vertices, and make sure we only use unique vertices
+   Coords* unique_vertices = (Coords *)malloc(
+                  sizeof(Coords)* *n_verts) ;
+ 
+   int vertex_is_unique;
+   int x_are_equal, y_are_equal, z_are_equal;
+   int* map_old_to_unique = malloc(sizeof(int)* *n_verts);
+   int unique_counter = 0;
+   int vert_index_in_faces = 0;
+   for (int i = 0; i < *n_verts; i++) {
+      vertex_is_unique = 1;
+      // First we check if the vertex exist 
+      for (j = 0; j < i; j++){
+         x_are_equal = fabs((*verts)[i].x - (*verts)[j].x)<MAX_VERT_DIST;
+         y_are_equal = fabs((*verts)[i].y - (*verts)[j].y)<MAX_VERT_DIST;
+         z_are_equal = fabs((*verts)[i].z - (*verts)[j].z)<MAX_VERT_DIST;
+         if (x_are_equal && y_are_equal && z_are_equal){
+            vertex_is_unique = 0;
+            break;
+         }
+      }
+      if (vertex_is_unique){ 
+         // Add vertex to unique vertex list
+         map_old_to_unique[j] = unique_counter;
+         unique_vertices[unique_counter] = (*verts)[i];
+         unique_counter +=1;
+      }
+      // If the vertex isn't unique, we move the faces index, to the 
+      // first vertex
+
+      vert_index_in_faces = floor(i/3);
+      (*faces)[vert_index_in_faces][i%3] = map_old_to_unique[j] ;
+   }
+   *n_verts = unique_counter;
+   *verts = (Coords *)realloc(*verts, sizeof(Coords)*unique_counter);
+   for (int i =0; i<unique_counter;i++){
+      (*verts)[i] = unique_vertices[i];
+   }
+   free(map_old_to_unique);
+   free(unique_vertices);
 }
 
-int space_index[2];
-int counter = 0;
-// Find index of spaces
-for (i=first_number_index ; i < chars_in_line ; i++ ) {
-    ////printf("\n line[%i] = %i",i,line[i]);
-    if (line[i] == 32) {
-        space_index[counter] = i;
-        ////printf("\n space_index[%i] = %i",i,space_index[counter]);
-        counter ++;
-    }
+    
+    
 
+
+
+
+void read_off_file_vertices_and_faces(char* filename, 
+                                  int* n_verts, 
+                                  int* n_faces,
+                                  int* n_edges,
+                                  Coords** verts,
+                                  int*** faces,
+                                  char* comp_name){
+   FILE *fp;
+   fp = Open_File(filename, "r", NULL);
+   // TODO: Make tests to verify the contents of FILE
+   int n_lines = 0;
+   char buffer[250];
+   while (fgets(buffer, sizeof(buffer), fp)) {
+      if (!strncmp(buffer, "#",1)){
+         continue;
+      }
+      if (n_lines == 1){
+         // in .off files the second line contains faces, vertices and edges
+         sscanf(buffer,"%d %d %d", n_verts, n_faces, n_edges);
+         break;
+      }
+      ++n_lines;
+   }
+   fclose(fp);  
+   *verts = (Coords *)malloc(sizeof(Coords)* *n_verts);
+   *faces = (int **)malloc(sizeof(int *)* *n_faces);
+   
+   // Using the Euler-Poincare characteristic, we check if the mesh is closed
+   // To do this, we count the number of edges (unique vertice pairs)
+   fp = Open_File(filename, "r", NULL);
+   n_lines = 0;
+   double x,y,z;
+   int vert_index = 0;
+   int face_vertices = 0;
+   int face_index = 0;
+   while (fgets(buffer, sizeof(buffer), fp)) {
+      // Skip any comments and the first two lines
+      if (!strncmp(buffer, "#",1)){
+         continue;
+      } else if (n_lines<2){
+         ++n_lines;
+         continue;
+      }
+      // If we are in the vertex area of the file, record the vertex
+      if (n_lines< *n_verts+2){
+         // Some .off files have more than three values
+         // these are usually normal vectors or colors. ignore these
+         
+         sscanf(buffer,"%lf %lf %lf", 
+                &(*verts)[vert_index].x, 
+                &(*verts)[vert_index].y, 
+                &(*verts)[vert_index].z);
+         vert_index++;
+      }
+      // If we are in the facet area of the file, record the facet
+      if (n_lines>=( *n_verts+2)){
+         (*faces)[face_index] = (int *)malloc(sizeof(int)*3);
+         // The faces are always after the vertices in an off file.
+         sscanf(buffer,"%d %d %d %d", 
+                &face_vertices, 
+                &(*faces)[face_index][0], 
+                &(*faces)[face_index][1], 
+                &(*faces)[face_index][2]);
+         if (face_vertices>3){
+            printf("\nERROR: Facets use more than 3 vertices."
+                   "\n Please correct your .off file used for Component %s",
+                   comp_name);
+            exit(1);
+         }
+         ++face_index;
+      }  
+      ++n_lines;
+   
+   }
+   fclose(fp);
 }
 
-char dest[15];
 
-// Assign x
-////printf("\n %s ",line+(first_number_index));
-////printf("\n %i ",(space_index[0]-first_number_index));
-//strncpy(dest, line+(first_number_index), (space_index[0]-first_number_index));
-for (i = 0 ; i < space_index[0]-first_number_index ; i++ ){
-    dest[i] = line[first_number_index + i];
+
+
+int mesh_is_not_closed(int n_verts, int n_faces, int n_edges){
+   if (n_verts - n_edges + n_faces ==2){
+      return 0;
+   }
+   return 1;
 }
-////printf("\n %s ",dest);
-double X = atof(dest);
 
-for (i = 0 ; i < space_index[1]-space_index[0] ; i++ ){
-    dest[i] = line[space_index[0] + 1 + i];
+void generate_vertex_vertex_pair_list(int** faces, int** vert_pairs, 
+                                  int n_faces){
+   int vert1, vert2, vert3, vert_pair_0;
+   // Make list of vertex vertex pairs
+   for (int i=0; i < n_faces; i++){
+      vert1 = faces[i][0];
+      vert2 = faces[i][1];
+      vert3 = faces[i][2];
+      vert_pairs[i][0] = vert1; 
+      vert_pairs[i][1] = vert2;
+      vert_pairs[i + n_faces][0] = vert1;
+      vert_pairs[i + n_faces][1] = vert3;
+      vert_pairs[i + 2*n_faces][0] = vert2;
+      vert_pairs[i + 2*n_faces][1] = vert3;
+   }
 }
-////printf("\n %s ",dest);
-double Y = atof(dest);
 
+void find_unique_vertex_vertex_pairs(int* unique_index, int** unique_verts, 
+                                     int** vert_pairs, int* n_faces){
+   int vert1,vert2;
+   int pair_is_unique;
 
-for (i = 0 ; i < chars_in_line-space_index[1] ; i++ ){
-    dest[i] = line[space_index[1]  + i];
-    //printf("\n Current index is %i, max is %i",space_index[1] + 1 + i,chars_in_line);
+   // Make a copy of only the unique pairs
+   for (int i=0; i < 3* (*n_faces); i++){
+      // Check if the first vertex exist in the unique list
+      vert1 = vert_pairs[i][0];
+      vert2 = vert_pairs[i][1];
+      pair_is_unique = 1;
+      for (int j = 0; j<(*unique_index); j++){
+         if (unique_verts[j][0]==vert1){
+            if (unique_verts[j][1]==vert2) {
+               pair_is_unique=0;
+               break;
+            }
+         } 
+         else if (unique_verts[j][0]==vert2){
+            if (unique_verts[j][1]==vert1) {
+               pair_is_unique=0; 
+               break;
+            }
+         }
+      }
+      if (pair_is_unique){
+         unique_verts[*unique_index][0] = vert1;
+         unique_verts[*unique_index][1] = vert2;
+         *unique_index +=1;
+
+      }
+   }  
 }
-////printf("\n %s ",dest);
-double Z = atof(dest);
-
-Coords fromString = coords_set(X,Y,Z);
-
-return fromString;
-
-};
 
 int coord_comp(Coords A,Coords B) {
     if (A.x==B.x && A.y==B.y && A.z==B.z){
@@ -146,156 +449,131 @@ int coord_comp(Coords A,Coords B) {
     }
     return 0;
 };
-
-
-
-void mcdisplay_mesh_function(struct lines_to_draw *lines_to_draw_output,int index, struct geometry_struct **Geometries,int number_of_volumes) {
-    // Function to call in mcdisplay section of the sample component for this volume
-
-    printf("\nTEST 0");
-    int n_facets = Geometries[index]->geometry_parameters.p_mesh_storage->n_facets;
-	double *v1_x = Geometries[index]->geometry_parameters.p_mesh_storage->v1_x;
-	double *v1_y = Geometries[index]->geometry_parameters.p_mesh_storage->v1_y;
-	double *v1_z = Geometries[index]->geometry_parameters.p_mesh_storage->v1_z;
-	double *v2_x = Geometries[index]->geometry_parameters.p_mesh_storage->v2_x;
-	double *v2_y = Geometries[index]->geometry_parameters.p_mesh_storage->v2_y;
-	double *v2_z = Geometries[index]->geometry_parameters.p_mesh_storage->v2_z;
-	double *v3_x = Geometries[index]->geometry_parameters.p_mesh_storage->v3_x;
-	double *v3_y = Geometries[index]->geometry_parameters.p_mesh_storage->v3_y;
-	double *v3_z = Geometries[index]->geometry_parameters.p_mesh_storage->v3_z;
-
-    Coords center = Geometries[index]->center;
-
-    struct lines_to_draw lines_to_draw_temp;
-    lines_to_draw_temp.number_of_lines = 0;
-    
-    Coords point1,point2,point3;
-    int iterate, i,j;
-    int print1 = 0;
-    int print2 = 0;
-    int print3 = 0;
-
-    Coords list_startpoints[n_facets*3];
-    Coords list_endpoints[n_facets*3];
-
-	int counter=0;
-    // For every triangle it should ad three lines    
-    for (iterate=0 ; iterate<n_facets ; iterate++) {
-        point1 = coords_add(rot_apply(Geometries[index]->rotation_matrix,coords_set(*(v1_x+iterate),*(v1_y+iterate),*(v1_z+iterate))),center);
-        point2 = coords_add(rot_apply(Geometries[index]->rotation_matrix,coords_set(*(v2_x+iterate),*(v2_y+iterate),*(v2_z+iterate))),center);
-	    point3 = coords_add(rot_apply(Geometries[index]->rotation_matrix,coords_set(*(v3_x+iterate),*(v3_y+iterate),*(v3_z+iterate))),center);
-
-	    print1 = 1;
-    	print2 = 1;
-    	print3 = 1;
-	
-	// Make sure it does not print a line if it is already printed.... (might take a while?)
-	for (i = 0 ; i < counter ; i++){
-		if (print1 == 1 && coord_comp(point1 , list_startpoints[i])){
-			for (j = 0 ; j < counter  ; j++){
-				if (coord_comp(point2 , list_startpoints[i])){
-					print1 = 0;
-				}
-			}
-		}
-		if (print2 == 1 && coord_comp(point2 , list_startpoints[i])){
-			for (j = 0 ; j < counter  ; j++){
-				if (coord_comp(point1 , list_startpoints[i])){
-					print1 = 0;
-				}
-			}
-		}
-		if (print2 == 1 && coord_comp(point2 , list_startpoints[i]) ){
-			for (j = 0 ; j < counter  ; j++){
-				if (coord_comp(point3 , list_startpoints[i])){
-					print2 = 0;
-				}
-			}
-		}
-		if (print3 == 1 && coord_comp(point3 , list_startpoints[i]) ){
-			for (j = 0 ; j < counter  ; j++){
-				if (coord_comp(point2 , list_startpoints[i])){
-					print2 = 0;
-				}
-			}
-		}
-		if (print1 == 1 && coord_comp(point1 , list_startpoints[i]) ){
-			for (j = 0 ; j < counter ; j++){
-				if (coord_comp(point1 , list_startpoints[i])){
-					print3 = 0;
-				}
-			}
-		}
-		if (print3 == 1 && coord_comp(point3 , list_startpoints[i])){
-			for (j = 0 ; j < counter  ; j++){
-				if (coord_comp(point1 , list_startpoints[i])){
-					print3 = 0;
-				}
-			}
-		}
-
-	}
-	
-	
-	// Create lines	
-	// Line 1
-	if (print1 == 1){
-		lines_to_draw_temp = draw_line_with_highest_priority(point1,point2,index,Geometries,number_of_volumes,100);
-		merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
-		list_startpoints[counter] = point1;
-		list_endpoints[counter] = point2;
-		counter++;
-	}
-	// Line 2
-	if (print2 == 1){
-		lines_to_draw_temp = draw_line_with_highest_priority(point2,point3,index,Geometries,number_of_volumes,100);
-		merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
-		list_startpoints[counter] = point2;
-		list_endpoints[counter] = point3;
-		counter++;
-	}
-	// Line 3
-	if (print3 == 1){
-		lines_to_draw_temp = draw_line_with_highest_priority(point3,point1,index,Geometries,number_of_volumes,100);
-	 	merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
-		list_startpoints[counter] = point3;
-		list_endpoints[counter] = point1;
-		counter++;
-	}
-	
-    }
-};
-
-void initialize_mesh_geometry_from_main_component(struct geometry_struct *mesh) {
-    // Function to be called in initialize of the main component
-    // This is done as the rotation matrix needs to be relative to the main component instead of global
-    // Everything done in initialize in this component file has the rotation matrix relative to global
-    
-    Coords simple_vector;
-    Coords mesh_vector;
-    
-    // Start with vector that points along the mesh in the local frame
-    simple_vector = coords_set(0,1,0);
-
-    // Rotate the direction vector of the mesh to the master component frame of reference
-    mesh_vector = rot_apply(mesh->rotation_matrix,simple_vector);
-    NORM(mesh_vector.x,mesh_vector.y,mesh_vector.z);
-    mesh->geometry_parameters.p_mesh_storage->direction_vector.x = mesh_vector.x;
-    mesh->geometry_parameters.p_mesh_storage->direction_vector.y = mesh_vector.y;
-    mesh->geometry_parameters.p_mesh_storage->direction_vector.z = mesh_vector.z;
-    // if (verbal == 1) printf("Cords vector1 = (%f,%f,%f)\n",mesh_vector.x,mesh_vector.y,
-    
-    mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center = rot_apply(mesh->rotation_matrix, mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center);
-    
-    /*
-    // Works for pure translation
-    print_position(mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center, "BB before adjustment");
-    mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center = coords_add(mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center, mesh->center);
-    print_position(mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center, "BB after adjustment");
-    */
+Coords get_coords_from_string(char* line){
+   Coords vert_coords = coords_set(1,2,1);
+   return vert_coords;
 }
 
-struct pointer_to_1d_coords_list mesh_shell_points(struct geometry_struct *geometry,int max_number_of_points) {
+void mcdisplay_mesh_function(struct lines_to_draw *lines_to_draw_output,int index, struct geometry_struct **Geometries,int number_of_volumes) {
+  // Function to call in mcdisplay section of the sample component for this volume
+
+  int n_facets = Geometries[index]->geometry_parameters.p_mesh_storage->n_facets;
+  double *v1_x = Geometries[index]->geometry_parameters.p_mesh_storage->v1_x;
+  double *v1_y = Geometries[index]->geometry_parameters.p_mesh_storage->v1_y;
+  double *v1_z = Geometries[index]->geometry_parameters.p_mesh_storage->v1_z;
+  double *v2_x = Geometries[index]->geometry_parameters.p_mesh_storage->v2_x;
+  double *v2_y = Geometries[index]->geometry_parameters.p_mesh_storage->v2_y;
+  double *v2_z = Geometries[index]->geometry_parameters.p_mesh_storage->v2_z;
+  double *v3_x = Geometries[index]->geometry_parameters.p_mesh_storage->v3_x;
+  double *v3_y = Geometries[index]->geometry_parameters.p_mesh_storage->v3_y;
+  double *v3_z = Geometries[index]->geometry_parameters.p_mesh_storage->v3_z;
+
+  Coords center = Geometries[index]->center;
+
+  struct lines_to_draw lines_to_draw_temp;
+  lines_to_draw_temp.number_of_lines = 0;
+
+  Coords point1,point2,point3;
+  int iterate, i,j;
+  int print1 = 0;
+  int print2 = 0;
+  int print3 = 0;
+
+  Coords *list_startpoints = (Coords*)calloc(n_facets*3,sizeof(Coords));
+  Coords *list_endpoints = (Coords*)calloc(n_facets*3,sizeof(Coords));
+
+  int counter=0;
+  // For every triangle it should add three lines
+  for (iterate=0 ; iterate<n_facets ; iterate++) {
+    point1 = coords_add(rot_apply(Geometries[index]->rotation_matrix,coords_set(*(v1_x+iterate),*(v1_y+iterate),*(v1_z+iterate))),center);
+    point2 = coords_add(rot_apply(Geometries[index]->rotation_matrix,coords_set(*(v2_x+iterate),*(v2_y+iterate),*(v2_z+iterate))),center);
+    point3 = coords_add(rot_apply(Geometries[index]->rotation_matrix,coords_set(*(v3_x+iterate),*(v3_y+iterate),*(v3_z+iterate))),center);
+
+    print1 = 1;
+    print2 = 1;
+    print3 = 1;
+    
+    // Make sure it does not print a line if it is already printed.... (might take a while?)
+    for (i = 0 ; i < counter ; i++){
+      if (print1 == 1 && coord_comp(point1 , list_startpoints[i])){
+	for (j = 0 ; j < counter  ; j++){
+	  if (coord_comp(point2 , list_startpoints[i])){
+	    print1 = 0;
+	  }
+	}
+      }
+      if (print2 == 1 && coord_comp(point2 , list_startpoints[i])){
+	for (j = 0 ; j < counter  ; j++){
+	  if (coord_comp(point1 , list_startpoints[i])){
+	    print1 = 0;
+	  }
+	}
+      }
+      if (print2 == 1 && coord_comp(point2 , list_startpoints[i]) ){
+	for (j = 0 ; j < counter  ; j++){
+	  if (coord_comp(point3 , list_startpoints[i])){
+	    print2 = 0;
+	  }
+	}
+      }
+      if (print3 == 1 && coord_comp(point3 , list_startpoints[i]) ){
+	for (j = 0 ; j < counter  ; j++){
+	  if (coord_comp(point2 , list_startpoints[i])){
+	    print2 = 0;
+	  }
+	}
+      }
+      if (print1 == 1 && coord_comp(point1 , list_startpoints[i]) ){
+	for (j = 0 ; j < counter ; j++){
+	  if (coord_comp(point1 , list_startpoints[i])){
+	    print3 = 0;
+	  }
+	}
+      }
+      if (print3 == 1 && coord_comp(point3 , list_startpoints[i])){
+	for (j = 0 ; j < counter  ; j++){
+	  if (coord_comp(point1 , list_startpoints[i])){
+	    print3 = 0;
+	  }
+	}
+      }
+
+    }
+
+
+    // Create lines
+    // Line 1
+    if (print1 == 1){
+      lines_to_draw_temp = draw_line_with_highest_priority(point1,point2,index,Geometries,number_of_volumes,100);
+      merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
+      list_startpoints[counter] = point1;
+      list_endpoints[counter] = point2;
+      counter++;
+    }
+    // Line 2
+    if (print2 == 1){
+      lines_to_draw_temp = draw_line_with_highest_priority(point2,point3,index,Geometries,number_of_volumes,100);
+      merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
+      list_startpoints[counter] = point2;
+      list_endpoints[counter] = point3;
+      counter++;
+    }
+    // Line 3
+    if (print3 == 1){
+      lines_to_draw_temp = draw_line_with_highest_priority(point3,point1,index,Geometries,number_of_volumes,100);
+      merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
+      list_startpoints[counter] = point3;
+      list_endpoints[counter] = point1;
+      counter++;
+    }
+
+  }
+  free(list_startpoints);
+  free(list_endpoints);
+};
+
+
+struct pointer_to_1d_coords_list allocate_shell_points(struct geometry_struct *geometry,int max_number_of_points) {
   // Function that returns a number (less than max) of points on the geometry surface
   // Run trhough all points in list of faces, and remove dublicates
   // There are three points in a face and very often these will be dublicated a few times. This removes dublicates to boost performance down stream...
@@ -318,28 +596,22 @@ struct pointer_to_1d_coords_list mesh_shell_points(struct geometry_struct *geome
 	int is_dublicate = 0;
 	Coords this_vert;
 	int i,j;
-	
-	printf("\n CREATE SHELL POINTS");
-	printf("\n n_verts (likely dublicated) = %i",n_facets*3);
 	for (i=0 ; i < n_facets ; i++){
 		
 		// v1
 		is_dublicate = 0;
 		this_vert = coords_set(*(v1_x+i),*(v1_y+i),*(v1_z+i));
-		//printf("\n this point [%f,%f,%f] ",this_vert.x,this_vert.y,this_vert.z);
 		
 		// test if dublicate
 		for (j = 0; j < number_of_points_in_array ; j++ ){
 			if (this_vert.x == mesh_shell_array.elements[j].x && this_vert.y == mesh_shell_array.elements[j].y && this_vert.z == mesh_shell_array.elements[j].z){
 				is_dublicate = 1;
-				//printf("\n point [%f,%f,%f] is a dublicate of [%f,%f,%f]",this_vert.x,this_vert.y,this_vert.z,mesh_shell_array.elements[j].x,mesh_shell_array.elements[j].y,mesh_shell_array.elements[j].z);
 				j = number_of_points_in_array;
 			}
 		}
 		if (is_dublicate == 0){
 			mesh_shell_array.elements[number_of_points_in_array] = this_vert;
 			number_of_points_in_array += 1;
-			//printf("\n Added a point [%f,%f,%f] ",this_vert.x,this_vert.y,this_vert.z);
 		}
 	
 	
@@ -348,18 +620,15 @@ struct pointer_to_1d_coords_list mesh_shell_points(struct geometry_struct *geome
 		is_dublicate = 0;
 		this_vert = coords_set(*(v2_x+i),*(v2_y+i),*(v2_z+i));
 		
-		// test if dublicate
 		for (j = 0; j < number_of_points_in_array ; j++){
 			if (this_vert.x == mesh_shell_array.elements[j].x && this_vert.y == mesh_shell_array.elements[j].y && this_vert.z == mesh_shell_array.elements[j].z){
 				is_dublicate = 1;
-				//printf("\n point [%f,%f,%f] is a dublicate of [%f,%f,%f]",this_vert.x,this_vert.y,this_vert.z,mesh_shell_array.elements[j].x,mesh_shell_array.elements[j].y,mesh_shell_array.elements[j].z);
 				j = number_of_points_in_array;
 			}
 		}
 		if (is_dublicate == 0){
 			mesh_shell_array.elements[number_of_points_in_array] = this_vert;
 			number_of_points_in_array += 1;
-			//printf("\n Added a point [%f,%f,%f] ",this_vert.x,this_vert.y,this_vert.z);
 		}
 	
 	
@@ -372,111 +641,198 @@ struct pointer_to_1d_coords_list mesh_shell_points(struct geometry_struct *geome
 		for (j = 0; j < number_of_points_in_array ; j++ ){
 			if (this_vert.x == mesh_shell_array.elements[j].x && this_vert.y == mesh_shell_array.elements[j].y && this_vert.z == mesh_shell_array.elements[j].z){
 				is_dublicate = 1;
-				//printf("\n point [%f,%f,%f] is a dublicate of [%f,%f,%f]",this_vert.x,this_vert.y,this_vert.z,mesh_shell_array.elements[j].x,mesh_shell_array.elements[j].y,mesh_shell_array.elements[j].z);
 				j = number_of_points_in_array;
 			}
 		}
 		if (is_dublicate == 0){
 			mesh_shell_array.elements[number_of_points_in_array] = this_vert;
 			number_of_points_in_array += 1;
-			//printf("\n Added a point [%f,%f,%f] ",this_vert.x,this_vert.y,this_vert.z);
 		}
 	}
     
-  printf("\n test is there to high j? j = %i, number_of_points_in_array = %i , lenght of array = %i ",j,number_of_points_in_array,3*n_facets * sizeof(Coords));
   j = number_of_points_in_array - 1; // Last legal index, currently j is out of bounds.
-  printf("\n test= [%f,%f,%f]",mesh_shell_array.elements[j].x ,mesh_shell_array.elements[j].y,mesh_shell_array.elements[j].z);
   
   mesh_shell_array.num_elements = number_of_points_in_array;
-  //free(mesh_shell_array.elements);
-  printf("\n SHELL POINTS: DONE");
-  printf("\n SHELL POINTS: created %i shell points in mesh",mesh_shell_array.num_elements);
-    //printf("\n test last element = [%f,%f,%f]",mesh_shell_array.elements[mesh_shell_array.num_elements-1].x ,mesh_shell_array.elements[mesh_shell_array.num_elements-1].y,mesh_shell_array.elements[mesh_shell_array.num_elements-1].z);
+
+   
+   for (i=0; i<number_of_points_in_array; i++){
+      // Transpose and rotate the points such that they are in the right coordinate system
+      mesh_shell_array.elements[i] = coords_add(mesh_shell_array.elements[i], geometry->center);
+      mesh_shell_array.elements[i] = rot_apply(geometry->rotation_matrix, mesh_shell_array.elements[i]);
+   }
   return mesh_shell_array;
 }
 
-#ifndef ANY_GEOMETRY_DETECTOR_DECLARE
-    #define ANY_GEOMETRY_DETECTOR_DECLARE dummy
-    //struct pointer_to_global_geometry_list global_geometry_list = {0,NULL};
-#endif
+
+void initialize_mesh_geometry_from_main_component(struct geometry_struct *mesh) {
+    // Function to be called in initialize of the main component
+    // This is done as the rotation matrix needs to be relative to the main component instead of global
+    // Everything done in initialize in this component file has the rotation matrix relative to global
+    
+    Coords simple_vector;
+    Coords mesh_vector;
+    
+    // Start with vector that points along the mesh in the local frame
+    simple_vector = coords_set(0,1,0);
+
+    // Rotate the direction vector of the mesh to the master component frame of reference
+    mesh_vector = rot_apply(mesh->rotation_matrix,simple_vector);
+    NORM(mesh_vector.x,mesh_vector.y,mesh_vector.z);
+    mesh->geometry_parameters.p_mesh_storage->direction_vector.x = mesh_vector.x;
+    mesh->geometry_parameters.p_mesh_storage->direction_vector.y = mesh_vector.y;
+    mesh->geometry_parameters.p_mesh_storage->direction_vector.z = mesh_vector.z;
+    
+    mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center = rot_apply(mesh->rotation_matrix, mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center);
+    
+    /*
+    // Works for pure translation
+    print_position(mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center, "BB before adjustment");
+    mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center = coords_add(mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center, mesh->center);
+    print_position(mesh->geometry_parameters.p_mesh_storage->Bounding_Box_Center, "BB after adjustment");
+    */
+}
+
+
+double square(double x){
+   return x*x;
+}
 
 %}
 
+//=============================================================================
+//                            DECLARE SECTION
+//=============================================================================
 DECLARE
 %{
 // Needed for transport to the main component
-
-//
 struct global_geometry_element_struct global_geometry_element;
 
 int loop_index;
 int loop_2_index;
 int material_index;
+off_struct offdata; // off struct isnt currently in use
+
+// Volume struct contains name, geometry struct, physics struct
+// loggers struct and absorption loggers struct.
+struct Volume_struct mesh_vol;
+
+// Mesh storage contains the number of facets, and for each facet
+// the three vertexes coordinates. Not in an optimal way.
+// However, the Bounding box center and radius is also stored here.
+struct mesh_storage mesh_data;
+
+// Structs for surface effects
+struct surface_stack_struct surface_stack;
+struct surface_stack_struct cut_surface_stack;
 
 
-struct Volume_struct this_mesh_volume;
-struct mesh_storage this_mesh_storage;
+
 %}
+//=============================================================================
+//                         INITIALIZE SECTION
+//=============================================================================
 
 INITIALIZE
 %{
+geometry_struct_init(&(mesh_vol.geometry));
+mesh_vol.geometry.skip_hierarchy_optimization = skip_convex_check;
 // Initializes the focusing system for this volume including input sanitation.
-focus_initialize(&this_mesh_volume.geometry, POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index), POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, target_index, target_x, target_y, target_z, focus_aw, focus_ah, focus_xw, focus_xh, focus_r, NAME_CURRENT_COMP);
+focus_initialize(&mesh_vol.geometry, 
+      POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),
+      POS_A_CURRENT_COMP,
+      ROT_A_CURRENT_COMP,
+      target_index,
+      target_x,
+		target_y,
+		target_z,
+		focus_aw,
+		focus_ah,
+		focus_xw,
+		focus_xh,
+		focus_r,
+		NAME_CURRENT_COMP);
 
 
 
 if (_getcomp_index(init) < 0) {
-fprintf(stderr,"Union_mesh:%s: Error identifying Union_init component, %s is not a known component name.\n",
-NAME_CURRENT_COMP, init);
+   fprintf(stderr,"Union_mesh:%s: Error identifying Union_init component,"
+           "%s is not a known component name.\n",NAME_CURRENT_COMP, init);
 exit(-1);
 }
-struct pointer_to_global_material_list *global_material_list = COMP_GETPAR3(Union_init, init, global_material_list);
+struct pointer_to_global_material_list *global_material_list = COMP_GETPAR3(
+      Union_init,
+		init,
+		global_material_list);
+
 // Use sanitation
 #ifdef MATERIAL_DETECTOR
 if (global_material_list->num_elements == 0) {
   // Here if the user have defined a material, but only after this material
-  printf("\nERROR: Need to define a material using Union_make_material before using a Union geometry component. \n");
-  printf("       %s was defined before first use of Union_make_material.\n",NAME_CURRENT_COMP);
+   printf("\nERROR: Need to define a material using Union_make_material"
+          " before using a Union geometry component. \n");
+  printf("%s was defined before first use of Union_make_material.\n",NAME_CURRENT_COMP);
   exit(1);
 }
+
 #endif
 #ifndef MATERIAL_DETECTOR
-  printf("\nERROR: Need to define a material using Union_make_material before using a Union geometry component. \n");
+printf("\nERROR: Need to define a material using Union_make_material"
+       " before using a Union geometry component. \n");
   exit(1);
 #endif
 
 
-this_mesh_volume.geometry.is_masked_volume = 0;
-this_mesh_volume.geometry.is_exit_volume = 0;
-this_mesh_volume.geometry.is_mask_volume = 0;
+mesh_vol.geometry.is_masked_volume = 0;
+mesh_vol.geometry.is_exit_volume = 0;
+mesh_vol.geometry.is_mask_volume = 0;
 
-struct pointer_to_global_geometry_list *global_geometry_list = COMP_GETPAR3(Union_init, init, global_geometry_list);
+struct pointer_to_global_geometry_list *global_geometry_list = COMP_GETPAR3(Union_init,
+		init,
+		global_geometry_list);
+//==============================================================================
+//                         Find out what this component masks
+//==============================================================================
+
+
 
 // Read the material input, or if it lacks, use automatic linking.
-if (mask_string && strlen(mask_string) && strcmp(mask_string, "NULL") && strcmp(mask_string, "0")) {
-    // A mask volume is used to limit the extend of other volumes, called the masked volumes. These are specified in the mask_string.
-    // In order for a ray to enter a masked volume, it needs to be both in the region covered by that volume AND the mask volume.
+if (mask_string && 
+   strlen(mask_string) && 
+   strcmp(mask_string, "NULL") && 
+   strcmp(mask_string, "0")) {
+    // A mask volume is used to limit the extend of other volumes, 
+   // called the masked volumes. These are specified in the mask_string.
+    // In order for a ray to enter a masked volume, 
+   // it needs to be both in the region covered by that volume AND the mask volume.
     // When more than
-    this_mesh_volume.geometry.mask_mode = 1; // Default mask mode is ALL
-    if (mask_setting && strlen(mask_setting) && strcmp(mask_setting, "NULL") && strcmp(mask_setting, "0")) {
-        if (strcmp(mask_setting,"ALL") == 0 || strcmp(mask_setting,"All") == 0) this_mesh_volume.geometry.mask_mode = 1;
-        else if (strcmp(mask_setting,"ANY") == 0 || strcmp(mask_setting,"Any") == 0) this_mesh_volume.geometry.mask_mode = 2;
-        else {
-            printf("The mask_mode of component %s is set to %s, but must be either ALL or ANY.\n",NAME_CURRENT_COMP,mask_setting);
-            exit(1);
+    mesh_vol.geometry.mask_mode = 1; // Default mask mode is ALL
+    if (mask_setting && strlen(mask_setting) && strcmp(mask_setting,
+		"NULL") && strcmp(mask_setting, "0")) {
+      if (strcmp(mask_setting,"ALL") == 0 || strcmp(mask_setting,"All") == 0) {
+         mesh_vol.geometry.mask_mode = 1;
+      }
+      else if (strcmp(mask_setting,"ANY") == 0 || strcmp(mask_setting,"Any") == 0) {
+         mesh_vol.geometry.mask_mode = 2;
+      }
+      else {
+         printf("The mask_mode of component %s is set to %s,"
+                " but must be either ALL or ANY.\n",
+                NAME_CURRENT_COMP,mask_setting);
+         exit(1);
         }
     }
     
     int found_geometries = 0;
     for (loop_index=0;loop_index<global_geometry_list->num_elements;loop_index++) {
         // Add mask list
+
         if (1 == manual_linking_function(global_geometry_list->elements[loop_index].name,mask_string)) {
-            add_element_to_int_list(&this_mesh_volume.geometry.mask_list,global_geometry_list->elements[loop_index].component_index);
+            add_element_to_int_list(&mesh_vol.geometry.mask_list,global_geometry_list->elements[loop_index].component_index);
             add_element_to_int_list(&global_geometry_list->elements[loop_index].Volume->geometry.masked_by_list,INDEX_CURRENT_COMP);
             global_geometry_list->elements[loop_index].Volume->geometry.is_masked_volume = 1;
-            if (this_mesh_volume.geometry.mask_mode == 2)
+            if (mesh_vol.geometry.mask_mode == 2)
                 global_geometry_list->elements[loop_index].Volume->geometry.mask_mode = 2;
-            if (this_mesh_volume.geometry.mask_mode == 1) {
+            if (mesh_vol.geometry.mask_mode == 1) {
                 if (global_geometry_list->elements[loop_index].Volume->geometry.is_masked_volume == 1 && global_geometry_list->elements[loop_index].Volume->geometry.mask_mode != 2)
                     // If more than one mask is added to one volume, the ANY mode overwrites the (default) ALL mode.
                     global_geometry_list->elements[loop_index].Volume->geometry.mask_mode = 1;
@@ -486,45 +842,54 @@ if (mask_string && strlen(mask_string) && strcmp(mask_string, "NULL") && strcmp(
         }
     }
     if (found_geometries == 0) {
-        printf("The mask_string in geometry: %s did not find any of the specified volumes in the mask_string %s \n",NAME_CURRENT_COMP,mask_string);
+      printf("The mask_string in geometry: "
+             "%s did not find any of the specified volumes in the mask_string "
+             "%s \n",NAME_CURRENT_COMP,mask_string);
         exit(1);
     }
-    this_mesh_volume.p_physics = malloc(sizeof(struct physics_struct));
-    this_mesh_volume.p_physics->is_vacuum = 0; // Makes this volume a vacuum
-    this_mesh_volume.p_physics->number_of_processes = (int) 0; // Should not be used.
-    this_mesh_volume.p_physics->my_a = 0; // Should not be used.
-    sprintf(this_mesh_volume.p_physics->name,"Mask");
-    this_mesh_volume.geometry.is_mask_volume = 1;
+    mesh_vol.p_physics = malloc(sizeof(struct physics_struct));
+    mesh_vol.p_physics->is_vacuum = 0; // Makes this volume a vacuum
+    mesh_vol.p_physics->number_of_processes = (int) 0; // Should not be used.
+    mesh_vol.p_physics->my_a = 0; // Should not be used.
+    sprintf(mesh_vol.p_physics->name,"Mask");
+    mesh_vol.geometry.is_mask_volume = 1;
     
     
 // Read the material input, or if it lacks, use automatic linking.
-} else if (material_string && strlen(material_string) && strcmp(material_string, "NULL") && strcmp(material_string, "0")) {
+} else if (material_string 
+   && strlen(material_string) 
+   && strcmp(material_string, "NULL") 
+   && strcmp(material_string, "0")) {
     // A geometry string was given, use it to determine which material
-    if (0 == strcmp(material_string,"vacuum") || 0 == strcmp(material_string,"Vacuum")) {
+    if (0 == strcmp(material_string,"vacuum") 
+     || 0 == strcmp(material_string,"Vacuum")) {
         // One could have a global physics struct for vacuum instead of creating one for each
-        this_mesh_volume.p_physics = malloc(sizeof(struct physics_struct));
-        this_mesh_volume.p_physics->is_vacuum = 1; // Makes this volume a vacuum
-        this_mesh_volume.p_physics->number_of_processes = (int) 0;
-        this_mesh_volume.p_physics->my_a = 0; // Should not be used.
-        sprintf(this_mesh_volume.p_physics->name,"Vacuum");
-    } else if (0 == strcmp(material_string,"exit") || 0 == strcmp(material_string,"Exit")) {
+        mesh_vol.p_physics = malloc(sizeof(struct physics_struct));
+        mesh_vol.p_physics->is_vacuum = 1; // Makes this volume a vacuum
+        mesh_vol.p_physics->number_of_processes = (int) 0;
+        mesh_vol.p_physics->my_a = 0; // Should not be used.
+        sprintf(mesh_vol.p_physics->name,"Vacuum");
+    } else if (0 == strcmp(material_string,"exit") 
+            || 0 == strcmp(material_string,"Exit")) {
         // One could have a global physics struct for exit instead of creating one for each
-        this_mesh_volume.p_physics = malloc(sizeof(struct physics_struct));
-        this_mesh_volume.p_physics->is_vacuum = 1; // Makes this volume a vacuum
-        this_mesh_volume.p_physics->number_of_processes = (int) 0;
-        this_mesh_volume.p_physics->my_a = 0; // Should not be used.
-        this_mesh_volume.geometry.is_exit_volume = 1;
-        sprintf(this_mesh_volume.p_physics->name,"Exit");
+        mesh_vol.p_physics = malloc(sizeof(struct physics_struct));
+        mesh_vol.p_physics->is_vacuum = 1; // Makes this volume a vacuum
+        mesh_vol.p_physics->number_of_processes = (int) 0;
+        mesh_vol.p_physics->my_a = 0; // Should not be used.
+        mesh_vol.geometry.is_exit_volume = 1;
+        sprintf(mesh_vol.p_physics->name,"Exit");
     } else {
         for (loop_index=0;loop_index<global_material_list->num_elements;loop_index++) {
           if (0 == strcmp(material_string,global_material_list->elements[loop_index].name)) {
-            this_mesh_volume.p_physics = global_material_list->elements[loop_index].physics;
+            mesh_vol.p_physics = global_material_list->elements[loop_index].physics;
             break;
           }
           if (loop_index == global_material_list->num_elements-1) {
             printf("\n");
-            printf("ERROR: The material string \"%s\" in Union geometry \"%s\" did not match a specified material. \n",material_string,NAME_CURRENT_COMP);
-            printf("       The materials available at this point (need to be defined before the geometry): \n");
+            printf("ERROR: The material string \"%s\" in Union geometry \"%s\""
+                   " did not match a specified material. \n",material_string,NAME_CURRENT_COMP);
+            printf("       The materials available at this point"
+                   " (need to be defined before the geometry): \n");
             for (loop_index=0;loop_index<global_material_list->num_elements;loop_index++)
               printf("         %s\n",global_material_list->elements[loop_index].name);
             printf("\n");
@@ -542,297 +907,235 @@ if (mask_string && strlen(mask_string) && strcmp(mask_string, "NULL") && strcmp(
         printf("Need to define a material before the geometry to use automatic linking %s.\n",NAME_CURRENT_COMP);
         exit(1);
     #endif
-    this_mesh_volume.p_physics = global_material_list->elements[global_material_list->num_elements-1].physics;
+    mesh_vol.p_physics = global_material_list->elements[global_material_list->num_elements-1].physics;
+}
+//==============================================================================
+//                       READ FIle   
+//==============================================================================
+// Read input file and put into storage. 
+// We assume that the input file is using triangular faces, otherwise
+// the check for closed mesh using the Euler-Poincare characteristic
+// is wrong.
+int n_verts, n_faces, n_edges;
+Coords* verts;
+int** faces;
+int unique_index = 0;
+
+const char *dot = strrchr(filename, '.');
+if (!dot || dot == filename) {
+   printf("ERROR: given file has no extension %s", NAME_CURRENT_COMP);
+   exit(1);
+}
+if(strcmp(dot, ".stl") == 0 || strcmp(dot, ".STL") == 0){
+   printf("\n%s, Given file is in stl format. Union_mesh assumes three vertices per face.\n",
+          NAME_CURRENT_COMP);
+   read_stl(filename, 
+                             &n_verts, 
+                             &n_faces, 
+                             &n_edges,
+                             &verts,
+                             &faces,
+                             NAME_CURRENT_COMP);
+} else if (strcmp(dot, ".off") == 0 || strcmp(dot, ".OFF") == 0) {
+   printf("\n%s, Given file is in off format. Union_mesh assumes three vertices per face.\n",
+          NAME_CURRENT_COMP);
+   read_off_file_vertices_and_faces(filename, 
+                             &n_verts, 
+                             &n_faces, 
+                             &n_edges,
+                             &verts,
+                             &faces,
+                             NAME_CURRENT_COMP);
+} else {
+   printf("\nERROR IN %s: File %s is read as neither an stl or an off file.",
+          NAME_CURRENT_COMP, filename);
+   exit(1);
+}
+// Loop over all vertices and multiply their positions with coordinate_scale
+for (int i = 0; i<n_verts; i++){//TODO: Dont use x y z as this doesnt align with particle struct.
+   verts[i] = coords_scale(verts[i], coordinate_scale);
 }
 
 
-// Read input file and put into storage 
-// test 2
-	printf("\n START read file: ");
 
-	//char *filename = "text.stl";
-	FILE *fp;
-	fp = fopen(filename,"r");
-	int n_lines;
-	char  buffer[250];
-	printf("\n test1");
-	n_lines = 0;
-	  while (fgets(buffer, sizeof buffer, fp)) {
-		++n_lines;
-	  }
-	  fclose(fp);
-	printf("\n n_lines: %i",n_lines);
-	printf("\n n_facets: %i",(n_lines-2)/7);
-	int n_facets = (n_lines-2)/7;
-	
-	printf("\n done");
-	//printf("\n n_facets: %i",n_facets);
-	
-	
-    char *line = NULL;
-    size_t len = 0;
-	char dest[9]; // 8 chars + terminator
-	int iter = 0; int counter = 0;
-    ssize_t read;
-	
-	Coords normal[n_facets+1];
-	Coords v1[n_facets+1];
-	Coords v2[n_facets+1];
-	Coords v3[n_facets+1];
-	
-	//#include "MeshFunctions/get_coords_from_string.c"
-	printf("\nTEST n_facets = %i\n",n_facets);
-	Coords fromString;
-    fp = fopen(filename, "r");
-    if (fp == NULL)
-        exit(EXIT_FAILURE);
-    while ((read = getline(&line, &len, fp)) != -1) {
-		//printf("______________________-----NEW------_____________________\n");
-		//printf("%s\n", line);
+// Make lists that will be used to calculate the number of edges
+int** vert_pairs = (int **)malloc(sizeof(int *)*3*n_faces);
+int** unique_verts = (int **)malloc(sizeof(int *)*3*n_faces);
+for (int i=0; i<3*n_faces;i++){
+   vert_pairs[i] = (int *)malloc(sizeof(int)*2);
+   unique_verts[i] = (int *)malloc(sizeof(int)*2);
+}
+
+generate_vertex_vertex_pair_list(faces, vert_pairs, n_faces);
+
+find_unique_vertex_vertex_pairs(&unique_index, unique_verts,
+                                vert_pairs, &n_faces);
+
+n_edges = unique_index; // The number of edges is the number of unique 
+                        // vertex vertex pairs.
+if (mesh_is_not_closed(n_faces,n_verts,n_edges) && !skip_convex_check){
+   printf("\nNumber of edges is the unique index, %d", unique_index);
+   printf("\nEuler Pointcare characteristic is %d",
+          n_faces + n_verts - unique_index);
+
+   printf("\n\nERROR: Input mesh from %s, is not a closed shape according to Euler Pointcare."
+          "\nNumber of faces = %d, Number of vertices = %d, Number of Edges = %d"
+          "\nUnion_mesh_off requires the user input to be a convex hull.\n"
+          "If you are sure that it is, set skip_convex_check to 1\n\n",
+          NAME_CURRENT_COMP,n_faces, n_verts,n_edges);
+   exit(1);
+} 
+
+// Calculate bounding box
+double max_dist = 0;
+double dist = 0;
+Coords B_sphere_x = verts[0];
+Coords B_sphere_y = B_sphere_x;
+
+for (int i = 0; i<n_verts; i++){
+   dist = sqrt(B_sphere_x.x - verts[i].x 
+               + B_sphere_x.y - verts[i].y
+               + B_sphere_x.z - verts[i].z);
+   if (dist>max_dist){
+      max_dist = dist;
+      B_sphere_y = verts[i];
+   }
+}
+Coords B_sphere_z = B_sphere_y;
+max_dist = 0;
+for (int i=0; i<n_verts; i++){
+   dist = sqrt(square(B_sphere_y.x-verts[i].x)
+               + square(B_sphere_y.y-verts[i].y)
+               + square(B_sphere_y.z-verts[i].z));
+   
+   if (dist>max_dist){
+      max_dist = dist;
+      B_sphere_z = verts[i];
+   }
+}
+double radius = sqrt(square(B_sphere_y.x-B_sphere_z.x)
+                     + square(B_sphere_y.y-B_sphere_z.y)
+                     + square(B_sphere_y.z-B_sphere_z.z))/2;
+Coords bbcenter = coords_set((B_sphere_y.x + B_sphere_z.x)/2,
+                             (B_sphere_y.y + B_sphere_z.y)/2,
+                             (B_sphere_y.z + B_sphere_z.z)/2);
+mesh_data.Bounding_Box_Center = bbcenter;
+double test_rad = 0;
+for (int i=0; i<n_verts;i++){
+   test_rad = sqrt(square(bbcenter.x-verts[i].x)
+               + square(bbcenter.y-verts[i].y)
+               + square(bbcenter.z-verts[i].z));
+   if (test_rad>radius){
+      radius = test_rad;
+   }
+}
+mesh_data.Bounding_Box_Radius = radius;
+
+
+
+
+Coords vert1, vert2, vert3;
+Coords edge1, edge2;
+// Allocate space vertices in mesh data
+// TODO: Change data format to be in a less verbose data structure, or a more effective one.
+mesh_data.v1_x = (double *)malloc(n_faces*sizeof(double));
+mesh_data.v1_y = (double *)malloc(n_faces*sizeof(double));
+mesh_data.v1_z = (double *)malloc(n_faces*sizeof(double));
+mesh_data.v2_x = (double *)malloc(n_faces*sizeof(double));
+mesh_data.v2_y = (double *)malloc(n_faces*sizeof(double));
+mesh_data.v2_z = (double *)malloc(n_faces*sizeof(double));
+mesh_data.v3_x = (double *)malloc(n_faces*sizeof(double));
+mesh_data.v3_y = (double *)malloc(n_faces*sizeof(double));
+mesh_data.v3_z = (double *)malloc(n_faces*sizeof(double));
+mesh_data.normal_x = (double *)malloc(n_faces*sizeof(double));
+mesh_data.normal_y = (double *)malloc(n_faces*sizeof(double));
+mesh_data.normal_z = (double *)malloc(n_faces*sizeof(double));
+for (int i=0; i<n_faces; i++){
+   vert1 = verts[faces[i][0]];
+   vert2 = verts[faces[i][1]];
+   vert3 = verts[faces[i][2]];
+   mesh_data.v1_x[i] = vert1.x;	
+   mesh_data.v1_y[i] = vert1.y;
+	mesh_data.v1_z[i] = vert1.z;
 		
-			if (iter==1){
-				if (line[0] == 101){
-					//printf("\nDone reading file\n");
-				}else{
-					
-					// Normal vector
-					fromString = get_coords_from_string(line);
-					normal[counter]=fromString;
-				
-					//printf("\n normal: [%i]: normal[%i] = [%f,%f,%f] \n",iter,counter,normal[counter].x,normal[counter].y,normal[counter].z);
-				}
-			}
-			if (iter==3){
-				fromString = get_coords_from_string(line);
-				v1[counter]=fromString;
-				//printf("\n v1 [%i]: v1[%i] = [%f,%f,%f] \n",iter,counter,v1[counter].x,v1[counter].y,v1[counter].z);
-			}
-			if (iter==4){
-				fromString = get_coords_from_string(line);
-				v2[counter]=fromString;
-				//printf("\n v2 [%i]: v2[%i] = [%f,%f,%f] \n",iter,counter,v2[counter].x,v2[counter].y,v2[counter].z);
-			}
-			if (iter==5){
-				fromString = get_coords_from_string(line);
-				v3[counter]=fromString;
-				//printf("\n v3 [%i]: v3[%i] = [%f,%f,%f] \n",iter,counter,v3[counter].x,v3[counter].y,v3[counter].z);
-				
-			}
-			if (iter==7){
-				iter = 0;
-				counter ++;
-			}
-		//printf("\n TESTTESTTEST:  [%f,%f,%f] \n",this_mesh_storage.poligon_list[counter].normal.x,this_mesh_storage.poligon_list[counter].normal.y,this_mesh_storage.poligon_list[counter].normal.z);
+	mesh_data.v2_x[i] = vert2.x;
+	mesh_data.v2_y[i] = vert2.y;
+	mesh_data.v2_z[i] = vert2.z;
 		
-		iter++; 
-    }
-	
-    fclose(fp);
-	
-	int i;
-	
-	// Transform coordinate (translate then rotate)
-	printf("\n\nPOS_A_CURRENT_COMP [%f,%f,%f]",POS_A_CURRENT_COMP.x,POS_A_CURRENT_COMP.y,POS_A_CURRENT_COMP.z);
-	for (i = 0 ; i < counter ; i++ ){
-		// run through existing arrays without creating new ones. This is a very bad habbit!  PLZ fix
-		
-        /*
-		// v1
-		v1[i].x = v1[i].x + POS_A_CURRENT_COMP.x;
-		v1[i].y = v1[i].y + POS_A_CURRENT_COMP.y;
-		v1[i].z = v1[i].z + POS_A_CURRENT_COMP.z;
-		//v1[i] = rot_apply(this_mesh_volume.geometry.transpose_rotation_matrix,v1[i]);
+	mesh_data.v3_x[i] = vert3.x;
+	mesh_data.v3_y[i] = vert3.y;
+	mesh_data.v3_z[i] = vert3.z;
+   edge1 = coords_sub(vert1,vert2);
+   edge2 = coords_sub(vert3,vert1);
+   vec_prod(mesh_data.normal_x[i], mesh_data.normal_y[i], mesh_data.normal_z[i], 
+                     edge1.x, edge1.y, edge1.z,
+                     edge2.x, edge2.y, edge2.z);
+}
+mesh_data.n_facets = n_faces;
+mesh_data.counter = n_verts; 
 
-		// v2
-		v2[i].x = v2[i].x + POS_A_CURRENT_COMP.x;
-		v2[i].y = v2[i].y + POS_A_CURRENT_COMP.y;
-		v2[i].z = v2[i].z + POS_A_CURRENT_COMP.z;
-		//v2[i] = rot_apply(this_mesh_volume.geometry.transpose_rotation_matrix,v2[i]);
-		
-		// v3
-		v3[i].x = v3[i].x + POS_A_CURRENT_COMP.x;
-		v3[i].y = v3[i].y + POS_A_CURRENT_COMP.y;
-		v3[i].z = v3[i].z + POS_A_CURRENT_COMP.z;
-		//v3[i] = rot_apply(this_mesh_volume.geometry.transpose_rotation_matrix,v3[i]);
-        */
-        
-        /*
-        // v1
-        v1[i].x = v1[i].x + POS_A_CURRENT_COMP.x;
-        v1[i].y = v1[i].y + POS_A_CURRENT_COMP.y;
-        v1[i].z = v1[i].z + POS_A_CURRENT_COMP.z;
-        //v1[i] = rot_apply(this_mesh_volume.geometry.transpose_rotation_matrix,v1[i]);
+mesh_vol.geometry.number_of_faces = 1;
+mesh_vol.geometry.surface_stack_for_each_face = malloc(
+   mesh_vol.geometry.number_of_faces * sizeof(struct surface_stack_struct ));
 
-        // v2
-        v2[i].x = v2[i].x + POS_A_CURRENT_COMP.x;
-        v2[i].y = v2[i].y + POS_A_CURRENT_COMP.y;
-        v2[i].z = v2[i].z + POS_A_CURRENT_COMP.z;
-        //v2[i] = rot_apply(this_mesh_volume.geometry.transpose_rotation_matrix,v2[i]);
-        
-        // v3
-        v3[i].x = v3[i].x + POS_A_CURRENT_COMP.x;
-        v3[i].y = v3[i].y + POS_A_CURRENT_COMP.y;
-        v3[i].z = v3[i].z + POS_A_CURRENT_COMP.z;
-        */
-		
-	}
-	printf("\n TEST inf v1 is long enough! i = %i , n_facets = %i, counter = %i \n",i,n_facets,counter);
-	
-	// Create bounding sphere using Ritter [https://en.wikipedia.org/wiki/Bounding_sphere#cite_note-Ritter1990-2]
-	//  Ritter, Jack (1990), "An efficient bounding sphere", in Glassner, Andrew S., Graphics Gems, San Diego, CA, US: Academic Press Professional, Inc., pp. 301–303, ISBN 0-12-286166-3
-	double max_dist=0;
-	
-	Coords B_sphere_x = v1[0];
-	Coords B_sphere_y = B_sphere_x ;
-	for (i = 1 ; i < counter ; i++ ){
-		if (sqrt(v1[0].x-v1[i].x+v1[0].y-v1[i].y+v1[0].z-v1[i].z) > max_dist){
-			max_dist = sqrt(v1[0].x-v1[i].x+v1[0].y-v1[i].y+v1[0].z-v1[i].z);
-			B_sphere_y = v1[i];
-		}
-		if (sqrt(v1[0].x-v2[i].x+v1[0].y-v2[i].y+v1[0].z-v2[i].z) > max_dist){
-			max_dist = sqrt(v1[0].x-v2[i].x+v1[0].y-v2[i].y+v1[0].z-v2[i].z);
-			B_sphere_y = v2[i];
-		}
-		if (sqrt(v1[0].x-v3[i].x+v1[0].y-v3[i].y+v1[0].z-v3[i].z) > max_dist){
-			max_dist = sqrt(v1[0].x-v3[i].x+v1[0].y-v3[i].y+v1[0].z-v3[i].z);
-			B_sphere_y = v3[i];
-		}
-	}
-	Coords B_sphere_z = B_sphere_y ;
-	max_dist=0;
-	for (i = 1 ; i < counter ; i++ ){
-		if (sqrt(pow(B_sphere_y.x-v1[i].x,2) + pow(B_sphere_y.y-v1[i].y,2) + pow(B_sphere_y.z-v1[i].z,2)) > max_dist){
-			max_dist = sqrt(pow(B_sphere_y.x-v1[i].x,2) + pow(B_sphere_y.y-v1[i].y,2) + pow(B_sphere_y.z-v1[i].z,2));
-			B_sphere_z = v1[i];
-		}
-		if (sqrt(pow(B_sphere_y.x-v2[i].x,2) + pow(B_sphere_y.y-v2[i].y,2) + pow(B_sphere_y.z-v2[i].z,2)) > max_dist){
-			max_dist = sqrt(pow(B_sphere_y.x-v2[i].x,2) + pow(B_sphere_y.y-v2[i].y,2) + pow(B_sphere_y.z-v2[i].z,2));
-			B_sphere_z = v2[i];
-		}
-		if (sqrt(pow(B_sphere_y.x-v3[i].x,2) + pow(B_sphere_y.y-v3[i].y,2) + pow(B_sphere_y.z-v3[i].z,2)) > max_dist){
-			max_dist = sqrt(pow(B_sphere_y.x-v3[i].x,2) + pow(B_sphere_y.y-v3[i].y,2) + pow(B_sphere_y.z-v3[i].z,2));
-			B_sphere_z = v3[i];
-		}
-	}
-	
-	double tmp_Radius = sqrt(pow(B_sphere_y.x-B_sphere_z.x,2.0) + pow(B_sphere_y.y-B_sphere_z.y,2.0) + pow(B_sphere_y.z-B_sphere_z.z,2.0))/2;
-	Coords bbcenter = coords_set((B_sphere_y.x+B_sphere_z.x)/2 , (B_sphere_y.y+B_sphere_z.y)/2 , (B_sphere_y.z+B_sphere_z.z)/2);
-	this_mesh_storage.Bounding_Box_Center = bbcenter;
-	for (i = 0 ; i < counter ; i++ ){
-		if (sqrt(pow(bbcenter.x-v1[i].x,2.0) + pow(bbcenter.y-v1[i].y,2.0) + pow(bbcenter.z-v1[i].z,2.0)) > tmp_Radius){
-			tmp_Radius = sqrt(pow(bbcenter.x-v1[i].x,2.0) + pow(bbcenter.y-v1[i].y,2.0) + pow(bbcenter.z-v1[i].z,2.0));
-		}
-		if (sqrt(pow(bbcenter.x-v2[i].x,2.0) + pow(bbcenter.y-v2[i].y,2.0) + pow(bbcenter.z-v2[i].z,2.0)) > tmp_Radius){
-			tmp_Radius = sqrt(pow(bbcenter.x-v2[i].x,2.0) + pow(bbcenter.y-v2[i].y,2.0) + pow(bbcenter.z-v2[i].z,2.0));
-		}
-		if (sqrt(pow(bbcenter.x-v3[i].x,2.0) + pow(bbcenter.y-v3[i].y,2.0) + pow(bbcenter.z-v3[i].z,2.0)) > tmp_Radius){
-			tmp_Radius = sqrt(pow(bbcenter.x-v3[i].x,2.0) + pow(bbcenter.y-v3[i].y,2.0) + pow(bbcenter.z-v3[i].z,2.0));
-		}
-	
-	}
-	this_mesh_storage.Bounding_Box_Radius = tmp_Radius;
-	printf("\n__________________________________\n BOUNDING BOX: \n\t Center = [%f , %f , %f]\n\t Radius = %f\n__________________________________\n", this_mesh_storage.Bounding_Box_Center.x,this_mesh_storage.Bounding_Box_Center.y,this_mesh_storage.Bounding_Box_Center.z,this_mesh_storage.Bounding_Box_Radius);
-	
-	
-	
-	
-	// Convert to double arrays for further parsing (Coord has problems here - might be possible to do much faster!!)
-	// Seriously not optimal... plz fix
-	double v1_x[counter];
-	double v1_y[counter];
-	double v1_z[counter];
-	double v2_x[counter];
-	double v2_y[counter];
-	double v2_z[counter];
-	double v3_x[counter];
-	double v3_y[counter];
-	double v3_z[counter];
-	double normal_x[counter];
-	double normal_y[counter];
-	double normal_z[counter];
-	
+mesh_vol.geometry.surface_stack_for_each_face[0] = &surface_stack;
+mesh_vol.geometry.internal_cut_surface_stack = &cut_surface_stack;
 
-
-	for (i = 0 ; i < counter ; i++ ){
-		/*
-		v1_x[i] = v1[i].x;
-		v1_y[i] = v1[i].y;
-		v1_z[i] = v1[i].z;
-		
-		v2_x[i] = v2[i].x;
-		v2_y[i] = v2[i].y;
-		v2_z[i] = v2[i].z;
-		
-		v3_x[i] = v3[i].x;
-		v3_y[i] = v3[i].y;
-		v3_z[i] = v3[i].z;
-		
-		normal_x[i] = normal[i].x;
-		normal_y[i] = normal[i].y;
-		normal_z[i] = normal[i].z;
-		*/
-		this_mesh_storage.v1_x[i] = v1[i].x;
-		this_mesh_storage.v1_y[i] = v1[i].y;
-		this_mesh_storage.v1_z[i] = v1[i].z;
-		
-		this_mesh_storage.v2_x[i] = v2[i].x;
-		this_mesh_storage.v2_y[i] = v2[i].y;
-		this_mesh_storage.v2_z[i] = v2[i].z;
-		
-		this_mesh_storage.v3_x[i] = v3[i].x;
-		this_mesh_storage.v3_y[i] = v3[i].y;
-		this_mesh_storage.v3_z[i] = v3[i].z;
-		
-		this_mesh_storage.normal_x[i] = normal[i].x;
-		this_mesh_storage.normal_y[i] = normal[i].y;
-		this_mesh_storage.normal_z[i] = normal[i].z;
-		
-		//printf("\n v2 [%i]: v2[%i] = [%f,%f,%f] \n",iter,v2_x[i],v2_y[i],v2_z[i]);
-	}
-
-// check if this is a cylinder and add coordinates of tip if it is a mesh
-
-this_mesh_storage.counter = counter;
-this_mesh_storage.n_facets = n_facets;
-
-
-sprintf(this_mesh_volume.name,"%s",NAME_CURRENT_COMP);
-sprintf(this_mesh_volume.geometry.shape,"mesh");
-this_mesh_volume.geometry.priority_value = priority;
-// Currently the coordinates will be in absolute space.
-this_mesh_volume.geometry.center = POS_A_CURRENT_COMP;
-
-this_mesh_volume.geometry.geometry_p_interact = p_interact;
+struct pointer_to_global_surface_list *global_surface_list = COMP_GETPAR3(Union_init, init, global_surface_list);
+fill_surface_stack(all_surfaces, global_surface_list, NAME_CURRENT_COMP, &surface_stack);
+fill_surface_stack(cut_surface, global_surface_list, NAME_CURRENT_COMP, &cut_surface_stack);
 
 
 
-this_mesh_volume.geometry.visualization_on = visualize;
-this_mesh_volume.geometry.geometry_parameters.p_mesh_storage = &this_mesh_storage;
-this_mesh_volume.geometry.within_function = &r_within_mesh;
-this_mesh_volume.geometry.intersect_function = &sample_mesh_intersect;
-this_mesh_volume.geometry.mcdisplay_function = &mcdisplay_mesh_function;
-this_mesh_volume.geometry.shell_points = &mesh_shell_points;
-this_mesh_volume.geometry.initialize_from_main_function = &initialize_mesh_geometry_from_main_component;
-this_mesh_volume.geometry.process_rot_allocated = 0;
-this_mesh_volume.geometry.copy_geometry_parameters = &allocate_mesh_storage_copy;
-rot_copy(this_mesh_volume.geometry.rotation_matrix,ROT_A_CURRENT_COMP);
-rot_transpose(ROT_A_CURRENT_COMP,this_mesh_volume.geometry.transpose_rotation_matrix);
+sprintf(mesh_vol.name,"%s",NAME_CURRENT_COMP);
+sprintf(mesh_vol.geometry.shape,"mesh");
+mesh_vol.geometry.eShape = mesh;
+mesh_vol.geometry.priority_value = priority;
+mesh_vol.geometry.visualization_on = visualize;
+mesh_vol.geometry.geometry_p_interact = p_interact;
+mesh_vol.geometry.within_function = &r_within_mesh;
+mesh_vol.geometry.geometry_parameters.p_mesh_storage = &mesh_data;
+mesh_vol.geometry.intersect_function = &sample_mesh_intersect;
+mesh_vol.geometry.mcdisplay_function = &mcdisplay_mesh_function;
+mesh_vol.geometry.shell_points = &allocate_shell_points;
+mesh_vol.geometry.initialize_from_main_function = &initialize_mesh_geometry_from_main_component;
+mesh_vol.geometry.process_rot_allocated = 0;
+mesh_vol.geometry.copy_geometry_parameters = &allocate_mesh_storage_copy; 
+mesh_vol.geometry.center = POS_A_CURRENT_COMP;
+rot_copy(mesh_vol.geometry.rotation_matrix,ROT_A_CURRENT_COMP);
+rot_transpose(ROT_A_CURRENT_COMP,mesh_vol.geometry.transpose_rotation_matrix);
 
 
 // Initialize loggers
-this_mesh_volume.loggers.num_elements = 0;
+mesh_vol.loggers.num_elements = 0;
+
+mesh_vol.abs_loggers.num_elements = 0;
 
 // packing the information into the global_geometry_element, which is then included in the global_geometry_list.
 sprintf(global_geometry_element.name,"%s",NAME_CURRENT_COMP);
 global_geometry_element.activation_counter = number_of_activations;
 global_geometry_element.component_index = INDEX_CURRENT_COMP;
-global_geometry_element.Volume = &this_mesh_volume; // Would be nicer if this m was a pointer, now we have the (small) data two places
+global_geometry_element.Volume = &mesh_vol; // Would be nicer if this m was a pointer, now we have the (small) data two places
 add_element_to_geometry_list(global_geometry_list,global_geometry_element);
 %}
 
 TRACE
 %{
+
 %}
 
+FINALLY 
+%{
+
+free(mesh_data.v1_x);
+free(mesh_data.v1_y);
+free(mesh_data.v1_z);
+free(mesh_data.v2_x);
+free(mesh_data.v2_y);
+free(mesh_data.v2_z);
+free(mesh_data.v3_x);
+free(mesh_data.v3_y);
+free(mesh_data.v3_z);
+%}
 END
 

@@ -1251,53 +1251,55 @@ TRACE
     }
     
     // Checking if there are intersections with children of current volume, which means there is an intersection before current_volume, and thus can be skipped. But only if they have not been overwritten. In case current_volume is 0, there is no need to do this regardless.
-    if (current_volume != 0 && intersection_time_table.calculated[current_volume] == 0) {
+    if (current_volume != 0 && intersection_time_table.calculated[current_volume] == 0 ) {
         #ifdef Union_trace_verbal_setting
           printf("Checking if children of current_volume = %d have intersections. \n",current_volume);
         #endif
         intersection_with_children = 0;
         //for (start = check = Volumes[current_volume]->geometry.direct_children.elements;check - start < Volumes[current_volume]->geometry.children.num_elements;check++) { // REVIEW LINE. Caused bug with masks.
-        for (start = check = Volumes[current_volume]->geometry.children.elements;check - start < Volumes[current_volume]->geometry.children.num_elements;check++) {
-            #ifdef Union_trace_verbal_setting
-              printf("Checking if child %d of current_volume = %d have intersections. \n",*check,current_volume);
-            #endif
-            // Only check the first of the two results in the intersection table, as they are ordered, and the second is of no interest
-            if (intersection_time_table.calculated[*check] == 1 && intersection_time_table.intersection_times[*check][0] > time_propagated_without_scattering) {
-                // If this child is masked, its mask status need to be 1 in order to be taken into account
-                if (Volumes[*check]->geometry.is_masked_volume == 0) {
-                  #ifdef Union_trace_verbal_setting
-                    printf("Found an child of current_volume with an intersection. Skips calculating for current_volume \n");
-                  #endif
-                  intersection_with_children = 1;
-                  break; // No need to check more, if there is just one it is not necessary to calculate intersection with current_volume yet
-                } else {
-                  #ifdef Union_trace_verbal_setting
-                    printf("Found an child of current_volume with an intersection, but it is masked. Check to see if it can skip calculating for current_volume \n");
-                  #endif
-                  
-                  if (Volumes[*check]->geometry.mask_mode == 2) { // ANY mask mode
-                    tree_next_volume = 0;
-                    for (mask_start=mask_check=Volumes[*check]->geometry.masked_by_mask_index_list.elements;mask_check-mask_start<Volumes[*check]->geometry.masked_by_mask_index_list.num_elements;mask_check++) {
-                       if (mask_status_list.elements[*mask_check] == 1) {
-                         intersection_with_children = 1;
-                         break;
+        if (!Volumes[current_volume]->geometry.skip_hierarchy_optimization){
+           for (start = check = Volumes[current_volume]->geometry.children.elements;check - start < Volumes[current_volume]->geometry.children.num_elements;check++) {
+               #ifdef Union_trace_verbal_setting
+                 printf("Checking if child %d of current_volume = %d have intersections. \n",*check,current_volume);
+               #endif
+               // Only check the first of the two results in the intersection table, as they are ordered, and the second is of no interest
+               if (intersection_time_table.calculated[*check] == 1 && intersection_time_table.intersection_times[*check][0] > time_propagated_without_scattering) {
+                   // If this child is masked, its mask status need to be 1 in order to be taken into account
+                   if (Volumes[*check]->geometry.is_masked_volume == 0) {
+                     #ifdef Union_trace_verbal_setting
+                       printf("Found an child of current_volume with an intersection. Skips calculating for current_volume \n");
+                     #endif
+                     intersection_with_children = 1;
+                     break; // No need to check more, if there is just one it is not necessary to calculate intersection with current_volume yet
+                   } else {
+                     #ifdef Union_trace_verbal_setting
+                       printf("Found an child of current_volume with an intersection, but it is masked. Check to see if it can skip calculating for current_volume \n");
+                     #endif
+                     
+                     if (Volumes[*check]->geometry.mask_mode == 2) { // ANY mask mode
+                       tree_next_volume = 0;
+                       for (mask_start=mask_check=Volumes[*check]->geometry.masked_by_mask_index_list.elements;mask_check-mask_start<Volumes[*check]->geometry.masked_by_mask_index_list.num_elements;mask_check++) {
+                          if (mask_status_list.elements[*mask_check] == 1) {
+                            intersection_with_children = 1;
+                            break;
+                          }
                        }
-                    }
-                  } else { // ALL mask mode
-                    intersection_with_children = 1;
-                    for (mask_start=mask_check=Volumes[*check]->geometry.masked_by_mask_index_list.elements;mask_check-mask_start<Volumes[*check]->geometry.masked_by_mask_index_list.num_elements;mask_check++) {
-                      if (mask_status_list.elements[*mask_check] == 0) {
-                        intersection_with_children = 0;
-                        break;
-                      }
-                    }
-                  }
-                  #ifdef Union_trace_verbal_setting
-                    printf("The mask status was 1, can actually skip intersection calculation for current volume \n");
-                  #endif
-                  if (intersection_with_children == 1) break;
-                }
-            }
+                     } else { // ALL mask mode
+                       intersection_with_children = 1;
+                       for (mask_start=mask_check=Volumes[*check]->geometry.masked_by_mask_index_list.elements;mask_check-mask_start<Volumes[*check]->geometry.masked_by_mask_index_list.num_elements;mask_check++) {
+                         if (mask_status_list.elements[*mask_check] == 0) {
+                           intersection_with_children = 0;
+                           break;
+                         }
+                       }
+                     }
+                     #ifdef Union_trace_verbal_setting
+                       printf("The mask status was 1, can actually skip intersection calculation for current volume \n");
+                     #endif
+                     if (intersection_with_children == 1) break;
+                   }
+               }
+           }
         }
         #ifdef Union_trace_verbal_setting
           printf("intersection_with_children = %d \n",intersection_with_children);
