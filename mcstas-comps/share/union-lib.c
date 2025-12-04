@@ -2344,7 +2344,8 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
     Coords midpoint;
     struct lines_to_draw draw_order;
     draw_order.number_of_lines = 0;
-    
+    draw_order.lines=NULL;
+
     int number_of_dashes;
     
     for (iterate = 0;iterate < intersection_list.num_elements + 1;iterate++) {
@@ -2375,8 +2376,7 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
         }
         if (intersection_list.num_elements > 0) free(intersection_list.elements);
     }
-
-    // printf("function done \n");
+    
     free(points);
     free(lines);
     free(draw_logic);
@@ -3074,7 +3074,7 @@ int sample_box_intersect_simple(double *t, double *nx, double *ny, double *nz, i
     // rotated_velocity = rot_apply(rotation_matrix_debug,velocity);
     //printf("Cords rotated_velocity = (%f,%f,%f)\n",rotated_velocity.x,rotated_velocity.y,rotated_velocity.z);
     
-    int output;
+    int output = 0;
     // Run McStas built in box intersect funtion (box centered around origin)
     if ((output = box_intersect(&t[0],&t[1],rotated_coordinates.x,rotated_coordinates.y,rotated_coordinates.z,rotated_velocity.x,rotated_velocity.y,rotated_velocity.z,width,height,depth)) == 0) {
         *num_solutions = 0;t[0]=-1;t[1]=-1;
@@ -3306,7 +3306,7 @@ int sample_cone_intersect(double *t, double *nx, double *ny, double *nz, int *su
     double sphere_t[2];
     
     
-    int output;
+    int output = 0;
     // Run McStas built in sphere intersect funtion (sphere centered around origin)
     if ((output = sphere_intersect(&sphere_t[0],&sphere_t[1],x_sphere,y_sphere,z_sphere,v[0],v[1],v[2],sphere_radius)) == 0)
     
@@ -3594,18 +3594,6 @@ switch(*num_solutions) {
         return 0;
 }
 
-
-
-/*
-    int output;
-    // Run McStas built in sphere intersect funtion (sphere centered around origin)
-    if ((output = cone_intersect(&t[0],&t[1],rotated_coordinates,rotated_velocity,radius_top,radius_bottom,height,is_cylinder,cone_tip,center)) == 0) {
-        *num_solutions = 0;t[0]=-1;t[1]=-1;}
-    else if (t[1] != 0) *num_solutions = 2;
-    else {*num_solutions = 1;t[1]=-1;}
- 
-    return output;
-*/
  // FIXME should we ever reach / return here?
  return -2;
 };
@@ -3957,7 +3945,7 @@ int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struc
     
     // Rotate the position of the neutron around the center of the mesh
     rotated_velocity = rot_apply(geometry->transpose_rotation_matrix,velocity);
-    int output;
+    int output = 0;
     double tmpres[2];
     // Test intersection with bounding sphere 
     if ((output = sphere_intersect(&tmpres[0],&tmpres[1],bounding_box_rotated_coordinates.x,bounding_box_rotated_coordinates.y,bounding_box_rotated_coordinates.z,
@@ -4177,7 +4165,7 @@ int sample_sphere_intersect(double *t, double *nx, double *ny, double *nz, int *
     y_new = r[1] - geometry->center.y;
     z_new = r[2] - geometry->center.z;
     
-    int output;
+    int output = 0;
     // Run McStas built in sphere intersect funtion (sphere centered around origin)
     if ((output = sphere_intersect(&t[0],&t[1],x_new,y_new,z_new,v[0],v[1],v[2],radius)) == 0) {
         *num_solutions = 0;t[0]=-1;t[1]=-1;}
@@ -4292,7 +4280,7 @@ int sample_cylinder_intersect(double *t, double *nx, double *ny, double *nz, int
     // Rotate the position of the neutron around the center of the cylinder
     rotated_velocity = rot_apply(geometry->transpose_rotation_matrix,velocity);
     
-	int output;    
+	int output = 0;    
 	// Cases where the velocity is parallel with the cylinder axis have given problems, and is checked for explicitly
 	if (sqrt(rotated_velocity.x*rotated_velocity.x+rotated_velocity.z*rotated_velocity.z)/fabs(rotated_velocity.y) < 0.00001) {
 	  // The velocity is parallel with the cylinder axis. Either there are no solutions or two solutions
@@ -8415,12 +8403,13 @@ void generate_destinations_list(int N_volume,struct Volume_struct **Volumes,stru
     // 7) remove volumes with lower priority than parents of N still on the list
     struct pointer_to_1d_int_list logic_list;
     logic_list.num_elements = overlap_list.num_elements;
+    logic_list.elements=NULL;
     if (logic_list.num_elements>0) {
       logic_list.elements = malloc(logic_list.num_elements*sizeof(int));
-      if (!logic_list.elements) {
-	fprintf(stderr,"Failure allocating list in Union function generate_destinations_lists 3 - Exit!\n");
-	exit(EXIT_FAILURE);
-      }
+    }
+    if (!logic_list.elements) {
+      fprintf(stderr,"Failure allocating list in Union function generate_destinations_lists 3 - Exit!\n");
+      exit(EXIT_FAILURE);
     }
     for (iterate=0;iterate<logic_list.num_elements;iterate++) logic_list.elements[iterate] = 1;
     
@@ -9061,19 +9050,11 @@ void focus_initialize(struct geometry_struct *geometry, Coords POS_A_TARGET, Coo
     exit(EXIT_FAILURE);
   }
   
-  struct focus_data_struct focus_data;
+  struct  focus_data;
 
   // Initialize focus_data_struct
-  /*
-  geometry->focus_data.Aim = coords_set(0,0,0);
-  geometry->focus_data.angular_focus_width = 0;
-  geometry->focus_data.angular_focus_height = 0;
-  geometry->focus_data.spatial_focus_width = 0;
-  geometry->focus_data.spatial_focus_height = 0;
-  geometry->focus_data.spatial_focus_radius = 0;
-  rot_copy(geometry->focus_data.absolute_rotation,ROT_A_CURRENT);
-  */
   focus_data.Aim = coords_set(0,0,0);
+  focus_data.RayAim = coords_set(0,0,0);
   focus_data.angular_focus_width = 0;
   focus_data.angular_focus_height = 0;
   focus_data.spatial_focus_width = 0;
