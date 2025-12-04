@@ -948,8 +948,10 @@ void add_to_logger_with_data(struct logger_with_data_struct *logger_with_data, s
         }
 
         logger_with_data->logger_pointers[logger_with_data->used_elements++] = logger;
-        
-        
+
+	// Clear up temporary memory
+	free(temp_logger_with_data.logger_pointers);
+
     } else {
         logger_with_data->logger_pointers[logger_with_data->used_elements++] = logger;
     }
@@ -990,8 +992,10 @@ void add_to_abs_logger_with_data(struct abs_logger_with_data_struct *abs_logger_
         }
 
         abs_logger_with_data->abs_logger_pointers[abs_logger_with_data->used_elements++] = abs_logger;
-        
-        
+
+	// Clear up temporary memory
+	free(temp_abs_logger_with_data.abs_logger_pointers);
+
     } else {
         abs_logger_with_data->abs_logger_pointers[abs_logger_with_data->used_elements++] = abs_logger;
     }
@@ -1826,7 +1830,10 @@ void add_to_history(struct dynamic_history_list *history, int volume_index, int 
         history->elements[history->used_elements].volume_index = volume_index;
         history->elements[history->used_elements].process_index = process_index;
         history->used_elements = history->used_elements+1;
-        
+
+	// Clear up temporary memory
+	free(temp_history.elements);
+
     } else {
         history->elements[history->used_elements].volume_index = volume_index;
         history->elements[history->used_elements].process_index = process_index;
@@ -8441,7 +8448,10 @@ void generate_destinations_list(int N_volume,struct Volume_struct **Volumes,stru
     
     if (overlap_list.num_elements>0) free(overlap_list.elements);
     if (logic_list.num_elements>0) free(logic_list.elements);
-        
+
+    // Clean up memory
+    free(removed_under_2.elements);
+
     };
 
 void generate_destinations_lists(struct pointer_to_1d_int_list **grandparents_lists, struct pointer_to_1d_int_list **parents_lists, struct pointer_to_1d_int_list **overlap_lists,struct Volume_struct **Volumes, int number_of_volumes, int verbal) {
