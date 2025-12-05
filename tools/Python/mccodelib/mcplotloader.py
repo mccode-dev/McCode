@@ -272,9 +272,15 @@ def _parse_2D_monitor(text):
         '''# Events [detector/PSD.dat] N:'''
         lines = text.splitlines()
         dat = True
+        datacount=0;
         events = False
         for l in lines:
             if '# Data ' in l:
+                datacount=datacount+1;
+                # In case we meet mutiple # Data entries, file is probably saved via -USR2 or from 
+                # Progress_bar(). In that case, better flush earlier data entries:
+                if (datacount>1):
+                    data.zvals=[]
                 dat = True
                 continue
 

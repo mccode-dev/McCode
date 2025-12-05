@@ -69,7 +69,7 @@ DECLARE
 	double         NumberDensity;
 
 	// Protein properties
-	// double complex Matrix[SAXSPDBOrderOfHarmonics+1][SAXSPDBOrderOfHarmonics+1];
+	// cdouble Matrix[SAXSPDBOrderOfHarmonics+1][SAXSPDBOrderOfHarmonics+1];
 	ProteinStruct  Protein;
 %}
 
@@ -124,7 +124,7 @@ TRACE
 	double Slope;	
 	double Offset;
 	int    i,j,ResidueID;
-	double complex Matrix[SAXSPDBOrderOfHarmonics+1][SAXSPDBOrderOfHarmonics+1];
+	cdouble** Matrix=(cdouble**)matrix2d_new(sizeof(cdouble),SAXSPDBOrderOfHarmonics+1,SAXSPDBOrderOfHarmonics+1);
 
 	// Computation
   Intersect = box_intersect(&l0, &l1, x, y, z, kx, ky, kz, xwidth, yheight, zdepth);
@@ -132,7 +132,7 @@ TRACE
 	if (Intersect) {
 
 		if (l0 < 0.0) {
-			fprintf(stderr, "SAXSPDBFast: %s: Photon already inside sample - absorbing...\n", NAME_CURRENT_COMP);
+			fprintf(stderr, "SAXSPDB %s: Photon already inside sample - absorbing...\n", NAME_CURRENT_COMP);
 			ABSORB;
                 }
 
@@ -168,7 +168,7 @@ TRACE
 		// ResetMatrix(Matrix, SAXSPDBOrderOfHarmonics);
 		for (i = 0; i <= SAXSPDBOrderOfHarmonics; ++i)
 		    for (j = 0; j <= SAXSPDBOrderOfHarmonics; ++j)
-		        Matrix[i][j] = 0.0;
+		      Matrix[i][j] = cplx(0,0);
 
 		for (ResidueID = 0; ResidueID < Protein.NumberOfResidues; ++ResidueID) {
 	      // ExpandStructure(Matrix, &Protein, ResidueID, qDummy, RhoSolvent);		
@@ -203,7 +203,7 @@ TRACE
 		        gsl_sf_legendre_sphPlm_array(SAXSPDBOrderOfHarmonics, i, cos(Theta), &Legendre[i]);
 
 		        for(j = i; j <= SAXSPDBOrderOfHarmonics; ++j) {
-		            Matrix[j][i] += sqrt(4.0 * PI) * cpow(_Complex_I, j) * DeltaRhoProtein * Bessel[j] * Legendre[j] * Polar(1.0, -i * C);
+		            Matrix[j][i] = cadd(Matrix[j][i],rmul(sqrt(4.0 * PI) * DeltaRhoProtein * Bessel[j] * Legendre[j] , cmul(cpow(cplx(0,1), cplx(j,0)), Polar(1.0, -i * C))));
 		        }
 		    }
 		    

@@ -53,7 +53,7 @@ Source: "dist\mcstas-tools-python-mcdisplay-pyqtgraph-NSIS64-@VERSION@-mingw64.e
 Source: "dist\mcstas-tools-python-mcdisplay-matplotlib-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcdisplay-mantid-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcdoc-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
-Source: "Support\Miniforge3-Windows-x86_64.exe"; DestDir: "{tmp}"
+Source: "Support\micromamba.exe"; DestDir: "{tmp}"
 
 [Run]
 Filename: "{tmp}\python-install.bat"

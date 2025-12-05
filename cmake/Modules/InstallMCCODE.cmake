@@ -387,6 +387,12 @@ macro(installMCCODE)
     install(PROGRAMS ${WORK}/support/${FLAVOR}-module DESTINATION "${DEST_DATADIR_TOPENVFILES}")
 
     install(PROGRAMS ${WORK}/support/${FLAVOR}-postinst DESTINATION "${DEST_BINDIR}")
+
+    # Generate the errormessage wrapper
+    configure_file(
+      cmake/support/run-scripts/mccode_errmsg.in
+      work/support/${FLAVOR}_errmsg mccode_errmsg
+      @ONLY)
     install(PROGRAMS ${WORK}/support/${FLAVOR}_errmsg DESTINATION "${DEST_BINDIR}")
   endif()
 
@@ -414,6 +420,13 @@ macro(installMCCODE)
 	      )
       install(PROGRAMS ${WORK}/support/${MCCODE_PREFIX}${name} DESTINATION "${DEST_BINDIR}")
     endforeach()
+
+    # Generate the errormessage wrapper
+    configure_file(
+      cmake/support/run-scripts/mccode_errmsg.bat.in
+      work/support/${FLAVOR}_errmsg.bat
+      @ONLY)
+    install(PROGRAMS ${WORK}/support/${FLAVOR}_errmsg.bat DESTINATION "${DEST_BINDIR}")
 
     # Binaries
     install (

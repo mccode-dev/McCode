@@ -1,4 +1,4 @@
-# Installation of McStas 3.5.38 on Windows 64 bit systems - using WSL
+# Installation of McStas 3.5.40 on Windows 64 bit systems - using WSL
 *(WSL is the Windows Subsystem for Linux, aka. bash on Ubuntu on Windows)*
 
 
@@ -11,7 +11,7 @@ available, but we recommend Ubuntu)
 * To open it again later, simply issue bash in a terminal or through
 the start menu
 
-## Install the McStas 3.5.38 Debian packages
+## Install the McStas 3.5.40 Debian packages
 * Follow the
   [normal Debian installation instructions](../../Linux/debian/README.md)
   - essentially a matter of sudo apt-get install mcstas-suite-python

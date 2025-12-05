@@ -194,6 +194,10 @@ treeNode* kdtree_addToTree(vertex **points, int left, int right, int depth)
   int d = depth % points[0]->space_dimensionality;
 
   treeNode *node = malloc(sizeof(treeNode));
+  if (!node) {
+    fprintf(stderr,"interpolation-lib: malloc() error in kdtree_addToTree\n");
+    exit(-1);
+  }
   node->depth    = depth;
 
   int med      = kdtree_splitAboutMedian(points, d, left, right);
@@ -294,6 +298,10 @@ int interpolator_double_vector_compare(void const *a, void const *b) {
 struct interpolator_struct *interpolator_init(void) {
   int dim=0;
   struct interpolator_struct *interpolator = malloc(sizeof(struct interpolator_struct));
+  if (!interpolator) {
+    fprintf(stderr,"interpolation-lib: malloc() error in interpolator_init\n");
+    exit(-1);
+  }
   
   if (!interpolator) return NULL;
   
@@ -321,7 +329,7 @@ struct interpolator_struct *interpolator_init(void) {
 #pragma acc routine
 long interpolator_offset(int dim, long *dimInfo, long *indices) {
   
-  long result;  // where the resultant offset will be stored 
+  long result=-1;  // where the resultant offset will be stored 
   int  i;       // loop counter 
   
   /* indices check */
@@ -418,7 +426,10 @@ struct interpolator_struct *interpolator_load(char *filename,
     double  x_prev=0;
     long    index;
     double* vector = (double*) calloc(sizeof(double), table.rows);
-    
+    if (!vector) {
+      fprintf(stderr,"interpolation-lib: vector calloc() error in interpolator_load\n");
+      exit(-1);
+    }
     interpolator->bin[dim] = 1;
     /* get min/max and fill vector for sorting */
     for (index=0; index<table.rows; index++) {
@@ -490,6 +501,10 @@ struct interpolator_struct *interpolator_load(char *filename,
     interpolator->prod=prod;
     for (dim=0; dim<interpolator->field_dimensionality; dim++) {
       double *array = (double*)calloc(prod, sizeof(double));
+      if (!array) {
+	fprintf(stderr,"interpolation-lib: array calloc() error in interpolator_load\n");
+	exit(-1);
+      }
       printf("interpolator_load: allocating %g Gb for dim=%d\n",
         (double)prod/1073741824.0, dim); fflush(NULL);
       long index;
@@ -502,6 +517,10 @@ struct interpolator_struct *interpolator_load(char *filename,
       }
       for (index=0; index<table.rows; index++) {
         long *indices = malloc(interpolator->space_dimensionality*sizeof(long));
+	if (!indices) {
+	  fprintf(stderr,"interpolation-lib: indices malloc() error in interpolator_load\n");
+	  exit(-1);
+	}
         long this_index;
         int  axis=0;
 
@@ -545,6 +564,10 @@ struct interpolator_struct *interpolator_load(char *filename,
       vertex *v    = malloc(sizeof(vertex));
       double *field= calloc(interpolator->field_dimensionality, sizeof(double));
       double *coord= calloc(interpolator->space_dimensionality, sizeof(double));
+      if (!v || !field || !coord) {
+	fprintf(stderr,"interpolation-lib: v/field/coord calloc()/malloc() error in interpolator_load\n");
+	exit(-1);
+      }
       if (v && field && coord) {
         for (j = 0; j < interpolator->space_dimensionality; j++) {
           coord[j]    = Table_Index(table, i,     j);
@@ -609,6 +632,10 @@ double *interpolator_interpolate(struct interpolator_struct *interpolator,
   if (!strcmp(interpolator->method, "regular") && interpolator->gridx) {
     int axis;
     long *indices = malloc((int)interpolator->space_dimensionality*sizeof(double));
+    if (!indices) {
+      fprintf(stderr,"interpolation-lib: indices malloc() error in interpolator_interpolate\n");
+      exit(-1);
+    }
     for (axis=0; axis < interpolator->space_dimensionality; axis++) {
       indices[axis] = round((space[axis]-interpolator->min[axis])/interpolator->step[axis]);
     }

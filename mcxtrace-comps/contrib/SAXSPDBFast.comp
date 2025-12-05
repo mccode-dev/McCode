@@ -54,7 +54,6 @@ SETTING PARAMETERS (RhoSolvent = 9.4e-14, Concentration = 0.01, AbsorptionCrosss
 
 DEPENDENCY " @GSLFLAGS@ "
 NOACC
-/*X-ray PARAMETERS (x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p)*/
 
 SHARE
 %{
@@ -62,11 +61,19 @@ SHARE
   
 	#include <gsl/gsl_sf_legendre.h>
 	#include <gsl/gsl_sf_bessel.h>
-	#include <complex.h>
+	%include "mccode-complex-lib"
 #ifndef SAXSPDB
 #define SAXSPDB
 	#define SAXSPDBOrderOfHarmonics 21
 
+void** matrix2d_new( size_t esize, size_t idim, size_t jdim ) {
+  size_t const ptrs_size = sizeof(void*) * idim;
+  size_t const row_size = esize * jdim;
+  void **const rows = malloc( ptrs_size );
+  for ( size_t i = 0; i < idim; ++i )
+    rows[i] = malloc( row_size );
+  return rows;
+}
 	// Simple mathematical functions
 	int Sign(double x) {
 		int Sign;
@@ -82,14 +89,14 @@ SHARE
 		return Sign;
 	}
 	
-	void complex_print_matrix(double complex **Matrix, int N, int M)
+	void complex_print_matrix(cdouble **Matrix, int N, int M)
 	{
 	  int i,j;
 	  for (i = 0; i < N; ++i)
     {
       for (j = 0; j < M; ++j)
         {
-          double complex z = Matrix[i][j];
+          cdouble z = Matrix[i][j];
           fprintf(stderr,
                   "(%.12e,%.12e)%s",
                   creal(z),
@@ -99,10 +106,10 @@ SHARE
     }
 	}
 
-	double complex Polar(double R, double Concentration) {
-		double complex Polar;
+	cdouble Polar(double R, double Concentration) {
+		cdouble Polar;
 		
-		Polar = R * (cos(Concentration) + _Complex_I * sin(Concentration));
+		Polar = cplx(R * cos(Concentration) , R* sin(Concentration));
 
 		return Polar;
 	} 
@@ -270,8 +277,8 @@ SHARE
             Residue[i].zv = Z / Weight;
 
             // Assign center of mass
-            Residue[i].x = XA / Aweight; 
-            Residue[i].y = YA / Aweight; 
+            Residue[i].x = XA / Aweight;
+            Residue[i].y = YA / Aweight;
             Residue[i].z = ZA / Aweight;
 
             // Other residue attributes
@@ -344,7 +351,7 @@ DECLARE
 
 	// Arrays for storing q and I(q)
 	DArray1d qArray;
-  DArray1d IArray;
+        DArray1d IArray;
 %}
 
 INITIALIZE
@@ -383,12 +390,12 @@ INITIALIZE
 	    int    i,j,ResidueID;
 	    double qStep = (qMax - qMin) / (1.0 * NumberOfQBins);
 	    double q     =  qMin + qStep * (qbin + 0.5);
-	    double complex Matrix[SAXSPDBOrderOfHarmonics+1][SAXSPDBOrderOfHarmonics+1];
+	    cdouble** Matrix = (cdouble**)matrix2d_new(sizeof(cdouble),SAXSPDBOrderOfHarmonics+1,SAXSPDBOrderOfHarmonics+1);
 	    // init Matrix = 0
 	    // ResetMatrix(Matrix, SAXSPDBOrderOfHarmonics);
 	    for (i = 0; i <= SAXSPDBOrderOfHarmonics; ++i)
 		    for (j = 0; j <= SAXSPDBOrderOfHarmonics; ++j)
-		        Matrix[i][j] = 0.0;
+		        Matrix[i][j] = cplx(0,0);
       
 
 	    for (ResidueID = 0; ResidueID < Protein.NumberOfResidues; ++ResidueID) {
@@ -421,9 +428,9 @@ INITIALIZE
 		        gsl_sf_legendre_sphPlm_array(SAXSPDBOrderOfHarmonics, i, cos(Theta), &Legendre[i]);
 
 		        for(j = 0; j <= SAXSPDBOrderOfHarmonics; ++j) {
-		            if (j < i) Matrix[j][i] = 0;
+			  if (j < i) Matrix[j][i] = cplx(0,0);
 		            else
-		            Matrix[j][i] += sqrt(4.0 * PI) * cpow(_Complex_I, j) * DeltaRhoProtein * Bessel[j] * Legendre[j] * Polar(1.0, -i * C);
+			      Matrix[j][i] = cadd(Matrix[j][i],rmul(sqrt(4.0 * PI) * DeltaRhoProtein * Bessel[j] * Legendre[j] , cmul(cpow(cplx(0,1), cplx(j,0)), Polar(1.0, -i * C))));
 		        }
 		    }
 		    

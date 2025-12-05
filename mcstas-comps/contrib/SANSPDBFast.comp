@@ -21,6 +21,8 @@
 * done on amino-acid level and does not take hydration layer into account.
 * The component must have a valid .pdb-file as an argument.
 *
+* This is fast implementation of the SANSPDB sample component.
+*
 * %P
 * RhoSolvent: [AA]               Scattering length density of the buffer - default is 100% D2O.
 * Concentration: [mM]            Concentration of sample.
@@ -32,7 +34,7 @@
 * DetectorRadius: [m]            Radius of the detector (for focusing the scattered neutrons).
 * qMin: [AA^-1]                  Lowest q-value, for which a point is generated in the scattering profile
 * qMax: [AA^-1]                  Highest q-value, for which a point is generated in the scattering profile
-* NumberOfQBins: []		Number of points generated in initalscattering profile.
+* NumberOfQBins: []   Number of points generated in inital scattering profile.
 * PDBFilepath: []		Path to the file describing the high resolution structure of the protein.
 *
 * %E
@@ -42,11 +44,10 @@ DEFINE COMPONENT SANSPDBFast
 
 
 
-SETTING PARAMETERS (int NumberOfQBins = 200,
-	RhoSolvent = 6.4e-14, Concentration = 0.01, AbsorptionCrosssection = 0.0,
-	xwidth, yheight, zdepth,
+SETTING PARAMETERS (RhoSolvent = 9.4e-14, Concentration = 0.01, AbsorptionCrosssection = 0.0,
+    xwidth, yheight, zdepth, 
 	SampleToDetectorDistance, DetectorRadius,
-	qMin = 0.001, qMax = 0.5,
+    qMin = 0.001, qMax = 0.5,int NumberOfQBins = 200,
 	string PDBFilepath = "PDBfile.pdb")
 
 
@@ -55,41 +56,23 @@ NOACC
 
 SHARE
 %{
-	// GSL libraries
+  %include "read_table-lib"; // for Open_File
+  
 	#include <gsl/gsl_sf_legendre.h>
 	#include <gsl/gsl_sf_bessel.h>
-	#include <complex.h>
+	%include "mccode-complex-lib"
+#ifndef SANSPDB
+#define SANSPDB
+	#define SANSPDBOrderOfHarmonics 21
 
-        #define OrderOfHarmonics 21
-	// Structs describing the protein
-	struct Bead
-	{
-		double x;
-		double y;
-		double z;
-
-		double xv;
-		double yv;
-		double zv;
-
-		double xa;
-		double ya;
-		double za;
-
-		char *NameOfResidue;
-
-		double Volume;
-		double ScatteringLength;
-	};
-	typedef struct Bead BeadStruct;
-
-	struct Protein
-	{
-		BeadStruct *Beads;
-		int NumberOfResidues;
-	};
-	typedef struct Protein ProteinStruct;
-
+void** matrix2d_new( size_t esize, size_t idim, size_t jdim ) {
+  size_t const ptrs_size = sizeof(void*) * idim;
+  size_t const row_size = esize * jdim;
+  void **const rows = malloc( ptrs_size );
+  for ( size_t i = 0; i < idim; ++i )
+    rows[i] = malloc( row_size );
+  return rows;
+}
 	// Simple mathematical functions
 	int Sign(double x) {
 		int Sign;
@@ -100,27 +83,70 @@ SHARE
 			Sign = -1;
 		} else {
 			Sign = 0;
-		}
+		} 
 
 		return Sign;
 	}
-
-	double complex Polar(double R, double Concentration) {
-		double complex Polar;
-
-		Polar = R * (cos(Concentration) + _Complex_I * sin(Concentration));
-
-		return Polar;
+	
+	void complex_print_matrix(cdouble **Matrix, int N, int M)
+	{
+	  int i,j;
+	  for (i = 0; i < N; ++i)
+    {
+      for (j = 0; j < M; ++j)
+        {
+          cdouble z = Matrix[i][j];
+          fprintf(stderr,
+                  "(%.12e,%.12e)%s",
+                  creal(z),
+                  cimag(z),
+                  (j < M - 1) ? " " : "\n");
+        }
+    }
 	}
 
-	// Function used to determine the number of residues in the .pdb-file
-	int CountResidues(char PDBFilepath[256])
+	cdouble Polar(double R, double Concentration) {
+		cdouble Polar;
+		
+		Polar = cplx(R * cos(Concentration) , R* sin(Concentration));
+
+		return Polar;
+	} 
+
+	// Protein structs
+	struct Bead
 	{
-		// Declarations
+		double x;
+		double y;
+		double z;
+
+		double xv;
+		double yv;
+		double zv;
+
+		double Volume;
+		double ScatteringLength;
+		char   Atom;
+	};
+	typedef struct Bead BeadStruct;
+
+	struct Protein
+	{
+		BeadStruct *Beads;
+		int NumberOfResidues;
+	};
+	typedef struct Protein ProteinStruct;
+	
+	// functions for the INITIALIZE ----------------------------------------------
+
+	// Function used to determine the number of residues in the .pdb-file
+	int CountResidues(char *PDBFilepath)
+	{
+		// Declarations        
 		double Dummy1;
 		double Dummy2;
 		double Dummy3;
-		char Line[256];
+		char Line[65535];
 		char DummyChar;
 		char Atom;
 		int NumberOfResidues = 0;
@@ -129,83 +155,31 @@ SHARE
 		FILE *PDBFile;
 
 		// I/O
-		PDBFile = fopen(PDBFilepath, "r");
-
+		PDBFile = Open_File(PDBFilepath, "r",NULL);
 		if (PDBFile == NULL) {
-			printf("Cannot open %s... \n", PDBFilepath);
-		} else {
-			printf(".pdb-file located... \n");
+			exit(fprintf(stderr, "SANSPDBFast: %s: ERROR: Cannot open %s... \n", __FILE__, PDBFilepath));
 		}
 
 		while (fgets(Line, sizeof(Line), PDBFile) != NULL) {
 		    ResidueID = 0;
-
+        if (strncmp(Line, "ATOM", 4)) continue;
 		    if (sscanf(Line, "ATOM%*18c%d%*4c%lf%lf%lf", &ResidueID, &Dummy1, &Dummy2, &Dummy3) == 4) {
-
-		        if (ResidueID != PreviousResidueID && ResidueID != 0) {
-		            ++NumberOfResidues;
-				}
-
+		        if (ResidueID != PreviousResidueID && ResidueID != 0) ++NumberOfResidues;
 		        PreviousResidueID = ResidueID;
 		    }
 		}
-
 		fclose(PDBFile);
-		printf("Calculating scattering from %d residues...\n", NumberOfResidues);
-
         return NumberOfResidues;
-	}
-
-	// Initialization of the arrays
-	double complex ** ComplexMatrix(int A, int B)
-	{
-		int i;
-		int j;
-		double complex ** Matrix;
-
-		Matrix = (double complex **) malloc(A * sizeof(double complex *));
-
-		for (i = 0; i < A; ++i) {
-		    Matrix[i] = (double complex *) malloc(B * sizeof(double complex));
-
-		    for (j = 0; j < B; ++j) {
-		        Matrix[i][j] = 0.0;
-		    }
-		}
-
-		return Matrix;
-	}
-
-	void InitializeProtein(ProteinStruct *Protein, int NumberOfResiduesInFile)
-	{
-		Protein->NumberOfResidues = NumberOfResiduesInFile;
-		Protein->Beads = calloc((size_t) NumberOfResiduesInFile, sizeof(BeadStruct));
-	}
-
-	void InitializeArray(int Size, double** Array)
-	{
-		// Declarations
-		int i;
-		double * DummyArray;
-
-		// Initialization
-		DummyArray = (double *) calloc(Size, sizeof(double));
-
-		for (i = 0; i < Size; ++i) {
-			DummyArray[i] = 0.0;
-		}
-
-        *Array = DummyArray;
-	}
+	} // CountResidues
 
 	// Function used to read .pdb-file
-	void ReadAminoPDB(char PDBFilename[256], ProteinStruct *Protein)
+	int ReadAminoPDB(char *PDBFilename, ProteinStruct *Protein)
 	{
-		// Declarations and input
+		// Declarations and input		
 		int NumberOfResidues = Protein->NumberOfResidues;
 		BeadStruct *Residue = Protein->Beads;
 		FILE *PDBFile;
-
+		
 		int i = 0;
 		int PreviousResidueID = 0;
 		int ResidueID = 0;
@@ -215,7 +189,7 @@ SHARE
 
 		double Aweight = 0.0;
 		double A = 0.0;
-
+		
 		double x;
 		double y;
 		double z;
@@ -229,11 +203,10 @@ SHARE
 		double ZA = 0.0;
 
 		char Atom;
-
-		char Line[256];
-		char Buffer[256];
+		
+		char Buffer[65535];
 		char DummyChar;
-
+		
 		// Atomic weighing factors
 		const double WH = 5.15;
 		const double WC = 16.44;
@@ -241,7 +214,7 @@ SHARE
 		const double WO = 9.13;
 		const double WS = 19.86;
 		const double WP = 5.73;
-
+		
 		// Scattering lengths
 		const double AH =  - 3.741e-15;
 		const double AD =    6.674e-15;
@@ -252,75 +225,66 @@ SHARE
 		const double AS =    2.847e-15;
 
 		// Program
-		if ((PDBFile = fopen(PDBFilename, "r")) == 0) {
-		    printf("Cannot open file: %s. \n", PDBFilename);
+		if (NumberOfResidues <= 0 || (PDBFile = Open_File(PDBFilename, "r",NULL)) == 0) {
+		    exit(printf("ERROR: Cannot open file: %s. \n", PDBFilename));
 		}
-
-		Residue[i].NameOfResidue = (char *) calloc(3, sizeof(char));
-
+		
 		while (fgets(Buffer, sizeof(Buffer), PDBFile) != NULL) {
-		    Atom = 0;
+		    // a typical line is:
+		    // ATOM   8726  N   VAL B 576      76.450  47.214  58.026  1.00111.85           N
+		    Atom = 0; 
 			ResidueID = 0;
-
-			sscanf(Buffer,"ATOM%*9c%c%*8c%d%*4c%lf%lf%lf%*23c%c", &DummyChar, &ResidueID, &x, &y, &z, &Atom);
+        if (strncmp(Buffer, "ATOM", 4)) continue;
+        if (!sscanf(Buffer,"ATOM%*9c%c%*8c%d%*4c%lf%lf%lf%*23c%c", &DummyChar, &ResidueID, &x, &y, &z, &Atom)) {
+          fprintf(stderr, "SANSPDBFast: %s: ReadAminoPDB: [%i] invalid PDB line %s\n", __FILE__, i, Buffer);
+          continue;
+        }
 
 		    if (ResidueID != PreviousResidueID && ResidueID != 0) {
 
-		        if (PreviousResidueID != 0) {
+            if (PreviousResidueID != 0 && Aweight && Weight) {
 
-					// Assign center of scattering
-				    Residue[i].xv = X / Weight;
-					Residue[i].yv = Y / Weight;
-					Residue[i].zv = Z / Weight;
+		// Assign center of scattering
+                Residue[i].xv = X / Weight; 
+                Residue[i].yv = Y / Weight; 
+		Residue[i].zv = Z / Weight;
 
-					// Assign center of mass
-				    Residue[i].x = XA / Aweight;
-					Residue[i].y = YA / Aweight;
-					Residue[i].z = ZA / Aweight;
+		// Assign center of mass
+                Residue[i].x = XA / Aweight; 
+                Residue[i].y = YA / Aweight; 
+		Residue[i].z = ZA / Aweight;
 
-					// Other residue attributes
-				    Residue[i].Volume = Weight;
-				    Residue[i].ScatteringLength = Aweight;
+		// Other residue attributes
+		Residue[i].Volume = Weight;
+		Residue[i].ScatteringLength = Aweight;
+                Residue[i].Atom             = Atom;
 
-				    X = 0.0;
-					Y = 0.0;
-					Z = 0.0;
-					Weight = 0.0;
-
-					XA = 0.0;
-					YA = 0.0;
-					ZA = 0.0;
-					Aweight = 0.0;
+                X  = Y  = Z  = Weight  = 0.0;
+                XA = YA = ZA = Aweight = 0.0;
 
 				    ++i;
-
-				    if (i < NumberOfResidues) {
-				        Residue[i].NameOfResidue = (char *) calloc(3, sizeof(char));
-				    }
 
 				}
 
 		        PreviousResidueID = ResidueID;
 		    }
 
-			// Finish the final amino acid
-			if (i == NumberOfResidues - 1) {
-				Residue[i].xv = X / Weight;
-				Residue[i].yv = Y / Weight;
-				Residue[i].zv = Z / Weight;
+	// Finish the final amino acid
+        if (i == NumberOfResidues - 1 && Aweight && Weight) {
+            Residue[i].xv = X / Weight; 
+            Residue[i].yv = Y / Weight; 
+            Residue[i].zv = Z / Weight;
 
-				// Assign center of mass
-				Residue[i].x = XA / Aweight;
-				Residue[i].y = YA / Aweight;
-				Residue[i].z = ZA / Aweight;
+	    // Assign center of mass
+	    Residue[i].x = XA / Aweight;
+	    Residue[i].y = YA / Aweight;
+	    Residue[i].z = ZA / Aweight;
 
 				// Other residue attributes
 				Residue[i].Volume = Weight;
 				Residue[i].ScatteringLength = Aweight;
-			}
-
-		    sscanf(Buffer, "ATOM%*9cCA%*2c%*s%*10c%lf%lf%lf", &Residue[i].xa, &Residue[i].ya, &Residue[i].za);
-		    sscanf(Buffer, "ATOM%*13c%s", Residue[i].NameOfResidue);
+            Residue[i].Atom             = 'X';
+	}
 
 		    switch(Atom) {
 		        case 'C':
@@ -371,148 +335,120 @@ SHARE
 		}
 
 		fclose(PDBFile);
-	}
+		
+		return(NumberOfResidues);
+	} // ReadAminoPDB\
 
-	// Function used to expand protein structure on spherical harmonics
-	void ExpandStructure(double complex ** Matrix, ProteinStruct *Protein, int ResidueID, double q, double RhoSolvent)
-	{
-		// Dummy integers
-		int i;
-		int j;
-
-		// Arrays used for storing Legendre and Bessel function values
-		double Legendre[OrderOfHarmonics + 1];
-		double Bessel[OrderOfHarmonics + 1];
-
-		// Residue information
-		const double Volume = Protein->Beads[ResidueID].Volume;
-		const double DeltaRhoProtein = Protein->Beads[ResidueID].ScatteringLength - Volume * RhoSolvent;
-
-		const double x = (Protein->Beads[ResidueID].x * Protein->Beads[ResidueID].ScatteringLength -
-						  RhoSolvent * Volume * Protein->Beads[ResidueID].xv) / DeltaRhoProtein;
-
-		const double y = (Protein->Beads[ResidueID].y * Protein->Beads[ResidueID].ScatteringLength -
-						  RhoSolvent * Volume * Protein->Beads[ResidueID].yv) / DeltaRhoProtein;
-
-		const double z = (Protein->Beads[ResidueID].z * Protein->Beads[ResidueID].ScatteringLength -
-						  RhoSolvent * Volume * Protein->Beads[ResidueID].zv) / DeltaRhoProtein;
-
-		// Convert bead position to spherical coordinates
-		const double Radius = sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2));
-		const double Theta  = acos(z / Radius);
-		const double Concentration    = acos(x / (Radius * sin(Theta))) * Sign(y);
-
-		// Expand protein structure on harmonics
-		gsl_sf_bessel_jl_array(OrderOfHarmonics, q * Radius, Bessel);
-
-		for (i = 0; i <= OrderOfHarmonics; ++i) {
-		    gsl_sf_legendre_array(OrderOfHarmonics, i, cos(Theta), &Legendre[i]);
-
-		    for(j = i; j <= OrderOfHarmonics; ++j) {
-		        Matrix[j][i] += sqrt(4.0 * PI) * cpow(_Complex_I, j) * DeltaRhoProtein * Bessel[j] * Legendre[j] * Polar(1.0, -i * Concentration);
-		    }
-		}
-	}
-
-	// Function used to generate intensity for a given q-value
-	double ComputeIntensity(double complex ** Matrix, int Size)
-	{
-		// Declarations
-		int i;
-		int j;
-		double Intensity = 0.0;
-
-		// Computation
-		for (i = 0; i <= Size; ++i) {
-
-		    for (j = 0; j <= i; ++j) {
-		        Intensity += ((j > 0) + 1.0) * pow(cabs(Matrix[i][j]), 2);
-		    }
-		}
-
-		return Intensity;
-	}
-
-	// Function used to reinitialize a matrix
-	void ResetMatrix(double complex ** Matrix, int Size)
-	{
-		int i;
-		int j;
-
-		for (i = 0; i <= Size; ++i) {
-
-		    for(j = 0; j <= Size; ++j) {
-		        Matrix[i][j] = 0.0;
-		    }
-		}
-	}
-
+	
+#endif /*SANSPDB*/
 %}
 
 DECLARE 
 %{
-	// Declarations
 	double Absorption;
 	double NumberDensity;
 
 	// Arrays for storing q and I(q)
-	double * qArray;
-	double * IArray;
+	DArray1d qArray;
+        DArray1d IArray;
 %}
 
 INITIALIZE
 %{
+	// Protein properties
+	ProteinStruct  Protein;
+	int            qbin;
+	
 	// Rescale concentration into number of aggregates per m^3 times 10^-4
 	NumberDensity = Concentration * 6.02214129e19;
 
-
 	// Standard sample handling
 	if (!xwidth || !yheight || !zdepth) {
-		printf("%s: Sample has no volume - check parameters...! \n", NAME_CURRENT_COMP);
+	    exit(fprintf(stderr, "SANSPDBFast: %s: ERROR: Sample has no volume - check parameters.\n", NAME_CURRENT_COMP));
 	}
 
+  // count the number of residues
 	Absorption = AbsorptionCrosssection;
+  Protein.NumberOfResidues = CountResidues(PDBFilepath);
+  Protein.Beads            = calloc(Protein.NumberOfResidues,sizeof(BeadStruct));
+  if (Protein.Beads == NULL) 
+    exit(fprintf(stderr, "SANSPDB: %s: ERROR: memory allocation\n",  NAME_CURRENT_COMP));
 
-	// Declarations
-	int i;
-	int j;
-	double qDummy;
-	const double qStep = (qMax - qMin) / (1.0 * NumberOfQBins);
+	qArray = create_darr1d(NumberOfQBins);
+  IArray = create_darr1d(NumberOfQBins);
 
-	// Initialize matrix
-	double complex ** Matrix = ComplexMatrix(OrderOfHarmonics + 1, OrderOfHarmonics + 1);
-
-	// Initialize protein
-	int NumberOfResidues;
-	ProteinStruct Protein;
-
-	printf("Initializing protein structure...\n");
-    NumberOfResidues = CountResidues(PDBFilepath);
-	InitializeProtein(&Protein, NumberOfResidues);
-
-	printf("Initializing arrays...\n");
-	InitializeArray(NumberOfQBins, &qArray);
-	InitializeArray(NumberOfQBins, &IArray);
-
-	printf("Creating protein structure...\n");
+  // initialize the protein from the PDB
 	ReadAminoPDB(PDBFilepath, &Protein);
+	MPI_MASTER(
+	printf("SANSPDBFast: %s: Initializing scattering from %s with %d residues on %d Q-values\n", 
+	  NAME_CURRENT_COMP, PDBFilepath, Protein.NumberOfResidues, NumberOfQBins);
+  );
 
-	// Computing scattering profile
-	printf("Computing scattering from protein...\n");
-	for (i = 0; i < NumberOfQBins; ++i) {
-		ResetMatrix(Matrix, OrderOfHarmonics);
+	// Computing scattering profile I(q)
+	for (qbin = 0; qbin < NumberOfQBins; ++qbin) {
+	    int    i,j,ResidueID;
+	    double qStep = (qMax - qMin) / (1.0 * NumberOfQBins);
+	    double q     =  qMin + qStep * (qbin + 0.5);
+	    cdouble** Matrix = (cdouble**)matrix2d_new(sizeof(cdouble),SANSPDBOrderOfHarmonics+1,SANSPDBOrderOfHarmonics+1);
+	    // init Matrix = 0
+	    // ResetMatrix(Matrix, SANSPDBOrderOfHarmonics);
+	    for (i = 0; i <= SANSPDBOrderOfHarmonics; ++i)
+		    for (j = 0; j <= SANSPDBOrderOfHarmonics; ++j)
+		      Matrix[i][j] = cplx(0,0);
+      
 
-		qDummy = qMin + (i + 0.5) * qStep;
+	    for (ResidueID = 0; ResidueID < Protein.NumberOfResidues; ++ResidueID) {
+	      // ExpandStructure(Matrix, &Protein, ResidueID, qDummy, RhoSolvent);		
+	      double Legendre[SANSPDBOrderOfHarmonics + 1];
+		    double Bessel[SANSPDBOrderOfHarmonics + 1];
 
-		for (j = 0; j < NumberOfResidues; ++j) {
-			ExpandStructure(Matrix, &Protein, j, qDummy, RhoSolvent);
-		}
+		    // Residue information
+		    const double Volume = Protein.Beads[ResidueID].Volume;
+		    const double DeltaRhoProtein = Protein.Beads[ResidueID].ScatteringLength - Volume * RhoSolvent;
 
-		qArray[i] = qDummy;
-	 	IArray[i] = ComputeIntensity(Matrix, OrderOfHarmonics);
+		    const double x = (Protein.Beads[ResidueID].x * Protein.Beads[ResidueID].ScatteringLength - 
+                        RhoSolvent * Volume * Protein.Beads[ResidueID].xv) / DeltaRhoProtein;
+
+		    const double y = (Protein.Beads[ResidueID].y * Protein.Beads[ResidueID].ScatteringLength - 
+                        RhoSolvent * Volume * Protein.Beads[ResidueID].yv) / DeltaRhoProtein;
+
+		    const double z = (Protein.Beads[ResidueID].z * Protein.Beads[ResidueID].ScatteringLength - 
+                        RhoSolvent * Volume * Protein.Beads[ResidueID].zv) / DeltaRhoProtein;
+
+		    // Convert bead position to spherical coordinates
+		    const double Radius = sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2));
+		    const double Theta  = acos(z / Radius);
+		    const double C      = acos(x / (Radius * sin(Theta))) * Sign(y);
+
+		    // Expand protein structure on harmonics
+		    gsl_sf_bessel_jl_array(SANSPDBOrderOfHarmonics, q * Radius, Bessel);
+
+		    for (i = 0; i <= SANSPDBOrderOfHarmonics; ++i) {
+		        gsl_sf_legendre_sphPlm_array(SANSPDBOrderOfHarmonics, i, cos(Theta), &Legendre[i]);
+
+		        for(j = 0; j <= SANSPDBOrderOfHarmonics; ++j) {
+			  if (j < i) Matrix[j][i] = cplx(0,0);
+		            else
+			      Matrix[j][i] = cadd(Matrix[j][i],rmul(sqrt(4.0 * PI) * DeltaRhoProtein * Bessel[j] * Legendre[j] , cmul(cpow(cplx(0,1), cplx(j,0)), Polar(1.0, -i * C))));
+			}
+		    }
+		    
+	    } // for ResidueID
+
+	    qArray[qbin] = q;
+	    // IArray[qbin] = ComputeIntensity(Matrix, SANSPDBOrderOfHarmonics);
+	    IArray[qbin] = 0;
+	    for (i = 0; i <= SANSPDBOrderOfHarmonics; ++i) {
+		    for (j = 0; j <= i; ++j) {
+		        IArray[qbin] += ((j > 0) + 1.0) * pow(cabs(Matrix[i][j]), 2);
+		    }
 	}
+		  // printf("I(q=%g) = %g\n", q, IArray[qbin]);
+	} // for qbin
+	MPI_MASTER(
+  	printf("SANSPDBFast: %s: %s initialization I(q) done\n", NAME_CURRENT_COMP, PDBFilepath);
+  );
 
-	printf("Initializations complete...\n");
 %}
 
 TRACE
@@ -523,11 +459,12 @@ TRACE
 	double l_full;
 	double l;
 	double l1;
+	double q;
 	double Intensity;
 	double Weight;
 	double IntensityPart;
 	double SolidAngle;
-	double q;
+
 	double qx;
 	double qy;
 	double qz;
@@ -607,7 +544,6 @@ TRACE
 
 MCDISPLAY
 %{
-
   box(0, 0, 0, xwidth, yheight, zdepth,0, 0, 1, 0);
 %}
 

@@ -64,122 +64,16 @@ NOACC
 
 SHARE
 %{
-#include <gsl/gsl_sf_bessel.h>
-
-// Functions used for compution the intensity from a given liposome
-double FormfactorCylinder(double q, double MajorSemiAxis, double MinorSemiAxis, double Height, double Alpha, double Beta)
-	{
-		double const ProjectedRadius = sqrt(pow(MajorSemiAxis * sin(Beta), 2) + pow(MinorSemiAxis * cos(Beta), 2));
-
-		double const Formfactor1 = j1(q * ProjectedRadius * sin(Alpha)) / (q * ProjectedRadius * sin(Alpha));
-		double const Formfactor2 = sin(q * Height * cos(Alpha) / 2.0) / (q * Height * cos(Alpha) / 2.0);
-
-		return 2 * Formfactor1 * Formfactor2;
-	}
-
-	double IntensityOfEmptyNanodiscs(double q, double MajorSemiAxis, double MinorSemiAxis, double ThicknessOfBelt,
-									 double HeightOfBelt, double HeightOfLipids, double HeightOfTails, double HeightOfCH3,
-									 double DeltaRhoBelt, double DeltaRhoHead, double DeltaRhoCH2Tail, double DeltaRhoCH3Tail)
-	{
-		// Declaration
-		double Intensity;
-		double IntensityPart;
-
-		double AmplitudeOfBelt;
-		double AmplitudeOfHeads;
-		double AmplitudeOfCH2Tail;
-		double AmplitudeOfCH3Tail;
-
-		double FormfactorOfBelt;
-		double FormfactorOfHeads;
-		double FormfactorOfCH2Tail;
-		double FormfactorOfCH3Tail;
-
-		const double OuterMajorSemiAxis = MajorSemiAxis + ThicknessOfBelt;
-		const double OuterMinorSemiAxis = MinorSemiAxis + ThicknessOfBelt;
-
-		const double VolumeOfBelt    = PI * HeightOfBelt * OuterMajorSemiAxis * OuterMinorSemiAxis - PI * HeightOfBelt * MajorSemiAxis * MinorSemiAxis;
-		const double VolumeOfHeads   = PI * HeightOfLipids * MajorSemiAxis * MinorSemiAxis         - PI * HeightOfTails * MajorSemiAxis * MinorSemiAxis;
-		const double VolumeOfCH2Tail = PI * HeightOfTails * MajorSemiAxis * MinorSemiAxis          - PI * HeightOfCH3 * MajorSemiAxis * MinorSemiAxis;
-		const double VolumeOfCH3Tail = PI * HeightOfCH3 * MajorSemiAxis * MinorSemiAxis;
-
-		// Variables needed for integration over alpha
-		int i;
-		const int NumberOfStepsInAlpha = 50;
-		double Alpha;
-		const double AlphaMin = 0.0;
-		const double AlphaMax = PI / 2.0;
-		const double AlphaStep = (AlphaMax - AlphaMin) / (1.0 * NumberOfStepsInAlpha);
-
-		// Variables needed in integration over beta
-		int j;
-		const int NumberOfStepsInBeta = 50;
-		double Beta;
-		const double BetaMin = 0.0;
-		const double BetaMax = PI / 2.0;
-		const double BetaStep = (BetaMax - BetaMin) / (1.0 * NumberOfStepsInBeta);
-
-		// Computation
-		Intensity = 0.0;
-
-		for (i = 0; i < NumberOfStepsInAlpha; ++i) {
-			Alpha = (i + 0.5) * AlphaStep;
-
-			for (j = 0; j < NumberOfStepsInBeta; ++j) {
-				Beta = (j + 0.5) * BetaStep;
-
-				// Compute formfactors
-				FormfactorOfBelt = (PI * HeightOfBelt * OuterMajorSemiAxis * OuterMinorSemiAxis * FormfactorCylinder(q, OuterMajorSemiAxis, OuterMinorSemiAxis, HeightOfBelt, Alpha, Beta) -
-								    PI * HeightOfBelt * MajorSemiAxis * MinorSemiAxis * FormfactorCylinder(q, MajorSemiAxis, MinorSemiAxis, HeightOfBelt, Alpha, Beta)) /
-								   (PI * HeightOfBelt * OuterMajorSemiAxis * OuterMinorSemiAxis - PI * HeightOfBelt * MajorSemiAxis * MinorSemiAxis);
-
-				FormfactorOfHeads = (PI * HeightOfLipids * MajorSemiAxis * MinorSemiAxis * FormfactorCylinder(q, MajorSemiAxis, MinorSemiAxis, HeightOfLipids, Alpha, Beta) -
-								     PI * HeightOfTails  * MajorSemiAxis * MinorSemiAxis * FormfactorCylinder(q, MajorSemiAxis, MinorSemiAxis, HeightOfTails , Alpha, Beta)) /
-								    (PI * HeightOfLipids * MajorSemiAxis * MinorSemiAxis - PI * HeightOfTails * MajorSemiAxis * MinorSemiAxis);
-
-				FormfactorOfCH2Tail = (PI * HeightOfTails * MajorSemiAxis * MinorSemiAxis * FormfactorCylinder(q, MajorSemiAxis, MinorSemiAxis, HeightOfTails, Alpha, Beta) -
-								       PI * HeightOfCH3   * MajorSemiAxis * MinorSemiAxis * FormfactorCylinder(q, MajorSemiAxis, MinorSemiAxis, HeightOfCH3  , Alpha, Beta)) /
-								      (PI * HeightOfTails * MajorSemiAxis * MinorSemiAxis - PI * HeightOfCH3 * MajorSemiAxis * MinorSemiAxis);
-
-				FormfactorOfCH3Tail = FormfactorCylinder(q, MajorSemiAxis, MinorSemiAxis, HeightOfCH3, Alpha, Beta);
-
-				// Compute amplitudes
-				AmplitudeOfBelt    = DeltaRhoBelt * VolumeOfBelt * FormfactorOfBelt;
-				AmplitudeOfHeads   = DeltaRhoHead * VolumeOfHeads * FormfactorOfHeads;
-				AmplitudeOfCH2Tail = DeltaRhoCH2Tail * VolumeOfCH2Tail * FormfactorOfCH2Tail;
-				AmplitudeOfCH3Tail = DeltaRhoCH3Tail * VolumeOfCH3Tail * FormfactorOfCH3Tail;
-
-				// Perform integration
-				IntensityPart = pow(AmplitudeOfBelt + AmplitudeOfHeads + AmplitudeOfCH2Tail + AmplitudeOfCH3Tail, 2);
-
-				Intensity += 2.0 / PI * sin(Alpha) * IntensityPart * AlphaStep * BetaStep;
-			}
-		}
-
-		return Intensity;
-	}
-
+#ifndef NANODISCS
+#define NANODISCS
+%include "nanodiscs.h"
+#endif
 %}
 
 
 DECLARE
 %{
-// Declarations
-double Absorption;
-double NumberDensity;
-
-// Curve used in linear
-double *qArray;
-double *IArray;
-%}
-
-INITIALIZE
-%{
-// Functions used for compution the intensity from a given liposome
-
->>>>>>> b6fb3daa6... move function declarations to SHARE
-
-	// Declarations
+  	// Declarations
 	double RhoBelt;
 	double RhoHead;
 	double RhoCH2Tail;
@@ -202,13 +96,13 @@ INITIALIZE
 	double AreaOfLipids;
 	// Declarations
 	double Absorption;
-	double q;
 	double NumberDensity;
 
 	// Curve used in linear
 	double *qArray;
 	double *IArray;
 
+%}
 
 INITIALIZE
 %{

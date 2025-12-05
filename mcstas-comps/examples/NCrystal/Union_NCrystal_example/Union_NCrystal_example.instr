@@ -4,98 +4,63 @@
 * Instrument: Union_NCrystal_example
 *
 * %Identification
-* Written by: NCrystal developers, Mads Bertelsen
+* Written by: T. Kittelmann, X. X. Cai, Mads Bertelsen
 * Date: 2020
 * Origin: ESS
 * %INSTRUMENT_SITE: NCrystal
 *
-* Example instrument for use of NCrystal_sample in Union
+* Example instrument for use of NCrystal in Union.
 *
 * %Description
-* This instrument examplifies how NCrystal may be used in Union constructions
+* This instrument examplifies how NCrystal may be used in Union
+* constructions. It is adopted from NCrystal_example.instr where both
+* monochromator and samples are described via NCrystal_sample components. Here,
+* they are both described via Union components.
 *
-*
-*  This file is originally part of NCrystal (see https://mctools.github.io/ncrystal/)   
-*                                                                            
-*  Copyright 2015-2022 NCrystal developers                                   
-*                                                                            
-*  Licensed under the Apache License, Version 2.0 (the "License");           
-*  you may not use this file except in compliance with the License.          
-*  You may obtain a copy of the License at                                   
-*                                                                            
-*      http://www.apache.org/licenses/LICENSE-2.0                            
-*                                                                            
-*  Unless required by applicable law or agreed to in writing, software       
-*  distributed under the License is distributed on an "AS IS" BASIS,         
-*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
-*  See the License for the specific language governing permissions and       
-*  limitations under the License.                                            
-*                                                                            
-*
-* Example: sample_cfg="Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x" Detector: powder_pattern_detc_I=2.21958e-10 
+* %Example: Detector: powder_pattern_detc_I=1.55e-10
 *
 * %Parameters
-* sample_cfg: [string] Material string for the 
 *
 * %Link
-* A reference/HTML link for more information
+* https://github.com/mctools/ncrystal/wiki/
 *
 * %End
 *******************************************************************************/
 DEFINE INSTRUMENT Union_NCrystal_example()
 
-DECLARE
-%{
-%}
-
-INITIALIZE
-%{
-%}
-
 TRACE
-
-/* Example instrument in which two NCrystal_sample component instances are used
- to model respectively a Ge-511 monochromator and secondly an Yttrium-Oxide
- powder sample. Source and detectors are deliberately kept very simple.
-
- The orientation of the monochromator and the value of the central wavelength,
- lambda0, is set up in order for the neutrons at lambda0 to experience a 90 degree
- Bragg reflection (thetaBragg=45 degree) on the Ge511 plane, directing the reflected
- neutrons towards the sample (the d-spacing of Ge511 is 1.08876Aa):
-
-           lambda = sin(45degree)*2*1.08876Aa = 1.539739Aa
-
- Note that the d-spacing, 1.08876Aa, of Ge511 can be found by the command:
-
-    ncrystal_inspectfile --dump  "Ge_sg227.ncmat"
-
- Alternatively, it could have been extracted programatically here in the instrument file with:
-
-  #include "NCrystal/ncrystal.h"
-  ncrystal_info_t monochromator_info = ncrystal_create_info("Ge_sg227.ncmat");
-  double dspacing_Ge511 = ncrystal_info_dspacing_from_hkl( monochromator_info, 5,1,1 );
-  ncrystal_unref(&monochromator_info);
-
-*/
 
 COMPONENT init = Union_init()
 AT (0,0,0) ABSOLUTE
 
-COMPONENT NCrystal_mono = NCrystal_process(cfg="Ge_sg227.ncmat;mos=0.3deg;bkgd=0"
-                                          ";dir1=@crys_hkl:5,1,1@lab:0,0,1"
-                                          ";dir2=@crys_hkl:0,1,-1@lab:0,1,0")
+// NOTE: Next four components are generated with the following two commands, so do NOT edit them manually (but rerun if absorption in NCrystal changes).
+//
+// ncrystal_mcstasunion NCrystal_mono_material 'Ge_sg227.ncmat;mos=0.3deg;comp=bragg;dir1=@crys_hkl:5,1,1@lab:0,0,1;dir2=@crys_hkl:0,1,-1@lab:0,1,0'
+// ncrystal_mcstasunion NCrystal_sample_material 'Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x'
+//
+COMPONENT NCrystal_mono_material_ncrystal_proc = NCrystal_process(
+    cfg = "Ge_sg227.ncmat;dir1=@crys_hkl:5,1,1@lab:0,0,1;dir2=@crys_hkl:0,1,-1@lab:0,1,0;incoh_elas=0;inelas=0;mos=0.3deg;sans=0"
+)
 AT (0,0,0) ABSOLUTE
 
-COMPONENT NCrystal_mono_material = Union_make_material(process_string="NCrystal_mono",
-                                                       my_absorption=100*2.2/181.067)
+COMPONENT NCrystal_mono_material = Union_make_material(
+    process_string = "NCrystal_mono_material_ncrystal_proc",
+    my_absorption = 9.72016247573315
+)
 AT (0,0,0) ABSOLUTE
 
-COMPONENT NCrystal_sample = NCrystal_process(cfg="Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x")
+COMPONENT NCrystal_sample_material_ncrystal_proc = NCrystal_process(
+    cfg = "Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x"
+)
 AT (0,0,0) ABSOLUTE
 
-COMPONENT NCrystal_sample_material = Union_make_material(process_string="NCrystal_sample",
-                                                         my_absorption=100*0.512114/1205.6)
+COMPONENT NCrystal_sample_material = Union_make_material(
+    process_string = "NCrystal_sample_material_ncrystal_proc",
+    my_absorption = 2.03893536113881
+)
 AT (0,0,0) ABSOLUTE
+
+// END OF GENERATED CODE!!!
 
 COMPONENT origin = Progress_bar()
   AT (0, 0, 0) RELATIVE ABSOLUTE

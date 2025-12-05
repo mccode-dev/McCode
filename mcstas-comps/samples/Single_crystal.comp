@@ -604,7 +604,9 @@ struct hkl_data
     /* when lengths a,b,c + angles are given (instead of vectors a,b,c) */
     if (info->m_aa && info->m_bb && info->m_cc)
     {
-      printf("Mode: lengths and angles\n");
+      MPI_MASTER(
+        printf("Mode: lengths and angles\n");
+      );
       double as,bs,cs;
       if (info->m_a) as = info->m_a;
       else as = sqrt(info->m_ax*info->m_ax+info->m_ay*info->m_ay+info->m_az*info->m_az);
@@ -622,21 +624,27 @@ struct hkl_data
                      /sin(info->m_cc*DEG2RAD);
       info->m_cx = sqrt(cs*cs - info->m_cz*info->m_cz - info->m_cy*info->m_cy);
 
-      printf("Single_crystal: %s structure a=%g b=%g c=%g aa=%g bb=%g cc=%g ",
+      MPI_MASTER(
+        printf("Single_crystal: %s structure a=%g b=%g c=%g aa=%g bb=%g cc=%g ",
         (flag ? "INC" : SC_file), as, bs, cs, info->m_aa, info->m_bb, info->m_cc);
+      );
     } else {
       if (!info->recip) {
-        printf("Mode: Direct mode lattice\n");
-        printf("Single_crystal: %s structure a=[%g,%g,%g] b=[%g,%g,%g] c=[%g,%g,%g] ",
-               (flag ? "INC" : SC_file), info->m_ax ,info->m_ay ,info->m_az,
-               info->m_bx ,info->m_by ,info->m_bz,
-               info->m_cx ,info->m_cy ,info->m_cz);
+        MPI_MASTER(
+          printf("Mode: Direct mode lattice\n");
+          printf("Single_crystal: %s structure a=[%g,%g,%g] b=[%g,%g,%g] c=[%g,%g,%g] ",
+                (flag ? "INC" : SC_file), info->m_ax ,info->m_ay ,info->m_az,
+                info->m_bx ,info->m_by ,info->m_bz,
+                info->m_cx ,info->m_cy ,info->m_cz);
+        );
       } else {
-        printf("Mode: Reciprocal mode lattice\n");
-        printf("Single_crystal: %s structure a*=[%g,%g,%g] b*=[%g,%g,%g] c*=[%g,%g,%g] ",
-               (flag ? "INC" : SC_file), info->m_ax ,info->m_ay ,info->m_az,
-               info->m_bx ,info->m_by ,info->m_bz,
-               info->m_cx ,info->m_cy ,info->m_cz);
+        MPI_MASTER(
+          printf("Mode: Reciprocal mode lattice\n");
+          printf("Single_crystal: %s structure a*=[%g,%g,%g] b*=[%g,%g,%g] c*=[%g,%g,%g] ",
+                (flag ? "INC" : SC_file), info->m_ax ,info->m_ay ,info->m_az,
+                info->m_bx ,info->m_by ,info->m_bz,
+                info->m_cx ,info->m_cy ,info->m_cz);
+          );
       }
     }
     /* Compute reciprocal or direct lattice vectors. */
@@ -645,7 +653,9 @@ struct hkl_data
                info->m_bx, info->m_by, info->m_bz,
                info->m_cx, info->m_cy, info->m_cz);
       info->V0 = fabs(scalar_prod(info->m_ax, info->m_ay, info->m_az, tmp_x, tmp_y, tmp_z));
-      printf("V0=%g\n", info->V0);
+      MPI_MASTER(
+        printf("V0=%g\n", info->V0);
+      );
 
       info->asx = 2*PI/info->V0*tmp_x;
       info->asy = 2*PI/info->V0*tmp_y;
@@ -673,7 +683,9 @@ struct hkl_data
                info->bsx/(2*PI), info->bsy/(2*PI), info->bsz/(2*PI),
                info->csx/(2*PI), info->csy/(2*PI), info->csz/(2*PI));
       info->V0 = 1/fabs(scalar_prod(info->asx/(2*PI), info->asy/(2*PI), info->asz/(2*PI), tmp_x, tmp_y, tmp_z));
-      printf("V0=%g\n", info->V0);
+      MPI_MASTER(
+        printf("V0=%g\n", info->V0);
+      );
 
       /*compute the direct cell parameters, ofr completeness*/
       info->m_ax = tmp_x*info->V0;
@@ -1168,12 +1180,17 @@ INITIALIZE
   if (hkl_info.sigma_a<0) hkl_info.sigma_a=0;
   if (hkl_info.sigma_i<0) hkl_info.sigma_i=0;
 
-  if (hkl_info.count)
-    printf("Single_crystal: %s: Read %d reflections from file '%s'\n",
-      NAME_CURRENT_COMP, hkl_info.count, reflections);
-  else printf("Single_crystal: %s: Using incoherent elastic scattering only sigma=%g.\n",
+  if (hkl_info.count) {
+    MPI_MASTER(
+      printf("Single_crystal: %s: Read %d reflections from file '%s'\n",
+        NAME_CURRENT_COMP, hkl_info.count, reflections);
+    );
+  } else {
+    MPI_MASTER(
+      printf("Single_crystal: %s: Using incoherent elastic scattering only sigma=%g.\n",
       NAME_CURRENT_COMP, hkl_info.sigma_i);
-
+      );
+  }
   /*this should not be in hkl_info*/
   hkl_info.shape=-1; /* -1:no shape, 0:cyl, 1:box, 2:sphere, 3:any-shape  */
   if (geometry && strlen(geometry) && strcmp(geometry, "NULL") && strcmp(geometry, "0")) {
@@ -1195,10 +1212,11 @@ INITIALIZE
     exit(fprintf(stderr,"Single_crystal: %s: sample has invalid dimensions.\n"
                         "ERROR           Please check parameter values (xwidth, yheight, zdepth, radius).\n", NAME_CURRENT_COMP));
 
-  printf("Single_crystal: %s: Vc=%g [Angs] sigma_abs=%g [barn] sigma_inc=%g [barn] reflections=%s\n",
+  MPI_MASTER(
+    printf("Single_crystal: %s: Vc=%g [Angs] sigma_abs=%g [barn] sigma_inc=%g [barn] reflections=%s\n",
       NAME_CURRENT_COMP, hkl_info.V0, hkl_info.sigma_a, hkl_info.sigma_i,
       reflections && strlen(reflections) ? reflections : "NULL");
-
+    );
   if (powder && PG)
     exit(fprintf(stderr,"Single_crystal: %s: powder and PG modes can not be used together!\n"
              "ERROR           Please use EITHER powder or PG mode.\n", NAME_CURRENT_COMP));
@@ -1218,16 +1236,16 @@ INITIALIZE
   if (order==0 && extra_order) {
      fprintf(stderr, "Single_crystal: %s: extra_order used while order=0, then this option has no effect\n", NAME_CURRENT_COMP);
   }
-
-  printf("Direct space lattice orientation:\n");
-  printf("  a = [%g %g %g]\n", hkl_info.m_ax, hkl_info.m_ay, hkl_info.m_az);
-  printf("  b = [%g %g %g]\n", hkl_info.m_bx, hkl_info.m_by, hkl_info.m_bz);
-  printf("  c = [%g %g %g]\n", hkl_info.m_cx, hkl_info.m_cy, hkl_info.m_cz);
-  printf("Reciprocal space lattice orientation:\n");
-  printf("  a* = [%g %g %g]\n", hkl_info.asx, hkl_info.asy, hkl_info.asz);
-  printf("  b* = [%g %g %g]\n", hkl_info.bsx, hkl_info.bsy, hkl_info.bsz);
-  printf("  c* = [%g %g %g]\n", hkl_info.csx, hkl_info.csy, hkl_info.csz);
-
+  MPI_MASTER(
+    printf("Direct space lattice orientation:\n");
+    printf("  a = [%g %g %g]\n", hkl_info.m_ax, hkl_info.m_ay, hkl_info.m_az);
+    printf("  b = [%g %g %g]\n", hkl_info.m_bx, hkl_info.m_by, hkl_info.m_bz);
+    printf("  c = [%g %g %g]\n", hkl_info.m_cx, hkl_info.m_cy, hkl_info.m_cz);
+    printf("Reciprocal space lattice orientation:\n");
+    printf("  a* = [%g %g %g]\n", hkl_info.asx, hkl_info.asy, hkl_info.asz);
+    printf("  b* = [%g %g %g]\n", hkl_info.bsx, hkl_info.bsy, hkl_info.bsz);
+    printf("  c* = [%g %g %g]\n", hkl_info.csx, hkl_info.csy, hkl_info.csz);
+  );
 %}
 
 TRACE
@@ -1459,7 +1477,9 @@ TRACE
               &coh_refl, &coh_xsect, oclContext_SX,
               d_L, d_T, d_tau_count, d_coh_refl, d_coh_xsect);
           if (tau_count != 0)
+          MPI_MASTER(
             printf("\nGPU tau_count:%i\n",tau_count);
+          );
         }
         else 
         #endif

@@ -55,8 +55,8 @@
 * E0:          [meV]     Lower edge of energy distribution
 * E1:          [meV]     Upper edge of energy distribution
 * modPosition: [int]     Defines the initial surface for neutron distribution production. Possible values = 0 (at moderator) or 1 (at shutter insert)
-* xw:          [m]       Moderator width
-* yh:          [m]       Moderator height
+* xwidth:      [m]       Moderator width
+* yheigh       [m]       Moderator height
 * focus_xw:    [m]       Width of focusing rectangle
 * focus_yh:    [m]       Height of focusing rectangle
 * dist:        [m]       Distance from source surface to the focusing rectangle
@@ -66,8 +66,8 @@
 * %E
 *******************************************************************************/
 DEFINE COMPONENT ViewModISIS
-SETTING PARAMETERS (string Face="TS1_S04_Merlin.mcstas",E0 , E1, modPosition=0,
-  xw=0.12, yh=0.12, focus_xw=0.094, focus_yh=0.094,
+SETTING PARAMETERS (string Face="TS1_S04_Merlin.mcstas",E0, E1, modPosition=0,
+  xwidth=0.12, yheight=0.12, focus_xw=0.094, focus_yh=0.094,
   dist=1.7, int verbose=0, beamcurrent=1)
 
 SHARE
@@ -485,7 +485,7 @@ calcRDum(double* RPts, Source_ViewMod TS)
 } /* calcRDum */
 
 void
-processHeader(FILE* TFile, Source_ViewMod *TS, double modPosition, double xw, double yh)
+processHeader(FILE* TFile, Source_ViewMod *TS, double modPosition, double xwidth, double yheight)
   /*!
     Determine the window and the time offset
     \param TFile :: file [rewound on exit]
@@ -532,8 +532,8 @@ processHeader(FILE* TFile, Source_ViewMod *TS, double modPosition, double xw, do
 	  TS->XAxis=sqrt(TS->XAxis)/100.0;
               if (!modPosition)
                  {
-	          TS->ZAxis=yh;
-	          TS->XAxis=xw;
+	          TS->ZAxis=yheight;
+	          TS->XAxis=xwidth;
                   }
 	  fprintf(stderr,"Time off sec == %g \n",TS->timeOffset);
 	  fprintf(stderr,"mod size z == %g \n",TS->ZAxis);
@@ -549,7 +549,7 @@ processHeader(FILE* TFile, Source_ViewMod *TS, double modPosition, double xw, do
 
 int
 readHtable(FILE* TFile,const double Einit,const double Eend, 
-  Source_ViewMod *TS, double modPosition, double xw, double yh, int verbose)
+  Source_ViewMod *TS, double modPosition, double xwidth, double yheight, int verbose)
 /*!
   Process a general h.o file to create an integrated
   table of results from Einit -> Eend
@@ -590,7 +590,7 @@ readHtable(FILE* TFile,const double Einit,const double Eend,
   tIndex=0;
   TS->nTime=0;
   TS->nEnergy=0;
-  processHeader(TFile, TS, modPosition, xw, yh);
+  processHeader(TFile, TS, modPosition, xwidth, yheight);
 
   // Read file and get time bins:
   while(fgets(ss,255,TFile) && Eend>Ea)
@@ -1078,7 +1078,7 @@ INITIALIZE
   rtE1=convertEnergy(E1);
   orderEnergy(&rtE0,&rtE1);
 
-  readHtable(Tfile,rtE0,rtE1, &TS, modPosition, xw, yh, verbose);
+  readHtable(Tfile,rtE0,rtE1, &TS, modPosition, xwidth, yheight, verbose);
   fclose(Tfile);
   // Below pragma was needed with PGI 19.x, compilation fails with NVC 20.7 
   //#pragma acc declare create( TS )

@@ -3669,8 +3669,8 @@ int InitialiseStdSupermirrorFlat_detail (
 
 	MPI_MASTER (
 		char refl_check_file_path[CHAR_BUF_LENGTH]; 
-		sprintf(refl_check_file_path, "%s/refl_check.csv", dirname,i); 
-		fpp=fopen(refl_check_file_path,"sm_ir_r");
+		sprintf(refl_check_file_path, "%s%srefl_check.csv", dirname, MC_PATHSEP_S);
+		fpp=fopen(refl_check_file_path,"r");
 		if (fpp) { 
 			fclose(fpp);
 		}

@@ -306,12 +306,6 @@ macro(setupMCCODE FLAVOR)
     work/support/postrm
     @ONLY)
 
-  # Generate the console-errormessage wrapper
-  configure_file(
-    cmake/support/run-scripts/mccode_errmsg.in
-    "work/support/${FLAVOR}_errmsg"
-    @ONLY)
-
   # Set architecture
   if(ARCH EQUAL "amd64")
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")

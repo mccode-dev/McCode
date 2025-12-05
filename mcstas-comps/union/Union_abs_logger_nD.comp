@@ -40,7 +40,8 @@
 * This version is a close copy of Monitor_nD, having the same interface, though
 * the user must be aware that no propagation happens for rays to hit the
 * detector pixels, instead it uses the position of absorbed. Use the previous
-* keyword to tell Monitor_nD that this is going on.
+* keyword to tell Monitor_nD that this is going on. It still needs values set
+* for xwidth and yheight, even though these will not be used.
 *
 * This absorption logger needs to be placed in space, the position and velocity
 *  is recorded in the coordinate system of the logger component.
@@ -113,13 +114,11 @@ OUTPUT PARAMETERS ()
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
-SHARE
+SHARE INHERIT Monitor_nD EXTEND
 %{
 #ifndef Union
 #error "The Union_init component must be included before this Union_abs_logger_nD component"
 #endif
-
-%include "monitor_nd-lib" // Internally avoids double import
 
 struct temp_abs_nD_data_element_struct {
  double x_pos;
@@ -304,7 +303,6 @@ void record_to_perm_abs_nD(Coords *position, double *k, double p, double time, i
   }
 
   if (add_point == 1) {
-    //printf("storage was set \n");
     
     double given_x_pos, given_y_pos, given_z_pos;
     coords_get(*position, &given_x_pos, &given_y_pos, &given_z_pos);
@@ -477,10 +475,7 @@ off_struct offdata;
 %}
 
 INITIALIZE INHERIT Monitor_nD EXTEND
-%{
-	
-  printf("Completed Monitor_nD initialization, continuing Union_abs_logger_nD initialization.");
-	
+%{	
   // input sanitation, provide error if commands used in options that are not supported in Union context
   // capture, 3He_pressure, slit, absorb
  if (strstr(Vars.option, "capture") || strstr(Vars.option, "3He_pressure") || strstr(Vars.option, "slit") || strstr(Vars.option, "absorb"))

@@ -53,7 +53,7 @@ set(CPACK_NSIS_DISPLAY_NAME "${NSIS_NAME}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${NSIS_NAME}")
 
 # Debian
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, python3-scipy, python3-pillow, python3-numpy, python3-pyqt5.qtsvg, python3-pyqt6.qtsvg")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, python3-scipy, python3-pillow, python3-numpy, python3-pyqt6.qtsvg")
 set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-tools-python-${P}plot-html-3.5.1")
 
 # RPM

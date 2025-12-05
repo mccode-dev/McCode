@@ -2,7 +2,7 @@
 import sys
 import pathlib
 import os
-
+import shutil
 
 def cleanup( cfg ):
 
@@ -12,9 +12,11 @@ def cleanup( cfg ):
         patterns = ['*.exe','*.obj','*.pdb','*.ilk']
 
     for pattern in patterns:
-        for p in pathlib.Path(cfg.dirname).glob(pattern):
-            p.unlink()
-
+        for p in pathlib.Path(cfg.dirname).rglob(pattern):
+            if os.path.isfile(p):
+                p.unlink()
+            if os.path.isdir(p):
+                shutil.rmtree(p)
 
 def parse_args( argv ):
     from argparse import ArgumentParser as AP

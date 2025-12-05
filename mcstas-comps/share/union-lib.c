@@ -517,6 +517,17 @@ int (*scattering_function)(double*,double*,double*,union data_transfer_union,str
 //                         k_f,    k_i,    weight, parameters               , focus data / function
 };
 
+//Utility function for initialising a scattering_process_struct with default
+//values:
+void scattering_process_struct_init( struct scattering_process_struct * sps )
+{
+  memset(sps,0,sizeof(struct scattering_process_struct));//catch all
+  sps->name[0] = '\0';
+  sps->probability_for_scattering_function = NULL;
+  sps->scattering_function = NULL;
+  sps->non_isotropic_rot_index = -1;
+  sps->needs_cross_section_focus = -1;
+}
 
 union surface_data_transfer_union 
 {

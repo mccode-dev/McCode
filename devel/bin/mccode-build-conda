@@ -7,7 +7,10 @@ import tempfile
 if not os.name == 'nt':
     import shlex as lexer
 else:
-    import mslex as lexer
+    try:
+        import mslex as lexer
+    except ImportError:
+        import shlex as lexer
 
 def runcmd( cmd, capture_output = False ):
     print()
@@ -15,13 +18,13 @@ def runcmd( cmd, capture_output = False ):
     print()
     rp = subprocess.run( cmd,
                          capture_output = capture_output,
-                         check = True )
+                         check = True  )
     if not capture_output:
         return
     if rp.stderr:
-        print(rp.stderr)
+        print(rp.stderr.decode())
         raise SystemExit(1)
-    return rp.stdout
+    return rp.stdout.decode()
 
 def detect_reporoot():
     reporoot = pathlib.Path(__file__).parent.parent.parent
@@ -41,9 +44,9 @@ def detect_condaprefix():
 def mccode_build_conda ( cfg ):
 
     if ( cfg.is_mac ):
-        os.environ["SDKROOT"] = str(runcmd(['xcrun','--sdk','macosx',
+        os.environ["SDKROOT"] = runcmd(['xcrun','--sdk','macosx',
                                         '--show-sdk-path'],
-                                       capture_output = True))
+                                       capture_output = True).strip()
 
     conda_prefix = detect_condaprefix()
 

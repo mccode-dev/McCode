@@ -167,6 +167,10 @@ void *mcmagnet_push(_class_particle *_particle, int func_id, Rotation *magnet_ro
     #else
     _particle->mcMagnet=calloc(MCMAGNET_STACKSIZE,sizeof(mcmagnet_field_info *));
     #endif
+    if(!_particle->mcMagnet) {
+      fprintf(stderr,"pol-lib: malloc() error pushing field to stack\n");
+      exit(-1);
+    }
   }
   mcmagnet_field_info **stack=((mcmagnet_field_info **) _particle->mcMagnet);
 
@@ -181,6 +185,10 @@ void *mcmagnet_push(_class_particle *_particle, int func_id, Rotation *magnet_ro
   #else
   stack[0]=calloc(1, sizeof(mcmagnet_field_info));
   #endif
+  if(!stack[0]) {
+    fprintf(stderr,"pol-lib: malloc() error allocating field stack[0]\n");
+    exit(-1);
+  }
   /*drop the new item in*/
   mcmagnet_pack(stack[0],func_id,magnet_rot,magnet_pos,stopbit,prms);
   return NULL;// (void *) stack[0];

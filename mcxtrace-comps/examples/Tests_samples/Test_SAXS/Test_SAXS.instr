@@ -41,15 +41,15 @@
 * %Example: SAMPLE=11 Detector: PSDMonitor_I=5.47707e-15
 *
 * %Parameters
-* DistanceFromSourceToFirstPinhole: [m]  Distance to first pinhole from source.
+* DistanceFromSourceToFirstPinhole:  [m] Distance to first pinhole from source.
 * DistanceFromSourceToSecondPinhole: [m] Distance to second pinhole - used for focusing rays.
 * DistanceFromSecondPinholeToSample: [m] Collimation length.
-* DistanceFromSampleToDetector: [m]      Sample-detector-distance.
-* RadiusOfDetector: [m]                  Radius of the circular detector.
-* Lambda: [AA]                           Wavelength of the rays emitted from source.
-* DLambda: [ ]                           Relative deviation of wavelength of the rays emitted from source.
-* SAMPLE: [ ]                            Index of sample model, see above.
-* Ncount:[1]                             Override the number of rays to simulate.
+* DistanceFromSampleToDetector:      [m] Sample-detector-distance.
+* RadiusOfDetector:                  [m] Radius of the circular detector.
+* Lambda:     [AA]  Wavelength of the rays emitted from source.
+* DLambda:     [ ]  Relative deviation of wavelength of the rays emitted from source.
+* SAMPLE:      [ ]  Index of sample model, see above.
+* Ncount:      [1]  Override the number of rays to simulate.
 *
 * %End
 *******************************************************************************/
@@ -65,6 +65,9 @@ DEFINE INSTRUMENT Test_SAXS(
   SAMPLE=0, Ncount=0
 )
 
+DECLARE
+%{
+%}
 
 INITIALIZE
 %{
@@ -91,15 +94,16 @@ AT (0, 0, 0) RELATIVE Origin
 
 
 COMPONENT FirstPinhole = Slit(
-	radius = 0.0002
-)
+	radius = 0.0002)
 AT (0, 0, DistanceFromSourceToFirstPinhole) RELATIVE Source
 
 
 COMPONENT SecondPinhole = Slit(
-	radius = 0.00015
-)
+	radius = 0.00015)
 AT (0, 0, DistanceFromSourceToSecondPinhole) RELATIVE Source
+
+COMPONENT SamplePos=Arm()
+  AT (0, 0, DistanceFromSourceToSecondPinhole) RELATIVE SecondPinhole
 
 COMPONENT Sample0 = SAXSSpheres(
 	xwidth = 0.01,
@@ -107,9 +111,8 @@ COMPONENT Sample0 = SAXSSpheres(
 	zdepth = 0.01,
 	R = 50.0,
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
-	DetectorRadius = RadiusOfDetector
-)
-WHEN(SAMPLE==0) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	DetectorRadius = RadiusOfDetector)
+WHEN (SAMPLE==0) AT (0,0,0) RELATIVE SamplePos
 
 COMPONENT Sample1 = SAXSShells(
 	xwidth = 0.01,
@@ -118,54 +121,48 @@ COMPONENT Sample1 = SAXSShells(
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
 	DetectorRadius = RadiusOfDetector,
 	R = 50.0, 
-	Thickness = 20.0
-)
-WHEN(SAMPLE==1) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	Thickness = 20.0)
+WHEN (SAMPLE==1) AT (0,0,0) RELATIVE SamplePos
 
 Component Sample2 = SAXSCylinders(
 	xwidth = 0.01,
 	yheight = 0.01,
 	zdepth = 0.01,
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
-	DetectorRadius = RadiusOfDetector
-)
-WHEN(SAMPLE==2) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	DetectorRadius = RadiusOfDetector)
+WHEN (SAMPLE==2) AT (0,0,0) RELATIVE SamplePos
 
-COMPONENT Sample3= SAXSEllipticCylinders(
+COMPONENT Sample3 = SAXSEllipticCylinders(
 	xwidth = 0.01,
 	yheight = 0.01,
 	zdepth = 0.01,
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
-	DetectorRadius = RadiusOfDetector
-)
-WHEN(SAMPLE==3) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	DetectorRadius = RadiusOfDetector)
+WHEN (SAMPLE==3) AT (0,0,0) RELATIVE SamplePos
 
-COMPONENT Sample4= SAXSLiposomes(
+COMPONENT Sample4 = SAXSLiposomes(
 	xwidth = 0.01,
 	yheight = 0.01,
 	zdepth = 0.01,
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
-	DetectorRadius = RadiusOfDetector
-)
-WHEN(SAMPLE==4) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	DetectorRadius = RadiusOfDetector)
+WHEN (SAMPLE==4) AT (0,0,0) RELATIVE SamplePos
 
-COMPONENT Sample5= SAXSNanodiscs(
+COMPONENT Sample5 = SAXSNanodiscs(
 	xwidth = 0.01,
 	yheight = 0.01,
 	zdepth = 0.01,
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
-	DetectorRadius = RadiusOfDetector
-)
-WHEN(SAMPLE==5) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	DetectorRadius = RadiusOfDetector)
+WHEN (SAMPLE==5) AT (0,0,0) RELATIVE SamplePos
 
-COMPONENT Sample6= SAXSNanodiscsWithTags(
+COMPONENT Sample6 = SAXSNanodiscsWithTags(
 	xwidth = 0.01,
 	yheight = 0.01,
 	zdepth = 0.01,
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
-	DetectorRadius = RadiusOfDetector
-)
-WHEN(SAMPLE==6) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	DetectorRadius = RadiusOfDetector)
+WHEN (SAMPLE==6) AT (0,0,0) RELATIVE SamplePos
 
 COMPONENT Sample7 = SAXSPDB(
 	xwidth = 0.01,
@@ -173,9 +170,8 @@ COMPONENT Sample7 = SAXSPDB(
  	zdepth = 0.01,
  	SampleToDetectorDistance = DistanceFromSampleToDetector,
  	DetectorRadius = RadiusOfDetector,
- 	PDBFilepath = "3v03.pdb"
- )
-WHEN(SAMPLE==7) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+ 	PDBFilepath = "3v03.pdb")
+WHEN (SAMPLE==7) AT (0,0,0) RELATIVE SamplePos
 
 //COMPONENT Sample8 = SAXSCurve(
 //	FileWithCurve = "Curve.mcp",
@@ -183,27 +179,24 @@ WHEN(SAMPLE==7) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
 //	yheight = 0.01,
 //	zdepth = 0.01,
 //	SampleToDetectorDistance = DistanceFromSampleToDetector,
-//	DetectorRadius = RadiusOfDetector
-//)
-//WHEN(SAMPLE==8) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+//	DetectorRadius = RadiusOfDetector)
+//WHEN (SAMPLE==8) AT (0,0,0) RELATIVE SamplePos
 
 COMPONENT Sample9 = SAXSNanodiscsFast(
 	xwidth = 0.01,
 	yheight = 0.01,
 	zdepth = 0.01,
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
-	DetectorRadius = RadiusOfDetector
-)
-WHEN(SAMPLE==9) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	DetectorRadius = RadiusOfDetector)
+WHEN (SAMPLE==9) AT (0,0,0) RELATIVE SamplePos
 
 COMPONENT Sample10 = SAXSNanodiscsWithTagsFast(
 	xwidth = 0.01,
 	yheight = 0.01,
 	zdepth = 0.01,
 	SampleToDetectorDistance = DistanceFromSampleToDetector,
-	DetectorRadius = RadiusOfDetector
-)
-WHEN(SAMPLE==10) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+	DetectorRadius = RadiusOfDetector)
+WHEN (SAMPLE==10) AT (0,0,0) RELATIVE SamplePos
 
 COMPONENT Sample11 = SAXSPDBFast(
  	xwidth = 0.01,
@@ -212,14 +205,12 @@ COMPONENT Sample11 = SAXSPDBFast(
  	SampleToDetectorDistance = DistanceFromSampleToDetector,
  	DetectorRadius = RadiusOfDetector, 
  	PDBFilepath = "6lyz.pdb", NumberOfQBins=2000,
-     qMax = 0.9
- )
-WHEN(SAMPLE==11) AT(0, 0, DistanceFromSampleToDetector) RELATIVE SecondPinhole
+     qMax = 0.9)
+WHEN (SAMPLE==11) AT (0,0,0) RELATIVE SamplePos
 
 COMPONENT Beamstop = Beamstop(
-	radius = 0.001
-)
-AT (0, 0, DistanceFromSampleToDetector - 0.000001) RELATIVE Sample0
+	radius = 0.001)
+AT (0, 0, DistanceFromSampleToDetector - 0.000001) RELATIVE SamplePos
 
 
 COMPONENT PSDMonitor = PSD_monitor(
@@ -228,8 +219,7 @@ COMPONENT PSDMonitor = PSD_monitor(
 	yheight = 2.0 * RadiusOfDetector / sqrt(2.0),
 	nx = 200,
 	ny = 200,
-	restore_xray = 1
-)
+	restore_xray = 1)
 AT (0, 0, 0.000001) RELATIVE Beamstop
 
 
@@ -238,9 +228,12 @@ COMPONENT QMonitor = SAXSQMonitor(
 	DistanceFromSample = DistanceFromSampleToDetector,
 	LambdaMin = Lambda,
 	Lambda0 = Lambda,
-	NumberOfBins = 2000
-)
+	NumberOfBins = 2000)
 AT (0, 0, 0.000001000000001) RELATIVE Beamstop
 
+
+FINALLY
+%{
+%}
 
 END

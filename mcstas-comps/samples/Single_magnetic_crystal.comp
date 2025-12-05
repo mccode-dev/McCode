@@ -111,16 +111,17 @@ SHARE
   /* used for reading data table from file */
   %include "read_table-lib"
   %include "interoff-lib"
+  %include "mccode-complex-lib"
 //  %include "columnfile"
 /* Declare structures and functions only once in each instrument. */
 #ifndef SINGLE_MAGNETIC_CRYSTAL_DECL
 #define SINGLE_MAGNETIC_CRYSTAL_DECL
-#include <complex.h>
+
     struct hkl_data
     {
       int h,k,l;                  /* Indices for this reflection */
       double F2;                  /* Value of structure factor */
-      complex double f[4];        /* Structure factors (scattering amplitudes for different spin flips spin up->up, down->down, up->down, down-up */
+      cdouble f[4];        /* Structure factors (scattering amplitudes for different spin flips spin up->up, down->down, up->down, down-up */
       double tau_x, tau_y, tau_z; /* Coordinates in reciprocal space */
       double tau;                 /* Length of (tau_x, tau_y, tau_z) */
       double u1x, u1y, u1z;       /* First axis of local coordinate system */
@@ -273,7 +274,7 @@ SHARE
       bs=sqrt(scalar_prod(info->bsx,info->bsy,info->bsz,info->bsx,info->bsy,info->bsz));
       cs=sqrt(scalar_prod(info->csx,info->csy,info->csz,info->csx,info->csy,info->csz));
 
-      complex double f=0;
+      cdouble f=cplx(0,0);
       if (info->tau_max==-1)
         info->tau_max=4*as;
       
@@ -296,13 +297,15 @@ SHARE
             double qz= (h*info->asz+k*info->bsz+l*info->csz);
             q=sqrt(qx*qx+qy*qy+qz*qz);
             if (q<info->tau_min || q>info->tau_max) continue;
-            f=0;
-            complex double f_tau=0;
-            complex double f_[4]={0,0,0,0};
+            f=cplx(0,0);
+            cdouble f_tau=cplx(0,0);
+            cdouble* f_ = malloc(4*sizeof(cdouble));
+	    f_[0]=f_[1]=f_[2]=f_[3]=cplx(0,0);
+
             for (m=0;m<atoms.rows;m++){
               /*Tabulated values are usually in fm. Divide by 10 to end up with x-sections in barns*/
               double b=Table_Index(atoms,m,5)/10;
-              f_tau = cexp(I*2*M_PI*(h*Table_Index(atoms,m,2) + k*Table_Index(atoms,m,3) + l*Table_Index(atoms,m,4)));
+              f_tau = cexp(cplx(0, 2*M_PI*(h*Table_Index(atoms,m,2) + k*Table_Index(atoms,m,3) + l*Table_Index(atoms,m,4))));
               //printf("%g b=%g r=(%g %g %g) hkl=(%2d %2d %2d), exp(-i*2pi*(H.r)=(%g%+gj)\n",atoms.data[m][0],b,atoms.data[m][2],atoms.data[m][3],atoms.data[m][4],h,k,l,creal(f_tau),cimag(f_tau));
               if(atoms.columns>6){
                 /*the atom has a magnetic moment*/
@@ -360,17 +363,17 @@ SHARE
                   S_y=scalar_prod(S_orto_x,S_orto_y,S_orto_z,mm3x,mm3y,mm3z);
                   S_z=scalar_prod(S_orto_x,S_orto_y,S_orto_z,info->refx,info->refy,info->refz);
                 }
-		f_[0]+=f_tau*( b -M*S_z + (beta/2)*i_z );
-                f_[1]+=f_tau*( b +M*S_z - (beta/2)*i_z );
-                f_[2]+=f_tau*( -M*(S_x + I*S_y) + (beta/2)*(i_x + I*i_y) );
-                f_[3]+=f_tau*( -M*(S_x - I*S_y) + (beta/2)*(i_x - I*i_y) );
+		f_[0]=cadd(f_[0],rmul( b -M*S_z + (beta/2)*i_z ,f_tau));
+		f_[1]=cadd(f_[1],rmul( b +M*S_z - (beta/2)*i_z ,f_tau));
+		f_[2]=cadd(f_[2],cmul( cadd(rmul(-M,cplx(S_x, S_y)) , rmul(beta/2,cplx(i_x,  i_y))) ,f_tau));
+		f_[3]=cadd(f_[3],cmul( cadd(rmul(-M,cplx(S_x,-S_y)) , rmul(beta/2,cplx(i_x, -i_y))) ,f_tau));
               }else{
                 /*scattering is non-magnetic*/
-                f_[0]+=b*f_tau;
-                f_[1]+=b*f_tau;
-                f_[2]+=0;
-                f_[3]+=0;
-              }                
+                f_[0]=cadd(f_[0],rmul(b,f_tau));
+                f_[1]=cadd(f_[1],rmul(b,f_tau));
+                //f_[2]=f_[2]; // +0;
+                //f_[3]=f_[3]; // +0;
+              }
             }
             if (cabs(f_[0])>FLT_EPSILON || cabs(f_[1])>FLT_EPSILON || cabs(f_[2])>FLT_EPSILON || cabs(f_[3])>FLT_EPSILON ){
               list[i].h=h;
@@ -710,7 +713,7 @@ TRACE
           T[j].refl = xsect_factor*det_L*exp(-alpha)/L[i].sig123; /* intensity of that Bragg */
           coh_refl += T[j].refl;                                  /* total scatterable intensity */
           /*some logic here to figure out cross-sections for NSF and SF scattering*/ 
-          complex double F;
+          cdouble F;
           double F2,spin_up,spin_down;
           /*fractions of spin-up and spin-down incoming neutrons*/
           spin_up=(1+scalar_prod(sx,sy,sz,mx,my,mz))/2;

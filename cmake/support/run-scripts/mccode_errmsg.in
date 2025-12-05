@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Wrapper to display console error messages on Unixes
 PREFIX=`dirname $0`
 PREFIX=`dirname $PREFIX`
@@ -6,15 +6,8 @@ PREFIX=`dirname $PREFIX`
 PREFIX=`dirname $PREFIX`
 export @FLAVOR_UPPER@=$PREFIX/@DEST_DATADIR_COMPS@
 export PATH=$PREFIX/@DEST_BINDIR@:$PATH
-UNAME=`uname -s`
-
 
 ERRMSG=`echo $* | sed s/\ /\\ /g`
-ERRMSG="@FLAVOR@: $ERRMSG"
-if [[ ${UNAME} == Darwin* ]]; then
-    osascript -e "tell app \"System Events\" to display dialog \"${ERRMSG}\""
-else
-    notify-send "${ERRMSG}"
-fi
+export ERRMSG="@FLAVOR@: $ERRMSG"
 
-
+python3 -c "import os;import PyQt5.QtWidgets as w; app = w.QApplication(['infobox']); w.QMessageBox.information(None, 'Infobox', os.getenv('ERRMSG'))"

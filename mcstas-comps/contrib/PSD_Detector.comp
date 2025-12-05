@@ -412,6 +412,10 @@ INITIALIZE
   E_p = (double *) malloc(nH_p*sizeof(double));
 
   dEdx_p = (double *) malloc(nH_p*sizeof(double));
+  if(!E_p || !dEdx_p) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure E_p or dEdx_p arrays. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_p; i++) {
     E_p[i] = Table_Index(Part_He_3_p,i,0);
     if (E_p[i] != Table_Index(Part_Stop_p,i,0)) {
@@ -423,24 +427,44 @@ INITIALIZE
   }
   FullEnergyP = E_p[nH_p-1];
   EAP = (double *) malloc((nH_p+1)*sizeof(double));
+  if(!EAP) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure EAP array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   EAP[0] = 0;
   for (i=1; i<nH_p+1; i++) { EAP[i]       = E_p[i-1]; }
   free(E_p);
   DAP = (double *) malloc((nH_p)*sizeof(double));
+  if(!DAP) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure DAP array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_p; i++)   { DAP[i]       = EAP[i+1] - EAP[i]; }
 
   MuAP = (double *) malloc((nH_p+1)*sizeof(double));
+  if(!MuAP) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure MuAP array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   MuAP[0] = 0;
   for (i=1; i<nH_p+1; i++) { MuAP[i]      = DAP[i-1] / dEdx_p[i-1]; }
   free(DAP);
 
   PosAP = (double *) malloc((nH_p+1)*sizeof(double));
+  if(!PosAP) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure PosAP array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   PosAP[0] = 0;
   for (i=1; i<nH_p+1; i++) { PosAP[i]     = PosAP[i-1] + 1e-6*MuAP[i]; }
   free(MuAP);
   // going to flip the arrays PosAP and EAP
 
   TempVar34 = (double *) malloc((nH_p+1)*sizeof(double));
+  if(!TempVar34) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure TempVar array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_p+1; i++) { TempVar34[i] = PosAP[nH_p] - PosAP[i]; }
   for (i=0; i<nH_p+1; i++) { PosAP[i]     = TempVar34[nH_p-i]; }
   for (i=0; i<nH_p+1; i++) { TempVar34[i] = EAP[nH_p] - EAP[i]; }
@@ -449,12 +473,24 @@ INITIALIZE
   // done flipping PosAP and EAP
 
   ETP1 = (double *) malloc((nH_p)*sizeof(double));
+  if(!ETP1) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure ETP1 array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_p; i++) { ETP1[i]        = EAP[i+1] - EAP[i]; }
 
   PTP1 = (double *) malloc((nH_p)*sizeof(double));
+  if(!PTP1) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure PTP1 array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_p; i++) { PTP1[i] = 0.5 * ( PosAP[i] + PosAP[i+1] ); }
 
   M1P1 = (double *) malloc((nH_p+1)*sizeof(double));
+  if(!M1P1) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure M1P1 array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   M1P1[0] = 0;
   // not yet divided by EAP, see below
   for (i=1; i<nH_p+1; i++) { M1P1[i] = M1P1[i-1] + PTP1[i-1]*ETP1[i-1];  }
@@ -466,6 +502,10 @@ INITIALIZE
   E_t = (double *) malloc(nH_t*sizeof(double));
 
   dEdx_t = (double *) malloc(nH_t*sizeof(double));
+  if(!E_t || !dEdx_t) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure E_t or dEdx_t arrays. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_t; i++) {
     E_t[i] = Table_Index(Part_He_3_t,i,0);
     if (E_t[i] != Table_Index(Part_Stop_t,i,0)) {
@@ -478,25 +518,46 @@ INITIALIZE
   FullEnergyT = E_t[nH_t-1];
 
   EAT = (double *) malloc((nH_t+1)*sizeof(double));
+  M1P1 = (double *) malloc((nH_p+1)*sizeof(double));
+  if(!EAT || !M1P1) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure EAT or M1P1 arrays. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   EAT[0] = 0;
   for (i=1; i<nH_t+1; i++) { EAT[i] = E_t[i-1]; }
   free(E_t);
 
   DAT = (double *) malloc((nH_t)*sizeof(double));
+  if(!DAT) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure DAT array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_t; i++)   { DAT[i] = EAT[i+1] - EAT[i]; }
 
   MuAT = (double *) malloc((nH_t+1)*sizeof(double));
+  if(!MuAT) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure MuAT array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   MuAT[0] = 0;
   for (i=1; i<nH_t+1; i++) { MuAT[i] = DAT[i-1] / dEdx_t[i-1]; }
   free(DAT);
 
   PosAT = (double *) malloc((nH_t+1)*sizeof(double));
+  if(!PosAT) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure PosAT array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   PosAT[0] = 0;
   for (i=1; i<nH_t+1; i++) { PosAT[i] = PosAT[i-1] + 1e-6*MuAT[i]; }
   free(MuAT);
   // going to flip the arrays PosAT and EAT
 
   TempVar35 = (double *) malloc((nH_t+1)*sizeof(double));
+  if(!TempVar35) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure TempVar array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_t+1; i++) { TempVar35[i] = PosAT[nH_t] - PosAT[i]; }
   for (i=0; i<nH_t+1; i++) { PosAT[i]     = TempVar35[nH_t-i]; }
   for (i=0; i<nH_t+1; i++) { TempVar35[i] = EAT[nH_t] - EAT[i]; }
@@ -505,12 +566,24 @@ INITIALIZE
   // done flipping PosAT and EAT
 
   ETT1 = (double *) malloc((nH_t)*sizeof(double));
+  if(!ETT1) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure ETT1 array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_t; i++) { ETT1[i] = EAT[i+1] - EAT[i]; }
 
   PTT1 = (double *) malloc((nH_t)*sizeof(double));
+  if(!PTT1) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure PTT1 array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<nH_t; i++) { PTT1[i] = 0.5 * ( PosAT[i] + PosAT[i+1] ); }
 
   M1T1 = (double *) malloc((nH_t+1)*sizeof(double));
+  if(!M1T1) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure M1T1 array. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   M1T1[0] = 0;
   // not yet divided by EAT, see below
   for (i=1; i<nH_t+1; i++) { M1T1[i] = M1T1[i-1] + PTT1[i-1]*ETT1[i-1]; }
@@ -535,6 +608,10 @@ INITIALIZE
   PHSpectrum0  = (double *) malloc(PHSpectrum_n * sizeof(double)); //
   PHSpectrum   = (double *) malloc(PHSpectrum_n * sizeof(double)); //
   PHSpectrum2  = (double *) malloc(PHSpectrum_n * sizeof(double)); //
+  if(!PHSpectrum || !PHSpectrum0 || !PHSpectrum2) {
+    fprintf(stderr, "PSD_Detector %s: malloc() failure PhSpectrum arrays. Exit!\n", NAME_CURRENT_COMP);
+    exit(-1);
+  }
   for (i=0; i<PHSpectrum_n; i++) {
     PHSpectrum0[i] = 0;
     PHSpectrum[i]  = 0;

@@ -29,13 +29,20 @@ message("Enabling ${FLAVOR} flavor")
 if (DEFINED ARCH_ENABLE)
   message("Enabling archictecture ${ARCH_ENABLE}")
   set(SHEBANG "/usr/bin/arch -${ARCH_ENABLE} /usr/bin/env bash")
+  if ("${ARCH_ENABLE}" STREQUAL "arm64" )
+    set(CONDAARCH "osx-arm64")
+  else()
+    set(CONDAARCH "osx-64")
+  endif()
 else()
   message("Auto-detecting archictecture ...")
   if ("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "arm64" )
     message("Enabling archictecture ${CMAKE_SYSTEM_PROCESSOR}")
     set(SHEBANG "/usr/bin/arch -arm64 /usr/bin/env bash")
+    set(CONDAARCH "osx-arm64")
   else()
     set(SHEBANG "/usr/bin/env bash")
+    set(CONDAARCH "osx-64")
   endif()
 endif()
 
@@ -56,7 +63,7 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 
 # Configure the .py launcher
 configure_file(Contents/MacOS/mccodegui.py.in ${WORK}/mccodegui @ONLY)
-configure_file(Contents/MacOS/Miniforge-inject.command.in ${WORK}/Miniforge-inject.command @ONLY)
+configure_file(Contents/MacOS/micromamba-inject.command.in ${WORK}/micromamba-inject.command @ONLY)
 
 execute_process(COMMAND "chmod ARGS 755 work/mccodegui")
 
@@ -71,7 +78,7 @@ install (
   )
 
 install(
-    FILES "${WORK}/mccodegui" "${WORK}/Miniforge-inject.command" 
+    FILES "${WORK}/mccodegui" "${WORK}/micromamba-inject.command" 
     PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ 
     DESTINATION "Contents/MacOS/"
   )

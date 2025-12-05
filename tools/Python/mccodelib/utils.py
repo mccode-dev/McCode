@@ -296,6 +296,10 @@ def read_header(file):
                 break
         elif re.search(r'[ ]*\*\*\*\*', l):
             break
+        else:
+            # line is still in header but not prefixed by * - we tolerate...
+            pass
+
     return ''.join(lines)
 
 class InstrCompHeaderInfo:

@@ -1047,15 +1047,20 @@ def main(args):
 
                 instr = re.search(r'[\w0-9]+\.instr', args.searchterm)
                 comp = re.search(r'[\w0-9]+\.comp', args.searchterm)
+                docdir = mccode_config.directories["docdir"]
 
                 if instr:
-                    f_html = os.path.splitext(f)[0] + ".html"
+                    f_base = os.path.splitext(os.path.basename(f))[0]
+                    f_class = os.path.basename(os.path.dirname(os.path.dirname(f)))
+                    f_html = os.path.join(docdir,'examples',f_class,f_base,f_base + ".html")
                     info = InstrParser(f).parse()
                     info.filepath = os.path.abspath(f)
                     write_doc_files_or_continue([], [info], [], [f])
                     subprocess.Popen('%s %s' % (mccode_config.configuration['BROWSER'], f_html), shell=True)
                 elif comp:
-                    f_html = os.path.splitext(f)[0] + ".html"
+                    f_base = os.path.splitext(os.path.basename(f))[0] + ".html"
+                    f_class = os.path.basename(os.path.dirname(f))
+                    f_html = os.path.join(docdir,f_class,f_base)
                     info = CompParser(f).parse()
                     info.filepath = os.path.abspath(f)
                     write_doc_files_or_continue([info], [], [f], [])

@@ -1,0 +1,70 @@
+#!@SHEBANG@ --login
+#
+# Script for downloading and injecting dependencies using a fresh micromamba
+#
+
+BASEDIR=`dirname $0`
+BASEDIR=$BASEDIR/../..
+
+osascript -e "tell app \"System Events\" to display dialog \"Will download inject dependencies using latest micromamba :-) \"" 
+ret_code0=$?
+
+if [ "$ret_code0" != "0" ];
+then
+    echo "User cancelled..."
+    rm ${BASEDIR}/Contents/Resources/INJECTING
+    exit
+else
+    (cd /tmp && curl -L -O https://raw.githubusercontent.com/mccode-dev/McCode/main/@FLAVOR@-environment.yml)
+    ret_code1=$?
+    if [ "$ret_code1" != "0" ];
+    then
+	osascript -e "tell app \"System Events\" to display dialog \"Error: Failure occured during download of @FLAVOR@-environment.yml... :-( \""
+    else
+	(cd /tmp && curl -Ls https://micro.mamba.pm/api/micromamba/@CONDAARCH@/latest | tar -xvj bin/micromamba)
+	ret_code2=$?
+	if [ "$ret_code2" != "0" ];
+	then
+	    osascript -e "tell app \"System Events\" to display dialog \"Error: Failure occured during download of micromamba installer... :-( \""
+	else
+	    /tmp/bin/micromamba create -p ${BASEDIR}/Contents/Resources/miniconda3/ --file /tmp/@FLAVOR@-environment.yml -y
+	    ret_code3=$?
+	    if [ "$ret_code3" != "0" ];
+	    then
+		osascript -e "tell app \"System Events\" to display dialog \"Error: Failure during execution of micromamba installer... :-( \""
+	    else
+		MCCONDADIR=`dirname $(readlink -f ${BASEDIR}/Contents/Resources/miniconda3/bin)`
+		echo Attempting shell-hook activate of MCCONDADIR=${MCCONDADIR}
+		"$(${MCCONDADIR}/bin/conda shell.bash hook)" > /dev/null 2>&1
+		ret_code4=$?
+		if [ "$ret_code4" != "0" ];
+		then
+		    echo Sourcing $MCCONDADIR/bin/activate
+		    source $MCCONDADIR/bin/activate
+		    ret_code4=$?
+		fi
+		if [ "$ret_code4" != "0" ];
+		then
+		    osascript -e "tell app \"System Events\" to display dialog \"Error: Failure activating micromamba env... :-( \""
+		else
+		    conda update conda -y
+		    ret_code5=$?
+		    if [ "$ret_code5" != "0" ];
+		    then
+			osascript -e "tell app \"System Events\" to display dialog \"Error: Failure occured during conda update conda -y... :-( \""
+		    else
+			@GUIPREFIX@doc -i
+			ret_code7=$?
+			if [ "$ret_code7" != "0" ];
+			then
+			    osascript -e "tell app \"System Events\" to display dialog \"Error during @GUIPREFIX@doc -i step... :-( \""
+			else
+			    osascript -e "tell app \"System Events\" to display dialog \"Your @FLAVOR@ should now contain the necessary dependencies! :-) \""
+			    rm ${BASEDIR}/Contents/Resources/INJECTING
+			fi
+		    fi
+		fi
+	    fi
+	fi
+    fi
+fi

@@ -161,7 +161,9 @@ SHARE
     int    list_count=0;
 
     if (!SC_file || !strlen(SC_file) || !strcmp(SC_file, "NULL")) {
-      printf("PowderN: %s: Using incoherent elastic scattering only\n",info->compname);
+      MPI_MASTER(
+        printf("PowderN: %s: Using incoherent elastic scattering only\n",info->compname);
+      );
       info->count = 0;
       return(0);
     }
@@ -225,17 +227,18 @@ SHARE
        "should be at least %d\n", info->compname, SC_file, 1));
     else size = sTable.rows;
     Table_Info(sTable);
-    printf("PowderN: %s: Reading %d rows from %s\n",
-          info->compname, size, SC_file);
-
-    if (info->column_order[0] == 4 && info->flag_barns !=0)
-    printf("PowderN: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
-           "WARNING: but F2 unit is set to barns=1 (barns). Intensity might be 100 times too high.\n",
-           info->compname);
-  if (info->column_order[0] == 17 && info->flag_barns == 0)
-    printf("PowderN: %s: Powder file probably of type Lazy Pulver (laz)\n"
-           "WARNING: but F2 unit is set to barns=0 (fm^2). Intensity might be 100 times too low.\n",
-           info->compname);
+    MPI_MASTER(
+      printf("PowderN: %s: Reading %d rows from %s\n",
+            info->compname, size, SC_file);
+      if (info->column_order[0] == 4 && info->flag_barns !=0)
+      printf("PowderN: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
+            "WARNING: but F2 unit is set to barns=1 (barns). Intensity might be 100 times too high.\n",
+            info->compname);
+    if (info->column_order[0] == 17 && info->flag_barns == 0)
+      printf("PowderN: %s: Powder file probably of type Lazy Pulver (laz)\n"
+            "WARNING: but F2 unit is set to barns=0 (fm^2). Intensity might be 100 times too low.\n",
+            info->compname);
+    );
     /* allocate line_data array */
     list = (struct line_data_union*)malloc(size*sizeof(struct line_data_union));
 
@@ -282,8 +285,10 @@ SHARE
       w        = (w>0 ? w : 0); /* this is q and d relative spreading */
       F2       = (F2 >= 0 ? F2 : 0);
       if (j == 0 || q == 0) {
-        printf("PowderN: %s: line %i has invalid definition\n"
+        MPI_MASTER(
+          printf("PowderN: %s: line %i has invalid definition\n"
                "         (mult=0 or q=0 or d=0)\n", info->compname, i);
+        );
         continue;
       }
       list[list_count].j = j;
@@ -312,9 +317,11 @@ SHARE
             && (mult_count == list[list_count-1].j
                 || ((list_count < size) && (i == size - 1)
                     && (mult_count == list[list_count].j))) ) {
-          printf("PowderN: %s: Set multiplicity to 1 for lines [%i:%i]\n"
+          MPI_MASTER(
+            printf("PowderN: %s: Set multiplicity to 1 for lines [%i:%i]\n"
                   "         (d-spacing %g is duplicated %i times)\n",
-            info->compname, list_count-mult_count, list_count-1, list[list_count-1].q, mult_count);
+              info->compname, list_count-mult_count, list_count-1, list[list_count-1].q, mult_count);
+            );
           for (index=list_count-mult_count; index<list_count; list[index++].j = 1);
           mult_count = 1;
           q_count   = q;
@@ -332,9 +339,10 @@ SHARE
     /* sort the list with increasing q */
     qsort(list, list_count, sizeof(struct line_data_union),  PN_list_compare_union);
     
-    printf("PowderN: %s: Read %i reflections from file '%s'\n", 
+    MPI_MASTER(
+      printf("PowderN: %s: Read %i reflections from file '%s'\n", 
       info->compname, list_count, SC_file);
-    
+    );
     info->list  = list;
     info->count = list_count;
 
@@ -737,8 +745,10 @@ INITIALIZE
     line_info.my_a_v = packing_factor*line_info.sigma_a/line_info.V_0*2200*100;   // Factor 100 to convert from barns to fm^2
     line_info.my_inc = packing_factor*line_info.sigma_i/line_info.V_0*100;   // Factor 100 to convert from barns to fm^2
 
-    printf("PowderN: %s: Vc=%g [Angs] sigma_abs=%g [barn] sigma_inc=%g [barn] reflections=%s\n",
+    MPI_MASTER(
+      printf("PowderN: %s: Vc=%g [Angs] sigma_abs=%g [barn] sigma_inc=%g [barn] reflections=%s\n",
       NAME_CURRENT_COMP, line_info.V_0, line_info.sigma_a, line_info.sigma_i, reflections && strlen(reflections) ? reflections : "NULL");
+    );
   }
 
   //printf("INTIALIZE line_info.v = %f, line_info.v_min = %f, line_info.v_max = %f, line_info.neutron_passed = %f\n",line_info.v,line_info.v_min,line_info.v_max,line_info.neutron_passed);
@@ -746,6 +756,9 @@ INITIALIZE
   Powder_storage.line_info_storage = &line_info;
   Powder_storage.vertical_angular_limit = d_phi;
   
+  //First initialise This_process with default values:
+  scattering_process_struct_init(&This_process);
+
   // Need to specify if this process is isotropic
   This_process.non_isotropic_rot_index = -1; // Yes (powder)
   //This_process.non_isotropic_rot_index =  1;  // No (single crystal)

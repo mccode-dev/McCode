@@ -1,4 +1,4 @@
-## Install McXtrace 3.5.38 On Debian class systems (including Ubuntu, mint etc.):
+## Install McXtrace 3.5.40 On Debian class systems (including Ubuntu, mint etc.):
 The packages have been tested to work correctly on Ubuntu 24.04.
 
 # Add the McCode repository
@@ -28,7 +28,7 @@ mcxtrace-tools-python-mxplot-pyqtgraph - python-tools-mxplot-pyqtgraph built usi
 mcxtrace-tools-python-mxrun - python-tools-mxrun built using CMake
 ```
 The meta-package mcxtrace-suite-python (or mcxtrace-suite-python-ng)
-allows you to install mcxtrace 3.5.38 with tools (mcrun/mcplot etc.) by
+allows you to install mcxtrace 3.5.40 with tools (mcrun/mcplot etc.) by
 the simple apt-get command
 ```bash
 sudo apt-get install mcxtrace-suite-python
