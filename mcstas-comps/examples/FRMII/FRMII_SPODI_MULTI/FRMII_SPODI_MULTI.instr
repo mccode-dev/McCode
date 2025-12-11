@@ -1,0 +1,1198 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: FRMII_SPODI_MULTI
+*
+* %Identification
+* Written by: V. Kochetov, C. Hauf, M. Hoelzel, A. Senyshyn
+* Date: December 11, 2025
+* Origin: MLZ, Garching, Germany
+* %INSTRUMENT_SITE: FRMII
+*
+* Simple monochromator diffractometer for powders
+*
+* %Description
+* SPODI is a high-resolution thermal neutron diffractometer at the research
+* reactor Heinz Maier-Leibnitz (FRM II) especially dedicated to structural
+* studies of complex systems. Unique features like a very large monochromator
+* take-off angle of 155 degrees and a 5 m monochromator-sample distance in its
+* standard configuration achieve both high-resolution and a good profile shape
+* for a broad scattering angle range of 160 degrees. Two-dimensional data are
+* collected by an array of 80 vertical position sensitive 3He detectors
+* typically during 40 resolution steps of 0.05 degrees.
+*
+* List of available wavelengths in A delivered by germanium monochromator:
+* Reflection    Take-off 155 degrees, L2=5m      Take-off 135 degrees, L2=2.8m
+* Ge 331            2.536 A                           2.396 A
+* Ge 551            1.549 A                           1.463 A
+* Ge 771            1.111 A                           1.050 A
+*
+* The implemented model corresponds to the standard setup with the take-off angle
+* of 155 degrees, Ge 551 reflection giving rise to the wavelength of ~1.5482 AA,
+* and L2 of 5 m.
+* 
+* %Parameters
+* lambda: [A]         Wavelength; if 0, calculated from HKLmono and TOA
+* HKLmono: [str]      Miller indices of the Ge-monochromator reflection
+* TOA: [deg]          Take-Off Angle; if 0, calculated from HKLmono and lambda
+* L2: [m]             Distance from the monochromator to the sample
+* Dsample: [m]        Sample diameter
+* Hsample: [m]        Sample height
+* Powder: [str]       LAZ/HKL/PCR/CIF file for powder description
+* Holder: [ ]         Flag to enable (1) / disable (0) the vanadium sample holder
+* StartTheta: [deg]   Start angle of the detector system relative to the beam
+* ResStep: [deg]      Resolution step in degrees (standard is 0.05 deg)
+* iResStep: [deg]     Index number of resolution step (between 0 and 39 for standard 0.05 deg)
+* 
+* %Link
+* M. Hoelzel, A. Senyshyn, N. Juenke, H. Boysen, W. Schmahl and H. Fuess, Nucl. Instr. and Meth. in Ph A 667 (2012) 32-37
+*
+* %End 
+********************************************************************************/
+
+DEFINE INSTRUMENT FRMII_SPODI_MULTI(double lambda=1.5482,
+                                    string HKLmono="551",
+                                    double TOA=0,
+                                    double L2=5.0,
+                                    double Dsample=8e-3,
+                                    double Hsample=40e-3,
+                                    string Powder="Na2Ca3Al2F14.laz",
+                                    int Holder=0,
+                                    double StartTheta=0,
+                                    double ResStep=0.05,
+                                    int iResStep=0)
+
+DECLARE
+%{
+  const double L1 = 16.0;       // source-monochromator distance
+  const double L3 = 1.117;      // sample-detector distance
+  const double ALPHA3 = 10;     // Soller collimators divergence in minutes
+  const double Dheight = 0.4;   // real detector height
+  const double NSplit = 10000;  // number of neutrons to be split at the sample/holder
+  double RV;                    // monochromator vertical curvature [m]
+  double DM;                    // monochromator d-spacing [A]
+  double cone_angle;            // focusing scattering angle in vertical plane
+  double Rsample;               // sample radius [m]
+  double NSplitSample;          // number of neutrons to be split at the sample
+  double NSplitHolder;          // number of neutrons to be split at the holder
+%}
+
+INITIALIZE
+%{
+  int hkl[3]; // monochromator reflection indices
+  // parse HKLmono string
+  if (strcmp(HKLmono, "331") != 0 && strcmp(HKLmono, "551") != 0 && strcmp(HKLmono, "771") != 0) {
+    fprintf(stderr, "Error: invalid HKLmono parameter (331, 551, 771)\n");
+    exit(1);
+  }
+  hkl[0] = HKLmono[0]-'0';
+  hkl[1] = HKLmono[1]-'0';
+  hkl[2] = HKLmono[2]-'0';
+  // calculate monochromator d-spacing using Ge unit cell length
+  DM = 5.6574/sqrt(hkl[0]*hkl[0]+hkl[1]*hkl[1]+hkl[2]*hkl[2]);
+  // calculate lambda if equal to 0 or TOA if equal to 0
+  if (lambda == 0 && TOA != 0)
+    lambda = 2*DM*fabs(sin(TOA/2*DEG2RAD));
+  if (TOA == 0 && lambda != 0)
+    TOA = 2*asin(lambda/(2*DM))*RAD2DEG;
+  if (lambda == 0 && TOA == 0) {
+    fprintf(stderr, "Error: lambda and take-off angle (TOA) cannot be both 0\n");
+    exit(1);
+  }
+  // calculate monochromator vertical curvature
+  RV = lambda/DM/(1/L1+1/L2);
+  // calculate the cone focusing angle of scattering on the detector (d_phi var)
+  cone_angle = RAD2DEG*atan2(Dheight+2*Hsample, L3);
+  Rsample = Dsample/2.0;
+  if (Holder == 1) { // split rays at the sample holder
+    NSplitSample = 1;
+    NSplitHolder = NSplit;
+  } else if (Holder == 0) { // split rays at the sample
+    NSplitSample = NSplit;
+    NSplitHolder = 1;
+  } else {
+    fprintf(stderr, "Error: invalid Holder parameter (0 or 1)\n");
+    exit(1);
+  }
+  //
+  printf("-- Spodi configuration:\n");
+  printf("-- Monochromator: DM=%.5g [Angs] RV=%.5g [m], HKL: %d%d%d, take-off angle=%.5g [deg]\n",
+         DM, RV, hkl[0], hkl[1], hkl[2], TOA);
+  printf("-- Incoming beam: lambda=%.5g [AA]\n", lambda);
+  printf("-- Scattering in vertical plane is restricted to angle %.4g deg.\n", cone_angle);
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_gen(
+ yheight=0.3, xwidth=0.1, Lmin=lambda-0.06, Lmax=lambda+0.06,
+ dist=2, focus_xw=0.028, focus_yh=0.102,
+ T1=285.6, I1=3.06E+13,
+ T2=300, I2=1.68E+12,
+ T3=429.9, I3=6.77E+12)
+AT (0, 0, 0) RELATIVE origin
+
+// In-pile neutron guide
+COMPONENT in_pile_1 = Guide_channeled(
+ w1=0.028, h1=0.102, w2=0.028, h2=0.102, l=0.7614,
+ R0=0.995, Qcx=0.0217, Qcy=0.0217, alphax=5.3,
+ alphay=5.87, W=0.00033, mx=2, my=3)
+AT (0, 0, 2.0) RELATIVE source
+
+// In-pile neutron guide
+COMPONENT in_pile_2 = COPY(in_pile_1)(
+ w1=0.027, h1=0.101, w2=0.027, h2=0.101, l=0.9896)
+AT (0, 0, 0.7814) RELATIVE in_pile_1
+
+// In-pile neutron guide
+COMPONENT in_pile_3 = COPY(in_pile_1)(
+ w1=0.026, h1=0.1, w2=0.026, h2=0.1, l=0.1935)
+AT (0, 0, 1.0096) RELATIVE in_pile_2
+
+// Thermal beam guide
+COMPONENT SR8a = COPY(in_pile_1)(
+ w1=0.025, h1=0.1, w2=0.025, h2=0.2, l=12.56,
+ alphax=5.76, alphay=5.64)
+AT (0, 0, 0.2685) RELATIVE in_pile_3
+
+// Monochromator
+COMPONENT mono_curved = Monochromator_curved(
+ NH=1, NV=15, mosaich=20.0, mosaicv=11.0, r0=0.445,
+ RV=RV, DM=DM, width=0.06, height=0.2)
+AT (0, 0, 13.31) RELATIVE SR8a
+ROTATED (0, TOA/2.0, 0) RELATIVE SR8a
+
+COMPONENT spodi_beam = Arm()
+AT (0, 0, 0) RELATIVE mono_curved
+ROTATED (0, TOA, 0) RELATIVE SR8a
+
+// 4m beam tube if L2 distance allows for it ('long' configuration)
+COMPONENT vacuumed_tube = COPY(in_pile_1)(
+ w1=0.02, h1=0.2, w2=0.02, h2=0.09, l=3.93, mx=0, my=0)
+WHEN (L2 > 4.0) AT (0, 0, 0.22) RELATIVE spodi_beam
+
+// Monitor flux at the sample position
+COMPONENT psd_sample = PSD_monitor(
+ nx=200, ny=200, filename="psd_sample.dat",
+ xwidth=0.05, yheight=0.2, restore_neutron=1)
+AT (0, 0, L2-Rsample-1.3e-3) RELATIVE spodi_beam
+
+// Monitor wavelength at the sample position
+COMPONENT lambda_sample = L_monitor(
+ nL=1000, xwidth=0.05, yheight=0.2,
+ Lmin=lambda-0.05, Lmax=lambda+0.05,
+ restore_neutron=1, filename="lambda_sample.dat")
+AT (0, 0, L2-Rsample-1.2e-3) RELATIVE spodi_beam
+
+// Monitor divergence at the sample position
+COMPONENT div_sample = Divergence_monitor(
+  xwidth=0.05, yheight=0.2, restore_neutron=1,
+  maxdiv_h=2.0, maxdiv_v=4.0, nh=400, nv=200,
+  filename="div_sample.dat")
+ AT (0, 0, L2-Rsample-1.1e-3) RELATIVE spodi_beam
+
+// Sample holder
+SPLIT NSplitHolder COMPONENT sample_holder = PowderN(
+  reflections="V.lau", radius=Rsample+0.51e-3, yheight=Hsample,
+  concentric=1, thickness=0.5e-3, p_interact=0.1, d_phi=cone_angle)
+WHEN (Holder) AT (0, 0, L2) RELATIVE spodi_beam
+
+// Powder sample
+SPLIT NSplitSample COMPONENT sample = PowderN(
+ reflections=Powder, radius=Rsample, yheight=Hsample, d_phi=cone_angle)
+AT (0, 0, L2) RELATIVE spodi_beam
+
+// Sample holder back wall
+COMPONENT sample_holder_back = COPY(sample_holder)(concentric=0)
+WHEN (Holder) AT (0, 0, L2) RELATIVE spodi_beam
+
+// Beamstop
+COMPONENT beamstop = Beamstop(xwidth=0.078, yheight=Dheight)
+AT (0, 0, L2+0.5*L3) RELATIVE spodi_beam
+
+COMPONENT detector_arm = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -StartTheta, 0) RELATIVE spodi_beam
+
+//// Simplified detector: radial collimator + 1 2D-monitor
+//// ALPHA3 quasi-radial collimator
+//COMPONENT collimador_radial = Collimator_radial(
+//  yheight=0.3, length=0.35, divergence=ALPHA3,
+//  theta_min=-160, theta_max=0, radius=L3-0.3627, approx=1)
+//WHEN (ALPHA3 > 0) AT (0, 0, 0) RELATIVE detector_arm
+//// perfect detector: 2D(theta,y) to see diffraction rings
+// COMPONENT theta_2d = Monitor_nD(
+//  radius=L3, yheight=Dheight, filename="theta_2d.dat",
+//  options="banana, theta limits=[0,160] bins=3200, y, bins=254")
+// AT (0, 0, 0) RELATIVE detector_arm
+// ROTATED (0, 0, 180) RELATIVE detector_arm
+
+// Multi-Detector system
+COMPONENT arm_psd_lin_1 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_2 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-2, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_3 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-4, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_4 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-6, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_5 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-8, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_6 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-10, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_7 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-12, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_8 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-14, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_9 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-16, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_10 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-18, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_11 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-20, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_12 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-22, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_13 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-24, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_14 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-26, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_15 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-28, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_16 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-30, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_17 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-32, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_18 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-34, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_19 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-36, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_20 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-38, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_21 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-40, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_22 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-42, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_23 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-44, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_24 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-46, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_25 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-48, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_26 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-50, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_27 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-52, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_28 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-54, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_29 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-56, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_30 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-58, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_31 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-60, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_32 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-62, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_33 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-64, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_34 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-66, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_35 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-68, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_36 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-70, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_37 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-72, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_38 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-74, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_39 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-76, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_40 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-78, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_41 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-80, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_42 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-82, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_43 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-84, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_44 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-86, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_45 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-88, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_46 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-90, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_47 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-92, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_48 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-94, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_49 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-96, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_50 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-98, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_51 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-100, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_52 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-102, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_53 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-104, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_54 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-106, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_55 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-108, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_56 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-110, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_57 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-112, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_58 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-114, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_59 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-116, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_60 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-118, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_61 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-120, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_62 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-122, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_63 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-124, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_64 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-126, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_65 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-128, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_66 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-130, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_67 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-132, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_68 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-134, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_69 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-136, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_70 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-138, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_71 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-140, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_72 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-142, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_73 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-144, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_74 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-146, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_75 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-148, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_76 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-150, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_77 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-152, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_78 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-154, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_79 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-156, 0) RELATIVE detector_arm
+
+COMPONENT arm_psd_lin_80 = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -iResStep*ResStep-158, 0) RELATIVE detector_arm
+
+// Soller collimators
+COMPONENT soller_psd_lin_1 = Collimator_linear(
+ xwidth=0.02, yheight=0.3, length=0.35, divergence=ALPHA3)
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_1
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_2 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_2
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_3 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_3
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_4 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_4
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_5 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_5
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_6 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_6
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_7 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_7
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_8 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_8
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_9 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_9
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_10 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_10
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_11 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_11
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_12 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_12
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_13 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_13
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_14 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_14
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_15 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_15
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_16 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_16
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_17 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_17
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_18 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_18
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_19 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_19
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_20 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_20
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_21 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_21
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_22 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_22
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_23 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_23
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_24 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_24
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_25 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_25
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_26 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_26
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_27 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_27
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_28 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_28
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_29 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_29
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_30 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_30
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_31 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_31
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_32 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_32
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_33 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_33
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_34 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_34
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_35 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_35
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_36 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_36
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_37 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_37
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_38 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_38
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_39 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_39
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_40 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_40
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_41 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_41
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_42 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_42
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_43 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_43
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_44 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_44
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_45 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_45
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_46 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_46
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_47 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_47
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_48 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_48
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_49 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_49
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_50 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_50
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_51 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_51
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_52 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_52
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_53 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_53
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_54 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_54
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_55 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_55
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_56 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_56
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_57 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_57
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_58 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_58
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_59 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_59
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_60 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_60
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_61 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_61
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_62 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_62
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_63 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_63
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_64 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_64
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_65 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_65
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_66 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_66
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_67 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_67
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_68 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_68
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_69 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_69
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_70 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_70
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_71 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_71
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_72 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_72
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_73 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_73
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_74 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_74
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_75 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_75
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_76 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_76
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_77 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_77
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_78 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_78
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_79 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_79
+GROUP soller_detector_array
+
+COMPONENT soller_psd_lin_80 = COPY(soller_psd_lin_1)()
+AT (0, 0, L3-0.3627) RELATIVE arm_psd_lin_80
+GROUP soller_detector_array
+
+// vertical linear PSDs
+COMPONENT psd_lin_1 = PSDlin_monitor(
+ nbins=254, xwidth=0.0254, yheight=Dheight, restore_neutron=0, vertical=1)
+AT (0, 0, L3) RELATIVE arm_psd_lin_1
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_2 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_2
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_3 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_3
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_4 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_4
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_5 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_5
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_6 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_6
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_7 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_7
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_8 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_8
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_9 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_9
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_10 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_10
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_11 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_11
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_12 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_12
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_13 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_13
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_14 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_14
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_15 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_15
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_16 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_16
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_17 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_17
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_18 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_18
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_19 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_19
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_20 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_20
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_21 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_21
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_22 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_22
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_23 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_23
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_24 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_24
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_25 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_25
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_26 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_26
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_27 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_27
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_28 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_28
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_29 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_29
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_30 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_30
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_31 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_31
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_32 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_32
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_33 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_33
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_34 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_34
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_35 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_35
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_36 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_36
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_37 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_37
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_38 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_38
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_39 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_39
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_40 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_40
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_41 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_41
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_42 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_42
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_43 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_43
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_44 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_44
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_45 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_45
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_46 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_46
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_47 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_47
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_48 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_48
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_49 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_49
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_50 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_50
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_51 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_51
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_52 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_52
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_53 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_53
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_54 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_54
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_55 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_55
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_56 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_56
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_57 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_57
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_58 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_58
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_59 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_59
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_60 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_60
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_61 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_61
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_62 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_62
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_63 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_63
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_64 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_64
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_65 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_65
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_66 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_66
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_67 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_67
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_68 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_68
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_69 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_69
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_70 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_70
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_71 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_71
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_72 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_72
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_73 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_73
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_74 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_74
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_75 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_75
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_76 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_76
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_77 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_77
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_78 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_78
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_79 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_79
+GROUP psd_lin_detector_array
+
+COMPONENT psd_lin_80 = COPY(psd_lin_1)()
+AT (0, 0, L3) RELATIVE arm_psd_lin_80
+GROUP psd_lin_detector_array
+
+END
