@@ -1,0 +1,226 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Daniel Lomholt Christensen
+* Date: 26/01/2026
+* Version: $Revision: 0.1 $
+* Origin: University of Copenhagen
+*
+* A sample component to separate geometry and phsysics
+*
+* %D
+*
+* This Union_process is based on the Incoherent_process.comp component 
+* originally written by Mads Bertelsen inspired by Kim Lefmann and 
+*  Kristian Nielsen
+*
+* Part of the Union components, a set of components that work together and thus
+*  sperates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before the master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union_components
+*
+* Algorithm:
+* Described elsewhere
+*
+* %P
+* INPUT PARAMETERS:
+* inhomogenous_function    [string]String containing your mathematical function.
+* sigma:             [barns] Incoherent scattering cross section
+* f_QE:              [1]     Fraction of quasielastic scattering (rest is elastic) [1]
+* gamma:             [meV]   Lorentzian width of quasielastic broadening (HWHM) [1]
+* packing_factor:    [1]     How dense is the material compared to optimal 0-1
+* unit_cell_volume:  [AA^3]  Unit cell volume
+* interact_fraction: [1]     How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:              [string] name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+*
+* %L
+*
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Inhomogenous_incoherent_process
+
+SETTING PARAMETERS(string inhomogenous_function = "", sigma=5.08, f_QE=0, gamma=0, packing_factor=1, unit_cell_volume=13.8, interact_fraction=-1, string init="init")
+
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+SHARE
+%{
+%include "tinyexpr.h"
+%include "tinyexpr.c"
+#ifndef Union
+#error "The Union_init component must be included before this Incoherent_process component"
+#endif
+
+
+struct Inhomogenous_incoherent_struct{
+    // Variables that needs to be transfered between any of the following places:
+    // The initialize in this component
+    // The function for calculating my
+    // The function for calculating scattering
+    double my_scattering;
+    double QE_sampling_frequency;
+    double lorentzian_width;
+    
+};
+
+
+
+
+// Function for calculating my in Incoherent case
+int Inhomogenous_incoherent_physics_my(double *my,double *k_initial, union data_transfer_union data_transfer, struct focus_data_struct *focus_data, _class_particle *_particle) {
+    *my = data_transfer.Inhomogenous_incoherent_struct->my_scattering;
+    return 1;
+};
+
+// Function for basic incoherent scattering event
+int Inhomogenous_incoherent_physics_scattering(double *k_final, double *k_initial, double *weight, union data_transfer_union data_transfer, struct focus_data_struct *focus_data, _class_particle *_particle) {
+
+    //New version of incoherent scattering
+    double k_length = sqrt(k_initial[0]*k_initial[0]+k_initial[1]*k_initial[1]+k_initial[2]*k_initial[2]);
+
+    Coords k_out;
+    // Here is the focusing system in action, get a vector
+    double solid_angle;
+    focus_data->focusing_function(&k_out,&solid_angle,focus_data);
+    NORM(k_out.x,k_out.y,k_out.z);
+    *weight *= solid_angle*0.25/PI;
+    
+    double v_i,v_f,E_i,dE,E_f;
+    
+    if (rand01() < data_transfer.Inhomogenous_incoherent_struct->QE_sampling_frequency) {
+      v_i = k_length * K2V;
+      E_i = VS2E*v_i*v_i;
+      dE = data_transfer.Inhomogenous_incoherent_struct->lorentzian_width*tan(PI/2*randpm1());
+      E_f = E_i + dE;
+      if (E_f <= 0)
+        return 0;
+      v_f = SE2V*sqrt(E_f);
+      k_length = v_f*V2K;
+    }
+    
+    k_final[0] = k_out.x*k_length; k_final[1] = k_out.y*k_length; k_final[2] = k_out.z*k_length;
+    return 1;
+};
+
+#ifndef PROCESS_DETECTOR
+    #define PROCESS_DETECTOR dummy
+#endif
+
+#ifndef PROCESS_INHOMOGENOUS_INCOHERENT_DETECTOR
+    #define PROCESS_INHOMOGENOUS_INCOHERENT_DETECTOR dummy
+#endif
+%}
+
+DECLARE
+%{
+// Needed for transport to the main component
+struct global_process_element_struct global_process_element;
+struct scattering_process_struct This_process;
+
+// Declare for this component, to do calculations on the input / store in the transported data
+struct Inhomogenous_incoherent_struct Inhomogenous_storage;
+double effective_my_scattering;
+
+%}
+
+INITIALIZE
+%{
+  if (!strcmp(inhomogenous_function, "")){
+    fprintf(stderr, "\nERROR! No Inhomogenous function was set!\tEXITING!\n\n");
+    exit(1);
+  }
+  double pos_x, pos_y, pos_z, vel_x, vel_y, vel_z, t;
+  /* Store variable names and pointers. */
+  te_variable vars[] = {{"pos_x", &pos_x}, {"pos_y", &pos_y}, {"pos_z", &pos_z},
+                          {"vel_x", &vel_x}, {"vel_y", &vel_y}, {"vel_z", &vel_z},
+                          {"t", &t}};
+
+  int err;
+  /* Compile the expression with variables. */
+  pos_x = 10;
+  // pos_y = 10;
+  // pos_z = 10;
+  // vel_x = 10;
+  // vel_y = 10;
+  // vel_z = 10;
+  // t = 10;
+  te_expr *expr = te_compile(inhomogenous_function, vars, 7, &err);
+  if (expr){
+    double result = te_eval(expr);
+    printf("\nResult of inhomogenous_function is %g\n\n", result);
+    te_free(expr);
+  } else {
+    printf("Parse error at %d\n", err);
+  }
+  // Initialize done in the component
+  effective_my_scattering = ((packing_factor/unit_cell_volume) * 100 * sigma);
+  Inhomogenous_storage.my_scattering = effective_my_scattering;
+  
+  Inhomogenous_storage.QE_sampling_frequency = f_QE;
+  Inhomogenous_storage.lorentzian_width = gamma;
+
+  //First initialise This_process with default values:
+  scattering_process_struct_init(&This_process);
+
+  // Need to specify if this process is isotropic
+  This_process.non_isotropic_rot_index = -1; // Yes (powder)
+  //This_process.non_isotropic_rot_index =  1;  // No (single crystal)
+  
+  // Need to specify if this process need to use focusing in calculation of inverse penetration depth (physics_my)
+  //This_process.needs_cross_section_focus = 1; // Yes
+  This_process.needs_cross_section_focus =  -1;  // No
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = Inhomogenous_incoherent;
+
+  // Packing the data into a structure that is transported to the main component
+  sprintf(This_process.name,"%s",NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  This_process.data_transfer.Inhomogenous_incoherent_struct = &Inhomogenous_storage;
+  //This_process.data_transfer.pointer_to_a_Incoherent_physics_storage_struct->my_scattering = effective_my_scattering;
+  This_process.probability_for_scattering_function = &Inhomogenous_incoherent_physics_my;
+  This_process.scattering_function = &Inhomogenous_incoherent_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf(global_process_element.name,"%s",NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index(init) < 0) {
+    fprintf(stderr,"Incoherent_process:%s: Error identifying Union_init component, %s is not a known component name.\n",
+            NAME_CURRENT_COMP, init);
+    exit(-1);
+  }
+
+  struct pointer_to_global_process_list *global_process_list = COMP_GETPAR3(Union_init, init, global_process_list);
+  add_element_to_process_list(global_process_list, global_process_element);
+ %}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+// Since the process and it's storage is a static allocation, there is nothing to deallocate
+
+%}
+
+END
