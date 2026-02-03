@@ -25,6 +25,7 @@ enum shape {
 };
 
 enum process {
+  Inhomogenous_incoherent,
   Incoherent,
   Powder,
   Single_crystal,
@@ -479,6 +480,7 @@ double refraction_Qc;
 
 union data_transfer_union{
     // List of pointers to storage structs for all supported physical processes
+    struct Inhomogenous_incoherent_struct *Inhomogenous_incoherent_struct;
     struct Incoherent_physics_storage_struct  *pointer_to_a_Incoherent_physics_storage_struct;
     struct Powder_physics_storage_struct *pointer_to_a_Powder_physics_storage_struct;
     struct Single_crystal_physics_storage_struct *pointer_to_a_Single_crystal_physics_storage_struct;

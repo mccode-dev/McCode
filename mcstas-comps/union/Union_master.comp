@@ -1536,6 +1536,22 @@ TRACE
                 k_rotated[0] = k[0]; k_rotated[1] = k[1]; k_rotated[2] = k[2];
 				// focus_data RayAim already updated for non isotropic processes
               }
+              /*
+              Plan for adding in inhomogenous processes:
+                - The processes will have a flag, that checks if they require
+                numerical integration.
+                - If they do, then we use a numerical integration algorithm,
+                where we sample my from the process at different points.
+                We then assume that each mu has a distance around itself
+                that it is "correct" for, i.e the mu distribution is uniform
+                around the mu.
+                - Then each of these mu now have a smaller distance than length_to_boundary
+                and we must therefore weight each in my_sum with the normalized length they posses.
+                i.e if length_to_boundary is divided into 10, divide each mu by 10.
+                - For the sampling, we must then sample with the cumulative
+                probability function, which we calculate for each small bit of 
+                the inhomogenous process.
+              */
 			  
               // Call the probability for scattering function assighed to this specific procress (the process pointer is updated in the for loop)
               process = &Volumes[current_volume]->p_physics->p_scattering_array[p_index]; // GPU Allowed			  
