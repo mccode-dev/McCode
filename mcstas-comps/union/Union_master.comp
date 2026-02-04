@@ -1545,7 +1545,7 @@ TRACE
                         }
                         /*
                         Plan for adding in inhomogenous processes:
-                        - The processes will have a flag, that checks if they require
+                        - The processes will have a flag (needs_numerical_integration), that checks if they require
                         numerical integration.
                         - If they do, then we use a numerical integration algorithm,
                         where we sample my from the process at different points.
@@ -1564,11 +1564,59 @@ TRACE
                         process = &Volumes[current_volume]->p_physics->p_scattering_array[p_index]; // GPU Allowed
               
                         int physics_output;
-                        physics_output = physics_my(process->eProcess, p_my_trace, k_rotated, process->data_transfer, this_focus_data, _particle);
-              
+                        double mu;
+                        if (process->needs_numerical_integration == 1){
+                            // First, check if the arrays are big enough to handle this
+                            double sampling_size = 10;
+                            double dist = length_to_boundary/sampling_size;
+                            if (process->sampl_size == -1){
+                                // First numerical integration for this process. Allocate the arrays
+                                process->inhomogenous_distances = malloc(sizeof(double)*sampling_size);
+                                process->inhomogenous_cumul_distances = malloc(sizeof(double)*sampling_size);
+                                process->inhomogenous_cumul_prob = malloc(sizeof(double)*sampling_size);
+                                process->inhomogenous_mu = malloc(sizeof(double)*sampling_size);
+                            } else if (process->sampl_size>=sampling_size){
+                                // Reallocate the three numerical integration arrays, to allow for this larger array
+                                double *temp;
+                                temp = realloc(process->inhomogenous_distances, sizeof(double)*sampling_size);
+                                process->inhomogenous_distances = temp;
+                                temp = realloc(process->inhomogenous_cumul_distances, sizeof(double)*sampling_size);
+                                process->inhomogenous_cumul_distances = temp;
+                                temp = realloc(process->inhomogenous_cumul_prob, sizeof(double)*sampling_size);
+                                process->inhomogenous_cumul_prob = temp;
+                                temp = realloc(process->inhomogenous_mu, sizeof(double)*sampling_size);
+                                process->inhomogenous_mu = temp;
+                            }
+                            // Populate length and probability arrays:
+                            Coords original_position = coords_set(x,y,z);
+                            for (int i=0; i<sampling_size; i++){
+                                process->inhomogenous_distances[i] = dist;
+                                process->inhomogenous_cumul_distances[i] = i > 0 ? process->inhomogenous_cumul_distances[i-1] + dist: dist/2;
+                                // Transport neutron to place inside geometry
+                                ray_velocity = coords_set(vx,vy,vz);
+                                // Find location of scattering point in master coordinate system without changing main position / velocity variables
+                                Coords direction = coords_scalar_mult(ray_velocity, 1.0/length_of_position_vector(ray_velocity));
+                                Coords sampling_displacement = coords_scalar_mult(direction, process->inhomogenous_cumul_distances[i]);
+                                Coords sampling_point = coords_add(ray_position, sampling_displacement);
+                                Coords sampling_point_geometry = coords_sub(sampling_point, Volumes[current_volume]->geometry.center);
+                                // Calculate mu and probability
+                                coords_get(sampling_point_geometry, &x, &y, &z);
+                                physics_my(process->eProcess, &mu, k_rotated, process->data_transfer, this_focus_data, _particle);
+                                process->inhomogenous_mu[i] = mu/sampling_size;
+                                // TODO: add cumulative probability calculations.
+                            }
+                            coords_get(original_position, &x, &y, &z);
+                            *p_my_trace = 0;
+                            for (int i=0; i<sampling_size; i++)
+                                *p_my_trace += process->inhomogenous_mu[i];
+                        } else {
+                            physics_output = physics_my(process->eProcess, p_my_trace, k_rotated, process->data_transfer, this_focus_data, _particle);
+                        }
+                        
+                        printf("p_my_trace = %g\t For Process %d\n", *p_my_trace, process->eProcess);
                         my_sum += *p_my_trace;
                         #ifdef Union_trace_verbal_setting
-                            printf("my_trace = %f, my_sum = %f\n",*p_my_trace,my_sum);
+                            printf("my_trace = %f, my_sum = %f\n",*p_my_trace,my_sum);
                         #endif
                         // increment the pointers so that it point to the next element (max number of process in any material is allocated)
                         p_my_trace++;
