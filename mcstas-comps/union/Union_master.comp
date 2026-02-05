@@ -237,6 +237,13 @@ DECLARE
     int number_of_process_interacts_set;
     int index_of_lacking_process;
     double total_process_interact;
+
+    // For numerical integration
+    int sampling_size;
+    double dist;
+    double dist_i;
+    double max_prob;
+    int max_prob_idx;
   
     // Volume nr -> component index
     struct pointer_to_1d_int_list geometry_component_index_list;
@@ -1546,15 +1553,15 @@ TRACE
                         /*
                         Plan for adding in inhomogenous processes:
                         - The processes will have a flag (needs_numerical_integration), that checks if they require
-                        numerical integration.
+                        numerical integration ✅
                         - If they do, then we use a numerical integration algorithm,
                         where we sample my from the process at different points.
                         We then assume that each mu has a distance around itself
                         that it is "correct" for, i.e the mu distribution is uniform
-                        around the mu.
+                        around the mu ✅
                         - Then each of these mu now have a smaller distance than length_to_boundary
                         and we must therefore weight each in my_sum with the normalized length they posses.
-                        i.e if length_to_boundary is divided into 10, divide each mu by 10.
+                        i.e if length_to_boundary is divided into 10, divide each mu by 10. ✅
                         - For the sampling, we must then sample with the cumulative
                         probability function, which we calculate for each small bit of
                         the inhomogenous process.
@@ -1565,14 +1572,17 @@ TRACE
               
                         int physics_output;
                         double mu;
+                        sampling_size = 200;
+                        dist = length_to_boundary/sampling_size;
+                        max_prob = 0;
+                        max_prob_idx = 0;
                         if (process->needs_numerical_integration == 1){
                             // First, check if the arrays are big enough to handle this
-                            double sampling_size = 10;
-                            double dist = length_to_boundary/sampling_size;
                             if (process->sampl_size == -1){
                                 // First numerical integration for this process. Allocate the arrays
                                 process->inhomogenous_distances = malloc(sizeof(double)*sampling_size);
                                 process->inhomogenous_cumul_distances = malloc(sizeof(double)*sampling_size);
+                                process->inhomogenous_prob = malloc(sizeof(double)*sampling_size);
                                 process->inhomogenous_cumul_prob = malloc(sizeof(double)*sampling_size);
                                 process->inhomogenous_mu = malloc(sizeof(double)*sampling_size);
                             } else if (process->sampl_size>=sampling_size){
@@ -1582,16 +1592,21 @@ TRACE
                                 process->inhomogenous_distances = temp;
                                 temp = realloc(process->inhomogenous_cumul_distances, sizeof(double)*sampling_size);
                                 process->inhomogenous_cumul_distances = temp;
+                                temp = realloc(process->inhomogenous_prob, sizeof(double)*sampling_size);
+                                process->inhomogenous_prob = temp;
                                 temp = realloc(process->inhomogenous_cumul_prob, sizeof(double)*sampling_size);
                                 process->inhomogenous_cumul_prob = temp;
                                 temp = realloc(process->inhomogenous_mu, sizeof(double)*sampling_size);
                                 process->inhomogenous_mu = temp;
+                                process->sampl_size = sampling_size;
                             }
                             // Populate length and probability arrays:
                             Coords original_position = coords_set(x,y,z);
                             for (int i=0; i<sampling_size; i++){
                                 process->inhomogenous_distances[i] = dist;
-                                process->inhomogenous_cumul_distances[i] = i > 0 ? process->inhomogenous_cumul_distances[i-1] + dist: dist/2;
+                                process->inhomogenous_cumul_distances[i] = (i > 0) ? process->inhomogenous_cumul_distances[i-1] + dist: dist/2;
+                                //printf("dist_i = %g\t integer = %i\n", process->inhomogenous_cumul_distances[i], i);
+
                                 // Transport neutron to place inside geometry
                                 ray_velocity = coords_set(vx,vy,vz);
                                 // Find location of scattering point in master coordinate system without changing main position / velocity variables
@@ -1604,7 +1619,21 @@ TRACE
                                 physics_my(process->eProcess, &mu, k_rotated, process->data_transfer, this_focus_data, _particle);
                                 process->inhomogenous_mu[i] = mu/sampling_size;
                                 // TODO: add cumulative probability calculations.
+                                // Calculate the probabilities and then add them cumulatively
+                                process->inhomogenous_prob[i] =  exp(-process->inhomogenous_mu[i]*sampling_size*process->inhomogenous_distances[i]);
+                                if (i==0) {
+                                    process->inhomogenous_cumul_prob[i] = process->inhomogenous_prob[i];
+                                } else {
+                                    process->inhomogenous_cumul_prob[i] = process->inhomogenous_cumul_prob[i-1] * process->inhomogenous_prob[i];
+                                }
+                                if (process->inhomogenous_cumul_prob[i] > max_prob) {
+                                    max_prob = process->inhomogenous_cumul_prob[i];
+                                    max_prob_idx = i;
+                                }
+                                //printf("\ncumul_prob = %g\tinteger=%d\n", process->inhomogenous_cumul_prob[i], i);
                             }
+                            for (int i = 0; i<sampling_size; i++)
+                                process->inhomogenous_cumul_prob[i] = 1 - process->inhomogenous_cumul_prob[i];
                             coords_get(original_position, &x, &y, &z);
                             *p_my_trace = 0;
                             for (int i=0; i<sampling_size; i++)
@@ -1613,7 +1642,6 @@ TRACE
                             physics_output = physics_my(process->eProcess, p_my_trace, k_rotated, process->data_transfer, this_focus_data, _particle);
                         }
                         
-                        printf("p_my_trace = %g\t For Process %d\n", *p_my_trace, process->eProcess);
                         my_sum += *p_my_trace;
                         #ifdef Union_trace_verbal_setting
                             printf("my_trace = %f, my_sum = %f\n",*p_my_trace,my_sum);
@@ -1703,9 +1731,10 @@ TRACE
                                 }
                             }
                         }
+                        process = &Volumes[current_volume]->p_physics->p_scattering_array[selected_process];
 			  
                         // Select distance to scattering position
-                        if (Volumes[current_volume]->p_physics->p_scattering_array[selected_process].needs_cross_section_focus == 1) {
+                        if (process->needs_cross_section_focus == 1) {
                             // Respect forced length to scattering chosen by process
                             length_to_scattering = forced_length_to_scattering;
                             // Drawing between 0 and L from constant s = 1/L and should have been q = A*exp(-kz).
@@ -1717,11 +1746,35 @@ TRACE
                             #endif
 				
                         } else {
-                            // Decided the ray scatters, choose where on truncated exponential from safety_distance to length_to_boundary - safety_distance
-                            length_to_scattering = safety_distance - log(1.0 - rand0max((1.0 - exp(-my_sum_plus_abs*(length_to_boundary-safety_distance2))))) / my_sum_plus_abs;
-                            #ifdef Union_trace_verbal_setting
-                                printf("Sampled length to scattering, %lf \n", length_to_scattering);
-                            #endif
+                            if (process->needs_numerical_integration == -1){
+                                // No numerical integration is necessary.
+                                // Decided the ray scatters, choose where on truncated exponential from safety_distance to length_to_boundary - safety_distance
+                                length_to_scattering = safety_distance - log(1.0 - rand0max(1.0 - exp(-my_sum_plus_abs*(length_to_boundary-safety_distance2)))) / my_sum_plus_abs;
+                                #ifdef Union_trace_verbal_setting
+                                    printf("Sampled length to scattering, %lf \n", length_to_scattering);
+                                #endif
+                            } else {
+                                // Numerical integration happens, and therefore we must choose between the different samples
+                                // We do this by drawing a random number between 0 and max cumul prob,
+                                // and then seeing which cumul prob is the first to include it.
+                                double pseudo_rand =  rand01()*(process->inhomogenous_cumul_prob[sampling_size - 1]);
+                                int selected_sampling;
+                                for (int i = 0; i < sampling_size; i++){
+                                    //printf("\nCumulative probabilities = %g\trandom = %g\tinteger=%d\n",process->inhomogenous_cumul_prob[i],pseudo_rand, i);
+                                    if (pseudo_rand >= process->inhomogenous_cumul_prob[i])
+                                        continue;
+                                    selected_sampling = i;
+                                    break;
+                                
+                                }
+                                //printf("\nSelected_sampling = %d\n", selected_sampling);
+                                dist_i = process->inhomogenous_cumul_distances[selected_sampling];
+                                //printf("dist i = %g\tdist=%g\n", dist_i, dist);
+
+                                length_to_scattering = safety_distance + dist_i - dist/2 + rand01()*dist;
+                                //printf("\nChosen length to scattering = %g\n", length_to_scattering);
+                                
+                            }
                         }
 			  
                     } // Done handling scattering

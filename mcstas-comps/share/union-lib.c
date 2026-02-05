@@ -512,6 +512,7 @@ struct scattering_process_struct
   double *inhomogenous_distances;          // The distance of each step in which the cumulative probabilities will be calculated.
   double *inhomogenous_cumul_distances;    // The cumulative distances
   double *inhomogenous_mu;                 // The different attenuation coefficients that are sampled in the numerical integration
+  double *inhomogenous_prob;               // The probability of the process at the different sampled points.
   double *inhomogenous_t;                  // The different times at which mu must be sampled.
   int sampl_size;                          // Maximum number of samplings performed. If it is -1, no sampling has been done, and the arrays must be malloc'ed.
   union data_transfer_union data_transfer; // The way to reach the storage space allocated for this process (see examples in process.comp files)
