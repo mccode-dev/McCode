@@ -376,7 +376,7 @@ INITIALIZE
   
     // Set the component index of the previous Union_master component if one exists
     if (global_master_list_master->num_elements == 1) previous_master_index = 0; // no previous index
-        else previous_master_index = global_master_list_master->elements[global_master_list_master->num_elements-2].component_index; // -2 because of zero indexing and needing the previous index.
+    else previous_master_index = global_master_list_master->elements[global_master_list_master->num_elements-2].component_index; // -2 because of zero indexing and needing the previous index.
     //printf("Assigned previous_master_index = %d \n",previous_master_index);
   
     // All volumes in the global_geometry_list_master is being check for activity using the number_of_activations input made for each geometry (default is 1)
@@ -390,8 +390,8 @@ INITIALIZE
             global_geometry_list_master->elements[iterator].activation_counter--;
             number_of_volumes++;
             if (global_geometry_list_master->elements[iterator].Volume->geometry.is_mask_volume == 1) number_of_masks++;
-                if (global_geometry_list_master->elements[iterator].Volume->geometry.is_masked_volume == 1) number_of_masked_volumes++;
-            } else global_geometry_list_master->elements[iterator].active = 0;
+            if (global_geometry_list_master->elements[iterator].Volume->geometry.is_masked_volume == 1) number_of_masked_volumes++;
+        } else global_geometry_list_master->elements[iterator].active = 0;
     }
   
     // Allocation of global lists
@@ -399,12 +399,12 @@ INITIALIZE
     geometry_component_index_list.elements = malloc( geometry_component_index_list.num_elements * sizeof(int));
     mask_volume_index_list.num_elements = number_of_masks;
     if (number_of_masks >0) mask_volume_index_list.elements = malloc( number_of_masks * sizeof(int));
-        mask_status_list.num_elements = number_of_masks;
+    mask_status_list.num_elements = number_of_masks;
     if (number_of_masks >0) mask_status_list.elements = malloc( number_of_masks * sizeof(int));
-        current_mask_intersect_list_status.num_elements = number_of_masked_volumes;
+    current_mask_intersect_list_status.num_elements = number_of_masked_volumes;
     if (number_of_masked_volumes >0) current_mask_intersect_list_status.elements = malloc( number_of_masked_volumes * sizeof(int));
   
-        // Make a list of component index from each volume index
+    // Make a list of component index from each volume index
     volume_index = 0;
     for (iterator=0;iterator<global_geometry_list_master->num_elements;iterator++) {
         if (global_geometry_list_master->elements[iterator].active == 1)
@@ -749,7 +749,7 @@ INITIALIZE
             }
       
             if (number_of_process_interacts_set == 0) Volumes[volume_index]->p_physics->interact_control = 0;
-                else Volumes[volume_index]->p_physics->interact_control = 1;
+            else Volumes[volume_index]->p_physics->interact_control = 1;
       
             // If all are set, check if they need renormalization so that the sum is one.
             if (number_of_process_interacts_set == Volumes[volume_index]->p_physics->number_of_processes) {
@@ -790,9 +790,9 @@ INITIALIZE
       
             // If the volume is a mask, its volume number is added to the mask_volume_index list so volume index can be converted to mask_index.
             if (Volumes[volume_index]->geometry.is_mask_volume == 1) Volumes[volume_index]->geometry.mask_index = mask_index_main;
-                if (Volumes[volume_index]->geometry.is_mask_volume == 1) mask_volume_index_list.elements[mask_index_main++] = volume_index;
+            if (Volumes[volume_index]->geometry.is_mask_volume == 1) mask_volume_index_list.elements[mask_index_main++] = volume_index;
      
-                // Check all loggers assosiated with this volume and update the max_conditional_extend_index if necessary
+            // Check all loggers assosiated with this volume and update the max_conditional_extend_index if necessary
             for (iterator=0;iterator<Volumes[volume_index]->loggers.num_elements;iterator++) {
                 for (process_index=0;process_index<Volumes[volume_index]->loggers.p_logger_volume[iterator].num_elements;process_index++) {
                     if (Volumes[volume_index]->loggers.p_logger_volume[iterator].p_logger_process[process_index] != NULL) {
@@ -882,8 +882,8 @@ INITIALIZE
         if (verbal) printf("\n ---- Overview of the lists generated for each volume ---- \n");
   
   
-            if (verbal) printf("List overview for surrounding vacuum\n");
-            for (volume_index_main=0;volume_index_main<number_of_volumes;volume_index_main++) {
+        if (verbal) printf("List overview for surrounding vacuum\n");
+        for (volume_index_main=0;volume_index_main<number_of_volumes;volume_index_main++) {
       
             if (verbal) {
                 if (volume_index_main != 0) {
@@ -903,30 +903,30 @@ INITIALIZE
             }
   
             if (verbal) sprintf(string_output,"Children for Volume                  %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.children,string_output);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.children,string_output);
       
-                if (verbal) sprintf(string_output,"Direct_children for Volume           %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.direct_children,string_output);
+            if (verbal) sprintf(string_output,"Direct_children for Volume           %d",volume_index_main);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.direct_children,string_output);
       
-                if (verbal) sprintf(string_output,"Intersect_check_list for Volume      %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.intersect_check_list,string_output);
+            if (verbal) sprintf(string_output,"Intersect_check_list for Volume      %d",volume_index_main);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.intersect_check_list,string_output);
       
-                if (verbal) sprintf(string_output,"Mask_intersect_list for Volume       %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.mask_intersect_list,string_output);
+            if (verbal) sprintf(string_output,"Mask_intersect_list for Volume       %d",volume_index_main);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.mask_intersect_list,string_output);
       
-                if (verbal) sprintf(string_output,"Destinations_list for Volume         %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.destinations_list,string_output);
+            if (verbal) sprintf(string_output,"Destinations_list for Volume         %d",volume_index_main);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.destinations_list,string_output);
       
-                //if (verbal) sprintf(string_output,"Destinations_logic_list for Volume   %d",volume_index_main);
+            //if (verbal) sprintf(string_output,"Destinations_logic_list for Volume   %d",volume_index_main);
             //if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.destinations_logic_list,string_output);
       
             if (verbal) sprintf(string_output,"Reduced_destinations_list for Volume %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.reduced_destinations_list,string_output);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.reduced_destinations_list,string_output);
       
-                if (verbal) sprintf(string_output,"Next_volume_list for Volume          %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.next_volume_list,string_output);
+            if (verbal) sprintf(string_output,"Next_volume_list for Volume          %d",volume_index_main);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.next_volume_list,string_output);
       
-                if (verbal) {
+            if (verbal) {
                 if (volume_index_main != 0)
                     printf("      Is_vacuum for Volume                 %d = %d\n",volume_index_main,Volumes[volume_index_main]->p_physics->is_vacuum);
             }
@@ -944,17 +944,17 @@ INITIALIZE
             }
       
             if (verbal) sprintf(string_output,"mask_list for Volume                 %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.mask_list,string_output);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.mask_list,string_output);
       
-                if (verbal) sprintf(string_output,"masked_by_list for Volume            %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.masked_by_list,string_output);
+            if (verbal) sprintf(string_output,"masked_by_list for Volume            %d",volume_index_main);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.masked_by_list,string_output);
       
-                if (verbal) sprintf(string_output,"masked_by_mask_index_list for Volume %d",volume_index_main);
-                if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.masked_by_mask_index_list,string_output);
+            if (verbal) sprintf(string_output,"masked_by_mask_index_list for Volume %d",volume_index_main);
+            if (verbal) print_1d_int_list(Volumes[volume_index_main]->geometry.masked_by_mask_index_list,string_output);
       
-                if (verbal)          printf("      mask_mode for Volume                 %d = %d\n",volume_index_main,Volumes[volume_index_main]->geometry.mask_mode);
-                if (verbal) printf("\n");
-            }
+            if (verbal)          printf("      mask_mode for Volume                 %d = %d\n",volume_index_main,Volumes[volume_index_main]->geometry.mask_mode);
+            if (verbal) printf("\n");
+        }
     ) // End of MPI_MASTER
   
 
@@ -981,7 +981,7 @@ INITIALIZE
             intersection_time_table.n_elements[iterator] = (int) 2; // number of intersection for all other geometries
         }
         if (iterator == 0) intersection_time_table.n_elements[iterator] = (int) 0; // number of intersection solutions
-            intersection_time_table.calculated[iterator] = (int) 0; // Initializing calculated logic
+        intersection_time_table.calculated[iterator] = (int) 0; // Initializing calculated logic
       
         if (iterator == 0) {
             intersection_time_table.intersection_times[0] = NULL;
@@ -1157,12 +1157,12 @@ TRACE
         current_tagging_node = master_tagging_node_list.elements[current_volume];
         stop_tagging_ray = 0; // Allow this ray to be tracked
         if (tagging_leaf_counter > history_limit) stop_creating_nodes = 1;
-        }
+    }
   
     #ifdef Union_trace_verbal_setting
         if (enable_tagging) printf("current_tagging_node->intensity = %f\n",current_tagging_node->intensity);
-            if (enable_tagging) printf("current_tagging_node->number_of_rays = %d \n",current_tagging_node->number_of_rays);
-        #endif
+        if (enable_tagging) printf("current_tagging_node->number_of_rays = %d \n",current_tagging_node->number_of_rays);
+    #endif
   
     // Propagation loop including scattering
     // This while loop continues until the ray leaves the ensamble of user defined volumes either through volume 0
@@ -1304,7 +1304,7 @@ TRACE
                                 printf("The mask status was 1, can actually skip intersection calculation for current volume \n");
                             #endif
                             if (intersection_with_children == 1) break;
-                            }
+                        }
                     }
                 }
             }
@@ -1469,7 +1469,7 @@ TRACE
                         // Sample length_to_scattering in linear manner
                         forced_length_to_scattering = safety_distance + rand01()*(length_to_boundary - safety_distance2);
 				
-                            ray_velocity = coords_set(vx,vy,vz); // Test for root cause
+                        ray_velocity = coords_set(vx,vy,vz); // Test for root cause
                         // Find location of scattering point in master coordinate system without changing main position / velocity variables
                         Coords direction = coords_scalar_mult(ray_velocity, 1.0/length_of_position_vector(ray_velocity));
                         Coords scattering_displacement = coords_scalar_mult(direction, forced_length_to_scattering);
@@ -1663,7 +1663,7 @@ TRACE
                         abs_weight_factor_set = 1;
                         // Safety feature, alert in case of nonsense my results / negative absorption
                         if (my_sum/my_sum_plus_abs > 1.0) printf("WARNING: Absorption weight factor above 1! Should not happen! \n");
-                            // Select process
+                        // Select process
                         if (Volumes[current_volume]->p_physics->number_of_processes == 1) { // trivial case
                             // Select the only available process, which will always have index 0
                             selected_process = 0;
@@ -1903,7 +1903,7 @@ TRACE
                 v_length = sqrt(vx*vx+vy*vy+vz*vz);
                 k_new[0] = V2K*vx; k_new[1] = V2K*vy; k_new[2] = V2K*vz;
                 if (verbal) if (v_length < 1) printf("velocity set to less than 1\n");
-                    ray_velocity = coords_set(vx,vy,vz);
+                ray_velocity = coords_set(vx,vy,vz);
             
                 #ifdef Union_trace_verbal_setting
                     printf("Running logger system for specific volumes \n");
@@ -1949,8 +1949,8 @@ TRACE
                     printf("r = (%f,%f,%f) v = (%f,%f,%f) \n",x,y,z,vx,vy,vz);
             
                     if (enable_tagging && stop_tagging_ray == 0) printf("Before new process node: current_tagging_node->intensity = %f\n",current_tagging_node->intensity);
-                        if (enable_tagging && stop_tagging_ray == 0) printf("Before new process node: current_tagging_node->number_of_rays = %d\n", current_tagging_node->number_of_rays);
-                    #endif
+                    if (enable_tagging && stop_tagging_ray == 0) printf("Before new process node: current_tagging_node->number_of_rays = %d\n", current_tagging_node->number_of_rays);
+                #endif
             
                 if (enable_tagging && stop_tagging_ray == 0)
                     current_tagging_node = goto_process_node(current_tagging_node, selected_process,Volumes[current_volume], &stop_tagging_ray,stop_creating_nodes);
@@ -1958,8 +1958,8 @@ TRACE
                 #ifdef Union_trace_verbal_setting
             
                     if (enable_tagging && stop_tagging_ray == 0) printf("After new process node: current_tagging_node->intensity = %f\n", current_tagging_node->intensity);
-                        if (enable_tagging && stop_tagging_ray == 0) printf("After new process node: current_tagging_node->number_of_rays = %d\n", current_tagging_node->number_of_rays);
-                    #endif
+                    if (enable_tagging && stop_tagging_ray == 0) printf("After new process node: current_tagging_node->number_of_rays = %d\n", current_tagging_node->number_of_rays);
+                #endif
             
             } else {
                 previous_volume = current_volume; // Record the current volume as previous, as this will change in this branch of the code
@@ -2014,17 +2014,17 @@ TRACE
                     #ifdef Union_trace_verbal_setting
                         if (enable_tagging) printf("tree method moves from %d to %d\n",current_volume,tree_next_volume);
                 
-                            if (enable_tagging && stop_tagging_ray == 0) printf("Before new tree volume node: current_tagging_node->intensity = %f\n",current_tagging_node->intensity);
-                            if (enable_tagging && stop_tagging_ray == 0) printf("Before new tree volume node: current_tagging_node->number_of_rays = %d\n",current_tagging_node->number_of_rays);
-                        #endif
+                        if (enable_tagging && stop_tagging_ray == 0) printf("Before new tree volume node: current_tagging_node->intensity = %f\n",current_tagging_node->intensity);
+                        if (enable_tagging && stop_tagging_ray == 0) printf("Before new tree volume node: current_tagging_node->number_of_rays = %d\n",current_tagging_node->number_of_rays);
+                    #endif
                 
                     if (enable_tagging && stop_tagging_ray == 0)
                         current_tagging_node = goto_volume_node(current_tagging_node, current_volume, tree_next_volume, Volumes,&stop_tagging_ray,stop_creating_nodes);
                 
                     #ifdef Union_trace_verbal_setting
                         if (enable_tagging && stop_tagging_ray == 0) printf("After new tree volume node: current_tagging_node->intensity = %f\n",current_tagging_node->intensity);
-                            if (enable_tagging && stop_tagging_ray == 0) printf("After new tree volume node: current_tagging_node->number_of_rays = %d\n",current_tagging_node->number_of_rays);
-                        #endif
+                        if (enable_tagging && stop_tagging_ray == 0) printf("After new tree volume node: current_tagging_node->number_of_rays = %d\n",current_tagging_node->number_of_rays);
+                    #endif
                 
                     // Set next volume to the solution found in the tree method
                     current_volume = tree_next_volume;
@@ -2036,8 +2036,8 @@ TRACE
                 } else {
                     #ifdef Union_trace_verbal_setting
                         if (enable_tagging && stop_tagging_ray == 0) printf("Before new intersection volume node: current_tagging_node->intensity = %f\n",current_tagging_node->intensity);
-                            if (enable_tagging && stop_tagging_ray == 0) printf("Before new intersection volume node: current_tagging_node->number_of_rays = %d\n",current_tagging_node->number_of_rays);
-                        #endif
+                        if (enable_tagging && stop_tagging_ray == 0) printf("Before new intersection volume node: current_tagging_node->number_of_rays = %d\n",current_tagging_node->number_of_rays);
+                    #endif
                 
                     // Mask update: If the min_volume is not a mask, things are simple, current_volume = min_volume.
                     //               however, if it is a mask, the mask status will switch.
@@ -2116,7 +2116,7 @@ TRACE
                                             printf("The method found the next tree volume to be %d\n",tree_next_volume);
                                         #endif
                                         if (enable_tagging && stop_tagging_ray == 0) current_tagging_node = goto_volume_node(current_tagging_node, current_volume, tree_next_volume, Volumes, &stop_tagging_ray, stop_creating_nodes);
-                                            current_volume = tree_next_volume;
+                                        current_volume = tree_next_volume;
                                     } else {
                                         #ifdef Union_trace_verbal_setting
                                             printf("Many elements in destinations list, use within_which_volume\n");
@@ -2126,7 +2126,7 @@ TRACE
                                         tree_next_volume = within_which_volume_GPU(ray_position, Volumes[min_volume]->geometry.reduced_destinations_list, Volumes[min_volume]->geometry.destinations_list, Volumes, &mask_status_list, number_of_volumes, pre_allocated1, pre_allocated2, pre_allocated3);
 
                                         if (enable_tagging && stop_tagging_ray == 0) current_tagging_node = goto_volume_node(current_tagging_node, current_volume, tree_next_volume, Volumes,&stop_tagging_ray,stop_creating_nodes);
-                                            current_volume = tree_next_volume;
+                                        current_volume = tree_next_volume;
                                         #ifdef Union_trace_verbal_setting
                                             printf("Set new new volume to %d\n",tree_next_volume);
                                         #endif
@@ -2152,7 +2152,7 @@ TRACE
                                 if (Volumes[tree_next_volume]->geometry.priority_value > Volumes[current_volume]->geometry.priority_value) {
                                     // In case the current volume has a higher priority, nothing happens, otherwise change current volume
                                     if (enable_tagging && stop_tagging_ray == 0) current_tagging_node = goto_volume_node(current_tagging_node, current_volume, tree_next_volume, Volumes, &stop_tagging_ray, stop_creating_nodes);
-                                        current_volume = tree_next_volume;
+                                    current_volume = tree_next_volume;
                                 }
                             }
                         }
@@ -2164,8 +2164,8 @@ TRACE
                         print_1d_int_list(mask_status_list,"Updated mask status list");
                         print_1d_int_list(current_mask_intersect_list_status,"Updated current_mask_intersect_list_status");
                         if (enable_tagging) printf("After new intersection volume node: current_tagging_node->intensity = %f\n",current_tagging_node->intensity);
-                            if (enable_tagging) printf("After new intersection volume node: current_tagging_node->number_of_rays = %d\n",current_tagging_node->number_of_rays);
-                        #endif
+                        if (enable_tagging) printf("After new intersection volume node: current_tagging_node->number_of_rays = %d\n",current_tagging_node->number_of_rays);
+                    #endif
                 
                 }
                 #ifdef Union_trace_verbal_setting
@@ -2309,9 +2309,9 @@ TRACE
                             surface_pointer = interface_stack.p_surface_array[surface_transverse_index];
 			  
                             if (surface_transverse_index < n_leaving) in_direction = 1; else in_direction = -1;
-                                if (surface_direction == in_direction) inward_or_outward = inward_bound; else inward_or_outward = outward_bound;
+                            if (surface_direction == in_direction) inward_or_outward = inward_bound; else inward_or_outward = outward_bound;
 				
-                                // fresh normal in case surface function messed with it
+                            // fresh normal in case surface function messed with it
                             normal_vector[0] = nx; normal_vector[1] = ny; normal_vector[2] = nz;
 
                             // p, wavevector and continues updated by surface_function
@@ -2327,7 +2327,7 @@ TRACE
 				
                             if (!continues) surface_direction = -surface_direction; // Flip stack direction if the ray does not continue
 				
-                                surface_transverse_index += surface_direction; // Go to next element in stack
+                            surface_transverse_index += surface_direction; // Go to next element in stack
                             surface_iterations += 1;
 			  
                             if (surface_iterations > 10000) {
@@ -2352,8 +2352,8 @@ TRACE
                                 printf("r = (%f,%f,%f) v = (%f,%f,%f) \n", x, y, z, vx, vy, vz);
                                 printf("  - normal dot v  = %lf \n", nx*vx + ny*vy + nz*vz);
                                 if (surface_transverse_index < 0) printf("Should have different sign \n");
-                                    if (surface_transverse_index >= n_total) printf("Should have same sign \n");
-                                    if (dot_product_before * (nx*vx + ny*vy + nz*vz) < 0) {
+                                if (surface_transverse_index >= n_total) printf("Should have same sign \n");
+                                if (dot_product_before * (nx*vx + ny*vy + nz*vz) < 0) {
                                     printf("Sign did change \n");
                                 } else printf("Sign did not change \n");
                             #endif
@@ -2398,7 +2398,7 @@ TRACE
                     double lambda = 3956.0032/v_length;
             
                     if (previous_volume == 0) n1 = 1.0;
-                        else {
+                    else {
                         if (Volumes[previous_volume]->p_physics->has_refraction_info == 0 && Volumes[previous_volume]->p_physics->is_vacuum == 0) {
                             perform_refraction = 0;
                         } else {
@@ -2420,7 +2420,7 @@ TRACE
                     }
             
                     if (current_volume == 0) n2 = 1.0;
-                        else {
+                    else {
                         if (Volumes[current_volume]->p_physics->has_refraction_info == 0 && Volumes[current_volume]->p_physics->is_vacuum == 0) {
                             perform_refraction = 0;
                         } else {
@@ -2444,11 +2444,11 @@ TRACE
                         perform_refraction = 0; // Vacuum to vacuum
                     } else if (previous_volume == 0) {
                         if (Volumes[current_volume]->p_physics->is_vacuum == 1) perform_refraction = 0; // Vacuum to vacuum
-                        } else if (current_volume == 0) {
+                    } else if (current_volume == 0) {
                         if (Volumes[previous_volume]->p_physics->is_vacuum == 1) perform_refraction = 0; // Vacuum to vacuum
-                        } else {
+                    } else {
                         if (Volumes[previous_volume]->p_physics->is_vacuum == 1 && Volumes[current_volume]->p_physics->is_vacuum == 1) perform_refraction = 0; // Vacuum to vacuum
-                        }
+                    }
 			  
                     #ifdef Union_trace_verbal_setting
                         if (perform_refraction == 1)
@@ -2551,7 +2551,7 @@ TRACE
 	
                                     printf(" normal dot v  = %lf \n", nx*vx + ny*vy + nz*vz);
                                     if ((nx*vx + ny*vy + nz*vz)*dot_product_before > 0) printf(" SIGN SHOULD HAVE CHANGED BUT DIDN'T \n");
-                                    #endif
+                                #endif
 						  
                                 ignore_closest = min_volume;
                                 ignore_surface_index = intersection_time_table.surface_index[min_volume][min_solution];
@@ -2585,7 +2585,7 @@ TRACE
 
                                     printf(" normal dot v  = %lf theta2 = %lf \n", nx*vx + ny*vy + nz*vz, theta2);
                                     if ((nx*vx + ny*vy + nz*vz)*dot_product_before < 0) printf(" SIGN SHOULD NOT HAVE CHANGED BUT DID \n");
-                                    #endif
+                                #endif
                         
                                 // Reflected can ignore some intersections in next geometry iteration
                                 ignore_closest = min_volume; // Ignore closest intersection in next geometry iteration
@@ -2604,7 +2604,7 @@ TRACE
                     
                             theta2 = theta1;
                             if (0 < reflectivity && reflectivity < 1) p *= reflectivity; // should be R0
-                                coords_get(V_reflect, &vx, &vy, &vz);
+                            coords_get(V_reflect, &vx, &vy, &vz);
                     
                             current_volume = previous_volume; // Reflected, stays in current volume
                     
@@ -2618,7 +2618,7 @@ TRACE
                                 printf(" Refraction system : ray reflected (branch 3), going back to volume %d\n", previous_volume);
                                 printf(" normal dot v  = %lf \n", nx*vx + ny*vy + nz*vz);
                                 if ((nx*vx + ny*vy + nz*vz)*dot_product_before > 0) printf(" SIGN SHOULD HAVE CHANGED BUT DIDN'T \n");
-                                #endif
+                            #endif
                     
                             // Reflected can ignore some intersections in next geometry iteration
                             ignore_closest = min_volume;
