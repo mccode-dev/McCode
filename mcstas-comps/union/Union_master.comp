@@ -244,6 +244,8 @@ DECLARE
     double dist_i;
     double max_prob;
     int max_prob_idx;
+    int sampling_in_geometry;
+    int sampling_mus_allocated;
   
     // Volume nr -> component index
     struct pointer_to_1d_int_list geometry_component_index_list;
@@ -1062,7 +1064,8 @@ TRACE
 
     double weight_limit;
     weight_limit = p*weight_ratio_limit;
-  
+    double *sampling_mus;
+
     // Initialize logic
     done = 0;
     error_msg = 0;
@@ -1519,10 +1522,19 @@ TRACE
                     } else {
                         forced_length_to_scattering = -1.0; // Signals that no forcing needed, could also if on the selected process struct
                     }
-			
+                    /*
+                    Plan for adding in inhomogenous processes all with the same sampling size:
+                    - In the for loop over all processes calculate all mus, and store them in array for the process, or all processes depending on
+                    inhomogenous or not.
+                    - The mu is summed as usual to determine scattering process
+                    - To sample to position, we rebin the homogenous processes to the sampling size.
+                    - Then, we calculate the cumulative transmission probability for each bin
+                    - Then we choose the bin based on 1- cumulative transmission probability and random number.
+                    */
+                    sampling_in_geometry = 0; // Reset numerical integration flag
+                    double *mus = malloc(sizeof(double)*Volumes[current_volume]->p_physics->number_of_processes); // TODO: Dont malloc this for each neutron.
                     int p_index;
                     for (p_index=0; p_index < Volumes[current_volume]->p_physics->number_of_processes; p_index++ ){ // GPU
-				
                         // Find correct focus_data_array index for this volume/process
                         focus_data_index = Volumes[current_volume]->geometry.focus_array_indices.elements[p_index];
                         this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[focus_data_index];
@@ -1550,22 +1562,7 @@ TRACE
                             k_rotated[0] = k[0]; k_rotated[1] = k[1]; k_rotated[2] = k[2];
                             // focus_data RayAim already updated for non isotropic processes
                         }
-                        /*
-                        Plan for adding in inhomogenous processes:
-                        - The processes will have a flag (needs_numerical_integration), that checks if they require
-                        numerical integration ✅
-                        - If they do, then we use a numerical integration algorithm,
-                        where we sample my from the process at different points.
-                        We then assume that each mu has a distance around itself
-                        that it is "correct" for, i.e the mu distribution is uniform
-                        around the mu ✅
-                        - Then each of these mu now have a smaller distance than length_to_boundary
-                        and we must therefore weight each in my_sum with the normalized length they posses.
-                        i.e if length_to_boundary is divided into 10, divide each mu by 10. ✅
-                        - For the sampling, we must then sample with the cumulative
-                        probability function, which we calculate for each small bit of
-                        the inhomogenous process.
-                        */
+                        
 			  
                         // Call the probability for scattering function assighed to this specific procress (the process pointer is updated in the for loop)
                         process = &Volumes[current_volume]->p_physics->p_scattering_array[p_index]; // GPU Allowed
@@ -1576,7 +1573,9 @@ TRACE
                         dist = length_to_boundary/sampling_size;
                         max_prob = 0;
                         max_prob_idx = 0;
+
                         if (process->needs_numerical_integration == 1){
+                            sampling_in_geometry = 1;// Flag to indicate that this geometry needs to consider numerical integration.
                             // First, check if the arrays are big enough to handle this
                             if (process->sampl_size == -1){
                                 // First numerical integration for this process. Allocate the arrays
@@ -1605,8 +1604,6 @@ TRACE
                             for (int i=0; i<sampling_size; i++){
                                 process->inhomogenous_distances[i] = dist;
                                 process->inhomogenous_cumul_distances[i] = (i > 0) ? process->inhomogenous_cumul_distances[i-1] + dist: dist/2;
-                                //printf("dist_i = %g\t integer = %i\n", process->inhomogenous_cumul_distances[i], i);
-
                                 // Transport neutron to place inside geometry
                                 ray_velocity = coords_set(vx,vy,vz);
                                 // Find location of scattering point in master coordinate system without changing main position / velocity variables
@@ -1617,30 +1614,21 @@ TRACE
                                 // Calculate mu and probability
                                 coords_get(sampling_point_geometry, &x, &y, &z);
                                 physics_my(process->eProcess, &mu, k_rotated, process->data_transfer, this_focus_data, _particle);
-                                process->inhomogenous_mu[i] = mu/sampling_size;
-                                // TODO: add cumulative probability calculations.
-                                // Calculate the probabilities and then add them cumulatively
-                                process->inhomogenous_prob[i] =  exp(-process->inhomogenous_mu[i]*sampling_size*process->inhomogenous_distances[i]);
-                                if (i==0) {
-                                    process->inhomogenous_cumul_prob[i] = process->inhomogenous_prob[i];
-                                } else {
-                                    process->inhomogenous_cumul_prob[i] = process->inhomogenous_cumul_prob[i-1] * process->inhomogenous_prob[i];
-                                }
-                                if (process->inhomogenous_cumul_prob[i] > max_prob) {
-                                    max_prob = process->inhomogenous_cumul_prob[i];
-                                    max_prob_idx = i;
-                                }
-                                //printf("\ncumul_prob = %g\tinteger=%d\n", process->inhomogenous_cumul_prob[i], i);
+                                process->inhomogenous_mu[i] = mu;
                             }
-                            for (int i = 0; i<sampling_size; i++)
-                                process->inhomogenous_cumul_prob[i] = 1 - process->inhomogenous_cumul_prob[i];
+
                             coords_get(original_position, &x, &y, &z);
                             *p_my_trace = 0;
                             for (int i=0; i<sampling_size; i++)
-                                *p_my_trace += process->inhomogenous_mu[i];
+                                *p_my_trace += process->inhomogenous_mu[i]/sampling_size;
                         } else {
                             physics_output = physics_my(process->eProcess, p_my_trace, k_rotated, process->data_transfer, this_focus_data, _particle);
+                            if (sampling_in_geometry){
+                                mus[p_index] = *p_my_trace;
+                            }
+
                         }
+
                         
                         my_sum += *p_my_trace;
                         #ifdef Union_trace_verbal_setting
@@ -1732,7 +1720,6 @@ TRACE
                             }
                         }
                         process = &Volumes[current_volume]->p_physics->p_scattering_array[selected_process];
-			  
                         // Select distance to scattering position
                         if (process->needs_cross_section_focus == 1) {
                             // Respect forced length to scattering chosen by process
@@ -1746,7 +1733,7 @@ TRACE
                             #endif
 				
                         } else {
-                            if (process->needs_numerical_integration == -1){
+                            if (sampling_in_geometry != 1){
                                 // No numerical integration is necessary.
                                 // Decided the ray scatters, choose where on truncated exponential from safety_distance to length_to_boundary - safety_distance
                                 length_to_scattering = safety_distance - log(1.0 - rand0max(1.0 - exp(-my_sum_plus_abs*(length_to_boundary-safety_distance2)))) / my_sum_plus_abs;
@@ -1757,6 +1744,33 @@ TRACE
                                 // Numerical integration happens, and therefore we must choose between the different samples
                                 // We do this by drawing a random number between 0 and max cumul prob,
                                 // and then seeing which cumul prob is the first to include it.
+                                // Calculate the probabilities and then add them cumulatively
+                                double *total_mu = calloc(sampling_size, sizeof(double));
+                                for (int i = 0; i<Volumes[current_volume]->p_physics->number_of_processes; i++){
+                                    if (mus[i]){
+                                        for (int j = 0; j<sampling_size; j++)
+                                            total_mu[j] += mus[i]*dist;
+                                    } else {
+                                        struct scattering_process_struct *process_i = &Volumes[current_volume]->p_physics->p_scattering_array[i];
+                                        for (int j = 0; j<sampling_size; j++){
+                                            total_mu[j] += process_i->inhomogenous_mu[j]*dist;
+                                        }
+                                    }
+                                   
+                                }
+                                for (int j = 0; j<sampling_size; j++){
+                                    total_mu[j] += Volumes[current_volume]->p_physics->my_a*(2200/v_length)*dist ;
+                                }
+                                double trans_prob;
+                                for (int i = 0; i<sampling_size; i++){
+                                    trans_prob = exp(-total_mu[i]);
+                                    if (i==0) process->inhomogenous_cumul_prob[i] = trans_prob;
+                                    else process->inhomogenous_cumul_prob[i] = process->inhomogenous_cumul_prob[i-1] * trans_prob;
+                                }
+                                for (int i = 0; i<sampling_size; i++) {
+                                    process->inhomogenous_cumul_prob[i] = 1 - process->inhomogenous_cumul_prob[i];
+                                }
+
                                 double pseudo_rand =  rand01()*(process->inhomogenous_cumul_prob[sampling_size - 1]);
                                 int selected_sampling;
                                 for (int i = 0; i < sampling_size; i++){
@@ -1770,9 +1784,8 @@ TRACE
                                 //printf("\nSelected_sampling = %d\n", selected_sampling);
                                 dist_i = process->inhomogenous_cumul_distances[selected_sampling];
                                 //printf("dist i = %g\tdist=%g\n", dist_i, dist);
-
-                                length_to_scattering = safety_distance + dist_i - dist/2 + rand01()*dist;
-                                //printf("\nChosen length to scattering = %g\n", length_to_scattering);
+                                double sampled_dist =  - log(1.0 - rand01()*(1.0 - exp(-total_mu[selected_sampling]) ) ) / total_mu[selected_sampling] * dist;
+                                length_to_scattering = safety_distance + dist_i - dist/2 + sampled_dist;
                                 
                             }
                         }
