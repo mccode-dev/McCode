@@ -78,174 +78,186 @@ NOACC
 SHARE INHERIT Monochromator_bent 
 DECLARE
 %{
-	int counter;
-	int counter2;
-	double curvature;
-	int MAX_REFLECTIONS;
-    struct neutron_values neutron;
-	struct Monochromator_array mono_arr;
+int counter;
+int counter2;
+double curvature;
+int MAX_REFLECTIONS;
+struct neutron_values neutron;
+struct Monochromator_array mono_arr;
 %}
 
 INITIALIZE
 %{
 
-	if (verbose)
-	for (int i=0;i<1;i++){
+if (verbose)
+	for (int i = 0; i < 1; i++)
+	{
 		printf("x,y,z,rot=(%g,%g,%g,%g,%g,%g)\n",
-				x_pos[i],y_pos[i],z_pos[i],x_rot[i],y_rot[i],z_rot[i]);
+			   x_pos[i], y_pos[i], z_pos[i], x_rot[i], y_rot[i], z_rot[i]);
 	}
-	if (verbose){
-		printf("Monochromator_Bent output: "
-						"Component name is %s:\n", NAME_CURRENT_COMP);
-	}	
-	////////////////////////////////////////////////////////////////////////////
-	/////////////// INITIALIZING PARAMETERS
-	////////////////////////////////////////////////////////////////////////////
-	mono_arr.crystal = (struct Monochromator_values*) malloc(n_crystals * sizeof(struct Monochromator_values));
-	mono_arr.number_of_crystals = n_crystals; // [#]
-	mono_arr.verbosity = verbose; // [#]
-	
-	// Separate the string into individual crystals
-	int MAX_TOKENS = 6*n_crystals;
+if (verbose)
+{
+	printf("Monochromator_Bent output: "
+		   "Component name is %s:\n",
+		   NAME_CURRENT_COMP);
+}
+////////////////////////////////////////////////////////////////////////////
+/////////////// INITIALIZING PARAMETERS
+////////////////////////////////////////////////////////////////////////////
+mono_arr.crystal = (struct Monochromator_values *)malloc(n_crystals * sizeof(struct Monochromator_values));
+mono_arr.number_of_crystals = n_crystals; // [#]
+mono_arr.verbosity = verbose;			  // [#]
 
-	char** planes = malloc(n_crystals*sizeof(char*));
-	if (planes == NULL) {
-    	exit(fprintf(stderr, "Error: memory allocation failed for planes\n"));
+// Separate the string into individual crystals
+int MAX_TOKENS = 6 * n_crystals;
+
+char **planes = malloc(n_crystals * sizeof(char *));
+if (planes == NULL)
+{
+	exit(fprintf(stderr, "Error: memory allocation failed for planes\n"));
+}
+int token_count = 0;
+// Remove trailing newline, if any
+plane_of_reflection[strcspn(plane_of_reflection, "\n")] = '\0';
+
+// Tokenize the string using ';' as delimiter
+char *plane = strtok(plane_of_reflection, ";");
+while (plane != NULL && token_count < MAX_TOKENS)
+{
+	planes[token_count++] = plane;
+	plane = strtok(NULL, ";");
+}
+
+// Print the tokens
+if (mono_arr.verbosity)
+{
+	printf("\nPlanes:\n");
+	for (int i = 0; i < token_count; ++i)
+	{
+		printf("[%d]: %s\n", i, planes[i]);
 	}
-    int token_count = 0;
-    // Remove trailing newline, if any
-    plane_of_reflection[strcspn(plane_of_reflection, "\n")] = '\0';
+}
 
-    // Tokenize the string using ';' as delimiter
-    char *plane = strtok(plane_of_reflection, ";");
-    while (plane != NULL && token_count < MAX_TOKENS) {
-        planes[token_count++] = plane;
-        plane = strtok(NULL, ";");
-    }
-
-    // Print the tokens
-	if (mono_arr.verbosity){
-		printf("\nPlanes:\n");
-		for (int i = 0; i < token_count; ++i) {
-			printf("[%d]: %s\n", i, planes[i]);
-		}
+for (int i = 0; i < n_crystals; i++)
+{
+	// // Initialize angles of the Monochromator
+	if (radius_x[i] > 0)
+	{
+		mono_arr.crystal[i].max_angle = PI + asin(zwidth[i] / (2 * radius_x[i]));
+		mono_arr.crystal[i].min_angle = PI - asin(zwidth[i] / (2 * radius_x[i]));
 	}
-	
-	for (int i=0; i<n_crystals; i++){
-		// // Initialize angles of the Monochromator 
-		if (radius_x[i]>0){
-			mono_arr.crystal[i].max_angle = PI + asin(zwidth[i]/(2*radius_x[i]));
-			mono_arr.crystal[i].min_angle = PI - asin(zwidth[i]/(2*radius_x[i])); 
-		} else if (radius_x[i]<0){
-			mono_arr.crystal[i].max_angle = -asin(zwidth[i]/(2*radius_x[i]));
-			mono_arr.crystal[i].min_angle = asin(zwidth[i]/(2*radius_x[i])); 
-		}
-		mono_arr.crystal[i].angle_range = mono_arr.crystal[i].max_angle - mono_arr.crystal[i].min_angle;
-		// Figure out the type of Monochromator
-		if (radius_x[i]) mono_arr.crystal[i].type=bent;
-		if (mosaicity[i]) mono_arr.crystal[i].type = mosaic;
-		if ((mosaicity[i]>0) && (fabs(radius_x[i])>0)) mono_arr.crystal[i].type = bent_mosaic;
-		// Read the designated plane of reflection, for use in the Monochromator.
-		enum crystal_plane plane = stringToEnum((const char *)planes[i]);
-		// Set Monochromator values
-		mono_arr.crystal[i].length = zwidth[i]; // [m]
-		mono_arr.crystal[i].height = yheight[i]; // [m]
-		mono_arr.crystal[i].thickness = xthickness[i]; // [m]
-		mono_arr.crystal[i].radius_horizontal = radius_x[i]; // [m]
-		mono_arr.crystal[i].radius_vertical = radius_y[i]; // [m]
-		mono_arr.crystal[i].radius_inner = fabs(mono_arr.crystal[i].radius_horizontal) - mono_arr.crystal[i].thickness/2; // [m]
-		mono_arr.crystal[i].radius_outer = fabs(mono_arr.crystal[i].radius_horizontal) + mono_arr.crystal[i].thickness/2; // [m]
-		double arrowheight = mono_arr.crystal[i].radius_outer*(1-cos(mono_arr.crystal[i].angle_range/2)); //sagita of circles
-		mono_arr.crystal[i].bounding_box_thickness = mono_arr.crystal[i].thickness + 2*arrowheight;
-		mono_arr.crystal[i].domain_thickness = domainthickness[i]; // []
-		mono_arr.crystal[i].temperature_mono = temperature[i]; // [T]
-		mono_arr.crystal[i].lattice_spacing = crystal_table[plane][0]; // [A]
-
-		mono_arr.crystal[i].Maier_Leibnitz_reflectivity = crystal_table[plane][1]*100; // [A^-1 m^-1]
-		mono_arr.crystal[i].bound_atom_scattering_cross_section = crystal_table[plane][2]; // [barn]
-		mono_arr.crystal[i].absorption_for_1AA_Neutrons = crystal_table[plane][3];// [barn*A^-1]
-		mono_arr.crystal[i].incoherent_scattering_cross_section = crystal_table[plane][4];// [barn]
-		mono_arr.crystal[i].volume = crystal_table[plane][5]; // [A^-3]
-		mono_arr.crystal[i].atomic_number = crystal_table[plane][6]; // [#]
-		mono_arr.crystal[i].debye_temperature = crystal_table[plane][7]; // [K]
-		mono_arr.crystal[i].Constant_from_Freund_paper = crystal_table[plane][8]; //[A^-2 eV^-1]
-		mono_arr.crystal[i].poisson_ratio = crystal_table[plane][9]; // []
-		calculate_B0_and_BT(&mono_arr.crystal[i]);
-		mono_arr.crystal[i].Debye_Waller_factor = exp(-(mono_arr.crystal[i].B0 + mono_arr.crystal[i].BT)/2/square(mono_arr.crystal[i].lattice_spacing));
-
-		mono_arr.crystal[i].x = x_pos[i];
-		mono_arr.crystal[i].y = y_pos[i];
-		mono_arr.crystal[i].z = z_pos[i];
-		double xrot = x_rot[i] * DEG2RAD;
-		double yrot = y_rot[i] * DEG2RAD;
-		double zrot = z_rot[i] * DEG2RAD;
-		rot_set_rotation(mono_arr.crystal[i].rotation_matrices, xrot, yrot, zrot);
-		rot_set_rotation(mono_arr.crystal[i].neg_rotation_matrix, -xrot, -yrot, -zrot);
-		if (verbose){
-			printf("%d'th crystal\nrot_x=%g\trot_y=%g\trot_z=%g\n"
-					"tr_x=%g\ttr_y=%g\ttr_z=%g\n",i,
-				xrot, yrot, zrot,
-				x_pos[i], y_pos[i], z_pos[i]
-				);
-		}
-
-		
-		//Set the mosaicity if relevant
-		if (mono_arr.crystal[i].type == mosaic || mono_arr.crystal[i].type == bent_mosaic){
-			//Input mosaicity is in arc min. Convert to Degrees and then to radians 
-			// (And multiply with R8LN2 which I don't know what is).
-			// Is it because of input being fwhm instead of sigma?
-			double R8LN2 = 2.354820045;
-			mono_arr.crystal[i].mosaicity_horizontal = mosaicity[i]/60*DEG2RAD/R8LN2; 
-			mono_arr.crystal[i].mosaicity_vertical = mono_arr.crystal[i].mosaicity_horizontal*mosaic_anisotropy[i];
-		}
-		// Initialize reciprocal lattice vector G or tau in some texts, and perp_to_tau. 
-
-		double chi = angle_to_cut_horizontal[i]*DEG2RAD;
-
-		double tau_size_zero = 2*PI/mono_arr.crystal[i].lattice_spacing;
-
-		mono_arr.crystal[i].tau[0] = tau_size_zero*cos(chi);
-		mono_arr.crystal[i].tau[1] = 0;
-		mono_arr.crystal[i].tau[2] = tau_size_zero*sin(chi);
-
-		mono_arr.crystal[i].perp_to_tau[0] = sin(chi);
-		mono_arr.crystal[i].perp_to_tau[1] = 0;
-		mono_arr.crystal[i].perp_to_tau[2] = -cos(chi);
-
-		// Initialize lattice_spacing_gradient_field 
-		curvature = 1/mono_arr.crystal[i].radius_horizontal;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[0][0] = -mono_arr.crystal[i].poisson_ratio*cos(chi)*tau_size_zero*curvature;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[0][1] = 0;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[0][2] = sin(chi)
-													*tau_size_zero*curvature;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[1][0] = 0;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[1][1] = mono_arr.crystal[i].radius_vertical!=0 ? tau_size_zero*cos(chi)/mono_arr.crystal[i].radius_vertical : 0;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[1][2] = 0;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[2][0] = sin(chi)
-													*tau_size_zero*curvature;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[2][1] = 0;
-		mono_arr.crystal[i].lattice_spacing_gradient_field[2][2] = -cos(chi)
-													*tau_size_zero*curvature;
+	else if (radius_x[i] < 0)
+	{
+		mono_arr.crystal[i].max_angle = -asin(zwidth[i] / (2 * radius_x[i]));
+		mono_arr.crystal[i].min_angle = asin(zwidth[i] / (2 * radius_x[i]));
 	}
-	free(planes);
-	//TODO: This is very gpu unfriendly. Should be changed to depend on OPENACC usage
-	// Initialize neutron structs values 
-	neutron.beta = (double*) calloc (n_crystals, sizeof(double));
-	neutron.eps_zero = (double*) calloc (n_crystals, sizeof(double));
-	neutron.vert_angle = (double*) calloc (n_crystals, sizeof(double));
-	neutron.horiz_angle = (double*) calloc (n_crystals, sizeof(double));
-	neutron.path_length = (double*) calloc (n_crystals, sizeof(double));
-	neutron.entry_time = (double*) calloc (n_crystals, sizeof(double));
-	neutron.exit_time = (double*) calloc (n_crystals, sizeof(double));
-	neutron.probabilities = (double*) calloc (n_crystals, sizeof(double));
-	neutron.accu_probs = (double*) calloc (n_crystals, sizeof(double));
-	neutron.intersection_list = (int*) calloc (n_crystals, sizeof(int));
-	neutron.n = n_crystals;
-	neutron.direction = 1; // Default direction is going away from the instrument
-	counter = 0;
-	counter2 = 0;
-	MAX_REFLECTIONS = 100; // Chosen maximum number of reflections
+	mono_arr.crystal[i].angle_range = mono_arr.crystal[i].max_angle - mono_arr.crystal[i].min_angle;
+	// Figure out the type of Monochromator
+	if (radius_x[i])
+		mono_arr.crystal[i].type = bent;
+	if (mosaicity[i])
+		mono_arr.crystal[i].type = mosaic;
+	if ((mosaicity[i] > 0) && (fabs(radius_x[i]) > 0))
+		mono_arr.crystal[i].type = bent_mosaic;
+	// Read the designated plane of reflection, for use in the Monochromator.
+	enum crystal_plane plane = stringToEnum((const char *)planes[i]);
+	// Set Monochromator values
+	mono_arr.crystal[i].length = zwidth[i];																				// [m]
+	mono_arr.crystal[i].height = yheight[i];																			// [m]
+	mono_arr.crystal[i].thickness = xthickness[i];																		// [m]
+	mono_arr.crystal[i].radius_horizontal = radius_x[i];																// [m]
+	mono_arr.crystal[i].radius_vertical = radius_y[i];																	// [m]
+	mono_arr.crystal[i].radius_inner = fabs(mono_arr.crystal[i].radius_horizontal) - mono_arr.crystal[i].thickness / 2; // [m]
+	mono_arr.crystal[i].radius_outer = fabs(mono_arr.crystal[i].radius_horizontal) + mono_arr.crystal[i].thickness / 2; // [m]
+	double arrowheight = mono_arr.crystal[i].radius_outer * (1 - cos(mono_arr.crystal[i].angle_range / 2));				// sagita of circles
+	mono_arr.crystal[i].bounding_box_thickness = mono_arr.crystal[i].thickness + 2 * arrowheight;
+	mono_arr.crystal[i].domain_thickness = domainthickness[i];	   // []
+	mono_arr.crystal[i].temperature_mono = temperature[i];		   // [T]
+	mono_arr.crystal[i].lattice_spacing = crystal_table[plane][0]; // [A]
+
+	mono_arr.crystal[i].Maier_Leibnitz_reflectivity = crystal_table[plane][1] * 100;   // [A^-1 m^-1]
+	mono_arr.crystal[i].bound_atom_scattering_cross_section = crystal_table[plane][2]; // [barn]
+	mono_arr.crystal[i].absorption_for_1AA_Neutrons = crystal_table[plane][3];		   // [barn*A^-1]
+	mono_arr.crystal[i].incoherent_scattering_cross_section = crystal_table[plane][4]; // [barn]
+	mono_arr.crystal[i].volume = crystal_table[plane][5];							   // [A^-3]
+	mono_arr.crystal[i].atomic_number = crystal_table[plane][6];					   // [#]
+	mono_arr.crystal[i].debye_temperature = crystal_table[plane][7];				   // [K]
+	mono_arr.crystal[i].Constant_from_Freund_paper = crystal_table[plane][8];		   //[A^-2 eV^-1]
+	mono_arr.crystal[i].poisson_ratio = crystal_table[plane][9];					   // []
+	calculate_B0_and_BT(&mono_arr.crystal[i]);
+	mono_arr.crystal[i].Debye_Waller_factor = exp(-(mono_arr.crystal[i].B0 + mono_arr.crystal[i].BT) / 2 / square(mono_arr.crystal[i].lattice_spacing));
+
+	mono_arr.crystal[i].x = x_pos[i];
+	mono_arr.crystal[i].y = y_pos[i];
+	mono_arr.crystal[i].z = z_pos[i];
+	double xrot = x_rot[i] * DEG2RAD;
+	double yrot = y_rot[i] * DEG2RAD;
+	double zrot = z_rot[i] * DEG2RAD;
+	rot_set_rotation(mono_arr.crystal[i].rotation_matrices, xrot, yrot, zrot);
+	rot_set_rotation(mono_arr.crystal[i].neg_rotation_matrix, -xrot, -yrot, -zrot);
+	if (verbose)
+	{
+		printf("%d'th crystal\nrot_x=%g\trot_y=%g\trot_z=%g\n"
+			   "tr_x=%g\ttr_y=%g\ttr_z=%g\n",
+			   i,
+			   xrot, yrot, zrot,
+			   x_pos[i], y_pos[i], z_pos[i]);
+	}
+
+	// Set the mosaicity if relevant
+	if (mono_arr.crystal[i].type == mosaic || mono_arr.crystal[i].type == bent_mosaic)
+	{
+		// Input mosaicity is in arc min. Convert to Degrees and then to radians
+		//  (And multiply with R8LN2 which I don't know what is).
+		//  Is it because of input being fwhm instead of sigma?
+		double R8LN2 = 2.354820045;
+		mono_arr.crystal[i].mosaicity_horizontal = mosaicity[i] / 60 * DEG2RAD / R8LN2;
+		mono_arr.crystal[i].mosaicity_vertical = mono_arr.crystal[i].mosaicity_horizontal * mosaic_anisotropy[i];
+	}
+	// Initialize reciprocal lattice vector G or tau in some texts, and perp_to_tau.
+
+	double chi = angle_to_cut_horizontal[i] * DEG2RAD;
+
+	double tau_size_zero = 2 * PI / mono_arr.crystal[i].lattice_spacing;
+
+	mono_arr.crystal[i].tau[0] = tau_size_zero * cos(chi);
+	mono_arr.crystal[i].tau[1] = 0;
+	mono_arr.crystal[i].tau[2] = tau_size_zero * sin(chi);
+
+	mono_arr.crystal[i].perp_to_tau[0] = sin(chi);
+	mono_arr.crystal[i].perp_to_tau[1] = 0;
+	mono_arr.crystal[i].perp_to_tau[2] = -cos(chi);
+
+	// Initialize lattice_spacing_gradient_field
+	curvature = 1 / mono_arr.crystal[i].radius_horizontal;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[0][0] = -mono_arr.crystal[i].poisson_ratio * cos(chi) * tau_size_zero * curvature;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[0][1] = 0;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[0][2] = sin(chi) * tau_size_zero * curvature;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[1][0] = 0;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[1][1] = mono_arr.crystal[i].radius_vertical != 0 ? tau_size_zero * cos(chi) / mono_arr.crystal[i].radius_vertical : 0;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[1][2] = 0;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[2][0] = sin(chi) * tau_size_zero * curvature;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[2][1] = 0;
+	mono_arr.crystal[i].lattice_spacing_gradient_field[2][2] = -cos(chi) * tau_size_zero * curvature;
+}
+free(planes);
+// TODO: This is very gpu unfriendly. Should be changed to depend on OPENACC usage
+//  Initialize neutron structs values
+neutron.beta = (double *)calloc(n_crystals, sizeof(double));
+neutron.eps_zero = (double *)calloc(n_crystals, sizeof(double));
+neutron.vert_angle = (double *)calloc(n_crystals, sizeof(double));
+neutron.horiz_angle = (double *)calloc(n_crystals, sizeof(double));
+neutron.path_length = (double *)calloc(n_crystals, sizeof(double));
+neutron.entry_time = (double *)calloc(n_crystals, sizeof(double));
+neutron.exit_time = (double *)calloc(n_crystals, sizeof(double));
+neutron.probabilities = (double *)calloc(n_crystals, sizeof(double));
+neutron.accu_probs = (double *)calloc(n_crystals, sizeof(double));
+neutron.intersection_list = (int *)calloc(n_crystals, sizeof(int));
+neutron.n = n_crystals;
+neutron.direction = 1; // Default direction is going away from the instrument
+counter = 0;
+counter2 = 0;
+MAX_REFLECTIONS = 100; // Chosen maximum number of reflections
 %}
 
 TRACE INHERIT Monochromator_bent 
@@ -255,88 +267,94 @@ FINALLY INHERIT Monochromator_bent
 
 MCDISPLAY
 %{
-	double x_inner [2];
-	double x_outer [2];
-	double y_top;
-	double y_bottom;
-	double z_inner [2];
-	double z_outer [2];
-	double points[8][3];
-	// We draw the monochromator by drawing lines between chosen points.
-	// For this reason we need to move the points, 
-	// in accordance to their position in the array.
-	for (int j=0; j<n_crystals; j++){
-		if (draw_as_rectangles) {break;}
-		struct Monochromator_values* mono = &mono_arr.crystal[j];
-		double max_i = 5;
-		double i = 0;
-		// double inner_radii = fabs(mono->radius_horizontal) - xthickness/2;
-		// double outer_radii = inner_radii + xthickness;
-		double angle0, angle1, movex, movey, movez;
-		y_top = mono->height/2;
-		y_bottom = -mono->height/2;
-		for (i = 0; i < max_i-0.2; i = i + 0.2) {
-			angle0 = i/max_i*mono->angle_range + mono->min_angle;
-			angle1 = (i+0.2)/max_i*mono->angle_range + mono->min_angle;
-			// Define the 8 coordinates of the n'th box in the crystal
-			x_inner[0] = mono->radius_horizontal + cos(angle0)*mono->radius_inner;
-			x_inner[1] = mono->radius_horizontal + cos(angle1)*mono->radius_inner;
-
-			z_inner[0] = -sin(angle0)*mono->radius_inner;
-			z_inner[1] = -sin(angle1)*mono->radius_inner;
-
-			x_outer[0] = mono->radius_horizontal + cos(angle0)*mono->radius_outer;
-			x_outer[1] = mono->radius_horizontal + cos(angle1)*mono->radius_outer;
-
-			z_outer[0] = -sin(angle0)*mono->radius_outer;
-			z_outer[1] = -sin(angle1)*mono->radius_outer;
-			// These 8 coordinates define 8 points. Coordinate transform these 
-			// to the current crystal
-			rotate_all_points(&x_inner[0], &x_outer[0], 
-								&x_inner[1], &x_outer[1],
-								&y_top, &y_bottom,	
-								&z_inner[0], &z_outer[0], 
-								&z_inner[1], &z_outer[1],
-								points, mono);
-			// Draw a box in th xy plane
-			multiline(5, 
-				points[0][0],points[0][1],points[0][2],
-				points[2][0],points[2][1],points[2][2],
-				points[3][0],points[3][1],points[3][2],
-				points[1][0],points[1][1],points[1][2],
-				points[0][0],points[0][1],points[0][2]);
-			
-			// Draw curving parts of crystal in the zx plane	
-			line(points[0][0], points[0][1], points[0][2],
-				points[4][0], points[4][1], points[4][2]);
-			line(points[1][0], points[1][1], points[1][2],
-				points[5][0], points[5][1], points[5][2]);
-			line(points[2][0], points[2][1], points[2][2],
-				points[6][0], points[6][1], points[6][2]);
-			line(points[3][0], points[3][1], points[3][2],
-				points[7][0], points[7][1], points[7][2]);	
-		}
-		// Draw a final box in the xy plane
-		multiline(5, 
-			points[4][0],points[4][1],points[4][2],
-			points[6][0],points[6][1],points[6][2],
-			points[7][0],points[7][1],points[7][2],
-			points[5][0],points[5][1],points[5][2],
-			points[4][0],points[4][1],points[4][2]);
-
+double x_inner[2];
+double x_outer[2];
+double y_top;
+double y_bottom;
+double z_inner[2];
+double z_outer[2];
+double points[8][3];
+// We draw the monochromator by drawing lines between chosen points.
+// For this reason we need to move the points,
+// in accordance to their position in the array.
+for (int j = 0; j < n_crystals; j++)
+{
+	if (draw_as_rectangles)
+	{
+		break;
 	}
+	struct Monochromator_values *mono = &mono_arr.crystal[j];
+	double max_i = 5;
+	double i = 0;
+	// double inner_radii = fabs(mono->radius_horizontal) - xthickness/2;
+	// double outer_radii = inner_radii + xthickness;
+	double angle0, angle1, movex, movey, movez;
+	y_top = mono->height / 2;
+	y_bottom = -mono->height / 2;
+	for (i = 0; i < max_i - 0.2; i = i + 0.2)
+	{
+		angle0 = i / max_i * mono->angle_range + mono->min_angle;
+		angle1 = (i + 0.2) / max_i * mono->angle_range + mono->min_angle;
+		// Define the 8 coordinates of the n'th box in the crystal
+		x_inner[0] = mono->radius_horizontal + cos(angle0) * mono->radius_inner;
+		x_inner[1] = mono->radius_horizontal + cos(angle1) * mono->radius_inner;
 
-	// line(0,0,0,
-	// 	-mono.perp_to_tau[0], -mono.perp_to_tau[1], -mono.perp_to_tau[2]);
-	if (draw_as_rectangles){
-		for (int crystal=0; crystal<n_crystals; crystal++){
-			struct Monochromator_values* mono = &mono_arr.crystal[crystal];
-			double origo[3] = {0,0,0};
-			rotate_point(origo, mono);
-			// Set the box
-			box(origo[0], origo[1], origo[2],mono->thickness,mono->height,mono->length,mono->thickness,0,0,0);
-		}
+		z_inner[0] = -sin(angle0) * mono->radius_inner;
+		z_inner[1] = -sin(angle1) * mono->radius_inner;
+
+		x_outer[0] = mono->radius_horizontal + cos(angle0) * mono->radius_outer;
+		x_outer[1] = mono->radius_horizontal + cos(angle1) * mono->radius_outer;
+
+		z_outer[0] = -sin(angle0) * mono->radius_outer;
+		z_outer[1] = -sin(angle1) * mono->radius_outer;
+		// These 8 coordinates define 8 points. Coordinate transform these
+		// to the current crystal
+		rotate_all_points(&x_inner[0], &x_outer[0],
+						  &x_inner[1], &x_outer[1],
+						  &y_top, &y_bottom,
+						  &z_inner[0], &z_outer[0],
+						  &z_inner[1], &z_outer[1],
+						  points, mono);
+		// Draw a box in th xy plane
+		multiline(5,
+				  points[0][0], points[0][1], points[0][2],
+				  points[2][0], points[2][1], points[2][2],
+				  points[3][0], points[3][1], points[3][2],
+				  points[1][0], points[1][1], points[1][2],
+				  points[0][0], points[0][1], points[0][2]);
+
+		// Draw curving parts of crystal in the zx plane
+		line(points[0][0], points[0][1], points[0][2],
+			 points[4][0], points[4][1], points[4][2]);
+		line(points[1][0], points[1][1], points[1][2],
+			 points[5][0], points[5][1], points[5][2]);
+		line(points[2][0], points[2][1], points[2][2],
+			 points[6][0], points[6][1], points[6][2]);
+		line(points[3][0], points[3][1], points[3][2],
+			 points[7][0], points[7][1], points[7][2]);
 	}
+	// Draw a final box in the xy plane
+	multiline(5,
+			  points[4][0], points[4][1], points[4][2],
+			  points[6][0], points[6][1], points[6][2],
+			  points[7][0], points[7][1], points[7][2],
+			  points[5][0], points[5][1], points[5][2],
+			  points[4][0], points[4][1], points[4][2]);
+}
+
+// line(0,0,0,
+// 	-mono.perp_to_tau[0], -mono.perp_to_tau[1], -mono.perp_to_tau[2]);
+if (draw_as_rectangles)
+{
+	for (int crystal = 0; crystal < n_crystals; crystal++)
+	{
+		struct Monochromator_values *mono = &mono_arr.crystal[crystal];
+		double origo[3] = {0, 0, 0};
+		rotate_point(origo, mono);
+		// Set the box
+		box(origo[0], origo[1], origo[2], mono->thickness, mono->height, mono->length, mono->thickness, 0, 0, 0);
+	}
+}
 %}	
 
 END
