@@ -286,6 +286,10 @@ def add_mcstas_options(parser):
         action='store_true', default=False,
         help='Assume any default parameter value in instrument')
 
+    add('--tof-trains',
+        metavar='TOFTRAINS', type=int, default=10,
+        help='Set number of %s-subtrains to simulate' % (mccode_config.configuration["PARTICLE"]))
+
     if (mccode_config.configuration["MCCODE"] == 'mcstas'):
         add('-g', '--gravitation', '--gravity',
             action='store_true', default=False,
