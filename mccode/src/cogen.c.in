@@ -2464,10 +2464,14 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  randstate_t randstate[7];"); // for the KISS generator
   cout("  double t, p;     /* time, event weight */");
   cout("  #ifdef TOF_TRAIN");
-  cout("  int Ntof_train; /* initialised like e.g. ncount, seed from cmdline */");
-  cout("  double *tof_train;");
+  cout("  int N_trains; /* initialised like e.g. ncount, seed from cmdline */");
+  cout("  double *t_offset;");
+  cout("  double *p_trains;");
+  cout("  int *alive_trains;");
+  cout("  #pragma acc shape(t_offset[0:N_trains]) init_needed(N_trains)");
+  cout("  #pragma acc shape(p_trains[0:N_trains]) init_needed(N_trains)");
+  cout("  #pragma acc shape(alive_trains[0:N_trains]) init_needed(N_trains)");
   cout("  int Ntof_init;  /* 0/1 - set to 1 once \"times are filled in\" */");
-  cout("  #pragma acc shape(tof_train[0:Ntof_train]) init_needed(Ntof_train)");
   cout("  #endif /* TOF_TRAIN */");
   cout("  long long _uid;  /* Unique event ID */");
   cout("  long _index;     /* component index where to send this event */");
@@ -2542,7 +2546,7 @@ cogen_header(struct instr_def *instr, char *output_name)
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("#pragma acc routine");
   cout("_class_particle mcsetstate(double x, double y, double z, double vx, double vy, double vz,");
-  cout("			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
+  cout("			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop, int NTOF);");
   cout("#pragma acc routine");
   cout("_class_particle mcgetstate(_class_particle mcneutron, double *x, double *y, double *z,");
   cout("                           double *vx, double *vy, double *vz, double *t,");
@@ -2550,7 +2554,7 @@ cogen_header(struct instr_def *instr, char *output_name)
 #elif MCCODE_PROJECT == 2   /* xray */
   cout("#pragma acc routine");
   cout("_class_particle mcsetstate(double x, double y, double z, double kx, double ky, double kz,");
-  cout("			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
+  cout("			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop, int NTOF);");
   cout("#pragma acc routine");
   cout("_class_particle mcgetstate(_class_particle mcphoton, double *x, double *y, double *z, double *kx, double *ky, double *kz,");
   cout("			   double *phi, double *t, double *Ex, double *Ey, double *Ez, double *p);");
@@ -2558,13 +2562,17 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("");
   cout("extern int mcgravitation;      /* flag to enable gravitation */");
   cout("#pragma acc declare create ( mcgravitation )");
+  cout("");
+
+  cout("extern int NTOF;      /* TOF_train suppport */");
+  cout("#pragma acc declare create ( NTOF )");
 
   cout("");
   cout("_class_particle mcgenstate(void) {");
 #if MCCODE_PROJECT == 1     /* neutron */
-  cout("  _class_particle particle = mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, mcgravitation, NULL, 0);");
+  cout("  _class_particle particle = mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, mcgravitation, NULL, 0, NTOF);");
 #elif MCCODE_PROJECT == 2   /* xray */
-  cout("  _class_particle particle = mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, mcgravitation, NULL, 0);");
+  cout("  _class_particle particle = mcsetstate(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, mcgravitation, NULL);");
 #endif
   cout("  return(particle);");
   cout("}");

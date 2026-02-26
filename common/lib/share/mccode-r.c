@@ -60,6 +60,7 @@ static   long mcseed                 = 0; /* seed for random generator */
 static   long mcstartdate            = 0; /* start simulation time */
 static   int  mcdisable_output_files = 0; /* --no-output-files */
 mcstatic int  mcgravitation          = 0; /* use gravitation flag, for PROP macros */
+mcstatic int  NTOF                   = 0; /* Number of TOF "sub-particles" in a TOF_TRAIN */
 mcstatic int  mcusedefaults          = 0; /* assume default value for all parameters */
 mcstatic int  mcdotrace              = 0; /* flag for --trace and messages for DISPLAY */
 mcstatic int  mcnexus_embed_idf      = 0; /* flag to embed xml-formatted IDF file for Mantid */
@@ -1234,6 +1235,9 @@ static void mcruninfo_out(char *pre, FILE *f)
   fprintf(f, "%sNcount: %llu\n",        pre, mcget_ncount());
   fprintf(f, "%sTrace: %s\n",       pre, mcdotrace ? "yes" : "no");
   fprintf(f, "%sGravitation: %s\n", pre, mcgravitation ? "yes" : "no");
+  #ifdef TOF_TRAIN
+  fprintf(f, "%sTOF_TRAIN: %d\n", pre, NTOF);
+  #endif
   snprintf(Parameters, CHAR_BUF_LENGTH, "%ld", mcseed);
   fprintf(f, "%sSeed: %s\n",        pre, Parameters);
   fprintf(f, "%sDirectory: %s\n",        pre, dirname ? dirname : ".");
@@ -4800,6 +4804,10 @@ mcparseoptions(int argc, char *argv[])
     else if(!strcmp("--format", argv[i]) && (i + 1) < argc) {
       mcformat=argv[++i];
     }
+#ifdef TOF_TRAIN
+    else if(!strncmp("--tof-trains=", argv[i], 13)) {
+      NTOF=atoi(&argv[i][13]);
+#endif
 #ifdef USE_NEXUS
     else if(!strcmp("--IDF", argv[i])) {
       mcnexus_embed_idf = 1;

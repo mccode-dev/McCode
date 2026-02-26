@@ -51,7 +51,7 @@ int (*mcMagneticField) (double, double, double, double,
 * mcsetstate: transfer parameters into global McStas variables
 *******************************************************************************/
 _class_particle mcsetstate(double x, double y, double z, double vx, double vy, double vz,
-			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop)
+			   double t, double sx, double sy, double sz, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop, int NTOF)
 {
   _class_particle mcneutron;
 
@@ -81,6 +81,14 @@ _class_particle mcsetstate(double x, double y, double z, double vx, double vy, d
   // what about mcneutron._logic ?
   mcneutron._logic.dummy=1;
   // init uservars via cogen'd-function
+
+  #ifdef TOF_TRAIN
+  mcneutron.N_trains=NTOF;
+  mcneutron.t_offset=malloc(NTOF*sizeof(double));
+  mcneutron.p_trains=malloc(NTOF*sizeof(double));
+  mcneutron.alive_trains=malloc(NTOF*sizeof(int));
+  #endif
+
   particle_uservar_init(&mcneutron);
 
   return(mcneutron);
