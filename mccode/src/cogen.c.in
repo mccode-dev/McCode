@@ -2463,6 +2463,12 @@ cogen_header(struct instr_def *instr, char *output_name)
   //cout("  randstate_t randstate[RANDSTATE_LEN]");
   cout("  randstate_t randstate[7];"); // for the KISS generator
   cout("  double t, p;     /* time, event weight */");
+  cout("  #ifdef TOF_TRAIN");
+  cout("  int Ntof_train; /* initialised like e.g. ncount, seed from cmdline */");
+  cout("  double *tof_train;");
+  cout("  int Ntof_init;  /* 0/1 - set to 1 once \"times are filled in\" */");
+  cout("  #pragma acc shape(tof_train[0:Ntof_train]) init_needed(Ntof_train)");
+  cout("  #endif /* TOF_TRAIN */");
   cout("  long long _uid;  /* Unique event ID */");
   cout("  long _index;     /* component index where to send this event */");
   /* these are needed for SCATTERED, ABSORB and RESTORE macros */
