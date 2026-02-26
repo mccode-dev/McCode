@@ -373,7 +373,7 @@ class McStas:
         options = self.options
 
         # Handle proxy options with values
-        proxy_opts_val = ['trace', 'seed', 'ncount', 'dir', 'format', 'vecsize', 'numgangs', 'gpu_innerloop', 'bufsiz']
+        proxy_opts_val = ['trace', 'seed', 'ncount', 'dir', 'format', 'vecsize', 'numgangs', 'gpu_innerloop', 'bufsiz','tof-trains']
         proxy_opts_val.extend(('meta-defined', 'meta-type', 'meta-data'))
 
         for opt in proxy_opts_val:
