@@ -4807,6 +4807,7 @@ mcparseoptions(int argc, char *argv[])
 #ifdef TOF_TRAIN
     else if(!strncmp("--tof-trains=", argv[i], 13)) {
       NTOF=atoi(&argv[i][13]);
+    }
 #endif
 #ifdef USE_NEXUS
     else if(!strcmp("--IDF", argv[i])) {
