@@ -1,0 +1,115 @@
+/*******************************************************************************
+*
+* McStas, version 1.2 released February 2000
+*         Maintained by Kristian Nielsen and Kim Lefmann,
+*         Risoe National Laboratory, Roskilde, Denmark
+*
+* %IDENTIFICATION
+*
+* Written by: Manuel Morgano
+* Date: 18 Febrauary 2015
+* Version: $Revision: 1.1.1.1 $
+* Origin: PSI
+*
+* Graphite diffuser 
+*
+* %DESCRIPTION
+*
+* This graphite diffuser scatters nuetrons to remove sharp features given by neutron optics
+*
+* The  formula has only been verified for a diffuser thickness of 1 and 2 cm.
+* No absorption is take into account.
+*
+* %PARAMETERS
+*
+* INPUT PARAMETERS:
+*
+* xwidth:     (m)    Size of diffuser
+* ywidth:     (m)    Size of diffuser
+* thick:      (m)    Thickness of diffuser
+* abs	      (1)    0 = no absorption, 1 = absorption        
+* %LINKS
+* %END
+*
+*******************************************************************************/
+
+DEFINE COMPONENT Graphite_Diffuser
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS (xwidth=0.1, ywidth=0.1, thick=0.01, abs=1)
+OUTPUT PARAMETERS ()
+//STATE PARAMETERS (x,y,z,vx,vy,vz,t,s1,s2,p)
+SHARE
+%{
+  double GaussianNumber( double mu,  double sigma, _class_particle* _particle) /* Box-Muller transform to generate a normally distributed number with std dev sigma e mean mu*/
+{
+	double rand1, rand2;	
+	rand1 = rand01();// / ((double) RAND_MAX);
+		if(rand1 < 1e-100) rand1 = 1e-100;
+	rand1 = -2 * log(rand1);
+	rand2 = (rand01()) * 6.2831853071795864769252866;
+ 
+	return (sigma * sqrt(rand1) * cos(rand2)) + mu;
+}
+%}
+INITIALIZE
+%{
+%}
+TRACE 
+%{
+
+  double L2,V2,V,theta,std,alpha,r,T,eff_thick,b,g,k,new_V2,ratio;
+  double dt;
+  PROP_Z0;
+ 	if (x>-xwidth/2 || x<xwidth/2 || y>-ywidth/2 || y<ywidth/2) {
+		V2=vx*vx + vy*vy + vz*vz;
+		V=sqrt(V2);
+		L2=15650205.135673/V2;		/*Lambda squared calulation, equivalent to expression	L2 = (2*PI/V2K)*(2*PI/V2K)/V2;*/
+		r= rand01();
+		//r=1;
+		T=thick/vz;
+		dt = T*r;
+		PROP_DT(dt);		/*propagate to a random point in the diffuser, to randomize the virtual point of interaction which in reality is not a point */
+		SCATTER;
+		eff_thick=V*T;
+  		std=L2*(0.5908*eff_thick+0.002874242);			/* LxL is the quadratic behaviour of the broadening vs lambda, the rest is an empirical formula for the dependance of the broadening by the thickness in cm */
+		alpha = 6.2831853071795864769252866* rand01(); 	/* the angle can lie anywhere in the Laue cone */
+		theta = DEG2RAD*GaussianNumber(0,std,_particle)*0.5;				/* angular distribution of the neutron from SANS */
+		k=V*tan(theta);
+		g=atan(vx/vz);
+		b=atan(vy/vz);
+		vx=vx+k*(cos(alpha)*cos(g)+sin(alpha)*sin(b)*sin(g));
+		vy=vy+k*sin(alpha)*cos(b);
+		vz=vz+k*(-cos(alpha)*sin(g)+sin(alpha)*sin(b)*cos(g));
+		new_V2=vx*vx + vy*vy + vz*vz;
+		ratio=sqrt(V2/new_V2);
+		vx=vx*ratio;			/* conservation of energy */
+		vy=vy*ratio;
+		vz=vz*ratio;
+		if (abs==1)
+			p=p*exp(-eff_thick*0.030004501);/* equivalent to p=p*pow(0.9997,(eff_thick/0.01)); [0.9997^(thick/0.01) = exp(thick*100*ln(0.997))]accounts for absorption. Values to be checked */
+		dt=T*(1-r);
+		PROP_DT(dt);		/* finish propagation */
+	}
+%}
+FINALLY
+%{
+%}
+MCDISPLAY
+%{
+  magnify("xy");
+  multiline(5, (double)-xwidth/2, (double)-ywidth/2, 0.0,
+               (double)xwidth/2, (double)-ywidth/2, 0.0,
+               (double)xwidth/2, (double)ywidth/2, 0.0,
+               (double)-xwidth/2, (double)ywidth/2, 0.0,
+               (double)-xwidth/2, (double)-ywidth/2, 0.0);
+  multiline(5, (double)-xwidth/2, (double)-ywidth/2, (double)thick,
+               (double)xwidth/2, (double)-ywidth/2, (double)thick,
+               (double)xwidth/2, (double)ywidth/2, (double)thick,
+               (double)-xwidth/2, (double)ywidth/2, (double)thick,
+               (double)-xwidth/2, (double)-ywidth/2, (double)thick);
+  line(-xwidth/2, -ywidth/2, 0.0, -xwidth/2, -ywidth/2, thick);
+  line(xwidth/2, -ywidth/2, 0.0, xwidth/2, -ywidth/2, thick);
+  line(-xwidth/2, ywidth/2, 0.0, -xwidth/2, ywidth/2, thick);
+  line(xwidth/2, ywidth/2, 0.0, xwidth/2, ywidth/2, thick);
+%}
+END
