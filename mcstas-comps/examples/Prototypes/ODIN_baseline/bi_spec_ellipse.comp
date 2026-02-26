@@ -1,0 +1,794 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2011, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Bi-spectral extracion system
+*
+* %I
+* Written by: Manuel Morgano
+* Date: April 2015
+* Version: $Revision: 2.3 $
+* Origin: PSI
+* Release: McStas 1.12c
+*
+* Bi-spectral extraction system consisting of a stack of supermirror and an elliptical feeder.
+*
+* %D
+* Bi-spectral extraction system consisting of a stack of supermirror and an elliptical feeder.
+* The supermirror number can be automatically calculated (setting the number to 0) or given
+* Each mirror can be split in submirror pieces, each of them offseted by a constant angle
+* Putting the m-coting to 0 means absorbing, putting it to -1 means transparent.
+* The feeder's shape is calculated by the distance between the guide entrance and the first focus,
+* the distance between the exit and the second focus, the length of the coated part and the opening 
+* at the entrance. The opening can be calculated automatically and will be equal to the height of the mirror stack.
+* User can specify different shapes for the horizontal and the vertical ellipse.
+* Setting the m-coating to 0 means absorbing, -1 means transparent.
+* If the mirrors are present (m value different than -1), the top part of the ellipse on top of the mirrors is drawn
+* but it's transparent.
+* In the part of the component common to the ellipses and to the mirrors, only one reflection per submirror is considered.
+* Reflectivity is either defined by an analytical model or from a two-columns file with q [Angs-1] as first and R [0-1] as second.
+* 
+*
+* Example: bi_spec_ellipse(xheight = 0.1, ywidth = 0.1, zlength = 1, n_mirror = 3,tilt = 5, n_pieces = 1, angular_offset = 0, m = 10,transmit = 1, d_focus_1_x = 2, d_focus_2_x = 0.5,d_focus_1_y = 2, d_focus_2_y = 0.5, ell_l = 2, ell_h = 0.2,ell_w = 0.2, ell_m = -1)
+*
+* %P
+* INPUT PARAMETERS:
+*
+* xheight: (m)    		height of mirror stack
+* ywidth:  (m)    		width of mirror plate
+* zlength: (m)	  		length of the mirror 
+* n_mirror (1)	  		number of mirrors in the ensamble (0 means automatic calculation, 1 is not allowed)
+* n_pieces (1)    		number of straight section per mirror
+* tilt (degrees)		angle between the mirrors and the horizontal direction
+* angular_offset (degrees)	angle between subsequent sub-mirrors
+* m:       (1)    		m-value of material. Zero means completely absorbing, -1 means transparent.
+* R0_m:      (1)    		Low-angle reflectivity
+* Qc_m:      (AA-1) 		Critical scattering vector
+* alpha_mirror_m:   (AA)   	Slope of reflectivity
+* W_m:       (AA-1) 		Width of supermirror cut-off
+* reflect_mirror: (str)  	Name of relfectivity file. Format [q(Angs-1) R(0-1)]
+* transmit:(1)    		When true, non reflected neutrons are transmitted through the mirror, instead of being absorbed.
+* d_focus_1_x:(m)		distance from the horizontal ellipse entrance to the 1st focus.
+* d_focus_2_x:(m)		distance from the horizontal ellipse exit to the 2nd focus.
+* d_focus_1_y:(m)		distance from the vertical ellipse entrance to the 1st focus.
+* d_focus_2_y:(m)		distance from the vertical ellipse exit to the 2nd focus.
+* ell_l:    (m)			length of the coated part of the ellipse
+* ell_h:    (m)			height of the ellipse entrance, 0 will allow auto-calculation of the height to just accommodate the mirrors
+* ell_w:    (m)			width of the ellipse entrance
+* ell_m:    (1)			m-value of the coating of the ellipse
+* R0:      (1)    		Low-angle reflectivity
+* Qc:      (AA-1) 		Critical scattering vector
+* alpha_mirror:   (AA)   	Slope of reflectivity
+* W:       (AA-1) 		Width of supermirror cut-off
+* reflect: (str)  		Name of relfectivity file. Format [q(Angs-1) R(0-1)]
+* cut: (1)			cutoff for lowest reflectivity consideration. 
+* substrate: (1)		if 0 the substrate is transparent, if 1 absorption and incoherent scattering of the substrate is considered. To change the parameters, modify the component file
+*
+* %D
+* Example: bi_spec_ellipse(xheight = 0.1, ywidth = 0.1, zlength = 1, n_mirror = 3,tilt = 5, n_pieces = 1, angular_offset = 0, m = 10,transmit = 1, d_focus_1_x = 2, d_focus_2_x = 0.5,d_focus_1_y = 2, d_focus_2_y = 0.5, ell_l = 2, ell_h = 0.2,ell_w = 0.2, ell_m = -1)
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT bi_spec_ellipse
+DEFINITION PARAMETERS ()
+  SETTING PARAMETERS (xheight, ywidth, zlength, n_mirror=0, tilt=0.5, n_pieces=1, angular_offset=0, m=2,R0_m=0.99,Qc_m=0.021,alpha_mirror_m=6.07,W_m=0.003, transmit=1,d_focus_1_x=2.5,d_focus_2_x=5,d_focus_1_y=2.5,d_focus_2_y=5,ell_l=3,ell_h=0,ell_w=0,ell_m=2,R0=0.99,Qc=0.0217,alpha_mirror=6.07,W=0.003,cut=3,substrate=0, string reflect_mirror=0, string reflect=0)
+OUTPUT PARAMETERS (pTable)
+//STATE PARAMETERS (x,y,z,vx,vy,vz,t,s1,s2,p)
+
+SHARE
+%{
+%include "read_table-lib"
+%}
+
+DECLARE
+%{
+  	t_Table pTable;
+
+%}
+
+INITIALIZE
+%{
+
+	if (reflect && strlen(reflect)) {
+		if (Table_Read(&pTable, reflect, 1) <= 0) /* read 1st block data from file into pTable */
+			exit(fprintf(stderr,"Mirror: %s: can not read file %s\n", NAME_CURRENT_COMP, reflect));
+	}
+	if (n_mirror==1)
+		exit(fprintf(stderr,"Please, use simple mirror instead of component: %s \n", NAME_CURRENT_COMP));
+
+
+%}
+
+TRACE
+%{
+
+	double Dt, q=0, weight=1, alpha=0,int_x=0,int_y=0,int_z=0,int_t=0,arg_stack=0;
+	double mirror_gap=1, l_acc=0, l_section=0,h_section=0,sec_pos=0,h_acc=0,sub_thickness=0,sub_abs=0,sub_incoherent=0,eff_thickness=0;
+	double  l_central=0, gamma=0,V=0,lambda=0,r=0,rand_n,xell_int_t=0,yell_int_t=0,m_ell=0;
+	double f_x=0,f_y=0,z0_x=0,z0_y=0,a_x=0,b_x=0,a_y=0,b_y=0,c1x=0,c2x=0,c3x=0,c1y=0,c2y=0,c3y=0,xell_int_x=0,xell_int_y=0,xell_int_z=0,yell_int_x=0,yell_int_y=0,yell_int_z=0, 			xdelta=0,ydelta=0,ell_exit_x=0,ell_exit_y=0;
+	char intersect=0,is_within_bounds=0,xell_intersect=0,yell_intersect=0;
+	int i=1,j=1;
+	PROP_Z0;
+	if(n_mirror==0)
+		n_mirror=ceil(xheight/(zlength*tan(tilt*DEG2RAD)));			/* automatic calulation of number of mirror needed to cover the full height*/
+	mirror_gap=xheight/(n_mirror-1);						/* calculation of the gaps between mirrors */
+	l_section=zlength/n_pieces;							/* calculation of the length of each submirror (projected onto the horizontal */
+	for(i=floor(n_pieces*0.5);i>0;i--)
+		sec_pos=sec_pos+l_section*tan((i*angular_offset+tilt)*DEG2RAD);		/* start of calculation of the upper mirror upper position */
+	sec_pos=sec_pos+0.5*l_section*tan(tilt*DEG2RAD)*((int)n_pieces % 2);		/* in case of n_pieces odd, add half of the central section's height */
+	sec_pos=sec_pos+(n_mirror-1)*mirror_gap/2;					/* end of calculation of the upper mirror upper position */
+	alpha=(tilt+angular_offset*floor(n_pieces/2))*DEG2RAD;				/* tilt of the leftmost submirror */
+	l_acc=0;									/* keeps track of the neutron z position */
+	h_section=l_section*tan(alpha);							/* height of the submirror projected on the vertical axis */
+
+	if (substrate==1) {
+		sub_thickness=0.02;							/* substrate thickness in meters, 0.000525m is the typical silicon wafer thickness */
+		sub_abs=0.239;							/* substrate absorption cross section (1/m) for 1 AA neutrons */
+		sub_incoherent=0;							/* substrate incoherent scattering cross section (1/m) */
+	}
+
+
+
+	if ((ell_h==0)&&(alpha>=0))							/* calculation of the ellipse opening if not given by the user */
+		ell_h=2*sec_pos;
+	if ((ell_h==0)&&(alpha<0))
+		ell_h=-2*(sec_pos-(n_mirror-1)*mirror_gap);
+
+	/* calculations of the parameters of ellipses in the x direction. Equation is (z-z0)^2/a^2+x^2/b^2=1 */
+	f_x=0.5*(ell_l+d_focus_1_x+d_focus_2_x);							
+	z0_x=f_x-d_focus_1_x;
+	b_x=sqrt((-(f_x*f_x-z0_x*z0_x-ell_h*ell_h/4.0)+sqrt((f_x*f_x-z0_x*z0_x-ell_h*ell_h/4)*(f_x*f_x-z0_x*z0_x-ell_h*ell_h/4)+4*ell_h*ell_h*f_x*f_x/4))/2);
+	a_x=sqrt(z0_x*z0_x*b_x*b_x/(b_x*b_x-ell_h*ell_h/4));
+
+	/* same for the ellipse in the y direction. Equation is (z-z0)^2/a^2+y^2/b^2=1 */
+	f_y=0.5*(ell_l+d_focus_1_y+d_focus_2_y);							
+	z0_y=f_y-d_focus_1_y;
+	b_y=sqrt((-(f_y*f_y-z0_y*z0_y-ell_w*ell_w/4)+sqrt((f_y*f_y-z0_y*z0_y-ell_w*ell_w/4)*(f_y*f_y-z0_y*z0_y-ell_w*ell_w/4)+4*ell_w*ell_w*f_y*f_y/4))/2);
+	a_y=sqrt(z0_y*z0_y*b_y*b_y/(b_y*b_y-ell_w*ell_w/4));
+  	for (i=1; i<=n_pieces; i++) {							/* cycle trough submirrors */
+		for(j=1; j<=n_mirror; j++) {						/* cycle through mirrors */
+			int_z=((sec_pos-x)/((vx/vz)+tan(alpha)))+l_acc;			/* calculation of the point of intersection in the z axis between neutron and submirror */
+			int_t=(int_z-z)/vz;						/* time for intersection */
+			int_x=x+vx*int_t;						/* x of intersection */
+			int_y=y+vy*int_t;						/* y of intersection */
+			is_within_bounds=(((int_y<=ywidth/2)&&(int_y>=-ywidth/2))||((int_y>=ywidth/2)&&(int_y<=-ywidth/2)));					/* checks if the intersection is within the phisical size of the submirror for x,y and z */
+			is_within_bounds=is_within_bounds && (((int_x<=sec_pos)&&(int_x>=sec_pos-h_section))||((int_x>=sec_pos)&&(int_x<=sec_pos-h_section)));
+			is_within_bounds=is_within_bounds && ((int_z<=l_acc+l_section)&&(int_z>=l_acc)&&(int_z>z));
+													
+			c1x=a_x * a_x * vx * vx / (vz * vz) + b_x * b_x;							/* useful for the intersection with the ellipse */
+			c2x=2 * a_x * a_x * x * vx / vz - 2 * vx * vx * a_x * a_x * l_acc / (vz * vz) - 2 * b_x * b_x * z0_x;
+			c3x=a_x * a_x * x * x + vx * vx * a_x * a_x * l_acc * l_acc / (vz * vz) + b_x * b_x * z0_x * z0_x - b_x * b_x * a_x * a_x - 2 * a_x * a_x * x * l_acc * vx / vz;
+			xdelta=c2x*c2x-(4*c1x*c3x);
+
+			
+			/********************************  INTERSECTION WITH X ELLIPSE **********************************/
+			if((xdelta>0)&&(ell_m!=-1)) {
+				xell_int_z=(-c2x+sqrt(xdelta))/(2*c1x);					/*intersection with the ellipse */
+				if((-c2x-sqrt(xdelta))/(2*c1x) > xell_int_z)				/* most poitive intersection with ellipse in x*/
+					xell_int_z=(-c2x-sqrt(xdelta))/(2*c1x);
+				xell_int_t=(xell_int_z-z)/vz;						/* time for intersection */
+				xell_int_x=x+vx*xell_int_t;						/* x of intersection */
+				xell_int_y=y+vy*xell_int_t;						/* y of intersection */
+
+									
+				xell_intersect=((xell_int_z<=l_acc+l_section)&&(xell_int_z>=l_acc)&&(xell_int_z>z));			/* conditions for having a valid intersection */
+				xell_intersect=xell_intersect && (((xell_int_y<=ell_w/2)&&(xell_int_y>=-ell_w/2))||((xell_int_y>=ell_w/2)&&(xell_int_y<=-ell_w/2)));
+				xell_intersect=xell_intersect && (((xell_int_x<=ell_h/2)&&(xell_int_x>=-ell_h/2))||((xell_int_x>=ell_h/2)&&(xell_int_x<=-ell_h/2)));
+		
+				if(((xell_intersect)&&(xell_int_x<0)&&(m!=-1))||((xell_intersect)&&(m==-1))) {		/* to be executed only if there is an intersection, but not in the first top part of the ellipse */
+					PROP_DT(xell_int_t);							/* propagation to the intersection */
+					V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+					lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+					gamma=atan(vx/vz); 					/* angle between the direction of the neutron and the horizontal*/
+					m_ell=b_x*(xell_int_z-z0_x)/(a_x*a_x*sqrt(1-(xell_int_z-z0_x)*(xell_int_z-z0_x)/(a_x*a_x)));	/* inclination of the ellipse at the intersection */
+					if (xell_int_x>0)
+						m_ell=-m_ell;
+
+					q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+					if(ell_m == 0)
+      						ABSORB;
+    					if (reflect && strlen(reflect))
+      						weight = Table_Value(pTable, q, 1);
+    					else if(q > Qc) {
+      						double arg = (q-ell_m*Qc)/W;
+      							if(arg < 10)
+        							weight = .5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+      							else
+        							ABSORB;                               /* Cutoff ~ 1E-10 */
+      						weight *= R0;
+    						} 
+					else { /* q <= Qc */
+      						weight *= R0;
+						}
+					p *= weight*R0;
+					SCATTER;
+					r=-gamma+2*atan(m_ell);						/* reflection angle */
+
+					vz=sqrt((vx*vx+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+					vx=tan(r)*vz;
+
+					PROP_DT((l_section-xell_int_z+l_acc)/vz);				/* propagation to the next submirror section */
+					intersect=1;						/* keeps track that an intersection has happened in this group of submirrors */
+
+					continue;
+				}
+			}
+			
+			c1y=a_y * a_y * vy * vy / (vz * vz) + b_y * b_y;							
+			c2y=2 * a_y * a_y * y * vy / vz - 2 * vy * vy * a_y * a_y * l_acc / (vz * vz) - 2 * b_y * b_y * z0_y;
+			c3y=a_y * a_y * y * y + vy * vy * a_y * a_y * l_acc * l_acc / (vz * vz) + b_y * b_y * z0_y * z0_y - b_y * b_y * a_y * a_y - 2 * a_y * a_y * y * l_acc * vy / vz;
+			ydelta=c2y*c2y-(4*c1y*c3y);
+
+			/********************************  INTERSECTION WITH Y ELLIPSE **********************************/
+			if((ydelta>0)&&(ell_m!=-1)) {
+
+				yell_int_z=(-c2y+sqrt(ydelta))/(2*c1y);					/*intersection with the ellipse */
+				if((-c2y-sqrt(ydelta))/(2*c1y) > yell_int_z)				/* most poitive intersection with ellipse */
+					yell_int_z=(-c2y-sqrt(ydelta))/(2*c1y);
+				yell_int_t=(yell_int_z-z)/vz;					/* time for intersection */
+				yell_int_x=x+vx*yell_int_t;						/* x of intersection */
+				yell_int_y=y+vy*yell_int_t;						/* y of intersection */
+
+				yell_intersect=((yell_int_z<=l_acc+l_section)&&(yell_int_z>=l_acc)&&(yell_int_z>z));	/* conditions for having a valid intersection */
+				yell_intersect=yell_intersect && (((yell_int_y<=ell_w/2)&&(yell_int_y>=-ell_w/2))||((yell_int_y>=ell_w/2)&&(yell_int_y<=-ell_w/2)));
+				yell_intersect=yell_intersect && (((yell_int_x<=ell_h/2)&&(yell_int_x>=-ell_h/2))||((yell_int_x>=ell_h/2)&&(yell_int_x<=-ell_h/2)));
+
+				if((yell_intersect)&&(ell_m!=-1)) {			/* to be executed only if there is an intersection*/
+					PROP_DT(yell_int_t);							/* propagation to the intersection */
+					V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+					lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+
+					gamma=atan(vy/vz); 					/* angle between the direction of the neutron and the horizontal*/
+					m_ell=b_y*(yell_int_z-z0_y)/(a_y*a_y*sqrt(1-(yell_int_z-z0_y)*(yell_int_z-z0_y)/(a_y*a_y)));		/* inclination of the ellipse at the intersection */
+					if (yell_int_y>0)				
+						m_ell=-m_ell;
+
+					q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+					if(ell_m == 0)
+      						ABSORB;
+    					if (reflect && strlen(reflect))
+      						weight = Table_Value(pTable, q, 1);
+    					else if(q > Qc) {
+      						double arg = (q-ell_m*Qc)/W;
+      							if(arg < 10)
+        							weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+      							else
+        							ABSORB;                               /* Cutoff ~ 1E-10 */
+      						weight *= R0;
+    						} 
+					else { /* q <= Qc */
+      						weight *= R0;
+						}
+					p *= weight*R0;
+
+					SCATTER;
+					r=-gamma+2*atan(m_ell);						/* reflection angle */
+					vz=sqrt((vy*vy+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+					vy=tan(r)*vz;
+
+					PROP_DT((l_section-yell_int_z+l_acc)/vz);				/* propagation to the next submirror section */
+					intersect=1;						/* keeps track that an intersection has happened in this group of submirrors */
+					continue;
+				}
+			}
+
+
+			/********************************  INTERSECTION WITH MIRROR STACK **********************************/
+
+			if((is_within_bounds)&&(m!=-1)) {						/* code to be executed if the neutron hits the submirror */
+
+				V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+				lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+				gamma=atan(vx/vz); 					/* angle between the direction of the neutron and the horizontal*/
+				q=fabs(4*PI*sin(-alpha-gamma)/lambda);				/* calculation of neutron q */
+				if(m == 0)
+      					ABSORB;
+    				if (reflect_mirror && strlen(reflect_mirror))
+      					weight = Table_Value(pTable, q, 1);
+    				else if(q > Qc) {								/* reflectivity for the q of the neutorn */
+      					arg_stack = ((q-m*Qc_m)/W_m);
+      						if(arg_stack < cut)
+        						weight = 0.5*(1.0-tanh(arg_stack))*(1.0-alpha_mirror_m*(q-Qc_m));	/* weight if the mirror has a reflectivity for the q of the neutorn > 1e-cut*/
+      						else
+
+        						{
+								i++;
+								j=0;
+								if (substrate==1) {
+									eff_thickness=sub_thickness/fabs(sin(-alpha-gamma));
+									if (eff_thickness>(sqrt(sub_thickness*sub_thickness+zlength*zlength/(cos(alpha)*cos(alpha)))))
+										(eff_thickness=(sqrt(sub_thickness*sub_thickness+zlength*zlength/(cos(alpha)*cos(alpha)))));
+								}
+								p*=exp(-(eff_thickness)*(sub_abs*lambda+sub_incoherent));
+								PROP_DT((l_section)/vz);		/* transmit if the mirror has a reflectivity for the q of the neutorn < 1e-cut */
+								sec_pos=sec_pos-mirror_gap;
+								intersect=1;							
+								continue;
+							}                               
+      					weight *= R0_m;
+    					} 
+					else { /* q <= Qc */
+      						weight *= R0_m;
+					}
+				rand_n = rand01();					/* casting of random number for possibility of inter-mirror propagation */
+
+    				if ((rand_n <= weight)) {					/* if the neutron is lucky, it will interact with the mirror check the ARG part*/
+
+					PROP_DT(int_t);							/* propagation to the intersection */
+
+					SCATTER;
+					r=-gamma-2*alpha;						/* reflection angle */
+					vz=sqrt((vx*vx+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+					vx=tan(r)*vz;
+					PROP_DT((l_section-int_z+l_acc)/vz);				/* propagation to the next submirror section */
+					intersect=1;							/* keeps track that an intersection has happened in this group of submirrors */
+				}
+				else 	if (!transmit)
+						ABSORB;
+					else {
+						p*=exp(-(sub_thickness/cos(alpha+gamma))*(sub_abs*lambda+sub_incoherent));
+						PROP_DT((l_section)/vz);	
+						intersect=1;
+					}
+			}
+			sec_pos=sec_pos-mirror_gap;							/* x- position of next submirror */
+		}
+		l_acc=l_acc+l_section;									/* keeps track of the neutron z position */
+		sec_pos=sec_pos+n_mirror*mirror_gap-h_section;						/* x- position of next submirror (1st of the next section) */
+		alpha=alpha-angular_offset*DEG2RAD;							/* tilt of next submirror (1st of the next section) */
+		h_section=l_section*tan(alpha);								/* x- height of next submirror (1st of the next section) */
+		if(!intersect) {									/* if in the past section no intersections occurred, propagate the neutron for the full length*/
+			PROP_DT(l_section/vz);
+			intersect=0;										/* restores the check of the intersection to 0 */
+		}
+	} /* END OF THE PART COMMON BETWEEN THE MIRRORS AND THE ELLIPSES*/
+	Dt=(zlength-z)/vz;
+	if (Dt>0)
+		PROP_DT(Dt);			/* just in case, propagate the neutron to the end of the mirror stack */
+	do {							/* this do-while cycle ends when the neutron does not intersect the ellipses anymore */
+
+		xell_intersect=0;				/* recalculate all the intersection with the ellipse with the new posisionts and velocities */
+		yell_intersect=0;
+
+		c1x=a_x * a_x * vx * vx / (vz * vz) + b_x * b_x;							
+		c2x=2 * a_x * a_x * x * vx / vz - 2 * vx * vx * a_x * a_x * z / (vz * vz) - 2 * b_x * b_x * z0_x;
+		c3x=a_x * a_x * x * x + vx * vx * a_x * a_x * z * z / (vz * vz) + b_x * b_x * z0_x * z0_x - b_x * b_x * a_x * a_x - 2 * a_x * a_x * x * z * vx / vz;
+		xdelta=c2x*c2x-(4*c1x*c3x);
+
+		c1y=a_y * a_y * vy * vy / (vz * vz) + b_y * b_y;							
+		c2y=2 * a_y * a_y * y * vy / vz - 2 * vy * vy * a_y * a_y * z / (vz * vz) - 2 * b_y * b_y * z0_y;
+		c3y=a_y * a_y * y * y + vy * vy * a_y * a_y * z * z / (vz * vz) + b_y * b_y * z0_y * z0_y - b_y * b_y * a_y * a_y - 2 * a_y * a_y * y * z * vy / vz;
+		ydelta=c2y*c2y-(4*c1y*c3y);
+
+		if((xdelta>0)&&(ydelta<0)&&(ell_m!=-1)) {				/* if the neutron has only intersections with the x ellipse ...*/
+
+			xell_int_z=(-c2x+sqrt(xdelta))/(2*c1x);					/*intersection with the ellipse */
+			if((-c2x-sqrt(xdelta))/(2*c1x) > xell_int_z)				/* most poitive intersection with ellipse */
+				xell_int_z=(-c2x-sqrt(xdelta))/(2*c1x);
+			xell_int_t=(xell_int_z-z)/vz;					/* time for intersection */
+			xell_int_x=x+vx*xell_int_t;						/* x of intersection */
+			xell_int_y=y+vy*xell_int_t;						/* y of intersection */
+			xell_intersect=((xell_int_z<=ell_l)&&(xell_int_z>=l_acc)&&(xell_int_z>z));
+			if((xell_intersect)&&(ell_m!=-1)) {				/* ... and it's a valid one, then propagate to intersection and reflect */
+				PROP_DT(xell_int_t);							/* propagation to the intersection */
+				V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+				lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+				gamma=atan(vx/vz); 					/* angle between the direction of the neutron and the horizontal*/
+				m_ell=b_x*(xell_int_z-z0_x)/(a_x*a_x*sqrt(1-(xell_int_z-z0_x)*(xell_int_z-z0_x)/(a_x*a_x)));
+				if (xell_int_x>0)
+					m_ell=-m_ell;
+				q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+				if(ell_m == 0)
+      					ABSORB;
+    				if (reflect && strlen(reflect))
+      					weight = Table_Value(pTable, q, 1);
+    				else if(q > Qc) {
+      					double arg = (q-ell_m*Qc)/W;
+      						if(arg < 10)
+        						weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+      						else
+        						ABSORB;                               /* Cutoff ~ 1E-10 */
+      					weight *= R0;
+    					} 
+				else { /* q <= Qc */
+      					weight *= R0;
+					}
+
+
+				p *= weight*R0;
+				SCATTER;
+				r=-gamma+2*atan(m_ell);						/* reflection angle */
+				vz=sqrt((vx*vx+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+				vx=tan(r)*vz;
+			}
+		}
+
+
+		if((ydelta>0)&&(xdelta<0)&&(ell_m!=-1)) {				/* if the neutron has only intersections with the y ellipse ...*/
+
+			yell_int_z=(-c2y+sqrt(ydelta))/(2*c1y);					/*intersection with the ellipse */
+			if((-c2y-sqrt(ydelta))/(2*c1y) > yell_int_z)				/* most poitive intersection with ellipse */
+				yell_int_z=(-c2y-sqrt(ydelta))/(2*c1y);
+			yell_int_t=(yell_int_z-z)/vz;					/* time for intersection */
+			yell_int_x=x+vx*yell_int_t;						/* x of intersection */
+			yell_int_y=y+vy*yell_int_t;						/* y of intersection */
+			yell_intersect=((yell_int_z<=ell_l)&&(yell_int_z>=l_acc)&&(yell_int_z>z));
+			if((yell_intersect)&&(ell_m!=-1)) {				/* ... and it's a valid one, then propagate to intersection and reflect */
+				PROP_DT(yell_int_t);							/* propagation to the intersection */
+
+				V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+				lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+				gamma=atan(vy/vz); 					/* angle between the direction of the neutron and the horizontal*/
+				m_ell=b_y*(yell_int_z-z0_y)/(a_y*a_y*sqrt(1-(yell_int_z-z0_y)*(yell_int_z-z0_y)/(a_y*a_y)));	/* angle at intersection */
+				if (yell_int_y<0)
+					m_ell=-m_ell;
+				q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+				if(ell_m == 0)
+      					ABSORB;
+    				if (reflect && strlen(reflect))
+      					weight = Table_Value(pTable, q, 1);
+    				else if(q > Qc) {
+      					double arg = (q-ell_m*Qc)/W;
+      						if(arg < 10)
+        						weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+      						else
+        						ABSORB;                               /* Cutoff ~ 1E-10 */
+      					weight *= R0;
+    					} 
+				else { /* q <= Qc */
+      					weight *= R0;
+					}
+
+				p *= weight*R0;
+				SCATTER;
+				r=-gamma-2*atan(m_ell);						/* reflection angle */
+				vz=sqrt((vy*vy+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+				vy=tan(r)*vz;
+			}
+		}
+
+		if((xdelta>0)&&(ydelta>0)&&(ell_m!=-1)) {					/* if the neutron can have intersection with both ellipses*/
+
+			xell_int_z=(-c2x+sqrt(xdelta))/(2*c1x);					/*intersection with the ellipse */
+			if((-c2x-sqrt(xdelta))/(2*c1x) > xell_int_z)				/* most poitive intersection with ellipse */
+				xell_int_z=(-c2x-sqrt(xdelta))/(2*c1x);
+			xell_int_t=(xell_int_z-z)/vz;					/* time for intersection */
+			xell_int_x=x+vx*xell_int_t;						/* x of intersection */
+			xell_int_y=y+vy*xell_int_t;						/* y of intersection */
+			xell_intersect=((xell_int_z<=ell_l)&&(xell_int_z>=l_acc)&&(xell_int_z>z));
+			
+			yell_int_z=(-c2y+sqrt(ydelta))/(2*c1y);					/* intersection with the ellipse */
+			if((-c2y-sqrt(ydelta))/(2*c1y) > yell_int_z)				/* most poitive intersection with ellipse */
+				yell_int_z=(-c2y-sqrt(ydelta))/(2*c1y);
+			yell_int_t=(yell_int_z-z)/vz;					/* time for intersection */
+			yell_int_x=x+vx*yell_int_t;						/* x of intersection */
+			yell_int_y=y+vy*yell_int_t;						/* y of intersection */
+			yell_intersect=((yell_int_z<=ell_l)&&(yell_int_z>=l_acc)&&(yell_int_z>z));
+			if((xell_intersect)&&(!yell_intersect)&&(ell_m!=-1)) {		/* if the valid intersection is only with the x one, the propagate and reflect */
+				PROP_DT(xell_int_t);							/* propagation to the intersection */
+
+				V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+				lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+				gamma=atan(vx/vz); 					/* angle between the direction of the neutron and the horizontal*/
+				m_ell=b_x*(xell_int_z-z0_x)/(a_x*a_x*sqrt(1-(xell_int_z-z0_x)*(xell_int_z-z0_x)/(a_x*a_x)));
+				if (xell_int_x>0)
+					m_ell=-m_ell;
+				q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+				if(ell_m == 0)
+      					ABSORB;
+    				if (reflect && strlen(reflect))
+      					weight = Table_Value(pTable, q, 1);
+    				else if(q > Qc) {
+      					double arg = (q-ell_m*Qc)/W;
+      						if(arg < 10)
+        						weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+      						else
+        						ABSORB;                               /* Cutoff ~ 1E-10 */
+      					weight *= R0;
+    					} 
+				else { /* q <= Qc */
+      					weight *= R0;
+					}
+
+				p *= weight*R0;
+				SCATTER;
+				r=-gamma+2*atan(m_ell);						/* reflection angle */
+				vz=sqrt((vx*vx+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+				vx=tan(r)*vz;
+			}
+
+			if((!xell_intersect)&&(yell_intersect)&&(ell_m!=-1)) {		/* if the valid intersection is only with the y one, the propagate and reflect */
+
+				PROP_DT(yell_int_t);							/* propagation to the intersection */
+
+				V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+				lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+				gamma=atan(vy/vz); 					/* angle between the direction of the neutron and the horizontal*/
+				m_ell=b_y*(yell_int_z-z0_y)/(a_y*a_y*sqrt(1-(yell_int_z-z0_y)*(yell_int_z-z0_y)/(a_y*a_y)));	/* angle at intersection */
+				if (yell_int_y<0)
+					m_ell=-m_ell;
+				q=fabs(4*PI*sin(atan(-m_ell)-gamma)/lambda);				/* calculation of neutron q */
+				if(ell_m == 0)
+      					ABSORB;
+    				if (reflect && strlen(reflect))
+      					weight = Table_Value(pTable, q, 1);
+    				else if(q > Qc) {
+      					double arg = (q-ell_m*Qc)/W;
+      						if(arg < 10)
+        						weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+      						else
+        						ABSORB;                               /* Cutoff ~ 1E-10 */
+      					weight *= R0;
+    					} 
+				else { /* q <= Qc */
+      					weight *= R0;
+					}
+
+				p *= weight*R0;
+				SCATTER;
+				r=-gamma-2*atan(m_ell);						/* reflection angle */
+				vz=sqrt((vy*vy+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+				vy=tan(r)*vz;
+			}
+			
+			if((xell_intersect)&&(yell_intersect)&&(ell_m!=-1)) {		/* if the neutron intesect both ellipses at valid places */
+
+				if(xell_int_z<yell_int_z) {
+
+					PROP_DT(xell_int_t);							/* propagation to the intersection */
+					V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+					lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+					gamma=atan(vx/vz); 					/* angle between the direction of the neutron and the horizontal*/
+					m_ell=b_x*(xell_int_z-z0_x)/(a_x*a_x*sqrt(1-(xell_int_z-z0_x)*(xell_int_z-z0_x)/(a_x*a_x)));
+					if (xell_int_x>0)
+						m_ell=-m_ell;
+					q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+					if(ell_m == 0)
+      						ABSORB;
+    					if (reflect && strlen(reflect))
+      						weight = Table_Value(pTable, q, 1);
+    					else if(q > Qc) {
+      						double arg = (q-ell_m*Qc)/W;
+      							if(arg < 10)
+        							weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+      							else
+        							ABSORB;                               /* Cutoff ~ 1E-10 */
+      						weight *= R0;
+    						} 
+					else { /* q <= Qc */
+      						weight *= R0;
+
+						}
+					p *= weight*R0;
+					SCATTER;
+					r=-gamma+2*atan(m_ell);						/* reflection angle */
+					vz=sqrt((vx*vx+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+					vx=tan(r)*vz;
+					continue;
+
+					c1y=a_y * a_y * vy * vy / (vz * vz) + b_y * b_y;							
+					c2y=2 * a_y * a_y * y * vy / vz - 2 * vy * vy * a_y * a_y * z / (vz * vz) - 2 * b_y * b_y * z0_y;
+					c3y=a_y * a_y * y * y + vy * vy * a_y * a_y * z * z / (vz * vz) + b_y * b_y * z0_y * z0_y - b_y * b_y * a_y * a_y - 2 * a_y * a_y * y * z * vy / vz;
+					ydelta=c2y*c2y-(4*c1y*c3y);
+					if(ydelta>0) {
+						yell_int_z=(-c2y+sqrt(ydelta))/(2*c1y);					/*intersection with the ellipse */
+						if((-c2y-sqrt(ydelta))/(2*c1y) > yell_int_z)				/* most poitive intersection with ellipse */
+							yell_int_z=(-c2y-sqrt(ydelta))/(2*c1y);
+						yell_int_t=(yell_int_z-z)/vz;					/* time for intersection */
+						yell_int_x=x+vx*yell_int_t;						/* x of intersection */
+						yell_int_y=y+vy*yell_int_t;						/* y of intersection */
+						yell_intersect=((yell_int_z<=ell_l)&&(yell_int_z>=l_acc)&&(yell_int_t>0));
+						if((yell_intersect)&&(yell_int_z>z)&&(ell_m!=-1)) {
+							PROP_DT(yell_int_t);							/* propagation to the intersection */
+							V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+							lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+							gamma=atan(vy/vz); 					/* angle between the direction of the neutron and the horizontal*/
+							m_ell=b_y*(yell_int_z-z0_y)/(a_y*a_y*sqrt(1-(yell_int_z-z0_y)*(yell_int_z-z0_y)/(a_y*a_y)));
+							if (yell_int_y<0)
+								m_ell=-m_ell;
+							q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+							if(ell_m == 0)
+		      						ABSORB;
+		    					if (reflect && strlen(reflect))
+		      						weight = Table_Value(pTable, q, 1);
+		    					else if(q > Qc) {
+		      						double arg = (q-ell_m*Qc)/W;
+		      							if(arg < 10)
+		        							weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+		      							else
+		        							ABSORB;                               /* Cutoff ~ 1E-10 */
+		      						weight *= R0;
+		    						} 
+							else { /* q <= Qc */
+		      						weight *= R0;
+								}
+
+							p *= weight*R0;
+							SCATTER;
+							r=-gamma+2*atan(m_ell);						/* reflection angle */
+							vz=sqrt((vy*vy+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+							vy=tan(r)*vz;
+						}
+			
+					}
+				}
+
+				if((xell_int_z>yell_int_z)&&(ell_m!=-1)) {
+					PROP_DT(yell_int_t);							/* propagation to the intersection */
+					V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+					lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+					gamma=atan(vy/vz); 					/* angle between the direction of the neutron and the horizontal*/
+					m_ell=b_y*(yell_int_z-z0_y)/(a_y*a_y*sqrt(1-(yell_int_z-z0_y)*(yell_int_z-z0_y)/(a_y*a_y)));
+					if (yell_int_y>0)
+						m_ell=-m_ell;
+					q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+					if(ell_m == 0)
+      						ABSORB;
+    					if (reflect && strlen(reflect))
+      						weight = Table_Value(pTable, q, 1);
+    					else if(q > Qc) {
+      						double arg = (q-ell_m*Qc)/W;
+      							if(arg < 10)
+        							weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+      							else
+        							ABSORB;                               /* Cutoff ~ 1E-10 */
+      						weight *= R0;
+    						} 
+					else { /* q <= Qc */
+      						weight *= R0;
+						}
+
+					p *= weight*R0;
+						
+					SCATTER;
+					r=-gamma+2*atan(m_ell);						/* reflection angle */
+					vz=sqrt((vy*vy+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+					vy=tan(r)*vz;
+
+					continue;
+					c1x=a_x * a_x * vx * vx / (vz * vz) + b_x * b_x;							
+					c2x=2 * a_x * a_x * x * vx / vz - 2 * vx * vx * a_x * a_x * z / (vz * vz) - 2 * b_x * b_x * z0_x;
+					c3x=a_x * a_x * x * x + vx * vx * a_x * a_x * z * z / (vz * vz) + b_x * b_x * z0_x * z0_x - b_x * b_x * a_x * a_x - 2 * a_x * a_x * y * z * vx / vz;
+					xdelta=c2x*c2x-(4*c1x*c3x);
+					if(xdelta>0) {
+						xell_int_z=(-c2x+sqrt(xdelta))/(2*c1x);					/*intersection with the ellipse */
+						if((-c2x-sqrt(xdelta))/(2*c1x) > xell_int_z)				/* most poitive intersection with ellipse */
+							xell_int_z=(-c2x-sqrt(xdelta))/(2*c1x);
+						xell_int_t=(xell_int_z-z)/vz;					/* time for intersection */
+						xell_int_x=x+vx*xell_int_t;						/* x of intersection */
+						xell_int_y=y+vy*xell_int_t;						/* y of intersection */
+						xell_intersect=((xell_int_z<=ell_l)&&(xell_int_z>=l_acc)&&(xell_int_z>z)&&(xell_int_t>0));
+						if((xell_intersect)&&(xell_int_z>z)&&(ell_m!=-1)) {
+							PROP_DT(xell_int_t);							/* propagation to the intersection */
+							V=sqrt(vx*vx+vy*vy+vz*vz);				/* calculation of neutron velocity */
+							lambda=(2*PI/V2K)/V;					/* calculation of lambda */
+							gamma=atan(vx/vz); 					/* angle between the direction of the neutron and the horizontal*/
+							m_ell=b_x*(xell_int_z-z0_x)/(a_x*a_x*sqrt(1-(xell_int_z-z0_x)*(xell_int_z-z0_x)/(a_x*a_x)));
+							if (xell_int_x<0)
+								m_ell=-m_ell;
+							q=fabs(4*PI*sin(atan(m_ell)-gamma)/lambda);				/* calculation of neutron q */
+							if(ell_m == 0)
+		      						ABSORB;
+		    					if (reflect && strlen(reflect))
+		      						weight = Table_Value(pTable, q, 1);
+		    					else if(q > Qc) {
+		      						double arg = (q-ell_m*Qc)/W;
+		      							if(arg < 10)
+		        							weight = 0.5*(1.0-tanh(arg))*(1.0-alpha_mirror*(q-Qc));
+		      							else
+		        							ABSORB;                               /* Cutoff ~ 1E-10 */
+		      						weight *= R0;
+		    						} 
+							else { /* q <= Qc */
+		      						weight *= R0;
+								}
+
+							p *= weight*R0;
+							SCATTER;
+							r=-gamma+2*atan(m_ell);						/* reflection angle */
+							vz=sqrt((vx*vx+vz*vz)/(1+tan(r)*tan(r)));			/* new directions */
+						}
+			
+					}
+
+
+				}
+
+				
+
+			
+			}				
+		}/*end of check of deltas*/
+
+
+	} while(((xell_intersect)||(yell_intersect))&&((xdelta>0)||(ydelta>0)));	/*end*/
+	r=(ell_l-z)/vz;	/**/
+
+	/*PROP_DT((ell_l-z)/vz);*/
+	PROP_DT(r);
+
+//	printf("dt = %f , x = %f , y = %f , z = %f\n",r,x,y,z);
+	ell_exit_x= b_x * sqrt(fabs(1-(ell_l-z0_x)*(ell_l-z0_x)/(a_x*a_x)));
+	ell_exit_y= b_y * sqrt(fabs(1-(ell_l-z0_y)*(ell_l-z0_y)/(a_y*a_y)));
+//	printf("length = %f \n",ell_l);
+//	printf("ell_exit_x= %f\n",ell_exit_x);
+//	printf("ell_exit_y = %f\n",ell_exit_y);
+	if((x>ell_exit_x)||(x<-ell_exit_x)||(y>ell_exit_y)||(y<-ell_exit_y))
+		ABSORB;
+
+%}
+
+MCDISPLAY
+%{
+  double draw_mirror_gap, draw_l_section=0,draw_h_acc=0,draw_alpha=0,draw_l_acc=0,draw_l_central=0,draw_sec_pos=0,draw_f_x,draw_z0_x,draw_a_x,draw_b_x,draw_x1=0, draw_z0,draw_z1=0,draw_x2=0,draw_z2=0,draw_ell_exit_x=0,draw_ell_exit_y=0,draw_f_y,draw_z0_y,draw_a_y,draw_b_y,draw_y1=0,draw_y2=0;
+  int i,j,n_seg;
+  	magnify("xy");
+    	if (n_mirror==0)	
+ 		n_mirror=ceil(xheight/(zlength*tan(tilt*DEG2RAD)));	/* automatically calculate the number of mirrors to cover the full height */
+    	draw_mirror_gap=xheight/(n_mirror-1);
+	draw_l_central=zlength/n_pieces;		/* calculation of the length of the central part of the mirror */
+
+	for(i=floor(n_pieces*0.5);i>0;i--)
+		draw_h_acc=draw_h_acc+draw_l_central*tan((i*angular_offset+tilt)*DEG2RAD);	/* calculation of the central mirror upper position */
+	draw_h_acc=draw_h_acc+0.5*draw_l_central*tan(tilt*DEG2RAD)*((int)n_pieces % 2);		/* in case of n_pieces odd, add half of the central section's height */
+	draw_sec_pos=draw_h_acc+(n_mirror-1)*draw_mirror_gap/2;
+	draw_alpha=(tilt+angular_offset*floor(n_pieces/2))*DEG2RAD;
+	if ((ell_h==0)&&(draw_alpha>=0))
+		ell_h=2*draw_sec_pos;
+	if ((ell_h==0)&&(draw_alpha<0))
+		ell_h=-2*(draw_sec_pos-(n_mirror-1)*draw_mirror_gap);
+
+
+   	for (i=1; i<=n_pieces; i++) {
+		for(j=1; j<=n_mirror; j++) {
+			multiline(5, 	(double)draw_sec_pos,(double)(-ywidth/2),(double)draw_l_acc,
+					(double)draw_sec_pos,(double)ywidth/2,(double)draw_l_acc,
+					(double)(draw_sec_pos-draw_l_central*tan(draw_alpha)),(double)(ywidth/2),(double)(draw_l_acc+draw_l_central),
+					(double)(draw_sec_pos-draw_l_central*tan(draw_alpha)),(double)(-ywidth/2),(double)(draw_l_acc+draw_l_central),
+					(double)draw_sec_pos,(double)(-ywidth/2),(double)draw_l_acc);
+			draw_sec_pos=draw_sec_pos-draw_mirror_gap;
+			
+		}
+		draw_l_acc=draw_l_acc+draw_l_central;					/* keeps track of the drawing z position */
+		draw_sec_pos=draw_sec_pos+n_mirror*draw_mirror_gap-draw_l_central*tan(draw_alpha);
+		draw_alpha=draw_alpha-angular_offset*DEG2RAD;
+  	}
+
+	n_seg=1000;
+
+	draw_f_x=0.5*(ell_l+d_focus_1_x+d_focus_2_x);							
+	draw_z0_x=draw_f_x-d_focus_1_x;
+	draw_b_x=sqrt((-(draw_f_x*draw_f_x-draw_z0_x*draw_z0_x-ell_h*ell_h/4)+sqrt((draw_f_x*draw_f_x-draw_z0_x*draw_z0_x-ell_h*ell_h/4)*(draw_f_x*draw_f_x-draw_z0_x*draw_z0_x-ell_h*ell_h/4)+4*ell_h*ell_h*draw_f_x*draw_f_x/4))/2);
+	draw_a_x=sqrt(draw_z0_x*draw_z0_x*draw_b_x*draw_b_x/(draw_b_x*draw_b_x-ell_h*ell_h/4));
+	
+	for (i=1;i<n_seg+1;i++) {
+		draw_z1=(i-1)*ell_l/n_seg;
+		draw_x1=draw_b_x*sqrt(1-((draw_z1-draw_z0_x)*(draw_z1-draw_z0_x)/(draw_a_x*draw_a_x)));
+		draw_z2=i*ell_l/n_seg;
+		draw_x2=draw_b_x*sqrt(1-((draw_z2-draw_z0_x)*(draw_z2-draw_z0_x)/(draw_a_x*draw_a_x)));
+		line(draw_x1,0,draw_z1,draw_x2,0,draw_z2);
+		line(-draw_x1,0,draw_z1,-draw_x2,0,draw_z2);
+	}
+
+	draw_f_y=0.5*(ell_l+d_focus_1_y+d_focus_2_y);							
+	draw_z0_y=draw_f_y-d_focus_1_y;
+	draw_b_y=sqrt((-(draw_f_y*draw_f_y-draw_z0_y*draw_z0_y-ell_w*ell_w/4)+sqrt((draw_f_y*draw_f_y-draw_z0_y*draw_z0_y-ell_w*ell_w/4)*(draw_f_y*draw_f_y-draw_z0_y*draw_z0_y-ell_w*ell_w/4)+4*ell_w*ell_w*draw_f_y*draw_f_y/4))/2);
+	draw_a_y=sqrt(draw_z0_y*draw_z0_y*draw_b_y*draw_b_y/(draw_b_y*draw_b_y-ell_w*ell_w/4));
+	
+	for (i=1;i<n_seg+1;i++) {
+		draw_z1=(i-1)*ell_l/n_seg;
+		draw_y1=draw_b_y*sqrt(1-((draw_z1-draw_z0_y)*(draw_z1-draw_z0_y)/(draw_a_y*draw_a_y)));
+		draw_z2=i*ell_l/n_seg;
+		draw_y2=draw_b_y*sqrt(1-((draw_z2-draw_z0_y)*(draw_z2-draw_z0_y)/(draw_a_y*draw_a_y)));
+		line(0,draw_y1,draw_z1,0,draw_y2,draw_z2);
+		line(0,-draw_y1,draw_z1,0,-draw_y2,draw_z2);
+	}
+
+
+
+%}
+END

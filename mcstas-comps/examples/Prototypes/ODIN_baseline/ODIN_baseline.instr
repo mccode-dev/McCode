@@ -11,8 +11,8 @@
 * European Spallation Source Data Management and 
 * Software Centre
 * 
-* Instrument: ODIN_TOF_train
-* 
+* Instrument: ODIN_baseline
+*
 * %Identification
 * Written by: Python McStas Instrument Generator
 * Date: 13:25:52 on February 25, 2026
@@ -24,6 +24,7 @@
 * %Description
 * Please write a longer instrument description here!
 * 
+* %Example -y Detector: tof_I=9.16671e+08
 * 
 * %Parameters
 * l_min: [unit] Minimum simulated wavelength [AA]
@@ -57,7 +58,7 @@
 * %End 
 ********************************************************************************/
 
-DEFINE INSTRUMENT ODIN_TOF_train (
+DEFINE INSTRUMENT ODIN_baseline (
 l_min = 1.0, // Minimum simulated wavelength [AA]
 l_max = 11.0, // Maximum simulated wavelength [AA]
 int n_pulses = 1, // Number of simulated pulses
@@ -83,8 +84,7 @@ fo4_phase_offset = 0, // Offset of fo4 phase [deg]
 jitter_fo_chopper_4 = 0, // Jitter of fo_chopper_4 chopper.
 fo5_phase_offset = 0, // Offset of fo5 phase [deg]
 jitter_fo_chopper_5 = 0, // Jitter of fo_chopper_5 chopper.
-int choppers=2, // 0: no choppers 1: BP 2: WFM
-int N_trains_par = 10
+int choppers=2 // 0: no choppers 1: BP 2: WFM
 )
 
 DECLARE 
@@ -132,7 +132,6 @@ fo4_phase += 111.700;
 fo5_phase = fo5_phase_offset;
 fo5_phase += -81.105;
 
-#define N_trains INSTRUMENT_GETPAR(N_trains_par)
 
 MPI_MASTER(
 struct timespec ts;
@@ -160,9 +159,6 @@ TRACE
 COMPONENT Origin = Progress_bar()
 AT (0, 0, 0) ABSOLUTE
 EXTEND %{
-	t_offset = malloc(INSTRUMENT_GETPAR(N_trains_par)*sizeof(double));
-	p_trains = malloc(INSTRUMENT_GETPAR(N_trains_par)*sizeof(double));	
-	alive_trains = malloc(INSTRUMENT_GETPAR(N_trains_par)*sizeof(int));	
 %}
 
 COMPONENT optical_axis = Arm()
@@ -982,15 +978,13 @@ AT (0, 0, 60.5) RELATIVE optical_axis_backend
 	  
 	 COMPONENT tof = Monitor_nD(
 	 	   filename="time.dat", xwidth=0.3, yheight=0.3,
-	 	   options="t bins 300 limits [0, 0.15]",
-		   tsplit=1
+	 	   options="t bins 300 limits [0, 0.15]"
 	 )
 	 AT (0, 0, 0) RELATIVE sample_monitor_arm
 	  
 	 COMPONENT wavelength_tof = Monitor_nD(
 	 	   filename="wavelength_tof.dat", xwidth=0.3, yheight=0.3,
-	 	   options="t bins 300 limits [0, 0.15] L bins 300 limits [0.5 10]",
-		   tsplit=1
+	 	   options="t bins 300 limits [0, 0.15] L bins 300 limits [0.5 10]"
 	 )
 	 AT (0, 0, 0) RELATIVE sample_monitor_arm
 
