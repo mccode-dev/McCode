@@ -61,6 +61,9 @@ static   long mcstartdate            = 0; /* start simulation time */
 static   int  mcdisable_output_files = 0; /* --no-output-files */
 mcstatic int  mcgravitation          = 0; /* use gravitation flag, for PROP macros */
 mcstatic int  NTOF                   = 0; /* Number of TOF "sub-particles" in a TOF_TRAIN */
+#ifdef TOF_TRAIN
+NTOF=10;                                  /* Default to 10 TOF "sub-particles" in a TOF_TRAIN */
+#endif
 mcstatic int  mcusedefaults          = 0; /* assume default value for all parameters */
 mcstatic int  mcdotrace              = 0; /* flag for --trace and messages for DISPLAY */
 mcstatic int  mcnexus_embed_idf      = 0; /* flag to embed xml-formatted IDF file for Mantid */
@@ -4516,6 +4519,9 @@ mchelp(char *pgmname)
 "  --gpu_innerloop            Maximum rays to process pr. OpenACC \n"
 "                             kernel run (default: 2147483647)\n"
 "\n"
+#endif
+#ifdef TOF_TRAIN
+"  --tof-trains=K             Number of TOF \"sub-particles\" (default 10)\n"
 #endif
 "\n"
 "  --bufsiz                   Monitor_nD list/buffer-size (default: 1000000)\n"
