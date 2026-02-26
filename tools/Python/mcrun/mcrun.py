@@ -287,7 +287,7 @@ def add_mcstas_options(parser):
         help='Assume any default parameter value in instrument')
 
     add('--tof-trains',
-        metavar='TOFTRAINS', type=int, default=10,
+        metavar='TOFTRAINS', type=int, default=None,
         help='Set number of %s-subtrains to simulate' % (mccode_config.configuration["PARTICLE"]))
 
     if (mccode_config.configuration["MCCODE"] == 'mcstas'):
