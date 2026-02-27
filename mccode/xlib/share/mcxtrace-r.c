@@ -34,7 +34,7 @@
 * mcsetstate: transfer parameters into global McXtrace variables
 *******************************************************************************/
 _class_particle mcsetstate(double x, double y, double z, double kx, double ky, double kz,
-			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop)
+			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet)
 {
   _class_particle mcphoton;
 
