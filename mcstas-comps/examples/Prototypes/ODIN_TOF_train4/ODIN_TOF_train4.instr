@@ -142,7 +142,12 @@ total_arrived=0;
 total_N_sent=0;
 total_rays_sent=0;
 
+// Don't measure time on windows, CLOCK_REALTIME
+// macro is unknown...
+// It is indicated in this oagehttps://learn.microsoft.com/en-us/answers/questions/2147256/clock-realtime-is-undefined-in-visual-studio-but-c that it might work to add a high enough _POSIX_C_SOURCE define, i.e.
+// #define _POSIX_C_SOURCE 199309L.
 
+#ifndef _MSC_EXTENSIONS
 MPI_MASTER(
   struct timespec ts;
 
@@ -162,6 +167,7 @@ MPI_MASTER(
   fprintf(f, "%.9f\n", wall_time);
   fclose(f);
 );
+#endif
 %}
 
 TRACE 
@@ -998,7 +1004,7 @@ AT (0, 0, 60.5) RELATIVE optical_axis_backend
 
 SAVE
 %{
-	
+  #ifndef _MSC_EXTENSIONS
   MPI_MASTER(
     struct timespec ts;
 
@@ -1017,7 +1023,8 @@ SAVE
 
     fprintf(f, "%.9f\n", wall_time);
     fclose(f);
-  );			   
+  );
+  #endif
 %}
 
 FINALLY 
