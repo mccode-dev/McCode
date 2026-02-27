@@ -1,0 +1,1044 @@
+/********************************************************************************
+* 
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2008, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+* 
+* This file was written by McStasScript, which is a 
+* python based McStas instrument generator written by 
+* Mads Bertelsen in 2019 while employed at the 
+* European Spallation Source Data Management and 
+* Software Centre
+* 
+* Instrument: ODIN
+* 
+* %Identification
+* Written by: Python McStas Instrument Generator
+* Date: 13:25:52 on February 25, 2026
+* Origin: ESS DMSC
+* %INSTRUMENT_SITE: Generated_instruments
+* 
+* !!Please write a short instrument description (1 line) here!!
+* 
+* %Description
+* Please write a longer instrument description here!
+* 
+* 
+* %Parameters
+* l_min: [unit] Minimum simulated wavelength [AA]
+* l_max: [unit] Maximum simulated wavelength [AA]
+* n_pulses: [unit] Number of simulated pulses
+* wfm_delta: [unit] Distance between WFM choppers [m]
+* bp_frequency: [unit] Frequency of bandpass choppers [Hz]
+* WFM1_phase_offset: [unit] Offset of WFM1 phase [deg]
+* jitter_wfmc_1: [unit] Jitter of wfmc_1 chopper.
+* WFM2_phase_offset: [unit] Offset of WFM2 phase [deg]
+* jitter_wfmc_2: [unit] Jitter of wfmc_2 chopper.
+* fo1_phase_offset: [unit] Offset of fo1 phase [deg]
+* jitter_fo_chopper_1: [unit] Jitter of fo_chopper_1 chopper.
+* bp1_phase_offset: [unit] Offset of bp1 phase [deg]
+* jitter_bp1: [unit] Jitter of bp1 chopper
+* fo2_phase_offset: [unit] Offset of fo2 phase [deg]
+* jitter_fo_chopper_2: [unit] Jitter of fo_chopper_2 chopper.
+* bp2_phase_offset: [unit] Offset of bp2 phase [deg]
+* jitter_bp2: [unit] Jitter of bp2 chopper
+* t0_phase_offset: [unit] Offset of t0 phase [deg]
+* jit_t0_sec: [unit] Jitter of t0 chopper
+* fo3_phase_offset: [unit] Offset of fo3 phase [deg]
+* jitter_fo_chopper_3: [unit] Jitter of fo_chopper_3 chopper.
+* fo4_phase_offset: [unit] Offset of fo4 phase [deg]
+* jitter_fo_chopper_4: [unit] Jitter of fo_chopper_4 chopper.
+* fo5_phase_offset: [unit] Offset of fo5 phase [deg]
+* jitter_fo_chopper_5: [unit] Jitter of fo_chopper_5 chopper.
+* 
+* %Link 
+* 
+* %End 
+********************************************************************************/
+
+DEFINE INSTRUMENT ODIN_TOF_train3 (
+l_min = 1.0, // Minimum simulated wavelength [AA]
+l_max = 11.0, // Maximum simulated wavelength [AA]
+int n_pulses = 1, // Number of simulated pulses
+wfm_delta = 0.3, // Distance between WFM choppers [m]
+bp_frequency = 7, // Frequency of bandpass choppers [Hz]
+WFM1_phase_offset = 0, // Offset of WFM1 phase [deg]
+jitter_wfmc_1 = 0, // Jitter of wfmc_1 chopper.
+WFM2_phase_offset = 0, // Offset of WFM2 phase [deg]
+jitter_wfmc_2 = 0, // Jitter of wfmc_2 chopper.
+fo1_phase_offset = 0, // Offset of fo1 phase [deg]
+jitter_fo_chopper_1 = 0, // Jitter of fo_chopper_1 chopper.
+bp1_phase_offset = 0, // Offset of bp1 phase [deg]
+jitter_bp1 = 0, // Jitter of bp1 chopper
+fo2_phase_offset = 0, // Offset of fo2 phase [deg]
+jitter_fo_chopper_2 = 0, // Jitter of fo_chopper_2 chopper.
+bp2_phase_offset = 0, // Offset of bp2 phase [deg]
+jitter_bp2 = 0, // Jitter of bp2 chopper
+t0_phase_offset = 0, // Offset of t0 phase [deg]
+jit_t0_sec = 0, // Jitter of t0 chopper
+fo3_phase_offset = 0, // Offset of fo3 phase [deg]
+jitter_fo_chopper_3 = 0, // Jitter of fo_chopper_3 chopper.
+fo4_phase_offset = 0, // Offset of fo4 phase [deg]
+jitter_fo_chopper_4 = 0, // Jitter of fo_chopper_4 chopper.
+fo5_phase_offset = 0, // Offset of fo5 phase [deg]
+jitter_fo_chopper_5 = 0, // Jitter of fo_chopper_5 chopper.
+int choppers=2, // 0: no choppers 1: BP 2: WFM
+int N_trains_par = 100,
+target_tsplit = 3
+)
+
+DECLARE 
+%{
+double WFM1_phase = 0; // Phase of WFM1 chopper at t=0 center for smallest gap
+double WFM2_phase = 0; // Phase of WFM2 chopper at t=0 center for smallest gap
+double fo1_phase = 0; // Phase of fo1 chopper at t=0 center for smallest gap
+double bp1_phase = 0; // Phase of bp1 chopper at t=0 center of gap
+double fo2_phase = 0; // Phase of fo2 chopper at t=0 center for smallest gap
+double bp2_phase = 0; // Phase of bp2 chopper at t=0 center of gap
+double t0_phase = 0; // Phase of t0 chopper at t=0 center of gap
+double fo3_phase = 0; // Phase of fo3 chopper at t=0 center for smallest gap
+double fo4_phase = 0; // Phase of fo4 chopper at t=0 center for smallest gap
+double fo5_phase = 0; // Phase of fo5 chopper at t=0 center for smallest gap
+
+int allocated;
+%}
+
+USERVARS
+%{
+double *t_offset;
+double *p_trains;
+double p_last_time_manipulation;
+//int allocated;
+int adaptive_N;
+long total_arrived;
+long total_N_sent;
+long total_rays_sent;
+%}
+
+
+INITIALIZE 
+%{
+// Start of initialize for generated ODIN
+WFM1_phase = WFM1_phase_offset;
+WFM1_phase += 97.55;
+WFM2_phase = WFM2_phase_offset;
+WFM2_phase += -5.88015;
+fo1_phase = fo1_phase_offset;
+fo1_phase += -65.625;
+bp1_phase = bp1_phase_offset;
+bp1_phase += -11.475;
+fo2_phase = fo2_phase_offset;
+fo2_phase += -20.5;
+bp2_phase = bp2_phase_offset;
+bp2_phase += 185.195;
+t0_phase = t0_phase_offset;
+fo3_phase = fo3_phase_offset;
+fo3_phase += 137.47;
+fo4_phase = fo4_phase_offset;
+fo4_phase += 111.700;
+fo5_phase = fo5_phase_offset;
+fo5_phase += -81.105;
+
+allocated = 0;
+
+#define N_trains INSTRUMENT_GETPAR(N_trains_par)
+
+MPI_MASTER(
+  struct timespec ts;
+
+  if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+     perror("clock_gettime");
+     exit(EXIT_FAILURE);
+  }
+
+  double wall_time = ts.tv_sec + ts.tv_nsec * 1e-9;
+
+  FILE *f = fopen("time_spent.txt", "w");
+  if (!f) {
+      perror("fopen");
+      exit(EXIT_FAILURE);
+  }
+
+  fprintf(f, "%.9f\n", wall_time);
+  fclose(f);
+);
+%}
+
+TRACE 
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+EXTEND %{
+	
+  if (allocated == 0) {
+    t_offset = malloc(INSTRUMENT_GETPAR(N_trains_par)*sizeof(double));
+    p_trains = malloc(INSTRUMENT_GETPAR(N_trains_par)*sizeof(double));	
+    adaptive_N=INSTRUMENT_GETPAR(N_trains_par);
+    total_arrived=0;
+    total_N_sent=0;
+    total_rays_sent=0;
+    allocated = 1;
+  }
+%}
+
+COMPONENT optical_axis = Arm()
+AT (0.026, 0, 0) RELATIVE Origin
+
+COMPONENT Source = ESS_butterfly(
+ sector = "S", beamline = 2,
+ yheight = 0.03, cold_frac = 0.5,
+ target_index = 1, focus_xw = 0.0576862,
+ focus_yh = 0.0464308, c_performance = 1,
+ t_performance = 1, Lmin = l_min,
+ Lmax = l_max, n_pulses = n_pulses,
+ acc_power = 2.0,
+ target_tsplit=target_tsplit)
+AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT Start_of_bi = Arm()
+AT (0, 0, 2.0306) RELATIVE optical_axis
+
+COMPONENT bi = bi_spec_ellipse(
+ xheight = 0.044795, ywidth = 0.033273,
+ zlength = 0.3, n_mirror = 0,
+ tilt = 0.7355449343006287, n_pieces = 1,
+ angular_offset = 0.0274924630093546, m = 4,
+ Qc_m = 0.0217, alpha_mirror_m = 2.5,
+ W_m = 0.015, d_focus_1_x = 3.443249331959489,
+ d_focus_2_x = 4.946749331959489, d_focus_1_y = 1.9037386467676676,
+ d_focus_2_y = 33.78623864676767, ell_l = 0.31,
+ ell_h = 0.04381396598275876, ell_w = 0.03326371014826339,
+ ell_m = 4, R0 = 0.99,
+ Qc = 0.0217, alpha_mirror = 2.5,
+ W = 0.0015, cut = 3,
+ substrate = 0)
+AT (0, 0, 0) RELATIVE Start_of_bi
+ROTATED (0, 0, 180) RELATIVE Start_of_bi
+
+COMPONENT End_of_bi = Arm()
+AT (0, 0, 0.31) RELATIVE bi
+ROTATED (0, 0, -180) RELATIVE bi
+
+COMPONENT NBOA_drawing_1_end = Guide_four_side(
+ w1l = 0.022187, linwl = 3.7532493319594886,
+ loutwl = 4.397849331959489, w1r = 0.022187,
+ linwr = 3.7532493319594886, loutwr = 4.397849331959489,
+ h1u = 0.017858, linhu = 2.213738646767668,
+ louthu = 33.23733864676767, h1d = 0.017858,
+ linhd = 2.213738646767668, louthd = 33.23733864676767,
+ l = 0.5488999999999999, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 2,
+ myd = 2)
+AT (0, 0, 0.31000099999999997) RELATIVE bi
+
+COMPONENT g1a2 = Guide_four_side(
+ w1l = 0.022397711974319966, linwl = 4.303349331959489,
+ loutwl = 3.3968493319594883, w1r = 0.022397711974319966,
+ linwr = 4.303349331959489, loutwr = 3.3968493319594883,
+ h1u = 0.019790525295492974, linhu = 2.763788626121542,
+ louthu = 32.236388626121546, h1d = 0.019790525295492974,
+ linhd = 2.763788626121542, louthd = 32.236388626121546,
+ l = 0.9998, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.0217,
+ Qcyd = 0.0217, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 2.5,
+ alphayd = 2.5, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 4,
+ myd = 4)
+AT (0, 0, 0.548901) RELATIVE NBOA_drawing_1_end
+
+COMPONENT g1a3 = Guide_four_side(
+ w1l = 0.021853309009560024, linwl = 5.3043493319594885,
+ loutwl = 1.8968293319594889, w1r = 0.021853309009560024,
+ linwr = 5.3043493319594885, loutwr = 1.8968293319594889,
+ h1u = 0.02274764602619812, linhu = 3.7648386261215414,
+ louthu = 30.73631862612154, h1d = 0.02274764602619812,
+ linhd = 3.7648386261215414, louthd = 30.73631862612154,
+ l = 1.49882, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.0217,
+ Qcyd = 0.0217, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 2.5,
+ alphayd = 2.5, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 4,
+ myd = 4)
+AT (0, 0, 0.999801) RELATIVE g1a2
+
+COMPONENT g1b1 = Guide_four_side(
+ w1l = 0.017955, linwl = 6.82655,
+ loutwl = 1.3934509999999998, w1r = 0.017955,
+ linwr = 6.82655, loutwr = 1.3934509999999998,
+ h1u = 0.026565, linhu = 5.2842144,
+ louthu = 30.232929999999996, h1d = 0.026565,
+ linhd = 5.2842144, louthd = 30.232929999999996,
+ l = 0.48300000000000054, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.0221,
+ Qcyd = 0.0221, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.75,
+ alphayd = 1.75, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 2.5,
+ myd = 2.5)
+AT (0, 0, 5.4109) RELATIVE optical_axis
+
+COMPONENT g1c1 = Guide_four_side(
+ w1l = 0.015725, linwl = 7.323650000000001,
+ loutwl = 0.5472510000000002, w1r = 0.015725,
+ linwr = 7.323650000000001, loutwr = 0.5472510000000002,
+ h1u = 0.02753, linhu = 5.7813144,
+ louthu = 29.38673, h1d = 0.02753,
+ linhd = 5.7813144, louthd = 29.38673,
+ l = 0.8320999999999996, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.0221,
+ Qcyd = 0.0221, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.75,
+ alphayd = 1.75, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 2.5,
+ myd = 2.5)
+AT (0, 0, 5.908) RELATIVE optical_axis
+
+COMPONENT wfm_position = Arm()
+AT (0, 0, 7.0) RELATIVE optical_axis
+
+COMPONENT wfm_1_position = Arm()
+AT (0, 0, -0.5*wfm_delta) RELATIVE wfm_position
+
+COMPONENT wfmc_1 = MultiDiskChopper(
+ slit_center = "5.62;-44.68;-91.85;-136.08;-177.55;143.56", slit_width = "5.7;9;12;14.9;17.5;20",
+ nslits = 6, delta_y = -0.31499999999999995,
+ nu = -56.0, jitter = jitter_wfmc_1,
+ phase = WFM1_phase, radius = 0.35)
+WHEN(choppers==2)
+AT (0, 0, 0) RELATIVE wfm_1_position
+ROTATED (0, 0, 180) RELATIVE wfm_1_position
+
+
+COMPONENT pinhole_1 = Slit(
+ xwidth = 0.015, yheight = 0.06)
+AT (0, 0, 0) RELATIVE wfm_position
+
+COMPONENT wfm_2_position = Arm()
+AT (0, 0, 0.5*wfm_delta) RELATIVE wfm_position
+
+COMPONENT wfmc_2 = MultiDiskChopper(
+ slit_center = "-103.55000000000001;-157.09;152.71;105.64;61.50000000000001;20.110000000000028", slit_width = "5.7;9;12;14.9;17.5;20",
+ nslits = 6, delta_y = -0.31499999999999995,
+ nu = -56.0, jitter = jitter_wfmc_2,
+ phase = WFM2_phase, radius = 0.35)
+WHEN(choppers==2)
+AT (0, 0, 0) RELATIVE wfm_2_position
+ROTATED (0, 0, 180) RELATIVE wfm_2_position
+
+COMPONENT g2a1 = Guide_four_side(
+ w1l = 0.01121, linwl = 0.25980000000000025,
+ loutwl = 12.040199999999999, w1r = 0.01121,
+ linwr = 0.25980000000000025, loutwr = 12.040199999999999,
+ h1u = 0.029825, linhu = 7.2598,
+ louthu = 28.0402, h1d = 0.029825,
+ linhd = 7.2598, louthd = 28.0402,
+ l = 0.7000000000000002, Qcxl = 0.023,
+ Qcxr = 0.023, Qcyu = 0.0221,
+ Qcyd = 0.0221, alphaxl = 1.8,
+ alphaxr = 1.8, alphayu = 1.75,
+ alphayd = 1.75, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2,
+ mxl = 2, myu = 3,
+ myd = 3)
+AT (0, 0, 7.247800000000001) RELATIVE optical_axis
+
+COMPONENT monitor_1_position = Arm()
+AT (0, 0, 7.96) RELATIVE optical_axis
+
+COMPONENT g2a2 = Guide_four_side(
+ w1l = 0.0212, linwl = 0.9858000000000002,
+ loutwl = 11.6045, w1r = 0.0212,
+ linwr = 0.9858000000000002, loutwr = 11.6045,
+ h1u = 0.03088, linhu = 7.9858,
+ louthu = 27.6045, h1d = 0.03088,
+ linhd = 7.9858, louthd = 27.6045,
+ l = 0.40969999999999995, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.0221,
+ Qcyd = 0.0221, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.75,
+ alphayd = 1.75, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3,
+ mxl = 3, myu = 3,
+ myd = 3)
+AT (0, 0, 7.973800000000001) RELATIVE optical_axis
+
+COMPONENT fo1_position = Arm()
+AT (0, 0, 8.392) RELATIVE optical_axis
+
+COMPONENT fo_chopper_1 = MultiDiskChopper(
+ slit_center = "-146.745;166.555;122.775;81.715;43.215;5.525", slit_width = "11.06;13.06;14.94;16.71;18.36;16.72",
+ nslits = 6, delta_y = -0.4625,
+ nu = -42.0, jitter = jitter_fo_chopper_1,
+ phase = fo1_phase, radius = 0.5)
+WHEN(choppers==2)
+AT (0, 0, 0) RELATIVE fo1_position
+ROTATED (0, 0, 180) RELATIVE fo1_position
+
+COMPONENT bp1_position = Arm()
+AT (0, 0, 8.442) RELATIVE optical_axis
+
+COMPONENT bp1_chopper = DiskChopper(
+ theta_0 = 46.71, radius = 0.5,
+ yheight = 0.075, nu = bp_frequency,
+ nslit = 1, jitter = jitter_bp1,
+ phase = bp1_phase + (42.20500000000003))
+WHEN(choppers>=1)
+AT (0, 0, 0) RELATIVE bp1_position
+ROTATED (0, 0, 180) RELATIVE bp1_position
+
+COMPONENT g2b1 = Guide_four_side(
+ w1l = 0.02521, linwl = 1.4502500000000005,
+ loutwl = 11.14005, w1r = 0.02521,
+ linwr = 1.4502500000000005, loutwr = 11.14005,
+ h1u = 0.031505, linhu = 8.45025,
+ louthu = 27.140050000000002, h1d = 0.031505,
+ linhd = 8.45025, louthd = 27.140050000000002,
+ l = 0.40969999999999906, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 2,
+ myd = 2)
+AT (0, 0, 8.446250000000001) RELATIVE optical_axis
+
+COMPONENT g2b2 = Guide_four_side(
+ w1l = 0.02811, linwl = 1.8707999999999991,
+ loutwl = 9.67745, w1r = 0.02811,
+ linwr = 1.8707999999999991, loutwr = 9.67745,
+ h1u = 0.03203, linhu = 8.8708,
+ louthu = 25.67745, h1d = 0.03203,
+ linhd = 8.8708, louthd = 25.67745,
+ l = 1.4517500000000005, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 2,
+ myd = 2)
+AT (0, 0, 8.8668) RELATIVE optical_axis
+
+COMPONENT g2b3 = Guide_four_side(
+ w1l = 0.03493, linwl = 3.3230500000000003,
+ loutwl = 8.2252, w1r = 0.03493,
+ linwr = 3.3230500000000003, loutwr = 8.2252,
+ h1u = 0.033615, linhu = 10.32305,
+ louthu = 24.2252, h1d = 0.033615,
+ linhd = 10.32305, louthd = 24.2252,
+ l = 1.4517500000000005, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 2,
+ myd = 2)
+AT (0, 0, 10.31905) RELATIVE optical_axis
+
+COMPONENT g2b4 = Guide_four_side(
+ w1l = 0.03862, linwl = 4.7858,
+ loutwl = 7.804500000000001, w1r = 0.03862,
+ linwr = 4.7858, loutwr = 7.804500000000001,
+ h1u = 0.03488, linhu = 11.7858,
+ louthu = 23.8045, h1d = 0.03488,
+ linhd = 11.7858, louthd = 23.8045,
+ l = 0.40969999999999906, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 2,
+ myd = 2)
+AT (0, 0, 11.7818) RELATIVE optical_axis
+
+COMPONENT fo2_position = Arm()
+AT (0, 0, 12.2) RELATIVE optical_axis
+
+COMPONENT fo_chopper_2 = MultiDiskChopper(
+ slit_center = "-127.07;165.08;101.46;41.97;-13.98;-67.15", slit_width = "32.9;33.54;34.15;34.37;34.89;34.31",
+ nslits = 6, delta_y = -0.46,
+ nu = -42.0, jitter = jitter_fo_chopper_2,
+ phase = fo2_phase, radius = 0.5)
+WHEN(choppers==2)
+AT (0, 0, 0) RELATIVE fo2_position
+ROTATED (0, 0, 180) RELATIVE fo2_position
+
+COMPONENT bp2_position = Arm()
+AT (0, 0, 12.25) RELATIVE optical_axis
+
+COMPONENT bp_chopper2 = DiskChopper(
+ theta_0 = 67.49, radius = 0.5,
+ yheight = 0.08, nu = bp_frequency,
+ nslit = 1, jitter = jitter_bp2,
+ phase = bp2_phase -141.795)
+WHEN(choppers>=1)
+AT (0, 0, 0) RELATIVE bp2_position
+ROTATED (0, 0, 180) RELATIVE bp2_position
+
+COMPONENT g2c1 = Guide_four_side(
+ w1l = 0.03929, linwl = 5.250249999999999,
+ loutwl = 6.536899999999999, w1r = 0.03929,
+ linwr = 5.250249999999999, loutwr = 6.536899999999999,
+ h1u = 0.03488, linhu = 12.25025,
+ louthu = 22.5369, h1d = 0.03488,
+ linhd = 12.25025, louthd = 22.5369,
+ l = 1.2128500000000013, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.5,
+ mxl = 3.5, myu = 2,
+ myd = 2)
+AT (0, 0, 12.254249999999999) RELATIVE optical_axis
+
+COMPONENT t0_start_position = Arm()
+AT (0, 0, 13.503) RELATIVE optical_axis
+
+COMPONENT t0_chopper_alpha = DiskChopper(
+ theta_0 = 294.74, radius = 0.32,
+ yheight = 0.075, nu = 28.0,
+ nslit = 1, jitter = jit_t0_sec,
+ phase = t0_phase + 179.34)
+WHEN(choppers>=1)
+AT (0, 0, 0) RELATIVE t0_start_position
+ROTATED (0, 0, 180) RELATIVE t0_start_position
+
+COMPONENT t0_end_position = Arm()
+AT (0, 0, 13.703) RELATIVE optical_axis
+
+COMPONENT t0_chopper_beta = DiskChopper(
+ theta_0 = 294.74, radius = 0.32,
+ yheight = 0.075, nu = 28.0,
+ nslit = 1, jitter = jit_t0_sec,
+ phase = t0_phase + 179.34)
+WHEN(choppers>=1)
+AT (0, 0, 0) RELATIVE t0_end_position
+ROTATED (0, 0, 180) RELATIVE t0_end_position
+
+COMPONENT g3a1 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.03611, linhu = 13.7559,
+ louthu = 20.2631, h1d = 0.03611,
+ linhd = 13.7559, louthd = 20.2631,
+ l = 1.981, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.5,
+ mxl = 3.5, myu = 2,
+ myd = 2)
+AT (0, 0, 13.7379) RELATIVE optical_axis
+
+COMPONENT g3a2 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.03687, linhu = 15.7409,
+ louthu = 19.0055, h1d = 0.03687,
+ linhd = 15.7409, louthd = 19.0055,
+ l = 1.2535999999999987, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3,
+ mxl = 3, myu = 2,
+ myd = 2)
+AT (0, 0, 15.7229) RELATIVE optical_axis
+
+COMPONENT fo3_position = Arm()
+AT (0, 0, 16.9865) RELATIVE optical_axis
+
+COMPONENT fo_chopper_3 = MultiDiskChopper(
+ slit_center = "45.00000000000001;-18.050000000000004;-77.18;-132.62;175.39;126.08", slit_width = "40.32;39.61;38.94;38.31;37.72;36.06",
+ nslits = 6, delta_y = -0.5575,
+ nu = -28.0, jitter = jitter_fo_chopper_3,
+ phase = fo3_phase, radius = 0.6)
+WHEN(choppers==2)
+AT (0, 0, 0) RELATIVE fo3_position
+ROTATED (0, 0, 180) RELATIVE fo3_position
+
+COMPONENT g3b1 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.03711, linhu = 17.0055,
+ louthu = 18.038, h1d = 0.03711,
+ linhd = 17.0055, louthd = 18.038,
+ l = 0.9564999999999984, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2.5,
+ mxl = 2.5, myu = 2,
+ myd = 2)
+AT (0, 0, 16.9965) RELATIVE optical_axis
+
+COMPONENT g4a1 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 1.2600000000000016, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3,
+ mxl = 3, myu = 2,
+ myd = 2)
+AT (0, 0, 17.964) RELATIVE optical_axis
+
+COMPONENT monitor_2_position = Arm()
+AT (0, 0, 19.245) RELATIVE optical_axis
+
+COMPONENT g4a2 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 1.9997499999999988, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2.5,
+ mxl = 2.5, myu = 2,
+ myd = 2)
+AT (0, 0, 19.25) RELATIVE optical_axis
+
+COMPONENT g4a3 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 2.4252499999999984, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2.5,
+ mxl = 2.5, myu = 2,
+ myd = 2)
+AT (0, 0, 21.25025) RELATIVE optical_axis
+
+COMPONENT fo4_position = Arm()
+AT (0, 0, 23.6855) RELATIVE optical_axis
+
+COMPONENT fo_chopper_4 = MultiDiskChopper(
+ slit_center = "50.529999999999994;6.590000000000015;-34.62000000000002;-73.26000000000003;-109.49;-144.01999999999998", slit_width = "32.98;31.82;30.74;29.27;28.77;26.76",
+ nslits = 6, delta_y = -0.7075,
+ nu = -14.0, jitter = jitter_fo_chopper_4,
+ phase = fo4_phase, radius = 0.75)
+WHEN(choppers==2)	 
+AT (0, 0, 0) RELATIVE fo4_position
+ROTATED (0, 0, 180) RELATIVE fo4_position
+
+COMPONENT g4b1 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 0.5565999999999995, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2.5,
+ mxl = 2.5, myu = 2,
+ myd = 2)
+AT (0, 0, 23.6955) RELATIVE optical_axis
+
+COMPONENT g4b2 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 1.7800000000000011, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.0,
+ mxl = 3.0, myu = 2,
+ myd = 2)
+AT (0, 0, 24.2561) RELATIVE optical_axis
+
+COMPONENT g4b3 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 2.1380000000000017, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.5,
+ mxl = 3.5, myu = 2,
+ myd = 2)
+AT (0, 0, 26.0366) RELATIVE optical_axis
+
+COMPONENT g4b4 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 1.9997499999999988, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.5,
+ mxl = 3.5, myu = 2,
+ myd = 2)
+AT (0, 0, 28.1786) RELATIVE optical_axis
+
+COMPONENT g4b5 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 1.4049499999999995, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3,
+ mxl = 3, myu = 2,
+ myd = 2)
+AT (0, 0, 30.17885) RELATIVE optical_axis
+
+COMPONENT g4b6 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, h2u = 0.037165,
+ h1d = 0.037165, h2d = 0.037165,
+ l = 0.4106999999999985, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3,
+ mxl = 3, myu = 2,
+ myd = 2)
+AT (0, 0, 31.5893) RELATIVE optical_axis
+
+COMPONENT g5a1 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037165, linhu = 18.0,
+ louthu = 17.005499999999998, h1d = 0.037165,
+ linhd = 18.0, louthd = 17.005499999999998,
+ l = 0.9945000000000022, Qcxl = 0.023,
+ Qcxr = 0.023, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.8,
+ alphaxr = 1.8, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2,
+ mxl = 2, myu = 2,
+ myd = 2)
+AT (0, 0, 32.0) RELATIVE optical_axis
+
+COMPONENT fo5_position = Arm()
+AT (0, 0, 33.005) RELATIVE optical_axis
+
+COMPONENT fo_chopper_5 = MultiDiskChopper(
+ slit_center = "-163.045;135.725;78.78500000000001;24.70500000000002;-25.574999999999992;-74.86500000000002", slit_width = "50.81;48.55;45.49;41.32;37.45;37.74",
+ nslits = 6, delta_y = -0.7075,
+ nu = -14.0, jitter = jitter_fo_chopper_5,
+ phase = fo5_phase, radius = 0.75)
+WHEN(choppers==2)	 
+AT (0, 0, 0) RELATIVE fo5_position
+ROTATED (0, 0, 180) RELATIVE fo5_position
+
+COMPONENT g5b1 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.037105, linhu = 19.005499999999998,
+ louthu = 14.994750000000003, h1d = 0.037105,
+ linhd = 19.005499999999998, louthd = 14.994750000000003,
+ l = 1.9997499999999988, Qcxl = 0.023,
+ Qcxr = 0.023, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.8,
+ alphaxr = 1.8, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2,
+ mxl = 2, myu = 2,
+ myd = 2)
+AT (0, 0, 33.015499999999996) RELATIVE optical_axis
+
+COMPONENT g5b2 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.036645, linhu = 21.00575,
+ louthu = 12.994950000000003, h1d = 0.036645,
+ linhd = 21.00575, louthd = 12.994950000000003,
+ l = 1.999299999999998, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2.5,
+ mxl = 2.5, myu = 2,
+ myd = 2)
+AT (0, 0, 35.01575) RELATIVE optical_axis
+
+COMPONENT g5b3 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.035695, linhu = 23.009500000000003,
+ louthu = 10.990749999999998, h1d = 0.035695,
+ linhd = 23.009500000000003, louthd = 10.990749999999998,
+ l = 1.9997499999999988, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 2.5,
+ mxl = 2.5, myu = 2,
+ myd = 2)
+AT (0, 0, 37.0195) RELATIVE optical_axis
+
+COMPONENT g5b4 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.03423, linhu = 25.009749999999997,
+ louthu = 8.990499999999997, h1d = 0.03423,
+ linhd = 25.009749999999997, louthd = 8.990499999999997,
+ l = 1.999750000000006, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.023,
+ Qcyd = 0.023, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.8,
+ alphayd = 1.8, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.0,
+ mxl = 3.0, myu = 2,
+ myd = 2)
+AT (0, 0, 39.019749999999995) RELATIVE optical_axis
+
+COMPONENT g5b5 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.03217, linhu = 27.0135,
+ louthu = 6.986750000000001, h1d = 0.03217,
+ linhd = 27.0135, louthd = 6.986750000000001,
+ l = 1.9997499999999988, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.0221,
+ Qcyd = 0.0221, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.75,
+ alphayd = 1.75, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.0,
+ mxl = 3.0, myu = 2.5,
+ myd = 2.5)
+AT (0, 0, 41.0235) RELATIVE optical_axis
+
+COMPONENT g5b6 = Guide_four_side(
+ w1l = 0.04004, w2l = 0.04004,
+ w1r = 0.04004, w2r = 0.04004,
+ h1u = 0.029395, linhu = 29.01375,
+ louthu = 6.5, h1d = 0.029395,
+ linhd = 29.01375, louthd = 6.5,
+ l = 0.4862499999999983, Qcxl = 0.0221,
+ Qcxr = 0.0221, Qcyu = 0.0221,
+ Qcyd = 0.0221, alphaxl = 1.75,
+ alphaxr = 1.75, alphayu = 1.75,
+ alphayd = 1.75, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.0,
+ mxl = 3.0, myu = 2.5,
+ myd = 2.5)
+AT (0, 0, 43.02375) RELATIVE optical_axis
+
+COMPONENT g6a1 = Guide_four_side(
+ w1l = 0.04004, linwl = 6.5,
+ loutwl = 4.9864999999999995, w1r = 0.04004,
+ linwr = 6.5, loutwr = 4.9864999999999995,
+ h1u = 0.02859, linhu = 29.5,
+ louthu = 4.9864999999999995, h1d = 0.02859,
+ linhd = 29.5, louthd = 4.9864999999999995,
+ l = 1.5135000000000005, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.0221,
+ Qcyd = 0.0221, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.75,
+ alphayd = 1.75, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 3.5,
+ mxl = 3.5, myu = 2.5,
+ myd = 2.5)
+AT (0, 0, 43.51) RELATIVE optical_axis
+
+COMPONENT g6a2 = Guide_four_side(
+ w1l = 0.038935, linwl = 8.017499999999998,
+ loutwl = 2.982750000000003, w1r = 0.038935,
+ linwr = 8.017499999999998, loutwr = 2.982750000000003,
+ h1u = 0.02567, linhu = 31.0175,
+ louthu = 2.982750000000003, h1d = 0.02567,
+ linhd = 31.0175, louthd = 2.982750000000003,
+ l = 1.9997499999999988, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.0221,
+ Qcyd = 0.0221, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 1.75,
+ alphayd = 1.75, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 3,
+ myd = 3)
+AT (0, 0, 45.027499999999996) RELATIVE optical_axis
+
+COMPONENT g6a3 = Guide_four_side(
+ w1l = 0.03367, linwl = 10.01775,
+ loutwl = 1.0, w1r = 0.03367,
+ linwr = 10.01775, loutwr = 1.0,
+ h1u = 0.02049, linhu = 33.01775,
+ louthu = 1.0, h1d = 0.02049,
+ linhd = 33.01775, louthd = 1.0,
+ l = 1.9822500000000005, Qcxl = 0.0217,
+ Qcxr = 0.0217, Qcyu = 0.0217,
+ Qcyd = 0.0217, alphaxl = 2.5,
+ alphaxr = 2.5, alphayu = 2.5,
+ alphayd = 2.5, Wxr = 0.015,
+ Wxl = 0.015, Wyu = 0.015,
+ Wyd = 0.015, mxr = 4,
+ mxl = 4, myu = 4,
+ myd = 4)
+AT (0, 0, 47.02775) RELATIVE optical_axis
+
+COMPONENT guide_end = Arm()
+AT (0, 0, 49.01) RELATIVE optical_axis
+
+COMPONENT monitor_3_position = Arm()
+AT (0, 0, 49.01) RELATIVE optical_axis
+
+COMPONENT start_backend = Arm()
+AT (0, 0, 0) RELATIVE optical_axis
+
+COMPONENT optical_axis_backend = Arm()
+AT (0, 0, 0) RELATIVE start_backend
+
+COMPONENT pinhole_2 = Slit(
+ xwidth = 0.03, yheight = 0.03)
+AT (0, 0, 50) RELATIVE optical_axis_backend
+
+COMPONENT graph = Graphite_Diffuser(
+ xwidth = 0.1, ywidth = 0.1,
+ thick = 0.2)
+AT (0, 0, 50.001) RELATIVE optical_axis_backend
+
+COMPONENT sample_monitor_arm = Arm()
+AT (0, 0, 60.5) RELATIVE optical_axis_backend
+
+COMPONENT sample_PSD = Monitor_nD(
+  filename="image.dat", xwidth=0.3, yheight=0.3,
+  options="x bins 300 y bins 300")
+AT (0, 0, 0) RELATIVE sample_monitor_arm
+	  
+COMPONENT profile_x = Monitor_nD(
+  filename="profile_x.dat", xwidth=0.3, yheight=0.3,
+  options="x bins 300")
+AT (0, 0, 0) RELATIVE sample_monitor_arm
+	  
+COMPONENT profile_y = Monitor_nD(
+  filename="profile_y.dat", xwidth=0.3, yheight=0.3,
+  options="y bins 300")
+AT (0, 0, 0) RELATIVE sample_monitor_arm
+
+COMPONENT wavelength = Monitor_nD(
+  filename="wavelength.dat", xwidth=0.3, yheight=0.3,
+  options="L bins 300 limits [0.5 10]")
+AT (0, 0, 0) RELATIVE sample_monitor_arm
+	  
+COMPONENT tof = Monitor_nD(
+  filename="time.dat", xwidth=0.3, yheight=0.3,
+  options="t bins 300 limits [0, 0.15]",
+  tsplit=1, adaptive_target=1)
+AT (0, 0, 0) RELATIVE sample_monitor_arm
+	  
+COMPONENT wavelength_tof = Monitor_nD(
+  filename="wavelength_tof.dat", xwidth=0.3, yheight=0.3,
+  options="t bins 300 limits [0, 0.15] L bins 300 limits [0.5 10]",
+  tsplit=1)
+AT (0, 0, 0) RELATIVE sample_monitor_arm
+
+COMPONENT sample_position = Arm()
+AT (0, 0, 60.5) RELATIVE optical_axis_backend
+
+SAVE
+%{
+	
+  MPI_MASTER(
+    struct timespec ts;
+
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+      perror("clock_gettime");
+      exit(EXIT_FAILURE);
+    }
+
+    double wall_time = ts.tv_sec + ts.tv_nsec * 1e-9;
+
+    FILE *f = fopen("time_spent.txt", "a");
+    if (!f) {
+      perror("fopen");
+      exit(EXIT_FAILURE);
+    }
+
+    fprintf(f, "%.9f\n", wall_time);
+    fclose(f);
+  );			   
+%}
+
+FINALLY 
+%{
+if (allocated == 1) {
+	  free(_particle->t_offset);
+	  free(_particle->p_trains);
+}
+%}
+
+END
