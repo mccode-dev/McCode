@@ -4707,7 +4707,7 @@ mcparseoptions(int argc, char *argv[])
   char *usedir=NULL;
 
   #ifdef TOF_TRAIN
-  NTOF=10;                                  /* Default to 10 TOF "sub-particles" in a TOF_TRAIN */
+  NTOF=100;                                  /* Default to 100 TOF "sub-particles" in a TOF_TRAIN */
   #endif
 
   /* Add one to numipar to avoid allocating zero size memory block. */
