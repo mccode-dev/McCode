@@ -557,7 +557,31 @@ TRACE
 	  if (_particle->adaptive_N > N_trains) _particle->adaptive_N = N_trains;
   } 
   
+  // Part of weight calculation that is not t dependant
+  if (iscold) {
+    ESS_2015_Schoenfeldt_cold_no_t(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);  
+    p *= c_performance;
+    p *= ColdScalars[beamline-1];
+  } else {
+    ESS_2015_Schoenfeldt_thermal_no_t(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);  
+    p *= t_performance;
+    p *= ThermalScalars[beamline-1];
+  }
+  /* Correct weight for sampling of cold vs. thermal events. */
+  if (iscold) {
+    p /= cold_frac;
+  } else {
+    p /= (1-cold_frac);
+  }
+  p*=cos_factor;
+  p*=w_stat*w_focus*w_geom*w_mult;
+  
+  // Base weight to reuse for each new sampling of p,t
+  double base_p = p;
+  
   for (train_index=0; train_index<_particle->adaptive_N; train_index++) {
+	  
+	p = base_p;
 
     /* Are we using time focusing? */
     if (tfocus_width>0) {
@@ -575,23 +599,12 @@ TRACE
   
     if (iscold) {          //case: cold moderator
       /* Apply simple engineering reality correction */
-      ESS_2015_Schoenfeldt_cold(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);
-      p *= c_performance;
-      p *= ColdScalars[beamline-1];
+      ESS_2015_Schoenfeldt_cold_only_t(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);
     }  else  {                      //case: thermal moderator
-      ESS_2015_Schoenfeldt_thermal(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);
-      p *= t_performance;
-      p *= ThermalScalars[beamline-1];
+      ESS_2015_Schoenfeldt_thermal_only_t(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);
     }
-    p*=w_stat*w_focus*w_geom*w_mult*w_tfocus;
+    p*=w_tfocus; // time focus correction
     t+=(double)floor((n_pulses)*rand01())/ESS_SOURCE_FREQUENCY;   /* Select a random pulse */
-    p*=cos_factor;
-    /* Correct weight for sampling of cold vs. thermal events. */
-    if (iscold) {
-      p /= cold_frac;
-    } else {
-      p /= (1-cold_frac);
-    }
 
 	// Generate ray as normal with its associated p and t
 	// Save these to t_offset and p_train
