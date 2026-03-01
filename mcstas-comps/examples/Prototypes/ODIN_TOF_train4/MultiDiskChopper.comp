@@ -281,8 +281,8 @@ TRACE
     } else {
 
 		// Check whether each t_offset carried by the ray make it through
-		double weight_update = p/_particle->p_last_time_manipulation;
-		_particle->p_last_time_manipulation = 0;
+		double weight_update = p/p_last_time_manipulation;
+		p_last_time_manipulation = 0;
 		
 	    int train_index;
 		int one_did_hit = 0;
@@ -292,10 +292,10 @@ TRACE
 		double p_total = 0;				
 	    for (train_index=0; train_index<adaptive_N; train_index++) {
 			
-		  if (_particle->p_trains[train_index] == 0) continue;
+		  if (p_trains[train_index] == 0) continue;
 		  all_dead = 0;
 			
-		  this_train_t = t + _particle->t_offset[train_index];
+		  this_train_t = t + t_offset[train_index];
           // where does the neutron hit the disk ?
           phi = atan2 (xprime, yprime) + omega * (this_train_t - delay - (jitter ? jitter * randnorm () : 0));
 
@@ -308,17 +308,17 @@ TRACE
 
             islit++;
           }
-		  if (this_t_hit == 0) _particle->p_trains[train_index] = 0;
+		  if (this_t_hit == 0) p_trains[train_index] = 0;
 		  else {
 			  one_did_hit = 1;
-   		      _particle->p_trains[train_index] *= weight_update;
-   		      _particle->p_last_time_manipulation += _particle->p_trains[train_index];
+   		      p_trains[train_index] *= weight_update;
+   		      p_last_time_manipulation += p_trains[train_index];
 		  }
 	    }
 		// if not a single t_offset made it through a slit, absorb this ray
 		if (!one_did_hit || all_dead) ABSORB;
 		
-		p = _particle->p_last_time_manipulation;
+		p = p_last_time_manipulation;
     }
   }
 %}

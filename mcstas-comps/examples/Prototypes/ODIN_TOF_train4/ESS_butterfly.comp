@@ -552,14 +552,14 @@ TRACE
   
   if (total_N_sent == 0) {
     #pragma acc atomic
-    adaptive_N = _particle->N_trains;
+    adaptive_N = N_trains;
   } else {
     long tmp = ceil(target_tsplit*total_N_sent/total_arrived);
     #pragma acc atomic
     adaptive_N = tmp;
-    if (adaptive_N > _particle->N_trains) {
+    if (adaptive_N > N_trains) {
       #pragma acc atomic
-      adaptive_N = _particle->N_trains;
+      adaptive_N = N_trains;
     }
   } 
   
@@ -602,13 +602,13 @@ TRACE
 	// Generate ray as normal with its associated p and t
 	// Save these to t_offset and p_train
 	
-	_particle->t_offset[train_index] = t;
-	_particle->p_trains[train_index] = p/adaptive_N;
-  	_particle->p_last_time_manipulation += _particle->p_trains[train_index];
+	t_offset[train_index] = t;
+	p_trains[train_index] = p/adaptive_N;
+  	p_last_time_manipulation += p_trains[train_index];
  }
  // Set base particle t and p, now p will be decoupled from the source intensity.
  t=0;
- p=_particle->p_last_time_manipulation;
+ p=p_last_time_manipulation;
  
   SCATTER;
 %}
