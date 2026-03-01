@@ -205,9 +205,7 @@ TRACE
 
 COMPONENT Origin = Progress_bar()
 AT (0, 0, 0) ABSOLUTE
-EXTEND %{
-  ALLOW_BACKPROP;
-%}
+
 /* read neutrons from an mcpl file*/
 
 COMPONENT vinROT2 = Arm()
@@ -230,7 +228,7 @@ EXTEND %{
   }
 %}
 
-COMPONENT Sphere1 = PSD_monitor_4PI(filename="nonrotated", radius=2.2,restore_neutron=1)
+COMPONENT Sphere1 = PSD_monitor_4PI(filename="nonrotated", radius=2.4,restore_neutron=1)
 AT (0,0,0) RELATIVE PREVIOUS
 
 COMPONENT Source = ESS_butterfly(
@@ -249,6 +247,9 @@ AT (0.026, 0, 0) RELATIVE Source
   
 COMPONENT Sphere0 = PSD_monitor_4PI(filename="rotated", radius=2.2,restore_neutron=1)
 AT (0,0,0) RELATIVE Source
+EXTEND %{
+  ALLOW_BACKPROP;
+%}
 
 COMPONENT Focus_cut=Shape(xwidth=0.01,yheight=0.01)
 WHEN (!filter) AT(0,0,2) RELATIVE Source
@@ -269,10 +270,8 @@ EXTEND %{
 %}
 
 COMPONENT PSD_cut=PSD_monitor(xwidth=0.01,yheight=0.01, restore_neutron=1)
-WHEN(!filter) AT(0,0,0) RELATIVE Focus_cut
-EXTEND %{
-  ALLOW_BACKPROP;
-%}
+AT(0,0,0) RELATIVE Focus_cut
+
 COMPONENT BackTrace = Shape(xwidth=0.3,yheight=0.3)
 AT (0,0,0.08) RELATIVE Source
 EXTEND %{
