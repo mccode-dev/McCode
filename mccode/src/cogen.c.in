@@ -1624,6 +1624,17 @@ void def_trace_section(struct instr_def *instr)
   for(i=0; i<NUM_STATE_PARS; i++)
     coutf("#define %s (_particle->%s)", statepars_all[i], statepars_all[i]);
 
+  // Defines for _particle-carried TOF-train arrays in case of OPENACC
+  cout("#ifdef TOF_TRAIN");
+  cout("#ifdef OPENACC");
+  cout("#define N_trains=_particle->N_trains");
+  cout("#define t_offset=_particle->t_offset");
+  cout("#define p_trains=_particle->p_trains");
+  cout("#define alive_trains=_particle->alive_trains");
+  cout("#define p_last_time_manipulation;");
+  cout("#endif /* OPENACC */");
+  cout("#endif /* TOF_TRAIN */");
+  
   cout("/* if on GPU, globally nullify sprintf,fprintf,printfs   */");
   cout("/* (Similar defines are available in each comp trace but */");
   cout("/*  those are not enough to handle external libs etc. )  */");
@@ -1677,6 +1688,16 @@ void undef_trace_section(struct instr_def *instr)
   for(i = 0; i < NUM_STATE_PARS; i++)
     coutf("#undef %s", statepars_all[i]);
 
+  // Undefines for _particle-carried TOF-train arrays in case of OPENACC
+  cout("#ifdef OPENACC");
+  cout("#ifdef TOF_TRAIN");
+  cout("#undef");
+  cout("#undef t_offset");
+  cout("#undef p_trains");
+  cout("#undef alive_trains");
+  cout("#endif /* TOF_TRAIN */");
+  cout("#endif /* OPENACC */");
+  
   cout("#ifdef OPENACC");
   cout("#undef strlen");
   cout("#undef strcmp");
@@ -1995,11 +2016,13 @@ int cogen_raytrace(struct instr_def *instr)
   /* Debugging (final state). */
   cout("  DEBUG_STATE()");
 
-  cout("  // If TOF_TRAIN we need to nuke internal arrays!");
+  cout("  // If OPENACC/TOF_TRAIN we need to nuke internal arrays!");
+  cout("  #ifdef OPENACC");
   cout("  #ifdef TOF_TRAIN");
   cout("  if (_particle->t_offset) free(_particle->t_offset);");
   cout("  if (_particle->p_trains) free(_particle->p_trains);");
   cout("  if (_particle->alive_trains) free(_particle->alive_trains);");
+  cout("  #endif");
   cout("  #endif");
   cout("");
   cout("  return(_particle->_index);");
@@ -2416,6 +2439,17 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#endif");
   cout("");
 
+  cout("#ifndef OPENACC");
+  cout("#ifdef TOF_TRAIN");
+  cout("int N_trains; /* initialised like e.g. ncount, seed from cmdline */");
+  cout("double *t_offset;");
+  cout("double *p_trains;");
+  cout("int *alive_trains;");
+  cout("double p_last_time_manipulation;");
+  cout("#endif /* TOF_TRAIN */");
+  cout("#endif /* NOT OPENACC */");
+  cout("");
+  
   /* the max number of user variables*/
   cout("#ifndef MC_NUSERVAR");
   cout("#define MC_NUSERVAR 10");
@@ -2469,6 +2503,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   //cout("  randstate_t randstate[RANDSTATE_LEN]");
   cout("  randstate_t randstate[7];"); // for the KISS generator
   cout("  double t, p;     /* time, event weight */");
+  cout("  #ifdef OPENACC");
   cout("  #ifdef TOF_TRAIN");
   cout("  int N_trains; /* initialised like e.g. ncount, seed from cmdline */");
   cout("  double *t_offset;");
@@ -2480,6 +2515,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  #pragma acc shape(alive_trains[0:N_trains]) init_needed(N_trains)");
   cout("  int Ntof_init;  /* 0/1 - set to 1 once \"times are filled in\" */");
   cout("  #endif /* TOF_TRAIN */");
+  cout("  #endif /* OPENACC */");
   cout("  long long _uid;  /* Unique event ID */");
   cout("  long _index;     /* component index where to send this event */");
   /* these are needed for SCATTERED, ABSORB and RESTORE macros */

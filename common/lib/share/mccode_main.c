@@ -154,6 +154,15 @@ int mccode_main(int argc, char *argv[])
   mt_srandom(mcseed);
 #endif
 
+#ifndef OPENACC
+#ifdef TOF_TRAIN
+  N_trains=NTOF; /* initialised like e.g. ncount, seed from cmdline */
+  t_offset=malloc(NTOF*sizeof(double));
+  p_trains=malloc(NTOF*sizeof(double));
+  alive_trains=malloc(NTOF*sizeof(int));
+#endif /* TOF_TRAIN */
+#endif /* NOT OPENACC */
+
 
 // main raytrace work loop
 #ifndef FUNNEL
