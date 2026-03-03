@@ -549,19 +549,20 @@ TRACE
   vx = v*dx/r;
   
   int train_index;
+
+  long tmp;
   
   if (total_N_sent == 0) {
-    #pragma acc atomic
-    adaptive_N = N_trains;
+    tmp = N_trains;
   } else {
-    long tmp = ceil(target_tsplit*total_N_sent/total_arrived);
-    #pragma acc atomic
-    adaptive_N = tmp;
-    if (adaptive_N > N_trains) {
-      #pragma acc atomic
-      adaptive_N = N_trains;
+    tmp = ceil(target_tsplit*total_N_sent/total_arrived);
+    if (tmp > N_trains) {
+      tmp = N_trains;
     }
   } 
+
+  #pragma acc atomic write
+  adaptive_N = tmp;
   
   for (train_index=0; train_index<adaptive_N; train_index++) {
 
