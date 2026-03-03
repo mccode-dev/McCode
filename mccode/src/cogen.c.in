@@ -2019,9 +2019,9 @@ int cogen_raytrace(struct instr_def *instr)
   cout("  // If OPENACC/TOF_TRAIN we need to nuke internal arrays!");
   cout("  #ifdef OPENACC");
   cout("  #ifdef TOF_TRAIN");
-  cout("  if (t_offset) free(t_offset);");
-  cout("  if (p_trains) free(p_trains);");
-  cout("  if (alive_trains) free(alive_trains);");
+  cout("  //if (t_offset) free(t_offset);");
+  cout("  //if (p_trains) free(p_trains);");
+  cout("  //if (alive_trains) free(alive_trains);");
   cout("  #endif");
   cout("  #endif");
   cout("");
@@ -2439,15 +2439,20 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#endif");
   cout("");
 
+  cout("#ifdef TOF_TRAIN");  
   cout("#ifndef OPENACC");
-  cout("#ifdef TOF_TRAIN");
   cout("int N_trains; /* initialised like e.g. ncount, seed from cmdline */");
   cout("double *t_offset;");
   cout("double *p_trains;");
   cout("int *alive_trains;");
   cout("double P_last_time_manipulation;");
+  cout("#else /* is OPENACC */"); 
+  cout("#ifndef NTOF_GPU");
+  cout("#define NTOF_GPU 100");
+  cout("#endif");
+  cout("#endif /* OPENACC */");
   cout("#endif /* TOF_TRAIN */");
-  cout("#endif /* NOT OPENACC */");
+  
   cout("");
   
   /* the max number of user variables*/
@@ -2506,13 +2511,13 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  #ifdef OPENACC");
   cout("  #ifdef TOF_TRAIN");
   cout("  int N_trains; /* initialised like e.g. ncount, seed from cmdline */");
-  cout("  double *t_offset;");
-  cout("  double *p_trains;");
-  cout("  int *alive_trains;");
+  cout("  double t_offset[NTOF_GPU];");
+  cout("  double p_trains[NTOF_GPU];");
+  cout("  int alive_trains[NTOF_GPU];");
   cout("  double P_last_time_manipulation;");
-  cout("  #pragma acc shape(t_offset[0:N_trains]) init_needed(N_trains)");
-  cout("  #pragma acc shape(p_trains[0:N_trains]) init_needed(N_trains)");
-  cout("  #pragma acc shape(alive_trains[0:N_trains]) init_needed(N_trains)");
+  cout("  //#pragma acc shape(t_offset[0:N_trains]) init_needed(N_trains)");
+  cout("  //#pragma acc shape(p_trains[0:N_trains]) init_needed(N_trains)");
+  cout("  //#pragma acc shape(alive_trains[0:N_trains]) init_needed(N_trains)");
   cout("  int Ntof_init;  /* 0/1 - set to 1 once \"times are filled in\" */");
   cout("  #endif /* TOF_TRAIN */");
   cout("  #endif /* OPENACC */");

@@ -84,9 +84,9 @@ _class_particle mcsetstate(double x, double y, double z, double vx, double vy, d
   #ifdef OPENACC
   #ifdef TOF_TRAIN
   mcneutron.N_trains=NTOF;
-  mcneutron.t_offset=malloc(NTOF*sizeof(double));
-  mcneutron.p_trains=malloc(NTOF*sizeof(double));
-  mcneutron.alive_trains=malloc(NTOF*sizeof(int));
+  //mcneutron.t_offset=malloc(NTOF*sizeof(double));
+  //mcneutron.p_trains=malloc(NTOF*sizeof(double));
+  //mcneutron.alive_trains=malloc(NTOF*sizeof(int));
   #endif /* TOF_TRAIN */
   #endif /* OPENACC */
 
