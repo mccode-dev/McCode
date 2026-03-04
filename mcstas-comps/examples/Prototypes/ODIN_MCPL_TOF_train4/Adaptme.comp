@@ -1,0 +1,104 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Adaptme
+*
+* %Identification
+*
+* Written by: Kim Lefmann and Kristian Nielsen
+* Date: September 1997
+* Version: $Revision$
+* Release: McStas 1.6
+* Origin: Risoe
+*
+* Adaptme/optical bench
+*
+* %Description
+* An arm does not actually do anything, it is just there to set
+* up a new coordinate system.
+*
+* Example: Adaptme()
+*
+* %Parameters
+* Input parameters:
+*
+* (none)
+*
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT Adaptme
+
+SETTING PARAMETERS ()
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+SHARE
+%{
+int adaptive_N;
+long total_arrived;
+long total_N_sent;
+long total_rays_sent;
+#pragma acc declare create(total_arrived,total_N_sent,total_rays_sent)
+%}
+
+USERVARS
+%{
+%}
+
+DECLARE
+%{
+%}
+
+INITIALIZE
+%{
+adaptive_N=NTOF;
+total_arrived=0;
+total_N_sent=0;
+total_rays_sent=0;
+#pragma acc update device(adaptive_N,total_arrived,total_N_sent,total_rays_sent)
+%}
+
+TRACE
+%{
+  int train_index;
+  double tZERO = t;
+
+  long tmp;
+  if (total_N_sent == 0) {
+      tmp = N_trains;
+  } else {
+    tmp = ceil(INSTRUMENT_GETPAR(target_tsplit)*total_N_sent/total_arrived);
+    if (tmp > N_trains) {
+      tmp = N_trains;
+    }
+  } 
+  #pragma acc atomic write
+  adaptive_N=tmp;
+%}
+
+SAVE
+%{
+%}
+
+FINALLY
+%{
+%}
+
+MCDISPLAY
+%{
+  /* A bit ugly; hard-coded dimensions. */
+
+  line (0, 0, 0, 0.2, 0, 0);
+  line (0, 0, 0, 0, 0.2, 0);
+  line (0, 0, 0, 0, 0, 0.2);
+
+  cone (0.2, 0, 0, 0.01, 0.02, 1, 0, 0);
+  cone (0, 0.2, 0, 0.01, 0.02, 0, 1, 0);
+  cone (0, 0, 0.2, 0.01, 0.02, 0, 0, 1);
+%}
+
+END
