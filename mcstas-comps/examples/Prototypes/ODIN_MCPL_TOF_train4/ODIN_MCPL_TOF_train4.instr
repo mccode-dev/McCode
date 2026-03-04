@@ -140,10 +140,7 @@ int beamline=2;
   double ANGLE;
   double DeltaX,DeltaZ;
   char MCPLfile[128];
-  int adaptive_N;
-long total_arrived;
-long total_N_sent;
-long total_rays_sent;
+
 %}
 
 USERVARS
@@ -240,10 +237,14 @@ EXTEND %{
   }
 %}
 
+COMPONENT Adapter = Adaptme()
+AT (0,0,0) RELATIVE vin
+
+  
 COMPONENT Sphere1 = PSD_monitor_4PI(filename="nonrotated", radius=2.4,restore_neutron=1)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT Source = ESS_butterfly(
+  COMPONENT Source = ESS_butterfly(
  sector = "S", beamline = 2,
  yheight = 0.03, cold_frac = 0.5,
  target_index = 1, focus_xw = 0.0576862,
@@ -302,38 +303,24 @@ EXTEND %{
       ABSORB;
     }
   }
-
   int train_index;
   double tZERO = t;
-  if (total_N_sent == 0) {
-    #pragma acc atomic
-    adaptive_N = N_trains;
-  } else {
-    long tmp = ceil(INSTRUMENT_GETPAR(target_tsplit)*total_N_sent/total_arrived);
-    #pragma acc atomic
-    adaptive_N = tmp;
-    if (adaptive_N > N_trains) {
-      #pragma acc atomic
-      adaptive_N = N_trains;
-    }
-  } 
-  
   for (train_index=0; train_index<adaptive_N; train_index++) {
-  
+    
     t=tZERO+rand01()*ESS_SOURCE_DURATION;
-  
-	// Generate ray as normal with its associated p and t
-	// Save these to t_offset and p_train
-	
-	t_offset[train_index] = t;
-	p_trains[train_index] = p/adaptive_N;
-  	P_last_time_manipulation += p_trains[train_index];
- }
- // Set base particle t and p, now p will be decoupled from the source intensity.
- t=0;
- p=P_last_time_manipulation;
- 
+    
+    // Generate ray as normal with its associated p and t
+    // Save these to t_offset and p_train
+    
+    t_offset[train_index] = t;
+    p_trains[train_index] = p/adaptive_N;
+    P_last_time_manipulation += p_trains[train_index];
+  }
+  // Set base particle t and p, now p will be decoupled from the source intensity.
+  t=0;
+  p=P_last_time_manipulation;
 %}
+  
 
 COMPONENT PSD_Backtrace=PSD_monitor(xwidth=0.3,yheight=0.3)
 AT(0,0,0) RELATIVE BackTrace
