@@ -424,8 +424,9 @@ TRACE
   #define thread_offdata offdata
   #endif
 
-  double *pp_array=malloc(sizeof(double)*N_trains);
-
+  //double *pp_array=malloc(sizeof(double)*N_trains);
+  double pp_this;
+  double pp_total=0;
   /* this is done automatically
     STORE_NEUTRON(INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   */
@@ -582,25 +583,26 @@ TRACE
 		
 	if (tsplit==1) {
 	  double t_original = t;
-  	  for (train_index=0; train_index<adaptive_N; train_index++) {
-		
-        if (p_trains[train_index] > 0) {
+  	  for (train_index=0; train_index<adaptive_N; train_index++) {	
+	    if (p_trains[train_index] > 0) {
 	      p = p_factor*p_trains[train_index];
 	      t = t_original + t_offset[train_index];
-	  
-	      pp_array[train_index] = Monitor_nD_Trace (&DEFS, &Vars, _particle);
-		  
-		  if (adaptive_target) total_arrived++;
-
-        } else pp_array[train_index] = 0;
-      }
+	      
+	      //pp_array[train_index]
+	      pp_this = Monitor_nD_Trace (&DEFS, &Vars, _particle);
+	      
+	      if (adaptive_target) total_arrived++;
+	      
+	    } else pp_this = 0;//pp_array[train_index] = 0;
+	    pp_total+=pp_this;
+	  }
 	  p = p_original;
 	  t = t_original;
 	
-	  int pp_total = 0;
-	  for (train_index=0; train_index<adaptive_N; train_index++) {
-	    pp_total += pp_array[train_index];
-	  } 
+	  //int pp_total = 0;
+	  //for (train_index=0; train_index<adaptive_N; train_index++) {
+	  //  pp_total += pp_array[train_index];
+	  //} 
       if (pp_total == 0.0) {
   	    //ABSORB;
       } else if (pp_total > 0) {
@@ -626,7 +628,7 @@ TRACE
 	      SCATTER;
 	    }
     }
-    if(pp_array) free(pp_array);
+	//    if(pp_array) free(pp_array);
 
     /*set weight to undetected part if capture and/or he3_pressure*/
     if (Vars.He3_pressure > 0) {
