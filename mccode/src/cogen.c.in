@@ -1491,6 +1491,20 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
     cout("  /* code_main/parseoptions/readparams "
       "sets instrument parameters value */");
     coutf("  stracpy(instrument->_name, \"%s\", 256);", instr->name);
+    cout("");
+    cout("/* Global counters for TOF_TRAIN mode */");
+    cout("#ifdef TOF_TRAIN");
+    cout("#ifndef OPENACC");
+    cout("adaptive_N=NTOF;");
+    cout("#else");
+    cout("adaptive_N=NTOF_GPU;");
+    cout("total_arrived=0;");
+    cout("total_N_sent=0;");
+    cout("total_rays_sent=0;");
+    cout("#pragma acc update device(adaptive_N,total_arrived,total_N_sent,total_rays_sent)");
+    cout("#endif");
+    cout("#endif");
+    cout("");
   }
   else if (!strcmp(section, "SAVE"))
     coutf("  if (!handle) siminfo_init(NULL);");
@@ -2450,6 +2464,11 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#ifndef NTOF_GPU");
   cout("#define NTOF_GPU 100");
   cout("#endif");
+  cout("int adaptive_N;");
+  cout("long total_arrived;");
+  cout("long total_N_sent;");
+  cout("long total_rays_sent;");
+  cout("#pragma acc declare create(adaptive_N,total_arrived,total_N_sent,total_rays_sent)");
   cout("#endif /* OPENACC */");
   cout("#endif /* TOF_TRAIN */");
   
