@@ -2453,22 +2453,25 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#endif");
   cout("");
 
-  cout("#ifdef TOF_TRAIN");  
+  cout("#ifdef TOF_TRAIN");
+  cout("/* Global counters, CPU/GPU alike: */");
+  cout("int adaptive_N;");
+  cout("long total_arrived;");
+  cout("long total_N_sent;");
+  cout("long total_rays_sent;");
+  cout("/* ON CPU, these are also global: */");
   cout("#ifndef OPENACC");
   cout("int N_trains; /* initialised like e.g. ncount, seed from cmdline */");
   cout("double *t_offset;");
   cout("double *p_trains;");
   cout("int *alive_trains;");
   cout("double P_last_time_manipulation;");
+  cout("/* ON GPU, control NTOF size via a define: */");
   cout("#else /* is OPENACC */"); 
   cout("#ifndef NTOF_GPU");
   cout("#define NTOF_GPU 100");
-  cout("#endif /* OPENACC, now common: */");
-  cout("int adaptive_N;");
-  cout("long total_arrived;");
-  cout("long total_N_sent;");
-  cout("long total_rays_sent;");
   cout("#pragma acc declare create(adaptive_N,total_arrived,total_N_sent,total_rays_sent)");
+  cout("#endif /* OPENACC */");
   cout("#endif /* TOF_TRAIN */");
   
   cout("");
