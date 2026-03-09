@@ -4824,6 +4824,7 @@ mcparseoptions(int argc, char *argv[])
 	fprintf(stderr,"... hence resetting to --tof=train=%d. Recompile with -DNTOF_GPU set to higher value to increase.\n",NTOF_GPU);
 	NTOF=NTOF_GPU;
       }
+      #pragma acc update device(NTOF)
       #endif
     }
 #endif
