@@ -61,6 +61,7 @@ static   long mcstartdate            = 0; /* start simulation time */
 static   int  mcdisable_output_files = 0; /* --no-output-files */
 mcstatic int  mcgravitation          = 0; /* use gravitation flag, for PROP macros */
 mcstatic int  NTOF                   = 0; /* Number of TOF "sub-particles" in a TOF_TRAIN */
+#pragma acc declare create ( NTOF )
                                           /* When -DTOF_TRAIN is defined, the default NTOF 
                                              becomes 10, defined below in the
                                              mcparseoptions function body.*/
