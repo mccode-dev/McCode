@@ -4817,6 +4817,13 @@ mcparseoptions(int argc, char *argv[])
 #ifdef TOF_TRAIN
     else if(!strncmp("--tof-trains=", argv[i], 13)) {
       NTOF=atoi(&argv[i][13]);
+      #ifdef OPENACC
+      if (NTOF>NTOF_GPU) {
+	fprintf(stderr,"WARNING: Requested --tof=train=%d value is larger than compiled-in (NTOF_GPU=%d) value.\n",NTOF,NTOF_GPU);
+	fprintf(stderr,"... hence resetting to --tof=train=%d. Recompile with -DNTOF_GPU set to higher value to increase.\n",NTOF_GPU);
+	NTOF=NTOF_GPU;
+      }
+      #endif
     }
 #endif
 #ifdef USE_NEXUS

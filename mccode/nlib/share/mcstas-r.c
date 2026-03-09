@@ -81,11 +81,9 @@ _class_particle mcsetstate(double x, double y, double z, double vx, double vy, d
   // what about mcneutron._logic ?
   mcneutron._logic.dummy=1;
   // init uservars via cogen'd-function
-  #ifdef OPENACC
   #ifdef TOF_TRAIN
-  mcneutron.N_trains=NTOF_GPU;
+  mcneutron.N_trains=NTOF;
   #endif /* TOF_TRAIN */
-  #endif /* OPENACC */
 
   particle_uservar_init(&mcneutron);
 
