@@ -61,7 +61,6 @@ static   long mcstartdate            = 0; /* start simulation time */
 static   int  mcdisable_output_files = 0; /* --no-output-files */
 mcstatic int  mcgravitation          = 0; /* use gravitation flag, for PROP macros */
 mcstatic int  NTOF                   = 0; /* Number of TOF "sub-particles" in a TOF_TRAIN */
-#pragma acc declare create ( NTOF )
                                           /* When -DTOF_TRAIN is defined, the default NTOF 
                                              becomes 10, defined below in the
                                              mcparseoptions function body.*/
@@ -4709,6 +4708,7 @@ mcparseoptions(int argc, char *argv[])
 
   #ifdef TOF_TRAIN
   NTOF=100;                                  /* Default to 100 TOF "sub-particles" in a TOF_TRAIN */
+  #pragma acc update device(NTOF)
   #endif
 
   /* Add one to numipar to avoid allocating zero size memory block. */
@@ -4818,14 +4818,7 @@ mcparseoptions(int argc, char *argv[])
 #ifdef TOF_TRAIN
     else if(!strncmp("--tof-trains=", argv[i], 13)) {
       NTOF=atoi(&argv[i][13]);
-      #ifdef OPENACC
-      if (NTOF>NTOF_GPU) {
-	fprintf(stderr,"WARNING: Requested --tof=train=%d value is larger than compiled-in (NTOF_GPU=%d) value.\n",NTOF,NTOF_GPU);
-	fprintf(stderr,"... hence resetting to --tof=train=%d. Recompile with -DNTOF_GPU set to higher value to increase.\n",NTOF_GPU);
-	NTOF=NTOF_GPU;
-      }
       #pragma acc update device(NTOF)
-      #endif
     }
 #endif
 #ifdef USE_NEXUS
