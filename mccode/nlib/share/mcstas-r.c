@@ -83,10 +83,12 @@ _class_particle mcsetstate(double x, double y, double z, double vx, double vy, d
   // init uservars via cogen'd-function
   #ifdef TOF_TRAIN
   #ifdef OPENACC
+  #ifndef NTOF_GPU_STATIC
   mcneutron.N_trains=NTOF;
   mcneutron.t_offset=malloc(NTOF*sizeof(double));
   mcneutron.p_trains=malloc(NTOF*sizeof(double));
   mcneutron.alive_trains=malloc(NTOF*sizeof(int));
+#endif /* NTOF_GPU_STATIC */
   #endif /* OPENACC */
   #endif /* TOF_TRAIN */
 

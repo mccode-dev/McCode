@@ -4818,6 +4818,12 @@ mcparseoptions(int argc, char *argv[])
 #ifdef TOF_TRAIN
     else if(!strncmp("--tof-trains=", argv[i], 13)) {
       NTOF=atoi(&argv[i][13]);
+      #ifdef NTOF_GPU_STATIC
+      if (NTOF>NTOF_GPU_STATIC) {
+	fprintf(stderr, "WARNING: Instrument was compiled with -DNTOF_GPU_STATIC=%i, reducing to --tof-trains=%i\n");
+	NTOF=NTOF_GPU_STATIC;
+      }
+      #endif
       #pragma acc update device(NTOF)
     }
 #endif
