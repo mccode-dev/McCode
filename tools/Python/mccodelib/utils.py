@@ -458,7 +458,7 @@ def parse_header(text):
     par_doc = None
     for l in bites[tag_P].splitlines():
         # regex is tolerant for mising ':' in  param: [unit] description
-        m = re.match(r'(\w+)[: \t]*\[([ \w\/\(\)\\\~\-.,\":\%\^\|\{\};\*]*)\][ \t]*(.*)', l)
+        m = re.match(r'(\w+)[: \t]*\[([ \w\/\(\)\\\~\-.,\":\%\^\|\{\};\*\&\#]*)\][ \t]*(.*)', l)
         par_doc = (None, None, None)
         if m:
             par_doc = (m.group(1), m.group(2), m.group(3).strip())
