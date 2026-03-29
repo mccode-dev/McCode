@@ -14,8 +14,8 @@
 * %Description
 * The H142 S-curved cold guide at the ILL feeding IN12
 *
-* %Example: m=1 Detector: GuideOut_Phic_I=9.1e+09
-* %Example: -g m=1 Detector: GuideOut_Phic_I=9.1e+09
+* %Example: m=1 Detector: GuideOut_xy_I=2.36784e+09
+* (Target example monitor differs from standard ILL_H142 since we avoid Monitor_nD - and 'capture')
 *
 * %Parameters
 * m: [1]         m-value of whole guide coating. 0 absorbing, 1 for Ni, 1.2 for Ni58, 2-4 for SM
@@ -29,7 +29,7 @@
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT ILL_H142(m=1, lambda=10, dlambda=9.9, gH=0.12, mip=1)
+DEFINE INSTRUMENT ILL_H142_simple(m=1, lambda=10, dlambda=9.9, gH=0.12, mip=1)
 
 /* The DECLARE section allows us to declare variables or  small      */
 /* functions in C syntax. These may be used in the whole instrument. */
@@ -86,7 +86,7 @@ INITIALIZE
     Rh_H142_11 =-L_H142_11/gRh*RAD2DEG;
   }
 
-  printf("Instrument: ILL_H142 (H142@ILL cold guide on VCS).\n");
+  printf("Instrument: ILL_H142_simple (H142@ILL cold guide on VCS).\n");
 
 %}
 
@@ -138,12 +138,12 @@ AT (0,0,2.43) RELATIVE VCS
 
 /* H142-1: L=3.17 m in 1 element. no curvature */
 
-COMPONENT PinkCarter = Guide_gravity(
+COMPONENT PinkCarter = Guide(
   w1=0.038, h1=0.2, w2=0.032, h2=0.2, l=3.170,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=mip, W=gW)
 AT (0,0,2.525) RELATIVE VCS
 
-COMPONENT FirstObturator = Guide_gravity(
+COMPONENT FirstObturator = Guide(
   w1=0.031, h1=0.2, w2=0.031, h2=0.2, l=0.228,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=mip, W=gW)
 AT (0,0,3.17+0.02) RELATIVE PinkCarter
@@ -158,7 +158,7 @@ AT (0,0,3.59) RELATIVE PinkCarter
 COMPONENT H142_2_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_2_1 = Guide_gravity(
+COMPONENT H142_2_1 = Guide(
   w1=0.03, h1=0.2, w2=0.03, h2=0.2, l=L_H142_2,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_2,0) RELATIVE PREVIOUS
@@ -191,7 +191,7 @@ AT (0,0,0.198) RELATIVE H142_2_Out
 COMPONENT H142_3_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_3_1 = Guide_gravity(
+COMPONENT H142_3_1 = Guide(
   w1=0.03, h1=0.2, w2=0.03, h2=0.2, l=L_H142_3,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
@@ -236,7 +236,7 @@ AT (0,0,0.03) RELATIVE H142_3_Out
 COMPONENT H142_4_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_4_1 = Guide_gravity(
+COMPONENT H142_4_1 = Guide(
   w1=0.03, h1=0.2, w2=0.03, h2=0.2, l=L_H142_4,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_4,0) RELATIVE PREVIOUS
@@ -272,7 +272,7 @@ AT (0,0,0.03) RELATIVE H142_4_Out
 COMPONENT H142_5_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_5_1 = Guide_gravity(
+COMPONENT H142_5_1 = Guide(
   w1=0.03, h1=0.2, w2=0.03, h2=0.2, l=L_H142_5,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_5,0) RELATIVE PREVIOUS
@@ -304,7 +304,7 @@ AT (0,-(0.2-gH)/2,0.330) RELATIVE H142_5_Out
 COMPONENT H142_6_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_6_1 = Guide_gravity(
+COMPONENT H142_6_1 = Guide(
   w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_6,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
@@ -349,7 +349,7 @@ AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
 COMPONENT H142_7_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_7_1 = Guide_gravity(
+COMPONENT H142_7_1 = Guide(
   w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_7,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
@@ -394,7 +394,7 @@ AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
 COMPONENT H142_8_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_8_1 = Guide_gravity(
+COMPONENT H142_8_1 = Guide(
   w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_8,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
@@ -439,7 +439,7 @@ AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
 COMPONENT H142_9_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_9_1 = Guide_gravity(
+COMPONENT H142_9_1 = Guide(
   w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_9,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
@@ -484,7 +484,7 @@ AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
 COMPONENT H142_10_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_10_1 = Guide_gravity(
+COMPONENT H142_10_1 = Guide(
   w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_10,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
@@ -529,7 +529,7 @@ AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
 COMPONENT H142_11_In = Al_window(thickness=Al_Thickness)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT H142_11_1 = Guide_gravity(
+COMPONENT H142_11_1 = Guide(
   w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_11,
   R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
 AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
@@ -567,25 +567,30 @@ AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS
 /* Here IN12 position. Gap .300 */
 
 COMPONENT GuideOut = Arm() AT (0,0,0.01) RELATIVE PREVIOUS
-
-COMPONENT GuideOut_xy = Monitor_nD(
-  xwidth=0.03, yheight=gH, restore_neutron=1,
-  options="x y, per cm2, slit")
+EXTEND %{
+  // Weight by "per cm2" of following monitor area...
+  p/=(0.03*INSTRUMENT_GETPAR(gH)*1e4);
+%}
+  
+COMPONENT GuideOut_xy = PSD_monitor(
+  xwidth=0.03, yheight=gH)
 AT (0,0,0.1) RELATIVE PREVIOUS
+EXTEND %{
+  if(!SCATTERED) ABSORB;
+%}
 
-COMPONENT GuideOut_dxdy = Monitor_nD(
-  xwidth=0.03, yheight=gH, restore_neutron=1,
-  options="dx dy, all auto, per cm2, slit")
+COMPONENT GuideOut_dxdy = Divergence_monitor(
+  xwidth=0.03, yheight=gH, restore_neutron=1)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT GuideOut_Phic = Monitor_nD(
+//Suppressed to avoid Monitor_nD usage
+/*COMPONENT GuideOut_Phic = Monitor_nD(
   xwidth=0.03, yheight=gH, restore_neutron=1,
   options="per cm2, capture, slit")
-AT (0,0,0) RELATIVE PREVIOUS
+  AT (0,0,0) RELATIVE PREVIOUS */ 
 
-COMPONENT GuideOut_L = Monitor_nD(
-  xwidth=0.03, yheight=gH, restore_neutron=1,
-  options="lambda, limits=[1 21] bins=20, per cm2, slit")
+COMPONENT GuideOut_L = L_monitor(xwidth=0.03, yheight=gH,
+				 restore_neutron=1, Lmin=1, Lmax=21, nL=20)
 AT (0,0,0) RELATIVE PREVIOUS
 
 /* The END token marks the instrument definition end */

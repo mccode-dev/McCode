@@ -809,84 +809,124 @@ INITIALIZE
     fprintf (stderr, "Error opening file\n");
     exit (-1);
   } else {
-    printf ("%s\n", "File opened...");
+    MPI_MASTER(
+      printf ("%s\n", "File opened...");
+    );
   }
   /* spectral parameters */
   while ((fgets (line, linelength, fp) != NULL) && (strchr (line, '#') != NULL)) {
-    printf ("%s", line);
+    MPI_MASTER(
+      printf ("%s", line);
+    );
   }
   kk = sscanf (line, " %le %le %le %le %le %le %le %le %le %le %le %le %le %le", &para_sp[0], &para_sp[1], &para_sp[2], &para_sp[3], &para_sp[4], &para_sp[5],
                &para_sp[6], &para_sp[7], &para_sp[8], &para_sp[9], &para_sp[10], &para_sp[11], &para_sp[12], &para_sp[13]);
 
   /* a parameter of emission time distribuation */
   while ((fgets (line, linelength, fp) != NULL) && (strchr (line, '#') != NULL)) {
-    printf ("%s", line);
+    MPI_MASTER(
+      printf ("%s", line);
+    );
   }
   kk = sscanf (line, " %le %le %le %le %le %le %le %le %le %le", &para_a[0], &para_a[1], &para_a[2], &para_a[3], &para_a[4], &para_a[5], &para_a[6], &para_a[7],
                &para_a[8], &para_a[9]);
   if (kk != 10) {
-    printf ("para_a: insufficient number of data entries read\n");
+    MPI_MASTER(
+      printf ("para_a: insufficient number of data entries read\n");
+    );
     _ABORT ();
   }
 
   /* b parameter of emission time distribuation */
   while ((fgets (line, linelength, fp) != NULL) && (strchr (line, '#') != NULL)) {
-    printf ("%s", line);
+    MPI_MASTER(
+      printf ("%s", line);
+    );
   }
   kk = sscanf (line, " %le %le %le %le %le %le %le %le %le %le", &para_b[0], &para_b[1], &para_b[2], &para_b[3], &para_b[4], &para_b[5], &para_b[6], &para_b[7],
                &para_b[8], &para_b[9]);
   if (kk != 10) {
-    printf ("para_b: insufficient number of data entries read\n");
+    MPI_MASTER(
+      printf ("para_b: insufficient number of data entries read\n");
+    );
     _ABORT ();
   }
 
   /* R parameter of emission time distribuation */
   while ((fgets (line, linelength, fp) != NULL) && (strchr (line, '#') != NULL)) {
-    printf ("%s", line);
+    MPI_MASTER(
+      printf ("%s", line);
+    );
   }
   kk = sscanf (line, " %le %le %le %le %le %le %le %le %le %le", &para_R[0], &para_R[1], &para_R[2], &para_R[3], &para_R[4], &para_R[5], &para_R[6], &para_R[7],
                &para_R[8], &para_R[9]);
   if (kk != 10) {
-    printf ("para_R: kk=%d  insufficient number of data entries read\n", kk);
+    MPI_MASTER(
+      printf ("para_R: kk=%d  insufficient number of data entries read\n", kk);
+    );
     _ABORT ();
   }
 
   /* to parameter of emission time distribuation */
   while ((fgets (line, linelength, fp) != NULL) && (strchr (line, '#') != NULL)) {
-    printf ("%s", line);
+    MPI_MASTER(
+      printf ("%s", line);
+    );
   }
   kk = sscanf (line, " %le %le %le %le %le %le %le %le %le %le", &para_to[0], &para_to[1], &para_to[2], &para_to[3], &para_to[4], &para_to[5], &para_to[6],
                &para_to[7], &para_to[8], &para_to[9]);
   if (kk != 10) {
-    printf ("para_R: insufficient number of data entries read\n");
+    MPI_MASTER(
+      printf ("para_R: insufficient number of data entries read\n");
+    );
     _ABORT ();
   }
 
   printf ("\n");
   for (k = 0; k < 14; k++) {
-    printf ("   para_sp(%d)=%e\n", k, para_sp[k]);
+    MPI_MASTER(
+      printf ("   para_sp(%d)=%e\n", k, para_sp[k]);
+    );
   }
-  printf ("\n");
+  MPI_MASTER(
+    printf ("\n");
+  );
   for (k = 0; k < 10; k++) {
-    printf ("   para_a(%d)=%e\n", k, para_a[k]);
+    MPI_MASTER(
+      printf ("   para_a(%d)=%e\n", k, para_a[k]);
+    );
   }
-  printf ("\n");
+  MPI_MASTER(
+    printf ("\n");
+  );
   for (k = 0; k < 10; k++) {
-    printf ("   para_b(%d)=%e\n", k, para_b[k]);
+    MPI_MASTER(
+      printf ("   para_b(%d)=%e\n", k, para_b[k]);
+    );
   }
-  printf ("\n");
+  MPI_MASTER(
+    printf ("\n");
+  );
   for (k = 0; k < 8; k++) {
-    printf ("   para_R(%d)=%e\n", k, para_R[k]);
+    MPI_MASTER(
+      printf ("   para_R(%d)=%e\n", k, para_R[k]);
+    );
   }
-  printf ("\n");
+  MPI_MASTER(
+    printf ("\n");
+  );
   for (k = 0; k < 10; k++) {
-    printf ("   para_to(%d)=%e\n", k, para_to[k]);
+    MPI_MASTER(
+      printf ("   para_to(%d)=%e\n", k, para_to[k]);
+    );
   }
 
   if (sample_E == 0) {
     CItot = prepare_cumulative_spectral_function (csfE, Emin, Emax, para_sp);
     if (CItot <= 0.0) {
-      printf (" choice of Emin and Emax gives zero neutron intensity\n");
+      MPI_MASTER( 
+        printf (" choice of Emin and Emax gives zero neutron intensity\n");
+      );
       _ABORT ();
     }
     //  for(i=0;i<=1000;i++){
@@ -896,19 +936,29 @@ INITIALIZE
 
   /* some checks */
   if (dist <= 0.0) {
-    printf (" dist must be greater zero\n");
+    MPI_MASTER(
+      printf (" dist must be greater zero\n");
+    );
     _ABORT ();
   } else if (focus_xw <= 0.0) {
-    printf (" focus_xw must be greater zero\n");
+    MPI_MASTER(
+      printf (" focus_xw must be greater zero\n");
+    );
     _ABORT ();
   } else if (focus_yh <= 0.0) {
-    printf (" focus_yh must be greater zero\n");
+    MPI_MASTER(
+      printf (" focus_yh must be greater zero\n");
+    );
     _ABORT ();
   } else if (p_power <= 0) {
-    printf (" p_power must be greater zero\n");
+    MPI_MASTER(
+      printf (" p_power must be greater zero\n");
+    );
     _ABORT ();
   } else if (n_pulses <= 0) {
-    printf (" n_pulses must be greater zero\n");
+    MPI_MASTER(
+      printf (" n_pulses must be greater zero\n");
+    );
     _ABORT ();
   }
 

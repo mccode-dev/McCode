@@ -29,6 +29,7 @@ def build_header(options, params, intervals, detectors):
 # ylabel: 'Intensity'
 # xvars: %(xvars)s
 # yvars: %(yvars)s
+# list: %(xvals)s
 # xlimits: %(xmin)s %(xmax)s
 # filename: %(filename)s
 # variables: %(variables)s
@@ -41,8 +42,12 @@ def build_header(options, params, intervals, detectors):
     hdrparams = {key.lstrip('-') for key in params}
     xvars = ', '.join(hdrparams)
     lst = intervals[list(params)[0]]
-    xmin = min(lst)
-    xmax = max(lst)
+    if options.list:
+        xmin=1
+        xmax=len(lst)
+    else:
+        xmin = min(lst)
+        xmax = max(lst)
     # Get Numpoints from length of -L list
     N = len(lst)
     # ... or using options.numponts if in fact a normal scan
@@ -76,6 +81,8 @@ def build_header(options, params, intervals, detectors):
 
         'xvars': xvars,
         'yvars': ' '.join('(%s_I,%s_ERR)' % (d, d) for d in detectors),
+
+        'xvals': str(lst),
 
         'xmin': xmin,
         'xmax': xmax,
@@ -278,7 +285,6 @@ class Scanner:
         mcstas_dir = self.mcstas.options.dir
         if mcstas_dir == '':
             mcstas_dir = '.'
-            
 
         with open(self.outfile, 'w') as outfile:
             for i, point in enumerate(self.points):
@@ -288,11 +294,18 @@ class Scanner:
                     LOG.debug("%s: %s", key, point[key])
                     par_values.append(point[key])
 
-                LOG.info(', '.join(f'{name}: {value}' for name, value in point.items()))
-                # Change subdirectory as an extra option (dir/1 -> dir/2)
-                current_dir = f'{mcstas_dir}/{i}'
-                LOG.info(f"Output step into scan directory {current_dir}")
-                self.mcstas.run(pipe=False, extra_opts={'dir': current_dir})
+                if not self.mcstas.options.format.lower() == 'nexus':
+                    LOG.info(', '.join(f'{name}: {value}' for name, value in point.items()))
+                    # Change subdirectory as an extra option (dir/1 -> dir/2)
+                    current_dir = f'{mcstas_dir}/{i}'
+                    LOG.info(f"Output step into scan directory {current_dir}")
+                    self.mcstas.run(pipe=False, extra_opts={'dir': current_dir})
+                else:
+                    current_dir = mcstas_dir
+                    LOG.info(f"NeXus output step into scan directory {current_dir}")
+                    self.mcstas.options.append=True
+                    self.mcstas.run(pipe=False, extra_opts={'dir': current_dir})
+
                 LOG.info("Finish running step, get detectors")
                 detectors = mcsimdetectors(current_dir)
                 if detectors is not None:
@@ -308,7 +321,18 @@ class Scanner:
                         LOG.info("Wrote headers")
                     LOG.info(f"Write step detectors line into {self.outfile}")
                     values = ['%s %s' % (d.intensity, d.error) for d in detectors]
-                    line = '%s %s\n' % (' '.join(map(str, par_values)), ' '.join(values))
+
+                    # Normal equidistant scan
+                    if not self.mcstas.options.list:
+                        line = '%s %s\n' % (' '.join(map(str, par_values)), ' '.join(values))
+                    else:
+                        try:
+                            # Check if parameters are numeric/float
+                            par_floats = [float(x) for x in par_values]
+                            line = '%s %s\n' % (' '.join(map(str, par_floats)), ' '.join(values))
+                        except:
+                            # otherwise use simple 'index' (may be scanning e.g. a filename)
+                            line = '%s %s\n' % (str(i), ' '.join(values))
                     outfile.write(line)
                     outfile.flush()
 

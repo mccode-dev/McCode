@@ -64,6 +64,12 @@ SHARE
   #endif
 %}
 
+INITIALIZE
+%{
+  MPI_MASTER (fprintf (stderr, "Al_window %s WARNING: Using simple lo-fi transmission model.\n - Replace with PowderN or NCrystal for bragg edges etc.\n",
+                       NAME_CURRENT_COMP););
+%}
+
 TRACE
 %{
   double v;   /* Neutron velocity */
@@ -72,22 +78,26 @@ TRACE
   double Al_s_tot_lambda, Al_my_tot, Al_my_a; /* total XS (barn), total scattering length (m-1), absorption scat. length */
   double lambda;                              /* neutrons wavelength */
 
+  /* Propagate to entry plane */
   PROP_Z0;
-
+  /* Calculate (linear) time to travel in material */
   dt0 = thickness / vz;
   v = sqrt (vx * vx + vy * vy + vz * vz);
+  /* Propagate path through material and calculate distance travelled */
   PROP_DT (dt0);
   dist = v * dt0;
 
+  /* Velocity-corrected attentuation */
+  Al_my_a = Al_my_a_v / v;
+
+  /* Crude 4th-order polynomial approximation for scattering cross-section */
   lambda = sqrt (81.81 / (VS2E * v * v));
   Al_s_tot_lambda = Al_pf_A + Al_pf_B1 * lambda + Al_pf_B2 * lambda * lambda + Al_pf_B3 * lambda * lambda * lambda;
   Al_s_tot_lambda += Al_pf_B4 * lambda * lambda * lambda * lambda;
-  Al_my_tot = Al_rho / Al_mmol * Al_s_tot_lambda * avogadro * 10;
-  Al_my_a = Al_my_a_v / v;
+  Al_my_tot = Al_rho / Al_mmol * Al_s_tot_lambda * avogadro;
 
-  p *= exp (-Al_my_a * dist); /* neutron passes window without any interaction */
-
-  /* TODO: scatter in Debye-Scherrer cone */
+  /* Weight with cross-section */
+  p *= exp (-(Al_my_tot + Al_my_a) * dist); /* neutron passes window without any interaction */
 %}
 
 MCDISPLAY

@@ -43,8 +43,9 @@ struct List_position
     int index;                  /* Next element to return. */
   };
 
-typedef struct List_header *List;
-typedef struct List_position *List_handle;
+/* Typedefs suppressed, already defined from mccode.h */
+/* typedef struct List_header *List;
+   typedef struct List_position *List_handle; */
 
 /*******************************************************************************
 * Create a new list.
@@ -234,3 +235,4 @@ List list_copy(List from, void * (*copier)(void *)){
   }
   return to;
 }
+

@@ -51,8 +51,8 @@ _class_particle mcsetstate(double x, double y, double z, double kx, double ky, d
   mcphoton.Ez = Ez;
   mcphoton.p  = p;
   /*mcphoton.mcgravitation = mcgravitation;
-  mcphoton.mcMagnet = mcMagnet;
-  mcphoton.allow_backprop = mcallowbackprop;*/
+    mcphoton.mcMagnet = mcMagnet;*/
+  mcphoton.allow_backprop = mcallowbackprop;
   mcphoton._uid       = 0;
   mcphoton._index     = 1;
   mcphoton._absorbed  = 0;

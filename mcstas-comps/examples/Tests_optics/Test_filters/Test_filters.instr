@@ -1,0 +1,114 @@
+/*******************************************************************************
+* Instrument: Test_filters
+*
+* %Identification
+* Written by: <a href="mailto:peter.willendru@ess.eu">Peter Willendrup</a>
+* Date: March 2026
+* Origin: <a href="http://www.ess.eu">ESS</a>
+* %INSTRUMENT_SITE: PSI
+*
+* Test instrument for McStas components as Be-filters
+*
+* %Description
+* Test instrument for cross-checking McStas components for use as Be-filters.
+* Where applicable, the temperature is set to 80K (corresponding to the header
+* of the Be.trm file used in Filter_gen
+*
+* %Example: Filter=0 Detector: L_out_I=2183.87
+* %Example: Filter=1 T=80 Detector: L_out_I=1875.02
+* %Example: Filter=2 Detector: L_out_I=1868.5
+* %Example: Filter=3 Detector: L_out_I=2011.26
+*
+* %Parameters
+* Lmin:         [Angs] Lowest wavelength from source
+* Lmax:         [Angs] Highest wavelength from source
+* nL:              [1] Number of wavelength bins in [Lmin Lmax] interval
+* Filter:          [1] Choice of filter 0: Filter_gen, 1: NCrystal, 2: PowderN, 3: Isotropic_Sqw
+* zdepth:          [m] Depth of Be-filter
+* T:               [K] Filter temperature (NCrystal only)
+* %Link
+* <a href="https://doi.org/10.1107/S0567739478000121">Acta Cryst. (1978). A34, 61-65</a>
+* <a href="https://doi.org/10.1063/1.1140212">Rev. Sci. Instrum. 59, 380-381 (1988)</a>
+* Test instrument written by P Willendrup <peter.willendrup@ess.eu> ESS, March 2026
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_filters(double Lmin=0.5, double Lmax=10, int Filter=0, int nL=101, double zdepth=0.15, double T=80)
+
+DECLARE
+%{
+  double lambda0;
+  double dlambda;
+  char NCcfg[128];
+%}
+
+INITIALIZE
+%{
+  lambda0 = (Lmax+Lmin)/2.0;
+  dlambda = (Lmax-Lmin)/2.0;
+  sprintf(NCcfg,"Be_sg194.ncmat;temp=%.2gK",T);
+  
+  if(Filter==0) {
+    MPI_MASTER( printf("Running with Filter_gen(filename=\"Be.trm\", zdepth=%g,...)\n",zdepth); );
+  } else if (Filter==1) {
+    MPI_MASTER( printf("Running with NCrystal(cfg=\"%s\", zdepth=%g,...)\n",NCcfg,zdepth); );
+  } else if (Filter==2) {
+    MPI_MASTER( printf("Running with PowderN(reflections=\"Be.laz\", zdepth=%g,...)\n",zdepth); );
+  } else if (Filter==3) {
+    MPI_MASTER( printf("Running with Isotropic_Sqw(Sqw_coh=\"Be.laz\", zdepth=%g,...)\n",zdepth); );
+  } else {
+    MPI_MASTER( fprintf(stderr,"Sorry, Filter=%d not supported!\n",Filter); );
+    exit(-1);
+  }
+%}
+
+TRACE
+
+COMPONENT a1 = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT source_div = Source_div(
+    xwidth=0.1, 
+    yheight=0.1, 
+    focus_aw=0.00001, 
+    focus_ah=0.00001, 
+    lambda0=lambda0,
+    dlambda=dlambda,
+    flux=1e14)
+AT (0, 0, 0) RELATIVE a1
+
+COMPONENT L_in = L_monitor(
+    nL=nL, 
+    xwidth=0.1, 
+    yheight=0.1, 
+    Lmin=Lmin,
+    Lmax=Lmax)
+AT (0, 0, 1e-3) RELATIVE source_div
+  
+COMPONENT FilterA = Filter_gen(
+  filename = "Be.trm",
+  xwidth = 0.2,
+  yheight = 0.2,
+  thickness = zdepth) 
+WHEN Filter==0 AT (0, 0, 1e-3) RELATIVE  L_in
+
+COMPONENT FilterB = NCrystal_sample(yheight=0.2, xwidth=0.2, zdepth=zdepth,cfg=NCcfg) 
+WHEN Filter==1 AT (0, 0, 1e-3) RELATIVE  L_in
+
+
+COMPONENT FilterC = PowderN(yheight=0.2, xwidth=0.2, zdepth=zdepth,reflections="Be.laz")
+WHEN Filter==2 AT (0, 0, 1e-3) RELATIVE  L_in
+
+COMPONENT FilterD = Isotropic_Sqw(yheight=0.2, xwidth=0.2, zdepth=zdepth,Sqw_coh="Be.laz")
+WHEN Filter==3 AT (0, 0, 1e-3) RELATIVE  L_in
+
+
+COMPONENT L_out = L_monitor(
+    nL=nL, 
+    xwidth=0.1, 
+    yheight=0.1, 
+    Lmin=Lmin, 
+    Lmax=Lmax)
+AT (0, 0, zdepth+1e-3) RELATIVE FilterA
+
+END

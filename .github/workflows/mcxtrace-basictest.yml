@@ -20,7 +20,7 @@ jobs:
         include:
           - { os: ubuntu-24.04,  CC: gcc-13,   CXX: g++-13,     python: '3.12', mpi: 'openmpi' }
           - { os: ubuntu-24.04,  CC: clang,    CXX: clang++,    python: '3.12', mpi: 'openmpi'   }
-          - { os: windows-11-arm, CC: cl.exe,   CXX: cl.exe,     python: "3.13", mpi: 'msmpi'   }
+          #- { os: windows-11-arm, CC: cl.exe,   CXX: cl.exe,     python: "3.13", mpi: 'msmpi'   }
           - { os: windows-latest, CC: gcc.exe,   CXX: g++.exe,     python: "3.13", mpi: 'msmpi'   }
 
     name: ${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
@@ -89,7 +89,7 @@ jobs:
         choco install winflexbison3
         choco install wget
         if [ "$CC" == "gcc.exe" ]; then choco install mingw; fi
-        pip install mslex PyYAML ply mcpl mcpl-extra
+        pip install mslex PyYAML ply mcpl mcpl-extra psutil
 
     - name: Setup (Windows Intel)
       id: setup-Windows-intel
@@ -248,11 +248,11 @@ jobs:
            set -x
            if [ "$RUNNER_OS" == "macOS" ];
            then
-             python3 -mpip install PyYAML pyaml ply McStasScript mcpl mcpl-extra jinja2 --break-system-packages
+             python3 -mpip install PyYAML pyaml ply McStasScript mcpl mcpl-extra jinja2 psutil --break-system-packages
            fi
            if [ "$RUNNER_OS" == "Linux" ];
            then
-             python3 -mpip install PyYAML ply McStasscript mcpl mcpl-extra jinja2
+             python3 -mpip install PyYAML ply McStasscript mcpl mcpl-extra jinja2 psutil
            fi
 
     # Start of Unix tests
@@ -533,7 +533,7 @@ jobs:
 
     - name: 'Upload Artifact'
       id: tar-upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: always()
       with:
         name: mcxtrace-artefacts-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}

@@ -1,0 +1,118 @@
+/*******************************************************************************
+* Instrument: Test_Al_windows
+*
+* %I
+* Written by: Peter Willendrup
+* Date: 20260316
+* Origin: ESS
+* %INSTRUMENT_SITE: Tests_optics
+*
+* Small test instrument for studying Al-window performance
+*
+* %D
+* Test instrument for studying transmission through Al-windows.
+*
+* Includes 3 models of increasing complexity / sophistication:
+* 1) Al_window(),:
+*  - simple linear absorption + 4th order scattering model
+*  - infinite-plane geometry
+* 2) PowderN()
+*  - Material specified from Al.laz input-file 
+*  - Parametrized for 80% statistics -> transmission
+* 3) NCrystal()
+*  - Material specified from local Al as .ncmat format input 
+*    (generated from CIF file COD / 1502689)
+*
+* %Example: Window=1 thickness=0.001 Detector: OutputWL_I=0.099
+* %Example: Window=2 thickness=0.001 Detector: OutputWL_I=0.099
+* %Example: Window=3 thickness=0.001 Detector: OutputWL_I=0.099
+* %Example: Window=1 thickness=0.005 Detector: OutputWL_I=0.098
+* %Example: Window=2 thickness=0.005 Detector: OutputWL_I=0.098
+* %Example: Window=3 thickness=0.005 Detector: OutputWL_I=0.098
+*
+* %P
+* Window:    [1] Choice of Al_Window (1), PowderN (2) or NCrystal (3) model
+* thickness: [m] Thickness of Al window
+* %L
+* <reference/HTML link>
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Al_windows(int Window=1, double thickness=0.005)
+
+DECLARE
+%{
+	double u=1e-6; // Small distance, 1um
+%}
+
+USERVARS
+%{
+%}
+
+INITIALIZE
+%{
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT Source = Source_simple(
+    yheight=0.1, 
+    xwidth=0.1, 
+    dist=10, 
+    focus_xw=0.1, 
+    focus_yh=0.1, 
+    lambda0=5, 
+    dlambda=4.99)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT InputPSD = PSD_monitor(
+    xwidth=0.11, 
+    yheight=0.11)
+AT (0, 0, u) RELATIVE Source
+
+COMPONENT InputWL = L_monitor(
+    xwidth=0.11, 
+    yheight=0.11,
+    nL=1000, Lmin=0, Lmax=10)
+AT (0, 0, u) RELATIVE Source
+
+
+COMPONENT Slit_in = Slit(
+    xwidth=0.1, 
+    yheight=0.1)
+AT (0, 0, 10) RELATIVE Source
+
+COMPONENT Al_window = Al_window(
+    thickness=thickness)
+WHEN Window==1 AT (0, 0, 10+u) RELATIVE Source
+
+COMPONENT PowderN = PowderN(xwidth=0.11, yheight=0.11, zdepth=thickness, reflections="Al.laz", p_transmit=0.8, p_inc=0.1, p_interact=0.1)
+WHEN Window==2 AT (0, 0, 10+u) RELATIVE Source
+
+COMPONENT NCrystal_sample = NCrystal_sample(xwidth=0.11, yheight=0.11, zdepth=thickness, cfg="autogen_Al_sg225_cod1502689.ncmat")
+WHEN Window==3 AT (0, 0, 10+u) RELATIVE Source
+
+COMPONENT Slit_out = Slit(
+    xwidth=0.1, 
+    yheight=0.1)
+AT (0, 0, 10+thickness+2*u) RELATIVE Source
+
+COMPONENT OutputSD = PSD_monitor(
+    xwidth=0.11, 
+    yheight=0.11)
+AT (0, 0, u) RELATIVE Slit_out
+
+COMPONENT OutputWL = L_monitor(
+    xwidth=0.11, 
+    yheight=0.11,
+    nL=1000, Lmin=0, Lmax=10)
+AT (0, 0, u) RELATIVE Slit_out
+
+FINALLY
+%{
+%}
+
+END

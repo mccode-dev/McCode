@@ -40,6 +40,8 @@
 /** Include header files to avoid implicit declarations (not allowed on LLVM) */
 #include <ctype.h>
 #include <sys/types.h>
+#include <dirent.h>
+#include <errno.h>
 
 // UNIX specific headers (non-Windows)
 #if defined(__unix__) || defined(__APPLE__)
@@ -65,6 +67,7 @@ mcstatic int  NTOF                   = 0; /* Number of TOF "sub-particles" in a 
                                              becomes 10, defined below in the
                                              mcparseoptions function body.*/
 mcstatic int  mcusedefaults          = 0; /* assume default value for all parameters */
+mcstatic int  mcappend               = 0; /* flag to allow append mode on datasets/directories */
 mcstatic int  mcdotrace              = 0; /* flag for --trace and messages for DISPLAY */
 mcstatic int  mcnexus_embed_idf      = 0; /* flag to embed xml-formatted IDF file for Mantid */
 #pragma acc declare create ( mcdotrace )
@@ -2738,15 +2741,24 @@ mcuse_dir(char *dir)
 #ifdef USE_MPI
   if(mpi_node_rank == mpi_node_root) {
 #endif
+    int exists=0;
+    DIR* handle = opendir(dirname);
+    if (handle) {
+      /* Directory exists. */
+      closedir(handle);
+      exists=1;
+    }
     if(mkdir(dirname, 0777)) {
 #ifndef DANSE
-      fprintf(stderr, "Error: unable to create directory '%s' (mcuse_dir)\n", dir);
-      fprintf(stderr, "(Maybe the directory already exists?)\n");
+      if(!mcappend) {
+	fprintf(stderr, "Error: unable to create directory '%s' (mcuse_dir)\n", dir);
+	fprintf(stderr, "(Maybe the directory already exists?)\n");
 #endif
 #ifdef USE_MPI
-      MPI_Abort(MPI_COMM_WORLD, -1);
+	MPI_Abort(MPI_COMM_WORLD, -1);
 #endif
-    exit(-1);
+	exit(-1);
+      }
     }
 #ifdef USE_MPI
     }
@@ -4499,6 +4511,7 @@ mchelp(char *pgmname)
 "  -s SEED   --seed=SEED      Set random seed (must be != 0)\n"
 "  -n COUNT  --ncount=COUNT   Set number of particles to simulate.\n"
 "  -d DIR    --dir=DIR        Put all data files in directory DIR.\n"
+"  -a        --append         Append data files to those in directory DIR.\n"	  
 "  -t        --trace          Enable trace of " MCCODE_PARTICLE "s through instrument.\n"
 "                             (Use -t=2 or --trace=2 for modernised mcdisplay rendering)\n"
 "  -g        --gravitation    Enable gravitation for all trajectories.\n"
@@ -4760,6 +4773,10 @@ mcparseoptions(int argc, char *argv[])
       usedir=&argv[i][2];
     else if(!strcmp("--dir", argv[i]) && (i + 1) < argc)
       usedir=argv[++i];
+    else if(!strncmp("-a", argv[i], 2))
+      mcappend = 1;
+    else if(!strcmp("--append", argv[i]))
+      mcappend = 1;
     else if(!strncmp("--dir=", argv[i], 6))
       usedir=&argv[i][6];
     else if(!strcmp("-h", argv[i]))

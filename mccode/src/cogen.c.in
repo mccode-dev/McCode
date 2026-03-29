@@ -1623,9 +1623,9 @@ void def_trace_section(struct instr_def *instr)
           "x", "y", "z", "vx", "vy", "vz",
           "t", "sx", "sy", "sz", "p", "mcgravitation", "mcMagnet", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
   #elif MCCODE_PROJECT == 2   /* xray */
-  #define NUM_STATE_PARS 15
+  #define NUM_STATE_PARS 16
           "x", "y", "z", "kx", "ky", "kz",
-          "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+          "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
   #endif
   };
 
@@ -2384,6 +2384,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("#endif // FUNNEL");
   coutf("");
   printf("\n-----------------------------------------------------------\n");
+  return(warnings);
 } /* cogen_rt_funnel */
 
 /*******************************************************************************
@@ -2552,11 +2553,11 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("  double sx,sy,sz; /* spin [0-1] */");
   cout("  int mcgravitation; /* gravity-state */");
   cout("  void *mcMagnet;    /* precession-state */");
-  cout("  int allow_backprop; /* allow backprop */");
 #elif MCCODE_PROJECT == 2 /* xray */
   cout("  double kx,ky,kz; /* wave-vector */");
   cout("  double phi, Ex,Ey,Ez; /* phase and electrical field */");
 #endif
+  cout("  int allow_backprop; /* allow backprop */");
   cout("  /* Generic Temporaries: */");
   cout("  /* May be used internally by components e.g. for special */");
   cout("  /* return-values from functions used in trace, thusreturned via */");
@@ -2607,7 +2608,7 @@ cogen_header(struct instr_def *instr, char *output_name)
       cliter2 = list_iterate(ctypes);
       char *cvar;
       char *ctpe;
-      while(cvar = list_next(cliter)) {
+      while((cvar = list_next(cliter))) {
         ctpe = list_next(cliter2);
         char *Numberedvar = malloc(256*sizeof(char));
 	/* We need to attach comp index to cvar */
@@ -3232,7 +3233,7 @@ void detect_skipable_transforms(struct instr_def *instr) {
             // Its target can not be skipped either
             struct jump_struct *this_jump;
             List_handle literJ = list_iterate(comp->jump);
-            while (this_jump = list_next(literJ)) {
+            while ((this_jump = list_next(literJ))) {
                 
                 // Find target (not initialized yet)
                 List_handle liter3 = list_iterate(instr->complist);

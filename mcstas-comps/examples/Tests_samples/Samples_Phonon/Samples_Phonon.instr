@@ -17,7 +17,8 @@
 * Simple test instrument for the Phonon_simple component.
 * Refer to the component documentation for further instructions.
 *
-* %Example: E=10 -n 1e5 Detector: mon1_I=2.86265e-25
+* %Example: E=10 -n 1e5 focus_r=0.001 Detector: mon1_I=2.86265e-25
+* %Example: E=10 -n 1e5 focus_a=0.1 Detector: mon1_I=2.86265e-25
 *
 * %Parameters
 * E:    [meV] Mean energy at source   
@@ -30,7 +31,21 @@
 *
 * %End
 ******************************************************************************/
-DEFINE INSTRUMENT Samples_Phonon(E=10, DE=0, HDIV=1e-4, VDIV=1e-4, TT=72.69, OM=-43.3, C=8)
+DEFINE INSTRUMENT Samples_Phonon(E=10, 
+            DE=0, 
+            HDIV=1e-4, 
+            VDIV=1e-4, 
+            TT=72.69, 
+            OM=-43.3,
+            C=8,
+            focus_r = 0,
+            focus_a = 0
+)
+
+
+INITIALIZE %{
+%}
+
 
 TRACE
 
@@ -45,7 +60,8 @@ COMPONENT source = Source_div(
   AT (0,0,0) RELATIVE a1 ROTATED (0,0,0) RELATIVE a1
 
 COMPONENT sample = Phonon_simple(
-     radius=0.01, yheight=0.02, focus_r=0.001,
+     radius=0.01, yheight=0.02, focus_r=focus_r,
+     focus_aw = focus_a, focus_ah = focus_a,
      target_index=+2,
      sigma_abs=0.17, sigma_inc=0.003, b=0.90, M=208,
      c=C, a=4.95, DW=1.00, T=300)
