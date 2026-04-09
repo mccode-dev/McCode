@@ -349,11 +349,11 @@ static void cogen_defundef(struct comp_inst *comp, List l, char define_it)
         continue; // skip invalid parameter names
       switch (define_it) {
       case GLOBAL_INSTANCE_PAR_REF:
-        coutf("  #define %s (_%s_var._parameters.%s)",
+        coutf("  #define %s (_%s_var.%s)",
           c_formal->id, comp->name, c_formal->id);
         break;
       case LOCAL_INSTANCE_PAR_REF:
-        coutf("  #define %s (_comp->_parameters.%s)",
+        coutf("  #define %s (_comp->%s)",
           c_formal->id, c_formal->id);
         break;
       case INSTRUMENT_PAR_VALUE:
@@ -429,19 +429,27 @@ int cogen_comp_declare(struct comp_inst *comp)
     // only once
     comp->def->flag_defined_structure = 1;
 
-    // a comment
-    coutf("/* component %s=%s() [%i] DECLARE */", comp->name, comp->def->name, comp->index);
-    coutf("/* Parameter definition for component type '%s' */", comp->def->name);
-    // start outputting the parameters struct
-    coutf("struct _struct_%s_parameters {", comp->def->name);
-
     //
     // Mix declare vars with output pars: Declare overrides OUTPUT, because the
     // type of the former are free, while the type of the latter must be part of
     // the mccode officially recognized parameter types.
     //
 
-    // -- step Ia: get vars from declare block
+    cout("");
+
+    coutf("/* Parameters for component type '%s' */", comp->def->name);
+    coutf("struct _struct_%s {", comp->def->name);
+    /* make struct: set, pos, rot, declare block */
+    coutf("  char     _name[256]; /* e.g. %s */", comp->name);
+    coutf("  char     _type[256]; /* %s */", comp->def->name);
+    coutf("  long     _index; /* e.g. %i index in TRACE list */", index);
+    cout( "  Coords   _position_absolute;");
+    cout( "  Coords   _position_relative; /* wrt PREVIOUS */");
+    cout( "  Rotation _rotation_absolute;");
+    cout( "  Rotation _rotation_relative; /* wrt PREVIOUS */");
+    cout( "  int      _rotation_is_identity;");
+    cout( "  int      _position_relative_is_zero;");
+        // -- step Ia: get vars from declare block
     comp->def->decl_par = list_create();
     get_codeblock_vars_allcustom(
       comp->def->decl_code,  // source
@@ -451,16 +459,6 @@ int cogen_comp_declare(struct comp_inst *comp)
     // -- step IIa: transfer all <output minus decl> pars to a new list
     List new_out_pars;
     new_out_pars = list_create();
-
-    // Annihilation of OUTPUT/PRIVATE parameter generation
-    /*    List_handle outputiter;
-    outputiter = list_iterate(comp->def->out_par);
-    struct comp_iformal* outpar;
-    while(outpar = list_next(outputiter)) {
-      if (!var_in_list(comp->def->decl_par, outpar)) {
-        list_add(new_out_pars, outpar);
-      }
-    } */
 
     // -- step IIb: transfer all decl vars to the new list
     List_handle decliter;
@@ -524,31 +522,10 @@ int cogen_comp_declare(struct comp_inst *comp)
       } /* if(list_len(l) > 0) */
     } /* for List in (setpar outpar declpar) */
 
-    // jg-200203: NOTE that we no longer copy-paste DECLARE block to comp pars struct
-
     // output a comment noting a lack of parameters
     if (!nb_parameters)
       coutf("  char %s_has_no_parameters;", comp->def->name);
 
-    // comp parameters struct end
-    coutf("}; /* _struct_%s_parameters */", comp->def->name);
-    coutf("typedef struct _struct_%s_parameters _class_%s_parameters;",
-      comp->def->name, comp->def->name);
-    cout("");
-
-    coutf("/* Parameters for component type '%s' */", comp->def->name);
-    coutf("struct _struct_%s {", comp->def->name);
-    /* make struct: set, pos, rot, declare block */
-    coutf("  char     _name[256]; /* e.g. %s */", comp->name);
-    coutf("  char     _type[256]; /* %s */", comp->def->name);
-    coutf("  long     _index; /* e.g. %i index in TRACE list */", index);
-    cout( "  Coords   _position_absolute;");
-    cout( "  Coords   _position_relative; /* wrt PREVIOUS */");
-    cout( "  Rotation _rotation_absolute;");
-    cout( "  Rotation _rotation_relative; /* wrt PREVIOUS */");
-    cout( "  int      _rotation_is_identity;");
-    cout( "  int      _position_relative_is_zero;");
-    coutf("  _class_%s_parameters _parameters;", comp->def->name);
     cout("};");
     coutf("typedef struct _struct_%s _class_%s;", comp->def->name, comp->def->name);
   } /* define class type parameter structure when not done yet (only once) */
@@ -597,10 +574,10 @@ static void cogen_comp_init_par(struct comp_inst *comp, struct instr_def *instr,
         if (par->type == instr_type_string) {
           if (strcmp(val, "0") && strcmp(val, "NULL")) { /* when value is not NULL (avoid warning at compile) */
             coutf("  if(%s && strlen(%s))", val, val);
-            coutf("    stracpy(_%s_var._parameters.%s, %s ? %s : \"\", 16384);", comp->name, par->id, val, val);
+            coutf("    stracpy(_%s_var.%s, %s ? %s : \"\", 16384);", comp->name, par->id, val, val);
             coutf("  else ");
           }
-          coutf("  _%s_var._parameters.%s[0]='\\0';", comp->name, par->id);
+          coutf("  _%s_var.%s[0]='\\0';", comp->name, par->id);
         }
         else if (par->type == instr_type_vector) {
           if (val[0] == '{') {
@@ -608,21 +585,21 @@ static void cogen_comp_init_par(struct comp_inst *comp, struct instr_def *instr,
       int vl = parse_curlybrackets_vector(val, values);
       int i;
       for (i=0; i<vl; i++) {
-        coutf("  _%s_var._parameters.%s[%i] = %g;", comp->name, par->id, i, values[i]);
+        coutf("  _%s_var.%s[%i] = %g;", comp->name, par->id, i, values[i]);
       }
     } else
-            coutf("  _%s_var._parameters.%s = %s; // default pointer allocation", comp->name, par->id, val);
+            coutf("  _%s_var.%s = %s; // default pointer allocation", comp->name, par->id, val);
         }
         else if (par->type == instr_type_symbol) {
           // the user vars value is particle specific, init to null
-          coutf("  _%s_var._parameters.%s = \'\\0\';", comp->name, par->id);
+          coutf("  _%s_var.%s = \'\\0\';", comp->name, par->id);
         } else
-          coutf("  _%s_var._parameters.%s = %s;", comp->name, par->id, val);
+          coutf("  _%s_var.%s = %s;", comp->name, par->id, val);
 
         str_free(val);
       }
       /* define the symbol right after assignment so that we can use it in further parameters */
-      //coutf("  #define %s (_%s_var._parameters.%s)", par->id, comp->name, par->id);
+      //coutf("  #define %s (_%s_var.%s)", par->id, comp->name, par->id);
     }
     list_iterate_end(list_par);
     if(list_len(l) > 0 && !strcmp(section, "SETTING"))
@@ -1081,7 +1058,7 @@ void cogen_getvarpars_fct(struct instr_def *instr)
   struct comp_inst *comp;
 
   while((comp = list_next(iter)) != NULL) {
-    coutf("  if (!strcmp(compname, \"%s\")) return (void *) &(_%s_var._parameters);", comp->name, comp->name);
+    coutf("  if (!strcmp(compname, \"%s\")) return (void *) &(_%s_var);", comp->name, comp->name);
   }
   list_iterate_end(iter);
 
