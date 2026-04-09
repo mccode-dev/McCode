@@ -279,7 +279,6 @@ DArray1d create_darr1d(int n){
     fprintf(stderr, "Error allocating DArray1d of dimension %i\n",n);
     exit(-1);
   }
-  #pragma acc shape(arr1d[0:n])
   return arr1d;
 }
 
@@ -304,7 +303,6 @@ DArray2d create_darr2d(int nx, int ny){
   for (i=0; i<nx; i++){
     arr2d[i] = &(p1[i*ny]);
   }
-  #pragma acc shape(arr2d[0:nx][0:ny])
   return arr2d;
 }
 
@@ -347,7 +345,6 @@ DArray3d create_darr3d(int nx, int ny, int nz){
       arr3d[i][j] = &(p2[(i*ny+j)*nz]);
     }
   }
-  #pragma acc shape(arr3d[0:nx][0:ny][0:nz])
   return arr3d;
 }
 
