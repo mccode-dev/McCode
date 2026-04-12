@@ -78,7 +78,7 @@ exp_id(char *id)  /* used in e.g. cogen:cogen_comp_init_par AND splits*/
 #ifdef GENERATE_PY  
   return mkvalueexp(str_cat(id, NULL));
 #else
-  return mkvalueexp(str_cat("_instrument_var._parameters.", id, NULL));
+  return mkvalueexp(str_cat("_instrument_var.", id, NULL));
 #endif
 }
 
