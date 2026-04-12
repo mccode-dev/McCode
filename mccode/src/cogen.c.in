@@ -1415,9 +1415,10 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
   liter = list_iterate(instr->complist);
   while((comp = list_next(liter)) != NULL)
   {
-    if (!strcmp(section, "INITIALISE"))
+    if (!strcmp(section, "INITIALISE")) {
       warnings += cogen_comp_section_class(comp, instr, "INITIALISE",
         "init", comp->def->init_code, &(comp->def->flag_defined_init));
+    }
     else if (!strcmp(section, "SAVE"))
       warnings += cogen_comp_section_class(comp, instr, "SAVE",
         "save", comp->def->save_code, &(comp->def->flag_defined_save));
@@ -1461,6 +1462,7 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
     cout("  /* code_main/parseoptions/readparams "
       "sets instrument parameters value */");
     coutf("  stracpy(instrument->_name, \"%s\", 256);", instr->name);
+    coutf("  _instrument_var._counter=42;");
   }
   else if (!strcmp(section, "SAVE"))
     coutf("  if (!handle) siminfo_init(NULL);");
@@ -2027,6 +2029,8 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("");
   coutf("      srandom(_hash((pidx+1)*(seed+1)));");
   coutf("");
+  coutf("      #pragma acc atomic");
+  coutf("       _instrument_var._counter += 0.1;");
   coutf("      raytrace(_particle);");
   coutf("    } /* inner for */");
   coutf("    seed = seed+gpu_innerloop;");
@@ -2041,7 +2045,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("     #undef fprintf");
   cout("     #endif");
   coutf("  MPI_MASTER(");
-  coutf("  printf(\"*** TRACE end *** \\n\");");
+  coutf("  printf(\"*** TRACE end *** (%%g)\\n\",_instrument_var._counter);");
   coutf("  );");
   coutf("} /* raytrace_all */");
   coutf("");
