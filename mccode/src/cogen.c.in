@@ -379,7 +379,7 @@ static void cogen_defundef(struct comp_inst *comp, List l, char define_it)
           } /* for List */
         }
         if (flag_noconflict && strlen(c_formal->id))
-          coutf("  #define %s (instrument->_parameters.%s)",
+          coutf("  #define %s (instrument->%s)",
             c_formal->id, c_formal->id);
         break;
       case PAR_UNDEF:
@@ -1182,27 +1182,6 @@ int cogen_decls(struct instr_def *instr)
   cout("   (Used in e.g. inputparse and I/O function (e.g. detector_out) */");
   cout("");
 
-  int numipar=0;
-  cout("struct _struct_instrument_parameters {");
-
-  if (!list_len(instr->formals)) {
-    coutf("  char %s_has_no_parameter;", instr->name);
-  } else {
-
-    liter = list_iterate(instr->formals);
-    while((i_formal = list_next(liter)))
-    {
-      if (i_formal->id && strlen(i_formal->id)) {
-        coutf("  %s %s;", instr_formal_type_names_real[i_formal->type], i_formal->id);
-        numipar++;
-      }
-    }
-    list_iterate_end(liter);
-  }
-  cout("};");
-  cout("typedef struct _struct_instrument_parameters _class_instrument_parameters;");
-  cout("");
-
   /* check if we have GROUP, SPLIT and JUMP */
   index = list_len(instr->grouplist); // count GROUP
   liter = list_iterate(instr->complist);
@@ -1248,7 +1227,21 @@ int cogen_decls(struct instr_def *instr)
     list_len(instr->complist)+2);
   coutf("  Coords _position_absolute[%i];",
     list_len(instr->complist)+2);
-  cout( "  _class_instrument_parameters _parameters; /* instrument parameters */");
+  cout("  double _counter;");
+  int numipar=0;
+  if (!list_len(instr->formals)) {
+    coutf("  char %s_has_no_parameter;", instr->name);
+  } else {
+    liter = list_iterate(instr->formals);
+    while((i_formal = list_next(liter)))
+    {
+      if (i_formal->id && strlen(i_formal->id)) {
+        coutf("  %s %s;", instr_formal_type_names_real[i_formal->type], i_formal->id);
+        numipar++;
+      }
+    }
+    list_iterate_end(liter);
+  }
   if (index)
     cout( "  struct instrument_logic_struct logic; /* instrument logic */");
   cout( "} _instrument_var;");
@@ -1266,12 +1259,12 @@ int cogen_decls(struct instr_def *instr)
     if (strlen(i_formal->id)) {
       if (i_formal->isoptional  // needed to avoid double quotes in strings
           && !strcmp(instr_formal_type_names[i_formal->type],"instr_type_string"))
-        coutf("  \"%s\", &(_instrument_var._parameters.%s), %s, %s, \"%s\",", i_formal->id,
+        coutf("  \"%s\", &(_instrument_var.%s), %s, %s, \"%s\",", i_formal->id,
               i_formal->id, instr_formal_type_names[i_formal->type],
               exp_tostring(i_formal->default_value),
               i_formal->hasunit ? i_formal->unit : "");
       else
-        coutf("  \"%s\", &(_instrument_var._parameters.%s), %s, \"%s\", \"%s\",", i_formal->id,
+        coutf("  \"%s\", &(_instrument_var.%s), %s, \"%s\", \"%s\",", i_formal->id,
               i_formal->id, instr_formal_type_names[i_formal->type],
               i_formal->isoptional ? exp_tostring(i_formal->default_value) : "",
               i_formal->hasunit ? i_formal->unit : "");
