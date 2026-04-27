@@ -1,0 +1,158 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: TOF_monitor
+*
+* %I
+* Written by:  KN, M. Hagen
+* Date: August 1998
+* Origin: Risoe
+*
+* Rectangular Time-of-flight monitor.
+*
+* %D
+*
+* %P
+* INPUT PARAMETERS:
+*
+* xmin: [m]             Lower x bound of detector opening
+* xmax: [m]             Upper x bound of detector opening
+* ymin: [m]             Lower y bound of detector opening
+* ymax: [m]             Upper y bound of detector opening
+* xwidth: [m]           Width of detector. Overrides xmin, xmax
+* yheight: [m]          Height of detector. Overrides ymin, ymax
+* nt: [1]               Number of time bins
+* dt: [mu-s]            Length of each time bin
+* tmin: [mu-s]          Lower time limit
+* tmax: [mu-s]          Upper time limit
+* filename: [string]    Name of file in which to store the detector image
+* restore_neutron: [1]  If set, the monitor does not influence the neutron state
+* nowritefile: [1]      If set, monitor will skip writing to disk
+*
+* CALCULATED PARAMETERS:
+*
+* TOF_N: []             Array of neutron counts
+* TOF_p: []             Array of neutron weight counts
+* TOF_p2: []            Array of second moments
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT TOF_monitor
+SETTING PARAMETERS (int nt=20, string filename=0, xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05,
+		    xwidth=0, yheight=0, tmin=0, tmax=0, dt=1.0, int restore_neutron=0, int nowritefile=0)
+
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+SHARE
+%{
+	
+  void save_ray(double p, int i, double *TOF_N, double *TOF_p, double *TOF_p2) {
+	double p2 = p * p;
+	#pragma acc atomic
+	TOF_N[i] = TOF_N[i] + 1;
+	#pragma acc atomic
+	TOF_p[i] = TOF_p[i] + p;
+	#pragma acc atomic
+    TOF_p2[i] = TOF_p2[i] + p2;
+  };
+		
+%}
+
+DECLARE
+%{
+  DArray1d TOF_N;
+  DArray1d TOF_p;
+  DArray1d TOF_p2;
+  double t_min;
+  double t_max;
+  double delta_t;
+%}
+
+
+
+
+
+INITIALIZE
+%{
+  if (xwidth > 0) {
+    xmax = xwidth / 2;
+    xmin = -xmax;
+  }
+  if (yheight > 0) {
+    ymax = yheight / 2;
+    ymin = -ymax;
+  }
+
+  if ((xmin >= xmax) || (ymin >= ymax)) {
+    printf ("TOF_monitor: %s: Null detection area !\n"
+            "ERROR        (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+            NAME_CURRENT_COMP);
+    exit (0);
+  }
+
+  TOF_N = create_darr1d (nt);
+  TOF_p = create_darr1d (nt);
+  TOF_p2 = create_darr1d (nt);
+
+  if (tmax != 0) {
+    t_max = tmax;
+    t_min = tmin;
+    delta_t = (t_max - t_min) / nt;
+  } else {
+    delta_t = dt;
+    t_min = 0;
+    t_max = nt * dt + tmin;
+  }
+
+  // Use instance name for monitor output if no input was given
+  if (!strcmp (filename, "\0"))
+    sprintf (filename, "%s", NAME_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  int i;
+  
+  PROP_Z0;
+  if (x > xmin && x < xmax && y > ymin && y < ymax) {
+    TRAIN_READ(  
+      i = floor ((1E6 * t - t_min) / delta_t); /* Bin number */
+      if (i >= 0 && i < nt) {
+		save_ray(p, i, TOF_N, TOF_p, TOF_p2);
+        SCATTER;
+	  }
+    );
+  }
+  if (restore_neutron) {
+    RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+  }
+%}
+
+SAVE
+%{
+  if (!nowritefile) {
+    DETECTOR_OUT_1D ("Time-of-flight monitor", "Time-of-flight [\\gms]", "Intensity", "t", t_min, t_max, nt, &TOF_N[0], &TOF_p[0], &TOF_p2[0], filename);
+  }
+%}
+
+FINALLY
+%{
+  destroy_darr1d (TOF_N);
+  destroy_darr1d (TOF_p);
+  destroy_darr1d (TOF_p2);
+%}
+
+MCDISPLAY
+%{
+
+  multiline (5, (double)xmin, (double)ymin, 0.0, (double)xmax, (double)ymin, 0.0, (double)xmax, (double)ymax, 0.0, (double)xmin, (double)ymax, 0.0, (double)xmin,
+             (double)ymin, 0.0);
+%}
+
+END

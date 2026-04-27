@@ -1,0 +1,338 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2015, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: MultiDiskChopper
+*
+* %I
+* Written by: Markus Appel
+* Date: 2015-10-19
+* Origin: ILL / FAU Erlangen-Nuernberg
+* Based on DiskChopper (Revision 1.18) by Peter Willendrup (2006), 
+* which in turn is based on Chopper (Philipp Bernhardt), Jitter and beamstop from work by 
+* Kaspar Hewitt Klenoe (jan 2006), adjustments by Rob Bewey (march 2006)
+*
+* %D
+* Models a disk chopper with a freely configurable slit pattern. For simple applications,
+* use the DiskChopper component and see the component manual example of DiskChopper GROUPing.
+* If the chopper slit pattern should be dynamically configurable or a complicated pattern
+* is to be used as first chopper on a continuous source, use this component.
+*
+* Width and position of the slits is defined as a list in string parameters so
+* they can easily be taken from instrument parameters.
+* The chopper axis is located on the y axis as defined by the parameter delta_y.
+* When the chopper is the first chopper after a continuous (i.e. time-independent) 
+* source, the parameter isfirst should be set to 1 to increase Monte-Carlo efficiency.
+* 
+*
+* Examples (see parameter definitions for details): 
+* Two opposite slits with 10 and 20deg opening, with the 20deg slit in the beam at t=0.02:
+* MultiDiskChopper(radius=0.2, slit_center="0;180", slit_width="10;20", delta_y=-0.1, 
+*                  nu=302, nslits=2, phase=180, delay=0.02)
+*
+* First chopper on a continuous source, creating pulse trains for one additional revolution
+* before and after the revolution at t=0:
+* MultiDiskChopper(radius=0.2, slit_center="0;180", slit_width="10;20", delta_y=-0.1, 
+*                  nu=302, nslits=2, phase=180, isfirst=1, nrev=1)
+*
+* %P
+* INPUT PARAMETERS:
+*
+* slit_width: [string]  (deg)   Angular width of the slits, given as list in a string separated by space ' ', comma ',', underscore '_' or semicolon ';'. Example: "0;20;90;135;270"
+* slit_center: [string] (deg)   Angular position of the slits (similar to slit_width)
+* nslits: []    Number of slits to read from slit_width and slit_center
+* radius: [m]   Outer radius of the disk
+* delta_y: [m]  y-position of the chopper rotation axis. If the chopper is located above the guide (delta_y>0), the coordinate system will be mirrored such that the created pulse pattern in time is the same as for delta_y<0. A warning will be printed in this case.
+* nu:                   [Hz]    Rotation speed of the disk, the sign determines the direction.
+*
+* Optional parameters:
+* verbose:              [0/1]   Set to 1 to display more information during the simulation.
+* phase:                [deg]   Phase angle located on top of the disk at t=delay (see below).
+* delay:                [s]     Time delay of the chopper clock.
+*                               NOTE: In contrast to the DiskChopper component, the effect of phase and delay are cumulative, and both can be specified.
+* jitter:               [s]     Jitter in the time phase.
+* abs_out:                      If 1, absorb all neutrons outside the disk diameter.
+* isfirst:              [0/1]   Set to 1 for the first chopper after a continuous source. The neutron events
+*                               will be shifted in time to pass the component (with adapted weight).
+*
+* Additional parameters when isfirst=1 (that have no effect for isfirst=0):
+* equal:                [0/1]   When isfirst=1: If 0, the neutron events will be distributed between different slits proportional to the slit size. If 1, the events will be distributed such that each slit transmits the same number of events. This parameter can be used to achieve comparable simulation statistics over different pulses when simulating small and large slits together.
+* nrev:                 [ ]     When isfirst=1: Number of *additional* disk revolutions before *and* after the one around t=delay to distribute events on. If set to 2 for example, there will be 2 leading, 1 central, and 2 trailing revolutions of the disk (2*nrev+1 in total).
+* ratio:              [ ]       When isfirst=1: Spacing of the additional revolutions from the parameter nrev from the central revolution.
+*
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MultiDiskChopper
+
+SETTING PARAMETERS (string slit_center="0 180", string slit_width="10 20", nslits=2, delta_y=-0.3, nu=0, nrev=0, ratio=1, jitter=0, delay=0, isfirst=0, phase=0, radius = 0.375, equal=0, abs_out=0, verbose=0)
+
+
+DECLARE
+%{
+  double T;
+  double To;
+  double omega;
+  double* dslit_center;
+  double* dhslit_width;
+  double* t0;
+  double* t1;
+%}
+
+INITIALIZE
+%{
+  char* pch;
+  int i;
+  double sense;
+
+  phase = remainder (phase, 360.0) * DEG2RAD;
+  omega = 2.0 * PI * nu; /* rad/s */
+  sense = (omega < 0) ? -1 : 1;
+
+  if (isfirst && (nrev - floor (nrev) != 0)) {
+    MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s: wrong First chopper revolution number, must be integer (nrev=%g)\n", NAME_CURRENT_COMP, nrev);)
+    exit (-1);
+  }
+
+  if (!omega) {
+    MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s WARNING: chopper frequency is 0!\n", NAME_CURRENT_COMP);)
+    omega = 1e-15; /* We should actually use machine epsilon here... */
+  }
+
+  if (nslits <= 0) {
+    MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s: nslits must be > 0\n", NAME_CURRENT_COMP); exit (-1);)
+  }
+
+  // Read slits in array
+  dslit_center = malloc (nslits * sizeof (*dslit_center));
+  pch = strtok (slit_center, ";_, ");
+  for (i = 0; i < nslits; i++) {
+    if (pch == NULL) {
+      MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s: Cannot parse slit_center: Not enough values?\n", NAME_CURRENT_COMP);)
+      exit (-1);
+    }
+    dslit_center[i] = atof (pch);
+    pch = strtok (NULL, ";_, ");
+
+    if ((dslit_center[i] < 0)) {
+      while (dslit_center[i] < 0) {
+        dslit_center[i] += 360.0;
+      }
+
+      MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s: WARNING: Slit center No. %d moved to %f\n", NAME_CURRENT_COMP, i + 1, dslit_center[i]);)
+    }
+
+    if ((dslit_center[i] >= 360.0)) {
+      while (dslit_center[i] >= 360.0) {
+        dslit_center[i] -= 360.0;
+      }
+
+      MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s: WARNING: Slit center No. %d moved to %f\n", NAME_CURRENT_COMP, i + 1, dslit_center[i]);)
+    }
+
+    dslit_center[i] *= DEG2RAD;
+  }
+
+  // dhslit_width: HALF slit width
+  dhslit_width = malloc (nslits * sizeof (*dhslit_width));
+  pch = strtok (slit_width, ";_, ");
+  for (i = 0; i < nslits; i++) {
+    if (pch == NULL) {
+      MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s: Cannot parse slit_width: Not enough values?\n", NAME_CURRENT_COMP);)
+      exit (-1);
+    }
+    dhslit_width[i] = 0.5 * atof (pch);
+    pch = strtok (NULL, ";_, ");
+    if (dhslit_width[i] <= 0) {
+      MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s: Slit no %d has nonpositive width! \n", NAME_CURRENT_COMP, i + 1);)
+      exit (-1);
+    }
+    dhslit_width[i] *= DEG2RAD;
+  }
+
+  /* Calculate delay from phase and vice versa */
+  if (phase) {
+    if (delay) {
+      MPI_MASTER (fprintf (stderr, "MultiDiskChopper: %s WARNING: delay AND phase specified. Adding them up.\n", NAME_CURRENT_COMP);)
+    }
+    phase -= delay * omega;
+    delay = -phase / omega;
+  } else {
+    phase = delay * omega;
+  }
+
+  /* Time for 1 revolution */
+  T = 2.0 * PI / fabs (omega);
+
+  // calculate arrays of times t0 and t1 which allow for easy randomization in TRACE
+
+  /* To: How long can neutrons pass the Chopper at a single point during one revolution through any slit */
+
+  // generate times t1: duration of slit openings (or their cumulative sum if !equal)
+  // dhslit_width is already in rad
+  t1 = malloc (nslits * sizeof (*t1));
+  t1[0] = 2.0 * dhslit_width[0] / fabs (omega);
+  To = t1[0]; // To: Cumulated opening time in a single point during one revolution through any slit
+
+  for (i = 1; i < nslits; i++) {
+    t1[i] = (equal ? 0 : t1[i - 1]) + (2.0 * dhslit_width[i] / fabs (omega));
+    To += (2.0 * dhslit_width[i] / fabs (omega));
+  }
+
+  // generate times t0 = time when slit i starts opening (at top of the disk) (minus t1[i-1] if !equal)
+  t0 = malloc (nslits * sizeof (*t0));
+  t0[0] = (sense * remainder (dslit_center[0] - phase, 2 * PI) - dhslit_width[0]) / fabs (omega);
+
+  for (i = 1; i < nslits; i++) {
+    t0[i] = (sense * remainder (dslit_center[i] - phase, 2 * PI) - dhslit_width[i]) / fabs (omega) - (equal ? 0 : t1[i - 1]);
+  }
+
+  MPI_MASTER (if (verbose) {
+    printf ("MultiDiskChopper: %s: \n", NAME_CURRENT_COMP);
+    printf ("       --- frequency=%g [Hz] %g [rpm], delay=%g [s], phase=%g [deg]\n", nu, nu * 60, delay, phase * RAD2DEG);
+    printf ("       --- vertical axis offset=%g [m] To=%g [s], T=%g [s]\n", delta_y, To, T);
+
+    if (isfirst && equal)
+      printf ("       --- first chopper distributing events equally on all slits\n");
+
+    if (isfirst && !equal)
+      printf ("       --- first chopper distributing events proportional to slit size\n");
+
+    if (isfirst)
+      printf ("       --- adding +-%g disk revolutions at ratio %g\n", nrev, ratio);
+
+    printf ("       --- Slit center [deg]:");
+    for (i = 0; i < nslits; i++)
+      printf ("  %6.2f", dslit_center[i] * RAD2DEG);
+    printf ("\n");
+    printf ("       --- Slit width  [deg]:");
+    for (i = 0; i < nslits; i++)
+      printf ("  %6.2f", 2.0 * dhslit_width[i] * RAD2DEG);
+    printf ("\n");
+
+    // dump internal arrays for debugging
+    if (verbose == 2) {
+      printf ("       --- Internal arrays:\n");
+      printf ("       --- i   t0          t1         dslit_center dhslit_width\n");
+      for (i = 0; i < nslits; i++) {
+        printf ("       --- %02d %+.4e %+.4e %+.4e %+.4e\n", i, t0[i], t1[i], dslit_center[i], dhslit_width[i]);
+      }
+    }
+  })
+ %}
+
+TRACE
+%{
+  double phi;
+  double xprime, yprime;
+  double toff;
+  int irev, islit;
+
+  // Propagate into the chopper disk plane
+  PROP_Z0;
+
+  if (delta_y > 0) {
+    // 'anormal' case, chopper above guide
+    // mirror coordinate system
+    xprime = -x;
+    yprime = -y + delta_y;
+  } else {
+    // 'normal' case, chopper below guide
+    xprime = x;
+    yprime = y - delta_y;
+  }
+
+  // Is neutron transmitted/absorbed outside the disk diameter ?
+  if ((SQR (xprime) + SQR (yprime)) > SQR (radius))
+    if (abs_out) {
+      ABSORB;
+    } else {
+      SCATTER;
+    }
+  else {
+    if (isfirst) {
+      irev = (nrev > 0 ? ratio * (floor ((2 * nrev + 1) * rand01 ()) - nrev) : 0);
+
+      if (equal) {
+        // Distribute neutrons equally over slits
+        t = rand01 () * nslits;
+        islit = (t == nslits) ? nslits - 1 : floor (t);
+        t = (t - islit) * t1[islit];
+
+        p *= t1[islit] / T * nslits;
+      } else {
+        // Distribute neutrons proportional to slit size
+        t = rand01 () * To;
+        islit = 0;
+        while (t1[islit] < t)
+          islit++;
+
+        /* weight correction: chopper slits transmission opening time per full revolution time */
+        p *= To / T;
+      }
+
+      // offset time stamp according to slit phase, neutron position and jitter
+      t += t0[islit] - atan2 (xprime, yprime) / omega + irev * T + (jitter ? jitter * randnorm () : 0);
+
+    } else {
+		
+	int this_t_hit;
+	TRAIN_GATE(
+      phi = atan2 (xprime, yprime) + omega * (t - delay - (jitter ? jitter * randnorm () : 0));
+
+	  this_t_hit = 0;
+	  islit = 0;
+      // does the neutron hit one of the slits ?	  
+      while (islit < nslits && !this_t_hit) {
+        if (fabs (remainder (phi - dslit_center[islit], 2 * PI)) < dhslit_width[islit]) {
+		  this_t_hit = 1;
+	    }
+		islit++;
+      }
+	  if (this_t_hit == 0) T_ABSORB();
+	 );
+	 
+   } 
+  }
+%}
+
+FINALLY
+%{
+  // clean up
+  if (dslit_center)
+    free (dslit_center);
+
+  if (dhslit_width)
+    free (dhslit_width);
+
+  if (t0)
+    free (t0);
+
+  if (t1)
+    free (t1);
+%}
+
+MCDISPLAY
+%{
+  int j;
+
+  // the disk
+  circle ("xy", 0, delta_y, 0, radius);
+
+  /* Drawing the slit(s) */
+  for (j = 0; j < nslits; j++) {
+    /* Angular start/end of slit */
+    double tmin = dslit_center[j] - dhslit_width[j] + phase;
+    double tmax = tmin + 2.0 * dhslit_width[j];
+    /* Draw lines for each slit. */
+
+    line (radius * sin (tmin), radius * cos (tmin) + delta_y, 0, 0, delta_y, 0);
+    line (radius * sin (tmax), radius * cos (tmax) + delta_y, 0, 0, delta_y, 0);
+  }
+%}
+
+END

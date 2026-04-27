@@ -1,0 +1,693 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2016, All rights reserved
+*         DTU Physics, Kongens Lyngby, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: ESS_butterfly
+*
+* %I
+*
+* Written by: Peter Willendrup and Esben Klinkby
+* Date: August-September 2016
+* Origin: DTU
+*
+* ESS butterfly moderator, 2016 revision
+*
+* %D
+* ESS butterfly moderator with automatic choice of coordinate system, with origin
+* placed at relevant "Moderator Focus Coordinate System" depending on sector location.
+*
+* To select beamport N 5 simply use 
+*  
+*  COMPONENT Source = ESS_butterfly(sector="N",beamline=5,Lmin=0.1,Lmax=20,dist=2,
+*                                   cold_frac=0.5, yheight=0.03,focus_xw=0.1, focus_yh=0.1)
+*
+* <b>Geometry</b>
+* The geometry corresponds correctly to the latest release of the butterfly moderator,
+* including changes warranted by the ESS CCB in July 2016, the so called BF1 type moderator.
+* A set of official release documents are available with this component, see the benchmarking
+* website mentioned below.
+*
+* <b>Brilliances, geometry adapted from earlier BF2 design</b>
+* The geometry and brightness data implemented in the McStas ESS source component ESS_butterfly.comp, 
+* are released as an updated component library for McStas 2.3, as well as a stand alone archive for
+* use with earlier versions of McStas.
+*
+* The following features are worth highlighting: 
+* <ul>
+* <li>The brightness data are still based on last years MCNP calculations, based on the Butterfly 2 geometry. 
+* As a result, the spatial variation of the brightness across the moderator face should be considered to 
+* have an uncertainty of the order of 10%. Detailed information on the reasoning behind the change to
+* the Butterfly 1 geometry can be found in <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a> and detailed information on horizontal spatial brightness 
+* variation can be found in <A HREF="http://essbutterfly.mcstas.org/PDFs/BFpaper_LZ_latest.pdf">[2]</a>. The spectral shape has been checked and has not changed significantly.
+* <li>A scaling factor has been introduced to in order to account for the decrease in brightness since 2015. 
+* To accommodate the influence of the changed geometry, this scaling factor has been applied independently 
+* for the cold and thermal contributions and is beamline dependent. It is adjusted to agree with the 
+* spectrally-integrated 6cm width data shown in <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a>,Figure 3.
+* <li>To allow future user adjustments of brilliance, the scalar parameters c_performance and t_performance
+* have been implemented. For now, we recommend to keep these at their default value of 1.0.
+* <li>The geometry has been updated to correspond within about 2 mm to the geometry described in <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a>. This 
+* has been done by ensuring that the position and apparent width of the moderators correspond to <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a>,Figure 2, 
+* which has been derived from current MCNP butterfly 1 model. 
+* <li>The beamport is now defined directly by its sector and number (e.g. 'W' and '5'), rather than giving the angle, 
+* as before. <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a>,Figure 5 shows the geometry of the moderator2, beamport insert and beamline axis for beamline W5.
+* Since the underlying data is still from last years MCNP run, when the brightness was calculated at 10-degree 
+* intervals, this means that the spectral curve for the nearest beamport on the grid 5,15,25,35,45,55 degrees 
+* is used. The use of this grid has no effect on the accuracy of the geometry or brilliance because of the above-
+* mentioned beamline-dependent adjustments to the brilliance and geometry. See the website <A HREF="http://essbutterfly.mcstas.org/">[3]</a> for details.
+*</ul>
+* As before, the beamports all originate at the focal point of the sector. The beamline will in almost all cases be 
+* horizontally tilted in order to view the cold or thermal moderator, which should be done using an Arm component. 
+*
+* <p>We expect to release an MCNP-event-based source model later in 2016, and possibly also new set of brilliance 
+* functions for ESS_butterfly.comp. These are expected to include more realistic brilliances in terms of variation 
+* across sectors and potentially also performance losses due to engineering reality. </b>
+* 
+* <b>Engineering reality</b>
+* An ad-hoc method for future implementation of "engineering reality" is included, use the
+* "c_performance/t_performance" parameters to down-scale performance uniformly across all wavelengths.
+* 
+* <b>References:</b>
+* <ol>
+* <li><A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">Release document "Update to ESS Moderators, latest version"</a>
+* <li><A HREF="http://essbutterfly.mcstas.org/PDFs/BFpaper_LZ_latest.pdf">Release document "Description and performance of the new baseline ESS moderators, latest version"</a>
+* <li><A HREF="http://essbutterfly.mcstas.org/">http://essbutterfly.mcstas.org/</a> benchmarking website with comparative McStas-MCNP figures
+* <li><a href="http://essbutterfly.mcstas.org/visualisation">html-based, interactive 3D model of moderators and monolith, as seen from beamline N4</a>.
+* <li><A HREF="https://github.com/mccode-dev/McCode/blob/master/mcstas-comps/sources/ESS_butterfly.comp">Source code</A> for <CODE>ESS_butterfly.comp</CODE> at GitHub.
+* </ol>
+* %P
+* Input parameters:
+* sector: [str]         Defines the 'sector' of your instrument position. Valid values are "N","S","E" and "W"
+* beamline: [1]         Defines the 'beamline number' of your instrument position. Valid values are 1..10 or 1..11 depending on sector
+* yheight: [m]          Defines the moderator height. Valid values are 0.03 m and 0.06 m
+* cold_frac: [1]        Defines the statistical fraction of events emitted from the cold part of the moderator
+* c_performance: [1]    Cold brilliance scalar performance multiplicator c_performance > 0
+* t_performance: [1]    Thermal brilliance scalar performance multiplicator t_performance > 0
+* Lmin: [AA]            Minimum wavelength simulated
+* Lmax: [AA]            Maximum wavelength simulated
+* target_index: [1]     Relative index of component to focus at, e.g. next is +1 this is used to compute 'dist' automatically.
+* dist: [m]             Distance from origin to focusing rectangle; at (0,0,dist) - alternatively use target_index
+* focus_xw: [m]         Width of focusing rectangle
+* focus_yh: [m]         Height of focusing rectangle
+* tmax_multiplier: [1]  Defined maximum emission time at moderator, tmax= tmax_multiplier * ESS_PULSE_DURATION.
+* acc_power: [MW]       Accelerator power in MW
+* n_pulses: [1]         Number of pulses simulated. 0 and 1 creates one pulse.
+* tfocus_dist: [m]      Position of time focusing window along z axis
+* tfocus_time: [s]      Time position of time focusing window
+* tfocus_width: [s]     Time width of time focusing window
+*
+* 
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT ESS_butterfly
+
+SETTING PARAMETERS (string sector="N",int beamline=1, yheight=0.03, cold_frac=0.5, 
+  int target_index=0, dist=0, focus_xw=0, focus_yh=0,
+  c_performance=1, t_performance=1, Lmin, Lmax, tmax_multiplier=3, int n_pulses=1,
+  acc_power=5,tfocus_dist=0,tfocus_time=0,tfocus_width=0, target_tsplit=5)
+
+
+SHARE %{
+  %include "ESS_butterfly-lib"
+  %include "ESS_butterfly-geometry.c"
+
+  int nearest_angle(double angle) {
+    int AngleList[] = {5, 15, 25, 35, 45, 55};
+    double diff = 180;
+    int jmin=0;
+    int j;
+    for (j=0; j<6; j++) {
+      if (fabs(AngleList[j]-angle) < diff) {
+	diff = fabs(AngleList[j]-angle);
+	jmin = j;
+      }
+    }
+    return AngleList[jmin];
+  }
+  double BeamlinesN[]={ 30.0,  36.0,  42.0,  48.0,  54.0,  60.0,  66.0,  72.0,  78.0,  84.0,  90.0};
+  double BeamlinesE[]={-30.0, -36.0, -42.0, -48.0, -54.0, -60.0, -66.0, -72.0, -78.0, -84.0, -90.0};
+  double BeamlinesW[]={ 150.0,  144.7,  138.0,  132.7,  126.0,  120.7,  114.0,  108.7,  102.0,  96.7,  90.0,  84.0};
+  double BeamlinesS[]={-150.0, -144.7, -138.0, -132.7, -126.0, -120.7, -114.0, -108.7, -102.0, -96.7, -90.0, -84.0};
+  double ColdWidthNE[]={7e-2, 7.45e-2, 8.3e-2, 8.6e-2, 8.7e-2, 8.8e-2, 8.8e-2, 8.7e-2, 8.6e-2, 8.3e-2};
+  double ThermalWidthNE[]={5.4e-2, 6.2e-2, 7.2e-2, 8.2e-2, 8.5e-2, 9.1e-2, 9.6e-2, 10e-2, 10.3e-2, 10.5e-2};
+  double ColdWidthSW[]={7e-2, 7.45e-2, 8.3e-2, 8.6e-2, 8.7e-2, 8.8e-2, 8.8e-2, 8.8e-2, 8.6e-2, 8.4e-2, 6.9e-2};
+  double ThermalWidthSW[]={5.4e-2, 6.2e-2, 7.2e-2, 8.2e-2, 8.5e-2, 9.1e-2, 9.6e-2, 9.95e-2, 10.25e-2, 10.45e-2, 10.5e-2};
+  double ColdScalarsN[]={9.8788e-01, 1.0009e+00, 9.9335e-01, 9.5997e-01, 9.0717e-01, 9.1646e-01, 9.1028e-01, 9.1773e-01, 9.2537e-01, 9.1727e-01, -1};
+  double ColdScalarsE[]={9.9032e-01, 1.0020e+00, 9.9647e-01, 9.6885e-01, 9.0713e-01, 9.1787e-01, 9.1190e-01, 9.2113e-01, 9.2786e-01, 9.2146e-01, -1};
+  double ColdScalarsW[]={9.9017e-01, 1.0069e+00, 9.9366e-01, 9.7144e-01, 9.0624e-01, 8.9379e-01, 9.1022e-01, 9.2847e-01, 9.2812e-01, 9.2703e-01, 8.3098e-01};
+  double ColdScalarsS[]={8.6550e-01, 1.0071e+00, 9.9401e-01, 9.6243e-01, 9.0398e-01, 8.9299e-01, 9.0830e-01, 9.2450e-01, 9.2270e-01, 9.2373e-01, 8.2508e-01};
+  double ThermalScalarsN[]={8.6782e-01, 7.8627e-01, 7.6528e-01, 7.9469e-01, 7.3645e-01, 7.3012e-01, 7.2755e-01, 7.1750e-01, 7.1973e-01, 7.0459e-01, -1};
+  double ThermalScalarsE[]={8.6838e-01, 7.8295e-01, 7.6719e-01, 7.9431e-01, 7.3989e-01, 7.3107e-01, 7.2811e-01, 7.2201e-01, 7.2097e-01, 7.0307e-01, -1};
+  double ThermalScalarsW[]={8.7232e-01, 8.0007e-01, 7.6853e-01, 8.0251e-01, 7.3728e-01, 7.3761e-01, 7.2808e-01, 7.2151e-01, 7.1797e-01, 6.9857e-01, 6.9610e-01};
+  double ThermalScalarsS[]={8.6910e-01, 7.9964e-01, 7.6365e-01, 7.9922e-01, 7.3479e-01, 7.3836e-01, 7.2773e-01, 7.2202e-01, 7.1667e-01, 7.0149e-01, 7.0084e-01};
+  double dxCold[]={-0.01, -0.01, -0.002, 0.004,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0};
+  double dxThermal[]={0.002, 0.003, 0.002, 0.007, 0.007, 0.007, 0.007, 0.007, 0.007, 0.007, 0.007};
+  
+// Defines to make it easier to write code using multiple time sampling
+#define T_ABSORB()   do { WT_absorb_ = 1; } while (0)                              
+#define T_TRANSMIT() do { WT_absorb_ = 0; } while (0)                     
+           
+#define TRAIN_GATE(BODY_CODE)                                                              \
+do {                                                                                       \
+	double weight_update = p/_particle->p_last_time_manipulation;                          \
+	_particle->p_last_time_manipulation = 0;                                               \
+	double t_original = t;                                                                 \		
+	int train_index;                                                                       \		
+    for (train_index=0; train_index<_particle->N_active; ) {                               \
+        /* Expose readable names to BODY_CODE */                                           \
+		t = t_original + _particle->t_offset[train_index];                                 \
+                                                                                           \
+        int WT_absorb_ = 0;                                                                \
+                                                                                           \
+        BODY_CODE                                                                          \
+                                                                                           \
+        if (WT_absorb_) {                                                                  \
+            /* swap-with-last-active */                                                    \
+  		  _particle->p_trains[train_index] = _particle->p_trains[_particle->N_active - 1]; \
+  		  _particle->t_offset[train_index] = _particle->t_offset[_particle->N_active - 1]; \
+	      _particle->N_active--;                                                           \
+        } else {                                                                           \
+ 		  _particle->p_trains[train_index] *= weight_update;                               \
+ 		  _particle->p_last_time_manipulation += _particle->p_trains[train_index];         \
+          train_index++;                                                                   \
+        }                                                                                  \
+    }                                                                                      \
+	if (!_particle->N_active) ABSORB;                                                      \
+	p = _particle->p_last_time_manipulation;                                               \
+	t = t_original;                                                                        \
+} while (0)
+	
+#define TRAIN_READ(BODY_CODE)                                                            \
+do {                                                                                       \
+	int train_index;                                                                       \
+	double p_original = p;	                                                               \
+	double t_original = t;	                                                               \			
+	double p_factor = p/_particle->p_last_time_manipulation;	                           \
+    for (train_index=0; train_index<_particle->N_active; train_index++) {                  \
+        /* Expose readable names to BODY_CODE */                                           \
+        p = p_factor*_particle->p_trains[train_index];                                     \
+        t = t_original + _particle->t_offset[train_index];                                 \
+                                                                                           \
+        BODY_CODE                                                                          \
+                                                                                           \
+    }                                                                                      \
+  	p = p_original;                                                                        \
+  	t = t_original;                                                                        \
+} while (0)
+  
+%}
+
+DECLARE
+%{
+  double* ColdWidths;
+  double* ThermalWidths;
+  double ColdScalars[11];
+  double ThermalScalars[11];
+  double *Beamlines;
+  double wfrac_cold;
+  double wfrac_thermal;
+  /* 'Corner' parametrization, i.e. where are the limits of the moderators */
+  double C1_x;
+  double C1_z;
+  double C2_x;
+  double C2_z;
+  double C3_x;
+  double C3_z;
+  double T1_x;
+  double T1_z;
+  double T2_x;
+  double T2_z;
+  double T3_x;
+  double T3_z;
+  /* - plus rotated versions of the same... */
+  double rC1_x;
+  double rC1_z;
+  double rC2_x;
+  double rC2_z;
+  double rC3_x;
+  double rC3_z;
+  double rT1_x;
+  double rT1_z;
+  double rT2_x;
+  double rT2_z;
+  double rT3_x;
+  double rT3_z;
+  double tx;
+  double ty;
+  double tz;
+  double r11;
+  double  r12;
+  double  r21;
+  double  r22;
+  double delta_y;
+  double Mwidth_c;
+  double Mwidth_t;
+  double beamportangle;
+  double w_mult;
+  double w_stat;
+  double w_focus;
+  double  w_tfocus;
+  double w_geom_c;
+  double  w_geom_t;
+  int    isleft;
+  double l_range;
+
+  double cos_thermal;
+  double cos_cold;
+  
+  double  orientation_angle;
+  /* Centering-parameters, which sector are we in? */
+  double cx;
+  double cz;
+  int     jmax;
+  double dxC;
+  double dxT;
+%}
+
+INITIALIZE
+%{
+  
+  
+  int     sign_bl_angle;
+  
+  /* Oversampling for widths plus fraction of moderator surface "not around the corner" */
+  double oversampT=1.1;
+  double oversampC=1.0;
+  
+  
+  /* variables needed to correct for the emission surface angle */
+  double internal_angle;
+  double cos_beamport_angle, sin_beamport_angle;
+
+  if (beamline<4) {
+    wfrac_cold=1.0;
+    wfrac_thermal=(1-0.072);
+  } else {
+    wfrac_cold=1.0;
+    wfrac_thermal=1.0;
+  }
+  
+  /* Centering-parameters, which sector are we in? */
+  if (strcasestr(sector,"N")) {
+    cx = 0.117; cz=0.0; sign_bl_angle=1;
+    orientation_angle = BeamlinesN[beamline-1];
+    Beamlines = BeamlinesN;
+    internal_angle=90-fabs(orientation_angle);
+    beamportangle=nearest_angle(fabs(internal_angle));
+    /* Direction-cosines for use with e.g. Brilliance_monitor */
+    cos_beamport_angle=cos(fabs(internal_angle)*DEG2RAD);
+    sin_beamport_angle=sin(fabs(internal_angle)*DEG2RAD);
+    /* correction for projection along the beam / projection on the z=0 plane */
+    cos_thermal=cos_beamport_angle;
+    cos_cold=cos((fabs(internal_angle)-24.24)*DEG2RAD);
+    ColdWidths = ColdWidthNE;
+    ThermalWidths = ThermalWidthNE;
+    int j;
+    for (j=0;j<11;j++){
+      ColdScalars[j] = ColdScalarsN[j];
+      ThermalScalars[j] = ThermalScalarsN[j];
+    }
+    jmax=10;
+    T1_x=0;
+    T1_z=0;
+    T2_x=-wfrac_thermal*oversampT*ThermalWidths[beamline-1]/cos_thermal;
+    T2_z=0;
+    T3_x=((1-wfrac_thermal)*oversampT*ThermalWidths[beamline-1]/cos_thermal);
+    T3_z=0;
+    C1_x=0;
+    C1_z=0;
+    C2_x=(wfrac_cold*oversampC*ColdWidths[beamline-1]/cos_cold)*cos(24.24*DEG2RAD);
+    C2_z=-(wfrac_cold*oversampC*ColdWidths[beamline-1]/cos_cold)*sin(24.24*DEG2RAD);
+    C3_x=-(1-wfrac_cold)*oversampC*ColdWidths[beamline-1]/cos_thermal;
+    C3_z=0;   
+    isleft=1;
+  } else if (strcasestr(sector,"W")) {
+    cx = 0.0; cz=0.0; sign_bl_angle=-1;
+    orientation_angle = BeamlinesW[beamline-1]; 
+    Beamlines = BeamlinesW;
+    internal_angle=90-fabs(orientation_angle);
+    beamportangle=nearest_angle(fabs(internal_angle));
+    /* Direction-cosines for use with e.g. Brilliance_monitor */
+    cos_beamport_angle=cos(fabs(internal_angle)*DEG2RAD);
+    sin_beamport_angle=sin(fabs(internal_angle)*DEG2RAD);
+    /* correction for projection along the beam / projection on the z=0 plane */
+    cos_thermal=cos_beamport_angle;
+    cos_cold=cos((fabs(internal_angle)-24.24)*DEG2RAD);
+    ColdWidths = ColdWidthSW;
+    ThermalWidths = ThermalWidthSW;
+    int j;
+    for (j=0;j<11;j++){
+      ColdScalars[j] = ColdScalarsW[j];
+      ThermalScalars[j] = ThermalScalarsW[j];
+    }
+    jmax=11;
+    T1_x=0;
+    T1_z=0;
+    T2_x=wfrac_thermal*oversampT*ThermalWidths[beamline-1]/cos_thermal;
+    T2_z=0;
+    T3_x=-((1-wfrac_thermal)*oversampT*ThermalWidths[beamline-1]/cos_thermal);
+    T3_z=0;
+    C1_x=0;
+    C1_z=0;
+    C2_x=-(wfrac_cold*oversampC*ColdWidths[beamline-1]/cos_cold)*cos(24.24*DEG2RAD);
+    C2_z=-(wfrac_cold*oversampC*ColdWidths[beamline-1]/cos_cold)*sin(24.24*DEG2RAD);
+    C3_x=(1-wfrac_cold)*oversampC*ColdWidths[beamline-1]/cos_thermal;
+    C3_z=0;    
+    isleft=-1;
+  } else if (strcasestr(sector,"S")) {
+    cx = 0.0; cz=-0.185; sign_bl_angle=1;
+    orientation_angle = BeamlinesS[beamline-1]; 
+    Beamlines = BeamlinesS;
+    internal_angle=90-fabs(orientation_angle);
+    beamportangle=nearest_angle(fabs(internal_angle));
+    /* Direction-cosines for use with e.g. Brilliance_monitor */
+    cos_beamport_angle=cos(fabs(internal_angle)*DEG2RAD);
+    sin_beamport_angle=sin(fabs(internal_angle)*DEG2RAD);
+    /* correction for projection along the beam / projection on the z=0 plane */
+    cos_thermal=cos_beamport_angle;
+    cos_cold=cos((fabs(internal_angle)-24.24)*DEG2RAD);
+    //printf("cosines are %g %g internal angle %g\n",cos_thermal,cos_cold,fabs(internal_angle));
+    ColdWidths = ColdWidthSW;
+    ThermalWidths = ThermalWidthSW;
+    int j;
+    for (j=0;j<11;j++){
+      ColdScalars[j] = ColdScalarsS[j];
+      ThermalScalars[j] = ThermalScalarsS[j];
+    }
+    jmax=11;
+    T1_x=0;
+    T1_z=0;
+    T2_x=wfrac_thermal*oversampT*ThermalWidths[beamline-1]/cos_thermal;
+    T2_z=0;
+    T3_x=-((1-wfrac_thermal)*oversampT*ThermalWidths[beamline-1]/cos_thermal);
+    T3_z=0;
+    C1_x=0;
+    C1_z=0;
+    C2_x=-(wfrac_cold*oversampC*ColdWidths[beamline-1]/cos_cold)*cos(24.24*DEG2RAD);
+    C2_z=(wfrac_cold*oversampC*ColdWidths[beamline-1]/cos_cold)*sin(24.24*DEG2RAD);
+    C3_x=(1-wfrac_cold)*oversampC*ColdWidths[beamline-1]/cos_thermal;
+    C3_z=0;    
+    isleft=-1;
+  } else if (strcasestr(sector,"E")) {
+    cx = 0.117; cz=-0.185; sign_bl_angle=-1;
+    orientation_angle = BeamlinesE[beamline-1]; 
+    Beamlines = BeamlinesE;
+    internal_angle=90-fabs(orientation_angle);
+    beamportangle=nearest_angle(fabs(internal_angle));
+    /* Direction-cosines for use with e.g. Brilliance_monitor */
+    cos_beamport_angle=cos(fabs(internal_angle)*DEG2RAD);
+    sin_beamport_angle=sin(fabs(internal_angle)*DEG2RAD);
+    /* correction for projection along the beam / projection on the z=0 plane */
+    cos_thermal=cos_beamport_angle;
+    cos_cold=cos((fabs(internal_angle)-24.24)*DEG2RAD);
+    ColdWidths = ColdWidthNE;
+    ThermalWidths = ThermalWidthNE;
+    int j;
+    for (j=0;j<11;j++){
+      ColdScalars[j] = ColdScalarsE[j];
+      ThermalScalars[j] = ThermalScalarsE[j];
+    }
+    jmax=10;
+    T1_x=0;
+    T1_z=0;
+    T2_x=-wfrac_thermal*oversampT*ThermalWidths[beamline-1]/cos_thermal;
+    T2_z=0;
+    T3_x=((1-wfrac_thermal)*oversampT*ThermalWidths[beamline-1]/cos_thermal);
+    T3_z=0;
+    C1_x=0;
+    C1_z=0;
+    C2_x=(wfrac_cold*oversampC*ColdWidths[beamline-1]/cos_cold)*cos(24.24*DEG2RAD);
+    C2_z=(wfrac_cold*oversampC*ColdWidths[beamline-1]/cos_cold)*sin(24.24*DEG2RAD);
+    C3_x=-(1-wfrac_cold)*oversampC*ColdWidths[beamline-1]/cos_thermal;
+    C3_z=0; 
+    isleft=1;
+  } else {
+    fprintf(stderr,"%s: Sector %s is undefined, please use N, W, S or E!\n", NAME_CURRENT_COMP,sector);
+    exit(-1);
+  }
+  if (beamline > jmax || beamline <= 0 ) {
+    fprintf(stderr,"%s: beamline no %i is undefined in sector %s, please use 1 <= beamline <= %i\n", NAME_CURRENT_COMP, beamline, sector, jmax);
+    exit(-1);
+  }
+
+  printf("%s: Setting up for sector %s, beamline %i, global orientation angle is %g, internal angle %g\n", NAME_CURRENT_COMP, sector,beamline,orientation_angle,beamportangle);
+  if (c_performance <= 0) {
+    fprintf(stderr,"%s: Cold performance scalar of %g is not allowed. Please select 0 < c_performance\n", NAME_CURRENT_COMP, c_performance);
+    exit(-1);
+  }
+  if (t_performance <= 0) {
+    fprintf(stderr,"%s: Thermal performance scalar of %g is not allowed. Please select 0 < t_performance\n", NAME_CURRENT_COMP, t_performance);
+    exit(-1);
+  }
+  if (Lmin>=Lmax || Lmin <= 0 || Lmax < 0) {
+    fprintf(stderr,"%s: Unmeaningful definition of wavelength range!\nPlease select Lmin, Lmax > 0 and Lmax > Lmin.\n ERROR - Exiting\n",
+           NAME_CURRENT_COMP);
+    exit(-1);
+  }
+  /* Figure out where to aim */
+  if (target_index && !dist)
+  {
+    Coords ToTarget;
+    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),POS_A_CURRENT_COMP);
+    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
+    coords_get(ToTarget, &tx, &ty, &tz);
+    dist=sqrt(tx*tx+ty*ty+tz*tz);
+  } else if (!target_index && !dist) {
+    fprintf(stderr,"%s: Please choose to set either the dist parameter or specify a target_index.\nExit\n", NAME_CURRENT_COMP);
+    exit(-1);
+  } else {
+    tx=0; ty=0; tz=dist;
+  }
+  printf("%s: Focusing at rectagle sized %g x %g \n  - positioned at location (x,y,z)=(%g m, %g m, %g m) \n", NAME_CURRENT_COMP, focus_xw, focus_yh, tx, ty, tz);
+  if (target_index) {
+    printf(" ( from target_index %i -> distance %g )\n", target_index, dist);
+  } else {
+    printf(" ( from dist parameter -> distance %g )\n", dist);
+  }
+  printf("%s: Cold and Thermal brilliance performance multiplicators are c_performance=%g and t_performance=%g\n", NAME_CURRENT_COMP, c_performance, t_performance);
+  
+  /* Calculate orientation matrix for the display and calculations */
+  r11 = cos(DEG2RAD*orientation_angle);
+  r12 = -sin(DEG2RAD*orientation_angle);
+  r21 = sin(DEG2RAD*orientation_angle);
+  r22 = cos(DEG2RAD*orientation_angle);
+  
+  /* Rotated corrdinates of the emission areas */
+  rC1_x = r11*C1_z + r12*C1_x;
+  rC1_z = r21*C1_z + r22*C1_x;
+  rC2_x = r11*C2_z + r12*C2_x;
+  rC2_z = r21*C2_z + r22*C2_x;
+  rC3_x = r11*C3_z + r12*C3_x;
+  rC3_z = r21*C3_z + r22*C3_x;
+  rT1_x = r11*T1_z + r12*T1_x;
+  rT1_z = r21*T1_z + r22*T1_x;
+  rT2_x = r11*T2_z + r12*T2_x;
+  rT2_z = r21*T2_z + r22*T2_x;
+  rT3_x = r11*T3_z + r12*T3_x;
+  rT3_z = r21*T3_z + r22*T3_x;
+  /* Moderator half-height */
+  delta_y = yheight/2.0;
+  /* Other moderator parms */
+  /* "Measured" moderator widths in cm scale */
+  Mwidth_c=100.0*ColdWidths[beamline-1]/cos_cold; 
+  Mwidth_t=(100.0*ThermalWidths[beamline-1]+0.7)/cos_thermal;
+  
+  if (tfocus_width && tfocus_time && tfocus_dist) {
+    printf("%s: Using time focusing: Directing neutrons to this time-window:\n   tfocus_width (%g s) wide at tfocus_time (%g s), tfocus_dist (%g m) downstream\n",NAME_CURRENT_COMP, tfocus_width, tfocus_time, tfocus_dist);
+  } else if (!tfocus_width && !tfocus_time && !tfocus_dist) {
+    printf("%s: NOT using time focusing\n",NAME_CURRENT_COMP);
+  } else {
+    fprintf(stderr,"%s: Unmeaningful combination tfocus_width (%g s), tfocus_time (%g s) and tfocus_dist (%g m): \n    All must be either==0 (no time focusing) or !=0 (time focusing)\n ERROR - Exiting\n",
+	    NAME_CURRENT_COMP, tfocus_width, tfocus_time, tfocus_dist);
+    exit(-1);
+  }
+
+  l_range = Lmax-Lmin;
+  /* Weight multipliers */
+  w_mult=acc_power/5;
+  w_stat=1.0/mcget_ncount();
+  w_geom_c  = 0.072*yheight*1.0e4;     /* source area correction */
+  w_geom_t  = 0.108*yheight*1.0e4;
+  w_mult *= l_range;            /* wavelength range correction */
+  n_pulses=(double)floor(n_pulses);
+  if (n_pulses == 0) n_pulses=1;
+
+  dxC=dxCold[beamline-1];
+  dxT=dxThermal[beamline-1];
+%}
+
+TRACE
+%{
+  double xtmp;
+  int    iscold;
+  double x0,z0;
+  int    surf_sign;
+  double cos_factor;
+  double w_geom;
+  double xf, yf, zf;
+  double dx,dy,dz;
+  double k,v,r,lambda;
+  double dt=0;
+  double modX,modY;
+  
+  /* Cold or thermal event? */
+  p=1;
+  xtmp = rand01();
+  y = randpm1()*delta_y;
+  modY=y;
+  if (rand01() < cold_frac) {
+    iscold=1;
+    if (rand01() < wfrac_cold) { // "Broad face" 
+      x = rC1_x + (rC2_x - rC1_x)*xtmp;
+      z = rC1_z + (rC2_z - rC1_z)*xtmp;
+      x0 = C1_x + (C2_x - C1_x)*xtmp;
+      z0 = C1_z + (C2_z - C1_z)*xtmp;
+      surf_sign=-1;
+      cos_factor=cos_cold;
+    } else {
+      x = rC1_x + (rC3_x - rC1_x)*xtmp;
+      z = rC1_z + (rC3_z - rC1_z)*xtmp;
+      x0 = C1_x + (C3_x - C1_x)*xtmp;
+      z0 = C1_z + (C3_z - C1_z)*xtmp;    
+      surf_sign=1;
+      cos_factor=cos_thermal;
+    }
+    modX=((-1.0*isleft*x0)-dxC);
+    w_geom=w_geom_c;
+  } else {
+    iscold=0;
+    if (rand01() < wfrac_thermal) { // "Broad face" 
+      x = rT1_x + (rT2_x - rT1_x)*xtmp;
+      z = rT1_z + (rT2_z - rT1_z)*xtmp;
+      x0 = T1_x + (T2_x - T1_x)*xtmp;
+      z0 = T1_z + (T2_z - T1_z)*xtmp;
+      surf_sign=1;
+      cos_factor=cos_thermal;
+    } else {
+      x = rT1_x + (rT3_x - rT1_x)*xtmp;
+      z = rT1_z + (rT3_z - rT1_z)*xtmp;
+      x0 = T1_x + (T3_x - T1_x)*xtmp;
+      z0 = T1_z + (T3_z - T1_z)*xtmp;
+      surf_sign=-1;
+      cos_factor=cos_thermal;
+    }
+    modX=((-1.0*isleft*x0)+dxT);
+    w_geom=w_geom_t;
+  }
+
+  SCATTER;
+  /* Where are we going? */
+  randvec_target_rect_real(&xf, &yf, &zf, NULL,
+			   tx, ty, tz, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 0);
+  
+  w_focus=focus_xw*focus_yh/(tx*tx+ty*ty+tz*tz);
+
+  dx = xf-x;
+  dy = yf-y;
+  dz = zf-z;
+  r = sqrt(dx*dx+dy*dy+dz*dz);
+  
+  lambda = Lmin+l_range*rand01();    /* Choose from uniform distribution */
+
+  k = 2*PI/lambda;
+  v = K2V*k;
+
+  vz = v*dz/r;
+  vy = v*dy/r;
+  vx = v*dx/r;
+  
+  int train_index;
+  
+  if (_particle->total_N_sent == 0) _particle->adaptive_N = N_trains;
+  else {
+	  
+	  _particle->adaptive_N = ceil(target_tsplit*_particle->total_N_sent/_particle->total_arrived);
+	  
+	  if (_particle->adaptive_N > N_trains) _particle->adaptive_N = N_trains;
+  } 
+  
+  // Part of weight calculation that is not t dependant
+  if (iscold) {
+    ESS_2015_Schoenfeldt_cold_no_t(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);  
+    p *= c_performance;
+    p *= ColdScalars[beamline-1];
+  } else {
+    ESS_2015_Schoenfeldt_thermal_no_t(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);  
+    p *= t_performance;
+    p *= ThermalScalars[beamline-1];
+  }
+  /* Correct weight for sampling of cold vs. thermal events. */
+  if (iscold) {
+    p /= cold_frac;
+  } else {
+    p /= (1-cold_frac);
+  }
+  p*=cos_factor;
+  p*=w_stat*w_focus*w_geom*w_mult;
+  
+  // Base weight to reuse for each new sampling of p,t
+  double base_p = p;
+  
+  for (train_index=0; train_index<_particle->adaptive_N; train_index++) {
+	  
+	p = base_p;
+
+    /* Are we using time focusing? */
+    if (tfocus_width>0) {
+      dt = tfocus_dist/vz;
+      t = tfocus_time-dt; /* Set time to hit time window center */
+      t += randpm1()*tfocus_width/2.0; 
+      if (t<0) ABSORB;                       /* Kill neutron if outside pulse duration */
+      if (t>tmax_multiplier*ESS_SOURCE_DURATION) ABSORB;
+      p*=tfocus_width/(tmax_multiplier*ESS_SOURCE_DURATION); // time focus correction	  
+    } else {
+      /* Simple, random wavelength @ random time */
+      t = rand01()*tmax_multiplier*ESS_SOURCE_DURATION;
+    }
+  
+    if (iscold) {          //case: cold moderator
+      /* Apply simple engineering reality correction */
+      //ESS_2015_Schoenfeldt_cold_only_t(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);
+	  p *= tmax_multiplier*ESS_2015_Schoenfeldt_cold_timedist(t, lambda, 3, ESS_SOURCE_DURATION);
+    }  else  {                      //case: thermal moderator
+      //ESS_2015_Schoenfeldt_thermal_only_t(&t,  &p,  lambda,  tfocus_width,  tfocus_time,  dt, yheight, Mwidth_t, yheight, Mwidth_c, tmax_multiplier, beamportangle, modX, modY);
+	  p *= tmax_multiplier*ESS_2015_Schoenfeldt_thermal_timedist(t, lambda, 3 /* cm height */, ESS_SOURCE_DURATION);
+    }
+
+    t+=(double)floor((n_pulses)*rand01())/ESS_SOURCE_FREQUENCY;   /* Select a random pulse */
+
+	// Generate ray as normal with its associated p and t
+	// Save these to t_offset and p_train
+	
+	_particle->t_offset[train_index] = t;
+	_particle->p_trains[train_index] = p/_particle->adaptive_N;
+  	_particle->p_last_time_manipulation += _particle->p_trains[train_index];
+ }
+ // Set base particle t and p
+  // Time offsets needed for realistic t
+ t=0;
+ // p contains the full weight of the ray
+ p =_particle->p_last_time_manipulation; 
+ // N_active are times with p > 0, starts with all of them, gradually decrease
+ _particle->N_active = _particle->adaptive_N; 
+ 
+  SCATTER;
+%}
+
+MCDISPLAY
+%{
+ #ifndef OPENACC
+  magnify("");
+  butterfly_geometry(delta_y, jmax, cx, cz,
+    orientation_angle, Beamlines, tx,ty,tz,
+    rC1_x,rC1_z,rC2_x,rC2_z,rC3_x,rC3_z, 
+    rT1_x,rT1_z,rT2_x,rT2_z,rT3_x,rT3_z,
+    r11, r12, r21, r22, focus_xw, focus_yh);
+ #endif
+%}
+
+END

@@ -1,0 +1,1549 @@
+/********************************************************************
+* 
+* Instrument: ESS CSPEC 
+*
+* %Identification
+* Written by: P. P. Deen
+* Date: 26th March 2020
+* Origin: ESS
+*
+* %INSTRUMENT_SITE: ESS
+* Vertical bender is not 3D but 2D and therefore m values on the side of the guides are equal for lefty and right - use the highest value. 
+************************************************************************/
+ 
+ DEFINE INSTRUMENT CSPEC(lambda_min=3, dist_focus=1.9, AC_Power=2,
+ move_x=0.0163,
+move_y=0.000,
+phi_x=0.0,
+phi_y=-0.5,
+phi_z=0.0,
+ROC_H=4000,
+ROC_V=1600,
+gap=0.001,
+L=26,
+m_insert_t=3.5,
+m_insert_b=3.5,
+m_insert_r=3.5,
+m_insert_l=3.5,
+W_par=0.003,
+R0_par=0.99, 
+Qcrit=0.0217,
+alpha_par=6.07,
+gravity=-9.81, 
+height=0.1,
+h1_in=0.055,
+theta_BW1 = 40.7,
+theta_BW2 = 41.9,
+theta_BW3 = 193.0,
+theta_PS = 24.23,
+theta_RRM = 4.45,
+theta_M = 4.45,
+Freq_BW1=14.0, 
+Freq_BW2=14.0, 
+Freq_BW3=14.0, 
+Freq_M=168.0, 
+Distance_BW1 = 13.7236,
+Distance_BW2 = 20.4766 ,
+Distance_BW3 =  104.52,
+Distance_PS1 =  105.7046,
+Distance_PS2 = 105.7106,
+Distance_RRM = 105.67,
+Distance_M1 = 158.55,
+Distance_M2 =158.556,
+Source_Offset = 0.0014, 
+dist_m=0.03, 
+dist=0.1,
+int N_trains_par = 200,
+target_tsplit = 5
+)
+
+    
+DECLARE %{
+ double BW1_Delay, BW2_Delay, BW3_Delay, PS1_Delay , PS2_Delay , RRM_Delay , M1_Delay, M2_Delay ;
+ double v0;
+ double Freq_PS;
+ 
+ double curve_ang_V_w03_01_012,curve_ang_H_w03_01_012; /* angle for calculation in radian */
+ double dx_v_w03_01_012, dy_v_w03_01_012, dz_v_w03_01_012, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ 
+ double curve_ang_V_w03_01_02,curve_ang_H_w03_01_02; /* angle for calculation in radian */
+ double dx_v_w03_01_02, dy_v_w03_01_02, dz_v_w03_01_02, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ 
+  double curve_ang_V_w03_01_03,curve_ang_H_w03_01_03; /* angle for calculation in radian */
+  double dx_v_w03_01_03, dy_v_w03_01_03, dz_v_w03_01_03, dtrans;  /* to calculate exit position */
+  double sign;             /* sign of radius in Bender   */
+ 
+  double curve_ang_V_w03_02_01,curve_ang_H_w03_02_01; /* angle for calculation in radian */
+  double dx_v_w03_02_01, dy_v_w03_02_01, dz_v_w03_02_01, dtrans;  /* to calculate exit position */
+  double sign;             /* sign of radius in Bender   */
+
+  double curve_ang_V_w03_03_01,curve_ang_H_w03_03_01; /* angle for calculation in radian */
+  double dx_v_w03_03_01, dy_v_w03_03_01, dz_v_w03_03_01, dtrans;  /* to calculate exit position */
+  double sign;             /* sign of radius in Bender   */
+
+  double curve_ang_V_w03_03_02,curve_ang_H_w03_03_02; /* angle for calculation in radian */
+  double dx_v_w03_03_02, dy_v_w03_03_02, dz_v_w03_03_02, dtrans;  /* to calculate exit position */
+  double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_04_01,curve_ang_H_w03_04_01; /* angle for calculation in radian */
+ double dx_v_w03_04_01, dy_v_w03_04_01, dz_v_w03_04_01, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_04_02,curve_ang_H_w03_04_02; /* angle for calculation in radian */
+ double dx_v_w03_04_02, dy_v_w03_04_02, dz_v_w03_04_02, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_01,curve_ang_H_w03_05_01; /* angle for calculation in radian */
+ double dx_v_w03_05_01, dy_v_w03_05_01, dz_v_w03_05_01, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_01_a,curve_ang_H_w03_05_01_a; /* angle for calculation in radian */
+ double dx_v_w03_05_01_a, dy_v_w03_05_01_a, dz_v_w03_05_01_a, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_02,curve_ang_H_w03_05_02; /* angle for calculation in radian */
+ double dx_v_w03_05_02, dy_v_w03_05_02, dz_v_w03_05_02, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_03,curve_ang_H_w03_05_03; /* angle for calculation in radian */
+ double dx_v_w03_05_03, dy_v_w03_05_03, dz_v_w03_05_03, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_04, curve_ang_H_w03_05_04; /* angle for calculation in radian */
+ double dx_v_w03_05_04, dy_v_w03_05_04, dz_v_w03_05_04, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_05, curve_ang_H_w03_05_05; /* angle for calculation in radian */
+ double dx_v_w03_05_05, dy_v_w03_05_05, dz_v_w03_05_05, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_05_a,curve_ang_H_w03_05_05_a; /* angle for calculation in radian */
+ double dx_v_w03_05_05_a, dy_v_w03_05_05_a, dz_v_w03_05_05_a, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+
+ double curve_ang_V_w03_05_06, curve_ang_H_w03_05_06; /* angle for calculation in radian */
+ double dx_v_w03_05_06, dy_v_w03_05_06, dz_v_w03_05_06, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_07, curve_ang_H_w03_05_07; /* angle for calculation in radian */
+ double dx_v_w03_05_07, dy_v_w03_05_07, dz_v_w03_05_07, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_08, curve_ang_H_w03_05_08; /* angle for calculation in radian */
+ double dx_v_w03_05_08, dy_v_w03_05_08, dz_v_w03_05_08, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_09, curve_ang_H_w03_05_09; /* angle for calculation in radian */
+ double dx_v_w03_05_09, dy_v_w03_05_09, dz_v_w03_05_09, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_05_10, curve_ang_H_w03_05_10; /* angle for calculation in radian */
+ double dx_v_w03_05_10, dy_v_w03_05_10, dz_v_w03_05_10, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_011, curve_ang_H_w03_06_011; /* angle for calculation in radian */
+ double dx_v_w03_06_011, dy_v_w03_06_011, dz_v_w03_06_011, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_06_012, curve_ang_H_w03_06_012; /* angle for calculation in radian */
+ double dx_v_w03_06_012, dy_v_w03_06_012, dz_v_w03_06_012, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+
+ double curve_ang_V_w03_06_02, curve_ang_H_w03_06_02; /* angle for calculation in radian */
+ double dx_v_w03_06_02, dy_v_w03_06_02, dz_v_w03_06_02, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_03, curve_ang_H_w03_06_03; /* angle for calculation in radian */
+ double dx_v_w03_06_03, dy_v_w03_06_03, dz_v_w03_06_03, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_04, curve_ang_H_w03_06_04; /* angle for calculation in radian */
+ double dx_v_w03_06_04, dy_v_w03_06_04, dz_v_w03_06_04, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_05, curve_ang_H_w03_06_05; /* angle for calculation in radian */
+ double dx_v_w03_06_05, dy_v_w03_06_05, dz_v_w03_06_05, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_06, curve_ang_H_w03_06_06; /* angle for calculation in radian */
+ double dx_v_w03_06_06, dy_v_w03_06_06, dz_v_w03_06_06, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_07, curve_ang_H_w03_06_07; /* angle for calculation in radian */
+ double dx_v_w03_06_07, dy_v_w03_06_07, dz_v_w03_06_07, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_08, curve_ang_H_w03_06_08; /* angle for calculation in radian */
+ double dx_v_w03_06_08, dy_v_w03_06_08, dz_v_w03_06_08, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_09, curve_ang_H_w03_06_09; /* angle for calculation in radian */
+ double dx_v_w03_06_09, dy_v_w03_06_09, dz_v_w03_06_09, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_10, curve_ang_H_w03_06_10; /* angle for calculation in radian */
+ double dx_v_w03_06_10, dy_v_w03_06_10, dz_v_w03_06_10, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ double curve_ang_V_w03_06_11, curve_ang_H_w03_06_11; /* angle for calculation in radian */
+ double dx_v_w03_06_11, dy_v_w03_06_11, dz_v_w03_06_11, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ 
+ double curve_ang_V_w03_06_12, curve_ang_H_w03_06_12; /* angle for calculation in radian */
+ double dx_v_w03_06_12, dy_v_w03_06_12, dz_v_w03_06_12, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ 
+ double curve_ang_V_w03_06_13, curve_ang_H_w03_06_13; /* angle for calculation in radian */
+ double dx_v_w03_06_13, dy_v_w03_06_13, dz_v_w03_06_13, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+ 
+ 
+ double curve_ang_V_w03_06_14, curve_ang_H_w03_06_14; /* angle for calculation in radian */
+ double dx_v_w03_06_14, dy_v_w03_06_14, dz_v_w03_06_14, dtrans;  /* to calculate exit position */
+ double sign;             /* sign of radius in Bender   */
+  
+ double smallaxis_from_guide_elliptical_LEFT;
+ double smallaxis_from_guide_elliptical_TOP;
+ double largeaxis_from_guide_elliptical_LEFT;
+ double largeaxis_from_guide_elliptical_TOP;
+ 
+ int allocated;
+ 
+%}
+
+USERVARS
+%{
+double *t_offset;
+double *p_trains;
+double p_last_time_manipulation;
+//int allocated;
+int adaptive_N;
+int N_active;
+long total_arrived;
+long total_N_sent;
+long total_rays_sent;
+%}
+
+INITIALIZE %{
+ v0 =3956.035/lambda_min;
+ Freq_PS=Freq_M/2;
+ BW1_Delay = Source_Offset+Distance_BW1/v0;
+ BW2_Delay = Source_Offset+Distance_BW2/v0;
+ BW3_Delay = Source_Offset+Distance_BW3/v0;
+ PS1_Delay = Source_Offset+Distance_PS1/v0;
+ PS2_Delay = Source_Offset+Distance_PS2/v0;
+ RRM_Delay = Source_Offset+Distance_RRM/v0;
+ M1_Delay = Source_Offset+Distance_M1/v0;
+ M2_Delay = Source_Offset+Distance_M2/v0;
+ 
+ curve_ang_V_w03_01_012 = (0.4995+0.001)/ROC_V;
+ curve_ang_H_w03_01_012 = (0.4995+0.001)/ROC_H;
+ dx_v_w03_01_012 = 0;
+ dz_v_w03_01_012 = ROC_V * sin(curve_ang_V_w03_01_012);     
+ dy_v_w03_01_012 = ROC_V * (1- cos(curve_ang_V_w03_01_012));
+ 
+ 
+ curve_ang_V_w03_01_02 = (0.999+0.001)/ROC_V;
+ dx_v_w03_01_02 = 0;
+ dz_v_w03_01_02 = ROC_V * sin(curve_ang_V_w03_01_02);     
+ dy_v_w03_01_02 = ROC_V * (1- cos(curve_ang_V_w03_01_02));
+ curve_ang_H_w03_01_02 = (0.999+0.001)/ROC_H;
+ 
+ 
+ curve_ang_V_w03_01_03 = (1.480+0.002)/ROC_V;
+ dx_v_w03_01_03 = 0;
+ dz_v_w03_01_03 = ROC_V * sin(curve_ang_V_w03_01_03);     
+ dy_v_w03_01_03 = ROC_V * (1- cos(curve_ang_V_w03_01_03));
+ curve_ang_H_w03_01_03 = (1.480+0.002)/ROC_H;
+ 
+ 
+ curve_ang_V_w03_02_01 = (0.516+0.025)/ROC_V;
+ dx_v_w03_02_01 = 0;
+ dz_v_w03_02_01 = ROC_V * sin(curve_ang_V_w03_02_01);     
+ dy_v_w03_02_01 = ROC_V * (1- cos(curve_ang_V_w03_02_01));
+ curve_ang_H_w03_02_01 = (0.516+0.025)/ROC_H;  
+    
+ 
+ curve_ang_V_w03_03_01 = (1.9412+0.001)/ROC_V;
+ dx_v_w03_03_01 = 0;
+ dz_v_w03_03_01 = ROC_V * sin(curve_ang_V_w03_03_01);     
+ dy_v_w03_03_01 = ROC_V * (1- cos(curve_ang_V_w03_03_01));
+ curve_ang_H_w03_03_01 = (1.9412+0.001)/ROC_H;
+    
+ curve_ang_V_w03_03_02 = (1.9412+0.012)/ROC_V;
+ dx_v_w03_03_02 = 0;
+ dz_v_w03_03_02 = ROC_V * sin(curve_ang_V_w03_03_02);     
+ dy_v_w03_03_02 = ROC_V * (1- cos(curve_ang_V_w03_03_02));
+ curve_ang_H_w03_03_02 = (1.9412+0.012)/ROC_H;
+	
+ curve_ang_V_w03_04_01 = (1.9412+0.001)/ROC_V;
+ dx_v_w03_04_01 = 0;
+ dz_v_w03_04_01 = ROC_V * sin(curve_ang_V_w03_03_01);     
+ dy_v_w03_04_01 = ROC_V * (1- cos(curve_ang_V_w03_03_01));
+ curve_ang_H_w03_04_01 = (1.9412+0.001)/ROC_H;
+	
+ curve_ang_V_w03_04_02 = (1.9412+0.012)/ROC_V;
+ dx_v_w03_04_02 = 0;
+ dz_v_w03_04_02 = ROC_V * sin(curve_ang_V_w03_04_02);     
+ dy_v_w03_04_02 = ROC_V * (1- cos(curve_ang_V_w03_04_02));
+  curve_ang_H_w03_04_02 = (1.9412+0.012)/ROC_H;
+  
+  
+ curve_ang_V_w03_05_01 = (1.2+0.03)/ROC_V;
+ dx_v_w03_05_01 = 0;
+ dz_v_w03_05_01 = ROC_V * sin(curve_ang_V_w03_05_01);     
+ dy_v_w03_05_01 = ROC_V * (1- cos(curve_ang_V_w03_05_01));
+ curve_ang_H_w03_05_01 = (1.2+0.03)/ROC_H;
+  
+ curve_ang_V_w03_05_02 = (0.8+0.002)/ROC_V;
+ dx_v_w03_05_02 = 0;
+ dz_v_w03_05_02 = ROC_V * sin(curve_ang_V_w03_05_02);     
+ dy_v_w03_05_02 = ROC_V * (1- cos(curve_ang_V_w03_05_02));
+ curve_ang_H_w03_05_02 = (0.8+0.002)/ROC_H;
+
+ curve_ang_V_w03_05_03 = ( 1.9435   +0.001)/ROC_V;
+ dx_v_w03_05_03 = 0;
+ dz_v_w03_05_03 = ROC_V * sin(curve_ang_V_w03_05_03);     
+ dy_v_w03_05_03 = ROC_V * (1- cos(curve_ang_V_w03_05_03));
+ curve_ang_H_w03_05_03 = ( 1.9435   +0.001)/ROC_H;
+  
+ curve_ang_V_w03_05_04 =  (1.9435   +0.002)/ROC_V;
+ dx_v_w03_05_04 = 0;
+ dz_v_w03_05_04 = ROC_V * sin(curve_ang_V_w03_05_04);     
+ dy_v_w03_05_04 = ROC_V * (1- cos(curve_ang_V_w03_05_04));
+ curve_ang_H_w03_05_04 =  (1.9435   +0.002)/ROC_H;
+  
+  
+ curve_ang_V_w03_05_05 = (0.8+0.03)/ROC_V;
+ dx_v_w03_05_05 = 0;
+ dz_v_w03_05_05 = ROC_V * sin(curve_ang_V_w03_05_05);     
+ dy_v_w03_05_05 = ROC_V * (1- cos(curve_ang_V_w03_05_05));
+ curve_ang_H_w03_05_05 = (0.8+0.03)/ROC_H;
+  
+  
+ curve_ang_V_w03_05_06 = (0.8+0.002)/ROC_V;
+ dx_v_w03_05_06 = 0;
+ dz_v_w03_05_06 = ROC_V * sin(curve_ang_V_w03_05_06);     
+ dy_v_w03_05_06 = ROC_V * (1- cos(curve_ang_V_w03_05_06));
+ curve_ang_H_w03_05_06 = (0.8+0.002)/ROC_H;
+  
+ curve_ang_V_w03_05_07 = ( 1.4531   +0.001)/ROC_V;
+ dx_v_w03_05_07 = 0;
+ dz_v_w03_05_07 = ROC_V * sin(curve_ang_V_w03_05_07);     
+ dy_v_w03_05_07 = ROC_V * (1- cos(curve_ang_V_w03_05_07));
+ curve_ang_H_w03_05_07 = ( 1.4531   +0.001)/ROC_H;
+ 
+ 
+ curve_ang_V_w03_05_08 = ( 1.4531   +0.003)/ROC_V;
+ dx_v_w03_05_08 = 0;
+ dz_v_w03_05_08 = ROC_V * sin(curve_ang_V_w03_05_08);     
+ dy_v_w03_05_08 = ROC_V * (1- cos(curve_ang_V_w03_05_08));
+ curve_ang_H_w03_05_08 = ( 1.4531   +0.003)/ROC_H;
+ 
+ curve_ang_V_w03_05_09 = ( 2.040+0.001)/ROC_V;
+ dx_v_w03_05_09 = 0;
+ dz_v_w03_05_09 = ROC_V * sin(curve_ang_V_w03_05_09);     
+ dy_v_w03_05_09 = ROC_V * (1- cos(curve_ang_V_w03_05_09));
+ curve_ang_H_w03_05_09 = ( 2.040+0.001)/ROC_H;
+ 
+ curve_ang_V_w03_05_10 = ( 1.65 +0.04)/ROC_V;
+ dx_v_w03_05_10 = 0;
+ dz_v_w03_05_10 = ROC_V * sin(curve_ang_V_w03_05_10);     
+ dy_v_w03_05_10 = ROC_V * (1- cos(curve_ang_V_w03_05_10));
+ curve_ang_H_w03_05_10 = ( 1.65 +0.04)/ROC_H;
+ 
+ curve_ang_V_w03_06_011 = ( 0.4903)/ROC_V;
+ dx_v_w03_06_011 = 0;
+ dz_v_w03_06_011 = ROC_V * sin(curve_ang_V_w03_06_011);     
+ dy_v_w03_06_011 = ROC_V * (1- cos(curve_ang_V_w03_06_011));
+ curve_ang_H_w03_06_011 = ( 0.4906)/ROC_H;
+ 
+ curve_ang_V_w03_06_012 = ( 1.982+0.001)/ROC_V;
+ dx_v_w03_06_012 = 0;
+ dz_v_w03_06_012 = ROC_V * sin(curve_ang_V_w03_06_012);     
+ dy_v_w03_06_012 = ROC_V * (1- cos(curve_ang_V_w03_06_012));
+ curve_ang_H_w03_06_012 = ( 1.982+0.001)/ROC_H;
+ 
+ curve_ang_V_w03_06_02 = ( 2+0.002)/ROC_V;
+ dx_v_w03_06_02 = 0;
+ dz_v_w03_06_02 = ROC_V * sin(curve_ang_V_w03_06_02);     
+ dy_v_w03_06_02 = ROC_V * (1- cos(curve_ang_V_w03_06_02));
+ curve_ang_H_w03_06_02 = ( 2+0.002)/ROC_H;
+ 
+  
+ curve_ang_V_w03_06_03 = ( 2+0.001)/ROC_V;
+ dx_v_w03_06_03 = 0;
+ dz_v_w03_06_03 = ROC_V * sin(curve_ang_V_w03_06_03);     
+ dy_v_w03_06_03 = ROC_V * (1- cos(curve_ang_V_w03_06_03));
+ curve_ang_H_w03_06_03 = ( 2+0.001)/ROC_H;
+ 
+ curve_ang_V_w03_06_04 = ( 2+0.002)/ROC_V;
+ dx_v_w03_06_04 = 0;
+ dz_v_w03_06_04 = ROC_V * sin(curve_ang_V_w03_06_04);     
+ dy_v_w03_06_04 = ROC_V * (1- cos(curve_ang_V_w03_06_04));
+ curve_ang_H_w03_06_04 = ( 2+0.002)/ROC_H;
+ 
+ curve_ang_V_w03_06_05 = ( 2+0.001)/ROC_V;
+ dx_v_w03_06_05 = 0;
+ dz_v_w03_06_05 = ROC_V * sin(curve_ang_V_w03_06_05);     
+ dy_v_w03_06_05 = ROC_V * (1- cos(curve_ang_V_w03_06_05));
+ curve_ang_H_w03_06_05 = ( 2+0.001)/ROC_H;
+ 
+ curve_ang_V_w03_06_06 = ( 2+0.002)/ROC_V;
+ dx_v_w03_06_06 = 0;
+ dz_v_w03_06_06 = ROC_V * sin(curve_ang_V_w03_06_06);     
+ dy_v_w03_06_06 = ROC_V * (1- cos(curve_ang_V_w03_06_06));
+ curve_ang_H_w03_06_06 = ( 2+0.002)/ROC_H;
+ 
+ curve_ang_V_w03_06_07 = ( 2+0.001)/ROC_V;
+ dx_v_w03_06_07 = 0;
+ dz_v_w03_06_07 = ROC_V * sin(curve_ang_V_w03_06_07);     
+ dy_v_w03_06_07 = ROC_V * (1- cos(curve_ang_V_w03_06_07));
+ curve_ang_H_w03_06_07 = ( 2+0.001)/ROC_H;
+ 
+ curve_ang_V_w03_06_08 = ( 2+0.002)/ROC_V;
+ dx_v_w03_06_08 = 0;
+ dz_v_w03_06_08 = ROC_V * sin(curve_ang_V_w03_06_08);     
+ dy_v_w03_06_08 = ROC_V * (1- cos(curve_ang_V_w03_06_08));
+ curve_ang_H_w03_06_08 = ( 2+0.002)/ROC_H;
+ 
+ curve_ang_V_w03_06_09 = ( 2+0.001)/ROC_V;
+ dx_v_w03_06_09 = 0;
+ dz_v_w03_06_09 = ROC_V * sin(curve_ang_V_w03_06_09);     
+ dy_v_w03_06_09 = ROC_V * (1- cos(curve_ang_V_w03_06_09));
+ curve_ang_H_w03_06_09 = ( 2+0.001)/ROC_H;
+ 
+ curve_ang_V_w03_06_10 = ( 2+0.002)/ROC_V;
+ dx_v_w03_06_10 = 0;
+ dz_v_w03_06_10 = ROC_V * sin(curve_ang_V_w03_06_10);     
+ dy_v_w03_06_10 = ROC_V * (1- cos(curve_ang_V_w03_06_10));
+ curve_ang_H_w03_06_10 = ( 2+0.002)/ROC_H;
+   
+  
+ curve_ang_V_w03_06_11 = ( 2+0.001)/ROC_V;
+ dx_v_w03_06_11 = 0;
+ dz_v_w03_06_11 = ROC_V * sin(curve_ang_V_w03_06_11);     
+ dy_v_w03_06_11 = ROC_V * (1- cos(curve_ang_V_w03_06_11));
+ curve_ang_H_w03_06_11 = ( 2+0.001)/ROC_H;
+ 
+ curve_ang_V_w03_06_12 = ( 2+0.002)/ROC_V;
+ dx_v_w03_06_12 = 0;
+ dz_v_w03_06_12 = ROC_V * sin(curve_ang_V_w03_06_12);     
+ dy_v_w03_06_12 = ROC_V * (1- cos(curve_ang_V_w03_06_12));
+ curve_ang_H_w03_06_12 = ( 2+0.002)/ROC_H;
+ 
+ curve_ang_V_w03_06_13 = ( 2+0.001)/ROC_V;
+ dx_v_w03_06_13 = 0;
+ dz_v_w03_06_13 = ROC_V * sin(curve_ang_V_w03_06_13);     
+ dy_v_w03_06_13 = ROC_V * (1- cos(curve_ang_V_w03_06_13));
+ curve_ang_H_w03_06_13 = ( 2+0.001)/ROC_H;
+ 
+ curve_ang_V_w03_06_14 = ( 2+0.001)/ROC_V;
+ dx_v_w03_06_14 = 0;
+ dz_v_w03_06_14 = ROC_V * sin(curve_ang_V_w03_06_14);     
+ dy_v_w03_06_14 = ROC_V * (1- cos(curve_ang_V_w03_06_14));
+ curve_ang_H_w03_06_14 = ( 2+0.001)/ROC_H;
+ 
+ allocated = 0;
+
+ #define N_trains INSTRUMENT_GETPAR(N_trains_par)
+
+ MPI_MASTER(
+   struct timespec ts;
+
+   if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+      perror("clock_gettime");
+      exit(EXIT_FAILURE);
+   }
+
+   double wall_time = ts.tv_sec + ts.tv_nsec * 1e-9;
+
+   FILE *f = fopen("time_spent.txt", "w");
+   if (!f) {
+       perror("fopen");
+       exit(EXIT_FAILURE);
+   }
+
+   fprintf(f, "%.9f\n", wall_time);
+   fclose(f);
+ );   
+
+%}
+
+
+TRACE
+ 
+ /*------------------*/
+ /*  SOURCE          */
+ /*------------------*/
+	
+	COMPONENT Origin = Arm()
+	AT (0, 0, 0) ABSOLUTE
+	EXTEND %{
+	
+		if (allocated == 0) {
+		  t_offset = malloc(INSTRUMENT_GETPAR(N_trains_par)*sizeof(double));
+		  p_trains = malloc(INSTRUMENT_GETPAR(N_trains_par)*sizeof(double));	
+		  adaptive_N=INSTRUMENT_GETPAR(N_trains_par);
+		  total_arrived=0;
+		  total_N_sent=0;
+		  total_rays_sent=0;
+		  allocated = 1;
+	    }
+	%}
+
+
+ COMPONENT ESS_Source = ESS_butterfly(sector="W",beamline=3,Lmin=2,Lmax=20,dist=1.9,cold_frac=1.0, yheight=0.03,focus_xw=0.1, focus_yh=0.1,acc_power=AC_Power, target_tsplit=target_tsplit)
+ AT (0, 0, 0.0) RELATIVE ABSOLUTE
+ 
+ COMPONENT Instrument_Direction = Arm()
+   AT (move_x,move_y,1.90424) RELATIVE ESS_Source
+   ROTATED (phi_x,phi_y,phi_z) RELATIVE ESS_Source
+ 
+ /* COMPONENT Div_Mon_Source= Divergence_monitor(nh=20, nv=20, filename="Div_Mon_Source.pos",xwidth=0.04,yheight=0.02,maxdiv_h=2, maxdiv_v=2,restore_neutron=1)
+   AT (0,0,0) RELATIVE Instrument_Direction
+   ROTATED (0,0,0) RELATIVE Instrument_Direction*/
+ 
+ 
+ COMPONENT Mon_LambdaX_In = Monitor_nD(
+   options="x , lambda limits=[1 25]", bins=100,
+   xwidth=1.1*0.07, yheight=1.1*0.055, restore_neutron=1)
+   AT      ( 0 , 0 , 0 ) RELATIVE PREVIOUS
+  
+ COMPONENT Mon_LambdaY_In = Monitor_nD(
+   options="y , lambda limits=[1 25]", bins=100,
+   xwidth=1.1*0.07, yheight=1.1*0.055, restore_neutron=1)
+   AT      ( 0 , 0 , 0 ) RELATIVE PREVIOUS
+
+ COMPONENT Mon_LambdaDX_In = COPY(PREVIOUS)
+   (options="dx limits=[-6 6], lambda limits=[1 25]")
+   AT      ( 0 , 0 , 0 ) RELATIVE PREVIOUS
+
+ COMPONENT Mon_LambdaDY_In = COPY(PREVIOUS)
+   (options="dy limits=[-6 6], lambda limits=[1 25]")
+   AT      ( 0 , 0 , 0 ) RELATIVE PREVIOUS
+ 
+ COMPONENT Al_Window1=Al_window(thickness=0.0015)
+ AT (move_x,move_y,1.9025) RELATIVE ESS_Source
+ ROTATED (phi_x,phi_y,phi_z) RELATIVE ESS_Source
+ 
+
+
+COMPONENT Guide_benderw03_01_011 = Guide_gravity(R0 = R0_par,alpha = alpha_par, W = W_par, w1 = 0.045, h1 = 0.043, w2 =0.053, h2 = 0.047,l=0.4995,  mtop=4,mbottom=3.5,mleft =3,mright=3.5)
+AT (0,0,0) RELATIVE  Instrument_Direction
+COMPONENT Arm1a = Arm() 
+  AT ( 0 , 0, 0.4995+1e-06) RELATIVE PREVIOUS
+  ROTATED (-0.009,-0.004,0) RELATIVE Instrument_Direction
+ COMPONENT Guide_benderw03_01_012 = Guide_gravity(R0 = R0_par,alpha = alpha_par, W = W_par, w1 = 0.053, h1 = 0.047, w2 =0.0617, h2 = 0.051,l=0.4995,  mtop=4,mbottom=3.5,mleft =3,mright=3.5)
+AT (0, 0, 1e-06) RELATIVE Arm1a
+
+COMPONENT Arm1b = Arm() 
+AT ( dx_v_w03_01_012 , -dy_v_w03_01_012 , dz_v_w03_01_012+1e-06) RELATIVE Guide_benderw03_01_012
+ROTATED (curve_ang_V_w03_01_012*RAD2DEG,curve_ang_H_w03_01_012*RAD2DEG , 0) RELATIVE PREVIOUS
+
+COMPONENT Guide_benderw03_01_02 = Guide_gravity(R0 = R0_par,alpha = alpha_par, W = W_par, w1 = 0.0617, h1 = 0.051, w2 =0.07, h2 = 0.055,l=0.999, mtop=4,mbottom=3.5,mleft =3,mright=3.5)
+AT (0, 0, 1e-06) RELATIVE PREVIOUS
+COMPONENT Armc = Arm() 
+AT ( dx_v_w03_01_02 , -dy_v_w03_01_02 , dz_v_w03_01_02+1e-06) RELATIVE Guide_benderw03_01_02
+ROTATED (curve_ang_V_w03_01_02*RAD2DEG,curve_ang_H_w03_01_02*RAD2DEG , 0) RELATIVE PREVIOUS
+
+/*COMPONENT Al_Window2=Al_window(thickness=0.002)
+ AT (0, 0, 1e-06) RELATIVE PREVIOUS*/
+COMPONENT Guide_benderw03_01_03 = Vertical_Bender ( 
+    radius = -ROC_V,  xwidth=0.07, yheight=0.055, length=1.480,
+    nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+    rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+    rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+    rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+AT      ( 0 , 0 , 1e-06 ) RELATIVE PREVIOUS
+ 
+
+  
+  COMPONENT Arm2_GapBeforeBBG = Arm() 
+    AT ( dx_v_w03_01_03 , -dy_v_w03_01_03 , dz_v_w03_01_03+1e-06) RELATIVE Guide_benderw03_01_03
+    ROTATED (curve_ang_V_w03_01_03*RAD2DEG,curve_ang_H_w03_01_03*RAD2DEG , 0) RELATIVE PREVIOUS
+	
+    COMPONENT GuideBBG_benderw03_02_01 = Vertical_Bender ( 
+        radius = -ROC_V, xwidth=0.07, yheight=0.055, length=0.516,
+        nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+        rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+        rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+        rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+   AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+  
+  COMPONENT Arm3_GapAfterBBG = Arm() 
+      AT ( dx_v_w03_02_01 , -dy_v_w03_02_01 , dz_v_w03_02_01) RELATIVE GuideBBG_benderw03_02_01
+      ROTATED (curve_ang_V_w03_02_01*RAD2DEG,curve_ang_H_w03_02_01*RAD2DEG , 0) RELATIVE PREVIOUS
+  
+    COMPONENT Guide_benderw03_03_01 = Vertical_Bender ( 
+        radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.9462,
+        nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+        rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+        rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+        rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+      AT      ( 0.0 , 0.0 , 1e-6 ) RELATIVE PREVIOUS
+	
+     	COMPONENT Arm4 = Arm() 
+     	    AT ( dx_v_w03_03_01 , -dy_v_w03_03_01 , dz_v_w03_03_01) RELATIVE Guide_benderw03_03_01
+     	    ROTATED (curve_ang_V_w03_03_01*RAD2DEG,curve_ang_H_w03_03_01*RAD2DEG , 0) RELATIVE PREVIOUS
+  
+     	  COMPONENT Guide_benderw03_03_02 = Vertical_Bender ( 
+     	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.9462,
+     	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+     	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm5 = Arm() 
+         AT ( dx_v_w03_03_02 , -dy_v_w03_03_02 , dz_v_w03_03_02) RELATIVE Guide_benderw03_03_02
+         ROTATED (curve_ang_V_w03_03_02*RAD2DEG,curve_ang_H_w03_03_02*RAD2DEG , 0) RELATIVE PREVIOUS
+ 
+ 
+        COMPONENT Guide_benderw03_04_01 = Vertical_Bender ( 
+            radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.9462,
+            nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+            rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+            rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+            rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+          AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+	
+      	COMPONENT Arm6 = Arm() 
+      	    AT ( dx_v_w03_04_01 , -dy_v_w03_04_01 , dz_v_w03_04_01) RELATIVE Guide_benderw03_04_01
+      	    ROTATED (curve_ang_V_w03_04_01*RAD2DEG,curve_ang_H_w03_04_01*RAD2DEG , 0) RELATIVE PREVIOUS
+  
+      	  COMPONENT Guide_benderw03_04_02 = Vertical_Bender ( 
+      	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.9462,
+      	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+      	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+      	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+      	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+      	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm7 = Arm() 
+          AT ( dx_v_w03_04_02 , -dy_v_w03_04_02 , dz_v_w03_04_02) RELATIVE Guide_benderw03_04_02
+          ROTATED (curve_ang_V_w03_04_02*RAD2DEG,curve_ang_H_w03_04_02*RAD2DEG , 0) RELATIVE PREVIOUS
+	 
+     COMPONENT Guide_benderw03_05_01 = Vertical_Bender ( 
+     	 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.2,
+     	 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     	 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     	 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     	 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     /**************************************	 BW 1 *******/
+     /**************************************	 BW 1 *******/
+  
+     COMPONENT BW_1 = DiskChopper(
+         theta_0 =theta_BW1, radius = 0.35, yheight = h1_in, nu=Freq_BW1, nslit = 1,
+         delay = BW1_Delay, verbose = 1)
+         AT ( dx_v_w03_05_01_a , -dy_v_w03_05_01_a , dz_v_w03_05_01_a) RELATIVE Guide_benderw03_05_01
+         ROTATED (curve_ang_V_w03_05_01_a*RAD2DEG,curve_ang_H_w03_05_01_a*RAD2DEG , 0) RELATIVE Guide_benderw03_05_01
+ 
+     COMPONENT Lambda_BW1 = L_monitor(
+         nL = 1000, filename = "Lambda_BW1", Lmin=0.5, Lmax=100,
+         restore_neutron = 1)
+       AT (0, 0, 0.001) RELATIVE PREVIOUS
+     /**************************************	 BW 1 *******/
+     /**************************************	 BW 1 *******/
+
+       COMPONENT Arm8 = Arm() 
+     	     AT ( dx_v_w03_05_01 , -dy_v_w03_05_01 , dz_v_w03_05_01) RELATIVE Guide_benderw03_05_01
+     	     ROTATED (curve_ang_V_w03_05_01*RAD2DEG,curve_ang_H_w03_05_01*RAD2DEG , 0) RELATIVE Guide_benderw03_05_01
+		 
+     COMPONENT Guide_benderw03_05_02 = Vertical_Bender ( 
+     		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=0.8,
+     		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+     		 	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm9 = Arm() 
+     		     AT ( dx_v_w03_05_02 , -dy_v_w03_05_02 , dz_v_w03_05_02) RELATIVE Guide_benderw03_05_02
+     		     ROTATED (curve_ang_V_w03_05_02*RAD2DEG,curve_ang_H_w03_05_02*RAD2DEG , 0) RELATIVE PREVIOUS
+ 
+ 
+     COMPONENT Guide_benderw03_05_03 = Vertical_Bender ( 
+     		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.9435,
+     		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+     		 	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm10 = Arm() 
+     		     AT ( dx_v_w03_05_03 , -dy_v_w03_05_03 , dz_v_w03_05_03) RELATIVE Guide_benderw03_05_03
+     		     ROTATED (curve_ang_V_w03_05_03*RAD2DEG,curve_ang_H_w03_05_03*RAD2DEG , 0) RELATIVE PREVIOUS
+ 
+      COMPONENT Guide_benderw03_05_04 = Vertical_Bender ( 
+      		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.9435,
+      		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+      		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+      		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+      		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+      		 	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+      COMPONENT Arm11 = Arm() 
+      		     AT ( dx_v_w03_05_04 , -dy_v_w03_05_04 , dz_v_w03_05_04) RELATIVE Guide_benderw03_05_04
+      		     ROTATED (curve_ang_V_w03_05_04*RAD2DEG,curve_ang_H_w03_05_04*RAD2DEG , 0) RELATIVE PREVIOUS
+ 
+      COMPONENT Guide_benderw03_05_05 = Vertical_Bender ( 
+      		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=0.8,
+      		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+      		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+      		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+      		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+      		 	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     /**************************************	 BW 2 *******/
+     /**************************************	 BW 2 *******/
+  
+              COMPONENT BW_2 = DiskChopper(
+                  theta_0 =theta_BW2, radius = 0.35, yheight = h1_in, nu=Freq_BW2, nslit = 1,
+                  delay = BW2_Delay, verbose = 1)
+                  AT ( dx_v_w03_05_05_a , -dy_v_w03_05_05_a , dz_v_w03_05_05_a) RELATIVE Guide_benderw03_05_05
+                  ROTATED (curve_ang_V_w03_05_05_a*RAD2DEG,curve_ang_H_w03_05_05_a*RAD2DEG , 0) RELATIVE Guide_benderw03_05_05
+ 
+              COMPONENT Lambda_BW2 = L_monitor(
+                  nL = 1000, filename = "Lambda_BW2", Lmin=0.5, Lmax=100,
+                  restore_neutron = 1)
+                AT (0, 0, 0.001) RELATIVE PREVIOUS
+     /**************************************	 BW 2 *******/
+     /**************************************	 BW 2 *******/
+
+      COMPONENT Arm12 = Arm() 
+      		     AT ( dx_v_w03_05_05 , -dy_v_w03_05_05 , dz_v_w03_05_05) RELATIVE Guide_benderw03_05_05
+      		     ROTATED (curve_ang_V_w03_05_05*RAD2DEG,curve_ang_H_w03_05_05*RAD2DEG , 0) RELATIVE PREVIOUS
+ 
+      COMPONENT Guide_benderw03_05_06 = Vertical_Bender ( 
+      		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=0.8,
+      		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+      		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+      		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+      		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+      		 	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+      COMPONENT Arm13 = Arm() 
+      		     AT ( dx_v_w03_05_06 , -dy_v_w03_05_06 , dz_v_w03_05_06) RELATIVE Guide_benderw03_05_06
+      		     ROTATED (curve_ang_V_w03_05_06*RAD2DEG,curve_ang_H_w03_05_06*RAD2DEG , 0) RELATIVE PREVIOUS
+ 
+      COMPONENT Guide_benderw03_05_07 = Vertical_Bender ( 
+      		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.453,
+      		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+      		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+      		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+      		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+      		 	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+      COMPONENT Arm14 = Arm() 
+      		     AT ( dx_v_w03_05_07 , -dy_v_w03_05_07 , dz_v_w03_05_07) RELATIVE Guide_benderw03_05_07
+      		     ROTATED (curve_ang_V_w03_05_07*RAD2DEG,curve_ang_H_w03_05_07*RAD2DEG , 0) RELATIVE PREVIOUS
+  
+ 
+      COMPONENT Guide_benderw03_05_08 = Vertical_Bender ( 
+      		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.453,
+      		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+      		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+      		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+      		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+      		 	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+      COMPONENT Arm15 = Arm() 
+      		     AT ( dx_v_w03_05_08 , -dy_v_w03_05_08 , dz_v_w03_05_08) RELATIVE Guide_benderw03_05_08
+      		     ROTATED (curve_ang_V_w03_05_08*RAD2DEG,curve_ang_H_w03_05_08*RAD2DEG , 0) RELATIVE PREVIOUS
+ 
+ 
+      COMPONENT Guide_benderw03_05_09 = Vertical_Bender ( 
+      		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.040,
+      		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+      		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+      		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+      		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+      		 	    AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+      COMPONENT Arm16 = Arm() 
+      		     AT ( dx_v_w03_05_09 , -dy_v_w03_05_09 , dz_v_w03_05_09) RELATIVE Guide_benderw03_05_09
+      		     ROTATED (curve_ang_V_w03_05_09*RAD2DEG,curve_ang_H_w03_05_09*RAD2DEG , 0) RELATIVE PREVIOUS
+  
+  
+      COMPONENT Guide_benderw03_05_10 = Vertical_Bender ( 
+      		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.65,
+      		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+      		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+      		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+      		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+      COMPONENT Arm17 = Arm() 
+      		     AT ( dx_v_w03_05_10 , -dy_v_w03_05_10 , dz_v_w03_05_10) RELATIVE Guide_benderw03_05_10
+      		     ROTATED (curve_ang_V_w03_05_10*RAD2DEG,curve_ang_H_w03_05_10*RAD2DEG , 0) RELATIVE PREVIOUS 
+			 
+     COMPONENT Guide_benderw03_06_011 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=0.4906,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm18 = Arm() 
+     			 AT ( dx_v_w03_06_011 , -dy_v_w03_06_011 , dz_v_w03_06_011) RELATIVE Guide_benderw03_06_011
+     			 ROTATED (curve_ang_V_w03_06_011*RAD2DEG,curve_ang_H_w03_06_011*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_012 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=1.982,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm19 = Arm() 
+     			 AT ( dx_v_w03_06_012 , -dy_v_w03_06_012 , dz_v_w03_06_012) RELATIVE Guide_benderw03_06_012
+     			 ROTATED (-curve_ang_V_w03_06_12*RAD2DEG,curve_ang_H_w03_06_12*RAD2DEG , 0) RELATIVE PREVIOUS
+
+     COMPONENT Guide_benderw03_06_02 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.5, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm20 = Arm() 
+     			 AT ( dx_v_w03_06_02 , -dy_v_w03_06_02 , dz_v_w03_06_02) RELATIVE Guide_benderw03_06_02
+     			 ROTATED (-curve_ang_V_w03_06_02*RAD2DEG,curve_ang_H_w03_06_02*RAD2DEG , 0) RELATIVE PREVIOUS
+
+     COMPONENT Guide_benderw03_06_03 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 ,0.001 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm21 = Arm() 
+     			 AT ( dx_v_w03_06_03 , -dy_v_w03_06_03 , dz_v_w03_06_03) RELATIVE Guide_benderw03_06_03
+     			 ROTATED (-curve_ang_V_w03_06_02*RAD2DEG,curve_ang_H_w03_06_02*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_04 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm22 = Arm() 
+     			 AT ( dx_v_w03_06_04 , -dy_v_w03_06_04 , dz_v_w03_06_04) RELATIVE Guide_benderw03_06_04
+     			 ROTATED (-curve_ang_V_w03_06_04*RAD2DEG,curve_ang_H_w03_06_04*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_05 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm23 = Arm() 
+     			 AT ( dx_v_w03_06_05 , -dy_v_w03_06_05 , dz_v_w03_06_05) RELATIVE Guide_benderw03_06_05
+     			 ROTATED (-curve_ang_V_w03_06_05*RAD2DEG,curve_ang_H_w03_06_05*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_06 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm24 = Arm() 
+     			 AT ( dx_v_w03_06_06 , -dy_v_w03_06_06 , dz_v_w03_06_06) RELATIVE Guide_benderw03_06_06
+     			 ROTATED (-curve_ang_V_w03_06_06*RAD2DEG,curve_ang_H_w03_06_06*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_07 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm25 = Arm() 
+     			 AT ( dx_v_w03_06_07 , -dy_v_w03_06_07 , dz_v_w03_06_07) RELATIVE Guide_benderw03_06_07
+     			 ROTATED (-curve_ang_V_w03_06_07*RAD2DEG,curve_ang_H_w03_06_07*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_08 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm26 = Arm() 
+     			 AT ( dx_v_w03_06_08 , -dy_v_w03_06_08 , dz_v_w03_06_08) RELATIVE Guide_benderw03_06_08
+     			 ROTATED (-curve_ang_V_w03_06_08*RAD2DEG,curve_ang_H_w03_06_08*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_09 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm27 = Arm() 
+     			 AT ( dx_v_w03_06_09 , -dy_v_w03_06_09 , dz_v_w03_06_09) RELATIVE Guide_benderw03_06_09
+     			 ROTATED (-curve_ang_V_w03_06_09*RAD2DEG,curve_ang_H_w03_06_09*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_10 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm28 = Arm() 
+     			 AT ( dx_v_w03_06_10 , -dy_v_w03_06_10 , dz_v_w03_06_10) RELATIVE Guide_benderw03_06_10
+     			 ROTATED (-curve_ang_V_w03_06_10*RAD2DEG,curve_ang_H_w03_06_10*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_11 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm29 = Arm() 
+     			 AT ( dx_v_w03_06_11 , -dy_v_w03_06_11 , dz_v_w03_06_11) RELATIVE Guide_benderw03_06_11
+     			 ROTATED (-curve_ang_V_w03_06_11*RAD2DEG,curve_ang_H_w03_06_11*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_12 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm30 = Arm() 
+     			 AT ( dx_v_w03_06_12 , -dy_v_w03_06_12 , dz_v_w03_06_12) RELATIVE Guide_benderw03_06_12
+     			 ROTATED (-curve_ang_V_w03_06_12*RAD2DEG,curve_ang_H_w03_06_12*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     COMPONENT Guide_benderw03_06_13 = Vertical_Bender ( 
+     			 		 	      radius = -ROC_V, xwidth=0.07, yheight=0.055, length=2.0,
+     			 		 	      nchan = 1, d=0, diststep1=0.020, diststep2=0.002,
+     			 		 	      rTopPar={0.99, 0.0219, 6.07, 3.0, 0.001},
+     			 		 	      rBottomPar={0.99, 0.0219, 6.07, 3.5, 0.001},
+     			 		 	      rSidesPar={0.99, 0.0219, 6.07, 3.0, 0.001})
+     AT      ( 0 , 0 , 1e-6 ) RELATIVE PREVIOUS
+ 
+     COMPONENT Arm31 = Arm() 
+     			 AT (dx_v_w03_06_13 , -dy_v_w03_06_13 , dz_v_w03_06_13) RELATIVE Guide_benderw03_06_13
+     			 ROTATED (-curve_ang_V_w03_06_13*RAD2DEG,curve_ang_H_w03_06_13*RAD2DEG , 0) RELATIVE PREVIOUS
+
+
+     /***********************************************************************************/
+     /***********************************************************************************/
+     /***********************************************************************************/
+     /***********************************************************************************/
+
+     COMPONENT Guide_w03_06_14  = Guide_gravity(w1=0.07, w2=0.08411, h1 = 0.055, h2 = 0.06837, l=2.0,
+               R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+     AT (0,0,1e-06) RELATIVE PREVIOUS
+ 			 ROTATED (curve_ang_V_w03_06_14*RAD2DEG*0.135,curve_ang_H_w03_06_14*RAD2DEG , 0) RELATIVE PREVIOUS
+   
+      
+     COMPONENT Arm32 = Arm() 
+     			 AT (0 , 0 , 2+0.002) RELATIVE Guide_w03_06_14
+     	
+         COMPONENT Guide_w03_06_15  = Guide_gravity(w1=0.08412, w2=0.09663, h1 = 0.06838, h2 = 0.08073, l=2.4,
+                   R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+         AT (0, 0, 1e-06) RELATIVE PREVIOUS
+         COMPONENT Arm33 = Arm() 
+         						 AT (0 , 0 , 2.4+0.001) RELATIVE Guide_w03_06_15
+              
+	
+                COMPONENT Guide_w03_06_16  = Guide_gravity(w1=0.09664, w2=0.10594, h1 = 0.08073, h2 = 0.0906, l=2.4,
+                          R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm34 = Arm() 
+                						 AT (0 , 0 , 2.4+0.002) RELATIVE Guide_w03_06_16
+
+                COMPONENT Guide_w03_06_17  = Guide_gravity(w1=0.10594, w2=0.11077, h1 = 0.09061, h2 = 0.09620, l=1.6,
+                          R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm35 = Arm() 
+                						 AT (0 , 0 , 1.6+0.001) RELATIVE Guide_w03_06_17
+
+                COMPONENT Guide_w03_06_18  = Guide_gravity(w1=0.11077, w2=0.11466, h1 = 0.0962, h2 = 0.10115, l=1.6,
+                          R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm36 = Arm() 
+                						 AT (0 , 0 , 1.6+0.002) RELATIVE Guide_w03_06_18
+ 
+                COMPONENT Guide_w03_06_19  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.10116, h2 = 0.10658, l=2.0,
+                						           R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm37 = Arm() 
+                						 AT (0 , 0 , 2.0+0.001) RELATIVE Guide_w03_06_19
+ 
+ 
+                COMPONENT Guide_w03_06_20  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.10659, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm38 = Arm() 
+                						 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_20
+ 
+                COMPONENT Guide_w03_06_21  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm39 = Arm() 
+                						 AT (0 , 0 , 2.0+0.001) RELATIVE Guide_w03_06_21
+ 
+                COMPONENT Guide_w03_06_22  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm40 = Arm() 
+                						 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_22
+ 
+                COMPONENT Guide_w03_06_23  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm41 = Arm() 
+                						 AT (0 , 0 , 2.0+0.001) RELATIVE Guide_w03_06_23
+ 
+                COMPONENT Guide_w03_06_24  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm42 = Arm() 
+                						 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_24		
+ 
+                COMPONENT Guide_w03_06_25  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm43 = Arm() 
+                						 AT (0 , 0 , 2.0+0.001) RELATIVE Guide_w03_06_25	
+ 
+                COMPONENT Guide_w03_06_26  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm44 = Arm() 
+                						 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_26		
+ 
+                COMPONENT Guide_w03_06_27  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm45 = Arm() 
+                						 AT (0 , 0 , 2.0+0.001) RELATIVE Guide_w03_06_27		
+ 
+                COMPONENT Guide_w03_06_28  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                							 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                							 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm46 = Arm() 
+                							 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_28
+	 
+                COMPONENT Guide_w03_06_29  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm47 = Arm() 
+                						 AT (0 , 0 , 2.0+0.001) RELATIVE Guide_w03_06_29		
+ 
+                COMPONENT Guide_w03_06_30  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm48 = Arm() 
+                						 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_30		
+ 
+                COMPONENT Guide_w03_06_31  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm49 = Arm() 
+                						 AT (0 , 0 , 2.0+0.001) RELATIVE Guide_w03_06_31		
+ 
+                COMPONENT Guide_w03_06_32  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm50 = Arm() 
+                						 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_32								 						 						 							 					 						 						 						 				 						 						 		
+
+                COMPONENT Guide_w03_06_331  = Guide_gravity(w1=0.11466, w2=0.11466, h1 = 0.11128, h2 = 0.11128, l=1.0624,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2, mbottom=2, mleft=2, mright=2, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm51 = Arm() 
+                						 AT (0 , 0 , 1.0624+1e-06) RELATIVE Guide_w03_06_331
+ 
+                COMPONENT Guide_w03_06_332  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.11128, h2 = 0.10915, l=0.9376,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm52 = Arm() 
+                						 AT (0 , 0 , 0.9376+0.001) RELATIVE Guide_w03_06_332
+ 
+                COMPONENT Guide_w03_06_34  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.10915, h2 = 0.10412, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07,  mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm53 = Arm() 
+                						 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_34	
+ 
+                COMPONENT Guide_w03_06_35  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.10412, h2 = 0.09830, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm54 = Arm() 
+                						 AT (0 , 0 , 2.0+0.001) RELATIVE Guide_w03_06_35		
+ 
+                COMPONENT Guide_w03_06_36  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.09830, h2 = 0.09155, l=2.0,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                	COMPONENT Arm55 = Arm()											 
+                						 AT (0 , 0 , 2.0+0.002) RELATIVE Guide_w03_06_36
+ 
+                COMPONENT Guide_w03_06_37  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.09155, h2 = 0.08521, l=1.6269,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm56 = Arm() 
+                																		 AT (0 , 0 ,1.6269+0.001) RELATIVE Guide_w03_06_37
+
+ 
+                COMPONENT Guide_w03_06_38  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.08521, h2 = 0.07792, l=1.6269,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm57 = Arm() 
+                						 AT (0 , 0 ,1.6269+0.002) RELATIVE Guide_w03_06_38	
+ 
+                COMPONENT Guide_w03_06_39  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.07792, h2 = 0.07390, l=0.8,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+
+
+                /**************************************	 BW 3 *******/
+                /**************************************	 BW 3 *******/
+
+                                COMPONENT BW_3 = DiskChopper(
+                                    theta_0 =theta_BW3, radius = 0.35, yheight = 0.07390, nu=Freq_BW3, nslit = 1,
+                                    delay = BW3_Delay, verbose = 1)
+                                    AT (0 , 0 ,0.8+0.015) RELATIVE Guide_w03_06_39	
+          
+                                COMPONENT Lambda_BW3 = L_monitor(
+                                    nL = 1000, filename = "Lambda_BW3", Lmin=0.5, Lmax=100,
+                                    restore_neutron = 1)
+                                  AT (0, 0, 0.001) RELATIVE PREVIOUS
+                /**************************************	 BW 3 *******/
+                /**************************************	 BW 3 *******/
+
+
+
+                COMPONENT Arm58 = Arm() 
+                						 AT (0 , 0 ,0.8+0.03) RELATIVE Guide_w03_06_39	
+ 
+                COMPONENT Guide_w03_06_40  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.07389, h2 = 0.07389, l=0.5,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.0, mright=2.0, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm59 = Arm() 
+                						 AT (0 , 0, 0.5+0.01) RELATIVE Guide_w03_06_40							 						 
+ 							 				 			
+														
+                COMPONENT Guide_w03_07_01  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.07389, h2 = 0.07389, l=0.5001+0.1,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+ 							 				 																							
+
+                /***********************************************************************************PS CHOPPER GAP SEE EXTRA 0.1 FOR EXTRA GUIDE PIECE */  
+                       /***********************************************************************************/
+
+
+                COMPONENT PS1 = DiskChopper(
+                    theta_0 =theta_PS, radius = 0.35, yheight = 0.07389, nu=Freq_PS, nslit = 3,
+                    delay = PS1_Delay, verbose = 1)
+                    AT (0,0,0.5001+0.1+0.02) RELATIVE Guide_w03_07_01
+
+                    COMPONENT TOF_PS = TOF_monitor(
+                        nt = 1000, filename = "TOF_PS", tmin=252.78*(lambda_min-1)*Distance_PS1, tmax=252.78*(lambda_min+1)*Distance_PS1,
+                        restore_neutron = 1)
+                      AT (0, 0, 0.000000001) RELATIVE PREVIOUS
+                      
+                    COMPONENT PS2 = DiskChopper(
+                        theta_0 =theta_PS, radius = 0.35, yheight = 0.07389, nu=-Freq_PS, nslit = 3,
+                        delay = PS2_Delay, verbose = 1)
+                        AT (0,0,0.006) RELATIVE PREVIOUS
+
+
+                COMPONENT Lambda_PS = L_monitor(
+                    nL = 1000, filename = "Lambda_PS", Lmin=lambda_min-0.8, Lmax=lambda_min+0.8,
+                    restore_neutron = 1)
+                  AT (0, 0, 0.001) RELATIVE PREVIOUS
+
+
+                  COMPONENT Arm60 = Arm() 
+                  						 AT (0 , 0, 0.5001+0.1+0.1165) RELATIVE Guide_w03_07_01							 						 
+
+                /***********************************************************************************/
+                COMPONENT Guide_w03_08_01  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.07389, h2 = 0.07389, l=2.5,
+                						 			 R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.0, mright=2.0, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm61 = Arm() 
+                						 AT (0 , 0, 2.5+0.001) RELATIVE Guide_w03_08_01		
+													
+													
+                COMPONENT Guide_w03_08_02  = Guide_gravity(w1=0.11466, w2=0.11466, h1 =0.07389, h2 = 0.07389, l=2.5, R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.0, mright=2.0, W=0.003)
+                						 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm62 = Arm() 
+                						 AT (0 , 0, 2.5+0.002) RELATIVE Guide_w03_08_02		
+													
+                COMPONENT Guide_w03_08_03  = Guide_gravity(w1=0.11466, w2=0.11436, h1 =0.07389, h2 = 0.07389, l=2.0,	 R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.0, mbottom=3.0, mleft=2.0, mright=2, W=0.003)
+                AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm63 = Arm() 
+                												AT (0 , 0, 2.0+0.001) RELATIVE Guide_w03_08_03
+ 
+                COMPONENT Guide_w03_08_04  = Guide_gravity(w1=0.11436, w2=0.11407, h1 =0.07389, h2 = 0.07389, l=2.0,R0=0.99, Qc=0.0219, alpha=6.07,  mtop=3.0, mbottom=3.0, mleft=2.0, mright=2, W=0.003)
+                AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm64 = Arm() 
+                AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_04
+																																												 
+                COMPONENT Guide_w03_08_05  = Guide_gravity(w1=0.11407, w2=0.11359, h1 =0.07389, h2 = 0.07389, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07,  mtop=3.0, mbottom=3.0, mleft=2.0, mright=2, W=0.003)
+                AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm65 = Arm() 
+                 AT (0 , 0, 2.0+0.001) RELATIVE Guide_w03_08_05
+																																
+                COMPONENT Guide_w03_08_06  = Guide_gravity(w1=0.11359, w2=0.11290, h1 =0.07389, h2 = 0.07389, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07,  mtop=3.0, mbottom=3.0, mleft=2.0, mright=2, W=0.003)
+                 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                COMPONENT Arm66 = Arm() 
+                 AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_06
+
+                 COMPONENT Guide_w03_08_07  = Guide_gravity(w1=0.1129, w2=0.11202, h1 =0.07389, h2 = 0.07389, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07,  mtop=3.0, mbottom=3.0, mleft=2.0, mright=2, W=0.003)
+                 AT (0, 0, 1e-06) RELATIVE PREVIOUS																																																									   												 
+                 COMPONENT Arm67 = Arm() 
+                 AT (0 , 0, 2.0+0.001) RELATIVE Guide_w03_08_07
+
+                 COMPONENT Guide_w03_08_08  = Guide_gravity(w1=0.11202, w2=0.11092, h1 =0.07389, h2 = 0.07389, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07,  mtop=3.0, mbottom=3.0, mleft=2.0, mright=2, W=0.003)
+                 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                 COMPONENT Arm68 = Arm() 
+                  AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_08
+																																
+                 COMPONENT Guide_w03_08_09  = Guide_gravity(w1=0.11096, w2=0.10962, h1 =0.07389, h2 = 0.07389, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07,  mtop=3.0, mbottom=3.0, mleft=2.0, mright=2, W=0.003)
+                 AT (0, 0, 1e-06) RELATIVE PREVIOUS																																																							
+                 COMPONENT Arm69 = Arm() 
+                 AT (0 , 0, 2.0+0.001) RELATIVE Guide_w03_08_09																																																																						   																																																	
+
+                 	COMPONENT Guide_w03_08_10  = Guide_gravity(w1=0.10962, w2=0.10809, h1 =0.07389, h2 = 0.07382, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.5, mright=2.5, W=0.003)																																																																																																						   												
+                  AT (0, 0, 1e-06) RELATIVE PREVIOUS																																																							
+                  COMPONENT Arm70 = Arm() 
+                 	AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_10																				   
+																																										
+                 COMPONENT Guide_w03_08_11  = Guide_gravity(w1=0.10809, w2=0.10633, h1 =0.07382, h2 = 0.07360, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07,  mtop=3.0, mbottom=3.0, mleft=2.0, mright=2, W=0.003)
+                 AT (0, 0, 1e-06) RELATIVE PREVIOUS
+                 COMPONENT Arm71 = Arm() 
+                 AT (0 , 0, 2.0+0.001) RELATIVE Guide_w03_08_11																																																																																																				
+																																																																																																																																																																																																																																																																
+                 COMPONENT Guide_w03_08_12  = Guide_gravity(w1=0.10633, w2=0.10434, h1 =0.0736, h2 = 0.07323, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07,  mtop=3.5, mbottom=3.5, mleft=2.0, mright=2, W=0.003)
+                 		AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm72 =  Arm()	
+                  	AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_12																																																																																																																																																																																				 																																		
+
+                 COMPONENT Guide_w03_08_13  = Guide_gravity(w1=0.10433, w2=0.10208, h1 =0.07323, h2 = 0.07271, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=2.0, mright=2.0, W=0.003)
+                   AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                  COMPONENT Arm73 =  Arm()	
+                   AT (0 , 0, 2.0+0.001) RELATIVE Guide_w03_08_13																																																																																																																																																																																				 	
+
+                 COMPONENT Guide_w03_08_14  = Guide_gravity(w1=0.10208, w2=0.09956, h1 =0.07271, h2 = 0.07204, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.0, mright=2.0, W=0.003)
+                     		AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT  Arm74 = Arm()	
+                      	AT (0 , 0, 2.0+0.002) RELATIVE 			Guide_w03_08_14																																																																																																																																																																																				 	
+
+                 COMPONENT Guide_w03_08_15  = Guide_gravity(w1=0.09955, w2=0.09673, h1 =0.07204, h2 = 0.07121, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=2.5, mbottom=2.5, mleft=2.0, mright=2.0, W=0.003)
+                       		AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm75 =  Arm()	
+                        	AT (0 , 0, 2.0+0.001) RELATIVE 		Guide_w03_08_15																																																																																																																																																																																				 	
+  
+                 COMPONENT Guide_w03_08_16  = Guide_gravity(w1=0.09673, w2=0.09359, h1 =0.07121, h2 = 0.07022, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=2.5, mright=2.5, W=0.003)
+                              		AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm76 = Arm()	
+                               	AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_16					                                                                                                                                                               
+
+                 COMPONENT Guide_w03_08_17 = Guide_gravity(w1=0.09359, w2=0.09009, h1 =0.07022, h2 = 0.06906, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=2.5, mright=2.5, W=0.003)
+                              		AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm77 = Arm()	
+                               	AT (0 , 0, 2.0+0.001) RELATIVE Guide_w03_08_17		
+
+                 COMPONENT Guide_w03_08_18 = Guide_gravity(w1=0.09009, w2=0.08620, h1 =0.06906, h2 = 0.06772, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=2.5, mright=2.5, W=0.003)
+                                AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm78 = Arm()	
+                                AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_18					                                                                                                                                                              																																																																																																																																																																																																																																																																																																																																																																	
+         
+                 COMPONENT Guide_w03_08_19  = Guide_gravity(w1=0.08620, w2=0.08185, h1 =0.06772, h2 = 0.06619, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.0, mright=3.0, W=0.003)
+                                               AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm79 = Arm()	
+                                    AT (0 , 0, 2.0+0.001) RELATIVE	Guide_w03_08_19		
+
+                 COMPONENT Guide_w03_08_20  = Guide_gravity(w1=0.08185, w2=0.07697, h1 =0.06619, h2 = 0.06446, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.0, mright=3.0, W=0.003)
+                                     AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm80 = Arm()	
+                                    AT (0 , 0, 2.0+0.002) RELATIVE	Guide_w03_08_20		
+
+                 COMPONENT Guide_w03_08_21  = Guide_gravity(w1=0.07696, w2=0.07144, h1 =0.06446, h2 = 0.06250, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.0, mright=3.0, W=0.003)
+                                    AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                  COMPONENT Arm81 =Arm()	
+                                    AT (0 , 0, 2.0+0.001) RELATIVE	Guide_w03_08_21		
+
+                 COMPONENT Guide_w03_08_22  = Guide_gravity(w1=0.07144, w2=0.06512, h1 =0.06250, h2 = 0.06031, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.5, mright=3.5, W=0.003)
+                                    AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm82 = Arm()	
+                                    AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_22		
+             
+                 COMPONENT Guide_w03_08_23  = Guide_gravity(w1=0.06511, w2=0.05772, h1 =0.06031, h2 = 0.05784, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.5, mright=3.5, W=0.003)
+                                   AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm83 = Arm()	
+                                   AT (0 , 0, 2.0+0.001) RELATIVE Guide_w03_08_23		
+
+                 COMPONENT Guide_w03_08_24  = Guide_gravity(w1=0.05772, w2=0.04878, h1 =0.05784, h2 = 0.05507, l=2.0, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.5, mright=3.5, W=0.003)
+                                   AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm84 = Arm()	
+                                   AT (0 , 0, 2.0+0.002) RELATIVE Guide_w03_08_24		
+																																																																																																																																																																																																																																																																																																																	 
+                 COMPONENT Guide_w03_08_25  = Guide_gravity(w1=0.04877, w2=0.03988, h1 =0.05507, h2 = 0.05262, l=1.5894, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.5, mright=3.5, W=0.003)
+                                   AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm85 = Arm()	
+                                  AT (0 , 0, 1.5894+0.001) RELATIVE Guide_w03_08_25		
+
+                 COMPONENT Guide_w03_08_26  = Guide_gravity(w1=0.03988, w2=0.02782, h1 =0.05262, h2 = 0.04991, l=1.5894, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.5, mright=3.5, W=0.003)
+                                  AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+                 COMPONENT Arm86 =  Arm()	
+                                  AT (0 , 0, 1.5894+0.003) RELATIVE 		Guide_w03_08_26		
+
+                 COMPONENT Guide_w03_09_01  = Guide_gravity(w1=0.02779, w2=0.02258, h1 =0.04991, h2 = 0.04900, l=0.6-0.1, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.5, mright=3.5, W=0.003)
+                                                   AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+
+
+                 COMPONENT Arm87_WindowPreMChopper = Arm()	
+                                                   AT (0 , 0, 0.51+1e-6) RELATIVE 		Guide_w03_09_01	
+                    
+                
+                                                   
+                  /***********************************************************************************end of guide before M chopper*/
+                  /***********************************************************************************/                            
+
+                  /***********************************************************************************M CHOPPER GAP  NOTE REMOVAL OF 0.1 M ON LAST GUIDE PIECE*/  
+                         /***********************************************************************************/
+
+
+                  COMPONENT M1 = DiskChopper(
+                      theta_0 =theta_M, radius = 0.35, yheight = 0.04900, nu=Freq_M, nslit = 1,
+                      delay = M1_Delay, verbose = 1)
+                      AT (0,0,0.02) RELATIVE Arm87_WindowPreMChopper
+
+                      COMPONENT TOF_M = TOF_monitor(
+                          nt = 1000, filename = "TOF_M", tmin=252.78*(lambda_min-0.2)*Distance_M1, tmax=252.78*(lambda_min+0.2)*Distance_M1,
+                          restore_neutron = 1)
+                        AT (0, 0, 0.000000001) RELATIVE PREVIOUS
+                        
+                      COMPONENT M2 = DiskChopper(
+                          theta_0 =theta_M, radius = 0.35, yheight = 0.04900, nu=-Freq_M, nslit = 1,
+                          delay = M2_Delay, verbose = 1)
+                          AT (0,0,0.006) RELATIVE PREVIOUS
+
+
+                  COMPONENT Lambda_M = L_monitor(
+                      nL = 1000, filename = "Lambda_M", Lmin=lambda_min-0.8, Lmax=lambda_min+0.8,
+                      restore_neutron = 1)
+                    AT (0, 0, 0.001) RELATIVE PREVIOUS
+
+
+
+                  
+
+
+                  /***********************************************************************************start of guide after M chopper*/
+
+                 
+                COMPONENT Arm88_WindowPostMChopper = Arm()	
+                                                   AT (0,0, dist_m) RELATIVE  Arm87_WindowPreMChopper
+                             
+                 COMPONENT Arm89_Windows_Monitor = Arm()	
+                 
+                                            AT (0,0,0.0001) RELATIVE  PREVIOUS    
+                
+                                               
+                 /***********************************************************************************/
+                 /***********************************************************************************/
+                 /***********************************************************************************/
+                 /***********************************************************************************/  
+                              
+                 COMPONENT Guide_final_straight  = Guide_gravity(w1=0.02258, w2=0.02258, h1 =0.049, h2 = 0.049, l=0.30, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.5, mright=3.5, W=0.003)
+                                                   AT (0, 0, 1e-06) RELATIVE PREVIOUS							 	
+             
+                              
+                 COMPONENT Arm91_Windows_Monitor = Arm()	
+                                           
+                                                                              AT (0,0,0.3+0.03) RELATIVE  PREVIOUS  
+               
+        
+                COMPONENT Guide_Final = Guide_gravity(w1=0.02258, w2=0.0203, h1 =0.0490, h2 = 0.0450,
+                                                    l=0.914, R0=0.99, Qc=0.0219, alpha=6.07, mtop=3.5, mbottom=3.5, mleft=3.5, mright=3.5, W=0.003)
+                                                                                                               AT (0.0,0.0,1e-06) RELATIVE Arm91_Windows_Monitor   
+                                                                                                                 
+                              
+             /*  COMPONENT Guide_final1  = Elliptic_guide_gravity(l=0.914,	linxw=250,linyh=0.14+0.914,loutxw=1.0,loutyh=0.14,
+                                                                        	xwidth=0.02258,yheight=0.049, R0=0.99,Qc=0.022519,alpha=6.07,mright=4,mleft=4,mtop=5.5, mbottom=5.5  ,W=0.003)  
+                        AT (0.0, 0.0,0.00001) RELATIVE Arm91_Windows_Monitor */
+
+                                                 
+               
+               
+                COMPONENT EndOfGuide = Arm()	
+                                    AT (0,0, 0.914+0.0001) RELATIVE  PREVIOUS  
+
+                                    COMPONENT Arm_Sample = Arm()	
+                                                                            AT (0,0, 0.2) RELATIVE EndOfGuide
+                                                                  
+                                                                            /*    COMPONENT End_Guide_Slit = Slit(
+                                                                                    xwidth = Slit_Width, yheight = Slit_Height)
+                                                                                    AT (0,0,1e-06) RELATIVE Arm_Sample*/
+
+                                                                            COMPONENT PSD_Out=PSD_monitor(xmin=-0.01, xmax=0.01, ymin=-0.03, ymax=0.03,nx=110, ny=110, filename="PSD_AtSample.psd")
+                                                                              AT (0,0,1e-06) RELATIVE Arm_Sample
+                                                                              
+                                                                              COMPONENT Lambda_Sample = L_monitor(
+                                                                                  nL = 1000, filename = "Lambda_Sample", Lmin=lambda_min-1.2, Lmax=lambda_min+1.2,
+                                                                                  restore_neutron = 1)
+                                                                                AT (0, 0, 0.000000001) RELATIVE PREVIOUS
+                                                                              
+
+                                                                            COMPONENT PSD_Out_small=PSD_monitor(xmin=-0.005, xmax=0.005, ymin=-0.005, ymax=0.005,nx=110, ny=110, filename="PSD_AtSample_small.psd")
+                                                                                AT (0,0,1e-06) RELATIVE PREVIOUS
+
+                                                                                COMPONENT PSD_Out_bck=PSD_monitor(xmin=-0.01, xmax=-0.005, ymin=0.005, ymax=0.01,nx=110, ny=110, filename="PSD_AtSample_bck.psd")
+                                                                                    AT (0,0,1e-06) RELATIVE PREVIOUS
+
+                                                                           COMPONENT Div_Mon_Sample= Divergence_monitor(nh=50, nv=50, filename="Div_Mon_Sample.pos",xwidth=0.1,yheight=0.1,maxdiv_h=5, maxdiv_v=5,restore_neutron=1)
+                                                                                AT (0,0,1e-06) RELATIVE PREVIOUS
+                                                                         
+                                                                         
+                                                                            COMPONENT Hdiv_lambda_end = Monitor_nD(xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05,
+                                                                                                              filename="Hdivx_lambda_end.dat",
+                                                                                                              options= "lambda bins=19 limits=[2 20]; hdiv bins=80 limits[-4.0 4.0]")
+                                                                              AT (0,0,0.00000001) RELATIVE PREVIOUS
+
+
+                                                            COMPONENT Vdiv_lambda_end = Monitor_nD(xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05,
+                                                                                                                         filename="Vdivy_lambda_end.dat",
+                                                                                                                         options= " lambda bins=19 limits=[2 20] ; vdiv bins=80 limits[-4.0 4.0] ")
+                                                                      AT (0,0,0.00000001) RELATIVE PREVIOUS
+    
+                                                                   
+                                                              
+                                                                       
+                                                                       COMPONENT HPSD_lambda_end = Monitor_nD(xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05,
+                                                                                                                                    filename="height_lambda_end.dat",
+                                                                                                                                    options= " lambda bins=19 limits=[2 20] ; y bins=80 limits[-4.0 4.0] ")
+                                                                                 AT (0,0,0.00000001) RELATIVE PREVIOUS
+    
+                                                                         COMPONENT WPSD_lambda_end = Monitor_nD(xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05,
+                                                                                                                                              filename="width_lambda_end.dat",
+                                                                                                                                              options= " lambda bins=19 limits=[2 20] ; x bins=80 limits[-4.0 4.0] ")
+                                                                                           AT (0,0,0.00000001) RELATIVE PREVIOUS
+                                                                       
+                                                            
+                                                                       
+                                                                       COMPONENT Lambda_Sample_Single = L_monitor(
+                                                                           nL = 1000, filename = "Lambda_Sample_Single", Lmin=lambda_min-0.1, Lmax=lambda_min+0.1,
+                                                                           restore_neutron = 1)
+                                                                         AT (0, 0, 0.00000001) RELATIVE PREVIOUS
+
+                                                                         COMPONENT TOF_Sample = TOF_monitor(
+                                                                             nt = 1000, filename = "TOF_Sample", tmin=252.78*(lambda_min)*(160.0514)-0.5*1e6/Freq_M, tmax=252.78*(lambda_min)*(160.0514)+0.5*1e6/Freq_M,
+                                                                             restore_neutron = 1)
+                                                                           AT (0, 0, 0.00000001) RELATIVE PREVIOUS
+																				 
+																				 COMPONENT tof = Monitor_nD(
+																				   filename="time.dat", xwidth=0.3, yheight=0.3,
+																				   options="t bins 500 limits [0, 0.4]",
+																				   tsplit=1, adaptive_target=1)
+																				 AT (0, 0, 0.00000001) RELATIVE PREVIOUS
+                                                                           
+                                                                           COMPONENT TOF_Sample_AllLambda = TOF_monitor(
+                                                                               nt = 5000, filename = "TOF_Sample_AllLambda", tmin=252.78*(lambda_min-1.5)*(160.0514), tmax=252.78*(lambda_min+1.5)*(160.0514),
+                                                                               restore_neutron = 1)
+                                                                             AT (0, 0, 0.00000001) RELATIVE PREVIOUS
+																				   
+		                                                                           COMPONENT TOF_Sample_AllLambda_zoom = TOF_monitor(
+		                                                                               nt = 200, filename = "TOF_Sample_AllLambda_zoom", tmin=110600, tmax=111000,
+		                                                                               restore_neutron = 1)
+		                                                                             AT (0, 0, 0.00000001) RELATIVE PREVIOUS
+                                                                           
+                                                                           
+                                                                          COMPONENT Sample= Incoherent(radius=0.02,focus_r=0.02, pack=1, target_index=1)
+                                                                              AT (0, 0, 0.00000001) RELATIVE PREVIOUS
+                                                                    
+                                                                                 
+                                                                              COMPONENT TOF_Detector = TOF_monitor(
+                                                                                     nt = 1000, filename = "TOF_Detector", tmin=252.78*(lambda_min)*(163.5)-0.5*1e6/Freq_M, tmax=252.78*(lambda_min)*(163.5)+0.5*1e6/Freq_M,
+                                                                                     restore_neutron = 1)
+                                                                                   AT (0, 0, 3.5) RELATIVE PREVIOUS
+																						 
+
+
+                                                                              COMPONENT det_NDmonitor = Monitor_nD(xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1,
+                                                                                                              filename="det_NDmonitor.dat",
+                                                                                                              options= "x bins=100 ybins=100")
+                                                                              AT (0,0,0.00000001) RELATIVE PREVIOUS
+                   
+            
+                      
+																												  SAVE
+																												  %{
+	
+																												    MPI_MASTER(
+																												      struct timespec ts;
+
+																												      if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+																												        perror("clock_gettime");
+																												        exit(EXIT_FAILURE);
+																												      }
+
+																												      double wall_time = ts.tv_sec + ts.tv_nsec * 1e-9;
+
+																												      FILE *f = fopen("time_spent.txt", "a");
+																												      if (!f) {
+																												        perror("fopen");
+																												        exit(EXIT_FAILURE);
+																												      }
+
+																												      fprintf(f, "%.9f\n", wall_time);
+																												      fclose(f);
+																												    );			   
+																												  %}
+ 
+ 
+																												  FINALLY 
+																												  %{
+																												  if (allocated == 1) {
+																												  	  free(_particle->t_offset);
+																												  	  free(_particle->p_trains);
+																												  }
+																												  %}
+
+  
+END		                                                                                                                                                                                                                                                                                                                                                                                             
