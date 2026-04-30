@@ -1043,19 +1043,22 @@ class McInsertComponentDialog(QtWidgets.QDialog):
             
             # handle focus off
             elif event.type() == QtCore.QEvent.Type.FocusOut:
-                if edt.text() == '':
+                if edt.text() == '': # Empty
                     font = QtGui.QFont()
                     font.setItalic(True)
                     edt.setFont(font)
                     edt.setStyleSheet("color: grey;")
                     edt.setText(edt.defval)
-                elif edt.text() == edt.defval:
+                elif edt.text() == edt.defval: # Default value
                     edt.setText(edt.defval)
                     font = QtGui.QFont()
                     font.setItalic(True)
                     edt.setFont(font)
                     edt.setStyleSheet("color: grey;")
-
+                else: # Something else
+                    font = QtGui.QFont()
+                    edt.setFont(font)
+                    edt.setStyleSheet("color: black;")
             return False
 
         # init

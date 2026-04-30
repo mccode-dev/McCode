@@ -1046,7 +1046,11 @@ MCDETECTOR detector_import(
   switch (detector.rank) {
     case 0:  strcpy(detector.type,  "array_0d"); m=n=p=1; break;
     case 1:  snprintf(detector.type, CHAR_BUF_LENGTH, "array_1d(%ld)", m*n*p); m *= n*p; n=p=1; break;
-    case 2:  snprintf(detector.type, CHAR_BUF_LENGTH, "array_2d(%ld, %ld)", m, n*p); n *= p; p=1; break;
+    case 2:  if(!strcasestr(detector.format,"list")) {
+               snprintf(detector.type, CHAR_BUF_LENGTH, "array_2d(%ld, %ld)", m, n*p); n *= p; p=1;
+             } else {
+               snprintf(detector.type, CHAR_BUF_LENGTH, "list(%ld, %ld)", m, n*p); n *= p; p=1;
+             } break;
     case 3:  snprintf(detector.type, CHAR_BUF_LENGTH, "array_3d(%ld, %ld, %ld)", m, n, p); break;
     default: m=0; strcpy(detector.type, ""); strcpy(detector.filename, "");/* invalid */
   }
