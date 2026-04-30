@@ -263,7 +263,7 @@ class Ui_MainWindow(object):
         self.actionConfiguration.setToolTip(_translate("MainWindow", "mccode configuration"))
         self.actionCompile_Instrument_MPI.setText(_translate("MainWindow", "Compile Instrument (MPI)"))
         self.actionMcdoc.setText(_translate("MainWindow", "mcdoc Component Reference"))
-        self.actionDisplay.setText(_translate("MainWindow", "Display-3D"))
+        self.actionDisplay.setText(_translate("MainWindow", "Display-3D (classic)"))
         self.actionDisplay_2d.setText(_translate("MainWindow", "Display-2D"))
         self.actionPlotOther.setText(_translate("MainWindow", "Plot Other Results"))
         self.actionPlotOther.setShortcut(_translate("MainWindow", "Ctrl+Shift+P"))

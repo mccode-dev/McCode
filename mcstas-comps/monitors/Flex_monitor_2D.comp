@@ -15,7 +15,7 @@
 * Flexible monitor.
 *
 * %D
-* A square 2D single monitor that measures intensity (or something else) as a function of two selectable variables or parameters.
+* Non-propagating 2D monitor that measures intensity (or something else) as a function of two selectable variables or parameters.
 *
 * Example: Flex_monitor_2D(nU1=20, nU2=20, filename="Output", ustring1="x", ustring2="y", Umin1=-.1, Umax1=.1, Umin2=-.1, Umax2=.1)
 *
@@ -29,11 +29,10 @@
 * Umax2: []             Maximum U1 to detect
 * nU2: [1]              Number of U1 channels
 * filename: [string]    Name of file in which to store the detector image
-* restore_neutron: [1]  If set, the monitor does not influence the neutron state
 * uid1: [1]             Integer index of uservar to be monitored. Overrides ustring1.
 * uid2: [1]             Integer index of uservar to be monitored. Overrides ustring2.
-* ustring1: [string]    Name of variable U1 (user or neutron state parameter as a string) to be monitored.
-* ustring2: [string]    Name of variable U2 (user or neutron state parameter as a string) to be monitored.
+* ustring1: [string]    Name of variable U1 (user or particle state parameter as a string) to be monitored.
+* ustring2: [string]    Name of variable U2 (user or particle state parameter as a string) to be monitored.
 * signal: [string]      Name of variable to be used as an additive signal to be monitored. Default is intensity.
 * nowritefile: [1]      Flag to indicate if monitor should not save any data.
 *
@@ -43,13 +42,8 @@
 *******************************************************************************/
 DEFINE COMPONENT Flex_monitor_2D
 
-
-
 SETTING PARAMETERS (int nU1=20, int nU2=20, string filename=0,
-		    Umin1, Umax1, uid1=-1, string ustring1="", Umin2, Umax2, uid2=-1, string ustring2="", int restore_neutron=0, string signal="p", int nowritefile=0)
-
-
-/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+		    Umin1, Umax1, uid1=-1, string ustring1="", Umin2, Umax2, uid2=-1, string ustring2="", string signal="p", int nowritefile=0)
 
 DECLARE
 %{
@@ -116,10 +110,6 @@ TRACE
       U_p2[i][j] = U_p2[i][j] + p2;
       SCATTER;
     }
-  }
-
-  if (restore_neutron) {
-    RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}
 

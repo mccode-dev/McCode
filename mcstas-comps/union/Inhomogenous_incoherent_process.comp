@@ -1,0 +1,379 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Daniel Lomholt Christensen
+* Date: 26/01/2026
+* Version: $Revision: 0.1 $
+* Origin: University of Copenhagen
+*
+* A sample component to separate geometry and phsysics
+*
+* %D
+*
+* This Union_process is based on the Incoherent_process.comp component 
+* originally written by Mads Bertelsen inspired by Kim Lefmann and 
+*  Kristian Nielsen
+*
+* Part of the Union components, a set of components that work together and thus
+*  sperates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before the master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union components
+*
+* Algorithm:
+* The general algorithm for the Union system is described elsewhere.
+*
+* I here give a brief introduction as to what changes occur when using an 
+* inhomogenous process in your Union make material. It is expected that you
+* understand the basic algorithm of the Union system before reading this.
+*
+* In Union, the neutron moves through a network of objects in a 3 dimensional world.
+* When the neutron hits a material, the probability to scatter is calculated,
+* and a Monte Carlo choice is taken, as to whether that neutron should scatter,
+* or pass through. For a homogenous material (i.e constant attenuation coefficient <span class="latex">$\mu$</span>),
+* this probability is the Beer-Lambert law,
+*
+* <div class="latex">
+* $P_s = 1 - e^{-\mu l}$
+* </div>
+*
+* Where <span class="latex">$P_s$</span> is the scattering probability, 
+* and <span class="latex">$l$</span> is length of the neutron path throughout the object.
+*
+*
+* For an inhomogenous material, this Beer-Lambert law must be modified, as <span class="latex">$\mu$</span> is a function of the position.
+* Therefore the Beer-Lambert law becomes,
+*
+* <div class="latex">
+* $P_s = \int^l_0 1 -  e^{-\mu(l')l'}dl'$
+* </div>
+*
+* Calculating this <span class="latex">$\mu$</span> in the inhomogenous case is often trivial, but not feasible,
+* from a software development point of view (seeing as many different functions of <span class="latex">$\mu$</span> might be wanted).
+* Instead the inhomogenous processes performs an approximate integral, by 
+* evaluating <span class="latex">$\mu$</span> at a number of points along the neutron path (This number is in fact number_of_sample_points).
+* 
+* For this incoherent process, the linear attenuation coefficient is,
+*
+* <div class="latex">
+* $\mu = pack/V_u * 100 * \sigma$
+* </div>
+*
+* Where <span class="latex">$pack$</span> is the packing factor of the material (defaults to 1), <span class="latex">$V_u$</span> is the
+* Unit cell volume, and <span class="latex">$\sigma$</span> is the scattering cross section in barns.
+* <span class="latex">$\mu$</span> therefore has units of <span class="latex">$m^{-1}$</span>.
+*
+* For this component each factor in the attenuation coefficient can be a "tiny expression".
+* This means that it can be a mathematical equation such as <span class="latex">$\sigma_{expr} = "5.08 + 1000 * z * 2.35"$</span>.
+* When the attenuation coefficient is calculated, then the current value of <span class="latex">$z$</span> is used to get <span class="latex">$\sigma$</span>.
+* 
+* The parameters that the tiny expression can rely upon are currently:
+* The positions, <span class="latex">$x, y, z$</span>
+* The velocities <span class="latex">$vx, vy, vz$</span>
+* and the time <span class="latex">$t$</span>
+* 
+* For more information on tiny expressions, see the link below.
+*
+*
+*
+* %P
+* INPUT PARAMETERS:
+* sigma:                  [barns]   Incoherent scattering cross section
+* sigma_expr:             [string]  Tiny expression to be calculated as replacement for sigma
+* packing_factor:         [1]       How dense is the material compared to optimal 0-1
+* packing_factor_expr:    [string]  Tiny expression to be calculated as replacement for packing factor
+* unit_cell_volume:       [AA^3]    Unit cell volume
+* unit_cell_volume_expr:  [string]  Tiny expression to be calculated as replacement for the unit cell volume
+* gamma:                  [meV]     Lorentzian width of quasielastic broadening (HWHM) [1]
+* gamma_expr:             [meV]     Tiny expression to be calculated as replacement for the gamma value.
+* f_QE:                   [1]       Fraction of quasielastic scattering (rest is elastic) [1]
+* number_of_sample_points [1]       Number of points that are sampled along the neutron path through a material
+* interact_fraction:      [1]       How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* verbose                 [1]       Flag that prints out the values calculated in the cross section calculation
+* init:                   [string]  name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+*
+* %L
+* For information on how to write a tiny expression, see <a href="https://github.com/codeplea/tinyexpr">their github repository</a>
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Inhomogenous_incoherent_process
+
+SETTING PARAMETERS( sigma=0, string sigma_expr = "",
+                    packing_factor=1, string packing_factor_expr = "",
+                    unit_cell_volume=0, string unit_cell_volume_expr = "",
+                    gamma=0, string gamma_expr = "",
+                    f_QE=0,
+                    number_of_sample_points = 20, 
+                    interact_fraction=-1, 
+                    int verbose = 0,
+                    string init="init")
+
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+SHARE
+%{
+  %include "tinyexpr.h"
+  %include "tinyexpr.c"
+  #ifndef Union
+  #error "The Union_init component must be included before this Incoherent_process component"
+  #endif
+
+  struct Inhomogenous_incoherent_struct {
+    // Variables that needs to be transfered between any of the following places:
+    // The initialize in this component
+    // The function for calculating my
+    // The function for calculating scattering
+    double QE_sampling_frequency;
+    double lorentzian_width;
+    te_expr* lorentzian_width_expr;
+    double sig;
+    te_expr* sig_expr;
+    double unit_cell_vol;
+    te_expr* unit_cell_vol_expr;
+    double pack_fact;
+    te_expr* pack_fact_expr;
+    double* particle[7];
+    int verbosity;
+  };
+
+  // Function for calculating my in Incoherent case
+  int
+  Inhomogenous_incoherent_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
+                                      _class_particle* _particle) {
+    double sigma;
+    double unit_cell_volume;
+    double packing_factor;
+    *data_transfer.Inhomogenous_incoherent_struct->particle[0] = _particle->x;
+    *data_transfer.Inhomogenous_incoherent_struct->particle[1] = _particle->y;
+    *data_transfer.Inhomogenous_incoherent_struct->particle[2] = _particle->z;
+    *data_transfer.Inhomogenous_incoherent_struct->particle[3] = _particle->vx;
+    *data_transfer.Inhomogenous_incoherent_struct->particle[4] = _particle->vy;
+    *data_transfer.Inhomogenous_incoherent_struct->particle[5] = _particle->vz;
+    *data_transfer.Inhomogenous_incoherent_struct->particle[6] = _particle->t;
+
+    if (data_transfer.Inhomogenous_incoherent_struct->sig) {
+      sigma = data_transfer.Inhomogenous_incoherent_struct->sig;
+    } else {
+      // printf("\n Setting sigma with new values\npointer_z=%g\tpart_z=%g\tpointer=%p\n",
+      //        *data_transfer.Inhomogenous_incoherent_struct->particle[2], _particle->z, data_transfer.Inhomogenous_incoherent_struct->particle[2]);
+      sigma = te_eval (data_transfer.Inhomogenous_incoherent_struct->sig_expr);
+      // printf("sigma=%g\n", sigma);
+    }
+    if (data_transfer.Inhomogenous_incoherent_struct->unit_cell_vol) {
+      unit_cell_volume = data_transfer.Inhomogenous_incoherent_struct->unit_cell_vol;
+    } else {
+      unit_cell_volume = te_eval (data_transfer.Inhomogenous_incoherent_struct->unit_cell_vol_expr);
+    }
+    if (data_transfer.Inhomogenous_incoherent_struct->pack_fact) {
+      packing_factor = data_transfer.Inhomogenous_incoherent_struct->pack_fact;
+    } else {
+      packing_factor = te_eval (data_transfer.Inhomogenous_incoherent_struct->pack_fact_expr);
+    }
+
+    *my = ((packing_factor / unit_cell_volume) * 100 * sigma);
+    if (data_transfer.Inhomogenous_incoherent_struct->verbosity) {
+      printf ("\nDEBUG STATEMENT FOR INHOMOGENOUS INCOHERENT PROCESS:\n"
+              "mu=%g,\t sigma = %g,\t unit cell = %g,\t packing factor = %g\n"
+              "Neutron ray x,y,z = %g, %g, %g,\t Neutron speed = %g, %g, %g\t Neutron time = %g\n",
+              *my, sigma, unit_cell_volume, packing_factor, _particle->x, _particle->y, _particle->z, _particle->vx, _particle->vy, _particle->vz, _particle->t);
+    }
+    // printf("\nMu=%g\tsig=%g\tunit=%g\tpack=%g\n", *my, sigma, unit_cell_volume, packing_factor);
+    return 1;
+  };
+
+  // Function for basic incoherent scattering event
+  int
+  Inhomogenous_incoherent_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
+                                              struct focus_data_struct* focus_data, _class_particle* _particle) {
+    double lorentzian_width;
+    double QE_sampling_frequency = data_transfer.Inhomogenous_incoherent_struct->QE_sampling_frequency;
+    if (data_transfer.Inhomogenous_incoherent_struct->lorentzian_width) {
+      lorentzian_width = data_transfer.Inhomogenous_incoherent_struct->lorentzian_width;
+    } else {
+      lorentzian_width = te_eval (data_transfer.Inhomogenous_incoherent_struct->lorentzian_width_expr);
+    }
+
+    // New version of incoherent scattering
+    double k_length = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
+
+    Coords k_out;
+    // Here is the focusing system in action, get a vector
+    double solid_angle;
+    focus_data->focusing_function (&k_out, &solid_angle, focus_data);
+    NORM (k_out.x, k_out.y, k_out.z);
+    *weight *= solid_angle * 0.25 / PI;
+
+    double v_i, v_f, E_i, dE, E_f;
+
+    if (rand01 () < QE_sampling_frequency) {
+      v_i = k_length * K2V;
+      E_i = VS2E * v_i * v_i;
+      dE = lorentzian_width * tan (PI / 2 * randpm1 ());
+      E_f = E_i + dE;
+      if (E_f <= 0)
+        return 0;
+      v_f = SE2V * sqrt (E_f);
+      k_length = v_f * V2K;
+    }
+
+    k_final[0] = k_out.x * k_length;
+    k_final[1] = k_out.y * k_length;
+    k_final[2] = k_out.z * k_length;
+    return 1;
+  };
+
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+
+  #ifndef PROCESS_INHOMOGENOUS_INCOHERENT_DETECTOR
+  #define PROCESS_INHOMOGENOUS_INCOHERENT_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  // Needed for transport to the main component
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+
+  // Declare for this component, to do calculations on the input / store in the transported data
+  struct Inhomogenous_incoherent_struct Inhomogenous_storage;
+%}
+
+INITIALIZE
+%{
+  // =========================================================================
+  // ========================== Input sanitation =============================
+  // =========================================================================
+  if (!strcmp (sigma_expr, "") && !sigma) {
+    fprintf (stderr, "\nERROR! No sigma set, either through sigma_expr or sigma\tEXITING!\n\n");
+    exit (1);
+  }
+  if (!strcmp (unit_cell_volume_expr, "") && !unit_cell_volume) {
+    fprintf (stderr, "\nERROR! No unit cell volume set, either through unit_cell_volume_expr or unit_cell_volume\tEXITING!\n\n");
+    exit (1);
+  }
+
+  // Store variable names and pointers.
+  Inhomogenous_storage.particle[0] = malloc (sizeof (double));
+  Inhomogenous_storage.particle[1] = malloc (sizeof (double));
+  Inhomogenous_storage.particle[2] = malloc (sizeof (double));
+  Inhomogenous_storage.particle[3] = malloc (sizeof (double));
+  Inhomogenous_storage.particle[4] = malloc (sizeof (double));
+  Inhomogenous_storage.particle[5] = malloc (sizeof (double));
+  Inhomogenous_storage.particle[6] = malloc (sizeof (double));
+  te_variable vars[] = { { "x", Inhomogenous_storage.particle[0] },  { "y", Inhomogenous_storage.particle[1] },  { "z", Inhomogenous_storage.particle[2] },
+                         { "vx", Inhomogenous_storage.particle[3] }, { "vy", Inhomogenous_storage.particle[4] }, { "vz", Inhomogenous_storage.particle[5] },
+                         { "t", Inhomogenous_storage.particle[6] } };
+
+  // ===========================================================================
+  // ==================== Compile the expression with variables. ===============
+  // ===========================================================================
+  int err;
+  if (strcmp (sigma_expr, "")) {
+    te_expr* sigma_expression = te_compile (sigma_expr, vars, 7, &err);
+    if (!sigma_expression) {
+      printf ("Parse error at %d\n", err);
+      exit (1);
+    }
+    Inhomogenous_storage.sig_expr = sigma_expression;
+  } else
+    Inhomogenous_storage.sig = sigma;
+  if (strcmp (unit_cell_volume_expr, "")) {
+    te_expr* unit_cell_volume_expression = te_compile (unit_cell_volume_expr, vars, 7, &err);
+    if (!unit_cell_volume_expression) {
+      printf ("Parse error at %d\n", err);
+      exit (1);
+    }
+    Inhomogenous_storage.unit_cell_vol_expr = unit_cell_volume_expression;
+  } else
+    Inhomogenous_storage.unit_cell_vol = unit_cell_volume;
+  if (strcmp (packing_factor_expr, "")) {
+    te_expr* packing_fac_expression = te_compile (packing_factor_expr, vars, 7, &err);
+    if (!packing_fac_expression) {
+      printf ("Parse error at %d\n", err);
+      exit (1);
+    }
+    Inhomogenous_storage.pack_fact_expr = packing_fac_expression;
+  } else
+    Inhomogenous_storage.pack_fact = packing_factor;
+  if (strcmp (gamma_expr, "")) {
+    te_expr* gamma_expression = te_compile (gamma_expr, vars, 7, &err);
+    if (!gamma_expression) {
+      printf ("Parse error at %d\n", err);
+      exit (1);
+    }
+    Inhomogenous_storage.lorentzian_width_expr = gamma_expression;
+  } else
+    Inhomogenous_storage.lorentzian_width = gamma;
+  Inhomogenous_storage.QE_sampling_frequency = f_QE;
+  Inhomogenous_storage.verbosity = verbose;
+
+  // ===========================================================================
+  // ====================  Perform Union specific dependencies =================
+  // ===========================================================================
+
+  // First initialise This_process with default values:
+  scattering_process_struct_init (&This_process);
+
+  // Need to specify if this process is isotropic
+  This_process.non_isotropic_rot_index = -1; // Yes (powder)
+  // This_process.non_isotropic_rot_index =  1;  // No (single crystal)
+
+  // Need to specify if this process need to use focusing in calculation of inverse penetration depth (physics_my)
+  // This_process.needs_cross_section_focus = 1; // Yes
+  This_process.needs_cross_section_focus = -1; // No
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = Inhomogenous_incoherent;
+
+  // Packing the data into a structure that is transported to the main component
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  This_process.data_transfer.Inhomogenous_incoherent_struct = &Inhomogenous_storage;
+  This_process.probability_for_scattering_function = &Inhomogenous_incoherent_physics_my;
+  This_process.scattering_function = &Inhomogenous_incoherent_physics_scattering;
+  This_process.needs_numerical_integration = 1;
+  This_process.sampling_points = number_of_sample_points;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index (init) < 0) {
+    fprintf (stderr, "Incoherent_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
+    exit (-1);
+  }
+
+  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  add_element_to_process_list (global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+  // Since the process and it's storage is a static allocation, there is nothing to deallocate
+%}
+
+END

@@ -56,7 +56,32 @@ For installation notes, see the web site~\cite{mcstas_webpage}.
 In case of problems, write the support mailing list,
 or contact the authors.
 
-%-------------------------------------------------------------------------------
+% -------------------------------------------------------------------------------
+\subsubsection{Installation via conda-forge (recommended)}
+\label{s:install-conda}
+
+The recommended installation method for all supported platforms---Linux,
+macOS, and Windows---is via the \texttt{conda-forge} channel.  Once a
+conda-compatible environment manager such as Miniforge or Mambaforge is
+available, \MCS can be installed into a fresh conda environment:
+
+\begin{verbatim}
+  conda create -n mcstas -c conda-forge mcstas
+  conda activate mcstas
+  mcgui
+\end{verbatim}
+
+On Windows a dedicated \texttt{mcstas-conda} batch script is provided by
+the installer.  After it completes, use the \emph{mcstas-shell} desktop
+shortcut and issue \texttt{mcgui} to start the graphical interface.
+Arm64 Windows is also supported via this route.
+
+For full platform-specific installation instructions, including Linux
+package management and macOS options, see:
+\begin{center}
+  \url{https://github.com/mccode-dev/McCode/tree/main/INSTALL-McStas}
+\end{center}
+
 \subsection{Important note for Windows users} 
 \index{Windows!file and directory names with spaces}
 \index{Windows!Perl distribution}
@@ -244,6 +269,33 @@ option, e.g.
 \end{bash}
 Finally, the \verb+--verbose+ option will list the components and libraries being
 included in the instrument.
+
+\subsubsection{Alternative code generator: \texttt{mccode-antlr}}
+\label{s:antlr}
+
+From \MCS~3.5 onwards an alternative code generator,
+\texttt{mcstas-antlr}, is available alongside the classic generator.
+It is built on the ANTLR parser framework rather than the traditional
+\texttt{lex}/\texttt{yacc} toolchain, is implemented primarily in Python,
+and is a candidate replacement for the default generator in future releases.
+
+Select it on a per-run basis with the \texttt{--cogen} flag:
+\begin{verbatim}
+  mcrun --cogen=mcstas-antlr MyInstrument.instr -n 1e8
+\end{verbatim}
+
+The active code generator can also be set permanently by editing the
+\texttt{MCCOGEN} field in \texttt{mccode\_config.json}.  This file is
+accessible from the command line with:
+\begin{verbatim}
+  mcrun --edit-user-config
+\end{verbatim}
+or via the \emph{Save/Edit configuration} dialogue inside \texttt{mcgui}.
+
+At the time of the \MCS~3.6 release, \texttt{mcstas-antlr} is close to
+feature-complete for CPU simulations with a few more issues for GPU/OpenACC
+simulations.
+
 
 %-------------------------------------------------------------------------------
 \subsection{Specifying the location of files}
@@ -883,7 +935,7 @@ The list of available \MCS front-end programs may be obtained from the
        mcdaemon      Instrument results on-line plotting
     When used with the -h flag, all tools display a specific help.
     SEE ALSO: mcstas, mcdoc, mcplot, mcrun, mcgui, mcresplot, mcstas2vitess
-    DOC:      Please visit http://www.mcstas.org
+    DOC:      Please visit https://www.mcstas.org
 \end{lstlisting}
 
 %-------------------------------------------------------------------------------
@@ -1247,6 +1299,54 @@ file, see section~\ref{s:mcplot}. \indexMCTOOL{mcplot}{}
 The \verb+-h+ option will list valid options. The \verb+mcrun+ front-end
 requires a working installation of Perl to run.
 
+\subsection{GPU acceleration via OpenACC}
+\label{s:gpu}
+
+\MCS~3.x supports GPU-accelerated simulations through the OpenACC
+framework, enabling substantial speed-ups over CPU-only execution on
+compatible NVIDIA hardware.
+
+\subsubsection{Requirements}
+
+\begin{itemize}
+  \item \textbf{Compiler:} NVIDIA HPC SDK version~20.x or newer.  The
+        free Community Edition is sufficient.
+  \item \textbf{Hardware:} A CUDA-capable NVIDIA GPU with an up-to-date
+        driver.
+  \item \textbf{Platform:} GPU support is currently available on Linux
+        only.  Windows is not yet supported for OpenACC by NVIDIA; Windows
+        users wishing to use GPU acceleration should do so via
+        WSL~2 running a Linux distribution.
+\end{itemize}
+
+\subsubsection{Running a GPU-accelerated simulation}
+
+Pass the \texttt{--openacc} flag to \texttt{mcrun}:
+\begin{verbatim}
+  mcrun --openacc MyInstrument.instr -n 1e9
+\end{verbatim}
+
+\paragraph{Combined multi-core + GPU execution.}
+It is also possible to use both CPU cores and the GPU simultaneously.
+Enable this by adding the following to the \texttt{OACCFLAGS} field of
+your \texttt{mccode\_config.json}:
+\begin{verbatim}
+  "OACCFLAGS": "-fast -Minfo=accel -acc=gpu,multicore
+                -gpu=managed -DOPENACC -DMULTICORE"
+\end{verbatim}
+
+\subsubsection{Further information}
+
+GPU terminology specific to \MCS/McXtrace~3 and detailed debugging
+tips are documented on the McCode wiki:
+\begin{itemize}
+  \item GPU terminology table:\\
+    \url{https://github.com/mccode-dev/McCode/wiki/McStas-McXtrace-3-and-GPU-terminology-(table)}
+  \item GPU debugging tips:\\
+    \url{https://github.com/mccode-dev/McCode/wiki/GPU-Debugging-tips}
+\end{itemize}
+
+
 
 %-------------------------------------------------------------------------------
 \subsection{Graphical display of simulations (mcdisplay)}
@@ -1531,6 +1631,16 @@ option will display the command help, as usual.
 See section~\ref{s:mcdoc} for more details about the McDoc usage and header
 format.  To use the \verb+mcdoc+ front-end, the program Perl should be
 available.
+
+\paragraph{Online wiki.}
+In addition to this manual, extensive and frequently updated documentation
+is maintained on the McCode GitHub wiki~\cite{Wiki}:
+\begin{center}
+  \url{https://github.com/mccode-dev/McCode/wiki}
+\end{center}
+The wiki includes end-user guides, component development howtos, GPU
+acceleration information, and migration guides from \MCS~2.x to 3.x.
+
 
 %-------------------------------------------------------------------------------
 \subsection{Translating \MCS components for Vitess (mcstas2vitess)}

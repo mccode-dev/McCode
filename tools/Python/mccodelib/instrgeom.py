@@ -578,7 +578,8 @@ class DrawCircle(DrawCommand):
         elif self.plane == 'yz':
             return map(lambda p: cen.add(Vector3d(0, p.x, p.y)), square)
         else:
-            raise Exception('DrawCircle: invalid plane argument')
+            # Fallback to xy
+            return map(lambda p: cen.add(p), square)
 
     def get_points_on_circle(self, steps=60):
         ''' returns points on the circle, transformed into the proper plane '''

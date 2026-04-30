@@ -1,0 +1,96 @@
+/*******************************************************************************
+* Instrument: Test_Monitor_nD_10_uservars
+*
+* %I
+* Written by: Peter Willendrup
+* Date: April 2026
+* Origin: ESS
+* %INSTRUMENT_SITE: Tests
+*
+* Instrument demonstrating 10 uservars available in Monitor_nD
+*
+* %D
+* Instrument demonstrating 10 uservars available in Monitor_nD
+*
+* %Example: NCount=1e3 Detector: Flex2D_I=1000
+*
+* %P
+* NCount: [1] Statistic to run with
+*
+* %L
+* <reference/HTML link>
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Monitor_nD_10_uservars(NCount=1e3)
+
+DECLARE
+%{
+%}
+
+USERVARS
+%{
+  double UX0;
+  double UX1;
+  double UX2;
+  double UX3;
+  double UX4;
+  double UX5;
+  double UX6;
+  double UX7;
+  double UX8;
+  double UX9;
+  double One;
+%}
+
+INITIALIZE
+%{
+  mcset_ncount((unsigned long long)NCount);
+%}
+
+TRACE
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+// insert components here (e.g. Insert -> Source -> ...)
+COMPONENT source_simple = Source_flat(
+    lambda0=2, radius=0.01,
+    dlambda=0.02, dist=1, focus_xw=0.1, focus_yh=0.1)
+AT (0, 0, 0) RELATIVE PREVIOUS
+EXTEND %{
+  UX0=0.1;
+  UX1=1.1;
+  UX2=2.1;
+  UX3=3.1;
+  UX4=4.1;
+  UX5=5.1;
+  UX6=6.1;
+  UX7=7.1;
+  UX8=8.1;
+  UX9=9.1;
+  One=1;
+%}
+
+COMPONENT MonND=Monitor_nD(xwidth=0.4, yheight=0.4, user0="UX0",user1="UX1",user2="UX2",user3="UX3",user4="UX4",user5="UX5",
+			               user6="UX6",user7="UX7",user8="UX8",user9="UX9",restore_xray=1,
+				       options="user0 user1 user2 user3 user4 user5 user6 user7 user8 user9 list all photons")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+
+COMPONENT Flex2D = Flex_monitor_2D(
+  nU1 = 3,
+  nU2 = 3,
+  Umin1 = -1,
+  Umax1 = 1,
+  ustring1 = "UX0",
+  Umin2 = 8,
+  Umax2 = 10,
+  ustring2 = "UX9",
+  signal="One") 
+ AT (0, 0, 0) RELATIVE  PREVIOUS
+
+FINALLY
+%{
+%}
+
+END

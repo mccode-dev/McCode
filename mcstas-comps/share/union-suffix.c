@@ -11,6 +11,11 @@ int physics_my(enum process choice, double *my,double *k_initial, union data_tra
     int output = 0; // Error return value
     #ifdef PROCESS_DETECTOR
     switch(choice) {
+        #ifdef PROCESS_INHOMOGENOUS_INCOHERENT_DETECTOR
+        case Inhomogenous_incoherent:
+          output = Inhomogenous_incoherent_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+          break;
+        #endif
         #ifdef PROCESS_INCOHERENT_DETECTOR
         case Incoherent:
             output = Incoherent_physics_my(my, k_initial, data_transfer, focus_data, _particle);
@@ -75,6 +80,11 @@ int physics_scattering(enum process choice, double *k_final, double *k_initial, 
     int output = 0; // Error return value
     #ifdef PROCESS_DETECTOR
     switch(choice) {
+        #ifdef PROCESS_INHOMOGENOUS_INCOHERENT_DETECTOR
+        case Inhomogenous_incoherent:
+            output = Inhomogenous_incoherent_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
         #ifdef PROCESS_INCOHERENT_DETECTOR
         case Incoherent:
             output = Incoherent_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);

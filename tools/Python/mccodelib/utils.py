@@ -918,6 +918,7 @@ def run_subtool_to_completion(cmd, cwd=None, stdout_cb=None, stderr_cb=None):
         ''' shorthand utility for calling a function if it is defined, and otherwise ignoring it '''
         if fct:
             fct(*args)
+
     if not cwd:
         cwd = os.getcwd()
 

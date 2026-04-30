@@ -1,4 +1,4 @@
-# Install McXtrace 3.6.5 on Linux and Unix.
+# Install McXtrace 3.6.14 on Linux and Unix.
 
 * We provide Debian packages, RedHat packages, and tar.gz's of "preconfigured" source code.
 

@@ -62,9 +62,16 @@
     int COORD_NCOUNT;
     int COORD_THETA ;
     int COORD_PHI   ;
+    int COORD_USER0 ;
     int COORD_USER1 ;
     int COORD_USER2 ;
     int COORD_USER3 ;
+    int COORD_USER4 ;
+    int COORD_USER5 ;
+    int COORD_USER6 ;
+    int COORD_USER7 ;
+    int COORD_USER8 ;
+    int COORD_USER9 ;
     int COORD_USERDOUBLE0 ;
     int COORD_USERDOUBLE1 ;
     int COORD_USERDOUBLE2 ;
@@ -119,6 +126,7 @@
     double Cylinder_Height   ;
     char   Flag_With_Borders ;   /* 2 means xy borders too */
     char   Flag_List         ;   /* 1 store 1 buffer, 2 is list all, 3 list all+append */
+    char   Flag_nexusbins    ;   /* Only relevant in NeXus mode. -1 fully disable, 0 store BINS arrays if list mode, 1 store always */
     char   Flag_Multiple     ;   /* 1 when n1D, 0 for 2D */
     char   Flag_Verbose      ;
     int    Flag_Shape        ;
@@ -160,12 +168,26 @@
 
     double He3_pressure;
     char   Flag_UsePreMonitor    ;   /* use a previously stored neutron parameter set */
+    char   UserName0[128];
     char   UserName1[128];
     char   UserName2[128];
     char   UserName3[128];
+    char   UserName4[128];
+    char   UserName5[128];
+    char   UserName6[128];
+    char   UserName7[128];
+    char   UserName8[128];
+    char   UserName9[128];
+    char   UserVariable0[128];
     char   UserVariable1[128];
     char   UserVariable2[128];
     char   UserVariable3[128];
+    char   UserVariable4[128];
+    char   UserVariable5[128];
+    char   UserVariable6[128];
+    char   UserVariable7[128];
+    char   UserVariable8[128];
+    char   UserVariable9[128];
     double UserDoubles[16];
     char   option[CHAR_BUF_LENGTH];
 
@@ -189,7 +211,7 @@
 /* monitor_nd-lib function prototypes */
 /* ========================================================================= */
 
-void Monitor_nD_Init(MonitornD_Defines_type *, MonitornD_Variables_type *, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, int);
+void Monitor_nD_Init(MonitornD_Defines_type *, MonitornD_Variables_type *, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, int, int);
 #pragma acc routine
 int Monitor_nD_Trace(MonitornD_Defines_type *, MonitornD_Variables_type *, _class_particle* _particle);
 MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *, MonitornD_Variables_type *);

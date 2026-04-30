@@ -16,6 +16,7 @@ import pathlib
 import shutil
 import platform
 import subprocess
+import io
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
@@ -194,6 +195,34 @@ def extract_testvals(datafolder, monitorname):
                 N = float(m.group(3))
                 return (I, I_err, N)
                 break
+
+def parse_detector_I_value(resfile_path, detector_name):
+    """
+    Return (value_float, success_bool, raw_value_str_or_None).
+    value_float is the parsed float (or -1.0 on failure).
+    success_bool is True when a value was parsed successfully.
+    raw_value_str_or_None is the string extracted (before conversion) or None.
+    """
+    prefix = f"Detector: {detector_name}_I="
+    try:
+        with open(resfile_path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.startswith(prefix):
+                    # extract after first '=' then take up to first whitespace
+                    # matches the shell pipeline: cut -f2 -d= | cut -f1 -d' '
+                    _, _, after_eq = line.partition("=")
+                    raw = after_eq.split()[0] if after_eq else ""
+                    if raw == "":
+                        return -1.0, False, None
+                    try:
+                        return float(raw), True, raw
+                    except ValueError:
+                        return -1.0, False, raw
+        return -1.0, False, None
+    except FileNotFoundError:
+        return -1.0, False, None
+    except OSError:
+        return -1.0, False, None
 
 def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilter=None, version=None):
     ''' this main test function tests the given mccode branch/version '''
@@ -394,6 +423,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             failed=True
             continue
 
+        resbase="(No file)"
         # test value extraction
         if not didwrite_nexus:
             extraction = extract_testvals(join(testdir, test.instrname, str(test.testnb)), test.detector)
@@ -402,26 +432,37 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             else:
                 test.testval = -1
                 failed=True
+            resbase ="run_stdout_%d.txt" % (test.testnb)
+            resfile = join(testdir,test.instrname,resbase)
         # Look for detector output in run_stdout
         else:
             metalog = LineLogger()
-            resfile = join(testdir,test.instrname,"run_stdout_%d.txt" % (test.testnb))
-            cmd = r"grep %s_I= %s | head -1 | cut -f2 -d= | cut -f1 -d' '" %(test.detector, resfile)
-            utils.run_subtool_to_completion(cmd, stdout_cb=metalog.logline)
-            try:
-                test.testval=float(metalog.lst[0])
-            except:
+            resbase ="run_stdout_%d.txt" % (test.testnb)
+            resfile = join(testdir,test.instrname,resbase)
+            val, ok, raw = parse_detector_I_value(resfile, test.detector)
+            if ok:
+                test.testval = val
+            else:
                 test.testval=-1
                 failed=True
 
-        if test.didrun and not failed:
+        percent=0
+        if test.didrun:
+            if failed:
+                suffix += " + !! RUNTIME FAILURE - see %s !! " % (resbase)
             formatstr = "%-" + "%ds: " % (maxnamelen+1) + \
                 "{:3d}.".format(math.floor(test.runtime)) + str(test.runtime-int(test.runtime)).split('.')[1][:2]
             if test.targetval!=0: # Normal situation, non-zero target value
-                logging.info(formatstr % test.get_display_name() + "    [val: " + str(test.testval) + " / " + str(test.targetval) + " = " + str(round(100.0*test.testval/test.targetval)) + " %]" + suffix)
+                percent=round(100.0*test.testval/test.targetval)
+                if percent<80 or percent>120:
+                    suffix += " <--- BIG DISCREPANCY??"
+                logging.info(formatstr % test.get_display_name() + "    [val: " + str(test.testval) + " / " + str(test.targetval) + " = " + str(percent) + " %]" + suffix)
             else:                 # Special case, expected test target value is 0
                 logging.info(formatstr % test.get_display_name() + "    [val: " + str(test.testval) + " vs " + str(test.targetval) + " (absolute vs 0) ]" + suffix)
-
+        else:
+            logging.info((formatstr % test.get_display_name()) + (" !! [TEST INDICATES RUNTIME ERROR - see %s  + suffix ] !!" % (resbase)))
+        suffix=""
+        failed=False
         # save test result to disk
         test.testcomplete = True
         if not skipped:
@@ -666,8 +707,7 @@ def main(args):
 
     # modifying options
     verbose = args.verbose          # display more info during runs
-    testroot = args.testroot        # use non-default test output root location
-    testdir = args.testdir          # use non-default test output location (overrides testroot)
+    testdir = args.testdir          # use non-default test output location
     mccoderoot = args.mccoderoot    # use non-default mccode system install location
     limit = args.limit              # only test the first [limit] instruments (useful for debugging purposes)
     instrfilter = args.instr        # test only matching instrs
@@ -679,10 +719,10 @@ def main(args):
         logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     else:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
+
     if not testdir:
-        if not testroot:
-            testroot = os.path.join(os.getcwd(),mccode_config.configuration["MCCODE"]+"-test")
-            testdir = create_datetime_testdir(testroot)
+        testdir='.'
+
     logging.info("Output of test will be placed in: %s" % testdir)
 
     if not mccoderoot:
@@ -717,13 +757,11 @@ def main(args):
     logging.debug("")
 
     global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, runmax
+    ncount = "1e6"
     if args.ncount:
         ncount = args.ncount[0]
     elif args.n:
         ncount = args.n[0]
-    else:
-        ncount = "1e6"
-    suffix = '_' + ncount
 
     if args.local:
         runLocal = args.local
@@ -742,7 +780,7 @@ def main(args):
         else:
             suffix = '_' + args.suffix[0]
 
-    suffix=suffix + "_" + platform.system()
+    suffix=suffix + "_" + ncount + "_" + platform.system() + "_" + utils.get_datetimestr()
     if runLocal:
         suffix = suffix + '_LOCAL'
 
@@ -792,8 +830,7 @@ if __name__ == '__main__':
     parser.add_argument('--instr', nargs="?", help='test only intruments matching this filter (py regex). Comma-separated list allowed for multiple filters.')
     parser.add_argument('--comp', nargs=1, help='test only intruments utilising COMP. Useful for testing the instrument suite after component changes.')
     parser.add_argument('--mccoderoot', nargs='?', help='manually select root search folder for mccode installations')
-    parser.add_argument('--testroot', nargs='?', help='output test results in a datetime folder in this root')
-    parser.add_argument('--testdir', nargs='?', help='output test results directly in this dir (overrides testroot)')
+    parser.add_argument('--testdir', nargs='?', help='output test results directly in this dir (default CWD)')
     parser.add_argument('--limit', nargs=1, help='test only the first [LIMIT] instrs')
     parser.add_argument('--verbose', action='store_true', help='output a test/notest instrument status header before each test')
     parser.add_argument('--skipnontest', action='store_true', help='Skip compilation of instruments without a test')

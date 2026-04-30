@@ -459,6 +459,23 @@ class McGuiState(QtCore.QObject):
             self.__emitter.status('Started simulation/trace in background shell...')
             subprocess.Popen(runstr, shell=True)
 
+    def vis_run(self, tool=''):
+
+        runstr = tool + ' ' + os.path.basename(self.__instrFile) + ' -n100 -y'
+
+        # Add & for backgrounding on Unix systems
+        if not os.name == 'nt':
+            runstr = runstr + ' &'
+        else:
+            runstr = 'start ' + runstr
+
+        # Ensure assembled runstr is a string, not a QString 
+        runstr = str(runstr)
+
+        self.__emitter.status('Starting visualisation in background shell...')
+        self.__emitter.message(runstr, gui=False)
+        subprocess.Popen(runstr, shell=True)
+
     def __runFinished(self, process_returncode):
         self.__fireSimStateUpdate()
         if process_returncode == 0:
@@ -741,35 +758,22 @@ class McGuiAppController():
             DISPLAY="mcdisplay"
         else:
             DISPLAY="mxdisplay"
-        self.emitter.status('Running ' + DISPLAY + '-webgl...')
-        try:
-            cmd = DISPLAY+'-webgl --default -n100 ' + os.path.basename(self.state.getInstrumentFile()) + '&'
-            self.emitter.message(cmd, gui=True)
-            self.emitter.message('', gui=True)
-            
-            def messg(s): self.emitter.message(s)
-            def messg_err(s): self.emitter.message(s, err_msg=True)
-            utils.run_subtool_to_completion(cmd, stdout_cb=messg, stderr_cb=messg_err)
-        finally:
-            self.emitter.status('')
-    
+        tool=DISPLAY + "-webgl-classic"
+
+        self.emitter.status('Running ' + tool)
+        self.state.vis_run(tool=tool)
+
     def handleMcDisplay2D(self):
         if mccode_config.configuration["MCCODE"]=="mcstas":
             DISPLAY="mcdisplay"
         else:
             DISPLAY="mxdisplay"
-        self.emitter.status('Running ' + DISPLAY + '-pyqtgraph...')
-        try:
-            cmd = DISPLAY+'-pyqtgraph --default -n100 ' + os.path.basename(self.state.getInstrumentFile()) + '&'
-            self.emitter.message(cmd, gui=True)
-            self.emitter.message('', gui=True)
-            
-            def messg(s): self.emitter.message(s)
-            def messg_err(s): self.emitter.message(s, err_msg=True)
-            utils.run_subtool_to_completion(cmd, stdout_cb=messg, stderr_cb=messg_err)
-        finally:
-            self.emitter.status('')
-    
+        tool=DISPLAY + "-pyqtgraph"
+
+        self.emitter.status('Running ' + tool)
+        self.state.vis_run(tool=tool)
+
+
     def handleHelpWeb(self):
         # open the mcstas homepage
         mcurl = 'http://www.'+mccode_config.configuration["MCCODE"]+'.org'

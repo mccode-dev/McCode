@@ -1,0 +1,734 @@
+/*
+* Instrument: ILL_H15_SAM
+* Release: McStas 3.5.40
+*
+* %I
+* Written by: <a href="mailto:nicolas.martin2@univ-grenoble-alpes.fr">Nicolas MARTIN</a>
+* Date: 2026/04/08
+* Origin: <a href="https://iramis.cea.fr/llb/">LLB</a>
+* %INSTRUMENT_SITE: ILL
+*
+* The small-angle diffractometer SAM at the ILL.
+*
+* %D
+* SAM is a CRG instrument built through a collaboration between the LLB & the ILL between 
+* June 2023 and February 2024. After hot commissioning, first user experiments took place 
+* in June 2024. SAM stands for "Small-Angle Modular instrument". It is a compact SANS
+* devoted to the study of mesostructures found in various contexts (soft matter, biophysics,
+* material sciences and magnetism), which also features polarized neutrons capabilities
+* (not included in this model). The beamline is fed by the completely renewed H15 cold 
+* neutrons guide.
+*
+* Instrument parameters:
+*
+* Typical wavelength range: 3.25-24 AA
+* Guides cross section: 30 x 30 mm<sup>2</sup> (three moveable elements within collimator)
+* Collimation lengths: [9, 7, 5, 2.5] m
+* Adjustable 'reflectometer-type' diaphragms located at [9, 5, 2.5] m upstream of sample position.
+* Sample-to-detector distance: 0.75-6.85 m
+* Detector: 64 x 64 cm<sup>2</sup> monoblock 3He PSD
+* See the <a href="https://www.ill.eu/for-all-users/instruments/instruments-list/sam/description/instrument-layout">instrument page</a> on the ILL website for more details.
+*
+* Example (typical "real-life" measurement sequence):
+*
+*	mcrun ILL_H15_SAM.instr --gravity -n1e7 -dLargeQ lambda=5.2
+*	mcrun ILL_H15_SAM.instr --gravity -n1e7 -dSmallQ guide1=0 guide2=0 guide3=0 lsd=6.8
+*
+* (Corresponding test-suite entries:)
+* %Example: ILL_H15_SAM.instr --gravity lambda=5.2 Detector: psd_I=1272.79
+* %Example: ILL_H15_SAM.instr --gravity guide1=0 guide2=0 guide3=0 lsd=6.8 Detector: psd_I=1980.7
+*
+* %P
+* lambda:      	[AA]	Wavelength mean value
+* dlambda:  	[1]		Wavelength range, full width
+* lambdasel:	[AA]	Mean wavelength selected by the NVS
+* guide1:		[1]		0 = out, 1 = in
+* guide2:		[1]		0 = out, 1 = in
+* guide3:		[1]		0 = out, 1 = in
+* s1w:			[mm]	Width of the 1st adjustable diaphragm
+* s1h:			[mm]	Height of the 1st adjustable diaphragm
+* s2w:			[mm]	Width of the 2nd adjustable diaphragm
+* s2h:			[mm]	Height of the 2nd adjustable diaphragm
+* s3w:			[mm]	Width of the 3rd adjustable diaphragm
+* s3h:			[mm]	Height of the 3rd adjustable diaphragm
+* ssw:			[mm]	Width or diameter of sample slit
+* ssh:			[mm]	Height of sample slit (0 for circular slit)
+* sampleno:		[1]		Choice of sample: 0 = none, 1 = liquid water, 2 = powder ring, 3 = hard spheres in solution
+* lsd:			[m]		Sample-to-detector distance
+*
+* %L
+* <https://www.ill.eu/for-all-users/instruments/instruments-list/sam/description/instrument-layout>
+*/
+
+DEFINE INSTRUMENT ILL_H15_SAM(
+	double lambda=5.2, double dlambda=0.2, double lambdasel=-1.0, 
+	int guide1=1, int guide2=1, int guide3=1,
+	double s1w=30, double s1h=30, double s2w=30, double s2h=30,
+	double s3w=30, double s3h=30, double ssw=7, double ssh=10,  	
+	int sampleno=3, double lsd=0.85)
+
+DECLARE %{
+	/* Guide stuff */
+	double gAlpha=2.67;			/* Slope for reflectivity curve of mirrors, 2.67 from SwissNeutronic 2017 */
+	double gWavy=1e-4*RAD2DEG;	/* Global guide waviness */
+	double gGap=1e-3;          	/* Typical separation between guide elements */
+	/* VCS (H1) source parameters */
+	double sT1=216.8,sI1=1.24e+13;
+	double sT2=33.9, sI2=1.02e+13;
+	double sT3=16.7 ,sI3=3.0423e+12;
+	/* Some instrument params */
+	int ssshape=1;				/* Code for sample slit shape: default = rectangular (1), set to circular (2) if ssh <= 0 */
+        #pragma acc declare create(ssshape)
+	double rbs=2.75e-2;			/* Beamstop radius */
+	double lcoll;				/* Effective collimation length */
+	double sow;					/* Source effective width */
+	double soh;					/* Source effective height */
+	double maxhdiv;				/* Maximum horizontal beam divergence */
+	double maxvdiv;				/* Maximum vertical beam divergence */
+	double tthmin;				/* Minimum scattering angle seen by detector */
+	double tthmax;				/* Maximum scattering angle seen by detector */
+	double qmin;				/* Minimum momentum transfer */
+	double qmax;				/* Maximum momentum transfer */
+%}
+
+INITIALIZE %{
+	if(lambdasel<=0){lambdasel=lambda;}
+	
+	s1w*=1e-3; s1h*=1e-3; s2w*=1e-3; s2h*=1e-3; s3w*=1e-3; s3h*=1e-3; ssw*=1e-3; ssh*=1e-3; /* mm -> m */
+		
+	if(guide1==1&&guide2==1&&guide3==1){lcoll=2.5; sow=s3w; soh=s3h;}
+	if(guide1==1&&guide2==1&&guide3!=1){lcoll=5.0; sow=s2w; soh=s2h;}
+	if(guide1==1&&guide2!=1&&guide3!=1){lcoll=7.0; sow=3e-2; soh=3e-2;}
+	if(guide1!=1&&guide2!=1&&guide3!=1){lcoll=9.0; sow=s1w; soh=s1h;}
+	if(sow>3e-2){sow=3e-2;};
+	if(soh>3e-2){soh=3e-2;};
+	
+	maxhdiv=round(1e4*atan((sow+ssw)/(2*lcoll)))/1e4;
+	maxvdiv=round(1e4*atan((soh+ssh)/(2*lcoll)))/1e4;
+
+	if(ssh<=0){
+		ssshape=2;
+		maxvdiv=maxhdiv;
+	}
+        #pragma acc update device(ssshape)
+	
+	tthmin=atan(rbs/lsd);
+	tthmax=atan(sqrt(2)*0.32/lsd);
+	
+	qmin=round(1e4*4*PI/lambdasel*sin(0.5*tthmin))/1e4;
+	qmax=round(1e4*4*PI/lambdasel*sin(0.5*tthmax))/1e4;	
+	
+	char samplestr[32];
+	switch (sampleno) {
+		case 1:
+			strcpy(samplestr, "liquid water at T = 293 K"); break;
+		case 2:
+			strcpy(samplestr, "1st Bragg of silver behenate"); break;
+		case 3:
+			strcpy(samplestr, "hard spheres in solution"); break;				
+		default:
+			strcpy(samplestr, "none"); break;}
+		
+	printf("\n...\n");
+	printf("Simulation parameters:\n");
+	printf("Mean wavelength after NVS = %g AA\n",lambdasel);
+	printf("Source size = %g (H) x %g (V) mm\n",sow*1e3,soh*1e3);
+	printf("Collimation length = %g m\n",lcoll);
+	if(ssshape==1){printf("Beam at sample = rectangular, %g (H) x %g (V) mm\n",ssw*1e3,ssh*1e3);}
+	if(ssshape==2){printf("Beam at sample = circular, radius = %g mm\n",0.5*ssw*1e3);}
+	printf("Horizontal beam divergence = %g mrad\n",maxhdiv*1e3);
+	printf("Vertical beam divergence = %g mrad\n",maxvdiv*1e3);
+	printf("Sample = %s\n",samplestr);
+	printf("Sample-to-detector distance = %g m\n",lsd);
+	printf("Q-range = %g-%g AA^-1\n",qmin,qmax);
+	printf("...\n\n");
+%}
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+/*  
+* IN-PILE:
+* L = 2.33 m (vacuum)
+*/
+
+COMPONENT VCS = Source_gen(
+	yheight = 0.22, xwidth = 0.14,
+	dist = 2.33, focus_xw = 0.07, focus_yh = 0.2,
+	Lmin = lambda*(1-dlambda/2), Lmax = lambda*(1+dlambda/2),
+	T1 = sT1, I1 = sI1, T2 = sT2, I2 = sI2,	T3 = sT3, I3 = sI3,	verbose  = 1)
+AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT Al_window1 = Al_window(thickness=2e-3)
+AT (0,0,0.21) RELATIVE VCS
+
+COMPONENT COPY(Al_window1) = COPY(PREVIOUS)
+AT (0,0,0.61) RELATIVE VCS
+
+COMPONENT COPY(Al_window1) = COPY(PREVIOUS)
+AT (0,0,0.78) RELATIVE VCS
+
+COMPONENT COPY(Al_window1) = COPY(PREVIOUS)
+AT (0,0,0.92) RELATIVE VCS
+
+COMPONENT COPY(Al_window1) = COPY(PREVIOUS)
+AT (0,0,2.20) RELATIVE VCS
+
+/* 
+* WP1.1/IN-PILE GUIDE:
+* L = 3.5 m, W = 70 mm, H = 200 mm, straight, m = [3,3,3,3] [T,B,L,R]
+* n.b. 1st lead shutter is modelled by a short guide
+*/
+
+COMPONENT PinkCarter = Guide_gravity(
+	w1=0.07, h1=0.2, l=3.5, m=3, alpha=gAlpha, wavy=gWavy)
+AT (0,0,2.33) RELATIVE VCS
+
+COMPONENT FirstObturator = Guide_gravity(
+	w1=0.07, h1=0.2, l=0.228, m=3, alpha=gAlpha, wavy=gWavy)
+AT (0,0,3.52) RELATIVE PinkCarter
+
+/* 
+* WP1.2/POOL GUIDE:
+* L = 7 m, W = 70 mm, H = 200 mm, R = +2500 m, m = [3,3,3,4] [T,B,L,R]
+*/
+
+COMPONENT H15_2_In = Al_window(thickness=5e-4)
+AT (0,0,0.228) RELATIVE PREVIOUS
+
+COMPONENT H15_C1_1 = Guide_gravity(
+	w1=0.07, h1=0.2, l=1.5, 
+	mtop=3, mbottom=3, mleft=3, mright=4, alpha=gAlpha, wavy=gWavy)
+AT (0,0,5e-4) RELATIVE PREVIOUS
+ROTATED (0,1.5/2.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C1_2 = Guide_gravity(
+	w1=0.07, h1=0.2, l=2.25, 
+	mtop=3, mbottom=3, mleft=3, mright=4, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.5+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,2.25/2.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C2 = Guide_gravity(
+	w1=0.07, h1=0.2, l=1.75, 
+	mtop=3, mbottom=3, mleft=3, mright=4, alpha=gAlpha, wavy=gWavy)
+AT (0,0,2.25+3*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.75/2.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C3_1 = Guide_gravity(
+	w1=0.07, h1=0.2, l=1.346, 
+	mtop=3, mbottom=3, mleft=3, mright=4, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.75+3*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.346/2.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_2_Out = Al_window(thickness=5e-4)
+AT (0,0,1.3465) RELATIVE PREVIOUS
+
+/* 
+* WP1.3/TRUMPET:
+* L = 14 m, W = 70 -> 131.25 mm, H = 200 -> 235 mm, R = +/-3200 m, m = [3,3,3,4] -> [3,3,2.5,2] [T,B,L,R] 
+*/
+
+/* End of primary shutter gap */
+COMPONENT H15_3_In = Al_window(thickness=5e-4)
+AT (0,0,0.198) RELATIVE H15_2_Out
+
+COMPONENT H15_C3_2 = Guide_gravity(
+	w1=0.07, h1=0.2, w2=0.070415, h2=0.20288, l=1.152, 
+	mtop=3, mbottom=3, mleft=3, mright=4, alpha=gAlpha, wavy=gWavy)
+AT (0,0,5e-4+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C3_3 = Guide_gravity(
+	w1=0.070415, h1=0.202881, w2=0.072198, h2=0.206630, l=1.4995, 
+	mtop=3, mbottom=3, mleft=3, mright=4, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.152+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C3_4 = Guide_gravity(
+	w1=0.072199, h1=0.206631, w2=0.075387, h2=0.210380,	l=1.4995, 
+	mtop=3, mbottom=3, mleft=3, mright=3, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C3_5 = Guide_gravity(
+	w1=0.075389, h1=0.210381, w2=0.079983, h2=0.214130, l=1.4995, 
+	mtop=3, mbottom=3, mleft=3, mright=3, alpha=gAlpha, wavy=gWavy) 
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C3_6 = Guide_gravity(
+	w1=0.079985, h1=0.214131, w2=0.085985, h2=0.217880, l=1.4995, 
+	mtop=3, mbottom=3, mleft=3, mright=3, alpha=gAlpha, wavy=gWavy)  
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C3_7 = Guide_gravity(
+	w1=0.085987, h1=0.217881, w2=0.093393, h2=0.221630, l=1.4995, 
+	mtop=3, mbottom=3, mleft=3, mright=3, alpha=gAlpha, wavy=gWavy) 
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C4_1 = Guide_gravity(
+	w1=0.093409, h1=0.221638, w2=0.102223, h2=0.225386, l=1.4995, 
+	mtop=3, mbottom=3, mleft=3, mright=2.5, alpha=gAlpha, wavy=gWavy) 
+AT (0,0,1.4995+3.0*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C4_2 = Guide_gravity(
+	w1=0.102236, h1=0.225391, w2=0.112457, h2=0.229140, l=1.4995, 
+	mtop=3, mbottom=3, mleft=3, mright=2.5, alpha=gAlpha, wavy=gWavy) 
+AT (0,0,1.4995+2.0*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C4_3 = Guide_gravity(
+	w1=0.112461, h1=0.229141, w2=0.124088, h2=0.232890, l=1.4995, 
+	mtop=3, mbottom=3, mleft=2.5, mright=2.5, alpha=gAlpha, wavy=gWavy)  
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C4_4 = Guide_gravity(
+	w1=0.124092, h1=0.232891, w2=0.131697, h2=0.235128, l=0.8945, 
+	mtop=3, mbottom=3, mleft=2.5, mright=2, alpha=gAlpha, wavy=gWavy) 
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+
+/* 
+* WP1.4/T3/D007-D11+/SAM/SHARP+ SPLITTER: 
+* L = 2 m, W = 60 mm, H = 235 mm, straight, m = [2.5,2.5,1.5,1.5] [T,B,L,R], rotated -0.137°
+*/
+
+COMPONENT D11_SAM_SHARP_Splitter = Guide_gravity(
+	w1=0.06, h1=0.235128, l=2.0, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT ((-0.131697+0.06)/2,0,0.8945+0.5*gGap) RELATIVE H15_C4_4
+ROTATED (0,-0.137,0) RELATIVE H15_C4_4
+
+/* 
+* WP1.5/D11+/SAM/SHARP+ BRANCH: 
+* L = 23 m, W = 60 mm, H = 235 -> 295 mm, straight, m = [2.5,2.5,1.5,1.5] [T,B,L,R]
+*/
+
+COMPONENT H15_C5_1 = Guide_gravity(
+	w1=0.06, h1=0.235128, w2=0.06, h2=0.23987, l=1.7695, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,2.0+gGap) RELATIVE D11_SAM_SHARP_Splitter
+
+COMPONENT H15_C5_2 = Guide_gravity(
+	w1=0.06, h1=0.23987, w2=0.06, h2=0.24262, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.7695+3*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C5_3 = Guide_gravity(
+	w1=0.06, h1=0.24263, w2=0.06, h2=0.24579, l=1.1505, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+2*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_1 = Guide_gravity(
+	w1=0.06, h1=0.24744, w2=0.06, h2=0.25019, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.1505+0.6) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_2 = Guide_gravity(
+	w1=0.06, h1=0.2502, w2=0.06, h2=0.25295, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+2*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_3 = Guide_gravity(
+	w1=0.06, h1=0.25295, w2=0.06, h2=0.2557, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_4 = Guide_gravity(
+	w1=0.06, h1=0.2557, w2=0.06, h2=0.25845, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_5 = Guide_gravity(
+	w1=0.06, h1=0.25845, w2=0.06, h2=0.2612, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_6 = Guide_gravity(
+	w1=0.06, h1=0.2612, w2=0.06, h2=0.26395, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_7 = Guide_gravity(
+	w1=0.06, h1=0.26395, w2=0.06, h2=0.2667, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_8 = Guide_gravity(
+	w1=0.06, h1=0.2667, w2=0.06, h2=0.26945, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_9 = Guide_gravity(
+	w1=0.06, h1=0.26945, w2=0.06, h2=0.2722, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_10 = Guide_gravity(
+	w1=0.06, h1=0.2722, w2=0.06, h2=0.27495, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_11 = Guide_gravity(
+	w1=0.06, h1=0.27495, w2=0.06, h2=0.2777, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_12 = Guide_gravity(
+	w1=0.06, h1=0.2777, w2=0.06, h2=0.28045, l=0.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C6_13 = Guide_gravity(
+	w1=0.06, h1=0.28045, w2=0.06, h2=0.28399, l=1.4355, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+2*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C7_1_1 = Guide_gravity(
+	w1=0.06, h1=0.28399, w2=0.06, h2=0.28949, l=1.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4355+3*gGap) RELATIVE PREVIOUS
+
+COMPONENT H15_C7_2_1 = Guide_gravity(
+	w1=0.06, h1=0.2895, w2=0.06, h2=0.295, l=1.9995, 
+	mtop=2.5, mbottom=2.5, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+
+/* 
+* WP1.9/D11+-SAM/SHARP+ SPLITTER: 
+* L = 2.455 m, W = 60 mm, H = 240 mm, straight, m = [2,2,1.5,1.5] [T,B,L,R]
+*/
+
+COMPONENT D11_splitter = Guide_gravity(
+	w1=0.06, h1=0.240, l=2.455, 
+	mtop=2, mbottom=2, mleft=1.5, mright=1.5, alpha=gAlpha, wavy=gWavy)
+AT (0,-0.045/2-0.005,1.9995+gGap) RELATIVE H15_C7_2_1
+
+/* 
+* WP1.11/SAM/SHARP+ BRANCH: 
+* L = 20 m, W = 60 mm, H = 240 mm, R = +2000 m, m = [2,2,1.5,2] [T,B,L,R]
+*/
+
+COMPONENT  H15_C8_1 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,2.455+gGap) RELATIVE D11_splitter
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE D11_splitter
+
+COMPONENT  H15_C8_2 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+2*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT  H15_C8_3 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT  H15_C8_4 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT  H15_C8_5 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT  H15_C9_1 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+3*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT  H15_C9_2 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+2*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT  H15_C9_3 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT  H15_C9_4 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT  H15_C9_5 = Guide_gravity(
+	w1=0.06, h1=0.24, l=1.9995, 
+	mtop=2, mbottom=2, mleft=1.5, mright=2, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,1.9995/2e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+/* 
+* WP1.12/SAM-SHARP+ SPLITTER: 
+* L = 20 m, W = 40 mm, H = 30 mm, R = -1500 m, m = [1,1,1.6,1] [T,B,L,R]
+*/
+
+COMPONENT H15_C10_1 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (-0.01,0.12-0.03/2,1.9995+gGap) RELATIVE H15_C9_5
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE H15_C9_5
+
+COMPONENT H15_C10_2 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+2*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C10_3 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C10_4 = Guide_gravity(
+	w1=0.04, h1=0.03,l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C10_5 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C10_6 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C10_7 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C11_1 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+3*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C11_2 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C11_3 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C11_4 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C11_5 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.4995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.4995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C11_6 = Guide_gravity(
+	w1=0.04, h1=0.03, l=0.9995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.4995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-0.9995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C11_7 = Guide_gravity(
+	w1=0.04, h1=0.03, l=0.9995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-0.9995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H15_C11_7_Out = Al_window(thickness=5e-4)
+AT (0,0,0.9995) RELATIVE PREVIOUS
+
+/* 
+* WP1.13/SAM GUIDE (H151): 
+* L = 12 m, W = 40 mm, H = 30 mm, R = -1500 m, m = [1,1,1.6,1] [T,B,L,R]
+* L = 4 m, W = 40 mm, H = 30 mm, straight, m = [1,1,1,1] [T,B,L,R]
+*/
+
+/* End of secondary shutter gap */
+COMPONENT H151_1_In = Al_window(thickness=5e-4)
+AT (0,0,0.12) RELATIVE H15_C11_7_Out
+ROTATED (0,-1.9995/1.5e3*RAD2DEG,0) RELATIVE H15_C11_7_Out
+
+COMPONENT H151_1 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.9995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,5e-4) RELATIVE PREVIOUS
+
+COMPONENT H151_2 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.9995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.9995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H151_3 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.9995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.9995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H151_4 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.9995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+3*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.9995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H151_5 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.9995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+2*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.9995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H151_6 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.9995, 
+	mtop=1, mbottom=1, mleft=1.6, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.9995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H151_7 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.9995, 
+	mtop=1, mbottom=1, mleft=1, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+ROTATED (0,-1.9995/1.5e3*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H151_8 = Guide_gravity(
+	w1=0.04, h1=0.03, l=1.9995, 
+	mtop=1, mbottom=1, mleft=1, mright=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,1.9995+0.5*gGap) RELATIVE PREVIOUS
+
+COMPONENT H151_8_Out = Al_window(thickness=5e-4)
+AT (0,0,2.0) RELATIVE PREVIOUS
+
+/* Gold foil activation is usually measured here */
+COMPONENT h151cap = Monitor_nD(xwidth=0.04, yheight=0.03, bins=1, options="per cm2, capture")
+AT (0,0,1e-3) RELATIVE PREVIOUS
+
+/*** SAM instrument ***/
+
+/*** Casemate ***/
+
+/*** Velocity selector ***/
+
+COMPONENT NVS_In = Al_window(thickness=5e-4)
+AT (0,0,0.137) RELATIVE H151_8_Out
+
+SPLIT COMPONENT NVS = Selector(
+	xwidth=0.04, yheight=0.04, radius=0.115, alpha=35.04, 
+	length=0.25, d=4e-4, nu=1540.2/lambdasel, nslit=96)
+AT (0,0,0.03) RELATIVE PREVIOUS
+
+COMPONENT NVS_Out = Al_window(thickness=5e-4)
+AT (0,0,0.28) RELATIVE PREVIOUS
+
+/*** Beam monitor ***/
+
+COMPONENT Monitor_In = Al_window(thickness=1e-3)
+AT (0,0,0.118) RELATIVE PREVIOUS
+
+COMPONENT mon = Monitor_nD(xwidth=0.04, yheight=0.03, bins=1)
+AT (0,0,0.0095) RELATIVE PREVIOUS
+
+COMPONENT Monitor_Out = Al_window(thickness=1e-3)
+AT (0,0,0.0095) RELATIVE PREVIOUS
+
+/*** Polarizer/guide changer ***/
+
+COMPONENT Vacuum_Window_In = Al_window(thickness=5e-4)
+AT (0,0,gGap) RELATIVE PREVIOUS
+
+COMPONENT CasemateGuide = Guide_gravity(w1=0.03, h1=0.03, l=1.37, m=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.042) RELATIVE Vacuum_Window_In 
+
+/*** RF flipper ***/
+
+COMPONENT RFflipper_In = Arm()
+AT (0,0,1.37) RELATIVE Vacuum_Window_In
+
+COMPONENT RFflipperGuide = Guide_gravity(w1=0.03, h1=0.03, l=0.91, m=1, alpha=gAlpha, wavy=gWavy)
+AT (0,0,0.013) RELATIVE RFflipper_In 
+
+/*** Collimator ***/
+
+COMPONENT Collimator_In = Arm()
+AT (0,0,0.91) RELATIVE RFflipper_In
+
+COMPONENT Dia1 = Slit(xwidth=s1w, yheight=s1h) 
+AT (0,0,0.05) RELATIVE Collimator_In
+
+COMPONENT CollimatorGuide1 = Guide_gravity(w1=0.03, h1=0.03, l=1.969, m=1, alpha=gAlpha, wavy=gWavy) 
+WHEN (guide1 == 1)
+AT (0,0,0.097) RELATIVE Collimator_In 
+
+COMPONENT CollimatorGuide2 = Guide_gravity(w1=0.03, h1=0.03, l=1.969, m=1, alpha=gAlpha, wavy=gWavy) 
+WHEN (guide2 == 1)
+AT (0,0,2.072) RELATIVE Collimator_In 
+
+COMPONENT Dia2 = Slit(xwidth=s2w, yheight=s2h) 
+AT (0,0,4.065) RELATIVE Collimator_In
+
+COMPONENT CollimatorGuide3 = Guide_gravity(w1=0.03, h1=0.03, l=2.441, m=1, alpha=gAlpha, wavy=gWavy) 
+WHEN (guide3 == 1)	
+AT (0,0,4.089) RELATIVE Collimator_In 
+
+COMPONENT Dia3 = Slit(xwidth=s3w, yheight=s3h) 
+AT (0,0,6.554) RELATIVE Collimator_In
+
+COMPONENT SampleSlitPos = Arm()
+AT (0,0,2.45) RELATIVE Dia3
+
+COMPONENT SampleSlit_Rect = Slit(xwidth=ssw, yheight=ssh)
+WHEN(ssshape==1) AT (0,0,0) RELATIVE SampleSlitPos
+
+COMPONENT SampleSlit_Circ = Slit(radius=0.5*ssw)
+WHEN(ssshape==2) AT (0,0,0) RELATIVE SampleSlitPos
+
+/*** Sample position ***/
+
+COMPONENT sample = Monitor_nD(xwidth=ssw, yheight=ssh, bins=1)
+AT (0,0,0.045) RELATIVE SampleSlitPos
+
+COMPONENT SamplePos = Arm()
+AT (0,0,0.05) RELATIVE SampleSlitPos
+
+SPLIT COMPONENT H2O = Incoherent(
+	sigma_abs=0.665, sigma_inc=160.521, Vc=29.969,
+	xwidth=1e-2, yheight=4e-2, zdepth=1e-3, 
+	p_interact=1, focus_xw=0.64, focus_yh=0.64, target_z=lsd)
+WHEN(sampleno==1) AT (0,0,0) RELATIVE SamplePos
+
+SPLIT COMPONENT AgBeh = Powder1(d=58.4, d_phi=tthmax*RAD2DEG, xwidth=1e-2, yheight=4e-2, zdepth=1e-3)
+WHEN(sampleno==2) AT (0,0,0) RELATIVE SamplePos
+
+SPLIT COMPONENT Spheres = Sans_spheres(
+	R=100, Phi=1e-3, Delta_rho=1.0, 
+	xwidth=1e-2, yheight=4e-2, zdepth=1e-3,
+	focus_xw=0.64, focus_yh=0.64, target_z=lsd)
+WHEN(sampleno==3) AT (0,0,0) RELATIVE SamplePos
+
+/*** 3He monoblock PSD ***/
+
+COMPONENT BS = Beamstop(radius=rbs)
+AT (0,0,lsd-0.11) RELATIVE SamplePos
+
+COMPONENT psd = PSD_monitor(xwidth=0.64, yheight=0.64, nx=256, ny=128, filename="psd.dat")
+AT (0,0,lsd) RELATIVE SamplePos
+
+END

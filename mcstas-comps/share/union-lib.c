@@ -25,6 +25,7 @@ enum shape {
 };
 
 enum process {
+  Inhomogenous_incoherent,
   Incoherent,
   Powder,
   Single_crystal,
@@ -458,6 +459,7 @@ struct pointer_to_1d_int_list mask_intersect_list;
 int number_of_faces;
 struct surface_stack_struct **surface_stack_for_each_face;
 struct surface_stack_struct *internal_cut_surface_stack;
+
 };
 
 struct physics_struct
@@ -475,10 +477,19 @@ struct scattering_process_struct *p_scattering_array;
 int has_refraction_info;
 double refraction_scattering_length_density; // [AA^-2]
 double refraction_Qc;
+
+// Numerical integration
+int sampling_points;
+double *cumul_transmission_prob;
+double dist;
+double *cumul_dists;
+double **mus;
+double *total_mus;
 };
 
 union data_transfer_union{
     // List of pointers to storage structs for all supported physical processes
+    struct Inhomogenous_incoherent_struct *Inhomogenous_incoherent_struct;
     struct Incoherent_physics_storage_struct  *pointer_to_a_Incoherent_physics_storage_struct;
     struct Powder_physics_storage_struct *pointer_to_a_Powder_physics_storage_struct;
     struct Single_crystal_physics_storage_struct *pointer_to_a_Single_crystal_physics_storage_struct;
@@ -499,35 +510,45 @@ union data_transfer_union{
 
 struct scattering_process_struct
 {
-char name[256];                // User defined process name
-enum process eProcess;         // enum value corresponding to this process GPU
-double process_p_interact;     // double between 0 and 1 that describes the fraction of events forced to undergo this process. -1 for disable
-int non_isotropic_rot_index;   // -1 if process is isotrpic, otherwise is the index of the process rotation matrix in the volume
-int needs_cross_section_focus; // 1 if physics_my needs to call focus functions, otherwise -1
-Rotation rotation_matrix;      // rotation matrix of process, reported by component in local frame, transformed and moved to volume struct in main
+  char name[256];                          // User defined process name
+  enum process eProcess;                   // enum value corresponding to this process GPU
+  double process_p_interact;               // double between 0 and 1 that describes the fraction of events forced to undergo this process. -1 for disable
+  int non_isotropic_rot_index;             // -1 if process is isotrpic, otherwise is the index of the process rotation matrix in the volume
+  int needs_cross_section_focus;           // 1 if physics_my needs to call focus functions, otherwise -1
+  int needs_numerical_integration;         // 1 if the process is inhomogenous and therefore needs numerical integration, otherwise -1.
+  Rotation rotation_matrix;                // rotation matrix of process, reported by component in local frame, transformed and moved to volume struct in main
+  double *inhomogenous_cumul_prob;         // The cumulative probability of a process in case of inhomogenous processes
+  double *inhomogenous_distances;          // The distance of each step in which the cumulative probabilities will be calculated.
+  double *inhomogenous_cumul_distances;    // The cumulative distances
+  double *inhomogenous_mu;                 // The different attenuation coefficients that are sampled in the numerical integration
+  double *inhomogenous_prob;               // The probability of the process at the different sampled points.
+  double *inhomogenous_t;                  // The different times at which mu must be sampled.
+  int sampling_points;                          // Maximum number of samplings performed. If it is -1, no sampling has been done, and the arrays must be malloc'ed.
+  union data_transfer_union data_transfer; // The way to reach the storage space allocated for this process (see examples in process.comp files)
 
-union data_transfer_union data_transfer; // The way to reach the storage space allocated for this process (see examples in process.comp files)
+  // probability_for_scattering_functions calculates this probability given k_i and parameters
+  int (*probability_for_scattering_function)(double *, double *, union data_transfer_union, struct focus_data_struct *, _class_particle *_particle);
+  //                                         prop,   k_i,   ,parameters               , focus data / function
 
-// probability_for_scattering_functions calculates this probability given k_i and parameters
-int (*probability_for_scattering_function)(double*,double*,union data_transfer_union,struct focus_data_struct*, _class_particle *_particle);
-//                                         prop,   k_i,   ,parameters               , focus data / function
-
-// A scattering_function takes k_i and parameters, returns k_f
-int (*scattering_function)(double*,double*,double*,union data_transfer_union,struct focus_data_struct*, _class_particle *_particle);
-//                         k_f,    k_i,    weight, parameters               , focus data / function
+  // A scattering_function takes k_i and parameters, returns k_f
+  int (*scattering_function)(double *, double *, double *, union data_transfer_union, struct focus_data_struct *, _class_particle *_particle);
+  //                         k_f,    k_i,    weight, parameters               , focus data / function
 };
 
-//Utility function for initialising a scattering_process_struct with default
-//values:
-void scattering_process_struct_init( struct scattering_process_struct * sps )
+// Utility function for initialising a scattering_process_struct with default
+// values:
+void scattering_process_struct_init(struct scattering_process_struct *sps)
 {
-  memset(sps,0,sizeof(struct scattering_process_struct));//catch all
+  memset(sps, 0, sizeof(struct scattering_process_struct)); // catch all
   sps->name[0] = '\0';
   sps->probability_for_scattering_function = NULL;
   sps->scattering_function = NULL;
   sps->non_isotropic_rot_index = -1;
   sps->needs_cross_section_focus = -1;
+  sps->needs_numerical_integration = -1;
+  sps->sampling_points = -1;
 }
+
 
 union surface_data_transfer_union 
 {
