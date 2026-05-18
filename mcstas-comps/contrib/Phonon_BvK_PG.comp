@@ -3,6 +3,8 @@
 *  McStas, neutron ray-tracing package
 *  Copyright(C) 2000 Risoe National Laboratory.
 *
+* Component: Phonon_BvK_PG 
+*
 * %I
 * Written by: Kim Lefmann
 * Date: 06.12.2025
@@ -12,7 +14,6 @@
 * based upon the algorithm from component Phonon_simple (with expressions from Squires, Ch. 3)
 * Using the Born-von Karman force constnts and the normal mode formalism
 *
-* Optimized for performance from the previous Phonon_BvK_PG_eígenvector:Dec2024.comp and Phonon_BvK_PG_eígenvector:July2025.comp
 * 
 * %D
 * Single-cylinder or slap shaped shape.
@@ -20,7 +21,7 @@
 * No multiple scattering.
 * No incoherent scattering emitted, but incoherent is present in attenuation
 * No attenuation from coherent scattering. No Bragg scattering.
-* Specialized for PG
+* Specialized for Pyrolytic Graphite (PG)
 *
 * Algorithm:
 * 0. Always perform the scattering if possible (otherwise ABSORB)
@@ -29,7 +30,7 @@
 * 3. Calculate the zeros of (E_i-E_f-hbar omega(kappa)) as a function of k_f
 * 4. Choose one value of k_f (there always at least one possible; see e.g. Squires)
 * 5. Perform the correct weight transformation
-* For details: see article A. F. Davidsen et al, manuscript for J Neutron Res 2025
+* For details: see article A. F. Davidsen et al, manuscript for J Neutron Res 2026
 *
 * %P
 * INPUT PARAMETERS:
@@ -37,7 +38,7 @@
 * yheight: [m]        Height of sample in y direction
 * xwidth: [m]         Horiz. dimension of sample if slap
 * zdepth: [m]         Depth of sample if slap
-
+*
 * sigma_abs: [barns]  Absorption cross section at 2200 m/s per atom
 * sigma_inc: [barns]  Incoherent scattering cross section per atom
 * DW: [1]             Debye-Waller factor; scalar value (no q-dependence)
@@ -70,7 +71,6 @@ DEFINE COMPONENT Phonon_BvK_PG
 SETTING PARAMETERS (hh=0,kk=0,ll=0,radius=0, xwidth=0, yheight=0, zdepth=0, sigma_abs=0,sigma_inc=0,DW=1,T,
 focus_r=0,focus_xw=0,focus_yh=0,focus_aw=0,focus_ah=0,target_x=0, target_y=0, target_z=0, int target_index=0, int mode_input, int e_steps_low, int e_steps_high, int verbose_input=0, int dispersion=0)
 NOACC
-// The component is currently "NOACC" only.
 
 SHARE
 %{
@@ -1120,12 +1120,6 @@ MCDISPLAY
   } else if (xwidth && yheight) { /* box/rectangle */
     box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   }
-  //  circle("xz", 0,  yheight/2.0, 0, radius);
-  //  circle("xz", 0, -yheight/2.0, 0, radius);
-  //  line(-radius, -yheight/2.0, 0, -radius, +yheight/2.0, 0);
-  //  line(+radius, -yheight/2.0, 0, +radius, +yheight/2.0, 0);
-  //  line(0, -yheight/2.0, -radius, 0, +yheight/2.0, -radius);
-  //  line(0, -yheight/2.0, +radius, 0, +yheight/2.0, +radius);
 %}
 
 END

@@ -38,7 +38,6 @@
 //  by the last Union_master.
 
 
-
 // Initialize global positions / rotations to transform lists
   // These are lists of pointers to positons / rotations, that will be updated from global frame
   //  to the frame of the master component that uses them in that masters initialize section.
@@ -48,7 +47,7 @@
 // Initialize global_process_list
   // Used to facilitate communication between processes and the other types of Union components
   struct pointer_to_global_process_list global_process_list = {0,NULL};
-  
+
 // Initialize global_material_list
   // Used to facilitate communication between materials and the other types of Union components
   struct pointer_to_global_material_list global_material_list = {0,NULL};

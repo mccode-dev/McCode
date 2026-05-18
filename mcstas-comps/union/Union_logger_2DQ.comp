@@ -107,6 +107,8 @@ SHARE
     int order;
     int order_in_this_volume;
     int order_process_in_this_volume;
+
+    Rotation rotation;
   };
 
   // record_to_temp
@@ -144,11 +146,18 @@ SHARE
 
     if (add_point == 1) {
 
+      // k_new given in master coordinates, transform to local
+      // Done here instead of master to save performance, avoid unecessary transforms
+      Coords q_master = coords_sub (make_position (k_old), make_position (k_new));
+      Coords q_local_coords = rot_apply (storage->rotation, q_master);
+      double q_local_double[3];
+      coords_get (q_local_coords, &q_local_double[0], &q_local_double[1], &q_local_double[2]);
+
       double q1, q2;
 
       // dim_1_choice = 0 for x, 1 for y, 2 for z. Done in initialize from input. "x" "y" "z".
-      q1 = k_old[storage->dim_1_choice] - k_new[storage->dim_1_choice];
-      q2 = k_old[storage->dim_2_choice] - k_new[storage->dim_2_choice];
+      q1 = q_local_double[storage->dim_1_choice];
+      q2 = q_local_double[storage->dim_2_choice];
 
       int i, j;
 
@@ -173,6 +182,8 @@ SHARE
           struct temp_2DQ_data_struct temporary_storage;
           temporary_storage.num_elements = storage->temp_2DQ_data.num_elements;
           temporary_storage.elements = malloc (temporary_storage.num_elements * sizeof (struct temp_2DQ_data_element_struct));
+          if (!temporary_storage.elements)
+            exit (fprintf (stderr, "Union_logger_2DQ: %s: ERROR allocating memory (record_to_temp_2DQ)\n", logger->name));
 
           for (index = 0; index < storage->temp_2DQ_data.num_elements; index++) {
             temporary_storage.elements[index].index_1 = storage->temp_2DQ_data.elements[index].index_1;
@@ -186,6 +197,8 @@ SHARE
           // allocate larger array (10 larger)
           storage->temp_2DQ_data.allocated_elements = 10 + storage->temp_2DQ_data.num_elements;
           storage->temp_2DQ_data.elements = malloc (storage->temp_2DQ_data.allocated_elements * sizeof (struct temp_2DQ_data_element_struct));
+          if (!storage->temp_2DQ_data.elements)
+            exit (fprintf (stderr, "Union_logger_2DQ: %s: ERROR allocating memory (record_to_temp_2DQ)\n", logger->name));
 
           // copy back from temp
           for (index = 0; index < storage->temp_2DQ_data.num_elements; index++) {
@@ -250,12 +263,19 @@ SHARE
     }
 
     if (add_point == 1) {
-      // printf("storage was set \n");
+
+      // k_new given in master coordinates, transform to local
+      // Done here instead of master to save performance, avoid unecessary transforms
+      Coords q_master = coords_sub (make_position (k_old), make_position (k_new));
+      Coords q_local_coords = rot_apply (storage->rotation, q_master);
+      double q_local_double[3];
+      coords_get (q_local_coords, &q_local_double[0], &q_local_double[1], &q_local_double[2]);
+
       double q1, q2;
 
       // dim_1_choice = 0 for x, 1 for y, 2 for z. Done in initialize from input "x" "y" "z".
-      q1 = k_old[storage->dim_1_choice] - k_new[storage->dim_1_choice];
-      q2 = k_old[storage->dim_2_choice] - k_new[storage->dim_2_choice];
+      q1 = q_local_double[storage->dim_1_choice];
+      q2 = q_local_double[storage->dim_2_choice];
 
       int i, j;
 
@@ -410,15 +430,13 @@ SHARE
 
     // allocate space for actual data
     double* data = malloc (sizeof (double) * count_x * count_y);
+    if (!data)
+      exit (fprintf (stderr, "Union_logger_2DQ: ERROR allocating memory (allocate2Ddouble)\n"));
 
     // create array or pointers to first elem in each 2D row
     double** ptr_array = malloc (sizeof (double*) * count_x);
-    if (data == NULL || ptr_array == NULL) {
-      free (data);
-      free (ptr_array);
-      printf ("\nERROR: ptr array or data not allocated in Union_logger_2DQ\n");
-      exit (1);
-    }
+    if (!ptr_array)
+      exit (fprintf (stderr, "Union_logger_2DQ: ERROR allocating memory (allocate2Ddouble)\n"));
     for (i = 0; i < count_x; i++) {
       ptr_array[i] = data + (i * count_y);
     }
@@ -560,6 +578,8 @@ INITIALIZE
   this_storage.temp_2DQ_data.num_elements = 0;
   this_storage.temp_2DQ_data.allocated_elements = 10;
   this_storage.temp_2DQ_data.elements = malloc (this_storage.temp_2DQ_data.allocated_elements * sizeof (struct temp_2DQ_data_element_struct));
+  if (!this_storage.temp_2DQ_data.elements)
+    exit (fprintf (stderr, "Union_logger_2DQ: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
   // printf("past direction choices sanitation \n");
 
@@ -590,6 +610,12 @@ INITIALIZE
     fprintf (stderr, "Union_logger_2DQ:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
     exit (-1);
   }
+
+  // Global variables retrieved from init component
+  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = COMP_GETPAR3 (Union_init, init, global_rotations_to_transform_list);
+
+  rot_copy (this_storage.rotation, ROT_A_CURRENT_COMP);
+  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_storage.rotation);
 
   // In order to run the logger at the right times, pointers to this logger is stored in each volume it logs,
   //  and additionally for each avaiable process. If a process is not logged, the pointer is simply not stored.

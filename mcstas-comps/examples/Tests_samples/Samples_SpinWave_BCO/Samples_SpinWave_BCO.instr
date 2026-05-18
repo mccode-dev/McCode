@@ -1,0 +1,235 @@
+/*****************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Samples_SpinWave_BCO
+*
+* %Identification
+* Written by: Silas Schack
+* Date: Spring 2026
+* Origin: NBI
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Simple test instrument for the SpinWave_BCO component
+*
+*
+* %Description
+* Simple test instrument for the SpinWave_BCO component.
+* Refer to the component documentation for further instructions.
+*
+* %Example: h=1 l=0 Detector: Emon_I=0.0517575
+* %Example: h=0 l=0.5 E=6.73 Detector: Emon_I=0.0108855
+* %Example: h=1 l=1 Detector: Emon_I=0.000655744
+*
+* %Parameters
+* E:            [meV] Mean energy at source
+* Ef:           [meV] Final energy
+* Dlambda:      [AA]  Wavelength spread at source
+* h:            [1]   1st sample Miller index
+* l:            [1]   3rd sample Miller index
+* B:            [T]   Field strength of external magnetic field applied along z-axis
+* dA3:          [deg] Offset from A3 nominal value
+* Temp:         [K]   Sample temperature
+* width:        [deg] Width of sample
+* E_steps_low:  [1]   Number of low-energy steps in zrid
+* E_steps_high: [1]   Number of high-energy steps in zrid
+* mode:         [1]   Index of mode(s) to simulate
+* verbose:      [1]   Verbosity flag
+*
+* %End
+******************************************************************************/
+DEFINE INSTRUMENT Samples_SpinWave_BCO(E=1.06,Ef=14.7,Dlambda=0.1, h=1, l=0,B=0,dA3=-90, Temp=2, width = 0.005, E_steps_low = 50, E_steps_high = 50, int mode = 2,verbose=0)
+
+DECLARE
+%{
+  double Gqx,Gqy,Gqz;
+//double Ef=24.8
+double Ei;
+//meV
+double thetaM;
+double twothetaS;
+double thetaA;
+double A3;
+double QM;
+double alpha;
+double lambda_i;
+double SMALL__NUMBER;
+double a;
+double c;
+double jAFM;
+double jFM;
+double jextra;
+double S;
+double D;
+%}
+
+INITIALIZE
+%{
+// Set monochromator/analyzer Q-value for PG
+QM = 1.8734;
+SMALL__NUMBER = 1e-6;
+
+// MnF2 parameters
+// Lattice vectors in AA
+a = 4.873;
+c =  3.130;
+
+jAFM = 2*0.152;
+jFM = -2*0.028;
+jextra = 2*0.004;
+S = 2.5;
+D = -0.023;
+
+//MnF2 reciprocal lattice vectors, in 1/AA
+double astar = 2*PI/a;
+double cstar = 2*PI/c;
+
+//calculate Ei
+Ei=Ef+E;
+
+//calculate ki, kf, lambda_i, q
+double ki = V2K*SE2V*sqrt(Ei);
+double kf = V2K*SE2V*sqrt(Ef);
+lambda_i=2*PI/ki;
+double q = sqrt(h*h*astar*astar+l*l*cstar*cstar);
+
+//calculate 2thetaM and 2thetaA
+thetaM = asin(QM/(2*ki))*RAD2DEG;
+thetaA = asin(QM/(2*kf))*RAD2DEG;
+
+//calculate scattering angle and sample rotation
+twothetaS = acos((q*q-ki*ki-kf*kf)/(-2*ki*kf))*RAD2DEG;
+alpha = acos((kf*kf-ki*ki-q*q)/(-2*ki*q));
+A3=(asin(l*cstar/(q+SMALL__NUMBER))-alpha)*RAD2DEG;
+
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT source = Source_Maxwell_3(
+    xwidth=0.01,
+    yheight=0.01,
+    Lmin=lambda_i-Dlambda/2, 
+    Lmax=lambda_i+Dlambda/2, 
+    dist=7.5, 
+    focus_yh=width, 
+    focus_xw=width, 
+    T1=300, 
+    T2=300, 
+    T3=300, 
+    I1=1E15,
+    I2=1E15,
+    I3=1E15)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT monochromator_flat = Monochromator_flat(
+     mosaicv=30,
+     mosaich=30,
+     zwidth = width,
+     yheight = width,
+     Q=QM)
+AT (0, 0, 7.5) RELATIVE source
+ROTATED (0, thetaM, 0) RELATIVE source
+
+COMPONENT arm1 = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, thetaM, 0) RELATIVE PREVIOUS
+
+COMPONENT collimator_linear1 = Collimator_linear(
+    xwidth=0.1, 
+    yheight=0.2, 
+    length=0.2, 
+    divergence=40)
+AT (0, 0, 0.7) RELATIVE arm1
+
+COMPONENT arm2 = Arm()
+AT (0, 0, 1) RELATIVE arm1
+ROTATED (0, 0, 0) RELATIVE arm1
+
+SPLIT 1
+
+COMPONENT SAMPLE = SpinWave_BCO(
+    radius = width/2,
+    yheight = 2*width,
+    sigma_abs = 0,
+    sigma_inc = 0,
+    T = Temp,
+    a1 = a,
+    a2 = a,
+    a3 = c,
+    j = jAFM,
+    jc = jFM,
+    ja=jextra,
+    jb=jextra,
+    S=S,
+    B=B,
+    D=D,
+    FM=0,
+    mode_input = mode,
+    e_steps_low = E_steps_low,
+    e_steps_high = E_steps_high,
+    target_index=3,
+    focus_xw=0.005,
+    focus_yh=0.005,
+    verbose = verbose)
+AT (0, 0, 0) RELATIVE arm2
+ROTATED (0, -A3+dA3, 180) RELATIVE arm2
+
+COMPONENT arm3 = Arm()
+AT (0, 0, 0) RELATIVE arm2
+ROTATED (0, -twothetaS, 0) RELATIVE arm2
+
+COMPONENT collimator_linear2 = Collimator_linear(
+    xwidth=0.1, 
+    yheight=0.2, 
+    length=0.2, 
+    divergence=40,
+    xwidth=width, 
+    yheight=width)
+AT (0, 0, 0.5) RELATIVE arm3
+
+COMPONENT slit = Slit(
+    xwidth=0.005, 
+    yheight=0.005)
+AT (0, 0, 1) RELATIVE arm3
+
+COMPONENT analyzer = Monochromator_flat(
+    zwidth=width, 
+    yheight=width,
+    mosaicv=30,
+    mosaich=30,
+    Q=QM
+    )
+AT (0, 0, 0.1) RELATIVE PREVIOUS
+ROTATED (0, thetaA, 0) RELATIVE PREVIOUS
+
+COMPONENT arm4 = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, thetaA, 0) RELATIVE PREVIOUS
+
+COMPONENT collimator_linear3 = Collimator_linear(
+    xwidth=0.1, 
+    yheight=0.2, 
+    length=0.2, 
+    divergence=40)
+AT (0, 0, 0.5) RELATIVE PREVIOUS
+
+COMPONENT Emon = E_monitor(
+    nE=250, 
+    filename="Emon", 
+    xwidth=width, 
+    yheight=width, 
+    Emin=0, 
+    Emax=75,
+    restore_neutron=1)
+AT (0, 0, 1) RELATIVE arm4
+
+
+FINALLY
+%{
+%}
+
+END
+

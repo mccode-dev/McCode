@@ -1,23 +1,49 @@
-\section{TOF2E\_monitor: A time-of-flight monitor with simple energy analysis} \label{s:TOF2E_monitor}
-\index{Monitors!TOF2E monitor}
-%\component{E\_monitor}{System}{$x_\textrm{min}$, $x_\textrm{max}$, $y_\textrm{
-%min}$, $y_\textrm{max}$, $n_\textrm{chan}$, $E_\textrm{min}$, $E_\textrm{max}$,
-%$t_0$, $L_\textrm{flight}$, filename}{}{Not validated}
-\mcdoccomp{monitors/TOF2E_monitor.parms}
+\section{The \texttt{TOF2E\_monitor} McStas Component}
+TOF-sensitive monitor, converting to energy
 
-The component \textbf{TOF2E\_monitor} resembles \textbf{TOF\_monitor}
-to a very large extent. Only this monitor converts the neutron flight
-time to energy - as would be done in an experiment.
-The {\em apparent} neutron energy, $E_\textrm{app}$ is calculated 
-from the apparent velocity, given by 
-\begin{equation}
-v_\textrm{app} = \frac{L_\textrm{flight}}{t-t_0} ,
-\end{equation}
-where the time offset, $t_0$ defaults to zero.
-$E_\textrm{app}$ is binned in \textit{nchan} bins between
-$E_\textrm{min}$ and $E_\textrm{max}$ (in meV).
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kim Lefmann and Helmuth Schoeber
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} Sept. 13, 2006
+\end{itemize}
 
-The output parameters from \textbf{TOF2E\_monitor} are the total counts,
-and a file with 1-dimensional data vs. $E_\textrm{app}$, 
-similar to \textbf{TOF\_monitor}.
+\subsection*{Description}
+\begin{lstlisting}
+A square single monitor that measures the energy of the incoming neutrons
+from their time-of-flight
 
+Example: TOF2E_monitor(xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1, Emin=1, Emax=50, nE=20, filename="Output.nrj", L_flight=20, T_zero=0)
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+nE & 1 & Number of energy channels & 20 \\
+filename & string & Name of file in which to store the detector image & 0 \\
+nowritefile & 1 & If set, monitor will skip writing to disk & 0 \\
+xmin & m & Lower x bound of detector opening & -0.05 \\
+xmax & m & Upper x bound of detector opening & 0.05 \\
+ymin & m & Lower y bound of detector opening & -0.05 \\
+ymax & m & Upper y bound of detector opening & 0.05 \\
+xwidth & m & Width of detector. Overrides xmin, xmax & 0 \\
+yheight & m & Height of detector. Overrides ymin, ymax & 0 \\
+\textbf{Emin} & meV & Minimum energy to detect &  \\
+\textbf{Emax} & meV & Maximum energy to detect &  \\
+\textbf{T\_zero} & s & Zero point in time &  \\
+\textbf{L\_flight} & m & flight length user in conversion &  \\
+restore\_neutron & 1 & If set, the monitor does not influence the neutron state & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/monitors/TOF2E_monitor.comp}{Source code} for \texttt{TOF2E\_monitor.comp}.
+\end{itemize}
+\IfFileExists{TOF2E_monitor_static.tex}{\input{TOF2E_monitor_static.tex}}{}

@@ -39,7 +39,7 @@ int strcasecmp(char *s1, char *s2)
 #ifndef HAVE_FDOPEN
 FILE *fdopen(int descr, const char *mode)
 {
-  fatal_error("The '-' argument for standard input and output is not supported"
+  fprintf(stderr, "The '-' argument for standard input and output is not supported"
 	      " on this system.");
   return(NULL);
 }

@@ -1,0 +1,227 @@
+/*******************************************************************************
+* Instrument: ESS_butterfly_Adjustable_Pulse
+*
+* %I
+* Written by: Peter Willendrup <pkwi@fysik.dtu.dk>
+* Date: 2016-08-24
+* Origin: ESS
+* %INSTRUMENT_SITE: ESS
+*
+* Test instrument for the updated BF1 butterfly moderator design
+*
+* %D
+* Test instrument for the updated BF1 butterfly moderator design.
+* 
+* The below example gives a 50-50 (statistics-wise) cold/thermal beam at beamline N10.
+* %Example: pulse_duration=2.857e-3 sector=N beamline=10 cold=0.5 Detector: AutoTOFL0_I=2.7e+11
+*
+* Was used to generate MCNP benchmarked output for the ESS_butterfly.comp - see 
+* <a href="http://ess_butterfly.mcstas.org">http://ess_butterfly.mcstas.org</a>
+*
+* %P
+* sector:        [str]  Defines the 'sector' of your instrument position. Valid values are "N","S","E" and "W"
+* beamline:      [1]    Defines the 'beamline number' of your instrument position. Valid values are 1..10 or 1..11 depending on sector
+* Lmin:          [AA]   Minimum wavelength simulated
+* Lmax:          [AA]   Maximum wavelength simulated
+* c_performance: [1]    Cold brilliance scalar performance multiplicator c_performance > 0
+* t_performance: [1]    Thermal brilliance scalar performance multiplicator t_performance > 0
+* index:         [1]    Target index for source focusing. Defaults to illuminate the "cold collimated" brilliance monitor, thereby suppressing "dist"
+* dist:          [m]    Distance from origin to focusing rectangle; at (0,0,dist) - alternatively use target_index
+* cold:          [1]    Defines the statistical fraction of events emitted from the cold part of the moderator
+* Yheight:       [m]    Defines the moderator height. Valid values are 0.03 m and 0.06 m
+* delta:         [m]    Parameter that allows to scan "collimator" position
+*
+* %L
+* <reference/HTML link>
+* Benchmarking website available at <a href="http://ess_butterfly.mcstas.org">http://ess_butterfly.mcstas.org</a>
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT ESS_butterfly_Adjustable_Pulse(string sector="N",beamline=1,Lmin=0.2,Lmax=20,c_performance=1,t_performance=1,int index=16,dist=0,cold=0.5,Yheight=0.03,delta=0,pulse_duration=2.857e-3)
+DEPENDENCY " -DADJUSTABLE_ESS_PULSE "
+
+DECLARE
+%{
+  double XW, YH;
+  char options1[256],options2[256],options3[256],options4[256];
+  char srcdef[128];
+  double WidthC=0.072,WidthT=0.108;
+  double lambdamin, lambdamax;
+  double CCold,CThermal;
+  double TCollmin;
+  double TCollmax;
+  double EminTh=20, EmaxTh=100, EminC=0, EmaxC=20;
+  #pragma acc declare create(CCold,CThermal,EminC,EmaxC,EminTh,EmaxTh,TCollmin,TCollmax)
+%}
+
+USERVARS
+%{
+  int IsCold;
+  double SrcX;
+  double SrcY;
+  double SrcZ;
+  double WL;  
+  double SurfSign;
+  double Eneutron;
+  double Emin;
+  double Emax;
+%}
+
+INITIALIZE
+%{
+  lambdamin=Lmin; 
+  lambdamax=Lmax;
+  XW=1.05*(WidthC+2*WidthT);
+  YH=1.05*Yheight;
+  sprintf(options1,"user1 bins=201 limits=[-%g,%g]",XW/2,XW/2);
+  sprintf(options4,"user1 bins=201 limits=[-%g,%g]",YH/2,YH/2);
+  sprintf(options2,"user1 bins=201 limits=[-%g,%g], user2 bins=201 limits=[-%g,%g]",XW/2,XW/2,YH/2,YH/2);
+  sprintf(options3,"user1 bins=201 limits=[-%g,%g], user2 bins=201 limits=[-%g,%g]",1.05*(WidthC/2),1.05*(WidthC/2),1.05*Yheight/2,1.05*Yheight/2);
+  sprintf(srcdef,"2015");
+  if (beamline==1) {
+    TCollmin=0;
+    TCollmax=0.058;
+  } else if (beamline==2) {
+    TCollmin=0;
+    TCollmax=0.06;
+  }
+  else {
+    TCollmin=0.011;
+    TCollmax=0.071;
+  }
+  #pragma acc update device(CCold,CThermal,EminC,EmaxC,EminTh,EmaxTh,TCollmin,TCollmax)
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+/* Focusing for this use of the source is a little unphysical: 1x1cm @ 1m ~ 1e-4 steradian. To be useful in a "proper" instrument, you should of course illuminate your beamport fully!*/
+COMPONENT Source = ESS_butterfly(sector=sector,beamline=beamline,Lmin=Lmin,Lmax=Lmax,c_performance=c_performance,t_performance=t_performance,dist=dist,target_index=index,cold_frac=cold, yheight=Yheight,
+				   focus_xw=0.01, focus_yh=0.01)
+AT (0,0,0) ABSOLUTE
+EXTEND %{
+  /* Various logical flags for measuring brilliances etc. below */
+  IsCold=iscold;
+  SurfSign=surf_sign;
+  SrcX=x;SrcY=y;SrcZ=z;
+  WL=lambda;
+  CCold=cos_cold;
+  CThermal=cos_thermal;
+  Eneutron=VS2E*(vx*vx + vy*vy + vz*vz);
+  if (IsCold) {
+    Emin=EminC;Emax=EmaxC;
+  } else {
+    Emin=EminTh;Emax=EmaxTh;
+  }
+%}
+
+COMPONENT AutoTOFL0 = Monitor_nD(xwidth=XW, yheight=YH, options="tof limits=[0 5e-3] bins=51, lambda limits=[0.1 20] bins=41", restore_neutron=1)
+ AT (0, 0, 0.08) RELATIVE PREVIOUS
+
+COMPONENT AutoTOF0 = Monitor_nD(xwidth=XW, yheight=YH, options="tof limits=[0 5e-3] bins=51", restore_neutron=1)
+ AT (0, 0, 0.001) RELATIVE PREVIOUS
+
+COMPONENT AutoL0 = Monitor_nD(xwidth=XW, yheight=YH, options="lambda limits=[0.1 20] bins=41", restore_neutron=1)
+ AT (0, 0, 0.001) RELATIVE PREVIOUS
+
+COMPONENT PSD0= Monitor_nD(filename="flat",xwidth=0.4,yheight=0.15,options="x limits=[-0.2 0.2] bins=90, y limits=[-0.07 0.07] bins=90,", restore_neutron=1)
+  AT (0,0,0.001) RELATIVE PREVIOUS
+
+COMPONENT PSD1=Monitor_nD(filename="flatC",xwidth=0.4,yheight=0.15,options="x limits=[-0.2 0.2] bins=90, y limits=[-0.07 0.07] bins=90,", restore_neutron=1)
+WHEN (IsCold || Eneutron<=EmaxC) AT (0,0,0.001) RELATIVE PREVIOUS
+
+COMPONENT PSD2=Monitor_nD(filename="flatT",xwidth=0.4,yheight=0.15,options="x limits=[-0.2 0.2] bins=90, y limits=[-0.07 0.07] bins=90,", restore_neutron=1)
+  WHEN ((!IsCold) || Eneutron>=EminTh) AT (0,0,0.001) RELATIVE PREVIOUS
+
+/* These arms are just to ensure we get a good view of the monolith */
+COMPONENT Arm1 = Arm()
+  AT (0,0,2) RELATIVE ABSOLUTE
+
+COMPONENT Arm2 = Arm()
+  AT (0,0,3.5) RELATIVE ABSOLUTE
+
+/* Measures the horizontal emmision coordinate of all neutrons - gives the "apparent width" of the moderators as seen from the beamline */
+COMPONENT MonND1 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1)
+  WHEN(Eneutron<=Emax && Eneutron>=Emin) AT (0, 0, 1) RELATIVE Source
+
+/* Measures the horizontal emmision coordinate of all neutrons - gives the "apparent width" of the moderators as seen from the beamline */
+COMPONENT CWidth = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1)
+  WHEN(Eneutron<=EmaxC && Eneutron>=EminC) AT (0, 0, 1) RELATIVE Source
+
+/* Measures the horizontal emmision coordinate of all neutrons - gives the "apparent width" of the moderators as seen from the beamline */
+COMPONENT TWidth = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1)
+  WHEN(Eneutron<=EmaxTh && Eneutron>=EminTh) AT (0, 0, 1) RELATIVE Source
+
+/* Measures the vertical emmision coordinate of cold neutrons */
+COMPONENT MonND2 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcY", username1="Vertical position COLD / [m]", options=options4, restore_neutron=1)
+  WHEN(IsCold) AT (0, 0, 1) RELATIVE Source
+
+/* Measures the vertical emmision coordinate of thermal neutrons */
+COMPONENT MonND2_2 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcY", username1="Vertical position THERMAL/ [m]", options=options4, restore_neutron=1)
+  WHEN(!IsCold) AT (0, 0, 1) RELATIVE Source
+
+/* 2D-plot of emmision coordinates for all neutrons */
+COMPONENT MonND3 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", user2="SrcY",username2="Vertical position / [m]", options=options2, restore_neutron=1)
+ AT (0, 0, 1) RELATIVE Source
+
+/* 2D-plot of (x,z) emmision coordinates for all neutrons */
+COMPONENT MonND4 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Emission position / [m]", user2="SrcZ", username2="Z-component of position / [m]", options="user1 bins=201 limits=[-0.3,0.3], user2 bins=201 limits=[-0.3,0.3]", restore_neutron=1)
+ AT (0, 0, 1) RELATIVE Source
+
+COMPONENT AutoTOFL = Monitor_nD(xwidth=XW, yheight=YH, options="tof limits=[0 15e-3] bins=51, lambda limits=[0.1 20] bins=41", restore_neutron=1)
+ AT (0, 0, 1) RELATIVE Source
+
+/* Measures brilliance of the "full" cold source */
+COMPONENT BrillmonCOLD = Brilliance_monitor(
+    nlam = 101, nt = 101, filename = "brillCOLD", t_0 = -1000,
+    t_1 =4e4, lambda_0 = lambdamin, lambda_1 = lambdamax,
+    Freq =14, toflambda=1 ,tofcuts=0, srcarea=(100*0.072*100*Yheight), restore_neutron=1)
+WHEN(IsCold)  AT (0, 0, 1) RELATIVE Source
+
+/* Measures "collimated" brilliance of the cold source over fixed 6 cm wide area x central part vertically. */
+/* Used for calibration of performance wrt. MCNP BF1 output, see http://ess_butterfly.mcstas.org */
+COMPONENT BrillmonCOLD_COLL = Brilliance_monitor(
+    nlam = 101, nt = 101, filename = "brillCOLD_COLL", t_0 = -1000,
+    t_1 = 4e4, lambda_0 = lambdamin, lambda_1 = lambdamax,
+    Freq =14, toflambda=1,tofcuts=0, srcarea=(100*0.06*100*2*Yheight/2.5), restore_neutron=1)
+  WHEN(SurfSign==-1 && IsCold && fabs(SrcY)<Yheight/2.5 && fabs(SrcX) < (0.071+delta) && fabs(SrcX) > (0.011+delta))  AT (0, 0, 1) RELATIVE Source
+
+/* Measures brilliance of the "full" thermal source */
+COMPONENT BrillmonTHRM = Brilliance_monitor(
+    nlam = 101, nt = 101, filename = "brillTHRM", t_0 = -1000,
+    t_1 =4e4, lambda_0 = lambdamin, lambda_1 = lambdamax,
+    Freq =14, toflambda=1,tofcuts=0, srcarea=(100*0.108*100*Yheight), restore_neutron=1)
+  WHEN (!IsCold) AT (0, 0, 1) RELATIVE Source
+
+/* Measures "collimated" brilliance of the thermal source over fixed 6 cm wide area (or smaller at beamlines no. 1,2) x central part vertically. */
+/* Used for calibration of performance wrt. MCNP BF1 output, see http://ess_butterfly.mcstas.org */
+COMPONENT BrillmonTHRM_COLL = Brilliance_monitor(
+    nlam = 101, nt = 101, filename = "brillTHRM_COLL", t_0 = -1000,
+    t_1 =4e4, lambda_0 = lambdamin, lambda_1 = lambdamax,
+      Freq =14, toflambda=1,tofcuts=0, srcarea=(100*0.06*100*2*Yheight/2.5), restore_neutron=1)
+  WHEN (SurfSign==1 && (!IsCold) && fabs(SrcY)<Yheight/2.5 && fabs(SrcX)>(TCollmin+delta) && fabs(SrcX)<(TCollmax+delta))  AT (0, 0, 1) RELATIVE Source
+
+/* /\* Uncomment these helper-arms to view "full" monolith *\/ */
+
+/* COMPONENT DummyArm1 = Arm() */
+/*   AT (6,0,6) ABSOLUTE */
+
+/* COMPONENT DummyArm2 = Arm() */
+/*   AT (-6,0,6) ABSOLUTE */
+
+/* COMPONENT DummyArm3 = Arm() */
+/*   AT (-6,0,-6) ABSOLUTE */
+
+/* COMPONENT DummyArm4 = Arm() */
+/*   AT (6,0,-6) ABSOLUTE */
+
+/* COMPONENT DummyArm5 = Arm() */
+/*   AT (6,0,6) ABSOLUTE */
+
+
+FINALLY
+%{
+%}
+
+END

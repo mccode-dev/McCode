@@ -1,42 +1,45 @@
-\section{Beamstop: A neutron absorbing area}
-\label{beamstop}
-\index{Optics!Beam stop}
+\section{The \texttt{Beamstop} McStas Component}
+Rectangular/circular beam stop.
 
-%\component{Beamstop}{System}{$x_{min}$, $x_{max}$, $y_{min}$,
-%$y_{max}$}{$r$}{}
-\mcdoccomp{optics/Beamstop.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kristian Nielsen
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} January 2000
+\end{itemize}
 
-The component \textbf{Beamstop} can be seen as the reverse of
-the \textbf{Slit} component.
-It sets up an area at the $z=0$ plane, and propagates the neutrons
-onto this plane (by the kernel call PROP\_Z0).
-Neutrons within this area are ABSORB'ed,
-while all other neutrons are unaffected.
-
-By using this component, some neutrons contributing to the background
-in a real experiment will be neglected.
-These are the ones that scatter off the side
-of the beamstop, or penetrates the absorbing material.
-Further, the holder of the beamstop is not simulated.
-
-\textbf{Beamstop} can be either circular or rectangular.
-The input parameters of \textbf{Beamstop} are the four coordinates,
-$(x_\textrm{min}, x_\textrm{max}, y_\textrm{min}, y_\textrm{max})$
-defining the opening of a rectangle, or the radius $r$ of
-a circle, depending on which parameters are specified.
-
-If the "direct beam" (e.g. after a monochromator or sample) should not be
-simulated, it is possible to emulate an ideal beamstop 
-so that only the scattered beam is left;
-without the use of \textbf{Beamstop}:
-This method is useful for instance in the case where only neutrons 
-scattered from a sample are of interest. 
-The example below removes the direct beam and 
-any background signal from other parts of the instrument
+\subsection*{Description}
 \begin{lstlisting}
-COMPONENT MySample=V_sample(...) AT (...)
-EXTEND
-%{
-  if (!SCATTERED) ABSORB;
-%}
+A simple rectangular or circular beam stop.
+Infinitely thin and infinitely absorbing.
+The beam stop is by default rectangular. You may either
+specify the radius (circular shape), or the rectangular bounds.
+
+Example: Beamstop(xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05)
+Beamstop(radius=0.1)
 \end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+xmin & m & Lower x bound & -0.05 \\
+xmax & m & Upper x bound & 0.05 \\
+ymin & m & Lower y bound & -0.05 \\
+ymax & m & Upper y bound & 0.05 \\
+xwidth & m & Width of beamstop (x). Overrides xmin, xmax. & 0 \\
+yheight & m & Height of beamstop (y). Overrides ymin, ymax. & 0 \\
+radius & m & radius of the beam stop in the z=0 plane, centered at Origo & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/Beamstop.comp}{Source code} for \texttt{Beamstop.comp}.
+\end{itemize}
+\IfFileExists{Beamstop_static.tex}{\input{Beamstop_static.tex}}{}

@@ -205,17 +205,6 @@ INITIALIZE
     NCMCERR ("Invalid value of absorptionmode");
   params.absmode = absorptionmode;
 
-  #ifndef rand01
-  /* Tell NCrystal to use the rand01 function provided by McStas: */
-  ncrystal_setrandgen (rand01);
-  #else
-  /* rand01 is actually a macro not an actual C-function (most likely defined as */
-  /* _rand01(_particle->randstate) for OPENACC purposes), which we can not       */
-  /* register with NCrystal. As a workaround we tell NCrystal to use its own RNG */
-  /* algorithm, with merely the seed provided by McStas:                         */
-  ncrystal_setbuiltinrandgen_withseed (mcseed);
-  #endif
-
   /* access material info to get number density (natoms/volume): */
   ncrystal_info_t info = ncrystal_create_info (cfg);
   double numberdensity = ncrystal_info_getnumberdensity (info);
@@ -309,7 +298,7 @@ TRACE
 
       /* scattering */
       double ekin_final;
-      ncrystal_samplescatter (params.scat, ekin, (const double (*)[3]) & dir, &ekin_final, &dirout);
+      ncrystal_samplescatter_rs (_rand01_opague, (void*)_particle->randstate, params.scat, ekin, (const double (*)[3]) & dir, &ekin_final, &dirout);
       double delta_ekin = ekin_final - ekin;
       if (delta_ekin) {
         ekin = ekin_final;

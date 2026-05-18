@@ -1,0 +1,95 @@
+\section{The \texttt{Source\_multi\_surfaces} McStas Component}
+Rectangular neutron source with subareas - using wavelength spectra reading
+from files
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Ludovic Giller, Uwe Filges
+  \item \textbf{Origin:} PSI/Villigen
+  \item \textbf{Date:} 31.10.06
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+This routine is a rectangular neutron source, which aims at a square target
+centered at the beam (in order to improve MC-acceptance rate).
+The angular divergence is then given by the dimensions of the target.
+The source surface can be divided in subareas (maximum 7 in one dimension).
+For each subarea a discret spectrum must be loaded given by its corresponding
+file. The name of the files are saved in one file and will be called with the
+parameter "filename".
+In fact the routine first reads the spectrum from files (up to 49) and it
+selects randomly a subarea. Secondly it generates a neutron with an random
+energy, selected from the spectrum corresponding to the subsurface chosen, and
+with a random direction of propagation within the target.
+ATTENTION 1:  the files must be located in the working directory where also
+the instrument file is located
+ATTENTION 2:  the wavelenght distribution (or binning) must be uniform
+
+The file giving the name of sub-sources is matrix like,
+eg. for a 3x2 (x,y) division :
+spec1_1.dat spec1_2.dat spec1_3.dat
+spec2_1.dat spec2_2.dat spec2_3.dat(RETURN-key)
+
+ATTENTION : The line break after the last line is important.
+Otherwise the files can not be read in !!!
+
+and for example spec1_2.dat must be like, always from big to
+small lambda :
+#surface 1_2
+#comments must be preceded by "#"
+#lambda [AA] 	intensity [a.u.]
+9.0		1.39E+08
+8.75		9.67E+08
+8.5		1.17E+09
+8.25		1.50E+09
+8.0		1.60E+09
+7.75		1.43E+09
+7.5		1.40E+09
+7.25		1.36E+09
+7.0		1.35E+09
+6.75		1.33E+09
+6.5		1.32E+09
+6.25		1.31E+09
+
+
+[a.u.] 	means that your chosen unit for the intensity influences
+the outcoming unit. What you put in you will get out !
+i.e. whatever is the unit for the input intensity you
+will have the same unit for the the output.
+Generally McStas works in neutrons per second [n/s].
+
+Usage example:
+Source_multi_surfaces(yheight=0.16,xwidth=0.09,dist=1.18,xw=0.08,yh=0.15,xdim=4,ydim=4,
+Lmin=0.01,Lmax=10.0,filename="files_name.dat")
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+filename & str & Name of the file containing a list of the spectra file names & 0 \\
+yheight & m & Source y-height & 0.16 \\
+xwidth & m & Source x-width & 0.09 \\
+dist & m & Distance to target along z axis & 1.18 \\
+xw & m & Width(x) of target & 0.08 \\
+yh & m & Height(y) of target & 0.15 \\
+xdim & int & Number of subareas in the x direction & 4 \\
+ydim & int & Number of subareas in the y direction & 4 \\
+Emin & eV & Minimum energy of neutrons & 0.0 \\
+Emax & eV & Maximum energy of neutrons & 0.0 \\
+Lmin & AA & Minimum wavelength of neutrons & 0.0 \\
+Lmax & AA & Maximum wavelength of neutrons & 0.0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/contrib/Source_multi_surfaces.comp}{Source code} for \texttt{Source\_multi\_surfaces.comp}.
+\end{itemize}
+\IfFileExists{Source_multi_surfaces_static.tex}{\input{Source_multi_surfaces_static.tex}}{}

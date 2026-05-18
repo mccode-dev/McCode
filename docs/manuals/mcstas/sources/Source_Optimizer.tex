@@ -1,146 +1,104 @@
-\section{Source\_Optimizer: A general Optimizer for McStas}
-\label{source-optimizer}
-\index{Sources!Optimizer}\index{Optimization}
-%\component{Source\_Optimizer}{E. Farhi, ILL}{options}{bins, step, keep}{partially validated}
-\mcdoccomp{sources/Source_Optimizer.parms}
+\section{The \texttt{Source\_Optimizer} McStas Component}
+A component that optimizes the neutron flux passing through the
+Source\_Optimizer in order to have the maximum flux at the
+\textless{}b\textgreater{}Monitor\_Optimizer\textless{}/b\textgreater{} position.
 
-The component \textbf{Source\_Optimizer} is not exactly a source,
-but rather a neutron beam modifier.
-It should be positioned after the source, anywhere in the instrument description.
-The component  optimizes the whole neutron flux
-in order to achieve better statistics at each \textbf{Monitor\_Optimizer}
-location(s) (see section~\ref{monitor-optimizer} for this latter
-component). It acts on any incoming neutron beam (from any source
-type), and more than one optimization criteria location can be placed
-along the instrument.
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} \textless{}a href="mailto:farhi@ill.fr"\textgreater{}Emmanuel Farhi\textless{}/a\textgreater{}
+  \item \textbf{Origin:} \textless{}a href="http://www.ill.fr"\textgreater{}ILL (France)\textless{}/a\textgreater{}
+  \item \textbf{Date:} 17 Sept 1999
+\end{itemize}
 
-The usage of the optimizer is very simple, and usually does not require
-any configuration parameter. Anyway the user can still customize the
-optimization through various \textit{options}.
-
-In contrast to \textbf{Source\_adapt}, this optimizer does not
-record correlations between neutron parameters.
-Nevertheless it is rather efficient,
-enabling the user to increase the number of events
-at optimization criteria locations by typically a factor of 20.
-Hence, the signal error bars will decrease by a factor 4.5,
-since the overall flux remains unchanged.
-
-\subsection{The optimization algorithm}
-
-When a neutron reaches the \textbf{Monitor\_Optimizer} location(s), the
-component records its previous position ($x$, $y$) and speed ($v_x,
-v_y, v_z$) when it passed in the \textbf{Source\_Optimizer}. Some
-distribution tables of \textit{good} neutrons characteristics are then
-built.
-
-When a \textit{bad} neutron comes to the \textbf{Source\_Optimizer} (it would
-then have few chances to reach \textbf{Monitor\_Optimizer}), it is changed
-into a better one. That means that its position and velocity coordinates
-are translated to better values according to the \textit{good} neutrons
-distribution tables. The neutron energy
-($\sqrt{v_x^2 + v_y^2 + v_z^2}$) is kept (as far as possible).
-
-The \textbf{Source\_Optimizer} works as follow:
-\begin{enumerate}
-\item{First of all, the \textbf{Source\_Optimizer} determines some limits
-    (\textit{min} and \textit{max}) for variables $x, y, v_x, v_y, v_z$.}
-\item{Then the component records the non-optimized flux distributions in
-    arrays with \textit{bins} cells (default is 10 cells). This constitutes
-    the \textit{Reference } source.}
-\item{\label {SourceOptimizer:step3}The \textbf{Monitor\_Optimizer} records
-    the \textit{good} neutrons (that reach it) and communicate an \textit{
-      Optimized} beam requirement to the \textbf{Source\_Optimizer}. However, retains '\textit{
-      keep}' percent of the original \textit{Reference} source is sent
-    unmodified (default is 10 \%). The \textit{Optimized} source is thus:
-
-    \begin{center}
-      \begin{tabular}{rcl}
-        \textit{Optimized} & = & \textit{keep} * \textit{Reference} \\
-        & + & (1 - \textit{keep}) [Neutrons that will reach monitor].
-      \end{tabular}
-    \end{center}
-    }
-\item{The \textbf{Source\_Optimizer} transforms the \textit{bad} neutrons into
-    \textit{good} ones from the \textit{Optimized} source. The resulting
-    optimised flux is normalised to the non-optimized one:
-    \begin{equation}
-      p_{optimized} = p_{initial} \frac{\mbox{Reference}}{\mbox{Optimized}},
-    \end{equation}
-    and thus the overall flux at \textbf{Monitor\_Optimizer} location is
-    the same as without the optimizer. Usually, the process sends more
-    \textit{good} neutrons from the \textit{Optimized} source than that in the
-    \textit{Reference} one.
-    The energy (and velocity) spectra of neutron beam is also kept, as
-    far as possible. For instance, an optimization of $v_z$ will induce
-    a modification of $v_x$ or $v_y$ to try to keep $|\textbf{v}|$
-    constant.
-    }
-\item{When the \textit{continuous} optimization option is activated (by
-    default), the process loops to Step (\ref{SourceOptimizer:step3})
-    every '\textit{step}' percent of the simulation. This parameter is
-    computed automatically (usually around 10 \%) in \textit{auto} mode,
-    but can also be set by user.}
-\end{enumerate}
-
-During steps (1) and (2), some non-optimized neutrons with original
-weight $p_{initial}$ may lead to spikes on detector signals. This is
-greatly improved by lowering the weight $p$ during these steps, with the
-\textit{smooth} option.
-The component optimizes the neutron parameters on the basis of
-independant variables (1D phase-space optimization). However, it usually does work fine when these
-variables are correlated (which is often the case in the course of the
-instrument simulation).
-The memory requirements of the component are very low, as no big
-$n$-dimensional array is needed.
-
-\subsection{Using the Source\_Optimizer}
-
-To use this component, just install the \textbf{Source\_Optimizer} after a
-source (but any location is possible afterwards in principle), and use the \textbf{Monitor\_Optimizer} at a location where you want to reach better
-statistics.
-
+\subsection*{Description}
 \begin{lstlisting}
-    /* where to act on neutron beam */
-    COMPONENT optim_s = Source_Optimizer(options="")
-    ...
-    /* where to have better statistics */
-    COMPONENT optim_m = Monitor_Optimizer(
-    xmin = -0.05, xmax = 0.05,
-    ymin = -0.05, ymax = 0.05,
-    optim_comp = optim_s)
-    ...
-    /* using more than one Monitor_Optimizer is possible */
-\end{lstlisting}
+Principle: The optimizer first (step 1) computes neutron state parameter
+limits passing in the Source_Optimizer, and then (step 2) records a Reference
+source as well as the state (at Source_Optimizer position) of neutrons
+reaching Monitor. The optimized source is defined as a fraction of the
+Reference source plus the distribution of 'good' neutrons reaching the
+Monitor. The optimization then starts (step 3), and focuses new neutrons on
+the Monitor_Optimizer. In fact it changes 'bad' neutrons into 'good' ones
+(that reach the Monitor), acting on their position, spin and divergence or
+velocity. The overall Monitor flux is kept during process. The energy and
+polarisation distributions are kept during optimization as far as possible
+during optimisation. The optimization method considers that all neutron
+parameters - (x,y), (vx,vy,vz) or (vx/v2,vy/v2,v2), (sx,sy,sz) or
+(sx/s2,sy/s2,s2) - are independent.
 
-The input parameter for \textbf{Source\_Optimizer} is a single \textit{
-  options} string that can contain some specific optimizer configuration
-settings in clear language. The formatting of the \textit{options}
-parameter is free, as long as it contains some specific keywords, that
-can be sometimes followed by values.
+Options: The optimized source can be computed regularly ('continuous'
+option) or only once ('not continuous'). The time spent in steps 1 and 2 can
+be reduced for a shorter optimization ('auto').  The neutrons passing during
+steps 1 and 2 can be smoothed for a better neutron weight distribution
+('smooth' option).
 
-The default configuration (equivalent to \textit{options} = "") is
-\begin{center}
-\begin{tabular}{rcl}
-  \textit{options} & = & "\textit{continuous} optimization,
-  \textit{auto} setting, \textit{keep} = 0.1, \textit{bins} = 0.1, \\
-  & & \textit{smooth} spikes, SetXY+SetDivV+SetDivS".
-\end{tabular}
-\end{center}
-Parameters keep and step should be between 0 and 1.
-Additionally, you may restrict the optimization to only some of the neutron parameters, using the \textit{SetXY, SetV, SetS, SetDivV, SetDivS} keywords.
-The keyword modifiers \textit{no} or \textit{not} revert the next option.
-Other options not shown here are:
-\begin{lstlisting}
+Source_optimizer can be placed at any position where you want to act on the
+flux, for instance just after the source.
+Monitor_Optimizer should be placed at position(s) to optimize.
+I prefer to put one just before the sample.
+
+Default parameters bins, step, and keep are 10, 10%  and 10% respectively.
+The option string can be empty (""), which stands for default configuration
+that works fine in usual cases:
+
+options="continuous optimization, auto mode, smooth, SetXY+SetDivV+SetDivS"
+
+<b>Possible options are</b>
+continuous      for continuous source optimization (default).
 verbose         displays optimization process (debug purpose).
+auto            uses the shortest possible 'step 1' and 'step 2' and sets 'step' value as required (default).
+smooth          remove possible spikes generated in steps 1 and 2 (default is smooth).
 inactivate      to inactivate the Optimizer.
-file=[name]     Filename where to save optimized source distributions
-\end{lstlisting}
-The \textit{file} option will save the source distributions at the end of
-the optimization. If no name is given the component name will be used,
-and a '.src' extension will be added. By default, no file is generated.
-The file format is in a McStas 2D record style.
+no or not       revert next option
+bins=[value=10] set the Number of cells for sampling neutron states
+step=[value=10] Optimizer step in % of simulation.
+keep=[value=10] Percentage of initial source distribution that is kept
+file=[name]     Filename where to save optimized source distributions (no file is generated if not given. Default ext. is .src)
+SetXY           Keywords to indicate what may be changed during
+SetV            optimisation. Default is position, divergence and spin
+SetS            direction ("SetXY+SetDivV+SetdivS"). Choosing the speed
+SetDivV         or spin optimization (SetV or SetS) may modify the energy
+SetDivS         or polarisation distribution (norm of V and S) as the three components are then independent.
 
-As an alternative, you may use the Source\_adapt component
-(see section \ref{s:source-adapt}) which performs
-a 3D phase-space optimization.
+Parameters bins, step and keep can also be entered as optional parameters.
+
+<b>EXAMPLE</b>: I use the following settings
+
+optim_s = Source_Optimizer(options="please be clever") (same as empty)
+(...)
+Monitor_Optimizer(xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05,
+optim_comp = "optim_s")
+
+A good optimization needs to record enough non optimized neutrons on Monitor
+during step 2. Typical enhancement in computation speed is by a factor 20.
+This component usually works well.
+
+<b>NOTE:</b> You must be aware that in some cases (SetV and SetS),
+the optimization might sligtly afect the energy or spin distribution of the
+source. The optimizer tries to do its best anyway.
+Also, some 'spikes' may sometime appear in monitor signals in the course of
+the optimization, coming from non-optimized neutrons with original weight.
+The 'smooth' option minimises this effect (on by default).
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+bins & 1 & Number of cells for sampling neutron states. & 10 \\
+step & 0-100 & Optimizer step in percent of simulation. & 0.1 \\
+keep & 0-100 & Percentage of initial source distribution that is kept. & 0.1 \\
+options & str & string of options. See \textless{}b\textgreater{}Description\textless{}b\textgreater{} & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/sources/Source_Optimizer.comp}{Source code} for \texttt{Source\_Optimizer.comp}.
+\end{itemize}
+\IfFileExists{Source_Optimizer_static.tex}{\input{Source_Optimizer_static.tex}}{}

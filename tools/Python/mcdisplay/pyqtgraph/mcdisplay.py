@@ -392,9 +392,10 @@ class McDisplay2DGui(object):
         '''  '''
         self._init_2dmode()
         self._set_and_plot_instr(instr)
-        self._set_rays(rays)
-        self._unzoom()
-        self._display_nextray()
+        if not rays==[]:
+            self._set_rays(rays)
+            self._unzoom()
+            self._display_nextray()
         return self.app.exec_()
     
     def run_ui_tof(self, instr, rays):
@@ -535,6 +536,11 @@ def main(instr=None, dirname=None, invcanvas=None, tof=None, **kwds):
     reader = McDisplayReader(instr=instr, dir=dirname, **kwds)
     instrument = reader.read_instrument()
     raybundle = reader.read_particles()
+
+    if raybundle is None:
+        rays=[]
+    else:
+        rays=raybundle.rays
     
     if invcanvas is not None and invcanvas:
         ## Switch to using white background and black foreground
@@ -544,11 +550,11 @@ def main(instr=None, dirname=None, invcanvas=None, tof=None, **kwds):
     gui = McDisplay2DGui(title=dirname+" - Press 'h' for comp list")
     try:
       if tof is None or not tof:
-        sys.exit(gui.run_ui(instrument, raybundle.rays))
+        sys.exit(gui.run_ui(instrument, rays))
       else:
-        sys.exit(gui.run_ui_tof(instrument, raybundle.rays))
+        sys.exit(gui.run_ui_tof(instrument, rays))
     except:
-      sys.exit(gui.run_ui(instrument, raybundle.rays))
+      sys.exit(gui.run_ui(instrument, rays))
 
 
 if __name__ == '__main__':

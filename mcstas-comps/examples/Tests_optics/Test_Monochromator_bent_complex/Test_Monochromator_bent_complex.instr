@@ -2,22 +2,20 @@
 * Instrument: Test_Monochromator_bent_complex
 *
 * %Identification
-* Written by: Jakob Lass (jakob.lass@psi.ch)
+* Written by: Jakob Lass (jakob.lass@psi.ch) and modified by Daniel Lomholt Christensen (daniel.lomholt.2000@gmail.com)
 * Date: 20250702
 * Origin: PSI/LSN
 * %INSTRUMENT_SITE: Tests_optics
-*
-* This is a first draft for the WARP instrument proposal, as created by
-* Daniel Gabriel Mazzone (daniel.mazzone@psi.ch) and Jakob Lass 
-* (jakob.lass@psi.ch). This proposal will include a new component which utilizes
-* the marmot geometery. The instrument only looks at the backend of the instrument
-* from the sample to the detector, as the guide part of the instrument is not 
-* fully planned out yet.
+* A test instrument that highlights Monochromator Bent complex's capabilities
 *
 * %D
-* Used as a test instrument to highlight Monochromator Bent complex's capabilities
+* This is a first draft for the WARP instrument proposal, as created by
+* Daniel Gabriel Mazzone (daniel.mazzone@psi.ch) and Jakob Lass 
+* (jakob.lass@psi.ch). This instrument introduces how to use the Monochromator_bent_complex
+* component in an instrument draft.
 *
 * %Example: Test_Monochromator_bent_complex.instr mos=60 Detector: E_PSD_mon_end_I=0.000215194
+* %Example: Test_Monochromator_bent_complex.instr mos=60 use_single_plane=1 Detector: E_PSD_mon_end_I=0.000215194
 *
 * %Parameters
 * sample_x: [m] Source horz illumination
@@ -28,6 +26,7 @@
 * det_rot:  [m] Detector rotation
 * mos: [arcmin] Monochromator mosaicity
 * extra:  [deg] Perturbation rotation angle
+* use_single_plane: [flag] Flag indicating whether the crystal should be instantiated with a single plane of reflection, instead of 92 planes
 *
 * %End
 *******************************************************************************/
@@ -39,7 +38,8 @@ double L1=2.47143,
 double Ld=2,    
 double det_rot=-6.00000, 
 double mos=60,
-double extra=0)
+double extra=0,
+int use_single_plane = 0)
 
 DECLARE
 %{
@@ -62,7 +62,8 @@ double z_pos[92];
 double x_rot[92];
 double y_rot[92];
 double z_rot[92];
-char input_planes[552];
+char *input_planes;
+
 double z_test[2];
 double y_test[2];
 double z_test1[2];
@@ -157,13 +158,30 @@ double y_rots[92] = {
     28.949037231991614,29.10800625807111,29.263677094830634,29.415964179519083,29.5647341124584,
     29.70985123904334,29.85123876074083,29.988616895395413,30.1218449608264,30.374816895175396,
     30.60585732884762,30.807078570093147};
-strcpy(input_planes, "Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
-"Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
-"Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
-"Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
-"Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
-"Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
-"Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111");
+if (use_single_plane){
+
+    input_planes = malloc(5*sizeof(char));
+    if (!input_planes){
+      printf("\nError Mallocing input planes! Exiting \n");
+      exit(1);
+    }
+    input_planes = "Si111";
+} else {
+    input_planes = malloc(92*5*sizeof(char) + 92*sizeof(char));
+    if (!input_planes){
+      printf("\nError Mallocing input planes! Exiting \n");
+      exit(1);
+    }
+    strcpy(input_planes, "Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
+    "Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
+    "Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
+    "Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
+    "Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
+    "Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;"
+    "Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111;Si111");
+}
+
+
 for (int i=0; i<92; i++){
     rad_y[i]=0;
     xthic[i] = 0.0005;

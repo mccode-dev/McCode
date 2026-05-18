@@ -1,50 +1,124 @@
-\section{Source\_gen: A general continuous source}
-\label{source-gen}
-\index{Sources!General continuous source}
+\section{The \texttt{Source\_gen} McStas Component}
+Circular/squared neutron source with flat or Maxwellian energy/wavelength
+spectrum
 
-%\component{Source\_gen}{(System) E. Farhi, ILL}{$w$, $h$, $xw$, $yh$, $E_0$, $\Delta E$, $T_1$, $T_2$, $T_3$, $I_1$, $I_2$, $I_3$ }{$r$, $\lambda_0$, $d\lambda$, $E_{min}$, $E_{max}$, $\lambda_{min}$, $\lambda_{max}$}{Validated for Maxwellian expressions. t=0}
-\mcdoccomp{sources/Source_gen.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Emmanuel Farhi, Kim Lefmann
+  \item \textbf{Origin:} ILL/Risoe
+  \item \textbf{Date:} Aug 27, 2001
+\end{itemize}
 
-This component is a continuous neutron source (rectangular or circular), which aims at
-a rectangular target centered at the beam.
-The angular divergence is given by the dimensions of the target.
-The shape may be rectangular (dimension $h$ and $w$), or a disk of radius $r$.
-The wavelength/energy range to emit is specified either using center and half width, or using minimum and maximum boundaries, alternatively for energy and wavelength.
-The flux spectrum is specified with the same Maxwellian parameters as in component Source\_Maxwell\_3 (refer to section \ref{source-maxwell}).
+\subsection*{Description}
+\begin{lstlisting}
+This routine is a neutron source (rectangular or circular), which aims at
+a square target centered at the beam (in order to improve MC-acceptance
+rate). The angular divergence is then given by the dimensions of the
+target. However, it may be directly set using the 'focus-aw' and 'focus_ah'
+parameters.
 
-Maxwellian parameters for some continuous sources
-are given in Table~\ref{t:source_gen-params}. As nobody knows exactly the characteristics of the sources (it is not easy to measure spectrum there), these figures should be used with caution.
+The neutron energy/wavelength is distributed uniformly in wavelength between
+Emin=E0-dE and Emax=E0+dE or Lmin=lambda0-dlambda and Lmax=lambda0+dlambda.
+The I1 may be either arbitrary (I1=0), or specified in neutrons per steradian
+per square cm per Angstrom per s. A Maxwellian spectra may be selected if you
+give the source temperatures (up to 3).
 
-\begin{table}
-  \begin{center}
-  {\let\my=\\
-    \begin{tabular}{|c|cccccc|c|}
-    \hline
-    Source Name & $T_1$ & $I_1$ & $T_2$ & $I_2$ & $T_3$ & $I_3$ & factor \\
-    \hline
-    PSI cold source & 150.4  & 3.67e11   & 38.74 & 3.64e11    & 14.84& 0.95e11   & * $I_\textrm{target}$~(mA)\\
-    ILL VCS (H1)    & 216.8  & 1.24e13   & 33.9  & 1.02e13    & 16.7 & 3.042e12  &58MW\\
-    ILL HCS (H5)    & 413.5  & 10.22e12  & 145.8 & 3.44e13    & 40.1 & 2.78e13   &58MW\\
-    ILL Thermal(H2) & 683.7  & 5.874e12  & 257.7 & 2.51e13    & 16.7 & 1.034e12  &58MW, /2.25\\
-    ILL Hot source  & 1695   & 1.74e13   & 708   & 3.9e12     &      &           &58MW\\ 
-    PIK cold source & 204.6  & 5.38e12   & 73.9  & 7 2.50e12  & 23.9 & 9.51e12   &\\
-    HZB cold source & 43.7   & 1.4e12    & 137.2 & 2.08e12    &      &           &10MW, radius=.155\\
-    HZB bi-spectral & 43.7   & 1.4e12    & 137.2 & 2.08e12    & 293  & 1.77e12   &10MW\\
-    HZB thermal tube& 293.0  & 2.64e12   &       &            &      &           &10MW\\
-    FRM2 cold       & 35.0   & 9.38e12   & 547.5 & 2.23e12    & 195.4&  1.26e13  &20MW\\
-    FRM2 thermal    & 285.6  &  3.06e13  & 300.0 & 1.68e12    & 429.9&  6.77e12  &20MW\\
-    LLB cold,14MW   & 220    & 2.09e12   & 60    & 3.83e12    & 20   & 1.04e12   &14MW\\
-    TRIGA thermal   & 300    & 3.5e11    &       &            &      &           &1MW\\
-    \hline
-    \end{tabular}
-    \caption{Flux parameters for present sources used in components
-             Source\_gen and Source\_Maxwell\_3.
-             For some cases, a correction factor to the intensity
-             should be used to reach measured data; for the PSI cold source,
-             this correction factor is the beam current, $I_\textrm{target}$,
-             which is currently of the order 1.2~mA.
-}
-    \label{t:source_gen-params}
-  }
-  \end{center}
-\end{table}
+Finally, a file with the flux as a
+function of the wavelength [lambda(AA) flux(n/s/cm^2/st/AA)] may be used
+with the 'flux_file' parameter. Format is 2 columns free text.
+
+Additional distributions for the horizontal and vertical phase spaces
+distributions (position-divergence) may be specified with the
+'xdiv_file' and 'ydiv_file' parameters. Format is free text, requiring
+a comment line '# xylimits: pos_min pos_max div_min div_max' to set
+the axis of the distribution matrix. All these files may be generated using
+standard monitors (better in McStas/PGPLOT format), e.g.:
+Monitor_nD(options="auto lambda per cm2")
+Monitor_nD(options="x hdiv, all auto")
+Monitor_nD(options="y vdiv, all auto")
+
+The source shape is defined by its radius, or can alternatively be squared
+if you specify non-zero yheight and xwidth parameters.
+The beam is divergence uniform,.
+The source may have a thickness, which will broaden the default zero time
+distribution.
+
+Usage example:
+Source_gen(radius=0.1,lambda0=2.36,dlambda=0.16,T1=20,I1=1e13,focus_xw=0.01,focus_yh=0.01)
+Source_gen(yheight=0.1,xwidth=0.1,Emin=1,Emax=3,I1=1e13,verbose=1,focus_xw=0.01,focus_yh=0.01)
+EXTEND
+%{
+t = rand0max(1e-3); // set time from 0 to 1 ms for TOF instruments.
+%}
+
+<b>Some neutron facility parameters:</b>
+PSI cold source     T1=296.2,I1=8.5E11, T2=40.68,I2=5.2E11
+ILL VCS cold source T1=216.8,I1=1.24e+13,T2=33.9,I2=1.02e+13
+(H1, 58 MW)  T3=16.7 ,I3=3.0423e+12
+ILL HCS cold source T1=413.5,I1=10.22e12,T2=145.8,I2=3.44e13
+(H5, 58 MW)  T3=40.1 ,I3=2.78e13
+ILL Thermal tube    T1=683.7,I1=0.5874e+13,T2=257.7,I2=2.5099e+13
+(H12, 58 MW) T3=16.7 ,I3=1.0343e+12
+ILL Hot source      T1=1695, I1=1.74e13,T2=708,  I2=3.9e12 (58MW)
+HZB cold source     T1=43.7 ,I1=1.4e12, T2=137.2,I2=2.08e12,radius=.155 (10MW)
+HZB bi-spectral     T1=43.7, I1=1.4e12, T2=137.2,I2=2.08e12,T3=293.0,I3=1.77e12
+HZB thermal tube    T1=293.0,I1=2.64e12 (10MW)
+FRM2 cold,20MW      T1=35.0, I1=9.38e12,T2=547.5,I2=2.23e12,T3=195.4,I3=1.26e13
+FRM2 thermal,20MW   T1=285.6,I1=3.06e13,T2=300.0,I2=1.68e12,T3=429.9,I3=6.77e12
+LLB cold,14MW       T1=220,  I1=2.09e12,T2=60,   I2=3.83e12,T3=20,   I3=1.04e12
+TRIGA thermal 1MW   T1=300,  I1=3.5e11 (scale by thermal power in MW)
+
+%VALIDATION
+Feb 2005: output cross-checked for 3 Maxwellians against VITESS source
+I(lambda), I(hor_div), I(vert_div) identical in shape and absolute values
+Validated by: K. Lieutenant
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+flux\_file & str & Name of a two columns [lambda flux] text file that contains the wavelength distribution of the flux in \textless{}b\textgreater{}either\textless{}/b\textgreater{} [1/(s*cm**2*st)] \textless{}b\textgreater{}or\textless{}/b\textgreater{} [1/(s*cm**2*st*AA)] (see flux\_file\_perAA flag) Comments (\#) and further columns are ignored. Format is compatible with McStas/PGPLOT wavelength monitor files. When specified, temperature and intensity values are ignored. & "NULL" \\
+xdiv\_file & str & Name of the x-horiz. divergence distribution file, given as a free format text matrix, preceeded with a line '\# xylimits: xmin xmax xdiv\_min xdiv\_max' & "NULL" \\
+ydiv\_file & str & Name of the y-vert. divergence distribution file, given as a free format text matrix, preceeded with a line '\# xylimits: ymin ymax ydiv\_min ydiv\_max' & "NULL" \\
+radius & m & Radius of circle in (x,y,0) plane where neutrons are generated. You may also use 'yheight' and 'xwidth' for a square source & 0.0 \\
+dist & m & Distance to target along z axis. & 0 \\
+focus\_xw & m & Width of target. & 0.045 \\
+focus\_yh & m & Height of target. & 0.12 \\
+focus\_aw & deg & maximal (uniform) horz. width divergence & 0 \\
+focus\_ah & deg & maximal (uniform) vert. height divergence & 0 \\
+E0 & meV & Mean energy of neutrons. & 0 \\
+dE & meV & Energy spread of neutrons, half width. & 0 \\
+lambda0 & AA & Mean wavelength of neutrons. & 0 \\
+dlambda & AA & Wavelength spread of neutrons,half width & 0 \\
+I1 & 1/(cm**2*sr) & Source flux per solid angle, area and Angstrom if I1=0, the source emits 1 in 4*PI whole space. & 1 \\
+yheight & m & Source y-height, then does not use radius parameter & 0.1 \\
+xwidth & m & Source x-width, then does not use radius parameter & 0.1 \\
+verbose & 0/1 & display info about the source. -1 inactivate source. & 0 \\
+T1 & K & Temperature of the Maxwellian source, 0=none & 0 \\
+flux\_file\_perAA & 1 & When true (1), indicates that flux file data is already per Aangstroem. If false, file data is per wavelength bin. & 0 \\
+flux\_file\_log & 1 & When true, will transform the flux table in log scale to improve the sampling. & 0 \\
+Lmin & AA & Minimum wavelength of neutrons & 0 \\
+Lmax & AA & Maximum wavelength of neutrons & 0 \\
+Emin & meV & Minimum energy of neutrons & 0 \\
+Emax & meV & Maximum energy of neutrons & 0 \\
+T2 & K & Second Maxwellian source Temperature, 0=none & 0 \\
+I2 & 1/(cm**2*sr) & Second Maxwellian Source flux & 0 \\
+T3 & K & Third Maxwellian source Temperature, 0=none & 0 \\
+I3 & 1/(cm**2*sr) & Third Maxwellian Source flux & 0 \\
+zdepth & m & Source z-zdepth, not anymore flat & 0 \\
+target\_index & 1 & relative index of component to focus at, e.g. next is +1 this is used to compute 'dist' automatically. & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/sources/Source_gen.comp}{Source code} for \texttt{Source\_gen.comp}.
+  \item P. Ageron, Nucl. Inst. Meth. A 284 (1989) 197
+\end{itemize}
+\IfFileExists{Source_gen_static.tex}{\input{Source_gen_static.tex}}{}

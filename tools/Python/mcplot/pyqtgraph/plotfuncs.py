@@ -74,7 +74,7 @@ class ModLegend(pg.LegendItem):
 
 def plot_Data0D(data, plt, log=False, legend=True, icolormap=0, verbose=True, fontsize=10):
     ''' creates an empty plot '''
-    plt.setTitle("zero-dim monitor")
+    plt.setTitle(data.title)
     return plt.getViewBox()
 
 

@@ -1,69 +1,47 @@
-\section{Collimator\_linear: The simple Soller blade collimator}
-\label{collimator-linear}\index{Optics!Linear collimator}
+\section{The \texttt{Collimator\_linear} McStas Component}
+A simple analytical Soller collimator (with triangular transmission).
 
-%\component{Collimator\_linear}{System}{$x_{min}$, $x_{max}$, $y_{min}$, $y_{max}$, $L$, $\delta$}{}{}
-\mcdoccomp{optics/Collimator_linear.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kristian Nielsen
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} August 1998
+\end{itemize}
 
-\textbf{Collimator\_linear} models a standard linear Soller blade collimator.
-The collimator has two identical rectangular openings,
-defined by the $x$ and $y$ values. Neutrons not clearing both
-openings are ABSORB'ed.
-The length of the collimator blades is denoted $L$, while
-the distance between blades is called $d$.
+\subsection*{Description}
+\begin{lstlisting}
+Soller collimator with rectangular opening and specified length. The
+transmission function is an average and does not utilize knowledge of the
+actual neutron trajectory. A zero divergence disables collimation (then the
+component works as a double slit).
 
-The collimating effect is taken care of by employing an approximately
-triangular transmission through the collimator of width (FWHM) $\delta$, 
-which is given in arc minutes, {\em i.e.} $\delta=60$ is one degree.
-If $\delta=0$, the collimating effect is disabled,
-so that the component only consists of two rectangular apertures.
+Example: Collimator_linear(xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1, length=0.25, divergence=40,transmission=0.7)
+\end{lstlisting}
 
-For a more detailed Soller collimator simulation,
-taking every blade into account, it is possible to use
-\textbf{Channeled\_guide} with absorbing walls, 
-see section~\ref{s:channeled_guide}.
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
 
-\begin{figure}[h!]
-  \begin{center}
-    \psfrag{xmin}[c][c]{$x_\textrm{min}$}
-    \psfrag{xmax}[c][c]{$x_\textrm{max}$}
-    \psfrag{ymin}[c][c]{$y_\textrm{min}$}
-    \psfrag{ymax}[c][c]{$y_\textrm{max}$}
-    \psfrag{delta}[c][c]{$\delta$}
-    \includegraphics[width=0.7\textwidth]{figures/collimator}
-  \end{center}
-\caption{The geometry of a simple Soller blade collimators:
-The real Soller collimator, seen from the top (left),
-and a sketch of the component \textbf{Soller} (right).
-The symbols are defined in the text.}
-\label{f:collimator}
-\end{figure}
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+xmin & m & Lower x bound on slits & -0.02 \\
+xmax & m & Upper x bound on slits & 0.02 \\
+ymin & m & Lower y bound on slits & -0.05 \\
+ymax & m & Upper y bound on slits & 0.05 \\
+xwidth & m & Width of slits & 0 \\
+yheight & m & Height of slits & 0 \\
+length & m & Distance between input and output slits & 0.3 \\
+divergence & minutes of arc & Divergence horizontal angle (calculated as atan(d/length), where d is the blade spacing) & 40 \\
+transmission & 1 & Transmission of Soller (0\textless{}=t\textless{}=1) & 1 \\
+divergenceV & minutes of arc & Divergence vertical angle & 0 \\
+\bottomrule
+\end{longtable}
 
-\subsection{Collimator transmission}
-The horizontal divergence, $\eta_h$, is defined as the angle between the
-neutron path and the vertical $y-z$ plane along the collimator axis.
-We then define the collimation angle as the maximal allowed
-horizontal divergence: $\delta = \tan^{-1}(d/L)$,
-see Fig.~\ref{f:collimator}. Neutrons with a horizontal
-divergence angle $|\eta_h| \geq \delta$ will always
-hit at least one collimator blade and will thus be ABSORB'ed.
-For smaller divergence angles, $|\eta_h| < \delta$, the fate of the
-neutron depends on its exact entry point.
-Assuming that a typical collimator has many blades, the
-absolute position of each blade perpendicular to the collimator axis
-is thus mostly unimportant.
-A simple statistical consideration now shows that the transmission
-probability is $T = 1-\tan|\eta_h|/\tan\delta$.
-Often, the approximation $T \approx 1-|\eta_h|/\delta$ is used, giving
-a triangular transmission profile.
-
-\subsection{Algorithm}
-The algorithm of \textrm{Collimator\_linear} is roughly as follows:
-\begin{enumerate}
-\item Check by propagation if the neutron ray clear the entry and exit slits,
-otherwise ABSORB.
-\item Check if $|\eta_h| < \delta$, otherwise ABSORB.
-\item Simulate the collimator transmission by a weight transformation:
-\begin{equation}
-\pi_i = T = 1-\tan|\eta_h|/ \tan\delta ,
-\end{equation}
-\end{enumerate}
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/Collimator_linear.comp}{Source code} for \texttt{Collimator\_linear.comp}.
+\end{itemize}
+\IfFileExists{Collimator_linear_static.tex}{\input{Collimator_linear_static.tex}}{}

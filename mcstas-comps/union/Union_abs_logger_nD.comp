@@ -80,15 +80,30 @@
 * bins: [1]              Number of bins to force for all variables. Use 'bins' keyword in 'options' for heterogeneous bins
 * min: [u]               Minimum range value to force for all variables. Use 'min' or 'limits' keyword in 'options' for other limits
 * max: [u]               Maximum range value to force for all variables. Use 'max' or 'limits' keyword in 'options' for other limits
+* user0: [str]           Variable name of USERVAR to be monitored by user0.
 * user1: [str]           Variable name of USERVAR to be monitored by user1.
 * user2: [str]           Variable name of USERVAR to be monitored by user2.
 * user3: [str]           Variable name of USERVAR to be monitored by user3.
+* user4: [str]           Variable name of USERVAR to be monitored by user4.
+* user5: [str]           Variable name of USERVAR to be monitored by user5.
+* user6: [str]           Variable name of USERVAR to be monitored by user6.
+* user7: [str]           Variable name of USERVAR to be monitored by user7.
+* user8: [str]           Variable name of USERVAR to be monitored by user8.
+* user9: [str]           Variable name of USERVAR to be monitored by user9.
+* username0: [str]       Name assigned to User0
 * username1: [str]       Name assigned to User1
 * username2: [str]       Name assigned to User2
 * username3: [str]       Name assigned to User3
+* username4: [str]       Name assigned to User4
+* username5: [str]       Name assigned to User5
+* username6: [str]       Name assigned to User6
+* username7: [str]       Name assigned to User7
+* username8: [str]       Name assigned to User8
+* username9: [str]       Name assigned to User9
 * restore_neutron: [0|1] Not functional for Union version
 * geometry: [str]        Name of an OFF file to specify a complex geometry detector
 * nowritefile: [1]       Not functional for Union version
+* nexus_bins: [1]        NeXus mode only: store component BIN information <br>(-1 disable, 0 enable for list mode monitor, 1 enable for any montor)
 *
 * OUTPUT PARAMETERS:
 *
@@ -104,12 +119,14 @@ DEFINE COMPONENT Union_abs_logger_nD
 DEFINITION PARAMETERS ()
 SETTING PARAMETERS(string target_geometry="NULL",
                    order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init",
-				   string user1="", string user2="", string user3="",
+				   string user0="",string user1="", string user2="", string user3="", string user4="",
+		                   string user5="",string user6="", string user7="", string user8="", string user9="",
 				   xwidth=0, yheight=0, zdepth=0,
 				   xmin=0, xmax=0, ymin=0, ymax=0, zmin=0, zmax=0,
 				   int bins=0, min=-1e40, max=1e40, int restore_neutron=0, radius=0,
-				   string options="NULL", string filename="NULL",string geometry="NULL", int nowritefile=0,
-				   string username1="NULL", string username2="NULL", string username3="NULL")
+				   string options="NULL", string filename="NULL",string geometry="NULL", int nowritefile=0, int nexus_bins=0,
+				   string username0="NULL", string username1="NULL", string username2="NULL", string username3="NULL", string username4="NULL",
+				   string username5="NULL", string username6="NULL", string username7="NULL", string username8="NULL", string username9="NULL")
 OUTPUT PARAMETERS ()
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -159,7 +176,6 @@ SHARE
 
     Coords position;
     Rotation rotation;
-    Rotation t_rotation;
   };
 
   // record_to_temp
@@ -189,14 +205,19 @@ SHARE
 
     if (add_point == 1) {
 
+      Coords transformed_ray_position;
+      transformed_ray_position = coords_sub (*position, storage->position);
+      transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
+
       int i;
       double given_x_pos, given_y_pos, given_z_pos;
-      coords_get (*position, &given_x_pos, &given_y_pos, &given_z_pos);
+      coords_get (transformed_ray_position, &given_x_pos, &given_y_pos, &given_z_pos);
+
+      Coords k_coords = make_position (k);
+      Coords transformed_k_coords = rot_apply (storage->rotation, k_coords);
 
       double given_x_vel, given_y_vel, given_z_vel;
-      given_x_vel = k[0] * K2V;
-      given_y_vel = k[1] * K2V;
-      given_z_vel = k[2] * K2V;
+      coords_get (coords_scalar_mult (transformed_k_coords, K2V), &given_x_vel, &given_y_vel, &given_z_vel);
 
       if (storage->temp_abs_nD_data.num_elements < storage->temp_abs_nD_data.allocated_elements) {
 
@@ -218,6 +239,8 @@ SHARE
         struct temp_abs_nD_data_struct temporary_storage;
         temporary_storage.num_elements = storage->temp_abs_nD_data.num_elements;
         temporary_storage.elements = malloc (temporary_storage.num_elements * sizeof (struct temp_abs_nD_data_element_struct));
+        if (!temporary_storage.elements)
+          exit (fprintf (stderr, "Union_abs_logger_nD: %s: ERROR allocating memory (record_to_temp_abs_nD)\n", abs_logger->name));
 
         int index;
         for (index = 0; index < storage->temp_abs_nD_data.num_elements; index++) {
@@ -240,6 +263,8 @@ SHARE
         // allocate larger array (10 larger)
         storage->temp_abs_nD_data.allocated_elements = 10 + storage->temp_abs_nD_data.num_elements;
         storage->temp_abs_nD_data.elements = malloc (storage->temp_abs_nD_data.allocated_elements * sizeof (struct temp_abs_nD_data_element_struct));
+        if (!storage->temp_abs_nD_data.elements)
+          exit (fprintf (stderr, "Union_abs_logger_nD: %s: ERROR allocating memory (record_to_temp_abs_nD)\n", abs_logger->name));
 
         // copy back from temp
         for (index = 0; index < storage->temp_abs_nD_data.num_elements; index++) {
@@ -311,14 +336,19 @@ SHARE
     }
 
     if (add_point == 1) {
+      Coords transformed_ray_position;
+      transformed_ray_position = coords_sub (*position, storage->position);
+      transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
 
+      int i;
       double given_x_pos, given_y_pos, given_z_pos;
-      coords_get (*position, &given_x_pos, &given_y_pos, &given_z_pos);
+      coords_get (transformed_ray_position, &given_x_pos, &given_y_pos, &given_z_pos);
+
+      Coords k_coords = make_position (k);
+      Coords transformed_k_coords = rot_apply (storage->rotation, k_coords);
 
       double given_x_vel, given_y_vel, given_z_vel;
-      given_x_vel = k[0] * K2V;
-      given_y_vel = k[1] * K2V;
-      given_z_vel = k[2] * K2V;
+      coords_get (coords_scalar_mult (transformed_k_coords, K2V), &given_x_vel, &given_y_vel, &given_z_vel);
 
       _class_particle _localparticle;
 
@@ -501,6 +531,8 @@ INITIALIZE INHERIT Monitor_nD EXTEND
 
   this_abs_storage.temp_abs_nD_data.allocated_elements = 10;
   this_abs_storage.temp_abs_nD_data.elements = malloc (this_abs_storage.temp_abs_nD_data.allocated_elements * sizeof (struct temp_abs_nD_data_element_struct));
+  if (!this_abs_storage.temp_abs_nD_data.elements)
+    exit (fprintf (stderr, "Union_abs_logger_nD: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
   if (_getcomp_index (init) < 0) {
     fprintf (stderr, "Union_abs_logger_nD:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
@@ -510,14 +542,11 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   struct global_positions_to_transform_list_struct* global_positions_to_transform_list = COMP_GETPAR3 (Union_init, init, global_positions_to_transform_list);
   struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = COMP_GETPAR3 (Union_init, init, global_rotations_to_transform_list);
   // Test position and rotation stored in a data storage, and pointers assigned to transform lists
-  this_abs_logger.position = POS_A_CURRENT_COMP;
-  add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_logger.position);
+  this_abs_storage.position = POS_A_CURRENT_COMP;
+  add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_storage.position);
 
-  rot_copy (this_abs_logger.rotation, ROT_A_CURRENT_COMP);
-  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_logger.rotation);
-
-  rot_transpose (ROT_A_CURRENT_COMP, this_abs_logger.t_rotation);
-  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_logger.t_rotation);
+  rot_copy (this_abs_storage.rotation, ROT_A_CURRENT_COMP);
+  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_storage.rotation);
 
   // Book keeping
   this_abs_logger.abs_logger_extend_index = logger_conditional_extend_index;

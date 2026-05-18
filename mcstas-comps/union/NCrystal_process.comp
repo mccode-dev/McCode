@@ -73,7 +73,6 @@
 * %P
 * INPUT PARAMETERS:
 * cfg:               [str]    NCrystal material configuration string (details <a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">on this page</a>).
-* packing_factor:    [1]      Material packing factor
 * interact_fraction: [1]      How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
 * init:              [string] Name of Union_init component (typically "init", default)
 *
@@ -115,7 +114,7 @@
 
 DEFINE COMPONENT NCrystal_process // Remember to change the name of process here
 
-SETTING PARAMETERS(string cfg = "", packing_factor=1, interact_fraction=-1, string init="init")
+SETTING PARAMETERS(string cfg = "", interact_fraction=-1, string init="init")
 DEPENDENCY "@NCRYSTALFLAGS@"
 
 SHARE
@@ -124,7 +123,11 @@ SHARE
   #error "The Union_init component must be included before this NCrystal_process component"
   #endif
 
+  #if defined(WIN32) || defined(_WIN32)
+  #include "NCrystal\\ncrystal.h"
+  #else
   #include "NCrystal/ncrystal.h"
+  #endif
   #include "stdio.h"
   #include "stdlib.h"
   #ifndef NCMCERR2
@@ -207,23 +210,21 @@ SHARE
     dir[2] = k_initial[2] / k_mag;
 
     double vsq2ekin = data_transfer.pointer_to_a_NCrystal_physics_storage_struct->ncrystal_convfact_vsq2ekin;
-    double ekin, delta_ekin, v2, absv;
+    double ekin, ekin_final, v2, absv;
 
     ekin = vsq2ekin * K2V * k_mag * K2V * k_mag;
-    delta_ekin = 0.0;
+    ekin_final = 0.0;
     // Call NCrystal library, dirout and delta_ekin is updated
-    ncrystal_genscatter (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin, (const double (*)[3]) & dir, &dirout, &delta_ekin);
-
-    if (delta_ekin) {
-      ekin += delta_ekin;
-      if (ekin <= 0) {
-        // not expected to happen much, but an interaction could in principle bring the neutron to rest.
-        return 0; // Eqivalent to ABSORB
-      }
-      v2 = data_transfer.pointer_to_a_NCrystal_physics_storage_struct->ncrystal_convfact_ekin2vsq * ekin;
-      absv = sqrt (v2);
-      k_mag = absv * V2K;
+    ncrystal_samplescatter (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin, (const double (*)[3]) & dir, &ekin_final, &dirout);
+	
+    if (ekin_final <= 0) {
+      // not expected to happen much, but an interaction could in principle bring the neutron to rest.
+      return 0; // Eqivalent to ABSORB
     }
+
+    v2 = data_transfer.pointer_to_a_NCrystal_physics_storage_struct->ncrystal_convfact_ekin2vsq * ekin_final;
+    absv = sqrt (v2);
+    k_mag = absv * V2K;
 
     k_final[0] = dirout[0] * k_mag;
     k_final[1] = dirout[1] * k_mag;
@@ -323,10 +324,6 @@ INITIALIZE
   ncrystal_setbuiltinrandgen_withseed (mcseed);
   #endif
 
-  /* access powder packingfactor (nb: always 1.0 for non-powders): */
-  // Union change: multiplying by Union packing_factor
-  double packingfactor = ncrystal_decodecfg_packfact (cfg) * packing_factor;
-
   /* access crystal structure to get number density (natoms/volume): */
   ncrystal_info_t info = ncrystal_create_info (cfg);
 
@@ -342,13 +339,12 @@ INITIALIZE
   // numberdensity is the atomic number density in units of Aa^-3=1e30m^3, and
   // given that we have cross-sections in barn (1e-28m^2) and want to generate
   // distances in meters with -log(R)/(numberdensity*xsect), we get the unit
-  // conversion factor of 0.01. We also apply the powder packing factor here (it
-  // is guaranteed to be non-zero):
+  // conversion factor of 0.01.
 
   // Union change: In NCrystal_sample density factor is negative for easier sampling,
   //  but as the sampling is performed in the master we use a positive sign for the
   //  density factor as this is more intuitive.
-  params.density_factor = 0.01 / (numberdensity * packingfactor);
+  params.density_factor = 0.01 / numberdensity;
   params.inv_density_factor = 1.0 / params.density_factor;
 
   #else
@@ -367,7 +363,7 @@ INITIALIZE
   // Union change: In NCrystal_sample density factor is negative for easier sampling,
   //  but as the sampling is performed in the master we use a positive sign for the
   //  density factor as this is more intuitive.
-  params.density_factor = 0.01 * cell_volume / (cell_atnum * packingfactor);
+  params.density_factor = 0.01 * cell_volume / cell_atnum;
   params.inv_density_factor = 1.0 / params.density_factor;
   #endif
 

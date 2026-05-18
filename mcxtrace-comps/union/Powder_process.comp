@@ -1,0 +1,847 @@
+/*******************************************************************************
+*
+* McXtrace, X-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* %I
+* Written by: Mads Bertelsen and Erik B Knudsen
+* Date: 20.08.15
+* Version: $Revision: 0.1 $
+* Origin: ESS DMSC & DTU Physics & United Neux
+*
+* A sample component implementing a powder scattering process 
+*
+* %D
+*
+* This Union_process is based on the PowerN.comp component.
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McXtrace.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before the master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union_components
+*
+* Algorithm:
+* Described elsewhere
+*
+* %P
+* INPUT PARAMETERS:
+* interact_fraction: [1]         How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* packing_factor:    [1]         How dense is the material compared to optimal 0-1
+* reflections:       [string]    Input file for reflections. No scattering if NULL or "" [string]
+* delta_d_d:         [0/1]       Global relative delta_d_d/d broadening when the 'w' column is not available. Use 0 if ideal.
+* Strain:            [ppm]       Global relative delta_d_d/d shift when the 'Strain' column is not available. Use 0 if ideal.
+* format:            [no quotes] Name of the format, or list of column indexes (see Description).
+* barns:             [1]         Flag to indicate if |F|^2 from 'reflections' is in barns or fm^2 (barns=1 for laz, barns=0 for lau type files).
+* Vc:                [AA^3]      Volume of unit cell=nb atoms per cell/density of atoms.
+* DW:                [1]         Global Debye-Waller factor when the 'DW' column is not available. Use 1 if included in F2
+* weight:            [g/mol]     Atomic/molecular weight of material.
+* density:           [g/cm^3]    Density of material. rho=density/weight/1e24*N_A.
+* nb_atoms:          [1]         Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell
+* target_index:      [1]         Relative index of component to focus at, e.g. next is +1
+* material:          [str]       Reflection list for power
+* mat_format:        [vector]    List order in reflection list file
+*
+* OUTPUT PARAMETERS:
+*
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Powder_process
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS(string reflections="NULL", string material="NULL",packing_factor=1, Vc=0, delta_d_d=0, DW=0, nb_atoms=1, density=0, weight=0, barns=1, Strain=0, interact_fraction=-1, vector format={0, 0, 0, 0, 0, 0, 0, 0, 0}, vector mat_format={0,0,0,0,0}, string init="init")
+OUTPUT PARAMETERS ()
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
+
+SHARE
+%{
+#ifndef Union
+#define Union $Revision: 0.8 $
+
+
+%include "union-init.c"
+
+#endif
+
+// Share section of PowderN
+
+  // single reflection data
+struct line_data_union
+    {
+      double F2;                  /* Value of structure factor */
+      double q;                   /* Qvector */
+      int j;                      /* Multiplicity */
+      double DWfactor;            /* Debye-Waller factor */
+      double w;                   /* Intrinsic line width */
+      double Epsilon;             /* Strain=delta_d_d/d shift in ppm */
+    };
+
+  // material data
+struct abs_data_union
+  {
+    double E;       /*energy (in keV)*/
+    double k;       /*wavenumber corresponding to E*/
+    double sigma_a; /*absorption cross section for energy E*/
+    double mu;      /*absoprtion coefficient for the energy E*/
+    double cohinc;  /*coherent +incoherent scattering coefficient*/
+  };
+  // component data
+struct line_info_struct_union
+{
+  struct line_data_union *list;     /* Reflection array */
+  int  count;                  /* Number of reflections */
+  double Dd;
+  double DWfactor;
+  double V_0;
+  double rho;
+  double at_weight;
+  double at_nb;
+  double sigma_a;
+  double sigma_i;
+  char   compname[256];
+  double flag_barns;
+  int    shape; /* 0 cylinder, 1 box, 2 sphere, 3 OFF file */
+  int    column_order[9]; /* column signification */
+  int    flag_warning;
+  char   type;  /* interaction type of event t=Transmit, i=Incoherent, c=Coherent */
+  double dq;    /* wavevector transfer [Angs-1] */
+  double Epsilon; /* global strain in ppm */
+  double XsectionFactor;
+  double my_s_k2_sum;
+  double my_a;
+  double my_inc;
+  double lfree; // store mean free path for the last event;
+  double *w,*q, *my_s_k2;
+  double radius_i,xwidth_i,yheight_i,zdepth_i;
+  double k; /* last wavenumber (cached) */
+  double Nq;
+  int    nb_reuses, nb_refl, nb_refl_count;
+  double k_min, k_max;
+  double xs_Nq[CHAR_BUF_LENGTH];
+  double xs_sum[CHAR_BUF_LENGTH];
+  unsigned int photon_passed;
+  long   xs_compute, xs_reuse, xs_calls;
+  t_Table mat_table;
+  int mat_column_order[5]; /*column signification for the coeff. in material data file*/
+};
+
+int PN_list_compare_union (void const *a, void const *b)
+{
+  struct line_data_union const *pa = a;
+  struct line_data_union const *pb = b;
+  double s = pa->q - pb->q;
+
+  if (!s) return 0;
+  else    return (s < 0 ? -1 : 1);
+} /* PN_list_compare */
+
+#ifndef CIF2HKL
+#define CIF2HKL
+// hkl_filename = cif2hkl(file, options)
+//   used to convert CIF/CFL/INS file into F2(hkl)
+//   the CIF2HKL env var can point to a cif2hkl executable
+//   else the McCode binary is attempted, then the system.
+char *cif2hkl(const char *infile, const char *options) {
+  char cmd[1024];
+  int  ret = 0;
+  int  found = 0;
+  char *OUTFILE;
+
+  // get filename extension
+  const char *ext = strrchr(infile, '.');
+  if(!ext || ext == infile) return infile;
+  else ext++;
+
+  // return input when no extension or not a CIF/FullProf/ShelX file
+  if ( strcasecmp(ext, "cif")
+      && strcasecmp(ext, "pcr")
+      && strcasecmp(ext, "cfl")
+      && strcasecmp(ext, "shx")
+      && strcasecmp(ext, "ins")
+      && strcasecmp(ext, "res")) return infile;
+
+  OUTFILE = malloc(1024);
+  if (!OUTFILE) return infile;
+
+  strncpy(OUTFILE, tmpnam(NULL), 1024); // create an output temporary file name
+
+  // try in order the CIF2HKL env var, then the system cif2hkl, then the McCode one
+  if (!found && getenv("CIF2HKL")) {
+    snprintf(cmd,  1024, "%s -o %s %s %s",
+        getenv("CIF2HKL"),
+        OUTFILE, options, infile);
+    ret = system(cmd);
+    if (ret != -1 && ret != 127) found = 1;
+  }
+  if (!found) {
+    snprintf(cmd,  1024, "%s%c%s%c%s -o %s %s %s",
+        getenv(FLAVOR_UPPER) ? getenv(FLAVOR_UPPER) : MCXTRACE,
+        MC_PATHSEP_C, "bin", MC_PATHSEP_C, "cif2hkl",
+        OUTFILE, options, infile);
+    ret = system(cmd);
+    if (ret != -1 && ret != 127) found = 1;
+  }
+  // ret = -1:  child process could not be created
+  // ret = 127: shell could not be executed in the child process
+  if (!found) {
+    // try with any cif2hkl command from the system
+    snprintf(cmd,  1024, "%s -o %s %s %s",
+        "cif2hkl", OUTFILE, options, infile);
+    ret = system(cmd);
+  }
+
+  if (ret == -1 || ret == 127) return(NULL);
+
+  // test if the result file has been created
+  FILE *file = fopen(OUTFILE,"r");
+  if (!file) return(NULL);
+  MPI_MASTER(
+      printf("%s: INFO: Converting %s into F2(HKL) list %s\n",
+        __FILE__, infile, OUTFILE);
+      printf ("%s\n",cmd);
+      );
+  fflush(NULL);
+  return(OUTFILE);
+} // cif2hkl
+#endif
+
+int read_line_data_union(char *SC_file, struct line_info_struct_union *info)
+{
+  struct line_data_union *list = NULL;
+  int    size = 0;
+  t_Table sTable; /* sample data table structure from SC_file */
+  int    i=0;
+  int    mult_count  =0;
+  char   flag=0;
+  double q_count=0, j_count=0, F2_count=0;
+  char **parsing;
+  int    list_count=0;
+  double sum_F2=0;
+  char  *filename=NULL;
+
+  if (!SC_file || !strlen(SC_file) || !strcmp(SC_file, "NULL")) {
+    printf("PowderN: %s: Using incoherent elastic scattering only.\n",
+        info->compname);
+    info->count = 0;
+    return(0);
+  }
+  filename = cif2hkl(SC_file, "--mode XRA");
+  long retval = Table_Read(&sTable, filename, 1); /* read 1st block data from SC_file into sTable*/
+  if (retval<0) {
+    fprintf(stderr,"PowderN: Could not open file %s - exiting!\n", filename);
+    exit(-1);
+  }
+
+  /* parsing of header */
+  parsing = Table_ParseHeader(sTable.header,
+      "Vc","V_0",
+      "column_j",
+      "column_d",
+      "column_F2",
+      "column_DW",
+      "column_Dd",
+      "column_inv2d", "column_1/2d", "column_sintheta/lambda",
+      "column_q", /* 10 */
+      "DW", "Debye_Waller",
+      "delta_d/d",
+      "column_F ",
+      "V_rho",
+      "density",
+      "weight",
+      "nb_atoms","multiplicity",
+      NULL);
+
+  if (parsing) {
+    if (parsing[0] && !info->V_0)     info->V_0    =atof(parsing[0]);
+    if (parsing[1] && !info->V_0)     info->V_0    =atof(parsing[1]);
+    if (parsing[2])                   info->column_order[0]=atoi(parsing[2]);
+    if (parsing[3])                   info->column_order[1]=atoi(parsing[3]);
+    if (parsing[4])                   info->column_order[2]=atoi(parsing[4]);
+    if (parsing[5])                   info->column_order[3]=atoi(parsing[5]);
+    if (parsing[6])                  info->column_order[4]=atoi(parsing[6]);
+    if (parsing[7])                  info->column_order[5]=atoi(parsing[7]);
+    if (parsing[8])                  info->column_order[5]=atoi(parsing[8]);
+    if (parsing[9])                  info->column_order[5]=atoi(parsing[9]);
+    if (parsing[10])                  info->column_order[6]=atoi(parsing[10]);
+    if (parsing[11] && info->DWfactor<=0)    info->DWfactor=atof(parsing[11]);
+    if (parsing[12] && info->DWfactor<=0)    info->DWfactor=atof(parsing[12]);
+    if (parsing[13] && info->Dd <0)          info->Dd      =atof(parsing[13]);
+    if (parsing[14])                  info->column_order[7]=atoi(parsing[14]);
+    if (parsing[15] && !info->V_0)    info->V_0    =1/atof(parsing[15]);
+    if (parsing[16] && !info->rho)    info->rho    =atof(parsing[16]);
+    if (parsing[17] && !info->at_weight)     info->at_weight    =atof(parsing[17]);
+    if (parsing[18] && info->at_nb <= 1)  info->at_nb    =atof(parsing[18]);
+    if (parsing[19] && info->at_nb <= 1)  info->at_nb    =atof(parsing[19]);
+    for (i=0; i<=19; i++) if (parsing[i]) free(parsing[i]);
+    free(parsing);
+  }
+
+  if (!sTable.rows)
+    exit(fprintf(stderr, "PowderN: %s: Error: The number of rows in %s "
+          "should be at least %d\n", info->compname, SC_file, 1));
+  else
+    size = sTable.rows;
+
+  Table_Info(sTable);
+  printf("PowderN: %s: Reading %d rows from %s\n",
+      info->compname, size, SC_file);
+
+  if (info->column_order[0] == 4 && info->flag_barns !=0)
+    printf("PowderN: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
+        "WARNING: but F2 unit is set to barns=1 (barns). Intensity might be 100 times too high.\n",
+        info->compname);
+  if (info->column_order[0] == 17 && info->flag_barns == 0)
+    printf("PowderN: %s: Powder file probably of type Lazy Pulver (laz)\n"
+        "WARNING: but F2 unit is set to barns=0 (fm^2). Intensity might be 100 times too low.\n",
+        info->compname);
+  /* allocate line_data array */
+  list = (struct line_data_union*) calloc(size, sizeof(struct line_data_union));
+
+  for (i=0; i<size; i++)
+  {
+    /*      printf("Reading in line %i\n",i);*/
+    double j=0, d=0, w=0, q=0, DWfactor=0, F2=0, Epsilon=0;
+    int index;
+
+    if (info->Dd >= 0)      w         = info->Dd;
+    if (info->DWfactor > 0) DWfactor  = info->DWfactor;
+    if (info->Epsilon)      Epsilon   = info->Epsilon*1e-6;
+
+    /* get data from table using columns {j d F2 DW Dd inv2d q F} */
+    /* column indexes start at 1, thus need to substract 1 */
+    if (info->column_order[0] >0)
+      j = Table_Index(sTable, i, info->column_order[0]-1);
+    if (info->column_order[1] >0)
+      d = Table_Index(sTable, i, info->column_order[1]-1);
+    if (info->column_order[2] >0)
+      F2 = Table_Index(sTable, i, info->column_order[2]-1);
+    if (info->column_order[3] >0)
+      DWfactor = Table_Index(sTable, i, info->column_order[3]-1);
+    if (info->column_order[4] >0)
+      w = Table_Index(sTable, i, info->column_order[4]-1);
+    if (info->column_order[5] >0 && !(info->column_order[1] >0)) // Only use if d not read already
+    { d = Table_Index(sTable, i, info->column_order[5]-1);
+      d = (d > 0? 1/d/2 : 0); }
+    if (info->column_order[6] >0 && !(info->column_order[1] >0)) // Only use if d not read already
+    { q = Table_Index(sTable, i, info->column_order[6]-1);
+      d = (q > 0 ? 2*PI/q : 0); }
+    if (info->column_order[7] >0  && !F2)
+    { F2 = Table_Index(sTable, i, info->column_order[7]-1); F2 *= F2; }
+    if (info->column_order[8] >0  && !Epsilon)
+    { Epsilon = Table_Index(sTable, i, info->column_order[8]-1)*1e-6; }
+
+    /* assign and check values */
+    j        = (j > 0 ? j : 0);
+    q        = (d > 0 ? 2*PI/d : 0); /* this is q */
+    if (Epsilon && fabs(Epsilon) < 1e6) {
+      q     -= Epsilon*q; /* dq/q = -delta_d_d/d = -Epsilon */
+    }
+    DWfactor = (DWfactor > 0 ? DWfactor : 1);
+    w        = (w>0 ? w : 0); /* this is q and d relative spreading */
+    F2       = (F2 >= 0 ? F2 : 0);
+    if (j == 0 || q == 0) {
+      printf("PowderN: %s: line %i has invalid definition\n"
+          "         (mult=0 or q=0 or d=0)\n", info->compname, i);
+      continue;
+    }
+    list[list_count].j = j;
+    list[list_count].q = q;
+    list[list_count].DWfactor = DWfactor;
+    list[list_count].w = w;
+    list[list_count].F2= F2;
+    list[list_count].Epsilon = Epsilon;
+    sum_F2 += F2;
+
+    /* adjust multiplicity if j-column + multiple d-spacing lines */
+    /* if  d = previous d, increase line duplication index */
+    if (!q_count)      q_count  = q;
+    if (!j_count)      j_count  = j;
+    if (!F2_count)     F2_count = F2;
+    if (fabs(q_count-q) < 0.0001*fabs(q)
+        && fabs(F2_count-F2) < 0.0001*fabs(F2) && j_count == j) {
+      mult_count++; flag=0; }
+    else flag=1;
+    if (i == size-1) flag=1;
+    /* else if d != previous d : just passed equivalent lines */
+    if (flag) {
+      if (i == size-1) list_count++;
+      /*   if duplication index == previous multiplicity */
+      /*      set back multiplicity of previous lines to 1 */
+      if ((mult_count && list_count>0)
+          && (mult_count == list[list_count-1].j
+            || ((list_count < size) && (i == size - 1)
+              && (mult_count == list[list_count].j))) ) {
+        printf("PowderN: %s: Set multiplicity to 1 for lines [%i:%i]\n"
+            "         (d-spacing %g is duplicated %i times)\n",
+            info->compname, list_count-mult_count, list_count-1, list[list_count-1].q, mult_count);
+        for (index=list_count-mult_count; index<list_count; list[index++].j = 1);
+        mult_count = 1;
+        q_count   = q;
+        j_count   = j;
+        F2_count  = F2;
+      }
+      if (i == size-1) list_count--;
+      flag=0;
+    }
+    list_count++;
+  } /* end for */
+
+  Table_Free(&sTable);
+
+  if (!sum_F2) {
+    MPI_MASTER(
+        fprintf(stderr, "PowderN: %s: ERROR: all %i structure factors in file '%s' are null. Check the reflection list.\n",
+          info->compname, list_count, SC_file);
+        );
+    return(0);
+  }
+
+  /* sort the list with increasing q */
+  qsort(list, list_count, sizeof(struct line_data_union),  PN_list_compare_union);
+
+  printf("PowderN: %s: Read %i reflections from file '%s'\n",
+      info->compname, list_count, SC_file);
+  // remove temporary F2(hkl) file when giving CFL/CIF/ShelX file
+  if (filename && filename != SC_file)
+    unlink(filename);
+
+  info->list  = list;
+  info->count = list_count;
+
+  return(list_count);
+} /* read_line_data_union */
+
+
+/* computes the number of possible reflections (return value), and the total xsection 'sum' */
+/* this routine looks for a pre-computed value in the Nq and sum cache tables               */
+/* when found, the earch starts from the corresponding lower element in the table           */
+int calc_xsect_union(double k, double *q, double *my_s_k2, int count, double *sum,
+    struct line_info_struct_union *line_info) {
+  int    Nq = 0, line=0, line0=0;
+  /*sinth for tthmax=180 is 1.*/
+  double sinth=1.0;//sin(DEG2RAD*tth_max*0.5);
+  *sum=0;
+
+  /* check if a line_info element has been recorded already - not on OpenACC */
+  if (k >= line_info->k_min && k <= line_info->k_max && line_info->photon_passed >= CHAR_BUF_LENGTH) {
+    line = (int)floor(k - line_info->k_min)*CHAR_BUF_LENGTH/(line_info->k_max - line_info->k_min);
+    Nq    = line_info->xs_Nq[line];
+    *sum  = line_info->xs_sum[line];
+    if (!Nq && *sum == 0) {
+      /* not yet set: we compute the sum up to the corresponding wavevector in the table cache */
+      double line_k = line_info->k_min + line*(line_info->k_max - line_info->k_min)/CHAR_BUF_LENGTH;
+      for(line0=0; line0<count; line0++) {
+        if (q[line0] <= 2*line_k*sinth) { /* q < 2*kf: restrict structural range */
+          *sum += my_s_k2[line0];
+          if (Nq < line0+1) Nq=line0+1; /* determine maximum line index which can scatter */
+        } else break;
+      }
+      line_info->xs_Nq[line] = Nq;
+      line_info->xs_sum[line]= *sum;
+      line_info->xs_compute++;
+    } else line_info->xs_reuse++;
+    line0 = Nq;
+  }
+
+  line_info->xs_calls++;
+
+  for(line=line0; line<count; line++) {
+    if (q[line] <= 2*k*sinth) { /* q < 2*kf: restrict structural range */
+      *sum += my_s_k2[line];
+      if (Nq < line+1) Nq=line+1; /* determine maximum line index which can scatter */
+    } else break;
+  }
+
+  return(Nq);
+} /* calc_xsect_union */
+
+struct Powder_physics_storage_struct{
+  // Variables that needs to be transferred between any of the following places:
+  // The initialize in this component
+  // The function for calculating my
+  // The function for calculating scattering
+
+  struct line_info_struct_union *line_info_storage;
+  double my_scattering;
+};
+
+// Function for calculating my in the Powder case
+int Powder_physics_my(double *my,double *k_initial, union data_transfer_union data_transfer, struct focus_data_struct *focus_data, _class_particle *_particle) {
+  int method_switch = 1;
+  // For test
+  int line_v,line0,line,count;
+
+  // Should not interfer with the global variables
+  double kx = k_initial[0];
+  double ky = k_initial[1];
+  double kz = k_initial[2];
+
+  // Not sure one can do this, but I do not see why not
+  struct line_info_struct_union *line_info = data_transfer.pointer_to_a_Powder_physics_storage_struct->line_info_storage;
+
+  double k = sqrt(kx*kx + ky*ky + kz*kz);
+
+  //printf("line_info->k = %f, line_info->k_min = %f, line_info->k_max = %f, line_info->photon_passed = %f\n",line_info->k,line_info->k_min,line_info->k_max,line_info->photon_passed);
+  // Here the maximum and minimum v is recorded, should this be for scattering events or cross section calculations?
+  if (line_info->photon_passed < CHAR_BUF_LENGTH) {
+    if (k < line_info->k_min) line_info->k_min = k;
+    if (k > line_info->k_max) line_info->k_max = k;
+    line_info->photon_passed++;
+  }
+
+  if (method_switch == 1) {
+    // Here the cross section is calculated and stored
+    if ( fabs(k - line_info->k) < 1e-6) {
+      line_info->nb_reuses++;
+    } else {
+      //printf("calling crosssection calculation \n");
+      // int calc_xsect_union(double v, double *qv, double *my_sv2, int count, double *sum, struct line_info_struct *line_info)
+      line_info->Nq = calc_xsect_union(k, line_info->q, line_info->my_s_k2, line_info->count, &line_info->my_s_k2_sum, line_info);
+      line_info->k = k;
+      line_info->nb_refl += line_info->Nq;
+      line_info->nb_refl_count++;
+    }
+  } else {
+    if ( fabs(k - line_info->k) < 1e-6) {
+      line_info->nb_reuses++;
+    } else {
+      //printf("calling cross-section calculation \n");
+      if (k >= line_info->k_min && k <= line_info->k_max && line_info->photon_passed >= CHAR_BUF_LENGTH) {
+        line = (int)floor(k - line_info->k_min)*CHAR_BUF_LENGTH/(line_info->k_max - line_info->k_min);
+        line_info->Nq = line_info->xs_Nq[line];
+        line_info->my_s_k2_sum  = line_info->xs_sum[line];
+        if (!line_info->Nq && line_info->my_s_k2_sum == 0) {
+          /* not yet set: we compute the sum up to the corresponding wavenumber in the table cache */
+          double line_k = line_info->k_min + line*(line_info->k_max - line_info->k_min)/CHAR_BUF_LENGTH;
+          for(line0=0; line0<count; line0++) {
+            if (line_info->q[line0] <= 2*line_k) { /* q < 2*kf: restrict structural range */
+              line_info->my_s_k2_sum += line_info->my_s_k2[line0];
+              if (line_info->Nq < line0+1) line_info->Nq=line0+1; /* determine maximum line index which can scatter */
+            } else break;
+          }
+          line_info->xs_Nq[line] = line_info->Nq;
+          line_info->xs_sum[line]= line_info->my_s_k2_sum;
+          line_info->xs_compute++;
+          //printf("line_info->xs_Nq[line] = %f, line_info->xs_sum[line] = %f, line_info->xs_compute = %d\n",line_info->xs_Nq[line],line_info->xs_sum[line],line_info->xs_compute);
+        } else line_info->xs_reuse++;
+        line0 = line_info->Nq;
+      }
+
+      line_info->xs_calls++;
+
+      for(line=line0; line<count; line++) {
+        if (line_info->q[line] <= 2*k) { /* q < 2*kf: restrict structural range */
+          line_info->my_s_k2_sum += line_info->my_s_k2[line];
+          if (line_info->Nq < line+1) line_info->Nq=line+1; /* determine maximum line index which can scatter */
+        } else break;
+      }
+      line_info->k = k;
+      line_info->nb_refl += line_info->Nq;
+      line_info->nb_refl_count++;
+    }
+  }
+
+  *my = line_info->my_s_k2_sum/(k*k);
+  return 1;
+};
+
+int Powder_physics_scattering(double *k_final, double *k_initial, double *weight, union data_transfer_union data_transfer, struct focus_data_struct *focus_data, _class_particle *_particle) {
+
+  struct line_info_struct_union *line_info = data_transfer.pointer_to_a_Powder_physics_storage_struct->line_info_storage;
+  //double vertical_angular_limit = data_transfer.pointer_to_a_Powder_physics_storage_struct->vertical_angular_limit;
+
+  double kx = k_initial[0];
+  double ky = k_initial[1];
+  double kz = k_initial[2];
+
+  double k = sqrt(kx*kx + ky*ky + kz*kz);
+
+
+
+  int line;
+  double arg;
+  double theta;
+  double alpha,alpha0;
+
+  double kout_x,kout_y,kout_z;
+  double tmp_kx,tmp_ky,tmp_kz;
+  double nx,ny,nz;
+  double my_s_n;
+
+  /* Coherent scattering branch identical to PowderN component*/
+  if (line_info->count > 0) {
+    /* choose line */
+    if (line_info->Nq > 1) line=floor(line_info->Nq*rand01());  /* Select between Nq powder lines */
+    else line = 0;
+    if (line_info->w[line])
+      arg = line_info->q[line]*(1+line_info->w[line]*randnorm())/(2.0*k);
+    else
+      arg = line_info->q[line]/(2.0*k);
+    my_s_n = line_info->my_s_k2[line]/(k*k);
+    if(fabs(arg) > 1)
+      return 0;                   /* No bragg scattering possible*/
+    theta = asin(arg);          /* Bragg scattering law */
+
+    /* Choose point on Debye-Scherrer cone */
+    //        if (d_phi_thread)
+    //        { /* relate height of detector to the height on DS cone */
+    //            arg = sin(d_phi_thread*DEG2RAD/2)/sin(2*theta);
+    //            /* If full Debye-Scherrer cone is within d_phi, don't focus */
+    //            if (arg < -1 || arg > 1) d_phi_thread = 0;
+    //            /* Otherwise, determine alpha to rotate from scattering plane
+    //               into d_phi focusing area*/
+    //            else alpha = 2*asin(arg);
+    //        }
+    //
+    //           if (d_phi_thread) {
+    //            /* Focusing */
+    //            alpha = fabs(alpha);
+    //            /* Trick to get scattering for pos/neg theta's */
+    //            alpha0= 2*rand01()*alpha;
+    //            if (alpha0 > alpha) {
+    //                alpha0=M_PI+(alpha0-1.5*alpha);
+    //            } else {
+    //                alpha0=alpha0-0.5*alpha;
+    //            }
+    //            if(focus_flip){
+    //                alpha0+=M_PI_2;
+    //            }
+    //        }
+    //        else
+
+    alpha0 = M_PI*randpm1();
+
+    /* now find a nearly vertical rotation axis:
+     * Either
+     *  (k along Z) x (X axis) -> nearly Y axis
+     * Or
+     *  (k along X) x (Z axis) -> nearly Y axis
+     */
+    if (fabs(scalar_prod(1,0,0,kx,ky,kz)) < fabs(scalar_prod(0,0,1,kx,ky,kz))) {
+      nx = 1; ny = 0; nz = 0;
+    } else {
+      nx = 0; ny = 0; nz = 1;
+    }
+    vec_prod(tmp_kx,tmp_ky,tmp_kz, kx/k,ky/k,kz/k, nx,ny,nz);
+
+    /* k_out = rotate 'k' by 2*theta around tmp_k: Bragg angle */
+    rotate(kout_x,kout_y,kout_z, kx/k,ky/k,kz/k, 2*theta, tmp_kx,tmp_ky,tmp_kz);
+
+    /* tmp_k = rotate k_out by alpha0 around 'k' (Debye-Scherrer cone) */
+    rotate(tmp_kx,tmp_ky,tmp_kz, kout_x,kout_y,kout_z, alpha0, kx, ky, kz);
+    kx = tmp_kx*k;
+    ky = tmp_ky*k;
+    kz = tmp_kz*k;
+
+    /*weight the outgoing signal according to polarization*/
+    if (_particle->Ex!=0 || _particle->Ey!=0 || _particle->Ez!=0){
+      double EE=sqrt(_particle->Ex*_particle->Ex + _particle->Ey*_particle->Ey + _particle->Ez*_particle->Ez);
+      double s=scalar_prod(kx,ky,kz,_particle->Ex,_particle->Ey,_particle->Ez)/k/EE;
+      *weight *=(1-s)*(1-s);
+    }else{
+      /*unpolarized light in - means an effective reduction according to only theta*/
+      *weight *=(1+cos(theta)*cos(theta))*0.5;
+    }
+
+    k_final[0] = kx; k_final[1] = ky; k_final[2] = kz;
+
+    //*weight *= line_info->Nq*my_s_n; //I believe my_s_n is part of the correction for sampling posistion, not to be done here
+    *weight *= line_info->Nq * my_s_n /( line_info->my_s_k2_sum /(k*k) );
+    /* Correction in case of d_phi focusing - BUT only when d_phi != 0 */
+    //        if (d_phi_thread) pmul *= alpha/PI;
+
+    line_info->type = 'c';
+    line_info->dq = line_info->q[line];
+
+  } else {
+    /* else transmit <-- No powder lines in file */
+    printf("Error, need lines in the PowderN input file\n");
+  }
+  return 1;
+};
+#ifndef PROCESS_DETECTOR
+    #define PROCESS_DETECTOR dummy
+#endif
+
+#ifndef PROCESS_POWDER_DETECTOR
+    #define PROCESS_POWDER_DETECTOR dummy
+#endif
+%}
+
+DECLARE
+%{
+// Needed for transport to the main component
+struct global_process_element_struct global_process_element;
+struct scattering_process_struct This_process;
+
+// Declare for this component, to do calculations on the input / store in the transported data
+struct Powder_physics_storage_struct Powder_storage;
+struct line_info_struct_union line_info;
+double effective_my_scattering;
+
+double *columns;
+double *mat_columns;
+%}
+
+INITIALIZE
+%{
+  // Initialize done in the component
+  Powder_storage.my_scattering = effective_my_scattering;
+  columns = format;
+  mat_columns =  mat_format;
+  int i=0;
+  struct line_data_union *L;
+  line_info.Dd       = delta_d_d;
+  line_info.DWfactor = DW;
+  line_info.V_0      = Vc;
+  line_info.rho      = density;
+  line_info.at_weight= weight;
+  line_info.at_nb    = nb_atoms;
+  line_info.flag_barns=barns;
+  line_info.flag_warning=0;
+  line_info.radius_i =line_info.xwidth_i=line_info.yheight_i=line_info.zdepth_i=0;
+  line_info.k  = 0;
+  line_info.Nq = 0;
+  line_info.k_min = FLT_MAX; line_info.k_max = 0;
+  line_info.photon_passed=0;
+  line_info.nb_reuses = line_info.nb_refl = line_info.nb_refl_count = 0;
+  line_info.xs_compute= line_info.xs_reuse= line_info.xs_calls =0;
+  for (i=0; i< 8; i++) {
+    line_info.column_order[i] = (int)columns[i];
+  }
+  for (i=0; i< 4;  i++) {
+    line_info.mat_column_order[i] = (int)mat_columns[i];
+  }
+  strncpy(line_info.compname, NAME_CURRENT_COMP, 256);
+
+  if (reflections && strlen(reflections) && strcmp(reflections, "NULL") && strcmp(reflections, "0")) {
+    i = read_line_data_union(reflections, &line_info);
+    if (i == 0)
+      exit(fprintf(stderr,"Powder_process %s: reflection file %s is not valid.\n"
+                          "ERROR    Please check file format.\n", NAME_CURRENT_COMP, reflections));
+  }
+
+  /* compute the scattering unit density from material weight and density */
+  /* the weight of the scattering element is the chemical formula molecular weight
+   * times the nb of chemical formulae in the scattering element (nb_atoms) */
+  if (!line_info.V_0 && line_info.at_nb > 0
+    && line_info.at_weight > 0 && line_info.rho > 0) {
+    /* molar volume [cm^3/mol] = weight [g/mol] / density [g/cm^3] */
+    /* atom density per Angs^3 = [mol/cm^3] * N_Avogadro *(1e-8)^3 */
+    line_info.V_0 = line_info.at_nb
+      /(line_info.rho/line_info.at_weight/1e24*6.02214199e23);
+  }
+
+  /* the scattering unit cross sections are the chemical formula onces
+   * times the nb of chemical formulae in the scattering element */
+  if (line_info.at_nb > 0) {
+    line_info.sigma_a *= line_info.at_nb; line_info.sigma_i *= line_info.at_nb;
+  }
+
+  if (line_info.sigma_a<0) line_info.sigma_a=0;
+  if (line_info.sigma_i<0) line_info.sigma_i=0;
+
+  if (line_info.V_0 <= 0)
+    fprintf(stderr,"PowderN: %s: density/unit cell volume is NULL (Vc). Deactivating component.\n", NAME_CURRENT_COMP);
+
+  if (line_info.flag_barns) { /* Factor 100 to convert from barns to fm^2 */
+    line_info.XsectionFactor = 100;
+  } else {
+    line_info.XsectionFactor = 1;
+  }
+
+  if (line_info.V_0 > 0 && i) {
+    L = line_info.list;
+
+    line_info.q = malloc(line_info.count*sizeof(double));
+    line_info.w = malloc(line_info.count*sizeof(double));
+    line_info.my_s_k2 = malloc(line_info.count*sizeof(double));
+    if (!line_info.q || !line_info.w || !line_info.my_s_k2)
+      exit(fprintf(stderr,"PowderN: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
+    for(i=0; i<line_info.count; i++)
+    {
+        line_info.my_s_k2[i] = 4*PI*PI*PI*packing_factor*(L[i].DWfactor ? L[i].DWfactor : 1)
+                 /(line_info.V_0*line_info.V_0)
+                 *(L[i].j * L[i].F2 / L[i].q)*line_info.XsectionFactor;
+      line_info.q[i] = L[i].q;
+      line_info.w[i] = L[i].w;
+    }
+  }
+
+  if (material && strlen(material) && strcmp(material, "NULL")) {
+    int status;
+    char **parsing;
+    if( (status=Table_Read(&(line_info.mat_table),material,0))==-1){
+       fprintf(stderr,"PowderN: %s Error reading material data from file %s.\n",NAME_CURRENT_COMP,material);
+    }
+    parsing=Table_ParseHeader(line_info.mat_table.header,
+       "column_e","column_abs","column_inc","column_cohinc","column_tot",NULL);
+
+    if (parsing){
+      int i;
+      for (i=0;i<5;i++){
+        if (parsing[i]) line_info.mat_column_order[i]=atoi(parsing[i]);
+      }
+    }
+  }
+
+  //printf("INTIALIZE line_info.v = %f, line_info.v_min = %f, line_info.v_max = %f, line_info.neutron_passed = %f\n",line_info.v,line_info.v_min,line_info.v_max,line_info.neutron_passed);
+
+  Powder_storage.line_info_storage = &line_info;
+  //Powder_storage.vertical_angular_limit = d_phi;
+
+  // Need to specify if this process is isotropic
+  This_process.non_isotropic_rot_index = -1; // Yes (powder)
+  //This_process.non_isotropic_rot_index =  1;  // No (single crystal)
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = Powder;
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_Powder_physics_storage_struct = &Powder_storage;
+  This_process.data_transfer.pointer_to_a_Powder_physics_storage_struct->my_scattering = effective_my_scattering;
+  This_process.probability_for_scattering_function = &Powder_physics_my;
+  This_process.scattering_function = &Powder_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  This_process.process_p_interact = interact_fraction;
+  sprintf(This_process.name,NAME_CURRENT_COMP);
+  rot_copy(This_process.rotation_matrix,ROT_A_CURRENT_COMP);
+  sprintf(global_process_element.name,NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index(init) < 0) {
+    fprintf(stderr,"Powder_process:%s: Error identifying Union_init component, %s is not a known component name.\n",
+        NAME_CURRENT_COMP, init);
+    exit(-1);
+  }
+
+  struct pointer_to_global_process_list *global_process_list = COMP_GETPAR3(Union_init, init, global_process_list);
+  add_element_to_process_list(global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+  free(line_info.list);
+  free(line_info.q);
+  free(line_info.w);
+  free(line_info.my_s_k2);
+%}
+
+END

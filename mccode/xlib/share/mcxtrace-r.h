@@ -62,12 +62,12 @@
 
 #define ALLOW_BACKPROP \
   do { \
-    mcallowbackprop = 1; \
+    allow_backprop = 1; \
   } while(0)
 
 #define DISALLOW_BACKPROP \
   do { \
-    mcallowbackprop = 0; \
+    allow_backprop = 0; \
   } while(0)
 
 #define PROP_MAGNET(dt) \
@@ -111,7 +111,7 @@
 /* ADD: E. Farhi, Aug 6th, 2001 PROP_GRAV_DT propagation with acceleration. */
 #define PROP_GRAV_DT(dt, Ax, Ay, Az) \
   do { \
-    if(dt < 0 && mcallowbackprop == 0) { instrument->counter_AbsorbProp[INDEX_CURRENT_COMP]++; ABSORB; }\
+    if(dt < 0 && allow_backprop == 0) { instrument->counter_AbsorbProp[INDEX_CURRENT_COMP]++; ABSORB; }\
     if (mcMagnet) /*printf("Spin precession gravity\n")*/; \
     x  += vx*(dt) + (Ax)*(dt)*(dt)/2; \
     y  += vy*(dt) + (Ay)*(dt)*(dt)/2; \
@@ -154,7 +154,7 @@
     if(kx == 0) { ABSORB; }; \
     mc_k=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz)); \
     mc_dl= -x * mc_k / kx; \
-    if(mc_dl<0 && mcallowbackprop==0) { ABSORB; };\
+    if(mc_dl<0 && allow_backprop==0) { ABSORB; };\
     PROP_DL(mc_dl); \
   } while(0)
 
@@ -170,7 +170,7 @@
     if(ky == 0) { ABSORB; }; \
     mc_k=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz)); \
     mc_dl= -y * mc_k / ky; \
-    if(mc_dl<0 && mcallowbackprop==0) { ABSORB; };\
+    if(mc_dl<0 && allow_backprop==0) { ABSORB; };\
     PROP_DL(mc_dl); \
   } while(0)
 
@@ -186,7 +186,7 @@
     if(kz == 0) { ABSORB; }; \
     mc_k=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz)); \
     mc_dl= -z * mc_k / kz; \
-    if(mc_dl<0 && mcallowbackprop==0) { ABSORB; };\
+    if(mc_dl<0 && allow_backprop==0) { ABSORB; };\
     PROP_DL(mc_dl); \
   } while(0)
 

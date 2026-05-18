@@ -15,7 +15,7 @@
 * Flexible monitor.
 *
 * %D
-* A square 1D single monitor that measures intensity (or something else) as a function of some variable or parameter.
+* Non-propagating monitor that measures intensity (or something else) as a function of some variable or parameter.
 *
 * Example: Flex_monitor_1D(nU=20, filename="Output", ustring="x", Umin=-.1, Umax=.1)
 *
@@ -26,29 +26,23 @@
 * Umax: []              Maximum U to detect
 * nU: [1]               Number of U channels
 * filename: [string]    Name of file in which to store the detector image
-* restore_neutron: [1]  If set, the monitor does not influence the neutron state
 * uid: [1]              Integer index of uservar to be monitored. Overrides ustring.
-* ustring: [string]     Name of variable (user or neutron state parameter as a string) to be monitored.  
+* ustring: [string]     Name of variable (user or particle state parameter as a string) to be monitored.  
 * signal: [string]      Name of variable to be used as an additive signal to be monitored. Default is intensity.
 * nowritefile: [1]      Flag to indicate if monitor should not save any data.
 *
 * CALCULATED PARAMETERS:
 *
-* U_N: []               Array of neutron counts
-* U_p: []               Array of neutron weight counts
+* U_N: []               Array of particle counts
+* U_p: []               Array of particle weight counts
 * U_p2: []              Array of second moments
 *
 * %E
 *******************************************************************************/
 DEFINE COMPONENT Flex_monitor_1D
 
-
-
 SETTING PARAMETERS (int nU=20, string filename=0,
-  Umin, Umax, uid=-1, string ustring="", int restore_neutron=0, string signal="p", int nowritefile=0)
-
-
-/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+  Umin, Umax, uid=-1, string ustring="", string signal="p", int nowritefile=0)
 
 DECLARE
 %{
@@ -99,10 +93,6 @@ TRACE
     #pragma acc atomic
     U_p2[i] = U_p2[i] + p2;
     SCATTER;
-  }
-
-  if (restore_neutron) {
-    RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}
 

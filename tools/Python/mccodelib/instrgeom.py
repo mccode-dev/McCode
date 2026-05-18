@@ -342,33 +342,33 @@ class ParticleState(object):
 # links mcstas draw api to the corresponding python class names '''
 drawcommands = {
     'magnify'     : 'DrawMagnify',
-    'line'        : 'DrawLine',
+    'mcdisline'        : 'DrawLine',
     'dashed_line' : 'DrawDashedLine',
     'multiline'   : 'DrawMultiline',
-    'rectangle'   : 'DrawRectangle',
-    'box'         : 'DrawBox',
-    'circle'      : 'DrawCircle',
-    'sphere'      : 'DrawSphere',
-    'cone'        : 'DrawCone',
-    'cylinder'    : 'DrawCylinder',
-    'disc'        : 'DrawDisc',
-    'annulus'     : 'DrawAnnulus',
-    'new_circle'  : 'DrawNewCircle',
+    'mcdisrectangle'   : 'DrawRectangle',
+    'mcdisbox'         : 'DrawBox',
+    'mcdiscircle'      : 'DrawCircle',
+    'mcdissphere'      : 'DrawSphere',
+    'mcdiscone'        : 'DrawCone',
+    'mcdiscylinder'    : 'DrawCylinder',
+    'mcdisdisc'        : 'DrawDisc',
+    'mcdisannulus'     : 'DrawAnnulus',
+    'mcdisnew_circle'  : 'DrawNewCircle',
     'polygon'     : 'DrawPolygon',
     'polyhedron'     : 'DrawPolyhedron',
 }
 # reduced set containing wholly implemented and non-trivial commands
 reduced_drawcommands = {
     'multiline'   : 'DrawMultiline',
-    'circle'      : 'DrawCircle',
+    'mcdiscircle'      : 'DrawCircle',
 
-    'box'         : 'DrawBox',
-    'sphere'      : 'DrawSphere',
-    'cone'        : 'DrawCone',
-    'cylinder'    : 'DrawCylinder',
-    'disc'        : 'DrawDisc',
-    'annulus'     : 'DrawAnnulus',
-    'new_circle'  : 'DrawNewCircle',
+    'mcdisbox'         : 'DrawBox',
+    'mcdissphere'      : 'DrawSphere',
+    'mcdiscone'        : 'DrawCone',
+    'mcdiscylinder'    : 'DrawCylinder',
+    'mcdisdisc'        : 'DrawDisc',
+    'mcdisannulus'     : 'DrawAnnulus',
+    'mcdisnew_circle'  : 'DrawNewCircle',
     'polygon'     : 'DrawPolygon',
     'polyhedron'  : 'DrawPolyhedron',
     }
@@ -578,7 +578,8 @@ class DrawCircle(DrawCommand):
         elif self.plane == 'yz':
             return map(lambda p: cen.add(Vector3d(0, p.x, p.y)), square)
         else:
-            raise Exception('DrawCircle: invalid plane argument')
+            # Fallback to xy
+            return map(lambda p: cen.add(p), square)
 
     def get_points_on_circle(self, steps=60):
         ''' returns points on the circle, transformed into the proper plane '''

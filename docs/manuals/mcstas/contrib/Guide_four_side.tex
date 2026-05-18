@@ -1,0 +1,137 @@
+\section{The \texttt{Guide\_four\_side} McStas Component}
+Guide with four side walls
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Tobias Panzner
+  \item \textbf{Origin:} PSI
+  \item \textbf{Date:} 07/08/2010
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+This component models a guide with four side walls.
+As user you can controll the properties of every wall separatly. All togther you have up to
+8 walls: 4 inner walls and 4 outer walls.
+
+Every single wall can have a elliptic, parabolic or straight shape.
+All four sides of the guide are independent from each other.
+In the elliptic case the side wall shape follows the equation x^2/b^2+(z+z0)^2/a^2=1
+(the center of the ellipse is located at (0,-z0)).
+In the parabolic case the side wall shape follows the equation z=b-ax^2;mc
+In the straight case the side wall shape follows the equation z=l/(w2-w1)*x-w1.
+
+The shape selection is done by the focal points. The focal points are located at the
+z-axis and are defined by their distance to the entrance or exit window of the guide
+(in the following called 'focal length').
+
+If both focal lengths for one wall are zero it will be a straight wall (entrance and
+exit width have to be given in the beginning).
+
+If one of the focal lengths is not zero the shape will be parabolic (only the entrance width
+given in the beginning is recognized; exit width will be calculated). If the the entrance
+focal length is zero the guide will be a focusing devise.
+If the exit focal length is zero it will be defocusing devise.
+
+If both focals are non zero the shape of the wall will be elliptic (only the entrance width
+given in the beginning is recognized; exit width will be calculated).
+
+Notice: 1.)The focal points are in general located outside the guide (positive focal lengths).
+Focal points inside the guide need to have negative focal lengths.
+2.)The exit width parameters (w2r, w2l, h2u,h2d) are only taken into account if the
+walls have a linear shape. In the ellitic or parabolic case they will be ignored.
+
+For the inner channel: the outer side of each wall is calculated by the component in depentence
+of the wallthickness and the shape of the inner side.
+
+Each of walls can have a own indepenting reflecting layer (defined by an input file)
+or it can be a absorber or it can be transparent.
+
+The reflectivity properties can be given by an input file (Format [q(Angs-1) R(0-1)]) or by
+parameters (Qc, alpha, m, W).
+
+%BUGS
+This component does not work with gravitation on.
+
+This component does not work correctly in GROUP-modus.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+RIreflect &  & (str)  Name of relfectivity file for the right inner wall. & 0 \\
+LIreflect &  & (str)  Name of relfectivity file for the left inner wall. & 0 \\
+UIreflect &  & (str)  Name of relfectivity file for the top inner wall. & 0 \\
+DIreflect &  & (str)  Name of relfectivity file for the bottom inner wall. & 0 \\
+ROreflect &  & (str)  Name of relfectivity file for the right outer wall. & 0 \\
+LOreflect &  & (str)  Name of relfectivity file for the left outer wall. & 0 \\
+UOreflect &  & (str)  Name of relfectivity file for the top outer wall. & 0 \\
+DOreflect &  & (str)  Name of relfectivity file for the bottom outer wall. & 0 \\
+w1l & m & Width at the left guide entry    (positive x-axis) & 0.002 \\
+w2l & m & Width at the left guide exit     (positive x-axis) & 0.002 \\
+linwl & m & left horizontal wall: distance of 1st focal point & 0 \\
+loutwl & m & left horizontal wall: distance of 2nd focal point & 0 \\
+w1r & m & Width at the right guide entry   (negative x-axis) & 0.002 \\
+w2r & m & Width at the right guide exit    (negative x-axis) & 0.002 \\
+linwr & m & right horizontal wall: distance of 1st focal point & 0.0 \\
+loutwr & m & right horizontal wall: distance of 2nd focal point & 0 \\
+h1u & m & Height at the top guide entry    (positive y-axis) & 0.002 \\
+h2u & m & Height at the top guide entry    (positive y-axis) & 0.002 \\
+linhu & m & upper vertical wall: distance of 1st focal point & 0.0 \\
+louthu & m & upper vertical wall: distance of 2nd focal point & 0 \\
+h1d & m & Height at the bottom guide entry (negative y-axis) & 0.002 \\
+h2d & m & Height at the bottom guide entry (negative y-axis) & 0.002 \\
+linhd & m & lower vertical wall: distance of 1st focal point & 0.0 \\
+louthd & m & lower vertical wall: distance of 2nd focal point & 0 \\
+l & m & length of guide (DEFAULT = 0) & 0 \\
+R0 & 1 & Low-angle reflectivity (DEFAULT = 0.99) & 0.99 \\
+Qcxl & AA-1 & Critical scattering vector for left vertical & 0.0217 \\
+Qcxr & AA-1 & Critical scattering vector for right vertical & 0.0217 \\
+Qcyu & AA-1 & Critical scattering vector for top inner wall & 0.0217 \\
+Qcyd & AA-1 & Critical scattering vector for bottom inner wall & 0.0217 \\
+alphaxl & AA & Slope of reflectivity for left vertical & 6.07 \\
+alphaxr & AA & Slope of reflectivity for right vertical & 6.07 \\
+alphayu & AA & Slope of reflectivity for top inner wall & 6.07 \\
+alphayd & AA & Slope of reflectivity for bottom inner wall & 6.07 \\
+Wxr & AA-1 & Width of supermirror cut-off for right inner wall & 0.003 \\
+Wxl & AA-1 & Width of supermirror cut-off for left inner wall & 0.003 \\
+Wyu & AA-1 & Width of supermirror cut-off for top inner wall & 0.003 \\
+Wyd & AA-1 & Width of supermirror cut-off for bottom inner wall & 0.003 \\
+mxr & 1 & m-value of material for right vertical inner wall. & 3.6 \\
+mxl & 1 & m-value of material for left vertical inner wall. & 3.6 \\
+myu & 1 & m-value of material for top inner wall & 3.6 \\
+myd & 1 & m-value of material for bottom inner wall & 3.6 \\
+QcxrOW & AA-1 & Critical scattering vector for right vertical & 0.0217 \\
+QcxlOW & AA-1 & Critical scattering vector for left vertical & 0.0217 \\
+QcyuOW & AA-1 & Critical scattering vector for top outer wall & 0.0217 \\
+QcydOW & AA-1 & Critical scattering vector for bottom outer wall & 0.0217 \\
+alphaxlOW & AA & Slope of reflectivity for left vertical & 6.07 \\
+alphaxrOW & AA & Slope of reflectivity for right vertical & 6.07 \\
+alphayuOW & AA & Slope of reflectivity for top outer wall & 6.07 \\
+alphaydOW & AA & Slope of reflectivity for bottom outer wall & 6.07 \\
+WxrOW & AA-1 & Width of supermirror cut-off for right outer wall & 0.003 \\
+WxlOW & AA-1 & Width of supermirror cut-off for left outer wall & 0.003 \\
+WyuOW & AA-1 & Width of supermirror cut-off for top outer wall & 0.003 \\
+WydOW & AA-1 & Width of supermirror cut-off for bottom outer wall & 0.003 \\
+mxrOW & 1 & m-value of material for right vertical outer wall & 0 \\
+mxlOW & 1 & m-value of material for left vertical outer wall & 0 \\
+myuOW & 1 & m-value of material for top outer wall & 0 \\
+mydOW & 1 & m-value of material for bottom outer wall & 0 \\
+rwallthick & m & thickness of the right wall (DEFAULT = 0.001 m) & 0.001 \\
+lwallthick & m & thickness of the left wall  (DEFAULT = 0.001 m) & 0.001 \\
+uwallthick & m & thickness of the top wall   (DEFAULT = 0.001 m) & 0.001 \\
+dwallthick & m & thickness of the bottom wall(DEFAULT = 0.001 m) & 0.001 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/contrib/Guide_four_side.comp}{Source code} for \texttt{Guide\_four\_side.comp}.
+\end{itemize}
+\IfFileExists{Guide_four_side_static.tex}{\input{Guide_four_side_static.tex}}{}

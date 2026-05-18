@@ -1,0 +1,110 @@
+\section{The \texttt{ESS\_butterfly} McStas Component}
+ESS butterfly moderator, 2016 revision
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Peter Willendrup and Esben Klinkby
+  \item \textbf{Origin:} DTU
+  \item \textbf{Date:} August-September 2016
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+ESS butterfly moderator with automatic choice of coordinate system, with origin
+placed at relevant "Moderator Focus Coordinate System" depending on sector location.
+
+To select beamport N 5 simply use
+
+COMPONENT Source = ESS_butterfly(sector="N",beamline=5,Lmin=0.1,Lmax=20,dist=2,
+cold_frac=0.5, yheight=0.03,focus_xw=0.1, focus_yh=0.1)
+
+<b>Geometry</b>
+The geometry corresponds correctly to the latest release of the butterfly moderator,
+including changes warranted by the ESS CCB in July 2016, the so called BF1 type moderator.
+A set of official release documents are available with this component, see the benchmarking
+website mentioned below.
+
+<b>Brilliances, geometry adapted from earlier BF2 design</b>
+The geometry and brightness data implemented in the McStas ESS source component ESS_butterfly.comp,
+are released as an updated component library for McStas 2.3, as well as a stand alone archive for
+use with earlier versions of McStas.
+
+The following features are worth highlighting:
+<ul>
+<li>The brightness data are still based on last years MCNP calculations, based on the Butterfly 2 geometry.
+As a result, the spatial variation of the brightness across the moderator face should be considered to
+have an uncertainty of the order of 10%. Detailed information on the reasoning behind the change to
+the Butterfly 1 geometry can be found in <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a> and detailed information on horizontal spatial brightness
+variation can be found in <A HREF="http://essbutterfly.mcstas.org/PDFs/BFpaper_LZ_latest.pdf">[2]</a>. The spectral shape has been checked and has not changed significantly.
+<li>A scaling factor has been introduced to in order to account for the decrease in brightness since 2015.
+To accommodate the influence of the changed geometry, this scaling factor has been applied independently
+for the cold and thermal contributions and is beamline dependent. It is adjusted to agree with the
+spectrally-integrated 6cm width data shown in <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a>,Figure 3.
+<li>To allow future user adjustments of brilliance, the scalar parameters c_performance and t_performance
+have been implemented. For now, we recommend to keep these at their default value of 1.0.
+<li>The geometry has been updated to correspond within about 2 mm to the geometry described in <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a>. This
+has been done by ensuring that the position and apparent width of the moderators correspond to <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a>,Figure 2,
+which has been derived from current MCNP butterfly 1 model.
+<li>The beamport is now defined directly by its sector and number (e.g. 'W' and '5'), rather than giving the angle,
+as before. <A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">[1]</a>,Figure 5 shows the geometry of the moderator2, beamport insert and beamline axis for beamline W5.
+Since the underlying data is still from last years MCNP run, when the brightness was calculated at 10-degree
+intervals, this means that the spectral curve for the nearest beamport on the grid 5,15,25,35,45,55 degrees
+is used. The use of this grid has no effect on the accuracy of the geometry or brilliance because of the above-
+mentioned beamline-dependent adjustments to the brilliance and geometry. See the website <A HREF="http://essbutterfly.mcstas.org/">[3]</a> for details.
+</ul>
+As before, the beamports all originate at the focal point of the sector. The beamline will in almost all cases be
+horizontally tilted in order to view the cold or thermal moderator, which should be done using an Arm component.
+
+<p>We expect to release an MCNP-event-based source model later in 2016, and possibly also new set of brilliance
+functions for ESS_butterfly.comp. These are expected to include more realistic brilliances in terms of variation
+across sectors and potentially also performance losses due to engineering reality. </b>
+
+<b>Engineering reality</b>
+An ad-hoc method for future implementation of "engineering reality" is included, use the
+"c_performance/t_performance" parameters to down-scale performance uniformly across all wavelengths.
+
+<b>References:</b>
+<ol>
+<li><A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">Release document "Update to ESS Moderators, latest version"</a>
+<li><A HREF="http://essbutterfly.mcstas.org/PDFs/BFpaper_LZ_latest.pdf">Release document "Description and performance of the new baseline ESS moderators, latest version"</a>
+<li><A HREF="http://essbutterfly.mcstas.org/">http://essbutterfly.mcstas.org/</a> benchmarking website with comparative McStas-MCNP figures
+<li><a href="http://essbutterfly.mcstas.org/visualisation">html-based, interactive 3D model of moderators and monolith, as seen from beamline N4</a>.
+<li><A HREF="https://github.com/mccode-dev/McCode/blob/master/mcstas-comps/sources/ESS_butterfly.comp">Source code</A> for <CODE>ESS_butterfly.comp</CODE> at GitHub.
+</ol>
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+sector & str & Defines the 'sector' of your instrument position. Valid values are "N","S","E" and "W" & "N" \\
+beamline & 1 & Defines the 'beamline number' of your instrument position. Valid values are 1..10 or 1..11 depending on sector & 1 \\
+yheight & m & Defines the moderator height. Valid values are 0.03 m and 0.06 m & 0.03 \\
+cold\_frac & 1 & Defines the statistical fraction of events emitted from the cold part of the moderator & 0.5 \\
+target\_index & 1 & Relative index of component to focus at, e.g. next is +1 this is used to compute 'dist' automatically. & 0 \\
+dist & m & Distance from origin to focusing rectangle; at (0,0,dist) - alternatively use target\_index & 0 \\
+focus\_xw & m & Width of focusing rectangle & 0 \\
+focus\_yh & m & Height of focusing rectangle & 0 \\
+c\_performance & 1 & Cold brilliance scalar performance multiplicator c\_performance \textgreater{} 0 & 1 \\
+t\_performance & 1 & Thermal brilliance scalar performance multiplicator t\_performance \textgreater{} 0 & 1 \\
+\textbf{Lmin} & AA & Minimum wavelength simulated &  \\
+\textbf{Lmax} & AA & Maximum wavelength simulated &  \\
+tmax\_multiplier & 1 & Defined maximum emission time at moderator, tmax= tmax\_multiplier * ESS\_PULSE\_DURATION. & 3 \\
+n\_pulses & 1 & Number of pulses simulated. 0 and 1 creates one pulse. & 1 \\
+acc\_power & MW & Accelerator power in MW & 5 \\
+tfocus\_dist & m & Position of time focusing window along z axis & 0 \\
+tfocus\_time & s & Time position of time focusing window & 0 \\
+tfocus\_width & s & Time width of time focusing window & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/sources/ESS_butterfly.comp}{Source code} for \texttt{ESS\_butterfly.comp}.
+\end{itemize}
+\IfFileExists{ESS_butterfly_static.tex}{\input{ESS_butterfly_static.tex}}{}

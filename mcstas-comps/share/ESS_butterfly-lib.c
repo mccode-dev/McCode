@@ -27,6 +27,12 @@
 #error McStas : please import this library with %include "ESS_butterfly-lib"
 #endif
 
+#ifdef ADJUSTABLE_ESS_PULSE
+#ifndef ESS_SOURCE_DURATION
+#define ESS_SOURCE_DURATION _instrument_var._parameters.pulse_duration
+#endif
+#endif
+
 #ifdef OPENACC
 #define exit(...) noprintf()
 #endif

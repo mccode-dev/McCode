@@ -1,0 +1,172 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=http://www.mcxtrace.org
+*
+* Instrument: Geometry_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: January 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of all Union geometry components in one file
+*
+* %Description
+* Use of all basic geometries, mesh(as a torus), sphere, cylinder, cone and box
+*
+* Adapted from McSas Geometry_test, work in progress
+*
+* Example: meshfile="torus.off" Detector: detector_scat_I=47.5
+* Example: meshfile="torus.STL" Detector: detector_scat_I=47.5
+*
+* %Parameters
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT Geometry_test(string meshfile="torus.STL")
+
+DECLARE
+%{
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Vanadium_incoherent = Incoherent_process(sigma=2*5.08,packing_factor=1,unit_cell_volume=27.66)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Vanadium = Union_make_material(my_absorption=2*5.08*100/27.66,process_string="Vanadium_incoherent")
+AT (0,0,0) ABSOLUTE
+
+/* // P0 */
+/* COMPONENT Al_incoherent = Incoherent_process(sigma=4*0.0082,packing_factor=1,unit_cell_volume=66.4) */
+/* AT (0,0,0) ABSOLUTE */
+
+/* // P1 */
+/* COMPONENT Al_Powder = Powder_process(reflections="Al.laz") */
+/* AT (0,0,0) ABSOLUTE */
+
+/* COMPONENT Al = Union_make_material(my_absorption=100*4*0.231/66.4) */
+/* AT (0,0,0) ABSOLUTE */
+
+/* // P0 */
+/* COMPONENT Cu_incoherent = Incoherent_process(sigma=4*0.55,packing_factor=1,unit_cell_volume=47.22) */
+/* AT (0,0,0) ABSOLUTE */
+
+/* // P1 */
+/* COMPONENT Cu_Powder = Powder_process(reflections="Cu.laz") */
+/* AT (0,0,0) ABSOLUTE */
+
+/* COMPONENT Cu = Union_make_material(my_absorption=5*100*4*3.78/47.22) */
+/* AT (0,0,0) ABSOLUTE */
+
+COMPONENT a1 = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT source = Arm()/* Source_div( */
+        /* xwidth=0.09, yheight=0.15,focus_aw=0.01, focus_ah=0.01, */
+        /* E0 = 5, */
+        /* dE = 0, flux = 1E12) */
+  AT (0,0,0) RELATIVE a1 ROTATED (0,0,0) RELATIVE a1
+
+COMPONENT sample_pos = Arm()
+AT (0,0,0.3) RELATIVE source
+
+/* COMPONENT cryostat_wall = Union_cylinder( */
+/*  radius=0.07,yheight=0.32,priority=10,material_string="Al",p_interact=0.2) */
+/* AT (0,0,0) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+/* COMPONENT cryostat_wall_vacuum = Union_cylinder( */
+/*  radius=0.068,yheight=0.318,priority=11,material_string="Vacuum") */
+/* AT (0,0,0) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+/* COMPONENT sample_sphere = Union_sphere( */
+/*  radius=0.031,priority=20,material_string="Cu") */
+/* AT (0.01,0,0) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+COMPONENT sample_box = Union_box(
+ xwidth=0.021, yheight=0.018, zdepth=0.1, priority=21, material_string="Vanadium")
+AT (-0.01,0,0) RELATIVE sample_pos
+ROTATED (34,17,0) RELATIVE sample_pos
+
+/* COMPONENT sample_cone = Union_cone(  */
+/*   radius_top=0.031, radius_bottom=0.005, yheight=0.04, priority=22, material_string="Cu")  */
+/*  AT (0.02,-0.03,0) RELATIVE sample_pos  */
+/*  ROTATED (0,0,20) RELATIVE sample_pos  */
+
+/* COMPONENT sample_torus  = Union_mesh( */
+/*    filename = meshfile, */
+/*    material_string="Al", */
+/*    coordinate_scale =0.025, */
+/*    priority=346, */
+/*    skip_convex_check=1 */
+/* ) AT (0,0,0.02) RELATIVE sample_pos */
+/* ROTATED (0,45,0) RELATIVE sample_pos */
+
+
+/* COMPONENT test_logger_1D = Union_logger_1D( */
+/*   variable="time", min_value=1E-4, max_value=8E-4, n1=200, filename="logger_1D.dat" */
+/* ) */
+/* AT (0,0,0) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+/* COMPONENT test_logger_2DQ = Union_logger_2DQ( */
+/*   Q_direction_1 = "z", Q1_min=-5, Q1_max=5, n1=100, */
+/*   Q_direction_2 = "x", Q2_min=-5, Q2_max=5, n2=100, */
+/*   filename="logger_2DQ.dat" */
+/* ) */
+/* AT (0,0,0) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+/* COMPONENT test_logger_2D_space_zx = Union_logger_2D_space( */
+/*   D_direction_1 = "z", D1_min=-0.1, D1_max=0.1, n1=200, */
+/*   D_direction_2 = "x", D2_min=-0.1, D2_max=0.1, n2=200, */
+/*   filename="logger_2D_space_zx.dat" */
+/* ) */
+/* AT (0,0,0) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+/* COMPONENT test_logger_2D_space_zy = Union_logger_2D_space( */
+/*   D_direction_1 = "z", D1_min=-0.1, D1_max=0.1, n1=200, */
+/*   D_direction_2 = "y", D2_min=-0.1, D2_max=0.1, n2=200, */
+/*   filename="logger_2D_space_zy.dat" */
+/* ) */
+/* AT (0,0,0) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+/* COMPONENT test_logger_3D_space = Union_logger_3D_space( */
+/*   D_direction_1 = "z", D1_min=-0.1, D1_max=0.1, n1=200, */
+/*   D_direction_2 = "x", D2_min=-0.1, D2_max=0.1, n2=200, */
+/*   D_direction_3 = "y", D3_min=-0.03, D3_max=0.03, n3=3, */
+/*   filename="logger_3D_space.dat" */
+/* ) */
+/* AT (0,0,0) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+/* COMPONENT scat_direction = Arm() */
+/* AT (0,0,0) RELATIVE sample_pos */
+/* ROTATED (0,34,0) RELATIVE sample_pos */
+
+COMPONENT sample = Union_master()
+AT(0,0,0) RELATIVE sample_pos
+ROTATED(0,0,0) RELATIVE sample_pos
+
+/* COMPONENT detector = PSD_monitor(xwidth=0.085, yheight=0.15, nx=200, ny=200, filename="PSD.dat", restore_neutron=1) */
+/* AT (0,0,0.3) RELATIVE sample_pos */
+/* ROTATED (0,0,0) RELATIVE sample_pos */
+
+/* COMPONENT detector_scat = PSD_monitor(xwidth=0.085, yheight=0.15, nx=200, ny=200, filename="PSD_scat.dat", restore_neutron=1) */
+/* AT (0,0,0.5) RELATIVE scat_direction */
+/* ROTATED (0,0,0) RELATIVE scat_direction */
+
+COMPONENT stop = Union_stop()
+AT (0,0,0) ABSOLUTE
+
+
+END

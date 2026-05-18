@@ -1,0 +1,597 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://mcstas.risoe.dk
+*
+* Instrument: ILL_H142
+*
+* %Identification
+* Written by: FARHI Emmanuel (farhi@ill.fr)
+* Date: April 7, 2004
+* Origin:ILL
+* %INSTRUMENT_SITE: ILL
+*
+* The H142 S-curved cold guide at the ILL
+*
+* %Description
+* The H142 S-curved cold guide at the ILL feeding IN12
+*
+* %Example: m=1 Detector: GuideOut_xy_I=2.36784e+09
+* (Target example monitor differs from standard ILL_H142 since we avoid Monitor_nD - and 'capture')
+*
+* %Parameters
+* m: [1]         m-value of whole guide coating. 0 absorbing, 1 for Ni, 1.2 for Ni58, 2-4 for SM
+* lambda: [AA]   central wavelength
+* dlambda: [AA]  wavelength half width. Use e.g. 0.8*lambda for white beam.
+* gH: [m]        height of 2nd H142 curved section
+* mip: [1]       m-value of in-pile guide coating
+*
+* %Link
+* The <a href="http://www.ill.fr/YellowBook/IN12">IN12 TAS</a> at the ILL
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT ILL_H142_simple(m=1, lambda=10, dlambda=9.9, gH=0.12, mip=1)
+
+/* The DECLARE section allows us to declare variables or  small      */
+/* functions in C syntax. These may be used in the whole instrument. */
+DECLARE
+%{
+  /* VCS (H1) source parameters */
+  double sT1=216.8,sI1=1.24e+13;
+  double sT2=33.9, sI2=1.02e+13;
+  double sT3=16.7 ,sI3=3.0423e+12;
+  /* guide coating parameters */
+  double gR0          = 1;
+  double gQc          = 0.021;
+  double gAlpha       = 4.07;
+  double gW           = 1.0/300.0;
+  /* gaps and Al windows parameters */
+  double Al_Thickness = 0.002;
+  double gGap         = 0.001;
+  /* guide curvatures */
+  double gRh          = 2700; /* anti-clockwise */
+  /* guide section parameters (total length/number of elements) */
+  double L_H142_2 =6.0  /6,  Rh_H142_2 =0;
+  double L_H142_3 =9.473/10, Rh_H142_3 =0; /* end: d ~ 15.5 moderator at -5.9 */
+  double L_H142_4 =6.973/7,  Rh_H142_4 =0; /* end: d ~ 22.5 ... */
+  double L_H142_5 =4.75 /5,  Rh_H142_5 =0; /* VTE is at the end of this section */
+  double L_H142_6 =12.5/10, Rh_H142_6 =0; /* end of H142 MAN spec sheet after 2 elements */
+  double L_H142_7 =12.5/10, Rh_H142_7 =0;
+  double L_H142_8 =12.5/10, Rh_H142_8 =0;
+  double L_H142_9 =12.5/10, Rh_H142_9 =0;
+  double L_H142_10=12.5/10, Rh_H142_10=0;
+  double L_H142_11=12.5/10, Rh_H142_11=0;
+  double L_H142_12=7.5/6,   Rh_H142_12=0; /* straight */
+  double L_H142_13=2.5/2,   Rh_H142_13=0; /* straight */
+
+  /* capture flux positions from moderator: 21.4    28.4    61.2 */
+
+%}
+
+/* The INITIALIZE section is executed when the simulation starts     */
+/* (C code). You may use them as component parameter values.         */
+INITIALIZE
+%{
+
+  /* Element rotations = Element length / Curvature Radius * RAD2DEG */
+  if (gRh) {
+    Rh_H142_2  = L_H142_2 /gRh*RAD2DEG;
+    Rh_H142_3  = L_H142_3 /gRh*RAD2DEG;
+    Rh_H142_4  = L_H142_4 /gRh*RAD2DEG;
+    Rh_H142_5  = L_H142_5 /gRh*RAD2DEG;
+    Rh_H142_6  =-L_H142_6 /gRh*RAD2DEG; /* S curved */
+    Rh_H142_7  =-L_H142_7 /gRh*RAD2DEG;
+    Rh_H142_8  =-L_H142_8 /gRh*RAD2DEG;
+    Rh_H142_9  =-L_H142_9 /gRh*RAD2DEG;
+    Rh_H142_10 =-L_H142_10/gRh*RAD2DEG;
+    Rh_H142_11 =-L_H142_11/gRh*RAD2DEG;
+  }
+
+  printf("Instrument: ILL_H142_simple (H142@ILL cold guide on VCS).\n");
+
+%}
+
+/* Here comes the TRACE section, where the actual      */
+/* instrument is defined as a sequence of components.  */
+TRACE
+
+/* The Arm() class component defines reference points and orientations  */
+/* in 3D space. Every component instance must have a unique name. Here, */
+/* Origin is used. This Arm() component is set to define the origin of  */
+/* our global coordinate system (AT (0,0,0) ABSOLUTE). It may be used   */
+/* for further RELATIVE reference, and even replaced by a Progress_bar  */
+/* component. Other useful keywords are : ROTATED EXTEND GROUP PREVIOUS */
+/* Also think about adding a neutron source !                           */
+COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT VCS = Source_gen(
+  yheight  = 0.22,
+  xwidth   = 0.14,
+  dist     = 2.525,
+  focus_xw = 0.038,
+  focus_yh = 0.2,
+  lambda0  = lambda,
+  dlambda  = dlambda,
+  T1       = sT1,
+  I1       = sI1,
+  T2       = sT2,
+  I2       = sI2,
+  T3       = sT3,
+  I3       = sI3,
+  verbose  = 1)
+  AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT Al_window1 = Al_window(thickness=Al_Thickness)
+AT (0,0,0.21) RELATIVE VCS
+
+COMPONENT Al_window2 = Al_window(thickness=Al_Thickness)
+AT (0,0,0.61) RELATIVE VCS
+
+COMPONENT Al_window3 = Al_window(thickness=Al_Thickness)
+AT (0,0,0.78) RELATIVE VCS
+
+COMPONENT Al_window4 = Al_window(thickness=Al_Thickness)
+AT (0,0,0.92) RELATIVE VCS
+
+COMPONENT Al_window5 = Al_window(thickness=Al_Thickness)
+AT (0,0,2.43) RELATIVE VCS
+
+/* H142-1: L=3.17 m in 1 element. no curvature */
+
+COMPONENT PinkCarter = Guide(
+  w1=0.038, h1=0.2, w2=0.032, h2=0.2, l=3.170,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=mip, W=gW)
+AT (0,0,2.525) RELATIVE VCS
+
+COMPONENT FirstObturator = Guide(
+  w1=0.031, h1=0.2, w2=0.031, h2=0.2, l=0.228,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=mip, W=gW)
+AT (0,0,3.17+0.02) RELATIVE PinkCarter
+
+/* ******************** swiming pool guide ******************** */
+
+/* H142-2: L=5.5 m in 6 elements R horiz=2700 m */
+
+COMPONENT H142_2 = Arm()
+AT (0,0,3.59) RELATIVE PinkCarter
+
+COMPONENT H142_2_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_2_1 = Guide(
+  w1=0.03, h1=0.2, w2=0.03, h2=0.2, l=L_H142_2,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_2,0) RELATIVE PREVIOUS
+
+COMPONENT H142_2_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_2+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_2,0) RELATIVE PREVIOUS
+
+COMPONENT H142_2_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_2+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_2,0) RELATIVE PREVIOUS
+
+COMPONENT H142_2_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_2+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_2,0) RELATIVE PREVIOUS
+
+COMPONENT H142_2_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_2+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_2,0) RELATIVE PREVIOUS
+
+COMPONENT H142_2_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_2+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_2,0) RELATIVE PREVIOUS
+
+COMPONENT H142_2_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_2+gGap) RELATIVE PREVIOUS
+
+/* gap 0.198 m (VS) */
+
+/* H142-3: L=9.973 m in 10 elements Rh=2700 m. */
+
+COMPONENT H142_3 = Arm()
+AT (0,0,0.198) RELATIVE H142_2_Out
+
+COMPONENT H142_3_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_1 = Guide(
+  w1=0.03, h1=0.2, w2=0.03, h2=0.2, l=L_H142_3,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_7 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_8 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_9 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_10 = COPY(PREVIOUS)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_3,0) RELATIVE PREVIOUS
+
+COMPONENT H142_3_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_3+gGap) RELATIVE PREVIOUS
+
+/* gap 0.03 m */
+
+/* H142-4: L=6.973 m in 7 elements Rh=2700 m. Here d_c ~ 21.4 */
+
+COMPONENT H142_4 = Arm()
+AT (0,0,0.03) RELATIVE H142_3_Out
+
+COMPONENT H142_4_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_4_1 = Guide(
+  w1=0.03, h1=0.2, w2=0.03, h2=0.2, l=L_H142_4,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_4,0) RELATIVE PREVIOUS
+
+COMPONENT H142_4_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_4+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_4,0) RELATIVE PREVIOUS
+
+COMPONENT H142_4_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_4+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_4,0) RELATIVE PREVIOUS
+
+COMPONENT H142_4_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_4+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_4,0) RELATIVE PREVIOUS
+
+COMPONENT H142_4_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_4+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_4,0) RELATIVE PREVIOUS
+
+COMPONENT H142_4_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_4+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_4,0) RELATIVE PREVIOUS
+
+COMPONENT H142_4_7 = COPY(PREVIOUS)
+AT (0,0,L_H142_4+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_4,0) RELATIVE PREVIOUS
+
+COMPONENT H142_4_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_4+gGap) RELATIVE PREVIOUS
+
+/* gap 0.03 m */
+
+/* H142-5: L=4.75 m in 5 elements Rh=2700 m. Here d_c ~ 28.4 */
+
+COMPONENT H142_5 = Arm()
+AT (0,0,0.03) RELATIVE H142_4_Out
+
+COMPONENT H142_5_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_5_1 = Guide(
+  w1=0.03, h1=0.2, w2=0.03, h2=0.2, l=L_H142_5,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_5,0) RELATIVE PREVIOUS
+
+COMPONENT H142_5_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_5+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_5,0) RELATIVE PREVIOUS
+
+COMPONENT H142_5_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_5+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_5,0) RELATIVE PREVIOUS
+
+COMPONENT H142_5_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_5+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_5,0) RELATIVE PREVIOUS
+
+COMPONENT H142_5_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_5+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_5,0) RELATIVE PREVIOUS
+
+COMPONENT H142_5_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_5+gGap) RELATIVE PREVIOUS
+
+/* gap .330 m (VTE) */
+
+/* ******************** after the VTE ******************** */
+
+/* H142-6: L=12.5 m in 10 elements Rh=-2700 m. splitting. */
+
+COMPONENT H142_6 = Arm()
+AT (0,-(0.2-gH)/2,0.330) RELATIVE H142_5_Out
+
+COMPONENT H142_6_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_1 = Guide(
+  w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_6,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_7 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_8 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_9 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_10 = COPY(PREVIOUS)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_6,0) RELATIVE PREVIOUS
+
+COMPONENT H142_6_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_6+gGap) RELATIVE PREVIOUS
+
+/* gap 0.03 m */
+
+/* H142-7: L=12.5 m in 10 elements Rh=-2700 m */
+
+COMPONENT H142_7 = Arm()
+AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
+
+COMPONENT H142_7_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_1 = Guide(
+  w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_7,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_7 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_8 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_9 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_10 = COPY(PREVIOUS)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_7,0) RELATIVE PREVIOUS
+
+COMPONENT H142_7_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_7+gGap) RELATIVE PREVIOUS
+
+/* gap 0.03 m */
+
+/* H142-8: L=12.5 m in 10 elements Rh=-2700 m. */
+
+COMPONENT H142_8 = Arm()
+AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
+
+COMPONENT H142_8_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_1 = Guide(
+  w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_8,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_7 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_8 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_9 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_10 = COPY(PREVIOUS)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_8,0) RELATIVE PREVIOUS
+
+COMPONENT H142_8_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_8+gGap) RELATIVE PREVIOUS
+
+/* gap 0.03 m */
+
+/* H142-9: L=12.5 m in 10 elements Rh=-2700 m. */
+
+COMPONENT H142_9 = Arm()
+AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
+
+COMPONENT H142_9_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_1 = Guide(
+  w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_9,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_7 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_8 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_9 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_10 = COPY(PREVIOUS)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_9,0) RELATIVE PREVIOUS
+
+COMPONENT H142_9_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_9+gGap) RELATIVE PREVIOUS
+
+/* gap 0.03 m */
+
+/* H142-10: L=12.5 m in 10 elements Rh=-2700 m. */
+
+COMPONENT H142_10 = Arm()
+AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
+
+COMPONENT H142_10_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_1 = Guide(
+  w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_10,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_7 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_8 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_9 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_10 = COPY(PREVIOUS)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_10,0) RELATIVE PREVIOUS
+
+COMPONENT H142_10_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_10+gGap) RELATIVE PREVIOUS
+
+/* gap 0.03 m */
+
+/* H142-11: L=12.5 m in 10 elements Rh=-2700 m. */
+
+COMPONENT H142_11 = Arm()
+AT (0,0,0.03+Al_Thickness) RELATIVE PREVIOUS
+
+COMPONENT H142_11_In = Al_window(thickness=Al_Thickness)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_1 = Guide(
+  w1=0.03, h1=gH, w2=0.03, h2=gH, l=L_H142_11,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m=m, W=gW)
+AT (0,0,Al_Thickness+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_2 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_3 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_4 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_5 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_6 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_7 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_8 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_9 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_10 = COPY(PREVIOUS)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS ROTATED (0,Rh_H142_11,0) RELATIVE PREVIOUS
+
+COMPONENT H142_11_Out = Al_window(thickness=Al_Thickness)
+AT (0,0,L_H142_11+gGap) RELATIVE PREVIOUS
+
+/* Here IN12 position. Gap .300 */
+
+COMPONENT GuideOut = Arm() AT (0,0,0.01) RELATIVE PREVIOUS
+EXTEND %{
+  // Weight by "per cm2" of following monitor area...
+  p/=(0.03*INSTRUMENT_GETPAR(gH)*1e4);
+%}
+  
+COMPONENT GuideOut_xy = PSD_monitor(
+  xwidth=0.03, yheight=gH)
+AT (0,0,0.1) RELATIVE PREVIOUS
+EXTEND %{
+  if(!SCATTERED) ABSORB;
+%}
+
+COMPONENT GuideOut_dxdy = Divergence_monitor(
+  xwidth=0.03, yheight=gH, restore_neutron=1)
+AT (0,0,0) RELATIVE PREVIOUS
+
+//Suppressed to avoid Monitor_nD usage
+/*COMPONENT GuideOut_Phic = Monitor_nD(
+  xwidth=0.03, yheight=gH, restore_neutron=1,
+  options="per cm2, capture, slit")
+  AT (0,0,0) RELATIVE PREVIOUS */ 
+
+COMPONENT GuideOut_L = L_monitor(xwidth=0.03, yheight=gH,
+				 restore_neutron=1, Lmin=1, Lmax=21, nL=20)
+AT (0,0,0) RELATIVE PREVIOUS
+
+/* The END token marks the instrument definition end */
+END

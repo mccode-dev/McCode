@@ -1,42 +1,60 @@
-\section{Selector: another approach to describe a rotating velocity selector}
-\label{selector}
-\index{Optics!Velocity selector}
+\section{The \texttt{Selector} McStas Component}
+velocity selector (helical lamella type) such as \textless{}b\textgreater{}V\_selector\textless{}/b\textgreater{} component
 
-%\component{Selector}{System}{$xmin$, $xmax$, $ymin$, $ymax$, $len$, $num$, $width$, $radius$, $\alpha$, $feq$}{}{validated, position is center of input aperture}
-\mcdoccomp{optics/Selector.parms}
-
-The component \textbf{Selector} describes the same kind of rotating velocity selector as \textbf{V\_selector} - compare
-description there - but it uses different parameters and a different algorithm:
-
-The position of the apertures relative to the z-axis (usually the beam centre) is defined by the four parameters
-$xmin, xmax, ymin, ymax$. Entry and exit apertures are always identical and situated directly before and behind
-the rotor.
-There are $num$ blades of thickness $width$ twisted by the angle $\alpha$ (in degrees) on a length $len$.
-The selector rotates with a speed $feq$ (in rotation per second); its axle is in a distance $radius$ below the z-axis.
-
-First the neutron is propagated to the entrance window. The loss of neutrons hitting the thin side
-of the blades is taken into account by multiplying the neutron weight by a factor
-
-\begin{equation}
-   p(r) = \theta_i(r) / \theta_o
-\end{equation}
-
-\begin{equation}
-   \theta_o = 360^o / num
-\end{equation}
-
-$\theta_i$ is the opening between two blades for the distance $r$ between the neutron position (at the entrance)
-and the selector axle. The difference between $\theta_o$ and $\theta_i$ is determined by the blade thickness.
-The neutron is now propagated to the exit window. If it is outside the regarded channel (between the two actual
-blades), it is lost; otherwise it remains in the exit plane.
-
-WARNING - Differences between \textbf{Selector} and \textbf{V\_selector}:
+\subsection*{Identification}
 \begin{itemize}
-\item \textbf{Selector} has a different coordinate system than \textbf{V\_selector};
-in \textbf{Selector} the origin lies in the entrance plane of the selector.
-\item The blades are twisted to the other side, i.e. to the left above the axle in \textbf{Selector}.
-\item Speed of rotation is given in rotation per second, not in rotations per minute as in \textbf{V\_selector}.
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Peter Link, \textless{}a href="mailto:Andreas.Ostermann@frm2.tum.de"\textgreater{}Andreas Ostermann\textless{}/a\textgreater{}
+  \item \textbf{Origin:} Uni. Gottingen (Germany)
+  \item \textbf{Date:} MARCH 1999
 \end{itemize}
 
+\subsection*{Description}
+\begin{lstlisting}
+Velocity selector consisting of rotating Soller-like blades
+defining a helically twisted passage.
+Geometry is defined by two identical apertures at 12 o'clock position,
+The origin is at the ENTRANCE of the selector.
 
+Example: Selector(xmin=-0.015,  xmax=0.015,  ymin=-0.025, ymax=0.025, length=0.25,
+nslit=72,d=0.0004, radius=0.12, alpha=48.298, nu=500)
+These are values for the D11@ILL Dornier 'Dolores' Velocity Selector (NVS 023)
 
+%VALIDATION
+Jun 2005: extensive external test, one minor problem
+Jan 2006: problem solved (for McStas-1.9.1)
+Validated by: K. Lieutenant
+
+%BUGS
+for transmission calculation, each neutron is supposed to be in the guide centre
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+xmin & m & Lower x bound of entry aperture & -0.015 \\
+xmax & m & Upper x bound of entry aperture & 0.015 \\
+ymin & m & Lower y bound of entry aperture & -0.025 \\
+ymax & m & Upper y bound of entry aperture & 0.025 \\
+length & m & rotor length & 0.25 \\
+xwidth & m & Width of entry. Overrides xmin,xmax. & 0 \\
+yheight & m & Height of entry. Overrides ymin,ymax. & 0 \\
+nslit & 1 & number of absorbing subdivinding spokes/lamella & 72 \\
+d & m & width of spokes at beam-center & 0.0004 \\
+radius & m & radius of beam-center & 0.12 \\
+alpha & deg & angle of torsion & 48.298 \\
+nu & Hz & frequency of rotation, which is ideally 3956*alpha*DEG2RAD/2/PI/lambda/length & 500 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/Selector.comp}{Source code} for \texttt{Selector.comp}.
+  \item See also Additional notes \textless{}a href="http://mcstas.risoe.dk/pipermail/neutron-mc/1999q1/000134.html"\textgreater{}March 1999\textless{}/a\textgreater{} and \textless{}a href="http://mcstas.risoe.dk/pipermail/neutron-mc/1999q2/000136.html"\textgreater{}Jan 2000\textless{}/a\textgreater{}.
+\end{itemize}
+\IfFileExists{Selector_static.tex}{\input{Selector_static.tex}}{}

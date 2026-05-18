@@ -26,6 +26,12 @@
 #ifndef ESS_BUTTERFLY_LIB_H
 #define ESS_BUTTERFLY_LIB_H 0.1
 
+#ifdef ADJUSTABLE_ESS_PULSE
+#ifndef ESS_SOURCE_DURATION
+#define ESS_SOURCE_DURATION _instrument_var._parameters.pulse_duration
+#endif
+#endif
+
 #ifndef ESS_SOURCE_DURATION
 #define ESS_SOURCE_DURATION 2.857e-3
 #endif

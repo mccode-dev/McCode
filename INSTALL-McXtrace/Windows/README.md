@@ -1,4 +1,4 @@
-# Installation of McXtrace 3.6.5 on Windows 64 bit Intel systems (some support for arm64)
+# Installation of McXtrace 3.6.14 on Windows 64 bit Intel systems (some support for arm64)
 ## *IMPORTANT: active internet connection required during installation*
 
 * Please use either of:
@@ -10,7 +10,7 @@
     * Once install has completed, please use the `mcxtrace-shell` shortcut on the desktop - issue terminal command `mxgui` to start the McXtrace GUI. 
     * Option 1 *may* function `arm64` Windows, but will require installation of Visual Studio including both arm64 and x64_64 build tools for c++.
   2. **Legacy:**
-    * install the legacy-style MinGW based [McXtrace 3.6.5 metapackage](https://download.mcxtrace.org/mcxtrace-3.6.5/Windows/McXtrace-Metapackage-3.6.5-win64.exe)
+    * install the legacy-style MinGW based [McXtrace 3.6.14 metapackage](https://download.mcxtrace.org/mcxtrace-3.6.14/Windows/McXtrace-Metapackage-3.6.14-win64.exe)
     * Option 2 should be fully functional on `arm64` processors.
   3. **WSL:**
     * Use the directions available in [WSL](WSL/README.md) to install the "Windows subsystem for Linux" and run the Linux Debian binaries there.  

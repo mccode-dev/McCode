@@ -26,6 +26,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
+int yylex(void *yylval);
 
 #include "mccode.h"
 
@@ -67,7 +68,7 @@
 /* typedef struct List_header * List;      */
 /* typedef struct Symbol_table * Symtab;   */
 /* typedef struct instr_def * instr_ptr_t; */
-int yylex();
+int yylex(void *yylval);
 int yyerror(const char *s);
 List list_cat(List, List);
 Symtab symtab_cat(Symtab, Symtab);

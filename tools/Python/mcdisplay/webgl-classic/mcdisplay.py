@@ -124,9 +124,13 @@ def write_browse(instrument, raybundle, dirname, instrname, nobrowse=None, first
     # write instrument
     json_instr = 'MCDATA_instrdata = %s;' % json.dumps(instrument.jsonize(), indent=0)
     file_save(json_instr, dest.joinpath('_instr.js'))
-    
-    # write particles
-    json_particles = 'MCDATA_particledata = %s;' % json.dumps(raybundle.jsonize(), indent=0)
+
+    if raybundle is not None:
+        # write particles
+        json_particles = 'MCDATA_particledata = %s;' % json.dumps(raybundle.jsonize(), indent=0)
+    else:
+        # write empty list
+        json_particles = 'MCDATA_particledata = [];'
     file_save(json_particles, dest.joinpath('_particles.js'))
 
     # Workaround for allowing non-relative paths to instrname
@@ -185,7 +189,7 @@ if __name__ == '__main__':
     parser.add_argument('--first', help='zoom range first component')
     parser.add_argument('--last', help='zoom range last component')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=300, help='Number of particles to simulate')
-    parser.add_argument('-t', '--trace', dest='trace', type=int, default=2, help='Select visualization mode')
+    parser.add_argument('-t', '--trace', dest='trace', type=int, default=1, help='Select visualization mode')
 
     args, unknown = parser.parse_known_args()
     # Convert the defined arguments in the args Namespace structure to a dict

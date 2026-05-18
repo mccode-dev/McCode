@@ -1,0 +1,73 @@
+\section{The \texttt{Virtual\_mcnp\_ss\_input} McStas Component}
+This component uses a Source Surface type file of recorded neutrons from the
+reactor monte carlo code MCNP as a source of particles.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} \textless{}a href="mailto:esbe@dtu.dk"\textgreater{}Esben Klinkby\textless{}/a\textgreater{} and \textless{}a href="mailto:pkwi@dtu.dk"\textgreater{}Peter Willendrup\textless{}/a\textgreater{}
+  \item \textbf{Origin:} \textless{}a href="http://www.risoe.dtu.dk/"\textgreater{}DTU\textless{}/a\textgreater{}
+  \item \textbf{Date:} January, 2012
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+This component draws neutron events from a Source Surface file created using the
+MCNP Monte Carlo code and converts them to make them suitable for a McStas simulation
+
+Note that axes orientation may be different between MCNP and McStas!
+Note also that the conversion of between McStas and MCNP units and parameters
+is done automatically by this component - but the user must ensure that
+geometry description matches between the two Monte Carlo codes.
+
+The verbose mode is highly recommended as it displays lots of useful informations.
+
+This interface uses the MCNP Source Surface Read/Write format (SSW/SSR).
+Infomation transfer from(to) SSW files proceeds via a set of Fortran modules
+and subroutines collected in "subs.f"
+For succesful compilation, it is required that these subroutines are compiled
+and linked to the instrument file:
+
+mcstas dummy.instr  -> generates dummy.c
+gfortran -c subs.f  -> generates subs.f
+gcc -o runme.out dummy.c subs.o -lm -lgfortran  -> generates runme.out
+
+Note that this requires a fortran compiler (here gfortran) and gcc.
+
+%BUGS
+None known bugs so far. But surely this will change...
+Caveat: when writing the header for the output wssa file, the number of histories and tracks are assumed to be that of the
+input MNCP run. This is generally not the case, due to losses in the McStas simulation step.
+In case of losses any subsequel MCNP run based on the McStas output, can be confused by inconsistency between
+header and file content. To resolve, either ensure that NPS is lower than the actual number of events in the McStas output.
+Or hardcode values of nhis & ntrk in either subs.f or Virtual_mcnp_ss_output.comp.
+
+EXAMPLE of usage:
+first a MCNP simulation is run
+and at a relevant surface, a Source Surface Write card is given (e.g. for MCNP surface #1, add the line:
+SSW 1
+to the end of the input file.
+By this a ".w" file is produced, which then serves as input to the McStas simulation.
+Present version: rename *.w to rssa, and make sure to put it in the dir from which McStas is run
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+file & str & Name of the MCNP SSW neutron input file. Not active: Name assumed to be 'rssa' & "rssa" \\
+verbose & 1 & Toggles debugging info on/off & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/obsolete/Virtual_mcnp_ss_input.comp}{Source code} for \texttt{Virtual\_mcnp\_ss\_input.comp}.
+  \item \textless{}a href="http://mcnp-green.lanl.gov/index.html"\textgreater{}MCNP\textless{}/a\textgreater{}
+  \item MCNP -- A General Monte Carlo N-Particle Transport Code, Version 5, Volume II: User's Guide, p177
+\end{itemize}
+\IfFileExists{Virtual_mcnp_ss_input_static.tex}{\input{Virtual_mcnp_ss_input_static.tex}}{}

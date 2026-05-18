@@ -1,0 +1,93 @@
+/*******************************************************************************
+* Instrument: Union_incoherent
+*
+* %I
+* Written by: E. B. Knudsen (erkn@united-neux.eu)
+* Date: Aug 13th 2021
+* Origin: United Neux
+* Version: $Revision$
+* %INSTRUMENT_SITE: Templates
+*
+* An example using Union with Compton scattering
+*
+* %D
+* An example instrument showing the union system with a sample geometry consisting
+* of a sphere and a box
+*
+* %Example: E0=12 Detector: emon_sphere_I=4.28512e-09
+*
+* %P
+* E0: [keV] incident energy
+* 
+*
+* %L
+* <reference/HTML link>
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_PowderN_union(E0=12, string refs1="data/Corundum.cif.laz", string refs2="data/Pb.cif.hkl",YY=0)
+
+DECLARE
+%{
+%}
+
+INITIALIZE
+%{
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0,0,0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT s = Source_pt(
+        E0=E0,dE=0,focus_xw=0.1e-3,focus_yh=3e-3, dist=2)
+AT(0,YY,0) RELATIVE origin
+COMPONENT sp = Arm()
+    AT(0,0,2) RELATIVE origin
+
+COMPONENT slit = Slit(xwidth=20e-3,yheight=20e-3)
+AT(0,YY,-0.1) RELATIVE sp
+
+COMPONENT compton1 = Compton_xrl_process(density=8.92,atomno=29)
+AT(0,0,0) RELATIVE sp
+
+
+COMPONENT pow2_proc = Powder_process(reflections=refs2)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT cmpton1 = Union_make_material(process_string="compton1", material_string="Cu.txt", my_absorption=0)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT pow2 = Union_make_material(process_string="pow2_proc", material_string="NULL", my_absorption=0)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT usphere = Union_sphere(radius=0.25e-3, material_string="cmpton1",priority=2)
+AT(0,-0.3e-3,0) RELATIVE sp
+
+COMPONENT ubox = Union_box(xwidth=1e-3,yheight=0.75e-3, zdepth=0.5e-3, material_string="pow2",priority=1)
+AT(0,0.8e-3,0) RELATIVE sp
+
+COMPONENT master = Union_master()
+AT(0,0,0) RELATIVE sp
+
+COMPONENT beamstop = Beamstop(xwidth=5e-3, yheight=5e-3)
+AT(0,0,0.1) RELATIVE sp
+
+COMPONENT fpi = PSD_monitor_4PI(radius=1.25, nx=101, ny=101, filename="fpi")
+AT(0,0,0) RELATIVE sp
+
+COMPONENT emon_sphere = Monitor_nD(radius=1.251,yheight=0.01, filename="emons",options="banana e limits 11.9 12.1", bins=2000)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT stop = Union_stop()
+AT(0,0,0) ABSOLUTE
+
+FINALLY
+%{
+%}
+
+END

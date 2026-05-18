@@ -130,15 +130,22 @@ SHARE
     uint16_t attribute_byte_count;
   } Triangle;
   #pragma pack(pop)
+ void 
+  check_open_file_errors (FILE* fp, char* filename) {
+    if (fp == NULL) {
+      printf ("\n\nERROR: %s could not be opened by Union_mesh component.\n\n", filename);
+      exit (1);
+    }
+    return;
+  }
   void
   read_stl (char* filename, int* n_verts, int* n_faces, int* n_edges, Coords** verts, int*** faces, char* comp_name) {
     unsigned char buffer[1000];
     Triangle* triangles;
     FILE* file = Open_File (filename, "r", NULL);
-    if (!file) {
-      perror ("ERROR: Failed to open file");
-      exit (1);
-    }
+
+    check_open_file_errors (file, filename);
+
     // Check if the file is binary or ASCII
     int file_is_ascii = 0;
     char word[6]; // "solid" + null terminator
@@ -269,6 +276,10 @@ SHARE
     int vertex_is_unique;
     int x_are_equal, y_are_equal, z_are_equal;
     int* map_old_to_unique = malloc (sizeof (int) * *n_verts);
+    if (map_old_to_unique == NULL || unique_vertices == NULL) {
+      printf("\nERROR ON MALLOC IN UNION MESH STL READ\n"); 
+      exit(1);
+    }
     int unique_counter = 0;
     int vert_index_in_faces = 0;
     for (int i = 0; i < *n_verts; i++) {
@@ -297,6 +308,7 @@ SHARE
     }
     *n_verts = unique_counter;
     *verts = (Coords*)realloc (*verts, sizeof (Coords) * unique_counter);
+
     for (int i = 0; i < unique_counter; i++) {
       (*verts)[i] = unique_vertices[i];
     }
@@ -308,6 +320,8 @@ SHARE
   read_off_file_vertices_and_faces (char* filename, int* n_verts, int* n_faces, int* n_edges, Coords** verts, int*** faces, char* comp_name) {
     FILE* fp;
     fp = Open_File (filename, "r", NULL);
+    check_open_file_errors (fp, filename);
+
     // TODO: Make tests to verify the contents of FILE
     int n_lines = 0;
     char buffer[250];
@@ -432,34 +446,23 @@ SHARE
     }
     return 0;
   };
-  Coords
-  get_coords_from_string (char* line) {
-    Coords vert_coords = coords_set (1, 2, 1);
-    return vert_coords;
-  }
 
   void
   mcdisplay_mesh_function (struct lines_to_draw* lines_to_draw_output, int index, struct geometry_struct** Geometries, int number_of_volumes) {
     // Function to call in mcdisplay section of the sample component for this volume
 
     int n_facets = Geometries[index]->geometry_parameters.p_mesh_storage->n_facets;
-    double* v1_x = Geometries[index]->geometry_parameters.p_mesh_storage->v1_x;
-    double* v1_y = Geometries[index]->geometry_parameters.p_mesh_storage->v1_y;
-    double* v1_z = Geometries[index]->geometry_parameters.p_mesh_storage->v1_z;
-    double* v2_x = Geometries[index]->geometry_parameters.p_mesh_storage->v2_x;
-    double* v2_y = Geometries[index]->geometry_parameters.p_mesh_storage->v2_y;
-    double* v2_z = Geometries[index]->geometry_parameters.p_mesh_storage->v2_z;
-    double* v3_x = Geometries[index]->geometry_parameters.p_mesh_storage->v3_x;
-    double* v3_y = Geometries[index]->geometry_parameters.p_mesh_storage->v3_y;
-    double* v3_z = Geometries[index]->geometry_parameters.p_mesh_storage->v3_z;
-
+    int** facets = Geometries[index]->geometry_parameters.p_mesh_storage->facets;
     Coords center = Geometries[index]->center;
+
+    struct pointer_to_1d_coords_list points_struct = Geometries[index]->shell_points (Geometries[index], 1);
+    Coords* points = points_struct.elements;
 
     struct lines_to_draw lines_to_draw_temp;
     lines_to_draw_temp.number_of_lines = 0;
 
     Coords point1, point2, point3;
-    int iterate, i, j;
+    int i, j, k;
     int print1 = 0;
     int print2 = 0;
     int print3 = 0;
@@ -474,55 +477,55 @@ SHARE
 
     int counter = 0;
     // For every triangle it should add three lines
-    for (iterate = 0; iterate < n_facets; iterate++) {
-      point1 = coords_add (rot_apply (Geometries[index]->rotation_matrix, coords_set (*(v1_x + iterate), *(v1_y + iterate), *(v1_z + iterate))), center);
-      point2 = coords_add (rot_apply (Geometries[index]->rotation_matrix, coords_set (*(v2_x + iterate), *(v2_y + iterate), *(v2_z + iterate))), center);
-      point3 = coords_add (rot_apply (Geometries[index]->rotation_matrix, coords_set (*(v3_x + iterate), *(v3_y + iterate), *(v3_z + iterate))), center);
+    for (i = 0; i < n_facets; i++) {
+      point1 = points[facets[i][0]];
+      point2 = points[facets[i][1]];
+      point3 = points[facets[i][2]];
 
       print1 = 1;
       print2 = 1;
       print3 = 1;
 
       // Make sure it does not print a line if it is already printed.... (might take a while?)
-      for (i = 0; i < counter; i++) {
-        if (print1 == 1 && coord_comp (point1, list_startpoints[i])) {
-          for (j = 0; j < counter; j++) {
-            if (coord_comp (point2, list_startpoints[i])) {
+      for (j = 0; j < counter; j++) {
+        if (print1 == 1 && coord_comp (point1, list_startpoints[j])) {
+          for (k = 0; k < counter; k++) {
+            if (coord_comp (point2, list_startpoints[j])) {
               print1 = 0;
             }
           }
         }
-        if (print2 == 1 && coord_comp (point2, list_startpoints[i])) {
-          for (j = 0; j < counter; j++) {
-            if (coord_comp (point1, list_startpoints[i])) {
+        if (print2 == 1 && coord_comp (point2, list_startpoints[j])) {
+          for (k = 0; k < counter; k++) {
+            if (coord_comp (point1, list_startpoints[j])) {
               print1 = 0;
             }
           }
         }
-        if (print2 == 1 && coord_comp (point2, list_startpoints[i])) {
-          for (j = 0; j < counter; j++) {
-            if (coord_comp (point3, list_startpoints[i])) {
+        if (print2 == 1 && coord_comp (point2, list_startpoints[j])) {
+          for (k = 0; k < counter; k++) {
+            if (coord_comp (point3, list_startpoints[j])) {
               print2 = 0;
             }
           }
         }
-        if (print3 == 1 && coord_comp (point3, list_startpoints[i])) {
-          for (j = 0; j < counter; j++) {
-            if (coord_comp (point2, list_startpoints[i])) {
+        if (print3 == 1 && coord_comp (point3, list_startpoints[j])) {
+          for (k = 0; k < counter; k++) {
+            if (coord_comp (point2, list_startpoints[j])) {
               print2 = 0;
             }
           }
         }
-        if (print1 == 1 && coord_comp (point1, list_startpoints[i])) {
-          for (j = 0; j < counter; j++) {
-            if (coord_comp (point1, list_startpoints[i])) {
+        if (print1 == 1 && coord_comp (point1, list_startpoints[j])) {
+          for (k = 0; k < counter; k++) {
+            if (coord_comp (point1, list_startpoints[j])) {
               print3 = 0;
             }
           }
         }
-        if (print3 == 1 && coord_comp (point3, list_startpoints[i])) {
-          for (j = 0; j < counter; j++) {
-            if (coord_comp (point1, list_startpoints[i])) {
+        if (print3 == 1 && coord_comp (point3, list_startpoints[j])) {
+          for (k = 0; k < counter; k++) {
+            if (coord_comp (point1, list_startpoints[j])) {
               print3 = 0;
             }
           }
@@ -561,86 +564,23 @@ SHARE
 
   struct pointer_to_1d_coords_list
   allocate_shell_points (struct geometry_struct* geometry, int max_number_of_points) {
-    // Function that returns a number (less than max) of points on the geometry surface
-    // Run trhough all points in list of faces, and remove dublicates
-    // There are three points in a face and very often these will be dublicated a few times. This removes dublicates to boost performance down stream...
+    // Function that returns all vertex points transported to the center of the geometry
 
     struct pointer_to_1d_coords_list mesh_shell_array;
 
-    int n_facets = geometry->geometry_parameters.p_mesh_storage->n_facets;
-    double* v1_x = geometry->geometry_parameters.p_mesh_storage->v1_x;
-    double* v1_y = geometry->geometry_parameters.p_mesh_storage->v1_y;
-    double* v1_z = geometry->geometry_parameters.p_mesh_storage->v1_z;
-    double* v2_x = geometry->geometry_parameters.p_mesh_storage->v2_x;
-    double* v2_y = geometry->geometry_parameters.p_mesh_storage->v2_y;
-    double* v2_z = geometry->geometry_parameters.p_mesh_storage->v2_z;
-    double* v3_x = geometry->geometry_parameters.p_mesh_storage->v3_x;
-    double* v3_y = geometry->geometry_parameters.p_mesh_storage->v3_y;
-    double* v3_z = geometry->geometry_parameters.p_mesh_storage->v3_z;
-    int number_of_points_in_array = 0;
-    mesh_shell_array.elements = malloc (3 * n_facets * sizeof (Coords));
-    int is_dublicate = 0;
-    Coords this_vert;
-    int i, j;
-    for (i = 0; i < n_facets; i++) {
-
-      // v1
-      is_dublicate = 0;
-      this_vert = coords_set (*(v1_x + i), *(v1_y + i), *(v1_z + i));
-
-      // test if dublicate
-      for (j = 0; j < number_of_points_in_array; j++) {
-        if (this_vert.x == mesh_shell_array.elements[j].x && this_vert.y == mesh_shell_array.elements[j].y && this_vert.z == mesh_shell_array.elements[j].z) {
-          is_dublicate = 1;
-          j = number_of_points_in_array;
-        }
-      }
-      if (is_dublicate == 0) {
-        mesh_shell_array.elements[number_of_points_in_array] = this_vert;
-        number_of_points_in_array += 1;
-      }
-
-      // v2
-      is_dublicate = 0;
-      this_vert = coords_set (*(v2_x + i), *(v2_y + i), *(v2_z + i));
-
-      for (j = 0; j < number_of_points_in_array; j++) {
-        if (this_vert.x == mesh_shell_array.elements[j].x && this_vert.y == mesh_shell_array.elements[j].y && this_vert.z == mesh_shell_array.elements[j].z) {
-          is_dublicate = 1;
-          j = number_of_points_in_array;
-        }
-      }
-      if (is_dublicate == 0) {
-        mesh_shell_array.elements[number_of_points_in_array] = this_vert;
-        number_of_points_in_array += 1;
-      }
-
-      // v3
-      is_dublicate = 0;
-      this_vert = coords_set (*(v3_x + i), *(v3_y + i), *(v3_z + i));
-
-      // test if dublicate
-      for (j = 0; j < number_of_points_in_array; j++) {
-        if (this_vert.x == mesh_shell_array.elements[j].x && this_vert.y == mesh_shell_array.elements[j].y && this_vert.z == mesh_shell_array.elements[j].z) {
-          is_dublicate = 1;
-          j = number_of_points_in_array;
-        }
-      }
-      if (is_dublicate == 0) {
-        mesh_shell_array.elements[number_of_points_in_array] = this_vert;
-        number_of_points_in_array += 1;
-      }
-    }
-
-    j = number_of_points_in_array - 1; // Last legal index, currently j is out of bounds.
-
-    mesh_shell_array.num_elements = number_of_points_in_array;
-
-    for (i = 0; i < number_of_points_in_array; i++) {
-      // Transpose and rotate the points such that they are in the right coordinate system
-      mesh_shell_array.elements[i] = coords_add (mesh_shell_array.elements[i], geometry->center);
+    int n_verts = geometry->geometry_parameters.p_mesh_storage->n_verts;
+    Coords* verts = geometry->geometry_parameters.p_mesh_storage->vertices;
+    mesh_shell_array.elements = malloc (n_verts * sizeof (Coords));
+    for (int i = 0; i < n_verts; i++) {
+      mesh_shell_array.elements[i] = coords_set (verts[i].x, verts[i].y, verts[i].z);
       mesh_shell_array.elements[i] = rot_apply (geometry->rotation_matrix, mesh_shell_array.elements[i]);
+
+      mesh_shell_array.elements[i] = coords_add (mesh_shell_array.elements[i], geometry->center);
+      // Transpose and rotate the points such that they are in the right coordinate system
     }
+
+    mesh_shell_array.num_elements = n_verts;
+
     return mesh_shell_array;
   }
 
@@ -889,7 +829,7 @@ INITIALIZE
     printf ("\nERROR IN %s: File %s is read as neither an stl or an off file.", NAME_CURRENT_COMP, filename);
     exit (1);
   }
-  printf ("\nCOMPONENT %s: Number of faces read: %d\t Number of vertices read: %d\n", NAME_CURRENT_COMP, n_verts, n_faces);
+  printf ("\nCOMPONENT %s: Number of faces read: %d\t Number of vertices read: %d\n", NAME_CURRENT_COMP, n_faces, n_verts);
   // Loop over all vertices and multiply their positions with coordinate_scale
   for (int i = 0; i < n_verts; i++) {
     verts[i] = coords_scale (verts[i], coordinate_scale);
@@ -971,6 +911,21 @@ INITIALIZE
     if (test_rad > radius) {
       radius = test_rad;
     }
+    if (i == 0) {
+      mesh_data.Bounding_Box_Extremes[0] = verts[i].x;
+      mesh_data.Bounding_Box_Extremes[1] = verts[i].x;
+      mesh_data.Bounding_Box_Extremes[2] = verts[i].y;
+      mesh_data.Bounding_Box_Extremes[3] = verts[i].y;
+      mesh_data.Bounding_Box_Extremes[4] = verts[i].z;
+      mesh_data.Bounding_Box_Extremes[5] = verts[i].z;
+    } else {
+      mesh_data.Bounding_Box_Extremes[0] = verts[i].x > mesh_data.Bounding_Box_Extremes[0] ? verts[i].x : mesh_data.Bounding_Box_Extremes[0];
+      mesh_data.Bounding_Box_Extremes[1] = verts[i].x < mesh_data.Bounding_Box_Extremes[1] ? verts[i].x : mesh_data.Bounding_Box_Extremes[1];
+      mesh_data.Bounding_Box_Extremes[2] = verts[i].y > mesh_data.Bounding_Box_Extremes[2] ? verts[i].y : mesh_data.Bounding_Box_Extremes[2];
+      mesh_data.Bounding_Box_Extremes[3] = verts[i].y < mesh_data.Bounding_Box_Extremes[3] ? verts[i].y : mesh_data.Bounding_Box_Extremes[3];
+      mesh_data.Bounding_Box_Extremes[4] = verts[i].z > mesh_data.Bounding_Box_Extremes[4] ? verts[i].z : mesh_data.Bounding_Box_Extremes[4];
+      mesh_data.Bounding_Box_Extremes[5] = verts[i].z < mesh_data.Bounding_Box_Extremes[5] ? verts[i].z : mesh_data.Bounding_Box_Extremes[5];
+    }
   }
   mesh_data.Bounding_Box_Radius = radius;
 
@@ -978,39 +933,21 @@ INITIALIZE
   Coords edge1, edge2;
   // Allocate space vertices in mesh data
   // TODO: Change data format to be in a less verbose data structure, or a more effective one.
-  mesh_data.v1_x = (double*)malloc (n_faces * sizeof (double));
-  mesh_data.v1_y = (double*)malloc (n_faces * sizeof (double));
-  mesh_data.v1_z = (double*)malloc (n_faces * sizeof (double));
-  mesh_data.v2_x = (double*)malloc (n_faces * sizeof (double));
-  mesh_data.v2_y = (double*)malloc (n_faces * sizeof (double));
-  mesh_data.v2_z = (double*)malloc (n_faces * sizeof (double));
-  mesh_data.v3_x = (double*)malloc (n_faces * sizeof (double));
-  mesh_data.v3_y = (double*)malloc (n_faces * sizeof (double));
-  mesh_data.v3_z = (double*)malloc (n_faces * sizeof (double));
   mesh_data.normal_x = (double*)malloc (n_faces * sizeof (double));
   mesh_data.normal_y = (double*)malloc (n_faces * sizeof (double));
   mesh_data.normal_z = (double*)malloc (n_faces * sizeof (double));
+  mesh_data.facets = faces;
+  mesh_data.vertices = verts;
   for (int i = 0; i < n_faces; i++) {
     vert1 = verts[faces[i][0]];
     vert2 = verts[faces[i][1]];
     vert3 = verts[faces[i][2]];
-    mesh_data.v1_x[i] = vert1.x;
-    mesh_data.v1_y[i] = vert1.y;
-    mesh_data.v1_z[i] = vert1.z;
-
-    mesh_data.v2_x[i] = vert2.x;
-    mesh_data.v2_y[i] = vert2.y;
-    mesh_data.v2_z[i] = vert2.z;
-
-    mesh_data.v3_x[i] = vert3.x;
-    mesh_data.v3_y[i] = vert3.y;
-    mesh_data.v3_z[i] = vert3.z;
     edge1 = coords_sub (vert1, vert2);
     edge2 = coords_sub (vert3, vert1);
     vec_prod (mesh_data.normal_x[i], mesh_data.normal_y[i], mesh_data.normal_z[i], edge1.x, edge1.y, edge1.z, edge2.x, edge2.y, edge2.z);
   }
   mesh_data.n_facets = n_faces;
-  mesh_data.counter = n_verts;
+  mesh_data.n_verts = n_verts;
 
   mesh_vol.geometry.number_of_faces = 1;
   mesh_vol.geometry.surface_stack_for_each_face = malloc (mesh_vol.geometry.number_of_faces * sizeof (struct surface_stack_struct));
@@ -1061,15 +998,6 @@ TRACE
 FINALLY 
 %{
 
-  free (mesh_data.v1_x);
-  free (mesh_data.v1_y);
-  free (mesh_data.v1_z);
-  free (mesh_data.v2_x);
-  free (mesh_data.v2_y);
-  free (mesh_data.v2_z);
-  free (mesh_data.v3_x);
-  free (mesh_data.v3_y);
-  free (mesh_data.v3_z);
 %}
 END
 
