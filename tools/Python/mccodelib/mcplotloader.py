@@ -29,7 +29,12 @@ class DataMcCode(object):
 class Data0D(DataMcCode):
     # Bring back empty 'component' field, courtesy
     # of the scan plotter (otherwise we fail abrubtly)
-    DataMcCode.component=''
+    def __init__(self):
+        super(Data0D, self).__init__()
+        self.component=''
+        self.filename = ''
+        self.xlabel = ''
+        self.ylabel = ''
     pass
 
 
@@ -329,13 +334,19 @@ def _load_monitor(monitorfile):
             if typ == 'array_0d':
                 print("load_monitor: Not loading 0d dataset %s" % monitorfile)
                 data = Data0D()
+                data.title='zero-dim monitor'
             elif typ == 'array_1d':
                 data = _parse_1D_monitor(text)
             elif typ == 'array_2d':
                 data = _parse_2D_monitor(text)
+            elif typ == 'list':
+                print('load_monitor: %s is an event list. loading suppressed' % f)
+                data = Data0D()
+                data.title='event list'
             else:
                 print('load_monitor: unknown data format %s' % typ)
-                data = None
+                data = Data0D()
+                data.title='Unknown format'
             data.filepath = f
             return data
         else:

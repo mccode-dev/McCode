@@ -93,9 +93,16 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
     DEFS->COORD_NCOUNT =23;
     DEFS->COORD_THETA  =24;
     DEFS->COORD_PHI    =25;
+    DEFS->COORD_USER0  =55;
     DEFS->COORD_USER1  =26;
     DEFS->COORD_USER2  =27;
     DEFS->COORD_USER3  =28;
+    DEFS->COORD_USER4  =56;
+    DEFS->COORD_USER5  =57;
+    DEFS->COORD_USER6  =58;
+    DEFS->COORD_USER7  =59;
+    DEFS->COORD_USER8  =60;
+    DEFS->COORD_USER9  =61;
     DEFS->COORD_USERDOUBLE0=39;
     DEFS->COORD_USERDOUBLE1=40;
     DEFS->COORD_USERDOUBLE2=41;
@@ -456,13 +463,26 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
             strcpy(Set_Vars_Coord_Var,"id"); lmin = 0; lmax = FLT_MAX; 
             if (Flag_auto>0) Flag_auto=0;
             Vars->Flag_List = 1; }
+	if (!strcmp(token, "user0") || !strcmp(token, "u0"))
+          { Set_Vars_Coord_Type = DEFS->COORD_USER0; strncpy(Set_Vars_Coord_Label,Vars->UserName0,30); strcpy(Set_Vars_Coord_Var,"U0"); lmin = -1e10; lmax = 1e10; }
         if (!strcmp(token, "user") || !strcmp(token, "user1") || !strcmp(token, "u1"))
           { Set_Vars_Coord_Type = DEFS->COORD_USER1; strncpy(Set_Vars_Coord_Label,Vars->UserName1,30); strcpy(Set_Vars_Coord_Var,"U1"); lmin = -1e10; lmax = 1e10; }
         if (!strcmp(token, "user2") || !strcmp(token, "u2"))
           { Set_Vars_Coord_Type = DEFS->COORD_USER2; strncpy(Set_Vars_Coord_Label,Vars->UserName2,30); strcpy(Set_Vars_Coord_Var,"U2"); lmin = -1e10; lmax = 1e10; }
         if (!strcmp(token, "user3") || !strcmp(token, "u3"))
           { Set_Vars_Coord_Type = DEFS->COORD_USER3; strncpy(Set_Vars_Coord_Label,Vars->UserName3,30); strcpy(Set_Vars_Coord_Var,"U3"); lmin = -1e10; lmax = 1e10; }
-
+        if (!strcmp(token, "user4") || !strcmp(token, "u4"))
+          { Set_Vars_Coord_Type = DEFS->COORD_USER4; strncpy(Set_Vars_Coord_Label,Vars->UserName4,30); strcpy(Set_Vars_Coord_Var,"U4"); lmin = -1e10; lmax = 1e10; }
+	if (!strcmp(token, "user5") || !strcmp(token, "u5"))
+	  { Set_Vars_Coord_Type = DEFS->COORD_USER5; strncpy(Set_Vars_Coord_Label,Vars->UserName5,30); strcpy(Set_Vars_Coord_Var,"U5"); lmin = -1e10; lmax = 1e10; }
+	if (!strcmp(token, "user6") || !strcmp(token, "u6"))
+	  { Set_Vars_Coord_Type = DEFS->COORD_USER6; strncpy(Set_Vars_Coord_Label,Vars->UserName6,30); strcpy(Set_Vars_Coord_Var,"U6"); lmin = -1e10; lmax = 1e10; }
+	if (!strcmp(token, "user7") || !strcmp(token, "u7"))
+	  { Set_Vars_Coord_Type = DEFS->COORD_USER7; strncpy(Set_Vars_Coord_Label,Vars->UserName7,30); strcpy(Set_Vars_Coord_Var,"U7"); lmin = -1e10; lmax = 1e10; }
+	if (!strcmp(token, "user8") || !strcmp(token, "u8"))
+	  { Set_Vars_Coord_Type = DEFS->COORD_USER8; strncpy(Set_Vars_Coord_Label,Vars->UserName8,30); strcpy(Set_Vars_Coord_Var,"U8"); lmin = -1e10; lmax = 1e10; }
+	if (!strcmp(token, "user9") || !strcmp(token, "u9"))
+	  { Set_Vars_Coord_Type = DEFS->COORD_USER9; strncpy(Set_Vars_Coord_Label,Vars->UserName9,30); strcpy(Set_Vars_Coord_Var,"U9"); lmin = -1e10; lmax = 1e10; }
         if (!strcmp(token, "userdouble0") || !strcmp(token, "ud0"))
           { Set_Vars_Coord_Type = DEFS->COORD_USERDOUBLE0; strcpy(Set_Vars_Coord_Label,"ud0 [1]"); strcpy(Set_Vars_Coord_Var,"ud0"); lmin = -1e10; lmax = 1e10; }
         if (!strcmp(token, "userdouble1") || !strcmp(token, "ud1"))
@@ -630,6 +650,9 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
       if (Set_Vars_Coord_Type == DEFS->COORD_P)
           strcpy(Short_Label[i],"Intensity");
       else
+      if (Set_Vars_Coord_Type == DEFS->COORD_USER0)
+	  strncpy(Short_Label[i],Vars->UserName0,30);
+      else
       if (Set_Vars_Coord_Type == DEFS->COORD_USER1)
           strncpy(Short_Label[i],Vars->UserName1,30);
       else
@@ -638,6 +661,24 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
       else
       if (Set_Vars_Coord_Type == DEFS->COORD_USER3)
           strncpy(Short_Label[i],Vars->UserName3,30);
+      else
+      if (Set_Vars_Coord_Type == DEFS->COORD_USER4)
+          strncpy(Short_Label[i],Vars->UserName4,30);
+      else
+      if (Set_Vars_Coord_Type == DEFS->COORD_USER5)
+          strncpy(Short_Label[i],Vars->UserName5,30);
+      else
+      if (Set_Vars_Coord_Type == DEFS->COORD_USER6)
+          strncpy(Short_Label[i],Vars->UserName6,30);
+      else
+      if (Set_Vars_Coord_Type == DEFS->COORD_USER7)
+          strncpy(Short_Label[i],Vars->UserName7,30);
+      else
+      if (Set_Vars_Coord_Type == DEFS->COORD_USER8)
+          strncpy(Short_Label[i],Vars->UserName8,30);
+      else
+      if (Set_Vars_Coord_Type == DEFS->COORD_USER9)
+          strncpy(Short_Label[i],Vars->UserName9,30);
       else
           strcpy(Short_Label[i],"Unknown");
 
@@ -936,7 +977,16 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 	  detector.p0 = NULL;
 	  detector.p1 = NULL;
 	  detector.p2 = NULL;
-	  
+	  sprintf(detector.ncount,"%s","");
+	  sprintf(detector.xvar,"%s","");
+	  sprintf(detector.xlabel,"%s","");
+	  sprintf(detector.yvar,"%s","");
+	  sprintf(detector.ylabel,"%s","");
+	  sprintf(detector.zvar,"%s","");
+	  sprintf(detector.zvar,"%s","");
+	  sprintf(detector.statistics,"%s","None");
+	  sprintf(detector.variables,"%s","None");
+	  sprintf(detector.signal,"%s","Pixel index");
 	  sprintf(detector.filename,"BINS");
 	  sprintf(detector.component,"%s",Vars->compcurname);
 	  sprintf(detector.nexuscomp,"%s%d_%s",pref,Vars->compcurindex-1,detector.component);
@@ -1357,11 +1407,25 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_PHI) { double rr=sqrt(_particle->x*_particle->x+ _particle->y*_particle->y + _particle->z*_particle->z); if (rr != 0) XY = RAD2DEG*asin(_particle->y/rr); }
         else
+	if (Set_Vars_Coord_Type == DEFS->COORD_USER0) {int fail; XY = particle_getvar(_particle,Vars->UserVariable0,&fail); if(fail) XY=0; }
+        else
         if (Set_Vars_Coord_Type == DEFS->COORD_USER1) {int fail; XY = particle_getvar(_particle,Vars->UserVariable1,&fail); if(fail) XY=0; }
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_USER2) {int fail; XY = particle_getvar(_particle,Vars->UserVariable2,&fail); if(fail) XY=0; }
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_USER3) {int fail; XY = particle_getvar(_particle,Vars->UserVariable3,&fail); if(fail) XY=0; }
+        else
+	if (Set_Vars_Coord_Type == DEFS->COORD_USER4) {int fail; XY = particle_getvar(_particle,Vars->UserVariable4,&fail); if(fail) XY=0; }
+        else
+        if (Set_Vars_Coord_Type == DEFS->COORD_USER5) {int fail; XY = particle_getvar(_particle,Vars->UserVariable5,&fail); if(fail) XY=0; }
+        else
+	if (Set_Vars_Coord_Type == DEFS->COORD_USER6) {int fail; XY = particle_getvar(_particle,Vars->UserVariable6,&fail); if(fail) XY=0; }
+        else
+	if (Set_Vars_Coord_Type == DEFS->COORD_USER7) {int fail; XY = particle_getvar(_particle,Vars->UserVariable7,&fail); if(fail) XY=0; }
+        else
+        if (Set_Vars_Coord_Type == DEFS->COORD_USER8) {int fail; XY = particle_getvar(_particle,Vars->UserVariable8,&fail); if(fail) XY=0; }
+        else
+        if (Set_Vars_Coord_Type == DEFS->COORD_USER9) {int fail; XY = particle_getvar(_particle,Vars->UserVariable9,&fail); if(fail) XY=0; }
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_PIXELID && !Vars->Flag_Auto_Limits) {
           /* compute the PixelID from previous coordinates 

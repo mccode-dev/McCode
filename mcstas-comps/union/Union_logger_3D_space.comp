@@ -115,7 +115,6 @@ SHARE
 
     Coords position;
     Rotation rotation;
-    Rotation t_rotation;
   };
 
   // record_to_temp
@@ -156,27 +155,31 @@ SHARE
       double p1, p2, p3;
       p1 = p2 = p3 = 0;
 
-      // dim_1_choice = 0 for x, 1 for y, 2 for z. Done in initialize from input. "x" "y" "z".
+      Coords transformed_ray_position;
+      transformed_ray_position = coords_sub (*position, storage->position);
+      transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
+
+      // dim_1_choice = 0 for x, 1 for y, 2 for z. Done in initialize from input "x" "y" "z".
       if (storage->dim_1_choice == 0)
-        p1 = position->x - storage->position.x;
+        p1 = transformed_ray_position.x;
       else if (storage->dim_1_choice == 1)
-        p1 = position->y - storage->position.y;
+        p1 = transformed_ray_position.y;
       else if (storage->dim_1_choice == 2)
-        p1 = position->z - storage->position.z;
+        p1 = transformed_ray_position.z;
 
       if (storage->dim_2_choice == 0)
-        p2 = position->x - storage->position.x;
+        p2 = transformed_ray_position.x;
       else if (storage->dim_2_choice == 1)
-        p2 = position->y - storage->position.y;
+        p2 = transformed_ray_position.y;
       else if (storage->dim_2_choice == 2)
-        p2 = position->z - storage->position.z;
+        p2 = transformed_ray_position.z;
 
       if (storage->dim_3_choice == 0)
-        p2 = position->x - storage->position.x;
+        p3 = transformed_ray_position.x;
       else if (storage->dim_3_choice == 1)
-        p2 = position->y - storage->position.y;
+        p3 = transformed_ray_position.y;
       else if (storage->dim_3_choice == 2)
-        p2 = position->z - storage->position.z;
+        p3 = transformed_ray_position.z;
 
       int i, j, k;
 
@@ -204,6 +207,8 @@ SHARE
           struct temp_3DS_data_struct temporary_storage;
           temporary_storage.num_elements = storage->temp_3DS_data.num_elements;
           temporary_storage.elements = malloc (temporary_storage.num_elements * sizeof (struct temp_3DS_data_element_struct));
+          if (!temporary_storage.elements)
+            exit (fprintf (stderr, "Union_logger_3D_space: %s: ERROR allocating memory (record_to_temp_3DS)\n", logger->name));
 
           for (index = 0; index < storage->temp_3DS_data.num_elements; index++) {
             temporary_storage.elements[index].index_1 = storage->temp_3DS_data.elements[index].index_1;
@@ -218,6 +223,8 @@ SHARE
           // allocate larger array (10 larger)
           storage->temp_3DS_data.allocated_elements = 10 + storage->temp_3DS_data.num_elements;
           storage->temp_3DS_data.elements = malloc (storage->temp_3DS_data.allocated_elements * sizeof (struct temp_3DS_data_element_struct));
+          if (!storage->temp_3DS_data.elements)
+            exit (fprintf (stderr, "Union_logger_3D_space: %s: ERROR allocating memory (record_to_temp_3DS)\n", logger->name));
 
           // copy back from temp
           for (index = 0; index < storage->temp_3DS_data.num_elements; index++) {
@@ -288,27 +295,31 @@ SHARE
       double p1, p2, p3;
       p1 = p2 = p3 = 0;
 
-      // dim_1_choice = 0 for x, 1 for y, 2 for z. Done in initialize from input. "x" "y" "z".
+      Coords transformed_ray_position;
+      transformed_ray_position = coords_sub (*position, storage->position);
+      transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
+
+      // dim_1_choice = 0 for x, 1 for y, 2 for z. Done in initialize from input "x" "y" "z".
       if (storage->dim_1_choice == 0)
-        p1 = position->x - storage->position.x;
+        p1 = transformed_ray_position.x;
       else if (storage->dim_1_choice == 1)
-        p1 = position->y - storage->position.y;
+        p1 = transformed_ray_position.y;
       else if (storage->dim_1_choice == 2)
-        p1 = position->z - storage->position.z;
+        p1 = transformed_ray_position.z;
 
       if (storage->dim_2_choice == 0)
-        p2 = position->x - storage->position.x;
+        p2 = transformed_ray_position.x;
       else if (storage->dim_2_choice == 1)
-        p2 = position->y - storage->position.y;
+        p2 = transformed_ray_position.y;
       else if (storage->dim_2_choice == 2)
-        p2 = position->z - storage->position.z;
+        p2 = transformed_ray_position.z;
 
       if (storage->dim_3_choice == 0)
-        p3 = position->x - storage->position.x;
+        p3 = transformed_ray_position.x;
       else if (storage->dim_3_choice == 1)
-        p3 = position->y - storage->position.y;
+        p3 = transformed_ray_position.y;
       else if (storage->dim_3_choice == 2)
-        p3 = position->z - storage->position.z;
+        p3 = transformed_ray_position.z;
 
       int i, j, k;
 
@@ -480,6 +491,8 @@ SHARE
   allocate3Ddouble_3DS (int count_x, int count_y, int count_z, double* storage) {
     // double *storage = malloc(count_x * count_y * count_z * sizeof(double));
     storage = malloc (count_x * count_y * count_z * sizeof (double));
+    if (!storage)
+      exit (fprintf (stderr, "Union_logger_3D_space: ERROR allocating memory (allocate3Ddouble_3DS)\n"));
     if (storage == NULL) {
       free (storage);
       printf ("\nERROR: storage array not allocated in Union_logger_3D_space\n");
@@ -488,6 +501,8 @@ SHARE
     double*** x;
     int i, j;
     x = malloc (count_x * sizeof (*x));
+    if (!x)
+      exit (fprintf (stderr, "Union_logger_3D_space: ERROR allocating memory (allocate3Ddouble_3DS)\n"));
     if (x == NULL) {
       free (x);
       printf ("\nERROR: x array not allocated in Union_logger_3D_space\n");
@@ -495,6 +510,8 @@ SHARE
     }
     for (i = 0; i < count_x; i++) {
       x[i] = malloc (count_y * sizeof (**x));
+      if (!x[i])
+        exit (fprintf (stderr, "Union_logger_3D_space: ERROR allocating memory (allocate3Ddouble_3DS)\n"));
       if (x[i] == NULL) {
         free (x[i]);
         printf ("\nERROR: x[i] array not allocated in Union_logger_3D_space\n");
@@ -708,6 +725,8 @@ INITIALIZE
   this_storage.temp_3DS_data.num_elements = 0;
   this_storage.temp_3DS_data.allocated_elements = 10;
   this_storage.temp_3DS_data.elements = malloc (this_storage.temp_3DS_data.allocated_elements * sizeof (struct temp_3DS_data_element_struct));
+  if (!this_storage.temp_3DS_data.elements)
+    exit (fprintf (stderr, "Union_logger_3D_space: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
   if (_getcomp_index (init) < 0) {
     fprintf (stderr, "Union_logger_3D:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
@@ -723,9 +742,6 @@ INITIALIZE
 
   rot_copy (this_storage.rotation, ROT_A_CURRENT_COMP);
   add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_storage.rotation);
-
-  rot_transpose (ROT_A_CURRENT_COMP, this_storage.t_rotation);
-  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_storage.t_rotation);
 
   // printf("past direction choices sanitation \n");
 

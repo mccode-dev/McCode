@@ -1,0 +1,73 @@
+\section{The \texttt{ViewModISIS} McStas Component}
+ISIS Moderators
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} G. Skoro, based on ViewModerator4 from S. Ansell
+  \item \textbf{Origin:} ISIS
+  \item \textbf{Date:} February 2016
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Produces a neutron distribution at the ISIS TS1 or TS2 beamline shutter front face (or corresponding moderator) position.
+The Face argument determines which TS1 or TS2 beamline is to be sampled by using corresponding Etable file.
+Neutrons are created having a range of energies determined by the E0 and E1 arguments.
+Trajectories are produced such that they pass through the shutter front face (RECOMENDED) or moderator face (defined by
+xw and yh) and a focusing rectangle (defined by focus_xw, focus_yh and dist).
+
+Example 1:   ViewModISISver1(Face="TS1_S04_Merlin.mcstas", E0 = E_min, E1 = E_max,
+dist = 1.7, focus_xw = 0.094, focus_yh = 0.094, modPosition=0,
+xw=0.12,yh=0.12)
+
+MERLIN simulation.
+modPosition=0 so initial surface is at (near to) the moderator face.
+In this example,  focus_xw and focus_yh are chosen to be identical to the shutter opening dimension.
+dist = 1.7 is the 'real' distance to the shutter front face => This is TimeOffset value (=170 [cm])
+from TS1_S04_Merlin.mcstas file.
+
+
+Example 2:   ViewModISISver1(Face="Let_timeTest_155.mcstas", E0 = E_min, E1 = E_max,
+modPosition=1, xw=0.196, yh = 0.12, focus_xw = 0.04, focus_yh = 0.094, dist = 0.5)
+
+LET simulation.
+modPosition=1 so initial surface is at front face of shutter insert.
+
+(IMPORTANT) If modPosition=1, the xw and yh values are obsolete. The dimensions of
+initial surface are automatically calculated using "RDUM" values in Let_timeTest_155.mcstas file.
+
+In this example,  focus_xw and focus_yh are arbitrary chosen to be identical to the shutter opening dimension.
+
+
+
+N.B. Absolute normalization: The result of the Mc-Stas simulation will show neutron intensity for beam current of 1 uA.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+Face & string & Etable filename & "TS1\_S04\_Merlin.mcstas" \\
+\textbf{E0} & meV & Lower edge of energy distribution &  \\
+\textbf{E1} & meV & Upper edge of energy distribution &  \\
+modPosition & int & Defines the initial surface for neutron distribution production. Possible values = 0 (at moderator) or 1 (at shutter insert) & 0 \\
+xwidth & m & Moderator width & 0.12 \\
+yheight &  &  & 0.12 \\
+focus\_xw & m & Width of focusing rectangle & 0.094 \\
+focus\_yh & m & Height of focusing rectangle & 0.094 \\
+dist & m & Distance from source surface to the focusing rectangle & 1.7 \\
+verbose & int & Flag to output debugging information & 0 \\
+beamcurrent & uA & ISIS beam current & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/contrib/ViewModISIS.comp}{Source code} for \texttt{ViewModISIS.comp}.
+\end{itemize}
+\IfFileExists{ViewModISIS_static.tex}{\input{ViewModISIS_static.tex}}{}

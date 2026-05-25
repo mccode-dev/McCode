@@ -14,24 +14,32 @@
 * %Description
 * A test instrument for Powder output from different sample components.
 *
+* %Example: lambda=2.5 directbeam=0 comp=0 material=Ge SPLITS=1 Detector: Sph_mon_I=3.67e+08
+* %Example: lambda=2.5 directbeam=0 comp=0 material=Ge SPLITS=1 Detector: psd_mon_I=7.35e+05
 * %Example: lambda=2.5 directbeam=0 comp=1 material=Ge SPLITS=1 Detector: Sph_mon_I=4.2e+08
 * %Example: lambda=2.5 directbeam=0 comp=1 material=Ge SPLITS=1 Detector: psd_mon_I=8.3e+05
 * %Example: lambda=2.5 directbeam=0 comp=2 material=Ge SPLITS=1 Detector: Sph_mon_I=4.2e+08
 * %Example: lambda=2.5 directbeam=0 comp=2 material=Ge SPLITS=1 Detector: psd_mon_I=8.3e+05
 * %Example: lambda=2.5 directbeam=0 comp=3 material=Ge SPLITS=1 Detector: Sph_mon_I=4.2e+08
 * %Example: lambda=2.5 directbeam=0 comp=3 material=Ge SPLITS=1 Detector: psd_mon_I=8.3e+05
+* %Example: lambda=2.5 directbeam=0 comp=0 material=Al twotheta=76.5 SPLITS=1 Detector: Sph_mon_I=9.1e+07
+* %Example: lambda=2.5 directbeam=0 comp=0 material=Al twotheta=76.5 SPLITS=1 Detector: psd_mon_I=1.94e+05
 * %Example: lambda=2.5 directbeam=0 comp=1 material=Al twotheta=76.5 SPLITS=1 Detector: Sph_mon_I=1.1e+08
 * %Example: lambda=2.5 directbeam=0 comp=1 material=Al twotheta=76.5 SPLITS=1 Detector: psd_mon_I=2e+05
 * %Example: lambda=2.5 directbeam=0 comp=2 material=Al twotheta=76.5 SPLITS=1 Detector: Sph_mon_I=1.1e+08
 * %Example: lambda=2.5 directbeam=0 comp=2 material=Al twotheta=76.5 SPLITS=1 Detector: psd_mon_I=2e+05
 * %Example: lambda=2.5 directbeam=0 comp=3 material=Al twotheta=76.5 SPLITS=1 Detector: Sph_mon_I=1.1e+08
 * %Example: lambda=2.5 directbeam=0 comp=3 material=Al twotheta=76.5 SPLITS=1 Detector: psd_mon_I=2e+05
+* %Example: lambda=2.5 directbeam=0 comp=0 material=LaMnO3 twotheta=80 SPLITS=1 Detector: Sph_mon_I=2.48e+08
+* %Example: lambda=2.5 directbeam=0 comp=0 material=LaMnO3 twotheta=80 SPLITS=1 Detector: psd_mon_I=1.78e+05
 * %Example: lambda=2.5 directbeam=0 comp=1 material=LaMnO3 twotheta=80 SPLITS=1 Detector: Sph_mon_I=3.1e+08
 * %Example: lambda=2.5 directbeam=0 comp=1 material=LaMnO3 twotheta=80 SPLITS=1 Detector: psd_mon_I=1.9e+05
 * %Example: lambda=2.5 directbeam=0 comp=2 material=LaMnO3 twotheta=80 SPLITS=1 Detector: Sph_mon_I=3.1e+08
 * %Example: lambda=2.5 directbeam=0 comp=2 material=LaMnO3 twotheta=80 SPLITS=1 Detector: psd_mon_I=1.9e+05
 * %Example: lambda=2.5 directbeam=0 comp=3 material=LaMnO3 twotheta=80 SPLITS=1 Detector: Sph_mon_I=3.1e+08
 * %Example: lambda=2.5 directbeam=0 comp=3 material=LaMnO3 twotheta=80 SPLITS=1 Detector: psd_mon_I=1.9e+05
+* %Example: lambda=2.5 directbeam=0 comp=0 material=NaCl twotheta=78 SPLITS=1 Detector: Sph_mon_I=2.13e+08
+* %Example: lambda=2.5 directbeam=0 comp=0 material=NaCl twotheta=78 SPLITS=1 Detector: psd_mon_I=3.2e+05
 * %Example: lambda=2.5 directbeam=0 comp=1 material=NaCl twotheta=78 SPLITS=1 Detector: Sph_mon_I=2.5e+08
 * %Example: lambda=2.5 directbeam=0 comp=1 material=NaCl twotheta=78 SPLITS=1 Detector: psd_mon_I=3.4e+05
 * %Example: lambda=2.5 directbeam=0 comp=2 material=NaCl twotheta=78 SPLITS=1 Detector: Sph_mon_I=2.5e+08
@@ -40,7 +48,7 @@
 * %Example: lambda=2.5 directbeam=0 comp=3 material=NaCl twotheta=78 SPLITS=1 Detector: psd_mon_I=3.4e+05
 *
 * %Parameters
-* comp:          [1] 1=PowderN, 2=Single_crystal, 3=NCrystal
+* comp:          [1] 0=PowderN-with-NCMAT, 1=PowderN, 2=Single_crystal, 3=NCrystal
 * lambda:     [Angs] Wavelength emitted from source, 1% wl-interval around.
 * L1:            [m] Source-sample distance
 * directbeam:    [1] Suppress direct beam or not
@@ -57,6 +65,7 @@ DEFINE INSTRUMENT Test_PowderN(int comp=1, lambda=2.5, L1=10, int directbeam=0, 
 DECLARE %{
   char ciffile[128];
   char ncmatfile[128];
+  char powdern_reflections[128];
 %}
 
 /* The INITIALIZE section is executed when the simulation starts     */
@@ -71,7 +80,13 @@ INITIALIZE
     sprintf(ciffile,"Al.cif");
     sprintf(ncmatfile,"autogen_Al_sg225_cod1502689.ncmat");
   } else if (!strcmp("LaMnO3",material)) {
+    /* PWFIXME:
+       Temporary workaround to not run cif2hkl on LaMnO3 on Windows... */
+    #ifdef _MSC_EXTENSIONS
+    sprintf(ciffile,"LaMnO3.lau");
+    #else
     sprintf(ciffile,"LaMnO3.cif");
+    #endif
     sprintf(ncmatfile,"autogen_LaMnO3_sg62_cod1006141.ncmat");
   } else if (!strcmp("NaCl",material)) {
     sprintf(ciffile,"NaCl.cif");
@@ -79,6 +94,13 @@ INITIALIZE
   } else {
     fprintf(stderr,"Material %s not supported\n",material);
     exit(-1);
+  }
+  if ( comp == 0 ) {
+    // Special: Use PowderN but with the ncmat file
+    sprintf(powdern_reflections,"%s",ncmatfile);
+    comp=1;
+  } else {
+    sprintf(powdern_reflections,"%s",ciffile);
   }
 %}
 
@@ -101,7 +123,7 @@ SPLIT SPLITS COMPONENT sample_cradle = Arm()
   AT (0, 0, L1) RELATIVE PREVIOUS
 
 COMPONENT Pow_PowderN = PowderN(
-	radius=0.005, yheight=0.1, reflections=ciffile, p_transmit=frac_t)
+	radius=0.005, yheight=0.1, reflections=powdern_reflections, p_transmit=frac_t)
 WHEN (comp==1)
 AT (0, 0, 0) RELATIVE sample_cradle
 

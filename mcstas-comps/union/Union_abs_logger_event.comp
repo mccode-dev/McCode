@@ -144,7 +144,6 @@ SHARE
 
     Coords position;
     Rotation rotation;
-    Rotation t_rotation;
   };
 
   double
@@ -186,22 +185,26 @@ SHARE
         add_point = 0;
     }
 
+    Coords transformed_ray_position;
+    transformed_ray_position = coords_sub (*position, storage->position);
+    transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
+
     if (storage->stored_xwidth != 0) {
-      if (position->x < 0.5 * storage->stored_xwidth && position->x > -0.5 * storage->stored_xwidth)
+      if (transformed_ray_position.x < 0.5 * storage->stored_xwidth && transformed_ray_position.x > -0.5 * storage->stored_xwidth)
         add_point = 1;
       else
         add_point = 0;
     }
 
     if (storage->stored_yheight != 0) {
-      if (position->y < 0.5 * storage->stored_yheight && position->y > -0.5 * storage->stored_yheight)
+      if (transformed_ray_position.y < 0.5 * storage->stored_yheight && transformed_ray_position.y > -0.5 * storage->stored_yheight)
         add_point = 1;
       else
         add_point = 0;
     }
 
     if (storage->stored_zdepth != 0) {
-      if (position->z < 0.5 * storage->stored_zdepth && position->z > -0.5 * storage->stored_xwidth)
+      if (transformed_ray_position.z < 0.5 * storage->stored_zdepth && transformed_ray_position.z > -0.5 * storage->stored_xwidth)
         add_point = 1;
       else
         add_point = 0;
@@ -212,7 +215,7 @@ SHARE
       int i;
       double given_x_pos, given_y_pos, given_z_pos;
       double used_x_pos, used_y_pos, used_z_pos;
-      coords_get (*position, &given_x_pos, &given_y_pos, &given_z_pos);
+      coords_get (transformed_ray_position, &given_x_pos, &given_y_pos, &given_z_pos);
 
       if (storage->stored_xbins != 0) {
         used_x_pos = round_to_nearest_bin (given_x_pos, storage->stored_xwidth, storage->stored_xbins);
@@ -257,6 +260,8 @@ SHARE
         struct temp_abs_event_data_struct temporary_storage;
         temporary_storage.num_elements = storage->temp_abs_event_data.num_elements;
         temporary_storage.elements = malloc (temporary_storage.num_elements * sizeof (struct temp_abs_event_data_element_struct));
+        if (!temporary_storage.elements)
+          exit (fprintf (stderr, "Union_abs_logger_event: %s: ERROR allocating memory (record_to_temp_abs_event)\n", abs_logger->name));
 
         int index;
         for (index = 0; index < storage->temp_abs_event_data.num_elements; index++) {
@@ -279,6 +284,8 @@ SHARE
         // allocate larger array (10 larger)
         storage->temp_abs_event_data.allocated_elements = 10 + storage->temp_abs_event_data.num_elements;
         storage->temp_abs_event_data.elements = malloc (storage->temp_abs_event_data.allocated_elements * sizeof (struct temp_abs_event_data_element_struct));
+        if (!storage->temp_abs_event_data.elements)
+          exit (fprintf (stderr, "Union_abs_logger_event: %s: ERROR allocating memory (record_to_temp_abs_event)\n", abs_logger->name));
 
         // copy back from temp
         for (index = 0; index < storage->temp_abs_event_data.num_elements; index++) {
@@ -349,33 +356,37 @@ SHARE
         add_point = 0;
     }
 
+    Coords transformed_ray_position;
+    transformed_ray_position = coords_sub (*position, storage->position);
+    transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
+
     if (storage->stored_xwidth != 0) {
-      if (position->x < 0.5 * storage->stored_xwidth && position->x > -0.5 * storage->stored_xwidth)
+      if (transformed_ray_position.x < 0.5 * storage->stored_xwidth && transformed_ray_position.x > -0.5 * storage->stored_xwidth)
         add_point = 1;
       else
         add_point = 0;
     }
 
     if (storage->stored_yheight != 0) {
-      if (position->y < 0.5 * storage->stored_yheight && position->y > -0.5 * storage->stored_yheight)
+      if (transformed_ray_position.y < 0.5 * storage->stored_yheight && transformed_ray_position.y > -0.5 * storage->stored_yheight)
         add_point = 1;
       else
         add_point = 0;
     }
 
     if (storage->stored_zdepth != 0) {
-      if (position->z < 0.5 * storage->stored_zdepth && position->z > -0.5 * storage->stored_xwidth)
+      if (transformed_ray_position.z < 0.5 * storage->stored_zdepth && transformed_ray_position.z > -0.5 * storage->stored_xwidth)
         add_point = 1;
       else
         add_point = 0;
     }
 
     if (add_point == 1) {
-      // printf("storage was set \n");
 
+      int i;
       double given_x_pos, given_y_pos, given_z_pos;
       double used_x_pos, used_y_pos, used_z_pos;
-      coords_get (*position, &given_x_pos, &given_y_pos, &given_z_pos);
+      coords_get (transformed_ray_position, &given_x_pos, &given_y_pos, &given_z_pos);
 
       if (storage->stored_xbins != 0) {
         used_x_pos = round_to_nearest_bin (given_x_pos, storage->stored_xwidth, storage->stored_xbins);
@@ -613,6 +624,8 @@ INITIALIZE
   this_abs_storage.temp_abs_event_data.allocated_elements = 10;
   this_abs_storage.temp_abs_event_data.elements
       = malloc (this_abs_storage.temp_abs_event_data.allocated_elements * sizeof (struct temp_abs_event_data_element_struct));
+  if (!this_abs_storage.temp_abs_event_data.elements)
+    exit (fprintf (stderr, "Union_abs_logger_event: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
   if (_getcomp_index (init) < 0) {
     fprintf (stderr, "Union_abs_logger_event:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
@@ -622,14 +635,11 @@ INITIALIZE
   struct global_positions_to_transform_list_struct* global_positions_to_transform_list = COMP_GETPAR3 (Union_init, init, global_positions_to_transform_list);
   struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = COMP_GETPAR3 (Union_init, init, global_rotations_to_transform_list);
   // Test position and rotation stored in a data storage, and pointers assigned to transform lists
-  this_abs_logger.position = POS_A_CURRENT_COMP;
-  add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_logger.position);
+  this_abs_storage.position = POS_A_CURRENT_COMP;
+  add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_storage.position);
 
-  rot_copy (this_abs_logger.rotation, ROT_A_CURRENT_COMP);
-  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_logger.rotation);
-
-  rot_transpose (ROT_A_CURRENT_COMP, this_abs_logger.t_rotation);
-  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_logger.t_rotation);
+  rot_copy (this_abs_storage.rotation, ROT_A_CURRENT_COMP);
+  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_storage.rotation);
 
   // Book keeping
   this_abs_logger.abs_logger_extend_index = logger_conditional_extend_index;

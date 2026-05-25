@@ -1,27 +1,54 @@
-\section{DivPos\_monitor: A divergence and position sensitive monitor}
-\label{s:divpos-monitor}
-\index{Monitors!Divergence/position monitor}
-%\component{DivPos\_monitor}{System}{$x_\textrm{min}$, $x_\textrm{max}$, $y_\textrm{min}$, $y_\textrm{max}$, $n_x$, $n_\textrm{h}$, $\eta_\textrm{h,max}$, filename}{}{}
-\mcdoccomp{monitors/DivPos_monitor.parms}
+\section{The \texttt{DivPos\_monitor} McStas Component}
+Divergence/position monitor (acceptance diagram).
 
-\textbf{DivPos\_monitor} is a two-dimensional monitor component,
-which is sensitive to both horizontal position ($x$) and horizontal divergence
-defined by $\eta_\textrm{h} = \tan^{-1}(v_x/v_z)$.
-The detector window is set
-by the $x$ and $y$ input coordinates.
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kristian Nielsen
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} 1999
+\end{itemize}
 
-The neutron counts are being histogrammed
-into $n_x \times n_\textrm{h}$ pixels. The horizontal divergence range accepted is
-$[-\eta_\textrm{h,max}; \eta_\textrm{h,max}]$, and the horizontal position
-range is the size of the detector.
+\subsection*{Description}
+\begin{lstlisting}
+2D detector for intensity as a function of position
+and divergence, either horizontally or vertically (depending on the flag vertical).
+This gives information similar to an aceptance diagram used
+eg. to investigate beam profiles in neutron guides.
 
-The output from \textbf{PSD\_monitor} is the integrated counts, $n, I, M_2$,
-as well as
-three two-dimensional arrays of counts: $n(x,\eta_\textrm{h}),
-I(x,\eta_\textrm{h}), M_2(x,\eta_\textrm{h})$.
-The arrays are written to a file and can be read e.g. by the tool
-\textbf{mcplot}, see the system manual.
+Example: DivPos_monitor(nh=20, ndiv=20, filename="Output.dip",
+xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1, maxdiv_h=2)
+\end{lstlisting}
 
-This component can be used for measuring acceptance diagrams \cite{Cussen03}.
-\textbf{PSD\_monitor} can easily be changed into being sensitive
-to $y$ and vertical divergence by a 90 degree rotation around the $z$-axis.
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+nb & 1 & Number of bins in position. & 20 \\
+ndiv & 1 & Number of bins in divergence. & 20 \\
+filename & string & Name of file in which to store the detector image. & 0 \\
+xmin & m & Lower x bound of detector opening & -0.05 \\
+xmax & m & Upper x bound of detector opening & 0.05 \\
+ymin & m & Lower y bound of detector opening & -0.05 \\
+ymax & m & Upper y bound of detector opening & 0.05 \\
+xwidth & m & Width of detector. Overrides xmin,xmax. & 0 \\
+yheight & m & Height of detector. Overrides ymin,ymax. & 0 \\
+maxdiv & degrees & Maximal divergence detected. & 2 \\
+restore\_neutron & 1 & If set, the monitor does not influence the neutron state. & 0 \\
+nx & 1 &  & 0 \\
+ny & 1 & Vector definition of "forward" direction wrt. divergence, to be used e.g. when the monitor is rotated into the horizontal plane & 0 \\
+nz & 1 &  & 1 \\
+vertical & 1 & Monitor intensity as a function of vertical divergence and position. & 0 \\
+nowritefile & 1 & If set, monitor will skip writing to disk & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/monitors/DivPos_monitor.comp}{Source code} for \texttt{DivPos\_monitor.comp}.
+\end{itemize}
+\IfFileExists{DivPos_monitor_static.tex}{\input{DivPos_monitor_static.tex}}{}

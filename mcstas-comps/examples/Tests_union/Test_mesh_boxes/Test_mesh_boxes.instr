@@ -1,0 +1,136 @@
+/********************************************************************************
+* 
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2008, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+* 
+* This file was written by McStasScript, which is a 
+* python based McStas instrument generator written by 
+* Mads Bertelsen in 2019 while employed at the 
+* European Spallation Source Data Management and 
+* Software Centre
+* 
+* Instrument: Test_mesh_boxes 
+* 
+* %Identification
+* Written by: Sam Lambrick with Python McStas Instrument Generator
+* Date: 10:07:56 on March 05, 2026
+* Origin: ESS DMSC / ISIS
+* %INSTRUMENT_SITE: Tests_union
+* 
+*
+* A small instrument to investigate mesh boxes in a user configuration
+* 
+* %Description
+* Instrument provided by Sam Lambrick from ISIS, that uses three meshes to 
+* make their boxes. 
+* 
+* %Example: Detector: psd_detector_I=10.7752
+* 
+* %Parameters
+* 
+* %End 
+********************************************************************************/
+
+DEFINE INSTRUMENT Test_mesh_boxes(
+)
+
+DECLARE 
+%{
+%}
+
+INITIALIZE 
+%{
+// Start of initialize for generated test_union_filter
+%}
+
+TRACE 
+COMPONENT armOrigin = Arm()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Source = Moderator(
+ radius = 0.1, Emin = 1,
+ Emax = 20, dist = 2,
+ focus_xw = 0.1, focus_yh = 0.1,
+ Ec = 1000)
+AT (0, 0, 0) RELATIVE armOrigin
+
+COMPONENT armFilter = Arm()
+AT (0, 0, 2) RELATIVE armOrigin
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Be_NCrystal = NCrystal_process(
+ cfg = "Be_sg194.ncmat", interact_fraction = 1)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Cd_absorber = Incoherent_process(
+ sigma = 3.46, unit_cell_volume = 43.2,
+ interact_fraction = 1)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Be = Union_make_material(
+ process_string = "Be_NCrystal", my_absorption = 0.0)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Cd = Union_make_material(
+ process_string = "Cd_absorber", my_absorption = 11627.906976744185)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Be_envelope = Union_mesh(
+ filename = "./box.stl", material_string = "Be",
+ priority = 1, coordinate_scale = 1)
+AT (0, 0, 0) RELATIVE armFilter
+
+COMPONENT Cd_blade1 = Union_mesh(
+ filename = "./single_blade.stl", material_string = "Cd",
+ priority = 2, coordinate_scale = 1)
+AT (0, -0.02, 0) RELATIVE armFilter
+
+COMPONENT Cd_blade2 = Union_mesh(
+ filename = "./single_blade.stl", material_string = "Cd",
+ priority = 2.5, coordinate_scale = 1)
+AT (0, 0.02, 0) RELATIVE armFilter
+
+COMPONENT zy_logger = Union_logger_2D_space(
+ target_geometry = "Be_envelope,Cd_blade1,Cd_blade2", D_direction_1 = "z",
+ D1_min = -0.02, D1_max = 0.02,
+ n1 = 100, D_direction_2 = "y",
+ D2_min = -0.05, D2_max = 0.05,
+ n2 = 100, filename = "zy_logger.dat")
+AT (0, 0, 0) RELATIVE armFilter
+
+COMPONENT zy_logger_abs = Union_abs_logger_2D_space(
+ target_geometry = "Be_envelope,Cd_blade1,Cd_blade2", D_direction_1 = "z",
+ D1_min = -0.02, D1_max = 0.02,
+ n1 = 100, D_direction_2 = "y",
+ D2_min = -0.05, D2_max = 0.05,
+ n2 = 100, filename = "zy_logge_abs.dat")
+AT (0, 0, 0) RELATIVE armFilter
+
+COMPONENT master = Union_master(verbal=1)
+AT (0, 0, 0) RELATIVE armFilter
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) RELATIVE armFilter
+
+COMPONENT psd_detector = PSD_monitor(
+ nx = 201, ny = 201,
+ filename = "psd_detector.dat", xwidth = 0.1,
+ yheight = 0.1, restore_neutron = 1)
+AT (0, 0, 0.15) RELATIVE armFilter
+
+COMPONENT e_detector = E_monitor(
+ filename = "e_detector.dat", xwidth = 0.1,
+ yheight = 0.1, Emin = 1,
+ Emax = 20)
+AT (0, 0, 0.15) RELATIVE armFilter
+
+FINALLY 
+%{
+// Start of finally for generated test_union_filter
+%}
+
+END

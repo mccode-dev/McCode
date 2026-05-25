@@ -1,0 +1,42 @@
+\section{Beamstop: A neutron absorbing area}
+\label{beamstop}
+\index{Optics!Beam stop}
+
+%\component{Beamstop}{System}{$x_{min}$, $x_{max}$, $y_{min}$,
+%$y_{max}$}{$r$}{}
+%\mcdoccomp{optics/Beamstop.parms}
+
+The component \textbf{Beamstop} can be seen as the reverse of
+the \textbf{Slit} component.
+It sets up an area at the $z=0$ plane, and propagates the neutrons
+onto this plane (by the kernel call PROP\_Z0).
+Neutrons within this area are ABSORB'ed,
+while all other neutrons are unaffected.
+
+By using this component, some neutrons contributing to the background
+in a real experiment will be neglected.
+These are the ones that scatter off the side
+of the beamstop, or penetrates the absorbing material.
+Further, the holder of the beamstop is not simulated.
+
+\textbf{Beamstop} can be either circular or rectangular.
+The input parameters of \textbf{Beamstop} are the four coordinates,
+$(x_\textrm{min}, x_\textrm{max}, y_\textrm{min}, y_\textrm{max})$
+defining the opening of a rectangle, or the radius $r$ of
+a circle, depending on which parameters are specified.
+
+If the "direct beam" (e.g. after a monochromator or sample) should not be
+simulated, it is possible to emulate an ideal beamstop 
+so that only the scattered beam is left;
+without the use of \textbf{Beamstop}:
+This method is useful for instance in the case where only neutrons 
+scattered from a sample are of interest. 
+The example below removes the direct beam and 
+any background signal from other parts of the instrument
+\begin{lstlisting}
+COMPONENT MySample=V_sample(...) AT (...)
+EXTEND
+%{
+  if (!SCATTERED) ABSORB;
+%}
+\end{lstlisting}

@@ -139,7 +139,6 @@ SHARE
 
     Coords position;
     Rotation rotation;
-    Rotation t_rotation;
   };
 
   // record_to_temp
@@ -169,9 +168,13 @@ SHARE
 
     if (add_point == 1) {
 
+      Coords transformed_ray_position;
+      transformed_ray_position = coords_sub (*position, storage->position);
+      transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
+
       int i;
       double given_x_pos, given_y_pos, given_z_pos;
-      coords_get (*position, &given_x_pos, &given_y_pos, &given_z_pos);
+      coords_get (transformed_ray_position, &given_x_pos, &given_y_pos, &given_z_pos);
       given_x_pos = 0.0; // 1D monitor, always in center x bin
 
       double given_x_vel, given_y_vel, given_z_vel;
@@ -199,6 +202,8 @@ SHARE
         struct temp_abs_1D_event_data_struct temporary_storage;
         temporary_storage.num_elements = storage->temp_abs_1D_event_data.num_elements;
         temporary_storage.elements = malloc (temporary_storage.num_elements * sizeof (struct temp_abs_1D_event_data_element_struct));
+        if (!temporary_storage.elements)
+          exit (fprintf (stderr, "Union_abs_logger_1D_space_event: %s: ERROR allocating memory (record_to_temp_abs_1D_event)\n", abs_logger->name));
 
         int index;
         for (index = 0; index < storage->temp_abs_1D_event_data.num_elements; index++) {
@@ -222,6 +227,8 @@ SHARE
         storage->temp_abs_1D_event_data.allocated_elements = 10 + storage->temp_abs_1D_event_data.num_elements;
         storage->temp_abs_1D_event_data.elements
             = malloc (storage->temp_abs_1D_event_data.allocated_elements * sizeof (struct temp_abs_1D_event_data_element_struct));
+        if (!storage->temp_abs_1D_event_data.elements)
+          exit (fprintf (stderr, "Union_abs_logger_1D_space_event: %s: ERROR allocating memory (record_to_temp_abs_1D_event)\n", abs_logger->name));
 
         // copy back from temp
         for (index = 0; index < storage->temp_abs_1D_event_data.num_elements; index++) {
@@ -293,10 +300,13 @@ SHARE
     }
 
     if (add_point == 1) {
-      // printf("storage was set \n");
+      Coords transformed_ray_position;
+      transformed_ray_position = coords_sub (*position, storage->position);
+      transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
 
+      int i;
       double given_x_pos, given_y_pos, given_z_pos;
-      coords_get (*position, &given_x_pos, &given_y_pos, &given_z_pos);
+      coords_get (transformed_ray_position, &given_x_pos, &given_y_pos, &given_z_pos);
       given_x_pos = 0.0; // 1D monitor, always in center x bin
 
       double given_x_vel, given_y_vel, given_z_vel;
@@ -518,18 +528,17 @@ INITIALIZE
   this_abs_storage.temp_abs_1D_event_data.allocated_elements = 10;
   this_abs_storage.temp_abs_1D_event_data.elements
       = malloc (this_abs_storage.temp_abs_1D_event_data.allocated_elements * sizeof (struct temp_abs_1D_event_data_element_struct));
+  if (!this_abs_storage.temp_abs_1D_event_data.elements)
+    exit (fprintf (stderr, "Union_abs_logger_1D_space_event: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
   struct global_positions_to_transform_list_struct* global_positions_to_transform_list = COMP_GETPAR3 (Union_init, init, global_positions_to_transform_list);
   struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = COMP_GETPAR3 (Union_init, init, global_rotations_to_transform_list);
   // Test position and rotation stored in a data storage, and pointers assigned to transform lists
-  this_abs_logger.position = POS_A_CURRENT_COMP;
-  add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_logger.position);
+  this_abs_storage.position = POS_A_CURRENT_COMP;
+  add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_storage.position);
 
-  rot_copy (this_abs_logger.rotation, ROT_A_CURRENT_COMP);
-  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_logger.rotation);
-
-  rot_transpose (ROT_A_CURRENT_COMP, this_abs_logger.t_rotation);
-  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_logger.t_rotation);
+  rot_copy (this_abs_storage.rotation, ROT_A_CURRENT_COMP);
+  add_rotation_pointer_to_list (global_rotations_to_transform_list, &this_abs_storage.rotation);
 
   // Adding fake event to combat MPI writing bug
   if (fake_event) {

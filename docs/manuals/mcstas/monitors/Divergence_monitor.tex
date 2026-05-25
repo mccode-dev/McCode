@@ -1,27 +1,53 @@
-% Emacs settings: -*-mode: latex; TeX-master: "manual.tex"; -*-
+\section{The \texttt{Divergence\_monitor} McStas Component}
+Horizontal+vertical divergence monitor.
 
-\section{Divergence\_monitor: A divergence sensitive monitor}
-\label{s:div-monitor}
-\index{Monitors!Divergence monitor}
-%\component{Divergence\_monitor}{System}{$x_\textrm{min}$, $x_\textrm{max}$, $y_\textrm{min}$, $y_\textrm{max}$, $n_\textrm{v}$, $n_\textrm{h}$, $\eta_\textrm{v,max}$, $\eta_\textrm{h,max}$, filename}{}{}
-\mcdoccomp{monitors/Divergence_monitor.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kim Lefmann
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} Nov. 11, 1998
+\end{itemize}
 
-The component \textbf{Divergence\_monitor} is a two-dimensional monitor,
-which resembles \textbf{PSD\_Monitor}. As for this component,
-the detector window is set
-by the $x$ and $y$ input coordinates.
-\textbf{Divergence\_ monitor} is sensitive to the neutron divergence,
-defined by
-$\eta_\textrm{h} = \tan^{-1}(v_x/v_z)$ and $\eta_\textrm{v} = \tan^{-1}(v_y/v_z)$.
-The neutron counts are being histogrammed
-into $n_\textrm{v} \times n_\textrm{h}$ pixels. 
-The divergence range accepted is in the vertical direction
-$[-\eta_\textrm{v,max}; \eta_\textrm{v,max}]$, and similar for the horizontal
-direction.
+\subsection*{Description}
+\begin{lstlisting}
+A divergence sensitive monitor. The counts are distributed in
+(n times m) pixels.
 
-The output from \textbf{PSD\_monitor} is the integrated counts, $n, I, M_2$,
-as well as
-three two-dimensional arrays of counts: $n(\eta_\textrm{v},\eta_\textrm{h}),
-I(\eta_\textrm{v},\eta_\textrm{h}), M_2(\eta_\textrm{v},\eta_\textrm{h})$.
-The arrays are written to a file, \verb+filename+, 
-and can be read e.g. by the tool \textbf{MC\_plot}, see the system manual.
+Example: Divergence_monitor(nh=20, nv=20, filename="Output.pos",
+xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1,
+maxdiv_h=2, maxdiv_v=2)
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+nh & 1 & Number of pixel rows & 20 \\
+nv & 1 & Number of pixel columns & 20 \\
+filename & str & Name of file in which to store the detector image text & 0 \\
+xmin & m & Lower x bound of detector opening & -0.05 \\
+xmax & m & Upper x bound of detector opening & 0.05 \\
+ymin & m & Lower y bound of detector opening & -0.05 \\
+ymax & m & Upper y bound of detector opening & 0.05 \\
+nowritefile & 1 & If set, monitor will skip writing to disk & 0 \\
+xwidth & m & Width of detector. Overrides xmin, xmax & 0 \\
+yheight & m & Height of detector. Overrides ymin, ymax & 0 \\
+maxdiv\_h & degrees & Maximal vertical divergence detected & 2 \\
+maxdiv\_v & degrees & Maximal vertical divergence detected & 2 \\
+restore\_neutron & 1 & If set, the monitor does not influence the neutron state & 0 \\
+nx & 1 &  & 0 \\
+ny & 1 & Vector definition of "forward" direction wrt. divergence, to be used e.g. when the monitor is rotated into the horizontal plane & 0 \\
+nz & 1 &  & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/monitors/Divergence_monitor.comp}{Source code} for \texttt{Divergence\_monitor.comp}.
+\end{itemize}
+\IfFileExists{Divergence_monitor_static.tex}{\input{Divergence_monitor_static.tex}}{}

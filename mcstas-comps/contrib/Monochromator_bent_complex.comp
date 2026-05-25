@@ -18,6 +18,8 @@
 * This component is a more complex implementation of Monochromator_bent.
 * This component only differs in the fact that it allows and forces the user 
 * to set every single parameter for every single crystal in the crystal array.
+* An exception to this rule is the plane of reflection, for which one can 
+* choose a single plane of reflection, and that will work for all crystals.
 *
 *
 * %Parameters
@@ -27,25 +29,26 @@
 * xthickness: [m] Thickness of each crystal without bending.
 * radius_x:   [m] Radius of the circle the monochromator bends on in the plane. Can be negative.
 * radius_y:   [m] Radius of the (very large) circle the monochromator bends on as a side effect of the horizontal bending. The code assumes that it is so small that it does not affect the points of intersection appreciatively of the crystal.
-* plane_of_reflection:     ["Si400"] The plane of reflection from the material. The list of possible reflections can be seen in the source code.
+* plane_of_reflection:     [string] The plane of reflection from the material. The list of possible reflections can be seen in the source code. Each plane must be separated by a ";", like "Si400;Si111".
 * angle_to_cut_horizontal: [degrees] Angle between cut and normal of crystal slab, horizontally
 * mosaicity:                [arcmin] Gaussian mosaicity of the crystal. Always the horizontal mosaicity
 * mosaic_anisotropy: [1] Anisotropy of the mosaicity, changes vertical mosaicity to be mosaic_anisotropy*mosaicity
-* n_crystals:        [#] Number of crystals in your array.
-* domainthickness:   [mu-m] Thickness of the crystal domains.
-* temperature:       [K]Temperature of the monochromator in Kelvin.
-* optimize:          [ ] Flag to tell if the component should optimize for reflections or not.
+* n_crystals:        [1] Number of crystals in your array.
+* domainthickness:   [&#956;m] Thickness of the crystal domains.
+* temperature:       [K] Temperature of the monochromator in Kelvin.
+* optimize:          [1] Flag to tell if the component should optimize for reflections or not.
 * x_pos:      [vector] x-Position of each crystal
 * y_pos:      [vector] y-Position of each crystal
 * z_pos:      [vector] z-Position of each crystal
 * x_rot:      [vector] Rotation around x-axis for each crystal
 * y_rot:      [vector] Rotation around y-axis for each crystal
 * z_rot:      [vector] Rotation around z-axis for each crystal NOTE: Rotations happen around x, then y, then z.
-* verbose:            [ ] Verbosity of the monochromator. Used for debugging. 
-* draw_as_rectangles: [ ] Draw the monochromators as boxes. DOES NOT WORK WHEN USING _rot parameters.
+* verbose:            [1] Verbosity of the monochromator. Used for debugging. 
+* draw_as_rectangles: [1] Draw the monochromators as boxes. DOES NOT WORK WHEN USING _rot parameters.
 *
 * %L 
 * <a href="https://doi.org/10.1016/j.nima.2004.04.197">Jan &Scaron;aroun NIM A Volume 529, Issue 1-3 (2004), pp162-165</a>
+* <a href="https://doi.org/10.3390/qubs10010006">Christensen, D.L.; Cabeza, S.; Pirling, T.; Lefmann, K.; &Scaron;aroun, J. Simulating Neutron Diffraction from Deformed Mosaic Crystals in McStas. Quantum Beam Sci. 2026, 10, 6. https://doi.org/10.3390/qubs10010006</a>
 *
 * %E
 *******************************************************************************/
@@ -75,7 +78,30 @@ SETTING PARAMETERS (vector zwidth=NULL,
 NOACC
 // The component is currently "NOACC" only, there are thread race-conditions on GPU 
 
-SHARE INHERIT Monochromator_bent 
+SHARE INHERIT Monochromator_bent EXTEND %{
+char *repeat_with_semicolon(const char *src, int n) {
+    size_t len = strlen(src);
+    size_t total = n * len + (n - 1) + 1;  // repetitions + semicolons + null terminator
+
+    char *result = malloc(total);
+    if (!result) return NULL;
+
+    char *p = result;
+
+    for (int i = 0; i < n; i++) {
+        memcpy(p, src, len);
+        p += len;
+
+        if (i < n - 1) {
+            *p = ';';
+            p++;
+        }
+    }
+
+    *p = '\0';
+    return result;
+} 
+%}
 DECLARE
 %{
   int counter;
@@ -106,19 +132,39 @@ INITIALIZE
   mono_arr.verbosity = verbose;             // [#]
 
   // Separate the string into individual crystals
-  int MAX_TOKENS = 6 * n_crystals;
+  // If no semicolon is present, parse the string as a single plane of reflection
+  // and apply that to all crystals
 
-  char** planes = malloc (n_crystals * sizeof (char*));
-  if (planes == NULL) {
-    exit (fprintf (stderr, "Error: memory allocation failed for planes\n"));
+  char* input_string = NULL;
+
+  if (strchr (plane_of_reflection, ';') == NULL && n_crystals > 1) {
+    // Apply the same plane to all crystals
+    input_string = repeat_with_semicolon (plane_of_reflection, n_crystals);
+  } else {
+    // Use the original string
+    input_string = strdup (plane_of_reflection);
   }
-  int token_count = 0;
+
+  if (!input_string) {
+    fprintf (stderr, "Error: memory allocation failed\n");
+    exit (-1);
+  }
+
   // Remove trailing newline, if any
-  plane_of_reflection[strcspn (plane_of_reflection, "\n")] = '\0';
+  input_string[strcspn (input_string, "\n")] = '\0';
+
+  // Allocate array for tokens
+  char** planes = malloc (n_crystals * sizeof (char*));
+  if (!planes) {
+    fprintf (stderr, "Error: memory allocation failed for planes\n");
+    free (input_string);
+    exit (-1);
+  }
 
   // Tokenize the string using ';' as delimiter
-  char* plane = strtok (plane_of_reflection, ";");
-  while (plane != NULL && token_count < MAX_TOKENS) {
+  int token_count = 0;
+  char* plane = strtok (input_string, ";");
+  while (plane != NULL && token_count < n_crystals) {
     planes[token_count++] = plane;
     plane = strtok (NULL, ";");
   }
@@ -227,6 +273,8 @@ INITIALIZE
     mono_arr.crystal[i].lattice_spacing_gradient_field[2][2] = -cos (chi) * tau_size_zero * curvature;
   }
   free (planes);
+  free (input_string);
+
   // TODO: This is very gpu unfriendly. Should be changed to depend on OPENACC usage
   //  Initialize neutron structs values
   neutron.beta = (double*)calloc (n_crystals, sizeof (double));

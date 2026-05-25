@@ -112,6 +112,11 @@ SETTING PARAMETERS (string sector="N",int beamline=1, yheight=0.03, cold_frac=0.
 
 
 SHARE %{
+  #ifdef ADJUSTABLE_ESS_PULSE
+  #ifndef ESS_SOURCE_DURATION
+  #define ESS_SOURCE_DURATION _instrument_var._parameters.pulse_duration
+  #endif
+  #endif
   %include "ESS_butterfly-lib"
   %include "ESS_butterfly-geometry.c"
 
@@ -495,6 +500,9 @@ TRACE
   double k, v, r, lambda;
   double dt = 0;
   double modX, modY;
+  #ifdef ADJUSTABLE_ESS_SOURCE
+  #define ESS_SOURCE_DURATION _instrument_var._parameters.pulse_duration
+  #endif
 
   /* Cold or thermal event? */
   p = 1;

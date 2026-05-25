@@ -1,0 +1,66 @@
+\section{Tunneling\_sample: An incoherent inelastic scatterer}
+\label{s:Tunneling_sample}
+\index{Samples!Incoherent inelastic scatterer}
+\index{Incoherent inelastic scattering}
+
+%\component{Tunneling\_sample}{System}{$r_\textrm{i}$, $r_\textrm{o}$, $h$, $r_\textrm{foc}$, $x_\textrm{target}$, $y_\textrm{target}$, $z_\textrm{target}$}{$w_x$, $h_y$, $t_z$, $w_\textrm{focus}, h_\textrm{focus}$, $w_\textrm{foc, angle}$, $h_\textrm{foc, angle}$, $\sigma_\textrm{abs}$, $\sigma_\textrm{inc}$, $V_0$, $f_\textrm{pack}$, $f_\textrm{QE}$, $f_\textrm{tun}$, $\Gamma$, $E_\textrm{tun}$, target\_index}{not validated}
+
+%\mcdoccomp{samples/Tunneling_sample.parms}
+
+The component \textbf{Tunneling\_sample}
+displays incoherent inelastic scattering as found in a number of systems, {\em e.g.}
+containing mobile hydrogen. 
+
+For the sample geometry, we default use a
+hollow cylinder (which has the solid cylinder as a limiting case).
+The sample dimensions are: Inner radius $r_\textrm{i}$,
+outer radius $r_\textrm{o}$, and height $h$. This geometry is the same as 
+the default for \textbf{V\_sample}, see figure \ref{f:v-sample}.
+
+As for \textbf{V\_sample}, the sample geometry can be made rectangular 
+by specifying the width, $w_x$, the height, $h_y$, and the thickness, $t_z$.
+
+Also the focusing properties are the same as for \textbf{V\_sample}.
+For the focusing is performed as a uniform distribution on
+a target sphere of radius $r_\textrm{foc}$, at the position
+$(x_\textrm{target},y_\textrm{target},z_\textrm{target})$
+in the local coordinate system.
+The focusing can alternatively be performed on a rectangle with dimensions
+$w_\textrm{focus}$, $h_\textrm{focus}$, or uniformly in angular space
+(in a small-angle approximation),
+using $w_\textrm{foc, angle}$, $h_\textrm{foc, angle}$.
+The focusing location can be picked to be a downstream component by
+specifying \verb+target_index+.
+
+The incoherent and absorption cross sections for V are default
+for the component. For other choices, the
+parameters $\sigma_\textrm{inc}$, $\sigma_\textrm{abs}$,
+and the unit cell volume $V_0$ should be specified.
+For a loosely packed sample, also the packing factor, $f_\textrm{pack}$
+can be specified (default value of 1).
+
+The inelastic scattering takes place as a quasielastic (Lorentzian)
+component, which is chosen with probability $f_\textrm{QE}$.
+The broadening of the signal is given by $\Gamma$ (HWHM).
+In addition, a tunneling signal is present with a probability of $f_\textrm{tun}$ 
+and a tunneling energy of $\pm E_\textrm{tun}$. 
+The tunneling peaks are weighted by the usual factor $k_\textrm{f}/k_\textrm{i}$.
+
+The total scattering cross section is given by
+\begin{eqnarray}
+\lefteqn{\frac{d^2\sigma}{d\Omega dE_\textrm{f}}(q,\omega) = \frac{\sigma_\textrm{inc}}{4\pi}
+\times \left\{ (1-f_\textrm{QE}-f_\textrm{inel}) \delta(\hbar \omega) \right. }  \\
+ &+& f_\textrm{QE} \frac{\Gamma}{(\hbar\omega)^2+\Gamma^2}
+ + \left.\frac{f_\textrm{inel}}{2} \frac{k_\textrm{f}}{f_\textrm{i}} 
+   \left[\delta(\hbar\omega-E_\textrm{tun}) + \delta(\hbar\omega+E_\textrm{tun}) \right] \right\} \nonumber
+\end{eqnarray}
+
+The component takes care that 
+$f_\textrm{QE} + f_\textrm{tun} \leq 1$, otherwise an error is returned.
+
+The component accounts for absorption, 
+but not multiple scattering. To obtain
+intensities similar to real measured ones, we therefore do not 
+take attenuation from scattering into account for the outgoing
+neutron ray.
+

@@ -1,0 +1,76 @@
+\section{The \texttt{Union\_logger\_2DQ} McStas Component}
+Two dimensional logger of scattering vector for Union components
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Mads Bertelsen
+  \item \textbf{Origin:} University of Copenhagen
+  \item \textbf{Date:} 20.08.15
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Part of the Union components, a set of components that work together and thus
+sperates geometry and physics within McStas.
+The use of this component requires other components to be used.
+
+1) One specifies a number of processes using process components
+2) These are gathered into material definitions using Union_make_material
+3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
+4) A Union_master component placed after all of the above
+
+Only in step 4 will any simulation happen, and per default all geometries
+defined before this master, but after the previous will be simulated here.
+
+There is a dedicated manual available for the Union_components
+
+This logger logs a 2D projection of the scattering vector, q in the lab frame.
+
+A logger will log something for scattering events happening to certain volumes,
+which are specified in the target_geometry string. By leaving it blank, all
+geometries are logged, even the ones not defined at this point in the
+instrument file. If a list og target_geometries is selected, one can further
+narrow the events logged by providing a list of process names in target_process
+which need to correspond with names of defined Union_process components.
+
+To use the logger_conditional_extend function, set it to some integer value n
+and make and extend section to the master component that runs the geometry.
+In this extend function, logger_conditional_extend[n] is 1 if the conditional
+stack evaluated to true, 0 if not. This way one can check what rays is logged
+using regular McStas monitors. Only works if a conditional is applied to this
+logger.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+target\_geometry & string & Comma seperated list of geometry names that will be logged, leave empty for all volumes (even not defined yet) & "NULL" \\
+target\_process & string & Comma seperated names of physical processes, if volumes are selected, one can select Union\_process names & "NULL" \\
+Q\_direction\_1 & string & Q direction for first axis ("x", "y" or "z") & "x" \\
+Q1\_min & AA\textasciicircum{}-1 & Histogram boundery, min q value for first axis & -5 \\
+Q1\_max & AA\textasciicircum{}-1 & Histogram boundery, max q value for first axis & 5 \\
+n1 & 1 & Number of bins for first axis & 90 \\
+Q\_direction\_2 & string & Q direction for second axis ("x", "y" or "z") & "z" \\
+Q2\_min & AA\textasciicircum{}-1 & Histogram boundery, min q value for second axis & -5 \\
+Q2\_max & AA\textasciicircum{}-1 & Histogram boundery, max q value for second axis & 5 \\
+n2 & 1 & Number of bins for second axis & 90 \\
+filename & string & Filename of produced data file & "NULL" \\
+order\_total & 1 & Only log rays that scatter for the n'th time, 0 for all orders & 0 \\
+order\_volume & 1 & Only log rays that scatter for the n'th time in the same geometry & 0 \\
+order\_volume\_process & 1 & Only log rays that scatter for the n'th time in the same geometry, uwsing the same process & 0 \\
+logger\_conditional\_extend\_index & 1 & If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger\_conditional\_extend", and one would then acces logger\_conditional\_extend[n] if logger\_conditional\_extend\_index is set to n & -1 \\
+init & string & Name of Union\_init component (typically "init", default) & "init" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/union/Union_logger_2DQ.comp}{Source code} for \texttt{Union\_logger\_2DQ.comp}.
+\end{itemize}
+\IfFileExists{Union_logger_2DQ_static.tex}{\input{Union_logger_2DQ_static.tex}}{}

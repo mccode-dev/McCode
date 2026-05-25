@@ -56,12 +56,24 @@ message( "LaTeX configuration" )
 # set(LATEX_OUTPUT_PATH ".")
 file(GLOB LIST RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.tex" "*.sty" "*.bib" "*.bst" "[m-s]*/*.tex" "[m-s]*/*.parms" "figures/*")
 
+# TeX snippets
 foreach(NAME sources samples optics monitors misc)
-  add_custom_command(
-    OUTPUT "${NAME}.done"
-    COMMAND "${PROJECT_SOURCE_DIR}/get_mcdoc_snippets.sh" "${NAME}" "${PROJECT_SOURCE_DIR}"
-    WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
-    )
+   # PWFIXME: ONLY SEMI-FUNCTIONAL
+   add_custom_command(
+     OUTPUT "${NAME}.done"
+     COMMAND "mcdoc" "--tex" "--in-repo" "--dir=${CMAKE_SOURCE_DIR}/../../../mcstas-comps/${NAME}" "--outdir=${PROJECT_BINARY_DIR}"
+     WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+     )
+endforeach()
+
+# MD files
+foreach(NAME sources samples optics monitors misc)
+   # PWFIXME: ONLY SENMI-FUNCTIONAL
+   add_custom_command(
+     OUTPUT "${NAME}.mddone"
+     COMMAND "mcdoc" "--md" "--in-repo" "--dir=${CMAKE_SOURCE_DIR}/../../../mcstas-comps/${NAME}"
+     WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+     )
 endforeach()
 
 set(LATEX_OUTPUT_PATH "${PROJECT_BINARY_DIR}")

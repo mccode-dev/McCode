@@ -1,0 +1,160 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Mads Bertelsen
+* Date: 20.08.15
+* Version: $Revision: 0.1 $
+* Origin: ESS DMSC
+*
+* Initialize component that needs to be place before any Union component
+*
+* %D
+* Part of the Union components, a set of components that work together and thus
+*  sperates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components
+* 2) These are gathered into material definitions using this component
+* 3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before the master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union_components
+*
+* Algorithm:
+* Described elsewhere
+*
+* %P
+* INPUT PARAMETERS:
+*
+* OUTPUT PARAMETERS:
+*
+* GLOBAL PARAMETERS:
+* global_material_list:     List of all defined materials, available in the global scope
+*
+* %L
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Union_init
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS()
+OUTPUT PARAMETERS ()
+
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+SHARE
+%{
+
+%include "read_table-lib"
+
+#ifdef Union
+printf("ERROR: The Union_init component needs to be the first Union component!\n");
+exit(1);
+#endif
+
+#ifndef Union
+#define Union $Revision: 0.8 $
+
+%include "union-lib.c"
+
+#endif
+
+%}
+
+DECLARE
+%{
+// Initialize global positions / rotations to transform lists
+  // These are lists of pointers to positons / rotations, that will be updated from global frame
+  //  to the frame of the master component that uses them in that masters initialize section.
+  struct global_positions_to_transform_list_struct global_positions_to_transform_list;
+  struct global_rotations_to_transform_list_struct global_rotations_to_transform_list;
+
+// Initialize global_process_list
+  // Used to facilitate communication between processes and the other types of Union components
+  struct pointer_to_global_process_list global_process_list;
+
+// Initialize global_material_list
+  // Used to facilitate communication between materials and the other types of Union components
+  struct pointer_to_global_material_list global_material_list;
+
+// Initialize global_geometry_list
+  // Used to facilitate communication between geometries and the other types of Union components
+  struct pointer_to_global_geometry_list global_geometry_list;
+
+// Initialize global_logger_lists
+  // Used to facilitate communication between loggers and the other types of Union components
+  struct pointer_to_global_logger_list global_all_volume_logger_list;
+  struct pointer_to_global_logger_list global_specific_volumes_logger_list;
+
+// Initialize global_abs_logger_lists
+  struct pointer_to_global_abs_logger_list global_all_volume_abs_logger_list;
+  struct pointer_to_global_abs_logger_list global_specific_volumes_abs_logger_list;
+
+// Initialize global_tagging_conditional_list
+  // Used to facilitate communication between conditionals and the other types of Union components
+  struct global_tagging_conditional_list_struct global_tagging_conditional_list;
+
+// Initialize global_master_list
+  // Used to facilitate communication between Master components (mainly for deallocation)
+  struct pointer_to_global_master_list global_master_list;
+
+// Initialize global_mantid_min_pixel_id
+  // Used for ensuring pixel id's on Mantid monitors do not overlap
+  int global_mantid_min_pixel_id;
+%}
+
+INITIALIZE
+%{
+global_positions_to_transform_list.num_elements = 0;
+global_positions_to_transform_list.positions = NULL;
+
+global_rotations_to_transform_list.num_elements = 0;
+global_rotations_to_transform_list.rotations = NULL;
+
+global_process_list.num_elements = 0;
+global_process_list.elements = NULL;
+
+global_material_list.num_elements = 0;
+global_material_list.elements = NULL;
+
+global_geometry_list.num_elements = 0;
+global_geometry_list.elements = NULL;
+
+global_all_volume_logger_list.num_elements = 0;
+global_all_volume_logger_list.elements = NULL;
+
+global_specific_volumes_logger_list.num_elements = 0;
+global_specific_volumes_logger_list.elements = NULL;
+
+global_all_volume_abs_logger_list.num_elements = 0;
+global_all_volume_abs_logger_list.elements = NULL;
+
+global_specific_volumes_abs_logger_list.num_elements = 0;
+global_specific_volumes_abs_logger_list.elements = NULL;
+
+global_tagging_conditional_list.num_elements = 0;
+global_tagging_conditional_list.elements = NULL;
+
+global_master_list.num_elements = 0;
+global_master_list.elements = NULL;
+
+global_mantid_min_pixel_id = 0;
+%}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+%}
+
+END

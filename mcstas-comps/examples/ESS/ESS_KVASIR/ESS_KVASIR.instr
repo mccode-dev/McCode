@@ -1,0 +1,746 @@
+/********************************************************************************
+* 
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2008, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France 
+* Instrument: ESS_KVASIR
+* 
+* %Identification
+* Written by: Amalie Falkenberg (McStasScript), adapted by Peter Willendrup
+* Date: May 2026
+* Origin: NBI
+* %INSTRUMENT_SITE: ESS
+* 
+* Model of the proposed ESS instrument KVASIR.
+* 
+* %Description
+* Model of the proposed ESS instrument KVASIR, implemented using McStasScript /
+* a Jupyter notebook. The flat ESS_KVASIR.instr runs from off an MCPL file from
+* a BIFROST guide guide simulation and adds the secondary spectrometer from
+* the proposed KVASIR instrument.
+*
+* %Example: t=50 Detector: det_He3_0_ToF_I=0.0302392
+* 
+* %Parameters
+* t:       [1] Number of simulated KVASIR 'wedges'
+* repeats: [1] Repeat count for MCPL input file
+*
+* %Link 
+* 
+* %End 
+********************************************************************************/
+
+DEFINE INSTRUMENT ESS_KVASIR (t=50, int repeats=100)
+
+DECLARE 
+%{
+  double width = 0.0127;
+  double d_PG = 3.355;
+  double u = 1e-05;
+  double h_D = 0.4;
+  double Ef = 1.95;
+  double d_AD = 1.25;
+  double d_SA = 2.5;
+  double d_GS = 0.58;
+  double lambda_f;
+  double tA;
+  double dtS[60]
+      = { -0.1455314364486177, -0.44152757837800966, -0.7375237203074017, -1.0335198622367936, -1.3295160041661855, -1.6255121460955775, -1.9215082880249694,
+          -2.2175044299543614, -2.5135005718837533,  -2.8094967138131453, -3.105492855742537,  -3.401488997671929,  -3.697485139601321,  -3.993481281530713,
+          -4.289477423460105,  -4.585473565389497,   -4.881469707318889,  -5.17746584924828,   -5.473461991177673,  -5.769458133107065,  -6.065454275036457,
+          -6.361450416965848,  -6.6574465588952405,  -6.953442700824633,  -7.249438842754024,  -7.545434984683416,  -7.841431126612808,  -8.1374272685422,
+          -8.433423410471592,  -8.729419552400984,   -9.025415694330377,  -9.321411836259768,  -9.61740797818916,   -9.913404120118551,  -10.209400262047943,
+          -10.505396403977336, -10.801392545906728,  -11.09738868783612,  -11.393384829765512, -11.689380971694904, -11.985377113624295, -12.281373255553687,
+          -12.577369397483078, -12.873365539412472,  -13.169361681341863, -13.465357823271255, -13.761353965200648, -14.05735010713004,  -14.353346249059431,
+          -14.649342390988823, -14.945338532918214,  -15.241334674847607, -15.537330816776999, -15.83332695870639,  -16.129323100635784, -16.425319242565173,
+          -16.721315384494567, -17.01731152642396,   -17.31330766835335,  -17.609303810282743 };
+  double len[80] = { 2.5035035035035036, 2.5105105105105103, 2.5175175175175175, 2.5245245245245247, 2.5305305305305303, 2.5375375375375375, 2.5435435435435436,
+                     2.5505505505505504, 2.5565565565565564, 2.5625625625625625, 2.5695695695695697, 2.5755755755755754, 2.5815815815815815, 2.5875875875875876,
+                     2.5925925925925926, 2.5985985985985987, 2.6046046046046047, 2.6096096096096097, 2.6156156156156154, 2.6206206206206204, 2.6266266266266265,
+                     2.6316316316316315, 2.6366366366366365, 2.6416416416416415, 2.6466466466466465, 2.6516516516516515, 2.6566566566566565, 2.6616616616616615,
+                     2.6656656656656654, 2.6706706706706704, 2.674674674674675,  2.67967967967968,   2.6836836836836837, 2.6886886886886887, 2.6926926926926926,
+                     2.6966966966966965, 2.7007007007007005, 2.704704704704705,  2.7087087087087087, 2.7127127127127126, 2.7157157157157155, 2.71971971971972,
+                     2.7237237237237237, 2.7267267267267266, 2.7307307307307305, 2.7337337337337337, 2.736736736736737,  2.7407407407407405, 2.7437437437437437,
+                     2.746746746746747,  2.74974974974975,   2.7527527527527527, 2.754754754754755,  2.7577577577577577, 2.7607607607607605, 2.7637637637637638,
+                     2.7657657657657655, 2.7687687687687688, 2.7707707707707705, 2.7727727727727727, 2.7757757757757755, 2.7777777777777777, 2.77977977977978,
+                     2.781781781781782,  2.7837837837837838, 2.7857857857857855, 2.7877877877877877, 2.78978978978979,   2.7907907907907905, 2.7927927927927927,
+                     2.793793793793794,  2.7957957957957955, 2.796796796796797,  2.798798798798799,  2.7997997997998,    2.8008008008008005, 2.801801801801802,
+                     2.8028028028028027, 2.804804804804805,  2.804804804804805 };
+  double d_SDz;
+  double d_SDy;
+  double tDy;
+  double az_0;
+  double ay_0;
+  double bz_0;
+  double by_0;
+  double dtA_0;
+  double az_2;
+  double ay_2;
+  double bz_2;
+  double by_2;
+  double dtA_2;
+  double az_4;
+  double ay_4;
+  double bz_4;
+  double by_4;
+  double dtA_4;
+  double az_6;
+  double ay_6;
+  double bz_6;
+  double by_6;
+  double dtA_6;
+  double az_8;
+  double ay_8;
+  double bz_8;
+  double by_8;
+  double dtA_8;
+  double az_10;
+  double ay_10;
+  double bz_10;
+  double by_10;
+  double dtA_10;
+  double az_12;
+  double ay_12;
+  double bz_12;
+  double by_12;
+  double dtA_12;
+  double az_14;
+  double ay_14;
+  double bz_14;
+  double by_14;
+  double dtA_14;
+  double az_16;
+  double ay_16;
+  double bz_16;
+  double by_16;
+  double dtA_16;
+  double az_18;
+  double ay_18;
+  double bz_18;
+  double by_18;
+  double dtA_18;
+  double az_20;
+  double ay_20;
+  double bz_20;
+  double by_20;
+  double dtA_20;
+  double az_22;
+  double ay_22;
+  double bz_22;
+  double by_22;
+  double dtA_22;
+  double az_24;
+  double ay_24;
+  double bz_24;
+  double by_24;
+  double dtA_24;
+  double az_26;
+  double ay_26;
+  double bz_26;
+  double by_26;
+  double dtA_26;
+  double az_28;
+  double ay_28;
+  double bz_28;
+  double by_28;
+  double dtA_28;
+  double az_30;
+  double ay_30;
+  double bz_30;
+  double by_30;
+  double dtA_30;
+  double az_32;
+  double ay_32;
+  double bz_32;
+  double by_32;
+  double dtA_32;
+  double az_34;
+  double ay_34;
+  double bz_34;
+  double by_34;
+  double dtA_34;
+  double az_36;
+  double ay_36;
+  double bz_36;
+  double by_36;
+  double dtA_36;
+  double az_38;
+  double ay_38;
+  double bz_38;
+  double by_38;
+  double dtA_38;
+  double az_40;
+  double ay_40;
+  double bz_40;
+  double by_40;
+  double dtA_40;
+  double az_42;
+  double ay_42;
+  double bz_42;
+  double by_42;
+  double dtA_42;
+  double az_44;
+  double ay_44;
+  double bz_44;
+  double by_44;
+  double dtA_44;
+  double az_46;
+  double ay_46;
+  double bz_46;
+  double by_46;
+  double dtA_46;
+  double az_48;
+  double ay_48;
+  double bz_48;
+  double by_48;
+  double dtA_48;
+  double az_50;
+  double ay_50;
+  double bz_50;
+  double by_50;
+  double dtA_50;
+  double az_52;
+  double ay_52;
+  double bz_52;
+  double by_52;
+  double dtA_52;
+  double az_54;
+  double ay_54;
+  double bz_54;
+  double by_54;
+  double dtA_54;
+  double az_56;
+  double ay_56;
+  double bz_56;
+  double by_56;
+  double dtA_56;
+  double az_58;
+  double ay_58;
+  double bz_58;
+  double by_58;
+  double dtA_58;
+%}
+
+INITIALIZE 
+%{
+  // Start of initialize for generated KVASIR
+  lambda_f = 1 / (0.11056 * sqrt (Ef));
+  tA = asin (lambda_f / (2 * d_PG)) * RAD2DEG;
+  d_SDz = d_SA + d_AD * cos (2 * tA * DEG2RAD);
+  d_SDy = d_AD * sin (2 * tA * DEG2RAD);
+  tDy = asin (width / (d_SDz)) * RAD2DEG;
+  az_0 = len[0] * cos (dtS[0] * DEG2RAD) - d_SDz;
+  ay_0 = len[0] * sin (dtS[0] * DEG2RAD) - d_SDy;
+  bz_0 = len[0] * cos (dtS[0] * DEG2RAD);
+  by_0 = len[0] * sin (dtS[0] * DEG2RAD);
+  dtA_0 = acos ((az_0 * bz_0 + ay_0 * by_0) / (len[0] * sqrt (az_0 * az_0 + ay_0 * ay_0))) * RAD2DEG;
+  az_2 = len[2] * cos (dtS[2] * DEG2RAD) - d_SDz;
+  ay_2 = len[2] * sin (dtS[2] * DEG2RAD) - d_SDy;
+  bz_2 = len[2] * cos (dtS[2] * DEG2RAD);
+  by_2 = len[2] * sin (dtS[2] * DEG2RAD);
+  dtA_2 = acos ((az_2 * bz_2 + ay_2 * by_2) / (len[2] * sqrt (az_2 * az_2 + ay_2 * ay_2))) * RAD2DEG;
+  az_4 = len[4] * cos (dtS[4] * DEG2RAD) - d_SDz;
+  ay_4 = len[4] * sin (dtS[4] * DEG2RAD) - d_SDy;
+  bz_4 = len[4] * cos (dtS[4] * DEG2RAD);
+  by_4 = len[4] * sin (dtS[4] * DEG2RAD);
+  dtA_4 = acos ((az_4 * bz_4 + ay_4 * by_4) / (len[4] * sqrt (az_4 * az_4 + ay_4 * ay_4))) * RAD2DEG;
+  az_6 = len[6] * cos (dtS[6] * DEG2RAD) - d_SDz;
+  ay_6 = len[6] * sin (dtS[6] * DEG2RAD) - d_SDy;
+  bz_6 = len[6] * cos (dtS[6] * DEG2RAD);
+  by_6 = len[6] * sin (dtS[6] * DEG2RAD);
+  dtA_6 = acos ((az_6 * bz_6 + ay_6 * by_6) / (len[6] * sqrt (az_6 * az_6 + ay_6 * ay_6))) * RAD2DEG;
+  az_8 = len[8] * cos (dtS[8] * DEG2RAD) - d_SDz;
+  ay_8 = len[8] * sin (dtS[8] * DEG2RAD) - d_SDy;
+  bz_8 = len[8] * cos (dtS[8] * DEG2RAD);
+  by_8 = len[8] * sin (dtS[8] * DEG2RAD);
+  dtA_8 = acos ((az_8 * bz_8 + ay_8 * by_8) / (len[8] * sqrt (az_8 * az_8 + ay_8 * ay_8))) * RAD2DEG;
+  az_10 = len[10] * cos (dtS[10] * DEG2RAD) - d_SDz;
+  ay_10 = len[10] * sin (dtS[10] * DEG2RAD) - d_SDy;
+  bz_10 = len[10] * cos (dtS[10] * DEG2RAD);
+  by_10 = len[10] * sin (dtS[10] * DEG2RAD);
+  dtA_10 = acos ((az_10 * bz_10 + ay_10 * by_10) / (len[10] * sqrt (az_10 * az_10 + ay_10 * ay_10))) * RAD2DEG;
+  az_12 = len[12] * cos (dtS[12] * DEG2RAD) - d_SDz;
+  ay_12 = len[12] * sin (dtS[12] * DEG2RAD) - d_SDy;
+  bz_12 = len[12] * cos (dtS[12] * DEG2RAD);
+  by_12 = len[12] * sin (dtS[12] * DEG2RAD);
+  dtA_12 = acos ((az_12 * bz_12 + ay_12 * by_12) / (len[12] * sqrt (az_12 * az_12 + ay_12 * ay_12))) * RAD2DEG;
+  az_14 = len[14] * cos (dtS[14] * DEG2RAD) - d_SDz;
+  ay_14 = len[14] * sin (dtS[14] * DEG2RAD) - d_SDy;
+  bz_14 = len[14] * cos (dtS[14] * DEG2RAD);
+  by_14 = len[14] * sin (dtS[14] * DEG2RAD);
+  dtA_14 = acos ((az_14 * bz_14 + ay_14 * by_14) / (len[14] * sqrt (az_14 * az_14 + ay_14 * ay_14))) * RAD2DEG;
+  az_16 = len[16] * cos (dtS[16] * DEG2RAD) - d_SDz;
+  ay_16 = len[16] * sin (dtS[16] * DEG2RAD) - d_SDy;
+  bz_16 = len[16] * cos (dtS[16] * DEG2RAD);
+  by_16 = len[16] * sin (dtS[16] * DEG2RAD);
+  dtA_16 = acos ((az_16 * bz_16 + ay_16 * by_16) / (len[16] * sqrt (az_16 * az_16 + ay_16 * ay_16))) * RAD2DEG;
+  az_18 = len[18] * cos (dtS[18] * DEG2RAD) - d_SDz;
+  ay_18 = len[18] * sin (dtS[18] * DEG2RAD) - d_SDy;
+  bz_18 = len[18] * cos (dtS[18] * DEG2RAD);
+  by_18 = len[18] * sin (dtS[18] * DEG2RAD);
+  dtA_18 = acos ((az_18 * bz_18 + ay_18 * by_18) / (len[18] * sqrt (az_18 * az_18 + ay_18 * ay_18))) * RAD2DEG;
+  az_20 = len[20] * cos (dtS[20] * DEG2RAD) - d_SDz;
+  ay_20 = len[20] * sin (dtS[20] * DEG2RAD) - d_SDy;
+  bz_20 = len[20] * cos (dtS[20] * DEG2RAD);
+  by_20 = len[20] * sin (dtS[20] * DEG2RAD);
+  dtA_20 = acos ((az_20 * bz_20 + ay_20 * by_20) / (len[20] * sqrt (az_20 * az_20 + ay_20 * ay_20))) * RAD2DEG;
+  az_22 = len[22] * cos (dtS[22] * DEG2RAD) - d_SDz;
+  ay_22 = len[22] * sin (dtS[22] * DEG2RAD) - d_SDy;
+  bz_22 = len[22] * cos (dtS[22] * DEG2RAD);
+  by_22 = len[22] * sin (dtS[22] * DEG2RAD);
+  dtA_22 = acos ((az_22 * bz_22 + ay_22 * by_22) / (len[22] * sqrt (az_22 * az_22 + ay_22 * ay_22))) * RAD2DEG;
+  az_24 = len[24] * cos (dtS[24] * DEG2RAD) - d_SDz;
+  ay_24 = len[24] * sin (dtS[24] * DEG2RAD) - d_SDy;
+  bz_24 = len[24] * cos (dtS[24] * DEG2RAD);
+  by_24 = len[24] * sin (dtS[24] * DEG2RAD);
+  dtA_24 = acos ((az_24 * bz_24 + ay_24 * by_24) / (len[24] * sqrt (az_24 * az_24 + ay_24 * ay_24))) * RAD2DEG;
+  az_26 = len[26] * cos (dtS[26] * DEG2RAD) - d_SDz;
+  ay_26 = len[26] * sin (dtS[26] * DEG2RAD) - d_SDy;
+  bz_26 = len[26] * cos (dtS[26] * DEG2RAD);
+  by_26 = len[26] * sin (dtS[26] * DEG2RAD);
+  dtA_26 = acos ((az_26 * bz_26 + ay_26 * by_26) / (len[26] * sqrt (az_26 * az_26 + ay_26 * ay_26))) * RAD2DEG;
+  az_28 = len[28] * cos (dtS[28] * DEG2RAD) - d_SDz;
+  ay_28 = len[28] * sin (dtS[28] * DEG2RAD) - d_SDy;
+  bz_28 = len[28] * cos (dtS[28] * DEG2RAD);
+  by_28 = len[28] * sin (dtS[28] * DEG2RAD);
+  dtA_28 = acos ((az_28 * bz_28 + ay_28 * by_28) / (len[28] * sqrt (az_28 * az_28 + ay_28 * ay_28))) * RAD2DEG;
+  az_30 = len[30] * cos (dtS[30] * DEG2RAD) - d_SDz;
+  ay_30 = len[30] * sin (dtS[30] * DEG2RAD) - d_SDy;
+  bz_30 = len[30] * cos (dtS[30] * DEG2RAD);
+  by_30 = len[30] * sin (dtS[30] * DEG2RAD);
+  dtA_30 = acos ((az_30 * bz_30 + ay_30 * by_30) / (len[30] * sqrt (az_30 * az_30 + ay_30 * ay_30))) * RAD2DEG;
+  az_32 = len[32] * cos (dtS[32] * DEG2RAD) - d_SDz;
+  ay_32 = len[32] * sin (dtS[32] * DEG2RAD) - d_SDy;
+  bz_32 = len[32] * cos (dtS[32] * DEG2RAD);
+  by_32 = len[32] * sin (dtS[32] * DEG2RAD);
+  dtA_32 = acos ((az_32 * bz_32 + ay_32 * by_32) / (len[32] * sqrt (az_32 * az_32 + ay_32 * ay_32))) * RAD2DEG;
+  az_34 = len[34] * cos (dtS[34] * DEG2RAD) - d_SDz;
+  ay_34 = len[34] * sin (dtS[34] * DEG2RAD) - d_SDy;
+  bz_34 = len[34] * cos (dtS[34] * DEG2RAD);
+  by_34 = len[34] * sin (dtS[34] * DEG2RAD);
+  dtA_34 = acos ((az_34 * bz_34 + ay_34 * by_34) / (len[34] * sqrt (az_34 * az_34 + ay_34 * ay_34))) * RAD2DEG;
+  az_36 = len[36] * cos (dtS[36] * DEG2RAD) - d_SDz;
+  ay_36 = len[36] * sin (dtS[36] * DEG2RAD) - d_SDy;
+  bz_36 = len[36] * cos (dtS[36] * DEG2RAD);
+  by_36 = len[36] * sin (dtS[36] * DEG2RAD);
+  dtA_36 = acos ((az_36 * bz_36 + ay_36 * by_36) / (len[36] * sqrt (az_36 * az_36 + ay_36 * ay_36))) * RAD2DEG;
+  az_38 = len[38] * cos (dtS[38] * DEG2RAD) - d_SDz;
+  ay_38 = len[38] * sin (dtS[38] * DEG2RAD) - d_SDy;
+  bz_38 = len[38] * cos (dtS[38] * DEG2RAD);
+  by_38 = len[38] * sin (dtS[38] * DEG2RAD);
+  dtA_38 = acos ((az_38 * bz_38 + ay_38 * by_38) / (len[38] * sqrt (az_38 * az_38 + ay_38 * ay_38))) * RAD2DEG;
+  az_40 = len[40] * cos (dtS[40] * DEG2RAD) - d_SDz;
+  ay_40 = len[40] * sin (dtS[40] * DEG2RAD) - d_SDy;
+  bz_40 = len[40] * cos (dtS[40] * DEG2RAD);
+  by_40 = len[40] * sin (dtS[40] * DEG2RAD);
+  dtA_40 = acos ((az_40 * bz_40 + ay_40 * by_40) / (len[40] * sqrt (az_40 * az_40 + ay_40 * ay_40))) * RAD2DEG;
+  az_42 = len[42] * cos (dtS[42] * DEG2RAD) - d_SDz;
+  ay_42 = len[42] * sin (dtS[42] * DEG2RAD) - d_SDy;
+  bz_42 = len[42] * cos (dtS[42] * DEG2RAD);
+  by_42 = len[42] * sin (dtS[42] * DEG2RAD);
+  dtA_42 = acos ((az_42 * bz_42 + ay_42 * by_42) / (len[42] * sqrt (az_42 * az_42 + ay_42 * ay_42))) * RAD2DEG;
+  az_44 = len[44] * cos (dtS[44] * DEG2RAD) - d_SDz;
+  ay_44 = len[44] * sin (dtS[44] * DEG2RAD) - d_SDy;
+  bz_44 = len[44] * cos (dtS[44] * DEG2RAD);
+  by_44 = len[44] * sin (dtS[44] * DEG2RAD);
+  dtA_44 = acos ((az_44 * bz_44 + ay_44 * by_44) / (len[44] * sqrt (az_44 * az_44 + ay_44 * ay_44))) * RAD2DEG;
+  az_46 = len[46] * cos (dtS[46] * DEG2RAD) - d_SDz;
+  ay_46 = len[46] * sin (dtS[46] * DEG2RAD) - d_SDy;
+  bz_46 = len[46] * cos (dtS[46] * DEG2RAD);
+  by_46 = len[46] * sin (dtS[46] * DEG2RAD);
+  dtA_46 = acos ((az_46 * bz_46 + ay_46 * by_46) / (len[46] * sqrt (az_46 * az_46 + ay_46 * ay_46))) * RAD2DEG;
+  az_48 = len[48] * cos (dtS[48] * DEG2RAD) - d_SDz;
+  ay_48 = len[48] * sin (dtS[48] * DEG2RAD) - d_SDy;
+  bz_48 = len[48] * cos (dtS[48] * DEG2RAD);
+  by_48 = len[48] * sin (dtS[48] * DEG2RAD);
+  dtA_48 = acos ((az_48 * bz_48 + ay_48 * by_48) / (len[48] * sqrt (az_48 * az_48 + ay_48 * ay_48))) * RAD2DEG;
+  az_50 = len[50] * cos (dtS[50] * DEG2RAD) - d_SDz;
+  ay_50 = len[50] * sin (dtS[50] * DEG2RAD) - d_SDy;
+  bz_50 = len[50] * cos (dtS[50] * DEG2RAD);
+  by_50 = len[50] * sin (dtS[50] * DEG2RAD);
+  dtA_50 = acos ((az_50 * bz_50 + ay_50 * by_50) / (len[50] * sqrt (az_50 * az_50 + ay_50 * ay_50))) * RAD2DEG;
+  az_52 = len[52] * cos (dtS[52] * DEG2RAD) - d_SDz;
+  ay_52 = len[52] * sin (dtS[52] * DEG2RAD) - d_SDy;
+  bz_52 = len[52] * cos (dtS[52] * DEG2RAD);
+  by_52 = len[52] * sin (dtS[52] * DEG2RAD);
+  dtA_52 = acos ((az_52 * bz_52 + ay_52 * by_52) / (len[52] * sqrt (az_52 * az_52 + ay_52 * ay_52))) * RAD2DEG;
+  az_54 = len[54] * cos (dtS[54] * DEG2RAD) - d_SDz;
+  ay_54 = len[54] * sin (dtS[54] * DEG2RAD) - d_SDy;
+  bz_54 = len[54] * cos (dtS[54] * DEG2RAD);
+  by_54 = len[54] * sin (dtS[54] * DEG2RAD);
+  dtA_54 = acos ((az_54 * bz_54 + ay_54 * by_54) / (len[54] * sqrt (az_54 * az_54 + ay_54 * ay_54))) * RAD2DEG;
+  az_56 = len[56] * cos (dtS[56] * DEG2RAD) - d_SDz;
+  ay_56 = len[56] * sin (dtS[56] * DEG2RAD) - d_SDy;
+  bz_56 = len[56] * cos (dtS[56] * DEG2RAD);
+  by_56 = len[56] * sin (dtS[56] * DEG2RAD);
+  dtA_56 = acos ((az_56 * bz_56 + ay_56 * by_56) / (len[56] * sqrt (az_56 * az_56 + ay_56 * ay_56))) * RAD2DEG;
+  az_58 = len[58] * cos (dtS[58] * DEG2RAD) - d_SDz;
+  ay_58 = len[58] * sin (dtS[58] * DEG2RAD) - d_SDy;
+  bz_58 = len[58] * cos (dtS[58] * DEG2RAD);
+  by_58 = len[58] * sin (dtS[58] * DEG2RAD);
+  dtA_58 = acos ((az_58 * bz_58 + ay_58 * by_58) / (len[58] * sqrt (az_58 * az_58 + ay_58 * ay_58))) * RAD2DEG;
+%}
+
+TRACE 
+COMPONENT source = MCPL_input(
+ filename = "Virtual_output_example.mcpl.gz", pos_smear = 0.005,
+ dir_smear = 0.05, repeat_count=repeats)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Arm_sample = Arm()
+AT (0, 0, d_GS) ABSOLUTE
+ROTATED (0, tDy*t, 0) ABSOLUTE
+
+COMPONENT sample = Incoherent(
+ radius = 0.005, yheight = 0.01,
+ thickness = 0.001, focus_aw = 20,
+ focus_ah = 0.5, target_index = 2)
+AT (0, 0, 0) RELATIVE Arm_sample
+
+COMPONENT Arm_0 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[0], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_0 = Monochromator_flat(
+ zwidth = 2*len[0]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[0]) RELATIVE Arm_0
+ROTATED (dtA_0/2, 90, 0) RELATIVE Arm_0
+
+COMPONENT Arm_2 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[2], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_2 = Monochromator_flat(
+ zwidth = 2*len[2]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[2]) RELATIVE Arm_2
+ROTATED (dtA_2/2, 90, 0) RELATIVE Arm_2
+
+COMPONENT Arm_4 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[4], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_4 = Monochromator_flat(
+ zwidth = 2*len[4]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[4]) RELATIVE Arm_4
+ROTATED (dtA_4/2, 90, 0) RELATIVE Arm_4
+
+COMPONENT Arm_6 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[6], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_6 = Monochromator_flat(
+ zwidth = 2*len[6]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[6]) RELATIVE Arm_6
+ROTATED (dtA_6/2, 90, 0) RELATIVE Arm_6
+
+COMPONENT Arm_8 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[8], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_8 = Monochromator_flat(
+ zwidth = 2*len[8]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[8]) RELATIVE Arm_8
+ROTATED (dtA_8/2, 90, 0) RELATIVE Arm_8
+
+COMPONENT Arm_10 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[10], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_10 = Monochromator_flat(
+ zwidth = 2*len[10]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[10]) RELATIVE Arm_10
+ROTATED (dtA_10/2, 90, 0) RELATIVE Arm_10
+
+COMPONENT Arm_12 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[12], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_12 = Monochromator_flat(
+ zwidth = 2*len[12]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[12]) RELATIVE Arm_12
+ROTATED (dtA_12/2, 90, 0) RELATIVE Arm_12
+
+COMPONENT Arm_14 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[14], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_14 = Monochromator_flat(
+ zwidth = 2*len[14]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[14]) RELATIVE Arm_14
+ROTATED (dtA_14/2, 90, 0) RELATIVE Arm_14
+
+COMPONENT Arm_16 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[16], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_16 = Monochromator_flat(
+ zwidth = 2*len[16]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[16]) RELATIVE Arm_16
+ROTATED (dtA_16/2, 90, 0) RELATIVE Arm_16
+
+COMPONENT Arm_18 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[18], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_18 = Monochromator_flat(
+ zwidth = 2*len[18]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[18]) RELATIVE Arm_18
+ROTATED (dtA_18/2, 90, 0) RELATIVE Arm_18
+
+COMPONENT Arm_20 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[20], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_20 = Monochromator_flat(
+ zwidth = 2*len[20]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[20]) RELATIVE Arm_20
+ROTATED (dtA_20/2, 90, 0) RELATIVE Arm_20
+
+COMPONENT Arm_22 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[22], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_22 = Monochromator_flat(
+ zwidth = 2*len[22]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[22]) RELATIVE Arm_22
+ROTATED (dtA_22/2, 90, 0) RELATIVE Arm_22
+
+COMPONENT Arm_24 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[24], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_24 = Monochromator_flat(
+ zwidth = 2*len[24]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[24]) RELATIVE Arm_24
+ROTATED (dtA_24/2, 90, 0) RELATIVE Arm_24
+
+COMPONENT Arm_26 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[26], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_26 = Monochromator_flat(
+ zwidth = 2*len[26]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[26]) RELATIVE Arm_26
+ROTATED (dtA_26/2, 90, 0) RELATIVE Arm_26
+
+COMPONENT Arm_28 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[28], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_28 = Monochromator_flat(
+ zwidth = 2*len[28]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[28]) RELATIVE Arm_28
+ROTATED (dtA_28/2, 90, 0) RELATIVE Arm_28
+
+COMPONENT Arm_30 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[30], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_30 = Monochromator_flat(
+ zwidth = 2*len[30]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[30]) RELATIVE Arm_30
+ROTATED (dtA_30/2, 90, 0) RELATIVE Arm_30
+
+COMPONENT Arm_32 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[32], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_32 = Monochromator_flat(
+ zwidth = 2*len[32]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[32]) RELATIVE Arm_32
+ROTATED (dtA_32/2, 90, 0) RELATIVE Arm_32
+
+COMPONENT Arm_34 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[34], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_34 = Monochromator_flat(
+ zwidth = 2*len[34]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[34]) RELATIVE Arm_34
+ROTATED (dtA_34/2, 90, 0) RELATIVE Arm_34
+
+COMPONENT Arm_36 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[36], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_36 = Monochromator_flat(
+ zwidth = 2*len[36]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[36]) RELATIVE Arm_36
+ROTATED (dtA_36/2, 90, 0) RELATIVE Arm_36
+
+COMPONENT Arm_38 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[38], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_38 = Monochromator_flat(
+ zwidth = 2*len[38]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[38]) RELATIVE Arm_38
+ROTATED (dtA_38/2, 90, 0) RELATIVE Arm_38
+
+COMPONENT Arm_40 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[40], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_40 = Monochromator_flat(
+ zwidth = 2*len[40]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[40]) RELATIVE Arm_40
+ROTATED (dtA_40/2, 90, 0) RELATIVE Arm_40
+
+COMPONENT Arm_42 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[42], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_42 = Monochromator_flat(
+ zwidth = 2*len[42]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[42]) RELATIVE Arm_42
+ROTATED (dtA_42/2, 90, 0) RELATIVE Arm_42
+
+COMPONENT Arm_44 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[44], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_44 = Monochromator_flat(
+ zwidth = 2*len[44]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[44]) RELATIVE Arm_44
+ROTATED (dtA_44/2, 90, 0) RELATIVE Arm_44
+
+COMPONENT Arm_46 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[46], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_46 = Monochromator_flat(
+ zwidth = 2*len[46]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[46]) RELATIVE Arm_46
+ROTATED (dtA_46/2, 90, 0) RELATIVE Arm_46
+
+COMPONENT Arm_48 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[48], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_48 = Monochromator_flat(
+ zwidth = 2*len[48]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[48]) RELATIVE Arm_48
+ROTATED (dtA_48/2, 90, 0) RELATIVE Arm_48
+
+COMPONENT Arm_50 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[50], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_50 = Monochromator_flat(
+ zwidth = 2*len[50]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[50]) RELATIVE Arm_50
+ROTATED (dtA_50/2, 90, 0) RELATIVE Arm_50
+
+COMPONENT Arm_52 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[52], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_52 = Monochromator_flat(
+ zwidth = 2*len[52]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[52]) RELATIVE Arm_52
+ROTATED (dtA_52/2, 90, 0) RELATIVE Arm_52
+
+COMPONENT Arm_54 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[54], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_54 = Monochromator_flat(
+ zwidth = 2*len[54]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[54]) RELATIVE Arm_54
+ROTATED (dtA_54/2, 90, 0) RELATIVE Arm_54
+
+COMPONENT Arm_56 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[56], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_56 = Monochromator_flat(
+ zwidth = 2*len[56]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[56]) RELATIVE Arm_56
+ROTATED (dtA_56/2, 90, 0) RELATIVE Arm_56
+
+COMPONENT Arm_58 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (-dtS[58], 0, 0) RELATIVE Arm_sample
+
+COMPONENT Analyzer_58 = Monochromator_flat(
+ zwidth = 2*len[58]*sin(tDy/2*DEG2RAD), yheight = width,
+ mosaich = 90, mosaicv = 90,
+ r0 = 0.8, Q = 1.87278)
+AT (0, 0, len[58]) RELATIVE Arm_58
+ROTATED (dtA_58/2, 90, 0) RELATIVE Arm_58
+
+COMPONENT arm_detector_0 = Arm()
+AT (0, 0, 0) RELATIVE Arm_sample
+ROTATED (0, tDy*0-tDy*0.5, 0) RELATIVE Arm_sample
+
+COMPONENT det_He3_0_ToF = Monitor_nD(
+ xwidth = width, yheight = h_D,
+ options = "cylinder, y, limits=[-0.2,0.2], bins=80, t, limits = [0.26,0.28], bins=500", filename = "Detector_0_ToF.dat")
+AT (0, d_SDy, d_SDz) RELATIVE PREVIOUS
+ROTATED (0, tDy*0-tDy*0.5, 0) RELATIVE Arm_sample
+
+FINALLY 
+%{
+  // Start of finally for generated KVASIR
+%}
+
+END

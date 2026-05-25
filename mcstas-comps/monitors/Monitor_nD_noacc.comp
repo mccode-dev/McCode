@@ -37,10 +37,10 @@
 * The monitored flux may be per monitor unit area, and weighted by
 * a lambda/lambda(2200m/s) factor to obtain standard integrated capture flux.
 * In normal configuration, the Monitor_nD measures the current parameters
-* of the neutron that is beeing detected. But a PreMonitor_nD component can
+* of the neutron that is beeing detected. USERVARS can
 * be used in order to study correlations between a neutron being detected in
 * a Monitor_nD place, and given parameters that are monitored elsewhere
-* (at <b>PreMonitor_nD</b>).
+* (at the point of initialisation of the USERVARS).
 * The monitor can also act as a 3He gas detector, taking into account the
 * detection efficiency.
 *
@@ -70,7 +70,7 @@
 * longitude, lattitude: [-180 180] deg
 * neutron: [0 simulaton_ncount]
 * id, pixel id: [0 FLT_MAX]
-* uservars u1,u2,u3: [-1e10 1e10]
+* uservars u0,u1,u2,u3,u4,u5,u6,u7,u8,u9: [-1e10 1e10]
 *
 * In the case of multiple components at the same position, the 'parallel'
 * keyword must be used in each instance instead of defining a GROUP.
@@ -93,8 +93,13 @@
 *     theta longitude       [deg]    longitude (x/z) for sphere and cylinder
 *     phi   lattitude       [deg]    lattitude (y/z) for sphere and cylinder
 *
-*     user user1            will monitor the [Mon_Name]_Vars.UserVariable{1|2|3}
+*     user0 user1           will monitor the [Mon_Name]_Vars.UserVariable{0|1|2|3|4|5}
 *     user2 user3           to be assigned in an other component (see below)
+*     user4 user5
+*     user6 user7
+*     user8 user9
+*
+* Premonitoring:            Please use uservars in place of the former PreMonitor_nD.
 *
 *     p intensity flux      [n/s  or  n/cm^2/s]
 *     ncounts n neutron     [1]      neutron ID, i.e current event index
@@ -121,7 +126,6 @@
 *     parallel                  Use this option when the next component is at the same position (parallel components)
 *     per cm2                   Intensity will be per cm^2 (detector area). Displays beam section.
 *     per steradian             Displays beam solid angle in steradian
-*     premonitor                Will monitor neutron parameters stored previously with <b>PreMonitor_nD</b>.
 *     signal=[var]              Will monitor [var] instead of usual intensity
 *     slit or absorb            Absorb neutrons that are out detector
 *     source                    The monitor will save neutron states
@@ -181,8 +185,6 @@
 *       options="user1, auto")
 *      AT ...
 *
-* See also the example in <a href="PreMonitor_nD.html">PreMonitor_nD</a> to
-* monitor neutron parameters cross-correlations.
 *
 * %BUGS
 * The 'auto' option for guessing optimal variable bounds should NOT be used with MPI
@@ -208,12 +210,26 @@
 * bins: [1]              Number of bins to force for all variables. Use 'bins' keyword in 'options' for heterogeneous bins
 * min: [u]               Minimum range value to force for all variables. Use 'min' or 'limits' keyword in 'options' for other limits
 * max: [u]               Maximum range value to force for all variables. Use 'max' or 'limits' keyword in 'options' for other limits
+* user0: [str]           Variable name of USERVAR to be monitored by user0.
 * user1: [str]           Variable name of USERVAR to be monitored by user1.
 * user2: [str]           Variable name of USERVAR to be monitored by user2.
 * user3: [str]           Variable name of USERVAR to be monitored by user3.
+* user4: [str]           Variable name of USERVAR to be monitored by user4.
+* user5: [str]           Variable name of USERVAR to be monitored by user5.
+* user6: [str]           Variable name of USERVAR to be monitored by user6.
+* user7: [str]           Variable name of USERVAR to be monitored by user7.
+* user8: [str]           Variable name of USERVAR to be monitored by user8.
+* user9: [str]           Variable name of USERVAR to be monitored by user9.
+* username0: [str]       Name assigned to User0
 * username1: [str]       Name assigned to User1
 * username2: [str]       Name assigned to User2
 * username3: [str]       Name assigned to User3
+* username4: [str]       Name assigned to User4
+* username5: [str]       Name assigned to User5
+* username6: [str]       Name assigned to User6
+* username7: [str]       Name assigned to User7
+* username8: [str]       Name assigned to User8
+* username9: [str]       Name assigned to User9
 * restore_neutron: [0|1] If set, the monitor does not influence the neutron state. Equivalent to setting the 'parallel' option.
 * geometry: [str]        Name of an OFF file to specify a complex geometry detector
 * nowritefile: [1]      If set, monitor will skip writing to disk
@@ -225,19 +241,22 @@
 * Vars: [struct]         structure containing Monitor_nD variables
 *
 * %Link
-* <a href="PreMonitor_nD.html">PreMonitor_nD</a>
 *
 * %End
 ******************************************************************************/
 DEFINE COMPONENT Monitor_nD_noacc
 
 SETTING PARAMETERS (
-  string user1="", string user2="", string user3="",
+  string user0="", string user1="", string user2="", string user3="",
+  string user4="", string user5="", string user6="", string user7="",
+  string user8="", string user9="",
   xwidth=0, yheight=0, zdepth=0,
   xmin=0, xmax=0, ymin=0, ymax=0, zmin=0, zmax=0,
   int bins=0, min=-1e40, max=1e40, int restore_neutron=0, radius=0,
   string options="NULL", string filename="NULL",string geometry="NULL", int nowritefile=0, int nexus_bins=0,
-  string username1="NULL", string username2="NULL", string username3="NULL"
+  string username0="NULL",string username1="NULL", string username2="NULL", string username3="NULL",
+  string username4="NULL",string username5="NULL", string username6="NULL", string username7="NULL",
+  string username8="NULL", string username9="NULL"
 )
 /* these are protected C variables */
 
@@ -291,9 +310,25 @@ INITIALIZE
   }
 
   /* transfer, "zero", and check username- and user variable strings to Vars struct*/
+  strncpy (Vars.UserName0, username1&& strlen (username0) && strcmp (username0, "0") && strcmp (username0, "NULL") ? username0 : "", 128);
   strncpy (Vars.UserName1, username1&& strlen (username1) && strcmp (username1, "0") && strcmp (username1, "NULL") ? username1 : "", 128);
   strncpy (Vars.UserName2, username2&& strlen (username2) && strcmp (username2, "0") && strcmp (username2, "NULL") ? username2 : "", 128);
   strncpy (Vars.UserName3, username3&& strlen (username3) && strcmp (username3, "0") && strcmp (username3, "NULL") ? username3 : "", 128);
+  strncpy (Vars.UserName4, username4&& strlen (username4) && strcmp (username4, "0") && strcmp (username4, "NULL") ? username4 : "", 128);
+  strncpy (Vars.UserName5, username5&& strlen (username5) && strcmp (username5, "0") && strcmp (username5, "NULL") ? username5 : "", 128);
+  strncpy (Vars.UserName6, username6&& strlen (username6) && strcmp (username6, "0") && strcmp (username6, "NULL") ? username6 : "", 128);
+  strncpy (Vars.UserName7, username7&& strlen (username7) && strcmp (username7, "0") && strcmp (username7, "NULL") ? username7 : "", 128);
+  strncpy (Vars.UserName8, username8&& strlen (username8) && strcmp (username8, "0") && strcmp (username8, "NULL") ? username8 : "", 128);
+  strncpy (Vars.UserName9, username9&& strlen (username9) && strcmp (username9, "0") && strcmp (username9, "NULL") ? username9 : "", 128);
+  if (user0 && strlen (user0) && strcmp (user0, "0") && strcmp (user0, "NULL")) {
+    strncpy (Vars.UserVariable0, user0, 128);
+    int fail;
+    _class_particle testparticle;
+    particle_getvar (&testparticle, Vars.UserVariable0, &fail);
+    if (fail) {
+      fprintf (stderr, "Warning (%s): user0=%s is unknown. The signal will not be resolved - this is likely not what you intended.\n", NAME_CURRENT_COMP, user0);
+    }
+  }
   if (user1 && strlen (user1) && strcmp (user1, "0") && strcmp (user1, "NULL")) {
     strncpy (Vars.UserVariable1, user1, 128);
     int fail;
@@ -319,6 +354,60 @@ INITIALIZE
     particle_getvar (&testparticle, Vars.UserVariable3, &fail);
     if (fail) {
       fprintf (stderr, "Warning (%s): user3=%s is unknown. The signal will not be resolved - this is likely not what you intended.\n", NAME_CURRENT_COMP, user3);
+    }
+  }
+  if (user4 && strlen (user4) && strcmp (user4, "0") && strcmp (user4, "NULL")) {
+    strncpy (Vars.UserVariable4, user4, 128);
+    int fail;
+    _class_particle testparticle;
+    particle_getvar (&testparticle, Vars.UserVariable4, &fail);
+    if (fail) {
+      fprintf (stderr, "Warning (%s): user4=%s is unknown. The signal will not be resolved - this is likely not what you intended.\n", NAME_CURRENT_COMP, user4);
+    }
+  }
+  if (user5 && strlen (user5) && strcmp (user5, "0") && strcmp (user5, "NULL")) {
+    strncpy (Vars.UserVariable5, user5, 128);
+    int fail;
+    _class_particle testparticle;
+    particle_getvar (&testparticle, Vars.UserVariable5, &fail);
+    if (fail) {
+      fprintf (stderr, "Warning (%s): user5=%s is unknown. The signal will not be resolved - this is likely not what you intended.\n", NAME_CURRENT_COMP, user5);
+    }
+  }
+  if (user6 && strlen (user6) && strcmp (user6, "0") && strcmp (user6, "NULL")) {
+    strncpy (Vars.UserVariable6, user6, 128);
+    int fail;
+    _class_particle testparticle;
+    particle_getvar (&testparticle, Vars.UserVariable6, &fail);
+    if (fail) {
+      fprintf (stderr, "Warning (%s): user6=%s is unknown. The signal will not be resolved - this is likely not what you intended.\n", NAME_CURRENT_COMP, user6);
+    }
+  }
+  if (user7 && strlen (user7) && strcmp (user7, "0") && strcmp (user7, "NULL")) {
+    strncpy (Vars.UserVariable7, user7, 128);
+    int fail;
+    _class_particle testparticle;
+    particle_getvar (&testparticle, Vars.UserVariable7, &fail);
+    if (fail) {
+      fprintf (stderr, "Warning (%s): user7=%s is unknown. The signal will not be resolved - this is likely not what you intended.\n", NAME_CURRENT_COMP, user7);
+    }
+  }
+  if (user8 && strlen (user8) && strcmp (user8, "0") && strcmp (user8, "NULL")) {
+    strncpy (Vars.UserVariable8, user8, 128);
+    int fail;
+    _class_particle testparticle;
+    particle_getvar (&testparticle, Vars.UserVariable8, &fail);
+    if (fail) {
+      fprintf (stderr, "Warning (%s): user8=%s is unknown. The signal will not be resolved - this is likely not what you intended.\n", NAME_CURRENT_COMP, user8);
+    }
+  }
+  if (user9 && strlen (user9) && strcmp (user9, "0") && strcmp (user9, "NULL")) {
+    strncpy (Vars.UserVariable9, user9, 128);
+    int fail;
+    _class_particle testparticle;
+    particle_getvar (&testparticle, Vars.UserVariable9, &fail);
+    if (fail) {
+      fprintf (stderr, "Warning (%s): user9=%s is unknown. The signal will not be resolved - this is likely not what you intended.\n", NAME_CURRENT_COMP, user9);
     }
   }
 
@@ -371,7 +460,7 @@ INITIALIZE
   if (!radius && !xwidth && !yheight && !zdepth && !xmin && !xmax && !ymin && !ymax && !strstr (Vars.option, "previous") && (!geometry || !strlen (geometry)))
     exit (printf ("Monitor_nD: %s has no dimension specified. Aborting (radius, xwidth, yheight, zdepth, previous, geometry).\n", NAME_CURRENT_COMP));
 
-  Monitor_nD_Init (&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, offflag, nexus_bins);
+  Monitor_nd_noaccInit (&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, offflag, nexus_bins);
 
   if (Vars.Flag_OFF) {
     offdata.mantidflag = Vars.Flag_mantid;
@@ -529,21 +618,6 @@ TRACE
   }
 
   if (intersect) {
-    /* Now get the data to monitor: current or keep from PreMonitor */
-    /*    if (Vars.Flag_UsePreMonitor != 1)*/
-    /*    {*/
-    /*      Vars.cp  = p;*/
-    /*      Vars.cx  = x;*/
-    /*      Vars.cvx = vx;*/
-    /*      Vars.csx = sx;*/
-    /*      Vars.cy  = y;*/
-    /*      Vars.cvy = vy;*/
-    /*      Vars.csy = sy;*/
-    /*      Vars.cz  = z;*/
-    /*      Vars.cvz = vz;*/
-    /*      Vars.csz = sz;*/
-    /*      Vars.ct  = t;*/
-    /*    }*/
 
     if ((Vars.He3_pressure > 0) && (t1 != t0)
         && ((abs (Vars.Flag_Shape) == DEFS.SHAPE_SPHERE) || (abs (Vars.Flag_Shape) == DEFS.SHAPE_CYLIND) || (abs (Vars.Flag_Shape) == DEFS.SHAPE_BOX))) {

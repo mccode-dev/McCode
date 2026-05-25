@@ -344,6 +344,8 @@ INITIALIZE
       new_tagging_element = malloc (sizeof (struct global_tagging_conditional_element_struct));
       new_tagging_element->extend_index = tagging_extend_index;
       new_tagging_element->conditional_list.num_elements = 0;
+	  new_tagging_element->conditional_list.p_data_unions = NULL;		  
+      new_tagging_element->conditional_list.conditional_functions = NULL;	  
       strcpy (new_tagging_element->name, NAME_CURRENT_COMP);
 
       // printf("adding new element to global_tagging_conditional_list \n");
@@ -477,7 +479,7 @@ INITIALIZE
       }
 
       // Add a pointer to this conditional function to the list of conditionals for this logger
-      add_function_to_conditional_list (&found_logger->conditional_list, &conditional_function_standard, &this_data_union);
+      add_function_to_conditional_list (&found_abs_logger->conditional_list, &conditional_function_standard, &this_data_union);
     }
     /*
     for (loop_index=0;loop_index<accepted_tagging.num_elements;loop_index++) {
@@ -511,14 +513,11 @@ SAVE
 FINALLY
 %{
   // Remember to clean up allocated lists
-  if (accepted_loggers_specific.num_elements > 0)
-    free (accepted_loggers_specific.elements);
-  if (accepted_loggers_all.num_elements > 0)
-    free (accepted_loggers_all.elements);
-  if (accepted_abs_loggers_specific.num_elements > 0)
-    free (accepted_abs_loggers_specific.elements);
-  if (accepted_abs_loggers_all.num_elements > 0)
-    free (accepted_abs_loggers_all.elements);
+  free (accepted_loggers_specific.elements);
+  free (accepted_loggers_all.elements);
+  free(accepted_abs_loggers_all.elements);
+  free(accepted_abs_loggers_specific.elements);
+  
   // if (accepted_tagging.num_elements > 0) free(accepted_tagging.elements);
 %}
 

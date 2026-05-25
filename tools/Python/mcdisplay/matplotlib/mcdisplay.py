@@ -17,17 +17,17 @@ MC_COMP = 'MCDISPLAY: component'
 MC_COMP_SHORT = 'COMP: '
 
 MC_LINE = 'MCDISPLAY: multiline'
-MC_CIRCLE = 'MCDISPLAY: circle'
+MC_CIRCLE = 'MCDISPLAY: mcdiscircle'
 
-MC_NEW_CIRCLE = 'MCDISPLAY: new_circle'
+MC_NEW_CIRCLE = 'MCDISPLAY: mcdisnew_circle'
 
-MC_DISC = 'MCDISPLAY: disc'
-MC_ANNULUS = 'MCDISPLAY: annulus'
+MC_DISC = 'MCDISPLAY: mcdisdisc'
+MC_ANNULUS = 'MCDISPLAY: mcdisannulus'
 
-MC_CYLINDER = 'MCDISPLAY: cylinder'
-MC_SPHERE = 'MCDISPLAY: sphere'
-MC_BOX = 'MCDISPLAY: box'
-MC_CONE = 'MCDISPLAY: cone'
+MC_CYLINDER = 'MCDISPLAY: mcdiscylinder'
+MC_SPHERE = 'MCDISPLAY: mcdissphere'
+MC_BOX = 'MCDISPLAY: mcdisbox'
+MC_CONE = 'MCDISPLAY: mcdiscone'
 MC_POLYGON = 'MCDISPLAY: polyhedron'
 
 MC_ENTER = 'ENTER:'

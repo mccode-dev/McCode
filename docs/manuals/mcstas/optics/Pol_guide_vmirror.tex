@@ -1,0 +1,82 @@
+\section{The \texttt{Pol\_guide\_vmirror} McStas Component}
+Polarising guide with nvs x 2 supermirrors sitting in v-shapes inside,
+upgraded from original single V-cavity.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Peter Willendrup
+  \item \textbf{Origin:} DTU
+  \item \textbf{Date:} June 2022
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Models a rectangular guide with entrance centered on the Z axis and
+with nvs x two supermirrors sitting in v-shapes inside.
+The entrance lies in the X-Y plane.  Draws a true depiction
+of the guide with mirrors, and trajectories.
+The polarisation is handled similar to in Monochromator_pol.
+The reflec functions are handled similar to Pol_mirror.
+The up direction is hardcoded to be along the y-axis (0, 1, 0)
+
+The reflectivity parameters can be
+1. double pointer initializations with 5 parameters (e.g. {R0, Qc, alpha, m, W} AND inputType=0), or
+2. double pointer initializations with 6 parameters (e.g. {R0, Qc, alpha, m, W, beta} AND inputType=0), or
+3. table names (e.g."supermirror_m2.rfl" AND inputType=1), or
+4. individually assigned values (e.g. rR0=1.0, rQc=0.0217, ... etc AND inputType=2).
+NB! This might cause warnings by the compiler that can be ignored.
+Note that the reflectivity functions that use with values and those that use tables are different.
+
+GRAVITY: YES
+
+%BUGS
+No absorption by mirror.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+nvs & 1 & Number of V-cavities across width of guide & 1 \\
+xwidth & m & Width at the guide entry & 0.1 \\
+yheight & m & Height at the guide entry & 0.1 \\
+length & m & length of guide & 0.5 \\
+rR0 & 1 & Cavity wall reflectivity below critical scattering vector, use with inputType = 2 & 1.0 \\
+rQc & AA-1 & Cavity wall reflectivity critical scattering vector, use natural Ni (m=1 definition) value of 0.0217, use with inputType = 2 & 0.0217 \\
+ralpha & AA & Cavity wall slope of reflectivity, use with inputType = 2 & 6.5 \\
+rmSM & 1 & Cavity wall m-value of material. Zero means completely absorbing. Use with inputType = 2 & 2 \\
+rW & AA-1 & Cavity wall width of reflectivity cut-off, use with inputType = 2 & 0.00157 \\
+rbeta & AA2 & Cavity wall curvature of reflectivity, use with inputType = 2 & 80 \\
+rUpR0 & 1 & Mirror spin up reflectivity below critical scattering vector, use with inputType = 2 & 1.0 \\
+rUpQc & AA-1 & Mirror spin up reflectivity critical scattering vector, use natural Ni (m=1 definition) value of 0.0217, use with inputType = 2 & 0.0217 \\
+rUpalpha & AA & Mirror spin up slope of reflectivity, use with inputType = 2 & 2.47 \\
+rUpmSM & 1 & Mirror spin up m-value of material. Zero means completely absorbing. Use with inputType = 2 & 4 \\
+rUpW & AA-1 & Mirror spin up width of reflectivity cut-off, use with inputType = 2 & 0.0014 \\
+rUpbeta & AA2 & Mirror spin up curvature of reflectivity, use with inputType = 2 & 0 \\
+rDownR0 & 1 & Mirror spin down reflectivity below critical scattering vector, use with inputType = 2 & 1.0 \\
+rDownQc & AA-1 & Mirror spin down reflectivity critical scattering vector, use natural Ni (m=1 definition) value of 0.0217, use with inputType = 2 & 0.0217 \\
+rDownalpha & AA & Mirror spin down slope of reflectivity, use with inputType = 2 & 1 \\
+rDownmSM & 1 & Mirror spin down m-value of material. Zero means completely absorbing. Use with inputType = 2 & 0.65 \\
+rDownW & AA-1 & Mirror spin down width of reflectivity cut-off, use with inputType = 2 & 0.003 \\
+rDownbeta & AA2 & Mirror spin down curvature of reflectivity, use with inputType = 2 & 0 \\
+debug & 1 & if debug \textgreater{} 0 print out some internal runtime parameters & 0 \\
+allow\_inside\_start & 1 & Allow neutron to start inside cavity (no propagation to entry plane) & 0 \\
+rPar & 1 & Cavity wall parameters array for rFunc, use with inputType = 0 & \{1.0, 0.0217, 6.5, 2, 0.00157, 80\} \\
+rUpPar & 1 & Mirror Parameters array for rUpFunc, use with inputType = 0 & \{1.0, 0.0217, 2.47, 4, 0.0014\} \\
+rDownPar & 1 & Mirror Parameters for rDownFunc, use with inputType = 0 & \{1.0, 0.0217, 1, 0.65, 0.003\} \\
+rParFile &  & Cavity wall parameters filename for rFunc, use with inputType = 1 & "" \\
+rUpParFile &  & Mirror Parameters filename for rUpFunc, use with inputType = 1 & "" \\
+rDownParFile &  & Mirror Parameters filename for rDownFunc, use with inputType = 1 & "" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/Pol_guide_vmirror.comp}{Source code} for \texttt{Pol\_guide\_vmirror.comp}.
+\end{itemize}
+\IfFileExists{Pol_guide_vmirror_static.tex}{\input{Pol_guide_vmirror_static.tex}}{}

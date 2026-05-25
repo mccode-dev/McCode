@@ -1,0 +1,156 @@
+\section{ISIS\_moderator: ISIS pulsed moderators}
+\label{isis-moderator}
+\index{Sources!ISIS pulsed moderators}
+
+%\component{ISIS\_moderator}{S. Ansell and D. Champion, ISIS}{Face,$E0, E1,dist,xw,yh,CAngle,SAC$ }{modXsize,modYsize}{Validated. Low statistics above 20 \AA. Kink aroung 9 \AA.}
+%\mcdoccomp{sources/ISIS_moderator.parms}
+
+\subsection{Introduction}
+
+The following document describes the functions obtained for models of
+TS2 as described in Table~\ref{desc}:
+
+\begin{table}[h]
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+target & 3.4cm diameter tantalum clad tungsten \\
+\hline
+reflector & Be + D$_2$O (80:20) at 300K \\
+\hline
+Composite Moderator & H$_2$ + CH$_4$ \\
+Coupled         & Groove: 3x8.\.{3} cm 26K solid-CH$_4$ \\
+                & Hydrogen: 12x11cm 22K liquid H$_2$ \\
+\hline
+Poisoned Moderator &  solid-CH$_4$ 26K  \\
+Decoupled           & Narrow: Gd poison at 2.4 cm - 8 vanes\\
+                    &  Broad: 3.3 cm -- not fully decoupled \\
+\hline
+PreModerators & 0.85 cm and 0.75 cm H$_2$O \\
+\hline
+\end{tabular}
+\caption{Description of Models}
+\label{desc}
+\end{center}
+\end{table}
+%Table 1: \textbf{Description of Models}
+
+TS1 model is from the tungsten target as currently installed and
+positioned. The model also includes the MERLIN moderator, this
+makes no significant difference to the other moderator faces.
+
+
+
+
+\subsection{Using the McStas Module}
+
+You MUST first set the environment variable `MCTABLES' to be the
+full path of the directory containing the table files:
+\begin{lstlisting}
+BASH: export MCTABLES=/usr/local/lib/mcstas/contrib/ISIS_tables/
+TCSH: setenv MCTABLES /usr/local/lib/mcstas/contrib/ISIS_tables/
+\end{lstlisting}
+In Windows this can be done using the `My Computer' properties and
+selecting the `Advanced' tab and the Environment variables button.
+This can of course be overridden by placing the appropriate moderator (h.\textit{{face}}) files in the
+working directory.
+
+The module requires a set of variables
+listed in Table~\ref{vars} and described below.
+
+The \textit{Face} variable determines the moderator surface that will
+be viewed. There are two types of \textit{Face} variable: i)  Views
+from the centre of each moderator face defined by the name of the
+moderator, for TS1: Water, H2, CH4, Merlin and TS2: Hydrogen,
+Groove, Narrow, Broad. ii) Views seen by each beamline, for TS1:
+Prisma, Maps, crisp etc. and for TS2: E1-E9 (East) and W1-W9
+(West).
+
+The \MCS distribution includes some example moderator files for TS1 (water,h2,ch4) and TS2 (broad, narrow, hydrogen, groove), but others are available at \\ \verb+http://www.isis.rl.ac.uk/Computing/Software/MC/+, including instrument specific models.
+
+% Views seen by each beamline, for TS1 N-N (North) and S-S
+% (south) and TS2: E1-E9 (East) and W1-W9 (West).
+
+
+Variables \textit{E0} and \textit{E1} define an energy window for sampled neutrons.
+This can be used to increase the statistical
+accuracy of chopper and mirrored instruments. However, \textit{E0} and
+\textit{E1} cannot be equal (although they can be close). By default these arguments
+select energy in meV, if negative values are given, selection will be in terms of Angstroms.
+
+Variables \textit{dist}, \textit{xw} and \textit{yh} are the three
+component which will determine the directional acceptance window.
+They define a rectangle with centre at (0,0,dist) from the
+moderator position and with width \textit{xw} meters and height \textit{yh} meters.
+The initial direction of all the neutrons are chosen (randomly) to
+originate from a point on the moderator surface and along a
+vector, such that without obstruction (and gravitational effects),
+they would pass through the rectangle. This should be used as a
+directional guide. All the neutrons start from the surface of the
+moderator and will be diverted/absorbed if they encountered other
+components. The guide system can be turned off by setting \textit{
+dist} to zero.
+
+The \textit{CAngle} variable is used to rotate the viewed direction
+of the moderator and reduces the effective solid angle of the
+moderator face. Currently it is only for the horizontal plane.
+This is redundant since there are beamline specific h.\textit{{face}} files.
+
+The two variables \textit{modYsize} and \textit{modXsize}
+allow the moderators to be effectively reduced/increased. If
+these variables are given  negative or zero values then they default to the actual
+visible surface size of the moderators.
+
+The last variable \textit{SAC} will correct for the different solid angle seen by two
+focussing windows which are at different distances from the moderator surface. The
+normal measurement of flux is in neutrons/second/\AA/cm{$^2$}/str, but in a detector
+it is measured in neutrons/second. Therefore if all other denominators in the flux are
+multiplied out then the flux at a point-sized focus window should follow an inverse square law.
+This solid angle correction is made if the \textit{SAC} variable is set equal to 1, it will not be
+calculated if \textit{SAC} is set to zero. It is advisable to select this variable at all times as it will give the most realistic results
+
+\subsection{Comparing TS1 and TS2}
+The Flux data provided in both sets of h.\textit{{face}} files is for 60 {$\mu$}Amp sources. To compare TS1 and TS2, the TS1 data must be multiplied by three (current average strength of TS1 source ~180 {$\mu$}Amps). When the 300 {$\mu$}Amp upgrade happens this factor should be revised accordingly.
+\begin{table}[tbp]
+\begin{center}
+\begin{tabular}{|p{0.7in}|p{0.4in}|p{1.7in}|p{0.35in}|p{2.0in}|}
+\hline
+Variable & Type & Options & Units & Description \\
+\hline Face (TS2) & char* &  i) Hydrogen Groove Narrow~Broad,
+~~~~~~~~~~~~~~ii) E1-E9 W1-W9 & -- &
+String which designates the name of the face \\
+\hline Face (TS1) & char* &  i) H2 CH4 Merlin ~~~~~~ Water,  ii)
+Maps Crisp Gem EVS HET HRPD Iris Mari Polaris Prisma Sandals Surf
+SXD Tosca & -- &
+String which designates the name of the face \\
+\hline
+E0 & float & 0$<$E0$<$E1 & meV (\AA) & Only neutrons above this energy are sampled
+\\
+E1 & float & E0$<$E1$<$1e10 & meV (\AA) & Only neutrons below this energy are
+sampled \\
+\hline
+dist & float & $0< dist <\infty$ & m & Distance of focus window from
+face of moderator \\
+xw & float & $0<xw<\infty$ & m & x width of the focus window  \\
+yh & float & $0<yh<\infty$ & m & y height of the focus window  \\
+\hline
+CAngle & float & -360 $< CAngle <$ 360 & $^o$ & Horizontal angle from
+the normal to the moderator surface\\
+\hline
+modXsize & float & $0<modXsize<\infty$ & m & Horizontal size of the
+moderator (defaults to actual size) \\
+modYsize & float & $0<modYsize<\infty$ & m & Vertical size of the
+moderator (defaults to actual size) \\
+\hline
+SAC & int & 0,1 & n/a & Solid Angle Correction \\
+\hline
+\end{tabular}
+\caption{Brief Description of Variables}
+\label{vars}
+\end{center}
+\end{table}
+
+\subsection{Bugs}
+
+Sometimes if a particularly long wavelength ( $> 20$ \AA) is requested there may be problems with sampling the data. In general the data used for long wavelengths should only be taken as a guide and not used for accurate simulations. At 9 \AA there is a kink in the distribution which is also to do with the MCNPX model changing. If this energy is sampled over then the results should be considered carefully.
+

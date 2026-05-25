@@ -57,6 +57,8 @@ bandwidth for detector distances:
 
 DECLARE
 %{
+  double polz_w1;
+  double polz_w2; 
 %}
 
 USERVARS
@@ -67,6 +69,14 @@ USERVARS
 
 INITIALIZE
 %{
+  // Avoid nasty divide-by-zero in default cnum=0 case:
+  if (!cnum) {
+    polz_w1 = 0.05;
+    polz_w2 = 0.05;
+  } else {
+    polz_w1 = 0.05/cnum;
+    polz_w2 = 0.05/cnum;
+  }
 %}
 TRACE
 
@@ -122,8 +132,8 @@ COMPONENT cav1 = CavitiesIn(xw=0.05,yw=0.05,xc=cnum,yc=1)
 
 /* Polarizer as parametrized by H. Frielinghaus for KWS-1 at FRM-2, Mirror pars by Swiss Neutronics */
 COMPONENT polzr  = Transmission_polarisatorABSnT(
-  w1 = 0.05/cnum, h1 = 0.05,
-  w2 = 0.05/cnum, h2 = 0.05,
+  w1 = polz_w1, h1 = 0.05,
+  w2 = polz_w2, h2 = 0.05,
   l  = PolLen,
   R0 = 0.99, Qc = 0.02174, alpha = 4.25, W = 0.003,
   mleft = dfltM, mright = dfltM, mtop = Min, mbottom = Min,

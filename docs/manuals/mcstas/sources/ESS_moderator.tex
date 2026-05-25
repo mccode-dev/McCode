@@ -1,0 +1,84 @@
+\section{The \texttt{ESS\_moderator} McStas Component}
+A parametrised pulsed source for modelling ESS long pulses.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} P Willendrup and E Klinkby, February 2014, derived from K Lefmann ESS\_moderator\_long
+  \item \textbf{Origin:} DTU
+  \item \textbf{Date:} 
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Produces a time-of-flight spectrum, from the ESS parameters
+Chooses evenly in lambda, evenly/exponentially decaying in time
+Adapted from ESS_moderator_long by: K Lefmann, 2001
+
+Updates and simplified interface:
+<ol>
+<li>The spectrum from the source(s) is defined via the sourcedef string input parameter which allows these values:
+<ul>
+<li>sourcedef="2001", legacy "Mezei moderators" from the original F. Mezei documents
+"ESS reference moderator characteristics for generic instrument performance evaluation", but rescaled to ESS TDR frequency, pulselength and power.
+<li>sourcedef="TDR", Mezei moderators, with a wavelength-dependent correction term to the cold flux, derived from
+2012 MCNPX calculations by ESS neutronics group. Corrections calculated by K Lieutenant (Vitess) and
+implemented here by E Klinkby. NOTE: uses the 2001 brilliance for the thermal moderator!
+<li>sourcedef="2014", updated brilliance using formulation by Troels Schoenfeldt, including support for the "pancacke", i.e. flat geometry.
+<li>sourcedef="2015", updated brilliance using formulation by Troels Schoenfeldt, new butterfly baseline.
+</ul>
+<li>The component can use target_index for focusing to a given beam port. Use an Arm() and ROTATED to position
+relatively to the moderator.
+<li>The component relies on the new ess_source-lib which is expected to become further enriched during design-finaliziation and construciton of the ESS.
+</ol>
+
+<p><b>Note that this component does not implement "engineering reality" and currently uses a coordinate system centered on the moderator assembly. An
+updated moderator component which references the "Moderator focus coordinate system" will be released later during the spring of 2016.</b>
+
+<p>Derived from ESS_moderator_long which was debugged intensively against Mezei note (4/12 2000) and VitESS @ Rencurel 2006.
+
+-----------------------------------------------
+Correction by J. Saroun, NPI Rez:
+1) version 2015: accepts negative port angles
+2) version 2015: weight by cosine of the port angle
+Warning: The negative beamport angle is not taken into acccount by mcplot
+
+%VALIDATION
+Mezei-modererators validated against VitESS and Mezei note (4/12 2000) @ Rencurel 2006
+Benchmarked against multiple versions of ESS moderator group simulation data 2013-2015
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+isleft & 1 & Fraction of thermal neutrons generated at the "left" moderator slab in case of "2013" or "2014" & 0.9 \\
+\textbf{Lmin} & AA & Lower edge of wavelength distribution &  \\
+\textbf{Lmax} & AA & Upper edge of wavelength distribution &  \\
+cold\_frac & 1 & Fraction of neutron statistics from cold source. It is implicitely assumed that supermirror allows each beamline to choose the desired fraction of cold and thermal neutrons (i.e. extreme idealization). & 1.0 \\
+dist & m & Distance from source to focusing rectangle; at (0,0,dist) & 0 \\
+\textbf{focus\_xw} & m & Width of focusing rectangle &  \\
+\textbf{focus\_yh} & m & Height of focusing rectangle &  \\
+target\_index & 1 & relative index of component to focus at, e.g. next is +1 this is used to compute 'dist' automatically. & 0 \\
+tmax\_multiplier & 1 & Defined maximum emission time at moderator, tmax= tmax\_multiplier * ESS\_PULSE\_DURATION. Only in combination with sourcedef="2013", "2014" or "2015" & 3 \\
+yheight\_c & m & Height of the cold source & 0.12 \\
+yheight\_t & m & Height of the thermal source & 0.12 \\
+n\_pulses & 1 & Number of pulses simulated. 0 and 1 creates one pulse. The integrated intensity is constant & 1 \\
+acc\_power & MW & Accelerator power in MW & 5 \\
+beamport\_angle & deg & Direction within the beamport sector (0 \textless{} angle \textless{} extraction\_opening for 2014, -extraction\_opening/2 \textless{} angle \textless{} extraction\_opening/2 for 2015) to direct neutrons. For sourcedef="2015", the only allowed values are 5,15,...,55 degrees measured from the central point. & -1 \\
+sourcedef & string & ESS source "database", values: "TDR", "2001", "2013", "2014", "2015" & "2015" \\
+xwidth\_c & m & Width / arc-length opening of the cold source. & 0.1 \\
+xwidth\_t & m & Edge of thermal source & 0.18 \\
+extraction\_opening & deg & Width of extraction-area in degrees (60 or 120 degrees). 120 deg only in combination with sourcedef="2014" and "2015". & 120 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/sources/ESS_moderator.comp}{Source code} for \texttt{ESS\_moderator.comp}.
+\end{itemize}
+\IfFileExists{ESS_moderator_static.tex}{\input{ESS_moderator_static.tex}}{}

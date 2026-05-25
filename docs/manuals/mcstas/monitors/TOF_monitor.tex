@@ -1,29 +1,45 @@
-\section{TOF\_monitor: The time-of-flight monitor}
-%\component{TOF\_monitor}{System}{$x_\textrm{min}$, $x_\textrm{max}$, $y_\textrm{min}$, $y_\textrm{max}$, $n_\textrm{chan}$, $t_0$, $t_1$, filename}{$\Delta t$}{}
-\index{Monitors!Time-of-flight monitor}
-\mcdoccomp{monitors/TOF_monitor.parms}
+\section{The \texttt{TOF\_monitor} McStas Component}
+Rectangular Time-of-flight monitor.
 
-The component \textbf{TOF\_monitor} has a rectangular opening
-in the $(x,y)$ plane, given by the $x$ and $y$ parameters,
-like for \textbf{Slit}.
-The neutron ray is propagated to the plane of the monitor
-by the kernel call PROP\_Z0.
-A neutron ray is counted if it passes within the rectangular opening
-given by the $x$ and $y$ limits.
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} KN, M. Hagen
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} August 1998
+\end{itemize}
 
-Special about \textbf{TOF\_monitor} is that it is sensitive to
-the arrival time, $t$, of the neutron ray.
-Like in a real time-of-flight detector, the time dimension is
-binned into small time intervals.
-Hence this monitor maintains a one-dimensional histogram of counts.
-The $n_\textrm{chan}$ time intervals begin at $t_0$ and
-end at $t_1$ (alternatively, the interval length is specified by $\Delta t$).
-As usual in time-of-flight analysis, all times are given in units of $\mu$s.
+\subsection*{Description}
+\begin{lstlisting}
 
-The output parameters from \textbf{TOF\_monitor} are the three count numbers,
-$N, I$, and $M_2$ for the total counts in the monitor.
-In addition, a file, \verb+filename+, is produced with a list of
-the same three data divided in different TOF bins.
-This file can be read and plotted by the \textrm{mcplot} tool; see the
-System Manual.
+\end{lstlisting}
 
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+nt & 1 & Number of time bins & 20 \\
+filename & string & Name of file in which to store the detector image & 0 \\
+xmin & m & Lower x bound of detector opening & -0.05 \\
+xmax & m & Upper x bound of detector opening & 0.05 \\
+ymin & m & Lower y bound of detector opening & -0.05 \\
+ymax & m & Upper y bound of detector opening & 0.05 \\
+xwidth & m & Width of detector. Overrides xmin, xmax & 0 \\
+yheight & m & Height of detector. Overrides ymin, ymax & 0 \\
+tmin & mu-s & Lower time limit & 0 \\
+tmax & mu-s & Upper time limit & 0 \\
+dt & mu-s & Length of each time bin & 1.0 \\
+restore\_neutron & 1 & If set, the monitor does not influence the neutron state & 0 \\
+nowritefile & 1 & If set, monitor will skip writing to disk & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/monitors/TOF_monitor.comp}{Source code} for \texttt{TOF\_monitor.comp}.
+\end{itemize}
+\IfFileExists{TOF_monitor_static.tex}{\input{TOF_monitor_static.tex}}{}

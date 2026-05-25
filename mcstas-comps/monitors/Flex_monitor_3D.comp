@@ -15,7 +15,8 @@
 * Flexible monitor.
 *
 * %D
-* A square 3D single monitor that measures intensity (or something else) as a function of two selectable variables or parameters.
+* Non-propagating 3D monitor that measures intensity (or something else) as a function of three selectable variables or parameters.
+* The 3D data is saved as a series of 2D datasets, which names are filename_index
 *
 * Example: Flex_monitor_3D(nU1=20, nU2=20, nU3=20, filename="Output", ustring1="x", ustring2="y", ustring1="z", Umin1=-.1, Umax1=.1, Umin2=-.1, Umax2=.1, Umin3=-.1, Umax3=.1)
 *
@@ -32,35 +33,30 @@
 * Umax3: []             Maximum U3 to detect
 * nU3: [1]              Number of U3 channels
 * filename: [string]    Name of file in which to store the detector image
-* restore_neutron: [1]  If set, the monitor does not influence the neutron state
 * uid1: [1]             Integer index of uservar to be monitored. Overrides ustring1.
 * uid2: [1]             Integer index of uservar to be monitored. Overrides ustring2.
 * uid3: [1]             Integer index of uservar to be monitored. Overrides ustring3.
-* ustring1: [string]    Name of variable U1 (user or neutron state parameter as a string) to be monitored.
-* ustring2: [string]    Name of variable U2 (user or neutron state parameter as a string) to be monitored.
-* ustring3: [string]    Name of variable U3 (user or neutron state parameter as a string) to be monitored.
+* ustring1: [string]    Name of variable U1 (user or particle state parameter as a string) to be monitored.
+* ustring2: [string]    Name of variable U2 (user or particle state parameter as a string) to be monitored.
+* ustring3: [string]    Name of variable U3 (user or particle state parameter as a string) to be monitored.
 * signal: [string]      Name of variable to be used as an additive signal to be monitored. Default is intensity.
 * nowritefile: [1]      Flag to indicate if monitor should not save any data.
 *
 * CALCULATED PARAMETERS:
 *
-* U_N: []               Array of neutron counts
-* U_p: []               Array of neutron weight counts
+* U_N: []               Array of particle counts
+* U_p: []               Array of particle weight counts
 * U_p2: []              Array of second moments
 *
 * %E
 *******************************************************************************/
 DEFINE COMPONENT Flex_monitor_3D
 
-
-
 SETTING PARAMETERS (int nU1=20, int nU2=20, int nU3=20, string filename=0,
  		    Umin1, Umax1, uid1=-1, string ustring1="", 
 		    Umin2, Umax2, uid2=-1, string ustring2="", 
 		    Umin3, Umax3, uid3=-1, string ustring3="", 
-		    int restore_neutron=0, string signal="p", int nowritefile=0)
-
-/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+		    string signal="p", int nowritefile=0)
 
 DECLARE
 %{
@@ -140,10 +136,6 @@ TRACE
         SCATTER;
       }
     }
-  }
-
-  if (restore_neutron) {
-    RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}
 

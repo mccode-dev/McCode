@@ -166,6 +166,8 @@ SHARE
           struct temp_1D_data_struct temporary_storage;
           temporary_storage.num_elements = storage->temp_1D_data.num_elements;
           temporary_storage.elements = malloc (temporary_storage.num_elements * sizeof (struct temp_1D_data_element_struct));
+          if (!temporary_storage.elements)
+            exit (fprintf (stderr, "Union_logger_1D: %s: ERROR allocating memory (record_to_temp_1D)\n", logger->name));
 
           for (index = 0; index < storage->temp_1D_data.num_elements; index++) {
             temporary_storage.elements[index].index = storage->temp_1D_data.elements[index].index;
@@ -178,6 +180,8 @@ SHARE
           // allocate larger array (10 larger)
           storage->temp_1D_data.allocated_elements = 10 + storage->temp_1D_data.num_elements;
           storage->temp_1D_data.elements = malloc (storage->temp_1D_data.allocated_elements * sizeof (struct temp_1D_data_element_struct));
+          if (!storage->temp_1D_data.elements)
+            exit (fprintf (stderr, "Union_logger_1D: %s: ERROR allocating memory (record_to_temp_1D)\n", logger->name));
 
           // copy back from temp
           for (index = 0; index < storage->temp_1D_data.num_elements; index++) {
@@ -445,8 +449,16 @@ INITIALIZE
 
   // Remember to take special care when deallocating this array
   this_storage.Detector_1D.Array_N = malloc (n1 * sizeof (double));
+  if (!this_storage.Detector_1D.Array_N)
+    exit (fprintf (stderr, "Union_logger_1D: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
+
   this_storage.Detector_1D.Array_p = malloc (n1 * sizeof (double));
+  if (!this_storage.Detector_1D.Array_p)
+    exit (fprintf (stderr, "Union_logger_1D: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
+
   this_storage.Detector_1D.Array_p2 = malloc (n1 * sizeof (double));
+  if (!this_storage.Detector_1D.Array_p2)
+    exit (fprintf (stderr, "Union_logger_1D: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
   int l1, l2;
   for (l1 = 0; l1 < n1; l1++) { // n1 is technically a double, but this works fine
@@ -484,6 +496,8 @@ INITIALIZE
   this_storage.temp_1D_data.num_elements = 0;
   this_storage.temp_1D_data.allocated_elements = 10;
   this_storage.temp_1D_data.elements = malloc (this_storage.temp_1D_data.allocated_elements * sizeof (struct temp_1D_data_element_struct));
+  if (!this_storage.temp_1D_data.elements)
+    exit (fprintf (stderr, "Union_logger_1D: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
   // printf("past direction choices sanitation \n");
 

@@ -19,6 +19,12 @@
 * Tests the 3D space logger that makes a number of 2D slices, integrating over
 * some thickness depending on the number of bins in the 3rd dimension.
 *
+* Includes conditional component to test record_to_temp functionality
+* of investigated logger.
+*
+* %Example: Detector: Union_logger_3D_space_I=1.3301e-09
+* %Example: Detector: Union_logger_3D_space_con_I=1.68735e-13
+*
 * %End
 *******************************************************************************/
 
@@ -59,28 +65,43 @@ AT (0,0,0) RELATIVE Origin
 COMPONENT geometry_center = Arm()
 AT (0,0,2.0) RELATIVE source
 
-COMPONENT box = Union_box(xwidth=0.10, yheight=0.15, zdepth=0.03, priority=5, material_string="material")
+COMPONENT box_geometry = Union_box(xwidth=0.10, yheight=0.15, zdepth=0.03, priority=5, material_string="material")
 AT (-0.03,0,-0.05) RELATIVE geometry_center
 
-COMPONENT sphere = Union_sphere(radius=0.05, priority=6, material_string="material")
+COMPONENT sphere_geometry = Union_sphere(radius=0.05, priority=6, material_string="material")
 AT (0.03,0,-0.04) RELATIVE geometry_center
 
-COMPONENT cylinder = Union_cylinder(radius=0.045, yheight=0.1, priority=7, material_string="material")
+COMPONENT cylinder_geometry = Union_cylinder(radius=0.045, yheight=0.1, priority=7, material_string="material")
 AT (-0.03,0,0.02) RELATIVE geometry_center
 
-COMPONENT cone = Union_cone(radius_top=0.02, radius_bottom=0.055, yheight=0.09, priority=8, material_string="material")
+COMPONENT cone_geometry = Union_cone(radius_top=0.02, radius_bottom=0.055, yheight=0.09, priority=8, material_string="material")
 AT (0.03,0,0.07) RELATIVE geometry_center
 
 // Insert loggers to be tested here
 COMPONENT Union_logger_3D_space = Union_logger_3D_space(
     D_direction_1="x", D1_min=-0.10, D1_max=0.10, n1=200,
     D_direction_2="y", D2_min=-0.10, D2_max=0.10, n2=200,
-    D_direction_3="z", D3_min=-0.09, D3_max=0.14, n2=200,
+    D_direction_3="z", D3_min=-0.09, D3_max=0.14, n2=10,
     filename="Union_logger_3D_space.dat")
 AT (0,0,0) RELATIVE geometry_center
+		
+// Insert loggers to be tested here
+COMPONENT Union_logger_3D_space_con = Union_logger_3D_space(
+	D_direction_1="x", D1_min=-0.10, D1_max=0.10, n1=200,
+	D_direction_2="y", D2_min=-0.10, D2_max=0.10, n2=200,
+	D_direction_3="z", D3_min=-0.09, D3_max=0.14, n2=5,
+    filename="Union_logger_3D_space_con.dat")
+AT (0,0,0) RELATIVE geometry_center		
+
+// Conditional that takes right part of transmitted beam
+COMPONENT PSD_conditional = Union_conditional_PSD(
+	xwidth=0.1, yheight=0.2,
+    target_loggers="Union_logger_3D_space_con")
+AT (-0.05,0,1.0) RELATIVE geometry_center		
 
 COMPONENT master = Union_master()
-AT(0,0,0) RELATIVE geometry_center
+AT (12,-2,4) RELATIVE geometry_center
+ROTATED (22, -47, 7) RELATIVE geometry_center
 
 COMPONENT transmission = PSD_monitor(
     xwidth=0.1, yheight=0.08, nx=200, ny=200,

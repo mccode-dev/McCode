@@ -1046,7 +1046,11 @@ MCDETECTOR detector_import(
   switch (detector.rank) {
     case 0:  strcpy(detector.type,  "array_0d"); m=n=p=1; break;
     case 1:  snprintf(detector.type, CHAR_BUF_LENGTH, "array_1d(%ld)", m*n*p); m *= n*p; n=p=1; break;
-    case 2:  snprintf(detector.type, CHAR_BUF_LENGTH, "array_2d(%ld, %ld)", m, n*p); n *= p; p=1; break;
+    case 2:  if(!strcasestr(detector.format,"list")) {
+               snprintf(detector.type, CHAR_BUF_LENGTH, "array_2d(%ld, %ld)", m, n*p); n *= p; p=1;
+             } else {
+               snprintf(detector.type, CHAR_BUF_LENGTH, "list(%ld, %ld)", m, n*p); n *= p; p=1;
+             } break;
     case 3:  snprintf(detector.type, CHAR_BUF_LENGTH, "array_3d(%ld, %ld, %ld)", m, n, p); break;
     default: m=0; strcpy(detector.type, ""); strcpy(detector.filename, "");/* invalid */
   }
@@ -2020,7 +2024,7 @@ int mcdetector_out_axis_nexus(NXhandle f, char *label, char *var, int rank, long
     char *valid;
     valid=malloc(sizeof(char)*CHAR_BUF_LENGTH);
     if (!valid ) {
-      printf("Fatal memory error allocating label axis of length %li, exiting!\n", CHAR_BUF_LENGTH);
+      printf("Fatal memory error allocating label axis of length %i, exiting!\n", CHAR_BUF_LENGTH);
       free(axis);
       return(NX_ERROR);
     }
@@ -2925,11 +2929,11 @@ void mcdis_rectangle(char* plane, double x, double y, double z,
 }
 
 void mcdis_circle(char *plane, double x, double y, double z, double r){
-  printf("MCDISPLAY: circle('%s',%g,%g,%g,%g)\n", plane, x, y, z, r);
+  printf("MCDISPLAY: mcdiscircle('%s',%g,%g,%g,%g)\n", plane, x, y, z, r);
 }
 
 void mcdis_new_circle(double x, double y, double z, double r, double nx, double ny, double nz){
-  printf("MCDISPLAY: new_circle(%g,%g,%g,%g,%g,%g,%g)\n", x, y, z, r, nx, ny, nz);
+  printf("MCDISPLAY: mcdisnew_circle(%g,%g,%g,%g,%g,%g,%g)\n", x, y, z, r, nx, ny, nz);
 }
 
 
@@ -2984,7 +2988,7 @@ void mcdis_legacy_box(double x, double y, double z,
 void mcdis_box(double x, double y, double z,
 	       double width, double height, double length, double thickness, double nx, double ny, double nz){
   if (mcdotrace==2) {
-    printf("MCDISPLAY: box(%g,%g,%g,%g,%g,%g,%g,%g,%g,%g)\n", x, y, z, width, height, length, thickness, nx, ny, nz);
+    printf("MCDISPLAY: mcdisbox(%g,%g,%g,%g,%g,%g,%g,%g,%g,%g)\n", x, y, z, width, height, length, thickness, nx, ny, nz);
   } else {
     mcdis_legacy_box(x, y, z, width, height, length);
     if (thickness)
@@ -3030,7 +3034,7 @@ Draws a cylinder with center at (x,y,z) with extent (r,height).
 void mcdis_cylinder( double x, double y, double z,
         double r, double height, double thickness, double nx, double ny, double nz){
   if (mcdotrace==2) {
-      printf("MCDISPLAY: cylinder(%g, %g, %g, %g, %g, %g, %g, %g, %g)\n",
+      printf("MCDISPLAY: mcdiscylinder(%g, %g, %g, %g, %g, %g, %g, %g, %g)\n",
          x, y, z, r, height, thickness, nx, ny, nz);
   } else {
     mcdis_legacy_cylinder(x, y, z,
@@ -3043,7 +3047,7 @@ void mcdis_cylinder( double x, double y, double z,
 void mcdis_cone( double x, double y, double z,
         double r, double height, double nx, double ny, double nz){
   if (mcdotrace==2) {
-    printf("MCDISPLAY: cone(%g, %g, %g, %g, %g, %g, %g, %g)\n",
+    printf("MCDISPLAY: mcdiscone(%g, %g, %g, %g, %g, %g, %g, %g)\n",
        x, y, z, r, height, nx, ny, nz);
   } else {
     mcdis_Circle(x, y, z, r, nx, ny, nz);
@@ -3058,7 +3062,7 @@ void mcdis_cone( double x, double y, double z,
  * The disc axis is along the vector nx,ny,nz.*/
 void mcdis_disc( double x, double y, double z,
         double r, double nx, double ny, double nz){
-  printf("MCDISPLAY: disc(%g, %g, %g, %g, %g, %g, %g)\n",
+  printf("MCDISPLAY: mcdisdisc(%g, %g, %g, %g, %g, %g, %g)\n",
      x, y, z, r, nx, ny, nz);
 }
 
@@ -3066,14 +3070,14 @@ void mcdis_disc( double x, double y, double z,
  * The annulus axis is along the vector nx,ny,nz.*/
 void mcdis_annulus( double x, double y, double z,
         double outer_radius, double inner_radius, double nx, double ny, double nz){
-  printf("MCDISPLAY: annulus(%g, %g, %g, %g, %g, %g, %g, %g)\n",
+  printf("MCDISPLAY: mcdisannulus(%g, %g, %g, %g, %g, %g, %g, %g)\n",
      x, y, z, outer_radius, inner_radius, nx, ny, nz);
 }
 
 /* draws a sphere with center at (x,y,z) with extent (r)*/
 void mcdis_sphere(double x, double y, double z, double r){
   if (mcdotrace==2) {
-    printf("MCDISPLAY: sphere(%g,%g,%g,%g)\n", x, y, z, r);
+    printf("MCDISPLAY: mcdissphere(%g,%g,%g,%g)\n", x, y, z, r);
   } else {
     double nx,ny,nz;
     int i;
@@ -3215,7 +3219,7 @@ void mcdis_polygon(int count, ...){
 /* END NEW POLYGON IMPLEMENTATION*/
 
 /*
-void mcdis_polygon(double x1, double y1, double z1,
+void polygon(double x1, double y1, double z1,
                 double x2, double y2, double z2){
   printf("MCDISPLAY: polygon(2,%g,%g,%g,%g,%g,%g)\n",
          x1,y1,z1,x2,y2,z2);
@@ -4463,6 +4467,16 @@ double _rand01(randstate_t* state) {
 	double randnum;
 	randnum = (double) _random();
   // TODO: can we mult instead of div?
+	randnum /= (double) MC_RAND_MAX + 1;
+	return randnum;
+}
+double _rand01_opague(void* opague_state) {
+	randstate_t* state = (randstate_t*)opague_state;
+	// Following lines exactly like in _rand01 just above (repeated to
+	// avoid another layer of indirection):
+	double randnum;
+	randnum = (double) _random();
+	// TODO: can we mult instead of div?
 	randnum /= (double) MC_RAND_MAX + 1;
 	return randnum;
 }

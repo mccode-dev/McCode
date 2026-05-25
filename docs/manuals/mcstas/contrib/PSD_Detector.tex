@@ -1,0 +1,169 @@
+\section{The \texttt{PSD\_Detector} McStas Component}
+Position-sensitive gas-filled detector with gaseous thermal-neutron
+converter (box, cylinder or 'banana').
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Thorwald van Vuure
+  \item \textbf{Origin:} ILL
+  \item \textbf{Date:} Feb 21st, 2005
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+An n times m pixel Position Sensitive Detector (PSD), box, cylinder or banana
+filled with a mixture of thermal-neutron converter gas and stopping gas.
+This model implements wires detection, including charge drift, parallax, etc.
+The default is a simple 1D/2D position detector. However, setting
+the parameter 'type' to "events" will save the signal as an event file which
+contains all neutron parameters at detection points, including time. This is
+especially suited for TOF detectors. Please use Histogrammer afterwards.
+The gas creation event (neutron absorption in gas) is flagged as SCATTERED==1,
+and the charge detection (signal) is flagged as SCATTERED==2.
+
+GEOMETRY:
+A flat rectangular box of given depth is simulated, or alternatively
+a cylinder (when giving radius), or a horizontal cylindrical 'banana'
+detector (when giving the width along the arc).
+Box position is at its center, the 'banana' and cylinder have their
+position at focus point, symetric in angular range for the 'banana'.
+
+GAS SPECIFICATIONS:
+The converter gas can be specified as He-3, BF3 or N2.
+The filling pressure of converter gas must be specified along
+with the zdepth: this gives an absorption probability (e.g. ~90% for
+0.18 nm neutrons at zdepth 3 cm and He-3 pressure 5 bar).
+The stopping gas can be specified as one of the following gases:
+CF4, C3H8, CO2, Xe/TMA or He, or any for which a table of stopping
+powers is available. NB: each stopping gas table has specific
+data on a pair of particles (from thermal-neutron absorptions in
+either He-3, BF3 or N2) in a specific gas. Unusual choices like N2
+as a converter and He as a stopping gas probably require the
+calculation of a new table.
+Tip: to do a simulation in pure He-3, specify 0 bar for the stopping gas.
+The pressures of the two gases together put a lower limit on the
+achievable spatial resolution, no matter what pixel size is
+specified.
+Example: 1 bar CF4 gives ~2.5 mm spatial resolution, 3 bar CF4 gives
+~1 mm. C3H8 requires more pressure for the same resolution, then
+Xe/TMA, then CO2 and finally He.
+
+IMPLEMENTED FEATURES:
+Taken into account are the following effects:
+- (rectangularly distributed) error in the recorded position due to
+the range of the neutron capture products in the gas
+- angular dependence of absorption efficiency
+- border effect (events outside the sensitive volume tend to be
+counted in the border pixels)
+- parallax effect (with, if desired, an electrostatic lens to
+partially correct for this - use "LensOn=1")
+- wall effect
+To correctly take the wall effect into account, a value must be
+specified for the energy threshold for acceptance of an event as a
+valid neutron event. This normally serves to discriminate from
+gammas. Because these are not simulated in McStas, a value of 0 keV
+can be chosen for this threshold if one is interested in seeing the
+maximum number of neutrons; however, a more realistic value would be
+100 keV. This implies seeing the maximum number of neutrons as well,
+except in geometries with dominating wall effect.
+The border effect is a considerably complex phenomenon: it depends
+on the precise electric field configuration near the border. It is
+simulated here simply by introducing a dead zone, gas-filled,
+bordering the sensitive volume. Events in there can still cause
+signals in the detector. The dead zone can cause a shadow in the
+sensitive volume, just as in reality.
+The algorithm simply adds all events on the first 'pixel' in the
+dead zone to the border pixels. This is a coarse approximation,
+because the physical effect depends on the orientation of the
+tracks and the energy threshold setting. The bottom line is that
+tracking the position of the Center Of Gravity of the charge
+deposition in the detector does not allow for accurate modeling of
+the border effect, and therefore the border pixels should be
+ignored, just as in a real detector.
+Note that specifying 0 width of the dead zone next to the
+sensitive volume, apart from being unrealistic, does not allow
+accurate simulation of the border effect: in this case, there will
+be a relative lack of events on the border pixels due to the wall
+effect.
+This component determines the position of the Center Of Gravity of
+the charge cloud in the detector. It does not simulate independent
+channels.
+Manufacturing imperfections such as wire diameter variations and
+spread in electronic amplifier component properties are not simulated.
+This should allow an experimenter to identify these manufacturing
+imperfections in his physical machine and correct for them.
+
+Example: PSD_Detector(xwidth=0.192, yheight=0.192, nx=64, ny=64,
+zdepth=0.03, threshold=100, borderx=-1, bordery=-1,
+PressureConv=5, PressureStop=1,
+FN_Conv="Gas_tables/He3inHe.table", FN_Stop="Gas_tables/He3inCF4.table",
+xChDivRelSigma=0, yChDivRelSigma=0,
+filename="BIDIM19.psd")
+
+Example: PSD_Detector(xwidth=0.26, yheight=0.26, nx=128, ny=128,
+zdepth=0.03, threshold=100, borderx=-1, bordery=-1,
+PressureConv=5, PressureStop=1,
+FN_Conv="Gas_tables/He3inHe.table", FN_Stop="Gas_tables/He3inCF4.table",
+xChDivRelSigma=0, yChDivRelSigma=0,
+filename="BIDIM26.psd")
+
+Example: PSD_Detector(radius=0.0127, yheight=0.20, nx=1, ny=128,
+threshold=100, borderx=-1,
+PressureConv=9.9, PressureStop=0.1,
+FN_Conv="Gas_tables/He3inHe.table", FN_Stop="Gas_tables/He3inCO2.table",
+yChDivRelSigma=0.006,
+filename="ReuterStokes.psd")
+
+Example: PSD_Detector(awidth=1.533, yheight=0.4, nx=640, ny=256,
+radius=0.73, zdepth=0.032, dc=0.026, threshold=100,
+borderx=-1, bordery=-1,
+PressureConv=5, PressureStop=1,
+FN_Conv="Gas_tables/He3inHe.table", FN_Stop="Gas_tables/He3inCF4.table",
+xChDivRelSigma=0, yChDivRelSigma=0.0037,
+LensOn=1, filename="D19.psd")
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+nx & 1 & Number of pixel columns & 128 \\
+ny & 1 & Number of pixel rows & 128 \\
+xwidth & m & Width of detector opening, in the case of a flat box & 0 \\
+radius & m & Radius of detector for cylindrical/banana shape & 0 \\
+awidth & m & Width of detector opening along the horizontal arc of the detector, measured along the inside arc of the sensitive volume in the case of a 'banana' detector & 0 \\
+yheight & m & Height of detector opening & 0 \\
+zdepth & m & Depth of the sensitive volume of the detector & 0.03 \\
+threshold & keV & Energy threshold for acceptance of an event & 100 \\
+PressureConv & bar & Pressure of gaseous thermal-neutron converter (e.g. He-3) & 5 \\
+PressureStop & bar & Pressure of stopping gas & 1 \\
+interpolate & 1 & Performs energy interpolation if true & 1 \\
+p\_interact & 1 & Fraction of statistical events to be treated by component. Set it to 0 to use real absorption probability & 0 \\
+verbose & 1 & Gives more information and spectrum & 0 \\
+LensOn & 1 & set to 1 to simulate an electrostatic lens according to P. Van Esch, NIM A 540 (2005) pp. 361-367. & 1 \\
+dc & m & Distance from the entrance window to the cathode plane, where the correction zone of the lens ends for banana shape and LensOn=1 & 0 \\
+borderx & m & Width of (gas-filled) border on the side of the detector & -2 \\
+bordery & m & Height of (gas-filled) border on the top/bottom of the detector giving rise to various border effects. Set to -2 to obtain the height of one pixel, -1 for the depth of the detector (default), or specify a non-negativedistance & -2 \\
+xChDivRelSigma & 1 & Sigma of the error in position determination along the x axis (relative to xwidth), uniquely due to charge division readout. Set to 0 in case of independent channel readout along the x dimension & 0 \\
+yChDivRelSigma & 1 & Relative sigma due to charge division in y direction, relative to yheight. & 0 \\
+bufsize & 1 & Size of neutron output buffer default is 0, i.e. save all - recommended. & 0 \\
+restore\_neutron & 1 & If set, the monitor does not influence the neutron state & 0 \\
+angle & deg & Angular opening of detector in the case of a 'banana' detector, then overrides awidth parameter & 0 \\
+type & string & If set to 'events' detector signal saves signal into an event file to be read e.g. by Histogrammer. This is to be used for TOF detectors. & 0 \\
+filename & text & Name of file in which to store the detector image. The name of the component is used if file name is not specified & 0 \\
+FN\_Conv & text & Filename of the stopping power table of the converter gas & "He3inHe.table" \\
+FN\_Stop & text & Filename of the stopping power table of the stopping gas & "He3inCF4.table" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/contrib/PSD_Detector.comp}{Source code} for \texttt{PSD\_Detector.comp}.
+  \item The test/example instrument \textless{}a href="../examples/Test\_PSD\_Detector.instr"\textgreater{}Test\_PSD\_Detector.instr\textless{}/a\textgreater{}.
+\end{itemize}
+\IfFileExists{PSD_Detector_static.tex}{\input{PSD_Detector_static.tex}}{}

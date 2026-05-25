@@ -1,0 +1,81 @@
+\section{The \texttt{Virtual\_mcnp\_input} McStas Component}
+This component uses a filename of recorded neutrons from the reactor monte carlo
+code MCNP as a source of particles.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} \textless{}a href="mailto:hennanec@ensimag.fr"\textgreater{}Chama Hennane\textless{}/a\textgreater{} and E. Farhi
+  \item \textbf{Origin:} \textless{}a href="http://www.ill.fr/"\textgreater{}ILL\textless{}/a\textgreater{}
+  \item \textbf{Date:} June 28th, 2006
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+This component generates neutron events from a filename created using the
+MCNP Monte Carlo code for nuclear reactors. It is used to
+calculate flux exiting from hot or cold neutron sources.
+Neutron position and velocity is set from the filename. The neutron time is
+left at zero.
+
+Note that axes orientation may be different between MCNP and McStas.
+The component has the ability to center and orient the neutron beam to the Z-axis.
+It also may change the coordinate system from the MCNP frame to the McStas one.
+The verbose mode is highly recommended as it displays lots of useful informations.
+To obtain absolute intensity, set 'intensity' and 'nps' parameters.
+The source total intensity is 1.054e18 for LLB/Saclay (14 MW) and 4.28e18 for
+ILL/Grenoble (58 MW).
+
+Format of MCNP events are :
+
+position_X position_Y position_Z dir_X dir_Y dir_Z Energy Weight Time
+
+energy is in Mega eV, time in shakes (1e-8 s),
+positions are in cm and the direction vector is normalized to 1.
+
+%BUGS
+We recommend NOT to use parallel execution (MPI) with this component. If you
+need to, set parameter 'smooth=1'.
+
+EXAMPLE:
+To generate PTRAC files using MCNP/MCNPX, add at the end of your input file:
+f1:n          2001              // tally
+(...)
+ptrac         filename = asc
+max  = -1000000   // number of neutrons to generate and stop
+write = all
+event = sur
+filter = 2001,jsu // surface tally id
+To create a 'source' from a MCNP simulation event file for the ILL:
+COMPONENT source = Virtual_mcnp_input(
+filename = "H10p", intensity=4.28e18, nps=11328982,
+verbose = 1, autocenter="translate rotate rescale")
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+filename & str & Name of the MCNP PTRAC neutron input file. Empty string "" unactivates component & 0 \\
+autocenter & str & String which may contain following keywords. "translate" or "center"  to center the beam area AT (0,0,0) "rotate"    or "orient"  to center the beam velocity along Z "change axes"            to change coordinate system definition "rescale"                to adapt intensity to abs. units. with factor intensity/nps. Other words are ignored. & 0 \\
+repeat\_count & 1 & Number of times the source must be generated. 0 unactivates the component & 1 \\
+verbose & 0|1 & Displays additional informations if set to 1 & 0 \\
+intensity & n/s & Intensity multiplication factor & 0 \\
+MCNP\_ANALYSE & 1 & Number of neutron events to read for file pre-analysis. Use 0 to analyze them all. & 10000 \\
+surface\_id & 1 & Index of the emitting MCNP surface to use. -1 for all. & -1 \\
+nps & 1 & Number of total events shot by MCNP to generate the PTRAC as indicated at the end of the MCNP 'o' file as 'source particle weight for summary table normalization' or alternatively 'nps = '. & 0 \\
+smooth & 0/1 & Smooth sparsed event files for file repetitions. & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/obsolete/Virtual_mcnp_input.comp}{Source code} for \texttt{Virtual\_mcnp\_input.comp}.
+  \item \textless{}a href="http://mcnp-green.lanl.gov/index.html"\textgreater{}MCNP\textless{}/a\textgreater{}
+  \item MCNP -- A General Monte Carlo N-Particle Transport Code, Version 5, Volume II: User's Guide, p177
+\end{itemize}
+\IfFileExists{Virtual_mcnp_input_static.tex}{\input{Virtual_mcnp_input_static.tex}}{}

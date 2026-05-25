@@ -1,0 +1,200 @@
+/*******************************************************************************
+*
+*  McXtrace, x-ray ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Mads Bertelsen and Erik B Knudsen
+* Date: 20.08.15
+* Version: $Revision: 0.1 $
+* Origin: ESS DMSC & DTU Physics & United Neux
+*
+* Component that implements a Compton scattering process
+*
+* %D
+*
+* This Union_process is based on the Incoherent.comp component originally written
+*  by Kim Lefmann and Kristian Nielsen
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McXtrace.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before the master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union_components
+*
+* Algorithm:
+* Described elsewhere
+*
+* %P
+* INPUT PARAMETERS:
+* density: [g/cm^3]   Nominal density of material.
+* element:    [str]   The element (symbol) of the material. Overrides atomno.
+* atomno:       [1]   Atomic number.
+* init:       [str]   Name of Union inititaliser component
+*
+* OUTPUT PARAMETERS:
+*
+* %L
+* The test/example instrument <a href="../examples/Test_Phonon.instr">Test_Phonon.instr</a>.
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Compton_xrl_process
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS (density=0,atomno=14, string element="", string init="init")
+OUTPUT PARAMETERS (This_process,Compton_xrl_storage)
+DEPENDENCY " @XRLFLAGS@ "
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
+
+SHARE
+%{
+#ifndef Union
+#define Union $Revision: 0.8 $
+
+
+%include "union-init.c"
+
+#endif
+
+#include <xraylib/xraylib.h>
+
+struct Compton_xrl_physics_storage_struct{
+  char name[13];
+  int Z;
+  double rho;
+  double sigma;
+};
+
+int Compton_xrl_physics_my(double *my, double *k_i, union data_transfer_union data_transfer, struct focus_data_struct *focus_data, _class_particle *_particle){
+  /*get the partial cross section using xraylib*/
+  double k_length = sqrt(k_i[0]*k_i[0]+k_i[1]*k_i[1]+k_i[2]*k_i[2]);
+  double E=K2E*k_length;
+
+  /*how to handle the fact that we may be dealing with polarized radiation - goes in data_transfer union?*/
+  /*we have to somehow transfer input data to this function - is this also in data_transfer union? yes. It contains pointers to all the possible physics_storage structs.*/
+  struct Compton_xrl_physics_storage_struct *p = data_transfer.pointer_to_a_Compton_xrl_physics_storage_struct;
+
+  /*call xraylib to get cross_section in cm^2/g - scale by density to get mu in cm^-1 - scale by 10^2 to get mu in m^-1*/
+  p->sigma=CS_Compt(p->Z,E,NULL);
+  *my=p->rho*p->sigma*100;
+  return 1;
+}
+
+int Compton_xrl_physics_scattering(double *k_f, double *k_i, double *weight, union data_transfer_union data_transfer, struct focus_data_struct *focus_data, _class_particle *_particle) {
+  double k_length = sqrt(k_i[0]*k_i[0]+k_i[1]*k_i[1]+k_i[2]*k_i[2]);
+  double E=K2E*k_length;
+  double E0;
+
+  struct Compton_xrl_physics_storage_struct *p = data_transfer.pointer_to_a_Compton_xrl_physics_storage_struct;
+
+  /*pick a direction randomly*/
+  Coords k_out;
+  // Here is the focusing system in action, get a vector
+  double solid_angle;
+  focus_data->focusing_function(&k_out,&solid_angle,focus_data);
+  NORM(k_out.x,k_out.y,k_out.z);
+  *weight *= solid_angle*0.25/PI;
+
+  double theta,dsigma;
+  theta = acos(scalar_prod(k_out.x,k_out.y, k_out.z,k_i[0], k_i[1],k_i[2])/k_length);
+
+  /*make the call to xraylib to get the partial cross section for the particular scattering triangle defined by k_i, k_f.
+    We rely on a previous call to CS_Compt by _mu-function*/
+  dsigma = DCS_Compt(p->Z,E,theta,NULL);
+  *weight *= dsigma/p->sigma;
+  E0=E;
+  E=ComptonEnergy(E0,theta,NULL);
+  k_length=E*E2K;
+  k_f[0]=k_out.x*k_length;
+  k_f[1]=k_out.y*k_length;
+  k_f[2]=k_out.z*k_length;
+  /*get */
+  return 1;
+}
+
+#ifndef PROCESS_DETECTOR
+    #define PROCESS_DETECTOR dummy
+#endif
+
+#ifndef PROCESS_COMPTON_XRL_DETECTOR
+    #define PROCESS_COMPTON_XRL_DETECTOR dummy
+#endif
+%}
+
+DECLARE
+%{
+// Needed for transport to the main component
+struct global_process_element_struct global_process_element;
+struct scattering_process_struct This_process;
+
+// Declare for this component, to do calculations on the input / store in the transported data
+struct Compton_xrl_physics_storage_struct Compton_xrl_storage;
+
+%}
+
+INITIALIZE
+%{
+  // Initialize done in the component
+  xrl_error *xe;
+  if(atomno==0 && strlen(element)!=0){
+    Compton_xrl_storage.Z=SymbolToAtomicNumber(element,&xe);
+    snprintf(Compton_xrl_storage.name,3,element);
+  } else if (atomno>0 || atomno<116){
+    Compton_xrl_storage.Z=atomno;
+    snprintf(Compton_xrl_storage.name,3,AtomicNumberToSymbol(atomno,&xe));
+  }else{
+    fprintf(stderr,"ERROR: (%s): Must set either an element by symbol or by atomic number Got (%s,%d).\n",NAME_CURRENT_COMP,element,atomno);
+    exit(-1);
+  }
+  Compton_xrl_storage.rho=density;
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = Compton_xrl;
+
+  // Need to specify if this process is isotropic
+  This_process.non_isotropic_rot_index = -1; // Yes (powder)
+  //This_process.non_isotropic_rot_index =  1;  // No (single crystal)
+
+  // Packing the data into a structure that is transported to the main component
+  sprintf(This_process.name,NAME_CURRENT_COMP);
+  This_process.process_p_interact = -1;
+  This_process.data_transfer.pointer_to_a_Compton_xrl_physics_storage_struct = &Compton_xrl_storage;
+  //This_process.data_transfer.pointer_to_a_Incoherent_physics_storage_struct->my_scattering = effective_my_scattering;
+  This_process.probability_for_scattering_function = &Compton_xrl_physics_my;
+  This_process.scattering_function = &Compton_xrl_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf(global_process_element.name,NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index(init) < 0) {
+    fprintf(stderr,"Compton_xrl_process:%s: Error identifying Union_init component, %s is not a known component name.\n",
+            NAME_CURRENT_COMP, init);
+    exit(-1);
+  }
+
+  struct pointer_to_global_process_list *global_process_list = COMP_GETPAR3(Union_init, init, global_process_list);
+  add_element_to_process_list(global_process_list, global_process_element);
+ %}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+// Since the process and it's storage is a static allocation, there is nothing to deallocate
+
+%}
+
+END
