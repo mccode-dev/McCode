@@ -57,16 +57,22 @@ int defaultmain  = 0;
 #endif
 /* else defined directly in the McCode generated C code */
 
+#pragma omp declare target
 static   long mcseed                 = 0; /* seed for random generator */
-#pragma acc declare create ( mcseed )
+#pragma omp end declare target
+
 static   long mcstartdate            = 0; /* start simulation time */
 static   int  mcdisable_output_files = 0; /* --no-output-files */
+
+#pragma omp declare target
 mcstatic int  mcgravitation          = 0; /* use gravitation flag, for PROP macros */
+#pragma omp end declare target
 mcstatic int  mcusedefaults          = 0; /* assume default value for all parameters */
 mcstatic int  mcappend               = 0; /* flag to allow append mode on datasets/directories */
+#pragma omp declare target
 mcstatic int  mcdotrace              = 0; /* flag for --trace and messages for DISPLAY */
+#pragma omp end declare target
 mcstatic int  mcnexus_embed_idf      = 0; /* flag to embed xml-formatted IDF file for Mantid */
-#pragma acc declare create ( mcdotrace )
 int      mcallowbackprop             = 0;         /* flag to enable negative/backprop */
 
 /* OpenACC-related segmentation parameters: */
@@ -84,18 +90,19 @@ MONND_BUFSIZ = ND_BUFFER;
  
 
 /* Number of particle histories to simulate. */
+
 #ifdef NEUTRONICS
 mcstatic unsigned long long int mcncount             = 1;
 mcstatic unsigned long long int mcrun_num            = 0;
 #else
+#pragma omp declare target
 #ifdef MCDEFAULT_NCOUNT
 mcstatic unsigned long long int mcncount             = MCDEFAULT_NCOUNT;
 #else
 mcstatic unsigned long long int mcncount             = 1000000;
 #endif
-#pragma acc declare create ( mcncount )
 mcstatic unsigned long long int mcrun_num            = 0;
-#pragma acc declare create ( mcrun_num )
+#pragma omp end declare target
 #endif /* NEUTRONICS */
 
 #else

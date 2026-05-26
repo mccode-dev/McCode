@@ -529,21 +529,10 @@ int cogen_comp_declare(struct comp_inst *comp)
     cout("};");
     coutf("typedef struct _struct_%s _class_%s;", comp->def->name, comp->def->name);
   } /* define class type parameter structure when not done yet (only once) */
-
+  cout ("#pragma omp declare target");
   /* instantiate one structure per component instance */
   coutf("_class_%s _%s_var;", comp->def->name, comp->name);
-  coutf("#pragma acc declare create ( _%s_var )", comp->name);
-  /* Add declare-create clauses for all struct members... */
-  /* Suppressed again... */
-  /*coutf("#pragma acc declare create ( _%s_var._name ) ", comp->name);
-  coutf("#pragma acc declare create ( _%s_var._type ) ", comp->name);
-  coutf("#pragma acc declare create ( _%s_var._index )", comp->name);
-  coutf("#pragma acc declare create ( _%s_var._position_absolute )", comp->name);
-  coutf("#pragma acc declare create ( _%s_var._position_relative )", comp->name);
-  coutf("#pragma acc declare create ( _%s_var._rotation_absolute )", comp->name);
-  coutf("#pragma acc declare create ( _%s_var._rotation_relative )", comp->name);
-  coutf("#pragma acc declare create ( _%s_var._rotation_is_identity )", comp->name);
-  coutf("#pragma acc declare create ( _%s_var._position_relative_is_zero )", comp->name);*/
+  cout ("#pragma omp end declare target");
   
   cout("");
 
@@ -778,7 +767,6 @@ int cogen_comp_section_class(
     // TRACE only compile gpu variant
     if (!strcmp(section, "TRACE")) {
       if (!comp->def->flag_noacc)
-	coutf("#pragma acc routine");
         coutf("void class_%s_%s(_class_%s *_comp", comp->def->name, section_lower, comp->def->name);
     } else {
       coutf("_class_%s *class_%s_%s(_class_%s *_comp", comp->def->name, comp->def->name, section_lower, comp->def->name);
@@ -1227,6 +1215,8 @@ int cogen_decls(struct instr_def *instr)
   }
 
   /* 2b. instrument structure */
+  cout ("#pragma omp declare target");
+
   cout("struct _instrument_struct {");
   coutf("  char   _name[256]; /* the name of this instrument e.g. '%s' */", instr->name);
   cout( "/* Counters per component instance */");
@@ -1258,8 +1248,7 @@ int cogen_decls(struct instr_def *instr)
     cout( "  struct instrument_logic_struct logic; /* instrument logic */");
   cout( "} _instrument_var;");
   cout("struct _instrument_struct *instrument = & _instrument_var;");
-  cout("#pragma acc declare create ( _instrument_var )");
-  cout("#pragma acc declare create ( instrument )");
+  cout("#pragma omp end declare target");
   cout("");
 
   /* 3. Table of instrument parameters. Used in mcparseoptions and various output functions */
@@ -1481,12 +1470,12 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
   else if (!strcmp(section, "FINALLY")) {
     // OpenACC update components on host (e.g. copy back GPU-generated changes)
     // (first thing to do in "finally")
-    liter = list_iterate(instr->complist);
-    while((comp = list_next(liter)) != NULL) {
-      coutf("#pragma acc update host(_%s_var)", comp->name);
-    }
+    //liter = list_iterate(instr->complist);
+    //while((comp = list_next(liter)) != NULL) {
+    //  coutf("#pragma acc update host(_%s_var)", comp->name);
+    //}
     // attach instrument
-    cout("#pragma acc update host(_instrument_var)");
+    //cout("#pragma acc update host(_instrument_var)");
     cout("");
 
     coutf("  siminfo_init(NULL);");
@@ -1549,19 +1538,6 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
     /* Output graphics representation of components. */
     coutf("  if (mcdotrace) display();");
     cout("  DEBUG_INSTR_END();");
-
-    // call acc_attach for OpenACC (last thing to do in init)
-    cout("");
-    cout("#ifdef OPENACC");
-    cout("#include <openacc.h>");
-    // update component instances on device (e.g. push "managed" data structures)
-    liter = list_iterate(instr->complist);
-    while((comp = list_next(liter)) != NULL) {
-      coutf("#pragma acc update device(_%s_var)", comp->name);
-    }
-    // update instrument
-    cout("#pragma acc update device(_instrument_var)");
-    cout("#endif");
   }
   else if (!strcmp(section, "SAVE"))
     coutf("  if (!handle) siminfo_close(); ");
@@ -2032,9 +2008,17 @@ int cogen_raytrace(struct instr_def *instr)
   /* cout("     #undef sprintf"); */
   /* cout("     #undef fprintf"); */
   /* cout("     #endif"); */
-  coutf("");
-  coutf("    // Suppresed dim handles #pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
-  coutf("    #pragma acc parallel loop");
+
+  // update component instances on device (e.g. push "managed" data structures)
+  liter = list_iterate(instr->complist);
+  while((comp = list_next(liter)) != NULL) {
+    coutf("#pragma omp target data map(tofrom: _%s_var)", comp->name);
+  }
+  // update instrument
+  list_iterate_end(liter);
+  cout("#pragma omp target data map(to:_instrument_var)");
+  
+  coutf("    #pragma omp target teams loop");
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
   coutf("      _class_particle particleN = mcgenstate(); // initial particle");
   coutf("      _class_particle* _particle = &particleN;");
@@ -2545,16 +2529,15 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("                           double *vx, double *vy, double *vz, double *t,");
   cout("                           double *sx, double *sy, double *sz, double *p);");
 #elif MCCODE_PROJECT == 2   /* xray */
-  cout("#pragma acc routine");
   cout("_class_particle mcsetstate(double x, double y, double z, double kx, double ky, double kz,");
   cout("			   double phi, double t, double Ex, double Ey, double Ez, double p, int mcgravitation, void *mcMagnet, int mcallowbackprop);");
-  cout("#pragma acc routine");
   cout("_class_particle mcgetstate(_class_particle mcphoton, double *x, double *y, double *z, double *kx, double *ky, double *kz,");
   cout("			   double *phi, double *t, double *Ex, double *Ey, double *Ez, double *p);");
 #endif
   cout("");
+  cout ("#pragma omp declare target");
   cout("extern int mcgravitation;      /* flag to enable gravitation */");
-  cout("#pragma acc declare create ( mcgravitation )");
+  cout ("#pragma omp end declare target");
 
   cout("");
   cout("_class_particle mcgenstate(void) {");
