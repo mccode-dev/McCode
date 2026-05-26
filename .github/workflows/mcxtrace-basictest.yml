@@ -21,7 +21,7 @@ jobs:
           - { os: ubuntu-24.04,  CC: gcc-13,   CXX: g++-13,     python: '3.12', mpi: 'openmpi' }
           - { os: ubuntu-24.04,  CC: clang,    CXX: clang++,    python: '3.12', mpi: 'openmpi'   }
           #- { os: windows-11-arm, CC: cl.exe,   CXX: cl.exe,     python: "3.13", mpi: 'msmpi'   }
-          - { os: windows-latest, CC: gcc.exe,   CXX: g++.exe,     python: "3.13", mpi: 'msmpi'   }
+          #- { os: windows-latest, CC: gcc.exe,   CXX: g++.exe,     python: "3.13", mpi: 'msmpi'   }
 
     name: ${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
     runs-on: ${{ matrix.os }}
@@ -89,7 +89,8 @@ jobs:
         choco install winflexbison3
         choco install wget
         if [ "$CC" == "gcc.exe" ]; then choco install mingw; fi
-        pip install mslex PyYAML ply mcpl mcpl-extra psutil
+        pip install mslex PyYAML ply mcpl mcpl-extra kdsource psutil jinja2
+        gcc.exe --version
 
     - name: Setup (Windows Intel)
       id: setup-Windows-intel
@@ -115,9 +116,9 @@ jobs:
            which cmake
            cmake --version
 
-    - name: Configure build and install mcxtrace on Unix
-      id: mcxtrace-install-unix
-      if: runner.os != 'Windows'
+    - name: Configure build and install mcxtrace
+      id: mcxtrace-install
+      if: ${{ matrix.CC != 'cl.exe' && runner.os }}
       run: |
            if [ "$RUNNER_OS" == "macOS" ]; then mkdir ${HOME}/tmp; fi
            if [ "$RUNNER_OS" == "macOS" ]; then export SDKROOT=$(xcrun --sdk macosx --show-sdk-path); fi
@@ -172,34 +173,13 @@ jobs:
            cat ../install_mcxtrace/share/mcxtrace/tools/Python/mccodelib/mccode_config.json
            echo *******************************************************************************
 
-    - name: Configure build and install mcxtrace on Windows-Mingw
-      id: mcxtrace-install-windows-mingw
-      if: ${{ matrix.CC == 'gcc.exe' && runner.os == 'Windows' }}
-      run: >
-        cmake -B build -S src
-        -G "Unix Makefiles"
-        -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc.exe
-        "-DCMAKE_INSTALL_PREFIX=./install"
-        -DMCVERSION="3.99.99"
-        -DMCCODE_BUILD_CONDA_PKG=OFF
-        -DMCCODE_BUILD_WINDOWS_MINGW=ON
-        -DMCCODE_CONFIG_MCPL2=ON
-        -DCMAKE_INSTALL_LIBDIR=lib
-        -DBUILD_MCXTRACE=ON
-        -DMCCODE_USE_LEGACY_DESTINATIONS=OFF
-        -DBUILD_TOOLS=ON
-        -DENABLE_COMPONENTS=ON
-        -DENABLE_CIF2HKL=ON
-        -DENABLE_NEUTRONICS=OFF
-        -DMPIINCLUDEDIR=%MPIINCVAR%
-        -DMPILIBDIR=%MPILIBVAR%
-
     - name: Configure build and install mcxtrace on Windows-MSVC
       id: mcxtrace-install-windows-msvc
       if: ${{ matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
+      shell: cmd
       run: >
         cmake -B build -S src
-        "-DCMAKE_INSTALL_PREFIX=./install"
+        "-DCMAKE_INSTALL_PREFIX=./install_mcxtrace"
         -DMCVERSION="3.99.99"
         -DMCCODE_BUILD_CONDA_PKG=OFF
         -DMCCODE_CONFIG_MCPL2=ON
@@ -214,29 +194,37 @@ jobs:
         -DMPILIBDIR=%MPILIBVAR%
 
     - name: CMake build
-      if: runner.os == 'Windows'
+      if: ${{ matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
       shell: cmd
       run: cmake --build build --config Release -j 2
 
     - name: CMake install
-      if: runner.os == 'Windows'
+      if: ${{ matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
       run: cmake --install build --config Release
 
     - name: set MCXTRACE env var
       if: runner.os == 'Windows'
-      run: echo MCXTRACE=%CD%\install\share\mcxtrace\resources >> %GITHUB_ENV%
+      run: echo MCXTRACE=%CD%\install_mcxtrace\share\mcxtrace\resources >> %GITHUB_ENV%
 
     - name: check MCXTRACE env var
       if: runner.os == 'Windows'
       run: echo %MCXTRACE%
 
-    - name: Various Windows debugging
+    - name: Various Windows debugging - McXtrace
       if: runner.os == 'Windows'
       shell: cmd
       run: |
-        type .\install\share\mcxtrace\tools\Python\mccodelib\mccode_config.json
-        .\install\bin\mxrun -h
-        .\install\bin\mcxtrace -v
+        type .\install_mcxtrace\share\mcxtrace\tools\Python\mccodelib\mccode_config.json
+        .\install_mcxtrace\bin\mxrun -h
+        .\install_mcxtrace\bin\mcxtrace -v
+        if [ "${{ matrix.CC }}" != "cl.exe" ];
+        then
+          mcpl-config -s
+        fi
+
+    - name: Various Windows debugging - MCPL
+      if: runner.os == 'Windows'
+      run: |
         mcpl-config -s
 
     - name: Pip install Unix
@@ -248,42 +236,37 @@ jobs:
            set -x
            if [ "$RUNNER_OS" == "macOS" ];
            then
-             python3 -mpip install PyYAML pyaml ply McStasScript mcpl mcpl-extra jinja2 psutil --break-system-packages
+             python3 -mpip install PyYAML pyaml ply McStasScript mcpl mcpl-extra kdsource jinja2 psutil --break-system-packages
            fi
            if [ "$RUNNER_OS" == "Linux" ];
            then
-             python3 -mpip install PyYAML ply McStasscript mcpl mcpl-extra jinja2 psutil
+             python3 -mpip install PyYAML ply McStasscript mcpl mcpl-extra kdsource jinja2 psutil
            fi
 
-    # Start of Unix tests
+    # Start of tests
     - name: Launch RNG test instrument
       id: RNG-test
-      if: runner.os != 'Windows'
-      # Status: Works on Unixes
       run: |
            set -e
            set -u
            set -x
-           export MCXTRACE_EXECUTABLE="mcxtrace"
-           export MCXTRACE_PYGEN_EXECUTABLE="mcxtrace-pygen"
-           export MXRUN_EXECUTABLE="mxrun"
            export MD5SUM="md5sum"
-           if [ "$RUNNER_OS" == "Windows" ];
-           then
-             export MCXTRACE_EXECUTABLE="mcxtrace.exe"
-             export MCXTRACE_PYGEN_EXECUTABLE="mcxtrace-pygen.exe"
-             export MXRUN_EXECUTABLE="mxrun.bat"
-           fi
            if [ "$RUNNER_OS" == "macOS" ];
            then
              export MD5SUM="md5"
            fi
-           test -f ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE}
-           ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE} --version
-           mkdir run_RNG && cd run_RNG
-           cp ../install_mcxtrace/share/mcxtrace/resources/examples/Tests_RNG/Test_RNG_rand01/Test_RNG_rand01.instr .
-           ../install_mcxtrace/bin/${MXRUN_EXECUTABLE} Test_RNG_rand01.instr -s1000 Ncount=1000 -d RNGtest
-           export SUM=`grep -v \# RNGtest/rngout.dat | ${MD5SUM} | cut -f1 -d\ `
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             export SUFFIX=".bat"
+             export EXESUFFIX=".exe"
+           else
+            export SUFFIX=""
+            export EXESUFFIX=""
+           fi
+           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
+           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
+           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           export SUM=`find run_singletests -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
            export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
            if [ "${EXPECTED}" == "${SUM}" ];
            then
@@ -295,98 +278,116 @@ jobs:
            fi
 
     - name: Launch JJ_SAXS instrument
-      id: JJ_SAXS-basic
-      if: runner.os != 'Windows'
-      # Status: Works on Unixes
+      id: JJ_SAXS
       run: |
            set -e
            set -u
            set -x
-           export MCXTRACE_EXECUTABLE="mcxtrace"
-           export MCXTRACE_PYGEN_EXECUTABLE="mcxtrace-pygen"
-           export MXRUN_EXECUTABLE="mxrun"
+           export MD5SUM="md5sum"
+           if [ "$RUNNER_OS" == "macOS" ];
+           then
+             export MD5SUM="md5"
+           fi
            if [ "$RUNNER_OS" == "Windows" ];
            then
-             export MCXTRACE_EXECUTABLE="mcxtrace.exe"
-             export MCXTRACE_PYGEN_EXECUTABLE="mcxtrace-pygen.exe"
-             export MXRUN_EXECUTABLE="mxrun.bat"
+             export SUFFIX=".bat"
+             export EXESUFFIX=".exe"
+           else
+            export SUFFIX=""
+            export EXESUFFIX=""
            fi
-           test -f ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE}
-           ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE} --version
-           mkdir run_JJ_SAXS && cd run_JJ_SAXS
-           cp ../install_mcxtrace/share/mcxtrace/resources/examples/SAXSLAB/JJ_SAXS/JJ_SAXS.instr .
-           ../install_mcxtrace/bin/${MXRUN_EXECUTABLE} JJ_SAXS.instr pin2_pos=0.2 pin3_pos=0.4 optic_L=0.1 sample_pos=0.2 detector_pos=2
-           ../install_mcxtrace/bin/${MCXTRACE_PYGEN_EXECUTABLE} JJ_SAXS.instr
+           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
+           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
+           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=JJ_SAXS --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           if [ "${{ matrix.CC }}" != "cl.exe" ];
+           then
+             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=JJ_SAXS --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           fi
 
-    - name: Launch JJ_SAXS instrument (MPI)
-      id: JJ_SAXS-mpi
-      if: runner.os != 'Windows'
-      # Status: Works on Unixes
+    - name: Launch ESRF_BM29 instrument
+      id: ESRF_BM29
       run: |
            set -e
            set -u
            set -x
-           export MCXTRACE_EXECUTABLE="mcxtrace"
-           export MCXTRACE_PYGEN_EXECUTABLE="mcxtrace-pygen"
-           export MXRUN_EXECUTABLE="mxrun"
-           if [ "$RUNNER_OS" == "macOS" ]; then export TMPDIR=${HOME}/tmp; fi
+           export MD5SUM="md5sum"
+           if [ "$RUNNER_OS" == "macOS" ];
+           then
+             export MD5SUM="md5"
+           fi
            if [ "$RUNNER_OS" == "Windows" ];
            then
-             export MCXTRACE_EXECUTABLE="mcxtrace.exe"
-             export MXRUN_EXECUTABLE="mxrun.bat"
+             export SUFFIX=".bat"
+             export EXESUFFIX=".exe"
+           else
+            export SUFFIX=""
+            export EXESUFFIX=""
            fi
-           test -f ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE}
-           ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE} --version
-           mkdir run_JJ_SAXS_mpi && cd run_JJ_SAXS_mpi
-           cp ../install_mcxtrace/share/mcxtrace/resources/examples/SAXSLAB/JJ_SAXS/JJ_SAXS.instr .
-           ../install_mcxtrace/bin/${MXRUN_EXECUTABLE} --verbose --mpi=2 JJ_SAXS.instr pin2_pos=0.2 pin3_pos=0.4 optic_L=0.1 sample_pos=0.2 detector_pos=2
+           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
+           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
+           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=ESRF_BM29 --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           if [ "${{ matrix.CC }}" != "cl.exe" ];
+           then
+             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=ESRF_BM29 --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           fi
 
     - name: Launch MCPL test instrument
       id: mcpl-test
       if: runner.os != 'Windows'
-      # Status: Works on Unixes
       run: |
            set -e
            set -u
            set -x
-           export MCXTRACE_EXECUTABLE="mcxtrace"
-           export MXRUN_EXECUTABLE="mxrun"
+           export MD5SUM="md5sum"
+           if [ "$RUNNER_OS" == "macOS" ];
+           then
+             export MD5SUM="md5"
+           fi
            if [ "$RUNNER_OS" == "Windows" ];
            then
-             export MCXTRACE_EXECUTABLE="mcxtrace.exe"
-             export MXRUN_EXECUTABLE="mxrun.bat"
+             export SUFFIX=".bat"
+             export EXESUFFIX=".exe"
+           else
+            export SUFFIX=""
+            export EXESUFFIX=""
            fi
-           export PATH=${PATH}:${PWD}/install_mcxtrace/bin/:${PWD}/install_mcxtrace/mcxtrace/3.99.99/bin/
-           test -f ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE}
-           ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE} --version
-           mkdir run_Test_MCPL_input && cd run_Test_MCPL_input
-           cp ../install_mcxtrace/share/mcxtrace/resources/examples/Tests_MCPL_etc/Test_MCPL_input/Test_MCPL_input.instr .
-           cp ../install_mcxtrace/share/mcxtrace/resources/examples/Tests_MCPL_etc/Test_MCPL_input/voutput.mcpl.gz .
-           ../install_mcxtrace/bin/${MXRUN_EXECUTABLE} Test_MCPL_input.instr repeat=10 MCPLFILE=voutput.mcpl.gz
+           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
+           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
+           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_MCPL_input --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_MCPL_output --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           if [ "$RUNNER_OS" != "Windows" ];
+           then
+             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_MCPL_input --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
+             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_MCPL_output --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           fi
 
-    - name: Launch MCPL test instrument (MPI)
-      id: mcpl-test-mpi
-      if: runner.os != 'Windows'
-      # Status: Works on Unixes
+    - name: Launch Absorption test instrument
+      id: Absorption-test
+      if: runner.os != 'Windows' # Missing xraylib dependency
       run: |
            set -e
            set -u
            set -x
-           export MCXTRACE_EXECUTABLE="mcxtrace"
-           export MXRUN_EXECUTABLE="mxrun"
-           if [ "$RUNNER_OS" == "macOS" ]; then export TMPDIR=${HOME}/tmp; fi
+           export MD5SUM="md5sum"
+           if [ "$RUNNER_OS" == "macOS" ];
+           then
+             export MD5SUM="md5"
+           fi
            if [ "$RUNNER_OS" == "Windows" ];
            then
-             export MCXTRACE_EXECUTABLE="mcxtrace.exe"
-             export MXRUN_EXECUTABLE="mxrun.bat"
+             export SUFFIX=".bat"
+             export EXESUFFIX=".exe"
+           else
+            export SUFFIX=""
+            export EXESUFFIX=""
            fi
-           export PATH=${PATH}:${PWD}/install_mcxtrace/bin/:${PWD}/install_mcxtrace/mcxtrace/3.99.99/bin/
-           test -f ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE}
-           ./install_mcxtrace/bin/${MCXTRACE_EXECUTABLE} --version
-           mkdir run_Test_MCPL_input_mpi && cd run_Test_MCPL_input_mpi
-           cp ../install_mcxtrace/share/mcxtrace/resources/examples/Tests_MCPL_etc/Test_MCPL_input/Test_MCPL_input.instr .
-           cp ../install_mcxtrace/share/mcxtrace/resources/examples/Tests_MCPL_etc/Test_MCPL_input/voutput.mcpl.gz .
-           ../install_mcxtrace/bin/${MXRUN_EXECUTABLE} --verbose --mpi=2 Test_MCPL_input.instr repeat=20 MCPLFILE=voutput.mcpl.gz
+           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
+           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
+           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_Absorption --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           if [ "$RUNNER_OS" != "Windows" ];
+           then
+             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_Absorption --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
+           fi
 
     - name: Check for modified instruments
       id: instr-test
@@ -413,9 +414,9 @@ jobs:
                  if [ "$NUMMATCH" -gt "0" ];
                  then
                    if [ "$RUNNER_OS" != "Windows" ]; then
-                     mxtest --mpi=2 --testdir run_${comp} --comp=${comp} --suffix=${{ matrix.CC }}_CHANGES $PERMISSIVE --verbose
+                     mxtest --mpi=2 --testdir run_${comp} --comp=${comp} --suffix=CHANGES_${{ matrix.CC }}_${{ matrix.mpi }} $PERMISSIVE --verbose
                  else
-                     echo .\\install\\bin\\mxtest --verbose --testdir run_${comp} --comp=${comp} --suffix=${{ matrix.CC }}_CHANGES --permissive --verbose >> changedinstr.bat
+                     mxtest.bat --mpi=2 --testdir run_${comp} --comp=${comp} --suffix=CHANGES_${{ matrix.CC }}_${{ matrix.mpi }}  $PERMISSIVE --verbose
                  fi
              else
                    echo No matching tests found
@@ -446,79 +447,13 @@ jobs:
              fi
              mkdir run_mxtest && cd run_mxtest
              if [ "$RUNNER_OS" != "Windows" ]; then
-               mxtest --mpi=2 --testdir $PWD $SCOPE --suffix=${{ matrix.CC }}_CHANGES $PERMISSIVE
+               mxtest --mpi=2 --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.mpi }} $PERMISSIVE
                mxviewtest --nobrowse $PWD
              else
-               echo .\\install\\bin\\mxtest --verbose --testdir=run_mxtest $SCOPE --suffix=${{ matrix.CC }}_CHANGES --permissive >> ..\\changedinstr.bat
+               mxtest.bat --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.CC }}  $PERMISSIVE
+               mxviewtest.bat --nobrowse $PWD
              fi
            fi
-
-    # END of Unix tests
-
-    - name: Run modified instruments Win
-      id: instr-test-Win
-      if: runner.os == 'Windows' # Windows only
-      shell: cmd
-      run: |
-        if exist changedinstr.bat (
-          call .\changedinstr.bat
-        )
-
-    # Start of Windows tests
-    - name: Prepare rundirs Windows
-      if: runner.os == 'Windows' # Windows only
-      shell: cmd
-      run: mkdir run_rng run_std run_mcpl_output run_mcpl_input run_union
-
-    - name: Prepare and run rng instrument Windows
-      if: runner.os == 'Windows' # Windows only
-      shell: cmd
-      working-directory: run_rng
-      run: |
-        copy ..\install\share\mcxtrace\resources\examples\Tests_RNG\Test_RNG_rand01\Test_RNG_rand01.instr test.instr
-        ..\install\bin\mxrun --verbose test.instr -s1000 Ncount=1000 -d RNGtest
-
-    - name: Prepare and run CRL instrument Windows MSVC
-      if: runner.os == 'Windows' && matrix.cc != 'gcc.exe' # Windows MSVC only
-      shell: cmd
-      working-directory: run_std
-      run: |
-        copy ..\install\share\mcxtrace\resources\examples\Tests_optics\Test_CRL\Test_CRL.instr test.instr
-        ..\install\bin\mxrun --verbose test.instr -s1000 -y
-
-    - name: Prepare and run MCPL_input instrument Windows
-      if: runner.os == 'Windows' # Windows only
-      shell: cmd
-      working-directory: run_mcpl_input
-      run: |
-        copy ..\install\share\mcxtrace\resources\examples\Tests_MCPL_etc\Test_MCPL_input\Test_MCPL_input.instr test.instr
-        copy ..\install\share\mcxtrace\resources\examples\Tests_MCPL_etc\Test_MCPL_input\voutput.mcpl.gz .
-        ..\install\bin\mxrun --verbose test.instr -s1000 -y
-
-    - name: Prepare and run MCPL_output instrument Windows
-      if: runner.os == 'Windows' # Windows only
-      shell: cmd
-      working-directory: run_mcpl_output
-      run: |
-        copy ..\install\share\mcxtrace\resources\examples\Tests_MCPL_etc\Test_MCPL_output\Test_MCPL_output.instr test.instr
-        ..\install\bin\mxrun --verbose test.instr -s1000 -y
-
-    - name: Test RNG instrument output Windows
-      if: runner.os == 'Windows' # Windows only
-      working-directory: run_rng
-      shell: bash
-      run:   |
-        export SUM=`grep -v \# RNGtest/rngout.dat | dos2unix | md5sum | cut -f1 -d\ `
-        export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
-        if [ "${EXPECTED}" == "${SUM}" ];
-        then
-          echo RNG test success!
-          true
-        else
-          echo RNG test failure!
-          false
-        fi
-    # END of Windows tests
 
     - name: 'Tar output files'
       id: tar-package

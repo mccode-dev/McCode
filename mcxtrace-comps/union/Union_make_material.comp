@@ -1,0 +1,291 @@
+/*******************************************************************************
+*
+*  McXtrace, x-ray ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Mads Bertelsen and Erik B Knudsen
+* Date: 20.08.15
+* Version: $Revision: 0.1 $
+* Origin: ESS DMSC & DTU Physics
+*
+* Component that takes a number of Union processes and constructs a Union material
+*
+* %D
+* Part of the Union components, a set of components that work together and thus
+*  separates geometry and physics within McXtrace.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components
+* 2) These are gathered into material definitions using this component
+* 3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before the master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union_components
+*
+* Algorithm:
+* Described elsewhere
+*
+* %P
+* INPUT PARAMETERS:
+* process_string: [string] Comma seperated names of physical processes
+* my_absorption:  [1/m]    Inverse penetration depth from absorption at standard energy
+* absorber:       [0/1]    Control parameter, if set to 1 the material will have no scattering processes
+* material_string: [string] List of elements present in the material. Triggers a search for materials constants files.
+* init:           [string] Name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+* this_material:            Structure that contains information on this material
+* global_material_element:  Element of global_material_list which is a global variable
+*
+* GLOBAL PARAMETERS:
+* global_material_list:     List of all defined materials, available in the global scope
+*
+* %L
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Union_make_material
+
+SETTING PARAMETERS(string process_string="NULL",my_absorption,absorber=0, string material_string="NULL", string init="init")
+OUTPUT PARAMETERS ()
+
+SHARE
+%{
+%include "read_table-lib"
+
+#ifndef Union
+#define Union $Revision: 0.8 $
+
+
+%include "union-init.c"
+
+#endif
+
+// This function checks if global_process_element should be included in this material when using automatic linking, returns 1 if yes, 0 if no.
+int automatic_linking_materials_function(struct global_process_element_struct global_process_element, struct pointer_to_global_material_list global_material_list,int current_index) {
+    // Remember this function is used before the current material is added to global_material_list
+    // debug info
+    //MPI_MASTER(
+    //printf("Checking if process with index %d should be automatically linked to material with index %d\n",global_process_element.component_index,current_index);
+    //)
+
+    // Check if this is the first make_material, which makes the problem simpler.
+    if (global_material_list.num_elements == 0) {
+       if (global_process_element.component_index < current_index) return 1;
+       else return 0;
+    }
+    // In case there are more than 1 make_material, global_material_list.elements[global_material_list.num_elements-1].component_index makes sense.
+    if (global_process_element.component_index < current_index && global_process_element.component_index > global_material_list.elements[global_material_list.num_elements-1].component_index) return 1;
+    else return 0;
+}
+
+void manual_linking_function_material(char *input_string, struct pointer_to_global_process_list *global_process_list, struct pointer_to_1d_int_list *accepted_processes, char *component_name) {
+    // Need to check a input_string of text for an occurance of name. If it is in the inputstring, yes return 1, otherwise 0.
+   char *token;
+   int loop_index;
+   char local_string[256];
+
+   strcpy(local_string,input_string);
+   // get the first token
+   token = strtok(local_string,",");
+
+   // walk through other tokens
+   while( token != NULL )
+   {
+      //printf( " %s\n", token );
+      for (loop_index=0;loop_index<global_process_list->num_elements;loop_index++) {
+        if (strcmp(token,global_process_list->elements[loop_index].name) == 0) {
+          add_element_to_int_list(accepted_processes,loop_index);
+          break;
+        }
+
+        if (loop_index == global_process_list->num_elements - 1) {
+          // All possible process names have been looked through, and the break was not executed.
+          // Alert the user to this problem by showing the process name that was not found and the currently available processes
+            printf("\n");
+            printf("ERROR: The process string \"%s\" in Union material \"%s\" had an entry that did not match a specified process. \n", input_string, component_name);
+            printf("       The unrecognized process name was: \"%s\" \n",token);
+            printf("       The processes available at this point (need to be defined before the material): \n");
+            for (loop_index=0;loop_index<global_process_list->num_elements;loop_index++)
+              printf("         %s\n",global_process_list->elements[loop_index].name);
+            exit(1);
+        }
+      }
+
+      // Updates the token
+      token = strtok(NULL,",");
+   }
+}
+
+// This function is needed in initialize of all geometry components
+// Possible to insert these functions in make material, as they are only compiled once instead of many times
+int manual_linking_function(char *name, char *input_string) {
+    // Need to check a input_string of text for an occurance of name. If it is in the inputstring, yes return 1, otherwise 0.
+   char *token;
+   int return_integer=0;
+   char local_string[124];
+
+   strcpy(local_string,input_string);
+   /* get the first token */
+   token = strtok(local_string,",");
+
+   /* walk through other tokens */
+   while( token != NULL )
+   {
+      if (strcmp(token,name) == 0) return_integer=1;
+
+      token = strtok(NULL,",");
+   }
+
+   return return_integer;
+}
+
+#ifndef MATERIAL_DETECTOR
+    #define MATERIAL_DETECTOR dummy
+#endif
+
+%}
+
+DECLARE
+%{
+// Needed for transport to the main component
+struct global_material_element_struct global_material_element;
+struct physics_struct this_material;
+
+int loop_index;
+int found_process;
+int specified_processes;
+char local_string[256];
+
+struct pointer_to_1d_int_list accepted_processes;
+
+// Add setup for loggers since make_material is called before any volume / master
+#ifndef UNION_LOGGER_DECLARE
+	#define UNION_LOGGER_DECLARE dummy
+#endif
+
+%}
+
+INITIALIZE
+%{
+
+  accepted_processes.num_elements = 0;
+  accepted_processes.elements = NULL;
+  
+
+  if (0 == strcmp(NAME_CURRENT_COMP,"vacuum") || 0 == strcmp(NAME_CURRENT_COMP,"Vacuum")) {
+    printf("ERROR, a Union material may not be called Vacuum. A vacuum volume may be created by material=\"Vacuum\" in a geometry component.\n");
+    exit(1);
+  }
+  if (0 == strcmp(NAME_CURRENT_COMP,"exit") || 0 == strcmp(NAME_CURRENT_COMP,"Exit")) {
+    printf("ERROR, a Union material may not be called Exit. A exit volume may be created by material=\"Exit\" in a geometry component.\n");
+    exit(1);
+  }
+    if (my_absorption < 0) {
+      printf("ERROR, Union make material named %s has a negative absorption cross section!.\n",NAME_CURRENT_COMP);
+      exit(1);
+    }
+
+  if (_getcomp_index(init) < 0) {
+  fprintf(stderr,"Union_make_material:%s: Error identifying Union_init component, %s is not a known component name.\n",
+    NAME_CURRENT_COMP, init);
+  exit(-1);
+  }
+
+struct pointer_to_global_process_list *global_process_list = COMP_GETPAR3(Union_init, init, global_process_list);
+  struct pointer_to_global_material_list *global_material_list = COMP_GETPAR3(Union_init, init, global_material_list);
+
+  if (absorber == 0) {
+    if (process_string && strlen(process_string) && strcmp(process_string,"NULL") && strcmp(process_string, "0")) {
+        manual_linking_function_material(process_string, global_process_list, &accepted_processes, NAME_CURRENT_COMP);
+    } else {
+      for (loop_index=0;loop_index<global_process_list->num_elements;loop_index++) {
+        // printf("Automatic linking chosen [loop index = %d] with process_string = %s  \n",loop_index,process_string);
+        // automatic linking
+        // accept a process if index is between current and former index of make_material components
+          if (1 == automatic_linking_materials_function(global_process_list->elements[loop_index], *global_material_list, INDEX_CURRENT_COMP))
+              add_element_to_int_list(&accepted_processes,loop_index);
+      }
+    }
+  }
+
+  this_material.number_of_processes = accepted_processes.num_elements; // Add number of processes
+  this_material.is_vacuum = 0; // This material is not vacuum
+
+  if (this_material.number_of_processes == 0 && this_material.number_of_elements==0 && my_absorption == 0) {
+    printf("ERROR, the material named %s has no processes assigned, no material_data_tables assigned nor no absorption cross section, making it eqvialent to vacuum. Vacuums are assigned by setting material=\"Vacuum\" in a geometry component.\n",NAME_CURRENT_COMP);
+    exit(1);
+  }
+
+  // add process element to this_material, building an array of processes called p_scattering_array
+  if (this_material.number_of_processes > 0) this_material.p_scattering_array = malloc(this_material.number_of_processes * sizeof(struct scattering_process_struct));
+  for (loop_index=0;loop_index<accepted_processes.num_elements;loop_index++) {
+        this_material.p_scattering_array[loop_index]=*global_process_list->elements[accepted_processes.elements[loop_index]].p_scattering_process;
+  }
+
+  this_material.my_a = my_absorption;  // add the absorption to this material
+  sprintf(this_material.name,"%s",NAME_CURRENT_COMP);
+
+  // packing the information into the global_material_element, which is then included in the global_material_list.
+  sprintf(global_material_element.name,"%s",NAME_CURRENT_COMP);
+  global_material_element.component_index = INDEX_CURRENT_COMP;
+  global_material_element.physics = &this_material; // Would be nicer if this material was a pointer, now we have the (small) data two places
+  add_element_to_material_list(global_material_list, global_material_element);
+
+ %}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+// The elements of the scattering array used static allocation and is thus deallocated automatically
+if (this_material.number_of_processes > 0) free(this_material.p_scattering_array);
+if (accepted_processes.num_elements > 0) free(accepted_processes.elements);
+
+struct pointer_to_global_geometry_list *global_geometry_list = COMP_GETPAR3(Union_init, init, global_geometry_list);
+struct pointer_to_global_master_list *global_master_list = COMP_GETPAR3(Union_init, init, global_master_list);
+
+// Checking if any Union volumes are defined after the master component
+#ifdef MASTER_DETECTOR
+  #ifdef ANY_GEOMETRY_DETECTOR_DECLARE
+    #ifndef MASTER_DETECTOR_WARNING
+    
+      for (loop_index=0;loop_index<global_geometry_list->num_elements;loop_index++) {
+        if (global_geometry_list->elements[loop_index].component_index > global_master_list->elements[global_master_list->num_elements-1].component_index) {
+          printf("WARNING: No Union_master component defined after Union volume named %s, this components did not affect the simulation in any way.\n",global_geometry_list->elements[loop_index].name);
+        }
+      }
+      // Decided to have this as a warning without exiting the simulation
+      // In order to only show this warning once, the MASTER_DETECTOR_WARNING is defined
+      #define MASTER_DETECTOR_WARNING dummy
+    #endif
+  #endif
+#endif
+
+// Checking if the user remembered to put in a Union_master
+#ifndef MASTER_DETECTOR
+  #ifdef ANY_GEOMETRY_DETECTOR_DECLARE
+    #ifndef MASTER_DETECTOR_WARNING
+      printf("\nWARNING: No Union_master component used, these components did not affect the simulation in any way:\n");
+      for (loop_index=0;loop_index<global_geometry_list->num_elements;loop_index++)
+        printf("  %s\n",global_geometry_list->elements[loop_index].name);
+      printf("\n");
+      // Decided to have this as a warning without exiting the simulation
+      // In order to only show this warning once, the MASTER_DETECTOR_WARNING is defined
+      #define MASTER_DETECTOR_WARNING dummy
+    #endif
+  #endif
+#endif
+
+
+%}
+
+END
+

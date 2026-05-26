@@ -1,0 +1,85 @@
+\section{The \texttt{Guide\_tapering} McStas Component}
+Models a rectangular tapered guide (many shapes)
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Uwe Filges
+  \item \textbf{Origin:} PSI
+  \item \textbf{Date:} 22/10/2003
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Models a rectangular guide tube centered on the Z axis. The entrance lies
+in the X-Y plane.
+The guide may be tapered.
+
+The component includes a feature to read in self-defined functions for
+guide tapering. Under the parameter 'option' the KEYWORD 'file=' offers
+the possibility to read in parameters from an ASC-file. The file structure
+is shown below in the example. It is important to know that the first
+3 lines will be interpreted as comments.
+Afterwards the dimension of each guide segment must be defined. The
+length of each segment is constant l(i)=l/segments . The number of
+segments is defined through the number of lines minus the first 3
+lines taken from the Input-File.
+The guide can be made curved both horizontally and vertically (not shown in 3d
+view), and m-coating, when set negative, is varied in 1/width.
+
+Example Input-File:
+
+c Guide_tapering.comp
+c i = 0 - 199 segments
+c h1(i)     h2(i)   w1(i)    w2(i)
+0.120000 0.119850 0.020000 0.020000
+0.119850 0.119700 0.020000 0.020000
+0.119700 0.119550 0.020000 0.020000
+0.119550 0.119400 0.020000 0.020000
+0.119400 0.119250 0.020000 0.020000
+0.119250 0.119100 0.020000 0.020000
+...
+
+Example1: Guide_tapering(w1=0.1, h1=0.18, linw=0.1, loutw=0.1, linh=0.1, louth=0.1, l=1.5, option="elliptical", R0=0.99, Qcx=0.021, Qcy=0.021, alphax=6.07, alphay=6.07, W=0.003, mx=1, my=1, segno=800)
+
+Example2: Guide_tapering(w1=0, h1=0, linw=0, loutw=0, linh=0, louth=0, l=1.5, option="file=ownfunction.txt", R0=0.99, Qcx=0.021, Qcy=0.021, alphax=6.07, alphay=6.07, W=0.003, mx=1, my=1)
+
+%BUGS
+This component does not work with gravitation on. Use component Guide_gravity then.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+option & str & define the input function for the curve of the guide walls options are: "elliptical" - define elliptical function of guide walls "parabolical" - define parabolical function of guide walls "straight"    - define a straight elements guide"file=[filename]" - read in ASC-file with arbitrary definition for the curve of the guide walls & 0 \\
+w1 & m & Width at the guide entry & 0 \\
+h1 & m & Height at the guide entry & 0 \\
+\textbf{l} & m & length of guide &  \\
+linw & m & distance from 1st focal point to real guide entry - left and right horizontal mirrors & 0 \\
+loutw & m & distance from real guide exit to 2nd focal point - left and right horizontal mirrors & 0 \\
+linh & m & distance from 1st focal point to real guide entry - top and bottom vertical mirrors & 0 \\
+louth & m & distance from real guide exit to 2nd focal point - top and bottom vertical mirrors & 0 \\
+R0 & 1 & Low-angle reflectivity & 0.99 \\
+Qcx & AA-1 & Critical scattering vector for left and right vertical mirrors in each channel & 0.021 \\
+Qcy & AA-1 & Critical scattering vector for top and bottom mirrors & 0.021 \\
+alphax & AA & Slope of reflectivity for left and right vertical mirrors in each channel & 6.07 \\
+alphay & AA & Slope of reflectivity for top and bottom mirrors & 6.07 \\
+W & AA-1 & Width of supermirror cut-off for all mirrors & 0.003 \\
+mx & 1 & m-value of material for left and right vertical mirrors in each channel. Zero means completely absorbing. Negative  value will adapt coating as e.g. m=mx*w1/w & 1 \\
+my & 1 & m-value of material for top and bottom mirrors. Zero means completely absorbing. Negative value will adapt coating as e.g. m=my*h1/h & 1 \\
+segno & 1 & number of segments (z-axis) for cutting the tube & 800 \\
+curvature & m & guide horizontal radius of curvature. Zero means straight. & 0 \\
+curvature\_v & m & guide vertical radius of curvature. Zero means straight. & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/Guide_tapering.comp}{Source code} for \texttt{Guide\_tapering.comp}.
+\end{itemize}
+\IfFileExists{Guide_tapering_static.tex}{\input{Guide_tapering_static.tex}}{}

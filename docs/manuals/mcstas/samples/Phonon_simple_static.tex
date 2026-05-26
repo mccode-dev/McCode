@@ -1,0 +1,162 @@
+\section{Phonon\_simple: A simple phonon sample}
+\label{s:phonon_simple}
+\index{Samples!Phonon scattering}
+\index{Inelastic scattering}
+
+%\component{Phonon\_simple}{Kim Lefmann, Ris\o\ National Laboratory}{ $r_\textrm{o}$, $h$, $r_\textrm{foc}$, $x_\textrm{target}$, $y_\textrm{target}$, $z_\textrm{target}$, $\sigma_\textrm{abs}$, $\sigma_\textrm{inc}$, $a$, $b$, $c$, $M$, $DW$, $T$}{$w_x$, $h_y$, $t_z$, $w_\textrm{focus}, h_\textrm{focus}$, $w_\textrm{foc, angle}$, $h_\textrm{foc, angle}$, target\_index}{only validated qualitatively}
+%\mcdoccomp{samples/Phonon_simple.parms}
+
+This component models a simple phonon signal from a single crystal of
+a pure element in an {\em fcc} crystal structure.
+Only one isotropic acoustic phonon branch is modelled, and the longitudinal
+and transverse dispersions are identical with the velocity of sound being $c$.
+Other physical parameters are the atomic mass, $M$, the lattice parameter, $a$,
+the scattering length, $b$,
+the Debye-Waller factor, \verb+DW+, and the temperature, $T$.
+Incoherent scattering and absorption are taken into account by the cross
+sections $\sigma_\textrm{abs}$ and $\sigma_\textrm{inc}$.
+
+The sample can have the form of a cylinder with height $h$ and radius
+$r_0$, or a box with dimensions $w_x, h_y, t_z$.
+
+Phonons are emitted into a specific range of solid angles, specified
+by the location $(x_t, y_t, z_t)$ and the focusing radius, $r_0$.
+Alternatively, the focusing is given by a rectangle,
+$w_\textrm{focus}$ and $h_\textrm{focus}$, and the focus point is given by the
+index of a down-stream component, \verb+target_index+.
+
+Multiple scattering is not included in this component.
+
+A usage example of this component can be found in the \verb+Neutron site/tests/Test_Phonon+ instrument from the \verb+mcgui+.
+
+\subsection{The phonon cross section} % This is modified from the paper version %
+The inelastic phonon cross section for a Bravais crystal of a pure element
+is given by Ref.~\cite[ch.3~]{squires}
+\begin{eqnarray}
+\frac{d^2\sigma'}{d\Omega dE_\textrm{f}} &=&
+  b^2 \frac{k_\textrm{f}}{k_\textrm{i}} \frac{(2\pi)^3}{V_0}\frac{1}{2M} \exp(-2W) \nonumber \\
+&\times&
+  \sum_{\tau,q,p} \frac{(\mbox{\boldmath $\kappa$} \cdot \textbf{e}_{q,p})^2}
+                       {\omega_{q,p}}
+  \left\langle n_{q,p} + \frac{1}{2} \mp \frac{1}{2} \right\rangle
+  \delta(\omega\pm\omega_{q,p}) \delta(\kappa\pm\textbf{q}-\tau) ,
+\end{eqnarray}
+where both annihilation and creation of one phonon is considered
+(represented by the plus and minus sign in the dispersion delta functions,
+respectively).
+In the equation,
+$\exp(-2W)$ is the Debye-Waller factor, \verb+DW+ and
+$V_0 $ is the volume of the unit cell.
+The sum runs over the reciprocal lattice vectors, $\tau$,
+over the polarisation index, $p$,
+and the $N$ allowed wave vectors \textbf{q} within the Brillouin zone
+(where $N$ is the number of unit cells in the crystal).
+Further, $\textbf{e}_{q,p}$ is the
+polarization unit vectors, $\omega_{q,p}$ the phonon dispersion,
+and the Bose factor is
+$\langle n_{q,p} \rangle = (\hbar \exp(|\omega_{q,p}|/k_\textrm{B}T)-1)^{-1}$.
+
+We have simplified this expression by assuming no polarization
+dependence of the dispersion, giving
+$\sum_{p} (\mbox{\boldmath $\kappa$} \cdot \textbf{e}_{q,p})^2 = \kappa^2$.
+We assume that the inter-atomic interaction is nearest-neighbour-only
+so that the phonon dispersion becomes:
+\begin{equation}
+d_1(\textbf{q}) = c_1/a \sqrt{z-s_q} ,
+\end{equation}
+where $z=12$ is the number of nearest neighbours and
+$s_q=\sum_\textrm{nn} \cos(\textbf{q} \cdot \textbf{r}_\textrm{nn})$,
+where in turn $\textbf{r}_\textrm{nn}$ is the lattice positions of the
+nearest neighbours.
+
+This dispersion relation may be modified with a small effort,
+since it is given as a separate c-function attatched to the component.
+
+To calculate $d\sigma/d\Omega$ we need to transform the
+\textbf{q} sum into an integral over the Brillouin zone by
+$\sum_q \rightarrow N V_\textrm{c} (2\pi)^{-3} \int_\textrm{BZ} d^3\textbf{q}$.
+The $\mbox{\boldmath $\kappa$}$ sum can now be removed by
+expanding the \textbf{q} integral to infinity.
+All in all, the partial differential cross section reads
+\begin{eqnarray}
+\frac{d^2\sigma'}{d\Omega dE_\textrm{f}}
+  (\mbox{\boldmath $\kappa$},\omega) &=&
+  N b^2 \frac{k_\textrm{f}}{k_\textrm{i}} \frac{1}{2M}
+  \int \frac{\hbar \kappa^2}{\hbar \omega_q}
+  \left\langle n_{q}+\frac{1}{2}\mp\frac{1}{2} \right\rangle
+  \delta(\omega\pm\omega_{q}) \delta(\mbox{\boldmath $\kappa$}\pm\textbf{q})
+   d^3\textbf{q} \nonumber \\
+ &=& N b^2 \frac{k_\textrm{f}}{k_\textrm{i}}
+          \frac{\hbar^2 \kappa^2}{2M \hbar \omega_q}
+  \left\langle n_{\kappa}+\frac12\pm\frac12 \right\rangle
+  \delta(\hbar\omega\pm d_1(\kappa)) . \label{e:phonon-pdcross}
+\end{eqnarray}
+
+\subsection{The algorithm}
+All neutrons, which hit the sample volume, are scattered
+into a particular range of solid angle, $\Delta \Omega$,
+like many other components. One of the difficult things in
+scattering from a dispersion is to take care to fulfill the
+dispersion criteria and to find the correct weight transformation.
+
+In \textbf{Phonon\_simple}, the following steps are taken:
+\begin{enumerate}
+\item If the sample is hit, calculate the total path length inside the
+sample, otherwise leave the neutron ray unchanged.
+\item Choose a scattering point inside the sample
+\item Choose a direction for the final wave vector, $\hat{\textbf{k}}_\textrm{f}$
+within $\Delta\Omega$.
+\item Calculate possible values of $k_\textrm{f}$ so that the
+dispersion relation is fulfilled for the corresponding value
+of $\textbf{k}_\textrm{f}$. (There is always at least one possible $k_\textrm{f}$
+value \cite{bacon}.)
+\item Choose one of the calculated $k_\textrm{f}$ values.
+\item Propagate the neutron to the scattering point and adjust the
+neutron velocity according to $k_\textrm{f}$.
+\item Calculate and apply the correct weight factor correction, see below.
+\end{enumerate}
+
+\subsection{The weight transformation}
+Before making the weight transformation, we need to calculate the
+probability for scattering along one certain direction $\Omega$
+from one phonon mode. To do this, we must integrate out the delta
+functions in the cross section (\ref{e:phonon-pdcross}).
+We here use that $\hbar \omega_q = \hbar^2 (k_i^2 - k_f^2) / (2 m_\textrm{N})$,
+$\kappa = \textbf{k}_\textrm{i} - k_\textrm{f}\hat{\textbf{k}}_\textrm{f}$, and
+the integration rule $\int \delta(f(x)) = (df/dx)(0)^{-1}$.
+Now, we reach
+\begin{equation} \label{eq:phononcross}
+\left(\frac{d\sigma'}{d\Omega}\right)_j = \int \frac{d^2\sigma'}{d\Omega dE_\textrm{f}} dE_\textrm{f}
+ = N b^2 \frac{k_\textrm{f}}{k_\textrm{i}}
+\frac{\hbar^2 \kappa^2}{2M d_1(\kappa_j) J(k_{\textrm{f},j})}
+\left\langle n_{\kappa}+\frac12\pm\frac12 \right\rangle .
+\end{equation}
+
+where the Jacobian reads
+\begin{equation}
+J = 1 - \frac{m_\textrm{N}}{k_\textrm{f} \hbar^2}
+    \frac{\partial}{\partial k_\textrm{f}} \left( d_1(\kappa) \right) .
+\end{equation}
+
+A rough order-of-magnitude consideration gives
+$\frac{k_{\textrm{f},j}}{k_\textrm{i}}\approx 1$,
+$J \approx 1$,
+$\langle n_{\kappa}+\frac12\pm\frac12 \rangle \approx 1$,
+$\frac{\hbar^2\kappa^2}{2M d_1(\kappa)}
+\approx \frac{m}{M}$.
+Hence, $\left(\frac{d\sigma}{d\Omega}\right)_j \approx N b^2 \frac{m}{M}$, and
+the phonon cross section becomes a fraction of
+the total scattering cross section $4 \pi N b^2$, as it must be.
+The differential cross section per unit volume is found from
+(\ref{eq:phononcross}) by replacing $N$ with $1/V_0$.
+
+The total weight transformation now becomes
+\begin{equation} \label{eq:phonon_mult}
+\pi_i = a_\textrm{lin} l_\textrm{max} n_\textrm{s} \Delta \Omega
+ b^2 \frac{k_{\textrm{f},j}}{k_\textrm{i}}
+ \frac{\hbar^2 \kappa}{2 V_0 M d_1(\kappa) J(k_{\textrm{f},j})}
+ \left\langle n_{\kappa}+\frac12 \pm\frac12 \right\rangle ,
+\end{equation}
+where $n_s$ is the number of possible dispersion values in the chosen direction.
+
+The \verb+Test_Phonon+ test/example instrument exists in the distribution for this component.

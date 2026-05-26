@@ -142,7 +142,7 @@
 * yheight: [m]         Height of sample y direction
 * zdepth: [m]          Depth of box sample
 * thickness: [m]        Thickness of hollow sample. Negative value extends the hollow volume outside of the box/cylinder.
-* reflections: [string] Input file for reflections (LAZ LAU CIF, FullProf, ShelX). Use only incoherent scattering if NULL or "" 
+* reflections: [string] Input file for reflections (LAZ LAU CIF, FullProf, ShelX, NCrystal). Use only incoherent scattering if NULL or ""
 * d_phi: [deg]         Angle corresponding to the vertical angular range to focus to, e.g. detector height. 0 for no focusing.
 * d_omega: [deg]       Horizontal focus range (only for incoherent scattering), 0 for no focusing.
 * tth_sign: [1]        Sign of the scattering angle. If 0, the sign is chosen randomly (left and right). ONLY functional in combination with d_phi and ONLY applies to bragg lines.
@@ -208,6 +208,7 @@ SETTING PARAMETERS (string reflections="NULL", string geometry="NULL",
   DW=0, nb_atoms=1, d_omega=0, d_phi=0, tth_sign=0, p_interact=0.8,
   concentric=0, density=0, weight=0, barns=1, Strain=0, focus_flip=0, int target_index=0, int order=1)
 
+DEPENDENCY "@NCRYSTALFLAGS@"
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
@@ -226,7 +227,6 @@ SHARE
     int j;           /* Multiplicity */
     double DWfactor; /* Debye-Waller factor */
     double w;        /* Intrinsic line width */
-    double Epsilon;  /* Strain=delta_d_d/d shift in ppm */
   };
 
   struct line_info_struct {
@@ -382,6 +382,103 @@ SHARE
   } // cif2hkl
   #endif
 
+  #ifndef WIN32
+  #include "NCrystal/ncrystal.h"
+  #else
+  #include "NCrystal\\ncrystal.h"
+  #endif
+
+  double
+  ncrystalpowdern_determine_sigma_inc (ncrystal_info_t ncobj) {
+    // Digging out sigma_inc via the NCrystal C API is not as easy as it
+    // should be yet, so for now we do it the hard way.
+    unsigned ncomps = ncrystal_info_ncomponents (ncobj);
+    double sum = 0.0;
+    for (unsigned icomp = 0; icomp < ncomps; ++icomp) {
+      // Get component fraction and atomdata:
+      double fraction;
+      unsigned atomdataidx; // unused
+      ncrystal_info_getcomponent (ncobj, icomp, &atomdataidx, &fraction);
+      ncrystal_atomdata_t atomdata = ncrystal_create_component_atomdata (ncobj, icomp);
+      // Get incoherent xsect from atomdata:
+      const char* displaylabel;
+      const char* description;
+      double mass, incxs, cohsl_fm, absxs;
+      unsigned nsubcomponents, zval, aval;
+      ncrystal_atomdata_getfields (atomdata, &displaylabel, &description, &mass, &incxs, &cohsl_fm, &absxs, &nsubcomponents, &zval, &aval);
+      ncrystal_unref (&atomdata);
+      sum += incxs * fraction;
+    }
+    return sum;
+  }
+
+  int
+  read_line_data_ncrystal (const char* cfgstr, struct line_info_struct* info) {
+    ncrystal_info_t ncobj = ncrystal_create_info (cfgstr);
+    if (ncrystal_info_nphases (ncobj) != 0) {
+      exit (fprintf (stderr,
+                     "PowderN: %s: Error: Only single phase NCrystal "
+                     "materials are currently supported by PowderN\n",
+                     info->compname));
+    }
+    const double numberdensity = ncrystal_info_getnumberdensity (ncobj);
+    const int nhkl = ncrystal_info_nhkl (ncobj);
+    if (nhkl == 0) {
+      printf ("PowderN: %s: WARNING: NCrystal material "
+              "does not contain reflections\n",
+              info->compname);
+    } else {
+      MPI_MASTER (printf ("PowderN: %s: Loading %d reflections from %s\n", info->compname, nhkl, cfgstr););
+    }
+    unsigned spacegroup, n_atoms;
+    double lattice_a, lattice_b, lattice_c, alpha, beta, gamma, cell_volume;
+    int has_structure = ncrystal_info_getstructure (ncobj, &spacegroup, &lattice_a, &lattice_b, &lattice_c, &alpha, &beta, &gamma, &cell_volume, &n_atoms);
+    if (!has_structure) {
+      exit (fprintf (stderr,
+                     "PowderN: %s: Error: NCrystal material "
+                     "does not contain crystal structure\n",
+                     info->compname));
+    }
+
+    // Note we use V_0=n_atoms/numdens and not V_0 = cell_volume. This way, it
+    // supports density scaling that the user might have performed with the
+    // NCrystal cfg-string parameters (e.g. "...;density=0.6x").
+
+    info->V_0 = n_atoms / numberdensity;
+    info->at_nb = n_atoms;
+    info->flag_barns = 1;
+
+    /* allocate line_data array */
+    struct line_data* list = NULL;
+    list = (struct line_data*)malloc (nhkl * sizeof (struct line_data));
+    if (!list) {
+      exit (fprintf (stderr,
+                     "PowderN: %s: Error: Could not allocate line array\n",
+                     info->compname));
+    }
+    info->sigma_a = ncrystal_info_getxsectabsorption (ncobj);
+    info->sigma_i = ncrystalpowdern_determine_sigma_inc (ncobj);
+    const double w = (info->Dd >= 0.0 ? info->Dd : 0.0);
+    const double Epsilon = ((info->Epsilon && fabs (info->Epsilon) < 1e6) ? info->Epsilon * 1e-6 : 0.0);
+    for (int idx = 0; idx < nhkl; ++idx) {
+      int h, k, l, mult;
+      double dsp, fsq;
+      ncrystal_info_gethkl (ncobj, idx, &h, &k, &l, &mult, &dsp, &fsq);
+      list[idx].j = mult;
+      double q = (2.0 * PI) / dsp;
+      if (Epsilon)
+        q -= Epsilon * q;
+      list[idx].q = q;
+      list[idx].DWfactor = 1.0;
+      list[idx].w = w;
+      list[idx].F2 = fsq;
+    }
+    ncrystal_unref (&ncobj);
+    info->list = list;
+    info->count = nhkl;
+    return nhkl;
+  }
+
   int
   read_line_data (char* SC_file, struct line_info_struct* info) {
     struct line_data* list = NULL;
@@ -395,10 +492,10 @@ SHARE
     int list_count = 0;
     char* filename = NULL;
 
-    if (!SC_file || !strlen (SC_file) || !strcmp (SC_file, "NULL")) {
-      MPI_MASTER (printf ("PowderN: %s: Using incoherent elastic scattering only.\n", info->compname););
-      info->count = 0;
-      return (0);
+    if (!SC_file) {
+      // Should not be possible, was checked by calling code in INITIALIZE.
+      fprintf (stderr, "PowderN: logic error (SC_file is NULL)!\n");
+      exit (-1);
     }
     filename = cif2hkl (SC_file, "--mode NUC");
     if (filename != SC_file)
@@ -413,7 +510,9 @@ SHARE
     parsing = Table_ParseHeader (sTable.header, "Vc", "V_0", "sigma_abs", "sigma_a ", "sigma_inc", "sigma_i ", "column_j", "column_d", "column_F2", "column_DW",
                                  "column_Dd", "column_inv2d", "column_1/2d", "column_sintheta/lambda", "column_q",                           /* 14 */
                                  "DW", "Debye_Waller", "delta_d_d/d", "column_F ", "V_rho", "density", "weight", "nb_atoms", "multiplicity", /* 23 */
-                                 "column_ppm", "column_strain", NULL);
+                                 "column_ppm", "column_strain", "ncmat2hklversion", "ncrystal_cfgstr", NULL);
+    int ncmat2hklversion = -1;
+    int has_ncrystal_cfgstr = 0;
 
     if (parsing) {
       if (parsing[0] && !info->V_0)
@@ -468,10 +567,22 @@ SHARE
         info->column_order[8] = atoi (parsing[24]);
       if (parsing[25])
         info->column_order[8] = atoi (parsing[25]);
-      for (i = 0; i <= 25; i++)
+      if (parsing[26])
+        ncmat2hklversion = atoi (parsing[26]);
+      if (parsing[27])
+        has_ncrystal_cfgstr = 1;
+      for (i = 0; i <= 27; i++)
         if (parsing[i])
           free (parsing[i]);
       free (parsing);
+    }
+
+    // First round of laz/lau files from ncrystal_ncmat2hkl had an n_atoms factor
+    // wrong in sigma_a/sigma_i. Luckily we can detect such files.
+    const int is_buggy_ncmat2hkl_laz = (has_ncrystal_cfgstr && ncmat2hklversion < 2);
+    if (is_buggy_ncmat2hkl_laz) {
+      info->sigma_a /= info->at_nb;
+      info->sigma_i /= info->at_nb;
     }
 
     if (!sTable.rows)
@@ -496,6 +607,11 @@ SHARE
     }
     /* allocate line_data array */
     list = (struct line_data*)malloc (size * sizeof (struct line_data));
+    if (!list) {
+      exit (fprintf (stderr,
+                     "PowderN: %s: Error: Could not allocate line array\n",
+                     info->compname));
+    }
 
     for (i = 0; i < size; i++) {
       /*      printf("Reading in line %i\n",i);*/
@@ -559,7 +675,6 @@ SHARE
       list[list_count].DWfactor = DWfactor;
       list[list_count].w = w;
       list[list_count].F2 = F2;
-      list[list_count].Epsilon = Epsilon;
 
       /* adjust multiplicity if j-column + multiple d-spacing lines */
       /* if  d = previous d, increase line duplication index */
@@ -815,12 +930,21 @@ INITIALIZE
   }
 
   if (reflections && strlen (reflections) && strcmp (reflections, "NULL") && strcmp (reflections, "0")) {
-    i = read_line_data (reflections, &line_info);
+    if (strstr (reflections, ".ncmat") != NULL || strstr (reflections, "::") != NULL) {
+      MPI_MASTER (printf ("PowderN: %s: NCrystal cfg-string detected (\"%s\").\n", NAME_CURRENT_COMP, reflections););
+      i = read_line_data_ncrystal (reflections, &line_info);
+    } else {
+      i = read_line_data (reflections, &line_info);
+    }
     if (i == 0)
       exit (fprintf (stderr,
                      "PowderN: %s: reflection file %s is not valid.\n"
-                     "ERROR    Please check file format (laz or lau).\n",
+                     "ERROR    Please check file format (laz or lau or NCrystal).\n",
                      NAME_CURRENT_COMP, reflections));
+  } else {
+    MPI_MASTER (printf ("PowderN: %s: Using incoherent elastic scattering only.\n", NAME_CURRENT_COMP););
+    line_info.count = 0;
+    i = 0;
   }
 
   /* compute the scattering unit density from material weight and density */

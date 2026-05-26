@@ -1,0 +1,105 @@
+/*******************************************************************************
+* Instrument: Test_KN_Comp_Rayl_union
+*
+* %I
+* Written by: E. B. Knudsen (erkn@united-neux.eu)
+* Date: Aug 13th 2021
+* Origin: United Neux
+* Version: $Revision$
+* %INSTRUMENT_SITE: Templates
+*
+* An example using Union with Klein-Nishina, Rayleigh, or Compton scattering
+*
+* %D
+* An example instrument that uses either Klein-Nishina, Rayleigh, or Compton on a sphere
+* filled with whatever material is indicated by the atom number
+*
+* %Example: E0=12 Detector: emon_sphere_I=4.28512e-09
+*
+* %P
+* E0: [keV] incident energy
+* PROCESS: [ ]  which process to run the test for, 0: Klein-Nishina, 1: Rayleigh, 2: Compton.
+* atomno: [ ]   atom number of the material to scatter on.
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_KN_Comp_Rayl_union(E0=12,int PROCESS=0, int atomno=29)
+
+DECLARE
+%{
+    char picked_process[12];
+    char abs_string[12];
+%}
+
+
+INITIALIZE
+%{
+    switch (PROCESS) {
+        case 0:
+            snprintf(picked_process,12,"kn_proc");
+            break;
+        case 1:
+            snprintf(picked_process,12,"comp_proc");
+            break;
+        case 2:
+            snprintf(picked_process,12,"rayl_proc");
+            break;
+    }
+    abs_string[0]='\0';
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0,0,0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT s = Source_pt(
+        E0=E0,dE=0,focus_xw=1e-3,focus_yh=1e-3, dist=2)
+AT(0,0,0) RELATIVE origin
+
+COMPONENT sp = Arm()
+AT(0,0,2) RELATIVE s
+
+COMPONENT slit = Slit(xwidth=2e-3,yheight=2e-3)
+AT(0,0,-0.1) RELATIVE sp
+
+COMPONENT kn_proc = KN_xrl_process(density=1.08)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT comp_proc = Compton_xrl_process(density=1.08, atomno=atomno)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT rayl_proc = Compton_xrl_process(density=1.08, atomno=atomno)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT pow = Union_make_material(process_string=picked_process, material_string=abs_string, my_absorption=0)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT vsphere = Union_sphere(radius=1e-3, material_string="pow",priority=1)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT master = Union_master()
+AT(0,0,0) RELATIVE sp
+
+COMPONENT beamstop = Beamstop(xwidth=2e-3, yheight=2e-3)
+AT(0,0,0.1) RELATIVE sp
+
+COMPONENT fpi = PSD_monitor_4PI(radius=0.25, nx=101, ny=101, filename="fpi")
+AT(0,0,0) RELATIVE sp
+
+COMPONENT emon_sphere = Monitor_nD(radius=0.251, filename="emons",options="sphere e auto", bins=512)
+AT(0,0,0) RELATIVE sp
+
+COMPONENT angle_sphere = Monitor_nD(radius=0.252, filename="angles",options="sphere theta -180 180", bins=512)
+AT(0,0,0) RELATIVE sp
+COMPONENT stop = Union_stop()
+AT(0,0,0) ABSOLUTE
+
+FINALLY
+%{
+%}
+
+END

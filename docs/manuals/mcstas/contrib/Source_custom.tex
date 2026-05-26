@@ -1,0 +1,131 @@
+\section{The \texttt{Source\_custom} McStas Component}
+A flexible pulsed or continuous source with customisable parameters. Multiple pulses can be simulated over time.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Pablo Gila-Herranz, based on 'Source\_pulsed' by K. Lieutenant
+  \item \textbf{Origin:} Materials Physics Center (CFM-MPC), CSIC-UPV/EHU
+  \item \textbf{Date:} May 2025
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Produces a custom pulse spectrum with a wavelength distribution as a sum of up to 3 Maxwellian distributions and one of undermoderated neutrons.
+
+<b>Usage:</b>
+
+By default, all Maxwellian distributions are assumed to come from anywhere in the moderator.
+A custom radius r_i can be defined such that the central circle is at temperature T1,
+and the surrounding ring is at temperature T2.
+The third Maxwellian distribution at temperature T3 always comes from anywhere in the moderator.
+
+Multiple pulses can be simulated over time with the n_pulses parameter.
+The input flux is in units of [1/(cm^2 sr s AA)], and the output flux is per second, regardless of the number of pulses.
+This means that the intensity spreads over n_pulses, so that the units of neutrons per second are preserved.
+To simulate only the neutron counts of a single pulse, the input flux should be divided by the frequency.
+Bear in mind that the maximum emission time is given by t_pulse * tmax_multiplier,
+so short pulses with long tails may require a higher tmax_multiplier value (3 by default).
+
+To simulate a continuous source, set a pulse length equal to the pulse period (e.g. t_pulse=1.0, freq=1.0).
+Note that this continuous beam is simulated over time, unlike other continuous sources in McStas which produce a Dirac delta at time 0.
+
+Parameters xwidth and yheight must be provided for rectangular moderators, otherwise a circular shape is assumed.
+
+<b>Model description:</b>
+
+The normalised Maxwellian distribution for moderated neutrons is defined by [1]
+<div class="latex">
+$M(\lambda)=\frac{2a^2}{T^2\lambda^5}\exp\left(-\frac{a}{T\lambda^{2}}\right)$
+</div>
+where
+<div class="latex">
+$a=\left(\frac{h^2}{2m_{N}k_{B}}\right)$
+</div>
+and the joining function for the under-moderated neutrons is given by [1]
+<div class="latex">
+$M(\lambda)_{um}=\frac{1}{\lambda(1+\exp(\lambda\chi-\kappa))}$
+</div>
+
+The normalised time structure of the long pulse is defined by [2]
+<div class="latex">
+$N_{t<=t_p}=1-\exp\left(-\frac{t}{\tau/n}\right)$
+</div>
+<div class="latex">
+$N_{t>t_p}=\exp\left(-\frac{t-t_p}{\tau}\right)-\exp\left(-\frac{t}{\tau/n}\right)$
+</div>
+where tp is the pulse period, tau is the pulse decay time constant, and n is the ratio of decay to ascend time constants.
+
+<b>Parameters for some sources:</b>
+
+HBS thermal source:
+t_pulse=0.016, freq=24.0, xwidth=0.04, yheight=0.04,
+T1=325.0, I1=0.68e+12, tau1=0.000125,
+I_um=2.47e+10, chi_um=2.5
+
+HBS cold source:
+t_pulse=0.016, freq=24.0, radius=0.010,
+T1=60.0, I1=1.75e+12, tau1=0.000170,
+I_um=3.82e+10, chi_um=0.9
+
+HBS bi-spectral:
+t_pulse=0.016, freq=24.0, radius=0.022, r_i=0.010,
+T1= 60.0, I1=1.75e+12, tau1=0.000170,
+T2=305.0, I2=0.56e+12, tau2=0.000130,
+I_um=3.82e+10, chi_um=2.5
+
+PSI cold source:
+t_pulse=1, freq=1, xwidth=0.1, yheight=0.1,
+T1=296.2, I1=8.5e+11, T2=40.68, I2=5.2e+11
+
+<b>References:</b>
+[1] J. M. Carpenter et al, Nuclear Instruments and Methods in Physics Research Section A, 234, 542-551 (1985).
+[2] J. M. Carpenter and W. B. Yelon, Methods in Experimental Physics 23, p. 127, Chapter 2, Neutron Sources (1986).
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+target\_index & 1 & Relative index of component to focus at, e.g. next is +1 (used to compute 'dist' automatically) & 1 \\
+dist & m & Distance from the source to the target & 0.0 \\
+focus\_xw & m & Width of the target (focusing rectangle) & 0.02 \\
+focus\_yh & m & Height of the target (focusing rectangle) & 0.02 \\
+xwidth & m & Width of the source & 0.0 \\
+yheight & m & Height of the source & 0.0 \\
+radius & m & Outer radius of the source (ignored if xwidth and yheight are set) & 0.010 \\
+r\_i & m & Radius of a central circle at temperature T1, sorrounded by a ring at temperature T2 (ignored by default) & 0.0 \\
+\textbf{Lmin} & AA & Lower edge of the wavelength distribution &  \\
+\textbf{Lmax} & AA & Upper edge of the wavelength distribution &  \\
+\textbf{freq} & Hz & Frequency of pulses &  \\
+\textbf{t\_pulse} & s & Proton pulse length &  \\
+tmax\_multiplier & 1 & Defined maximum emission time at moderator (tmax = tmax\_multiplier * t\_pulse); 1 for continuous sources & 3.0 \\
+n\_pulses & 1 & Number of pulses to be simulated (ignored for continuous sources) & 1 \\
+T1 & K & Temperature of the 1st Maxwellian distribution; for r\_i \textgreater{} 0 it is only used for the central radii r \textless{} r\_i & 0.0 \\
+I1 & 1/(cm\textasciicircum{}2 sr s AA) & Flux per solid angle of the 1st Maxwellian distribution (integrated over the whole wavelength range) & 0.0 \\
+tau1 & s & Pulse decay time constant of the 1st Maxwellian distribution & 0.000125 \\
+T2 & K & Temperature of the 2nd Maxwellian distribution (0 to disable); for r\_i \textgreater{} 0 it is only used for the external ring r \textgreater{} r\_i & 0.0 \\
+I2 & 1/(cm\textasciicircum{}2 sr s AA) & Flux per solid angle of the 2nd Maxwellian distribution & 0.0 \\
+tau2 & s & Pulse decay time constant of the 2nd Maxwellian distribution & 0.000125 \\
+T3 & K & Temperature of the 3rd Maxwellian distribution (0 to disable) & 0.0 \\
+I3 & 1/(cm\textasciicircum{}2 sr s AA) & Flux per solid angle of the 3rd Maxwellian distribution & 0.0 \\
+tau3 & s & Pulse decay time constant of the 3rd Maxwellian distribution & 0.000125 \\
+n\_mod & 1 & Ratio of pulse decay constant to pulse ascend constant of moderated neutrons (n = tau\_decay / tau\_ascend) & 1 \\
+I\_um & 1/(cm\textasciicircum{}2 sr s AA) & Flux per solid angle for the under-moderated neutrons & 0.0 \\
+tau\_um & s & Pulse decay time constant of under-moderated neutrons & 0.000012 \\
+n\_um & 1 & Ratio of pulse decay constant to pulse ascend constant of under-moderated neutrons & 1 \\
+chi\_um & 1/AA & Factor for the wavelength dependence of under-moderated neutrons & 2.5 \\
+kap\_um & 1 & Scaling factor for the flux of under-moderated neutrons & 2.2 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/contrib/Source_custom.comp}{Source code} for \texttt{Source\_custom.comp}.
+  \item This model is implemented in an \textless{}a href="https://github.com/pablogila/Source\_custom"\textgreater{}interactive notebook\textless{}/a\textgreater{} to fit custom neutron sources.
+\end{itemize}
+\IfFileExists{Source_custom_static.tex}{\input{Source_custom_static.tex}}{}

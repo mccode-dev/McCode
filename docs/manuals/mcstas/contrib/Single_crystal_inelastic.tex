@@ -1,0 +1,98 @@
+\section{The \texttt{Single\_crystal\_inelastic} McStas Component}
+An extension of Single crystal with material dispersion
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Duc Le
+  \item \textbf{Origin:} STFC
+  \item \textbf{Date:} August 2020
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+The component handles a 4D S(q,w) material dispersion, and scatters neutrons
+out of it. It is based on the Isotropic_Sqw methodology, extended to 4D.
+
+A number of approximations are applied:
+
+- geometry is restricted to box, cylinder and sphere
+- ignore absorption, multiple scattering and incoherent scattering
+- no temperature handling. The temperature must be taken into account when
+generating the S(q,w) data sets, which should contain Bose/detailed balance.
+- intensity is used as provided by the S(q,w) data set
+
+We recommend that you first try the Test_Single_crystal_inelastic example to
+learn how to use this complex component.
+
+4D S(q,w) data files
+--------------------
+
+The input data file derives from other McStas formats. It may contain structural
+information as in Lau/Laz files, and a list of S(q,w) [one per row] with 5 columns
+
+[ H K L E S(q,w) ]
+
+An example file example.sqw4 is provided in the McStas/Data directory.
+
+You may generate such files using <a href="http://ifit.mccode.org">iFit </a> such as:
+
+s = sqw_vaks('defaults');             % a 4D model
+d = iData(s);                         % use default coarse grid for axes [-0.5:0.5]
+saveas(d, 'sx_coh.sqw4', 'mcstas');   % export to 4D Sqw file
+
+%VALIDATION:
+This component is undergoing validation.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+mosaic\_AB & arcmin,arcmin,1,1,1,1,1,1 & In Plane mosaic rotation and plane vectors (anisotropic), & \{0,0, 0,0,0, 0,0,0\} \\
+sqw & string & Name of a 4d S(q,w) file - example.sqw4 is included in your installation & 0 \\
+geometry & string & Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust. & 0 \\
+qwidth &  &  & 0.05 \\
+xwidth & m & Width of crystal. & 0 \\
+yheight & m & Height of crystal. & 0 \\
+zdepth & m & Depth of crystal (no extinction simulated) & 0 \\
+radius & m & Outer radius of sample in (x,z) plane. & 0 \\
+delta\_d\_d & 1 & Lattice spacing variance, gaussian RMS. & 1e-4 \\
+mosaic & arcmin & Isotropic crystal mosaic, gaussian RMS. Puts the crystal in the isotropic mosaic model state, thus disregarding other mosaicity parameters. & -1 \\
+mosaic\_a & arcmin & Horizontal (rotation around lattice vector a) mosaic (anisotropic), gaussian RMS. Put the crystal in the anisotropic crystal vector state. I.e. model mosaicity through rotation around the crystal lattice vectors. Has precedence over in-plane mosaic model. & -1 \\
+mosaic\_b & arcmin & Vertical (rotation around lattice vector b) mosaic (anisotropic), gaussian RMS. & -1 \\
+mosaic\_c & arcmin & Out-of-plane (Rotation around lattice vector c) mosaic (anisotropic), gaussian RMS. & -1 \\
+recip\_cell & 1 & Choice of direct/reciprocal (0/1) unit cell definition. & 0 \\
+barns & 1 & Flag to indicate if |F|\textasciicircum{}2 from 'reflections' is in barns or fm\textasciicircum{}2. & 0 \\
+ax & AA / AA\textasciicircum{}-1 & Coordinates of first (direct/recip) unit cell vector. & 0 \\
+ay & AA / AA\textasciicircum{}-1 & a on y axis & 0 \\
+az & AA / AA\textasciicircum{}-1 & a on z axis & 0 \\
+bx & AA / AA\textasciicircum{}-1 & Coordinates of second (direct/recip) unit cell vector. & 0 \\
+by & AA / AA\textasciicircum{}-1 & b on y axis & 0 \\
+bz & AA / AA\textasciicircum{}-1 & b on z axis & 0 \\
+cx & AA / AA\textasciicircum{}-1 & Coordinates of third (direct/recip) unit cell vector. & 0 \\
+cy & AA / AA\textasciicircum{}-1 & c on y axis & 0 \\
+cz & AA / AA\textasciicircum{}-1 & c on z axis & 0 \\
+p\_transmit & 1 & Monte Carlo probability for neutrons to be transmitted & -1 \\
+sigma\_abs & barns & Absorption cross-section per unit cell at 2200 m/s. & 0 \\
+sigma\_inc & barns & Incoherent scattering cross-section per unit cell. & 0 \\
+aa & deg & Unit cell angles alpha, beta and gamma. Then uses norms of & 0 \\
+bb & deg & Beta angle. & 0 \\
+cc & deg & Gamma angle. & 0 \\
+order & 1 & Limit multiple scattering up to given order & 0 \\
+RX & m & Radius of horizontal along X lattice curvature. flat for 0. & 0 \\
+RY & m & Radius of vertical lattice curvature. flat for 0. & 0 \\
+RZ & m & Radius of horizontal along Z lattice curvature. flat for 0. & 0 \\
+max\_stored\_ki &  &  & 1000 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/contrib/Single_crystal_inelastic.comp}{Source code} for \texttt{Single\_crystal\_inelastic.comp}.
+\end{itemize}
+\IfFileExists{Single_crystal_inelastic_static.tex}{\input{Single_crystal_inelastic_static.tex}}{}

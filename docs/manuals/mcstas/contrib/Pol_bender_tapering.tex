@@ -1,0 +1,74 @@
+\section{The \texttt{Pol\_bender\_tapering} McStas Component}
+Polarising bender.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Erik Bergbaeck Knudsen (erkn@fysik.dtu.dk)
+  \item \textbf{Origin:} DTU Physics
+  \item \textbf{Date:} June 2012
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+A component modelling a set of identical blades bent to form a multcihannel (nslits)
+bender. The bender has a cylindrically curved entry plane (Will be extended to also
+allow a flat entry plane).
+
+The bender may also be tapered such that it can have focusing or defocusing porperties.
+This may be specified through the "channel_file"-parameter, which points to a data file
+in which the individual channels are defined by an entry- and an exit-width.
+
+The file format for channel file columns:
+> #d-spacing1 d-spacing2 l_spacer d-coating1 d-coating2
+> 1e-3  0.8e-3 1e-5  1e-9 1e-9
+
+Each blades is considered coated with a reflecting coating, whose thickness is defined in the
+latter two columsn of the channel data file.
+
+Coating reflectivities are read from
+another data file with separate reflectivities for up and down spin. When a neutron ray hits a blade
+the polarization vector associated with the ray is decomposed into spin-up and down
+probablities, which in turn determines the overall reflectivity for this ray on the mirror.
+Furthermore the probabilities are used to also reconstruct the polarization vector of the reflected
+ray.
+
+File format for the reflectivity file:
+> #parameter = m
+> q/m R(up) R(down)
+
+The effect of spacers inside the channels is modelled by absorption only. The depth of the spacers
+in a channel is considered constant for one channel (set in the channel data file), the number of
+them is constant across all channels and is an input parameter to the component.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+channel\_file &   & File name of file containing channel data. such as spacer widths etc. (see above for format) & "channel.dat" \\
+xwidth & m & Width at the bender entry. Currently unsupported. & 0 \\
+\textbf{yheight} & m & Height at the bender entry. &  \\
+\textbf{length} & m & Length of blades that make up the bender. &  \\
+\textbf{d\_substrate} & m & Thickness of the substrate. &  \\
+entry\_radius & m & Radius of curvature of the entrance window. & 10 \\
+radius & m & Curvature of a single plate/polarizer. +:curve left/-:right & 100 \\
+G & m/s\textasciicircum{}2 & Magnitude of gravitation. & 9.8 \\
+nslit & 1 & Number of slits in the bender & 1 \\
+debug &   & If \textgreater{} 0 print out some internal parameters. & 1 \\
+reflect\_file &   & File name of file containing reflectivity data parametrized either by q or m. & NULL \\
+sigma\_abs & barn & Absorption per unit cell at v=2200 m/s of spacers. Defaults to literature value for Al. & 0.231 \\
+V0 & AA\textasciicircum{}3 & Volume of unit cell for spacers. Defaults to Al. & 66.4 \\
+nspacer &   & Number of spacers per channel. & 5 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/contrib/Pol_bender_tapering.comp}{Source code} for \texttt{Pol\_bender\_tapering.comp}.
+\end{itemize}
+\IfFileExists{Pol_bender_tapering_static.tex}{\input{Pol_bender_tapering_static.tex}}{}

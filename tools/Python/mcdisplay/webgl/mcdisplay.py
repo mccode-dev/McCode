@@ -144,8 +144,12 @@ def write_browse(instrument, raybundle, dirname, instrname, timeout, nobrowse=No
     json_instr = '%s' % json.dumps(instrument.jsonize(), indent=2)
     file_save(json_instr, dest.joinpath('instrument.json'))
 
-    # Write particles
-    json_particles = '%s' % json.dumps(raybundle.jsonize(), indent=2)
+    if raybundle is not None:
+        # Write particles
+        json_particles = '%s' % json.dumps(raybundle.jsonize(), indent=2)
+    else:
+        # write empty list
+        json_particles = '[]'
     file_save(json_particles, dest.joinpath('particles.json'))
 
     # Exit if nobrowse flag has been set

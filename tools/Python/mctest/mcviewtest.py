@@ -67,24 +67,42 @@ def run_normal_mode(testdir, reflabel):
             label = cellobj["localfile"].split("\\");
 
         label=label[len(label)-3];
+        # URL for test output data in success (i.e. 1/ or 2/ etc.)
         url =  label + "/" + cellobj["instrname"] +  "/" + str(cellobj["testnb"]) + "/"
+        # URL for compiling instrs - without data
         burl = label + "/" + cellobj["instrname"] +  "/"
+        # URL for instruments that failed compiling
         curl = label + "/" + cellobj["instrname"] +  "/compile_stdout.txt"
+        # Display URL if display succeeded
+        durl = label + "/" + cellobj["instrname"] +  "/display/index.html"
+        # Display URL if display failed
+        fdurl = label + "/" + cellobj["instrname"] +  "/displaylog.txt"
 
+        if cellobj["testnb"] <= 1:
+            if not cellobj["displayed"]:
+                display="<strong><font color=\"#FFA500\">DISPLAY: FAILED! (log)</font></strong>"
+                displayurl=fdurl
+            else:
+                display="<strong>DISPLAY: OK (link)<strong>"
+                displayurl=durl
+        else:
+            display=""
+            displayurl=""
+        
         if not cellobj["compiled"]:
             if cellobj["linted"]:
                 state = 4
-                return (state, "<strong><font color=\"#8B4000\">C-linter output</font></strong>", "", "", "", curl)
+                return (state, "<strong><font color=\"#8B4000\">C-linter output</font></strong>", "", "", "", curl, "", "")
             else:
                 state = 4
-                return (state, "<strong><font color=\"red\">! Compile error !</font></strong>", "", "", "", curl)
+                return (state, "<strong><font color=\"red\">! Compile error !</font></strong>", "", "", "", curl, "", "")
         elif not cellobj["didrun"]:
             state = 3
             compiletime = "%.2f s" % cellobj["compiletime"]
             if cellobj["testnb"] > 1:
                 # if this is a second test of the same instr, it was already compiled, thus 0.001 compiletime is nonsense
                 compiletime = ""
-            return (state, compiletime, "", "", "", burl)
+            return (state, compiletime, "", "", "", burl, display, displayurl)
         elif cellobj["testval"]==None:
             testval = "missing"
             runtime = "%.2f s" % cellobj["runtime"]
@@ -92,7 +110,7 @@ def run_normal_mode(testdir, reflabel):
             if cellobj["testnb"] > 1:
                 compiletime = ""
             state = 2
-            return (state, compiletime, runtime, testval, "", url)
+            return (state, compiletime, runtime, testval, "", url, display, displayurl)
         else:
             testval = "%.2g" % float(cellobj["testval"])
             runtime = "%.2f s" % cellobj["runtime"]
@@ -120,7 +138,7 @@ def run_normal_mode(testdir, reflabel):
             else:
                 refp = "%2.f" % refp + "%"
 
-            return (state, compiletime, runtime, testval, refp, url)
+            return (state, compiletime, runtime, testval, refp, url, display, displayurl)
 
     def get_empty_cell_tuple(tag=None):
         ''' return a "state_four" black cell, optionally with a tag, this could be "no ref" or "no test" etc. '''

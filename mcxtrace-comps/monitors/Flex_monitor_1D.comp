@@ -15,7 +15,7 @@
 * Flexible monitor.
 *
 * %D
-* A square 1D single monitor that measures intensity (or something else) as a function of some variable or parameter.
+* Non-propagating monitor that measures intensity (or something else) as a function of some variable or parameter.
 *
 * Example: Flex_monitor_1D(nU=20, filename="Output", ustring="x", Umin=-.1, Umax=.1)
 *
@@ -26,7 +26,6 @@
 * Umax: []              Maximum U to detect
 * nU: [1]               Number of U channels
 * filename: [string]    Name of file in which to store the detector image
-* restore_xray: [1]     If set, the monitor does not influence the particle state
 * uid: [1]              Integer index of uservar to be monitored. Overrides ustring.
 * ustring: [string]     Name of variable (user or particle state parameter as a string) to be monitored.  
 * signal: [string]      Name of variable to be used as an additive signal to be monitored. Default is intensity.
@@ -42,12 +41,8 @@
 *******************************************************************************/
 DEFINE COMPONENT Flex_monitor_1D
 
-
-
-SETTING PARAMETERS (nU=20, string filename=0,
-  Umin, Umax, uid=-1, string ustring="", restore_xray=0, string signal="p", int nowritefile=0)
-
-
+SETTING PARAMETERS (int nU=20, string filename=0,
+  Umin, Umax, uid=-1, string ustring="", string signal="p", int nowritefile=0)
 
 DECLARE
 %{
@@ -98,10 +93,6 @@ TRACE
     #pragma acc atomic
     U_p2[i] = U_p2[i] + p2;
     SCATTER;
-  }
-
-  if (restore_xray) {
-    RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
   }
 %}
 

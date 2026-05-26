@@ -19,27 +19,15 @@ if not os.name == 'nt':
 else:
     import mslex as lexer
 
+from qtpy import QtGui, QtWidgets, QtCore
+from qtpy.QtWidgets import QApplication, QWidget
+from qtpy.QtGui import QFont, QFontDatabase
+import qtpy as PyQt
+
 try:
-    from PyQt6 import QtWidgets, QtCore
-    from PyQt6.QtWidgets import QApplication, QWidget
-    from PyQt6.QtGui import QFont, QFontDatabase
-    import PyQt6 as PyQt
-
-    try:
-        from PyQt6 import Qsci
-    except ImportError:
-        Qsci = None
-
+    from qtpy import Qsci
 except ImportError:
-    from PyQt5 import QtWidgets, QtCore
-    from PyQt5.QtWidgets import QApplication, QWidget
-    from PyQt5.QtGui import QFont, QFontDatabase
-    import PyQt5 as PyQt
-
-    try:
-        from PyQt5 import Qsci
-    except ImportError:
-        Qsci = None
+    Qsci = None
 
 from viewclasses import McView
 from datetime import datetime
@@ -52,11 +40,11 @@ from mccodelib.utils import ComponentParser, get_instr_site, get_instr_comp_file
 Status and message log and signalling.
 '''
 class McMessageEmitter(QtCore.QObject):
-    statusUpdate = QtCore.pyqtSignal(str)
+    statusUpdate = QtCore.Signal(str)
     __statusLog = []
     
     # logMessageUpdate(msg, flag_err_red, flag_gui_blue, flag_clear)
-    logMessageUpdate = QtCore.pyqtSignal(str, bool, bool, bool)
+    logMessageUpdate = QtCore.Signal(str, bool, bool, bool)
     __msgLog = []
     
     def status(self, status):
@@ -87,9 +75,9 @@ class McMessageEmitter(QtCore.QObject):
 ''' Asynchronous process execution QThread
 '''
 class McRunQThread(QtCore.QThread):
-    thread_exception = QtCore.pyqtSignal(str)
-    error = QtCore.pyqtSignal(str)
-    message = QtCore.pyqtSignal(str)
+    thread_exception = QtCore.Signal(str)
+    error = QtCore.Signal(str)
+    message = QtCore.Signal(str)
     cmd = ''
     cwd = ''
     process_returncode = None
@@ -126,9 +114,9 @@ class McGuiState(QtCore.QObject):
     __emitter = None
     
     # <instrument>, <work dir>
-    instrumentUpdated = QtCore.pyqtSignal(list, str)
+    instrumentUpdated = QtCore.Signal(list, str)
     # [<canRun>, <canPlot>] each can be str 'True' or 'False'
-    simStateUpdated = QtCore.pyqtSignal(list)
+    simStateUpdated = QtCore.Signal(list)
     
     __cFile = None
     __binaryFile = None
@@ -226,7 +214,7 @@ class McGuiState(QtCore.QObject):
     def canPlot(self):
         return ((self.__instrFile != "") and (not self.isSimRunning()))
     
-    __thread_exc_signal = QtCore.pyqtSignal(str)
+    __thread_exc_signal = QtCore.Signal(str)
     def compile(self, mpi=False):
         # using Qt in-built cross-thread signaling
         self.__thread_exc_signal.connect(handleExceptionMsg)

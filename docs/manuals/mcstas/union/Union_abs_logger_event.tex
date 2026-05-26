@@ -1,0 +1,83 @@
+\section{The \texttt{Union\_abs\_logger\_event} McStas Component}
+A logger of absorption as events
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Mads Bertelsen
+  \item \textbf{Origin:} ESS DMSC
+  \item \textbf{Date:} 19.06.20
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Part of the Union components, a set of components that work together and thus
+separates geometry and physics within McStas.
+The use of this component requires other components to be used.
+
+1) One specifies a number of processes using process components
+2) These are gathered into material definitions using Union_make_material
+3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
+4) Logger and conditional components can be placed which will record what happens
+5) A Union_master component placed after all of the above
+
+Only in step 5 will any simulation happen, and per default all geometries
+defined before this master, but after the previous will be simulated here.
+
+There is a dedicated manual available for the Union_components
+
+This component is an absorption logger, and thus placed in point 4) above.
+
+A absorption logger will log something for each absorption event happening
+in the geometry or geometries on which it is attached. These are specified
+in the target_geometry string. By leaving it blank, all geometries are
+logged, even the ones not defined at this point in the instrument file.
+Multiple geometries are specified as a comma separated list.
+
+This absorption logger stores absorption as events, with position, velocity,
+time and weight. The Monitor_nD libraries are used to write the event files.
+
+This absorption logger needs to be placed in space, the position and velocity
+is recorded in the coordinate system of the logger component.
+
+It is possible to attach one or more conditional components to this absorption
+logger. Such a conditional component would impose a condition on the state of
+the neutron after the Union_master component that executes the simulation,
+and the absorption logger will only record the event if this condition is true.
+
+To use the logger_conditional_extend function, set it to some integer value n
+and make and extend section to the master component that runs the geometry.
+In this extend function, logger_conditional_extend[n] is 1 if the conditional
+stack evaluated to true, 0 if not. This way one can check what rays is logged
+using regular McStas monitors. Only works if a conditional is applied to this
+logger.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+target\_geometry & string & Comma separated list of geometry names that will be logged, leave empty for all volumes (even not defined yet) & "NULL" \\
+filename & string & Filename of produced data file & "NULL" \\
+xwidth & m & Width in x direction & 0 \\
+xbins & 1 & Number of bins in x direction & 0 \\
+yheight & m & Height in y direction & 0 \\
+ybins & 1 & Number of bins in y direction & 0 \\
+zdepth & m & Depth in z direction & 0 \\
+zbins & 1 & Number of bins in z direction & 0 \\
+order\_total & 1 & Only log rays that have scattered n times, -1 for all orders & -1 \\
+order\_volume & 1 & Only log rays that have scattered n times in the same geometry, -1 for all orders & -1 \\
+logger\_conditional\_extend\_index & 1 & If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger\_conditional\_extend", and one would then access logger\_conditional\_extend[n] if logger\_conditional\_extend\_index is set to n & -1 \\
+init & string & Name of Union\_init component (typically "init", default) & "init" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/union/Union_abs_logger_event.comp}{Source code} for \texttt{Union\_abs\_logger\_event.comp}.
+\end{itemize}
+\IfFileExists{Union_abs_logger_event_static.tex}{\input{Union_abs_logger_event_static.tex}}{}

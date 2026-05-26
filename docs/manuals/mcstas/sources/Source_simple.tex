@@ -1,32 +1,55 @@
-\section{Source\_simple: A simple continuous source
-with a flat energy/wavelength spectrum}
-\label{source-simple}
-\index{Sources!Simple continuous source}
+\section{The \texttt{Source\_simple} McStas Component}
+A circular neutron source with flat energy spectrum and arbitrary flux
 
-%\component{Source\_simple}{System}{ $r_\textrm{s}$, $z_\textrm{foc}$, $w$, $h$, $E_0$, $\Delta E$, $\Psi$}{$\lambda_0$, $d\lambda$}{Validated. t=0}
-\mcdoccomp{sources/Source_simple.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kim Lefmann
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} October 30, 1997
+\end{itemize}
 
-This component is
-a simple source with an energy distribution which is uniform
-in the range $E_0 \pm dE$
-(alternatively: a wavelength distribution in the range $\lambda_0 \pm d\lambda$).
-This component is not used for detailed time-of-flight simulations,
-so we put $t=0$ for all neutron rays.
+\subsection*{Description}
+\begin{lstlisting}
+The routine is a circular neutron source, which aims at a square target
+centered at the beam (in order to improve MC-acceptance rate).  The angular
+divergence is then given by the dimensions of the target.
+The neutron energy is uniformly distributed between lambda0-dlambda and
+lambda0+dlambda or between E0-dE and E0+dE.
+The flux unit is specified in n/cm2/s/st/energy unit (meV or Angs).
 
-The initial neutron ray position is chosen randomly from within a
-circle of radius $r_\textrm{s}$ in the $z=0$ plane.
-This geometry is a fair approximation
-of a cylindrical cold/thermal source with the beam going out along
-the cylinder axis.
+This component replaces Source_flat, Source_flat_lambda,
+Source_flux and Source_flux_lambda.
 
-The initial neutron ray direction is focused onto a rectangular target of width
-$w$, height $h$, parallel to the $xy$ plane placed at $(0,0,z_\textrm{foc})$.
+Example: Source_simple(radius=0.1, dist=2, focus_xw=.1, focus_yh=.1, E0=14, dE=2)
+\end{lstlisting}
 
-The initial weight of the created neutron ray, $p_0$, is set to the
-energy-integrated flux, $\Psi$, times the source area, $\pi r_\textrm{s}^2$
-times a solid-angle factor, which is basically the
-solid angle of the focusing rectangle.
-See also the section \ref{s:neutron-flux} on source flux.
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
 
-This component replaces the obsolete components
-Source\_flux\_lambda, Source\_flat, Source\_flat\_lambda, and Source\_flux.
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+radius & m & Radius of circle in (x,y,0) plane where neutrons are generated. & 0.1 \\
+yheight & m & Height of rectangle in (x,y,0) plane where neutrons are generated. & 0 \\
+xwidth & m & Width of rectangle in (x,y,0) plane where neutrons are generated. & 0 \\
+dist & m & Distance to target along z axis. & 0 \\
+focus\_xw & m & Width of target & .045 \\
+focus\_yh & m & Height of target & .12 \\
+E0 & meV & Mean energy of neutrons. & 0 \\
+dE & meV & Energy half spread of neutrons (flat or gaussian sigma). & 0 \\
+lambda0 & AA & Mean wavelength of neutrons. & 0 \\
+dlambda & AA & Wavelength half spread of neutrons. & 0 \\
+flux & 1/(s*cm**2*st*energy unit) & flux per energy unit, Angs or meV if flux=0, the source emits 1 in 4*PI whole space. & 1 \\
+gauss & 1 & Gaussian (1) or Flat (0) energy/wavelength distribution & 0 \\
+target\_index & 1 & relative index of component to focus at, e.g. next is +1 this is used to compute 'dist' automatically. & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/sources/Source_simple.comp}{Source code} for \texttt{Source\_simple.comp}.
+\end{itemize}
+\IfFileExists{Source_simple_static.tex}{\input{Source_simple_static.tex}}{}

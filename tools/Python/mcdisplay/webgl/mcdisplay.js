@@ -868,7 +868,7 @@ TraceLoader.prototype.loadInstr = function () {
     if (key === "line") {
       main.addMultiLine(args, parentnode, color);
     }
-    if (key === "circle") {
+    if (key === "mcdiscircle") {
       main.addCircle(
         args[0],
         args[1],
@@ -879,7 +879,7 @@ TraceLoader.prototype.loadInstr = function () {
         color
       );
     }
-    if (key === "sphere") {
+    if (key === "mcdissphere") {
       main.addSphere(
         args[0],
         args[1],
@@ -891,7 +891,7 @@ TraceLoader.prototype.loadInstr = function () {
         color
       );
     }
-    if (key === "cone") {
+    if (key === "mcdiscone") {
       main.addCone(
         args[0],
         args[1],
@@ -906,7 +906,7 @@ TraceLoader.prototype.loadInstr = function () {
         color
       );
     }
-    if (key === "cylinder") {
+    if (key === "mcdiscylinder") {
       main.addCylinder(
         args[0],
         args[1],
@@ -922,7 +922,7 @@ TraceLoader.prototype.loadInstr = function () {
         color
       );
     }
-    if (key === "disc") {
+    if (key === "mcdisdisc") {
       main.addDisc(
         args[0],
         args[1],
@@ -936,7 +936,7 @@ TraceLoader.prototype.loadInstr = function () {
         color
       );
     }
-    if (key === "annulus") {
+    if (key === "mcdisannulus") {
       main.addAnnulus(
         args[0],
         args[1],
@@ -951,7 +951,7 @@ TraceLoader.prototype.loadInstr = function () {
         color
       );
     }
-    if (key === "new_circle") {
+    if (key === "mcdisnew_circle") {
       main.addNewCircle(
         args[0],
         args[1],
@@ -965,7 +965,7 @@ TraceLoader.prototype.loadInstr = function () {
         color
       );
     }
-    if (key === "box") {
+    if (key === "mcdisbox") {
       console.log(args);
       main.addBox(
         args[0],

@@ -1,52 +1,88 @@
-\section{Monochromator\_curved: A curved mosaic crystal with
-a single scattering vector}
-\label{s:monochromator_curved}
-\index{Optics!Monochromator, curved}
+\section{The \texttt{Monochromator\_curved} McStas Component}
+Double bent multiple crystal slabs with anisotropic gaussian mosaic.
 
-%\component{Monochromator\_curved}{(System) Peter Link, FRM-2}{$z_\textrm{w}$, $y_\textrm{h}$, gap, $\eta_\textrm{h}$, $\eta_\textrm{v}$, $n_\textrm{h}$, $n_\textrm{v}$, $R_0$, $Q$, $r_\textrm{h}$, $r_\textrm{v}$}{$d_\textrm{m}$, $\eta$, $h$, $w$, verbose, transmit, reflect}{In reflecting geometry, non polarized}
-\mcdoccomp{optics/Monochromator_curved.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Emmanuel Farhi, Kim, Lefmann, Peter Link
+  \item \textbf{Origin:} \textless{}a href="http://www.ill.fr"\textgreater{}ILL\textless{}/a\textgreater{}
+  \item \textbf{Date:} Aug. 24th 2001
+\end{itemize}
 
-\begin{figure}
-  \begin{center}
-    \includegraphics[width=0.9\textwidth]{figures/monochromator_curved}
-  \end{center}
-\caption{A curved monochromator}
-\label{f:monochromator_curved}
-\end{figure}
+\subsection*{Description}
+\begin{lstlisting}
+Double bent infinitely thin mosaic crystal, useful as a monochromator or
+analyzer. which uses a small-mosaicity approximation and taking into account
+higher  order scattering. The mosaic is anisotropic gaussian, with different
+FWHMs in the Y and Z directions. The scattering vector is perpendicular to the
+surface. For an unrotated monochromator component, the crystal plane lies in
+the y-z plane (ie. parallel to the beam). The component works in reflection, but
+also transmits the non-diffracted beam. Reflectivity and transmission files may
+be used. The slabs are positioned in the vertical plane (not on a
+cylinder/sphere), and are rotated according to the curvature radius.
+When curvatures are set to 0, the monochromator is flat.
+The curvatures approximation for parallel beam focusing to distance L, with
+monochromator rotation angle A1 are:
+RV = 2*L*sin(DEG2RAD*A1);
+RH = 2*L/sin(DEG2RAD*A1);
 
+When you rotate the component by A1 = asin(Q/2/Ki)*RAD2DEG, do not forget to
+rotate the following components by A2=2*A1 (for 1st order) !
 
-This component simulates an array of infinitely thin single
-crystals with a single scattering vector perpendicular to the
-surface and a mosaic spread.
-This component is used to simulate a singly or doubly
-curved monochromator or analyzer in reflecting geometry.
+Example: Monochromator_curved(zwidth=0.01, yheight=0.01, gap=0.0005, NH=11, NV=11, mosaich=30.0, mosaicv=30.0, r0=0.7, Q=1.8734)
 
-The component uses rectangular pieces of monochromator material
-as described in \textbf{Monochromator\_curved}.
-The scattering vector is named $Q$, and as described in
-\textbf{Monochromator\_flat}, multiples of $Q$ will be applied.
-Other important parameters are the piece height and width,
-$y_\textrm{h}$ and $z_\textrm{w}$, respectively, the
-horizontal and vertical mosaicities, $\eta_\textrm{h}$ and $\eta_\textrm{v}$,
-respectively.
-If just one mosaicity, $\eta$, is specified, this the same for both directions.
+Monochromator lattice parameter
+PG       002 DM=3.355 AA (Highly Oriented Pyrolythic Graphite)
+PG       004 DM=1.677 AA
+Heusler  111 DM=3.362 AA (Cu2MnAl)
+CoFe         DM=1.771 AA (Co0.92Fe0.08)
+Ge       111 DM=3.266 AA
+Ge       311 DM=1.714 AA
+Ge       511 DM=1.089 AA
+Ge       533 DM=0.863 AA
+Si       111 DM=3.135 AA
+Cu       111 DM=2.087 AA
+Cu       002 DM=1.807 AA
+Cu       220 DM=1.278 AA
+Cu       111 DM=2.095 AA
+\end{lstlisting}
 
-The number of pieces vertically and horizontally are called
-$n_\textrm{v}$ and $n_\textrm{h}$, respectively, and the vertical and horizontal
-radii of curvature are named $r_\textrm{v}$ and $r_\textrm{h}$, respectively.
-All single crystals are positioned in the same vertical plane,
-but tilted accordingly to the curvature radius.
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
 
-The constant monochromator reflectivity, $R_0$ can be replaced by
-a file of tabulated reflectivities $reflect$ (\verb+*.rfl+ in \verb+MCSTAS/data+). In the same sense, the transmission
-can be modeled by a tabulated file $transmit$ (for non-reflected neutrons, \verb+*.trm+ in \verb+MCSTAS/data+).
-The most useful of these files for Monochromator\_curved are \verb+HOPG.rlf+ and \verb+HOPG.trm+.
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+reflect & str & reflectivity file name of text file as 2 columns [k, R] & "NULL" \\
+transmit & str & transmission file name of text file as 2 columns [k, T] & "NULL" \\
+zwidth & m & horizontal width of an individual slab & 0.01 \\
+yheight & m & vertical height of an individual slab & 0.01 \\
+gap & m & typical gap  between adjacent slabs & 0.0005 \\
+NH & int & number of slabs horizontal & 11 \\
+NV & int & number of slabs vertical & 11 \\
+mosaich & arc minutes & Horisontal mosaic FWHM & 30.0 \\
+mosaicv & arc minutes & Vertical mosaic FWHM & 30.0 \\
+r0 & 1 & Maximum reflectivity. O unactivates component & 0.7 \\
+t0 & 1 & transmission efficiency & 1.0 \\
+Q & AA-1 & Scattering vector & 1.8734 \\
+RV & m & radius of vertical focussing. flat for 0 & 0 \\
+RH & m & radius of horizontal focussing. flat for 0 & 0 \\
+DM & AA & monochromator d-spacing instead of Q=2*pi/DM & 0 \\
+mosaic & arc minutes & sets mosaich=mosaicv & 0 \\
+width & m & total width of monochromator, along Z & 0 \\
+height & m & total height of monochromator, along Y & 0 \\
+verbose & 0/1 & verbosity level & 0 \\
+order & 1 & specify the diffraction order, 1 is usually prefered. Use 0 for all & 0 \\
+\bottomrule
+\end{longtable}
 
-As for \textbf{Monochromator\_flat}, the crystal is assumed to be infinitely
-thin, and the variation in lattice spacing, ($\Delta d/d$),
-is assumed to be zero. Hence, this
-component is not suitable for simulating backscattering instruments or to
-investigate multiple scattering effects.
-
-The theory and algorithm for scattering from
-the individual blades is described under \textbf{Monochromator\_flat}.
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/Monochromator_curved.comp}{Source code} for \texttt{Monochromator\_curved.comp}.
+  \item \textless{}a href="http://mcstas.risoe.dk/pipermail/neutron-mc/1999q1/000133.html"\textgreater{}Additional note\textless{}/a\textgreater{} from Peter Link.
+  \item Obsolete Mosaic\_anisotropic by Kristian Nielsen
+  \item Contributed Monochromator\_2foc by Peter Link
+\end{itemize}
+\IfFileExists{Monochromator_curved_static.tex}{\input{Monochromator_curved_static.tex}}{}

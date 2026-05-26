@@ -1,66 +1,77 @@
-\section{Tunneling\_sample: An incoherent inelastic scatterer}
-\label{s:Tunneling_sample}
-\index{Samples!Incoherent inelastic scatterer}
-\index{Incoherent inelastic scattering}
+\section{The \texttt{Tunneling\_sample} McStas Component}
+A Double-cylinder shaped all-incoherent scatterer
+with elastic, quasielastic (Lorentzian), and tunneling (sharp)
+components.
 
-%\component{Tunneling\_sample}{System}{$r_\textrm{i}$, $r_\textrm{o}$, $h$, $r_\textrm{foc}$, $x_\textrm{target}$, $y_\textrm{target}$, $z_\textrm{target}$}{$w_x$, $h_y$, $t_z$, $w_\textrm{focus}, h_\textrm{focus}$, $w_\textrm{foc, angle}$, $h_\textrm{foc, angle}$, $\sigma_\textrm{abs}$, $\sigma_\textrm{inc}$, $V_0$, $f_\textrm{pack}$, $f_\textrm{QE}$, $f_\textrm{tun}$, $\Gamma$, $E_\textrm{tun}$, target\_index}{not validated}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kim Lefmann
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} 10.05.07
+\end{itemize}
 
-\mcdoccomp{samples/Tunneling_sample.parms}
+\subsection*{Description}
+\begin{lstlisting}
+A Double-cylinder shaped all-incoherent scatterer
+with both elastic, quasielastic (Lorentzian), and tunneling (sharp)
+components. No multiple scattering. Absorbtion included.
+The shape of the sample may be a box with dimensions xwidth, yheight, zdepth.
+The area to scatter to is a disk of radius 'focus_r' situated at the target.
+This target area may also be rectangular if specified focus_xw and focus_yh
+or focus_aw and focus_ah, respectively in meters and degrees.
+The target itself is either situated according to given coordinates (x,y,z),
+or defined with the relative target_index of the component to focus
+to (next is +1).
+This target position will be set to its AT position. When targeting to
+centered components, such as spheres or cylinders, define an Arm component
+where to focus to.
 
-The component \textbf{Tunneling\_sample}
-displays incoherent inelastic scattering as found in a number of systems, {\em e.g.}
-containing mobile hydrogen. 
+The outgoing polarization is calculated as for nuclear spin incoherence:
+P' = 1/3*P-2/3P = -1/3P
+As above multiple scattering is ignored .
 
-For the sample geometry, we default use a
-hollow cylinder (which has the solid cylinder as a limiting case).
-The sample dimensions are: Inner radius $r_\textrm{i}$,
-outer radius $r_\textrm{o}$, and height $h$. This geometry is the same as 
-the default for \textbf{V\_sample}, see figure \ref{f:v-sample}.
+Example: Tunneling_sample(thickness=0.001,radius=0.01,yheight=0.02,focus_r=0.035,
+target_index=1)
+\end{lstlisting}
 
-As for \textbf{V\_sample}, the sample geometry can be made rectangular 
-by specifying the width, $w_x$, the height, $h_y$, and the thickness, $t_z$.
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
 
-Also the focusing properties are the same as for \textbf{V\_sample}.
-For the focusing is performed as a uniform distribution on
-a target sphere of radius $r_\textrm{foc}$, at the position
-$(x_\textrm{target},y_\textrm{target},z_\textrm{target})$
-in the local coordinate system.
-The focusing can alternatively be performed on a rectangle with dimensions
-$w_\textrm{focus}$, $h_\textrm{focus}$, or uniformly in angular space
-(in a small-angle approximation),
-using $w_\textrm{foc, angle}$, $h_\textrm{foc, angle}$.
-The focusing location can be picked to be a downstream component by
-specifying \verb+target_index+.
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+thickness & m & Thickness of cylindrical sample in (x,z) plane & 0 \\
+radius & m & Outer radius of sample in (x,z) plane & 0.01 \\
+focus\_r & m & Radius of disk containing target. Use 0 for full space & 0 \\
+p\_interact & 1 & MC Probability for scattering the ray; otherwise transmit & 1 \\
+f\_QE & 1 & Fraction of quasielastic scattering & 0 \\
+f\_tun & 1 & Fraction of tunneling scattering (f\_QE+f\_tun \textless{} 1) & 0 \\
+gamma & meV & Lorentzian width of quasielastic broadening (HWHM) & 0 \\
+E\_tun & meV & Tunneling energy & 0 \\
+target\_x & m & X-position of target to focus at & 0 \\
+target\_y & m & Y-position of target to focus at & 0 \\
+target\_z & m & Z-position of target to focus at & 0.235 \\
+focus\_xw & m & horiz. dimension of a rectangular area & 0 \\
+focus\_yh & m & vert.  dimension of a rectangular area & 0 \\
+focus\_aw & deg & horiz. angular dimension of a rectangular area & 0 \\
+focus\_ah & deg & vert.  angular dimension of a rectangular area & 0 \\
+xwidth & m & horiz. dimension of sample, as a width & 0 \\
+yheight & m & vert.  dimension of sample, as a height & 0.05 \\
+zdepth & m & depth of sample & 0 \\
+sigma\_abs & barns & Absorbtion cross section pr. unit cell & 5.08 \\
+sigma\_inc & barns & Total incoherent scattering cross section pr. unit cell & 4.935 \\
+Vc & AA\textasciicircum{}3 & Unit cell volume & 13.827 \\
+target\_index & 1 & relative index of component to focus at, e.g. next is +1 & 0 \\
+\bottomrule
+\end{longtable}
 
-The incoherent and absorption cross sections for V are default
-for the component. For other choices, the
-parameters $\sigma_\textrm{inc}$, $\sigma_\textrm{abs}$,
-and the unit cell volume $V_0$ should be specified.
-For a loosely packed sample, also the packing factor, $f_\textrm{pack}$
-can be specified (default value of 1).
-
-The inelastic scattering takes place as a quasielastic (Lorentzian)
-component, which is chosen with probability $f_\textrm{QE}$.
-The broadening of the signal is given by $\Gamma$ (HWHM).
-In addition, a tunneling signal is present with a probability of $f_\textrm{tun}$ 
-and a tunneling energy of $\pm E_\textrm{tun}$. 
-The tunneling peaks are weighted by the usual factor $k_\textrm{f}/k_\textrm{i}$.
-
-The total scattering cross section is given by
-\begin{eqnarray}
-\lefteqn{\frac{d^2\sigma}{d\Omega dE_\textrm{f}}(q,\omega) = \frac{\sigma_\textrm{inc}}{4\pi}
-\times \left\{ (1-f_\textrm{QE}-f_\textrm{inel}) \delta(\hbar \omega) \right. }  \\
- &+& f_\textrm{QE} \frac{\Gamma}{(\hbar\omega)^2+\Gamma^2}
- + \left.\frac{f_\textrm{inel}}{2} \frac{k_\textrm{f}}{f_\textrm{i}} 
-   \left[\delta(\hbar\omega-E_\textrm{tun}) + \delta(\hbar\omega+E_\textrm{tun}) \right] \right\} \nonumber
-\end{eqnarray}
-
-The component takes care that 
-$f_\textrm{QE} + f_\textrm{tun} \leq 1$, otherwise an error is returned.
-
-The component accounts for absorption, 
-but not multiple scattering. To obtain
-intensities similar to real measured ones, we therefore do not 
-take attenuation from scattering into account for the outgoing
-neutron ray.
-
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/samples/Tunneling_sample.comp}{Source code} for \texttt{Tunneling\_sample.comp}.
+  \item \textless{}A HREF="http://neutron.risoe.dk/mcstas/components/tests/v\_sample/"\textgreater{}Test
+  \item results\textless{}/A\textgreater{} (not up-to-date).
+\end{itemize}
+\IfFileExists{Tunneling_sample_static.tex}{\input{Tunneling_sample_static.tex}}{}

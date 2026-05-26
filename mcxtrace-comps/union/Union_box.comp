@@ -1,0 +1,452 @@
+/*******************************************************************************
+*
+*  McXtrace, x-ray ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Mads Bertelsen and Erik B Knudsen
+* Date: 20.08.15
+* Origin: ESS DMSC & DTU Physics
+*
+* Implementation of a box geometry - to be filled with a material
+*
+* %D
+* Part of the Union components, a set of components that work together and thus
+*  separates geometry and physics within McXtrace.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before this master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union components
+*
+* The position of this component is the center of the box, extending xwidth/2,
+* yheight/2, and zdepth/2 in each direction respectively.
+*
+* It is allowed to overlap components, but it is not allowed to have two
+*  parallel planes that coincide. This will crash the code on run time.
+*
+*
+* Algorithm:
+* Described elsewhere
+*
+* %P
+* INPUT PARAMETERS:
+* xwidth: [m]          width of the box volume
+* yheight: [m]         height of the box volume
+* zdepth: [m]          depth of the box volume
+* xwidth2: [m]         optional different width at the +z box face
+* yheight2: [m]        optional different height at the +z box face
+* material_string: [str]  material name of this volume, defined using Union_make_material
+* priority: [1]        priotiry of the volume (can not be the same as another volume) A high priority is on top of low.
+* p_interact: [1]  probability to interact with this geometry [0-1]
+* visualize:  [1]  set to 0 if you wish to hide this geometry in mcdisplay
+* number_of_activations: [1]  Number of subsequent Union_master components that will simulate this geometry
+* mask_string: [str]      Comma separated list of geometry names which this geometry should mask
+* mask_setting: [str]     "All" or "Any", should the masked volume be simulated when the ray is in just one mask, or all.
+* target_x:   [m] \
+* target_y:   [m] - Position of target to focus at
+* target_z:   [m] /
+* focus_aw:   [deg] horiz. angular dimension of a rectangular area
+* focus_ah:   [deg] vert. angular dimension of a rectangular area
+* focus_xw:   [m]   horiz. dimension of a rectangular area
+* focus_xh:   [m]   vert. dimension of a rectangular area
+* focus_r:    [m]   focusing on circle with this radius
+* target_index:          [1]      Focuses on component a component this many steps further in the component sequence
+* init:       [str]   Name of Union inititaliser component
+*
+* OUTPUT PARAMETERS:
+*
+* %L
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Union_box
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS(string material_string=0, priority, xwidth, yheight, zdepth, xwidth2=-1, yheight2=-1, visualize=1, int target_index=0, target_x=0, target_y=0, target_z=0, focus_aw=0, focus_ah=0, focus_xw=0, focus_xh=0, focus_r=0, p_interact = 0, string mask_string=0, string mask_setting=0,number_of_activations=1, string init="init")
+OUTPUT PARAMETERS ()
+
+/* X-ray parameters: (x,y,z,kx,ky,kz ,phi, t, Ex,Ey,Ez,p) */
+
+SHARE
+%{
+#ifndef Union
+#define Union $Revision: 0.8 $
+
+
+%include "union-init.c"
+
+#endif
+
+void mcdisplay_box_function(struct lines_to_draw *lines_to_draw_output,int index, struct geometry_struct **Geometries,int number_of_volumes) {
+    // Function to call in mcdisplay section of the sample component for this volume
+    // One can assume that Volumes[index] refers to a volume with the geometry described in this file
+
+    double depth = Geometries[index]->geometry_parameters.p_box_storage->z_depth;
+    double width1 = Geometries[index]->geometry_parameters.p_box_storage->x_width1;
+    double width2 = Geometries[index]->geometry_parameters.p_box_storage->x_width2;
+    double height1 = Geometries[index]->geometry_parameters.p_box_storage->y_height1;
+    double height2 = Geometries[index]->geometry_parameters.p_box_storage->y_height2;
+
+    Coords x_vector = Geometries[index]->geometry_parameters.p_box_storage->x_vector;
+    Coords y_vector = Geometries[index]->geometry_parameters.p_box_storage->y_vector;
+    Coords z_vector = Geometries[index]->geometry_parameters.p_box_storage->z_vector;
+
+    Coords center = Geometries[index]->center;
+
+    Coords square1[4],square2[4];
+
+    square1[0] = coords_add(coords_add(coords_add(center,coords_scalar_mult(z_vector,-0.5*depth)),coords_scalar_mult(x_vector,-0.5*width1)),coords_scalar_mult(y_vector,-0.5*height1));
+
+    square1[1] = coords_add(square1[0],coords_scalar_mult(x_vector,width1));
+    square1[2] = coords_add(square1[1],coords_scalar_mult(y_vector,height1));
+    square1[3] = coords_add(square1[0],coords_scalar_mult(y_vector,height1));
+
+    square2[0] = coords_add(coords_add(coords_add(center,coords_scalar_mult(z_vector,0.5*depth)),coords_scalar_mult(x_vector,-0.5*width2)),coords_scalar_mult(y_vector,-0.5*height2));
+
+    square2[1] = coords_add(square2[0],coords_scalar_mult(x_vector,width2));
+    square2[2] = coords_add(square2[1],coords_scalar_mult(y_vector,height2));
+    square2[3] = coords_add(square2[0],coords_scalar_mult(y_vector,height2));
+
+    struct lines_to_draw lines_to_draw_temp;
+    lines_to_draw_temp.number_of_lines = 0;
+
+    int iterate;
+    for (iterate=0;iterate<3;iterate++) {
+        lines_to_draw_temp = draw_line_with_highest_priority(square1[iterate],square1[iterate+1],index,Geometries,number_of_volumes,2);
+        merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
+    }
+    lines_to_draw_temp = draw_line_with_highest_priority(square1[3],square1[0],index,Geometries,number_of_volumes,2);
+    merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
+
+    for (iterate=0;iterate<3;iterate++) {
+        lines_to_draw_temp = draw_line_with_highest_priority(square2[iterate],square2[iterate+1],index,Geometries,number_of_volumes,2);
+        merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
+    }
+    lines_to_draw_temp = draw_line_with_highest_priority(square2[3],square2[0],index,Geometries,number_of_volumes,2);
+    merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
+
+    for (iterate=0;iterate<4;iterate++) {
+        lines_to_draw_temp = draw_line_with_highest_priority(square1[iterate],square2[iterate],index,Geometries,number_of_volumes,2);
+        merge_lines_to_draw(lines_to_draw_output,&lines_to_draw_temp);
+    }
+};
+
+void initialize_box_geometry_from_main_component(struct geometry_struct *box) {
+    // Function to be called in initialize of the main component
+    // This is done as the rotation matrix needs to be relative to the main component instead of global
+    // Everything done in initialize in this component file has the rotation matrix relative to global
+    Coords simple_vector = coords_set(1,0,0);
+    Coords rotated_vector;
+
+    rotated_vector = rot_apply(box->rotation_matrix,simple_vector);
+    NORM(rotated_vector.x,rotated_vector.y,rotated_vector.z);
+    box->geometry_parameters.p_box_storage->x_vector = rotated_vector;
+
+    simple_vector = coords_set(0,1,0);
+    rotated_vector = rot_apply(box->rotation_matrix,simple_vector);
+    NORM(rotated_vector.x,rotated_vector.y,rotated_vector.z);
+    box->geometry_parameters.p_box_storage->y_vector = rotated_vector;
+
+    simple_vector = coords_set(0,0,1);
+    rotated_vector = rot_apply(box->rotation_matrix,simple_vector);
+    NORM(rotated_vector.x,rotated_vector.y,rotated_vector.z);
+    box->geometry_parameters.p_box_storage->z_vector = rotated_vector;
+};
+
+struct pointer_to_1d_coords_list box_shell_points(struct geometry_struct *geometry,int max_number_of_points) {
+  // This function returns an array of corner positions for the box in the main coordinate system.
+  // Normally one would limit it to a maximum number of points, but as there are only 8 for the box,
+  //  it is hardcoded to 8. Other geometries can be approximated with a variable number of points.
+
+  struct pointer_to_1d_coords_list corner_points;
+  corner_points.elements = malloc(8*sizeof(Coords));
+  corner_points.num_elements = 8;
+
+  double depth = geometry->geometry_parameters.p_box_storage->z_depth;
+  double width1 = geometry->geometry_parameters.p_box_storage->x_width1;
+  double width2 = geometry->geometry_parameters.p_box_storage->x_width2;
+  double height1 = geometry->geometry_parameters.p_box_storage->y_height1;
+  double height2 = geometry->geometry_parameters.p_box_storage->y_height2;
+
+  Coords x_vector = geometry->geometry_parameters.p_box_storage->x_vector;
+  Coords y_vector = geometry->geometry_parameters.p_box_storage->y_vector;
+  Coords z_vector = geometry->geometry_parameters.p_box_storage->z_vector;
+
+  Coords center = geometry->center;
+
+  corner_points.elements[0] = coords_add(coords_add(coords_add(center,coords_scalar_mult(z_vector,-0.5*depth)),coords_scalar_mult(x_vector,-0.5*width1)),coords_scalar_mult(y_vector,-0.5*height1));
+
+  corner_points.elements[1] = coords_add(corner_points.elements[0],coords_scalar_mult(x_vector,width1));
+  corner_points.elements[2] = coords_add(corner_points.elements[1],coords_scalar_mult(y_vector,height1));
+  corner_points.elements[3] = coords_add(corner_points.elements[0],coords_scalar_mult(y_vector,height1));
+
+  corner_points.elements[4] = coords_add(coords_add(coords_add(center,coords_scalar_mult(z_vector,0.5*depth)),coords_scalar_mult(x_vector,-0.5*width2)),coords_scalar_mult(y_vector,-0.5*height2));
+
+  corner_points.elements[5] = coords_add(corner_points.elements[4],coords_scalar_mult(x_vector,width2));
+  corner_points.elements[6] = coords_add(corner_points.elements[5],coords_scalar_mult(y_vector,height2));
+  corner_points.elements[7] = coords_add(corner_points.elements[4],coords_scalar_mult(y_vector,height2));
+
+  return corner_points;
+}
+
+#ifndef ANY_GEOMETRY_DETECTOR_DECLARE
+    #define ANY_GEOMETRY_DETECTOR_DECLARE dummy
+    //struct pointer_to_global_geometry_list global_geometry_list = {0,NULL};
+#endif
+
+%}
+
+DECLARE
+%{
+// Needed for transport to the main component
+struct global_geometry_element_struct global_geometry_element;
+
+int loop_index;
+
+double x_component;
+double y_component;
+double z_component;
+
+struct Volume_struct this_box_volume;
+struct box_storage this_box_storage;
+
+%}
+
+INITIALIZE
+%{
+// Initializes the focusing system for this volume including input sanitation.
+focus_initialize(&this_box_volume.geometry, POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index), POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, target_index, target_x, target_y, target_z, focus_aw, focus_ah, focus_xw, focus_xh, focus_r, NAME_CURRENT_COMP);
+
+// Input sanitation for this geometry
+if (xwidth <= 0) {
+  printf("\nERROR in Union_box named %s, the xwidth is <= 0. \n",NAME_CURRENT_COMP);
+  exit(1);
+}
+if (yheight <= 0) {
+  printf("\nERROR in Union_box named %s, yheight is <= 0. \n",NAME_CURRENT_COMP);
+  exit(1);
+}
+if (zdepth <= 0) {
+  printf("\nERROR in Union_box named %s, zdepth is <= 0. \n",NAME_CURRENT_COMP);
+  exit(1);
+}
+if (xwidth2 <= 0 && xwidth2 != -1) {
+  printf("\nERROR in Union_box named %s, the xwidth2 is <= 0. \n",NAME_CURRENT_COMP);
+  exit(1);
+}
+if (yheight2 <= 0 && yheight2 != -1) {
+  printf("\nERROR in Union_box named %s, yheight2 is <= 0. \n",NAME_CURRENT_COMP);
+  exit(1);
+}
+
+// Get global variable from init component
+if (_getcomp_index(init) < 0) {
+fprintf(stderr,"Union_box:%s: Error identifying Union_init component, %s is not a known component name.\n",
+NAME_CURRENT_COMP, init);
+exit(-1);
+}
+
+struct pointer_to_global_material_list *global_material_list = COMP_GETPAR3(Union_init, init, global_material_list);
+// Use sanitation
+if (global_material_list->num_elements == 0) {
+  printf("\nERROR: Need to define a material using Union_make_material before using a Union geometry component. \n");
+  printf("       %s was defined before first use of Union_make_material.\n", NAME_CURRENT_COMP);
+  exit(1);
+}
+
+this_box_volume.geometry.is_masked_volume = 0;
+this_box_volume.geometry.is_exit_volume = 0;
+this_box_volume.geometry.is_mask_volume = 0;
+struct pointer_to_global_geometry_list *global_geometry_list = COMP_GETPAR3(Union_init, init, global_geometry_list);
+// check if the volume is a mask, if it is the material string is irelevant.
+if (mask_string && strlen(mask_string) && strcmp(mask_string, "NULL") && strcmp(mask_string, "0")) {
+    // A mask volume is used to limit the extend of other volumes, called the masked volumes. These are specified in the mask_string.
+    // In order for a ray to enter a masked volume, it needs to be both in the region covered by that volume AND the mask volume.
+    // When more than
+    this_box_volume.geometry.mask_mode = 1; // Default is mask mode is ALL
+    if (mask_setting && strlen(mask_setting) && strcmp(mask_setting, "NULL") && strcmp(mask_setting, "0")) {
+        if (strcmp(mask_setting,"ALL") == 0 || strcmp(mask_setting,"All") == 0) this_box_volume.geometry.mask_mode = 1;
+        else if (strcmp(mask_setting,"ANY") == 0 || strcmp(mask_setting,"Any") == 0) this_box_volume.geometry.mask_mode = 2;
+        else {
+            printf("The mask_mode of component %s is set to %s, but must be either ALL or ANY.\n",NAME_CURRENT_COMP,mask_setting);
+            exit(1);
+        }
+    }
+
+    int found_geometries = 0;
+    for (loop_index=0;loop_index<global_geometry_list->num_elements;loop_index++) {
+        // Add mask list
+        if (1 == manual_linking_function(global_geometry_list->elements[loop_index].name,mask_string)) {
+            add_element_to_int_list(&this_box_volume.geometry.mask_list,global_geometry_list->elements[loop_index].component_index);
+            add_element_to_int_list(&global_geometry_list->elements[loop_index].Volume->geometry.masked_by_list,INDEX_CURRENT_COMP);
+            global_geometry_list->elements[loop_index].Volume->geometry.is_masked_volume = 1;
+            if (this_box_volume.geometry.mask_mode == 2)
+                global_geometry_list->elements[loop_index].Volume->geometry.mask_mode = 2;
+            if (this_box_volume.geometry.mask_mode == 1) {
+                if (global_geometry_list->elements[loop_index].Volume->geometry.is_masked_volume == 1 && global_geometry_list->elements[loop_index].Volume->geometry.mask_mode != 2)
+                    // If more than one mask is added to one volume, the ANY mode overwrites the (default) ALL mode.
+                    global_geometry_list->elements[loop_index].Volume->geometry.mask_mode = 1;
+            }
+
+            found_geometries = 1;
+        }
+    }
+    if (found_geometries == 0) {
+        printf("The mask_string in geometry: %s did not find any of the specified volumes in the mask_string %s \n",NAME_CURRENT_COMP,mask_string);
+        exit(1);
+    }
+    this_box_volume.p_physics = malloc(sizeof(struct physics_struct));
+    this_box_volume.p_physics->is_vacuum = 0; // Makes this volume a vacuum
+    this_box_volume.p_physics->number_of_processes = (int) 0; // Should not be used.
+    this_box_volume.p_physics->my_a = 0; // Should not be used.
+    sprintf(this_box_volume.p_physics->name,"Mask");
+    this_box_volume.geometry.is_mask_volume = 1;
+
+
+// Read the material input, or if it lacks, use automatic linking.
+} else if (material_string && strlen(material_string) && strcmp(material_string, "NULL") && strcmp(material_string, "0")) {
+    // A geometry string was given, use it to determine which material
+    if (0 == strcmp(material_string,"vacuum") || 0 == strcmp(material_string,"Vacuum")) {
+        // One could have a global physics struct for vacuum instead of creating one for each
+        this_box_volume.p_physics = malloc(sizeof(struct physics_struct));
+        this_box_volume.p_physics->is_vacuum = 1; // Makes this volume a vacuum
+        this_box_volume.p_physics->number_of_processes = (int) 0;
+        this_box_volume.p_physics->my_a = 0; // Should not be used.
+        sprintf(this_box_volume.p_physics->name,"Vacuum");
+    } else if (0 == strcmp(material_string,"exit") || 0 == strcmp(material_string,"Exit")) {
+        // One could have a global physics struct for vacuum instead of creating one for each
+        this_box_volume.p_physics = malloc(sizeof(struct physics_struct));
+        this_box_volume.p_physics->is_vacuum = 1; // Makes this volume a vacuum
+        this_box_volume.p_physics->number_of_processes = (int) 0;
+        this_box_volume.p_physics->my_a = 0; // Should not be used.
+        this_box_volume.geometry.is_exit_volume = 1;
+        sprintf(this_box_volume.p_physics->name,"Exit");
+    } else {
+        #ifndef MATERIAL_DETECTOR
+            printf("Need to define a material before refering to it in a geometry %s.\n",NAME_CURRENT_COMP);
+            exit(1);
+        #endif
+        for (loop_index=0;loop_index<global_material_list->num_elements;loop_index++) {
+          if (0 == strcmp(material_string,global_material_list->elements[loop_index].name)) {
+            this_box_volume.p_physics = global_material_list->elements[loop_index].physics;
+            break;
+          }
+          if (loop_index == global_material_list->num_elements-1) {
+            printf("\n");
+            printf("ERROR: The material string \"%s\" in Union geometry \"%s\" did not match a specified material. \n",material_string,NAME_CURRENT_COMP);
+            printf("       The materials available at this point (need to be defined before the geometry): \n");
+            for (loop_index=0;loop_index<global_material_list->num_elements;loop_index++)
+              printf("         %s\n",global_material_list->elements[loop_index].name);
+            printf("\n");
+            printf("       It is also possible to use one of the defualt materials avaiable: \n");
+            printf("           Vacuum (for a Volume without scattering or absorption)\n");
+            printf("           Exit (for a Volume where the ray exits the component if it enters)\n");
+            printf("           Mask (for a Volume that masks existing volumes specified in the mask_string\n");
+            exit(1);
+          }
+        }
+    }
+} else {
+    // Automatic linking, simply using the last defined material.
+    #ifndef MATERIAL_DETECTOR
+        printf("Need to define a material before the geometry to use automatic linking %s.\n",NAME_CURRENT_COMP);
+        exit(1);
+    #endif
+    this_box_volume.p_physics = global_material_list->elements[global_material_list->num_elements-1].physics;
+}
+
+sprintf(this_box_volume.name,NAME_CURRENT_COMP);
+sprintf(this_box_volume.geometry.shape,"box");
+this_box_volume.geometry.eShape = box;
+this_box_volume.geometry.priority_value = priority;
+this_box_volume.geometry.geometry_p_interact = p_interact;
+// Currently the coordinates will be in absolute space.
+this_box_volume.geometry.center = POS_A_CURRENT_COMP;
+
+this_box_storage.z_depth = zdepth;
+this_box_storage.x_width1 = xwidth;
+this_box_storage.y_height1 = yheight;
+
+this_box_storage.is_rectangle = 0;
+if (xwidth2 < 0 && yheight2 < 0) this_box_storage.is_rectangle = 1;
+if (xwidth == xwidth2 && yheight == yheight2) this_box_storage.is_rectangle = 1;
+
+if (xwidth2 < 0) {
+    this_box_storage.x_width2 = xwidth;
+    xwidth2 = xwidth;
+} else this_box_storage.x_width2 = xwidth2;
+
+if (yheight2 < 0) {
+    this_box_storage.y_height2 = yheight;
+    yheight2 = yheight;
+} else this_box_storage.y_height2 = yheight2;
+
+
+this_box_storage.normal_vectors[0] = coords_set(0,0,1);
+this_box_storage.normal_vectors[1] = coords_set(0,0,1);
+
+// for sides with y component = 0
+x_component = 2*zdepth/sqrt((xwidth-xwidth2)*(xwidth-xwidth2)+4*zdepth*zdepth);
+z_component = (xwidth-xwidth2)/sqrt(4*zdepth*zdepth+(xwidth-xwidth2)*(xwidth-xwidth2));
+
+this_box_storage.normal_vectors[2] = coords_set(x_component,0,z_component);
+this_box_storage.normal_vectors[3] = coords_set(-x_component,0,z_component);
+
+// for sides with x component = 0
+y_component = 2*zdepth/sqrt((yheight-yheight2)*(yheight-yheight2)+4*zdepth*zdepth);
+z_component = (yheight-yheight2)/sqrt(4*zdepth*zdepth+(yheight-yheight2)*(yheight-yheight2));
+
+this_box_storage.normal_vectors[4] = coords_set(0,y_component,z_component);
+this_box_storage.normal_vectors[5] = coords_set(0,-y_component,z_component);
+
+this_box_volume.geometry.visualization_on = visualize;
+
+this_box_volume.geometry.geometry_parameters.p_box_storage = &this_box_storage;
+
+// Assign pointers to functions for intersection with the shape, checking if a point is inside the shape
+if (this_box_storage.is_rectangle == 1) {
+this_box_volume.geometry.intersect_function = &sample_box_intersect_simple;
+this_box_volume.geometry.within_function = &r_within_box_simple;
+}
+else {
+this_box_volume.geometry.intersect_function = &sample_box_intersect_advanced;
+this_box_volume.geometry.within_function = &r_within_box_advanced;
+}
+
+this_box_volume.geometry.shell_points = &box_shell_points;
+this_box_volume.geometry.mcdisplay_function = &mcdisplay_box_function;
+this_box_volume.geometry.initialize_from_main_function = &initialize_box_geometry_from_main_component;
+this_box_volume.geometry.process_rot_allocated = 0;
+
+this_box_volume.geometry.copy_geometry_parameters = &allocate_box_storage_copy;
+
+rot_copy(this_box_volume.geometry.rotation_matrix,ROT_A_CURRENT_COMP); //check how ROT_R_CURRENT_COMP would work
+rot_transpose(ROT_A_CURRENT_COMP,this_box_volume.geometry.transpose_rotation_matrix);
+
+// Initialize loggers
+this_box_volume.loggers.num_elements = 0;
+this_box_volume.abs_loggers.num_elements = 0;
+
+// packing the information into the global_geometry_element, which is then included in the global_geometry_list.
+sprintf(global_geometry_element.name,NAME_CURRENT_COMP);
+global_geometry_element.activation_counter = number_of_activations;
+global_geometry_element.component_index = INDEX_CURRENT_COMP;
+global_geometry_element.Volume = &this_box_volume; // Would be nicer if this m was a pointer, now we have the (small) data two places
+//char *test_component;
+//char *sigma_name;
+//COMP_GETPAR(test_component, sigma_name);
+add_element_to_geometry_list(global_geometry_list, global_geometry_element);
+%}
+
+TRACE
+%{
+%}
+
+END

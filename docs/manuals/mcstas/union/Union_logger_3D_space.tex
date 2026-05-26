@@ -1,0 +1,82 @@
+\section{The \texttt{Union\_logger\_3D\_space} McStas Component}
+Three dimensional logger for spatial dimensions
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Mads Bertelsen
+  \item \textbf{Origin:} University of Copenhagen
+  \item \textbf{Date:} 20.08.15
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Part of the Union components, a set of components that work together and thus
+sperates geometry and physics within McStas.
+The use of this component requires other components to be used.
+
+1) One specifies a number of processes using process components
+2) These are gathered into material definitions using Union_make_material
+3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
+4) A Union_master component placed after all of the above
+
+Only in step 4 will any simulation happen, and per default all geometries
+defined before this master, but after the previous will be simulated here.
+
+There is a dedicated manual available for the Union_components
+
+This logger logs a 2D projection of the position of each scattering in the lab
+frame. It does this in n3 space slices, so one can get a full 3D histogram of
+scattering positions.
+
+A logger will log something for scattering events happening to certain volumes,
+which are specified in the target_geometry string. By leaving it blank, all
+geometries are logged, even the ones not defined at this point in the
+instrument file. If a list og target_geometries is selected, one can further
+narrow the events logged by providing a list of process names in target_process
+which need to correspond with names of defined Union_process components.
+
+To use the logger_conditional_extend function, set it to some integer value n
+and make and extend section to the master component that runs the geometry.
+In this extend function, logger_conditional_extend[n] is 1 if the conditional
+stack evaluated to true, 0 if not. This way one can check what rays is logged
+using regular McStas monitors. Only works if a conditional is applied to this
+logger.
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+target\_geometry & string & Comma seperated list of geometry names that will be logged, leave empty for all volumes (even not defined yet) & "NULL" \\
+target\_process & string & Comma seperated names of physical processes, if volumes are selected, one can select Union\_process names & "NULL" \\
+D1\_min & m & histogram boundery, min position value for first axis & -1 \\
+D1\_max & m & histogram boundery, max position value for first axis & 1 \\
+D2\_min & m & histogram boundery, min position value for second axis & -1 \\
+D2\_max & m & histogram boundery, max position value for second axis & 1 \\
+D3\_min & m & histogram boundery, min position value for third axis & -1 \\
+D3\_max & m & histogram boundery, max position value for third axis & 1 \\
+D\_direction\_1 & string & Direction for first axis ("x", "y" or "z") & "x" \\
+D\_direction\_2 & string & Direction for second axis ("x", "y" or "z") & "z" \\
+D\_direction\_3 & string & Direction for second axis ("x", "y" or "z") & "z" \\
+filename & string & Filename of produced data file & "NULL" \\
+n1 & 1 & number of bins for first axis & 90 \\
+n2 & 1 & number of bins for second axis & 90 \\
+n3 & 1 & number of bins for third axis & 10 \\
+order\_total & 1 & Only log rays that scatter for the n'th time, 0 for all orders & 0 \\
+order\_volume & 1 & Only log rays that scatter for the n'th time in the same geometry & 0 \\
+order\_volume\_process & 1 & Only log rays that scatter for the n'th time in the same geometry, using the same process & 0 \\
+logger\_conditional\_extend\_index & 1 & If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger\_conditional\_extend", and one would then acces logger\_conditional\_extend[n] if logger\_conditional\_extend\_index is set to n & -1 \\
+init & string & name of Union\_init component (typically "init", default) & "init" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/union/Union_logger_3D_space.comp}{Source code} for \texttt{Union\_logger\_3D\_space.comp}.
+\end{itemize}
+\IfFileExists{Union_logger_3D_space_static.tex}{\input{Union_logger_3D_space_static.tex}}{}

@@ -92,7 +92,7 @@ DECLARE
   DArray1d PHI;
   DArray1d T;
   DArray1d P;
-  DArray1d U;
+  uint32_t *U;
   int captured;
 %}
 
@@ -206,7 +206,6 @@ INITIALIZE
     buffermax = mcget_ncount ();
   }
   X = create_darr1d (buffermax);
-  X = create_darr1d (buffermax);
   Y = create_darr1d (buffermax);
   Z = create_darr1d (buffermax);
   KX = create_darr1d (buffermax);
@@ -219,7 +218,7 @@ INITIALIZE
   T = create_darr1d (buffermax);
   P = create_darr1d (buffermax);
   if (userflagenabled) {
-    U = create_darr1d (buffermax);
+    U = calloc(buffermax,sizeof(uint32_t));
   }
   captured = 0;
   #endif
@@ -250,10 +249,8 @@ TRACE
     P[cap] = p;
     if (userflagenabled) {
       int fail;
-      double uvar = particle_getvar (_particle, userflag, &fail);
-      if (fail)
-        uvar = 0;
-      U[cap] = uvar;
+      void * vptr = particle_getvar_void (_particle, userflag, &fail);
+      U[cap] = fail ? 0 : *(uint32_t *) vptr;
     }
     SCATTER;
   }
@@ -282,12 +279,9 @@ TRACE
   /*weight in unspecified units:*/
   particle->weight = p * weight_scale;
   if (userflagenabled) {
-    // TODO: Reconsider this passing of uint32_t flags through a double
     int fail;
-    double uvar = particle_getvar (_particle, userflag, &fail);
-    if (fail)
-      uvar = 0;
-    particle->userflags = (uint32_t)uvar;
+    void * vptr = particle_getvar_void (_particle, userflag, &fail);
+    particle->userflags = fail ? 0 : *(uint32_t *) vptr;
   }
 
   MPI_MASTER (if (verbose == 3 && mcrun_num < 10) {
@@ -384,6 +378,7 @@ FINALLY
   destroy_darr1d (PHI);
   destroy_darr1d (T);
   destroy_darr1d (P);
+  if (U) free(U);
   #endif
   free (outfilename);
 %}

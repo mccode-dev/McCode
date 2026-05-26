@@ -1,0 +1,171 @@
+/*******************************************************************************
+*
+*  McXtrace, x-ray ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Mads Bertelsen and Erik B Knudsen
+* Date: 20.08.15
+* Version: $Revision: 0.1 $
+* Origin: ESS DMSC & DTU Physics
+*
+* Template for a new contributor to create their own physical process.
+*
+* %D
+*
+* This is a template for a new contributor to create their own physical process.
+* The comments in this file are meant to teach the user about creating their own 
+*  process file, rather than explaining this one. For comments on how this code works,
+*  look in the Incoherent_process.comp.
+*
+* Part of the Union components, a set of components that work together and thus
+*  sperates geometry and physics within McXtrace.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before the master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union_components
+*
+*
+* Algorithm:
+* Described elsewhere
+*
+* %P
+* INPUT PARAMETERS:
+* sigma:             [barns]  Scattering cross section
+* unit_cell_volume:  [AA^3]   Unit cell volume
+* packing_factor:    [1]      Material packing factor
+* interact_fraction: [1]      How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* OUTPUT PARAMETERS:
+* Template_storage          // Important to update this output paramter
+* effective_my_scattering   // Variable used in initialize
+*
+* %L
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Template_process // Remember to change the name of process here
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS(sigma=5.08,packing_factor=1,unit_cell_volume=13.8,interact_fraction=-1)
+OUTPUT PARAMETERS (This_process,Template_storage,effective_my_scattering)
+
+SHARE
+%{
+#ifndef Union
+#define Union $Revision: 0.8 $
+
+#include "Union_functions.c"
+#include "union-init.c"
+
+#endif
+
+// Very important to add a pointer to this struct in the Union_functions.c file
+struct Template_physics_storage_struct{
+    // Variables that needs to be transfered between any of the following places:
+    // The initialize in this component
+    // The function for calculating my
+    // The function for calculating scattering
+    
+    // Avoid duplicates of output parameters and setting parameters in naming
+    double my_scattering;
+};
+
+// Function for calculating my, the inverse penetration depth (for only this scattering process).
+// The input for this function and its order may not be changed, but the names may be updated.
+int Template_physics_my(double *my, double *k_initial, union data_transfer_union data_transfer, struct focus_data_struct *focus_data) {
+    // *k_initial is a pointer to a simple vector with 3 doubles, k[0], k[1], k[2] which describes the wavevector
+
+    // Simple case, just retrive the parameter saved from initialize
+    *my = data_transfer.pointer_to_a_Template_physics_storage_struct->my_scattering;
+    return 1;
+};
+
+// Function that provides description of a basic scattering event.
+// Do not change the
+int Template_physics_scattering(double *k_final, double *k_initial, double *weight, union data_transfer_union data_transfer, struct focus_data_struct *focus_data) {
+
+    // k_final and k_initial are passed as pointers to double vector[3]
+    double k_length = sqrt(k_initial[0]*k_initial[0]+k_initial[1]*k_initial[1]+k_initial[2]*k_initial[2]);
+
+    Coords k_out;
+    // Here is the focusing system in action, get a vector
+    double solid_angle;
+    focus_data->focusing_function(&k_out,&solid_angle,focus_data);
+    NORM(k_out.x,k_out.y,k_out.z);
+    *weight *= solid_angle*0.25/PI;
+
+    k_final[0] = k_out.x*k_length; k_final[1] = k_out.y*k_length; k_final[2] = k_out.z*k_length;
+    // A pointer to k_final is returned, and the wavevector will be set to k_final after a scattering event
+    return 1; // return 1 is sucess, return 0 is failure, and the ray will be absorbed.
+              // failure should not happen, as this function will only be called when
+              // the cross section for the current k_initial is above zero.
+    
+    // There is access to the data_transfer from within the scattering function
+    // In this case the only variable is my, but it could be read by:
+    // double my = data_transfer.pointer_to_a_Template_physics_storage_struct->my_scattering;
+    // One can assume that if the scattering function is running, the my fuction was
+    //  executed just before and for the same k_initial.
+    
+};
+
+%}
+
+DECLARE
+%{
+// Declare for this component, to do calculations on the input / store in the transported data
+struct Template_physics_storage_struct Template_storage; // Replace template with your own name here
+
+// Variables needed in initialize of this function.
+double effective_my_scattering;
+
+// Needed for transport to the main component, will be the same for all processes
+struct global_process_element_struct global_process_element;
+struct scattering_process_struct This_process;
+
+// These lines help with future error correction, and tell other Union components
+//  that at least one process have been defined.
+#ifndef PROCESS_DETECTOR
+    // Obsolete
+	//struct pointer_to_global_process_list global_process_list = {0,NULL};
+	#define PROCESS_DETECTOR dummy
+#endif
+%}
+
+INITIALIZE
+%{
+  // Initialize done in the component
+  effective_my_scattering = ((packing_factor/unit_cell_volume) * 100 * sigma);
+  Template_storage.my_scattering = effective_my_scattering;
+  
+  // Need to specify if this process is isotropic
+  This_process.non_isotropic_rot_index = -1; // Yes (powder)
+  //This_process.non_isotropic_rot_index =  1;  // No (single crystal)
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_Template_physics_storage_struct = &Template_storage;
+  This_process.probability_for_scattering_function = &Template_physics_my;
+  This_process.scattering_function = &Template_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf(This_process.name,NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy(This_process.rotation_matrix,ROT_A_CURRENT_COMP);
+  sprintf(global_process_element.name,NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+  add_element_to_process_list(&global_process_list,global_process_element);
+ %}
+
+TRACE
+%{
+    // Trace should be empty, the simulation is done in Union_master
+%}
+
+END

@@ -1,0 +1,63 @@
+\section{The \texttt{Virtual\_output} McStas Component}
+Detector-like component that writes neutron state parameters into an ascci-format
+'virtual source' neutron file.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} \textless{}a href="mailto:farhi@ill.fr"\textgreater{}E. Farhi\textless{}/a\textgreater{}
+  \item \textbf{Origin:} \textless{}a href="http://www.ill.fr"\textgreater{}ILL\textless{}/a\textgreater{}
+  \item \textbf{Date:} Dec 17th, 2002
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Detector-like component writing neutron state parameters to a
+virtual source neutron filename. The component geometry is the full
+plane, and saves the neutron state as it exits from the previous
+component.
+
+It is particularly useful to generate a virtual source at a point that few
+neutron reach. A long simulation will then only be performed once, to create
+the upstream 'source' file. Further simulations are much faster if they start
+from this low flux position with the 'source' filename.
+
+The output file format is:
+text column formatted with lines containing 11 values in the order:
+p x y z vx vy vz t sx sy sz stored into about 83 bytes/n.
+
+Beware the size of generated files ! When saving all events (bufsize=0) the
+required memory has been optimized and remains very small. On the other hand
+using large bufsize values (not recommended) requires huge storage memory.
+Moreover, using the 'bufsize' parameter will often lead to wrong intensities.
+Both methods will generate huge files.
+
+A Vitess file may be obtained from the 'Vitess_output' component or from a
+Vitess simulation (104 bytes per neutron) and read with Vitess_input.
+
+Example: Virtual_output(filename="MySource.dat")
+will generate a 9 Mo text file for 1e5 events stored.
+
+%BUGS
+Using bufsize non-zero may generate a virtual source with wrong intensity. This
+component works with MPI (parallel execution mode).
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+filename & str & Name of neutron file to write. Default is standard output [string]. If not given, a unique name will be used. & 0 \\
+bufsize & 1 & Size of neutron output buffer default is 0, i.e. save all - recommended. & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/obsolete/Virtual_output.comp}{Source code} for \texttt{Virtual\_output.comp}.
+\end{itemize}
+\IfFileExists{Virtual_output_static.tex}{\input{Virtual_output_static.tex}}{}

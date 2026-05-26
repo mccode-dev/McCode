@@ -19,7 +19,11 @@
 * Tests absorption logger measuring position projected onto a line and the
 * time of absorption in a histogram.
 *
+* Includes conditional component to test record_to_temp functionality
+* of investigated abs_logger.
+*
 * %Example: Detector: abs_logger_1D_space_tof_I=1.12682e-09
+* %Example: Detector: abs_logger_1D_space_tof_con_I=5.38067e-13
 *
 * %End
 *******************************************************************************/
@@ -53,38 +57,52 @@ COMPONENT Origin = Progress_bar()
   AT (0,0,0) ABSOLUTE
 
 COMPONENT source = Source_div(
-        xwidth=0.02, yheight=0.002,
-        focus_aw=0.01, focus_ah=0.01,
-        E0=10, dE=0.1)
+  xwidth=0.02, yheight=0.002,
+  focus_aw=0.01, focus_ah=0.01,
+  E0=10, dE=0.1)
 AT (0,0,0) RELATIVE Origin
 
 COMPONENT geometry_center = Arm()
 AT (0,0,2.0) RELATIVE source
 
-COMPONENT box = Union_box(xwidth=0.10, yheight=0.15, zdepth=0.03, priority=5, material_string="material")
+COMPONENT box_geometry = Union_box(xwidth=0.10, yheight=0.15, zdepth=0.03, priority=5, material_string="material")
 AT (-0.03,0,-0.05) RELATIVE geometry_center
 
-COMPONENT sphere = Union_sphere(radius=0.05, priority=6, material_string="material")
+COMPONENT sphere_geometry = Union_sphere(radius=0.05, priority=6, material_string="material")
 AT (0.03,0,-0.04) RELATIVE geometry_center
 
-COMPONENT cylinder = Union_cylinder(radius=0.045, yheight=0.1, priority=7, material_string="material")
+COMPONENT cylinder_geometry = Union_cylinder(radius=0.045, yheight=0.1, priority=7, material_string="material")
 AT (-0.03,0,0.02) RELATIVE geometry_center
 
-COMPONENT cone = Union_cone(radius_top=0.02, radius_bottom=0.055, yheight=0.09, priority=8, material_string="material")
+COMPONENT cone_geometry = Union_cone(radius_top=0.02, radius_bottom=0.055, yheight=0.09, priority=8, material_string="material")
 AT (0.03,0,0.07) RELATIVE geometry_center
 
 COMPONENT abs_logger_1D_space_tof = Union_abs_logger_1D_space_tof(
-    yheight=0.2, n=100,
-    time_min=0.0013, time_max=0.0022, time_bins=1000,
-    filename="Union_abs_logger_1D_space_tof.dat")
+  yheight=0.2, n=100,
+  time_min=0.0013, time_max=0.0022, time_bins=1000,
+  filename="Union_abs_logger_1D_space_tof.dat")
 AT (0,0,0) RELATIVE geometry_center
+	  
+COMPONENT abs_logger_1D_space_tof_con = Union_abs_logger_1D_space_tof(
+  yheight=0.2, n=100,
+  time_min=0.0013, time_max=0.0022, time_bins=1000,
+  filename="Union_abs_logger_1D_space_tof_con.dat")
+AT (0,0,0) RELATIVE geometry_center	  
 
+// Conditional that takes right part of transmitted beam
+COMPONENT PSD_conditional = Union_conditional_PSD(
+  xwidth=0.1, yheight=0.2,
+  target_loggers="abs_logger_1D_space_tof_con")
+AT (-0.05,0,1.0) RELATIVE geometry_center
+
+// Master at odd position to ensure that does not impact results
 COMPONENT master = Union_master()
-AT(0,0,0) RELATIVE geometry_center
+AT (3, 0, -1) RELATIVE geometry_center
+ROTATED (20, -5, 8) RELATIVE geometry_center
 
 COMPONENT transmission = PSD_monitor(
-    xwidth=0.1, yheight=0.08, nx=200, ny=200,
-    filename="PSD.dat", restore_neutron=1)
+  xwidth=0.1, yheight=0.08, nx=200, ny=200,
+  filename="PSD.dat", restore_neutron=1)
 AT (0,0,1) RELATIVE geometry_center
 
 COMPONENT stop = Union_stop()

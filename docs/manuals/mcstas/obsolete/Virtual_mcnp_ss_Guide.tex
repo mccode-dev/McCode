@@ -1,0 +1,71 @@
+\section{The \texttt{Virtual\_mcnp\_ss\_Guide} McStas Component}
+Neutron guide initiated using Virtual\_mcnp\_ss\_input.comp, and replacing Virtual\_mcnp\_ss\_output.comp  - see examples//Test\_SSR\_SSW\_Guide.instr
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Esben klinkby and Peter Willendrup
+  \item \textbf{Origin:} Risoe-DTU
+  \item \textbf{Date:} Marts 2012
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Based on Kristian Nielsens Guide.comp
+Models a rectangular guide tube centered on the Z axis. The entrance lies
+in the X-Y plane.
+The component must be initiated after Virtual_mcnp_ss_input.comp,
+and replaces Virtual_mcnp_ss_output.comp  - see examples/Test_SSR_SSW_Guide.instr.
+The basic idea is, that rather than discarding unreflected (i.e. absorbed)
+neutrons at the guide mirrors, these neutron states are stored on disk.
+Thus, after the McStas simulation a MCNP simulation can be performed based
+on the un-reflected neutrons - intended for shielding studies.
+(details: we don't deal with actual neutrons, so what is transferred between
+simulations suites is neutron state parameters: pos,mom,time,weight. The latter is
+whatever remains after reflection.
+
+For details on the geometry calculation see the description in the McStas
+reference manual.
+The reflectivity profile may either use an analytical mode (see Component
+Manual) or a 2-columns reflectivity free text file with format
+[q(Angs-1) R(0-1)].
+
+Example: Virtual_mcnp_ss_Guide(w1=0.1, h1=0.1, w2=0.1, h2=0.1, l=2.0,
+R0=0.99, Qc=0.021, alpha=6.07, m=2, W=0.003
+
+%VALIDATION
+Upcomming in 2012 based on ESS shielding
+Validated by: D. Ene & E. Klinkby
+
+%BUGS
+This component does not work with gravitation on. Use component Guide_gravity then
+(doesn't work with SSR/SSW unfortunately)
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+reflect & str & Reflectivity file name. Format \textless{}q(Angs-1) R(0-1)\textgreater{} & 0 \\
+\textbf{w1} & m & Width at the guide entry &  \\
+\textbf{h1} & m & Height at the guide entry &  \\
+\textbf{w2} & m & Width at the guide exit &  \\
+\textbf{h2} & m & Height at the guide exit &  \\
+\textbf{l} & m & length of guide &  \\
+R0 & 1 & Low-angle reflectivity & 0.99 \\
+Qc & AA-1 & Critical scattering vector & 0.0219 \\
+alpha & AA & Slope of reflectivity & 6.07 \\
+m & 1 & m-value of material. Zero means completely absorbing. & 2 \\
+W & AA-1 & Width of supermirror cut-off & 0.003 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/obsolete/Virtual_mcnp_ss_Guide.comp}{Source code} for \texttt{Virtual\_mcnp\_ss\_Guide.comp}.
+\end{itemize}
+\IfFileExists{Virtual_mcnp_ss_Guide_static.tex}{\input{Virtual_mcnp_ss_Guide_static.tex}}{}

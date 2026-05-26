@@ -35,8 +35,8 @@
 *	mcrun ILL_H15_SAM.instr --gravity -n1e7 -dSmallQ guide1=0 guide2=0 guide3=0 lsd=6.8
 *
 * (Corresponding test-suite entries:)
-* %Example ILL_H15_SAM.instr --gravity lambda=5.2 Detector: psd_I=1272.79
-* %Example ILL_H15_SAM.instr --gravity guide1=0 guide2=0 guide3=0 lsd=6.8 Detector: psd_I=1980.7
+* %Example: ILL_H15_SAM.instr --gravity lambda=5.2 Detector: psd_I=1272.79
+* %Example: ILL_H15_SAM.instr --gravity guide1=0 guide2=0 guide3=0 lsd=6.8 Detector: psd_I=1980.7
 *
 * %P
 * lambda:      	[AA]	Wavelength mean value
@@ -78,6 +78,7 @@ DECLARE %{
 	double sT3=16.7 ,sI3=3.0423e+12;
 	/* Some instrument params */
 	int ssshape=1;				/* Code for sample slit shape: default = rectangular (1), set to circular (2) if ssh <= 0 */
+        #pragma acc declare create(ssshape)
 	double rbs=2.75e-2;			/* Beamstop radius */
 	double lcoll;				/* Effective collimation length */
 	double sow;					/* Source effective width */
@@ -109,6 +110,7 @@ INITIALIZE %{
 		ssshape=2;
 		maxvdiv=maxhdiv;
 	}
+        #pragma acc update device(ssshape)
 	
 	tthmin=atan(rbs/lsd);
 	tthmax=atan(sqrt(2)*0.32/lsd);

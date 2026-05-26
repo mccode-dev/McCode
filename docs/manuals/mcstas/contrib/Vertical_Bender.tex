@@ -1,0 +1,88 @@
+\section{The \texttt{Vertical\_Bender} McStas Component}
+Release: McStas 2.4
+
+Multi-channel bender curving vertically down.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Andrew Jackson, Richard Heenan
+  \item \textbf{Origin:} ESS
+  \item \textbf{Date:} August 2016, June 2017
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Based on Pol_bender written by Peter Christiansen
+Models a rectangular curved guide with entrance on Z axis.
+Entrance is on the X-Y plane. Draws a correct depiction of
+the guide with multiple channels - i.e. following components need to be
+displaced.
+Guide can contain multiple channels using horizontal blades
+Reflectivity modeled using StdReflecFunc and {R0, Qc, alpha, m, W} can be set
+for top (outside of curve), bottom (inside of curve) and sides
+(both sides equal), blades reflectivities match top and bottom (each channel is
+like a "mini guide").
+Neutrons are tracked, with gravity, inside the wall of a cylinder using distance
+steps of diststep1. Upon crossing the inner or outer wall, the final step is
+repeated using steps of diststep2, thus checking more
+closely for the first crossing of either wall. If diststep1 is too
+large than a "grazing incidence reflection" may be missed altogether.
+If diststep1 is too small, then the code will run slower!
+Exact intersection tmes with the flat sides and ends of the bender channel are calculated
+first in order to limit the time spent tracking curved trajectories.
+Turning gravity off will not make this run any faster, as the same method is used.
+
+28/06/2017 still need validation against other codes (e.g. for gravity off case)
+
+Example:
+Vertical_Bender(xwidth = 0.05, yheight = 0.05, length = 3.0,
+radius = 70.0, nslit = 5, d=0.0005, diststep1=0.020, diststep2=0.002,
+rTopPar={0.99, 0.219, 6.07, 3.0, 0.003},
+rBottomPar={0.99, 0.219, 6.07, 2.0, 0.003},
+rSidesPar={0.99, 0.219, 6.07, 2.0, 0.003},
+
+See example instrument Test_Vert_Bender
+
+%BUGS
+Original code did not work with rotation about axes and gravity.
+This tedious tracking method should work (28/6/17 still under test) for a vertical bender, with optional
+rotation about x axis and gravity (and likely rotation about y axis but needs testing,
+and even perhaps rotation about z axis as in rotated local frame Gx then is non zero but the edge solver still works).
+Would also need test the drawing in trace mode).
+
+GRAVITY : Yes, when component is not rotated
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+rTopPar & vector & Parameters for reflectivity of bender top surface & \{0.99, 0.219, 6.07, 0.0, 0.003\} \\
+rBottomPar & vector & Parameters for reflectivity of bender bottom surface & \{0.99, 0.219, 6.07, 0.0, 0.003\} \\
+rSidesPar & vector & Parameters for reflectivity of bender sides surface & \{0.99, 0.219, 6.07, 0.0, 0.003\} \\
+\textbf{xwidth} & m & Width at the guide entry &  \\
+\textbf{yheight} & m & Height at the guide entry &  \\
+\textbf{length} & m & length of guide along center &  \\
+\textbf{radius} & m & Radius of curvature of the guide (+:curve up/-:curve down) &  \\
+G &  &  & 9.8 \\
+nchan & 1 & Number of channels & 1 \\
+d & m & Width of spacers (subdividing absorbing walls) & 0.0 \\
+debug & 1 & 0 to 10 for zero to maximum print out - reduce number of neutrons to run ! & 0 \\
+endFlat & 1 & If endflat\textgreater{}0 then entrance and exit planes are parallel. & 0 \\
+drawOption &  &  & 1 \\
+alwaystrack & 1 & default 0, 1 to force tracking even when gravity is off & 0 \\
+diststep1 & m & inital collision search steps for trajectory in cylinder when gravity is non zero & 0.020 \\
+diststep2 & m & final steps for trajectory in cylinder & 0.002 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/contrib/Vertical_Bender.comp}{Source code} for \texttt{Vertical\_Bender.comp}.
+\end{itemize}
+\IfFileExists{Vertical_Bender_static.tex}{\input{Vertical_Bender_static.tex}}{}

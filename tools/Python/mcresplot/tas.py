@@ -617,22 +617,14 @@ class TasGUI:
 		# dependencies
 		# try to import qt5...
 		try:
-			import PyQt5 as qt
-			import PyQt5.QtCore as qtc
-			import PyQt5.QtGui as qtg
-			import PyQt5.QtWidgets as qtw
+			import qtpy as qt
+			import qtpy.QtCore as qtc
+			import qtpy.QtGui as qtg
+			import qtpy.QtWidgets as qtw
 			qt_ver = 5
 		except ImportError:
-			# ...and if not possible try to import qt4 instead
-			try:
-				import PyQt4 as qt
-				import PyQt4.QtCore as qtc
-				import PyQt4.QtGui as qtg
-				qtw = qtg
-				qt_ver = 4
-			except ImportError:
-				print("Error: No suitable version of Qt was found!")
-				exit(-1)
+			print("Error: No suitable version of Qt was found!")
+			exit(-1)
 		# -----------------------------------------------------------------------------
 
 

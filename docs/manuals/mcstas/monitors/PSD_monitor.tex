@@ -1,21 +1,46 @@
-% Emacs settings: -*-mode: latex; TeX-master: "manual.tex"; -*-
+\section{The \texttt{PSD\_monitor} McStas Component}
+Position-sensitive monitor.
 
-\section{PSD\_monitor: The PSD monitor}
-\index{Monitors!Position sensitive detector (PSD)}
-%\component{PSD\_monitor}{System}{$x_\textrm{min}$, $x_\textrm{max}$, $y_\textrm{min}$, $y_\textrm{max}$, $n_x$, $n_y$, filename}{}{}
-\mcdoccomp{monitors/PSD_monitor.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kim Lefmann
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} Feb 3, 1998
+\end{itemize}
 
-The component \textbf{PSD\_monitor} resembles other monitors, e.g.
-\textbf{TOF\_Monitor}, and also propagates the neutron ray to the detector
-surface in the $(x,y)$-plane, where the detector window is set
-by the $x$ and $y$ input coordinates.
-The PSD monitor, though, is not sensitive to the arrival time
-of the neutron ray, but rather to its position.
-The rectangular monitor window, given by the $x$ and $y$
-limits is divided into $n_x \times n_y$ pixels.
+\subsection*{Description}
+\begin{lstlisting}
+An (n times m) pixel PSD monitor. This component may also be used as a beam
+detector.
 
-The output from \textbf{PSD\_monitor} is the integrated counts, $n, I, M_2$,
-as well as
-three two-dimensional arrays of counts: $n(x,y), I(x,y), M_2(x,y)$.
-The arrays are written to a file, \verb+filename+, and can be read e.g. by the tool
-\textbf{mcplot}, see the system manual.
+Example: PSD_monitor(xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1, nx=90, ny=90, filename="Output.psd")
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+nx & 1 & Number of pixel columns & 90 \\
+ny & 1 & Number of pixel rows & 90 \\
+filename & string & Name of file in which to store the detector image & 0 \\
+xmin & m & Lower x bound of detector opening & -0.05 \\
+xmax & m & Upper x bound of detector opening & 0.05 \\
+ymin & m & Lower y bound of detector opening & -0.05 \\
+ymax & m & Upper y bound of detector opening & 0.05 \\
+xwidth & m & Width of detector. Overrides xmin, xmax & 0 \\
+yheight & m & Height of detector. Overrides ymin, ymax & 0 \\
+restore\_neutron & 1 & If set, the monitor does not influence the neutron state & 0 \\
+nowritefile & 1 & If set, monitor will skip writing to disk & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/monitors/PSD_monitor.comp}{Source code} for \texttt{PSD\_monitor.comp}.
+\end{itemize}
+\IfFileExists{PSD_monitor_static.tex}{\input{PSD_monitor_static.tex}}{}

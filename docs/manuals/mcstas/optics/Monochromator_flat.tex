@@ -1,201 +1,64 @@
-\section{Monochromator\_flat: An infinitely thin, flat mosaic crystal with
-a single scattering vector}
-\label{s:monochromator_flat}
-\index{Optics!Monochromator}
+\section{The \texttt{Monochromator\_flat} McStas Component}
+Flat Monochromator crystal with anisotropic mosaic.
 
-%\component{Monochromator\_flat}{System}{$z_\textrm{min}$, $z_\textrm{max}$, $y_\textrm{min}$, $y_\textrm{max}$, $\eta_\textrm{h}$, $\eta_\textrm{v}$, $R_0$, $Q_0$}{$d_\textrm{m}$}{In reflecting geometry, non polarized}
-\mcdoccomp{optics/Monochromator_flat.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kristian Nielsen
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} 1999
+\end{itemize}
 
-This component simulates an infinitely thin single
-crystal with a single scattering vector, $Q_0=2\pi / d_m$, perpendicular to the
-surface. A typical
-use for this component is to simulate a simple monochromator or analyzer.
+\subsection*{Description}
+\begin{lstlisting}
+Flat, infinitely thin mosaic crystal, useful as a monochromator or analyzer.
+For an unrotated monochromator component, the crystal surface lies in the Y-Z
+plane (ie. parallel to the beam).
+The mosaic is anisotropic gaussian, with different FWHMs in the Y and Z
+directions. The scattering vector is perpendicular to the surface.
 
-The monochromator dimensions are given by the length, $z_\textrm{w}$, and
-the height, $y_\textrm{h}$. As the parameter names indicate, the
-monochromator is placed in the $z-y$ plane of the local coordinate system.
-This definition is made to ensure that the physical monochromator angle
-(often denoted \verb+A1+) will equal the \MCS rotation angle
-of the Monochromator component around the $y$-axis.
-$R_0$ is the maximal reflectivity and
-$\eta_\textrm{h}$ and $\eta_\textrm{v}$ are the horizontal and vertical mosaicities,
-respectively, see explanation below.
+Example: Monochromator_flat(zmin=-0.1, zmax=0.1, ymin=-0.1, ymax=0.1, mosaich=30.0, mosaicv=30.0, r0=0.7, Q=1.8734)
 
-\subsection{Monochromator physics and algorithm}
-The physical model used in \textbf{Monochromator\_flat} is a rectangular piece of
-material composed of a large number of small micro-crystals.
-The orientation of the
-micro-crystals deviates from the nominal crystal orientation so that the
-probability of a given micro-crystal orientation is proportional to a
-Gaussian in the angle between the given and the nominal orientation. The
-width of the Gaussian is given by the mosaic spread, $\eta$, of the crystal
-(given in units of arc minutes).
-$\eta$ is assumed to be large compared to the inherent Bragg width of the
-scattering vector (often a few arc seconds).
-(The mosaicity gives rise to a Gaussian reflectivity profile of width
-similar to - but not equal - the intrinsic mosaicity.
-In this component, and in real life, the mosaicity given is that of the
-reflectivity signal.)
+Monochromator lattice parameter
+PG       002 DM=3.355 AA (Highly Oriented Pyrolythic Graphite)
+PG       004 DM=1.677 AA
+Heusler  111 DM=3.362 AA (Cu2MnAl)
+CoFe         DM=1.771 AA (Co0.92Fe0.08)
+Ge       111 DM=3.266 AA
+Ge       311 DM=1.714 AA
+Ge       511 DM=1.089 AA
+Ge       533 DM=0.863 AA
+Si       111 DM=3.135 AA
+Cu       111 DM=2.087 AA
+Cu       002 DM=1.807 AA
+Cu       220 DM=1.278 AA
+Cu       111 DM=2.095 AA
+\end{lstlisting}
 
-As a further simplification, the crystal is assumed to be infinitely
-thin. This means that multiple scattering effects are not simulated. It
-also means that the total reflectivity, $r_0$ is used as a parameter for
-the model rather than the atomic scattering cross section, implying that
-the scattering efficiency does not vary with neutron wavelength.
-The variance
-of the lattice spacing ($\Delta d/d$) is assumed to be zero, so this
-component is not suitable for simulating backscattering instruments (use
-the component \textrm{Single\_crystal}
-in section~\ref{s:Single_crystal} for that).
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
 
-When a neutron trajectory intersects the crystal, the first step in the
-computation is to determine the probability of scattering. This
-probability is then used in a Monte Carlo choice deciding whether to
-scatter or transmit the neutron. The physical scattering probability is the sum
-of the probabilities of first- second-, and higher-order scattering -
-up to the highest order possible for the given neutron wavelength.
-However, in most cases at most one order will have a
-significant scattering probability, and the computation thus considers
-only the order that best matches the neutron wavelength.
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+zmin & m & Lower horizontal (z) bound of crystal & -0.05 \\
+zmax & m & Upper horizontal (z) bound of crystal & 0.05 \\
+ymin & m & Lower vertical (y) bound of crystal & -0.05 \\
+ymax & m & Upper vertical (y) bound of crystal & 0.05 \\
+zwidth & m & Width of crystal, instead of zmin and zmax & 0 \\
+yheight & m & Height of crystal, instead of ymin and ymax & 0 \\
+mosaich & arc minutes & Horizontal mosaic (in z direction) (FWHM) & 30.0 \\
+mosaicv & arc minutes & Vertical mosaic (in y direction) (FWHM) & 30.0 \\
+r0 & 1 & Maximum reflectivity & 0.7 \\
+Q & 1/angstrom & Magnitude of scattering vector & 1.8734 \\
+DM & AA & monochromator d-spacing, instead of Q = 2*pi/DM & 0 \\
+\bottomrule
+\end{longtable}
 
-The scattering of neutrons from a crystal is governed by Bragg's law:
-\begin{equation}
-n\textbf{Q}_0 = 2\textbf{k}_i\sin\theta
-\end{equation}
-The scattering order is specified by the integer $n$. We seek only one
-value of $n$, namely the one which makes
-$n \textbf{Q}_0$ closest to the projection of $2\textbf{k}_i$ onto $\textbf{Q}_0$
-(see figure~\ref{f:mosaic_order}).
-%  k=2PI/lambda
-%  q=2k sin(theta)
-%
-%  2 PI n/k = d q/2k
-%  q = n 4 PI/d
-%
-%  n 2PI/k = n 4 PI/q \sin\theta
-%  1/k = 2/q\sin\theta
-%  n q = 2k\sin\theta
-\begin{figure}
-  \begin{center}
-    \psfrag{theta}[l][l]{$\theta$}
-    \psfrag{ki}[r][r]{$2\textbf{k}_\textrm{i}$}
-    \psfrag{Q0}[l][l]{$\textbf{Q}_0$}
-    \psfrag{2Q0}[l][l]{$2\textbf{Q}_0$}
-    \psfrag{3Q0}[l][l]{$3\textbf{Q}_0$}
-    \psfrag{4Q0}[l][l]{$4\textbf{Q}_0$}
-    \includegraphics[width=0.5\textwidth]{figures/mosaic_order}
-  \end{center}
-\caption{Selection of the Bragg order (``2'' in this case).}
-\label{f:mosaic_order}
-\end{figure}
-%
-
-Once $n$ has been determined, the Bragg angle $\theta$ can be
-computed. The angle $\alpha$ is the amount one would need to
-turn the nominal scattering vector $\textbf{Q}_0$ for the monochromator
-to be in Bragg scattering condition.
-We now use $\alpha$ to compute the probability of reflection from
-the mosaic crystal
-\begin{equation}
-p_\textrm{reflect} = R_0 e^{-\alpha^2/2\eta^2},
-\end{equation}
-The probability $p_\textrm{reflect}$ is used
-in a Monte Carlo choice to decide whether the neutron is transmitted or
-reflected.
-%
-%\begin{figure}
-%  \begin{center}
-%    \psfrag{th}[r][r]{$\theta$}
-%    \psfrag{ki}[r][r]{$2\textbf{k}_\textrm{i}$}
-%    \psfrag{kf}[l][l]{$2\textbf{k}_\textrm{f}$}
-%    \psfrag{Q0}[l][l]{$\textbf{Q}_0$}
-%    \psfrag{alpha}[c][c]{$\alpha$}
-%    \psfrag{q}[l][l]$\textbf{q}$
-%    \includegraphics[width=0.5\textwidth]{figures/mosaic_angle}
-%  \end{center}
-%\caption{Computing the deviation $d$ from the nominal scattering direction.}
-%\label{f:mosaic_angle}
-%\end{figure}
-
-In the case of reflection, the neutron will be scattered into the
-Debye-Scherrer cone, with the probability of each point on the cone
-being determined by the mosaic. The Debye-Scherrer cone can be described
-by the equation
-\begin{equation}
-  \label{eq:mosaic_cone}
-  \textbf{k}_\textrm{f} = \textbf{k}_\textrm{i}\cos2\theta +
-      \sin2\theta(\textbf{c}\cos\varphi + \textbf{b}\sin\varphi),
-      \qquad\varphi\in[-\pi;\pi],
-\end{equation}
-where $\textbf{b}$ is a vector perpendicular to $\textbf{k}_\textrm{i}$ and $\textbf{
-Q}_0$, $\textbf{c}$ is perpendicular to $\textbf{k}_\textrm{i}$ and $\textbf{b}$,
-and both $\textbf{b}$ and $\textbf{c}$ have the same length as $\textbf{k}_\textrm{i}$
-(see figure~\ref{f:mosaic_cone}). When choosing $\varphi$ (and
-thereby $\textbf{k}_\textrm{f}$), only a small part of the full $[-\pi; \pi]$
-range will have appreciable scattering probability in non-backscattering
-configurations. The best statistics is thus obtained by sampling
-$\varphi$ only from a suitably narrow range.
-
-The (small) deviation angle $\alpha$ of the nominal
-scattering vector $n\textbf{Q}_0$ corresponds to a $\Delta q$ of
-\begin{equation}
-\Delta q \approx \alpha 2k\sin\theta.
-\end{equation}
-The angle $\varphi$ corresponds to a $\Delta k_\textrm{f}$ (and hence
-$\Delta q$) of
-\begin{equation}
-\Delta q \approx \varphi k \sin(2\theta)
-\end{equation}
-(see figure~\ref{f:mosaic_cone}).
-Hence we may sample $\varphi$ from a Gaussian with standard deviation
-\begin{equation}
-\alpha\frac{2k\sin\theta}{k\sin(2\theta)} =
-\alpha\frac{2k\sin\theta}{2k\sin\theta\cos\theta} =
-\frac{\alpha}{\cos\theta}
-\end{equation}
-to get good statistics.
-%
-\begin{figure}
-  \begin{center}
-    \psfrag{th}[r][r]{$2\theta$}
-    \psfrag{ki}[c][c]{$2\textbf{k}_\textrm{i}$}
-    \psfrag{kf}[r][r]{$2\textbf{k}_\textrm{f}$}
-    \psfrag{nQ0}[l][l]{$n\textbf{Q}_0$}
-    \psfrag{q}[l][l]{$\textbf{q}$}
-    \psfrag{2ksin2t}[l][l]{$2 k \sin(2 \theta)$}
-    \includegraphics[width=0.5\textwidth]{figures/mosaic_cone}
-  \end{center}
-\caption{Scattering into the part of the Debye-Scherrer cone covered by
-    the mosaic.}
-\label{f:mosaic_cone}
-\end{figure}
-
-What remains is to determine the neutron weight. The distribution from
-which the scattering event is sampled is a Gaussian in $\varphi$ of
-width $\frac{\alpha}{\cos\theta}$,
-\begin{equation}
-    f_\textrm{MC}(\varphi) = \frac{1}{\sqrt{2\pi}(\sigma/\cos\theta)}
-            e^{-\varphi^2/2(\sigma/\cos\theta)^2}
-\end{equation}
-In the physical model, the probability of the scattering event is
-proportional to a Gaussian in the angle between the nominal scattering
-vector $\textbf{Q}_0$ and the actual scattering vector $\textbf{q}$. The
-normalization condition is that the integral over all $\varphi$ should
-be 1. Thus the probability of the scattering event in the physical model
-is
-\begin{equation}
-  \label{eq:mosaic_integral}
-  \Pi(\varphi) = e^{\frac{-d(\varphi)^2}{2\sigma^2}} /
-   \int_{-\pi}^{\pi} e^{\frac{-d(\varphi)^2}{2\sigma^2}} d\varphi
-\end{equation}
-where $d(\varphi)$ denotes the angle between the nominal scattering
-vector and the actual scattering vector corresponding to $\varphi$.
-According to equation~(\ref{probrule}), the weight adjustment $\pi_j$ is
-then given by
-\begin{equation}
-\pi_j = \Pi(\varphi) / f_\textrm{MC}(\varphi).
-\end{equation}
-In the implementation, the integral in~(\ref{eq:mosaic_integral}) is computed
-using a 15-order Gaussian quadrature formula, with the integral
-restricted to an interval of width $5\sigma/\cos\theta$ for the same
-reasons discussed above on the sampling of $\varphi$.
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/Monochromator_flat.comp}{Source code} for \texttt{Monochromator\_flat.comp}.
+\end{itemize}
+\IfFileExists{Monochromator_flat_static.tex}{\input{Monochromator_flat_static.tex}}{}

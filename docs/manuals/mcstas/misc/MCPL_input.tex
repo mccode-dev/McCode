@@ -1,0 +1,50 @@
+\section{The \texttt{MCPL\_input} McStas Component}
+Source-like component that reads neutron state parameters from an mcpl-file.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Erik B Knudsen
+  \item \textbf{Origin:} DTU Physics
+  \item \textbf{Date:} Mar 2016
+\end{itemize}
+
+\subsection*{Description}
+\begin{lstlisting}
+Source-like component that reads neutron state parameters from a binary mcpl-file.
+
+MCPL is short for Monte Carlo Particle List, and is a new format for sharing events
+between e.g. MCNP(X), Geant4 and McStas.
+
+When used with MPI, the --ncount given on the commandline is overwritten by
+#MPI nodes x #events in the file.
+
+Example: MCPL_input(filename=voutput,verbose=1,repeat_count=1,v_smear=0.1,pos_smear=0.001,dir_smear=0.01)
+\end{lstlisting}
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+filename & str & Name of neutron mcpl file to read & 0 \\
+polarisationuse &   & If !=0 read polarisation vectors from file & 1 \\
+verbose &   & Print debugging information for first 10 particles read & 1 \\
+Emin & meV & Lower energy bound. Particles found in the MCPL-file below the limit are skipped & 0 \\
+Emax & meV & Upper energy bound. Particles found in the MCPL-file above the limit are skipped & FLT\_MAX \\
+repeat\_count & 1 & Repeat contents of the MCPL file this number of times. NB: When running MPI, repeating is implicit and is taken into account by integer division. MUST be combined with \_smear options! & 1 \\
+v\_smear & 1 & When repeating events, make a Gaussian MC choice within v\_smear*V around particle velocity V & 0 \\
+pos\_smear & m & When repeating events, make a flat MC choice of position within pos\_smear around particle starting position & 0 \\
+dir\_smear & deg & When repeating events, make a Gaussian MC choice of direction within dir\_smear around particle direction & 0 \\
+preload &   & Load particles during INITIALIZE. On GPU preload is forced & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/misc/MCPL_input.comp}{Source code} for \texttt{MCPL\_input.comp}.
+\end{itemize}
+\IfFileExists{MCPL_input_static.tex}{\input{MCPL_input_static.tex}}{}

@@ -1,77 +1,55 @@
-\section{Sans\_spheres: A sample of hard spheres for small-angle scattering}
-\label{sans}
-\index{Samples!Dilute colloid medium}
-\index{Diffraction}
-\index{Small angle scattering}
+\section{The \texttt{Sans\_spheres} McStas Component}
+Sample for Small Angle Neutron Scattering - hard spheres in thin solution, mono disperse.
 
-%\component{Sans\_spheres}{(System); Lise Arleth, Veterinary University of Denmark}{$R$, $x_w$, $y_h$, $z_t$, $r$, $\sigma_a$, $\phi$, $\Delta \rho$, $R_\textrm{det}$, $d$}{}{}
-\mcdoccomp{samples/Sans_spheres.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} P. Willendrup, K. Lefmann, L. Arleth
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} 19.12.2003
+\end{itemize}
 
-The component \textbf{Sans\_spheres} models a sample of small independent
-spheres of radius $R$, which are uniformly distributed
-in a rectangular volume $x_w \times y_h \times z_t$ with a volume
-fraction $\phi$. The absorption cross section density for the spheres
-is $\sigma_a$ (in units of m$^{-1}$), specified
-for neutrons at 2200 m/s. Absorption and incoherent scattering
-from the medium is neglected.
-The difference in scattering length density
-(the contrast) between the hard spheres and the medium is called $\Delta \rho$.
-$d$ denotes the distance to the (presumed circular) SANS detector of radius $R$.
+\subsection*{Description}
+\begin{lstlisting}
+Sample for use in a SANS instrument, models hard, mono disperse spheres in thin solution.
+The shape of the sample may be a filled box with dimensions
+xwidth, yheight, zdepth, a cylinder with dimensions radius and yheight,
+a filled sphere with radius.
 
-A usage example of this component can be found in the \verb+Neutron site/tests/SANS+ instrument from the \verb+mcgui+.
+Example: Sans_spheres(R = 100, Phi = 1e-3, Delta_rho = 0.6, sigma_abs = 50, xwidth=0.01, yheight=0.01, zdepth=0.005)
+\end{lstlisting}
 
-\subsection{Small-angle scattering cross section}
-The neutron intensity scattered into a solid angle $\Delta \Omega$
-for a flat isotropic SANS sample in transmission geometry
-is given by \cite{ILLblue}:
-\begin{equation}
-I_s(q) = \Psi \Delta\Omega T A z_\textrm{max} \frac{d\sigma_v}{d\Omega}(q) ,
-\end{equation}
-where $\Psi$ is the neutron flux, $T$ is the sample transmission,
-$A$ is the illuminated sample area, and $z_\textrm{max}$ the length of
-the neutron path through the sample.
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
 
-In this component, we consider only scattering from a thin solution
-of monodisperse hard spheres of radius $R$, where the volume-specific
-scattering cross section is given by \cite{ILLblue}
-\begin{equation}
-\frac{d\sigma_v}{d\Omega}(q) =
-  n (\Delta\rho)^2 V^2 f(q)  ,
-\end{equation}
-where $f(q) = \left( 3\frac{\sin(qR)-qR\cos(qR)}{(qR)^3} \right)^2$,
-$n$ is the number density of spheres, and $V = 4 / 3 \pi R^3$ is the
-sphere volume. (The density is thus $n = \phi/V$.)
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+R & AA & Radius of scattering hard spheres & 100 \\
+Phi & 1 & Particle volume fraction & 1e-3 \\
+Delta\_rho & fm/AA\textasciicircum{}3 & Excess scattering length density & 0.6 \\
+sigma\_abs & m\textasciicircum{}-1 & Absorption cross section density at 2200 m/s & 0.05 \\
+xwidth & m & horiz. dimension of sample, as a width & 0 \\
+yheight & m & vert . dimension of sample, as a height for cylinder/box & 0 \\
+zdepth & m & depth of sample & 0 \\
+radius & m & Outer radius of sample in (x,z) plane for cylinder/sphere & 0 \\
+target\_x & m &  & 0 \\
+target\_y & m & position of target to focus at & 0 \\
+target\_z & m &  & 6 \\
+target\_index & 1 & Relative index of component to focus at, e.g. next is +1 & 0 \\
+focus\_xw & m & horiz. dimension of a rectangular area & 0 \\
+focus\_yh & m & vert.  dimension of a rectangular area & 0 \\
+focus\_aw & deg & horiz. angular dimension of a rectangular area & 0 \\
+focus\_ah & deg & vert.  angular dimension of a rectangular area & 0 \\
+focus\_r & m & Detector (disk-shaped) radius & 0 \\
+\bottomrule
+\end{longtable}
 
-Multiple scattering is ignored.
-
-\subsection{Algorithm}
-All neutrons, which hit the sample volume, are scattered.
-(Hence, no direct beam is simulated.)
-For scattered neutrons, the following steps are taken:
-\begin{enumerate}
-\item Choose a value of $q$ uniformly in the interval $[0;q_\textrm{max}]$.
-\item Choose a polar angle, $\alpha$,
-  for the \textbf{q}-vector uniformly in $[0;\pi]$.
-\item Scatter the neutron according to $(q,\alpha)$.
-\item Calculate and apply the correct weight factor correction.
-\end{enumerate}
-
-\subsection{Calculating the weight factor}
-The scattering position is found by a Monte Carlo choice uniformly
-along the whole (unscattered) beam path with the sample, length $l_\textrm{full}$, giving
-$f_l = 1/l_\textrm{full}$. The direction focusing on the detector gives
-(in an small angle approximation) $f_\Omega = d^2 / (\pi R_\textrm{det}^2)$.
-
-Hence, the total weight tranformation factor becomes % (more explanation to come)
-\begin{equation}
-\pi_j = l_\textrm{full} (\pi R_\textrm{det}^2 / d^2)/(4 \pi)
-  n (\Delta\rho)^2 V^2 f(q) \exp(-\mu_a l) ,
-\end{equation}
-where $\mu_a$ is the linear attenuation factor due to absorption
-and $l$ is the total neutron path length within the sample.
-
-This component does NOT simulate absolute intensities. This latter depends on the detector parameters. \index{Bugs}
-
-Some alternative implementations exist as contributed components.
-
-The \verb+SANS+ test/example instrument exists in the distribution for this component.
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/samples/Sans_spheres.comp}{Source code} for \texttt{Sans\_spheres.comp}.
+  \item The test/example instrument \textless{}a href="../examples/SANS.instr"\textgreater{}SANS.instr\textless{}/a\textgreater{}.
+\end{itemize}
+\IfFileExists{Sans_spheres_static.tex}{\input{Sans_spheres_static.tex}}{}

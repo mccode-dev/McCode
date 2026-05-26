@@ -1,0 +1,272 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2017, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*
+* Component: KDSource
+*
+* %I
+* Written by: O.I.Abbate, N.S.Schmidt, updates for McStas by T.Kittelmann and P.Willendrup
+* Date: Dec 2022 / May 2026
+* Origin: Instituto Balseiro
+*
+* Distributional source, based on a MCPL-format particle list, on which
+* the Kernel Density Estimation (KDE) method is applied.
+*
+* %D
+* Distributional source, based on a MCPL-format particle list, on which
+* the Kernel Density Estimation (KDE) method is applied.
+*
+* It allows sampling more particles than the number present in a virtual,
+* previously generated virtual source, without repeating samples, controlled via the nloop
+* input parameter.
+*
+* To function, this component requires a KDSource installation v.2.0.2 or later, as 
+* distributed on conda-forge and pypi and included with (conda-based) McStas 3.7.0 or later.
+*
+* As inputs the component needs access to all of:
+* <ol>
+*  <li>The original MPCL file
+*  <li>Outputs of a KDSource-analyzed / optimized KDE source:
+*   <ul>
+*    <li>An XML parameter-file containing the needed configuration
+*    <li>A "bandwidth" file (source_bws)
+*   </ul>
+* </ol>
+* For information on performing KDSource analysis, please refer to the KDSource example
+* notebooks and the KDSource online documentation (links below).
+*
+* %P
+* INPUT PARAMETERS:
+*
+* filename: [str] Name of the XML parameters file containing KDSource definition.
+* Emin:     [meV] Lower energy bound. Particles found in the MCPL-file below the limit are skipped.
+* Emax:     [meV] Upper energy bound. Particles found in the MCPL-file above the limit are skipped.
+* nloop:    [int] Number of times to loop through the file.
+*
+* %L
+* N.S. Schmidt et. al <a href="https://doi.org/10.1016/j.anucene.2022.109309">Annals of Nuclear Energy, Volume 177, 2022, 109309</a>
+* <a href="../examples/Tests_MCPL_etc/Test_KDSource/Test_KDSource.html">Test_KDSource example instrument</a>
+* <a href="https://kdsource.readthedocs.io/en/latest/">KDSource online documentation</a> (not fully updated)
+* <a href="https://github.com/KDSource/KDSource/tree/develop/docs/examples">KDSource verification notebooks</a>
+* 
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT KDSource
+SETTING PARAMETERS (string filename=0, Emin=0, Emax=FLT_MAX, int nloop=1)
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+DEPENDENCY " @MCPLFLAGS@ CMD(kdsource-config --show buildflags) "
+NOACC
+
+SHARE
+%{
+  #include "mcpl.h"
+  #include "kdsource/kdsource.h"
+
+  uint64_t
+  kds_ncount (uint64_t iproc, uint64_t nprocs, uint64_t nloop, uint64_t nfile) {
+    uint64_t ntot = nloop * nfile;
+    uint64_t n = ntot / nprocs;
+    uint64_t nextra = ntot - n * nprocs;
+    return (iproc < nextra ? (n + 1) : n);
+  }
+
+  uint64_t
+  kds_nskip (uint64_t iproc, uint64_t nprocs, uint64_t nloop, uint64_t nfile) {
+    uint64_t nskip = 0;
+    for (uint64_t i = 0; i < iproc; ++i)
+      nskip += kds_ncount (i, nprocs, nloop, nfile);
+    return nskip % nfile;
+  }
+%}
+
+DECLARE
+%{
+  KDSource* kdsource;
+  double weight_scale;
+  int use_polarisation;
+%}
+
+INITIALIZE
+%{
+  /* Terminate on nonsensical energy input */
+  if (Emax < Emin) {
+    fprintf (stderr, "Warning(%s): Nonsensical energy interval: E=[%g,%g]. Aborting.\n", NAME_CURRENT_COMP, Emin, Emax);
+    exit (-1);
+  }
+  // meV to MeV
+  Emin *= 1e-9;
+  Emax *= 1e-9;
+
+  /* NB: KDSource will abort if it can not open the file*/
+  kdsource = KDS_open (filename);
+
+  use_polarisation = mcpl_hdr_has_polarisation (kdsource->plist->file);
+
+  const uint64_t npts = (uint64_t)kdsource->plist->npts;
+  #ifdef USE_MPI
+  const uint64_t nprocs = (uint64_t)mpi_node_count;
+  const uint64_t iproc = (uint64_t)mpi_node_rank;
+  #else
+  const uint64_t nprocs = 1;
+  const uint64_t iproc = 0;
+  #endif
+  uint64_t ncount = kds_ncount (iproc, nprocs, (uint64_t)nloop, npts);
+  uint64_t nskip = kds_nskip (iproc, nprocs, (uint64_t)nloop, npts);
+
+  weight_scale = 1.0 / nloop; // preserve sum of weights in mcpl file,
+                              // independent of nloop.
+
+  char filenamefoo[320];
+
+  snprintf (filenamefoo, sizeof filenamefoo, "test%i.txt", (int)iproc);
+
+  mcset_ncount (ncount* nprocs);
+  if (nskip && !mcpl_seek (kdsource->plist->file, nskip)) {
+    fprintf (stderr, "ERROR(%s): Could not seek ahead in MCPL file.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+%}
+
+TRACE
+%{
+  double nrm;
+  mcpl_particle_t part;
+  KDS_rand_sample2 (_rand01_opague, (void*)_particle->randstate, kdsource, &part, 1, -1.0, NULL, 1);
+
+  #ifdef USE_MPI
+  const uint64_t iproc = (uint64_t)mpi_node_rank;
+  #else
+  const uint64_t iproc = 0;
+  #endif
+  if (part.pdgcode != 2112) {
+    /*Either no particle read, particle is not a neutron, or it has invalid energy - terminate to trigger next ray*/
+    ABSORB;
+  }
+  /* read_neutrons++; */
+
+  /* check energy range*/
+  if (part.ekin < Emin || part.ekin > Emax) {
+    /*Particle energy out of range - terminate to trigger next ray*/
+    ABSORB;
+  }
+
+  /*positions are in cm*/
+  x = part.position[0] * 0.01;
+  y = part.position[1] * 0.01;
+  z = part.position[2] * 0.01;
+
+  if (use_polarisation) {
+    sx = part.polarisation[0];
+    sy = part.polarisation[1];
+    sz = part.polarisation[2];
+  } else {
+    sx = sy = sz = 0;
+  }
+
+  nrm = sqrt (part.ekin * 1e9 / VS2E);
+  double d0 = part.direction[0], d1 = part.direction[1], d2 = part.direction[2];
+
+  vx = part.direction[0] * nrm;
+  vy = part.direction[1] * nrm;
+  vz = part.direction[2] * nrm;
+
+  /*time in ms:*/
+  t = part.time * 1e-3;
+  /*weight in unspecified units:*/
+  p = part.weight * weight_scale;
+  SCATTER;
+%}
+
+SAVE
+%{
+%}
+
+FINALLY
+%{
+  KDS_destroy (kdsource);
+%}
+
+MCDISPLAY
+%{
+
+
+  /* K  */
+  line (-0.95, -0.5, 0, -0.95, 0.5, 0);
+  line (-0.95, 0.0, 0, -0.55, 0.5, 0);
+  line (-0.95, 0.0, 0, -0.55, -0.5, 0);
+
+  /* D  */
+  line (-0.3, 0.5, 0, -0.24, 0.496, 0);
+  line (-0.24, 0.496, 0, -0.18, 0.486, 0);
+  line (-0.18, 0.486, 0, -0.12, 0.470, 0);
+  line (-0.12, 0.470, 0, -0.06, 0.448, 0);
+  line (-0.06, 0.448, 0, 0.00, 0.420, 0);
+  line (0.00, 0.420, 0, 0.06, 0.386, 0);
+  line (0.06, 0.386, 0, 0.12, 0.346, 0);
+  line (0.12, 0.346, 0, 0.18, 0.300, 0);
+  line (0.18, 0.300, 0, 0.23, 0.248, 0);
+  line (0.23, 0.248, 0, 0.27, 0.192, 0);
+  line (0.27, 0.192, 0, 0.30, 0.132, 0);
+  line (0.30, 0.132, 0, 0.31, 0.070, 0);
+  line (0.31, 0.070, 0, 0.30, 0.008, 0);
+  line (0.30, 0.008, 0, 0.28, -0.054, 0);
+  line (0.28, -0.054, 0, 0.24, -0.114, 0);
+  line (0.24, -0.114, 0, 0.19, -0.171, 0);
+  line (0.19, -0.171, 0, 0.13, -0.225, 0);
+  line (0.13, -0.225, 0, 0.06, -0.275, 0);
+  line (0.06, -0.275, 0, -0.02, -0.320, 0);
+  line (-0.02, -0.320, 0, -0.09, -0.360, 0);
+  line (-0.09, -0.360, 0, -0.16, -0.392, 0);
+  line (-0.16, -0.392, 0, -0.23, -0.416, 0);
+  line (-0.23, -0.416, 0, -0.3, -0.44, 0);
+  line (-0.3, -0.44, 0, -0.3, 0.5, 0);
+
+  /* S */
+  line (1.057, 0.24458, 0, 1.0295, 0.31716, 0);
+  line (1.0295, 0.31716, 0, 0.98723, 0.369, 0);
+  line (0.98723, 0.369, 0, 0.94498, 0.41566, 0);
+  line (0.94498, 0.41566, 0, 0.88773, 0.45713, 0);
+  line (0.88773, 0.45713, 0, 0.83048, 0.47787, 0);
+  line (0.83048, 0.47787, 0, 0.76073, 0.47787, 0);
+  line (0.76073, 0.47787, 0, 0.68873, 0.4675, 0);
+  line (0.68873, 0.4675, 0, 0.64398, 0.44158, 0);
+  line (0.64398, 0.44158, 0, 0.60148, 0.40011, 0);
+  line (0.60148, 0.40011, 0, 0.57173, 0.33271, 0);
+  line (0.57173, 0.33271, 0, 0.55923, 0.24976, 0);
+  line (0.55923, 0.24976, 0, 0.56673, 0.22903, 0);
+  line (0.56673, 0.22903, 0, 0.57423, 0.18237, 0);
+  line (0.57423, 0.18237, 0, 0.60648, 0.15126, 0);
+  line (0.60648, 0.15126, 0, 0.64398, 0.10979, 0);
+  line (0.64398, 0.10979, 0, 0.68123, 0.089053, 0);
+  line (0.68123, 0.089053, 0, 0.72098, 0.068316, 0);
+  line (0.72098, 0.068316, 0, 0.76823, 0.047579, 0);
+  line (0.76823, 0.047579, 0, 0.82798, 0.016474, 0);
+  line (0.82798, 0.016474, 0, 0.89523, 0.00092117, 0);
+  line (0.89523, 0.00092117, 0, 0.93248, -0.025, 0);
+  line (0.93248, -0.025, 0, 0.97973, -0.045737, 0);
+  line (0.97973, -0.045737, 0, 1.0295, -0.087211, 0);
+  line (1.0295, -0.087211, 0, 1.0595, -0.14424, 0);
+  line (1.0595, -0.14424, 0, 1.0645, -0.222, 0);
+  line (1.0645, -0.222, 0, 1.057, -0.24458, 0);
+  line (1.057, -0.24458, 0, 1.0295, -0.31716, 0);
+  line (1.0295, -0.31716, 0, 0.98723, -0.369, 0);
+  line (0.98723, -0.369, 0, 0.94498, -0.41566, 0);
+  line (0.94498, -0.41566, 0, 0.88773, -0.45713, 0);
+  line (0.88773, -0.45713, 0, 0.83048, -0.47787, 0);
+  line (0.83048, -0.47787, 0, 0.76073, -0.47787, 0);
+  line (0.76073, -0.47787, 0, 0.68873, -0.4675, 0);
+  line (0.68873, -0.4675, 0, 0.64398, -0.44158, 0);
+  line (0.64398, -0.44158, 0, 0.60148, -0.40011, 0);
+  line (0.60148, -0.40011, 0, 0.57173, -0.33271, 0);
+  line (0.57173, -0.33271, 0, 0.55923, -0.24976, 0);
+
+  /* Rectangle spanning K D S */
+  mcdis_rectangle ("xy", 0, 0, 0, 2.3, 1.5);
+ %}
+
+END

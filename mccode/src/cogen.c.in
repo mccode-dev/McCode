@@ -379,7 +379,7 @@ static void cogen_defundef(struct comp_inst *comp, List l, char define_it)
           } /* for List */
         }
         if (flag_noconflict && strlen(c_formal->id))
-          coutf("  #define %s (instrument->_parameters.%s)",
+          coutf("  #define %s (instrument->%s)",
             c_formal->id, c_formal->id);
         break;
       case PAR_UNDEF:
@@ -533,6 +533,18 @@ int cogen_comp_declare(struct comp_inst *comp)
   /* instantiate one structure per component instance */
   coutf("_class_%s _%s_var;", comp->def->name, comp->name);
   coutf("#pragma acc declare create ( _%s_var )", comp->name);
+  /* Add declare-create clauses for all struct members... */
+  /* Suppressed again... */
+  /*coutf("#pragma acc declare create ( _%s_var._name ) ", comp->name);
+  coutf("#pragma acc declare create ( _%s_var._type ) ", comp->name);
+  coutf("#pragma acc declare create ( _%s_var._index )", comp->name);
+  coutf("#pragma acc declare create ( _%s_var._position_absolute )", comp->name);
+  coutf("#pragma acc declare create ( _%s_var._position_relative )", comp->name);
+  coutf("#pragma acc declare create ( _%s_var._rotation_absolute )", comp->name);
+  coutf("#pragma acc declare create ( _%s_var._rotation_relative )", comp->name);
+  coutf("#pragma acc declare create ( _%s_var._rotation_is_identity )", comp->name);
+  coutf("#pragma acc declare create ( _%s_var._position_relative_is_zero )", comp->name);*/
+  
   cout("");
 
   return(warnings);
@@ -1182,27 +1194,6 @@ int cogen_decls(struct instr_def *instr)
   cout("   (Used in e.g. inputparse and I/O function (e.g. detector_out) */");
   cout("");
 
-  int numipar=0;
-  cout("struct _struct_instrument_parameters {");
-
-  if (!list_len(instr->formals)) {
-    coutf("  char %s_has_no_parameter;", instr->name);
-  } else {
-
-    liter = list_iterate(instr->formals);
-    while((i_formal = list_next(liter)))
-    {
-      if (i_formal->id && strlen(i_formal->id)) {
-        coutf("  %s %s;", instr_formal_type_names_real[i_formal->type], i_formal->id);
-        numipar++;
-      }
-    }
-    list_iterate_end(liter);
-  }
-  cout("};");
-  cout("typedef struct _struct_instrument_parameters _class_instrument_parameters;");
-  cout("");
-
   /* check if we have GROUP, SPLIT and JUMP */
   index = list_len(instr->grouplist); // count GROUP
   liter = list_iterate(instr->complist);
@@ -1248,7 +1239,21 @@ int cogen_decls(struct instr_def *instr)
     list_len(instr->complist)+2);
   coutf("  Coords _position_absolute[%i];",
     list_len(instr->complist)+2);
-  cout( "  _class_instrument_parameters _parameters; /* instrument parameters */");
+  cout("  double _counter;");
+  int numipar=0;
+  if (!list_len(instr->formals)) {
+    coutf("  char %s_has_no_parameter;", instr->name);
+  } else {
+    liter = list_iterate(instr->formals);
+    while((i_formal = list_next(liter)))
+    {
+      if (i_formal->id && strlen(i_formal->id)) {
+        coutf("  %s %s;", instr_formal_type_names_real[i_formal->type], i_formal->id);
+        numipar++;
+      }
+    }
+    list_iterate_end(liter);
+  }
   if (index)
     cout( "  struct instrument_logic_struct logic; /* instrument logic */");
   cout( "} _instrument_var;");
@@ -1266,12 +1271,12 @@ int cogen_decls(struct instr_def *instr)
     if (strlen(i_formal->id)) {
       if (i_formal->isoptional  // needed to avoid double quotes in strings
           && !strcmp(instr_formal_type_names[i_formal->type],"instr_type_string"))
-        coutf("  \"%s\", &(_instrument_var._parameters.%s), %s, %s, \"%s\",", i_formal->id,
+        coutf("  \"%s\", &(_instrument_var.%s), %s, %s, \"%s\",", i_formal->id,
               i_formal->id, instr_formal_type_names[i_formal->type],
               exp_tostring(i_formal->default_value),
               i_formal->hasunit ? i_formal->unit : "");
       else
-        coutf("  \"%s\", &(_instrument_var._parameters.%s), %s, \"%s\", \"%s\",", i_formal->id,
+        coutf("  \"%s\", &(_instrument_var.%s), %s, \"%s\", \"%s\",", i_formal->id,
               i_formal->id, instr_formal_type_names[i_formal->type],
               i_formal->isoptional ? exp_tostring(i_formal->default_value) : "",
               i_formal->hasunit ? i_formal->unit : "");
@@ -1422,9 +1427,10 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
   liter = list_iterate(instr->complist);
   while((comp = list_next(liter)) != NULL)
   {
-    if (!strcmp(section, "INITIALISE"))
+    if (!strcmp(section, "INITIALISE")) {
       warnings += cogen_comp_section_class(comp, instr, "INITIALISE",
         "init", comp->def->init_code, &(comp->def->flag_defined_init));
+    }
     else if (!strcmp(section, "SAVE"))
       warnings += cogen_comp_section_class(comp, instr, "SAVE",
         "save", comp->def->save_code, &(comp->def->flag_defined_save));
@@ -1468,6 +1474,7 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
     cout("  /* code_main/parseoptions/readparams "
       "sets instrument parameters value */");
     coutf("  stracpy(instrument->_name, \"%s\", 256);", instr->name);
+    coutf("  _instrument_var._counter=42;");
   }
   else if (!strcmp(section, "SAVE"))
     coutf("  if (!handle) siminfo_init(NULL);");
@@ -1643,9 +1650,9 @@ void undef_trace_section(struct instr_def *instr)
             "x", "y", "z", "vx", "vy", "vz",
             "t", "sx", "sy", "sz", "p", "mcgravitation", "mcMagnet", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
     #elif MCCODE_PROJECT == 2   /* xray */
-    #define NUM_STATE_PARS 15
+    #define NUM_STATE_PARS 16
             "x", "y", "z", "kx", "ky", "kz",
-            "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+            "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
     #endif
     };
   List l;
@@ -1752,9 +1759,9 @@ int cogen_raytrace(struct instr_def *instr)
             "x", "y", "z", "vx", "vy", "vz",
             "t", "sx", "sy", "sz", "p", "mcgravitation", "mcMagnet", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
     #elif MCCODE_PROJECT == 2   /* xray */
-    #define NUM_STATE_PARS 15
+    #define NUM_STATE_PARS 16
             "x", "y", "z", "kx", "ky", "kz",
-            "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+            "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
     #endif
     };
   List l;
@@ -1981,7 +1988,11 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("/* loop to generate events and call raytrace() propagate them */");
   coutf("void raytrace_all(unsigned long long ncount, unsigned long seed) {");
   coutf("");
-
+  coutf("  // if on GPU and mcdotrace just exit");
+  coutf("  #ifdef OPENACC");
+  coutf("  if (!mcdotrace) {");
+  coutf("  #endif");
+  coutf("");
   coutf("  /* CPU-loop */");
   coutf("  unsigned long long loops;");
   coutf("  loops = ceil((double)ncount/gpu_innerloop);");
@@ -2012,15 +2023,15 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("    if (loops>1) fprintf(stdout, \"%%d..\", (int)cloop); fflush(stdout);");
   coutf("    #endif");
   coutf("");
-  coutf("    /* if on GPU, re-nullify printf */");
-  cout("     #ifdef OPENACC");
-  cout("     #undef strlen");
-  cout("     #undef strcmp");
-  cout("     #undef exit");
-  cout("     #undef printf");
-  cout("     #undef sprintf");
-  cout("     #undef fprintf");
-  cout("     #endif");
+  /* coutf("    /\* if on GPU, re-nullify printf *\/"); */
+  /* cout("     #ifdef OPENACC"); */
+  /* cout("     #undef strlen"); */
+  /* cout("     #undef strcmp"); */
+  /* cout("     #undef exit"); */
+  /* cout("     #undef printf"); */
+  /* cout("     #undef sprintf"); */
+  /* cout("     #undef fprintf"); */
+  /* cout("     #endif"); */
   coutf("");
   coutf("    // Suppresed dim handles #pragma acc parallel loop num_gangs(numgangs) vector_length(vecsize)");
   coutf("    #pragma acc parallel loop");
@@ -2038,18 +2049,24 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("    } /* inner for */");
   coutf("    seed = seed+gpu_innerloop;");
   coutf("  } /* CPU for */");
-  coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
-  cout("     #ifdef OPENACC");
-  cout("     #undef strlen");
-  cout("     #undef strcmp");
-  cout("     #undef exit");
-  cout("     #undef printf");
-  cout("     #undef sprintf");
-  cout("     #undef fprintf");
-  cout("     #endif");
+  /* coutf("  /\* if on GPU, printf has been globally nullified, re-enable here *\/"); */
+  /* cout("     #ifdef OPENACC"); */
+  /* cout("     #undef strlen"); */
+  /* cout("     #undef strcmp"); */
+  /* cout("     #undef exit"); */
+  /* cout("     #undef printf"); */
+  /* cout("     #undef sprintf"); */
+  /* cout("     #undef fprintf"); */
+  /* cout("     #endif"); */
   coutf("  MPI_MASTER(");
-  coutf("  printf(\"*** TRACE end *** \\n\");");
+  coutf("  printf(\"*** TRACE end *** (%%g)\\n\",_instrument_var._counter);");
   coutf("  );");
+  coutf("");
+  coutf("  // if on GPU and mcdotrace just exit");
+  coutf("  #ifdef OPENACC");
+  coutf("  }");
+  coutf("  #endif");
+  coutf("");
   coutf("} /* raytrace_all */");
   coutf("");
   coutf("#endif //no-FUNNEL");
@@ -2076,9 +2093,9 @@ int cogen_rt_funnel(struct instr_def *instr)
             "x", "y", "z", "vx", "vy", "vz",
             "t", "sx", "sy", "sz", "p", "mcgravitation", "mcMagnet", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
     #elif MCCODE_PROJECT == 2   /* xray */
-    #define NUM_STATE_PARS 15
+    #define NUM_STATE_PARS 16
             "x", "y", "z", "kx", "ky", "kz",
-            "phi", "t", "Ex", "Ey","Ez", "p", "_mctmp_a", "_mctmp_b", "_mctmp_c"
+            "phi", "t", "Ex", "Ey","Ez", "p", "allow_backprop", "_mctmp_a", "_mctmp_b", "_mctmp_c"
     #endif
     };
   List l;
@@ -2094,6 +2111,10 @@ int cogen_rt_funnel(struct instr_def *instr)
 
   coutf("void raytrace_all_funnel(unsigned long long ncount, unsigned long seed) {");
   coutf("");
+  coutf("  // if on GPU and mcdotrace just exit");
+  coutf("  #ifdef OPENACC");
+  coutf("  if (!mcdotrace) {");
+  coutf("  #endif");
   coutf("  // set up outer (CPU) loop / particle batches");
   coutf("  unsigned long long loops;");
   coutf("");
@@ -2279,7 +2300,10 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("  free(pbuffer);");
   cout( "");
   coutf("  printf(\"\\n\");");
-
+  coutf("  // if on GPU and mcdotrace just exit");
+  coutf("  #ifdef OPENACC");
+  coutf("  }");
+  coutf("  #endif");
   coutf("} /* raytrace_all_funnel */");
   coutf("#endif // FUNNEL");
   coutf("");

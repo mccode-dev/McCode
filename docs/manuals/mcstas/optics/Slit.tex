@@ -1,33 +1,47 @@
-\section{Slit: A beam defining diaphragm}
-\label{slit}
-\index{Optics!Slit}
+\section{The \texttt{Slit} McStas Component}
+Rectangular/circular slit
 
-%\component{Slit}{System}{$x_\textrm{min}$, $x_\textrm{max}$, $y_\textrm{min}$, $y_\textrm{max}$}{$r$, $p_\textrm{cut}$}{}
-\mcdoccomp{optics/Slit.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kim Lefmann and Henrik M. Roennow
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} June 16, 1997
+\end{itemize}
 
-The component \textbf{Slit} is a very simple construction.
-It sets up an opening at $z=0$, and propagates the neutrons
-onto this plane (by the kernel call PROP\_Z0).
-Neutrons within the slit opening are unaffected,
-while all other neutrons
-are discarded by the kernel call ABSORB.
+\subsection*{Description}
+\begin{lstlisting}
+A simple rectangular or circular slit. You may either
+specify the radius (circular shape), or the rectangular bounds.
+No transmission around the slit is allowed.
 
-By using \textrm{Slit}, some neutrons contributing to the background
-in a real experiment will be neglected.
-These are the ones that scatter off the inner side
-of the slit, penetrates the slit material,
-or clear the outer edges of the slit.
+Example: Slit(xmin=-0.01, xmax=0.01, ymin=-0.01, ymax=0.01)
+Slit(xwidth=0.02, yheight=0.02)
+Slit(radius=0.01)
 
-The input parameters of \textbf{Slit} are the four coordinates,
-$(x_\textrm{min}, x_\textrm{max}, y_\textrm{min}, y_\textrm{max})$
-defining the opening of the rectangle, or the radius $r$ of
-a circular opening, depending on which parameters are specified.
+The Slit will issue a warning if run as "closed"
+\end{lstlisting}
 
-The slit component can also be used to discard insignificant 
-({\em i.e.}\ very low weight)
-neutron rays, that in some simulations may be very abundant and therefore
-time consuming. If the optional parameter $p_\textrm{cut}$ is set, all
-neutron rays with $p<p_\textrm{cut}$ are ABSORB'ed.
-This use is recommended in connection with \textbf{Virtual\_output}.
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
 
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+xmin & m & Lower x bound & UNSET \\
+xmax & m & Upper x bound & UNSET \\
+ymin & m & Lower y bound & UNSET \\
+ymax & m & Upper y bound & UNSET \\
+radius & m & Radius of slit in the z=0 plane, centered at Origin & UNSET \\
+xwidth & m & Width of slit. Overrides xmin,xmax if they are unset. & UNSET \\
+yheight & m & Height of slit. Overrides ymin,ymax if they are unset. & UNSET \\
+\bottomrule
+\end{longtable}
 
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/Slit.comp}{Source code} for \texttt{Slit.comp}.
+\end{itemize}
+\IfFileExists{Slit_static.tex}{\input{Slit_static.tex}}{}

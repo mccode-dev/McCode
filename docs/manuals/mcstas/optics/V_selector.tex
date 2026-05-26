@@ -1,79 +1,52 @@
-\section{V\_selector: A rotating velocity selector}
-\label{vselector}
-\index{Optics!Velocity selector}
+\section{The \texttt{V\_selector} McStas Component}
+Velocity selector.
 
-%\component{V\_selector}{System}{$L_0$, $L_1$, $\omega$, $r_0$, $\phi$, $N$, height, width}{}{validated, position is center of input aperture}
-\mcdoccomp{optics/V_selector.parms}
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Site:} 
+  \item \textbf{Author:} Kim Lefmann
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} Nov 25, 1998
+\end{itemize}
 
-\begin{figure}
-  \begin{center}
-    \includegraphics[width=0.9\textwidth]{figures/vselector}
-  \end{center}
-\caption{A velocity selector}
-\label{f:vselector}
-\end{figure}
+\subsection*{Description}
+\begin{lstlisting}
+Velocity selector consisting of rotating Soller-like blades
+defining a helically twisted passage.
+Geometry defined by two identical, centered apertures at 12 o'clock
+position, Origo is at the centre of the selector (input is at -zdepth/2).
+Transmission is analytical assuming a continuous source.
 
-The component \textbf{V\_selector} models a rotating velocity
-selector constructed from $N$ collimator blades
-arranged radially on an axis. Two identical slits ($height \times width$)
-at a 12 o'clock position allow
-neutron passage at the position of the blades.
-The blades are "twisted" on the axis so that a stationary
-velocity selector does not transmit neutrons; the total
-twist angle is denoted $\phi$ (in degrees).
+Example: V_selector(xwidth=0.03, yheight=0.05, zdepth=0.30, radius=0.12, alpha=48.298, length=0.25, d=0.0004, nu=20000, nslit=72)
+These are values for the D11@ILL Dornier 'Dolores' Velocity Selector (NVS 023)
 
-Further input parameters for \textbf{V\_selector} 
-the distance between apertures, $L_0$, the length of the
-collimator blades, $L_1$, the height from rotation axix to the slit
-centre, $r_0$, the rotation speed $\omega$ (in rpm), 
-and the blade thickness $t$.
+%VALIDATION
+Jun 2005: extensive external test, no problems found
+Validated by: K. Lieutenant
+\end{lstlisting}
 
-The local coordinate system has its Origo at the slit centre.
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
 
-The component \textrm{Selector} produces equivalent results.
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+xwidth & m & Width of entry aperture & 0.03 \\
+yheight & m & Height of entry aperture & 0.05 \\
+zdepth & m & Distance between apertures, for housing containing the rotor & 0.30 \\
+radius & m & Height from aperture centre to rotation axis & 0.12 \\
+alpha & deg & Twist angle along the cylinder & 48.298 \\
+length & m & Length of cylinder/rotor (less than zdepth) & 0.25 \\
+d & m & Thickness of blades & 0.0004 \\
+nu & Hz & Cylinder rotation speed, counter-clockwise, which is ideally 3956*alpha*DEG2RAD/2/PI/lambda/length & 300 \\
+nslit & 1 & Number of Soller blades & 72 \\
+\bottomrule
+\end{longtable}
 
-\subsection{Velocity selector transmission}
-
-By rotating the selector you allow
-transmittance of neutrons rays with velocities around a nominal value, given by
-\begin{equation}
-V_0 = \omega L / \phi ,
-\end{equation}
-which means that the selector has turned the twist angle
-$\phi$ during the typical neutron flight time $L/V_0$. The actual twist angle
-is $\phi' = \omega t = \omega L / V$.
-
-Neutrons having a velocity slightly different from $V_0$
-will either be transmitted or absorbed depending on the exact position
-of the rotator blades when the neutron enters the selector.
-Assuming this position to be unknown and integrating over all possible
-positions (assuming zero thickness of blades), we arrive at a transmission factor
-\begin{equation}
-T = \left\{
- \begin{array}{ll}
- 1 - (N/2\pi ) |\phi-\omega L / V| &
-        \textrm{if}\;   (N/2\pi )|\phi -\omega L / V| < 1 \\
-    0  &  \textrm{otherwise}
- \end{array} \right.
-\end{equation}
-where $N$ is the number of collimator blades.
-
-A horisontal divergence changes the above formula because of the
-angular difference between the entry and exit points of the neutron.
-The resulting transmittance resembles the one above, only with
-$V$ replaced by $V_z$ and $\phi$ replaced by $(\phi +\psi )$,
-where $\psi$ is the angular difference due to
-the divergence. An additional vertical divergence does not change
-this formula, but it may contribute to $\psi$.
-(We have here ignored the very small non-linearity of $\psi$ along the
-neutron path in case of both vertical and horisontal divergence).
-
-Adding the effect of a finite blade thickness, $t$, reduces the transmission
-by the overall factor
-\begin{equation}
-\left( 1-\frac{N t}{2\pi r}  \right),
-\end{equation}
-where $r$ is the distance from the rotation axis. We ignore the variation
-of $r$ along the neutron path and use just the average value.
-
-
+\subsection*{Links}
+\begin{itemize}
+  \item \href{run:/home/willend/willend-McCode/mcstas-comps/optics/V_selector.comp}{Source code} for \texttt{V\_selector.comp}.
+\end{itemize}
+\IfFileExists{V_selector_static.tex}{\input{V_selector_static.tex}}{}

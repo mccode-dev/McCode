@@ -124,7 +124,7 @@ function [comps, fig] = mcdisplay(varargin)
       % get the MCDISPLAY section for a single component
       section = output_mcdisplay_section(index_mcdisplay_comp(index):next);
       % then we get the multiline and circle commands in this section
-      for token = {'multiline' ,'circle'}
+      for token = {'multiline' ,'mcdiscircle'}
         [x,y,z] = mcdisplay_get_token(section, token{1});
         comps(index).x = [ comps(index).x nan x ];
         comps(index).y = [ comps(index).y nan y ];
@@ -350,7 +350,7 @@ function [X,Y,Z]=multiline(npoints, varargin)
   end
 end
 
-function [X,Y,Z]=circle(plane, x0,y0,z0, radius)
+function [X,Y,Z]=mcdiscircle(plane, x0,y0,z0, radius)
   % we create a set of points
   if radius ~=0
     phi=linspace(0,2*pi, 36); % 36 points along the circle
