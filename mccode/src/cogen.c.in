@@ -436,7 +436,7 @@ int cogen_comp_declare(struct comp_inst *comp)
     //
 
     cout("");
-
+    cout ("#pragma omp declare target");
     coutf("/* Parameters for component type '%s' */", comp->def->name);
     coutf("struct _struct_%s {", comp->def->name);
     /* make struct: set, pos, rot, declare block */
@@ -529,7 +529,6 @@ int cogen_comp_declare(struct comp_inst *comp)
     cout("};");
     coutf("typedef struct _struct_%s _class_%s;", comp->def->name, comp->def->name);
   } /* define class type parameter structure when not done yet (only once) */
-  cout ("#pragma omp declare target");
   /* instantiate one structure per component instance */
   coutf("_class_%s _%s_var;", comp->def->name, comp->name);
   cout ("#pragma omp end declare target");
@@ -1229,7 +1228,7 @@ int cogen_decls(struct instr_def *instr)
     list_len(instr->complist)+2);
   coutf("  Coords _position_absolute[%i];",
     list_len(instr->complist)+2);
-  cout("  double _counter;");
+  cout("  int _counter;");
   int numipar=0;
   if (!list_len(instr->formals)) {
     coutf("  char %s_has_no_parameter;", instr->name);
@@ -1463,7 +1462,7 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
     cout("  /* code_main/parseoptions/readparams "
       "sets instrument parameters value */");
     coutf("  stracpy(instrument->_name, \"%s\", 256);", instr->name);
-    coutf("  _instrument_var._counter=42;");
+    coutf("  _instrument_var._counter=0;");
   }
   else if (!strcmp(section, "SAVE"))
     coutf("  if (!handle) siminfo_init(NULL);");
@@ -2036,7 +2035,7 @@ int cogen_raytrace(struct instr_def *instr)
   /* cout("     #undef fprintf"); */
   /* cout("     #endif"); */
   coutf("  MPI_MASTER(");
-  coutf("  printf(\"*** TRACE end *** (%%g)\\n\",_instrument_var._counter);");
+  coutf("  printf(\"*** TRACE end *** (%%i)\\n\",_instrument_var._counter);");
   coutf("  );");
   coutf("");
   coutf("  // if on GPU and mcdotrace just exit");
@@ -2111,7 +2110,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   }
   // update instrument
   list_iterate_end(liter);
-  cout("   #pragma omp target data map(to:_instrument_var)");
+  cout("   #pragma omp target data map(tofrom:_instrument_var)");
   cout(" { ");   
   /* Check if instrument uses JUMPS */
   liter = list_iterate(instr->complist);
@@ -2141,6 +2140,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("  // create particles struct and pointer arrays (same memory used by all batches)");
   coutf("  _class_particle* particles = malloc(gpu_innerloop*sizeof(_class_particle));");
   coutf("  _class_particle* pbuffer = malloc(gpu_innerloop*sizeof(_class_particle));");
+  coutf("  double* weights = malloc(gpu_innerloop*sizeof(double));");
   coutf("  long livebatchsize = gpu_innerloop;");
   coutf("");
 
@@ -2158,7 +2158,7 @@ int cogen_rt_funnel(struct instr_def *instr)
 
   // init batch
   coutf("    // init particles");
-  coutf("    #pragma omp target teams loop map(tofrom: particles[0:livebatchsize])");
+  coutf("    #pragma omp target teams loop map(tofrom: particles[0:livebatchsize], weights[0:livebatchsize])");
   coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
   coutf("      // generate particle state, set loop index and seed");
   coutf("      particles[pidx] = mcgenstate();");
@@ -2167,9 +2167,23 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("      #ifdef USE_MPI");
   coutf("      _particle->_uid += mpi_node_rank * ncount; ");
   coutf("      #endif");
+  cout ("      int old;");
+  cout ("      #pragma omp atomic capture");
+  cout ("      {");
+  cout ("        old=_instrument_var._counter+1; _instrument_var._counter=old;");
+  cout ("      }");
+  cout ("      weights[pidx]=p;");
   coutf("      srandom(_hash((pidx+1)*(seed+1))); // _particle->state usage built into srandom macro");
   coutf("    }");
   cout( "");
+  
+  cout( "    double psum=0;");
+  coutf("    // Check that we populated GPU with data and get back a reasonable sum");
+  coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
+  coutf("      psum+=weights[pidx];");
+  coutf("    }");
+  coutf("   printf(\"** Particle creation end weightsum=%%g\\n\",psum);");
+  coutf("");
 
   // iterate batch through the component list
   cout("    // iterate components");
@@ -2273,10 +2287,18 @@ int cogen_rt_funnel(struct instr_def *instr)
     first=0;
     cpuonly_last = comp->cpuonly;
   } /* end while comp list (case) */
-  coutf("");
+  coutf("      weights[pidx]=p;");
   coutf("    }");
   cout( "");
   list_iterate_end(liter);
+
+  cout( "    psum=0;");
+  coutf("    // Check that we populated GPU with data and get back a reasonable sum");
+  coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
+  coutf("      psum+=weights[pidx];");
+  coutf("    }");
+  coutf("   printf(\"** Particle TRACE end weightsum=%%g\\n\",psum);");
+  coutf("");
 
   coutf("    // jump to next viable seed");
   coutf("    seed = seed + gpu_innerloop;");
@@ -2288,6 +2310,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   cout( "");
   coutf("  printf(\"\\n\");");
   coutf("  // if on GPU and mcdotrace just exit");
+  coutf("  printf(\"*** TRACE end *** (%%i)\\n\",_instrument_var._counter);");
   coutf("  #ifdef OPENACC");
   coutf("  }");
   coutf("  #endif");
