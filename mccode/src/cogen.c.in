@@ -2008,7 +2008,7 @@ int cogen_raytrace(struct instr_def *instr)
   // update instrument
   list_iterate_end(liter);
   cout("#pragma omp target data map(to:_instrument_var)");
-  
+  cout ("  {");
   coutf("    #pragma omp target teams loop");
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
   coutf("      _class_particle particleN = mcgenstate(); // initial particle");
@@ -2023,7 +2023,9 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("      raytrace(_particle);");
   coutf("    } /* inner for */");
   coutf("    seed = seed+gpu_innerloop;");
-  coutf("  } /* CPU for */");
+  cout ("  } /* target data map section */");
+  coutf("} /* CPU for */");
+  
   /* coutf("  /\* if on GPU, printf has been globally nullified, re-enable here *\/"); */
   /* cout("     #ifdef OPENACC"); */
   /* cout("     #undef strlen"); */
@@ -2110,6 +2112,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   // update instrument
   list_iterate_end(liter);
   cout("   #pragma omp target data map(to:_instrument_var)");
+  cout(" { ");   
   /* Check if instrument uses JUMPS */
   liter = list_iterate(instr->complist);
   while((comp = list_next(liter)) != NULL) {
@@ -2281,6 +2284,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   cout( "");
   coutf("  free(particles);");
   coutf("  free(pbuffer);");
+  cout(" } /* data map region end*/");   
   cout( "");
   coutf("  printf(\"\\n\");");
   coutf("  // if on GPU and mcdotrace just exit");
