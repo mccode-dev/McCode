@@ -1995,12 +1995,17 @@ int cogen_raytrace(struct instr_def *instr)
 
   // update component instances on device (e.g. push "managed" data structures)
   liter = list_iterate(instr->complist);
+  char buffer[10240];
+  char buffer0[10240];
+  sprintf(buffer0,"%s","  #pragma omp target data map(to:_instrument_var) map(tofrom: ");
   while((comp = list_next(liter)) != NULL) {
-    coutf("#pragma omp target data map(tofrom: _%s_var)", comp->name);
+    sprintf(buffer,"%s _%s_var",buffer0,comp->name);
+    sprintf(buffer0,"%s,",buffer);
   }
+  sprintf(buffer,"%s)",buffer0);
   // update instrument
   list_iterate_end(liter);
-  cout("#pragma omp target data map(to:_instrument_var)");
+  coutf("%s",buffer);
   cout ("  {");
   coutf("    #pragma omp target teams loop");
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
@@ -2215,7 +2220,7 @@ int cogen_rt_funnel(struct instr_def *instr)
 
     if (first || (comp->cpuonly != cpuonly_last) || comp->split) {
       coutf("");
-      if (comp->cpuonly == 0) {
+      if (comp->cpuonly == 0) {	
 	coutf("    #pragma omp target teams loop map(tofrom: particles[0:livebatchsize])");
       } else {
 	coutf("    //#ifdef MULTICORE");
