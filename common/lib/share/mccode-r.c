@@ -114,7 +114,7 @@ mcstatic unsigned long long int mcrun_num            = 0;
 #endif
 
 /* String nullification on GPU and other replacements */
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 int noprintf() {
   return 0;
 }
@@ -3360,7 +3360,7 @@ Coords coords_mirror(Coords a, Coords n) {
 
 /* coords_print: Print out vector values. */
 void coords_print(Coords a) {
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   fprintf(stdout, "(%f, %f, %f)\n", a.x, a.y, a.z);
   #endif
   return;
@@ -4539,7 +4539,7 @@ mchelp(char *pgmname)
 "  --meta-type COMP:NAME      Print metadata format type specified in definition\n"
 "  --meta-data COMP:NAME      Print the metadata text\n"
 "  --source                   Show the instrument code which was compiled.\n"
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 "\n"
 "  --vecsize                  OpenACC vector-size (default: 128)\n"
 "  --numgangs                 Number of OpenACC gangs (default: 7813)\n"
@@ -4563,7 +4563,7 @@ mchelp(char *pgmname)
   fprintf(stderr,
   "This instrument has been compiled with MPI support.\n  Use 'mpirun %s [options] [parm=value ...]'.\n", pgmname);
 #endif
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
   fprintf(stderr,
   "This instrument has been compiled with NVIDIA GPU support through OpenACC.\n  Running on systems without such devices will lead to segfaults.\nFurter, fprintf, sprintf and printf have been removed from any component TRACE.\n");
 #endif

@@ -51,7 +51,7 @@ int mccode_main(int argc, char *argv[])
   }
 #endif /* USE_MPI */
 
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 #ifdef USE_MPI
   int num_devices = acc_get_num_devices(acc_device_nvidia);
   if(num_devices>0){

@@ -38,7 +38,7 @@
 #ifndef INTEROFF_LIB_C
 #define INTEROFF_LIB_C "$Revision$"
 
-#ifdef OPENACC // If on GPU map fprintf to printf
+#if defined(OPENACC) || defined(_OPENMP) // If on GPU map fprintf to printf
 #define fprintf(stderr,...) printf(__VA_ARGS__)
 #endif
 
@@ -846,7 +846,7 @@ long off_init(  char *offfile, double xwidth, double yheight, double zdepth,
   data->polySize   = polySize;
   data->faceSize   = faceSize;
   data->filename   = offfile;
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   acc_attach((void *)&vtxArray);
   acc_attach((void *)&normalArray);
   acc_attach((void *)&faceArray);
@@ -1061,7 +1061,7 @@ int off_intersect_all(double* t0, double* t3,
 			     data->vtxArray, data->vtxSize, data->faceArray,
 			     data->faceSize, data->normalArray );
     }
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     qsort(data->intersects, t_size, sizeof(intersection),  off_compare);
     #else
     #ifdef USE_OFF

@@ -43,7 +43,7 @@
 #include "r-interoff-lib.h"
 #endif
 
-#ifdef OPENACC // If on GPU map fprintf to printf
+#if defined(OPENACC) || defined(_OPENMP) // If on GPU map fprintf to printf
 #define fprintf(stderr,...) printf(__VA_ARGS__)
 #endif
 
@@ -871,7 +871,7 @@ long r_off_init(  char *offfile, double xwidth, double yheight, double zdepth,
   data->faceSize   = faceSize;
   data->filename   = offfile;
 
-   #ifdef OPENACC
+   #if defined(OPENACC) || defined(_OPENMP)
    acc_attach((void *)&vtxArray);
    acc_attach((void *)&normalArray);
    acc_attach((void *)&faceArray);
@@ -1091,7 +1091,7 @@ int r_off_intersect_all(double* t0, double* t3,
 			     data->vtxArray, data->vtxSize, data->faceArray,
 			     data->faceSize, data->normalArray );
     }
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     qsort(data->intersects, t_size, sizeof(r_intersection),  r_off_compare);
     #else
     #ifdef USE_OFF

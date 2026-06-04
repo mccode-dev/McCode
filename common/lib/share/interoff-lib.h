@@ -38,7 +38,7 @@
 #endif
 
 #ifndef OFF_INTERSECT_MAX
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 #define OFF_INTERSECT_MAX 100
 #else
 #define OFF_INTERSECT_MAX 1024

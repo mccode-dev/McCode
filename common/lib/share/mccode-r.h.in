@@ -51,7 +51,7 @@
 #include <float.h>
 #include <inttypes.h>
 #include <stdint.h>
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 #include <openacc.h>
 #ifndef GCCOFFLOAD
 #include <accelmath.h>
@@ -253,13 +253,13 @@ clock_t times (struct tms *__buffer) {
 #  endif
 #endif
 
-#ifdef OPENACC  /* default is to disable signals with PGI/OpenACC */
+#if defined(OPENACC) || defined(_OPENMP)  /* default is to disable signals with PGI/OpenACC */
 #  ifndef NOSIGNALS
 #    define NOSIGNALS 1
 #  endif
 #endif
 
-#ifndef OPENACC
+#if !defined(OPENACC) && !defined(_OPENMP)
 #  ifndef USE_OFF  /* default is to enable OFF when not using PGI/OpenACC */
 #    define USE_OFF
 #  endif
@@ -368,7 +368,7 @@ void destroy_darr3d(DArray3d a);
 #include "mpi.h"
 
 #ifdef OMPI_MPI_H  /* openmpi does not use signals: we may install our sighandler */
-#ifndef OPENACC    /* ... but only if we are not also running on GPU */
+#if !defined(OPENACC) && !defined(_OPENMP)    /* ... but only if we are not also running on GPU */
 #undef NOSIGNALS
 #endif
 #endif
