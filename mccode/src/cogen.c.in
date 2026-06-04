@@ -1045,7 +1045,7 @@ void cogen_getvarpars_fct(struct instr_def *instr)
   cout("/* enables settings parameters based use of the GETPAR macro */");
   cout("{");
 
-  cout("  #ifdef OPENACC");
+  cout("  #if defined(OPENACC) || defined(_OPENMP)");
   cout("    #define strcmp(a,b) str_comp(a,b)");
   cout("  #endif");
 
@@ -1572,7 +1572,7 @@ void def_trace_section(struct instr_def *instr)
   cout("/* if on GPU, globally nullify sprintf,fprintf,printfs   */");
   cout("/* (Similar defines are available in each comp trace but */");
   cout("/*  those are not enough to handle external libs etc. )  */");
-  cout("#ifdef OPENACC");
+  cout("#if defined(OPENACC) || defined(_OPENMP)");
   cout("#define fprintf(stderr,...) printf(__VA_ARGS__)");
   cout("#define sprintf(string,...) printf(__VA_ARGS__)");
   cout("#define exit(...) noprintf()");
@@ -1622,7 +1622,7 @@ void undef_trace_section(struct instr_def *instr)
   for(i = 0; i < NUM_STATE_PARS; i++)
     coutf("#undef %s", statepars_all[i]);
 
-  cout("#ifdef OPENACC");
+  cout("#if defined(OPENACC) || defined(_OPENMP)");
   cout("#undef strlen");
   cout("#undef strcmp");
   cout("#undef exit");
@@ -1949,7 +1949,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("void raytrace_all(unsigned long long ncount, unsigned long seed) {");
   coutf("");
   coutf("  // if on GPU and mcdotrace just exit");
-  coutf("  #ifdef OPENACC");
+  coutf("  #if defined(OPENACC) || defined(_OPENMP)");
   coutf("  if (!mcdotrace) {");
   coutf("  #endif");
   coutf("");
@@ -1957,7 +1957,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("  unsigned long long loops;");
   coutf("  loops = ceil((double)ncount/gpu_innerloop);");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
-  cout("  #ifdef OPENACC");
+  cout("  #if defined(OPENACC) || defined(_OPENMP)");
   cout("  #undef strlen");
   cout("  #undef strcmp");
   cout("  #undef exit");
@@ -1966,7 +1966,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("  #undef fprintf");
   cout("  #endif");
   coutf("");
-  coutf("  #ifdef OPENACC");
+  coutf("  #if defined(OPENACC) || defined(_OPENMP)");
   coutf("  if (ncount>gpu_innerloop) {");
   coutf("    printf(\"Defining %%llu CPU loops around GPU kernel and adjusting ncount\\n\",loops);");
   coutf("    mcset_ncount(loops*gpu_innerloop);");
@@ -1974,17 +1974,17 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("    #endif");
   coutf("    loops=1;");
   coutf("    gpu_innerloop = ncount;");
-  coutf("    #ifdef OPENACC");
+  coutf("    #if defined(OPENACC) || defined(_OPENMP)");
   coutf("  }");
   coutf("    #endif");
   coutf("");
   coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
-  coutf("    #ifdef OPENACC");
+  coutf("    #if defined(OPENACC) || defined(_OPENMP)");
   coutf("    if (loops>1) fprintf(stdout, \"%%d..\", (int)cloop); fflush(stdout);");
   coutf("    #endif");
   coutf("");
   /* coutf("    /\* if on GPU, re-nullify printf *\/"); */
-  /* cout("     #ifdef OPENACC"); */
+  /* cout("     #if defined(OPENACC) || defined(_OPENMP)"); */
   /* cout("     #undef strlen"); */
   /* cout("     #undef strcmp"); */
   /* cout("     #undef exit"); */
@@ -2020,7 +2020,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("} /* CPU for */");
   
   /* coutf("  /\* if on GPU, printf has been globally nullified, re-enable here *\/"); */
-  /* cout("     #ifdef OPENACC"); */
+  /* cout("     #if defined(OPENACC) || defined(_OPENMP)"); */
   /* cout("     #undef strlen"); */
   /* cout("     #undef strcmp"); */
   /* cout("     #undef exit"); */
@@ -2033,7 +2033,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("  );");
   coutf("");
   coutf("  // if on GPU and mcdotrace just exit");
-  coutf("  #ifdef OPENACC");
+  coutf("  #if defined(OPENACC) || defined(_OPENMP)");
   coutf("  }");
   coutf("  #endif");
   coutf("");
@@ -2082,14 +2082,14 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("void raytrace_all_funnel(unsigned long long ncount, unsigned long seed) {");
   coutf("");
   coutf("  // if on GPU and mcdotrace just exit");
-  coutf("  #ifdef OPENACC");
+  coutf("  #if defined(OPENACC) || defined(_OPENMP)");
   coutf("  if (!mcdotrace) {");
   coutf("  #endif");
   coutf("  // set up outer (CPU) loop / particle batches");
   coutf("  unsigned long long loops;");
   coutf("");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
-  cout("   #ifdef OPENACC");
+  cout("   #if defined(OPENACC) || defined(_OPENMP)");
   cout("   #undef strlen");
   cout("   #undef strcmp");
   cout("   #undef exit");
@@ -2118,7 +2118,7 @@ int cogen_rt_funnel(struct instr_def *instr)
 	coutf("printf(\" --> Your instrument may give different output with FUNNEL\\n\");");
     }
   }
-  coutf("  #ifdef OPENACC");
+  coutf("  #if defined(OPENACC) || defined(_OPENMP)");
   coutf("  loops = ceil((double)ncount/gpu_innerloop);");
   coutf("  if (ncount>gpu_innerloop) {");
   coutf("    printf(\"Defining %%llu CPU loops around kernel and adjusting ncount\\n\",loops);");
@@ -2127,7 +2127,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("  #endif");
   coutf("    loops=1;");
   coutf("    gpu_innerloop = ncount;");
-  coutf("  #ifdef OPENACC");
+  coutf("  #if defined(OPENACC) || defined(_OPENMP)");
   coutf("  }");
   coutf("  #endif");
   coutf("");
@@ -2305,7 +2305,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("  printf(\"\\n\");");
   coutf("  // if on GPU and mcdotrace just exit");
   coutf("  printf(\"*** TRACE end *** (%%i)\\n\",_instrument_var._counter);");
-  coutf("  #ifdef OPENACC");
+  coutf("  #if defined(OPENACC) || defined(_OPENMP)");
   coutf("  }");
   coutf("  #endif");
   coutf("} /* raytrace_all_funnel */");
@@ -2577,13 +2577,13 @@ cogen_header(struct instr_def *instr, char *output_name)
   
   cout("double particle_getvar(_class_particle *p, char *name, int *suc);");
   cout("");
-  cout("#ifdef OPENACC");
+  cout("#if defined(OPENACC) || defined(_OPENMP)");
   
   cout("int str_comp(char *str1, char *str2);");
   cout("#endif");
   cout("");
   cout("double particle_getvar(_class_particle *p, char *name, int *suc){");
-  cout("#ifndef OPENACC");
+  cout("#if not defined(OPENACC) || not defined(_OPENMP)");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int s=1;");
@@ -2626,13 +2626,13 @@ cogen_header(struct instr_def *instr, char *output_name)
   
   cout("void* particle_getvar_void(_class_particle *p, char *name, int *suc);");
   cout("");
-  cout("#ifdef OPENACC");
+  cout("#if defined(OPENACC) || defined(_OPENMP)");
   
   cout("int str_comp(char *str1, char *str2);");
   cout("#endif");
   cout("");
   cout("void* particle_getvar_void(_class_particle *p, char *name, int *suc){");
-  cout("#ifndef OPENACC");
+  cout("#if not defined(OPENACC) || not defined(_OPENMP)");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int s=1;");
@@ -2674,7 +2674,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("int particle_setvar_void(_class_particle *, char *, void*);");
   cout("");
   cout("int particle_setvar_void(_class_particle *p, char *name, void* value){");
-  cout("#ifndef OPENACC");
+  cout("#if not defined(OPENACC) || not defined(_OPENMP)");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int rval=1;");
@@ -2719,7 +2719,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("int particle_setvar_void_array(_class_particle *, char *, void*, int);");
   cout("");
   cout("int particle_setvar_void_array(_class_particle *p, char *name, void* value, int elements){");
-  cout("#ifndef OPENACC");
+  cout("#if not defined(OPENACC) || not defined(_OPENMP)");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int rval=1;");
