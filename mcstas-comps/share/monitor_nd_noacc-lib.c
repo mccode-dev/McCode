@@ -27,7 +27,7 @@
 #error McStas : please import this library with %include "monitor_nd_noacc-lib"
 #endif
 
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 #define OPENACC_BAK
 #undef OPENACC
 #undef printf
@@ -353,7 +353,7 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
         if (!strcmp(token, "parallel")){ Vars->Flag_parallel = 1; iskeyword=1; }
         if (!strcmp(token, "capture")) { Vars->Flag_capture = 1; iskeyword=1; }
         if (!strcmp(token, "auto")) { 
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         if (Flag_auto != -1) {
 	    Vars->Flag_Auto_Limits = 1;
 	    if (Flag_All) Flag_auto = -1;
@@ -1179,7 +1179,7 @@ int Monitor_nd_noaccTrace(Monitornd_noaccDefines_type *DEFS, Monitornd_noaccVari
     Vars->Flag_Auto_Limits = 2;  /* pass to 2nd auto limits step (read Buffer and generate new events to store in histograms) */
   } /* end if Flag_Auto_Limits == 1 */
 
-#ifndef OPENACC
+#if !defined(OPENACC) && !defined(_OPENMP)
   /* manage realloc for 'list all' if Buffer size exceeded: flush Buffer to file */
   if ((Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List >= 2))
   {
@@ -2222,7 +2222,7 @@ void Monitor_nd_noaccMcDisplay(Monitornd_noaccDefines_type *DEFS,
 
 /* end of monitor_nd_noacc-lib.c */
 
-#ifdef OPENACC_BAK
+#if defined(OPENACC) || defined(_OPENMP)_BAK
 #define OPENACC
 #define fprintf(stderr,...) printf(__VA_ARGS__)
 #define sprintf(string,...) printf(__VA_ARGS__)

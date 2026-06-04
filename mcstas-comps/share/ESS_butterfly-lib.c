@@ -33,7 +33,7 @@
 #endif
 #endif
 
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 #define exit(...) noprintf()
 #endif
 
@@ -342,6 +342,6 @@ double ESS_2015_Schoenfeldt_thermal_timedist(double time,double lambda,double he
 } /* end of ESS_2015_Schoenfeldt_thermal_timedist */
 
 /* end of ESS_butterfly-lib.c */
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 #undef exit
 #endif

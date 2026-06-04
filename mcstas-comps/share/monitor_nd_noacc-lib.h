@@ -27,7 +27,7 @@
 #define MONITOR_ND_NOACCLIB_H "Yes"
 #define MONnD_COORD_NMAX  30  /* max number of variables to record */
 
-#ifdef OPENACC
+#if defined(OPENACC) || defined(_OPENMP)
 #define OPENACC_BAK
 #undef OPENACC
 #undef printf
@@ -224,7 +224,7 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *, Monitornd_noaccVa
 void Monitor_nd_noaccFinally(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *);
 void Monitor_nd_noaccMcDisplay(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *);
 
-#ifdef OPENACC_BAK
+#if defined(OPENACC) || defined(_OPENMP)_BAK
 #define OPENACC
 #define fprintf(stderr,...) printf(__VA_ARGS__)
 #define sprintf(string,...) printf(__VA_ARGS__)

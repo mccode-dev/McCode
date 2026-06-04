@@ -1726,7 +1726,7 @@ struct tagging_tree_node_struct *goto_volume_node(struct tagging_tree_node_struc
 
     // Debug phase
     //printf("Tagging: going from volume %d to volume %d, which is index number %d on it's next volume list \n",current_volume,next_volume,next_volume_list_index);
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     if (next_volume_list_index == -1) {
         printf("ERROR in Union component, tagging or destination system failed, next volume was not on next volume list\n");
         printf("current_volume = %d, next_volume = %d \n",current_volume,next_volume);
@@ -6514,7 +6514,7 @@ int intersect_function(double *t, double *nx, double *ny, double *nz, int *surfa
         case cone:
             output = sample_cone_intersect(t, nx, ny, nz, surface_index, num_solutions, r, v, geometry);
             break;
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         case mesh:
             output = sample_mesh_intersect(t, nx, ny, nz, surface_index, num_solutions, r, v, geometry);
             break;
@@ -6546,7 +6546,7 @@ int r_within_function(Coords pos,struct geometry_struct *geometry) {
         case cone:
             output = r_within_cone(pos, geometry);
             break;
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         case mesh:
             output = r_within_mesh(pos, geometry);
             break;
@@ -7022,7 +7022,7 @@ int inside_function(struct Volume_struct *parent_volume, struct Volume_struct *c
         if (mesh_within_box(&child_volume->geometry,&parent_volume->geometry)) return 1;
     }
     else {
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         printf("Need within function for type: ");
         printf("%s",parent_volume->geometry.shape);
         printf(" and type: ");

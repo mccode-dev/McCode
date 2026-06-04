@@ -178,7 +178,7 @@ static const te_variable functions[] = {
     {"abs", fabs,     TE_FUNCTION1 | TE_FLAG_PURE, 0},
     {"acos", acos,    TE_FUNCTION1 | TE_FLAG_PURE, 0},
     {"asin", asin,    TE_FUNCTION1 | TE_FLAG_PURE, 0},
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     {"atan", atan,    TE_FUNCTION1 | TE_FLAG_PURE, 0},
     #endif
     {"atan2", atan2,  TE_FUNCTION2 | TE_FLAG_PURE, 0},

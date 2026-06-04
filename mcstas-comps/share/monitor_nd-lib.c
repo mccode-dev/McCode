@@ -345,7 +345,7 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
         if (!strcmp(token, "parallel")){ Vars->Flag_parallel = 1; iskeyword=1; }
         if (!strcmp(token, "capture")) { Vars->Flag_capture = 1; iskeyword=1; }
         if (!strcmp(token, "auto")) { 
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         if (Flag_auto != -1) {
 	    Vars->Flag_Auto_Limits = 1;
 	    if (Flag_All) Flag_auto = -1;
@@ -1168,7 +1168,7 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
     Vars->Flag_Auto_Limits = 2;  /* pass to 2nd auto limits step (read Buffer and generate new events to store in histograms) */
   } /* end if Flag_Auto_Limits == 1 */
 
-#ifndef OPENACC
+#if !defined(OPENACC) && !defined(_OPENMP)
   /* manage realloc for 'list all' if Buffer size exceeded: flush Buffer to file */
   if ((Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List >= 2))
   {
