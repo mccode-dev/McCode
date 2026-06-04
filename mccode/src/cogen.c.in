@@ -1802,7 +1802,7 @@ int cogen_raytrace(struct instr_def *instr)
       coutf("    _class_particle Split_%s_particle=*_particle;", comp->name); // store incoming particle state at SPLIT
       coutf("    int Split_%s_counter;", comp->name);
       coutf("    int SplitS_%s = %s;", comp->name, exp);
-      coutf("    #pragma omp target teams loop");
+      coutf("    #pragma omp target teams num_teams(64) thread_limit(16) loop");
       coutf("    for (" "Split_%s_counter = 0; "
                         "Split_%s_counter< SplitS_%s; "
                         "Split_%s_counter++) {",
@@ -2002,7 +2002,7 @@ int cogen_raytrace(struct instr_def *instr)
   list_iterate_end(liter);
   cout("#pragma omp target data map(to:_instrument_var)");
   cout ("  {");
-  coutf("    #pragma omp target teams loop");
+  coutf("    #pragma omp target teams num_teams(64) thread_limit(16) loop");
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
   coutf("      _class_particle particleN = mcgenstate(); // initial particle");
   coutf("      _class_particle* _particle = &particleN;");
@@ -2152,7 +2152,7 @@ int cogen_rt_funnel(struct instr_def *instr)
 
   // init batch
   coutf("    // init particles");
-  coutf("    #pragma omp target teams loop map(tofrom: particles[0:livebatchsize], weights[0:livebatchsize])");
+  coutf("    #pragma omp target teams num_teams(64) thread_limit(16) loop map(tofrom: particles[0:livebatchsize], weights[0:livebatchsize])");
   coutf("    for (unsigned long pidx=0 ; pidx < livebatchsize ; pidx++) {");
   coutf("      // generate particle state, set loop index and seed");
   coutf("      particles[pidx] = mcgenstate();");
@@ -2216,7 +2216,7 @@ int cogen_rt_funnel(struct instr_def *instr)
     if (first || (comp->cpuonly != cpuonly_last) || comp->split) {
       coutf("");
       if (comp->cpuonly == 0) {
-	coutf("    #pragma omp target teams loop map(tofrom: particles[0:livebatchsize])");
+	coutf("    #pragma omp target teams num_teams(64) thread_limit(16) loop map(tofrom: particles[0:livebatchsize])");
       } else {
 	coutf("    //#ifdef MULTICORE");
 	coutf("    //#pragma acc parallel loop device_type(host)");
