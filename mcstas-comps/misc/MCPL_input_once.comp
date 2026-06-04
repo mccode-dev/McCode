@@ -169,7 +169,7 @@ INITIALIZE
   #endif
   read_neutrons = 0;
   used_neutrons = 0;
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   preload = 1;
   printf ("OpenACC, preload implicit:\n");
   #endif
@@ -223,7 +223,7 @@ TRACE
     // go back to the start of this worker's particles, rather than accessing out-of-range data
     #pragma acc atomic write
     current_index = 0;
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     if (!preload) {
       // mcpl_seek is not available under openACC, and not used anyway
       mcpl_seek (inputfile, first_particle);
@@ -231,7 +231,7 @@ TRACE
     #endif
     times_replayed++;
   }
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   // preload can only ever be false if OPENACC is not define (in which case it is the likely code path)
   if (!preload) {
     ptr = (mcpl_input_once_particle_t*)calloc (1, sizeof (mcpl_input_once_particle_t));
@@ -254,7 +254,7 @@ TRACE
   } else {
     #endif
     ptr = particles + (_particle->_uid % maximum_index);
-    #ifdef OPENACC
+    #if defined(OPENACC) || defined(_OPENMP)
     #pragma acc atomic
     current_index++; // track how many particles have been accessed, to ensure we don't exceed our slice of the file
                      #else
@@ -319,7 +319,7 @@ TRACE
 
 SAVE
 %{
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   if (!preload)
     mcpl_close_file (inputfile);
   #endif

@@ -104,7 +104,7 @@ SHARE
   #pragma acc routine
   void
   fatalerror (char* s) {
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     fatalerror_cpu (s);
     #endif
   }
@@ -512,7 +512,7 @@ TRACE
       E_max = fabs (S * (2 * (8 * fabs (j) + 2 * (fabs (ja) + fabs (jb) + fabs (jc)))) - D * (S - 0.5)) + fabs (B2E * B);
     }
 
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     findroots (0, v_i, sqrt (v_i * v_i + 1 / VS2E * E_max) + 20, vf_list, &nf, omega_q, parms, e_steps_low, e_steps_high);
     #else
     findroots_gpu (0, v_i, sqrt (v_i * v_i + 1 / VS2E * E_max) + 20, vf_list, &nf, parms, e_steps_low, e_steps_high); /*+10 to make sure final point is included*/

@@ -125,7 +125,7 @@ SHARE
   #pragma acc routine
   void
   fatalerror (char* s) {
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     fatalerror_cpu (s);
     #endif
   }
@@ -667,7 +667,7 @@ SHARE
     return 0.0;
   }
 
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   #pragma acc routine
   double
   zridd_gpu (double x1, double x2, cdouble* parms, cdouble* vector, double xacc) {
@@ -806,7 +806,7 @@ SHARE
     return *index;
   }
 
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   #pragma acc routine
   int
   findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, cdouble* vector, int low_steps, int high_steps) {
@@ -982,7 +982,7 @@ TRACE
       p_call[12] = cplx (0, 0);
     }
 
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     findroots (0, v_i, v_i + V_HIGH, vf_list, &nf, omega_q, p_call, eigenvectormode, e_steps_low, e_steps_high);
     #else
     findroots_gpu (0, v_i, v_i + V_HIGH, vf_list, &nf, p_call, eigenvectormode, e_steps_low, e_steps_high);

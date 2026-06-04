@@ -300,7 +300,7 @@ SHARE
   /* used for reading data table from file */
   %include "read_table-lib"
   %include "interoff-lib"
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   %include "opencl-lib"
   #endif
   /* Declare structures and functions only once in each instrument. */
@@ -1159,7 +1159,7 @@ DECLARE
   struct hkl_info_struct hkl_info;
   off_struct offdata;
   struct hkl_data* hkl_list;
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   struct tau_data tau_list[MCSX_REFL_SLIST_SIZE];
   #endif
 %}
@@ -1283,7 +1283,7 @@ TRACE
   double t1, t2 = 0;  /* Entry and exit times in sample */
   struct hkl_data* L; /* Structure factor list */
   int i;              /* Index into structure factor list */
-                      #ifndef OPENACC
+                      #if !defined(OPENACC) && !defined(_OPENMP)
   struct tau_data* T; /* List of reflections close to Ewald sphere */
                       #else
   struct tau_data T[MCSX_REFL_SLIST_SIZE];
@@ -1333,7 +1333,7 @@ TRACE
   char type; /* type of last event: t=transmit,c=coherent or i=incoherent */
   int itype; /* type of last event: t=1,c=2 or i=3 */
 
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   #ifdef USE_OFF
   off_struct thread_offdata = offdata;
   #endif
@@ -1377,7 +1377,7 @@ TRACE
     type = '\0';
     itype = 0;
 
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     T = tau_list;
     hkl_info.type = type;
     #endif
@@ -1403,7 +1403,7 @@ TRACE
       if (!intersect || t2 * v < -1e-9 || t1 * v > 1e-9) {
         /* neutron is leaving the sample */
         if (hkl_info.flag_warning < 10)
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           fprintf (stderr,
                    "Single_crystal: %s: Warning: neutron has unexpectedly left the crystal!\n"
                    "                t1=%g t2=%g x=%g y=%g z=%g vx=%g vy=%g vz=%g\n",
@@ -1477,7 +1477,7 @@ TRACE
 
       // Condition to skip calculation of coherent cross section when, needed for extra_order feature
       if (order == 0 || extra_order == 0 || event_counter < order) {
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         /* in case we use 'SPLIT' then consecutive neutrons can be identical when entering here
            and we may skip the hkl_search call. One tau_list is reserved for data for the initial
                ray results so that it potentially can be reused later. */
@@ -1507,7 +1507,7 @@ TRACE
             tau_count = hkl_search (L, T, hkl_info.count, hkl_info.V0, kix, kiy, kiz, tau_max, &coh_refl, &coh_xsect);
 
           /* store ki so that we can check for further SPLIT iterations */
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           if (tau_count > hkl_info.max_tau_count) {
             hkl_info.max_tau_count = tau_count;
           }
@@ -1569,7 +1569,7 @@ TRACE
         type = 't';
         if (!itype)
           itype = 1;
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         hkl_info.type = type;
         #endif
 
@@ -1636,7 +1636,7 @@ TRACE
         type = 'i';
         if (!itype)
           itype = 2;
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         hkl_info.type = type;
         #endif
       } else {
@@ -1647,7 +1647,7 @@ TRACE
         sum = 0;
         j = hkl_select (T, tau_count, coh_refl, &sum, _particle);
         if (j >= tau_count) {
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           if (hkl_info.flag_warning < 10)
             fprintf (stderr,
                      "Single_crystal: Error: Illegal tau search "
@@ -1684,7 +1684,7 @@ TRACE
         type = 'c';
         if (!itype)
           itype = 3;
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         hkl_info.type = type;
         hkl_info.h = L[i].h;
         hkl_info.k = L[i].k;

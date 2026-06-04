@@ -1087,12 +1087,12 @@ TRACE
   // Initialize logger system / Statistics
   number_of_scattering_events = 0;
 
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   if (inherit_number_of_scattering_events == 1) // Continue number of scattering from previous Union_master
     number_of_scattering_events = global_master_list_master->elements[this_global_master_index - 1].stored_number_of_scattering_events;
   #endif
 
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   // Zero scattered_flag_VP data
   for (my_volume_index = 1; my_volume_index < number_of_volumes; my_volume_index++) { // No reason to update volume 0, as scattering doesn't happen there
     scattered_flag[my_volume_index] = 0;
@@ -1104,7 +1104,7 @@ TRACE
   // If first Union_master in instrument, reset loggers_with_data_array and clean unused data.
   // Unused data happens when logging data is passed to the next Union_master, but the ray is absorbed on the way.
   // Could be improved by using the precompiler instead as ncount times the number of Union_masters could be avoided.
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   if (global_master_list_master->elements[0].component_index == INDEX_CURRENT_COMP) {
     // If this is the first Union master, clean up logger data for rays that did not make it through Union components
     for (log_index = loggers_with_data_array.used_elements - 1; log_index > -1; log_index--) {
@@ -1176,7 +1176,7 @@ TRACE
   // Check if the ray appeared in an allowed starting volume, unless this check is disabled by the user for advanced cases
   if (allow_inside_start == 0 && my_starting_lists.allowed_starting_volume_logic_list.elements[current_volume] == 0) {
     printf ("ERROR, ray ''teleported'' into Union component %s, if intentional, set allow_inside_start=1\n", NAME_CURRENT_COMP);
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     // NEED ERROR FLAG: Need to set an error flag that is read in finally to warn user of problem.
     exit (1);
     #endif
@@ -1193,7 +1193,7 @@ TRACE
   // Rays can still follow the nodes created before even when no additional nodes are created, but if a situation that
   //  requires a new node is encountered, stop_tagging_ray is set to 1, stopping further tagging and preventing the data
   //  for that ray to be used further.
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   if (enable_tagging) {
     current_tagging_node = master_tagging_node_list.elements[current_volume];
     stop_tagging_ray = 0; // Allow this ray to be tracked
@@ -1668,7 +1668,7 @@ TRACE
       // min length: 0, max length: length_to_scattering if scattering, else length to boundary
 
       // Avoid logging absorption when the ray is in vacuum.
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
       if (current_volume != 0 && abs_weight_factor_set == 1) {    // Volume 0 is always vacuum, and if this is the current volume, an event will not occur
         if (Volumes[current_volume]->p_physics->is_vacuum == 0) { // No absorption in vacuum
 
@@ -1865,7 +1865,7 @@ TRACE
         printf ("Running logger system for specific volumes \n");
         #endif
         // Logging for detector components assosiated with this volume
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         for (log_index = 0; log_index < Volumes[current_volume]->loggers.num_elements; log_index++) {
           if (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process] != NULL) {
             // Technically the scattering function could edit k, the wavevector before the scattering, even though there would be little point to doing that.
@@ -1887,7 +1887,7 @@ TRACE
         #ifdef Union_trace_verbal_setting
         printf ("Running logger system for all volumes \n");
         #endif
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         for (log_index = 0; log_index < global_all_volume_logger_list_master->num_elements; log_index++) {
           // As above, but on a global scale, meaning scattering in all volumes are logged
 
@@ -1903,7 +1903,7 @@ TRACE
         printf ("Outgoing event: %g %g %g // %g %g %g\n", x, y, z, vx, vy, vz);
         #endif
         SCATTER;
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         ++number_of_scattering_events;
         ++scattered_flag[current_volume];
         ++scattered_flag_VP[current_volume][selected_process];
@@ -1916,7 +1916,7 @@ TRACE
         printf ("SCATTERED SUCSSESFULLY \n");
         printf ("r = (%f,%f,%f) v = (%f,%f,%f) \n", x, y, z, vx, vy, vz);
 
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         if (enable_tagging && stop_tagging_ray == 0)
           printf ("Before new process node: current_tagging_node->intensity = %f\n", current_tagging_node->intensity);
         if (enable_tagging && stop_tagging_ray == 0)
@@ -1924,13 +1924,13 @@ TRACE
         #endif
         #endif
 
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         if (enable_tagging && stop_tagging_ray == 0)
           current_tagging_node = goto_process_node (current_tagging_node, selected_process, Volumes[current_volume], &stop_tagging_ray, stop_creating_nodes);
         #endif
         #ifdef Union_trace_verbal_setting
 
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         if (enable_tagging && stop_tagging_ray == 0)
           printf ("After new process node: current_tagging_node->intensity = %f\n", current_tagging_node->intensity);
         if (enable_tagging && stop_tagging_ray == 0)
@@ -1991,7 +1991,7 @@ TRACE
           }
 
           #ifdef Union_trace_verbal_setting
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           if (enable_tagging)
             printf ("tree method moves from %d to %d\n", current_volume, tree_next_volume);
 
@@ -2002,13 +2002,13 @@ TRACE
           #endif
           #endif
 
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           if (enable_tagging && stop_tagging_ray == 0)
             current_tagging_node = goto_volume_node (current_tagging_node, current_volume, tree_next_volume, Volumes, &stop_tagging_ray, stop_creating_nodes);
           #endif
 
           #ifdef Union_trace_verbal_setting
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           if (enable_tagging && stop_tagging_ray == 0)
             printf ("After new tree volume node: current_tagging_node->intensity = %f\n", current_tagging_node->intensity);
           if (enable_tagging && stop_tagging_ray == 0)
@@ -2025,7 +2025,7 @@ TRACE
 
         } else {
           #ifdef Union_trace_verbal_setting
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           if (enable_tagging && stop_tagging_ray == 0)
             printf ("Before new intersection volume node: current_tagging_node->intensity = %f\n", current_tagging_node->intensity);
           if (enable_tagging && stop_tagging_ray == 0)
@@ -2043,7 +2043,7 @@ TRACE
             #ifdef Union_trace_verbal_setting
             printf ("Min volume is not a mask, next volume = min volume\n");
             #endif
-            #ifndef OPENACC
+            #if !defined(OPENACC) && !defined(_OPENMP)
             if (enable_tagging && stop_tagging_ray == 0) {
               current_tagging_node = goto_volume_node (current_tagging_node, current_volume, min_volume, Volumes, &stop_tagging_ray, stop_creating_nodes);
             }
@@ -2121,7 +2121,7 @@ TRACE
                     #ifdef Union_trace_verbal_setting
                     printf ("The method found the next tree volume to be %d\n", tree_next_volume);
                     #endif
-                    #ifndef OPENACC
+                    #if !defined(OPENACC) && !defined(_OPENMP)
                     if (enable_tagging && stop_tagging_ray == 0)
                       current_tagging_node
                           = goto_volume_node (current_tagging_node, current_volume, tree_next_volume, Volumes, &stop_tagging_ray, stop_creating_nodes);
@@ -2137,7 +2137,7 @@ TRACE
                                                                 Volumes[min_volume]->geometry.destinations_list, Volumes, &my_mask_status_list, number_of_volumes,
                                                                 pre_allocated1, pre_allocated2, pre_allocated3);
 
-                    #ifndef OPENACC
+                    #if !defined(OPENACC) && !defined(_OPENMP)
                     if (enable_tagging && stop_tagging_ray == 0)
                       current_tagging_node
                           = goto_volume_node (current_tagging_node, current_volume, tree_next_volume, Volumes, &stop_tagging_ray, stop_creating_nodes);
@@ -2168,7 +2168,7 @@ TRACE
               if (tree_next_volume != 0) {
                 if (Volumes[tree_next_volume]->geometry.priority_value > Volumes[current_volume]->geometry.priority_value) {
                   // In case the current volume has a higher priority, nothing happens, otherwise change current volume
-                  #ifndef OPENACC
+                  #if !defined(OPENACC) && !defined(_OPENMP)
                   if (enable_tagging && stop_tagging_ray == 0)
                     current_tagging_node
                         = goto_volume_node (current_tagging_node, current_volume, tree_next_volume, Volumes, &stop_tagging_ray, stop_creating_nodes);
@@ -2184,7 +2184,7 @@ TRACE
           #ifdef Union_trace_verbal_setting
           print_1d_int_list (my_mask_status_list, "Updated mask status list");
           print_1d_int_list (current_mask_intersect_list_status, "Updated current_mask_intersect_list_status");
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           if (enable_tagging)
             printf ("After new intersection volume node: current_tagging_node->intensity = %f\n", current_tagging_node->intensity);
           if (enable_tagging)
@@ -2211,7 +2211,7 @@ TRACE
           component_error_msg++;
           ray_sucseeded = 0;
           done = 1; // stop the loop
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           printf ("\n----------------------------------------------------------------------------------------------------\n");
           printf ("Union_master %s: Somehow reached a situation with no intersection time found, but still inside volume %d instead of 0\n", NAME_CURRENT_COMP,
                   current_volume);
@@ -2233,7 +2233,7 @@ TRACE
 
         if (component_error_msg > 100) {
           printf ("To many errors encountered, exiting. \n");
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           // need ERROR FLAG to be read in finally which can warn the user of problems!
           exit (1);
           #endif
@@ -2259,7 +2259,7 @@ TRACE
     printf ("----------- logger loop --------------------------------------\n");
     #endif
     // Loggers attatched to specific volumes need to be handled with care to avoid looping over all loggers for every ray
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     if (enable_conditionals == 1) {
       for (log_index = loggers_with_data_array.used_elements - 1; log_index > -1; log_index--) {
         // Check all conditionals attatched to the current logger
@@ -2366,7 +2366,7 @@ TRACE
     }
     #endif
 
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     if (enable_tagging && stop_tagging_ray == 0) {
       conditional_status = 1;
       for (iterator = 0; iterator < tagging_conditional_list->num_elements; iterator++) {
@@ -2414,12 +2414,12 @@ TRACE
   number_of_solutions_static = number_of_solutions_static + number_of_solutions;
 
   // Stores nubmer of scattering events in global master list so that another master with inherit_number_of_scattering_events can continue
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   global_master_list_master->elements[this_global_master_index].stored_number_of_scattering_events = number_of_scattering_events;
   #endif
 
   #ifdef debug_initialize_timetable
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   free (my_intersection_time_table);
   #endif
   #endif
@@ -2453,7 +2453,7 @@ FINALLY
   free (number_of_processes_array);
   free (Geometries);
 
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   if (finally_verbal)
     printf ("Freeing my_intersection_time_table \n");
   for (iterator = 1; iterator < intersection_time_table->num_volumes; iterator++) {

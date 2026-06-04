@@ -743,7 +743,7 @@ SHARE
     *sum = 0;
 
     /* check if a line_info element has been recorded already - not on OpenACC */
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     if (v >= line_info->v_min && v <= line_info->v_max && line_info->neutron_passed >= CHAR_BUF_LENGTH) {
       line = (int)floor (v - line_info->v_min) * CHAR_BUF_LENGTH / (line_info->v_max - line_info->v_min);
       Nq = line_info->xs_Nq[line];
@@ -1051,7 +1051,7 @@ TRACE
   long xs_calls = line_info.xs_calls;
   double dq = line_info.dq;
 
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   #ifdef USE_OFF
   off_struct thread_offdata = offdata;
   #endif
@@ -1116,7 +1116,7 @@ TRACE
     }
 
     /* Calculate total scattering cross section at relevant velocity - but not on GPU*/
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     if (fabs (v - vcache) < 1e-6) {
       nb_reuses++;
     } else {
@@ -1125,7 +1125,7 @@ TRACE
       vcache = v;
       nb_refl += Nq;
       nb_refl_count++;
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
     }
     #endif
 
@@ -1394,7 +1394,7 @@ TRACE
   } /* else transmit non interacting neutrons */
 
   // Inject these back to global struct in non-OpenACC case
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   line_info.nb_reuses = nb_reuses;
   line_info.nb_refl = nb_refl;
   line_info.nb_refl_count = nb_refl_count;

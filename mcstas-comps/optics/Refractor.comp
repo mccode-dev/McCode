@@ -380,7 +380,7 @@ TRACE
 
   theta1 = theta2 = 0;
 
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   #ifdef USE_OFF
   off_struct thread_offdata = offdata;
   #endif
@@ -394,7 +394,7 @@ TRACE
 
     intersect = 0;
     iterations++;
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     strcpy (event, "                                               ");
     #endif
     /* determine intersection times and normal vector with geometry */
@@ -429,7 +429,7 @@ TRACE
     }
     if (dt <= 0)
       break;
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     strcpy (event, "none");
     #endif
     if (verbose)
@@ -538,7 +538,7 @@ TRACE
         }
         /* force to recompute intersection with new neutron direction/position */
         refract_me = 0;
-        #ifndef OPENACC
+        #if !defined(OPENACC) && !defined(_OPENMP)
         strcpy (event, "scatter");
         #endif
         if (verbose)
@@ -624,7 +624,7 @@ TRACE
             // choose reflection from MC
             theta2 = theta1;
             coords_get (V_reflect, &vx, &vy, &vz);
-            #ifndef OPENACC
+            #if !defined(OPENACC) && !defined(_OPENMP)
             strcpy (event, "reflect");
             #endif
           } else if (p_refract) {
@@ -635,7 +635,7 @@ TRACE
             Coords V_refract = coords_scale (I_refract, v);
 
             coords_get (V_refract, &vx, &vy, &vz);
-            #ifndef OPENACC
+            #if !defined(OPENACC) && !defined(_OPENMP)
             strcpy (event, "refract");
             #endif
             SCATTER; /* 3 */
@@ -646,7 +646,7 @@ TRACE
           if (0 < R && R < 1)
             p *= R; // should be R0
           coords_get (V_reflect, &vx, &vy, &vz);
-          #ifndef OPENACC
+          #if !defined(OPENACC) && !defined(_OPENMP)
           strcpy (event, "reflect");
           #endif
         }

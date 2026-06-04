@@ -135,7 +135,7 @@ SHARE
     double* C = malloc (Psize * sizeof (double));
     double* D = malloc (Psize * sizeof (double));
     if (!C || !D) {
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
       fprintf (stderr, "Error in ISIS_moderator: memory allocation failure. Exit!\n");
       exit (-1);
       #endif
@@ -736,7 +736,7 @@ SHARE
     // }
 
     if (R < TS.Flux[Epnt - 1][Tpnt - 1] || R > TS.Flux[Epnt - 1][Tpnt]) {
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
       fprintf (stderr, "outside bin limits Tpnt/Epnt problem  %12.6e %12.6e %12.6e \n", TS.Flux[Epnt - 1][Tpnt - 1], R, TS.Flux[Epnt - 1][Tpnt]);
       #endif
     }
@@ -752,13 +752,13 @@ SHARE
     }
 
     if (Tpnt == 0 || Epnt == 0) {
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
       fprintf (stderr, "BIG ERROR WITH Tpnt: %d and Epnt: %d\n", Tpnt, Epnt);
       exit (1);
       #endif
     }
     if (Tpnt == TS.nTime) {
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
       fprintf (stderr, "BIG ERROR WITH Tpnt and Epnt\n");
       exit (1);
       #endif
@@ -788,14 +788,14 @@ SHARE
     //	  TS.EInt[Epnt],TS.EInt[Epnt-1]);
 
     if (*TV < TS.TimeBin[Tpnt - 1] || *TV > TS.TimeBin[Tpnt]) {
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
       fprintf (stderr, "%d Tpnt %d Tval %g Epnt %d \n", TS.nTime, Tpnt, *TV, Epnt);
       fprintf (stderr, "TBoundary == %12.6e,%g , %12.6e \n\n", TS.TimeBin[Tpnt - 1], *TV, TS.TimeBin[Tpnt]);
       #endif
     }
 
     if (*EV < *lim1 || *EV > *lim2) {
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
       fprintf (stderr, "outside boundaries\n Epnt= %d, Tpnt= %d binlo %g|%g| binhi %g \n", Epnt, Tpnt, TS.EnergyBin[Epnt - 1], *EV, TS.EnergyBin[Epnt]);
 
       fprintf (stderr, "TS == %g %g :: %d %d \n", TS.EInt[Epnt - 1], TS.EInt[Epnt], iStart, iEnd);
@@ -1084,7 +1084,7 @@ TRACE
 
   p = beamcurrent * angleArea * Ival / Nsim;
 
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   if (verbose && !(Ncount % 100000)) {
     fprintf (stderr, "FPos[%d]=> %g %g %g  \n", Ncount, x, y, z);
     fprintf (stderr, "FDir[%d]=> %g %g %g  \n", Ncount, vx, vy, vz);

@@ -194,7 +194,7 @@ INITIALIZE
     mcpl_hdr_add_comment (outputfile, line);
   }
 
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   /*pointer to the single particle storage area*/
   particle = mcpl_get_empty_particle (outputfile);
   #else
@@ -222,7 +222,7 @@ INITIALIZE
 
 TRACE
 %{
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   int cap;
   #pragma acc atomic capture
   {
@@ -293,7 +293,7 @@ TRACE
 
 SAVE
 %{
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   double nrm;
   unsigned long long i;
   if (captured > ceil (buffermax)) {
@@ -360,7 +360,7 @@ FINALLY
   if (verbose) {
     MPI_MASTER (printf ("\n\nMCPL output summary from %s\n", outfilename); mcpl_dump (outfilename, 0, 0, 10););
   }
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   destroy_darr1d (X);
   destroy_darr1d (Y);
   destroy_darr1d (Z);

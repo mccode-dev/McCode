@@ -142,7 +142,7 @@ INITIALIZE
 
   if (!(nparticles = mcpl_hdr_nparticles (inputfile))) {
     fprintf (stderr, "Warning(%s): MCPL-file reports no present particles. Foolishly trying to go on.\n", NAME_CURRENT_COMP);
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     nparticles = ncount;
     #endif
   } else {
@@ -191,7 +191,7 @@ INITIALIZE
 
   MPI_MASTER (if (verbose == 1) { printf ("MCPL_input verbose mode - outputting data on the 10 first read neutrons in MCPL units:\n"); });
   repeating = 0;
-  #ifdef OPENACC
+  #if defined(OPENACC) || defined(_OPENMP)
   preload = 1;
   printf ("OpenACC, preload implicit:\n");
   #endif
@@ -268,7 +268,7 @@ TRACE
 
   double nrm;
   long long ncount;
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   const mcpl_particle_t* particle; // = (mcpl_particle_t *) calloc(sizeof(mcpl_particle_t),1);
   if (!preload) {
     particle = mcpl_read (inputfile);
@@ -310,7 +310,7 @@ TRACE
   }
   if (!preload) {
     /*positions are in cm*/
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     x = particle->position[0] / 100;
     y = particle->position[1] / 100;
     z = particle->position[2] / 100;
@@ -335,7 +335,7 @@ TRACE
 
   if (polarisationuse) {
     if (!preload) {
-      #ifndef OPENACC
+      #if !defined(OPENACC) && !defined(_OPENMP)
       sx = particle->polarisation[0];
       sy = particle->polarisation[1];
       sz = particle->polarisation[2];
@@ -351,7 +351,7 @@ TRACE
 
   /*ekin is in MeV, in McStas meV*/
   if (!preload) {
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     nrm = particle->ekin * 1e9 / VS2E;
     #endif
   } else {
@@ -364,7 +364,7 @@ TRACE
   }
   double d0, d1, d2;
   if (!preload) {
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     d0 = particle->direction[0];
     d1 = particle->direction[1];
     d2 = particle->direction[2];
@@ -387,7 +387,7 @@ TRACE
   vz = d2 * nrm;
 
   if (!preload) {
-    #ifndef OPENACC
+    #if !defined(OPENACC) && !defined(_OPENMP)
     /*time in ms:*/
     t = particle->time * 1e-3;
     /*weight in unspecified units:*/
@@ -404,7 +404,7 @@ TRACE
 
 SAVE
 %{
-  #ifndef OPENACC
+  #if !defined(OPENACC) && !defined(_OPENMP)
   if (!preload) {
     mcpl_close_file (inputfile);
   }
