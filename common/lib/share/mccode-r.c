@@ -40,7 +40,14 @@
 /** Include header files to avoid implicit declarations (not allowed on LLVM) */
 #include <ctype.h>
 #include <sys/types.h>
+#ifndef _MSC_EXTENSIONS
 #include <dirent.h>
+#else
+/* McCode includes its own 'dirent' for use with MSVC on Windows */
+#include <windirent.h>
+#define popen _popen
+#define pclose _pclose
+#endif
 #include <errno.h>
 
 // UNIX specific headers (non-Windows)

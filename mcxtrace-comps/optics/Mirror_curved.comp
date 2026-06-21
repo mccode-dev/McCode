@@ -38,7 +38,7 @@ SETTING PARAMETERS (radius=1, R0=1, string coating="Be.txt",
 
 SHARE
 %{
-  #include <complex.h>
+  %include "mccode-complex-lib"
   %include "read_table-lib"
   %include "reflectivity-lib"
 %}
@@ -121,8 +121,8 @@ TRACE
       double Q;
       /*length of wavevector transfer may be compute from s and n_ above*/
       Q = fabs (2 * s * sqrt (nx * nx + nz * nz));
-      double complex R = refleccq (re, Q, 0, k, fabs (90 - acos (s / k) * RAD2DEG));
-      p *= sqrt (creal (R * conj (R)));
+      cdouble R = refleccq (re, Q, 0, k, fabs (90 - acos (s / k) * RAD2DEG));
+      p *= sqrt (creal (cmul(R, conj (R))));
       phi += atan2 (cimag (R), creal (R));
     }
   } else if (fabs (kx) < DBL_EPSILON && fabs (kz) < DBL_EPSILON && ky != 0) {

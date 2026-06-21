@@ -257,6 +257,7 @@ TRACE
   int flag = 0;
   double mc_trans, p_trans, mc_scatt, p_scatt, ws;
   double p_mult = 1;
+  int flag_ishollow = 0;
 
   #ifdef OPENACC
   #ifdef USE_OFF
@@ -281,7 +282,7 @@ TRACE
     #endif
 
     if (intersect) {
-      int flag_ishollow = 0;
+      flag_ishollow = 0;
       if (thickness > 0) {
         if (VarsInc.shape == 0 && cylinder_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius - thickness, yheight - 2 * thickness))
           flag_ishollow = 1;
@@ -477,11 +478,48 @@ TRACE
       intersect = off_intersect (&t0, &t3, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata);
     #endif
 
-    d_path = v * t3; /* Length of full path through sample */
+    flag_ishollow = 0;
+    if (thickness > 0) {
+      if (VarsInc.shape == 0 && cylinder_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius - thickness, yheight - 2 * thickness))
+        flag_ishollow = 1;
+      else if (VarsInc.shape == 2 && sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius - thickness))
+        flag_ishollow = 1;
+      else if (VarsInc.shape == 1 && box_intersect (&t1, &t2, x, y, z, vx, vy, vz, xwidth - 2 * thickness, yheight - 2 * thickness, zdepth - 2 * thickness))
+        flag_ishollow = 1;
+    }
+    if (!flag_ishollow)
+      t1 = t2 = t3; /* no empty space inside */
+
+    dt0 = t1 - (t0 > 0 ? t0 : 0); /* Time in first part of hollow/cylinder/box */
+    dt1 = t2 - (t1 > 0 ? t1 : 0); /* Time in hole */
+    dt2 = t3 - (t2 > 0 ? t2 : 0); /* Time in 2nd part of hollow cylinder */
+
+    if (dt0 < 0)
+      dt0 = 0;
+    if (dt1 < 0)
+      dt1 = 0;
+    if (dt2 < 0)
+      dt2 = 0;
+
+    /* initialize concentric mode */
+    if (concentric && !flag_concentric && t0 >= 0 && VarsInc.shape == 0 && thickness > 0) {
+      flag_concentric = 1;
+    }
+
+    if (flag_concentric == 1) {
+      dt1 = dt2 = 0; /* force exit when reaching hole/2nd part */
+    }
+
+    d_path = v * (dt0 + dt2); // Attenuate only for material part, not hollow part
 
     p_trans = exp (-my_t * d_path);
     p *= p_trans;
-    PROP_DT (t3);
+
+    if (flag_concentric == 1 && flag_ishollow == 1 && t1 > 0) {
+      PROP_DT (t1); // When conentric, only propagate ray to start of hollow part
+    } else {
+      PROP_DT (t3); // Otherwise propagate out of the sample
+    }
   }
 %}
 

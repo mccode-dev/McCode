@@ -1,7 +1,7 @@
 #ifndef MX_CRYSTALS_C
 #define MX_CRYSTALS_C
 
-void Mx_CubicCrystalChi(double complex *chi0, double complex *chih, double *k0mag, double *hscale, double *thetaB,
+void Mx_CubicCrystalChi(cdouble *chi0, cdouble *chih, double *k0mag, double *hscale, double *thetaB,
                          double f00, double f0h, double fp, double fpp, double V, int h, int k, int l,
                          double debye_waller_B, double E,
                          int crystal_type, double fscaler, double fscalei)
@@ -17,7 +17,8 @@ void Mx_CubicCrystalChi(double complex *chi0, double complex *chih, double *k0ma
       *thetaB=0;
       *k0mag=0;
       *hscale=0;
-      *chi0=*chih=0;
+      *chi0=cplx(0.0,0.0);
+      *chih=cplx(0.0,0.0);
       return;
     }
 
@@ -29,7 +30,7 @@ void Mx_CubicCrystalChi(double complex *chi0, double complex *chih, double *k0ma
      https://en.wikipedia.org/wiki/Structure_factor section on diamond cubic crystals
      */
     
-    double complex fscaleh;
+    cdouble fscaleh;
     double fscale0;
     
     switch(crystal_type) {
@@ -38,16 +39,16 @@ void Mx_CubicCrystalChi(double complex *chi0, double complex *chih, double *k0ma
             break;
         case Mx_crystal_diamond: /* diamond lattice rules */
             if (((h+k+l)%2) != 0){ 		/* (111) etc. odd sum eflection */
-                fscaleh=4+4*I;
+                fscaleh=cplx(4.0,4.0);
                 fscale0=8;
             }
             else if (((h+k+l)%4)==0){ 		/* (400) etc. h+k+l=4n reflection */
-                fscaleh=8;
+                fscaleh=cplx(8.0,0.0);
                 fscale0=8;
             } else {
                 /* any other reflection is forbidden, will get a divide-by-zero somewhere, but user is
                  responsible for only using allowed reflections */
-                fscaleh=0;
+                fscaleh=cplx(0.0,0.0);
                 fscale0=0;
             }
             break;
@@ -55,43 +56,44 @@ void Mx_CubicCrystalChi(double complex *chi0, double complex *chih, double *k0ma
         {
             int hpar=h%2, kpar=k%2, lpar=l%2;
             if ( hpar==kpar && kpar==lpar ) { /* all parities the same */
-                fscaleh=4;
+                fscaleh=cplx(4.0,0.0);
                 fscale0=4;
             }
             else { 		/* mixed parity forbidden */
-                fscaleh=0;
+                fscaleh=cplx(0.0,0.0);
                 fscale0=0;
             }
         }
             break;
         case Mx_crystal_bcc: /* bcc lattice rules */
             if ( ((h+k+l)%2) == 0 ) { /* h+k+l even */
-                fscaleh=2;
+                fscaleh=cplx(2.0,0.0);
                 fscale0=2;
             }
             else { 		/* otherwise forbidden */
-                fscaleh=0;
+                fscaleh=cplx(0.0,0.0);
                 fscale0=0;
             }
             break;
         default:
-            fscaleh=fscale0=0; /* fail later if unknown crystal type */
+            fscale0=0;
+            fscaleh=cplx(0.0,0.0); /* fail later if unknown crystal type */
             break;
     }
     
-    double complex F0=fscale0*((f00+fp)+fpp*I); // NEVER CHECKED for crystals other than diamond structure
-    double complex Fh=cabs(fscaleh)*((f0h+fp)+fpp*I);
+    cdouble F0=rmul(fscale0, cplx(f00+fp, fpp)); // NEVER CHECKED for crystals other than diamond structure
+    cdouble Fh=rmul(cabs(fscaleh), cplx(f0h+fp, fpp));
     
     double GAMMA=RE*lambda*lambda/(PI*V);
     double M=debye_waller_B*SQR(sin(*thetaB)/lambda)*(2./3.); /* isotropic temperature factor */
-    *chi0 = -F0*GAMMA;
-    *chih = -Fh*GAMMA*exp(-M);
+    *chi0 = rmul(GAMMA, cneg(F0));
+    *chih = rmul(GAMMA*exp(-M), cneg(Fh));
 }
 
 int Mx_DarwinReflectivityBC(double *Rsig, double *Rpi, double kh[3],
                          const double k0hat[3], const double nhat[3],
                          const double alpha[3],
-                         double complex chi0, double complex chih, double complex chihbar,
+                         cdouble chi0, cdouble chih, cdouble chihbar,
                          double k0mag, double hscale, double thetaB
                          )
 {
@@ -110,19 +112,19 @@ int Mx_DarwinReflectivityBC(double *Rsig, double *Rpi, double kh[3],
     double bb=2*vdot(k0plusH, nhat);
     double cc = vdot(H,H) +2*vdot(k0,H);
     double root1, root2;
-    qsolve(root1, root2, 1., bb, cc, sqrt); //root2 is the small root
+    qsolve_real(root1, root2, 1., bb, cc, sqrt); //root2 is the small root
     vplus(kh, k0plusH, root2*nhat);
     
     for (int i=0; i<2; i++) { // do reflectivity using shared geometry for both polarizations
         double C=(i==0)?fabs(cos(2*thetaB)) : 1; // polarization factor
-        double complex xi0;
+        cdouble xi0;
         double K0[3], Kh[3];
-        double complex kqvals[4], xi0vals[4], xihvals[4];
+        cdouble kqvals[4], xi0vals[4], xihvals[4];
 
         int fail=Mx_DiffractionDispersion(kqvals, xi0vals, xihvals,
-                   k0, nhat, H, chi0, chih*chihbar, C, 1); // get first (interesting) root only
+                   k0, nhat, H, chi0, cmul(chih,chihbar), C, 1); // get first (interesting) root only
 
-        double complex kq=kqvals[0];
+        cdouble kq=kqvals[0];
         xi0=xi0vals[0];
         vplus(K0, k0, creal(kq)*nhat);
         vplus(Kh, K0, H);
@@ -136,7 +138,7 @@ int Mx_DarwinReflectivityBC(double *Rsig, double *Rpi, double kh[3],
             return 1;
         }
         
-        double complex eq24=2*xi0/(k0mag*C*chih); // B&C equation 24
+        cdouble eq24=cdiv(rmul(2.0,xi0), rmul(k0mag*C,chih)); // B&C equation 24
         double eratio=cabs(eq24);
         
 #ifdef MCDEBUG
@@ -174,10 +176,10 @@ void cross(double res[3], const double v1[3], const double v2[3], int unitize)
     }
 }
     
-int Mx_DiffractionDispersion(double complex kqvals[4], double complex xi0[4], double complex xih[4],
+int Mx_DiffractionDispersion(cdouble kqvals[4], cdouble xi0[4], cdouble xih[4],
                           const double k0[3], const double nhat[3],
                           const double H[3],
-                          double complex chi0, double complex chih_chihbar, double C, int nroots){
+                          cdouble chi0, cdouble chih_chihbar, double C, int nroots){
     /* compute the Batterman & Cole eq. 17 dispersion relation, and associated quantities.
        nroots sets how many roots to find.  They are sorted, with the first root being the attenuated incoming ray,
        then the amplified incoming ray, then the two 'big roots'.
@@ -189,41 +191,43 @@ int Mx_DiffractionDispersion(double complex kqvals[4], double complex xi0[4], do
     /* B&C equation 17 is ( |k0 + kq nhat|^2 - k0^2(1+chi0) ) ( |k0 + kq nhat + H|^2 - k0^2(1+chi0) ) = k^4 C^2 chih chihbar */
     double k0plusH[3];
     vplus(k0plusH, k0, H); // temporary k0+H as needed in second poly term above
-    double complex poly1[3], poly2[3], poly[5], deriv[4];
-    poly1[2]=1;
-    poly1[1]=2*vdot(k0,nhat);
-    poly1[0]=-k0mag*k0mag*chi0;
-    poly2[2]=1.;
-    poly2[1]=2*vdot(k0plusH,nhat);
-    poly2[0]=-k0mag*k0mag*chi0+vdot(H,H)+2*vdot(k0,H);
+    cdouble poly1[3], poly2[3], poly[5], deriv[4];
+    poly1[2]=cplx(1.0,0.0);
+    poly1[1]=cplx(2*vdot(k0,nhat), 0.0);
+    poly1[0]=rmul(-k0mag*k0mag, chi0);
+    poly2[2]=cplx(1.0,0.0);
+    poly2[1]=cplx(2*vdot(k0plusH,nhat), 0.0);
+    poly2[0]=radd(2*vdot(k0,H), radd(vdot(H,H), rmul(-k0mag*k0mag, chi0)));
     /* for multiplying these polys, just write it out explicitly */
-    poly[0]=poly1[0]*poly2[0];
-    poly[1]=poly1[0]*poly2[1]+poly1[1]*poly2[0];
-    poly[2]=poly1[0]*poly2[2]+poly1[1]*poly2[1]+poly1[2]*poly2[0];
-    poly[3]=poly1[1]*poly2[2]+poly1[2]*poly2[1];
-    poly[4]=poly1[2]*poly2[2];
-    double complex epsilon=(k0mag*k0mag*k0mag*k0mag*C*C)*chih_chihbar; // right-hand side of dispersion
-    poly[0]-=epsilon;
-    deriv[3]=4*poly[4];
-    deriv[2]=3*poly[3];
-    deriv[1]=2*poly[2];
-    deriv[0]=1*poly[1];
+    poly[0]=cmul(poly1[0],poly2[0]);
+    poly[1]=cadd(cmul(poly1[0],poly2[1]), cmul(poly1[1],poly2[0]));
+    poly[2]=cadd(cadd(cmul(poly1[0],poly2[2]), cmul(poly1[1],poly2[1])), cmul(poly1[2],poly2[0]));
+    poly[3]=cadd(cmul(poly1[1],poly2[2]), cmul(poly1[2],poly2[1]));
+    poly[4]=cmul(poly1[2],poly2[2]);
+    cdouble epsilon=rmul(k0mag*k0mag*k0mag*k0mag*C*C, chih_chihbar); // right-hand side of dispersion
+    poly[0]=csub(poly[0],epsilon);
+    deriv[3]=rmul(4.0,poly[4]);
+    deriv[2]=rmul(3.0,poly[3]);
+    deriv[1]=rmul(2.0,poly[2]);
+    deriv[0]=rmul(1.0,poly[1]);
     
     /* the dispersion polynomial is p1*p2-epsilon = 0; first, find big roots and factor out to leave only a quadratic with small (interesting) roots */
     /* big roots will be _close_ to big roots of p1 and p2, use these as guesses */
-    double complex p1b, p1s, p2b, p2s;
+    cdouble p1b, p1s, p2b, p2s;
     // p1b and p2b are always larger root in magnitude
     qsolve(p1b, p1s, poly1[2], poly1[1], poly1[0], csqrt);
     qsolve(p2b, p2s, poly2[2], poly2[1], poly2[0], csqrt);
     
     /* now, (x-p1b)(x-p2b)(x-p1s)(x-p2s)-epsilon is the full poly, but near the interesting region around p1s, p2s, flatten first two terms */
-    /* so x0 = (p1s+p2s)*0.5, this is (x-p1s)(x-p2s)-epsilon/((x0-p1b)(x0-p2b)) = 0 to get approximate roots of full poly */
-    double complex x0=(p1s+p2s)*0.5;
-    double complex fp[3] = {p1s*p2s-epsilon/((x0-p1b)*(x0-p2b)), -(p1s+p2s), 1.0 };
+    /* so x0 = (p1s+p2s)*0.5, this is (x-p1s)(x-p2s)-epsilon/((x0-p1b)*(x0-p2b)) = 0 to get approximate roots of full poly */
+    cdouble x0=rmul(0.5, cadd(p1s,p2s));
+    cdouble fp[3] = { csub(cmul(p1s,p2s), cdiv(epsilon, cmul(csub(x0,p1b), csub(x0,p2b)))),
+                      cneg(cadd(p1s,p2s)),
+                      cplx(1.0,0.0) };
     // factored poly roots, should be very close to exact roots
     // practical note:  looking at convergence, these roots are so close, one could probably drop the Newton's method refinement
     // completely.  However, since this code is intended to be pedantically correct, I will do the refinement.
-    double complex initroots[4];
+    cdouble initroots[4];
     qsolve(initroots[0], initroots[1], fp[2], fp[1], fp[0], csqrt); // solution to factored polynomial is starting point for newton's method
     
     int rootloops, fail=0;
@@ -232,7 +236,7 @@ int Mx_DiffractionDispersion(double complex kqvals[4], double complex xi0[4], do
     double kdotnhat=vdot(k0, nhat);
     if(cimag(initroots[0])*kdotnhat > 0) {
         if(cimag(initroots[1])*kdotnhat < 0) {
-            double complex swap;
+            cdouble swap;
             swap=initroots[0]; initroots[0]=initroots[1]; initroots[1]=swap;
         } else {
             // neither root has im(k) < 0, no physically possible solution.  Should never happen.
@@ -247,7 +251,7 @@ int Mx_DiffractionDispersion(double complex kqvals[4], double complex xi0[4], do
     initroots[3]=p2b; // the two big roots are last in the list
 
     for(rootloops=0; rootloops < nroots; rootloops++) {
-        double complex dd, kq, pv, dv;
+        cdouble dd, kq, pv, dv;
         kq=initroots[rootloops];
 #if MCDEBUG
 #ifndef OPENACC
@@ -258,10 +262,17 @@ int Mx_DiffractionDispersion(double complex kqvals[4], double complex xi0[4], do
 #endif
         int stepcount=0;
         do {
-            pv=(((poly[4]*kq+poly[3])*kq+poly[2])*kq+poly[1])*kq+poly[0]; // poly value
-            dv=((deriv[3]*kq+deriv[2])*kq+deriv[1])*kq+deriv[0]; // derivative value
-            dd=-pv/dv; // Newton's method step
-            kq+=dd;
+            pv=poly[4]; // poly value, evaluated via Horner's method
+            pv=cadd(cmul(pv,kq),poly[3]);
+            pv=cadd(cmul(pv,kq),poly[2]);
+            pv=cadd(cmul(pv,kq),poly[1]);
+            pv=cadd(cmul(pv,kq),poly[0]);
+            dv=deriv[3]; // derivative value, evaluated via Horner's method
+            dv=cadd(cmul(dv,kq),deriv[2]);
+            dv=cadd(cmul(dv,kq),deriv[1]);
+            dv=cadd(cmul(dv,kq),deriv[0]);
+            dd=cdiv(cneg(pv),dv); // Newton's method step
+            kq=cadd(kq,dd);
             stepcount++;
 #ifdef MCDEBUG_EXTRA
 #ifndef OPENACC
@@ -289,15 +300,19 @@ int Mx_DiffractionDispersion(double complex kqvals[4], double complex xi0[4], do
         // The smaller of xi0, xih depends on delicate cancellation of the polynomial.  The larger doesn't.
         // Thus, replace the small polynomial with epsilon / (large one)
         // This is equivalent to the Numerical Recipes trick for stable computation of quadratic roots
-        double complex poly1v=(poly1[2]*kq+poly1[1])*kq+poly1[0];
-        double complex poly2v=(poly2[2]*kq+poly2[1])*kq+poly2[0];
+        cdouble poly1v=poly1[2];
+        poly1v=cadd(cmul(poly1v,kq),poly1[1]);
+        poly1v=cadd(cmul(poly1v,kq),poly1[0]);
+        cdouble poly2v=poly2[2];
+        poly2v=cadd(cmul(poly2v,kq),poly2[1]);
+        poly2v=cadd(cmul(poly2v,kq),poly2[0]);
         if( fabs(creal(poly1v)) < fabs(creal(poly2v)) ) {
-            poly1v=epsilon/poly2v;
+            poly1v=cdiv(epsilon,poly2v);
         } else {
-            poly2v=epsilon/poly1v;
+            poly2v=cdiv(epsilon,poly1v);
         }
-        xi0[rootloops]=poly1v/(2*k0mag);
-        xih[rootloops]=poly2v/(2*k0mag);
+        xi0[rootloops]=rmul(1.0/(2*k0mag), poly1v);
+        xih[rootloops]=rmul(1.0/(2*k0mag), poly2v);
         
     }
     return fail;
@@ -308,7 +323,7 @@ int Mx_LaueReflectivityBC(double *Rsig, double *Rpi, double *Tsig, double *Tpi,
                          double kh[3],
                          const double k0hat[3], const double nhat[3],
                          const double alpha[3],
-                         double complex chi0, double complex chih, double complex chihbar,
+                         cdouble chi0, cdouble chih, cdouble chihbar,
                          double k0mag, double hscale, double thetaB, double thickness)
 {
     double k0[3]={k0hat[0]*k0mag, k0hat[1]*k0mag, k0hat[2]*k0mag}; /* actual incoming k vector */
@@ -332,22 +347,23 @@ int Mx_LaueReflectivityBC(double *Rsig, double *Rpi, double *Tsig, double *Tpi,
     double bb=2*(k0dotnhat+Hdotnhat);
     double cc = HdotH +2*k0dotH;
     double root1, root2;
-    qsolve(root1, root2, 1., bb, cc, sqrt); //root2 is the small root
+    qsolve_real(root1, root2, 1., bb, cc, sqrt); //root2 is the small root
     vplus(kh, k0plusH, root2*nhat);
 
     for (int i=0; i<2; i++) { // do reflectivity using shared geometry for both polarizations
         double C=(i==0)?fabs(cos(2*thetaB)) : 1; // polarization factor
-        double complex kqvals[4], xi0vals[4], xihvals[4];
+        cdouble kqvals[4], xi0vals[4], xihvals[4];
 
         int fail=Mx_DiffractionDispersion(kqvals, xi0vals, xihvals,
-                   k0, nhat, H, chi0, chih*chihbar, C, 2); // get first 2 (alpha and beta) roots only
+                   k0, nhat, H, chi0, cmul(chih,chihbar), C, 2); // get first 2 (alpha and beta) roots only
 
-        double complex a1=2*xi0vals[0]/(k0mag*C*chih);  // complex Eha/E0a from B&C eq. 24
-        double complex a2=2*xi0vals[1]/(k0mag*C*chih);  // complex Ehb/E0a from B&C eq. 24
+        cdouble a1=cdiv(rmul(2.0,xi0vals[0]), rmul(k0mag*C,chih));  // complex Eha/E0a from B&C eq. 24
+        cdouble a2=cdiv(rmul(2.0,xi0vals[1]), rmul(k0mag*C,chih));  // complex Ehb/E0a from B&C eq. 24
+
         // compute amplitudes from solving B&C eqns. 40
-        double complex i1=a2/(a2-a1); // e0a/e0i
-        double complex i2=-a1/(a2-a1); // e0a/e0i
-        double complex ix=-thickness*1e10*I; // convert thickness to angstroms for absorption
+        cdouble i1=cdiv(a2,csub(a2,a1)); // e0a/e0i
+        cdouble i2=cdiv(cneg(a1),csub(a2,a1)); // e0a/e0i
+        cdouble ix=cplx(0.0,-thickness*1e10); // convert thickness to angstroms for absorption
 
         // factor out main K vector and difference explicitly,
         // so that dphi, the relative phase & amplitude of the alpha and beta
@@ -359,12 +375,12 @@ int Mx_LaueReflectivityBC(double *Rsig, double *Rpi, double *Tsig, double *Tpi,
         // of transport exponentials
         // double complex phi0t=cexp((k0dotnhat+kqvals[0])*ix) #alpha transmitted wave factor
         // double complex phi0r=cexp((k0dotnhat+Hdotnhat+kqvals[0])*ix) #alpha reflected factor
-        double phi0t=exp(creal((k0dotnhat+kqvals[0])*ix)); // alpha transmitted wave factor
-        double phi0r=exp(creal((k0dotnhat+Hdotnhat+kqvals[0])*ix)); // alpha reflected factor
-        double complex dphi=cexp((kqvals[1]-kqvals[0])*ix); // beta-alpha transmission ratio
+        double phi0t=exp(creal(cmul(radd(k0dotnhat,kqvals[0]),ix))); // alpha transmitted wave factor
+        double phi0r=exp(creal(cmul(radd(k0dotnhat+Hdotnhat,kqvals[0]),ix))); // alpha reflected factor
+        cdouble dphi=cexp(cmul(csub(kqvals[1],kqvals[0]),ix)); // beta-alpha transmission ratio
 
-        double complex t0zz=phi0t*(i1+i2*dphi); // transmitted complex field amplitude at exit
-        double complex thzz=phi0r*(a1*i1+a2*i2*dphi); // reflected complex field amplitude at exit
+        cdouble t0zz=rmul(phi0t, cadd(i1,cmul(i2,dphi))); // transmitted complex field amplitude at exit
+        cdouble thzz=rmul(phi0r, cadd(cmul(a1,i1),cmul(cmul(a2,i2),dphi))); // reflected complex field amplitude at exit
 #ifdef MCDEBUG
 #ifndef OPENACC
         fprintf(stderr, "LAUE: "
@@ -399,8 +415,8 @@ int Mx_LaueReflectivityBC(double *Rsig, double *Rpi, double *Tsig, double *Tpi,
         vplus(Kh, K0, H);
         double b = (vdot(K0, nhat)/sqrt(vdot(K0,K0)))/(vdot(Kh, nhat)/sqrt(vdot(Kh, Kh)));
 
-        double R=cabs(thzz*thzz)/fabs(b); // the fabs(b) is the footprint correction
-        double T=cabs(t0zz*t0zz)/fabs(b);
+        double R=cabs(cmul(thzz,thzz))/fabs(b); // the fabs(b) is the footprint correction
+        double T=cabs(cmul(t0zz,t0zz))/fabs(b);
 
         if(i==0) {
             *Rpi= R; *Tpi= T; *Api=phi0t*phi0t;

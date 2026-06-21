@@ -1,3 +1,4 @@
+@echo off
 @REM DOS/cmd.exe batch file for starting @CPACK_PACKAGE_NAME@
 @REM
 @REM First, set up various environment variables
@@ -6,11 +7,17 @@
 @set BINDIR=%~dp0
 @SET PATH=%BINDIR%;%BINDIR%\..\miniconda3;%BINDIR%\..\miniconda3\bin;%BINDIR%\..\miniconda3\Scripts\;%BINDIR%\..\miniconda3\Library\bin;%BINDIR%\..\miniconda3\Library\mingw-w64\bin;c:\Microsoft MPI\Bin;%PATH%
 @REM
+@REM Legacy vs. conda location of env
+IF exist %BINDIR%\..\Scripts (
+  SET ENV=%BINDIR%\..\
+) ELSE (
+  SET ENV=%BINDIR%\..\
+)
+@%USERPROFILE%\AppData\Roaming\mamba\condabin\micromamba activate %ENV%
+@REM
 @REM @FLAVOR@ related:
 @SET @FLAVOR_UPPER@=%BINDIR%\@MCCODE_RELPATH_BINDIR2RESOURCEDIR@
 @SET @FLAVOR_UPPER@_CC=gcc
 @REM
 @REM NCrystal Python hooks
 @IF exist %BINDIR%\..\share\NCrystal\python SET PYTHONPATH=%BINDIR%\..\share\NCrystal\python;%PYTHONPATH%
-@REM Attempt loading conda only if "embedded env" exists
-@IF exist c:\@FLAVOR@-@MCCODE_VERSION@\miniconda3\Scripts\activate.bat CALL c:\@FLAVOR@-@MCCODE_VERSION@\miniconda3\Scripts\activate.bat

@@ -13,7 +13,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 import numpy as np
 from enum import Enum
-import qtpy
+from qtpy.QtCore import Qt
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 import pyqtgraph as pg
 from pyqtgraph.graphicsItems.LegendItem import LegendItem, ItemSample
@@ -172,8 +172,9 @@ def plot_2d_instr(coords_sets, plt, xlabel, ylabel):
 class ModLegend(pg.LegendItem):
     """
     Modified LegendItem to remove the ugly / in the label. Also reduces text size and padding.
+    Pass offset=None when positioning via anchor() instead.
     """
-    def __init__(self, offset, text_size='9pt'):
+    def __init__(self, offset=None, text_size='9pt'):
         self.text_size = text_size
         LegendItem.__init__(self, None, offset)
     
@@ -216,28 +217,31 @@ def create_help_pltitm():
     plt.axes['left']['item'].hide()
     plt.axes['bottom']['item'].hide()
     
-    plt.legend = ModLegend(offset=(-140, 60))
+    plt.legend = ModLegend(offset=None)
     plt.legend.setParentItem(plt.vb)
+    # anchor: item point (0.5, 0.5) = centre of legend
+    #         parent point (0.75, 0.75) = centre of lower-right quadrant - but (0.60, 0.45)
+    #                                                                      looks better ...
+    plt.legend.anchor(itemPos=(0.5, 0.5), parentPos=(0.60, 0.45), offset=(0, 0))
 
     for l in get_help_lines():
         plt.plot([0], [0], name=l)
     
     return plt
 
-def create_infowindow(comp_colour_pairs):
-    class InfoWindow(QtWidgets.QMainWindow):
-        ''' infowindow that is designed to be static '''
+def create_infowindow(comp_colour_pairs, parent=None, key_handler=None):
+    class InfoWindow(QtWidgets.QDialog):
+        ''' infowindow that is designed to be static, uses QDialog '''
         class Ui_InfoWindow(object):
             ''' info window widgets (auto-generated code) '''
-            def setupUi(self, MainWindow):
-                MainWindow.setObjectName("MainWindow")
-                MainWindow.resize(259, 395)
-                MainWindow.setStyleSheet("background-color: rgb(0, 0, 0);")
-                self.centralwidget = QtWidgets.QWidget(MainWindow)
-                self.centralwidget.setObjectName("centralwidget")
-                self.verticalLayoutTechnicalReason = QtWidgets.QVBoxLayout(self.centralwidget)
+            def setupUi(self, Dialog):
+                Dialog.setObjectName("InfoWindow")
+                Dialog.resize(259, 395)
+                Dialog.setWindowTitle("Component list")
+                Dialog.setStyleSheet("background-color: rgb(0, 0, 0);")
+                self.verticalLayoutTechnicalReason = QtWidgets.QVBoxLayout(Dialog)
                 self.verticalLayoutTechnicalReason.setObjectName("verticalLayoutTechnicalReason")
-                self.scrollArea = QtWidgets.QScrollArea(self.centralwidget)
+                self.scrollArea = QtWidgets.QScrollArea(Dialog)
                 self.scrollArea.setWidgetResizable(True)
                 self.scrollArea.setObjectName("scrollArea")
                 self.scrollAreaWidgetContents = QtWidgets.QWidget()
@@ -245,38 +249,49 @@ def create_infowindow(comp_colour_pairs):
                 self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
                 self.vlayout = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents)
                 self.vlayout.setObjectName("vlayout")
-                MainWindow.setCentralWidget(self.centralwidget)
-                
+
                 self.scrollArea.setWidget(self.scrollAreaWidgetContents)
                 self.verticalLayoutTechnicalReason.addWidget(self.scrollArea)
-                
+
                 self.labels = []
-                self.spacerItem = QtWidgets.QSpacerItem(20, 448, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
-                
+                try: # Prefer Qt6 style, fallback to Qt5
+                    self.spacerItem = QtWidgets.QSpacerItem(20, 448, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding)
+                except:
+                    self.spacerItem = QtWidgets.QSpacerItem(20, 448, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+
         def set_components(self, str_colour_pairs):
             ''' colours are tri-tupples of rgb '''
             for pair in str_colour_pairs:
                 s = pair[0]
                 c = pair[1]
-                
+
                 lbl = QtWidgets.QLabel(self.ui.scrollAreaWidgetContents)
                 lbl.setText(s)
                 lbl.setStyleSheet("color: rgb(%d, %d, %d);" % c)
                 self.ui.labels.append(lbl)
                 self.ui.vlayout.addWidget(lbl)
-            
+
             self.ui.vlayout.addItem(self.ui.spacerItem)
-        
-        def __init__(self, parent=None):
+
+        def keyPressEvent(self, event):
+            ''' forward all keypresses to the main window handler so that
+                q/p/s/space/h etc. work without needing to switch focus back '''
+            if self._key_handler is not None:
+                self._key_handler(event)
+            else:
+                super(InfoWindow, self).keyPressEvent(event)
+
+        def __init__(self, parent=None, key_handler=None):
             super(InfoWindow, self).__init__(parent)
-            
+            self._key_handler = key_handler
+
             # create ui and set info
             self.ui = self.Ui_InfoWindow()
             self.ui.setupUi(self)
-    
-    iw = InfoWindow()
+
+    iw = InfoWindow(parent=parent, key_handler=key_handler)
     iw.set_components(comp_colour_pairs)
-    
+
     return iw
 
 class McDisplay2DGui(object):
@@ -325,13 +340,21 @@ class McDisplay2DGui(object):
         self._unzoom()
         
         def unzoom_handler(event):
-            if event.button() != 2:
+            try:
+                right = QtCore.Qt.MouseButton.RightButton
+            except AttributeError:
+                right = QtCore.Qt.RightButton
+            if event.button() != right:
                 return
             if self.zoomstate == self.ZoomState.ZOOM:
                 self._unzoom()
-        
+
         def zoom_handler(event, item=None, idx=None):
-            if event.button() != 1:
+            try:
+                left = QtCore.Qt.MouseButton.LeftButton
+            except AttributeError:
+                left = QtCore.Qt.LeftButton
+            if event.button() != left:
                 return
             if self.zoomstate == self.ZoomState.UNZOOM and event.currentItem == item:
                 self._zoom(idx)
@@ -358,7 +381,7 @@ class McDisplay2DGui(object):
             if self.zoomstate == self.ZoomState.ZOOM:
                 self._unzoom()
         if event.key() == 81:                   # q
-            QtWidgets.QApplication.quit()
+            sys.exit(0)
         elif event.key() == 80:                 # p
             self._dumpfile(format='png')
         elif event.key() == 83:                 # s
@@ -368,10 +391,15 @@ class McDisplay2DGui(object):
             self._display_nextray()
         elif event.key() in [72, 16777264]:  # h, F1
             if not self.iw_visible:
-                self.iw = create_infowindow(self._get_comp_color_pairs())
+                self.iw = create_infowindow(self._get_comp_color_pairs(), parent=self.mw, key_handler=self._key_handler)
+                # position to the left of the main window, vertically aligned with its top
+                mw_geo = self.mw.frameGeometry()
+                iw_size = self.iw.sizeHint()
+                self.iw.move(mw_geo.left() - round(1.5*iw_size.width()), mw_geo.top())
                 self.iw.show()
+                self.iw.raise_()
+                self.iw.activateWindow()
                 self.iw_visible = True
-                self.mw.activateWindow()
             else:
                 self.iw.hide()
                 self.iw_visible = False
@@ -391,13 +419,17 @@ class McDisplay2DGui(object):
     def run_ui(self, instr, rays):
         '''  '''
         self._init_2dmode()
-        self._set_and_plot_instr(instr)
+        self._set_and_plot_instr(instr, enable_clickable=True)
         if not rays==[]:
             self._set_rays(rays)
             self._unzoom()
             self._display_nextray()
-        return self.app.exec_()
-    
+
+        if hasattr(self.app, 'exec'):
+            return self.app.exec()
+        else:
+            return self.app.exec_()
+   
     def run_ui_tof(self, instr, rays):
         '''  '''
         self.instr = instr
@@ -418,11 +450,14 @@ class McDisplay2DGui(object):
         
         # plot rays
         plot_1d_tof_rays(instr, rays, plt)
-        
+
         self.layout.scene().keyPressEvent = self._key_handler
-        
-        return self.app.exec_()
-    
+
+        if hasattr(self.app, 'exec'):
+            return self.app.exec()
+        else:
+            return self.app.exec_()
+
     def _set_and_plot_instr(self, instr, enable_clickable=False):
         ''' set internal references to the full instrument and three 2d instrument set of coordinate pairs '''
         self.instr = instr
@@ -439,12 +474,36 @@ class McDisplay2DGui(object):
         
         # set PlotDataItem click events
         if enable_clickable:
+            self._comp_curve_pairs = []
             for pairs in [comp_plotdataitm_pairs_zy, comp_plotdataitm_pairs_xy, comp_plotdataitm_pairs_zx]:
                 for p in pairs:
                     comp = p[0]
                     itm = p[1]
-                    itm.curve.setClickable(True)
-                    itm.curve.mouseClickEvent = lambda event, comp=comp: self._handle_comp_clicked(event, comp)
+                    itm.curve.opts['mouseWidth'] = 8  # widen hit area to 8px
+                    self._comp_curve_pairs.append((comp, itm.curve))
+
+            def _scene_click_handler(event):
+                btn = event.button()
+                pos = event.scenePos()
+                try:
+                    left = QtCore.Qt.MouseButton.LeftButton   # PyQt6
+                except AttributeError:
+                    left = QtCore.Qt.LeftButton               # PyQt5
+                if btn != left:
+                    return
+                for comp, curve in self._comp_curve_pairs:
+                    curve._mouseShape = None
+                    scene_shape = curve.mapToScene(curve.mouseShape())
+                    if scene_shape.contains(pos):
+                        self._handle_comp_clicked(event, comp)
+                        return
+
+            scenes_connected = set()
+            for plt in [self.plt_zy, self.plt_xy, self.plt_zx]:
+                sc = plt.scene()
+                if id(sc) not in scenes_connected:
+                    sc.sigMouseClicked.connect(_scene_click_handler)
+                    scenes_connected.add(id(sc))
 
     def _handle_comp_clicked(self, event, comp):
         ''' display clicked component info '''

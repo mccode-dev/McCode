@@ -61,11 +61,106 @@
 * Modified by: PW December 2025: version 3.6.1
 * Modified by: PW January 2026: version 3.6.5
 * Modified by: PW April 2026: version 3.6.14
+* Modified by: PW May 2026: version 3.7.1
+* Modified by: PW June 2026: version 3.7.6
 *
-* This file is part of McStas 3.6.14, released April 12th 2026.
+* This file is part of McStas 3.7.6, released June 16th 2026.
 * It gives a 'changes' list from the beginning of the project
 *
 *******************************************************************************/
+Changes in McStas/McXtrace 3.7.6, June 16th, 2026
+
+## What's Changed
+### Common to McStas and McXtrace
+#### Tools
+* `mcgui`/`mxgui` list mode scanning:
+  * Support mcrun -L scan mode via mcgui 'Scan steps' entry by @willend in https://github.com/mccode-dev/McCode/pull/2493
+* Small but important improvements to `mcdisplay`/`mxdisplay`:
+  * `pyqtgraph` variant:
+    * Restore various click/keyboard control across PyQt5/PyQt6
+    * Improvements to mcdisplay(-pyqtgraph) component list (do not underflow main window) by @willend in https://github.com/mccode-dev/McCode/pull/2489
+    * Fix missing PyQt5->PyQt6 correction for mcdisplay-pyqtgraph by @willend in https://github.com/mccode-dev/McCode/pull/2481
+    * Fix of another mcdisplay-pyqtgraph PyQt6 vs PyQt5 bug by @willend in https://github.com/mccode-dev/McCode/pull/2485
+  * `matplotlib` variant:
+    * Silence mcdisplay-matplotlib noise when pressing 'q' by @willend in https://github.com/mccode-dev/McCode/pull/2483
+  * Common, parsing-system:
+    * Fix for rare bug: Add fflush(stdout) protection of DEBUG_COMPONENT (fix #2486) by @willend in https://github.com/mccode-dev/McCode/pull/2487
+#### Libraries
+* KDSource functional in mingw builds (+other minor improvements) by @willend in https://github.com/mccode-dev/McCode/pull/2497 (comes with both McStas and McXtrace even though `KDSource.comp` is McStas-only for now
+* Get rid of ‘dirent’ dependency on Windows systems
+  * Dirent windows fixup by @willend in https://github.com/mccode-dev/McCode/pull/2496
+#### Installers
+* New MSVC-based installer-bundle for both McStas and McXtrace, will eventually fully replace the MinGW installer-bundle
+  * See [McStas windows install page](https://github.com/mccode-dev/McCode/tree/main/INSTALL-McStas/Windows) for details
+  * See [McXtrace windows install page](https://github.com/mccode-dev/McCode/tree/main/INSTALL-McXtrace/Windows) for details
+
+### McStas only
+#### Components
+* Update `NMO.comp` by @willend in https://github.com/mccode-dev/McCode/pull/2474
+*
+### McXtrace only
+* No McXtrace-specific comp/instr changes
+
+### Infrastructure, common to McStas/McXtrace
+* Fixes to installdocs by @willend in https://github.com/mccode-dev/McCode/pull/2476
+* Various work on GitHub actions by @willend in https://github.com/mccode-dev/McCode/pull/2488
+* Give mctest a --displaymax handle by @willend in https://github.com/mccode-dev/McCode/pull/2495
+* Prepare for 3.7.6 release by @willend in https://github.com/mccode-dev/McCode/pull/2498
+
+
+**Full Changelog**: https://github.com/mccode-dev/McCode/compare/v3.7.1...v3.7.6
+
+Changes in McStas/McXtrace 3.7.1, May 21st, 2026
+
+## What's Changed
+
+### Main new developments:
+#### Common McStas and McXtrace developments:
+* Up to 10 `USERVARS` supported with `Monitor_nD` (named `user0,...,user9`)
+* Qt5 → Qt6 across the package and dependencies
+* Bugfix: Fix of rare visualisation bug in `mcdisplay`/`mxdisplay` (e.g. box was not allowed as a comp name)
+* Doc improvements:
+  * `mcdoc`/`mxdoc` can render `.tex` and `.md` in addition to `.html`
+  * Example instruments come with an in-repo `README.md` generated via this mechanism
+  * See e.g. [McStas BNL_H8](https://github.com/mccode-dev/McCode/tree/main/mcstas-comps/examples/BNL/BNL_H8/README.md) or [McXtrace ESRF ID01](https://github.com/mccode-dev/McCode/tree/main/mcxtrace-comps/examples/ESRF/ESRF_ID01/README.md)
+* CI/test improvements:
+  *  `mcdisplay`/`mxdisplay` visualisation is performed as part of `mctest`/`mxtest`runs (→ CI)
+  * See top html files in [McStas](https://new-nightly.mcstas.org/todays-datafiles/) and [McXtrace](https://new-nightly.mcxtrace.org/todays-datafiles/) nightly test runs
+ 
+#### McStas specific developments:
+* Integrated support for [KDSource](https://github.com/KDSource/KDSource/releases/tag/v0.2.2) 
+  * New component `KDSource`
+  * For usage details, see example instrument [`Test_KDSource`](https://github.com/mccode-dev/McCode/tree/main/mcstas-comps/examples/Tests_MCPL_etc/Test_KDSource/README.md) and the [KDSource documentation website](https://kdsource.readthedocs.io/en/latest/)
+  * Available as automatic dependency on `conda-forge` based installations (including macOS and Windows 'installers'
+  * Not available as .deb package on Debian systems but may function by installing via pip. <br>**Recommendation**: Just use `conda-forge`.
+* Pulse-length adjustment available for `ESS_butterfly`
+  * Handled via specifically named instrument input parameter and `DEPENDENCY` line 
+  * See example instrument [`ESS_butterfly_Adjustable_Pulse`](https://github.com/mccode-dev/McCode/blob/main/mcstas-comps/examples/ESS/ESS_butterfly_Adjustable_Pulse/README.md)
+* `PowderN` now supports `NCrystal` `cfg`-strings.
+  * Forwards request to `NCrystal` that populates datastructures without intermediate `.laz/.lau` files
+  * See example instrument [Test_Powders](https://github.com/mccode-dev/McCode/blob/main/mcstas-comps/examples/Tests_samples/Test_Powders/README.md) - `comp=0` mode
+* Bugfixes:
+  * Fix to Union, orientation of loggers wrt. master comp
+  * Bugfixes to recently added improved Union mesh
+* Contributions from NBI/KU:
+  * `Inhomogenous_incoherent_process` in Union from @Lomholy, (via 'tinyexpr' string-expression inputs) - see rel. [test instrument](https://github.com/mccode-dev/McCode/blob/main/mcstas-comps/examples/Tests_union/Test_inhomogenous_process/README.md)
+  * New spinwave comp `SpinWave_BCO` from @SSBNS - see rel. [test instrument](https://github.com/mccode-dev/McCode/blob/main/mcstas-comps/examples/Tests_samples/Samples_SpinWave_BCO/README.md)
+  * [ESS KVASIR instrument proposal](https://github.com/mccode-dev/McCode/tree/main/mcstas-comps/examples/ESS/ESS_KVASIR/README.md) - backend instrument with MCPL input from BIFROST optic. @AmalieFalkenberg.  Includes Jupyter notebook in McStasScript syntax.
+* McStas component manual uses `.tex` snippets from generated via components `mcdoc`
+
+#### McXtrace specific developments:
+* Much improved [Union subsystem for McXtrace](https://github.com/mccode-dev/McCode/tree/main/mcxtrace-comps/union) by @ebknudsen. Makes use of [Xraylib](https://github.com/tschoonj/xraylib/wiki) for Compton and Rayleigh scattering models. 
+* Test instruments for the new Union processes, both from @ebknudsen 
+  * [PowderCompton_union](https://github.com/mccode-dev/McCode/blob/main/mcxtrace-comps/examples/Tests_union/PowderCompton_union/README.md) - Compton scattering and powder diffraction
+  * [Test_KN_Comp_Rayl_union](https://github.com/mccode-dev/McCode/blob/main/mcxtrace-comps/examples/Tests_union/Test_KN_Comp_Rayl_union/README.md) - test instrument using Klein-Nishina, Rayleigh, or Compton
+scattering processes.
+
+## New Contributors
+* @SSBNS made their first contribution in https://github.com/mccode-dev/McCode/pull/2373
+* @AmalieFalkenberg made their first contribution in https://github.com/mccode-dev/McCode/pull/2345
+
+**Full Changelog**: https://github.com/mccode-dev/McCode/compare/v3.6.14...v3.7.1
+
 Changes in McStas/McXtrace 3.6.14, April 12th, 2026
 ## What's Changed
 

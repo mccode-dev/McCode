@@ -18,17 +18,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, python: '3.12', mpi: 'openmpi' }
-          - { os: ubuntu-latest, python: '3.12', mpi: 'mpich' }
-          - { os: macos-latest, python: '3.12', mpi: 'openmpi' }
-          - { os: macos-latest, python: '3.12', mpi: 'mpich' }
-          - { os: windows-latest, python: '3.12', mpi: 'msmpi' }
+          - { os: ubuntu-latest, mpi: 'openmpi' }
+          - { os: macos-latest, mpi: 'openmpi' }
+          - { os: windows-latest, mpi: 'msmpi' }
 
-    name: ${{ matrix.os }}.${{ matrix.mpi }}.python-${{ matrix.python }}
+    name: ${{ matrix.os }}.${{ matrix.mpi }}.conda-basictest
     runs-on: ${{ matrix.os }}
-    env:
-      CC: ${{ matrix.CC }}
-      CXX: ${{ matrix.CXX }}
     defaults:
       run:
         shell: bash -el {0}
@@ -42,15 +37,7 @@ jobs:
 
     - name: Setup VS in shell Intel
       if: runner.os == 'Windows'
-      uses: ilammy/msvc-dev-cmd@v1
-
-    - uses: conda-incubator/setup-miniconda@v4
-      with:
-        activate-environment: mcstas
-        auto-update-conda: true
-        conda-remove-defaults: true
-        channels: conda-forge
-        python-version: ${{ matrix.python }}
+      uses: egor-tensin/vs-shell@v2
 
     - name: Get conda dependency list
       id: conda-deps
@@ -58,11 +45,10 @@ jobs:
            ./src/devel/bin/mccode-create-conda-yml -m mcstas -n mcstas -o dependencies.yml
            cat dependencies.yml
 
-    - name: Update conda
-      id: update-conda
-      run: |
-           conda install mamba -y
-           mamba env update --file dependencies.yml
+    - uses: mamba-org/setup-micromamba@v3
+      with:
+        environment-name: mcstas
+        environment-file: dependencies.yml
 
     - name: Check versions
       id: version-checks
@@ -71,14 +57,6 @@ jobs:
            python3 --version
            which cmake
            cmake --version
-           if [ "$RUNNER_OS" != "Windows" ];
-           then
-             echo C compiler: $CC
-             $CC --version
-           else
-             echo C compiler: cl.exe
-             cl.exe
-           fi
 
     - name: Configure build and install mcstas
       id: mcstas-install
@@ -323,15 +301,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcstas-${{ matrix.os }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
+           tar cvfz mcstas-${{ matrix.os }}.${{ matrix.mpi }}.conda-basictest_output.tgz run_*
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcstas-artefacts-${{ matrix.os }}.${{ matrix.mpi }}.python-${{ matrix.python }}
-        path: "mcstas-${{ matrix.os }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
+        name: mcstas-artefacts-${{ matrix.os }}.${{ matrix.mpi }}.conda-basictest
+        path: "mcstas-${{ matrix.os }}.${{ matrix.mpi }}.conda-basictest_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3

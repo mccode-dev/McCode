@@ -80,10 +80,13 @@ def run_normal_mode(testdir, reflabel):
 
         if cellobj["testnb"] <= 1:
             if not cellobj["displayed"]:
-                display="<strong><font color=\"#FFA500\">DISPLAY: FAILED! (log)</font></strong>"
+                val=-1
+                if cellobj["displaytime"] is not None:
+                    val=cellobj["displaytime"]
+                display="<strong><font color=\"#FFA500\">DISPLAY(%d s): FAILED! (log)</font></strong>"  % val
                 displayurl=fdurl
             else:
-                display="<strong>DISPLAY: OK (link)<strong>"
+                display="<strong>DISPLAY(%d s): OK (link)<strong>" % cellobj["displaytime"]
                 displayurl=durl
         else:
             display=""

@@ -57,7 +57,7 @@ SETTING PARAMETERS (string form_factors="FormFactors.txt", string material="Si.t
 SHARE 
 %{
   %include "read_table-lib"  
-#include <complex.h>
+  %include "mccode-complex-lib"
 /* something that would be relevant for ALL crystals */
   void DarwinReflectivity(double *R, double *Thetah, double *Theta0, double *DeltaTheta0,
 			  double f00, double f0h, double fp, double fpp, double V, double alpha, double h, double k, double l, double M, double E, double Thetain, int pol )
@@ -115,7 +115,11 @@ SHARE
       Fhi = 8*(fpp); 		
       }
     else {
-      complex double f_hkl=(1+cexp(I*M_PI*(h+k))+cexp(I*M_PI*(k+l)) + cexp(I*M_PI*(h+l)))*(1+cexp(I*M_PI*(h/4.0 + k/4.0 + l/4.0)));
+      //complex double f_hkl = (1+cexp(I*M_PI*(h+k))+cexp(I*M_PI*(k+l)) + cexp(I*M_PI*(h+l)))*(1+cexp(I*M_PI*(h/4.0 + k/4.0 + l/4.0)));
+      
+      cdouble f_hkl=cadd(cadd(radd(1,cexp(rmul(M_PI*(h+k),cplx(0,1)))),cexp(rmul(M_PI*(k+l),cplx(0,1)))),
+				cmul(cexp(rmul(M_PI*(h+l),cplx(0,1))),radd(1,cexp(rmul(M_PI*(h/4.0 + k/4.0 + l/4.0),cplx(0,1))))));
+      
       Fhr = cabs(f_hkl)*(f0h + fp);
       Fhi = cabs(f_hkl)*(fpp);
       F0r = cabs(f_hkl)*(f00 + fp);				/* Q=0, real part of structure factor for forward scattering */

@@ -287,10 +287,13 @@ class McStas:
                 # Insert NEXUSFLAGS if instrument/comps request this
                 flags = re.sub(r'\@NEXUSFLAGS\@', mccode_config.compilation['NEXUSFLAGS'], flags)
 
-                # Insert NCRYSTALFLAGS if instrument/comps request this
+                # Insert MCPLFLAGS if instrument/comps request this
                 flags = re.sub(r'\@MCPLFLAGS\@', mccode_config.compilation['MCPLFLAGS'], flags)
 
-                # Insert NCRYSTALFLAGS if instrument/comps request this
+                # Insert KDSOURCEFLAGS if instrument/comps request this
+                flags = re.sub(r'\@KDSOURCEFLAGS\@', mccode_config.compilation['KDSOURCEFLAGS'], flags)
+
+                # Insert NCRYSTALFLAGS if instrument/comps request this (McStas only)
                 flags = re.sub(r'\@NCRYSTALFLAGS\@', mccode_config.compilation['NCRYSTALFLAGS'], flags)
 
                 # Insert GSLFLAGS if instrument/comps request this

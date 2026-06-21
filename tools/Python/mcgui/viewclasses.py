@@ -6,24 +6,14 @@ import os
 import re
 import pathlib
 from widgets import *
+from qtpy import QtGui, QtWidgets, QtCore
+from qtpy.QtWidgets import QApplication, QWidget
+import qtpy as PyQt
 
 try:
-    from PyQt6 import QtWidgets, QtCore
-    from PyQt6.QtWidgets import QApplication, QWidget
-    import PyQt6 as PyQt
-    try:
-        from PyQt6 import Qsci
-    except ImportError:
-        Qsci = None
-
+    from qtpy import Qsci
 except ImportError:
-    from PyQt5 import QtWidgets, QtCore
-    from PyQt5.QtWidgets import QApplication, QWidget
-    import PyQt5 as PyQt
-    try:
-        from PyQt5 import Qsci
-    except ImportError:
-        Qsci = None
+    Qsci = None
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import mccode_config
@@ -231,7 +221,7 @@ class McMainWindow(QtWidgets.QMainWindow):
         super(McMainWindow, self).__init__(parent)
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        self.ui.dynamicMenuClicked = QtCore.pyqtSignal(str)
+        self.ui.dynamicMenuClicked = QtCore.Signal(str)
 
         # set main window title depending on flavour
         prefix = 'mx'
@@ -294,8 +284,8 @@ class McMainWindow(QtWidgets.QMainWindow):
 '''
 class McCodeEditorWindow(QtWidgets.QMainWindow):
     volatileDataExists = False
-    volatileDataTransition = QtCore.pyqtSignal(bool)
-    saveRequest = QtCore.pyqtSignal(str)
+    volatileDataTransition = QtCore.Signal(bool)
+    saveRequest = QtCore.Signal(str)
 
     def __init__(self, parent=None):
         super(McCodeEditorWindow, self).__init__(parent)

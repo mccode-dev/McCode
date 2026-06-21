@@ -67,8 +67,9 @@ class InstrExampleTest:
 
         self.linted = None
         self.compiled = None
-        self.displayed = None
         self.compiletime = None
+        self.displayed = None
+        self.displaytime = None
         self.didrun = None
         self.runtime = None
         self.errmsg = None
@@ -90,6 +91,7 @@ class InstrExampleTest:
             "compiled"     : self.compiled,
             "compiletime"  : self.compiletime,
             "displayed"    : self.displayed,
+            "displaytime"  : self.displaytime,
             "didrun"       : self.didrun,
             "runtime"      : self.runtime,
             "errmsg"       : self.errmsg,
@@ -263,7 +265,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         
         # Read instr file content to look for tests
         text = open(f, encoding='utf-8').read()
-        f_new=join(instrdir,os.path.basename(f))
+        f_new=str(pathlib.Path(join(instrdir,os.path.basename(f))).as_posix())
         # create a test object for every test defined in the instrument header
         instrtests = create_instr_test_objs(sourcefile=f, localfile=f_new, header=text)
         try:
@@ -294,7 +296,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
 
 
     # compile, record time
-    global ncount, mpi, openacc, suffix, nexus, lint, permissive, compilemax, runmax
+    global ncount, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
@@ -344,15 +346,18 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                       "{:3d}.".format(math.floor(test.compiletime)) + str(test.compiletime-int(test.compiletime)).split('.')[1][:2]
                     logging.info(formatstr % test.get_display_name())
                     # Run mcdisplay (single particle only)
+                    t1 = time.time()
                     if test.testnb>0:
                         cmd = mccode_config.configuration["MCDISPLAY"]+'-classic --nobrowse %s %s -n0 -d display > displaylog.txt 2>&1' % (test.instrname+'.instr', test.parvals)
                     else:
                         cmd = mccode_config.configuration["MCDISPLAY"]+'-classic --nobrowse %s -y -n0 -d display > displaylog.txt 2>&1' % (test.instrname+'.instr')
-                    retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname), timeout=compilemax)
+                    retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname), timeout=displaymax)
+                    t2 = time.time()
                     if retcode[0]==0:
                         test.displayed = True
                     else:
                         test.displayed = False
+                    test.displaytime = t2 - t1
                 else:
                     if lint:
                         formatstr = "%-" + "%ds: Linted using using:\n" % maxnamelen
@@ -390,10 +395,10 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             continue
         if test.testnb <= 1:
             if test.displayed:
-                formatstr = "%-" + "%ds:   Display OK" % (maxnamelen+1)
+                formatstr = "%-" + "%ds:   Display OK (%ds)" % (maxnamelen+1, test.displaytime)
                 logging.info(formatstr % test.instrname)
             else:
-                formatstr = "%-" + "%ds:   Display FAILED" % (maxnamelen+1)
+                formatstr = "%-" + "%ds:   Display FAILED (%ds)" % (maxnamelen+1, test.displaytime)
                 logging.info(formatstr % test.instrname)
 
         # runable tests have testnb > 0
@@ -719,6 +724,7 @@ permissive = None
 runLocal = None
 runmax = None
 compilemax = None
+displaymax = None
 
 def main(args):
     # mutually excusive main branches
@@ -776,7 +782,7 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, runmax
+    global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax
     ncount = "1e6"
     if args.ncount:
         ncount = args.ncount[0]
@@ -827,10 +833,15 @@ def main(args):
         runmax=3600
     if args.compilemax:
         compilemax=int(args.compilemax[0])
-        if lint:
-            compilemax=100*compilemax
     else:
         compilemax=600
+    if lint:
+        compilemax=100*compilemax
+    if args.displaymax:
+        displaymax=int(args.displaymax[0])
+    else:
+        displaymax=60
+
     if args.permissive:
         permissive = True
         logging.info("Permissive mode, tool will not report failure on failed instruments")
@@ -857,8 +868,9 @@ if __name__ == '__main__':
     parser.add_argument('--suffix', nargs=1, help='Add suffix to test directory name, e.g. 3.x-dev_suffix')
     parser.add_argument('--nexus', action='store_true', help='Compile for / use NeXus output format everywhere')
     parser.add_argument('--lint', action='store_true', help='Just run the c-linter')
-    parser.add_argument('--compilemax', nargs=1, help='Maximum time (s) allowed pr. compilation (x100 with --lint)')
-    parser.add_argument('--runmax', nargs=1, help='Maximum time (s) allowed pr. test Example run')
+    parser.add_argument('--compilemax', nargs=1, help='Maximum time (s) allowed pr. compilation (default 600s)(if run with --lint muliplied x100)')
+    parser.add_argument('--runmax', nargs=1, help='Maximum time (s) allowed pr. test Example run (default 3600s)')
+    parser.add_argument('--displaymax', nargs=1, help='Maximum time allowed pr. test Example DISPLAY run (default 60s)')
     parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional.')
     parser.add_argument('--local', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR')
     args = parser.parse_args()

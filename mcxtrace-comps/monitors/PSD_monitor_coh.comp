@@ -58,7 +58,7 @@ SETTING PARAMETERS (int nx=90, int ny=90, string filename=0, restore_xray=0,
 /*STATE PARAMETERS (x,y,z,kx,ky,kz,phi,Ex,Ey,Ez,p)*/
 SHARE
 %{
-  #include <complex.h>
+  %include "mccode-complex-lib"
 %}
 
 DECLARE
@@ -102,7 +102,7 @@ TRACE
   int i, j;
   double k, x_o, y_o, z_o;
   double p2;
-  double complex dphi;
+  cdouble dphi;
   double dphi_r, dphi_i;
 
   x_o = x;
@@ -132,7 +132,7 @@ TRACE
 
     /*check if within the ratio of the pixel*/
     if (fabs (xwidth / nx * (i + 0.5) - xwidth / 2.0 - x) < xwidth / nx * ratio && fabs (yheight / ny * (j + 0.5) - yheight / 2.0 - y) < yheight / ny * ratio) {
-      dphi = p * cexp (I * (phi - dnu));
+      dphi = rmul(p,cexp (rmul(phi - dnu,cplx(0,1))));
       dphi_r = creal (dphi);
       dphi_i = cimag (dphi);
       p2 = p * p;
@@ -174,8 +174,8 @@ SAVE
 
     for (i = 0; i < nx; i++) {
       for (j = 0; j < ny; j++) {
-        PSD_p_abs[i * ny + j] = cabs (PSD_phi_real[i][j] + I * PSD_phi_imag[i][j]);
-        PSD_p_arg[i * ny + j] = carg (PSD_phi_real[i][j] + I * PSD_phi_imag[i][j]);
+        PSD_p_abs[i * ny + j] = cabs (cplx(PSD_phi_real[i][j],PSD_phi_imag[i][j]));
+        PSD_p_arg[i * ny + j] = carg (cplx(PSD_phi_real[i][j],PSD_phi_imag[i][j]));
       }
     }
 
@@ -198,11 +198,11 @@ SAVE
       MPI_Gather (&(PSD_N[i][0]), ny, MPI_DOUBLE, N_buf, ny, MPI_DOUBLE, 0, MPI_COMM_WORLD);
       if (mpi_node_rank == 0) {
         for (j = 0; j < ny; j++) {
-          double complex tmp_phi = 0;
+          cdouble tmp_phi = cplx(0,0);
           unsigned long tmp_N = 0;
           int k;
           for (k = 0; k < mpi_node_count; k++) {
-            tmp_phi += PSD_p_absbuf[k * ny + j] * cexp (I * PSD_p_argbuf[k * ny + j]);
+            tmp_phi = cadd(tmp_phi, rmul(PSD_p_absbuf[k * ny + j],cexp (rmul(PSD_p_argbuf[k * ny + j],cplx(0,1)))));
             tmp_N += (unsigned long)N_buf[k * ny + j];
           }
           PSD_p_abs[i * ny + j] = cabs (tmp_phi);

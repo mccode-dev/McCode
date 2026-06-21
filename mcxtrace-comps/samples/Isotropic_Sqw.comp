@@ -1318,7 +1318,11 @@ SHARE
     /* (3) we build q and w lookup table for conversion file -> sqw_full ====== */
     MPI_MASTER (if (Sqw->verbose_output > 2) printf ("Isotropic_Sqw: %s: Creating Sqw_full... (%s, %s)\n", Sqw->compname, file, "coh"););
 
-    double w_file2full[w_bins]; /* lookup table for fast file -> Sqw_full allocation */
+    double* w_file2full = malloc (w_bins * sizeof (double)); /* lookup table for fast file -> Sqw_full allocation */
+    if (!w_file2full) {
+      fprintf (stderr, "Isotropic_Sqw: Catastrophic Error allocating lookup table w_file2full!\nEXIT\n");
+      exit (-1);
+    }
 
     for (index_w = 0; index_w < w_bins; w_file2full[index_w++] = 0)
       ;
@@ -1364,7 +1368,11 @@ SHARE
       w_file2full[index_w] = index_w_file;
     }
 
-    double q_file2full[q_bins];
+    double* q_file2full = malloc (q_bins * sizeof (double));
+    if (!q_file2full) {
+      fprintf (stderr, "Isotropic_Sqw: Catastrophic Error allocating lookup table q_file2full!\nEXIT\n");
+      exit (-1);
+    }
     for (index_q = 0; index_q < q_bins; q_file2full[index_q++] = 0)
       ;
 
@@ -1829,7 +1837,8 @@ SHARE
     if ((Sqw_Data->QW_lookup || Sqw_Data->SW_lookup) && Sqw->verbose_output > 2) {
       MPI_MASTER (printf ("Isotropic_Sqw: %s: Generated lookup tables with %li entries\n", Sqw->compname, Sqw->lookup_length););
     }
-
+    free (w_file2full);
+    free (q_file2full);
     return (Sqw_Data);
   } /* end Sqw_readfile */
 

@@ -394,10 +394,7 @@ FINALLY
     // If there is a scan, calculate the absorption coefficient.
     if(scan>=1){ 
 #ifdef USE_MPI
-        //MPI_MASTER is equivalent to if(mpi_node_root>=mpi_node_rank){ //statement }
-        //If DETECTOR_OUT_0D is inside of MPI_MASTER the program hangs forever. 
-        //If outside it seems to work. Weird.
-        MPI_MASTER(
+      if (mpi_node_rank==0) {
 #endif 
         MCDETECTOR e_before_sample = COMP_GETPAR2(EnergyMonitor_before_sample,detector);
         MCDETECTOR e_after_sample =  COMP_GETPAR2(EnergyMonitor_after_sample,detector);
@@ -413,7 +410,7 @@ FINALLY
         fprintf(stdout,"*** \n ");  
                                                  
 #ifdef USE_MPI                  
-        );
+       }
         //MPI_Barrier(MPI_COMM_WORLD);
 #endif  
                       

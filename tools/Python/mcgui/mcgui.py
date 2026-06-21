@@ -19,27 +19,15 @@ if not os.name == 'nt':
 else:
     import mslex as lexer
 
+from qtpy import QtGui, QtWidgets, QtCore
+from qtpy.QtWidgets import QApplication, QWidget
+from qtpy.QtGui import QFont, QFontDatabase
+import qtpy as PyQt
+
 try:
-    from PyQt6 import QtWidgets, QtCore
-    from PyQt6.QtWidgets import QApplication, QWidget
-    from PyQt6.QtGui import QFont, QFontDatabase
-    import PyQt6 as PyQt
-
-    try:
-        from PyQt6 import Qsci
-    except ImportError:
-        Qsci = None
-
+    from qtpy import Qsci
 except ImportError:
-    from PyQt5 import QtWidgets, QtCore
-    from PyQt5.QtWidgets import QApplication, QWidget
-    from PyQt5.QtGui import QFont, QFontDatabase
-    import PyQt5 as PyQt
-
-    try:
-        from PyQt5 import Qsci
-    except ImportError:
-        Qsci = None
+    Qsci = None
 
 from viewclasses import McView
 from datetime import datetime
@@ -52,11 +40,11 @@ from mccodelib.utils import ComponentParser, get_instr_site, get_instr_comp_file
 Status and message log and signalling.
 '''
 class McMessageEmitter(QtCore.QObject):
-    statusUpdate = QtCore.pyqtSignal(str)
+    statusUpdate = QtCore.Signal(str)
     __statusLog = []
     
     # logMessageUpdate(msg, flag_err_red, flag_gui_blue, flag_clear)
-    logMessageUpdate = QtCore.pyqtSignal(str, bool, bool, bool)
+    logMessageUpdate = QtCore.Signal(str, bool, bool, bool)
     __msgLog = []
     
     def status(self, status):
@@ -87,9 +75,9 @@ class McMessageEmitter(QtCore.QObject):
 ''' Asynchronous process execution QThread
 '''
 class McRunQThread(QtCore.QThread):
-    thread_exception = QtCore.pyqtSignal(str)
-    error = QtCore.pyqtSignal(str)
-    message = QtCore.pyqtSignal(str)
+    thread_exception = QtCore.Signal(str)
+    error = QtCore.Signal(str)
+    message = QtCore.Signal(str)
     cmd = ''
     cwd = ''
     process_returncode = None
@@ -126,9 +114,9 @@ class McGuiState(QtCore.QObject):
     __emitter = None
     
     # <instrument>, <work dir>
-    instrumentUpdated = QtCore.pyqtSignal(list, str)
+    instrumentUpdated = QtCore.Signal(list, str)
     # [<canRun>, <canPlot>] each can be str 'True' or 'False'
-    simStateUpdated = QtCore.pyqtSignal(list)
+    simStateUpdated = QtCore.Signal(list)
     
     __cFile = None
     __binaryFile = None
@@ -226,7 +214,7 @@ class McGuiState(QtCore.QObject):
     def canPlot(self):
         return ((self.__instrFile != "") and (not self.isSimRunning()))
     
-    __thread_exc_signal = QtCore.pyqtSignal(str)
+    __thread_exc_signal = QtCore.Signal(str)
     def compile(self, mpi=False):
         # using Qt in-built cross-thread signaling
         self.__thread_exc_signal.connect(handleExceptionMsg)
@@ -343,7 +331,8 @@ class McGuiState(QtCore.QObject):
                 [<par_name>, <value>] pairs
         '''
         mcrunparms = ' '
-        
+        feedback = '' # String included in message on succesful launch
+
         # mpi-related
         clustering = fixed_params[4]
         mpicount = fixed_params[5]
@@ -372,14 +361,16 @@ class McGuiState(QtCore.QObject):
                 output_dir = "%s_%s" % \
                               (os.path.splitext(self.__instrFile)[0],
                                datetime.strftime(datetime.now(), DATE_FORMAT_PATH))
-                
+            feedback = 'Sim mode: '
             runstr = mccode_config.configuration["MCRUN"] + mcrunparms + os.path.basename(self.__instrFile) + ' -d ' + output_dir
             if simtrace == 2:
                 runstr = runstr + ' --optimize '
                 if inspect:
                     runstr = runstr + ' --optimize-monitor=' + inspect
+                feedback = 'Optim mode: '
             self.__dataDir = output_dir
         elif simtrace == 1: # trace (mcdisplay)
+            feedback = 'Trace mode: '
             if inspect:
                 runstr = mccode_config.configuration["MCDISPLAY"] + ' ' + os.path.basename(self.__instrFile) + ' --inspect=' + inspect
             else:
@@ -394,10 +385,18 @@ class McGuiState(QtCore.QObject):
         
         # steps count
         nsteps = fixed_params[2]
+        # Check for list mode / scan steps
         if nsteps != '':
-            if int(nsteps) > 1:
-                print('Nsteps is ' + nsteps)
-                runstr = runstr + ' -N ' + str(nsteps)
+            try:
+                if int(nsteps) > 1: # Numeric, this is scan step mode
+                    feedback = 'Scan mode: N=' + str(nsteps) + ' steps. '
+                    runstr = runstr + ' -N ' + str(nsteps)
+            except: # Check for list mode
+                if nsteps == '-L' or nsteps == 'list':
+                    runstr = runstr + ' -L '
+                    feedback = 'Scanning, -L list mode. '
+                else:
+                    feedback = 'Ignored scan input (' + str(nsteps) +') '
         
         # gravity
         if fixed_params[3]:
@@ -418,7 +417,6 @@ class McGuiState(QtCore.QObject):
         # format
         Format = fixed_params[9]
         if Format and simtrace == 0:
-            print("REDEFINING FORMAT: " + mccode_config.configuration["FORMAT"])
             runstr = runstr + ' --format=' + mccode_config.configuration["FORMAT"]
 
         # Monitor_nD buffersize
@@ -428,7 +426,6 @@ class McGuiState(QtCore.QObject):
 
         # parse instrument params
         runstr += ' ' + lexer.join('%s=%s'%(p[0],p[1]) for p in params)
-        print('Running: ' + runstr)
         
         # Add & for backgrounding on Unix systems
         if simtrace == 1 and not os.name == 'nt':
@@ -452,7 +449,7 @@ class McGuiState(QtCore.QObject):
             self.__runthread.message.connect(lambda msg: self.__emitter.message(msg))
             self.__runthread.start()
             self.__emitter.message(runstr, gui=True)
-            self.__emitter.status('Running simulation ...')
+            self.__emitter.status(feedback + 'Running simulation ...')
             self.__fireSimStateUpdate()
         else:
             self.__emitter.message(runstr, gui=True)

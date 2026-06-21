@@ -5,8 +5,11 @@
 import matplotlib as mpl
 from mpl_toolkits.mplot3d import art3d
 from matplotlib import pyplot as plt
+from matplotlib import use
 import numpy as np
 import json
+import sys
+import os
 
 from util import (parse_multiline, rotate, rotate_points, draw_circle, get_line,
                   draw_box, draw_sphere, draw_cylinder, draw_disc, rotate_xyz, draw_cone, draw_hollow_box, draw_annulus, draw_new_circle)
@@ -47,19 +50,50 @@ transparency = 1
 x_max_polygon = y_max_polygon = z_max_polygon = float('-inf')
 x_min_polygon = y_min_polygon = z_min_polygon = float('inf')
 
+def dumpfile(frmat, filename = None):
+    """ save current fig to softcopy """
+    from pylab import savefig
 
-def parse_trace():
+    if filename is None:
+        filename = "display_matplotlib"
+
+    # get directory, basename and extension
+    if isinstance(filename, list):
+        filename = filename[0]
+    basename  = os.path.splitext(filename)[0] # contains full path and base filename
+    if frmat is None:
+        ext       = os.path.splitext(filename)[1] # extension with the dot
+    else:
+        ext = frmat
+    if ext[0] != '.':
+        ext = '.'+ext
+    # assemble target name
+    saveto = basename + ext
+
+    # Check for existance of earlier exports
+    if os.path.isfile(saveto):
+        index=1
+        saveto = f"{basename}_{index}{frmat}"
+        while os.path.isfile(saveto):
+            index += 1
+            saveto = f"{basename}_{index}{frmat}"
+
+    savefig(saveto)
+    print("Saved " + saveto)
+
+def parse_trace(backend):
     ''' Parse McStas trace output from stdin and write results
         to file objects csv_comps and csv_lines '''
+
+    if backend is not None:
+        use(backend)
+        if backend in ('pdf', 'pgf', 'ps', 'svg'):
+            use('template')
 
     mpl.rcParams['legend.fontsize'] = 10
 
     ax = plt.figure(figsize=plt.figaspect(0.5) * 1.5).add_subplot(projection='3d')
-    ax.set(xlabel='z', ylabel='x', zlabel='y')
-    try:
-        ax.set_aspect('equal')
-    except:
-        print("manual aspect not supported")
+    ax.set(xlabel='z / [m]', ylabel='x / [m]', zlabel='y / [m]')
 
     color = 0
 
@@ -174,9 +208,15 @@ def parse_trace():
         else:
             print(line)
 
+    ax.set_box_aspect(None)
     set_axis_limits(ax)
 
-    plt.show()
+    try:
+        plt.show()
+        if backend in ('pdf', 'pgf', 'ps', 'svg'):
+            dumpfile(backend)
+    except KeyboardInterrupt:
+        pass
 
 
 def process_circle(ax, line, color, comp, transparency):
@@ -427,4 +467,7 @@ def set_axis_limits(ax):
 
 
 if __name__ == '__main__':
-    parse_trace()
+    backend=None
+    if len(sys.argv) > 1:
+        backend = sys.argv[1]
+    parse_trace(backend)

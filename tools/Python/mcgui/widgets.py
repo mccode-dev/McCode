@@ -5,18 +5,24 @@ DO NOT EDIT MANUALLY.
 
 Dot ui files are created and edited using qtcreator, then transformed using pyuic5 from pyqt5-dev-tools.
 '''
+from qtpy import QtGui, QtWidgets, QtCore
+from qtpy.QtWidgets import QApplication, QWidget
+import qtpy as PyQt
+
 try:
-    from PyQt6 import QtGui, QtWidgets, QtCore
-    from PyQt6.QtWidgets import QApplication, QWidget
-    from PyQt6.QtGui import QAction
-    import PyQt6 as PyQt
-
+    # PyQt6 style imports
+    from qtpy.QtWidgets import QApplication, QWidget
+    from qtpy.QtGui import QAction
 except ImportError:
-    from PyQt5 import QtGui, QtWidgets, QtCore
-    from PyQt5.QtWidgets import QApplication, QWidget, QAction
-    from PyQt5.QtWidgets import QAction
-    import PyQt5 as PyQt
+    # PyQt5 style imports
+    from qtpy.QtWidgets import QApplication, QWidget, QAction
+    from qtpy.QtWidgets import QAction
 
+# Layout direction
+try:
+    ld = QtCore.Qt.LayoutDirection.LeftToRight
+except AttributeError:
+    ld = QtCore.Qt.LeftToRight
 
 ''' Main window.
 '''
@@ -610,8 +616,8 @@ class Ui_dlgStartSim(object):
         self.edtNodes.setText(_translate(       "dlgStartSim", "auto"))
         self.lblSimTrace.setText(_translate(    "dlgStartSim", "Simulation/Trace/Optimize: "))
         self.lblSimTrace.setToolTip(_translate( "dlgStartSim", "<html><body><b>Simulate</b>: Run calcultion <br><b>Trace</b>: View the model geometry <br><b>Optimize</b>: Determine parameters given as MIN,MAX or MIN,START,MAX to maximize all or a given monitor (Inspect)</body></html>"))
-        self.lblSweepSteps.setText(_translate(  "dlgStartSim", "Scan steps (optional):"))
-        self.lblSweepSteps.setToolTip(_translate("dlgStartSim", "<html><body>Give the number N of scan steps. Some parameters above should be given as MIN,MAX and will vary in N steps</body></html>"))
+        self.lblSweepSteps.setText(_translate(  "dlgStartSim", "List mode/scan steps (optional):"))
+        self.lblSweepSteps.setToolTip(_translate("dlgStartSim", "<html><body>Either:<ul><li>Give -L or 'list' for list mode. One or more parms above should be given as A,B,...,K<br></li><li>Indicate the number of scan steps 'N'. One or more parms above should be given as MIN,MAX for scan over N steps</li></ul></body></html>"))
         self.lblNeutronCount.setToolTip(_translate("dlgStartSim", "<html><body>The Ray count specifies the statistical granularity of your simulation and is NOT equal to the number of particles simulated. For a thorough explanation, see the chapter 'Monte Carlo Techniques and simulation strategy' in the user manual.</body></html>"))
         self.lblNeutronCount.setText(_translate("dlgStartSim", "Ray count:"))
         self.lblMpi.setText(_translate(         "dlgStartSim", "Parallelisation:"))
@@ -734,7 +740,7 @@ class Ui_dlgInsertComponent(object):
         sizePolicy.setHeightForWidth(self.edtAtRel.sizePolicy().hasHeightForWidth())
         self.edtAtRel.setSizePolicy(sizePolicy)
         self.edtAtRel.setMinimumSize(QtCore.QSize(0, 0))
-        self.edtAtRel.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.edtAtRel.setLayoutDirection(ld)
         self.edtAtRel.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeading|QtCore.Qt.AlignmentFlag.AlignLeft|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.edtAtRel.setObjectName("edtAtRel")
         self.gridAtRotated.addWidget(self.edtAtRel, 0, 8, 1, 1)
@@ -742,12 +748,12 @@ class Ui_dlgInsertComponent(object):
         self.label_6.setObjectName("label_6")
         self.gridAtRotated.addWidget(self.label_6, 0, 0, 1, 1)
         self.edtAtY = QtWidgets.QLineEdit(dlgInsertComponent)
-        self.edtAtY.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.edtAtY.setLayoutDirection(ld)
         self.edtAtY.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.edtAtY.setObjectName("edtAtY")
         self.gridAtRotated.addWidget(self.edtAtY, 0, 4, 1, 1)
         self.edtAtZ = QtWidgets.QLineEdit(dlgInsertComponent)
-        self.edtAtZ.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.edtAtZ.setLayoutDirection(ld)
         self.edtAtZ.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.edtAtZ.setObjectName("edtAtZ")
         self.gridAtRotated.addWidget(self.edtAtZ, 0, 6, 1, 1)
@@ -755,7 +761,7 @@ class Ui_dlgInsertComponent(object):
         self.label_8.setObjectName("label_8")
         self.gridAtRotated.addWidget(self.label_8, 0, 5, 1, 1)
         self.edtAtX = QtWidgets.QLineEdit(dlgInsertComponent)
-        self.edtAtX.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.edtAtX.setLayoutDirection(ld)
         self.edtAtX.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.edtAtX.setObjectName("edtAtX")
         self.gridAtRotated.addWidget(self.edtAtX, 0, 2, 1, 1)
@@ -763,22 +769,22 @@ class Ui_dlgInsertComponent(object):
         self.label_2.setObjectName("label_2")
         self.gridAtRotated.addWidget(self.label_2, 1, 0, 1, 1)
         self.edtRotX = QtWidgets.QLineEdit(dlgInsertComponent)
-        self.edtRotX.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.edtRotX.setLayoutDirection(ld)
         self.edtRotX.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.edtRotX.setObjectName("edtRotX")
         self.gridAtRotated.addWidget(self.edtRotX, 1, 2, 1, 1)
         self.edtRotY = QtWidgets.QLineEdit(dlgInsertComponent)
-        self.edtRotY.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.edtRotY.setLayoutDirection(ld)
         self.edtRotY.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.edtRotY.setObjectName("edtRotY")
         self.gridAtRotated.addWidget(self.edtRotY, 1, 4, 1, 1)
         self.edtRotZ = QtWidgets.QLineEdit(dlgInsertComponent)
-        self.edtRotZ.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.edtRotZ.setLayoutDirection(ld)
         self.edtRotZ.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.edtRotZ.setObjectName("edtRotZ")
         self.gridAtRotated.addWidget(self.edtRotZ, 1, 6, 1, 1)
         self.edtRotRel = QtWidgets.QLineEdit(dlgInsertComponent)
-        self.edtRotRel.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.edtRotRel.setLayoutDirection(ld)
         self.edtRotRel.setObjectName("edtRotRel")
         self.gridAtRotated.addWidget(self.edtRotRel, 1, 8, 1, 1)
         self.label_4 = QtWidgets.QLabel(dlgInsertComponent)

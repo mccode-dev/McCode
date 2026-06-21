@@ -1,13 +1,20 @@
+@echo off
 @REM Script for installation of McStas/McXtrace-related Python plus modules
 @REM
+@mkdir %USERPROFILE%\AppData\Roaming\micromamba
+@copy micromamba.exe %USERPROFILE%\AppData\Roaming\micromamba
 @echo Starting installation of miniconda to c:\@FLAVOR@-@VERSION@\miniconda3
 @echo ...
 @echo WARNING: Please wait, process may take several minutes to complete!
 @echo  (Pressing [enter] a few times to ensure something is happening is OK)
 @echo ...
-@micromamba.exe create -p c:\@FLAVOR@-@VERSION@\miniconda3 --file environment.yml -y
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba.exe shell init --shell cmd.exe
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba.exe shell hook -s cmd.exe
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba config append channels conda-forge
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba config set channel_priority strict
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba.exe create -p c:\@FLAVOR@-@VERSION@\miniconda3 --file environment.yml -y
 @echo micromamba install completed, including McCode dependencies...
-@micromamba.exe clean --all -y
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba.exe clean --all -y
 @echo ...
 @echo Press a key below to exit this installation shell...
 @echo ...

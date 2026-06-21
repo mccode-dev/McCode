@@ -47,7 +47,7 @@ SETTING PARAMETERS ( string coating="Be.txt", longw=1, radius=1, length=0.2, R0=
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
 SHARE
 %{
-  #include <complex.h>
+  %include "mccode-complex-lib"
   #include <math.h>
   %include "read_table-lib"
 %}
@@ -190,7 +190,7 @@ TRACE
         Qc = 4 * sqrt (M_PI * na * RE * f1);
         double R = 1;
         if (Q > Qc) {
-          double complex qp, Rc;
+          cdouble qp, Rc;
           double q, b_mu;
 
           q = Q / Qc;
@@ -200,12 +200,12 @@ TRACE
           /*b_mu=beta*(2*k)^2 / Qc^2*/
           b_mu = 4 * M_PI * na * RE * f2 / (Qc * Qc);
           if (q == 1) {
-            qp = sqrt (b_mu) * (1 + I);
+            qp = rmul(sqrt (b_mu),radd(1,cplx(0,1)));
           } else {
-            qp = csqrt (q * q - 1 + 2 * I * b_mu);
+            qp = csqrt (rmul(q * q - 1,cplx(2 * b_mu,1)));
           }
           /*and from this compute the reflectivity*/
-          Rc = (q - qp) / (q + qp);
+          Rc = cdiv(rmul(q,cneg(qp)), radd(q,qp));
           R = cabs (Rc);
           p *= R; // pow(R,scatterc);
           /*now also set the phase - have to compute manually since carg is not GPU yet*/

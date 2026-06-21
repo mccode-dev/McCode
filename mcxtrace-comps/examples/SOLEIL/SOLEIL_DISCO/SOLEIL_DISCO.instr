@@ -506,10 +506,7 @@ FINALLY
     // If there is a scan, calculate the Wavelength(Angstroms) as a function of x_screw(mm).
     if(scan>=1){ 
 #ifdef USE_MPI
-        //MPI_MASTER is equivalent to if(mpi_node_root>=mpi_node_rank){ //statement }
-        //If DETECTOR_OUT_0D is inside of MPI_MASTER the program hangs forever. 
-        //If outside it seems to work. Weird.
-        MPI_MASTER(
+      if (mpi_node_rank==0) {
 #endif
 	    MCDETECTOR w_monitor_var = COMP_GETPAR(w_monitor,detector); // We have to think in terms of wavelength, the sine drive mechanism was built to linearize the wavelength.
         w_monitor_value = w_monitor_var.centerX;
@@ -519,7 +516,7 @@ FINALLY
         number_events_w_monitor = w_monitor_var.events;   
                                                  
 #ifdef USE_MPI                  
-        );
+      }
         //MPI_Barrier(MPI_COMM_WORLD);
 #endif  
         //Adding a legend to the graph would be good, need to find out how to do that at a later date. todo            

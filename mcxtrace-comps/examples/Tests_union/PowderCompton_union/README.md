@@ -1,4 +1,4 @@
-# The `Test_PowderN_union` Instrument
+# The `PowderCompton_union` Instrument
 
 *McXtrace: An example using Union with Compton scattering*
 

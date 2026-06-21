@@ -27,12 +27,13 @@ canrun() {
 }
 
 if ( canrun ); then
-    arguments=""
     ncountmax="1e2"
     ncount=""
     trace=""
     next=0
     found_ncount=0
+    backend=""
+    args=()
     for arg in "${@}"; do
 	if [ "${next}" == "1" ];               # We found -n or --ncount in last pass, this is NUMBER
 	then
@@ -56,6 +57,10 @@ if ( canrun ); then
 	elif [[ ${arg} =~ ^--trace= ]];       # Case: --trace=NUMBER
 	then
 	    trace=`echo $arg | cut -f2 -d=`
+	    args+=("$arg")
+	elif [[ ${arg} =~ ^--backend= ]];       # Case: --backend=Something
+	then
+	    backend=`echo $arg | cut -f2 -d=`
 	elif [[ ${arg} =~ ^--help ]];       # Case: --help
 	then
 	    script=`basename $0`
@@ -67,10 +72,12 @@ if ( canrun ); then
 	    echo "       --ncount=N    - set number of particles to trace, max/default N=1e2"
 	    echo "             -n N "
 	    echo "              -nN "
+	    echo "      --backend=B    - use matplotlib backend 'B' (e.g. WebAgg, pdf etc.)"
+	    echo "                       Backends 'pdf', 'pgf', 'ps', 'svg' saves a hardcopy."
 	    echo ""
 	    exit
 	else
-	    arguments="$arguments $arg"
+	    args+=("$arg")
 	fi
     done
     if [ "${trace}" == "" ];
@@ -89,7 +96,7 @@ if ( canrun ); then
     else
 	ncount=$ncountmax
     fi
-    @P@run  $* --trace=$trace --no-output-files -n $ncount | python3 ${UTILDIR}/${TOOL}.py
+    @P@run  ${args[@]} --trace=${trace} --no-output-files -n ${ncount} | python3 ${UTILDIR}/${TOOL}.py ${backend}
 else
     @FLAVOR@_errmsg Failed to run Python ${TOOL} - permissions or missing dependencies\?
 fi

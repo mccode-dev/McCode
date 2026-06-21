@@ -1,28 +1,21 @@
-# Install McXtrace 3.6.14 through conda-forge (macOS, Linux or Windows host)
+# Install McXtrace 3.7.6 through conda-forge (macOS, Linux or Windows host)
 
-* We a set of conda-packages for installing McXtrace 3.6.14.x through conda
+* We a set of conda-packages for installing McXtrace 3.7.6.x through conda
 
 ## Get yourself a conda / mamba
 Due to the complex [licensing situation](https://discuss.scientific-python.org/t/response-to-anaconda-switch-to-paid-plans/1395) with the commercial Anaconda ecosystem, we clearly recommend McXtrace users to start from an open-source entry-point such as
-* [miniforge](https://github.com/conda-forge/miniforge) or
 * [micromamba](https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html)
 
-## If you ALREADY have a conda (be it Anaconda, blah-conda or whatever)
-* Initially, list mcstas versions available on conda-forge, just to be sure you pick them up:
-* ```conda search mcxtrace --channel conda-forge```, should give you many lines of the form
-* ```mcxtrace                         3.5.8      hc.31654_1  conda-forge   ```
-* To install McStrace with all needed dependencies, run
-* ```conda create --name mcxtrace --channel conda-forge --channel nodefaults mcxtrace```
+## Once micromamba is installed installed:
+* Initially, you may list mcxtrace versions available on conda-forge, just to be sure you pick them up:
+* ```micromamba search mcxtrace --channel conda-forge```, should give you many lines of the form
+* ```mcxtrace                         3.7.6      hc.31654_1  conda-forge   ```
+* To install McStas with all needed dependencies in the environment `mcxtrace`, run
+* ```micromamba create --name mcxtrace --channel conda-forge --channel nodefaults mcxtrace```
+* The `--name` argument defines the environment to create for the mcxtrace installation
+* A specific version may be installed via e.g. ```micromamba create --name mcxtrace --channel conda-forge --channel nodefaults mcxtrace=3.7.6```
+* For some conda variants you may need an `env` in the  syntax like this: `conda env create ...` 
 
-## If you DON'T have a conda already:
-
-### Optionally create a dedicated environment and load it
-* ```conda create --name mcxtrace ```
-* ```conda activate mcxtrace```
-
-### Install McStas, compilers, openmpi
-* ```mamba install mcxtrace```
- 
 ## Note for use on Windows
 On Windows you will further need to install "c++ build tools for VS code" manually:
 

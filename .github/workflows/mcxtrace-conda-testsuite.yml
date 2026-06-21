@@ -16,17 +16,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, python: '3.12', mpi: 'openmpi' }
-          - { os: ubuntu-latest, python: '3.12', mpi: 'mpich' }
-          - { os: macos-latest, python: '3.12', mpi: 'openmpi' }
-          - { os: macos-latest, python: '3.12', mpi: 'mpich' }
-          - { os: windows-latest, python: '3.12', mpi: 'msmpi' }
+          - { os: ubuntu-latest, mpi: 'openmpi' }
+          - { os: macos-latest, mpi: 'openmpi' }
+          - { os: windows-latest, mpi: 'msmpi' }
 
-    name: ${{ matrix.os }}.${{ matrix.mpi }}.python-${{ matrix.python }}
+    name: ${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
     runs-on: ${{ matrix.os }}
-    env:
-      CC: ${{ matrix.CC }}
-      CXX: ${{ matrix.CXX }}
     defaults:
       run:
         shell: bash -el {0}
@@ -39,15 +34,7 @@ jobs:
 
     - name: Setup VS in shell Intel
       if: runner.os == 'Windows'
-      uses: ilammy/msvc-dev-cmd@v1
-
-    - uses: conda-incubator/setup-miniconda@v4
-      with:
-        activate-environment: mcxtrace
-        auto-update-conda: true
-        conda-remove-defaults: true
-        channels: conda-forge
-        python-version: ${{ matrix.python }}
+      uses: egor-tensin/vs-shell@v2
 
     - name: Get conda dependency list
       id: conda-deps
@@ -55,11 +42,10 @@ jobs:
            ./src/devel/bin/mccode-create-conda-yml -m mcxtrace -n mcxtrace -o dependencies.yml
            cat dependencies.yml
 
-    - name: Update conda
-      id: update-conda
-      run: |
-           conda install mamba -y
-           mamba env update --file dependencies.yml
+    - uses: mamba-org/setup-micromamba@v3
+      with:
+        environment-file: dependencies.yml 
+        environment-name: mcxtrace
 
     - name: Check versions
       id: version-checks
@@ -68,19 +54,32 @@ jobs:
            python3 --version
            which cmake
            cmake --version
-           if [ "$RUNNER_OS" != "Windows" ];
-           then
-             echo C compiler: $CC
-             $CC --version
-           else
-             echo C compiler: cl.exe
-             cl.exe
-           fi
 
     - name: Configure build and install mcxtrace
       id: mcxtrace-install
       run: |
            ./src/devel/bin/mccode-build-conda -m mcxtrace -s $PWD/src -b $PWD/build_mcxtrace
+
+    - name: Validate build output
+      id: build-validation
+      if: always()
+      run: |
+           set -e
+           set -u
+           set -x
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             echo "Validating Windows build output..."
+             echo "CONDA_PREFIX: $CONDA_PREFIX"
+             echo "Checking for mcxtrace executable..."
+             test -f ${CONDA_PREFIX}/bin/mcxtrace || test -f ${CONDA_PREFIX}/bin/mcxtrace.bat || { echo "ERROR: mcxtrace not found"; exit 1; }
+             echo "Checking for mxtest executable..."
+             test -f ${CONDA_PREFIX}/bin/mxtest.bat || { echo "ERROR: mxtest.bat not found"; ls -la ${CONDA_PREFIX}/bin/ | grep -i mxtest || echo "No mxtest found"; exit 1; }
+           else
+             echo "Validating Unix build output..."
+             test -f ${CONDA_PREFIX}/bin/mcxtrace || { echo "ERROR: mcxtrace not found"; exit 1; }
+             test -f ${CONDA_PREFIX}/bin/mxtest || { echo "ERROR: mxtest not found"; exit 1; }
+           fi
 
     - name: Post install openmpi hacks macOS
       id: post-install-openmpi-hacks-macOS
@@ -119,15 +118,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_test-suite
+           tar cvfz mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz run_test-suite
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcxtrace-artefacts-${{ matrix.os }}.${{ matrix.mpi }}.python-${{ matrix.python }}
-        path: "mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
+        name: mcxtrace-artefacts-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
+        path: "mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3

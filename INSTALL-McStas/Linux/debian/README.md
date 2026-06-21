@@ -1,4 +1,4 @@
-## Install McStas 3.6.14 On Debian class systems (including Ubuntu, mint etc.):
+## Install McStas 3.7.6 On Debian class systems (including Ubuntu, mint etc.):
 The packages have been tested to work correctly on Ubuntu 24.04.
 
 # Add the McCode repository
@@ -29,15 +29,16 @@ mcstas-tools-python-mcplot-pyqtgraph - python-tools-mcplot-pyqtgraph built using
 mcstas-tools-python-mcrun - python-tools-mcrun built using CMake
 ```
 The meta-package mcstas-suite-python (or mcstas-suite-python-ng)
-allows you to install mcstas 3.6.14 with tools (mcrun/mcplot etc.) by
+allows you to install mcstas 3.7.6 with tools (mcrun/mcplot etc.) by
 the simple apt-get command
 ```bash
 sudo apt-get install mcstas-suite-python
 ```
 
-# Important note wrt. Debian packages:
-If you install both of mcstas and mcxtrace on the same Debian/Ubuntu system, you will get a collision for the file `/usr/bin/cif2hkl`. As a workaround you may allow joint installation via overriding `cif2hkl`:
-  `sudo apt-get -f install  -o Dpkg::Options::="--force-overwrite"`
+# KDSource on Ubuntu:
+We generally recommed to opt for the [conda-forge](../../conda/README.md)
+method for using McStas with KDSource on Debian. You may alternatively
+experiment with e.g. `pipx install kdsource`
 
 # Using mcdoc on modern Ubuntu systems
 Ubuntu is shipping its browsers as "snap" packages, meaning that

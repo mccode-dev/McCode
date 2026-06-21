@@ -1,19 +1,20 @@
+@echo off
 @REM Script for installation of McStas/McXtrace-related Python plus modules
 @REM
+@mkdir %USERPROFILE%\AppData\Roaming\micromamba
+@copy micromamba.exe %USERPROFILE%\AppData\Roaming\micromamba
 @echo Starting installation of miniconda to c:\@FLAVOR@-@VERSION@\miniconda3
 @echo ...
 @echo WARNING: Please wait, process may take several minutes to complete!
 @echo  (Pressing [enter] a few times to ensure something is happening is OK)
 @echo ...
-@start /wait "" Miniforge3-Windows-x86_64.exe /S /AddToPath=0 /D=c:\@FLAVOR@-@VERSION@\miniconda3
-@echo Mambaforge install completed, proceeding with McCode dependencies...
-@SET PATH=c:\@FLAVOR@-@VERSION@\miniconda3;c:\@FLAVOR@-@VERSION@\miniconda3\Scripts\;c:\@FLAVOR@-@VERSION@\miniconda3\Library\bin;c:\@FLAVOR@-@VERSION@\miniconda3\Library\mingw-w64\bin;%PATH%
-@REM update conda and install mamba
-@set CONDA_NO_PLUGINS=true
-@conda config --set solver classic
-@conda install -n base conda-libmamba-solver --solver=classic -y
-@conda env update --name base --file @FLAVOR@-environment.yml --solver=classic
-@conda clean --all -y
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba.exe shell init --shell cmd.exe
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba.exe shell hook -s cmd.exe
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba config append channels conda-forge
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba config set channel_priority strict
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba.exe create -p c:\@FLAVOR@-@VERSION@\miniconda3 --file @FLAVOR@-environment.yml -y
+@echo micromamba install completed, including McCode dependencies...
+@%USERPROFILE%\AppData\Roaming\micromamba\micromamba.exe clean --all -y
 @mklink %USERPROFILE%\Desktop\@P@gui-@VERSION@.bat c:\@FLAVOR@-@VERSION@\miniconda3\bin\@P@guistart.bat
 @mklink %USERPROFILE%\Desktop\@FLAVOR@-shell-@VERSION@.bat c:\@FLAVOR@-@VERSION@\miniconda3\bin\@FLAVOR@go.bat
 @echo ...

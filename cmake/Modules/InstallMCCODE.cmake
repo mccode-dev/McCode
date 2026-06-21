@@ -441,6 +441,10 @@ macro(installMCCODE)
       TARGETS ${FLAVOR}-pygen
       DESTINATION "${DEST_BINDIR}"
     )
+
+    # windirent.h - dirent support for MSVC
+    install(FILES ${WORK}/src/windirent.h DESTINATION "${DEST_INCLUDEDIR}")
+
     if ( MCCODE_USE_LEGACY_DESTINATIONS )
       install(PROGRAMS
         cmake/support/run-scripts/mpirun.bat

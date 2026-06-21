@@ -50,7 +50,7 @@ SETTING PARAMETERS (int gridpoints=101, string fname="template.out",focus_xw=0,f
 SHARE
 %{
   %include "read_table-lib"
-  #include <complex.h>
+  %include "mccode-complex-lib"
 %}
 
 
@@ -60,7 +60,7 @@ DECLARE
   double pmul;
   double pint;
   t_Table T;
-  double complex** dfl;
+  cdouble** dfl;
 %}
 
 INITIALIZE
@@ -81,7 +81,7 @@ INITIALIZE
   strncpy (dflfn, fname, 502);
   strncat (dflfn, ".dfl", 4);
   /*allocate storage for the input array*/
-  if ((dfl = calloc (nslices, sizeof (double complex*))) == NULL) {
+  if ((dfl = calloc (nslices, sizeof (cdouble*))) == NULL) {
     fprintf (stderr, "Error(%s): allocation failed for slice array. Aborting.\n", NAME_CURRENT_COMP);
     exit (-1);
   }
@@ -92,7 +92,7 @@ INITIALIZE
 
   for (k = 0; k < nslices; k++) {
     /*printf("alloc'ing for slice %d...",k);*/
-    if ((dfl[k] = calloc (gridpoints * gridpoints, sizeof (double complex))) == NULL) {
+    if ((dfl[k] = calloc (gridpoints * gridpoints, sizeof (cdouble))) == NULL) {
       fprintf (stderr, "Error(%s): allocation failed for slice %d. Aborting.\n", NAME_CURRENT_COMP, k);
       exit (-1);
     }
@@ -124,7 +124,7 @@ TRACE
   double xwidth, yheight, k;
   double theta_x, theta_y;
   double alpha, beta;
-  double complex cp, cp2, t0, t1;
+  cdouble cp, cp2, t0, t1;
   int ix, iy, is;
   double ds, s, deltas;
 
@@ -153,10 +153,10 @@ TRACE
   alpha = ((x + 0.5 * xwidth - ix * meshsize) / meshsize);
   beta = ((y + 0.5 * yheight - iy * meshsize) / meshsize);
 
-  t0 = (1 - alpha) * dfl[is][iy * gridpoints + ix] + alpha * dfl[is][iy * gridpoints + ix + 1];
-  t1 = (1 - alpha) * dfl[is][(iy + 1) * gridpoints + ix] + alpha * dfl[is][(iy + 1) * gridpoints + ix + 1];
+  t0 = rmul(1 - alpha, cadd(dfl[is][iy * gridpoints + ix], rmul(alpha, dfl[is][iy * gridpoints + ix + 1])));
+  t1 = rmul(1 - alpha, cadd(dfl[is][(iy + 1) * gridpoints + ix], rmul(alpha, dfl[is][(iy + 1) * gridpoints + ix + 1])));
 
-  cp = (1 - beta) * t0 + beta * t1;
+  cp = cadd(rmul(1 - beta, t0), rmul(beta, t1));
   /*cp now contains the complex radiation field at x,y*/
 
   p = pmul * cabs (cp);
