@@ -148,7 +148,41 @@ SHARE
 
 
   }
-  
+
+
+  void transform_wavevector_into_local_coord_system(struct Volume_struct* Volume,
+                                Coords * wavevector_rotated, double (*k_rotated)[3],
+                                int *p_index, Coords* wavevector, Coords* ray_position_geometry,
+                                struct focus_data_struct* this_focus_data) {
+                
+   int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index;
+   *wavevector_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *wavevector);
+   coords_get (*wavevector_rotated, k_rotated[0], k_rotated[1], k_rotated[2]);
+
+   if (Volume->p_physics->p_scattering_array[*p_index].needs_cross_section_focus == 1) {
+     // Prepare focus data using ray_position_geometry of forced scattering point which will be prepared if any process needs cross_section time
+     // focusing
+     Coords ray_position_geometry_rotated
+         = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *ray_position_geometry);
+     this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated); // Aim vector for this ray
+     #ifdef Union_trace_verbal_setting
+     printf ("Checking process number : %d, it was not isotropic, so RayAim updated \n", *p_index);
+     print_position (*ray_position_geometry, "ray_position_geometry");
+     print_position (ray_position_geometry_rotated, "ray_position_geometry_rotated");
+     print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
+     #endif
+   }
+  }
+
+
+  int process_needs_multiple_sampling(struct physics_struct* current_p_physics,
+                                        struct scattering_process_struct* process){
+    if (current_p_physics->sampling_points !=0 && process->needs_cross_section_focus){
+      if (process->sampling_points != -1)
+        return 1;
+    }
+    return 0;
+  }
 
 
 
@@ -1643,50 +1677,6 @@ TRACE
                                                         &ray_velocity, &ray_position_geometry,
                                                         &ray_position,
                                                         Volumes[current_volume], this_focus_data);
-            // Sample length_to_scattering in linear manner
-            // forced_length_to_scattering = safety_distance + rand01 () * (length_to_boundary - safety_distance2);
-            //
-            // ray_velocity = coords_set (vx, vy, vz); // Test for root cause
-            // // Find location of scattering point in master coordinate system without changing main position / velocity variables
-            // Coords direction = coords_scalar_mult (ray_velocity, 1.0 / length_of_position_vector (ray_velocity));
-            // Coords scattering_displacement = coords_scalar_mult (direction, forced_length_to_scattering);
-            // Coords forced_ray_scattering_point = coords_add (ray_position, scattering_displacement);
-            // ray_position_geometry
-            //     = coords_sub (forced_ray_scattering_point, Volumes[current_volume]->geometry.center); // ray_position relative to geometry center
-            //
-            // // Calculate the aim for non isotropic processes
-            // this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[0];
-            // this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
-            //
-            // #ifdef Union_trace_verbal_setting
-            // printf ("Prepared for focus in cross section calculation in volume: %s \n", Volumes[current_volume]->name);
-            // printf ("forced_length_to_scattering =%lf \n", forced_length_to_scattering);
-            // print_position (ray_position, "ray_position");
-            // print_position (direction, "direction");
-            // print_position (scattering_displacement, "scattering_displacement");
-            // print_position (forced_ray_scattering_point, "forced_ray_scattering_point");
-            // print_position (ray_position_geometry, "ray_position_geometry");
-            // printf ("for isotropic processes this RayAim is used \n");
-            // print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
-            // #endif
-
-            /*
-            // update focus data for this ray (could limit this to only update the necessary focus_data element, but there are typically very few)
-            int f_index;
-            for (f_index=0; f_index < Volumes[current_volume]->geometry.focus_data_array.num_elements; f_index++) {
-            this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[f_index];
-            // Coords ray_position_geometry_rotated = rot_apply(this_focus_data.absolute_rotation, ray_position_geometry);
-            this_focus_data->RayAim = coords_sub(this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
-            }
-
-            printf("calculated forced_length_to_scattering = %lf, new RayAim \n", forced_length_to_scattering);
-            print_position(direction, "direction");
-            print_position(scattering_displacement, "scattering_displacement");
-            print_position(forced_ray_scattering_point, "forced_ray_scattering_point");
-            print_position(ray_position_geometry, "ray_position_geometry");
-            print_position(this_focus_data->RayAim, "this_focus_data->RayAim");
-            */
-
           } else {
             forced_length_to_scattering = -1.0; // Signals that no forcing needed, could also if on the selected process struct
           }
@@ -1700,24 +1690,10 @@ TRACE
 
             if (Volumes[current_volume]->p_physics->p_scattering_array[p_index].non_isotropic_rot_index != -1) {
               // If the process is not isotropic, the wavevector is transformed into the local coordinate system of the process
-              int non_isotropic_rot_index = Volumes[current_volume]->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
-              wavevector_rotated = rot_apply (Volumes[current_volume]->geometry.process_rot_matrix_array[non_isotropic_rot_index], wavevector);
-              coords_get (wavevector_rotated, &k_rotated[0], &k_rotated[1], &k_rotated[2]);
-
-              if (Volumes[current_volume]->p_physics->p_scattering_array[p_index].needs_cross_section_focus == 1) {
-                // Prepare focus data using ray_position_geometry of forced scattering point which will be prepared if any process needs cross_section time
-                // focusing
-                Coords ray_position_geometry_rotated
-                    = rot_apply (Volumes[current_volume]->geometry.process_rot_matrix_array[non_isotropic_rot_index], ray_position_geometry);
-                this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated); // Aim vector for this ray
-                                                                                                            #ifdef Union_trace_verbal_setting
-                printf ("Checking process number : %d, it was not isotropic, so RayAim updated \n", p_index);
-                print_position (ray_position_geometry, "ray_position_geometry");
-                print_position (ray_position_geometry_rotated, "ray_position_geometry_rotated");
-                print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
-                #endif
-              }
-
+              transform_wavevector_into_local_coord_system(Volumes[current_volume],
+                                                  &wavevector_rotated, &k_rotated,
+                                                  &p_index, &wavevector, &ray_position_geometry,
+                                                  this_focus_data);
             } else {
               k_rotated[0] = k[0];
               k_rotated[1] = k[1];
@@ -1732,7 +1708,7 @@ TRACE
             double mu;
             current_p_physics->dist = length_to_boundary / current_p_physics->sampling_points - safety_distance;
 
-            if (process->sampling_points != -1 || (process->needs_cross_section_focus == 1 && current_p_physics->sampling_points != 0)) {
+            if (process_needs_multiple_sampling(current_p_physics, process)) {
               // Populate length and probability arrays:
               Coords original_position = coords_set (x, y, z);
               for (int i = 0; i < current_p_physics->sampling_points; i++) {
