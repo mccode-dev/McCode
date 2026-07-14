@@ -113,6 +113,43 @@ SHARE
 
   }
 
+  void choose_scattering_point_and_ray_direction(double* forced_length_to_scattering,
+                           double* safety_distance, double* safety_distance2,
+                           double* length_to_boundary, _class_particle *_particle, 
+                           Coords *ray_velocity, Coords* ray_position_geometry,
+                           Coords *ray_position,
+                           struct Volume_struct* Volume, struct focus_data_struct* this_focus_data){
+    // Sample length_to_scattering in linear manner
+    *forced_length_to_scattering = *safety_distance + rand01 () * (*length_to_boundary - *safety_distance2);
+
+    *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz); // Test for root cause
+    // Find location of scattering point in master coordinate system without changing main position / velocity variables
+    Coords direction = coords_scalar_mult (*ray_velocity, 1.0 / length_of_position_vector (*ray_velocity));
+    Coords scattering_displacement = coords_scalar_mult (direction, *forced_length_to_scattering);
+    Coords forced_ray_scattering_point = coords_add (*ray_position, scattering_displacement);
+    *ray_position_geometry
+        = coords_sub (forced_ray_scattering_point, Volume->geometry.center); // ray_position relative to geometry center
+
+    // Calculate the aim for non isotropic processes
+    this_focus_data = &Volume->geometry.focus_data_array.elements[0];
+    this_focus_data->RayAim = coords_sub (this_focus_data->Aim, *ray_position_geometry); // Aim vector for this ray
+
+    #ifdef Union_trace_verbal_setting
+    printf ("Prepared for focus in cross section calculation in volume: %s \n", Volume->name);
+    printf ("forced_length_to_scattering =%lf \n", forced_length_to_scattering);
+    print_position (*ray_position, "ray_position");
+    print_position (direction, "direction");
+    print_position (scattering_displacement, "scattering_displacement");
+    print_position (forced_ray_scattering_point, "forced_ray_scattering_point");
+    print_position (*ray_position_geometry, "ray_position_geometry");
+    printf ("for isotropic processes this RayAim is used \n");
+    print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
+    #endif
+
+
+  }
+  
+
 
 
 
@@ -1586,6 +1623,8 @@ TRACE
           // Since there is a non-zero number of processes in this material, all the scattering cross section for these are calculated
           struct physics_struct* current_p_physics = Volumes[current_volume]->p_physics;
           int selected_sampling = -1;
+          double forced_length_to_scattering;
+          Coords ray_position_geometry;
           my_sum = 0;
           k[0] = V2K * vx;
           k[1] = V2K * vy;
@@ -1594,37 +1633,42 @@ TRACE
           wavevector = coords_set (k[0], k[1], k[2]);
           length_to_boundary = time_to_boundery * v_length;
 
-          double forced_length_to_scattering;
-          Coords ray_position_geometry;
+
 
           // If any process in this material needs focusing, sample scattering position and update focus_data accordingly
           if (current_p_physics->any_process_needs_cross_section_focus == 1) {
+            choose_scattering_point_and_ray_direction(&forced_length_to_scattering,
+                                                        &safety_distance, &safety_distance2,
+                                                        &length_to_boundary, _particle, 
+                                                        &ray_velocity, &ray_position_geometry,
+                                                        &ray_position,
+                                                        Volumes[current_volume], this_focus_data);
             // Sample length_to_scattering in linear manner
-            forced_length_to_scattering = safety_distance + rand01 () * (length_to_boundary - safety_distance2);
-
-            ray_velocity = coords_set (vx, vy, vz); // Test for root cause
-            // Find location of scattering point in master coordinate system without changing main position / velocity variables
-            Coords direction = coords_scalar_mult (ray_velocity, 1.0 / length_of_position_vector (ray_velocity));
-            Coords scattering_displacement = coords_scalar_mult (direction, forced_length_to_scattering);
-            Coords forced_ray_scattering_point = coords_add (ray_position, scattering_displacement);
-            ray_position_geometry
-                = coords_sub (forced_ray_scattering_point, Volumes[current_volume]->geometry.center); // ray_position relative to geometry center
-
-            // Calculate the aim for non isotropic processes
-            this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[0];
-            this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
-
-            #ifdef Union_trace_verbal_setting
-            printf ("Prepared for focus in cross section calculation in volume: %s \n", Volumes[current_volume]->name);
-            printf ("forced_length_to_scattering =%lf \n", forced_length_to_scattering);
-            print_position (ray_position, "ray_position");
-            print_position (direction, "direction");
-            print_position (scattering_displacement, "scattering_displacement");
-            print_position (forced_ray_scattering_point, "forced_ray_scattering_point");
-            print_position (ray_position_geometry, "ray_position_geometry");
-            printf ("for isotropic processes this RayAim is used \n");
-            print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
-            #endif
+            // forced_length_to_scattering = safety_distance + rand01 () * (length_to_boundary - safety_distance2);
+            //
+            // ray_velocity = coords_set (vx, vy, vz); // Test for root cause
+            // // Find location of scattering point in master coordinate system without changing main position / velocity variables
+            // Coords direction = coords_scalar_mult (ray_velocity, 1.0 / length_of_position_vector (ray_velocity));
+            // Coords scattering_displacement = coords_scalar_mult (direction, forced_length_to_scattering);
+            // Coords forced_ray_scattering_point = coords_add (ray_position, scattering_displacement);
+            // ray_position_geometry
+            //     = coords_sub (forced_ray_scattering_point, Volumes[current_volume]->geometry.center); // ray_position relative to geometry center
+            //
+            // // Calculate the aim for non isotropic processes
+            // this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[0];
+            // this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
+            //
+            // #ifdef Union_trace_verbal_setting
+            // printf ("Prepared for focus in cross section calculation in volume: %s \n", Volumes[current_volume]->name);
+            // printf ("forced_length_to_scattering =%lf \n", forced_length_to_scattering);
+            // print_position (ray_position, "ray_position");
+            // print_position (direction, "direction");
+            // print_position (scattering_displacement, "scattering_displacement");
+            // print_position (forced_ray_scattering_point, "forced_ray_scattering_point");
+            // print_position (ray_position_geometry, "ray_position_geometry");
+            // printf ("for isotropic processes this RayAim is used \n");
+            // print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
+            // #endif
 
             /*
             // update focus data for this ray (could limit this to only update the necessary focus_data element, but there are typically very few)
