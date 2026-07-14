@@ -326,6 +326,59 @@ SHARE
   }
 
 
+  void p_interact_select_process(struct Volume_struct* Volume,
+                                  double* my_trace_fraction_control,
+                                  double* my_trace,
+                                  double* total_process_interact,
+                                  double* culmative_probability,
+                                  double* mc_prop,
+                                  double* weight,
+                                  double* my_sum,
+                                  int* selected_process
+                                  ){
+    // Interact_fraction is used to influence the choice of process in this material
+    *mc_prop = rand01 ();
+    *culmative_probability = 0;
+    *total_process_interact = 1.0;
+
+    // If any of the processes have probability 0, they are excluded from the selection
+    for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
+      if (my_trace[i] < 1E-18) {
+        // When this happens, the total force probability is corrected and the probability for this particular instance is set to 0
+        *total_process_interact -= Volume->p_physics->p_scattering_array[i].process_p_interact;
+        my_trace_fraction_control[i] = 0;
+        // In cases where my_trace is not zero, the forced fraction is still used.
+      } else
+        my_trace_fraction_control[i] = Volume->p_physics->p_scattering_array[i].process_p_interact;
+    }
+    // Randomly select a process using the weights stored in my_trace_fraction_control divided by total_process_interact
+    for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
+      *culmative_probability += my_trace_fraction_control[i] / *total_process_interact;
+      if (*culmative_probability > *mc_prop) {
+        *selected_process = i;
+        *weight *= (my_trace[i] / *my_sum) * (*total_process_interact / my_trace_fraction_control[i]);
+        break;
+      }
+    }
+  }
+
+  void inhomogenous_choose_process(struct physics_struct* current_p_physics,
+                                    struct Volume_struct* Volume,
+                                    double* culmative_probability,
+                                    double* mc_prop,
+                                    double* my_sum,
+                                    int* selected_sampling,
+                                    int* selected_process){
+    for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
+      *culmative_probability += current_p_physics->mus[i][*selected_sampling] / *my_sum;
+      if (*culmative_probability > *mc_prop) {
+        *selected_process = i;
+        break;
+      }
+    }
+  }
+
+
 %}
 
 DECLARE
@@ -1932,39 +1985,13 @@ TRACE
                                                     &v_length,
                                                     &safety_distance,
                                                     &selected_sampling);
-                          }
+            }
             // Select process
             if (Volumes[current_volume]->p_physics->number_of_processes == 1) { // trivial case
               // Select the only available process, which will always have index 0
               selected_process = 0;
             } else {
-              if (Volumes[current_volume]->p_physics->interact_control == 1) {
-                // Interact_fraction is used to influence the choice of process in this material
-                mc_prop = rand01 ();
-                culmative_probability = 0;
-                total_process_interact = 1.0;
-
-                // If any of the processes have probability 0, they are excluded from the selection
-                for (iterator = 0; iterator < Volumes[current_volume]->p_physics->number_of_processes; iterator++) {
-                  if (my_trace[iterator] < 1E-18) {
-                    // When this happens, the total force probability is corrected and the probability for this particular instance is set to 0
-                    total_process_interact -= Volumes[current_volume]->p_physics->p_scattering_array[iterator].process_p_interact;
-                    my_trace_fraction_control[iterator] = 0;
-                    // In cases where my_trace is not zero, the forced fraction is still used.
-                  } else
-                    my_trace_fraction_control[iterator] = Volumes[current_volume]->p_physics->p_scattering_array[iterator].process_p_interact;
-                }
-                // Randomly select a process using the weights stored in my_trace_fraction_control divided by total_process_interact
-                for (iterator = 0; iterator < Volumes[current_volume]->p_physics->number_of_processes; iterator++) {
-                  culmative_probability += my_trace_fraction_control[iterator] / total_process_interact;
-                  if (culmative_probability > mc_prop) {
-                    selected_process = iterator;
-                    p *= (my_trace[iterator] / my_sum) * (total_process_interact / my_trace_fraction_control[iterator]);
-                    break;
-                  }
-                }
-
-              } else {
+              if (Volumes[current_volume]->p_physics->interact_control != 1) {
                 // Select a process based on their relative attenuations factors
                 mc_prop = rand01 ();
                 culmative_probability = 0;
@@ -1977,14 +2004,25 @@ TRACE
                     }
                   }
                 } else {
-                  for (iterator = 0; iterator < Volumes[current_volume]->p_physics->number_of_processes; iterator++) {
-                    culmative_probability += current_p_physics->mus[iterator][selected_sampling] / my_sum;
-                    if (culmative_probability > mc_prop) {
-                      selected_process = iterator;
-                      break;
-                    }
-                  }
+                  inhomogenous_choose_process(current_p_physics, 
+                                              Volumes[current_volume],
+                                              &culmative_probability,
+                                              &mc_prop,
+                                              &my_sum,
+                                              &selected_sampling,
+                                              &selected_process);
+
                 }
+              } else {
+                p_interact_select_process(Volumes[current_volume],
+                                            my_trace_fraction_control,
+                                            my_trace,
+                                            &total_process_interact,
+                                            &culmative_probability,
+                                            &mc_prop,
+                                            &p,
+                                            &my_sum,
+                                            &selected_process);
               }
             }
 
