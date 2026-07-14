@@ -152,8 +152,7 @@ SHARE
 
   void transform_wavevector_into_local_coord_system(struct Volume_struct* Volume,
                                 Coords * wavevector_rotated, double (*k_rotated)[3],
-                                int *p_index, Coords* wavevector, Coords* ray_position_geometry,
-                                struct focus_data_struct* this_focus_data) {
+                                int *p_index, Coords* wavevector, Coords* ray_position_geometry) {
                 
    int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index;
    *wavevector_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *wavevector);
@@ -164,7 +163,11 @@ SHARE
      // focusing
      Coords ray_position_geometry_rotated
          = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *ray_position_geometry);
+
+     int focus_data_index = Volume->geometry.focus_array_indices.elements[*p_index];
+     struct focus_data_struct* this_focus_data = &Volume->geometry.focus_data_array.elements[focus_data_index];
      this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated); // Aim vector for this ray
+
      #ifdef Union_trace_verbal_setting
      printf ("Checking process number : %d, it was not isotropic, so RayAim updated \n", *p_index);
      print_position (*ray_position_geometry, "ray_position_geometry");
@@ -175,13 +178,45 @@ SHARE
   }
 
 
-  int process_needs_multiple_sampling(struct physics_struct* current_p_physics,
+  int process_needs_inhomogenous_sampling(struct physics_struct* current_p_physics,
                                         struct scattering_process_struct* process){
     if (current_p_physics->sampling_points !=0 && process->needs_cross_section_focus){
       if (process->sampling_points != -1)
         return 1;
     }
     return 0;
+  }
+
+
+  void set_cumul_dist_array(struct physics_struct* current_p_physics, int i){
+     current_p_physics->cumul_dists[i] = (i > 0) ? current_p_physics->cumul_dists[i - 1] + current_p_physics->dist : current_p_physics->dist / 2;
+  }
+
+  void move_and_aim_neutron(struct physics_struct* current_p_physics, int i,
+                              struct scattering_process_struct* process,
+                              _class_particle* _particle,
+                              struct Volume_struct* Volume, int* p_index, 
+                              Coords* ray_velocity, Coords* ray_position,
+                              struct focus_data_struct* this_focus_data
+                              ){
+      // Transport neutron to place inside geometry
+      *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz);
+      // Find location of scattering point in master coordinate system without changing main position / velocity variables
+      Coords direction = coords_scalar_mult (*ray_velocity, 1.0 / length_of_position_vector (*ray_velocity));
+      Coords sampling_displacement = coords_scalar_mult (direction, current_p_physics->cumul_dists[i]);
+      Coords sampling_point = coords_add (*ray_position, sampling_displacement);
+      Coords sampling_point_geometry = coords_sub (sampling_point, Volume->geometry.center);
+      // Also focus the ray at this point, if the component needs focusing
+      if (process->needs_cross_section_focus) {
+        if (Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index != -1) {
+          int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index;
+          sampling_point_geometry
+              = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], sampling_point_geometry);
+        }
+        this_focus_data->RayAim = coords_sub (this_focus_data->Aim, sampling_point_geometry);
+      }
+      // Calculate mu and probability
+      coords_get (sampling_point_geometry, &_particle->x, &_particle->y, &_particle->z);
   }
 
 
@@ -1692,8 +1727,7 @@ TRACE
               // If the process is not isotropic, the wavevector is transformed into the local coordinate system of the process
               transform_wavevector_into_local_coord_system(Volumes[current_volume],
                                                   &wavevector_rotated, &k_rotated,
-                                                  &p_index, &wavevector, &ray_position_geometry,
-                                                  this_focus_data);
+                                                  &p_index, &wavevector, &ray_position_geometry);
             } else {
               k_rotated[0] = k[0];
               k_rotated[1] = k[1];
@@ -1708,38 +1742,25 @@ TRACE
             double mu;
             current_p_physics->dist = length_to_boundary / current_p_physics->sampling_points - safety_distance;
 
-            if (process_needs_multiple_sampling(current_p_physics, process)) {
-              // Populate length and probability arrays:
+            if (process_needs_inhomogenous_sampling(current_p_physics, process)) {
+              // If mulitple sampling is required for this process, populate the neutron distance and probability arrays:
               Coords original_position = coords_set (x, y, z);
+              double mu;
+              *p_my_trace = 0;
+              this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[0];
               for (int i = 0; i < current_p_physics->sampling_points; i++) {
-                current_p_physics->cumul_dists[i] = (i > 0) ? current_p_physics->cumul_dists[i - 1] + current_p_physics->dist : current_p_physics->dist / 2;
-                // Transport neutron to place inside geometry
-                ray_velocity = coords_set (vx, vy, vz);
-                // Find location of scattering point in master coordinate system without changing main position / velocity variables
-                Coords direction = coords_scalar_mult (ray_velocity, 1.0 / length_of_position_vector (ray_velocity));
-                Coords sampling_displacement = coords_scalar_mult (direction, current_p_physics->cumul_dists[i]);
-                Coords sampling_point = coords_add (ray_position, sampling_displacement);
-                Coords sampling_point_geometry = coords_sub (sampling_point, Volumes[current_volume]->geometry.center);
-                // Also focus the ray at this point, if the component needs focusing
-                if (process->needs_cross_section_focus) {
-                  this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[0];
-                  if (Volumes[current_volume]->p_physics->p_scattering_array[p_index].non_isotropic_rot_index != -1) {
-                    int non_isotropic_rot_index = Volumes[current_volume]->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
-                    sampling_point_geometry
-                        = rot_apply (Volumes[current_volume]->geometry.process_rot_matrix_array[non_isotropic_rot_index], sampling_point_geometry);
-                  }
-                  this_focus_data->RayAim = coords_sub (this_focus_data->Aim, sampling_point_geometry);
-                }
+                set_cumul_dist_array(current_p_physics, i);
+                move_and_aim_neutron(current_p_physics, i, process, _particle,
+                                      Volumes[current_volume], &p_index, 
+                                      &ray_velocity, &ray_position,
+                                      this_focus_data);
                 // Calculate mu and probability
-                coords_get (sampling_point_geometry, &x, &y, &z);
                 physics_my (process->eProcess, &mu, k_rotated, process->data_transfer, this_focus_data, _particle);
                 current_p_physics->mus[p_index][i] = mu;
+                *p_my_trace += mu / current_p_physics->sampling_points;
               }
-
               coords_get (original_position, &x, &y, &z);
-              *p_my_trace = 0;
-              for (int i = 0; i < current_p_physics->sampling_points; i++)
-                *p_my_trace += current_p_physics->mus[p_index][i] / current_p_physics->sampling_points;
+              
             } else {
               physics_output = physics_my (process->eProcess, p_my_trace, k_rotated, process->data_transfer, this_focus_data, _particle);
               if (current_p_physics->sampling_points != 0) {
