@@ -378,6 +378,25 @@ SHARE
     }
   }
 
+  void dir_focus_set_scat_length(double* length_to_scattering,
+                                 double* forced_length_to_scattering,
+                                 double* weight,
+                                 double* length_to_boundary,
+                                 double* my_sum_plus_abs){
+    // Respect forced length to scattering chosen by process
+    *length_to_scattering = *forced_length_to_scattering;
+    // Drawing between 0 and L from constant s = 1/L and should have been q = A*exp(-kz).
+    // Normalizing A*exp(-kz) over 0 to L: A = k/(1-exp(-k*L))
+    // Weight correction is ratio between s and q, L*A*exp(-kz) = L*k*exp(-kz)/(1-exp(-Lk))
+    p *= *length_to_boundary * *my_sum_plus_abs 
+            * exp (-*length_to_scattering * *my_sum_plus_abs) 
+            / (1.0 - exp (-*length_to_boundary * *my_sum_plus_abs));
+    #ifdef Union_trace_verbal_setting
+    printf ("Used forced length to scattering, %lf \n", length_to_scattering);
+    #endif
+
+  }
+
 
 %}
 
@@ -2030,16 +2049,9 @@ TRACE
             if (current_p_physics->sampling_points == 0) {
               // No numerical integration is necessary.
               if (process->needs_cross_section_focus == 1) {
-                // Respect forced length to scattering chosen by process
-                length_to_scattering = forced_length_to_scattering;
-                // Drawing between 0 and L from constant s = 1/L and should have been q = A*exp(-kz).
-                // Normalizing A*exp(-kz) over 0 to L: A = k/(1-exp(-k*L))
-                // Weight correction is ratio between s and q, L*A*exp(-kz) = L*k*exp(-kz)/(1-exp(-Lk))
-                p *= length_to_boundary * my_sum_plus_abs * exp (-length_to_scattering * my_sum_plus_abs) / (1.0 - exp (-length_to_boundary * my_sum_plus_abs));
-                #ifdef Union_trace_verbal_setting
-                printf ("Used forced length to scattering, %lf \n", length_to_scattering);
-                #endif
-
+                  dir_focus_set_scat_length(&length_to_scattering, &forced_length_to_scattering,
+                                            &p, &length_to_boundary,
+                                            &my_sum_plus_abs);
               } else {
                 // Decided the ray scatters, choose where on truncated exponential from safety_distance to length_to_boundary - safety_distance
                 length_to_scattering
