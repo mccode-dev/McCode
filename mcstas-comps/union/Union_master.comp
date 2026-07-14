@@ -83,6 +83,40 @@ SHARE
   #ifndef MASTER_DETECTOR
   #define MASTER_DETECTOR dummy
   #endif
+
+  int volume_is_only_absorber(struct Volume_struct* Volume){ 
+    // This function returns true if a volume does not have any physical processes
+    // and if the volume is not a vacuum.
+    if (!Volume->p_physics->number_of_processes && !Volume->p_physics->is_vacuum) return 1;
+    return 0;
+  }
+  void adjust_abs_weight_factor(struct Volume_struct* Volume,
+                                  double* my_sum_plus_abs, 
+                                  double* length_to_boundary,
+                                  double* v_length,
+                                  double* time_to_boundary,
+                                  double* abs_weight_factor,
+                                  int* abs_weight_factor_set){
+     *my_sum_plus_abs = Volume->p_physics->my_a * (2200 / *v_length);
+     *length_to_boundary = *time_to_boundary * *v_length;
+
+     *abs_weight_factor = exp (-Volume->p_physics->my_a * 2200 * *time_to_boundary);
+     *abs_weight_factor_set = 1;
+
+     #ifdef Union_trace_verbal_setting
+     printf ("name of material: %s \n", Volumes->name);
+     printf ("length to boundery  = %f\n", length_to_boundary);
+     printf ("absorption cross section  = %f\n", Volumes->p_physics->my_a);
+     printf ("chance to get through this length of absorber: %f %%\n", 
+                    100 * exp (-Volumes->p_physics->my_a * length_to_boundary));
+     #endif
+
+  }
+
+
+
+
+
 %}
 
 DECLARE
@@ -1544,23 +1578,10 @@ TRACE
 
       // Check if a scattering event should occur
       if (current_volume != 0) { // Volume 0 is always vacuum, and if this is the current volume, an event will not occur
-        if (Volumes[current_volume]->p_physics->number_of_processes == 0) { // If there are no processes, the volume could be vacuum or an absorber
-          if (Volumes[current_volume]->p_physics->is_vacuum == 0) {
-            // This volume does not have physical processes but does have an absorption cross section, so the ray weight is reduced accordingly
-
-            my_sum_plus_abs = Volumes[current_volume]->p_physics->my_a * (2200 / v_length);
-            length_to_boundary = time_to_boundery * v_length;
-
-            abs_weight_factor = exp (-Volumes[current_volume]->p_physics->my_a * 2200 * time_to_boundery);
-            abs_weight_factor_set = 1;
-
-            #ifdef Union_trace_verbal_setting
-            printf ("name of material: %s \n", Volumes[current_volume]->name);
-            printf ("length to boundery  = %f\n", length_to_boundary);
-            printf ("absorption cross section  = %f\n", Volumes[current_volume]->p_physics->my_a);
-            printf ("chance to get through this length of absorber: %f %%\n", 100 * exp (-Volumes[current_volume]->p_physics->my_a * length_to_boundary));
-            #endif
-          }
+        if (volume_is_only_absorber(Volumes[current_volume])) { // If there are no processes, the volume could be vacuum or an absorber
+            adjust_abs_weight_factor(Volumes[current_volume], &my_sum_plus_abs,
+                                      &length_to_boundary, &v_length, &time_to_boundery,
+                                      &abs_weight_factor, &abs_weight_factor_set);
         } else {
           // Since there is a non-zero number of processes in this material, all the scattering cross section for these are calculated
           struct physics_struct* current_p_physics = Volumes[current_volume]->p_physics;
