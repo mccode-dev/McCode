@@ -220,7 +220,55 @@ SHARE
   }
 
 
+  int mu_and_intersect_dist_safeguard(double mu_sum, double length_to_boundary, double safety_distance2,
+                                        int *scattering_event){
+    if (mu_sum < 1E-18){
+      scattering_event = 0;
+        return 0;
+    }
+    if (length_to_boundary < safety_distance2){
+      scattering_event = 0;
+      return 0;
+    }
+    return 1;
+  }
 
+  void sample_inhomogenous_transmission_probability(struct physics_struct* current_p_physics,
+                                                  struct Volume_struct* Volume, double* real_transmission_probability,
+                                                  double v_length
+                                                  ){
+    // Calculate the probabilities and then add them cumulatively
+    memset (current_p_physics->total_mus, 0, sizeof (double) * current_p_physics->sampling_points);
+
+    for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
+      struct scattering_process_struct* process_i = &Volume->p_physics->p_scattering_array[i];
+      if (process_i->needs_numerical_integration != 1)
+        for (int j = 0; j < current_p_physics->sampling_points; j++) {
+          current_p_physics->total_mus[j] += current_p_physics->mus[i][0] * current_p_physics->dist;
+        }
+      else
+        for (int j = 0; j < current_p_physics->sampling_points; j++) {
+          current_p_physics->total_mus[j] += current_p_physics->mus[i][j] * current_p_physics->dist;
+        }
+    }
+    // for (int i =0;i<current_p_physics->sampling_points;i++){
+    //     printf("\nTotalmu=%g\tinteger=%d\n", current_p_physics->total_mus[i], i);
+    // }
+    double mu_at_speed = Volume->p_physics->my_a * (2200 / v_length);
+    for (int j = 0; j < current_p_physics->sampling_points; j++) {
+      current_p_physics->total_mus[j] += mu_at_speed * current_p_physics->dist;
+    }
+    double trans_prob;
+    for (int i = 0; i < current_p_physics->sampling_points; i++) {
+      trans_prob = exp (-current_p_physics->total_mus[i]);
+      if (i == 0)
+        current_p_physics->cumul_transmission_prob[i] = trans_prob;
+      else
+        current_p_physics->cumul_transmission_prob[i] = current_p_physics->cumul_transmission_prob[i - 1] * trans_prob;
+    }
+
+    *real_transmission_probability = current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1];
+  }
 
 
 %}
@@ -1701,9 +1749,6 @@ TRACE
           p_my_trace = my_trace;
           wavevector = coords_set (k[0], k[1], k[2]);
           length_to_boundary = time_to_boundery * v_length;
-
-
-
           // If any process in this material needs focusing, sample scattering position and update focus_data accordingly
           if (current_p_physics->any_process_needs_cross_section_focus == 1) {
             choose_scattering_point_and_ray_direction(&forced_length_to_scattering,
@@ -1761,7 +1806,8 @@ TRACE
               }
               coords_get (original_position, &x, &y, &z);
               
-            } else {
+            } 
+            if (!process_needs_inhomogenous_sampling(current_p_physics, process)){
               physics_output = physics_my (process->eProcess, p_my_trace, k_rotated, process->data_transfer, this_focus_data, _particle);
               if (current_p_physics->sampling_points != 0) {
                 current_p_physics->mus[p_index][0] = *p_my_trace;
@@ -1788,45 +1834,15 @@ TRACE
           // New flow:length_to_boundary
 
           // Calculate if scattering happens based on my_sub_plus_abs
-          if (my_sum < 1E-18) {
-            scattering_event = 0;
-          } else if (length_to_boundary < safety_distance2) {
-            scattering_event = 0;
-          } else {
+          if (mu_and_intersect_dist_safeguard(my_sum, length_to_boundary, safety_distance2,
+                                              &scattering_event)){
             if (current_p_physics->sampling_points == 0) {
               real_transmission_probability = exp (-length_to_boundary * my_sum_plus_abs);
             } else if (current_p_physics->sampling_points != 0) {
-              // Calculate the probabilities and then add them cumulatively
-              memset (current_p_physics->total_mus, 0, sizeof (double) * current_p_physics->sampling_points);
-
-              for (int i = 0; i < Volumes[current_volume]->p_physics->number_of_processes; i++) {
-                struct scattering_process_struct* process_i = &Volumes[current_volume]->p_physics->p_scattering_array[i];
-                if (process_i->needs_numerical_integration != 1)
-                  for (int j = 0; j < current_p_physics->sampling_points; j++) {
-                    current_p_physics->total_mus[j] += current_p_physics->mus[i][0] * current_p_physics->dist;
-                  }
-                else
-                  for (int j = 0; j < current_p_physics->sampling_points; j++) {
-                    current_p_physics->total_mus[j] += current_p_physics->mus[i][j] * current_p_physics->dist;
-                  }
-              }
-              // for (int i =0;i<current_p_physics->sampling_points;i++){
-              //     printf("\nTotalmu=%g\tinteger=%d\n", current_p_physics->total_mus[i], i);
-              // }
-              double mu_at_speed = Volumes[current_volume]->p_physics->my_a * (2200 / v_length);
-              for (int j = 0; j < current_p_physics->sampling_points; j++) {
-                current_p_physics->total_mus[j] += mu_at_speed * current_p_physics->dist;
-              }
-              double trans_prob;
-              for (int i = 0; i < current_p_physics->sampling_points; i++) {
-                trans_prob = exp (-current_p_physics->total_mus[i]);
-                if (i == 0)
-                  current_p_physics->cumul_transmission_prob[i] = trans_prob;
-                else
-                  current_p_physics->cumul_transmission_prob[i] = current_p_physics->cumul_transmission_prob[i - 1] * trans_prob;
-              }
-
-              real_transmission_probability = current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1];
+              sample_inhomogenous_transmission_probability(current_p_physics,
+                                                            Volumes[current_volume], 
+                                                            &real_transmission_probability,
+                                                            v_length);
             }
             // printf("Trans prop = %g\n", real_transmission_probability);
             if (Volumes[current_volume]->geometry.geometry_p_interact != 0) {
