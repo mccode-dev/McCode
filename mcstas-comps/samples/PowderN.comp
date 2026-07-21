@@ -745,7 +745,10 @@ SHARE
     /* check if a line_info element has been recorded already - not on OpenACC */
     #ifndef OPENACC
     if (v >= line_info->v_min && v <= line_info->v_max && line_info->neutron_passed >= CHAR_BUF_LENGTH) {
-      line = (int)floor (v - line_info->v_min) * CHAR_BUF_LENGTH / (line_info->v_max - line_info->v_min);
+      double frac = (v - line_info->v_min) / (line_info->v_max - line_info->v_min);
+      line = (int)floor(frac * CHAR_BUF_LENGTH);
+      if (line < 0) line = 0;
+      if (line >= CHAR_BUF_LENGTH) line = CHAR_BUF_LENGTH - 1;
       Nq = line_info->xs_Nq[line];
       *sum = line_info->xs_sum[line];
       if (!Nq && *sum == 0) {
@@ -1172,10 +1175,11 @@ TRACE
       if (neutrontype == 3) { /* Make coherent scattering event */
         if (line_info.count > 0) {
           /* choose line */
-          if (Nq > 1)
+          if (Nq > 1) {
             line = floor (Nq * rand01 ()); /* Select between Nq powder lines */
-          else
-            line = 0;
+            if (line >= Nq) line = (int)Nq - 1; /* guard rand01()==1.0 edge case */
+           } else
+               line = 0;
           if (line_info.w_v[line])
             arg = line_info.q_v[line] * (1 + line_info.w_v[line] * randnorm ()) / (2.0 * v);
           else
