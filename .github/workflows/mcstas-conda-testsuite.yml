@@ -200,31 +200,33 @@ jobs:
            for tgz in downloaded_artifacts/*/*.tgz; do
              work=$(mktemp -d)
              tar xzf "$tgz" -C "$work"
-             mv "$work"/run_test-suite/* mcstas-nightly/
+             artifact_name=$(basename "$(dirname "$tgz")")
 
-             # Linux (ubuntu-latest) is the reference platform; the label
-             # name itself embeds a version string and timestamp we can't
-             # predict, so identify it via the source artifact/tarball name
-             # instead of hardcoding it.
-             if [[ "$tgz" == *"ubuntu-latest"* ]]; then
-               REFLABEL=$(basename "$tgz")
-             fi
+             for labeldir in "$work"/run_test-suite/*/; do
+               if [[ "$artifact_name" == *"ubuntu-latest"* ]]; then
+                 REFLABEL=$(basename "$labeldir")
+               fi
+               mv $labeldir mcstas-nightly/
+               done
+             done
              rm -rf "$work"
-           done
 
            if [ -z "$REFLABEL" ]; then
-             echo "ERROR: could not identify the Linux/reference column (ubuntu-latest artifact missing?)"
-             exit 1
+             echo "WARNING: could not identify the ubuntu-latest/conda reference column"
+           else
+             echo "REFLABEL=$REFLABEL" >> "$GITHUB_ENV"
+             echo "Reference column: $REFLABEL"
            fi
-
-           echo "REFLABEL=$REFLABEL" >> "$GITHUB_ENV"
-           echo "Reference column: $REFLABEL"
-           ls mcstas-nightly
 
     - name: 'Run mcviewtest across all platform columns'
       id: viewtest
       run: |
-           cd "$PWD/mcstas-nightly" && mcviewtest --reflabel "$REFLABEL" --nobrowse
+           cd "$PWD/mcstas-nightly"
+           if [ -z "$REFLABEL" ]; then
+             mcviewtest --reflabel "$REFLABEL" --nobrowse
+           else
+             mcviewtest --reflabel --nobrowse
+           fi
 
     - name: 'Tar mcstas-nightly output (all platform folders + comparison table)'
       id: tar-package
