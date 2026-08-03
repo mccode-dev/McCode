@@ -190,8 +190,8 @@ SHARE
    * on brackets that the adaptive 3-point scan has already narrowed
    * down, so the extra iterations cost little in practice. */
   double
-  bisect_root (double (*func) (struct neutron_params*, struct phonon_params*), double x1, double x2, struct neutron_params* neutron,
-               struct phonon_params* phonon, double xacc) {
+  bisect_root (double (*func) (struct neutron_params*, struct phonon_params*), double x1, double x2, struct neutron_params* neutron, struct phonon_params* phonon,
+               double xacc) {
     double xl, xh, fl, fh, xm, fm;
     int j;
 
@@ -405,8 +405,8 @@ SHARE
    * roots when all three samples share the same sign. Appends any roots
    * found to list[*index]. At most 2 roots can be found per call. */
   void
-  find_roots_3pt (double (*f) (struct neutron_params*, struct phonon_params*), double x1, double x3, struct neutron_params* neutron,
-                  struct phonon_params* phonon, double xacc, double* list, int* index) {
+  find_roots_3pt (double (*f) (struct neutron_params*, struct phonon_params*), double x1, double x3, struct neutron_params* neutron, struct phonon_params* phonon,
+                  double xacc, double* list, int* index) {
     double x2, Delta, y1, y2, y3, A, B, C, Xr1, Xr2, root;
     int s1, s2, s3;
 
@@ -493,14 +493,14 @@ SHARE
     double range_high = brack_high - brack_mid;
     // First in energy loss for the neutron
     for (int i = 0; i < phonon->e_steps_low_; i++) {
-      find_roots_3pt (f, brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC,
-                       list, index);
+      find_roots_3pt (f, brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC, list,
+                      index);
     }
 
     // Then in energy gain for the neutron
     for (int i = 0; i < phonon->e_steps_high_; i++) {
-      find_roots_3pt (f, brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon,
-                       ROOTACC, list, index);
+      find_roots_3pt (f, brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon, ROOTACC,
+                      list, index);
     }
   }
 
@@ -514,13 +514,13 @@ SHARE
     // First in energy loss for the neutron
     for (int i = 0; i < phonon->e_steps_low_; i++) {
       find_roots_3pt_gpu (brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC,
-                           list, index);
+                          list, index);
     }
 
     // Then in energy gain for the neutron
     for (int i = 0; i < phonon->e_steps_high_; i++) {
-      find_roots_3pt_gpu (brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon,
-                           ROOTACC, list, index);
+      find_roots_3pt_gpu (brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon, ROOTACC,
+                          list, index);
     }
   }
 
