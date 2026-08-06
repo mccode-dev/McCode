@@ -50,7 +50,7 @@ class ComponentParser(object):
             return
         
         # load component from file
-        text = open(self.file).read()
+        text = open(self.file, encoding='utf-8').read()
         if text == '':
             raise Exception('parse: component file is empty.')
         
@@ -70,7 +70,7 @@ class ComponentParser(object):
         ''' optional: call to parse MCDISPLAY section and save in member "mcdisplay" '''
         
         # load component from file
-        text = open(self.file).read()
+        text = open(self.file, encoding='utf-8').read()
         if text == '':
             raise Exception('parse: component file is empty.')
         
@@ -766,7 +766,7 @@ def save_instrfile(instr, text):
         instr = instr + '.instr'
     
     # TODO: add try-finally and error handling
-    f = open(str(instr), 'w', newline='\n')
+    f = open(str(instr), 'w', newline='\n', encoding='utf-8')
     f.write(text)
     f.close()
     
