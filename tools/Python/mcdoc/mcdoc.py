@@ -1574,7 +1574,7 @@ class InstrLatexDocWriter:
         out.append(r'\begin{itemize}')
         out.append(r'  \item Instrument source code found in file \texttt{%s}.' % (_tex(os.path.basename(i.filepath))))
         for l in i.links:
-            out.append(r'  \item %s' % _tex(l))
+            out.append(r'  \item %s' % _convert_inline_markup(l))
         out.append(r'\end{itemize}')
         out.append('')
         out.append(r'\vspace{1em}')
@@ -1637,7 +1637,7 @@ class CompLatexDocWriter:
         out.append(r'\begin{itemize}')
         out.append(r'  \item Component source code found in file \texttt{%s}.' % (_tex(os.path.basename(i.filepath))))
         for l in i.links:
-            out.append(r'  \item %s' % _tex(l))
+            out.append(r'  \item %s' % _convert_inline_markup(l))
         out.append(r'\end{itemize}')
         out.append(r'\IfFileExists{%s_static.tex}{\input{%s_static.tex}}{}' % (i.name, i.name))
         self.text = '\n'.join(out)
