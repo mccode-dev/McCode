@@ -235,10 +235,12 @@ Rb\_liq\_tot.sqw                      & 6.32      & 0.5      &0.38      &312.46 
 
 \section{Component source code}
 Source code for all components may be found in the \verb+MCSTAS+ library
-subdirectory of the McStas installation;
-the default is \verb+/usr/local/lib/mcstas/+
-on Unix-like systems and \verb+C:\mcstas\lib+ on Windows systems, but it may be
-changed using the \verb+MCSTAS+ environment variable.
+subdirectory of the McStas installation; the recommended installation route
+is via the \texttt{conda-forge} channel (see the User Manual, section on
+installation), in which case the library lives under the conda environment's
+resource tree. The library location may be queried with
+\verb+mcrun --showcfg=resourcedir+, or overridden using the
+\verb+MCSTAS+ environment variable.
 \index{Environment variable!MCSTAS}
 
 In case users only require to add new features, preserving the existing features of a component,
@@ -256,11 +258,11 @@ catalog of the \MCS library, e.g using: \index{Tools!mcdoc}
 \end{lstlisting}
 as well as the documentation of specific components, e.g with:
 \begin{lstlisting}
- mcdoc --text <name>
- mcdoc <file.comp>
+ mcdoc searchterm
+ mcdoc file.comp
 \end{lstlisting}
-The first line will search for all components matching the \textit{name},
-and display their help section as text. For instance, \verb+mcdoc .laz+ will list all available Lazy data files, whereas \verb+mcdoc --text Monitor+ will list most Monitors.
+The first line will search for all components matching \textit{searchterm},
+and open (or list, if \texttt{BROWSER} is unset) their documentation. For instance, \verb+mcdoc laz+ will list all available Lazy data files, whereas \verb+mcdoc Monitor+ will list most Monitors.
 The second example will display the help corresponding to
 the \textit{file.comp} component, using your
 BROWSER\index{Environment variable!BROWSER} setting, or as text if unset.
@@ -270,16 +272,19 @@ An overview of the component library is also given at the \MCS home page \cite{m
 
 \section{Component validation}
 
-Some components were checked for release 1.9: the Fermi choppers, the velocity selectors, 2 of the guide components and Source\_gen. The results are sumarized in a talk available online (\verb+http://www.ill.fr/tas/mcstas/doc/ValMcStas.pdf+).
-
-Velocity selector and Fermi chopper were treated as black boxes and the resulting line shapes cross-checked against analytical functions for some cases.
-The component 'Selector' showed no dependence on the distance between guide and selector axe. This is corrected at the moment. Apart from that the component yielded correct results.
-That was different with the Fermi chopper components. The component 'Chopper\_Fermi', which has been part of the \MCS distribution for a long time, gave wrong results and was removed from the package. The new 'Vitess\_ChopperFermi' (transferred from the VITESS package) showed mainly correct behaviour. Little bugs were corrected after the first tests. At the moment, there is only the problem left that it underestimates the influence of a shadowing cylinder. With the contributed 'FermiChopper' component, there were also minor problems, which are all corrected in the meantime.
-
-For the guides, several trajectories through different kinds of guides (straight, convergent, divergent) were calculated analytically and positions, directions and losses of reflections compared to the values calculated in the components. This was done for 'Guide' and 'Guide\_gravity'; in the latter case calculations were performed with and without gravity. Additionally a cross-check against the VITESS guide module was performed. Waviness, chamfers and channels were not checked.
-After correction of a bug in 'Guide\_gravity', both components worked perfectly (within the conditions tested).
-
-'Source\_gen' was cross-checked against the VITESS source module for the case of 3 Maxwellians describing the moderator characteristic and typical sizes the guide and its distance to the moderator. It showed the same line shape as a functions of wavelength and divergence and the same absolute values.
+Components are continuously exercised by the \texttt{mctest}/\texttt{mcviewtest}
+regression suite (see the User Manual, section~\ref{s:mctest}), which
+compiles and runs the example instrument library and compares results
+across platforms, CPU vs.\ GPU, and \MCS versions using \texttt{mcplotdiff-html}.
+Some components additionally underwent dedicated, published validation
+against analytical models and/or measurements; velocity selectors and Fermi
+choppers were treated as black boxes and their line shapes cross-checked
+against analytical functions, and \texttt{Guide}/\texttt{Guide\_gravity}
+trajectories were checked (with and without gravity) against
+analytically-computed reflection positions, directions and losses.
+\texttt{Source\_gen} was cross-checked against an independent source module
+for a 3-Maxwellian moderator model, in wavelength/divergence line shape and
+absolute flux.
 
 \section{Disclaimer, bugs}\index{Bugs}
 

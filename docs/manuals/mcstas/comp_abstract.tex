@@ -2,294 +2,88 @@
 \label{c:components}
 \index{Library!components|textbf}
 
-This chapter presents an abstract of existing components.
-As a complement to this chapter and the
-detailed description in the \MCS component manual,
-you may use the \verb+mcdoc -s+ command to obtain the on-line
-component documentation and refer to the \MCS web-page~\cite{mcstas_webpage}
-where all components are documented using the McDoc system.
+This chapter presents an abstract of the \MCS component library's structure
+and categories. It intentionally does \emph{not} attempt to enumerate every
+component with its parameter list -- the library is large and changes
+between releases, so any hand-maintained table here would inevitably drift
+out of date (as earlier editions of this manual did). Instead, each
+component category chapter that follows (Sources, Optics, Samples,
+Monitors, Misc, \ldots) documents a curated selection of representative
+components in depth, with their full, current parameter lists pulled
+directly from the component source's McDoc header at build time (see
+section~\ref{s:mcdoc} for the McDoc comment format). For the complete,
+authoritative, always-current list of every component and its parameters,
+use the \verb+mcdoc+ front-end:
+\begin{lstlisting}
+mcdoc
+mcdoc searchterm
+mcdoc file.comp
+\end{lstlisting}
+The first form generates and opens a browsable \textit{index.html} catalog
+of the whole library (both the standard installation and any local/custom
+components); the second searches for and displays documentation for all
+components matching \textit{searchterm}; the third displays the
+documentation of one specific component file. See
+section~\ref{s:mcdoc-run} in the User Manual for the full \verb+mcdoc+
+reference.
 
-\section{A short overview of the \MCS component library}
+\section{Component categories}
 \label{s:comp-overview}
 
-The table in this section gives a quick overview of available \MCS components
-provided with the distribution. The location of this library is detailed in
-section~\ref{s:files}.  All of them are believed to be reliable, and some amount
-of systematic tests have been carried out.  However, no absolute guaranty can
-be given concerning their accuracy.\indexEV{MCSTAS}
+The library (located under the \verb+mcstas-comps+ directory of the \MCS
+source/installation tree, see section~\ref{s:files} in the User Manual for
+how \mcs locates it) is organised into the following top-level categories:
 
-The \verb+contrib+ directory of the library contains components that were
-submitted by \MCS users, but where responsibility has not (yet) been taken by
-the \MCS core team. \index{Library!components!contrib}
+\begin{description}
+\item[sources] Components that define the initial neutron state -- see
+  chapter~\ref{c:source}.
+\item[optics] Guides, slits, choppers, monochromators, mirrors, and other
+  beam-manipulating components.
+\item[samples] Components modelling matter placed in the beam for
+  scattering studies (powders, single crystals, SANS models, \ldots) -- see
+  chapter~\ref{c:samples}.
+\item[monitors] Components that record/histogram the neutron beam without
+  otherwise affecting it.
+\item[misc] Components that do not fit the other categories, e.g. shape
+  primitives, the \texttt{Progress\_bar}, and \texttt{MCPL\_input}/\texttt{MCPL\_output}
+  for reading/writing portable neutron event files.
+\item[union] The Union framework (contributed by Mads Bertelsen): a set of
+  process/geometry components that can be freely combined to describe
+  complex, possibly nested and overlapping sample environments with
+  multiple scattering, decoupling the description of \emph{where} matter is
+  from \emph{what} it does to the neutron. See the worked example in
+  section~\ref{s:instrument} (Union\_demos) and the samples chapter.
+\item[sasmodels] Small-angle scattering form factors generated from the
+  SasView/sasmodels project, exposed via the \texttt{SasView\_model}
+  component.
+\item[contrib] Components contributed by \MCS users. The \MCS core team
+  provides the same technical support as for other categories, but authored
+  and maintained the code less directly; contributed components are
+  generally reliable, but see each component's own validation/bugs notes.
+  Components in \texttt{contrib} that mature and gain wide use are
+  periodically promoted into one of the core categories above (e.g. several
+  guide, chopper and polarisation components originally contributed have
+  since moved into \texttt{optics}) -- always check with \verb+mcdoc+ rather
+  than assuming a component's category from an older document.
+\item[obsolete] Components that were renamed or superseded. They are kept,
+  and continue to work, purely for backwards compatibility with existing
+  instrument files; new instrument development should avoid them (\verb+mcdoc+
+  will point to the current replacement where one exists).
+\item[parked] Components that are kept in the source tree (e.g. pending
+  further validation, a rewrite, or reinstatement) but excluded from the
+  regular build/test cycle.
+\end{description}
 
-Additionally the \verb+obsolete+ directory of the library gathers components
-that were renamed, or considered to be outdated.  These component are kept for
-backwards compatibility and they still all work as
-before.\index{Library!components!obsolete}
+\section{Data files}
+\index{Library!Components!data}
 
-The \verb+mcdoc+ front-end (section~\ref{s:mcdoc-run}) enables to display both
-the catalog of the \MCS library, e.g using: \indexMCTOOL{mcdoc}{}
-\begin{bash}
-mcdoc
-\end{bash}
-as well as the documentation of specific components, e.g with:
-\begin{bash}
-mcdoc --text name
-mcdoc file.comp
-\end{bash}
-The first line will search for all components matching the \textit{name}, and
-display their help section as text, where as the second example will display the
-help corresponding to the \textit{file.comp} component, using your
-\texttt{BROWSER}\indexEV{BROWSER} setting, or as text if
-unset. The \verb+--help+ option will display the command help, as usual.
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-       \textbf{MCSTAS/sources} & Description \\
-       \hline
-Adapt\_check & Optimization specifier for the Source\_adapt component. \\
-ESS\_moderator\_long & A parametrised pulsed source for modelling ESS long pulses. \\
-ESS\_moderator\_short & A parametrised pulsed source for modelling ESS short pulses. \\
-Moderator  & A simple pulsed source for time-of-flight. \\
-Monitor\_Optimizer &  To be used after the Source\_Optimizer component. \\
-Source\_Maxwell\_3 & Continuous source with up to three Maxwellian distributions \\
-Source\_Optimizer & Optimizes the neutron flux passing through the Source\_Optimizer in order to have the maximum flux at the Monitor\_Optimizer position. \\
-Source\_adapt  &       Continuous neutron source with adaptive importance sampling. \\
-Source\_div &          Continuous neutron source with a specified Gaussian divergence. \\
-Source\_simple &  A simple, continuous circular neutron source with flat energy/wavelength spectrum.\\
-Source\_gen     &    General, continuous neutron source with tunable shape, spectrum,
-                     and divergence. \\
-Virtual\_input &  Source-like component that reads neutron events
-                  from an ascii/binary 'virtual source' file (recorded by Virtual\_output). \\
-Virtual\_output &  Detector-like component that writes neutron state
-                   (for use in Virtual\_input). \\
-      \hline
-    \end{tabular}
-    \caption{Source and source-related components of the \MCS library.}
-    \label{t:comp-sources}
-    \index{Library!components!sources}
-    }
-  \end{center}
-\end{table}
-
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-       \textbf{MCSTAS/optics} & Description \\
-       \hline
- Arm                &  Arm/optical bench. \\
- Beamstop          &   Rectangular/circular beam stop. \\
- Bender            &  A curved neutron guide (shown straight in \verb+mcdisplay+). \\
- Collimator\_linear &  A simple analytical Soller collimator. \\
- Collimator\_radial &  A radial Soller collimator.\\
- DiskChopper           &   Disk chopper. \\
- FermiChopper      &  Fermi Chopper with rotating-frame calculations. \\
- Filter\_gen        &   This components may either set the flux
-                      or change it (filter-like), using
-                      an external data file. \\
- Guide             &   Straight neutron guide. \\
- Guide\_channeled   &   Straight neutron guide with
-                      channels (bender section). \\
- Guide\_gravity     &  Straight neutron guide with gravity. Can be
-                      channeled and focusing. \\
- Guide\_wavy        &  Straight neutron guide with gaussian waviness. \\
- Mirror             &  Single mirror plate. \\
-
- Monochromator\_curved & Doubly bent multiple crystal
-                      slabs with anisotropic Gaussian mosaic. \\
- Monochromator\_flat &  Flat Monochromator crystal with
-                      anisotropic Gaussian mosaic. \\
- Pol\_bender & Polarising bender. \\
- Pol\_guide\_vmirror & Guide with semi-transparent, polarising mirror. \\
- Pol\_mirror        & Polarising mirror \\
- Pol\_simpleBfield  & Numerical precession in analytical B-fields. \\
- Selector            & A velocity selector (helical lamella type) such as
-                      V\_selector component. \\
- Slit                & Rectangular/circular
-                      slit. \\
- V\_selector          & Velocity selector. \\
- Vitess\_ChopperFermi & Curved Fermi chopper (longer execution time than FermiChopper).
-                     From the Vitess package.\\ \hline
-    \end{tabular}
-    \caption{Optics components of the \MCS library.}
-    \label{t:comp-optics}
-    \index{Library!components!optics}
-    }
-  \end{center}
-\end{table}
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-       \textbf{MCSTAS/samples} & Description \\
-       \hline
-  Inelastic\_Incoherent & Inelastic incoherent sample with quasielastic and elastic contributions. \\
-  Isotropic\_Sqw & A general S(q,$\omega$) scatterer with multiple scattering, for liquids, powders, glasses, polymers. May be concentrically arranged. Coherent/incoherent, elastic/inelastic scattering. \\
-  Phonon\_simple   & Single-crystal sample with acoustic isotropic phonons (simple). \\
-  Powder1      &  General powder sample with a single
-                scattering vector. \\
-%  Powder2      &  General powder sample with two
-%                scattering vectors. \\
-  PowderN      &  General powder sample with N
-                scattering vectors, using a data file. Can assume \emph{concentric} shape,
-		i.e. can be used to model sample enviroment.\\
-  Sans\_spheres  & Simple sample for Small Angle Neutron Scattering - hard spheres \\
-  Single\_crystal & Mosaic single crystal with multiple scattering vectors
-                    using a data file. \\
-  V\_sample      & Vanadium sample, or other incoherent
-  scatterer. Optional quasielastic broadening.\\ \hline
-
-    Res\_sample   & Sample-like component for resolution function calculation. \\
-  TOF\_Res\_sample   & Sample-like component for resolution function calculation in TOF instruments. \\
-Res\_monitor      &   Monitor for resolution function calculations \\
-TOF\_Res\_monitor      &   Monitor for resolution function calculations
-                        for TOF instruments \\ \hline
-    \end{tabular}
-    \caption{Sample components of the \MCS library.}
-    \label{t:comp-samples}
-    \index{Library!components!samples}
-    }
-  \end{center}
-\end{table}
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-       \textbf{MCSTAS/monitors} & Description \\
-       \hline
-%DivLambda\_monitor &  Divergence/wavelength monitor. \\
-DivPos\_monitor  &    Divergence/position monitor (acceptance diagram). \\
-Divergence\_monitor &  Horizontal+vertical
-                    divergence monitor (2D). \\
-%EPSD\_monitor    &    A monitor measuring neutron intensity vs. position, x,
-%                    and neutron energy, E. \\
-E\_monitor       &    Energy-sensitive monitor. \\
-%Hdiv\_monitor    &    Horizontal divergence monitor \\
-L\_monitor        &  Wavelength-sensitive monitor. \\
-Monitor          &   Simple single detector/monitor. \\
-%Monitor\_4PI     &    Monitor that detects ALL non-absorbed neutron rays. \\
-Monitor\_nD      &   General monitor that can output
-                    0/1/2D signals (Intensity or signal vs. [something]
-                    and vs. [something] ...). \\
-PSD\_monitor     &    Position-sensitive monitor. \\
-PSD\_monitor\_4PI  &   Spherical position-sensitive detector. \\
-%PSDcyl\_monitor  &    A 2D position-sensitive monitor. The shape is
-%                    cylindrical with the axis vertical. The monitor
-%                    covers the whole cylinder (360 degrees). \\
-%PSDlin\_monitor   &   Rectangular 1D PSD, measuring intensity vs.
-%                    vertical position, x. \\
-TOFLambda\_monitor &  Time-of-flight vs. wavelength monitor. \\
-%TOF\_cylPSD\_monitor & Cylindrical (2pi) PSD Time-of-flight monitor. \\
-TOF\_monitor     &    Rectangular Time-of-flight monitor. \\
-%TOFlog\_mon      &    Rectangular Time-of-flight monitor with logarithmic
-%                    time binning. \\
-      \hline
-    \end{tabular}
-    \caption{Selected Monitor components of the \MCS library.}
-    \label{t:comp-monitors}
-    \index{Library!components!monitors}
-    }
-  \end{center}
-\end{table}
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-       \textbf{MCSTAS/misc} & Description \\
-       \hline
- Progress\_bar     &  Displays status of a running simulation.
-                      May also trigger intermediate SAVE.\\
- Beam\_spy         & A monitor that displays mean statistics (no output file). \\
- Set\_pol          & sets polarisation vector. \\
- Vitess\_input     &   Read neutron state parameters from a VITESS neutron file.\\
- Vitess\_output    &  Write neutron state parameters to a VITESS neutron file.\\
-      \hline
-    \end{tabular}
-    \caption{Miscellaneous components of the \MCS library.}
-    \label{t:comp-misc}
-    \index{Library!components!misc}
-    }
-  \end{center}
-\end{table}
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-       \textbf{MCSTAS/contrib} & Description \\
-       \hline
- Al\_window     &         Aluminium transmission window. \\
- Collimator\_ROC   &      Radial Oscillating Collimator (ROC). \\
- Exact\_radial\_coll &      Radial collimator. \\
- FermiChopper\_ILL &       Fermi Chopper with rotating frame and SM coating (straight). \\
- Filter\_graphite  &      Pyrolytic graphite filter (analytical model). \\
- Filter\_powder   &       Box-shaped powder
-                        filter based on Single\_crystal (unstable). \\
- Guide\_curved     &     Non focusing continuous curved guide (shown curved). \\
- Guide\_honeycomb & Neutron guide with gravity and honeycomb geometry. Can be
-                        channeled and/or focusing. \\
- Guide\_tapering  &     Rectangular tapered guide (parabolic, elliptic, sections ...). \\
- He3\_cell    &           Polarised 3He cell. \\
- ISIS\_moderator    &     ISIS Target 1 and 2 moderator models based on MCNP calculations. \\
- Monochromator\_2foc   &  Doubly bent monochromator with multiple slabs. \\
- multi\_pipe       & a multi pipe slit (for SANS). \\
- PSD\_Detector  & Realistic detector model, with gas effects. \\
- PSD\_monitor\_rad & A banana PSD monitor. \\
- SiC           &         SiC multilayer sample for reflectivity simulations. \\
- SNS\_source    & SNS moderator models based on MCNP calculations. \\
- Source\_multi\_surfaces & An array of sources described from spectrum tables. \\
- Virtual\_mcnp\_input & Reads a PTRAC neutron events file from MCNP. \\
- Virtual\_mcnp\_output& Writes a PTRAC neutron events file for MCNP. \\
- Virtual\_tripoli4\_input & Reads a 'Batch' neutron events file from Tripoli 4. \\
- Virtual\_tripoli4\_output& Writes a 'Batch' neutron events file for Tripoli 4. \\
-      \hline
-    \end{tabular}
-    \caption{Contributed components of the \MCS library.}
-    \index{Library!components!contrib}
-    \label{t:comp-contrib}
-    }
-  \end{center}
-\end{table}
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-       \textbf{MCSTAS/share} & Description \\
-       \hline
-       adapt\_tree-lib  & Handles a simulation optimisation space for
-       adatative importance sampling.
-                          Used by the Source\_adapt component. \\
-       \textbf{mcstas-r}      &   Main Run-time library (always included). \\
-       monitor\_nd-lib & Handles multiple monitor types.
-                        Used by Monitor\_nD, Res\_monitor, \ldots \\
-       read\_table-lib  & Enables to read a data table (text/binary) to be used within
-                          an instrument or a component. \\
-       vitess-lib &     Enables to read/write Vitess event binary files.
-                        Used by Vitess\_input and Vitess\_output \\
-      \hline
-    \end{tabular}
-    \caption{Shared libraries of the \MCS library. See Appendix~\ref{c:kernelcalls} for details.}
-    \label{t:comp-share}
-    \index{Library!components!share}
-    \index{Library!run-time}
-    }
-  \end{center}
-\end{table}
+Some components require external data files, e.g. lattice crystallographic
+definitions for Laue and powder pattern diffraction, $S(q,\omega)$ tables
+for inelastic scattering, or transmission/reflectivity curves. Such files
+distributed with \MCS are located in the \verb+data+ sub-directory of the
+library and are accessible to any component using the \texttt{read\_table-lib}
+shared library (see section~\ref{s:read-table}) without needing local
+copies.
 
 \begin{table}
   \begin{center}
@@ -313,24 +107,14 @@ TOF\_monitor     &    Rectangular Time-of-flight monitor. \\
     \end{tabular}
     \caption{Data files of the \MCS library.}
     \label{t:comp-data}
-    \index{Library!components!data}
+    \index{Library!Components!data}
     }
   \end{center}
 \end{table}
 
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-       \textbf{MCSTAS/examples} & Description \\
-      \hline
-      *.instr & This directory contains example instruments, accessible throught the \verb+mcgui+ ``Neutron site'' menu. \\
-      \hline
-    \end{tabular}
-    \caption{Instrument example files of the \MCS library.}
-    \label{t:comp-instr}
-    \index{Library!instruments}
-    }
-  \end{center}
-\end{table}
+\section{Component and instrument examples}
+
+An overview of the example instrument library, organised by facility and
+category, is given in the User Manual, chapter~\ref{s:instrument}. Every
+\texttt{.instr} file there is discoverable via \verb+mcgui+'s
+\textbf{New from Template} menu, or via \verb+mcdoc+.
