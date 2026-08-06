@@ -54,10 +54,10 @@ include(CPack)
 
 message( "LaTeX configuration" )
 # set(LATEX_OUTPUT_PATH ".")
-file(GLOB LIST RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.tex" "*.sty" "*.bib" "*.bst" "[m-s]*/*.tex" "[m-s]*/*.parms" "figures/*")
+file(GLOB LIST RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.tex" "*.sty" "*.bib" "*.bst" "[a-z]*/*.tex" "[a-z]*/*.parms" "figures/*")
 
 # TeX snippets
-foreach(NAME sources samples optics monitors misc)
+foreach(NAME sources samples optics monitors misc union sasmodels contrib obsolete)
    # PWFIXME: ONLY SEMI-FUNCTIONAL
    add_custom_command(
      OUTPUT "${NAME}.done"
@@ -67,7 +67,7 @@ foreach(NAME sources samples optics monitors misc)
 endforeach()
 
 # MD files
-foreach(NAME sources samples optics monitors misc)
+foreach(NAME sources samples optics monitors misc union sasmodels contrib obsolete)
    # PWFIXME: ONLY SENMI-FUNCTIONAL
    add_custom_command(
      OUTPUT "${NAME}.mddone"
@@ -88,7 +88,7 @@ add_latex_document(
 add_latex_document(
   Component_manual.tex 
   INPUTS ${LIST}
-  DEPENDS sources.done samples.done optics.done monitors.done misc.done
+  DEPENDS sources.done samples.done optics.done monitors.done misc.done union.done sasmodels.done contrib.done obsolete.done
   BIBFILES "mcstas.bib"
   USE_INDEX
   FORCE_PDF
