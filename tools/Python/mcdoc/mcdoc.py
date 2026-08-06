@@ -169,7 +169,7 @@ def _convert_inline_markup(s):
             display = url
         else:
             display = re.sub(r'\s+', ' ', inner).strip()
-        return stash(r'\htmladdnormallink{%s}{%s}' % (_tex(display), _tex(url)))
+        return stash(r'\htmladdnormallink{%s}{%s}' % (_tex_with_angstrom(display), _tex(url)))
     s = re.sub(r'<a\s+([^>]*)>(.*?)</a\s*>', repl_a, s, flags=re.IGNORECASE | re.DOTALL)
 
     # <img src="URL" ...>  ->  \includegraphics{URL}  (best effort; only
@@ -200,6 +200,15 @@ def _convert_inline_markup(s):
     # so that the <a>...</a> handling above could see across them) to a
     # single space, exactly like ordinary paragraph reflow.
     s = re.sub(r'\s+', ' ', s).strip()
+
+    # Standalone "AA" (Angstrom) tokens -> \AA{}. Detected here, on the
+    # raw text (with only tag-derived placeholders interspersed, which
+    # can't create false word boundaries), and stashed via the *same*
+    # top-level tokens list as everything else above -- this is safe
+    # because it is a sibling top-level substitution into s, not nested
+    # inside another not-yet-resolved stashed value (contrast with
+    # _tex_with_angstrom(), which is for standalone/isolated use).
+    s = re.sub(r'\bAA\b', lambda m: stash(r'\AA{}'), s)
 
     # Escape everything else exactly like normal LaTeX text (this also
     # correctly turns any *unrecognized* '<tag>' into literal, visible
@@ -267,15 +276,51 @@ def _mccode_label():
     return 'McXtrace' if mccode_config.get_mccode_prefix() == 'mx' else 'McStas'
 
 
-def _format_unit(unit):
+def _tex_with_angstrom(s):
+    r'''
+    Like _tex(), but additionally converts standalone "AA" tokens -- the
+    common ASCII shorthand for Angstrom used throughout McStas comp/instr
+    headers, since the actual \AA{} (Angstrom, ring-A) character is rarely
+    typed directly -- into the proper LaTeX \AA{} symbol.
+
+    The "AA" detection deliberately happens on the *raw*, not-yet-escaped
+    text (protected via a stash/placeholder, exactly like
+    _convert_inline_markup does for HTML tags) rather than after _tex()
+    has run. This matters: in raw text, '_' is a word character, so
+    "AA_test" (AA embedded in a longer identifier) correctly has no word
+    boundary and is left alone; if detection ran on the *escaped* text
+    instead, the '_' would already have become '\_', a non-word character
+    that creates a spurious boundary and incorrectly triggers a match.
+    This function is self-contained (fully resolves its own placeholder
+    before returning), so it is always safe to call standalone; it must
+    NOT be used to build a fragment that gets embedded inside another,
+    not-yet-resolved stashed placeholder elsewhere, since nested
+    placeholders are not resolved by a single re.sub pass.
     '''
+    if s is None:
+        return ''
+    s = str(s)
+    tokens = []
+    def stash(repl):
+        tokens.append(repl)
+        return '\x01%d\x02' % (len(tokens) - 1)
+    s = re.sub(r'\bAA\b', lambda m: stash(r'\AA{}'), s)
+    s = _tex(s)
+    def restore(m):
+        return tokens[int(m.group(1))]
+    return re.sub(r'\x01(\d+)\x02', restore, s)
+
+
+def _format_unit(unit):
+    r'''
     Formats a parameter's unit string for the LaTeX table. Any explicit
     caret-based exponent -- "AA^3", "cm^-2", "AA^(-1)", ... -- is
     converted to a proper LaTeX math-mode superscript (e.g. AA$^{3}$)
-    instead of being escaped into a literal caret character. Everything
-    else is escaped exactly like ordinary text via _tex(). Units with no
-    caret (e.g. the common bare "AA-1" convention) are left untouched
-    other than the usual text escaping.
+    instead of being escaped into a literal caret character. Standalone
+    "AA" tokens (Angstrom) become \AA{} via _tex_with_angstrom(). Units
+    with no caret (e.g. the common bare "AA-1" convention) still get
+    their "AA" converted; everything else is escaped exactly like
+    ordinary text.
     '''
     if not unit:
         return ''
@@ -290,7 +335,7 @@ def _format_unit(unit):
     for kind, chunk in parts:
         if kind == 'text':
             if chunk:
-                out.append(_tex(chunk))
+                out.append(_tex_with_angstrom(chunk))
         else:
             out.append('$^{%s}$' % chunk)
     return ''.join(out)
@@ -1487,7 +1532,7 @@ class InstrLatexDocWriter:
         out.append(r'\begin{document}')
         out.append(r'\maketitle')
         out.append('')
-        out.append(_tex(short_descr))
+        out.append(_tex_with_angstrom(short_descr))
         out.append('')
         out.append(r'\section*{Identification}')
         out.append(r'\begin{itemize}')
@@ -1512,7 +1557,7 @@ class InstrLatexDocWriter:
             name_tex = _tex(name)
             if required:
                 name_tex = r'\textbf{%s}' % name_tex
-            out.append('%s & %s & %s & %s \\\\' % (name_tex, _format_unit(unit), _tex(doc), _tex(defval)))
+            out.append('%s & %s & %s & %s \\\\' % (name_tex, _format_unit(unit), _tex_with_angstrom(doc), _tex(defval)))
         out.append(r'\bottomrule')
         out.append(r'\end{longtable}')
         out.append('')
@@ -1550,7 +1595,7 @@ class CompLatexDocWriter:
 
         out = [] # Drop the [_LATEX_PREAMBLE]
         out.append(r'\section{The \texttt{%s} %s Component}' % (_tex(i.name), _tex(flavour)))
-        out.append(_tex(short_descr))
+        out.append(_tex_with_angstrom(short_descr))
         out.append('')
         out.append(r'\subsection*{Identification}')
         out.append(r'\begin{itemize}')
@@ -1575,7 +1620,7 @@ class CompLatexDocWriter:
             name_tex = _tex(name)
             if required:
                 name_tex = r'\textbf{%s}' % name_tex
-            out.append('%s & %s & %s & %s \\\\' % (name_tex, _format_unit(unit), _tex(doc), _tex(defval)))
+            out.append('%s & %s & %s & %s \\\\' % (name_tex, _format_unit(unit), _tex_with_angstrom(doc), _tex(defval)))
         out.append(r'\bottomrule')
         out.append(r'\end{longtable}')
         out.append('')
