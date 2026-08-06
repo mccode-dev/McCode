@@ -103,6 +103,137 @@ def _tex(s):
     return s
 
 
+# ------------------------------------------------------------------
+#   %D "Description" field -> flowing LaTeX (instead of one big
+#   \verbatim block), with a small, whitelisted set of embedded HTML
+#   tags (per the McDoc format spec) converted to real LaTeX, and any
+#   line that looks like an ASCII-art diagram/aligned table kept
+#   verbatim so its alignment survives.
+# ------------------------------------------------------------------
+
+def _is_tabular_line(line):
+    ''' Heuristic: does this line look like part of an ASCII-art diagram
+    or an aligned parameter/data table, rather than ordinary prose? '''
+    if line.strip() == '':
+        return False
+    # Three or more consecutive spaces almost always signals column
+    # alignment (two spaces is common after a period in plain prose, so
+    # we deliberately require more than that to avoid false positives).
+    if re.search(r'   +', line):
+        return True
+    # Box-drawing / ruler-like sequences (----, ====, |---|, +===+, ...)
+    if re.search(r'[|+][-=]{2,}|[-=]{3,}[|+]', line):
+        return True
+    # Lines dominated by non-letter characters (numeric columns, symbols)
+    stripped = line.strip()
+    letters = sum(c.isalpha() for c in stripped)
+    if len(stripped) >= 6 and letters / len(stripped) < 0.4:
+        return True
+    return False
+
+
+def _convert_inline_markup(s):
+    '''
+    Converts a small, well-known set of literal HTML tags -- as explicitly
+    permitted in McDoc %D sections, see the McDoc format documentation --
+    to LaTeX, while leaving everything else as literal text. Unlike a full
+    HTML/Markdown parser, this never reinterprets '_', '*', '#' etc. as
+    markup, so ordinary scientific/programming text (variable names,
+    multiplications, ...) is never mangled.
+    '''
+    tokens = []
+    def stash(repl):
+        tokens.append(repl)
+        return '\x01%d\x02' % (len(tokens) - 1)
+
+    # <a href="URL">text</a>  ->  \href{URL}{text}
+    def repl_a(m):
+        href = re.search(r'href\s*=\s*"([^"]*)"', m.group(0), re.IGNORECASE)
+        url = href.group(1).replace('%', r'\%').replace('#', r'\#') if href else ''
+        return stash(r'\href{%s}{' % url)
+    s = re.sub(r'<a\s+[^>]*>', repl_a, s, flags=re.IGNORECASE)
+    s = re.sub(r'</a\s*>', lambda m: stash('}'), s, flags=re.IGNORECASE)
+
+    # <img src="URL" ...>  ->  \includegraphics{URL}  (best effort; only
+    # works if URL is a local path resolvable from the manual build dir)
+    def repl_img(m):
+        src = re.search(r'src\s*=\s*"([^"]*)"', m.group(0), re.IGNORECASE)
+        path = src.group(1) if src else ''
+        return stash(r'\includegraphics[width=0.8\textwidth]{%s}' % path if path else '')
+    s = re.sub(r'<img\s+[^>]*/?>', repl_img, s, flags=re.IGNORECASE)
+
+    # basic inline style tags
+    simple = {
+        'b': r'\textbf{', 'strong': r'\textbf{',
+        'i': r'\textit{', 'em': r'\textit{',
+        'tt': r'\texttt{', 'code': r'\texttt{',
+        'u': r'\underline{',
+        'sub': r'_{', 'sup': r'^{',
+    }
+    for tag, latex_open in simple.items():
+        s = re.sub(r'<%s\s*>' % tag, lambda m, o=latex_open: stash(o), s, flags=re.IGNORECASE)
+        s = re.sub(r'</%s\s*>' % tag, lambda m: stash('}'), s, flags=re.IGNORECASE)
+
+    # <br> -> line break
+    s = re.sub(r'<br\s*/?>', lambda m: stash('\\\\'), s, flags=re.IGNORECASE)
+
+    # Escape everything else exactly like normal LaTeX text (this also
+    # correctly turns any *unrecognized* '<tag>' into literal, visible
+    # \textless{}tag\textgreater{} rather than silently dropping it).
+    s = _tex(s)
+
+    # restore the stashed, already-correct LaTeX macros
+    def restore(m):
+        return tokens[int(m.group(1))]
+    s = re.sub(r'\x01(\d+)\x02', restore, s)
+    return s
+
+
+def _description_to_latex(text):
+    '''
+    Converts a McDoc %D "Description" field to reasonably well-typeset
+    LaTeX: flowing, hyphenated paragraphs for ordinary prose (including a
+    small set of embedded HTML tags per the McDoc format spec), while any
+    line that looks like an ASCII-art diagram or aligned parameter table
+    is kept in a \verbatim block so its alignment survives. This replaces
+    dumping the whole field into one big \verbatim block, which typeset
+    badly (no wrapping/hyphenation, monospace font throughout) and could
+    not reflect embedded links or basic formatting.
+    '''
+    if not text:
+        return ''
+    lines = text.split('\n')
+    out_blocks = []
+    buf_prose = []
+    buf_code = []
+
+    def flush_prose():
+        if buf_prose:
+            paragraph = '\n'.join(buf_prose)
+            for p in re.split(r'\n\s*\n', paragraph):
+                p = ' '.join(l.strip() for l in p.split('\n') if l.strip() != '')
+                if p:
+                    out_blocks.append(_convert_inline_markup(p))
+            buf_prose.clear()
+
+    def flush_code():
+        if buf_code:
+            out_blocks.append('\\begin{verbatim}\n' + '\n'.join(buf_code) + '\n\\end{verbatim}')
+            buf_code.clear()
+
+    for line in lines:
+        if _is_tabular_line(line):
+            flush_prose()
+            buf_code.append(line)
+        else:
+            flush_code()
+            buf_prose.append(line)
+    flush_code()
+    flush_prose()
+
+    return '\n\n'.join(out_blocks)
+
+
 def _mccode_label():
     ''' Returns ('McStas' or 'McXtrace') depending on the active flavour. '''
     return 'McXtrace' if mccode_config.get_mccode_prefix() == 'mx' else 'McStas'
@@ -1310,9 +1441,7 @@ class InstrLatexDocWriter:
         out.append(r'\end{itemize}')
         out.append('')
         out.append(r'\section*{Description}')
-        out.append(r'\begin{verbatim}')
-        out.append(i.description if i.description is not None else '')
-        out.append(r'\end{verbatim}')
+        out.append(_description_to_latex(i.description))
         out.append('')
         out.append(r'\section*{Input parameters}')
         out.append(r'Parameters in \textbf{boldface} are required; the others are optional.')
@@ -1375,9 +1504,7 @@ class CompLatexDocWriter:
         out.append(r'\end{itemize}')
         out.append('')
         out.append(r'\subsection*{Description}')
-        out.append(r'\begin{verbatim}')
-        out.append(i.description if i.description is not None else '')
-        out.append(r'\end{verbatim}')
+        out.append(_description_to_latex(i.description))
         out.append('')
         out.append(r'\subsection*{Input parameters}')
         out.append(r'Parameters in \textbf{boldface} are required; the others are optional.')
