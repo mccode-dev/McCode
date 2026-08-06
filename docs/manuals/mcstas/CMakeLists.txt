@@ -54,7 +54,7 @@ include(CPack)
 
 message( "LaTeX configuration" )
 # set(LATEX_OUTPUT_PATH ".")
-file(GLOB LIST RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.tex" "*.sty" "*.bib" "*.bst" "[a-z]*/*.tex" "[a-z]*/*.parms" "figures/*")
+file(GLOB LIST CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.tex" "*.sty" "*.bib" "*.bst" "[a-z]*/*.tex" "[a-z]*/*.parms" "figures/*")
 
 # TeX snippets
 foreach(NAME sources samples optics monitors misc union sasmodels contrib obsolete)
