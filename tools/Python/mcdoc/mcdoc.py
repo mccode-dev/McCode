@@ -103,6 +103,13 @@ def _tex(s):
     return s
 
 
+# Standalone tokens that are ASCII shorthand for Angstrom in McStas
+# comp/instr headers -- "AA" is the dominant convention, but "Angs",
+# "Ang", "Angstrom"/"Angstroms" also appear. All are converted to the
+# proper LaTeX \AA{} (ring-A) symbol; see _tex_with_angstrom() below.
+_ANGSTROM_RE = re.compile(r'\b(?:AA|Angstroms?|Angs?)\b')
+
+
 # ------------------------------------------------------------------
 #   %D "Description" field -> flowing LaTeX (instead of one big
 #   \verbatim block), with a small, whitelisted set of embedded HTML
@@ -201,14 +208,15 @@ def _convert_inline_markup(s):
     # single space, exactly like ordinary paragraph reflow.
     s = re.sub(r'\s+', ' ', s).strip()
 
-    # Standalone "AA" (Angstrom) tokens -> \AA{}. Detected here, on the
-    # raw text (with only tag-derived placeholders interspersed, which
-    # can't create false word boundaries), and stashed via the *same*
-    # top-level tokens list as everything else above -- this is safe
-    # because it is a sibling top-level substitution into s, not nested
-    # inside another not-yet-resolved stashed value (contrast with
-    # _tex_with_angstrom(), which is for standalone/isolated use).
-    s = re.sub(r'\bAA\b', lambda m: stash(r'\AA{}'), s)
+    # Standalone "AA"/"Angs"/"Ang"/"Angstrom(s)" (Angstrom) tokens -> \AA{}.
+    # Detected here, on the raw text (with only tag-derived placeholders
+    # interspersed, which can't create false word boundaries), and
+    # stashed via the *same* top-level tokens list as everything else
+    # above -- this is safe because it is a sibling top-level
+    # substitution into s, not nested inside another not-yet-resolved
+    # stashed value (contrast with _tex_with_angstrom(), which is for
+    # standalone/isolated use).
+    s = _ANGSTROM_RE.sub(lambda m: stash(r'\AA{}'), s)
 
     # Escape everything else exactly like normal LaTeX text (this also
     # correctly turns any *unrecognized* '<tag>' into literal, visible
@@ -278,12 +286,13 @@ def _mccode_label():
 
 def _tex_with_angstrom(s):
     r'''
-    Like _tex(), but additionally converts standalone "AA" tokens -- the
-    common ASCII shorthand for Angstrom used throughout McStas comp/instr
-    headers, since the actual \AA{} (Angstrom, ring-A) character is rarely
-    typed directly -- into the proper LaTeX \AA{} symbol.
+    Like _tex(), but additionally converts standalone Angstrom shorthand
+    tokens -- "AA" is the dominant convention in McStas comp/instr
+    headers, but "Angs", "Ang", "Angstrom"/"Angstroms" also appear, since
+    the actual \AA{} (Angstrom, ring-A) character is rarely typed directly
+    -- into the proper LaTeX \AA{} symbol.
 
-    The "AA" detection deliberately happens on the *raw*, not-yet-escaped
+    The token detection deliberately happens on the *raw*, not-yet-escaped
     text (protected via a stash/placeholder, exactly like
     _convert_inline_markup does for HTML tags) rather than after _tex()
     has run. This matters: in raw text, '_' is a word character, so
@@ -304,7 +313,7 @@ def _tex_with_angstrom(s):
     def stash(repl):
         tokens.append(repl)
         return '\x01%d\x02' % (len(tokens) - 1)
-    s = re.sub(r'\bAA\b', lambda m: stash(r'\AA{}'), s)
+    s = _ANGSTROM_RE.sub(lambda m: stash(r'\AA{}'), s)
     s = _tex(s)
     def restore(m):
         return tokens[int(m.group(1))]
