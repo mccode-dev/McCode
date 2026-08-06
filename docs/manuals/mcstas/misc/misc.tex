@@ -11,29 +11,32 @@ not changed much, and a long simulation of neutron rays
 ``surviving'' through the guide system could be reused
 for several simulations of the instrument back-end, speeding up
 the simulations by (typically) one or two orders of magnitude.
-The components for doing this trick is \textbf{Virtual\_input} and
-\textbf{Virtual\_output}, which stores and reads neutron rays, respectively.
-
-Other components perform the simulation of the instrument
-resolution functions. These are \textbf{Res\_sample} and \textbf{TOF\_Res\_sample},
-which are to be
-placed at the sample position, and \textbf{Res\_monitor}, that should
-be localized at the position of the instrument detector.
+As of \MCS 3.x, the recommended components for this are
+\textbf{MCPL\_input} and \textbf{MCPL\_output}, which store and read back
+neutron rays using the portable, compressed, multi-code MCPL event format
+(with backends for \MCS/McXtrace as well as several other Monte Carlo
+transport codes -- MCNP, PHITS, Geant4, Vitess, SIMRES). The older,
+code-specific event components (\textbf{Virtual\_input}/\textbf{Virtual\_output}
+and similar MCNP/Tripoli4/Vitess-specific readers/writers) perform the same
+role but are now in the \textbf{obsolete} component category (see the
+Obsolete chapter) and are kept only for backward compatibility; new
+instrument work should prefer MCPL.
 
 \textbf{Progress\_bar} is a simulation utility that displays the simulation
 status, but assumes the form of a component.
 
+Components for simulating instrument resolution functions
+(\textbf{Res\_sample}, \textbf{TOF\_Res\_sample} and \textbf{Res\_monitor})
+are documented in the Samples and Monitors chapters respectively, matching
+their current component-library category (they predate the present
+category split and were historically documented here).
+
 \newpage
-\input{sources/Virtual_output}
+\section{MCPL: splitting simulations via portable neutron event files}
+\label{s:mcpl}
+\input{misc/MCPL_input}
 
-\input{sources/Virtual_input}
-
-\newpage
-\input{misc/Res_sample}
-
-\input{misc/TOFRes_sample}
-
-\input{misc/Res_monitor}
+\input{misc/MCPL_output}
 
 \newpage
 \section{Progress\_bar: Simulation progress and automatic saving}
@@ -62,6 +65,11 @@ The optional 'profile' parameter, when set to a file name, will produce the numb
 \section{Beam\_spy: A beam analyzer}
 \component{Beam\_spy}{System}{}{}{should overlap previous component}
 \index{Monitors!Beam analyzer}
+
+\textbf{Note:} \texttt{Beam\_spy} has moved to the \textbf{obsolete} component
+category (see the Component Manual's Obsolete chapter); the general-purpose
+\texttt{Monitor\_nD} component (Monitors chapter) now covers this
+functionality and more. The description below is kept for reference.
 
 This component is at the same time an Arm and a simple Monitor. It analyzes all neutrons reaching it, and computes statistics for the beam, as well as the intensity.
 

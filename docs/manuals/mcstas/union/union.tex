@@ -1,0 +1,94 @@
+% Emacs settings: -*-mode: latex; TeX-master: "Component_manual"; -*-
+
+\chapter{The Union framework: sample environments and multiple scattering}
+\label{c:union}
+\index{Library!Components!union}
+\index{Union|textbf}
+
+The Union framework, contributed by Mads Bertelsen (University of
+Copenhagen), is a set of components that together allow the description of
+complex, possibly nested or overlapping, sample environments with multiple
+scattering, by separating the description of \emph{geometry} (where matter
+is) from \emph{physical process} (what happens to a neutron there).
+A worked example can be found in the \texttt{Union\_demos} category of the
+example instrument library (see the User Manual, chapter on instrument
+examples).
+
+A Union simulation is assembled in four steps, each using one or more of the
+component classes documented in this chapter:
+\begin{enumerate}
+\item One or more \emph{process} components (e.g. \texttt{Incoherent\_process},
+  \texttt{Powder\_process}, \texttt{Single\_crystal\_process}) each describe
+  one scattering process.
+\item These are gathered into named \emph{materials} using
+  \texttt{Union\_make\_material}, which may combine several processes (e.g.
+  coherent + incoherent scattering) into one material definition.
+\item \emph{Geometry} components (\texttt{Union\_box}, \texttt{Union\_cylinder},
+  \texttt{Union\_sphere}, \texttt{Union\_cone}, \texttt{Union\_mesh}) place
+  volumes of a given material in the instrument, and may be nested or
+  intersected to build up arbitrarily complex sample environments.
+\item A \texttt{Union\_master} component, placed after all of the geometries
+  it should simulate, performs the actual ray-tracing (including multiple
+  scattering) through every geometry defined since the previous master (or
+  since \texttt{Union\_init}). More than one master may be used in the same
+  instrument to simulate, e.g., a sample and its environment in separate
+  passes.
+\end{enumerate}
+Additionally, \emph{logger} and \emph{absorption logger} components record
+scattering/absorption event statistics (position, $Q$, time, \ldots) within
+a Union geometry for diagnostic or scientific output, and \emph{conditional}
+components restrict logging to neutrons meeting a criterion (e.g. reaching a
+detector).
+
+\section{Union framework core: initialization, master, and termination}
+\input{union/Union_init}
+\input{union/Union_master}
+\input{union/Union_master_GPU}
+\input{union/Union_stop}
+
+\section{Union geometry components}
+\input{union/Union_box}
+\input{union/Union_cylinder}
+\input{union/Union_sphere}
+\input{union/Union_cone}
+\input{union/Union_mesh}
+
+\section{Union material definition}
+\input{union/Union_make_material}
+
+\section{Union scattering process components}
+\input{union/Non_process}
+\input{union/Incoherent_process}
+\input{union/IncoherentPhonon_process}
+\input{union/PhononSimple_process}
+\input{union/Powder_process}
+\input{union/Single_crystal_process}
+\input{union/AF_HB_1D_process}
+\input{union/Texture_process}
+\input{union/NCrystal_process}
+\input{union/Template_process}
+\input{union/Template_surface}
+\input{union/Mirror_surface}
+
+\section{Union loggers (event/history recording)}
+\input{union/Union_logger_1D}
+\input{union/Union_logger_2DQ}
+\input{union/Union_logger_2D_kf}
+\input{union/Union_logger_2D_kf_time}
+\input{union/Union_logger_2D_space}
+\input{union/Union_logger_2D_space_time}
+\input{union/Union_logger_3D_space}
+
+\section{Union absorption loggers}
+\input{union/Union_abs_logger_1D_space}
+\input{union/Union_abs_logger_1D_space_event}
+\input{union/Union_abs_logger_1D_space_tof}
+\input{union/Union_abs_logger_1D_space_tof_to_lambda}
+\input{union/Union_abs_logger_1D_time}
+\input{union/Union_abs_logger_2D_space}
+\input{union/Union_abs_logger_event}
+\input{union/Union_abs_logger_nD}
+
+\section{Union conditionals}
+\input{union/Union_conditional_PSD}
+\input{union/Union_conditional_standard}
