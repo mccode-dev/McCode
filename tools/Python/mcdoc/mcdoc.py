@@ -267,6 +267,35 @@ def _mccode_label():
     return 'McXtrace' if mccode_config.get_mccode_prefix() == 'mx' else 'McStas'
 
 
+def _format_unit(unit):
+    '''
+    Formats a parameter's unit string for the LaTeX table. Any explicit
+    caret-based exponent -- "AA^3", "cm^-2", "AA^(-1)", ... -- is
+    converted to a proper LaTeX math-mode superscript (e.g. AA$^{3}$)
+    instead of being escaped into a literal caret character. Everything
+    else is escaped exactly like ordinary text via _tex(). Units with no
+    caret (e.g. the common bare "AA-1" convention) are left untouched
+    other than the usual text escaping.
+    '''
+    if not unit:
+        return ''
+    parts = []
+    last = 0
+    for m in re.finditer(r'\^\(?(-?\d+(?:\.\d+)?)\)?', unit):
+        parts.append(('text', unit[last:m.start()]))
+        parts.append(('sup', m.group(1)))
+        last = m.end()
+    parts.append(('text', unit[last:]))
+    out = []
+    for kind, chunk in parts:
+        if kind == 'text':
+            if chunk:
+                out.append(_tex(chunk))
+        else:
+            out.append('$^{%s}$' % chunk)
+    return ''.join(out)
+
+
 # ==================================================================
 #   HTML overview writer (unchanged)
 # ==================================================================
@@ -1483,7 +1512,7 @@ class InstrLatexDocWriter:
             name_tex = _tex(name)
             if required:
                 name_tex = r'\textbf{%s}' % name_tex
-            out.append('%s & %s & %s & %s \\\\' % (name_tex, _tex(unit), _tex(doc), _tex(defval)))
+            out.append('%s & %s & %s & %s \\\\' % (name_tex, _format_unit(unit), _tex(doc), _tex(defval)))
         out.append(r'\bottomrule')
         out.append(r'\end{longtable}')
         out.append('')
@@ -1546,7 +1575,7 @@ class CompLatexDocWriter:
             name_tex = _tex(name)
             if required:
                 name_tex = r'\textbf{%s}' % name_tex
-            out.append('%s & %s & %s & %s \\\\' % (name_tex, _tex(unit), _tex(doc), _tex(defval)))
+            out.append('%s & %s & %s & %s \\\\' % (name_tex, _format_unit(unit), _tex(doc), _tex(defval)))
         out.append(r'\bottomrule')
         out.append(r'\end{longtable}')
         out.append('')
