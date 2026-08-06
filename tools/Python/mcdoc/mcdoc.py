@@ -656,7 +656,7 @@ class InstrParser:
 
     def parse(self):
         ''' parses the given file '''
-        f = open(self.filename)
+        f = open(self.filename, encoding='utf-8')
         logging.debug('parsing file "%s"' % self.filename)
 
         header = utils.read_header(f)
@@ -826,7 +826,7 @@ Generated for %VERSION%
 class CompParser(InstrParser):
     def parse(self):
         ''' override '''
-        f = open(self.filename)
+        f = open(self.filename, encoding='utf-8')
         logging.debug('parsing file "%s"' % self.filename)
 
         header = utils.read_header(f)
@@ -1416,7 +1416,7 @@ def write_file(filename, text, failsilent=False):
 
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        f = open(filename, 'w')
+        f = open(filename, 'w', encoding='utf-8')
         f.write(text)
         f.close()
     except Exception as e:
