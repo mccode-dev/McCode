@@ -140,19 +140,37 @@ def _convert_inline_markup(s):
     HTML/Markdown parser, this never reinterprets '_', '*', '#' etc. as
     markup, so ordinary scientific/programming text (variable names,
     multiplications, ...) is never mangled.
+
+    Handles <a href="URL">link text</a> spans (including ones whose text
+    was hard-wrapped across multiple source lines, e.g. long DOIs split
+    for 80-column .comp headers) by collapsing internal whitespace; if the
+    collapsed link text is identical to the URL itself (the extremely
+    common "<a href='URL'>URL</a>" convention in these headers), the clean
+    URL is used as the display text rather than whatever fragment survived
+    the line wrap, avoiding artifacts like ".../JNR- 190117".
     '''
     tokens = []
     def stash(repl):
         tokens.append(repl)
         return '\x01%d\x02' % (len(tokens) - 1)
 
-    # <a href="URL">text</a>  ->  \href{URL}{text}
+    # <a href="URL">text</a>  ->  \htmladdnormallink{text}{URL}
+    # (single DOTALL pass so link text spanning a hard line-wrap is seen
+    # as one unit, rather than being processed line-by-line beforehand)
     def repl_a(m):
-        href = re.search(r'href\s*=\s*"([^"]*)"', m.group(0), re.IGNORECASE)
-        url = href.group(1).replace('%', r'\%').replace('#', r'\#') if href else ''
-        return stash(r'\href{%s}{' % url)
-    s = re.sub(r'<a\s+[^>]*>', repl_a, s, flags=re.IGNORECASE)
-    s = re.sub(r'</a\s*>', lambda m: stash('}'), s, flags=re.IGNORECASE)
+        attrs, inner = m.group(1), m.group(2)
+        href = re.search(r'href\s*=\s*"([^"]*)"', attrs, re.IGNORECASE)
+        url = href.group(1) if href else ''
+        collapsed_inner = re.sub(r'\s+', '', inner)
+        collapsed_url = re.sub(r'\s+', '', url)
+        if url and collapsed_inner == collapsed_url:
+            # display text is just the (possibly line-wrapped) URL itself:
+            # use the clean URL, not the fragmented/space-joined version
+            display = url
+        else:
+            display = re.sub(r'\s+', ' ', inner).strip()
+        return stash(r'\htmladdnormallink{%s}{%s}' % (_tex(display), _tex(url)))
+    s = re.sub(r'<a\s+([^>]*)>(.*?)</a\s*>', repl_a, s, flags=re.IGNORECASE | re.DOTALL)
 
     # <img src="URL" ...>  ->  \includegraphics{URL}  (best effort; only
     # works if URL is a local path resolvable from the manual build dir)
@@ -176,6 +194,12 @@ def _convert_inline_markup(s):
 
     # <br> -> line break
     s = re.sub(r'<br\s*/?>', lambda m: stash('\\\\'), s, flags=re.IGNORECASE)
+
+    # Collapse any remaining whitespace runs (including the real newlines
+    # from the original multi-line paragraph, which we now receive intact
+    # so that the <a>...</a> handling above could see across them) to a
+    # single space, exactly like ordinary paragraph reflow.
+    s = re.sub(r'\s+', ' ', s).strip()
 
     # Escape everything else exactly like normal LaTeX text (this also
     # correctly turns any *unrecognized* '<tag>' into literal, visible
@@ -209,10 +233,14 @@ def _description_to_latex(text):
 
     def flush_prose():
         if buf_prose:
+            # Note: paragraphs (split on blank lines) are handed to
+            # _convert_inline_markup with their internal newlines still
+            # intact, so it can see across a hard-wrapped <a>...</a> span
+            # (e.g. a long DOI split for 80-column .comp headers) as one
+            # unit; ordinary newline-to-space reflow happens inside it.
             paragraph = '\n'.join(buf_prose)
             for p in re.split(r'\n\s*\n', paragraph):
-                p = ' '.join(l.strip() for l in p.split('\n') if l.strip() != '')
-                if p:
+                if p.strip() != '':
                     out_blocks.append(_convert_inline_markup(p))
             buf_prose.clear()
 
