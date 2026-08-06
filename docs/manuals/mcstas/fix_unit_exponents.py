@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 fix_unit_exponents.py
 
 One-off maintenance script: normalizes implicit unit exponents in McStas
@@ -8,7 +8,7 @@ section) to explicit caret notation, e.g.:
 
     cm2      -> cm^2
     AA-1     -> AA^-1
-    Angs-1   -> Angs^-1
+    Angs-1   -> AA^-1
     m3       -> m^3
     cm-2 s-1 -> cm^-2 s^-1
 
@@ -17,6 +17,15 @@ tools/Python/mcdoc/mcdoc.py), which turns "word^exponent" into a proper
 math-mode superscript when building the Component/User manuals -- but can
 only do so if the source .comp/.instr headers actually use the "^"
 notation in the first place.
+
+Along the way, it also canonicalizes Angstrom shorthand spelling to "AA"
+(the dominant convention in this codebase): "Angs", "Ang", "Angstrom" and
+"Angstroms" all become "AA". This is a source-level complement to
+_tex_with_angstrom()/_ANGSTROM_RE in mcdoc.py, which already recognize
+all of these spellings when rendering and turn them into the LaTeX \AA{}
+(ring-A, i.e. \AA{}) symbol regardless -- but keeping the source spelling
+consistent is worth doing too, rather than accumulating several synonyms
+for the same thing across the library.
 
 Scope: deliberately narrow, matching exactly what _format_unit() acts on:
   - Only lines inside a %P / %PARAMETERS McDoc section (tracked by
@@ -31,6 +40,9 @@ Scope: deliberately narrow, matching exactly what _format_unit() acts on:
     "^" (so "AA^3" and "cm^-2" are left alone), and only where the digit
     run ends at a word boundary (so e.g. "H2O" is correctly left alone --
     the "O" right after "2" means there's no exponent there to convert).
+  - The Angstrom-spelling canonicalization only matches whole "Angs"/
+    "Ang"/"Angstrom"/"Angstroms" tokens (word-bounded), so it cannot
+    touch part of a longer identifier or word.
 
 Usage:
     # Preview changes as a unified diff; changes nothing on disk:
@@ -48,8 +60,8 @@ plus a battery of synthetic edge cases (compound units, decimal exponents,
 already-correct carets, chemical-formula-shaped false positives, prose
 outside %P), but a human pass over a mechanical, repo-wide edit is always
 worthwhile. Two files (contrib/NMO.comp, samples/PowderN.comp) have
-already been fixed by hand as a spot-check; running this script over them
-again should report zero further changes.
+already been fixed by hand as a spot-check, using "AA" throughout; running
+this script over them again should report zero further changes.
 """
 import argparse
 import difflib
@@ -65,15 +77,21 @@ TAG_RE = re.compile(r'^\s*\*?\s*%([A-Za-z]+)')
 # ':' possibly being followed directly by '[' with no space).
 PARAM_LINE_RE = re.compile(r'^(\s*\*\s*[\w.]+\s*:)(.*)$')
 
+# Angstrom shorthand spellings other than the canonical "AA", matched as
+# whole words only.
+ANGSTROM_SYNONYM_RE = re.compile(r'\b(?:Angstroms?|Angs?)\b')
+
 # A "word immediately followed by an exponent" token, e.g. cm2, AA-1,
 # m-2.5 -- but not one already preceded by '^' (e.g. the "3" in "AA^3").
 EXPONENT_RE = re.compile(r'(?<!\^)\b([A-Za-z]+)(-?\d+(?:\.\d+)?)\b')
 
 
 def normalize_unit(unit):
-    ''' Converts cmN -> cm^N / AA-1 -> AA^-1 style tokens within one
-    [unit] bracket's content; anything else (units with no numeric
-    suffix, or already using '^') is left untouched. '''
+    ''' Canonicalizes Angstrom spelling to "AA", then converts cmN ->
+    cm^N / AA-1 -> AA^-1 style tokens within one [unit] bracket's
+    content; anything else (units with no numeric suffix, or already
+    using '^') is left untouched. '''
+    unit = ANGSTROM_SYNONYM_RE.sub('AA', unit)
     return EXPONENT_RE.sub(r'\1^\2', unit)
 
 
