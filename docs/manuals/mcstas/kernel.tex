@@ -135,32 +135,42 @@ as C variable names. The list of these reserved keywords is shown in table~\ref{
       \hline
       \texttt{ABSOLUTE} & I & Indicates that the AT and ROTATED keywords are in the absolute coordinate system. \\
       \texttt{AT} & I & Indicates the position of a component in an instrument definition. \\
-      \texttt{COPY}& I,C & copy/duplicate an instance or a component definition. \\
+      \texttt{COPY}& I & Duplicate a previous component \emph{instance} in the TRACE section (see section \ref{s:instrdefs-extend-copy}). \\
+      \texttt{CPU} & I & Forces a specific component instance to run on CPU only, even in an otherwise GPU/OpenACC-enabled instrument (implies \texttt{DEPENDENCY "-DFUNNEL"}). \\
       \texttt{DECLARE} & I,C & Declares C internal variables. \\
       \texttt{DEFINE} & I,C & Starts an INSTRUMENT or COMPONENT definition. \\
       \texttt{DEFINITION} & C & Defines component parameters that are constants (\#define). \\
       \texttt{DEPENDENCY} & C,I & Indicates any library dependency required to create the instrument. \\
+      \texttt{DISPLAY} & C & Alias for \texttt{MCDISPLAY}. \\
       \texttt{END} & I,C & Ends the instrument or component definition. \\
       \texttt{SPLIT} & I & Enhance incoming statistics by event repetition. \\
-      \texttt{EXTEND} & I & Extends a component TRACE section (plug-in). \\
+      \texttt{EXTEND} & I,C & Extends a component TRACE section (plug-in), or extends an inherited section (see \texttt{INHERIT}). \\
       \texttt{FINALLY} & I,C & Embeds C code to execute when simulation ends. \\
       \texttt{GROUP} & I & Defines an exclusive group of components. \\
       \texttt{\%include} & I,C & Imports an instrument part, a component or a piece of C code (when within embedded C). \\
-      \texttt{JUMP} & I & Iterative (loops) and conditional jumps. \\
-      \texttt{INITIALIZE} & I,C & Embeds C code to be executed when starting. \\
+      \texttt{INHERIT} & C & Derives a component (definition, or a single section) from an existing component (see section \ref{s:compdefs-extend}). \\
+      \texttt{INITIALIZE} & I,C & Embeds C code to be executed when starting. Alias: \texttt{INITIALISE}. \\
       \texttt{ITERATE} & I & Defines iteration counter for JUMP. \\
-      \texttt{MCDISPLAY} & C & Embeds C code to display component geometry. \\
-      \texttt{OUTPUT} & C & Defines internal variables to be public and protected symbols (usually all global variables and functions of DECLARE).\\
+      \texttt{JUMP} & I & Iterative (loops) and conditional jumps. \\
+      \texttt{MCDISPLAY} & C & Embeds C code to display component geometry. Alias: \texttt{DISPLAY}. \\
+      \texttt{METADATA} & I,C & Attaches an arbitrary, typed, named block of text (e.g. an IDF/CIF/JSON fragment) to a component definition or instance, retrievable via \texttt{mcrun --meta-*} (see section \ref{s:metadata}). \\
+      \texttt{MYSELF} & I & Refers to the current component instance (\texttt{COPY}, \texttt{JUMP}). \\
+      \texttt{NOACC} & C & Marks a component class as CPU-only (never compiled for GPU/OpenACC). \\
+      \texttt{NEXT} & I & Refers to a following component instance (\texttt{JUMP}). \\
+      \texttt{OUTPUT} & C & Defines internal variables to be public and protected symbols (usually all global variables and functions of DECLARE). Alias: \texttt{PRIVATE}.\\
       \texttt{PARAMETERS} & C & Defines a class of component parameter (DEFINITION, SETTING). \\
-      \texttt{PREVIOUS} & C & Refers to a previous component position/orientation.\\
+      \texttt{PREVIOUS} & I,C & Refers to a previous component position/orientation/instance.\\
       \texttt{RELATIVE} & I & Indicates that the AT and ROTATED keywords are relative to an other component. \\
       \texttt{REMOVABLE} & I & Indicates that this component will be removed when the instrument is inserted into an other one using the \texttt{\%include} keyword. \\
       \texttt{ROTATED} & I & Indicates the orientation of a component in an instrument definition. \\
       \texttt{SAVE} & I,C & Embedded C code to execute when saving data. \\
+      \texttt{SEARCH} & I,C & Appends an additional instrument/component search directory (optionally computed by an external \texttt{SHELL} command), see section \ref{s:search}. \\
       \texttt{SETTING} & C & Defines component parameters that are
       variables. \\
       \texttt{SHARE} & C & Declares global functions and variables to be shared. \\
+      \texttt{SHELL} & I,C & Executes a shell command before code generation, see section \ref{s:shell}. \\
       \texttt{TRACE} & I,C & Defines the instrument as a the component sequence. \\
+      \texttt{USERVARS} & I,C & Declares per-neutron user state variables, an alternative to global \texttt{DECLARE} variables that is safe for GPU/OpenACC use (see section \ref{s:uservars}). \\
       \texttt{WHEN}  & I & Condition for component activation and JUMP.\\
       \hline
     \end{tabular}
@@ -295,6 +305,17 @@ values, then the simple command \verb+mcdisplay+ \verb+test.instr+ will show the
 instrument view without requesting any other input, which is usually a good
 starting point to study the instrument design.
 
+\index{Instrument definition!units}
+A numeric instrument parameter may optionally carry a documentation-only unit
+annotation, using a slash followed by a quoted string:
+\begin{mcstas}
+DEFINE INSTRUMENT test(double lambda/"AA" = 4.0, double L2/"m")
+\end{mcstas}
+The unit string is purely informational (it is not converted or checked at
+run time); it is picked up by \verb+mcdoc+ and \verb+mcgui+ to annotate the
+parameter in generated documentation and entry dialogs, so it is good
+practice to use it for any parameter whose unit is not obvious from its name.
+
 %-------------------------------------------------------------------------------
 \subsection{The \texttt{DEPENDENCY} line}
 \indexKW{DEPENDENCY}
@@ -319,6 +340,44 @@ to the compiler. It must be indicated just before the \texttt{DECLARE} section.
 This line is optional, and if omitted you may need to manually link the instrument with the libraries and add the proper library names to the MCSTAS\_CFLAGS or CFLAGS environment variables.
 
 %-------------------------------------------------------------------------------
+\subsection{The \texttt{SEARCH} line}
+\indexKW{SEARCH}
+\label{s:search}
+\begin{mcstas}
+SEARCH "path/to/extra/components"
+\end{mcstas}
+Appends an additional directory to the component/instrument search path
+(complementing the \texttt{-I} command line switch, see section~\ref{s:files}).
+This is useful for instrument files that depend on a component library kept
+outside the standard \MCS installation, without requiring users to remember
+to pass \texttt{-I} manually. Like \texttt{DEPENDENCY}, \texttt{SEARCH} may
+appear at instrument level (before \texttt{DECLARE}) or inside a component
+definition.
+
+A second form computes the path (or a newline-separated list of paths) by
+running an external command:
+\begin{mcstas}
+SEARCH SHELL "pkg-config --variable=compdir my-neutron-lib"
+\end{mcstas}
+Each line printed by the command on its standard output is added as a
+search directory. See also \texttt{SHELL} below.
+
+%-------------------------------------------------------------------------------
+\subsection{The \texttt{SHELL} line}
+\indexKW{SHELL}
+\label{s:shell}
+\begin{mcstas}
+SHELL "command to execute"
+\end{mcstas}
+Executes an arbitrary shell command \emph{before} code generation (i.e. as
+\mcs parses the file), printing its output to the terminal. This may be used
+for instance to auto-generate a data file or a piece of included C code as
+part of the build process. The compiler aborts if the command returns a
+non-zero exit status. Use with caution, since this executes arbitrary code
+on the machine running \mcs -- do not \texttt{\%include} untrusted instrument
+files containing \texttt{SHELL} lines.
+
+%-------------------------------------------------------------------------------
 \subsection{The \texttt{DECLARE} section}
 \indexKW{DECLARE}
 \label{s:declare}
@@ -340,6 +399,48 @@ global, and may conflict with internal \MCS variables, specially symbols like
 \verb+x,y,z,sx,sy,sz,vx,vy,vz,t+ and generally all names starting with \verb+mc+
 should be avoided. If you can not compile the instrument, this may be the
 reason. \index{Compilation!failure}The \texttt{DECLARE} section is optional.
+
+%-------------------------------------------------------------------------------
+\subsection{The \texttt{USERVARS} section}
+\indexKW{USERVARS}
+\label{s:uservars}
+
+\begin{mcstas}
+USERVARS
+%{
+  double my_per_neutron_flag;
+%}
+\end{mcstas}
+\index{C code!embedded}
+\texttt{USERVARS} declares additional fields that are appended to \emph{every}
+neutron ray's state (alongside the built-in \texttt{x,y,z,vx,vy,vz,t,sx,sy,sz,p}),
+rather than being ordinary global \texttt{DECLARE} variables. It may appear
+at instrument level (as here) or inside a component definition, and both
+Instrument- and Component-level \texttt{USERVARS} end up as fields of the
+same per-neutron state struct.
+
+This matters for two reasons:
+\begin{itemize}
+\item \textbf{Correctness with SPLIT/MPI/GPU:} a global \texttt{DECLARE}
+  variable is shared mutable state across all in-flight neutron rays. On
+  GPU/OpenACC (section~\ref{s:gpu} in the User Manual) or when many
+  neutron rays are processed in parallel batches, this is unsafe --
+  writes from one ray's computation can be read by another. A
+  \texttt{USERVARS} field, by contrast, travels with its own neutron ray
+  and is therefore safe to read/write from \texttt{EXTEND} blocks and
+  component \texttt{TRACE} sections regardless of execution model.
+\item \textbf{Convenience:} it replaces the older pattern of communicating
+  a per-ray flag between components via a global variable set in one
+  \texttt{EXTEND} block and read in a later \texttt{WHEN} condition (see
+  section~\ref{s:instrdefs-extend-when}), which is exactly the kind of
+  global mutable state that is fragile under SPLIT and unsafe under
+  GPU/parallel execution.
+\end{itemize}
+
+USERVARS fields are referred to directly by name from any \texttt{TRACE},
+\texttt{EXTEND}, \texttt{WHEN}, or \texttt{MCDISPLAY} code, exactly like the
+built-in neutron state fields. The section is optional, and may be used at
+both instrument and component level in the same simulation.
 
 %-------------------------------------------------------------------------------
 \subsection{The \texttt{INITIALIZE} section}
@@ -583,13 +684,17 @@ As a summary, the nearly complete grammar definition for component instances
 within the instrument TRACE section is:
 
 \begin{mcstas}
-{SPLIT} COMPONENT name = comp(parameters) {WHEN condition}
+{REMOVABLE} {CPU} {SPLIT} COMPONENT name = comp(parameters) {WHEN condition}
   AT (...) [RELATIVE [reference|PREVIOUS] | ABSOLUTE]
   {ROTATED {RELATIVE [reference|PREVIOUS] | ABSOLUTE} }
   {GROUP group_name}
   {EXTEND C_code}
   {JUMP [reference|PREVIOUS|MYSELF|NEXT] [ITERATE number_of_times | WHEN condition] }
+  {METADATA type name C_code}
 \end{mcstas}
+The \texttt{REMOVABLE} keyword is documented in section
+\ref{s:instrdefs-include-instr} below, \texttt{CPU} in section
+\ref{s:noacc}, and \texttt{METADATA} in section \ref{s:metadata}.
 
 %-------------------------------------------------------------------------------
 \subsection{Embedding instruments in instruments TRACE}
@@ -971,6 +1076,50 @@ A usage example of the SPLIT keyword can be found in the \\
 \verb+Neutron site/ILL/ILL_H15_IN6+ instrument from the \verb+mcgui+, to enhance
 statistics for neutrons scattering on monochromators and sample.
 
+%-------------------------------------------------------------------------------
+\subsection{Attaching metadata to components and instruments - METADATA}
+\indexKW{METADATA}
+\label{s:metadata}
+
+The \texttt{METADATA} keyword attaches an arbitrary, named, typed block of
+text to a component \emph{definition}, a component \emph{instance}, or an
+instrument. It has no effect whatsoever on the simulated physics; it exists
+so that instrument/component authors can embed structured side-information
+(an IDF fragment, a JSON blob of geometry metadata, a CIF snippet, a free-form
+note, \ldots) that downstream tools can retrieve without having to parse the
+generated C code. This is how, e.g., \texttt{mcrun --format=NeXus --IDF}
+(section~\ref{s:run-sim}) locates instrument-definition-file fragments
+attached to detector components.
+
+The syntax is
+\begin{mcstas}
+METADATA type name
+%{
+  ... arbitrary text ...
+%}
+\end{mcstas}
+placed after a component instance's positioning/EXTEND/JUMP clauses in the
+TRACE section, or inside a component definition (any number of
+\texttt{METADATA} blocks may be given). \textit{type} and \textit{name} are
+either bare identifiers or quoted strings (the latter allowing e.g. MIME-style
+types such as \texttt{"application/json"}); \textit{name} identifies this
+particular metadata block within its owning component/instrument.
+
+Metadata attached at the component-\emph{definition} level is inherited by
+every instance of that component (and, per the usual \texttt{INHERIT} rules,
+by any component that \texttt{INHERIT}s from it); metadata attached to a
+specific \emph{instance} in the TRACE section applies only to that instance,
+and instance-level METADATA with the same \textit{name} overrides
+definition-level METADATA of that name for that instance.
+
+Metadata blocks are inspected from the command line via \verb+mcrun+:
+\texttt{--meta-list} prints all component:name pairs carrying metadata in
+the instrument, \texttt{--meta-defined=comp[:name]} indicates whether a
+given metadata name is defined (or lists all defined names for a component),
+\texttt{--meta-type=comp:name} prints its declared type, and
+\texttt{--meta-data=comp:name} prints its content -- see
+Table~\ref{f:simoptions} in the User Manual.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Writing component definitions}
 \label{s:compdefs}
@@ -1031,6 +1180,20 @@ Setting parameters are translated into C variables usually of type
 numbers. Definition parameters are translated into \verb+#define+ macro
 definitions, and so can have any type, including strings, arrays, and
 function pointers.
+
+Beyond the basic \verb+double+/\verb+int+/\verb+string+ (\verb+char *+)
+types, two further parameter types are supported (both usable for
+\texttt{DEFINITION} and \texttt{SETTING} parameters):
+\begin{itemize}
+\item \verb+vector+ (equivalently \verb+double *+): a parameter that is
+  either a numeric array literal, e.g. \verb+axis={0,1,0}+, or the name of
+  a \texttt{double} array declared in the instrument \texttt{DECLARE}
+  section. Vector parameters are optional by default (defaulting to
+  \texttt{NULL}) unless an explicit default is given.
+\item \verb+symbol+: accepts a bare C identifier as its value, useful for
+  passing e.g. the name of a user-supplied function or a preprocessor
+  symbol through to the component's C code.
+\end{itemize}
 
 However, because of the use of \verb+#define+, definition parameters
 suffer from the usual problems with C macro definitions. Also, it is not
@@ -1109,6 +1272,27 @@ explicitly, ``1'' will be used. In contrast, if no value is
   of a slit should not be given default values. This would prevent the error
   messages that should be given in the common case of a user forgetting to set
   an important parameter.
+
+%-------------------------------------------------------------------------------
+\subsection{The \texttt{NOACC} flag}
+\indexKW{NOACC}
+\label{s:noacc}
+
+A component \emph{definition} may be marked
+\begin{mcstas}
+DEFINE COMPONENT name NOACC
+\end{mcstas}
+to declare that this component class can never be compiled for GPU/OpenACC
+execution (section~\ref{s:gpu} in the User Manual) -- e.g. because its
+\texttt{TRACE} section calls out to a C library that has no GPU-compatible
+implementation. This automatically pulls in the \texttt{-DFUNNEL} dependency
+flag, which enables McStas's CPU/GPU ``funneling'' mode so that an
+instrument mixing GPU-friendly and \texttt{NOACC} components can still be
+run with \verb+--openacc+, at the cost of funneling neutron rays that reach
+a \texttt{NOACC} component back to the CPU for that component's computation.
+The complementary, per-\emph{instance} keyword \texttt{CPU} (see
+section~\ref{s:instrdefs-extend}) forces one specific instance of an
+otherwise GPU-capable component to run on CPU only, e.g. for debugging.
 
 %-------------------------------------------------------------------------------
 \subsection{The \texttt{DEPENDENCY} line}
@@ -1591,7 +1775,7 @@ If you only want to \emph{add} something on top of the component existing behavi
 
 %-------------------------------------------------------------------------------
 \subsection{Component heritage and duplication}
-\indexKW{COPY}
+\indexKW{INHERIT}
 
 There is a heritage mechanism to create children of existing components. These
 are exact duplicates of the parent component, but one may override/extend
@@ -1599,22 +1783,24 @@ original definitions of any section.
 
 The syntax for a full component child is
 \begin{mcstas}
-DEFINE COMPONENT child_name COPY parent_name
+DEFINE COMPONENT child_name INHERIT parent_name
 \end{mcstas}
 
 This single line will copy all parts of the \textit{parent} into the \textit{child}, except for the documentation header.
 
 As for normal component definitions, you may add other parameters,
 \texttt{DECLARE}, \texttt{TRACE}, ... sections. Each of them will replace or
-extend (be concatenated to, with the COPY/EXTEND keywords, see example below)
-the corresponding \textit{parent} definition. In practice, you could copy a
+extend (be concatenated to, with the \texttt{INHERIT}/\texttt{EXTEND} keywords, see example below)
+the corresponding \textit{parent} definition. In practice, you could inherit a
 component and only rewrite some of it, as in the following example:
 
 \begin{mcstas}
-DEFINE COMPONENT  child_name COPY parent_name
+DEFINE COMPONENT  child_name INHERIT parent_name
 
   SETTING PARAMETERS (newpar1, newpar2) 
-  INITIALIZE COPY  parent_name EXTEND 
+  INITIALISE
+  INHERIT parent_name
+  EXTEND 
   %{  
 // C code to be concatenated to the  parent_name INITIALIZE
   %} 
@@ -1622,23 +1808,38 @@ DEFINE COMPONENT  child_name COPY parent_name
   %{  
 // C code to replace the  parent_name SAVE 
   %} 
+END
 \end{mcstas}
 where two additional parameters have been defined, and should be handled in the
-extension of the original INITIALIZE section.
+extension of the original INITIALIZE section. Note that each per-section
+\texttt{INHERIT parent\_name} (optionally followed by \texttt{EXTEND \%\{...\%\}})
+is specified \emph{inside} that section's own block, immediately after the
+section keyword, rather than as a separate top-level \texttt{COPY} clause.
 
-On the other hand, if you do not derive a component as a whole from a parent,
-you may still use specific parts from any component:
+A special care should be taken in mixing bits from different sources, specially concerning variables. This may result in difficulties to compile components.\index{Compilation!failure}
+
+On the other hand, if you do not want to derive a component as a whole from a
+parent (i.e. the top-level \texttt{DEFINE COMPONENT} line does not itself use
+\texttt{INHERIT}), you may still pull in specific sections from any component
+using the same per-section \texttt{INHERIT} syntax:
 \begin{mcstas}
-DEFINE COMPONENT  name ...
-  DECLARE COPY  parent1 
-  INITIALIZE COPY  parent2 EXTEND 
+DEFINE COMPONENT  name (...)
+SETTING PARAMETERS (...)
+DECLARE
+INHERIT parent1
+INITIALISE
+INHERIT parent2
+EXTEND 
 %{
 // C code to be concatenated to the  parent2 INITIALIZE
 %}
-TRACE COPY  parent3
+TRACE
+INHERIT parent3
+END
 \end{mcstas}
 
-This mechanism may lighten the component code, but a special care should be taken in mixing bits from different sources, specially concerning variables. This may result in difficulties to compile components.\index{Compilation!failure}
+This mechanism may lighten the component code, but as above, mixing bits from
+different sources requires special care regarding variable naming.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

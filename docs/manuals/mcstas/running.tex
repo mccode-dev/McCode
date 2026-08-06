@@ -3,9 +3,6 @@
 \chapter{Running \MCS}
 \label{c:running}
 
-
-%FIXME DESCRIBE NEW Python TOOLS!!
-
 This chapter describes usage of the \MCS simulation package. 
 In case of problems regarding installation or usage, the \MCS mailing
 list~\cite{mcstas_webpage} or the authors should be contacted.
@@ -31,9 +28,11 @@ compiled with a C compiler and run in combination with various
 front-end programs for example to present the intensity at the
 detector as a motor position is varied.}
 \item{The output data may be analyzed and visualized in the same way as regular
-    experiments by using the data handling and visualization tools in \MCS
-    based on Perl/Python in combination with \verb+chaco+, \verb+matplotlib+,
-    Matlab, GNUPlot or PGPLOT. Further data output formats including NeXus
+    experiments by using the data handling and visualization tools in \MCS.
+    As of \MCS 3.x, these front-ends (\texttt{mcplot}, \texttt{mcdisplay},
+    \texttt{mcresplot}, \ldots) are all implemented in Python, using
+    \texttt{matplotlib}, \texttt{pyqtgraph} and browser/HTML (D3.js) back-ends,
+    see section~\ref{s:frontends}. Further data output formats including NeXus
     are available, see section \ref{s:analyze}.\index{Tools}}
 \end{itemize}
 
@@ -84,14 +83,13 @@ package management and macOS options, see:
 
 \subsection{Important note for Windows users} 
 \index{Windows!file and directory names with spaces}
-\index{Windows!Perl distribution}
-\index{Perl!ActiveState for Windows}
 It is a known problem that some of
 the \MCS tools do not support filenames / directories with spaces.
-We are working on a more general approach to this problem, which will
-hopefully be solved in a further release. We recommend to use
-ActiveState \textbf{Perl 5.10}. (Note that as of \MCS 1.10, all needed
-support tools for Windows are bundled with \MCS in a single installer file.)
+We recommend avoiding spaces in the paths used for \MCS work directories
+and instrument files. As of \MCS 3.x, all tools (\texttt{mcgui}, \texttt{mcrun},
+\texttt{mcplot}, \texttt{mcdisplay}, \ldots) are pure Python and are bundled
+with the \texttt{conda-forge} package, so no separate Perl installation is
+required on any platform, including Windows.
 
 %-------------------------------------------------------------------------------
 \subsection{New releases of \MCS}
@@ -137,15 +135,14 @@ see figure~\ref{fig:mcgui}.
 \label{fig:mcgui}
 \end{figure}
 \label{p:neutronsite}
-To load an instrument, select ``Tutorial'' from the ``Neutron site''
-menu and open the file \verb+Samples_vanadium+. Next, check that the current plotting backend setting
-(select ``Choose backend'' from the ``Simulation'' menu) corresponds
-to your system setup.
+To load an instrument, select ``New from Template'' (formerly known as the
+``Neutron site'' menu) and open the template/example \verb+Samples_vanadium+.
+Next, check that the current plotting backend setting (``Preferences'' in the
+\textbf{File} menu, or the \verb+--autoplotter+ option of \verb+mcrun+)
+corresponds to your system setup:
 \begin{itemize}
-\item{by editing
-the \verb+tools/perl/mcstas_config.perl+ setup file of your
-installation}
-\item{by setting the \verb+MCSTAS_FORMAT+ environment
+\item{by editing the user configuration file, see \verb+mcrun --edit-user-config+,}
+\item{or by setting the \verb+MCSTAS_FORMAT+ environment
 variable.}
 \end{itemize}
 \indexEV{MCSTAS\_FORMAT}
@@ -156,49 +153,17 @@ Then \texttt{mcgui} will pop up a dialog window.
 Type a value for the ``ROT'' parameter ({\em e.g.}
 90), check the ``Plot results'' option, and select ``Start''. The
 simulation will run, and when it finishes after a while the results will
-be plotted in a window. Depending on your chosen plotting backend, the
-presented graphics will resemble one of those shown in figure
-\ref{fig:mcplot_figs}.\indexMCTOOL{mcplot}{}
-\begin{figure}[htb!]
-  \begin{center}
-    \includegraphics[angle=-90,width=0.49\textwidth]{figures/mcplot_PGPLOT}
-    \includegraphics[width=0.49\textwidth]{figures/mcplot_Matlab}
-  \end{center}
-\caption{Output from \texttt{mcplot} with PGPLOT and Matlab backends}
-\label{fig:mcplot_figs}
-\end{figure}
-When using the Matlab backend, full 3D view of plots and different
-display possibilities are available. Use the attached \MCS window menus to
-control these. Features are quite self explanatory. For other options, execute
-\verb+mcplot --help+ (\verb+mcplot.pl --help+ on windows) to get help.
+be plotted in a window, using one of the Python plotting back-ends
+(\texttt{matplotlib}, \texttt{pyqtgraph} or an HTML/browser view), see
+section~\ref{s:mcplot}.\indexMCTOOL{mcplot}{} For other options, execute
+\verb+mcplot --help+ to get help.
 
-\indexTOOL{PGPLOT}
-\indexTOOL{Matlab}
 To visualize or
 debug the simulation graphically, repeat the steps but check the ``Trace''
 option instead of the ``Simulate'' option.  A window will pop up showing a
-sketch of the instrument.  Depending on your chosen plotting backend, the
-presented graphics will resemble one of those shown in figures
-\ref{fig:mcdisp_PGPLOT}-\ref{fig:mcdisp_Matlab}.
-\begin{figure}[htb!]
-  \begin{center}
-    \includegraphics[width=0.48\textwidth]{figures/mcdisplay_PGPLOT}
-    \includegraphics[width=0.48\textwidth]{figures/mcdisplay_TOF}
-  \end{center}
-  \caption{Left: Output from \texttt{mcdisplay} with PGPLOT backend.  The left
-    mouse button starts a new neutron ray, the middle button zooms, and the
-    right button resets the zoom. The Q key quits the program. Right: The new
-    PGPLOT time-of-flight option. See section \ref{s:mcdisplay} for details.}
-\label{fig:mcdisp_PGPLOT}
-\end{figure}
-\begin{figure}[htb!]
-  \begin{center}
-    \includegraphics[width=0.55\textwidth]{figures/mcdisplay_Matlab}
-  \end{center}
-  \caption{Output from \texttt{mcdisplay} with Matlab backend. Display can be
-    adjusted using the window buttons.}
-\label{fig:mcdisp_Matlab}
-\end{figure}
+sketch of the instrument, drawn by the \texttt{mcdisplay} front-end
+(section~\ref{s:mcdisplay}), again using one of the \texttt{matplotlib},
+\texttt{pyqtgraph} or webGL back-ends.
 
 For a slightly longer gentle introduction to \MCS, see the \MCS tutorial
 (available from~\cite{mcstas_webpage}), and as of version \version\ built into
@@ -472,8 +437,8 @@ can be run in various ways.
 
 \subsubsection{Simple \MCS options}
 In this section, the most common simulation parameters are
-discussed. For a full list, please consult tables
-\ref{f:simoptions},~\ref{f:simoptions2}.
+discussed. For a full list, please consult Tables
+\ref{f:mcrunoptions} and~\ref{f:simoptions}.
 
 The simplest way is to run it directly from the
 command line or shell:
@@ -529,15 +494,18 @@ followed by appropriate extension.
 
 The complete list of options
 and arguments accepted by \MCS simulations appears in
-Tables \ref{f:simoptions} and \ref{f:simoptions2}.
+Tables \ref{f:mcrunoptions} and \ref{f:simoptions}.
 
 %-------------------------------------------------------------------------------
 \subsection{Choosing an output data file format}
 
 Data files contain header lines with information about the simulation from which
 they originate. In case the data must be analyzed with programs that cannot read
-files with such headers, they may be turned off using the \verb+--data-only+ or
-\verb+-a+ option.  
+files with such headers, they may be turned off using the \verb+--data-only+
+option (of the generated \texttt{<instr>.out} executable itself -- do not
+confuse this with \texttt{mcrun}'s own \verb+-a+/\verb+--append+ option,
+which appends a new simulation's data files to an existing output
+directory, see Table~\ref{f:mcrunoptions}).
 
 \index{Data formats}
 The format of the output files from \MCS simulations is described in more
@@ -546,159 +514,49 @@ detail in section~\ref{s:analyze}. It may be chosen either with
 MCSTAS\_FORMAT environment variable.
 \indexEV{MCSTAS\_FORMAT}
 The available format list is obtained using the \verb+name.out --help+ option.
-\indexTOOL{PGPLOT}
-\indexTOOL{Matlab}
-\MCS can presently generate the \MCS /PGPLOT and the NeXus format. 
+\MCS can presently generate data in the \MCS/McCode text format or the NeXus
+format (see section~\ref{r:nexus}).
 
-It is also possible to create and read \textit{Vitess}, \textit{MCNP/PTRAC} and
-\textit{Tripoli4/batch} neutron event files using components
-\begin{itemize}
-\item \verb+Vitess_input+ and \verb+Vitess_output+
-\item \verb+Virtual_tripoli4_input+ and \verb+Virtual_tripoli4_output+
-\item \verb+Virtual_mcnp_input+ and \verb+Virtual_mcnp_output+
-\end{itemize}\index{Vitess} \index{Tripoli} \index{MCNP}
+It is also possible to read and write neutron event lists using the
+\texttt{MCPL\_input}/\texttt{MCPL\_output} components (see the Component
+Manual), which use the portable, compressed, multi-code MCPL event format
+rather than any particular code's native event format. This is the
+recommended way to exchange neutron events between \MCS/McXtrace and other
+Monte Carlo codes.\index{MCPL}
 
 Additionally, adding the \texttt{raw} keyword to the FORMAT will produce raw
 $[N, p, p^2]$ data sets instead of $[N, p, \sigma]$ (see Section
 \ref{s:staterror}). The former representation is fully additive, and thus
-enables to add results from separate simulations (e.g. when using a computer
-Grid - which is automated in the \verb+mcformat+ tool). Other acceptable format
+enables to add results from separate simulations. Other acceptable format
 modifiers are \verb+transpose+ to transpose data matrices and \verb+append+ to
 concatenate data to existing files.
 
 %-------------------------------------------------------------------------------
 \subsection{Basic import and plot of results}
 \label{s:run-format}
-The previous example will result in a \verb+mcstas.sim+ file, that may be read
-directly from Matlab (using the \textit{sim file} function)
-\begin{matlab}
-    matlab> s=mcstas;
-    matlab> s=mcstas('plot')
-\end{matlab}
-\indexTOOL{Matlab}
-The first line returns the simulation data as a single structure variable,
-whereas the second one will additionally plot each detector separately.  This
-also equivalently stands for IDL 
-\begin{lstlisting}
-    idl> s=mcstas()
-    idl> s=mcstas(/plot)
-\end{lstlisting}
-\indexTOOL{IDL}
-See section~\ref{s:mcplot} for another way of plotting simulation results
-using the \verb+mcplot+ front-end.
+The previous example will result in a \verb+mccode.sim+ index file plus one
+data file per monitor in the output directory. These are plain-text
+\MCS/McCode format files (see section~\ref{s:analyze}) that can be read
+directly with NumPy (\texttt{numpy.loadtxt}) or any other language capable
+of reading text tables, or, more conveniently, with the \verb+mcplot+
+front-end and its underlying data loader
+(\texttt{mccodelib.mcplotloader}), see section~\ref{s:mcplot}.
 \indexMCTOOL{mcplot}{}
 
-When choosing the HTML format, the simulation results are saved as a web page,
-whereas the monitor data files are saved as VRML files, displayed within the web
-page.
-\indexTOOL{VRML/OpenGL}\index{OpenGL}
+When using the HTML plotting back-end (\texttt{mcplot-html}), simulation
+results are rendered as an interactive, self-contained web page (using D3.js)
+rather than being saved as static images.
 
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-      \hline
-      \texttt{-s \textit{seed}} \my \texttt{--seed=\textit{seed}}
-        & Set the initial seed for the random number generator. This may be
-        useful for testing to make each run use the same random number
-      sequence. \\
-      \hline
-      \texttt{-n \textit{count}} \my \texttt{--ncount=\textit{count}}
-        & Set the number of neutron histories to simulate. The default
-      is 1,000,000. (1e6)\\
-      \hline
-      \texttt{-d \textit{dir}} \my \texttt{--dir=\textit{dir}}
-        & Create a new directory \textit{dir\/} and put all data files in
-      that directory. \\
-      \hline
-      \texttt{-h} \my \texttt{--help}
-        & Show a short help message with the options accepted, available formats
-        and the names of the parameters of the instrument. \\
-      \hline
-      \texttt{-i} \my \texttt{--info}
-        & Show extensive information on the simulation and the
-      instrument definition it was generated from. \\
-      \hline
-      \texttt{-t} \my \texttt{--trace}
-        & Makes the simulation output the state of every
-      neutron as it passes through every component. Requires that the
-      \texttt{-t} (or \texttt{--trace}) option is also given to the
-      \MCS compiler \mcs when the simulation is generated. \\
-      \hline
-      \texttt{--no-output-files}
-        & Disables the writing of data files (output to the
-      terminal, such as detector intensities, will still be written). \\
-      \hline
-      \texttt{-g} \my \texttt{--gravitation}
-        & Toggles the gravitation (approximation) handling
-        for the whole neutron propagation within the instrument. May
-        produce wrong results if the used components do no comply with
-        this option.\\
-      \hline
-      \texttt{--format=\textit{FORMAT}}
-        & Sets the file format for result simulation and data files. \\
-      \hline
-      \texttt{-N \textit{STEPS}}
-        & Divide simulation into STEPS, varying parameters within given ranges 'min,max'. \\
-      \hline
-      \texttt{\textit{param}{\texttt =}\textit{value} \my \textit{min,max}}
-        & Set the value of an instrument parameter, rather than having
-        to prompt for each one. Scans ranges are specified as 'min,max'.\\
-      \hline
-    \end{tabular}
-    \caption{Options accepted by \MCS simulations. For options
-      specific to MPI and parallel computing, see section \ref{s:run-mpi}.}
-    \label{f:simoptions}
-    }
-  \end{center}
-\end{table}
+The full, up-to-date list of options accepted by \texttt{mcrun} and by the
+generated \texttt{<instr>.out} executable is given in
+Tables~\ref{f:mcrunoptions} and~\ref{f:simoptions} below. These tables are
+generated automatically from the \texttt{mcrun} Python source
+(\texttt{tools/Python/mcrun/mcrun.py}) by the script
+\texttt{gen\_mcrun\_options\_table.py} in this directory, so that they cannot
+silently go out of date; run \verb+mcrun --help+ for the same information
+at the command line.
 
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.35\textwidth}|p{0.6\textwidth}|}
-      \hline
-      \texttt{-f \textit{file}} \my \texttt{--file=\textit{file}}
-        & Write all data into a single file \textit{file}. Avoid when using binary formats. \\
-      \hline
-      \texttt{--format\_data=\textit{FORMAT}}
-        & Sets the file format for result data files from monitors. This enables to have simulation files in one format (e.g. HTML), and monitor files in an other format (e.g. VRML).\\
-      \hline
-      \texttt{--mpi=\textit{NB\_CPU}}
-        & Distributes the simulation over NB\_CPU node (requires MPI
-        to be installed). Speedup has been demonstrated to be linear
-        in number of nodes when the simulation task is \verb+--ncount+
-        is sufficiently large.\\
-      \hline
-      \texttt{--multi=\textit{NB\_CPU}} \my \texttt{--grid=\textit{NB\_CPU}}
-        & Distributes the simulation over NB\_CPU node (requires SSH to be installed). Speedup has been demonstrated to be linear
-        in number of nodes when the simulation task is \verb+--ncount+
-        is sufficiently large.\\
-      \hline
-      \texttt{--machines=\textit{MACHINES}}
-        & Specify a list of distant machines/nodes to be used for MPI and grid clustering. Default is to use local SMP cluster.\\
-      \hline
-      \texttt{--optim}
-        & Run in optimization mode to find best parameters in order to maximize all monitor integral values. Parameters to be varied are given just like scans (min,max).\\
-      \hline
-      \texttt{--optim=\textit{COMP}}
-        & Same as \verb+--optim+ but for specified monitors. This option may be used more than once.\\
-      \hline
-      \texttt{--optim-prec=\textit{ACCURACY}}
-        & Sets accuracy criteria to end parameter optimization (default is 10$^{-3}$).\\
-      \hline
-      \texttt{--test}
-        & Run \MCS self test.\\
-      \hline
-      \texttt{-c} \my \texttt{--force-compile}
-        & Force to recompile the instrument.\\
-      \hline
-    \end{tabular}
-    \caption{Additional options accepted by \MCS simulations.}
-    \label{f:simoptions2}
-    }
-  \end{center}
-\end{table}
+\input{mcrun_options_table}
 
 %-------------------------------------------------------------------------------
 \subsection{Interacting with a running simulation}
@@ -783,13 +641,14 @@ There are various ways to speed up simulations
 \begin{itemize}
 \item Optimize the compilation of the instrument, as explained in
   section~\ref{s:compile}.
-\item Execute the simulation in parallel on a computer grid or a cluster (with
-  MPI or ssh grid ) as explained in section~\ref{s:run-mpi}.
+\item Execute the simulation in parallel on a computer cluster using MPI, or
+  simply across the cores of a single machine, as explained in
+  section~\ref{s:run-mpi}.
 \item Divide simulation into parts using a file for saving or generating neutron
   events. In this way, a guide may be simulated only once, saving the neutron
   events at the guide exit as a file, which is being read quickly by the second
-  simulation part. Use the Virtual\_input and Virtual\_output components for
-  this technique.
+  simulation part. Use the \texttt{MCPL\_output} and \texttt{MCPL\_input}
+  components for this technique (see the Component Manual).\index{MCPL}
 \item Use source optimizers like the components Source\_adapt or
   Source\_Optimizer. Such component may sometimes not be very efficient, when no
   neutron importance sampling can be achieved, or may even sometimes alter the
@@ -831,36 +690,57 @@ as object functions, and allows to select many different optimizers, including
 swarms and other non-gradient methods. Please see the iFit documentation for
 more information.
 
-Our experience is that iFit together with \MCS is a more robust optimization
-solution than the \MCS built-in Simplex solution.
+Our experience is that iFit together with \MCS can be a more robust optimization
+solution than the \MCS built-in \texttt{--optimize} mode described next, in
+particular for problems with many free parameters.
 
-\subsubsection{Using the Simplex method}
+\subsubsection{Using the built-in \texttt{--optimize} mode}
+\label{s:optimize-builtin}
 
-The \MCS package comes with a Simplex optimization method to find best
-instrument parameters in order to maximize all or some specified monitor
-integrated values. It uses the Downhill Simplex Method in
-Multidimensions~\cite{neldermead,NumRecip} which is a geometric optimization
-method somewhat similar to genetic algorithms. It is not as fast as the gradient
-method, but is much more robust. It is well suited for problems with up to about
-10-20 parameters to optimize. Higher dimensionalities are not guarantied to
-converge to a meaningful solution.
+The \MCS package comes with a built-in optimization mode to find
+instrument parameters that maximize (or minimize) the value of all, or
+some specified, monitors. As of \MCS 3.x this is implemented in
+\texttt{mcrun} using the \texttt{scipy.optimize.minimize} family of
+solvers~\cite{scipy_webpage}, replacing the earlier built-in Simplex/Nelder--Mead
+implementation. Available methods include \texttt{powell} (the default),
+\texttt{nelder-mead}, \texttt{cg}, \texttt{bfgs}, \texttt{newton-cg},
+\texttt{l-bfgs-b}, \texttt{tnc}, \texttt{cobyla}, \texttt{slsqp},
+\texttt{trust-constr}, \texttt{dogleg}, \texttt{trust-ncg},
+\texttt{trust-exact} and \texttt{trust-krylov}; consult the SciPy
+documentation for the properties of each. As with any non-linear
+optimizer, results depend on the initial guess and the chosen method, and
+higher-dimensional problems (many free parameters) are not guaranteed to
+converge to a meaningful, global optimum.
 
 When using \verb+mcrun+ (section \ref{s:mcrun}), the optimization mode is set by
-using the \verb+--optim+ option or a list of monitors to maximize with as many
-\verb+--optim=COMP+ as required. The optimization accuracy criterion may be
-changed with the \verb+--optim-prec=accuracy+ option.
+using the \verb+--optimize+ flag, together with instrument parameter ranges
+specified exactly as for a scan, e.g. \verb+param=min,max+. The solver is
+selected with \verb+--optimize-method=METHOD+, the convergence tolerance with
+\verb+--optimize-tol=TOL+, and the maximum number of iterations with
+\verb+--optimize-maxiter=N+. By default all monitors are summed as the
+figure of merit; a single monitor may be targeted instead with
+\verb+--optimize-monitor=NAME+, and \verb+--optimize-minimize+ inverts the
+sense of the search (minimize rather than maximize). For full control over
+the optimized quantity (e.g. optimizing on peak width rather than
+intensity), use \verb+--optimize-eval=EXPR+ with an expression combining
+the fields of a detector structure \texttt{d} (\texttt{d.intensity},
+\texttt{d.error}, \texttt{d.values}, \texttt{d.X0}/\texttt{d.Y0},
+\texttt{d.dX}/\texttt{d.dY}), e.g.
+\verb+--optimize-eval="d.intensity/d.dX"+. See Table~\ref{f:mcrunoptions}
+for the complete, up-to-date option list.
+
+Example:
+\begin{lstlisting}
+mcrun templateTAS.instr --optimize --optimize-monitor=focus_monitor A3=10,80
+\end{lstlisting}
 
 From \verb+mcgui+ (section \ref{s:mcgui}), one should choose the 'Optimization'
 execution mode (instead of the Simulation or Trace mode). Then specify the
 instrument parameters to optimize by indicating their variation range
-\verb+param=min,max+ (e.g. Lambda=1,4) just like parameter scans. Optionally,
-the starting guess value might be given with the syntax
-\verb+param=min,guess,max+. The optimization accuracy criterion is controlled
-using the 'Precision' entry box in the configuration options (See Figure
-\ref{fig:mcgui-choose}). Finally, run the simulation. The optimum set of
-parameters is then printed at the end of the simulation process. You may ask to
-maximize only given monitors (instead of all) by selecting their component names
-in the lower lists in the Run Dialog (up to 3).
+\verb+param=min,max+ (e.g. Lambda=1,4) just like parameter scans. Finally, run
+the simulation. The optimum set of parameters is then printed at the end of
+the simulation process. You may ask to maximize only a given monitor (instead
+of all) by selecting its component name in the Run Dialog.
 
 If you would like to maximize the flux at a given monitor, with some
 divergence constrains, you should for instance simply add a divergence
@@ -873,10 +753,11 @@ for it to indeed contain a high signal domain, and be preferably
 symmetric with respect to that maximum.
 
 \subsubsection{Using custom optimization routines}
-The user should write a function script or a program that
+For cases the built-in \verb+--optimize+ mode (or iFit) does not cover, the
+user may still write a custom function/script or program that
 \begin{itemize}
 \item inputs the simulation parameters, which are usually numerical values such
-  as $TT$ in the \verb+prisma2+ instrument from the \verb+examples+ directory of
+  as $TT$ in the \verb+ISIS_Prisma2+ instrument from the \verb+examples+ directory of
   the package.
 \item builds a command line from these parameters.
 \item executes that command, and waits until the end of the computation.
@@ -885,29 +766,31 @@ The user should write a function script or a program that
   integrated counts or some peak width.
 \end{itemize}
 
-For instance, for the \verb+prisma2+ instrument we could write a function for
-Matlab (see section~\ref{s:analyze} for details about the Matlab data format) in
+For instance, for the \verb+ISIS_Prisma2+ instrument we could write a function for
+Python using \texttt{scipy.optimize} (or Matlab, if preferred) in
 order to study the effects of the $TT$ parameter:
 \begin{lstlisting}
-  function y = instr_value(p)
-    TT = p(1);     % p may be a vector/matrix containing many parameters
-    syscmd = [ 'mcrun prisma2.instr -n1e5 TT=' num2str(TT) ...
-               ' PHA=22 PHA1=-3 PHA2=-2 PHA3=-1 PHA4=0 PHA5=1' ...
-               ' PHA6=2 PHA7=3 TTA=44 --format="Matlab binary"' ];
-    system(syscmd); path(path) % execute simulation, and rehash files
-    s = mcstas;     % get the simulation data, and the monitor data
-    s = s.prisma2.m_mcstas.detector.prisma2_tof.signal;
-    eval(s);        % we could also use the 'statistics' field
-    y = -Mean;      % 'value' of the simulation
-\end{lstlisting}
+import subprocess
+from scipy.optimize import minimize_scalar
+import numpy as np
 
-Then a numerical optimization should be available, such as those provided with Matlab, IDL, and Perl-PDL high level languages. In this example, we may wish to maximize the \verb+instr_value+ function value. The \verb+fminsearch+ function of Matlab is a minimization method (that's why we have a minus sign for $y$ value), and:
-\begin{lstlisting}
-    matlab> TT = fminsearch('instr_value', -25)
+def instr_value(TT):
+    outdir = f"opt_{TT:.3f}"
+    subprocess.run(["mcrun", "ISIS_Prisma2.instr", "-d", outdir, "-n", "1e5",
+                     f"TT={TT}", "PHA=22", "PHA1=-3", "PHA2=-2", "PHA3=-1",
+                     "PHA4=0", "PHA5=1", "PHA6=2", "PHA7=3", "TTA=44"], check=True)
+    # read back the relevant monitor's plain-text McCode data file directly
+    data = np.loadtxt(f"{outdir}/mon9.dat")
+    return -data[:, 1].sum()   # negative intensity column sum: we minimize below
+
+result = minimize_scalar(instr_value, bounds=(-30, -20), method="bounded")
 \end{lstlisting}
-will determine the best value of TT, starting from -25 estimate, in order to
-minimize function \verb+instr_value+, and thus maximize the mean detector
-counts.
+will determine the best value of \texttt{TT} in order to maximize the mean
+detector counts. This is essentially what \texttt{mcrun --optimize} already
+automates for you (section~\ref{s:optimize-builtin}); writing a custom driver
+like this remains useful mainly when the figure of merit cannot be expressed
+as a simple \verb+--optimize-eval+ expression, or when a non-scipy optimizer
+(e.g. a Matlab/iFit swarm optimizer) is preferred.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Using simulation front-ends}
@@ -918,23 +801,24 @@ functionality of the simulations. A front-end program is an interface
 between the user and the simulations, running the simulations and
 presenting the output in various ways to the user.
 
-The list of available \MCS front-end programs may be obtained from the
-\verb+mcdoc --tools+ command:
+The list of available \MCS front-end programs is (see \verb+mcdoc --tools+, or
+run any tool with \verb+-h+ for its specific help):
 \begin{lstlisting}
     McStas Tools
-       mcstas        Main instrument compiler
-       mcrun         Instrument build and execution utility
-       mcgui         Graphical User Interface instrument builder
-       mcdoc         Component library documentation generator/viewer
-       mcplot        Simulation result viewer
-       mcdisplay     Instrument geometry viewer
-       mcresplot     Instrument resolution function viewer
-       mcstas2vitess McStas to Vitess component translation utility
-       mcformat      Conversion tool for text files and MPI/grids
-       mcformatgui   GUI for mcformat
-       mcdaemon      Instrument results on-line plotting
-    When used with the -h flag, all tools display a specific help.
-    SEE ALSO: mcstas, mcdoc, mcplot, mcrun, mcgui, mcresplot, mcstas2vitess
+       mcstas          Main instrument compiler
+       mcrun           Instrument build and execution utility
+       mcgui           Graphical User Interface instrument builder
+       mcdoc           Component library documentation generator/viewer
+       mcplot          Simulation result viewer (default: pyqtgraph backend)
+       mcplot-html     Simulation result viewer, in a web browser (D3.js)
+       mcplotdiff-html Difference plot between two simulation results, in a browser
+       mccoplot-html   Overlay (co-plot) of two simulation results' 1D monitors
+       mcdisplay       Instrument geometry viewer (default: pyqtgraph backend)
+       mcresplot       Instrument resolution function viewer (Python/matplotlib)
+       mctest          Self-test / benchmark of the current McStas installation
+       mcviewtest      Viewer for mctest results, with mcplotdiff-html comparisons
+    Each tool also exists in dedicated *-matplotlib, *-pyqtgraph, *-html,
+    *-webgl or *-webgl-classic variants where applicable, see sections below.
     DOC:      Please visit https://www.mcstas.org
 \end{lstlisting}
 
@@ -949,20 +833,13 @@ command
 \begin{lstlisting}
     mcgui
 \end{lstlisting}
-The mcgui (mcgui.pl on Windows) program may optionally be given the name of the
+The mcgui program may optionally be given the name of the
 instrument file to use.
 
 \paragraph{Dependencies:}
-\indexTOOL{PGPLOT} To run the \verb+mcgui+
-front-end, the programs Perl and Perl/Tk must be properly installed on the
-system. Additionally, to use the \MCS/PGPLOT back-end the software packages
-PGPLOT, PgPerl, and PDL are required.
-\index{Perl!libraries} It may be
-necessary to set the \verb+PGPLOT_DIR+ and \verb+PGPLOT_DEV+ environment
-variable; consult the documentation for PGPLOT on the local system in case of
-difficulty.
-\indexEV{PGPLOT\_DIR}
-\indexEV{PGPLOT\_DEV}
+As of \MCS 3.x, \verb+mcgui+ is a pure Python/Qt application (PyQt), bundled
+with the standard conda-forge \MCS package; no separate Perl, Tk, or PGPLOT
+installation is required.
 
 \subsubsection{The menus}
 
@@ -995,22 +872,20 @@ The \textbf{File} menu has the following features:
   compilations and simulations into a file.
 \item[File/Clear output] erases all text in the window showing output of
   compilations and simulations.
-  \item[File/Preferences] Opens the choose backend dialog shown in
+  \item[File/Preferences] Opens the configuration dialog shown in
   figure~\ref{fig:mcgui-choose}. Several settings can be chosen here:
 \begin{itemize}
-  \item Selection of  the desired (PGPLOT|Matlab|HTML/VRML) output
-    format and possibility to save 'binary files' when
-  applicable (improved disk I/O).
-  \item One- or three-pane view of your instrument in trace mode when
-    using PGPLOT.
-  \item Clustering option (None|MPI|ssh)
+  \item Selection of the desired plotting/display backend (\texttt{pyqtgraph},
+    \texttt{matplotlib}, \texttt{html}, \ldots) for \texttt{mcplot} and
+    \texttt{mcdisplay}.
+  \item Choice of code generator (\texttt{mccode} or \texttt{mccode-antlr},
+    see section~\ref{s:antlr}).
   \item Choice of editor to use when editing instrument files.
   \item Automatic quotation of strings when inserting in the built-in
     editor.
   \item Possibility to \emph{not} optimize when compiling the generated
     c-code. This is very handy when setting up an instrument model, which
     requires regular compilations.
-  \item Adjustment of final precision when doing parameter optimization.
 \end{itemize}
 To save the chosen settings for your next \MCS run, use Save
 Configuration in the File menu.
@@ -1023,7 +898,7 @@ Configuration in the File menu.
 \begin{description}\indexMCTOOL{mcplot}{}\index{Data formats}
 \item[Simulation/Read old simulation] prompts for the name of a file
   from a previous run of a \MCS simulation (usually called
-  \verb+mcstas.sim+). The file will be read and any detector data
+  \verb+mccode.sim+). The file will be read and any detector data
   plotted using the \verb+mcplot+ front-end. The parameters used in the
   simulation will also be made the defaults for the next simulation
   run. This function is also available using the ``Read'' button to the
@@ -1044,8 +919,12 @@ Configuration in the File menu.
 \end{figure}
 
 
-\noindent The \textbf{Neutron Site} menu contains a list of template/example
-instruments as found in the \MCS library, sorted by neutron site. When
+\noindent The \textbf{New from Template} menu (known as ``Neutron site'' in
+older \MCS releases) contains a list of template and example
+instruments as found in the \MCS library, sorted by category/facility (e.g.
+\texttt{Templates}, \texttt{ILL}, \texttt{ISIS}, \texttt{ESS},
+\texttt{Union\_demos}, \ldots -- see chapter~\ref{s:instrument} for a
+curated tour). When
 selecting one of these, a local copy of the instrument description is
 transferred to the active directory (so that users have modification rights) and
 loaded. One may then view its source (Edit) and use it directly for
@@ -1056,20 +935,10 @@ simulations/trace (3D View).
 \begin{description}
 \item[Tools/Plot current/other results] Plot current simulation results and
   other results.
-\item[Tools/Online plotting of results] installs a DSA key to be used for ssh
-  clustering and MPI (see Section \ref{s:run-mpi}).
-\item[Tools/Dataset convert/merge] Opens a GUI to the \verb+mcformat+ tool, in
-  order to convert datasets to other formats, merge scattered dataset (e.g. from
-  successive or grid simulations), and assemble scan sets. This tool does not
-  handle raw event files.
+\item[Tools/Dataset convert/merge] Opens a GUI to merge scattered data sets
+  (e.g. from successive runs or an MPI job) or assemble scan sets.
 \item[Tools/Shortcut keys] displays the shortcut keys used for running and
   editing instruments.
-\item[Tools/Install DSA key] installs a DSA key to be used for ssh clustering
-  and MPI (see Section \ref{s:run-mpi}).\index{MPI}\index{Grid computing}
-\item[The Histogrammer] In addition to these tools, the
-  \verb+Neutron site/Tools/Histogrammer.instr+ example instrument may read
-  \MCS, Vitess, MCNP and Tripoli event files in order to generate histograms
-  of any type.
 \end{description}
 
 
@@ -1081,7 +950,7 @@ Windows.
 \begin{description}
 \item[Help/\MCS User manual] calls \verb+mcdoc --manual+, brings up the local
   pdf version of this manual, using a web browser.
-\item[Help/\MCS Component manual] calls \verb+mcdoc --comp+, brings up the local
+\item[Help/\MCS Component manual] calls \verb+mcdoc --comps+, brings up the local
   pdf version of the component manual, using a web browser.
 \item[Help/Component library index] displays the component documentation using
   the component \verb+index.html+ index file.
@@ -1090,9 +959,9 @@ Windows.
 \item[Help/Tutorial] opens the \MCS tutorial for a quick start.
 \item[Help/Current instrument info] generates a description web-page of the
   current edited instrument.
-\item[Help/Test \MCS installation] launches a self test procedure to check that
-  the \MCS package is installed properly, generates accurate results, and may
-  use the plotter to display the results.
+\item[Help/Test \MCS installation] launches \texttt{mctest} to check that
+  the \MCS package is installed properly and generates accurate results
+  (see section~\ref{s:frontends}).
 \item[Help/Generate component index] (re-)generates locally the component
   \verb+index.html+.
 \end{description}
@@ -1160,13 +1029,12 @@ The meaning of the different fields is as follows:
 \item[Run:Plot results] -- if checked, the \verb+mcplot+ front-end will be run
   after the simulation has finished, and the plot dialog will appear
   (see below).
-\item[Run:Format] quick selection of output format. Binary mode may be checked
-  from the ``Simulation/Configuration options'' dialog box.
-\item[Run:Clustering method] selects the mechanism to be used for running on
-  grids and clusters.  See section~\ref{s:run-mpi} on parallel computing for
+\item[Run:Format] quick selection of output format (\texttt{McCode} or
+  \texttt{NeXus}).
+\item[Run:Clustering method] selects between running locally or via MPI.
+  See section~\ref{s:run-mpi} on parallel computing for
   more informations.
-\item[Run:Number of nodes] sets the number of nodes to use for MPI/ssh
-  clustering.
+\item[Run:Number of nodes] sets the number of MPI nodes to use.
 \item[Run:Inspect component] (Trace mode) will trace only neutron trajectories
   that reach a given component (e.g. sample or detector).
 \item[Run:First component] (Trace mode) seletcs the first component to plot
@@ -1230,7 +1098,7 @@ some functions that aid in the construction of the instrument definitions:
 \index{Parameters!scans}
 \index{Parameters!optimization}
 
-The \verb+mcrun+ front-end (mcrun.pl on Windows) provides a convenient
+The \verb+mcrun+ front-end provides a convenient
 command-line interface for running simulations with the same automatic
 compilation features available in the \verb+mcgui+ front-end. It also provides a
 facility for running a series of simulations while varying an input parameter.
@@ -1275,12 +1143,12 @@ would run the simulation defined in \verb+sim.instr+ four times, with
 \textit{X} having the values 2, 4, 6, and 8, respectively.
 
 After running the simulation, the results will be written to the file
-\verb+mcstas.dat+ by default. This file contains one line for each simulation
+\verb+mccode.dat+ by default (see the \verb+--optimise-file+ option). This
+file contains one line for each simulation
 run giving the values of the scanned input variables along with the integrated
-intensity and estimated error in all monitors. Additionally, a file
-\verb+mcstas.m+ (when using Matlab format) is written that can be read by the
-\verb+mcplot+ front-end to plot the results on the screen or in a Postscript
-file, see section~\ref{s:mcplot}. \indexMCTOOL{mcplot}{}
+intensity and estimated error in all monitors. This file can be plotted with
+any of the \verb+mcplot+ backends, see section~\ref{s:mcplot}.
+\indexMCTOOL{mcplot}{}
 \item When performing a scan, the \texttt{-f \textit{file}} and
   \texttt{--file=\textit{file}} options make \verb+mcrun+ write the output
   to the files \texttt{\textit{file\/}.dat} and \texttt{\textit{file\/}.sim}
@@ -1292,12 +1160,10 @@ file, see section~\ref{s:mcplot}. \indexMCTOOL{mcplot}{}
   data files output from the different simulations. When the \verb+-d+
   option is not used, no data files are written from the individual
   simulations (in order to save disk space).
-\item The \verb+mcrun --test+ command will test your \MCS installation,
-  accuracy and plotter. \index{Installation!test}
 \end{itemize}
 
-The \verb+-h+ option will list valid options. The \verb+mcrun+ front-end
-requires a working installation of Perl to run.
+The \verb+-h+ option will list valid options; see also Table~\ref{f:mcrunoptions}
+for the complete, current option list.
 
 \subsection{GPU acceleration via OpenACC}
 \label{s:gpu}
@@ -1353,13 +1219,12 @@ tips are documented on the McCode wiki:
 \label{s:mcdisplay}
 \indexMCTOOL{mcdisplay}{textbf}
 
-The front-end \verb+mcdisplay+ (mcdisplay.pl on Windows) is a graphical
+The front-end \verb+mcdisplay+ is a graphical
 visualization tool, very useful for debugging.  It presents a schematic drawing
 of the instrument definition, showing the position of the components and the
 paths of the simulated neutrons through the instrument. It is thus very useful
 for debugging a simulation, for example to spot components in the wrong position
-or to find out where neutrons are getting lost.  (See figures
-\ref{fig:mcdisp_PGPLOT}-\ref{fig:mcdisp_Matlab}.)
+or to find out where neutrons are getting lost.
 
 To use the \verb+mcdisplay+ front-end with a simulation, run it as
 follows:
@@ -1372,99 +1237,53 @@ where \verb+sim+ is the name of either the instrument source
 and \textit{args \ldots} are the normal command line arguments for the
 simulation, as explained above. The \verb+-h+ option will list valid options.
 
-\indexTOOL{PGPLOT}
-\indexTOOL{Matlab}
-\indexTOOL{VRML/OpenGL}
-\index{OpenGL}
-The drawing back-end program may be selected among
-PGPLOT, VRML, and Matlab using the -p\textit{PLOTTER} option. For instance, calling
+The drawing back-end may be selected by invoking one of the dedicated
+front-ends directly:
+\begin{itemize}
+\item \verb+mcdisplay-pyqtgraph+ (the default when running plain
+  \verb+mcdisplay+): interactive PyQtGraph 3D view.
+\item \verb+mcdisplay-matplotlib+: static/interactive matplotlib 3D view.
+\item \verb+mcdisplay-webgl+ and \verb+mcdisplay-webgl-classic+: browser-based
+  WebGL views (the former uses a small NodeJS-backed server for larger
+  instruments/particle counts).
+\item \verb+mcdisplay-cad+: exports the instrument geometry to a CAD-compatible
+  format.
+\item \verb+mcdisplay-mantid_xml+: exports an approximate Mantid Instrument
+  Definition File (IDF) describing the detector geometry.
+\end{itemize}
+For instance, calling
 \begin{bash}
-mcdisplay --pMatlab ./Samples_vanadium.out ROT=90+
+mcdisplay-webgl ./Samples_vanadium.out ROT=90
 \end{bash}
-will output graphics using Matlab.
+will open a WebGL view of the instrument in a browser tab.
 The \verb+mcdisplay+ front-end can also be run from the \verb+mcgui+ front-end.
 \indexMCTOOL{mcgui}{}
-Examples of plotter appearence for \verb+mcdisplay+ is shown in figures
- \ref{fig:mcdisp_PGPLOT}-\ref{fig:mcdisp_Matlab}.
 
-\paragraph{\MCS /PGPLOT back-end}
+The (default, PyQtGraph) front-end accepts the following options, amongst
+others -- run \verb+mcdisplay --help+ for the complete, current list:
+\begin{itemize}
+\item \verb+--default+: automatically use the instrument's default parameter
+  values, without prompting.
+\item \verb+--dirname=DIR+: override the output directory name used while
+  tracing.
+\item \verb+--inspect=+\textit{comp}: only display neutron trajectories that
+  reach the component named \textit{comp}. This is useful when debugging, e.g.
+  to hide neutrons absorbed upstream of the component of interest.
+\item \verb+--invcanvas+: invert the canvas background from black to white
+  (useful for printing or screenshots).
+\item \verb+-n+/\verb+--ncount=N+: number of neutron rays to trace.
+\end{itemize}
 
-This will view the instrument from above. A multi-display that shows the
-instrument from three directions simultaneously can be shown using the
-\verb+--multi+ option:
-\begin{lstlisting}
-mcdisplay --multi sim.out args ...
-\end{lstlisting}
-
-Click the left mouse button in the graphics window or hit the space key to see
-the display of successive neutron trajectories. The `P' key saves a postscript
-file containing the current display that can be sent to the printer to obtain a
-hardcopy; the `C' key produces color postscript.  To stop the simulation
-prematurely, type `Q' or use control-C as normal in the window in which
-\verb+mcdisplay+ was started.
-
-To see details in the instrument, it is possible to zoom in on a part of the
-instrument using the middle mouse button (or the `Z' key on systems with a one-
-or two-button mouse). The right mouse button (or the `X' key) resets the
-zoom. Note that after zooming, the aspect ratio of the plot may have changed,
-and thus the angles as seen on the display may not match the actual angles.
-
-Another way to see details while maintaining an overview of the instrument is to
-use the \verb+--zoom=+\textit{factor} option. This magnifies the display of each
-component along the selected axis only, {\em e.g.} a Soller collimator is
-magnified perpendicular to the neutron beam but not along it. This option may
-produce rather strange visual effects as the neutron passes between components
-with different coordinate magnifications, but it is occasionally useful.
-
-When debugging, it is often the case that one is interested only in neutrons
-that reach a particular component in the instrument. For example, if there is a
-problem with the sample one may prefer not to see the neutrons that are absorbed
-in the monochromator shielding. For these cases, the
-\verb+--inspect=+\textit{comp\/} option is useful. With this option, only
-neutrons that reach the component named \textit{comp\/} are shown in the
-graphics display.
-
-As of \MCS 1.10, the PGPLOT version has a special mode for time of flight
-applications. Using the new commandline options \verb+--TOF/-T+ and
-\verb+--tmax=TMAX+, chopper acceptance diagrams can be generated from the
-statistical information from the simulated neutron rays. As the use in
-non-interactive, please use with a limited number of neutron rays
-(\verb+-n/--ncount+). For export of graphics, combine with e.g. \verb+--gif+.
-
-\indexTOOL{PGPLOT}
-The \verb+mcdisplay+ front-end will then require the Perl,
-the PGPLOT, and the PGPerl packages to be installed. It may be necessary to set
-the \verb+PGPLOT_DIR+ and \verb+PGPLOT_DEV+ environment variable; consult the
-documentation for PGPLOT on the local system in case of difficulty.
-\indexEV{PGPLOT\_DEV}
-\indexEV{PGPLOT\_DIR}
-\index{Perl!libraries}
-
-\paragraph{Matlab and back-end}
-
-A 3D view of the instrument, and various operations (zoom, export, print, trace
-neutrons, \ldots) is available from dedicated Graphical User Interfaces.  The
-\verb+--inspect+ option may be used (see previous paragraph), as well as the
-\verb+--first+ and \verb+--last+ options to specify a region of interest.
-
-The \verb+mcdisplay+ front-end will then require the Perl, and
-Matlab to be installed. \indexTOOL{Matlab}
-
-\paragraph{VRML/OpenGL back-ends}
-
-When using the \verb+-pVRML+ option, the instrument is shown in Virtual Reality
-(using OpenGL). You may then walk aside instrument, or go inside elements
-following neutron trajectories. As all neutron trajectories are stored into a
-VRML file, you better limit the number of stored trajectories below 1000,
-otherwise file size and processing time becomes significant. The
-\verb+--inspect+ option is not available in VRML format display.
+When debugging trajectories through a long or complex instrument, combining
+\verb+--inspect+ with a modest \verb+--ncount+ typically gives the clearest,
+fastest picture of what is happening around a particular component.
 
 %-------------------------------------------------------------------------------
 \subsection{Plotting the results of a simulation (mcplot)}
 \label{s:mcplot}
 \indexMCTOOL{mcplot}{textbf}
 
-The front-end \verb+mcplot+ (mcplot.pl on Windows) is a program that produces
+The front-end \verb+mcplot+ is a program that produces
 plots of all the monitors in a simulation, and it is thus useful to get
 a quick overview of the simulation results.
 
@@ -1480,107 +1299,83 @@ the file or directory should be passed to mcplot, {\em e.g.} ``\texttt{mcplot
 one single text (not binary) data file from a given monitor, passing its name to
 mcplot.
 
-The drawing back-end program may be selected among PGPLOT, Matlab, and
-Gnuplot using either the -p\textit{PLOTTER} option (e.g. \texttt{mcplot -pMatlab
-file}) or using the current \verb+MCSTAS_FORMAT+ environment
-variable.
+As with \texttt{mcdisplay} (section~\ref{s:mcdisplay}), the drawing back-end
+may be selected by invoking the dedicated front-end directly:
+\verb+mcplot-pyqtgraph+ (the default), \verb+mcplot-matplotlib+, or
+\verb+mcplot-html+ (renders an interactive, self-contained web page using
+D3.js, see section~\ref{s:run-format}), or by setting the
+\verb+MCSTAS_FORMAT+ environment variable.
 \indexEV{MCSTAS\_FORMAT}
 
-Except for the NeXus format, all other plotters read the legacy 
-McStas/PGPLOT text based data format. 
-
-The \verb+mcformat+ utility will convert any \MCS
-result into an other data format (see section \ref{s:mcformat}), but restricting to text
-data sets. In this case, we recommend to generate data sets using PGPLOT/McStas
-format, and translate into any other format using \verb+mcformat+.
+All plotters read the plain-text \MCS/McCode data format (section~\ref{s:analyze});
+NeXus files are not currently read back by the plotters.
 
 The \verb+mcplot+ front-end can also be run from the \verb+mcgui+ front-end.
 \indexMCTOOL{mcgui}{}
 
 The initial display shows plots for each detector in the simulation.
-Examples of plotter appearence for \verb+mcplot+ is shown in figures
- \ref{fig:mcdisp_PGPLOT}-\ref{fig:mcplot_figs}.
 
-\paragraph{\MCS /PGPLOT back-end}
-\indexTOOL{PGPLOT}
-Clicking the left mouse button on a plot produces a full-window version
-of that plot. The `P' key saves a postscript file containing the current
-plot that can be sent to the printer to obtain a hardcopy; the `C' key
-produces color postscript.
-The `Q' key quits the program (or CTRL-C in the controlling
-terminal may be used as normal).
-
-To use the \verb+mcplot+ front-end with PGPLOT, the programs Perl, PGPLOT,
-PgPerl, and PDL must all be properly installed on the system.  It may be
-necessary to set the \verb+PGPLOT_DIR+ and \verb+PGPLOT_DEV+ environment
-variable; consult the documentation for PGPLOT on the local system in case of
-difficulty.
-\indexEV{PGPLOT\_DEV}
-\indexEV{PGPLOT\_DIR}
-\index{Perl!libraries}
-
-\paragraph{Matlab back-end}
-
-A dedicated \MCS /Mcplot Dialog or menu attached to the plotting window is
-available, and provides many operations (duplication, export, colormaps,
-\ldots).  The corresponding 'mcplot' Matlab function may be called
-from these language prompt with the same method as in section~\ref{s:run-sim},
-e.g:
-\begin{matlab}
-    matlab> s=mcplot;
-    matlab> help mcplot
-    matlab> s=mcplot('mcstas.m');
-    matlab> mcplot(s);
-\end{matlab} \indexTOOL{Matlab}
-
-A full parameter scan simulation result, or simply one of its scan steps may be
-displayed using the 'Scan step' menu item.  When the \verb|+nw| option is
-specified, a separate Matlab window will appear (instead of being
-launched in the current terminal). This will then enable Java support under
-Matlab, resulting in additional menus and tools. On
-the other hand, the \verb|-nw| option will force Matlab to run in the
-current terminal, which is usually faster.
-
-To use the \verb+mcplot+ front-end, the programs Perl, and
-Matlab are required. \indexTOOL{Matlab}
+\paragraph{Comparing two simulation results: mcplotdiff-html and mccoplot-html.}
+\indexMCTOOL{mcplotdiff}{textbf}
+\indexMCTOOL{mccoplot}{textbf}
+Two companion browser-based tools reuse \texttt{mcplot-html}'s plotting code to
+compare a pair of simulation results (two output directories, or two single
+monitor files), matching monitors by output filename:
+\begin{itemize}
+\item \verb+mcplotdiff-html a b+ plots, for every monitor present with
+  matching binning in both \texttt{a} and \texttt{b}, the difference
+  \texttt{a - b} (with error-propagated error bars for 1D monitors, and a
+  diverging blue/white/red colour scale for 2D monitors). This is useful to
+  quickly spot the effect of a component or parameter change, an \MCS version
+  upgrade, or MPI vs.\ non-MPI results. By default, each difference is also
+  written back out as a normal \MCS/McCode-format data set (with an
+  \texttt{mccode.sim} index), so the result directory can be reopened by any
+  other McCode-format-aware plotter; pass \verb+--no-dat+ to skip this.
+\item \verb+mccoplot-html a b+ instead overlays the two datasets' 1D monitors
+  on the same axes (only 1D monitors are supported), for a direct visual
+  comparison of curve shape and position.
+\end{itemize}
+Both accept \verb+-A LABEL_A+/\verb+-B LABEL_B+ to control the labels used for
+each input, and \verb+-o OUTPUT+ to control the output directory name; run
+either with \verb+--help+ for the complete option list. \texttt{mcplotdiff-html}
+is also used internally by \texttt{mcviewtest} (section~\ref{s:frontends}) to
+compare test runs against a reference.
 
 
 %-------------------------------------------------------------------------------
 \subsection{Plotting resolution functions (mcresplot)}
 \label{s:mcresplot}
 \indexMCTOOL{mcresplot}{textbf}
-\indexTOOL{PGPLOT}
-
-\begin{figure}[htb!]
-  \begin{center}
-    \includegraphics[angle=-90,width=0.9\textwidth]{figures/mcresplot_PGPLOT}
-  \end{center}
-\caption{Output from \texttt{mcresplot} with PGPLOT backend.
-  Use P, C and G keys to write hardcopy files.}
-\label{fig:mcresplot_PGPLOT}
-\end{figure}
 
 The \verb+mcresplot+ front-end is used to plot the resolution function,
 particularly for triple-axis
-%or inverse geometry time-of-flight
-spectrometers, as calculated by the Res\_sample component or TOF\_res\_sample
-for time-of-flight instruments. It requires to have a Res\_monitor component
-further in the instrument description (at the detector position).
-%(see section~\ref{s:res_sample}).
-This front-end
-has been included in the release since it may be useful
-despite its somewhat rough user interface.
+spectrometers, as calculated by the Res\_sample component or TOF\_Res\_sample
+for time-of-flight instruments. It requires to have a Res\_monitor (or
+TOF\_Res\_monitor) component further in the instrument description (at the
+detector position).
+
+As of \MCS 3.x, \verb+mcresplot+ is a pure Python tool built around a
+covariance-matrix method (rather than reading a resolution ellipsoid
+directly out of the simulation), following the approach implemented in the
+Takin2 package~\cite{takin2}. Neutron events collected by the Res\_monitor
+are loaded with NumPy, the weighted covariance matrix of the
+$(\boldsymbol{Q},\omega)$ four-vectors is computed and inverted to obtain
+the resolution matrix, and the resulting ellipsoids are drawn with
+\texttt{matplotlib} (2D projections and slices, plus a 3D view).
 
 The \verb+mcresplot+ front-end is launched with the command
 \begin{lstlisting}
 mcresplot outfile
 \end{lstlisting}
 Here, \textit{outfile\/} is the name of a file output from a simulation using
-the Res\_monitor component.
-% (section~\ref{s:res_monitor}).
-
-This front-end currently only works with the PGPLOT plotter, but port for
-Matlab may be written in the future.
+the Res\_monitor component. Useful options include \verb+--QEfile+ (if the
+event file is in the $h\,k\,l\,E\,w$ format rather than the default
+$\mathbf{k}_i\,\mathbf{k}_f\,w_i\,w_f$ format), \verb+--centreonQ+ (center
+plots on the mean $\boldsymbol{Q}$ rather than the origin), \verb+--save=file+
+(save the plots to a file instead of, or in addition to, showing them
+interactively), \verb+--noplot+ (compute and print the resolution matrices
+only, without opening a plot window) and \verb+--tex+ (use \LaTeX{} for axis
+labels). Run \verb+mcresplot --help+ for the full, current option list.
 
 The front-end will open a window displaying projections of the 4-dimensional
 resolution function $R(\boldsymbol{Q}, \omega)$, measured at a
@@ -1590,9 +1385,9 @@ resolution function, the resolution along each projection axis and the resulting
 resolution matrix are also shown, as well as the instrument name and parameters
 used for the simulation.
 
-To use the \verb+mcresplot+ front-end, the programs Perl, PGPLOT, PgPerl,
-and PDL must all be properly installed on the system.
-\index{Perl!libraries}
+To use the \verb+mcresplot+ front-end, a Python installation with NumPy and
+matplotlib is required (both are part of the standard \MCS conda-forge
+environment).
 
 %-------------------------------------------------------------------------------
 \subsection{Creating and viewing the library, component/instrument help and
@@ -1605,32 +1400,29 @@ given component or instrument, or the whole \MCS
 library. \index{Library!components}
 \begin{lstlisting}
 mcdoc
-mcdoc {comp|instr}
-mcdoc --tools
+mcdoc searchterm
+mcdoc file.comp
 \end{lstlisting}
 The first example generates an \textit{index.html} catalog file using the available
-components and instruments (both locally, and in the \MCS library). The library
-catalog of components is opened using the \verb+BROWSER+ environment variable
+components and instruments (both locally, and in the \MCS library), and browses
+it using the \verb+BROWSER+ environment variable
 \indexEV{BROWSER}
-(e.g. netscape, konqueror, nautilus, MSIE,
-mozilla, \ldots). If the \verb+BROWSER+ is not defined, the help is displayed as
-text in the current terminal. This latter output may be forced with the
-\verb+-t+ or \verb+--text+ option.
+(e.g. firefox, chromium, \ldots). Alternatively, if a search term or a
+\textit{file.comp}/\textit{file.instr} path is given, \verb+mcdoc+ will
+search within the library and open documentation for all matching entries.
 
-Alternatively, if a component or instrument \textit{comp} is specified as in the
-second example, it will be searched within the library, and an HTML help will be
-created for all available components matching \textit{comp}.
-
-The last example will list the name and description of all \MCS tools.
-
-Additionally, the options \verb+--web+, \verb+--manual+ and \verb+--comp+ will
-open the \MCS web site page, the User Manual (this document) and the Component
-Manual, all requiring \verb+BROWSER+ to be defined. Finally, the \verb+--help+
+Additional options include \verb+--install+/\verb+-i+ (regenerate the local
+installation-wide index), \verb+--dir=DIR+/\verb+-d+ (add search results from
+a given directory), and \verb+--verbose+/\verb+-v+ (print a parsing log).
+The options \verb+--manual+/\verb+-m+, \verb+--comps+/\verb+-c+ and
+\verb+--web+/\verb+-w+ will open the User Manual (this document), the
+Component Manual, and the \MCS web site, respectively, all requiring
+\verb+BROWSER+ to be defined. Finally, the \verb+--help+
 option will display the command help, as usual.
 
 See section~\ref{s:mcdoc} for more details about the McDoc usage and header
-format.  To use the \verb+mcdoc+ front-end, the program Perl should be
-available.
+format.  \verb+mcdoc+ is a pure Python tool, part of the standard \MCS
+conda-forge package.
 
 \paragraph{Online wiki.}
 In addition to this manual, extensive and frequently updated documentation
@@ -1643,96 +1435,33 @@ acceleration information, and migration guides from \MCS~2.x to 3.x.
 
 
 %-------------------------------------------------------------------------------
-\subsection{Translating \MCS components for Vitess (mcstas2vitess)}
-\label{s:mcstas2vitess}
-\indexMCTOOL{mcstas2vitess}{textbf}
-\indexLIB{vitess-lib}{}
-\index{Vitess!vitess-lib}
+\subsection{Self-testing the installation (mctest, mcviewtest)}
+\label{s:mctest}
+\indexMCTOOL{mctest}{textbf}
+\indexMCTOOL{mcviewtest}{textbf}
 
-\index{Component!translation to Vitess}
-Any \MCS component may be translated for usage with Vitess (starting from
-Vitess version 2.3). The syntax is simply 
-\begin{lstlisting}
-mcstas2vitess Compo.comp
-\end{lstlisting}
-This will create a Vitess module of the given component.
+\MCS ships with a Python self-test/benchmark harness, replacing the earlier
+\verb+mcrun --test+ command. \verb+mctest+ compiles and runs a selection (or
+all) of the example instruments found under the current installation(s), and
+stores each run's results (including any test-defined \texttt{\%Example}
+reference values) in a timestamped output folder. Useful options include
+\verb+--ncount+, \verb+--mpi+ and \verb+--openacc+ (forwarded to \verb+mcrun+
+for every tested instrument), \verb+--config=LABEL+ (test only a specific
+McCode installation/config), \verb+--instr=REGEX+ (test only matching
+instrument names), and \verb+--limit=N+ (test only the first N instruments
+per version); run \verb+mctest --help+ for the full list.
 
-Let us assume the component \verb+Compo+ shall be translated. The tool first
-creates a small instrument called \verb+McStas_Compo.instr+ consisting of
-\begin{enumerate}
-\item component Vitess\_input
-\item component \verb+Compo+
-\item component Vitess\_output
-\end{enumerate}
-
-This file is parsed to generate the C file \verb+McStas_Compo.c+. The last step
-is to compile the C-file and build the executable Vitess module
-\verb'McStas_compo'. For both steps \MCS is used as for any other
-instrument. \verb'McStas_compo' has to be moved to the directory 'MODULES' that
-contains all VITESS executables.
-
-Additionally, a file \verb'McStas_compo.tcl' is created that contains (most of)
-what is needed to get a GUI window in VITESS. To obtain that, the content of
-this file has to added into 'vitess.tcl'. To make it accessible within the given
-GUI structure of VITESS, it is necessary to add the name 'compo' - NO capital
-letters ! - to one of the folders in 'proc makeModuleSets{}' (beginning of
-'vitess.tcl').
-
-The component Virtual\_input transfers all neutron parameters to the \MCS
-definition of the co-ordinate system and the units used. (Of course
-Virtual\_output transfers it back.) This means that 'Compo' works with the
-\MCS definition of co-ordinate system and units, while it is used as a VITESS
-module. Be careful with axis labeling.
-
-The original parameters of the component and its position have to be given. The
-origin of this shift is the center of the end of the previous module, (as it is
-always the case in VITESS).
-
-It is important to notice that, as VITESS uses the standard output stream
-(\verb+stdout+) to send neutron events, all information printed to screen must
-use the \emph{error} stream \verb+stderr+, so that \emph{all} \verb+printf(...)+
-and \verb+fprintf(stdout, ...)+ occurrences should be changed manually into
-\verb+fprintf(stderr, ...)+.
-
-To use the \verb+mcstas2vitess+ front-end, the program Perl should be available.
-
-%-------------------------------------------------------------------------------
-\subsection{Translating and merging \MCS results files (all text formats)}
-\label{s:mcformat}
-\indexMCTOOL{mcformat}{textbf}
-\indexTOOL{Matlab}
-\index{Data formats}
-\index{Grid computing}
-
-If you have been running a \MCS simulation with a given text format output, but
-finally plan to look at the results with an other plotter (e.g. you ran a
-simulation with PGPLOT output and want to view it using Matlab), you may use
-% FIXME syntax check!
-\begin{lstlisting}
-mcformat {file|dir} -d target_dir --format=TARGET_FORMAT
-\end{lstlisting}
-to translate files into format TARGET\_FORMAT (e.g. NeXus). When given a directory, the
-translation works recursively. The conversion works only for text files.
-
-The \verb+--merge+ option may be used to merge similar files, e.g. obtained from
-grid systems, just as if a longer run was achieved.
-
-The \verb+--scan+ option may be used to reconstruct the scan data from a set of
-directories which vary by instrument parameters. For instance, you ran a scan,
-but finally realized you should have prolonged it. Then simply simulate the
-missing bits, and apply
-\verb+mcformat -d scan_data --format=PGPLOT --scan step0 .. stepN+. The
-resulting scan data is compatible with \verb+mcplot+ only when generating
-PGPLOT/McStas format.\indexMCTOOL{mcplot}{}
-You may conjugate this option with the
-\verb+--merge+ in order to add/merge similar data sets before re-building the
-scan.
-
-The data files are analyzed by searching keywords inside data files
-(e.g. 'Source' for the source instrument description file). If some file names or
-component names match these keywords (e.g. using a file 'Source.psd'), the
-extracted metadata information may be wrong, even though the data itself will be
-correct.\index{Bugs!wrong metadata in translating and merging results files}
+\verb+mcviewtest+ then generates an HTML report of one or more \verb+mctest+
+runs found in a given folder (the current directory by default). When more
+than one run is present (e.g. a reference run and a run on a different
+platform, GPU vs.\ CPU, or a different \MCS branch), it takes the oldest
+subfolder as the reference column, and additionally runs
+\texttt{mcplotdiff-html} (section~\ref{s:mcplot}) between each other column's
+monitor output and the reference's, adding a \texttt{DIFF~[vs~ref]} link next
+to each such row in the report. These comparisons are cached on disk and
+generated in parallel (\verb+--diffworkers+), so re-running \verb+mcviewtest+
+is fast; use \verb+--nodiff+ to skip generating them entirely, or
+\verb+--diff-errors-only+ to only diff rows that already show a discrepancy.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Data formats - Analyzing and visualizing the simulation results}
@@ -1740,7 +1469,7 @@ correct.\index{Bugs!wrong metadata in translating and merging results files}
 \index{Data formats}
 
 To analyze simulation results, one uses the same tools as for analyzing
-experimental data, \textit{i.e}. programs such as Matlab, NumPy, IDL.  The
+experimental data, \textit{i.e}. programs such as Python/NumPy, Matlab, IDL.  The
 output files from simulations are usually simple text files containing headers
 and data blocks. If data blocks are empty they may be accessed referring to an
 external file indicated in the header.
@@ -1765,11 +1494,11 @@ simulation. Use the simulated intensity instead whenever analyzing
 simulation data.
 
 %-------------------------------------------------------------------------------
-\subsection{\MCS and PGPLOT format}
-\indexTOOL{PGPLOT!format}
+\subsection{The \MCS/McCode text format}
 \index{Data formats}
-The \MCS original format, which is
-equivalent to the PGPLOT format, is simply columns of ASCII text that most
+The \MCS original format, sometimes still referred to by its historical name
+``PGPLOT format'' (the plotting package used in \MCS~1.x/2.x), is simply
+columns of ASCII text that most
 programs should be able to read.
 
 One-dimensional histogram monitors (time-of-flight, energy)
@@ -1801,7 +1530,7 @@ instrument parameters, the name of the monitor component for this data file,
 case the file must be read by a program that cannot handle the headers.
 
 In addition to the files written for each one- and two-dimensional monitor
-component, another file (by default named \verb+mcstas.sim+) is also
+component, another file (by default named \verb+mccode.sim+) is also
 created. This file is in a special \MCS ASCII format. It contains all available
 information about the instrument definition used for the simulation, the
 parameters and options used to run the simulation, and the monitor components
@@ -1811,7 +1540,7 @@ by default contains only pointers (in the form of file names) to data for one-
 and two-dimensional monitors. By storing data in separate files, reading the
 data with programs that do not know the special \MCS file format is
 simplified. The \verb+--file+ option may be used to store all data inside the
-\verb+mcstas.sim+ file instead of in separate files.
+\verb+mccode.sim+ file instead of in separate files.
 
 %-------------------------------------------------------------------------------
 \subsection{NeXus format}
@@ -1833,11 +1562,10 @@ viewer can show content of all detectors, including metadata (attributes). Basic
 detector images may also be generated.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Using computer Grids and Clusters}
+\section{Using MPI for parallel computing}
 \label{s:run-mpi}
 \index{Parallel computing|textbf}
 \index{MPI|textbf}
-\index{Grid computing|textbf}
 
 Parallelizing a computation is in general possible when dependencies between
   each computation are not too strong. The situation of \MCS is
@@ -1859,161 +1587,56 @@ Parallelizing a computation is in general possible when dependencies between
 \item event lists: the merge of events is done by concatenation
 \end{itemize}
 
-\MCS provides three methods in order to distribute computations on many
+\MCS provides two methods in order to distribute computations on many
 computers.
 \begin{itemize}
-\item when using a set of nodes (grid, cluster or multi-cores), it is possible
-  to distribute simulations on a list of computers and multi-core machines (see
-  section \ref{s:ssh-grid}). Results are automatically merged after completion.
-  This method is very efficient, and only requires SSH server to be
-  installed/configured on slave machines.  In order to use an heterogeneous
-  system, a C compiler should be optionally installed on slave machines.
 \item when using an homogeneous computer cluster, each simulation (including
   scan steps) may be computed in parallel using MPI. We recommend this method on
   clusters (see section \ref{s:mpi}).
+\item \texttt{mcrun}'s built-in scan-splitting (\verb+--scan_split=N+, see
+  Table~\ref{f:mcrunoptions}) distributes the individual steps of a parameter
+  scan across \texttt{N} local CPU cores/threads, without requiring MPI. This
+  is a lightweight alternative on a single multi-core machine.
 \end{itemize}
-
-Last but not least, you may run simulations manually on a number of machines.
-Once the distributed simulation have been completed, you may merge their results
-using \verb+mcformat+ (see section \ref{s:mcformat})
-\indexMCTOOL{mcformat}{}
-in order to obtain a set of files just as if it had been executed on a single
-machine.
 
 All of these methods can be used, when available, from \texttt{mcgui}.
-
-%-------------------------------------------------------------------------------
-\subsection{Distribute mcrun simulations on grids, multi-cores and clusters (SSH
-  grid)}
-\label{s:ssh-grid}
-This method distributes simulations on a set of machines using \emph{ssh}
-connections, using a command such as \verb+mcrun --grid=4 ...+.  Each of the
-scan steps is split and executed on distant slave machines, sending the
-executable with \emph{scp}, executing single simulations, and then retrieving
-individual results on the master machine. These are then merged using
-\texttt{mcformat}.
-
-\indexMCTOOL{mcstas-hosts}{textbf}
-The \verb'mcrun' script has been adapted to use transparently SSH grids. The
-syntax is:
-\begin{itemize}
-\item \verb'--grid=<number>': tells \verb'mcrun' to use the grid over \verb'<number>' nodes.
-\item \verb'--machines=<file>': defines a text file where the nodes which are to
-  be used for parallel computation are listed; by default, \verb'mcrun' will
-  look at \verb'$HOME/.mcstas-hosts' and
-  \verb'MCSTAS/tools/perl/mcstas-hosts'. When used on a single SMP machine
-  (multi-core/cpu), this option may be omitted.
-\item \verb'--force-compile': this option is required on heterogeneous systems.
-  The C code is sent to all slaves and simulation is compiled on each node
-  before starting computation. The default is to send directly the executable
-  from the master node, which only works on homogeneous systems.  computation.
-\end{itemize}
-
-This method shows similar efficiency as MPI, but without MPI installation. It is
-especially suited on multi-core machines, but may also be used on any set of
-distant machines (grids), as well as clusters. For Windows master machines, we
-recommend the installation of the PuTTY SSH client. The overhead is proportional
-to the number of nodes and the amount of data files to transfer per
-simulation. It is usually larger than the pure MPI method. We thus recommend to
-launch long runs on fewer nodes rather than many short runs on many nodes.
-
-\subsubsection{Requirements and limitation (SSH grids)}
-
-  \begin{enumerate}
-  \item{A master machine with an SSH client, and \MCS installation.}
-  \item{A set of machines (homogeneous or heterogeneous) with SSH servers.}
-  \item{On heterogeneous grids, a C compiler must also be installed on all slave
-      nodes.}
-  \item{\texttt{ssh} access from the master node (where \MCS is
-      installed) to the slaves through e.g. DSA keys \emph{without} a
-      password. These keys should be generated using the command
-      \texttt{ssh-keygen}. Run \emph{e.g.} \texttt{ssh-keygen -t dsa} on
-      master node, enter no passphrase and add resulting
-      \texttt{.ssh/id\_dsa.pub} to \texttt{.ssh/authorized\_keys}
-      on all the slave nodes. The key generation and registering mechanism
-      may be done automatically for the local machine from the
-      \emph{Help menu/Install DSA key} item of \verb+mcgui+.}
-  \item{\indexMCTOOL{mcstas-hosts}{}
-      The machine names listed in the file \texttt{.mcstas-hosts} in
-      your home directory or in the \texttt{MCSTAS/tools/perl/mcstas-hosts} on
-      the master node, one node per line. The \verb'--machines=<file>' option
-      enables to specify the hosts file to use. If it does not exist, only
-      the current machine will be used (for multi-processor/core machines).}
-  \item{Without ssh keys, passwords will be prompted many times. To avoid this,
-      we recommend to use only the local machine (for multi-cores/cpu), i.e. do
-      not use a machine hosts file.}
-  \item{If your simulation/instrument requires \emph{data files} (Powders, Sqw,
-      source description, ...), these must be copied at the same level as the
-      instrument definition. They are sent to all slave nodes before starting
-      each computation.  Take care to limit as much as possible the required
-      data file volume in order to avoid large data transfers.}
-  \item Interrupting or sending Signals may fail during computations. However,
-  simulation scans can be interrupted as soon as the on-going computation
-  step ends.
-\item With heterogeneous systems, we recommend to use the
-  \verb+mcrun --force-compile+ command rather than McGUI, which may skip the
-  required simulation compilation on slaves.
-  \end{enumerate}
 
 %-------------------------------------------------------------------------------
 \subsection{Parallel computing (MPI)}
 \index{MPI|textbf}
 
 \label{s:mpi}
-The MPI support requires that MPICH (recommended), or alternatively LAM-MPI or
-OpenMPI, is installed on a set of nodes. This usually also requires properly
-setup \texttt{ssh} connections and keys as indicated in the ssh grid system
-(Section \ref{s:ssh-grid}). Some OpenMPI implementations do not recognize
-multi-cores as separate nodes. In this case, you should use MPICH, or the SSH
-grid.
+The MPI support requires that an MPI implementation (MPICH or OpenMPI are
+both known to work) is installed on a set of nodes, together with a
+properly configured passwordless \texttt{ssh} between nodes if running
+across more than one machine.
 
-There are 3 methods for using MPI
+There are 2 methods for using MPI
 \begin{itemize}
 \item Basic usage requires to compile and run the simulation by hand (mpicc, mpirun).
-  This should be used when running LAM-MPI.
 \item A much simpler way is to use \verb+mcrun -c --mpi=NB_CPU ...+ which will
-  recompile and run MPICH.
-\item The McGUI interface supports MPICH from within the Run Dialog.
+  recompile and run with MPI support.
+\item The McGUI interface also supports MPI from within the Run Dialog.
 \end{itemize}
 
-The MPI support is especially suited on clusters. As an alternative, the SSH
-grid presented above (section \ref{s:ssh-grid}) is very flexible and requires
-lighter configuration.
+The MPI support is especially suited on clusters.
 
 \subsubsection{Requirements and limitation (MPI)}
 
 To use MPI you will need
   \begin{enumerate}
-  \item{A master machine with an SSH client/server, and \MCS installation.}
-  \item{A set of Unix machines of the same architecture (binary compatible) with
-      SSH servers.}
-  \item{ \texttt{ssh} access from the master node (where \MCS is
-      installed) to the slaves through e.g. DSA keys \emph{without} a
-      password. These keys should be generated using the command
-      \texttt{ssh-keygen}. Run \emph{e.g.} \texttt{ssh-keygen -t dsa} on
-      master node, enter no passphrase and add resulting
-      \texttt{.ssh/id\_dsa.pub} to \texttt{.ssh/authorized\_keys}
-      on all the slave nodes. The key generation and registering mechanism
-      may be done automatically for the local machine from the
-      \emph{Help menu/Install DSA key} item of \verb+mcgui+.}
-  \item{\indexMCTOOL{mcstas-hosts}{}
-      The machine names listed in the file \texttt{.mcstas-hosts} in
-      your home directory or in the \texttt{MCSTAS/tools/perl/mcstas-hosts} on
-      the master node, one node per line. The \verb'--machines=<file>' option
-      enables to specify the hosts file to use. If it does not exist, only
-      the current machine will be used (for multi-processor/core machines).}
-  \item{Without ssh keys, passwords will be prompted many times. To avoid this,
-      we recommend to use only the local machine (for multi-cores/cpu), i.e. do
-      not use a machine hosts file.}
+  \item{A working MPI installation (MPICH or OpenMPI) on all nodes, and a \MCS
+      installation accessible from all nodes (e.g. on a shared filesystem, or
+      installed identically on each node).}
+  \item{If running across more than one machine, \texttt{ssh} access between
+      nodes without a password (e.g. using \texttt{ssh-keygen} and
+      \texttt{ssh-copy-id}), and a machine list file (see \verb+--machines+ in
+      Table~\ref{f:mcrunoptions}).}
   \item Signals are \emph{not} supported while simulating with MPI (since
     asynchronous events cannot be easily transmitted to all nodes). This
     means it is not possible to cancel an on-going computation. However,
     simulation scans can be interrupted as soon as the on-going computation
     step ends.
-  \item MPI must be correctly configured: if using \verb'ssh', you
-    have to set ssh keys to avoid use of passwords; if
-    using \verb'rsh', you have to set a \verb'.rhosts' file.
-    On non-local accounts, this procedure may fail and ssh always require passwords.
   \end{enumerate}
 
 \subsubsection{MPI Basic usage}
@@ -2044,19 +1667,15 @@ If you don't want to spread the simulation, run it as usual:
 \end{bash}
 
 %-------------------------------------------------------------------------------
-\subsection{McRun script with MPI support (mpich)}
+\subsection{McRun options for MPI}
 \index{MPI!mcrun}
 
-The \verb'mcrun' script has been adapted to use MPICH implementation
-of MPI. Two new options have been added:
+The two relevant \verb+mcrun+ options are (see Table~\ref{f:mcrunoptions}):
 \begin{itemize}
 \item \verb'--mpi=<number>': tells \verb'mcrun' to use MPI, and to
   spread the simulation over \verb'<number>' nodes
 \item \verb'--machines=<file>': defines a text file where the nodes which are to
-  be used for parallel computation are listed; by default, \verb'mcrun' will
-  look at \verb'$HOME/.mcstas-hosts' and\indexMCTOOL{mcstas-hosts}{}
-  \verb'MCSTAS/tools/perl/mcstas-hosts'. When used on a single SMP machine
-  (multi-core/cpu), this option may be omitted.
+  be used for parallel computation are listed, one node per line.
 \end{itemize}
 When available, the MPI option will show up in the \verb+mcgui+ Run
 dialog. Specify the number of nodes required.
@@ -2121,9 +1740,9 @@ overhead time may become significant compared to total time.
 \end{figure}
 
 %-------------------------------------------------------------------------------
-\subsection{MPI and Grid Bugs and limitations}
+\subsection{MPI Bugs and limitations}
 \index{MPI!limitations}
-\index{Bugs!MPI and grid}
+\index{Bugs!MPI}
 
 \begin{itemize}
 \item Some header of output files might contain minor errors.
