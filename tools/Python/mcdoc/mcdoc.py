@@ -1639,7 +1639,7 @@ class CompLatexDocWriter:
         for l in i.links:
             out.append(r'  \item %s' % _convert_inline_markup(l))
         out.append(r'\end{itemize}')
-        out.append(r'\IfFileExists{%s_static.tex}{\input{%s_static.tex}}{}' % (i.name, i.name))
+        out.append(r'\IfFileExists{%s/%s_static.tex}{\input{%s/%s_static.tex}}{}' % (i.category, i.name, i.category, i.name))
         self.text = '\n'.join(out)
         return self.text
 
