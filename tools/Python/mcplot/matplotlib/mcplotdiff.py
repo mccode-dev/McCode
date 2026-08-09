@@ -59,7 +59,7 @@ def main(args):
         plotfuncs.pylab = pylab
 
         try:
-            diffs, dir_a, dir_b, label_a, label_b = diffloader.load_and_diff(
+            diffs, dir_a, dir_b, label_a, label_b, used_fallback = diffloader.load_and_diff(
                 args.a, args.b, label_a, label_b)
         except Exception as e:
             print('mcplotdiff loader: ' + e.__str__())
@@ -77,11 +77,24 @@ def main(args):
             PlotGraphPrint(graph)
 
         # default base name for --format/--output dumps and for --html,
-        # since there's no single simulation file to derive it from
-        plotfuncs.filenamebase = "diff_%s_vs_%s" % (label_a, label_b)
+        # since there's no single simulation file to derive it from -
+        # deliberately built from the actual input paths (dirsafe_name),
+        # not label_a/label_b: those may legitimately collapse to bare
+        # "A"/"B" when their basenames collide (see default_labels()),
+        # which would otherwise make every such comparison overwrite the
+        # same "diff_A_vs_B.*" files - a real problem for batch/CI use
+        # running many comparisons out of one working directory.
+        plotfuncs.filenamebase = "diff_%s_vs_%s" % (
+            diffloader.dirsafe_name(args.a), diffloader.dirsafe_name(args.b))
 
-        plotter = plotfuncs.McMatplotlibPlotter(
-            sourcedir='diff: %s - %s' % (label_a, label_b), log=args.log)
+        # If the auto-derived labels collided (e.g. two runs both ending in
+        # a plain ".../<instrument>/1/" folder) and default_labels() fell
+        # back to bare "A"/"B", those letters alone carry no identifying
+        # information - show the full source paths instead.
+        sourcedir = 'diff: %s - %s' % (label_a, label_b)
+        if used_fallback:
+            sourcedir = 'diff: A: %s   B: %s' % (args.a, args.b)
+        plotter = plotfuncs.McMatplotlibPlotter(sourcedir=sourcedir, log=args.log)
 
         if (sys.platform == "linux" or sys.platform == "linux2") and args.html:
             # save to html and exit

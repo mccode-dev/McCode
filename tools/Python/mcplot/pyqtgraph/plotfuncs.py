@@ -76,6 +76,11 @@ class ModLegend(pg.LegendItem):
         self.layout.setContentsMargins(0, 0, 0, 0)
         row = self.layout.rowCount()
         self.items.append((sample, label))
+        # sample (the colour swatch icon) was being constructed but never
+        # actually placed into the layout - only the text label was, so no
+        # colour swatch was ever visible, regardless of how many legend
+        # entries or curves were involved.
+        self.layout.addItem(sample, row, 0)
         self.layout.addItem(label, row, 1)
         self.updateSize()
 

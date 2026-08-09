@@ -35,7 +35,8 @@ from mccodelib.mcplotloader import Data1D, Data2D
 from mccodelib import mccode_config
 from mccodelib import mcplotdiffloader as diffloader
 from mccodelib.mcplotdiffloader import (
-    path_base_name, default_labels, load_monitors, compute_diffs, find_original_plot,
+    path_base_name, default_labels, dirsafe_name, load_monitors, compute_diffs, find_original_plot,
+    write_mccode_dat, write_mccode_sim,
 )
 
 global WIDTH, HEIGHT
@@ -106,11 +107,22 @@ def lookup_vec(cm, x):
 # html / json generation (mirrors mcplot.py's get_html/get_json_*)
 # ---------------------------------------------------------------------------
 
-def get_html(template_name, params, simfile):
+def get_html(template_name, params, dat_basename=None):
     text = open(os.path.join(os.path.dirname(__file__), template_name)).read()
     text = text.replace("@PARAMS@", params)
-    text = text.replace("@DATAFILE@", simfile)
-    text = text.replace("@DATALINK@", "Diff mode (no physical datafile)") # Nothing to link to  in diff-mode
+
+    if dat_basename:
+        # dat_basename is a relative path (same directory as the html page
+        # itself), pointing at the McCode-format .dat file written by
+        # write_mccode_dat() (absent only if --no-dat was given).
+        text = text.replace("@DATAFILE@", dat_basename)
+        text = text.replace("@DATALINK@", "Download difference data (McCode format): %s" % dat_basename)
+    else:
+        # --no-dat was given, so there's genuinely no file to link to -
+        # keep the anchor inert rather than pointing at a basename that
+        # was never written to this directory.
+        text = text.replace("@DATAFILE@", "#")
+        text = text.replace("@DATALINK@", "Diff mode (no physical datafile - rerun without --no-dat to generate one)")
 
     logscalestr = "true" if logscale == True else "false"
     text = text.replace("@LOGSCALE@", logscalestr)
@@ -262,7 +274,7 @@ def browse(html_filepath):
 # per-monitor plot writers
 # ---------------------------------------------------------------------------
 
-def plot_diff_single(data, outdir, use_logscale):
+def plot_diff_single(data, outdir, use_logscale, dat_basename=None):
     """ Writes one diff monitor to an html file in outdir, mirroring
         mcplot.py's plotfunc_single. Returns the file path written. """
     global logscale
@@ -276,9 +288,9 @@ def plot_diff_single(data, outdir, use_logscale):
         os.remove(f)
 
     if isinstance(data, Data1D):
-        text = get_html('template_1d.html', get_params_str_1D(data), os.path.basename(data.filename))
+        text = get_html('template_1d.html', get_params_str_1D(data), dat_basename)
     elif isinstance(data, Data2D):
-        text = get_html('template_2d.html', get_params_str_2D_diff(data), os.path.basename(data.filename))
+        text = get_html('template_2d.html', get_params_str_2D_diff(data), dat_basename)
     else:
         return None
 
@@ -296,7 +308,7 @@ def _relhref(target, outdir):
     return os.path.relpath(target, start=outdir).replace(os.sep, '/')
 
 
-def write_index(outdir, entries, label_a, label_b):
+def write_index(outdir, entries, label_a, label_b, path_a=None, path_b=None, used_fallback=False):
     """ Writes an overview index.html with an iframe grid, in the same visual
         style as mcplot.py's PNMultiple index page.
 
@@ -309,6 +321,13 @@ def write_index(outdir, entries, label_a, label_b):
           'b_lin'     - path to the pre-existing mcplot-html page for
                         simulation b's monitor (linear), or None
           'b_log'     - ... (log), or None
+
+        path_a/path_b/used_fallback come from default_labels(): when the
+        auto-derived labels collided (e.g. two runs both ending in a plain
+        ".../<instrument>/1/" folder) and were replaced with bare "A"/"B",
+        used_fallback is True - in that case those bare letters carry no
+        identifying information on their own, so the full source paths are
+        shown as well.
     """
     filename = os.path.join(outdir, "index.html")
 
@@ -332,11 +351,18 @@ def write_index(outdir, entries, label_a, label_b):
         outfile.write("  .iframe-wrap iframe { transform-origin: top left; display: block; }\n")
         outfile.write("  #sizecontrol { margin-bottom: 16px; font-size: 14px; }\n")
         outfile.write("  #sizecontrol input[type=range] { vertical-align: middle; margin: 0 8px; }\n")
+        outfile.write("  .pathnote { color: #666666; font-size: 13px; }\n")
         outfile.write("</style>\n")
         outfile.write("</head><body>\n")
-        outfile.write("<h1>Difference plots:</h1>\n")
-        outfile.write(f"<strong><ol type=\"A\"><li>{label_a} vs.</li><li>{label_b}</li></ol></strong>")
+        outfile.write("<h1>Difference plots: A vs B</h1>\n")
+        outfile.write(f"<h2>A={label_a}<br>B={label_b}</h2>\n")
         outfile.write(f"<p>diff.monitor = ({label_a}).monitor &minus; ({label_b}).monitor</p>\n")
+        if used_fallback and path_a and path_b:
+            # label_a/label_b are bare "A"/"B" here (see default_labels()),
+            # since the two source paths' basenames collided (e.g. both
+            # ended in ".../<instrument>/1/") - show the actual paths so
+            # the comparison is still identifiable.
+            outfile.write(f"<p class='pathnote'>A: {path_a}<br>B: {path_b}</p>\n")
         outfile.write("<div id='sizecontrol'>\n")
         outfile.write("  <label for='sizeslider'>Figure size:</label>\n")
         outfile.write(f"  <input type='range' id='sizeslider' min='20' max='200' value='{init_pct}' step='5'>\n")
@@ -357,6 +383,10 @@ def write_index(outdir, entries, label_a, label_b):
             if fname_log:
                 basename_log = os.path.basename(fname_log)
                 outfile.write(f"<a href='{basename_log}' target=_blank>[ {basename_log} ]</a>\n")
+            dat_path = entry.get('dat')
+            if dat_path:
+                basename_dat = os.path.basename(dat_path)
+                outfile.write(f"<a href='{basename_dat}' download>[ {basename_dat} ]</a>\n")
             outfile.write("</span><br>\n")
             # links to the pre-existing mcplot-html plots of the two
             # original monitors, if they were found on disk
@@ -418,6 +448,12 @@ autosize = False
 def main(args):
     logging.basicConfig(level=logging.INFO)
 
+    # writing .dat/mccode.sim alongside the HTML plots is the default now
+    # that the HTML pages link to them properly (see get_html()) - -D/--no-dat
+    # opts back out, e.g. for a quick one-off comparison where the extra
+    # files aren't wanted.
+    write_dat = not args.no_dat
+
     global libpath
     if args.libpath:
         libpath = args.libpath[0] + "/"
@@ -431,16 +467,21 @@ def main(args):
     if args.height:
         HEIGHT = int(args.height[0])
 
-    label_a, label_b = default_labels(
+    label_a, label_b, used_fallback = default_labels(
         args.a, args.b,
         args.label_a[0] if args.label_a else None,
         args.label_b[0] if args.label_b else None)
 
-    # determine output directory
+    # determine output directory - deliberately built from the actual
+    # input paths (dirsafe_name), not the display labels: label_a/label_b
+    # may legitimately collapse to bare "A"/"B" when their basenames
+    # collide (see default_labels()), which would otherwise put every such
+    # comparison in the same "diff_A_vs_B" folder - a real problem for
+    # batch/CI use running many comparisons out of one working directory.
     if args.output:
         outdir = args.output[0]
     else:
-        outdir = "diff_%s_vs_%s" % (label_a, label_b)
+        outdir = "diff_%s_vs_%s" % (dirsafe_name(args.a), dirsafe_name(args.b))
     os.makedirs(outdir, exist_ok=True)
 
     # copy js lib files locally if no lib path was specified
@@ -468,15 +509,21 @@ def main(args):
 
     entries = []
     for data in diffs:
-        f = plot_diff_single(data, outdir, False)
+        dat_path = None
+        if write_dat:
+            dat_path = write_mccode_dat(data, outdir)
+            print("Generated: %s" % dat_path)
+        dat_basename = os.path.basename(dat_path) if dat_path else None
+
+        f = plot_diff_single(data, outdir, False, dat_basename)
         f_log = None
         if single_input:
             if args.log:
-                f_log = plot_diff_single(data, outdir, True)
+                f_log = plot_diff_single(data, outdir, True, dat_basename)
         else:
             # folder mode: always produce both linear and log variants,
             # exactly like mcplot.py does for multi-monitor overviews
-            f_log = plot_diff_single(data, outdir, True)
+            f_log = plot_diff_single(data, outdir, True, dat_basename)
 
         # locate any pre-existing mcplot-html plots for this monitor, so
         # we can link to the original a/b data alongside the diff plot
@@ -488,7 +535,7 @@ def main(args):
             print("Note: no existing mcplot-html output found for '%s' in '%s'" % (data.filename, args.b))
 
         entries.append({
-            'diff': f, 'diff_log': f_log,
+            'diff': f, 'diff_log': f_log, 'dat': dat_path,
             'a_lin': a_lin, 'a_log': a_log,
             'b_lin': b_lin, 'b_log': b_log,
         })
@@ -503,7 +550,19 @@ def main(args):
             browse(target)
         return
 
-    index_file = write_index(outdir, entries, label_a, label_b)
+    if write_dat:
+        # A mccode.sim index only makes sense for a multi-monitor output
+        # directory (a lone diff .dat file has no "simulation directory"
+        # to index) - lets `outdir` be opened directly as a proper McCode
+        # simulation directory (e.g. mcplot-html <outdir>/), via the
+        # standard mccode.sim-indexed loading path, rather than only via
+        # the folder-of-loose-files fallback.
+        sim_path = write_mccode_sim(diffs, outdir, label_a=label_a, label_b=label_b,
+                                     instrument='diff_%s_vs_%s' % (label_a, label_b))
+        print("Generated: %s" % sim_path)
+
+    index_file = write_index(outdir, entries, label_a, label_b,
+                              path_a=args.a, path_b=args.b, used_fallback=used_fallback)
     print("Generated: %s" % index_file)
 
     if not args.nobrowse:
@@ -515,6 +574,12 @@ if __name__ == '__main__':
     parser.add_argument('a', help='first simulation file or directory (the minuend, "a")')
     parser.add_argument('b', help='second simulation file or directory (the subtrahend, "b"); diff = a - b')
     parser.add_argument('-n', '--nobrowse', action='store_true', help='do not open a webbrowser viewer')
+    parser.add_argument('-D', '--no-dat', dest='no_dat', action='store_true',
+                         help='do not write each difference dataset out in standard McCode ASCII '
+                              '("# comment header + data body") format (default: written alongside '
+                              'the HTML plots, along with a mccode.sim index in folder mode, so the '
+                              'output directory can be reopened as a normal McCode simulation directory '
+                              'by mcplot-html/-pyqtgraph/-matplotlib or any other McCode-format reader)')
     parser.add_argument('-l', '--log', action='store_true',
                          help='also produce a log-scale plot when comparing two single monitor files '
                               '(folder-mode always produces both linear and log-style plots)')

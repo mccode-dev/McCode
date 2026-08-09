@@ -13,6 +13,8 @@ into any existing plot-graph-based frontend (e.g. the interactive
 pyqtgraph frontend in pqtgfrontend.py).
 '''
 import os
+import re
+import datetime
 
 import numpy as np
 
@@ -36,14 +38,74 @@ def path_base_name(path):
 
 
 def default_labels(path_a, path_b, label_a=None, label_b=None):
-    ''' Resolves user-facing short labels for two simulation paths, falling
+    """ Resolves user-facing short labels for two simulation paths, falling
         back to the basename of each path if a label wasn't given
-        explicitly. '''
-    if not label_a:
+        explicitly.
+
+        A basename-only fallback collides for a common layout: results
+        stored as .../<instrument>/<testnb>/, where testnb is frequently
+        "1" on both sides (e.g. two runs differing only in an MPI
+        parameter earlier in the path) - both labels would silently come
+        out as "1", indistinguishable from each other. When that happens
+        (and only when *both* labels were auto-derived - an explicitly
+        given label is never overridden), falls back to literal "A"/"B"
+        instead.
+
+        Returns (label_a, label_b, used_fallback) - used_fallback is True
+        when the "A"/"B" fallback above was applied, i.e. the labels
+        carry no identifying information of their own; callers may want to
+        show the full paths somewhere (e.g. a plot title) in that case,
+        the way mcplotdiff/mccoplot's diff='A: <path>, B: <path>' style
+        note does. """
+    auto_a = not label_a
+    auto_b = not label_b
+    if auto_a:
         label_a = path_base_name(os.path.basename(os.path.abspath(path_a.rstrip('/'))))
-    if not label_b:
+    if auto_b:
         label_b = path_base_name(os.path.basename(os.path.abspath(path_b.rstrip('/'))))
-    return label_a, label_b
+
+    used_fallback = False
+    if auto_a and auto_b and label_a == label_b:
+        label_a, label_b = 'A', 'B'
+        used_fallback = True
+
+    return label_a, label_b, used_fallback
+
+
+def dirsafe_name(path):
+    """ Filesystem-safe slug of a full input path, for use in *output
+        directory/file* names.
+
+        This is deliberately separate from default_labels()'s short
+        display labels: those may legitimately collapse to bare "A"/"B"
+        when the basenames of two input paths collide (e.g. both
+        ".../<instrument>/1/") - fine for an on-screen legend, but if the
+        *output directory* name were built from those same collapsed
+        labels, every such comparison would land in the same
+        "..._A_vs_B" folder, clobbering previous runs. This uses the
+        input path as actually given (not just its basename), so distinct
+        source paths always produce distinct output directories - the
+        common case when batch/CI tooling runs many comparisons out of
+        the same working directory, each against a differently-timestamped
+        or differently-parameterised run.
+
+        Keeps the path as given (relative or absolute, whichever the
+        caller passed in) rather than resolving to an absolute path -
+        that matches what a human actually typed/expects to see, and
+        avoids dragging environment-specific absolute-path noise (e.g.
+        a CI runner's long checkout path) into every folder name. """
+    p = path.rstrip('/\\')
+    if p in ('', '.', '..'):
+        # degenerate case (e.g. someone ran the tool with '.' as one side) -
+        # fall back to the resolved directory's own basename instead of a
+        # bare, unhelpful "."
+        p = os.path.basename(os.path.abspath(path))
+    p = p.replace('\\', '/').replace('/', '_')
+    # collapse any remaining filesystem-unsafe characters
+    p = re.sub(r'[^\w\-.]', '_', p)
+    # tidy up repeated/leading/trailing underscores left by the above
+    p = re.sub(r'_+', '_', p).strip('_')
+    return p or 'unnamed'
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +203,7 @@ def diff_1d(key, a, b, label_a, label_b):
         N = 0
     d.values = (I, Ierr, N)
     d.statistics = '%s: %s\n%s: %s' % (label_a, a.statistics, label_b, b.statistics)
-    d.title = '\nDiff (%s - %s): %s' % (label_a, label_b, a.title)
+    d.title = ' - Diff (A - B), with:\n \nA=%s\nB=%s\n \n%s' % (label_a, label_b, a.title)
 
     return d
 
@@ -180,7 +242,7 @@ def diff_2d(key, a, b, label_a, label_b):
         N = 0
     d.values = (I, Ierr, N)
     d.statistics = '%s: %s\n%s: %s' % (label_a, a.statistics, label_b, b.statistics)
-    d.title = '\nDiff (%s - %s): %s' % (label_a, label_b, a.title)
+    d.title = ' - Diff (A - B), with:\n \nA=%s\nB=%s\n \n%s' % (label_a, label_b, a.title)
 
     return d
 
@@ -223,14 +285,67 @@ def compute_diffs(monitors_a, monitors_b, label_a, label_b):
     return diffs
 
 
+def match_1d_monitors(monitors_a, monitors_b, label_a, label_b):
+    """ Matches monitors present in both simulations by output filename,
+        the same way compute_diffs() does, but returns both original
+        Data1D objects for co-plotting/overlay instead of subtracting them.
+        Used by the mccoplot frontends (mcplot-coplot-html,
+        mcplot-coplot-matplotlib, ...).
+
+        Only 1D/1D matches with identical binning are kept; anything else
+        (a monitor present in only one side, a 2D monitor, a type
+        mismatch, or mismatched binning) is skipped with a warning -
+        overlaying two 2D images doesn't have an equally natural
+        single-plot representation, so that case is left to the diff
+        tools' diverging-colourmap image instead.
+
+        Returns an ordered list of (key, data_a, data_b). """
+    keys_a = set(monitors_a.keys())
+    keys_b = set(monitors_b.keys())
+
+    only_a = keys_a - keys_b
+    only_b = keys_b - keys_a
+    for k in sorted(only_a):
+        print("Warning: monitor '%s' present in '%s' only, skipping" % (k, label_a))
+    for k in sorted(only_b):
+        print("Warning: monitor '%s' present in '%s' only, skipping" % (k, label_b))
+
+    pairs = []
+    for key in [k for k in monitors_a.keys() if k in keys_b]:
+        a = monitors_a[key]
+        b = monitors_b[key]
+
+        if not (isinstance(a, Data1D) and isinstance(b, Data1D)):
+            if isinstance(a, Data2D) or isinstance(b, Data2D):
+                print("Warning: skipping '%s' - co-plotting only supports 1D monitors "
+                      "(got %s vs %s); try a diff tool for 2D comparisons"
+                      % (key, type(a).__name__, type(b).__name__))
+            else:
+                print("Warning: skipping '%s' - mismatched or unsupported monitor types" % key)
+            continue
+
+        if len(a.xvals) != len(b.xvals):
+            print("Warning: skipping '%s' - differing number of bins (%d vs %d)"
+                  % (key, len(a.xvals), len(b.xvals)))
+            continue
+
+        if a.component != b.component:
+            print("Warning: '%s' component name differs ('%s' vs '%s'), co-plotting anyway"
+                  % (key, a.component, b.component))
+
+        pairs.append((key, a, b))
+
+    return pairs
+
+
 def load_and_diff(path_a, path_b, label_a=None, label_b=None):
     """ Convenience one-shot: loads both simulations, resolves labels, and
-        returns (diffs, dir_a, dir_b, label_a, label_b). """
-    label_a, label_b = default_labels(path_a, path_b, label_a, label_b)
+        returns (diffs, dir_a, dir_b, label_a, label_b, used_fallback). """
+    label_a, label_b, used_fallback = default_labels(path_a, path_b, label_a, label_b)
     monitors_a, dir_a = load_monitors(path_a)
     monitors_b, dir_b = load_monitors(path_b)
     diffs = compute_diffs(monitors_a, monitors_b, label_a, label_b)
-    return diffs, dir_a, dir_b, label_a, label_b
+    return diffs, dir_a, dir_b, label_a, label_b, used_fallback
 
 
 # ---------------------------------------------------------------------------
@@ -270,3 +385,222 @@ def build_diff_plotgraph(diffs):
     root.set_primaries(primnodes)
     root.set_secondaries(primnodes)  # only one way to click here, as in load_simulation()
     return root
+
+
+# ---------------------------------------------------------------------------
+# writing diff datasets back out in McCode ASCII format
+# ---------------------------------------------------------------------------
+
+def _fmt(x):
+    """ Standard number formatting for McCode-format file bodies/headers. """
+    return '%.10g' % float(x)
+
+
+def _sanitize(s):
+    """ Collapses a string to something safe for a single-line "# field:
+        value" header (diff titles in particular start with a leading
+        newline, intended for on-screen display, which would otherwise
+        split the header across two physical lines - the second of which
+        has no leading "#" and so corrupts the file for any reader). """
+    return ' '.join(str(s).split())
+
+
+def _common_header_lines(data):
+    return [
+        '# Format: McCode with text headers',
+        '# URL: http://www.mccode.org',
+        '# Creator: mcplotdiff (McCode difference tool)',
+        '# component: %s' % _sanitize(data.component),
+        '# filename: %s' % _sanitize(data.filename),
+        '# title: %s' % _sanitize(data.title),
+    ]
+
+
+def _write_1d_dat(data, outdir, prefix):
+    filename = prefix + data.filename
+    filepath = os.path.join(outdir, filename)
+
+    lines = _common_header_lines(data)
+    # Required: mcplotloader.py's _load_monitor() reads this line to decide
+    # which parser to dispatch to (_parse_1D_monitor vs _parse_2D_monitor)
+    # *before* either parser ever runs - without it, loading fails at the
+    # dispatch step itself, not inside the parser.
+    lines.insert(3, '# type: array_1d(%d)' % len(data.xvals))
+    lines.append('# xlabel: %s' % _sanitize(data.xlabel))
+    lines.append('# ylabel: %s' % _sanitize(data.ylabel))
+    lines.append('# xvar: %s' % _sanitize(data.xvar))
+    lines.append('# yvar: (%s,%s)' % (data.yvar[0], data.yvar[1]))
+    lines.append('# xlimits: %s %s' % (_fmt(data.xlimits[0]), _fmt(data.xlimits[1])))
+    lines.append('# variables: %s %s %s N' % (data.xvar, data.yvar[0], data.yvar[1]))
+    lines.append('# values: %s %s %s' % (_fmt(data.values[0]), _fmt(data.values[1]), _fmt(data.values[2])))
+    # The standard "# statistics: X0=...; dX=...;" field is a
+    # weighted centroid/width, which assumes a non-negative intensity
+    # distribution - not generally meaningful for signed difference data,
+    # so it's written as zero here rather than a misleading number. The
+    # real per-source statistics (from the original a/b datasets) are kept
+    # as an additional, non-standard comment line for human reference;
+    # readers (including mcplotloader.py's own parser) that only look for
+    # the standard fields simply ignore it.
+    lines.append('# statistics: X0=0; dX=0;')
+    lines.append('# Diff-statistics: %s' % _sanitize(data.statistics.replace('\n', ' | ')))
+
+    with open(filepath, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+        for x, y, yerr, n in zip(data.xvals, data.yvals, data.y_err_vals, data.Nvals):
+            f.write('%s %s %s %s\n' % (_fmt(x), _fmt(y), _fmt(yerr), _fmt(n)))
+
+    return filepath
+
+
+def _write_2d_dat(data, outdir, prefix):
+    filename = prefix + data.filename
+    filepath = os.path.join(outdir, filename)
+
+    lines = _common_header_lines(data)
+    zshape = np.shape(data.zvals) if data.zvals else (0, 0)
+    lines.insert(3, '# type: array_2d(%d, %d)' % (zshape[0], zshape[1] if len(zshape) > 1 else 0))
+    lines.append('# xlabel: %s' % _sanitize(data.xlabel))
+    lines.append('# ylabel: %s' % _sanitize(data.ylabel))
+    lines.append('# xvar: %s' % _sanitize(data.xvar))
+    lines.append('# yvar: %s' % _sanitize(data.yvar))
+    lines.append('# zvar: %s' % _sanitize(data.zvar))
+    lines.append('# xylimits: %s %s %s %s' % tuple(_fmt(v) for v in data.xlimits))
+    lines.append('# values: %s %s %s' % (_fmt(data.values[0]), _fmt(data.values[1]), _fmt(data.values[2])))
+    zarr = np.array(data.zvals, dtype=float) if data.zvals else np.zeros((1, 1))
+    lines.append('# signal: Min=%s; Max=%s; Mean=%s;' % (_fmt(zarr.min()), _fmt(zarr.max()), _fmt(zarr.mean())))
+    # see _write_1d_dat() for why this is zeroed rather than reusing
+    # data.statistics directly
+    lines.append('# statistics: X0=0; dX=0; Y0=0; dY=0;')
+    lines.append('# Diff-statistics: %s' % _sanitize(data.statistics.replace('\n', ' | ')))
+
+    with open(filepath, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+        f.write('# Data [%s/%s] %s:\n' % (_sanitize(data.component), _sanitize(data.filename), _sanitize(data.zvar)))
+        for row in data.zvals:
+            f.write(' '.join(_fmt(v) for v in row) + '\n')
+        if data.counts:
+            f.write('# Events [%s/%s] N:\n' % (_sanitize(data.component), _sanitize(data.filename)))
+            for row in data.counts:
+                f.write(' '.join(_fmt(v) for v in row) + '\n')
+
+    return filepath
+
+
+def write_mccode_dat(data, outdir, prefix='diff_'):
+    """ Writes a single diff Data1D/Data2D object out in the same ASCII
+        "# comment header + data body" format ordinary McCode monitor
+        output files use - readable back in by mcplotloader.py itself (and,
+        since it follows the same conventions, by any other tool that
+        already reads McCode monitor output, e.g. Mantid's loaders).
+
+        Returns the path written, or None if `data` isn't a supported type. """
+    if isinstance(data, Data1D):
+        return _write_1d_dat(data, outdir, prefix)
+    elif isinstance(data, Data2D):
+        return _write_2d_dat(data, outdir, prefix)
+    return None
+
+
+def write_all_mccode_dat(diffs, outdir, prefix='diff_'):
+    """ Convenience: write_mccode_dat() for every diff dataset in `diffs`,
+        into `outdir` (created if missing). Returns the list of paths
+        written. """
+    os.makedirs(outdir, exist_ok=True)
+    paths = []
+    for d in diffs:
+        p = write_mccode_dat(d, outdir, prefix=prefix)
+        if p:
+            paths.append(p)
+    return paths
+
+
+# ---------------------------------------------------------------------------
+# writing a mccode.sim index alongside the diff .dat files
+# ---------------------------------------------------------------------------
+
+def write_mccode_sim(diffs, outdir, label_a=None, label_b=None, instrument='diff',
+                      prefix='diff_', filename='mccode.sim'):
+    """ Writes a mccode.sim index file summarizing a set of diff datasets
+        (as returned by compute_diffs()), in the same style a real McStas/
+        McXtrace simulation directory uses, so `outdir` can be opened as a
+        genuine simulation directory (e.g. `mcplot-html <outdir>/`) via the
+        standard "mccode.sim + monitors" loading path
+        (mcplotloader.is_mccodesim_w_monitors() -> load_simulation()),
+        rather than falling back to the "folder full of loose .dat files"
+        path (which also works, but is the less standard route, and
+        wouldn't be recognised the same way by other McCode-aware tools
+        that expect a simulation directory to have an index).
+
+        Must be called *after* write_mccode_dat()/write_all_mccode_dat()
+        have already written each diff monitor's own .dat file into
+        `outdir` with the same `prefix` - this only writes the index, not
+        the monitor data itself, and the "filename:" lines it writes must
+        match the files actually on disk.
+
+        The only thing mcplotloader.py's own parser
+        (_get_filenames_from_mccodesim) actually requires is one
+        "begin data ... filename: <name> ... end data" block per monitor -
+        the surrounding instrument/simulation header blocks aren't parsed
+        by mcplotloader.py at all, and are included purely so the file
+        reads like (and is compatible with expectations set by) a genuine
+        mccode.sim, for humans and any other McCode-aware tooling.
+
+        Returns the path written. """
+    filepath = os.path.join(outdir, filename)
+    now = datetime.datetime.now().strftime('%a %b %d %H:%M:%S %Y')
+    label_a = label_a or 'A'
+    label_b = label_b or 'B'
+
+    lines = []
+    lines.append('McCode diff simulation description file for %s.' % instrument)
+    lines.append('Date:    %s' % now)
+    lines.append('Program: mcplotdiff (McCode difference tool)')
+    lines.append('')
+    lines.append('begin instrument: %s' % instrument)
+    lines.append('  File: %s' % os.path.join(outdir, instrument))
+    lines.append('  Source: diff(%s, %s)' % (_sanitize(label_a), _sanitize(label_b)))
+    lines.append('  Trace_enabled: no')
+    lines.append('  Default_main: yes')
+    lines.append('  Embedded_runtime: yes')
+    lines.append('end instrument')
+    lines.append('')
+    lines.append('begin simulation: %s' % outdir)
+    lines.append('  Format: McCode with text headers')
+    lines.append('  URL: http://www.mccode.org')
+    lines.append('  Creator: mcplotdiff (McCode difference tool)')
+    lines.append('  Instrument: diff(%s, %s)' % (_sanitize(label_a), _sanitize(label_b)))
+    lines.append('  Ncount: 0')
+    lines.append('  Trace: no')
+    lines.append('  Param: a=%s b=%s' % (_sanitize(label_a), _sanitize(label_b)))
+    lines.append('end simulation')
+    lines.append('')
+
+    for data in diffs:
+        if isinstance(data, Data1D):
+            type_line = '  type: array_1d(%d)' % len(data.xvals)
+        elif isinstance(data, Data2D):
+            zshape = np.shape(data.zvals) if data.zvals else (0, 0)
+            type_line = '  type: array_2d(%d, %d)' % (zshape[0], zshape[1] if len(zshape) > 1 else 0)
+        else:
+            continue
+
+        lines.append('begin data')
+        lines.append('  Date: %s' % now)
+        lines.append(type_line)
+        lines.append('  component: %s' % _sanitize(data.component))
+        lines.append('  title: %s' % _sanitize(data.title))
+        try:
+            lines.append('  values: %s %s %s' % (_fmt(data.values[0]), _fmt(data.values[1]), _fmt(data.values[2])))
+        except Exception:
+            pass
+        # This is the one line mcplotloader.py's _get_filenames_from_mccodesim()
+        # actually looks for - it must match the real file written by
+        # write_mccode_dat()/write_all_mccode_dat() with the same prefix.
+        lines.append('  filename: %s' % (prefix + data.filename))
+        lines.append('end data')
+        lines.append('')
+
+    with open(filepath, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+
+    return filepath

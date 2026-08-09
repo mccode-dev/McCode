@@ -19,14 +19,12 @@ jobs:
       matrix:
         include:
           # --- built from source via cmake ---
-          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi' }
-          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi' }
-          #- { method: source, os: windows-11-arm, CC: cl.exe,   CXX: cl.exe,     python: "3.13", mpi: 'msmpi'   }
-          #- { method: source, os: windows-latest, CC: gcc.exe,   CXX: g++.exe,     python: "3.13", mpi: 'msmpi'   }
+          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
+          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
           # --- built via conda ---
-          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi' }
-          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++, python: '3.13', mpi: 'openmpi' }
-          - { method: conda,  os: windows-latest, CC: cl.exe,   CXX: cl.exe, python: "3.13",  mpi: 'msmpi'   }
+          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
+          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2' }
+          - { method: conda,  os: windows-latest, CC: cl.exe,   CXX: cl.exe,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto' }
 
     name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
     runs-on: ${{ matrix.os }}
@@ -365,7 +363,7 @@ jobs:
            test -n "$(command -v mcxtrace${EXESUFFIX})"
            mcxtrace${EXESUFFIX} --version
            mxtest${SUFFIX} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }}
-           mxtest${SUFFIX} --mpi=auto --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }}_${{ matrix.mpi }}
+           mxtest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }}_${{ matrix.mpi }}
 
     - name: Check for modified instruments
       id: instr-test
@@ -421,7 +419,7 @@ jobs:
                  NUMMATCH=`find src/mcxtrace-comps -name \*.instr -exec grep -H ${comp} \{\} \; | cut -f1 -d: | sort | uniq | wc -l`
                  if [ "$NUMMATCH" -gt "0" ];
                  then
-                   ${MXTEST_EXECUTABLE} --mpi=auto --testdir run_mxtest --comp=${comp} --suffix=CHANGES_${comp}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mxtest --comp=${comp} --suffix=CHANGES_${comp}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
                  else
                    echo No matching tests found
                  fi
@@ -450,7 +448,7 @@ jobs:
                export SCOPE=" "
              fi
              mkdir -p run_mxtest && cd run_mxtest
-             ${MXTEST_EXECUTABLE} --mpi=2 --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
              ${MXVIEWTEST_EXECUTABLE} --nobrowse $PWD
            fi
 

@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, mpi: 'openmpi' }
-          - { os: macos-latest, mpi: 'openmpi' }
-          - { os: windows-latest, mpi: 'msmpi' }
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto' }
+          - { os: macos-latest, mpi: 'openmpi', nmpi: '2' }
+          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto' }
 
     name: ${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
     runs-on: ${{ matrix.os }}
@@ -107,7 +107,7 @@ jobs:
              export TMPDIR=${HOME}/tmp
            fi
            # Run the test with 2 core mpi
-           ${MCTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=auto
+           ${MCTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }}
     - name: 'Tar output files'
       id: tar-package
       if: always()
@@ -192,7 +192,7 @@ jobs:
 
            # Each platform's tarball contains exactly one label directory
            # directly under run_test-suite/ (e.g.
-           # mcstas-3.99.99_mpi_x_2_ubuntu-latest_openmpi_1e6_Linux_<datetime>).
+           # mcstas-3.99.99_mpi_x_2_ubuntu-latest_openmpi_<ncount>_Linux_<datetime>).
            # mcviewtest treats each such directory as one comparison "column",
            # so merging them as siblings under one shared testdir is all that's
            # needed to make them comparable.

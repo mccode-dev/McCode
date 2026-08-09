@@ -100,6 +100,19 @@ install(
   RENAME "${P}plotdiff.py"
   )
 
+# Configure fallback script for the a-b co-plotter
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot.in" "${WORK}/${P}coplot-matplotlib" @ONLY)
+
+# Configure doc for the a-b co-plotter
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot-matplotlib.md.in" "${WORK}/${P}coplot-matplotlib.md" @ONLY)
+
+# Co-plotter script, including rename mc/mxcoplot
+install(
+  PROGRAMS "${PROJECT_SOURCE_DIR}/mccoplot.py"
+  DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
+  RENAME "${P}coplot.py"
+  )
+
 # Other .py infrastructure
 # plotfuncs.py holds the shared, non-CLI plotting/interaction code used by
 # both mcplot.py and mcplotdiff.py; it is NOT renamed (unlike mcplot.py),
@@ -113,7 +126,7 @@ install(
 # cmake Modules/MCUtil
 if(NOT WINDOWS)
   add_custom_target(
-    "CREATE_${PROJECT_NAME}_SYMLINK" ALL DEPENDS "${WORK}/${P}plot-matplotlib" "${WORK}/${P}plotdiff-matplotlib"
+    "CREATE_${PROJECT_NAME}_SYMLINK" ALL DEPENDS "${WORK}/${P}plot-matplotlib" "${WORK}/${P}plotdiff-matplotlib" "${WORK}/${P}coplot-matplotlib"
     )
 
   install(
@@ -145,6 +158,22 @@ if(NOT WINDOWS)
 
   install(
     FILES "${WORK}/${P}plotdiff-matplotlib.md"
+    DESTINATION "${DEST_DATADIR_DOC}"
+  )
+
+  install(
+    PROGRAMS ${PROJECT_SOURCE_DIR}/mccoplot.py
+    DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
+    RENAME "${P}coplot.py"
+  )
+
+  install(
+    PROGRAMS "${WORK}/${P}coplot-matplotlib"
+    DESTINATION ${DEST_BINDIR}
+    )
+
+  install(
+    FILES "${WORK}/${P}coplot-matplotlib.md"
     DESTINATION "${DEST_DATADIR_DOC}"
   )
 endif()

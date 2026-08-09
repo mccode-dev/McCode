@@ -82,6 +82,7 @@ DECLARE
 %{
   double E_i;
   double eps;
+  int is_thin;
   int activate_inc;
   int activate_inho;
   int activate_inho_linear;
@@ -101,6 +102,7 @@ INITIALIZE
 
   E_i = 25.3;
 
+  is_thin = 0;
   activate_inc = 0;
   activate_inho = 0;
   activate_inc_linear = 0;
@@ -109,7 +111,9 @@ INITIALIZE
   activate_phonon = 0;
   rot_samples = 0;
 
-  if (!strcmp("union_inc", sample)){
+  if (!strcmp("thin", sample)){
+    is_thin = 1;
+  } else if (!strcmp("union_inc", sample)){
     activate_inc = 1;
   } else if (!strcmp("union_inho", sample)){
     activate_inho = 1;
@@ -120,7 +124,6 @@ INITIALIZE
   } else if (!strcmp("inc_and_inho", sample)){
     activate_inc_and_inho_linear = 1;
   } else if (!strcmp("phonon", sample)){
-    
     activate_phonon = 1;
   } else if (!strcmp("inc_trans", sample)) {
     rot_samples = 90;
@@ -134,6 +137,9 @@ INITIALIZE
     rot_samples = 90;
     activate_gauss = 1;
     width = 0.01;
+  } else {
+    fprintf (stderr, "Unsupported instrument parameter value sample=\"%s\".\n", sample);
+    exit (-1);
   }
 
 %}
@@ -191,7 +197,7 @@ COMPONENT box_sample = Incoherent(
     zdepth=thick,
     sigma_inc = 5.08,
     sigma_abs = 5.08
-) WHEN (!str_comp((const char*)"thin", (const char*)sample))
+) WHEN (is_thin)
 AT (0, 0, 0) RELATIVE arm_sample
 ROTATED (0, 0, 0) RELATIVE arm_sample
 

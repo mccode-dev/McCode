@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<head>
+  <script src="@LIBPATH@d3.v4.min.js"></script>
+  <script src="@LIBPATH@plotfuncs.js"></script>
+  <style>
+    .coplot-legend {
+      position: fixed;
+      top: 8px;
+      right: 12px;
+      font-family: sans-serif;
+      font-size: 13px;
+      background: rgba(255,255,255,0.85);
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      line-height: 1.6;
+    }
+    .coplot-legend .swatch {
+      display: inline-block;
+      width: 14px;
+      height: 3px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .coplot-legend a { color: inherit; }
+  </style>
+</head>
+<body style="margin:0;overflow:hidden">
+<div class="coplot-legend">
+  <div><span class="swatch" style="background:@COLOUR_A@"></span>A @DATALINK_A@</div>
+  <div><span class="swatch" style="background:@COLOUR_B@"></span>B @DATALINK_B@</div>
+</div>
+<script>
+  var paramsA = @PARAMS_A@;
+  var paramsB = @PARAMS_B@;
+
+  // Plot1D's constructor only auto-scales its axes from the single dataset
+  // passed to it, so we construct with A, then extend the axis bounds to
+  // also cover B before adding B's series and forcing a redraw - otherwise
+  // B's curve could render partially (or fully) outside the visible axes
+  // if its range exceeds A's.
+  var plt = new Plot1D(paramsA, d3.select("body").append("svg"), logscale=@LOGSCALE@);
+
+  var posB = paramsB['y'].filter(function(v) { return v > 0; });
+  var yminB = posB.length ? Math.min.apply(null, posB) : plt.ymin;
+
+  plt.xmin = Math.min(plt.xmin, d3.min(paramsB['x']));
+  plt.xmax = Math.max(plt.xmax, d3.max(paramsB['x']));
+  plt.ymin = Math.min(plt.ymin, yminB);
+  plt.ymax = Math.max(plt.ymax, d3.max(paramsB['y']) * 1.05);
+
+  plt.plotOneMore(paramsB);
+  plt._draw_1d_axes(plt.hdl.wplt, plt.hdl.hplt, plt.xmin, plt.xmax, plt.ymin, plt.ymax, plt.hdl.axisGroup);
+
+  plt.rgstrMouseClickPlot( () => { console.log("click"); } );
+  plt.rgstrMouseCtrlClickPlot( () => { console.log("ctrl click"); } );
+  plt.rgstrMouseRClickPlot( () => { console.log("right click"); } );
+</script>
+</body>
+</html>
