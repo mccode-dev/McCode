@@ -87,13 +87,12 @@ def main(args):
         plotfuncs.filenamebase = "diff_%s_vs_%s" % (
             diffloader.dirsafe_name(args.a), diffloader.dirsafe_name(args.b))
 
-        # If the auto-derived labels collided (e.g. two runs both ending in
-        # a plain ".../<instrument>/1/" folder) and default_labels() fell
-        # back to bare "A"/"B", those letters alone carry no identifying
-        # information - show the full source paths instead.
+        # label_a/label_b already carry full identification even when the
+        # auto-derived labels collided (e.g. two runs both ending in a
+        # plain ".../<instrument>/1/" folder) - default_labels() falls
+        # back to using each side's full input path as its label directly
+        # in that case, so there's nothing further to add here.
         sourcedir = 'diff: %s - %s' % (label_a, label_b)
-        if used_fallback:
-            sourcedir = 'diff: A: %s   B: %s' % (args.a, args.b)
         plotter = plotfuncs.McMatplotlibPlotter(sourcedir=sourcedir, log=args.log)
 
         if (sys.platform == "linux" or sys.platform == "linux2") and args.html:

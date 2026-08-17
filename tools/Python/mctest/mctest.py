@@ -849,7 +849,12 @@ def main(args):
         else:
             suffix = '_' + args.suffix[0]
 
-    suffix=suffix + "_" + ncount + "_" + platform.system() + "_" + utils.get_datetimestr()
+    if not args.uid:
+        uid = "_" + utils.get_datetimestr()
+    else:
+        uid = "_" + args.uid[0]
+
+    suffix=suffix + "_" + ncount + "_" + platform.system() + uid
     if runLocal:
         suffix = suffix + '_LOCAL'
 
@@ -911,6 +916,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true', help='output a test/notest instrument status header before each test')
     parser.add_argument('--skipnontest', action='store_true', help='Skip compilation of instruments without a test')
     parser.add_argument('--suffix', nargs=1, help='Add suffix to test directory name, e.g. 3.x-dev_suffix')
+    parser.add_argument('--uid', nargs=1, help='Unique identifier for suffix, e.g. CI worker id (if unset a timestamp is used)')
     parser.add_argument('--nexus', action='store_true', help='Compile for / use NeXus output format everywhere')
     parser.add_argument('--lint', action='store_true', help='Just run the c-linter')
     parser.add_argument('--compilemax', nargs=1, help='Maximum time (s) allowed pr. compilation (default 600s)(if run with --lint muliplied x100)')

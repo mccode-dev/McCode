@@ -334,7 +334,7 @@ jobs:
            fi
            test -n "$(command -v mcxtrace${EXESUFFIX})"
            mcxtrace${EXESUFFIX} --version
-           mxtest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.method }}
+           mxtest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.method }} --uid=${RUNNER_TRACKING_ID}
            export SUM=`find run_rngtest -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
            export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
            if [ "${EXPECTED}" == "${SUM}" ];
@@ -362,8 +362,8 @@ jobs:
            fi
            test -n "$(command -v mcxtrace${EXESUFFIX})"
            mcxtrace${EXESUFFIX} --version
-           mxtest${SUFFIX} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }}
-           mxtest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }}_${{ matrix.mpi }}
+           mxtest${SUFFIX} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }} --uid=${RUNNER_TRACKING_ID}
+           mxtest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }}_${{ matrix.mpi }} --uid=${RUNNER_TRACKING_ID}
 
     - name: Check for modified instruments
       id: instr-test
@@ -419,7 +419,7 @@ jobs:
                  NUMMATCH=`find src/mcxtrace-comps -name \*.instr -exec grep -H ${comp} \{\} \; | cut -f1 -d: | sort | uniq | wc -l`
                  if [ "$NUMMATCH" -gt "0" ];
                  then
-                   ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mxtest --comp=${comp} --suffix=CHANGES_${comp}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mxtest --comp=${comp} --suffix=CHANGES_${comp}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${RUNNER_TRACKING_ID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
                  else
                    echo No matching tests found
                  fi
@@ -448,7 +448,7 @@ jobs:
                export SCOPE=" "
              fi
              mkdir -p run_mxtest && cd run_mxtest
-             ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${RUNNER_TRACKING_ID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
              ${MXVIEWTEST_EXECUTABLE} --nobrowse $PWD
            fi
 

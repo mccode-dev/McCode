@@ -173,6 +173,8 @@ def plot_single_data(node, i, n, log):
         pylab.ylabel(ylabel, fontsize=fontsize, fontweight='bold')
         try:
             legend_text = '%s\nI = %s' % (data.component, data.values[0])
+            if hasattr(data, 'diff_pct_str'):
+                legend_text += '\nDiff: %s' % data.diff_pct_str
             if verbose:
                 legend_text = '%s [%s]\n%s\nI = %s Err = %s N = %s; %s' % (data.component, data.filename, data.title, data.values[0], data.values[1], data.values[2], data.statistics)
         except:
@@ -228,6 +230,8 @@ def plot_single_data(node, i, n, log):
 
         try:
             legend_text = '%s\nI = %s' % (data.component, data.values[0])
+            if hasattr(data, 'diff_pct_str'):
+                legend_text += '\nDiff: %s' % data.diff_pct_str
             if verbose:
                 legend_text = '%s [%s]\n%s\nI = %s Err = %s N = %s; %s' % (data.component, data.filename, data.title, data.values[0], data.values[1], data.values[2], data.statistics)
         except:

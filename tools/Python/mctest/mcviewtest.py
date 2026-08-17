@@ -176,8 +176,8 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
             # already cached from a previous run, nothing to do
             return link
 
-        cmd = '%s "%s" "%s" --nobrowse -A "%s" -B "%s" --output "%s"' % (
-            coplotter, test_abs, ref_abs, label, reflabel, outdir_abs)
+        cmd = '%s "%s" "%s" --nobrowse --output "%s"' % (
+            coplotter, test_abs, ref_abs, outdir_abs)
 
         pending_diff_jobs.append({
             'cmd': cmd,
@@ -484,9 +484,11 @@ def main(args):
             exit(-1)
         else:
             reflabel=os.path.basename(reflabel)
-            print("--> Using reflabel=%s\n" % reflabel)
     else:
-        reflabel = args.reflabel
+        # Remove trailling Unix directory separator if present (tab-completion)
+        reflabel = args.reflabel.rstrip('/')
+
+    print("--> Using reflabel=%s\n" % reflabel)
 
     if not testdir and testroot:
         print("interactive mode")
