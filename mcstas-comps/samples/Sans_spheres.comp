@@ -49,8 +49,8 @@
 *
 * Variables calculated in the component
 *
-* my_s: Attenuation factor due to scattering [m^-1]
-* my_a: Attenuation factor due to absorbtion [m^-1]
+* mu_s: Attenuation factor due to scattering [m^-1]
+* mu_a: Attenuation factor due to absorbtion [m^-1]
 *
 * %Link
 * The test/example instrument <a href="../examples/SANS.instr">SANS.instr</a>.
@@ -116,8 +116,7 @@ SHARE %{
 %}
 DECLARE
 %{
-  double my_s_pre;
-  double my_a_v;
+  double mu_a_v;
   double shape;
   DArray1d Idsdw;
   double Qminl;
@@ -158,12 +157,7 @@ INITIALIZE
     focus_ah *= PI/180;
   }
 
-  my_a_v = sigma_abs * 2200; /* Is not yet divided by v.*/
-
-  my_s_pre = Phi * 4 * PI * R * R * R / 3 * Delta_rho * Delta_rho;
-
-
-
+  mu_a_v = sigma_abs * 2200; /* Is not yet divided by v.*/
 
   // Perform integral of dsigdomega over all of omega for use in adjusting the weight of the neutron.
   int iii, kkk;
@@ -199,7 +193,7 @@ INITIALIZE
 %}
 TRACE
 %{
-  double t0, t1, v, l_full, l_in, l_out, dt, my_s, Scoh;
+  double t0, t1, v, l_full, l_in, l_out, dt, mu_s, Scoh;
   double k0, lambda;
   int Ilam, Ilam2;
   double aim_x = 0, aim_y = 0, aim_z = 1;
@@ -268,9 +262,9 @@ TRACE
     double l_out = v * t1;
     PROP_DT(t1);
 
-    f = 3 * (sin (q * R) - q * R * cos (q * R)) / (q * R * q * R * q * R);
+    mu_s = dSigdOmega(R, Phi, Delta_rho, q);
 
-    double pmul = l_full * solid_angle / (4 * PI) * my_s_pre * f * f * exp (-(my_a_v / v + Scoh) * (l_in + l_out));
+    double pmul = l_full * solid_angle * mu_s * exp (-(mu_a_v / v + Scoh) * (l_in + l_out));
     p = p * pmul;
     SCATTER;
   }
