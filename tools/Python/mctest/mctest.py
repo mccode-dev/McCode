@@ -299,19 +299,26 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     num_compilefail=0
     num_runfail=0
     num_valfail=0
+    num_noexample=0
 
     # Over all test success flag
     anyfailed=False
 
     # compile, record time
-    global ncount, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed
+    global ncount, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
     else:
         logging.info("c-lint'ing instruments [seconds]...")
 
+    noexample=False
     for test in tests:
+        if strict and test.testnb==0:
+            noexample=True
+            anyfailed=True
+            num_noexample = num_noexample + 1
+            pass
         # if binary exists, set compile time = 0 and continue
         binfile = os.path.splitext(test.localfile)[0] + "." + mccode_config.platform["EXESUFFIX"].lower()
         compilefailed=os.path.splitext(test.localfile)[0] + ".failed"
@@ -394,7 +401,12 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     logging.info("Running tests / getting status...")
     runfailed=False
     for test in tests:
-        if test.linted:
+        if strict and noexample:
+            runfailed = True
+            formatstr = "%-" + "%ds: FAILURE: tool in --strict mode and instrument includes no %%%%Example: line(s)!" % (maxnamelen+1)
+            logging.info(formatstr % test.instrname)
+            continue
+        elif test.linted:
             formatstr = "%-" + "%ds:  Linter only" % (maxnamelen+1)
             logging.info(formatstr % test.instrname)
             continue
@@ -561,7 +573,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     for t in tests:
         obj[t.get_display_name()] = t.get_json_repr()
     obj["_meta"] = metainfo
-    return (obj, anyfailed, num_compilefail, num_runfail, num_valfail)
+    return (obj, anyfailed, num_compilefail, num_runfail, num_valfail, num_noexample)
 
 #
 # Utility
@@ -629,7 +641,7 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     logging.info("Testing: %s" % version)
     logging.info("")
 
-    (results, failed, num_compilefail, num_runfail, num_valfail) = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter)
+    (results, failed, num_compilefail, num_runfail, num_valfail, num_noexample) = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter)
 
     reportfile = os.path.join(labeldir, "testresults_%s.json" % (mccode_config.configuration["MCCODE"]+"-"+version+suffix))
     open(os.path.join(reportfile), "w").write(json.dumps(results, indent=2))
@@ -640,8 +652,12 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     print("Overall test result:")
     if (failed):
         if (not permissive):
-            print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
-            exit(-1)
+            if (not strict):
+                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
+                exit(-1)
+            else:
+                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off / %d missing %%Example(s))" % (num_compilefail, num_runfail, num_valfail, num_noexample) )
+                exit(-1)
         else:
             print("Failures reported but tool was run in permissive mode (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
     else:
@@ -815,7 +831,7 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed
+    global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict
     ncount = "1e6"
     if args.ncount:
         ncount = args.ncount[0]
@@ -894,6 +910,10 @@ def main(args):
         permissive = True
         logging.info("Permissive mode, tool will not report failure on failed instruments")
 
+    if args.strict:
+        strict = True
+        logging.info("Strict mode, tool will report failure for instruments without %Example")
+
     if not configfilter:
         run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix)
     else:
@@ -923,7 +943,8 @@ if __name__ == '__main__':
     parser.add_argument('--runmax', nargs=1, help='Maximum time (s) allowed pr. test Example run (default 3600s)')
     parser.add_argument('--displaymax', nargs=1, help='Maximum time allowed pr. test Example DISPLAY run (default 60s)')
     parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional.')
-    parser.add_argument('--local', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR')
+    parser.add_argument('--strict', action='store_true', help='Let instruments without %%Example line(s) instantly fail')
+    parser.add_argument('--local', action='store_true', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR')
     args = parser.parse_args()
 
     try:
