@@ -910,6 +910,7 @@ def main(args):
         permissive = True
         logging.info("Permissive mode, tool will not report failure on failed instruments")
 
+    strict = False
     if args.strict:
         strict = True
         logging.info("Strict mode, tool will report failure for instruments without %Example")
