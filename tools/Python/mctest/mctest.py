@@ -33,6 +33,11 @@ def get_processor_info():
 
     return ""
 
+def paths_overlap(a: pathlib.Path, b: pathlib.Path) -> bool:
+    a = a.resolve()
+    b = b.resolve()
+    return a == b or a.is_relative_to(b) or b.is_relative_to(a)
+
 #
 # Functionality
 #
@@ -851,6 +856,25 @@ def main(args):
     if args.local:
         runLocal = args.local
 
+    # Check for collision between testdir and mccoderoot / runlocal
+    if args.local:
+        if paths_overlap(pathlib.Path(args.local),pathlib.Path(testdir)):
+            logging.info("Local input path %s and output path %s overlap. This is not allowed!" % (args.local, testdir))
+            quit(1)
+        # Check for mccode.sim in local dir and raise a warning if found:
+        matches = list(pathlib.Path(args.local).rglob("mccode.sim"))
+        if len(matches):
+            logging.info("Local input path %s contains mccode.sim data (extra input files?) This may lead to errors/warnings..." % args.local)
+
+    else:
+        if paths_overlap(pathlib.Path(mccoderoot),pathlib.Path(testdir)):
+            logging.info("MCCODE root dir %s and output path %s overlap. This is not allowed!" % (mccoderoot, testdir))
+            quit(1)
+        # Check for mccode.sim in mccoderoot and raise a warning if found:
+        matches = list(pathlib.Path(mccoderoot).rglob("mccode.sim"))
+        if len(matches):
+            logging.info("MCCODE root dir %s contains mccode.sim data (extra input files?) This may lead to errors/warnings..." % mccoderoot)
+
     if instrfilter:
         isuffix=instrfilter.replace(',', '_')
         suffix = '_' + isuffix
@@ -936,7 +960,7 @@ if __name__ == '__main__':
     parser.add_argument('--instr', nargs="?", help='test only intruments matching this filter (py regex). Comma-separated list allowed for multiple filters.')
     parser.add_argument('--comp', nargs=1, help='test only intruments utilising COMP. Useful for testing the instrument suite after component changes.')
     parser.add_argument('--mccoderoot', nargs='?', help='manually select root search folder for mccode installations')
-    parser.add_argument('--testdir', nargs='?', help='output test results directly in this dir (default CWD)')
+    parser.add_argument('--testdir', nargs='?', help='output test results directly in this dir (default CWD). Used testdir and --local path can not overlap!')
     parser.add_argument('--limit', nargs=1, help='test only the first [LIMIT] instrs')
     parser.add_argument('--verbose', action='store_true', help='output a test/notest instrument status header before each test')
     parser.add_argument('--skipnontest', action='store_true', help='Skip compilation of instruments without a test')
@@ -949,7 +973,7 @@ if __name__ == '__main__':
     parser.add_argument('--displaymax', nargs=1, help='Maximum time allowed pr. test Example DISPLAY run (default 60s)')
     parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional. Can not be combined with --strict.')
     parser.add_argument('--strict', action='store_true', help='Let instruments without %%Example line(s) instantly fail. Can not be combined with --permissive.')
-    parser.add_argument('--local', action='store_true', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR')
+    parser.add_argument('--local', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR. Local path and --testdir can not overlap!')
     args = parser.parse_args()
 
     try:
