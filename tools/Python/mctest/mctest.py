@@ -317,10 +317,9 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     else:
         logging.info("c-lint'ing instruments [seconds]...")
 
-    noexample=False
     for test in tests:
         if strict and test.testnb==0:
-            noexample=True
+            logging.info("!! No test(s) found in %s !!" % test.instrname)
             anyfailed=True
             num_noexample = num_noexample + 1
             pass
@@ -406,7 +405,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     logging.info("Running tests / getting status...")
     runfailed=False
     for test in tests:
-        if strict and noexample:
+        if strict and test.testnb==0:
             runfailed = True
             formatstr = "%-" + "%ds: FAILURE: tool in --strict mode and instrument includes no %%%%Example: line(s)!" % (maxnamelen+1)
             logging.info(formatstr % test.instrname)
