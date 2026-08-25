@@ -284,6 +284,25 @@ class McStas:
             if re.search('CFLAGS=', line):
                 label, flags = line.split('=', 1)
 
+                # mcstas-antlr / mcxtrace-antlr may emit a CFLAGS value that
+                # spans several lines (e.g. a DEPENDENCY string containing
+                # embedded newlines). Continuation lines aren't part of the
+                # generated file's other header-comment fields - they just
+                # sit before the closing ' */' marker of that comment block -
+                # so keep consuming lines from the same iterator until we
+                # see it (bounded, for safety).
+                extra = 0
+                for contline in ccode:
+                    counter += 1
+                    extra += 1
+                    contline = contline.decode().rstrip()
+                    contline = re.sub(r'\\', '/', contline)
+                    if contline.strip() == '*/':
+                        break
+                    flags += ' ' + contline.strip()
+                    if extra > 50:
+                        break
+
                 # Insert NEXUSFLAGS if instrument/comps request this
                 flags = re.sub(r'\@NEXUSFLAGS\@', mccode_config.compilation['NEXUSFLAGS'], flags)
 
