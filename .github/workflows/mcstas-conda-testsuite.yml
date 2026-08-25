@@ -16,9 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto' }
-          - { os: macos-latest, mpi: 'openmpi', nmpi: '2' }
-          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto' }
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', cogen: ''}
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', cogen: 'mcstas-antlr'}
+          - { os: macos-latest, mpi: 'openmpi', nmpi: '2', cogen: ''}
+          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto', cogen: ''}
 
     name: ${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
     runs-on: ${{ matrix.os }}
@@ -59,6 +60,14 @@ jobs:
       id: mcstas-install
       run: |
            ./src/devel/bin/mccode-build-conda -m mcstas -s $PWD/src -b $PWD/build_mcstas
+           # Cache checkout src/ with mccode-antlr
+           if [ "${{ matrix.cogen }}" == "mcstas-antlr" ];
+           then
+             mccode-antlr cache populate --from-path src/ --flavor mcstas
+             MCCODE_CONFIG=`mcrun --write-user-config | cut -f4 -d\ `
+             sed -i.bak s+\"MCCOGEN\"\:\ \"mcstas\",+\"MCCOGEN\"\:\ \"mcstas-antlr\",+g ${MCCODE_CONFIG}
+             grep COGEN ${MCCODE_CONFIG}
+           fi
 
     - name: Validate build output
       id: build-validation
@@ -107,7 +116,7 @@ jobs:
              export TMPDIR=${HOME}/tmp
            fi
            # Run the test with 2 core mpi
-           ${MCTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }} --uid=${RUNNER_TRACKING_ID}
+           ${MCTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }} --uid=${RUNNER_TRACKING_ID}
     - name: 'Tar output files'
       id: tar-package
       if: always()
