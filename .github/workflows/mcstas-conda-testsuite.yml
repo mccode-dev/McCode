@@ -16,10 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', cogen: ''}
-          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', cogen: 'mcstas-antlr'}
-          - { os: macos-latest, mpi: 'openmpi', nmpi: '2', cogen: ''}
-          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto', cogen: ''}
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
+          - { os: macos-latest, mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
+          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
     name: ${{ matrix.os }}.${{ matrix.mpi }}.${{ matrix.cogen }}.conda-testsuite
     runs-on: ${{ matrix.os }}
@@ -63,11 +63,11 @@ jobs:
 
     - name: Setup mcstas-antlr
       id: setup-mcstas-antlr
-      if: matrix.cogen == 'mcstas-antlr'
+      if: matrix.cogen == 'antlr'
       continue-on-error: true
       run: |
         # Cache checkout src/ with mccode-antlr
-        if [ "${{ matrix.cogen }}" == "mcstas-antlr" ];
+        if [ "${{ matrix.cogen }}" == "antlr" ];
         then
           mccode-antlr cache populate --from-path src/ --flavor mcstas
           MCCODE_CONFIG=`mcrun --write-user-config | cut -f4 -d\ `
@@ -132,15 +132,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcstas-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz run_test-suite
+           tar cvfz mcstas-${{ matrix.os }}.${{ matrix.cogen }}.${{ matrix.mpi }}.conda-testsuite_output.tgz run_test-suite
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcstas-artefacts-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
-        path: "mcstas-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz"
+        name: mcstas-artefacts-${{ matrix.os }}.${{ matrix.cogen }}.${{ matrix.mpi }}.conda-testsuite
+        path: "mcstas-${{ matrix.os }}.${{ matrix.cogen }}.${{ matrix.mpi }}.conda-testsuite_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3

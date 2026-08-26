@@ -19,13 +19,13 @@ jobs:
       matrix:
         include:
           # --- built from source via cmake ---
-          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: ''}
-          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: ''}
+          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # --- built via conda ---
-          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: ''}
-          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'mcstas-antlr'}
-          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2', cogen: ''}
-          - { method: conda,  os: windows-latest, CC: cl.exe,   CXX: cl.exe,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: ''}
+          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
+          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
+          - { method: conda,  os: windows-latest, CC: cl.exe,   CXX: cl.exe,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
     name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.cogen }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
     runs-on: ${{ matrix.os }}
@@ -267,11 +267,11 @@ jobs:
 
     - name: Setup mcstas-antlr
       id: setup-mcstas-antlr
-      if: matrix.cogen == 'mcstas-antlr'
+      if: matrix.cogen == 'antlr'
       continue-on-error: true
       run: |
         # Cache checkout src/ with mccode-antlr
-        if [ "${{ matrix.cogen }}" == "mcstas-antlr" ];
+        if [ "${{ matrix.cogen }}" == "antlr" ];
         then
           mccode-antlr cache populate --from-path src/ --flavor mcstas
           MCCODE_CONFIG=`mcrun --write-user-config | cut -f4 -d\ `
