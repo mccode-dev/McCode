@@ -264,14 +264,20 @@ jobs:
       if: matrix.method == 'conda'
       run: |
            ./src/devel/bin/mccode-build-conda -m mcstas -s $PWD/src -b $PWD/build_mcstas
-           # Cache checkout src/ with mccode-antlr
-           if [ "${{ matrix.cogen }}" == "mcstas-antlr" ];
-           then
-             mccode-antlr cache populate --from-path src/ --flavor mcstas
-             MCCODE_CONFIG=`mcrun --write-user-config | cut -f4 -d\ `
-             sed -i.bak s+\"MCCOGEN\"\:\ \"mcstas\",+\"MCCOGEN\"\:\ \"mcstas-antlr\",+g ${MCCODE_CONFIG}
-             grep COGEN ${MCCODE_CONFIG}
-           fi
+
+    - name: Setup mcstas-antlr
+      id: setup-mcstas-antlr
+      if: matrix.cogen == "mcstas-antlr"
+      continue-on-error: true
+      run: |
+        # Cache checkout src/ with mccode-antlr
+        if [ "${{ matrix.cogen }}" == "mcstas-antlr" ];
+        then
+          mccode-antlr cache populate --from-path src/ --flavor mcstas
+          MCCODE_CONFIG=`mcrun --write-user-config | cut -f4 -d\ `
+          sed -i.bak s+\"MCCOGEN\"\:\ \"mcstas\",+\"MCCOGEN\"\:\ \"mcstas-antlr\",+g ${MCCODE_CONFIG}
+          grep COGEN ${MCCODE_CONFIG}
+        fi
 
     - name: Validate build output (conda)
       id: build-validation
