@@ -77,6 +77,7 @@
 * order_volume:    [1] Only log rays that have scattered n times in the same geometry, -1 for all orders
 * logger_conditional_extend_index: [1] If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger_conditional_extend", and one would then access logger_conditional_extend[n] if logger_conditional_extend_index is set to n
 * init:              [string] name of Union_init component (typically "init", default)
+* nowritefile:     [1]      If set, logger will skip writing to disk
 *
 * CALCULATED PARAMETERS:
 *
@@ -90,7 +91,7 @@
 DEFINE COMPONENT Union_abs_logger_1D_space_event
 
 SETTING PARAMETERS(string target_geometry="NULL", yheight, int n, int fake_event=0,
-                   string filename="NULL", order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init")
+                   string filename="NULL", order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init", int nowritefile=0)
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -615,7 +616,9 @@ TRACE
 
 SAVE
 %{
-  Monitor_nD_Save (&(this_abs_storage.DEFS), &(this_abs_storage.Vars));
+  if (!nowritefile) {
+    Monitor_nD_Save (&(this_abs_storage.DEFS), &(this_abs_storage.Vars));
+  }
 %}
 
 FINALLY

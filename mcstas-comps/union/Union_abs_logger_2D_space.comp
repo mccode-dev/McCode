@@ -77,6 +77,7 @@
 * order_volume:    [1]      Only log rays that have scattered n times in the same geometry, -1 for all orders
 * logger_conditional_extend_index: [1] If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger_conditional_extend", and one would then access logger_conditional_extend[n] if logger_conditional_extend_index is set to n
 * init:            [string] Name of Union_init component (typically "init", default)
+* nowritefile:     [1]      If set, logger will skip writing to disk
 *
 * CALCULATED PARAMETERS:
 *
@@ -92,7 +93,7 @@ DEFINE COMPONENT Union_abs_logger_2D_space
 SETTING PARAMETERS(string target_geometry="NULL",
                    string D_direction_1="x", D1_min=-0.2, D1_max=5, n1=0.2,
                    string D_direction_2="z", D2_min=-0.2, D2_max=5, n2=0.2,
-                   string filename="NULL", order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init")
+                   string filename="NULL", order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init", int nowritefile=0)
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -641,10 +642,12 @@ TRACE
 SAVE
 %{
   // Write to disk
-  DETECTOR_OUT_2D (this_abs_storage.Detector_2D.title_string, this_abs_storage.Detector_2D.string_axis_1, this_abs_storage.Detector_2D.string_axis_2,
-                   this_abs_storage.Detector_2D.D1min, this_abs_storage.Detector_2D.D1max, this_abs_storage.Detector_2D.D2min, this_abs_storage.Detector_2D.D2max,
-                   this_abs_storage.Detector_2D.bins_1, this_abs_storage.Detector_2D.bins_2, *this_abs_storage.Detector_2D.Array_N,
-                   *this_abs_storage.Detector_2D.Array_p, *this_abs_storage.Detector_2D.Array_p2, this_abs_storage.Detector_2D.Filename);
+  if (!nowritefile) {
+    DETECTOR_OUT_2D (this_abs_storage.Detector_2D.title_string, this_abs_storage.Detector_2D.string_axis_1, this_abs_storage.Detector_2D.string_axis_2,
+                     this_abs_storage.Detector_2D.D1min, this_abs_storage.Detector_2D.D1max, this_abs_storage.Detector_2D.D2min, this_abs_storage.Detector_2D.D2max,
+                     this_abs_storage.Detector_2D.bins_1, this_abs_storage.Detector_2D.bins_2, *this_abs_storage.Detector_2D.Array_N,
+                     *this_abs_storage.Detector_2D.Array_p, *this_abs_storage.Detector_2D.Array_p2, this_abs_storage.Detector_2D.Filename);
+  }
 %}
 
 FINALLY
