@@ -5,7 +5,7 @@
 *
 * %Identification
 * Written by: V. Kochetov, C. Hauf, M. Hoelzel, A. Senyshyn
-* Date: December 11, 2025
+* Date: August 24, 2026
 * Origin: MLZ, Garching, Germany
 * %INSTRUMENT_SITE: FRMII
 *
@@ -64,7 +64,7 @@ DEFINE INSTRUMENT FRMII_SPODI_MULTI(double lambda=1.5482,
 
 DECLARE
 %{
-  const double L1 = 16.0;       // source-monochromator distance
+  const double L1 = 16.92;      // source-monochromator distance
   const double L3 = 1.117;      // sample-detector distance
   const double ALPHA3 = 10;     // Soller collimators divergence in minutes
   const double Dheight = 0.4;   // real detector height
@@ -88,7 +88,7 @@ INITIALIZE
   hkl[0] = HKLmono[0]-'0';
   hkl[1] = HKLmono[1]-'0';
   hkl[2] = HKLmono[2]-'0';
-  // calculate monochromator d-spacing using Ge unit cell length
+  // calculate monochromator d-spacing using Ge unit cell length of 5.6574 A
   DM = 5.6574/sqrt(hkl[0]*hkl[0]+hkl[1]*hkl[1]+hkl[2]*hkl[2]);
   // calculate lambda if equal to 0 or TOA if equal to 0
   if (lambda == 0 && TOA != 0)
@@ -162,7 +162,7 @@ AT (0, 0, 0.2685) RELATIVE in_pile_3
 COMPONENT mono_curved = Monochromator_curved(
  NH=1, NV=15, mosaich=20.0, mosaicv=11.0, r0=0.445,
  RV=RV, DM=DM, width=0.06, height=0.2)
-AT (0, 0, 13.31) RELATIVE SR8a
+AT (0, 0, 12.86) RELATIVE SR8a
 ROTATED (0, TOA/2.0, 0) RELATIVE SR8a
 
 COMPONENT spodi_beam = Arm()
@@ -174,24 +174,32 @@ COMPONENT vacuumed_tube = COPY(in_pile_1)(
  w1=0.02, h1=0.2, w2=0.02, h2=0.09, l=3.93, mx=0, my=0)
 WHEN (L2 > 4.0) AT (0, 0, 0.22) RELATIVE spodi_beam
 
+// slit to define the beam size at the sample position ('short' configuration)
+COMPONENT slit_sample = Slit(xwidth=0.02, yheight=0.06)
+WHEN (L2 <= 4.0) AT (0, 0, L2-0.35) RELATIVE spodi_beam
+
+// Virtual source to save the neutron distribution
+// COMPONENT vsource = MCPL_output(filename="voutput")
+// AT (0, 0, L2-0.30) RELATIVE spodi_beam
+
 // Monitor flux at the sample position
 COMPONENT psd_sample = PSD_monitor(
- nx=200, ny=200, filename="psd_sample.dat",
+ nx=200, ny=200, filename="sample_psd.dat",
  xwidth=0.05, yheight=0.2, restore_neutron=1)
 AT (0, 0, L2-Rsample-1.3e-3) RELATIVE spodi_beam
 
 // Monitor wavelength at the sample position
 COMPONENT lambda_sample = L_monitor(
  nL=1000, xwidth=0.05, yheight=0.2,
- Lmin=lambda-0.05, Lmax=lambda+0.05,
- restore_neutron=1, filename="lambda_sample.dat")
+ Lmin=lambda-0.06, Lmax=lambda+0.06,
+ restore_neutron=1, filename="sample_lambda.dat")
 AT (0, 0, L2-Rsample-1.2e-3) RELATIVE spodi_beam
 
 // Monitor divergence at the sample position
 COMPONENT div_sample = Divergence_monitor(
   xwidth=0.05, yheight=0.2, restore_neutron=1,
   maxdiv_h=2.0, maxdiv_v=4.0, nh=400, nv=200,
-  filename="div_sample.dat")
+  filename="sample_div.dat")
  AT (0, 0, L2-Rsample-1.1e-3) RELATIVE spodi_beam
 
 // Sample holder
@@ -210,25 +218,12 @@ COMPONENT sample_holder_back = COPY(sample_holder)(concentric=0)
 WHEN (Holder) AT (0, 0, L2) RELATIVE spodi_beam
 
 // Beamstop
-COMPONENT beamstop = Beamstop(xwidth=0.078, yheight=Dheight)
-AT (0, 0, L2+0.5*L3) RELATIVE spodi_beam
+COMPONENT beamstop = Beamstop(xwidth=0.06, yheight=Dheight)
+AT (0, 0, L2+0.429) RELATIVE spodi_beam
 
 COMPONENT detector_arm = Arm()
 AT (0, 0, 0) RELATIVE sample
 ROTATED (0, -StartTheta, 0) RELATIVE spodi_beam
-
-//// Simplified detector: radial collimator + 1 2D-monitor
-//// ALPHA3 quasi-radial collimator
-//COMPONENT collimador_radial = Collimator_radial(
-//  yheight=0.3, length=0.35, divergence=ALPHA3,
-//  theta_min=-160, theta_max=0, radius=L3-0.3627, approx=1)
-//WHEN (ALPHA3 > 0) AT (0, 0, 0) RELATIVE detector_arm
-//// perfect detector: 2D(theta,y) to see diffraction rings
-// COMPONENT theta_2d = Monitor_nD(
-//  radius=L3, yheight=Dheight, filename="theta_2d.dat",
-//  options="banana, theta limits=[0,160] bins=3200, y, bins=254")
-// AT (0, 0, 0) RELATIVE detector_arm
-// ROTATED (0, 0, 180) RELATIVE detector_arm
 
 // Multi-Detector system
 COMPONENT arm_psd_lin_1 = Arm()
