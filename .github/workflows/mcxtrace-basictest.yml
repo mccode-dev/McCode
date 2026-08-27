@@ -19,14 +19,15 @@ jobs:
       matrix:
         include:
           # --- built from source via cmake ---
-          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
-          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
+          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # --- built via conda ---
-          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
-          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2' }
-          - { method: conda,  os: windows-latest, CC: cl.exe,   CXX: cl.exe,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto' }
+          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          # - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
+          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
+          - { method: conda,  os: windows-latest, CC: cl.exe,   CXX: cl.exe,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
-    name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
+    name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.cogen }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
     runs-on: ${{ matrix.os }}
     env:
       CC: ${{ matrix.CC }}
@@ -271,6 +272,24 @@ jobs:
       run: |
            ./src/devel/bin/mccode-build-conda -m mcxtrace -s $PWD/src -b $PWD/build_mcxtrace
 
+    - name: Setup mcxtrace-antlr
+      id: setup-mcxtrace-antlr
+      if: matrix.cogen == 'antlr'
+      continue-on-error: true
+      run: |
+        # Cache checkout src/ with mccode-antlr
+        if [ "${{ matrix.cogen }}" == "antlr" ];
+        then
+          # Set up config file to use mcxtrace-antlr
+          MCCODE_CONFIG=`mxrun --write-user-config | cut -f4 -d\ `
+          sed -i.bak s+\"MCCOGEN\"\:\ \"mcxtrace\",+\"MCCOGEN\"\:\ \"mcxtrace-antlr\ -I\$\{CONDA_PREFIX\}/share/mcxtrace/resources\",+g ${MCCODE_CONFIG}
+          grep -H COGEN ${MCCODE_CONFIG}
+          MCCODEANTLR_FLAGS__NEXUS=`grep NEXUSFLAGS ${MCCODE_CONFIG} |cut -f4 -d\"`
+          echo "MCCODEANTLR_FLAGS__NEXUS=${MCCODEANTLR_FLAGS__NEXUS}" >> "$GITHUB_ENV"
+          # Pre-poulate mccode-antlr cache
+          mccode-antlr cache populate --from-path src/ --flavor mcxtrace
+        fi
+
     - name: Validate build output (conda)
       id: build-validation
       if: always() && matrix.method == 'conda'
@@ -363,7 +382,7 @@ jobs:
            test -n "$(command -v mcxtrace${EXESUFFIX})"
            mcxtrace${EXESUFFIX} --version
            mxtest${SUFFIX} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }} --uid=${RUNNER_TRACKING_ID}
-           mxtest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }}_${{ matrix.mpi }} --uid=${RUNNER_TRACKING_ID}
+           mxtest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.mpi }} --uid=${RUNNER_TRACKING_ID}
 
     - name: Check for modified instruments
       id: instr-test
@@ -419,7 +438,7 @@ jobs:
                  NUMMATCH=`find src/mcxtrace-comps -name \*.instr -exec grep -H ${comp} \{\} \; | cut -f1 -d: | sort | uniq | wc -l`
                  if [ "$NUMMATCH" -gt "0" ];
                  then
-                   ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mxtest --comp=${comp} --suffix=CHANGES_${comp}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${RUNNER_TRACKING_ID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mxtest --comp=${comp} --suffix=${{ matrix.cogen }}_CHANGES_${comp}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${RUNNER_TRACKING_ID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
                  else
                    echo No matching tests found
                  fi
@@ -448,7 +467,7 @@ jobs:
                export SCOPE=" "
              fi
              mkdir -p run_mxtest && cd run_mxtest
-             ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${RUNNER_TRACKING_ID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${RUNNER_TRACKING_ID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
              ${MXVIEWTEST_EXECUTABLE} --nobrowse $PWD
            fi
 
@@ -461,15 +480,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcxtrace-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
+           tar cvfz mcxtrace-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcxtrace-artefacts-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
-        path: "mcxtrace-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
+        name: mcxtrace-artefacts-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
+        path: "mcxtrace-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3
