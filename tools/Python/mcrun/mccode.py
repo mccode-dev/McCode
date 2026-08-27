@@ -170,11 +170,17 @@ class McStas:
         else:
             # Generate C-code (implicit: prepare for --trace or --no-trace mode if not no_main / Vitess)
             LOG.info('Regenerating c-file: %s', basename(self.cpath))
-            mccode_bin_abspath = str( pathlib.Path(mccode_config.directories['bindir']) / options.mccode_bin )
+            # options.mccode_bin may contain both a binary/cmd and parameters to it - so split by space and use [0]
+            cogen = options.mccode_bin.split(' ')[0]
+            cogenparms = ' '.join(options.mccode_bin.split(' ')[1:])
+
+            mccode_bin_abspath = str( pathlib.Path(mccode_config.directories['bindir']) / cogen )
             if not os.path.exists(mccode_bin_abspath):
                 LOG.warning('Full-path code-generator "%s" not found!!', mccode_bin_abspath)
                 mccode_bin_abspath=basename(mccode_bin_abspath)
                 LOG.warning('Attempting replacement by "%s"', mccode_bin_abspath)
+            if cogenparms is not None:
+                mccode_bin_abspath = mccode_bin_abspath + ' ' + cogenparms
 
             if not options.no_main:
                 trace='-t'
