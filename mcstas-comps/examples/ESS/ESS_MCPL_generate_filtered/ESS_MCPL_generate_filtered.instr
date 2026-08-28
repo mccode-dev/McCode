@@ -83,6 +83,8 @@ DECLARE %{
   char MCPLfile[128];
   char FILTERfile[128];
   int Divisions;
+  /* Var for WHEN-execution state of ESS_butterfly */
+  int TRACE_butterfly;
 %}
 
 USERVARS %{
@@ -141,12 +143,13 @@ INITIALIZE
     iBeamlines=iBeamlinesE;
     DeltaX=-0.0585; DeltaZ=-0.0925;
   }
+  TRACE_butterfly=1; // dummy initialisation
   ANGLE=iBeamlines[beamline-1]-90;
   sprintf(MCPLfile,"%s%i.mcpl.gz",sector,beamline);
   sprintf(FILTERfile,"%s%i_filtered.mcpl.gz",sector,beamline);
   printf("MCPLfile is %s\n",MCPLfile);
   printf("Filtered MCPLfile is %s\n",FILTERfile);
-	
+  if (FILTERfile && MCPLfile) TRACE_butterfly=0; // Don't trace neutrons in the butterfly	
   weightmultiplier=1.56e16/1e5; /* (ESS protons/s) / MCNP nps */
   #pragma acc update device(EminTh,EmaxTh,EminC,EmaxC,weightmultiplier)
 %}
@@ -181,7 +184,7 @@ WHEN (allmons) AT (0,0,0) RELATIVE PREVIOUS
 
 COMPONENT Source = ESS_butterfly(sector=sector,beamline=beamline,Lmin=Lmin,Lmax=Lmax,c_performance=c_performance,t_performance=t_performance,dist=dist,target_index=index,cold_frac=cold, yheight=Yheight,
 				   focus_xw=0.12, focus_yh=0.12)
-  WHEN (0==1) AT (DeltaX,0,DeltaZ) ABSOLUTE
+  WHEN (TRACE_butterfly) AT (DeltaX,0,DeltaZ) ABSOLUTE
   ROTATED (0, ANGLE, 0) ABSOLUTE
 
 COMPONENT Sphere0 = PSD_monitor_4PI(filename="rotated", radius=2.2,restore_neutron=1, nowritefile=!allmons)
