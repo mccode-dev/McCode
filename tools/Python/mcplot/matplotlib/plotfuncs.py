@@ -424,6 +424,14 @@ def click(event, subplts, click_cbs, ctrl_cbs, back_cb, dc_cb):
     if not subplt:
         return False
     else:
+        # Don't treat a click that landed on the panel's own legend as a
+        # drill-in/back-out request.
+        legend = subplt.get_legend()
+        if legend is not None and legend.get_visible():
+            contained, _ = legend.contains(event)
+            if contained:
+                return False
+
         lclick = event.button==1
         rclick = event.button==3
         ctrlmod = (event.key == 'control' or event.key == 'cmd' or event.key == 'x')
