@@ -25,7 +25,7 @@ jobs:
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
           - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
-          - { method: conda,  os: windows-latest, CC: cl.exe,   CXX: cl.exe,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
+          - { method: conda,  os: windows-latest, CC: CL,   CXX: CL,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
     name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.cogen }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
     runs-on: ${{ matrix.os }}
@@ -118,13 +118,15 @@ jobs:
         echo MPIINCVAR=%MPIINCVAR% >> %GITHUB_ENV%
         echo MPILIBVAR=%MPILIBVAR% >> %GITHUB_ENV%
 
-    - name: Check versions
+    - name: Check versions and set worker label
       id: version-checks
       run: |
            which python3
            python3 --version
            which cmake
            cmake --version
+           MYWORKERID=`echo ${RUNNER_TRACKING_ID} | md5sum | cut -c1-12`
+           echo MYWORKERID=${MYWORKERID} >> "$GITHUB_ENV"
 
     - name: Get conda dependency list
       id: conda-deps
@@ -141,7 +143,7 @@ jobs:
 
     - name: Configure build and install mcxtrace (source)
       id: mcxtrace-install
-      if: ${{ matrix.method == 'source' && matrix.CC != 'cl.exe' }}
+      if: ${{ matrix.method == 'source' && matrix.CC != 'CL' }}
       run: |
            if [ "$RUNNER_OS" == "macOS" ]; then mkdir ${HOME}/tmp; fi
            if [ "$RUNNER_OS" == "macOS" ]; then export SDKROOT=$(xcrun --sdk macosx --show-sdk-path); fi
@@ -240,7 +242,7 @@ jobs:
         type .\install_mcxtrace\share\mcxtrace\tools\Python\mccodelib\mccode_config.json
         .\install_mcxtrace\bin\mxrun -h
         .\install_mcxtrace\bin\mcxtrace -v
-        if [ "${{ matrix.CC }}" != "cl.exe" ];
+        if [ "${{ matrix.CC }}" != "CL" ];
         then
           mcpl-config -s
         fi
@@ -353,7 +355,7 @@ jobs:
            fi
            test -n "$(command -v mcxtrace${EXESUFFIX})"
            mcxtrace${EXESUFFIX} --version
-           mxtest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.method }} --uid=${RUNNER_TRACKING_ID}
+           mxtest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
            export SUM=`find run_rngtest -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
            export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
            if [ "${EXPECTED}" == "${SUM}" ];
@@ -381,8 +383,8 @@ jobs:
            fi
            test -n "$(command -v mcxtrace${EXESUFFIX})"
            mcxtrace${EXESUFFIX} --version
-           mxtest${SUFFIX} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.method }} --uid=${RUNNER_TRACKING_ID}
-           mxtest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.mpi }} --uid=${RUNNER_TRACKING_ID}
+           mxtest${SUFFIX} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }} --uid=${MYWORKERID}
+           mxtest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
 
     - name: Check for modified instruments
       id: instr-test
@@ -430,6 +432,7 @@ jobs:
            export CHANGEDCOMPS=`git diff --name-only $DIFFBASE HEAD | grep \.comp\$ | grep mcxtrace-comps | xargs -n1 basename | sed s/\.comp//g | sort | uniq | xargs echo`
            export NUMCHANGEDCOMPS=`git diff --name-only $DIFFBASE HEAD | grep \.comp\$ | grep mcxtrace-comps | wc -l | xargs echo`
            cd -
+           compindex=0
            if [ "$NUMCHANGEDCOMPS" != "0" ];
            then
                for comp in $CHANGEDCOMPS;
@@ -438,7 +441,8 @@ jobs:
                  NUMMATCH=`find src/mcxtrace-comps -name \*.instr -exec grep -H ${comp} \{\} \; | cut -f1 -d: | sort | uniq | wc -l`
                  if [ "$NUMMATCH" -gt "0" ];
                  then
-                   ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mxtest --comp=${comp} --suffix=${{ matrix.cogen }}_CHANGES_${comp}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${RUNNER_TRACKING_ID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mxtest --comp=${comp} --suffix=${{ matrix.cogen }}_CHANGES${compindex}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   compindex=$(( compindex+1 ))
                  else
                    echo No matching tests found
                  fi
@@ -467,7 +471,7 @@ jobs:
                export SCOPE=" "
              fi
              mkdir -p run_mxtest && cd run_mxtest
-             ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${RUNNER_TRACKING_ID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=instrCHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
              ${MXVIEWTEST_EXECUTABLE} --nobrowse $PWD
            fi
 
