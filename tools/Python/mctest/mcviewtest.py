@@ -51,8 +51,19 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
         diffworkers = get_default_diffworkers()
 
     # jobs collected during row-building, run in parallel afterwards (see
-    # plan_diff_link() below for why this is a two-phase process)
+    # plan_diff_link()/plan_coplot_link() below for why this is a
+    # two-phase process)
     pending_diff_jobs = []
+
+    # e.g. MCPLOT="mcplot-pyqtgraph" (whatever backend the user has
+    # configured as their default plotter) -> mcplot_prefix="mcplot",
+    # regardless of which backend that happens to be - the diff/coplot
+    # comparison cells always use the html backend specifically, since
+    # that's what's viewable directly from the generated report without
+    # needing a local GUI session.
+    mcplot_prefix = mccode_config.configuration["MCPLOT"].split('-')[0]  # "mcplot" or "mxplot"
+    diffplotter = mcplot_prefix + "diff-html"                            # "mcplotdiff-html"
+    coplotter = mcplot_prefix.replace('plot', '') + "coplot-html"        # "mccoplot-html"
 
     def get_col_header(label, meta):
         try:
@@ -124,7 +135,6 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
             # already cached from a previous run, nothing to do
             return link
 
-        diffplotter = mccode_config.configuration["MCPLOT"].split('-')[0] + "diff-html"
         cmd = '%s "%s" "%s" --nobrowse -A "%s" -B "%s" --output "%s"' % (
             diffplotter, test_abs, ref_abs, label, reflabel, outdir_abs)
 
@@ -133,6 +143,48 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
             'index_abs': index_abs,
             'row': row,
             'col_idx': col_idx,
+            'url_index': 8,  # position of diffurl in the cell tuple returned by get_cell_tuple()
+        })
+        return link
+
+    def plan_coplot_link(refcellobj, url, label, row, col_idx):
+        ''' Same idea as plan_diff_link(), but for an mcplot-coplot-html
+            overlay (a/b plotted on the same axes) rather than a
+            difference plot. Independent of, but run through the same
+            pending-jobs pool as, the diff link above - both compare the
+            same cell against the same reference column, they just show
+            the comparison two different ways. '''
+        if nodiff:
+            return None
+        if refcellobj is None or refcellobj.get("testval") is None:
+            # no valid reference data to co-plot against
+            return None
+
+        ref_url = get_data_url(refcellobj)
+        test_abs = join(testdir, url)
+        ref_abs = join(testdir, ref_url)
+        if not (os.path.isfile(join(test_abs, "mccode.sim")) and os.path.isfile(join(ref_abs, "mccode.sim"))):
+            # NeXus-only output (mccode.h5) or otherwise nothing mcplot-coplot-html can compare
+            return None
+
+        outdir_rel = join(url, "coplot_vs_%s" % reflabel)
+        outdir_abs = join(testdir, outdir_rel)
+        index_abs = join(outdir_abs, "index.html")
+        link = (outdir_rel + "/index.html").replace(os.sep, '/').replace('//', '/')
+
+        if os.path.isfile(index_abs):
+            # already cached from a previous run, nothing to do
+            return link
+
+        cmd = '%s "%s" "%s" --nobrowse --output "%s"' % (
+            coplotter, test_abs, ref_abs, outdir_abs)
+
+        pending_diff_jobs.append({
+            'cmd': cmd,
+            'index_abs': index_abs,
+            'row': row,
+            'col_idx': col_idx,
+            'url_index': 9,  # position of coplotUrl in the cell tuple returned by get_cell_tuple()
         })
         return link
 
@@ -225,10 +277,12 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
                 refp = "%2.f" % refp + "%"
 
             diffurl = None
+            coplotUrl = None
             if diffall or state == 2:
                 diffurl = plan_diff_link(refcellobj, url, label, row, col_idx)
+                coplotUrl = plan_coplot_link(refcellobj, url, label, row, col_idx)
 
-            return (state, compiletime, runtime, testval, refp, url, display, displayurl, diffurl)
+            return (state, compiletime, runtime, testval, refp, url, display, displayurl, diffurl, coplotUrl)
 
     def get_empty_cell_tuple(tag=None):
         ''' return a "state_four" black cell, optionally with a tag, this could be "no ref" or "no test" etc. '''
@@ -338,20 +392,21 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
         leadcol = testobjs.pop(0)
         iterate_obj_to_populate_rows(leadcol, testobjs, rows, ncols=numcols, use_iterobj_refvalue=False)
 
-    # Run all collected mcplotdiff-html jobs in parallel now that every row
-    # has been built (see plan_diff_link() above). Each job's cell already
-    # holds the *expected* link optimistically; if the job fails or times
-    # out, patch that specific cell back to drop the link rather than
-    # leaving a dead one in the rendered report.
+    # Run all collected mcplotdiff-html/mcplot-coplot-html jobs in parallel
+    # now that every row has been built (see plan_diff_link()/
+    # plan_coplot_link() above). Each job's cell already holds the
+    # *expected* link optimistically; if the job fails or times out, patch
+    # that specific cell back to drop the link rather than leaving a dead
+    # one in the rendered report.
     if pending_diff_jobs:
-        logging.info("Running %d mcplotdiff-html comparison(s) (up to %d in parallel)..."
+        logging.info("Running %d mcplotdiff-html/mcplot-coplot-html comparison(s) (up to %d in parallel)..."
                       % (len(pending_diff_jobs), diffworkers))
 
         def _run_diff_job(job):
             try:
                 utils.run_subtool_noread(job['cmd'], cwd=testdir, timeout=diffmax)
             except Exception as e:
-                logging.info("diff job failed: %s" % str(e))
+                logging.info("diff/coplot job failed: %s" % str(e))
             return job
 
         done = 0
@@ -360,22 +415,35 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
             for future in concurrent.futures.as_completed(futures):
                 job = future.result()
                 if not os.path.isfile(job['index_abs']):
-                    # job failed/timed out: drop the optimistically-set link
+                    # job failed/timed out: drop the optimistically-set
+                    # link, but *only* at this job's own url_index (8 for
+                    # a diff job, 9 for a coplot job) - a diff job and a
+                    # coplot job for the same cell run independently and
+                    # can complete in either order, so blanket-truncating
+                    # the tuple here (as opposed to patching just the one
+                    # slot) would silently wipe out a successful result
+                    # from the other job type sharing this same cell.
                     row = job['row']
                     col_idx = job['col_idx']
-                    cell = row[col_idx]
-                    row[col_idx] = cell[:8] + (None,)
+                    url_index = job['url_index']
+                    cell = list(row[col_idx])
+                    while len(cell) <= url_index:
+                        cell.append(None)
+                    cell[url_index] = None
+                    row[col_idx] = tuple(cell)
                 done += 1
                 if done % 20 == 0 or done == len(pending_diff_jobs):
-                    logging.info("  ...%d/%d diffs done" % (done, len(pending_diff_jobs)))
+                    logging.info("  ...%d/%d diffs/coplots done" % (done, len(pending_diff_jobs)))
 
     text = open(join(dirname(__file__), "main.template")).read()
     html = jinja2.Template(text).render(hrow=hrow, rows=rows, header=get_header_lst(refmeta))
 
-    datetime = testdir.split("/")[-1]
-    ofile = "%s_output.html" % datetime
+    # Platform-independent ofile (ensures correct behaviour of mcviewtest and opens browser also on Windows, 
+    # irrespective of 'testdir' given as '.' or no inputs)
+    ofile = os.path.join(testdir, "%s_output.html" % os.path.basename(os.path.normpath(testdir)))
     print("writing ofile: %s" % ofile)
     open(ofile, "w").write(html)
+    return ofile
 
 def run_interactive_mode(testroot):
     ''' a simple utility for deleting useless test directories '''
@@ -416,9 +484,11 @@ def main(args):
             exit(-1)
         else:
             reflabel=os.path.basename(reflabel)
-            print("--> Using reflabel=%s\n" % reflabel)
     else:
-        reflabel = args.reflabel
+        # Remove trailling Unix directory separator if present (tab-completion)
+        reflabel = args.reflabel.rstrip('/')
+
+    print("--> Using reflabel=%s\n" % reflabel)
 
     if not testdir and testroot:
         print("interactive mode")
@@ -436,11 +506,11 @@ def main(args):
         if args.diffworkers:
             diffworkers = int(args.diffworkers[0])
         diffall = not args.diff_errors_only
-        run_normal_mode(testdir, reflabel, nodiff=args.nodiff, diffmax=diffmax,
+        ofile = run_normal_mode(testdir, reflabel, nodiff=args.nodiff, diffmax=diffmax,
                         diffall=diffall, diffworkers=diffworkers)
 
     if not args.nobrowse:
-        subprocess.Popen('%s %s' % (mccode_config.configuration['BROWSER'], os.path.join(testdir,os.path.basename(testdir) +'_output.html')), shell=True)
+        subprocess.Popen('%s %s' % (mccode_config.configuration['BROWSER'], ofile), shell=True)
         quit()
 
 

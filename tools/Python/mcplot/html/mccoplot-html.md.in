@@ -1,0 +1,101 @@
+% @MCCODE_PREFIX@COPLOT-html(1)
+% @FLAVOR_UPPER@ @MCCODE_PARTICLE@ Ray Tracing Team
+% @MCCODE_DATE@
+
+# NAME
+
+**@MCCODE_PREFIX@coplot-html** - Co-plotting (overlaying) two @MCCODE_NAME@ simulation results' 1D monitors in a browser
+
+# SYNOPSIS
+
+**@MCCODE_PREFIX@coplot-html** [-h] [-n] [-l] [--autosize] [--libpath [LIBPATH ...]] [-o OUTPUT] [-A LABEL_A] [-B LABEL_B] [--colour-a COLOUR_A] [--colour-b COLOUR_B] [-W WIDTH] [-H HEIGHT] a b
+
+# DESCRIPTION
+
+The front-end **@MCCODE_PREFIX@coplot-html** is a companion to
+**@MCCODE_PREFIX@plotdiff-html**, sharing its command-line syntax and
+monitor-matching logic. Instead of computing and plotting the *difference*
+between two simulation results, **@MCCODE_PREFIX@coplot-html** overlays the
+two datasets on the same axes, for direct visual comparison of curve shape
+and position rather than the size of the gap between them.
+
+`a` and `b` may each be either a simulation output directory (as produced by
+`@MCCODE_PREFIX@run`, containing a `mccode.sim` file) or a single monitor
+data file. Monitors are matched between `a` and `b` by output filename,
+exactly as in **@MCCODE_PREFIX@plotdiff-html**.
+
+Only 1D monitors are supported. A monitor present in only one of the two
+inputs, or a monitor pair that isn't a matching 1D/1D pair (e.g. a 2D
+monitor, or mismatched binning), is skipped with a warning printed to the
+console; use **@MCCODE_PREFIX@plotdiff-html** for 2D comparisons, which
+supports those via a diverging colour-mapped difference image instead.
+
+This is the web/html co-plotting tool (in browser), and reuses the same
+client-side plotting code as **@MCCODE_PREFIX@plot-html**/**@MCCODE_PREFIX@plotdiff-html**
+(specifically, its Plot1D class's native multi-series overlay support).
+
+# OPTIONS
+
+**-h, --help**
+:   show this help message and exit
+
+**-n, --nobrowse**
+:   do not open a webbrowser viewer
+
+**-l, --log**
+:   when comparing two single monitor files, also produce a log-style plot.
+    (When comparing two simulation folders, both a linear and a log-style
+    plot are always produced for every monitor, just like
+    **@MCCODE_PREFIX@plotdiff-html**.)
+
+**--autosize**
+:   expand to window size on load
+
+**--libpath [LIBPATH ...]**
+:   js lib files path
+
+**-o OUTPUT, --output OUTPUT**
+:   specify output directory for the generated plots (default:
+    `coplot_<a>_vs_<b>` in the current directory)
+
+**-A LABEL_A, --label-a LABEL_A**
+:   short label used for simulation `a` in the legend/titles (default: the
+    basename of `a`)
+
+**-B LABEL_B, --label-b LABEL_B**
+:   short label used for simulation `b` in the legend/titles (default: the
+    basename of `b`)
+
+**--colour-a COLOUR_A**
+:   override the overlay colour used for `a` (default `#1f77b4`, blue)
+
+**--colour-b COLOUR_B**
+:   override the overlay colour used for `b` (default `#d62728`, red)
+
+**-W WIDTH, --width WIDTH**
+:   width of iframes
+
+**-H HEIGHT, --height HEIGHT**
+:   height of iframes
+
+# FILES
+
+/usr/share/@FLAVOR@/resources
+/usr/share/@FLAVOR@/tools/Python/mccodelib/mccode_config.json
+~/.@FLAVOR@/mccode_config.json
+http://www.@FLAVOR@.org
+
+# EXAMPLES
+
+Run the *Test_SX* example (Single crystal diffraction) twice with different parameters, and overlay a 1D monitor from each
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_a -n 1e7 TTH=13.4`
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_b -n 1e7 TTH=14.0`
+:   - `@MCCODE_PREFIX@coplot-html output_a output_b`
+
+# AUTHORS
+
+@MCCODE_NAME@ Team (@FLAVOR@.org)
+
+# SEE ALSO
+
+@FLAVOR@(1), @MCCODE_PREFIX@doc(1), @MCCODE_PREFIX@plot(1), @MCCODE_PREFIX@plot-html(1), @MCCODE_PREFIX@plotdiff-html(1), @MCCODE_PREFIX@run(1), @MCCODE_PREFIX@gui(1), @MCCODE_PREFIX@display(1)

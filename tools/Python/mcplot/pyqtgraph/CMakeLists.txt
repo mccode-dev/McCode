@@ -101,6 +101,19 @@ install(
   RENAME "${P}plotdiff.py"
   )
 
+# Configure fallback script for the a-b co-plotter
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot.in" "${WORK}/${P}coplot-pyqtgraph" @ONLY)
+
+# Configure doc for the a-b co-plotter
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot-pyqtgraph.md.in" "${WORK}/${P}coplot-pyqtgraph.md" @ONLY)
+
+# Co-plotter script, including rename mc/mxcoplot
+install(
+  PROGRAMS "${PROJECT_SOURCE_DIR}/mccoplot.py"
+  DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
+  RENAME "${P}coplot.py"
+  )
+
 # Other .py infrastructure
 foreach(NAME "mcdataclient.py"  "mcdataserver.py"  "mcdataservice.py" "plotfuncs.py")
   install(
@@ -113,7 +126,7 @@ endforeach()
 # cmake Modules/MCUtil
 if(NOT WINDOWS)
   add_custom_target(
-    "CREATE_${PROJECT_NAME}_SYMLINK" ALL DEPENDS "${WORK}/${P}plot" "${WORK}/${P}plotdiff-pyqtgraph"
+    "CREATE_${PROJECT_NAME}_SYMLINK" ALL DEPENDS "${WORK}/${P}plot" "${WORK}/${P}plotdiff-pyqtgraph" "${WORK}/${P}coplot-pyqtgraph"
     )
 
   install(
@@ -161,6 +174,28 @@ if(NOT WINDOWS)
 
   install(
     FILES "${WORK}/${P}plotdiff-pyqtgraph.md"
+    DESTINATION "${DEST_DATADIR_DOC}"
+  )
+
+  install(
+    PROGRAMS ${PROJECT_SOURCE_DIR}/mccoplot.py
+    DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
+    RENAME "${P}coplot.py"
+  )
+
+  install(
+    PROGRAMS "${WORK}/${P}coplot-pyqtgraph"
+    DESTINATION ${DEST_BINDIR}
+  )
+
+  install(
+    PROGRAMS "${WORK}/${P}coplot-pyqtgraph"
+    DESTINATION ${DEST_BINDIR}
+    RENAME "${P}coplot"
+    )
+
+  install(
+    FILES "${WORK}/${P}coplot-pyqtgraph.md"
     DESTINATION "${DEST_DATADIR_DOC}"
   )
 

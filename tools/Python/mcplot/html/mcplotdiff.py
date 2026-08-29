@@ -35,7 +35,7 @@ from mccodelib.mcplotloader import Data1D, Data2D
 from mccodelib import mccode_config
 from mccodelib import mcplotdiffloader as diffloader
 from mccodelib.mcplotdiffloader import (
-    path_base_name, default_labels, load_monitors, compute_diffs, find_original_plot,
+    path_base_name, default_labels, dirsafe_name, load_monitors, compute_diffs, find_original_plot,
     write_mccode_dat, write_mccode_sim,
 )
 
@@ -308,7 +308,7 @@ def _relhref(target, outdir):
     return os.path.relpath(target, start=outdir).replace(os.sep, '/')
 
 
-def write_index(outdir, entries, label_a, label_b):
+def write_index(outdir, entries, label_a, label_b, path_a=None, path_b=None, used_fallback=False):
     """ Writes an overview index.html with an iframe grid, in the same visual
         style as mcplot.py's PNMultiple index page.
 
@@ -321,6 +321,15 @@ def write_index(outdir, entries, label_a, label_b):
           'b_lin'     - path to the pre-existing mcplot-html page for
                         simulation b's monitor (linear), or None
           'b_log'     - ... (log), or None
+
+        path_a/path_b/used_fallback come from default_labels(): when the
+        auto-derived labels collided (e.g. two runs both ending in a plain
+        ".../<instrument>/1/" folder), default_labels() falls back to using
+        each side's full input path as its label directly - so label_a/
+        label_b already carry full identification in that case, and
+        path_a/path_b/used_fallback are only kept here for backward
+        compatibility with existing callers; nothing further is shown for
+        them.
     """
     filename = os.path.join(outdir, "index.html")
 
@@ -346,8 +355,8 @@ def write_index(outdir, entries, label_a, label_b):
         outfile.write("  #sizecontrol input[type=range] { vertical-align: middle; margin: 0 8px; }\n")
         outfile.write("</style>\n")
         outfile.write("</head><body>\n")
-        outfile.write("<h1>Difference plots:</h1>\n")
-        outfile.write(f"<strong><ol type=\"A\"><li>{label_a} vs.</li><li>{label_b}</li></ol></strong>")
+        outfile.write("<h1>Difference plots: A vs B</h1>\n")
+        outfile.write(f"<h2>A={label_a}<br>B={label_b}</h2>\n")
         outfile.write(f"<p>diff.monitor = ({label_a}).monitor &minus; ({label_b}).monitor</p>\n")
         outfile.write("<div id='sizecontrol'>\n")
         outfile.write("  <label for='sizeslider'>Figure size:</label>\n")
@@ -453,16 +462,21 @@ def main(args):
     if args.height:
         HEIGHT = int(args.height[0])
 
-    label_a, label_b = default_labels(
+    label_a, label_b, used_fallback = default_labels(
         args.a, args.b,
         args.label_a[0] if args.label_a else None,
         args.label_b[0] if args.label_b else None)
 
-    # determine output directory
+    # determine output directory - deliberately built from the actual
+    # input paths (dirsafe_name), not the display labels: label_a/label_b
+    # may legitimately collapse to bare "A"/"B" when their basenames
+    # collide (see default_labels()), which would otherwise put every such
+    # comparison in the same "diff_A_vs_B" folder - a real problem for
+    # batch/CI use running many comparisons out of one working directory.
     if args.output:
         outdir = args.output[0]
     else:
-        outdir = "diff_%s_vs_%s" % (label_a, label_b)
+        outdir = "diff_%s_vs_%s" % (dirsafe_name(args.a), dirsafe_name(args.b))
     os.makedirs(outdir, exist_ok=True)
 
     # copy js lib files locally if no lib path was specified
@@ -542,7 +556,8 @@ def main(args):
                                      instrument='diff_%s_vs_%s' % (label_a, label_b))
         print("Generated: %s" % sim_path)
 
-    index_file = write_index(outdir, entries, label_a, label_b)
+    index_file = write_index(outdir, entries, label_a, label_b,
+                              path_a=args.a, path_b=args.b, used_fallback=used_fallback)
     print("Generated: %s" % index_file)
 
     if not args.nobrowse:

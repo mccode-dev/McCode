@@ -13,6 +13,8 @@ into any existing plot-graph-based frontend (e.g. the interactive
 pyqtgraph frontend in pqtgfrontend.py).
 '''
 import os
+import re
+import string
 import datetime
 
 import numpy as np
@@ -36,15 +38,149 @@ def path_base_name(path):
     return file_base_name(os.path.basename(path))
 
 
+def _fallback_letters(n):
+    """ 'A', 'B', ..., 'Z', then 'AA', 'AB', ... for n > 26 (extremely
+        unlikely for a co-plot, but avoids an IndexError rather than
+        capping silently). """
+    letters = string.ascii_uppercase
+    if n <= len(letters):
+        return list(letters[:n])
+    out = []
+    i = 0
+    while len(out) < n:
+        label = ''
+        k = i
+        while True:
+            label = letters[k % 26] + label
+            k = k // 26 - 1
+            if k < 0:
+                break
+        out.append(label)
+        i += 1
+    return out
+
+
+def resolve_labels(paths, labels=None):
+    """ Resolves user-facing short labels for N (>= 2) simulation paths,
+        falling back to the basename of each path for any entry not given
+        explicitly. Generalizes the original two-dataset default_labels()
+        (still available below, as a thin wrapper) to any number of
+        datasets, for the multi-way co-plot tools.
+
+        A basename-only fallback collides for a common layout: results
+        stored as .../<instrument>/<testnb>/, where testnb is frequently
+        "1" across many runs (e.g. differing only in an MPI parameter
+        earlier in the path) - two or more labels would silently come out
+        identical. When that happens - and only when *every* label was
+        auto-derived, an explicitly given label is never overridden - every
+        label falls back to its own full input path instead (not just the
+        colliding ones, to avoid a confusing half-basename half-path
+        result), since that's always unambiguous and, unlike a bare
+        positional letter, still tells the reader which run is which
+        without needing to look anywhere else.
+
+        Returns (labels, used_fallback) - used_fallback is True when the
+        full-path fallback above was applied, i.e. the returned labels are
+        the raw input paths rather than short human-chosen or
+        basename-derived names; callers that want a guaranteed-compact
+        label regardless (e.g. for a legend swatch) may still want to use
+        positional letters purely for display in that case, while using
+        these labels themselves wherever the fuller identification is
+        useful (titles, filenames, etc). """
+    n = len(paths)
+    if labels is None:
+        labels = [None] * n
+    if len(labels) != n:
+        raise ValueError("labels must be the same length as paths (%d vs %d)" % (len(labels), n))
+
+    auto_flags = [not l for l in labels]
+    resolved = list(labels)
+    for i, p in enumerate(paths):
+        if auto_flags[i]:
+            resolved[i] = path_base_name(os.path.basename(os.path.abspath(p.rstrip('/'))))
+
+    used_fallback = False
+    if all(auto_flags) and len(set(resolved)) < len(resolved):
+        resolved = [p.rstrip('/\\') for p in paths]
+        used_fallback = True
+
+    return resolved, used_fallback
+
+
 def default_labels(path_a, path_b, label_a=None, label_b=None):
-    ''' Resolves user-facing short labels for two simulation paths, falling
-        back to the basename of each path if a label wasn't given
-        explicitly. '''
-    if not label_a:
-        label_a = path_base_name(os.path.basename(os.path.abspath(path_a.rstrip('/'))))
-    if not label_b:
-        label_b = path_base_name(os.path.basename(os.path.abspath(path_b.rstrip('/'))))
-    return label_a, label_b
+    """ Two-dataset convenience wrapper around resolve_labels(). Kept for
+        backward compatibility (used by the mcplotdiff-* tools, which are
+        deliberately staying two-way only) and because its signature/
+        return shape (label_a, label_b, used_fallback) is a bit more
+        convenient than unpacking a 2-element list at every call site.
+
+        Returns (label_a, label_b, used_fallback) - see resolve_labels(). """
+    resolved, used_fallback = resolve_labels([path_a, path_b], [label_a, label_b])
+    return resolved[0], resolved[1], used_fallback
+
+
+# Default overlay colour palette (colourblind-friendly, tab10-derived):
+# blue and red first, matching the two-dataset tools' existing default
+# colours exactly, so a 2-dataset co-plot looks identical to before.
+DEFAULT_PALETTE = [
+    '#1f77b4',  # blue    (A)
+    '#d62728',  # red     (B)
+    '#2ca02c',  # green
+    '#ff7f0e',  # orange
+    '#9467bd',  # purple
+    '#8c564b',  # brown
+    '#e377c2',  # pink
+    '#7f7f7f',  # grey
+    '#bcbd22',  # olive
+    '#17becf',  # cyan
+]
+
+
+def resolve_colours(n, given=None):
+    """ Resolves a list of n overlay colours: given[i] where explicitly
+        supplied, else the next unused colour from DEFAULT_PALETTE
+        (cycling if n exceeds the palette length - vanishingly unlikely
+        for a co-plot, but avoids an IndexError). """
+    colours = list(given) if given else []
+    while len(colours) < n:
+        colours.append(DEFAULT_PALETTE[len(colours) % len(DEFAULT_PALETTE)])
+    return colours[:n]
+
+
+def dirsafe_name(path):
+    """ Filesystem-safe slug of a full input path, for use in *output
+        directory/file* names.
+
+        This is deliberately separate from default_labels()'s short
+        display labels: those may legitimately collapse to bare "A"/"B"
+        when the basenames of two input paths collide (e.g. both
+        ".../<instrument>/1/") - fine for an on-screen legend, but if the
+        *output directory* name were built from those same collapsed
+        labels, every such comparison would land in the same
+        "..._A_vs_B" folder, clobbering previous runs. This uses the
+        input path as actually given (not just its basename), so distinct
+        source paths always produce distinct output directories - the
+        common case when batch/CI tooling runs many comparisons out of
+        the same working directory, each against a differently-timestamped
+        or differently-parameterised run.
+
+        Keeps the path as given (relative or absolute, whichever the
+        caller passed in) rather than resolving to an absolute path -
+        that matches what a human actually typed/expects to see, and
+        avoids dragging environment-specific absolute-path noise (e.g.
+        a CI runner's long checkout path) into every folder name. """
+    p = path.rstrip('/\\')
+    if p in ('', '.', '..'):
+        # degenerate case (e.g. someone ran the tool with '.' as one side) -
+        # fall back to the resolved directory's own basename instead of a
+        # bare, unhelpful "."
+        p = os.path.basename(os.path.abspath(path))
+    p = p.replace('\\', '/').replace('/', '_')
+    # collapse any remaining filesystem-unsafe characters
+    p = re.sub(r'[^\w\-.]', '_', p)
+    # tidy up repeated/leading/trailing underscores left by the above
+    p = re.sub(r'_+', '_', p).strip('_')
+    return p or 'unnamed'
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +240,29 @@ def load_monitors(path):
 # computing the difference datasets
 # ---------------------------------------------------------------------------
 
+def _pct_diff_str(Ia, Ib):
+    """ Percent difference in total intensity, A relative to B (matching
+        the "Diff = A - B" convention already used throughout this file),
+        formatted with an explicit sign, e.g. "+3.42%" or "-12.05%".
+
+        Relative to B specifically (not a symmetric A/B average) since B
+        is the natural reference point for a two-run comparison (e.g. 'is
+        my new run within X% of the old/reference one'), and that's
+        already how the diff itself (a - b) is signed. Falls back to a
+        plain absolute difference when B's total is zero, since a percent
+        change relative to zero isn't a meaningful number. """
+    try:
+        Ia = float(Ia)
+        Ib = float(Ib)
+    except Exception:
+        return 'N/A'
+    if Ib == 0:
+        if Ia == 0:
+            return '0% (both totals zero)'
+        return 'N/A (B total is zero; A-B = %s)' % _fmt(Ia - Ib)
+    return '%+.2f%%' % (100.0 * (Ia - Ib) / Ib)
+
+
 def diff_1d(key, a, b, label_a, label_b):
     if len(a.xvals) != len(b.xvals):
         print("Warning: skipping '%s' - differing number of bins (%d vs %d)"
@@ -142,7 +301,9 @@ def diff_1d(key, a, b, label_a, label_b):
         N = 0
     d.values = (I, Ierr, N)
     d.statistics = '%s: %s\n%s: %s' % (label_a, a.statistics, label_b, b.statistics)
-    d.title = '\nDiff (%s - %s): %s' % (label_a, label_b, a.title)
+    pct_str = _pct_diff_str(a.values[0], b.values[0])
+    d.diff_pct_str = pct_str
+    d.title = ' - Diff (A - B), with:\n \nA=%s\nB=%s\nDiff: %s\n \n%s' % (label_a, label_b, pct_str, a.title)
 
     return d
 
@@ -181,7 +342,9 @@ def diff_2d(key, a, b, label_a, label_b):
         N = 0
     d.values = (I, Ierr, N)
     d.statistics = '%s: %s\n%s: %s' % (label_a, a.statistics, label_b, b.statistics)
-    d.title = '\nDiff (%s - %s): %s' % (label_a, label_b, a.title)
+    pct_str = _pct_diff_str(a.values[0], b.values[0])
+    d.diff_pct_str = pct_str
+    d.title = ' - Diff (A - B), with:\n \nA=%s\nB=%s\nDiff: %s\n \n%s' % (label_a, label_b, pct_str, a.title)
 
     return d
 
@@ -224,14 +387,84 @@ def compute_diffs(monitors_a, monitors_b, label_a, label_b):
     return diffs
 
 
+def match_monitors_multi(monitors_list, labels):
+    """ Matches monitors present in EVERY dataset in monitors_list (each a
+        {filename: Data1D/Data2D} dict, as returned by load_monitors()) by
+        output filename, generalizing match_1d_monitors() (still available
+        below, as a thin 2-dataset wrapper) to any number (>= 2) of
+        datasets, for the multi-way co-plot tools.
+
+        Only 1D monitors with identical binning across *all* datasets are
+        kept; anything else (a monitor missing from at least one dataset,
+        a 2D monitor, a type mismatch, or mismatched binning) is skipped
+        with a warning - overlaying 2D images doesn't have an equally
+        natural single-plot representation for N > 2, so that case is left
+        to the two-dataset diff tools' diverging-colourmap image instead.
+
+        Ordering follows monitors_list[0]'s own key order, not sorted
+        alphabetically - matches how the underlying simulation loader
+        orders monitors, so panels come out in a sensible, predictable
+        order rather than shuffled.
+
+        Returns an ordered list of (key, [data_0, data_1, ..., data_N-1]). """
+    if len(monitors_list) < 2:
+        raise ValueError("match_monitors_multi needs at least 2 datasets")
+
+    key_sets = [set(m.keys()) for m in monitors_list]
+    common_keys = set.intersection(*key_sets)
+    all_keys = set.union(*key_sets)
+
+    for k in sorted(all_keys - common_keys):
+        missing_from = [labels[i] for i, ks in enumerate(key_sets) if k not in ks]
+        print("Warning: monitor '%s' missing from %s, skipping" % (k, ', '.join(missing_from)))
+
+    ordered_keys = [k for k in monitors_list[0].keys() if k in common_keys]
+
+    pairs = []
+    for key in ordered_keys:
+        datas = [m[key] for m in monitors_list]
+
+        if not all(isinstance(d, Data1D) for d in datas):
+            if any(isinstance(d, Data2D) for d in datas):
+                print("Warning: skipping '%s' - co-plotting only supports 1D monitors "
+                      "(got types: %s); try a diff tool for 2D comparisons"
+                      % (key, ', '.join(sorted(set(type(d).__name__ for d in datas)))))
+            else:
+                print("Warning: skipping '%s' - mismatched or unsupported monitor types" % key)
+            continue
+
+        nbins = set(len(d.xvals) for d in datas)
+        if len(nbins) > 1:
+            print("Warning: skipping '%s' - differing number of bins (%s)"
+                  % (key, ', '.join(str(n) for n in sorted(nbins))))
+            continue
+
+        components = set(d.component for d in datas)
+        if len(components) > 1:
+            print("Warning: '%s' component name differs (%s), co-plotting anyway"
+                  % (key, ', '.join(sorted(components))))
+
+        pairs.append((key, datas))
+
+    return pairs
+
+
+def match_1d_monitors(monitors_a, monitors_b, label_a, label_b):
+    """ Two-dataset convenience wrapper around match_monitors_multi().
+        Kept for backward compatibility - returns an ordered list of
+        (key, data_a, data_b) rather than (key, [data_a, data_b]). """
+    pairs = match_monitors_multi([monitors_a, monitors_b], [label_a, label_b])
+    return [(key, datas[0], datas[1]) for key, datas in pairs]
+
+
 def load_and_diff(path_a, path_b, label_a=None, label_b=None):
     """ Convenience one-shot: loads both simulations, resolves labels, and
-        returns (diffs, dir_a, dir_b, label_a, label_b). """
-    label_a, label_b = default_labels(path_a, path_b, label_a, label_b)
+        returns (diffs, dir_a, dir_b, label_a, label_b, used_fallback). """
+    label_a, label_b, used_fallback = default_labels(path_a, path_b, label_a, label_b)
     monitors_a, dir_a = load_monitors(path_a)
     monitors_b, dir_b = load_monitors(path_b)
     diffs = compute_diffs(monitors_a, monitors_b, label_a, label_b)
-    return diffs, dir_a, dir_b, label_a, label_b
+    return diffs, dir_a, dir_b, label_a, label_b, used_fallback
 
 
 # ---------------------------------------------------------------------------

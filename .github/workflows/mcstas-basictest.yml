@@ -19,14 +19,15 @@ jobs:
       matrix:
         include:
           # --- built from source via cmake ---
-          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
-          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
+          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # --- built via conda ---
-          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto' }
-          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2' }
-          - { method: conda,  os: windows-latest, CC: cl.exe,   CXX: cl.exe,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto' }
+          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
+          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
+          - { method: conda,  os: windows-latest, CC: CL,   CXX: CL,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
-    name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
+    name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.cogen }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
     runs-on: ${{ matrix.os }}
     env:
       CC: ${{ matrix.CC }}
@@ -109,13 +110,15 @@ jobs:
         echo MPIINCVAR=%MPIINCVAR% >> %GITHUB_ENV%
         echo MPILIBVAR=%MPILIBVAR% >> %GITHUB_ENV%
 
-    - name: Check versions
+    - name: Check versions and set worker label
       id: version-checks
       run: |
            which python3
            python3 --version
            which cmake
            cmake --version
+           MYWORKERID=`echo ${RUNNER_TRACKING_ID} | md5sum |  cut -c1-12`
+           echo MYWORKERID=${MYWORKERID} >> "$GITHUB_ENV"
 
     - name: Get conda dependency list
       id: conda-deps
@@ -132,7 +135,7 @@ jobs:
 
     - name: Configure build and install mcstas (source)
       id: mcstas-install
-      if: ${{ matrix.method == 'source' && matrix.CC != 'cl.exe' }}
+      if: ${{ matrix.method == 'source' && matrix.CC != 'CL' }}
       run: |
            if [ "$RUNNER_OS" == "macOS" ]; then mkdir ${HOME}/tmp; fi
            if [ "$RUNNER_OS" == "macOS" ]; then export SDKROOT=$(xcrun --sdk macosx --show-sdk-path); fi
@@ -230,7 +233,7 @@ jobs:
         type .\install_mcstas\share\mcstas\tools\Python\mccodelib\mccode_config.json
         .\install_mcstas\bin\mcrun -h
         .\install_mcstas\bin\mcstas -v
-        if [ "${{ matrix.CC }}" != "cl.exe" ];
+        if [ "${{ matrix.CC }}" != "CL" ];
         then
           mcpl-config -s
           ncrystal-config -s
@@ -263,6 +266,24 @@ jobs:
       if: matrix.method == 'conda'
       run: |
            ./src/devel/bin/mccode-build-conda -m mcstas -s $PWD/src -b $PWD/build_mcstas
+
+    - name: Setup mcstas-antlr
+      id: setup-mcstas-antlr
+      if: matrix.cogen == 'antlr'
+      continue-on-error: true
+      run: |
+        # Cache checkout src/ with mccode-antlr
+        if [ "${{ matrix.cogen }}" == "antlr" ];
+        then
+          # Set up config file to use mcstas-antlr
+          MCCODE_CONFIG=`mcrun --write-user-config | cut -f4 -d\ `
+          sed -i.bak s+\"MCCOGEN\"\:\ \"mcstas\",+\"MCCOGEN\"\:\ \"mcstas-antlr\ -I\$\{CONDA_PREFIX\}/share/mcstas/resources\",+g ${MCCODE_CONFIG}
+          grep -H COGEN ${MCCODE_CONFIG}
+          MCCODEANTLR_FLAGS__NEXUS=`grep NEXUSFLAGS ${MCCODE_CONFIG} |cut -f4 -d\"`
+          echo "MCCODEANTLR_FLAGS__NEXUS=${MCCODEANTLR_FLAGS__NEXUS}" >> "$GITHUB_ENV"
+          # Pre-poulate mccode-antlr cache
+          mccode-antlr cache populate --from-path src/ --flavor mcstas
+        fi
 
     - name: Validate build output (conda)
       id: build-validation
@@ -327,7 +348,7 @@ jobs:
            fi
            test -n "$(command -v mcstas${EXESUFFIX})"
            mcstas${EXESUFFIX} --version
-           mctest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.method }}
+           mctest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
            export SUM=`find run_rngtest -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
            export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
            if [ "${EXPECTED}" == "${SUM}" ];
@@ -355,8 +376,8 @@ jobs:
            fi
            test -n "$(command -v mcstas${EXESUFFIX})"
            mcstas${EXESUFFIX} --version
-           mctest${SUFFIX} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource --testdir=run_basictests --suffix=${{ matrix.method }}
-           mctest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource --testdir=run_basictests --suffix=${{ matrix.method }}_${{ matrix.mpi }}
+           mctest${SUFFIX} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }} --uid=${MYWORKERID}
+           mctest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
 
     - name: Check for modified instruments
       id: instr-test
@@ -404,6 +425,7 @@ jobs:
            export CHANGEDCOMPS=`git diff --name-only $DIFFBASE HEAD | grep \.comp\$ | grep mcstas-comps | xargs -n1 basename | sed s/\.comp//g | sort | uniq | xargs echo`
            export NUMCHANGEDCOMPS=`git diff --name-only $DIFFBASE HEAD | grep \.comp\$ | grep mcstas-comps | wc -l | xargs echo`
            cd -
+           compindex=0
            if [ "$NUMCHANGEDCOMPS" != "0" ];
            then
                for comp in $CHANGEDCOMPS;
@@ -412,7 +434,8 @@ jobs:
                  NUMMATCH=`find src/mcstas-comps -name \*.instr -exec grep -H ${comp} \{\} \; | cut -f1 -d: | sort | uniq | wc -l`
                  if [ "$NUMMATCH" -gt "0" ];
                  then
-                   ${MCTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mctest --comp=${comp} --suffix=CHANGES_${comp}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   ${MCTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mctest --comp=${comp} --suffix=${{ matrix.cogen }}_CHANGES${compindex}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   compindex=$(( compindex+1 ))
                  else
                    echo No matching tests found
                  fi
@@ -441,7 +464,7 @@ jobs:
                export SCOPE=" "
              fi
              mkdir -p run_mctest && cd run_mctest
-             ${MCTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             ${MCTEST_EXECUTABLE}  --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=instrCHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
              ${MCVIEWTEST_EXECUTABLE} --nobrowse $PWD
            fi
 
@@ -454,15 +477,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcstas-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
+           tar cvfz mcstas-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcstas-artefacts-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
-        path: "mcstas-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
+        name: mcstas-artefacts-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
+        path: "mcstas-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3

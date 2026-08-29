@@ -28,32 +28,17 @@
 * %End
 *******************************************************************************/
 DEFINE INSTRUMENT Gallmeier_SNS_decoupled_poisoned(Lambda_min=0.5,Lambda_max=20, string filename="a1Gw2-2-f5_fit_fit.dat")
-
-DEPENDENCY " -DLOADPATH=GETPATH(data) "
   
 DECLARE
 %{
   double E_min;
   double E_max;
-  char fullfile[256];
 %}
 
 INITIALIZE
 %{
   E_min=81.82/(Lambda_max*Lambda_max);
   E_max=81.82/(Lambda_min*Lambda_min);
-
-  #define QUOTE(x) #x
-  #define STR(macro) QUOTE(macro)
-
-  #ifndef LOADPATH
-  #define LOADPATH /usr/share/mcstas/data
-  #endif
-
-  #define LOADPATH_ STR(LOADPATH)
-  
-  sprintf(fullfile,"%s/%s",LOADPATH_,filename);
-
 %}
 
 /* Here comes the TRACE section, where the actual      */
@@ -63,7 +48,7 @@ TRACE
 COMPONENT Origin = Progress_bar()
   AT (0,0,0) ABSOLUTE
 
-  COMPONENT Source = SNS_source_analytic(filename=fullfile,
+  COMPONENT Source = SNS_source_analytic(filename=filename,
 			      xwidth=0.01, yheight=0.01,
 			      dist=1, focus_xw=0.01, focus_yh=0.01, Emin=E_min,Emax=E_max,sample_E=2, p_power=2)
  AT (0,0,0) ABSOLUTE

@@ -76,12 +76,23 @@ class ModLegend(pg.LegendItem):
         self.layout.setContentsMargins(0, 0, 0, 0)
         row = self.layout.rowCount()
         self.items.append((sample, label))
+        # sample (the colour swatch icon) was being constructed but never
+        # actually placed into the layout - only the text label was, so no
+        # colour swatch was ever visible, regardless of how many legend
+        # entries or curves were involved.
+        self.layout.addItem(sample, row, 0)
         self.layout.addItem(label, row, 1)
         self.updateSize()
 
     def paint(self, p, *args):
         p.setPen(pg.functions.mkPen(255,255,255,225))
-        p.setBrush(pg.functions.mkBrush(255,255,255,255))
+        # Semi-transparent (was fully opaque, alpha=255): a legend with
+        # many rows (e.g. mccoplot's N-dataset overlay legend) can grow
+        # tall enough to sit directly on top of real curve data in the
+        # plot's corner - an opaque background then genuinely hides that
+        # data rather than just labelling it. Still solid enough to keep
+        # the legend text itself readable against busy plots.
+        p.setBrush(pg.functions.mkBrush(255,255,255,200))
         p.drawRect(self.boundingRect())
 
 
@@ -147,6 +158,8 @@ def plot_Data1D(data, plt, log=False, fromzero=False, legend=True, icolormap=0, 
         # this construct reduces the requiremet for header data in Data1D, in case of an error during parsing of the string
         try:
             lname1 = '<center>%s<br>I = %s</center>' % (data.component, data.values[0])
+            if hasattr(data, 'diff_pct_str'):
+                lname1 = '<center>%s<br>I = %s<br>Diff: %s</center>' % (data.component, data.values[0], data.diff_pct_str)
             if verbose:
                 lname1 = '%s [%s]<br><br>%s<br><br>I = %s Err = %s N = %s; %s' % (data.component, data.filename, data.title, data.values[0], data.values[1], data.values[2], data.statistics)
         except:
@@ -313,6 +326,8 @@ def plot_Data2D(data, plt, log=False, legend=True, icolormap=0, verbose=False, f
 
         try:
             lname1 = '<center>%s<br>I = %s</center>' % (data.component, data.values[0])
+            if hasattr(data, 'diff_pct_str'):
+                lname1 = '<center>%s<br>I = %s<br>Diff: %s</center>' % (data.component, data.values[0], data.diff_pct_str)
             if verbose:
                 lname1 = '%s [%s]<br><br>%s<br><br>I = %s Err = %s N = %s; %s' % (data.component, data.filename, data.title, data.values[0], data.values[1], data.values[2], data.statistics)
         except:
