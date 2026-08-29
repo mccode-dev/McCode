@@ -13,6 +13,7 @@
 * Origin: ILL/NBI
 *
 * A bent crystal monochromator. Based on the model implemented by Jan &Scaron;aroun in NIMA 529 (2004) pp 162-165.
+* An article describing the component has been written and can be seen in Quantum Beam Sci. 2026, 10, 6. https://doi.org/10.3390/qubs10010006
 * Mosacity and bending radius can be set.
 *
 * %D
@@ -49,11 +50,13 @@
 * x_rot:      [vector] Rotation around x-axis for each crystal
 * y_rot:      [vector] Rotation around y-axis for each crystal
 * z_rot:      [vector] Rotation around z-axis for each crystal NOTE: Rotations happen around x, then y, then z.
+* n_reflections:    [ ] The maximum number of reflections a neutron can undergo in the crystal array.
 * verbose:            [ ] Verbosity of the monochromator. Used for debugging. 
 * draw_as_rectangles: [ ] Draw the monochromators as boxes. DOES NOT WORK WHEN USING _rot parameters.
 *
 * %L 
 * <a href="https://doi.org/10.1016/j.nima.2004.04.197">Jan &Scaron;aroun NIM A Volume 529, Issue 1-3 (2004), pp162-165</a>
+* <a href="https://www.mdpi.com/2412-382X/10/1/6"> Christensen, D.L.; Cabeza, S.; Pirling, T.; Lefmann, K.; Šaroun, J. Simulating Neutron Diffraction from Deformed Mosaic Crystals in McStas. Quantum Beam Sci. 2026, 10, 6. https://doi.org/10.3390/qubs10010006</a>
 * 
 * %E
 *******************************************************************************/
@@ -77,6 +80,7 @@ SETTING PARAMETERS (zwidth=0.2,
 					vector x_rot=NULL,
 					vector y_rot=NULL,
 					vector z_rot=NULL,
+          int n_reflections=100,
 					int verbose=0,
 					int draw_as_rectangles=0)
 // Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) 
@@ -1317,7 +1321,6 @@ DECLARE
   int counter;
   int counter2;
   double curvature;
-  int MAX_REFLECTIONS;
 
   struct neutron_values neutron;
   struct Monochromator_array mono_arr;
@@ -1518,7 +1521,6 @@ INITIALIZE
   neutron.direction = 1; // Default direction is going away from the instrument
   counter = 0;
   counter2 = 0;
-  MAX_REFLECTIONS = 100; // Chosen maximum number of reflections
 
   // Free the position and rotations memories
   if (x_pos_mem_flag)
@@ -1557,7 +1559,7 @@ TRACE
     calculate_probabilities_of_reflection (&mono_arr, &neutron, _particle);
     choose_crystal_to_reflect_from (&mono_arr, &neutron, &optimize, _particle);
     check_if_neutron_should_pass_through (&mono_arr, &neutron, &p, &weight_init);
-    if (neutron.reflections > MAX_REFLECTIONS) {
+    if (neutron.reflections > n_reflections) {
       neutron.transmit_neutron = 1;
     }
     if (neutron.transmit_neutron) {

@@ -18,12 +18,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-24.04,  CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi' }
-          - { os: ubuntu-24.04,  CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi'   }
-          #- { os: windows-11-arm, CC: cl.exe,   CXX: cl.exe,     python: "3.13", mpi: 'msmpi'   }
-          #- { os: windows-latest, CC: gcc.exe,   CXX: g++.exe,     python: "3.13", mpi: 'msmpi'   }
+          # --- built from source via cmake ---
+          - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          # --- built via conda ---
+          - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          # - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
+          - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
+          - { method: conda,  os: windows-latest, CC: CL,   CXX: CL,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
-    name: ${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
+    name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.cogen }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
     runs-on: ${{ matrix.os }}
     env:
       CC: ${{ matrix.CC }}
@@ -37,10 +41,15 @@ jobs:
       uses: actions/checkout@v6
       with:
         path: src
-        fetch-depth: 2
+        # Full history (rather than the old fetch-depth: 2) is needed so the
+        # "Check for modified instruments" step below can diff against the
+        # actual merge-base with main / the pre-push SHA, rather than just
+        # the single most recent commit - see that step for why.
+        fetch-depth: 0
 
     - name: Setup python
       uses: actions/setup-python@v6
+      if: matrix.method == 'source'
       with:
         python-version: ${{ matrix.python }}
 
@@ -56,18 +65,19 @@ jobs:
 
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
+      if: matrix.method == 'source'
       with:
         mpi: ${{ matrix.mpi }}
 
-    - name: Setup (Linux)
+    - name: Setup (Linux, source build)
       id: setup-linux
-      if: runner.os == 'Linux'
+      if: matrix.method == 'source' && runner.os == 'Linux'
       run: |
            sudo apt -y install libgsl-dev libxrl-dev
 
-    - name: Setup (macOS)
+    - name: Setup (macOS, source build)
       id: setup-macos
-      if: runner.os == 'macOS'
+      if: matrix.method == 'source' && runner.os == 'macOS'
       # Temporarily disable xraylib runs on macOS, upstream seems to
       # cause build-issues. Will soon port basictest scripts to conda
       # for Windows/Linux
@@ -79,9 +89,9 @@ jobs:
            #  brew install xraylib
            #fi
 
-    - name: Setup (Windows)
+    - name: Setup (Windows, source build)
       id: setup-Windows
-      if: runner.os == 'Windows'
+      if: matrix.method == 'source' && runner.os == 'Windows'
       shell: bash
       run: |
         cygpath -sm "$MSMPI_INC" > includepath.txt
@@ -92,33 +102,48 @@ jobs:
         pip install mslex PyYAML ply mcpl mcpl-extra kdsource psutil jinja2
         gcc.exe --version
 
-    - name: Setup (Windows Intel)
+    - name: Setup (Windows Intel, source build)
       id: setup-Windows-intel
-      if: runner.os == 'Windows' && matrix.os !='windows-11-arm'
+      if: matrix.method == 'source' && runner.os == 'Windows' && matrix.os != 'windows-11-arm'
       shell: bash
       run:   |
         pip install McStasscript ncrystal
 
     - name: Setup MPI cygpath...
       id: setup-Windows-paths
-      if: runner.os == 'Windows'
+      if: matrix.method == 'source' && runner.os == 'Windows'
       run: |
         set /p MPIINCVAR=<includepath.txt
         set /p MPILIBVAR=<libpath.txt
         echo MPIINCVAR=%MPIINCVAR% >> %GITHUB_ENV%
         echo MPILIBVAR=%MPILIBVAR% >> %GITHUB_ENV%
 
-    - name: Check versions
+    - name: Check versions and set worker label
       id: version-checks
       run: |
            which python3
            python3 --version
            which cmake
            cmake --version
+           MYWORKERID=`echo ${RUNNER_TRACKING_ID} | md5sum | cut -c1-12`
+           echo MYWORKERID=${MYWORKERID} >> "$GITHUB_ENV"
 
-    - name: Configure build and install mcxtrace
+    - name: Get conda dependency list
+      id: conda-deps
+      if: matrix.method == 'conda'
+      run: |
+           ./src/devel/bin/mccode-create-conda-yml -m mcxtrace -n mcxtrace -o dependencies.yml
+           cat dependencies.yml
+
+    - uses: mamba-org/setup-micromamba@v3
+      if: matrix.method == 'conda'
+      with:
+        environment-name: mcxtrace
+        environment-file: dependencies.yml
+
+    - name: Configure build and install mcxtrace (source)
       id: mcxtrace-install
-      if: ${{ matrix.CC != 'cl.exe' && runner.os }}
+      if: ${{ matrix.method == 'source' && matrix.CC != 'CL' }}
       run: |
            if [ "$RUNNER_OS" == "macOS" ]; then mkdir ${HOME}/tmp; fi
            if [ "$RUNNER_OS" == "macOS" ]; then export SDKROOT=$(xcrun --sdk macosx --show-sdk-path); fi
@@ -173,9 +198,9 @@ jobs:
            cat ../install_mcxtrace/share/mcxtrace/tools/Python/mccodelib/mccode_config.json
            echo *******************************************************************************
 
-    - name: Configure build and install mcxtrace on Windows-MSVC
+    - name: Configure build and install mcxtrace on Windows-MSVC (source)
       id: mcxtrace-install-windows-msvc
-      if: ${{ matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
+      if: ${{ matrix.method == 'source' && matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
       shell: cmd
       run: >
         cmake -B build -S src
@@ -193,43 +218,43 @@ jobs:
         -DMPIINCLUDEDIR=%MPIINCVAR%
         -DMPILIBDIR=%MPILIBVAR%
 
-    - name: CMake build
-      if: ${{ matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
+    - name: CMake build (source, Windows-MSVC)
+      if: ${{ matrix.method == 'source' && matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
       shell: cmd
       run: cmake --build build --config Release -j 2
 
-    - name: CMake install
-      if: ${{ matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
+    - name: CMake install (source, Windows-MSVC)
+      if: ${{ matrix.method == 'source' && matrix.CC != 'gcc.exe' && runner.os == 'Windows' }}
       run: cmake --install build --config Release
 
-    - name: set MCXTRACE env var
-      if: runner.os == 'Windows'
+    - name: set MCXTRACE env var (source, Windows)
+      if: matrix.method == 'source' && runner.os == 'Windows'
       run: echo MCXTRACE=%CD%\install_mcxtrace\share\mcxtrace\resources >> %GITHUB_ENV%
 
-    - name: check MCXTRACE env var
-      if: runner.os == 'Windows'
+    - name: check MCXTRACE env var (source, Windows)
+      if: matrix.method == 'source' && runner.os == 'Windows'
       run: echo %MCXTRACE%
 
-    - name: Various Windows debugging - McXtrace
-      if: runner.os == 'Windows'
+    - name: Various Windows debugging - McXtrace (source)
+      if: matrix.method == 'source' && runner.os == 'Windows'
       shell: cmd
       run: |
         type .\install_mcxtrace\share\mcxtrace\tools\Python\mccodelib\mccode_config.json
         .\install_mcxtrace\bin\mxrun -h
         .\install_mcxtrace\bin\mcxtrace -v
-        if [ "${{ matrix.CC }}" != "cl.exe" ];
+        if [ "${{ matrix.CC }}" != "CL" ];
         then
           mcpl-config -s
         fi
 
-    - name: Various Windows debugging - MCPL
-      if: runner.os == 'Windows'
+    - name: Various Windows debugging - MCPL (source)
+      if: matrix.method == 'source' && runner.os == 'Windows'
       run: |
         mcpl-config -s
 
-    - name: Pip install Unix
+    - name: Pip install Unix (source)
       id: pip-install
-      if: runner.os != 'Windows'
+      if: matrix.method == 'source' && runner.os != 'Windows'
       run: |
            set -e
            set -u
@@ -243,7 +268,72 @@ jobs:
              python3 -mpip install PyYAML ply McStasscript mcpl mcpl-extra kdsource jinja2 psutil
            fi
 
-    # Start of tests
+    - name: Configure build and install mcxtrace (conda)
+      id: mcxtrace-install-conda
+      if: matrix.method == 'conda'
+      run: |
+           ./src/devel/bin/mccode-build-conda -m mcxtrace -s $PWD/src -b $PWD/build_mcxtrace
+
+    - name: Setup mcxtrace-antlr
+      id: setup-mcxtrace-antlr
+      if: matrix.cogen == 'antlr'
+      continue-on-error: true
+      run: |
+        # Cache checkout src/ with mccode-antlr
+        if [ "${{ matrix.cogen }}" == "antlr" ];
+        then
+          # Set up config file to use mcxtrace-antlr
+          MCCODE_CONFIG=`mxrun --write-user-config | cut -f4 -d\ `
+          sed -i.bak s+\"MCCOGEN\"\:\ \"mcxtrace\",+\"MCCOGEN\"\:\ \"mcxtrace-antlr\ -I\$\{CONDA_PREFIX\}/share/mcxtrace/resources\",+g ${MCCODE_CONFIG}
+          grep -H COGEN ${MCCODE_CONFIG}
+          MCCODEANTLR_FLAGS__NEXUS=`grep NEXUSFLAGS ${MCCODE_CONFIG} |cut -f4 -d\"`
+          echo "MCCODEANTLR_FLAGS__NEXUS=${MCCODEANTLR_FLAGS__NEXUS}" >> "$GITHUB_ENV"
+          # Pre-poulate mccode-antlr cache
+          mccode-antlr cache populate --from-path src/ --flavor mcxtrace
+        fi
+
+    - name: Validate build output (conda)
+      id: build-validation
+      if: always() && matrix.method == 'conda'
+      run: |
+           set -e
+           set -u
+           set -x
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             echo "Validating Windows build output..."
+             echo "CONDA_PREFIX: $CONDA_PREFIX"
+             echo "Checking for mcxtrace executable..."
+             test -f ${CONDA_PREFIX}/bin/mcxtrace || test -f ${CONDA_PREFIX}/bin/mcxtrace.bat || { echo "ERROR: mcxtrace not found"; exit 1; }
+             echo "Checking for mxtest executable..."
+             test -f ${CONDA_PREFIX}/bin/mxtest.bat || { echo "ERROR: mxtest.bat not found"; ls -la ${CONDA_PREFIX}/bin/ | grep -i mxtest || echo "No mxtest found"; exit 1; }
+           else
+             echo "Validating Unix build output..."
+             test -f ${CONDA_PREFIX}/bin/mcxtrace || { echo "ERROR: mcxtrace not found"; exit 1; }
+             test -f ${CONDA_PREFIX}/bin/mxtest || { echo "ERROR: mxtest not found"; exit 1; }
+           fi
+
+    - name: Post install openmpi hacks macOS (conda)
+      id: post-install-openmpi-hacks-macOS
+      if: matrix.method == 'conda' && runner.os == 'macOS'
+      run: |
+           if [ "${{ matrix.mpi }}" == "openmpi" ]; then
+               sed -i.bak 's+mpirun+mpirun\ -mca\ regx\ naive\ --verbose\ --mca\ btl_tcp_if_include\ lo0+g' ${CONDA_PREFIX}/share/mcxtrace/tools/Python/mccodelib/mccode_config.json
+           fi
+
+    - name: Normalize PATH to installed McXtrace tools
+      id: normalize-path
+      run: |
+           # For source builds, put the freshly-installed bin/ on PATH so the
+           # shared test steps below can invoke bare `mcxtrace`/`mxtest`/etc,
+           # exactly like the conda builds already can (conda's own
+           # environment activation, via `shell: bash -el`, already puts
+           # $CONDA_PREFIX/bin on PATH every step - nothing extra needed there).
+           if [ "${{ matrix.method }}" == "source" ]; then
+             echo "$PWD/install_mcxtrace/bin" >> "$GITHUB_PATH"
+           fi
+
+    # Start of tests (shared across all 5 matrix legs)
     - name: Launch RNG test instrument
       id: RNG-test
       run: |
@@ -263,10 +353,10 @@ jobs:
             export SUFFIX=""
             export EXESUFFIX=""
            fi
-           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
-           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
-           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           export SUM=`find run_singletests -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
+           test -n "$(command -v mcxtrace${EXESUFFIX})"
+           mcxtrace${EXESUFFIX} --version
+           mxtest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
+           export SUM=`find run_rngtest -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
            export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
            if [ "${EXPECTED}" == "${SUM}" ];
            then
@@ -277,17 +367,12 @@ jobs:
               false
            fi
 
-    - name: Launch JJ_SAXS instrument
-      id: JJ_SAXS
+    - name: Launch Basic tests
+      id: basictests
       run: |
            set -e
            set -u
            set -x
-           export MD5SUM="md5sum"
-           if [ "$RUNNER_OS" == "macOS" ];
-           then
-             export MD5SUM="md5"
-           fi
            if [ "$RUNNER_OS" == "Windows" ];
            then
              export SUFFIX=".bat"
@@ -296,98 +381,10 @@ jobs:
             export SUFFIX=""
             export EXESUFFIX=""
            fi
-           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
-           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
-           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=JJ_SAXS --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           if [ "${{ matrix.CC }}" != "cl.exe" ];
-           then
-             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=JJ_SAXS --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           fi
-
-    - name: Launch ESRF_BM29 instrument
-      id: ESRF_BM29
-      run: |
-           set -e
-           set -u
-           set -x
-           export MD5SUM="md5sum"
-           if [ "$RUNNER_OS" == "macOS" ];
-           then
-             export MD5SUM="md5"
-           fi
-           if [ "$RUNNER_OS" == "Windows" ];
-           then
-             export SUFFIX=".bat"
-             export EXESUFFIX=".exe"
-           else
-            export SUFFIX=""
-            export EXESUFFIX=""
-           fi
-           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
-           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
-           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=ESRF_BM29 --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           if [ "${{ matrix.CC }}" != "cl.exe" ];
-           then
-             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=ESRF_BM29 --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           fi
-
-    - name: Launch MCPL test instrument
-      id: mcpl-test
-      if: runner.os != 'Windows'
-      run: |
-           set -e
-           set -u
-           set -x
-           export MD5SUM="md5sum"
-           if [ "$RUNNER_OS" == "macOS" ];
-           then
-             export MD5SUM="md5"
-           fi
-           if [ "$RUNNER_OS" == "Windows" ];
-           then
-             export SUFFIX=".bat"
-             export EXESUFFIX=".exe"
-           else
-            export SUFFIX=""
-            export EXESUFFIX=""
-           fi
-           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
-           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
-           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_MCPL_input --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_MCPL_output --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           if [ "$RUNNER_OS" != "Windows" ];
-           then
-             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_MCPL_input --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
-             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_MCPL_output --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           fi
-
-    - name: Launch Absorption test instrument
-      id: Absorption-test
-      if: runner.os != 'Windows' # Missing xraylib dependency
-      run: |
-           set -e
-           set -u
-           set -x
-           export MD5SUM="md5sum"
-           if [ "$RUNNER_OS" == "macOS" ];
-           then
-             export MD5SUM="md5"
-           fi
-           if [ "$RUNNER_OS" == "Windows" ];
-           then
-             export SUFFIX=".bat"
-             export EXESUFFIX=".exe"
-           else
-            export SUFFIX=""
-            export EXESUFFIX=""
-           fi
-           test -f ./install_mcxtrace/bin/mcxtrace${EXESUFFIX}
-           ./install_mcxtrace/bin/mcxtrace${EXESUFFIX} --version
-           ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_Absorption --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           if [ "$RUNNER_OS" != "Windows" ];
-           then
-             ./install_mcxtrace/bin/mxtest${SUFFIX} --instr=Test_Absorption --mpi=2 --testdir=run_singletests --suffix=${{ matrix.mpi }}
-           fi
+           test -n "$(command -v mcxtrace${EXESUFFIX})"
+           mcxtrace${EXESUFFIX} --version
+           mxtest${SUFFIX} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }} --uid=${MYWORKERID}
+           mxtest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
 
     - name: Check for modified instruments
       id: instr-test
@@ -395,16 +392,47 @@ jobs:
            set -e
            set -u
            set -x
-           export MCXTRACE_EXECUTABLE="mcxtrace"
-           export MXRUN_EXECUTABLE="mxrun"
            export MXTEST_EXECUTABLE="mxtest"
+           export MXVIEWTEST_EXECUTABLE="mxviewtest"
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             export MXTEST_EXECUTABLE="mxtest.bat"
+             export MXVIEWTEST_EXECUTABLE="mxviewtest.bat"
+           fi
            export PERMISSIVE=" "
-           export PATH=${PATH}:${PWD}/install_mcxtrace/bin/:${PWD}/install_mcxtrace/mcxtrace/3.99.99/bin/
-           # Check if any instr files were modified during last commit
+
+           # Determine which base commit to diff against, robustly - this
+           # replaces the old `git diff --name-only HEAD HEAD~1`, which only
+           # ever considers the single most recent commit. That silently
+           # misses changes whenever a PR or push contains more than one
+           # commit (verified: a 3-commit PR touching 3 different files was
+           # only detected as a 1-file change under the old logic).
+           #
+           # - pull_request / pushes to non-main branches: diff against the
+           #   merge-base with origin/main, so every commit since branching
+           #   off main is considered, however many there are and regardless
+           #   of rebases/force-pushes on the branch itself.
+           # - direct pushes to main: origin/main already includes this very
+           #   push by the time we fetch it, so merge-base against it would
+           #   wrongly show zero changes. Diff against the pre-push SHA
+           #   (github.event.before) instead, so a multi-commit push to main
+           #   still gets its full set of changes considered.
            cd src
-           export CHANGEDCOMPS=`git diff --name-only HEAD HEAD~1| grep \.comp\$ | grep mcxtrace-comps | xargs -n1 basename | sed s/\.comp//g | xargs echo`
-           export NUMCHANGEDCOMPS=`git diff --name-only HEAD HEAD~1|grep \.comp\$ | grep mcxtrace-comps | wc -l | xargs echo`
+           git fetch origin main --quiet || true
+           if [ "${{ github.ref }}" == "refs/heads/main" ] && [ "${{ github.event_name }}" == "push" ]; then
+             export DIFFBASE="${{ github.event.before }}"
+             if [ -z "$DIFFBASE" ] || [ "$DIFFBASE" == "0000000000000000000000000000000000000000" ]; then
+               export DIFFBASE=$(git rev-parse HEAD~1)
+             fi
+           else
+             export DIFFBASE=$(git merge-base origin/main HEAD)
+           fi
+           echo "Diffing against: $DIFFBASE"
+
+           export CHANGEDCOMPS=`git diff --name-only $DIFFBASE HEAD | grep \.comp\$ | grep mcxtrace-comps | xargs -n1 basename | sed s/\.comp//g | sort | uniq | xargs echo`
+           export NUMCHANGEDCOMPS=`git diff --name-only $DIFFBASE HEAD | grep \.comp\$ | grep mcxtrace-comps | wc -l | xargs echo`
            cd -
+           compindex=0
            if [ "$NUMCHANGEDCOMPS" != "0" ];
            then
                for comp in $CHANGEDCOMPS;
@@ -413,21 +441,18 @@ jobs:
                  NUMMATCH=`find src/mcxtrace-comps -name \*.instr -exec grep -H ${comp} \{\} \; | cut -f1 -d: | sort | uniq | wc -l`
                  if [ "$NUMMATCH" -gt "0" ];
                  then
-                   if [ "$RUNNER_OS" != "Windows" ]; then
-                     mxtest --mpi=2 --testdir run_${comp} --comp=${comp} --suffix=CHANGES_${{ matrix.CC }}_${{ matrix.mpi }} $PERMISSIVE --verbose
+                   ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mxtest --comp=${comp} --suffix=${{ matrix.cogen }}_CHANGES${compindex}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   compindex=$(( compindex+1 ))
                  else
-                     mxtest.bat --mpi=2 --testdir run_${comp} --comp=${comp} --suffix=CHANGES_${{ matrix.CC }}_${{ matrix.mpi }}  $PERMISSIVE --verbose
-                 fi
-             else
                    echo No matching tests found
-             fi
+                 fi
                done
            fi
+
            cd src
            export RUNALL="NO"
-           export CHANGEDINSTR=`git diff --name-only HEAD HEAD~1| grep \.instr\$ | grep mcxtrace-comps | xargs -n1 basename | sed s/\.instr//g | xargs echo`
-           export CHANGEDINSTR=`echo $CHANGEDINSTR | xargs -n1 echo | sort | uniq | xargs echo | sed s/\ /,/g`
-           export NUMCHANGEDINSTR=`git diff --name-only HEAD HEAD~1|grep \.instr\$ | grep mcxtrace-comps | wc -l | xargs echo`
+           export CHANGEDINSTR=`git diff --name-only $DIFFBASE HEAD | grep \.instr\$ | grep mcxtrace-comps | xargs -n1 basename | sed s/\.instr//g | sort | uniq | xargs echo | sed s/\ /,/g`
+           export NUMCHANGEDINSTR=`git diff --name-only $DIFFBASE HEAD | grep \.instr\$ | grep mcxtrace-comps | wc -l | xargs echo`
            echo ----
            echo $NUMCHANGEDCOMPS components and $NUMCHANGEDINSTR instruments were changed, resulting in this list:
            echo $CHANGEDINSTR
@@ -445,14 +470,9 @@ jobs:
              else
                export SCOPE=" "
              fi
-             mkdir run_mxtest && cd run_mxtest
-             if [ "$RUNNER_OS" != "Windows" ]; then
-               mxtest --mpi=2 --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.mpi }} $PERMISSIVE
-               mxviewtest --nobrowse $PWD
-             else
-               mxtest.bat --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.CC }}  $PERMISSIVE
-               mxviewtest.bat --nobrowse $PWD
-             fi
+             mkdir -p run_mxtest && cd run_mxtest
+             ${MXTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=instrCHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             ${MXVIEWTEST_EXECUTABLE} --nobrowse $PWD
            fi
 
     - name: 'Tar output files'
@@ -464,15 +484,151 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcxtrace-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
+           tar cvfz mcxtrace-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcxtrace-artefacts-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
-        path: "mcxtrace-${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
+        name: mcxtrace-artefacts-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
+        path: "mcxtrace-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
+
+    - name: Setup tmate session for manual debugging
+      uses: mxschmitt/action-tmate@v3
+      if: always() && (inputs.manual-debugging == true)
+      with:
+        limit-access-to-actor: true
+
+  compare:
+    name: mcxtrace-basictest-comparison
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        path: src
+
+    - name: Get conda dependency list
+      id: conda-deps
+      run: |
+           ./src/devel/bin/mccode-create-conda-yml -m mcxtrace -n mcxtrace -o dependencies.yml
+
+    - uses: mamba-org/setup-micromamba@v3
+      with:
+        environment-name: mcxtrace
+        environment-file: dependencies.yml
+
+    - name: Configure build and install mcxtrace
+      id: mcxtrace-install
+      run: |
+           # Only the Python tooling (mxviewtest, mxplotdiff-html, mxplot-html) is
+           # actually needed here - the diff/report generation is platform-agnostic
+           # regardless of which OS originally produced the monitor data - but we
+           # reuse the exact same install path as the build job for consistency,
+           # rather than maintaining a second, lighter-weight install mechanism.
+           ./src/devel/bin/mccode-build-conda -m mcxtrace -s $PWD/src -b $PWD/build_mcxtrace
+
+    - name: 'Download all platform test artifacts'
+      id: download
+      uses: actions/download-artifact@v6
+      with:
+        pattern: mcxtrace-artefacts-*
+        path: downloaded_artifacts
+
+    - name: 'Merge changed-instrument columns into one shared testdir'
+      id: merge
+      # Plain (non-login) shell here deliberately: this step is pure
+      # tar/mv/mkdir, no conda activation needed, and a login shell's
+      # ~/.bash_logout (standard on Debian/Ubuntu images) runs
+      # `clear_console -q` on exit, which can fail in a non-interactive
+      # runner and override our own explicit `exit 0`/`exit 1` below,
+      # making a successful "nothing changed" run report as a failure.
+      shell: bash {0}
+      run: |
+           set -e
+           set -u
+           set -x
+
+           mkdir basictests
+
+           REFLABEL=""
+           FOUND_ANY="0"
+
+           for tgz in downloaded_artifacts/*/*.tgz; do
+             work=$(mktemp -d)
+             tar xzf "$tgz" -C "$work"
+             FOUND_ANY="1"
+             artifact_name=$(basename "$(dirname "$tgz")")
+
+             if [ -d "$work"/run_mxtest/ ]; then
+               mkdir -p changes
+               for labeldir in "$work"/run_mxtest/*/; do
+                 if [[ "$artifact_name" == *"ubuntu-latest"* ]]; then
+                   REFLABEL=$(basename "$labeldir")
+                 fi
+                 mv $labeldir changes/
+               done
+             fi
+
+             for labeldir in "$work"/run_basictests/*/; do
+               mv $labeldir basictests/
+             done
+             rm -rf "$work"
+           done
+
+           echo "FOUND_ANY=$FOUND_ANY" >> "$GITHUB_ENV"
+           if [ "$FOUND_ANY" == "0" ]; then
+             echo "No instrument/component changes detected on any platform"
+           fi
+
+           if [ -z "$REFLABEL" ]; then
+             echo "WARNING: could not identify the ubuntu-latest/conda reference column"
+           else
+             echo "REFLABEL=$REFLABEL" >> "$GITHUB_ENV"
+             echo "Reference column: $REFLABEL"
+           fi
+
+    - name: 'Run mxviewtest across all platform columns'
+      id: viewtest
+      run: |
+           set -e
+           set -u
+           set -x
+           if [ -d changes/ ]; then
+             cd changes
+             if [ -z "$REFLABEL" ]; then
+               mxviewtest --reflabel "$REFLABEL" --nobrowse
+             else
+               mxviewtest --nobrowse
+             fi
+             cd -
+           fi
+           if [ -d basictests/ ]; then
+             cd basictests && mxviewtest --nobrowse && ls -l $PWD && cd -
+           fi
+
+    - name: 'Tar output (all platform folders + comparison tables)'
+      id: tar-package
+      run: |
+           if [ -d changes/ ]; then
+             tar cvfz mcxtrace-basictest-comparison.tgz changes basictests
+           else
+             tar cvfz mcxtrace-basictest-comparison.tgz basictests
+           fi
+
+    - name: 'Upload comparison artifact'
+      id: comparison-upload
+      uses: actions/upload-artifact@v6
+      with:
+        name: mcxtrace-basictest-comparison
+        path: mcxtrace-basictest-comparison.tgz
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3

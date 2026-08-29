@@ -9,12 +9,25 @@ the @MCCODE_PREFIX@test toool, testing the @MCCODE_NAME@ installation
 
 # SYNOPSIS
 
-**@MCCODE_PREFIX@viewtest** [-h] [--reflabel [REFLABEL]] [--testroot [TESTROOT]] [--verbose] [--nobrowse] [testdir]
+**@MCCODE_PREFIX@viewtest** [-h] [--reflabel [REFLABEL]] [--testroot [TESTROOT]] [--verbose] [--nobrowse] [--nodiff] [--diff-errors-only] [--diffmax DIFFMAX] [--diffworkers DIFFWORKERS] [testdir]
 
 # DESCRIPTION
 
 The tool **@MCCODE_PREFIX@viewtest** is a program visualise testesults
 from the current @MCCODE_NAME@ installation.
+
+When more than one test run is present (a reference run and one or more
+other runs, e.g. different platforms, GPU vs. CPU, or different @MCCODE_NAME@
+versions/branches), taking the first/reference test run's results as the
+'reference' column, **@MCCODE_PREFIX@viewtest** also generates a
+**@MCCODE_PREFIX@plotdiff-html** comparison between each other column's
+monitor output and the reference's, and adds a `DIFF: [vs ref]` link to the
+test report next to each such row. These comparisons are cached on disk (in
+a `diff_vs_<reflabel>` subfolder next to the test's own output), so re-running
+**@MCCODE_PREFIX@viewtest** over the same test data does not regenerate
+existing comparisons, and they are generated in parallel (see
+`--diffworkers` below) to keep this reasonably fast even for large test
+suites (a few hundred instruments).
 
 # OPTIONS
 
@@ -35,6 +48,26 @@ from the current @MCCODE_NAME@ installation.
 **--nobrowse**
 	Do not spawn browser on exit
 
+**--nodiff**
+	Do not generate **@MCCODE_PREFIX@plotdiff-html** comparison cells
+    against the reference column at all
+
+**--diff-errors-only**
+	Only generate diff cells for rows that show a discrepancy against
+    the reference (i.e. skip rows that already match the reference within
+    tolerance). Default is to diff every row that has valid data on both
+    sides, since these comparisons are cached and run in parallel; use this
+    switch to further cut down the number of comparisons generated, e.g. on
+    a very large test suite
+
+**--diffmax DIFFMAX**
+	Maximum time (s) allowed per **@MCCODE_PREFIX@plotdiff-html**
+    comparison (default 300s)
+
+**--diffworkers DIFFWORKERS**
+	Number of **@MCCODE_PREFIX@plotdiff-html** comparisons to run in
+    parallel (default: number of processors available to this process)
+
 **testdir** 
 	Indicate location of result directories 
 	(PWD is used if unset)
@@ -50,10 +83,16 @@ http://www.@FLAVOR@.org
 
 `@MCCODE_PREFIX@viewtest`
 
+View test results, but skip generating diff cells against the reference column entirely (fastest, no comparisons at all)
+:   `@MCCODE_PREFIX@viewtest --nodiff`
+
+View test results, only diffing rows that show a discrepancy, using 8 parallel workers
+:   `@MCCODE_PREFIX@viewtest --diff-errors-only --diffworkers 8`
+
 # AUTHORS
 
 @MCCODE_NAME@ Team (@FLAVOR@.org)
 
 # SEE ALSO
 
-@FLAVOR@(1), @MCCODE_PREFIX@test(1), @MCCODE_PREFIX@doc(1), @MCCODE_PREFIX@plot(1), @MCCODE_PREFIX@run(1), @MCCODE_PREFIX@gui(1), @MCCODE_PREFIX@display(1)
+@FLAVOR@(1), @MCCODE_PREFIX@test(1), @MCCODE_PREFIX@doc(1), @MCCODE_PREFIX@plot(1), @MCCODE_PREFIX@plotdiff-html(1), @MCCODE_PREFIX@run(1), @MCCODE_PREFIX@gui(1), @MCCODE_PREFIX@display(1)

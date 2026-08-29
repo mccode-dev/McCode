@@ -1,0 +1,195 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: PSD_monitor_Filter
+*
+* %I
+* Written by: Viktor L. Holm
+* Date: 2019
+* Origin: University of Copenhagen
+*
+* Position-sensitive monitor with filter-option, used in Radiography_Sword instrument.
+*
+* %D
+* An (n times m) pixel PSD monitor  with filter-option, adapted from PSD_monitor from Kim Lefmann.
+*
+* Example: PSD_monitor_Filter(xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1, nx=90, ny=90, filename="Output.psd")
+*
+* %P
+* INPUT PARAMETERS:
+*
+* xmin:                      [m] Lower x bound of detector opening
+* xmax:                      [m] Upper x bound of detector opening
+* ymin:                      [m] Lower y bound of detector opening
+* ymax:                      [m] Upper y bound of detector opening
+* xwidth:                    [m] Width of detector. Overrides xmin, xmax
+* yheight:                   [m] Height of detector. Overrides ymin, ymax
+* nx:                        [1] Number of pixel columns
+* ny:                        [1] Number of pixel rows
+* filter_pixels:             [1] Number of filter pixels (in both x and y)
+* filename:                [str] Filename for storing the detector image
+* TwoD_filename:           [str] Filter inputfile
+* apply_xy_filter:           [1] Flag to apply filter or not.
+* filter_xmin:               [m] Lower x bound of filter dimensions
+* filter_xmax:               [m] Upper x bound of filter dimensions
+* filter_ymin:               [m] Lower y bound of filter dimensions
+* filter_ymax:               [m] Upper y bound of filter dimensions
+* pinhole_filter_distance:   [m] Distance between upstream pinhole and the filter
+* pinhole_detector_distance: [m] Distance between upstream pinhole and the detector
+* smoothing:                 [1] Level of smoothing to apply (0-1)*rand_norm()*(pinhole_filter_distance / pinhole_detector_distance)
+* zoom:                      [1] Level of detector-zoom
+* restore_neutron:           [1] If set, the monitor does not influence the neutron state
+* nowritefile:               [1] If set, monitor will skip writing to disk
+*
+* %E
+*******************************************************************************/
+
+
+DEFINE COMPONENT PSD_monitor_Filter
+SETTING PARAMETERS (int nx=90, int ny=90, int filter_pixels=600, string filename=0, xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05, xwidth=0, yheight=0, restore_neutron=0,
+  int nowritefile=0,string TwoD_filename=0, apply_xy_filter=1, filter_xmin=-0.8,
+  filter_xmax=0.8,filter_ymin=-0.8,filter_ymax=0.8,pinhole_filter_distance = 25, pinhole_detector_distance=25,smoothing=0.0,zoom=1.0)
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+DECLARE
+%{
+  DArray2d PSD_N;
+  DArray2d PSD_p;
+  DArray2d PSD_p2;
+
+  DArray2d TwoD_data;
+
+  char TwoD[50];
+  double Filter_scale;
+%}
+
+INITIALIZE
+%{
+  int i, j;
+  FILE* filePointer;
+  if (xwidth > 0) {
+    xmax = xwidth / 2;
+    xmin = -xmax;
+  }
+  if (yheight > 0) {
+    ymax = yheight / 2;
+    ymin = -ymax;
+  }
+
+  if ((xmin >= xmax) || (ymin >= ymax)) {
+    printf ("PSD_monitor: %s: Null detection area !\n"
+            "ERROR        (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+            NAME_CURRENT_COMP);
+    exit (0);
+  }
+
+  xmin = xmin / zoom;
+  xmax = xmax / zoom;
+  ymin = ymin / zoom;
+  ymax = ymax / zoom;
+
+  PSD_N = create_darr2d (nx, ny);
+  PSD_p = create_darr2d (nx, ny);
+  PSD_p2 = create_darr2d (nx, ny);
+
+  TwoD_data = create_darr2d (filter_pixels, filter_pixels);
+
+  filePointer = fopen (TwoD_filename, "r");
+
+  for (i = 0; i < filter_pixels; i++) {
+    for (j = 0; j < filter_pixels; j++) {
+      fscanf (filePointer, "%s", TwoD);
+      TwoD_data[j][i] = atof (TwoD);
+    }
+  }
+
+  fclose (filePointer);
+
+  Filter_scale = pinhole_filter_distance / pinhole_detector_distance;
+  %}
+TRACE
+  %{
+  int i, j, n, X_shift, Y_shift;
+  double X, Y;
+  double Rand;
+
+  PROP_Z0;
+  if (x > xmin && x < xmax && y > ymin && y < ymax) {
+
+    if (apply_xy_filter == 1) {
+
+      X = x * Filter_scale;
+      Y = y * Filter_scale;
+
+      if (smoothing > 0.0) {
+        Rand = randnorm ();
+
+        X_shift = floor (Rand * smoothing);
+
+        Rand = randnorm ();
+
+        Y_shift = floor (Rand * smoothing);
+
+      }
+
+      else {
+        X_shift = 0;
+        Y_shift = 0;
+      }
+
+      i = floor ((X - filter_xmin * 1.8) * filter_pixels / (filter_xmax * 1.8 - filter_xmin * 1.8)) + X_shift;
+      j = floor ((Y - filter_ymin * 1.8) * filter_pixels / (filter_ymax * 1.8 - filter_ymin * 1.8)) + Y_shift;
+
+      if (i > -1 && i < filter_pixels && j > -1 && j < filter_pixels) {
+        p *= TwoD_data[i][j];
+      } else {
+        p *= 0;
+      }
+    }
+
+    i = floor ((x - xmin) * nx / (xmax - xmin));
+    j = floor ((y - ymin) * ny / (ymax - ymin));
+
+    double p2 = p * p;
+    #pragma acc atomic
+    PSD_N[i][j] = PSD_N[i][j] + 1;
+
+    #pragma acc atomic
+    PSD_p[i][j] = PSD_p[i][j] + p;
+
+    #pragma acc atomic
+    PSD_p2[i][j] = PSD_p2[i][j] + p2;
+    SCATTER;
+  }
+  if (restore_neutron) {
+    RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+  }
+  %}
+SAVE
+  %{
+  if (!nowritefile) {
+    DETECTOR_OUT_2D ("PSD monitor Filter", "X position [cm]", "Y position [cm]", xmin * 100.0, xmax * 100.0, ymin * 100.0, ymax * 100.0, nx, ny, &PSD_N[0][0],
+                     &PSD_p[0][0], &PSD_p2[0][0], filename);
+  }
+  %}
+
+FINALLY %{
+  destroy_darr2d(PSD_N);
+  destroy_darr2d(PSD_p);
+  destroy_darr2d(PSD_p2);
+  destroy_darr2d(TwoD_data);
+%}
+
+
+MCDISPLAY
+%{
+
+  multiline (5, (double)xmin, (double)ymin, 0.0, (double)xmax, (double)ymin, 0.0, (double)xmax, (double)ymax, 0.0, (double)xmin, (double)ymax, 0.0, (double)xmin,
+             (double)ymin, 0.0);
+%}
+
+END

@@ -8,7 +8,7 @@
 
 # SYNOPSIS
 
-**@MCCODE_PREFIX@plotdiff-html** [-h] [-n] [-l] [--autosize] [--libpath [LIBPATH ...]] [-o OUTPUT] [-A LABEL_A] [-B LABEL_B] [-W WIDTH] [-H HEIGHT] a b
+**@MCCODE_PREFIX@plotdiff-html** [-h] [-n] [-D] [-l] [--autosize] [--libpath [LIBPATH ...]] [-o OUTPUT] [-A LABEL_A] [-B LABEL_B] [-W WIDTH] [-H HEIGHT] a b
 
 # DESCRIPTION
 
@@ -25,6 +25,16 @@ non-MPI results.
 file. Only monitors present in both `a` and `b`, with identical binning, are
 compared; monitors found in only one of the two inputs, or with mismatched
 binning, are skipped with a warning.
+
+By default, each difference dataset is also written out in standard McCode
+ASCII ("# comment header + data body") format alongside the HTML plots,
+with a `mccode.sim` index generated too (when comparing two simulation
+folders), so the output directory is itself a normal McCode simulation
+directory that can be reopened directly by
+**@MCCODE_PREFIX@plot-html**/**@MCCODE_PREFIX@plot-pyqtgraph**/**@MCCODE_PREFIX@plot-matplotlib**,
+or any other McCode-format-aware tool. Each generated HTML plot also links
+directly to its underlying `.dat` file. Pass `-D`/`--no-dat` to skip this and
+only produce the HTML plots.
 
 For 1D monitors, the difference curve is plotted with error bars computed
 from standard error propagation. For 2D monitors, since differences can be
@@ -45,6 +55,11 @@ same client-side plotting code as **@MCCODE_PREFIX@plot-html**.
 
 **-n, --nobrowse**
 :   do not open a webbrowser viewer
+
+**-D, --no-dat**
+:   do not write each difference dataset out in standard McCode ASCII
+    format (and skip the `mccode.sim` index in folder mode); by default
+    these files are written alongside the HTML plots
 
 **-l, --log**
 :   when comparing two single monitor files, also produce a log-style plot.

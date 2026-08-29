@@ -1,0 +1,183 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Test_Sans_spheres
+*
+* %Identification
+* Written by: Daniel Lomholt Christensen
+* Date: 18/08/2026
+* Origin: Niels Bohr Institute @ UCPH
+* %INSTRUMENT_SITE: Test_samples
+*
+* A small instrument to compare the Sans_spheres and SANS_spheres2 components
+*
+* %Description
+* This instrument is a small SANS instrument that simulates the Sans_spheres 
+* component, and the SANS_spheres2 component, in order to ensure that they 
+* give the same value in this specific case.
+*
+* %Example: use_SANS_spheres2=0 Detector: psd_det_I=9.73795e+06
+* %Example: use_SANS_spheres2=1 Detector: psd_det_I=9.73795e+06
+*
+*
+* %Parameters
+* E_i: [meV] Energy of the simulated neutrons.
+* use_SANS_spheres2: [1] Flag to select whether to use the Sans_spheres component or the SANS_spheres2 component.
+* improved_res: [1] Flag to indicate whether the instrument should run in the insanely good resolution mode.
+* flux_mult: [n/s] Factor that is multiplied onto the source component in order to adjust the flux. 
+*
+* %Link
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Sans_spheres(E_i=5, int use_SANS_spheres2=0, int improved_res = 0, flux_mult=0.5512)
+
+DECLARE
+%{
+  double focus_w;
+  double focus_h;
+  double samp_w;
+  double samp_h;
+  double dE;
+  double src_rad;
+  double src_focus_w;
+  double src_focus_h;
+%}
+
+INITIALIZE
+%{
+  focus_w = 1;
+  focus_h = 1;
+  samp_w = 0.01;
+  samp_h = 0.01;
+  dE = 0.475;
+  src_rad = 0.05;
+  src_focus_w = samp_w;
+  src_focus_h = samp_h;
+  if (improved_res){
+    samp_w = 0.000001;
+    samp_h = 0.000001;
+    dE = 0.00000000000001;
+    src_rad = 0.0000000001;
+    src_focus_w = samp_w - samp_w * 0.01;
+    src_focus_h = samp_h - samp_h * 0.01;
+  }
+%}
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT source = Source_simple(
+    radius = src_rad,
+    dist = 10.495,
+    focus_xw = src_focus_w,
+    focus_yh = src_focus_h,
+    E0 = E_i,
+    dE = dE,
+    flux = 1e14*flux_mult
+) AT (0, 0, 0) RELATIVE Origin
+ROTATED (0, 0, 0) RELATIVE Origin
+
+
+COMPONENT post_src_det = PSD_monitor(
+    nx = 200,
+    ny = 200,
+    xwidth = src_rad*2,
+    yheight = src_rad*2,
+    restore_neutron = 1
+) AT (0, 0, 0.001) RELATIVE source
+
+
+
+COMPONENT post_source_slit = Slit(
+    radius = 0.005
+) AT (0, 0, 0.025) RELATIVE source
+
+
+COMPONENT between_slits_det = PSD_monitor(
+    nx = 200,
+    ny = 200,
+    xwidth = 0.005,
+    yheight = 0.005,
+    restore_neutron = 1
+) AT (0, 0, 0.001) RELATIVE PREVIOUS
+
+
+COMPONENT pre_samp_arm = Arm(
+    ) AT (0, 0, 10.495) RELATIVE source
+
+
+COMPONENT pre_samp_slit = Slit(
+    radius = 0.005
+) AT (0, 0, 0) RELATIVE pre_samp_arm
+
+
+
+COMPONENT pre_samp_det = PSD_monitor(
+    nx = 200,
+    ny = 200,
+    filename="pre_det",
+    xwidth = samp_h,
+    yheight = samp_h,
+    restore_neutron = 1
+) AT (0, 0, 0.0005) RELATIVE pre_samp_arm
+
+
+
+
+COMPONENT arm_sample = Arm(
+    
+) AT (0, 0, 0.005) RELATIVE pre_samp_arm
+ROTATED (0, 0, 0) RELATIVE pre_samp_arm
+
+COMPONENT sans_spheres = Sans_spheres(
+  R = 100, Phi = 1e-2, Delta_rho = 5, sigma_abs = 0,
+  xwidth=samp_w, yheight=samp_h, zdepth=0.001,
+  focus_xw=focus_w,
+  focus_yh=focus_h,
+  target_index=4
+) WHEN(use_SANS_spheres2 == 0) 
+AT (0,0,0) RELATIVE arm_sample
+
+COMPONENT sans_spheres2 = SANS_spheres2(
+  xwidth = samp_w, yheight = samp_h, zthick = 0.001,
+  dsdw_inc = 0, singlesp = 1,
+  R = 100, phi = 1e-2, drho = 5e11,
+  Qmind = 0.001, Qmaxd = 100.25,
+  sc_aim =1, sans_aim = 1
+) WHEN (use_SANS_spheres2 == 1)
+AT (0,0,0) RELATIVE PREVIOUS
+
+
+
+COMPONENT total_scat = PSD_monitor_4PI(
+    nx = 360,
+    ny = 360,
+    radius=0.1,
+    restore_neutron=1,
+    filename="total_scat"
+) //WHEN (total_scattering==1)
+AT (0, 0, 0) RELATIVE arm_sample
+
+
+COMPONENT arm_det = Arm(
+) AT (0, 0, 0) RELATIVE arm_sample
+ROTATED (0, 0, 0) RELATIVE arm_sample
+
+COMPONENT psd_det = PSD_monitor(
+    nx = 1000,
+    ny = 1000,
+    filename="post_det",
+    xwidth = 1,
+    yheight = 1,
+    restore_neutron = 1
+) AT (0, 0, 5) RELATIVE arm_det
+
+
+FINALLY
+%{
+%}
+END
+

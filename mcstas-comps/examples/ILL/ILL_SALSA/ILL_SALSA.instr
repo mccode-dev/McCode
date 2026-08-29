@@ -128,12 +128,23 @@ INITIALIZE
       Rh_H22_6  = L_H22_6 /gRh*RAD2DEG;
     }
     printf("Instrument: ILL_H22 (H22@ILL thermal guide).\n");
-        mono_sandwich_x = (double*)malloc(lamellas*monochromator_slabs*sizeof(double));
+    mono_sandwich_x = (double*)malloc(lamellas*monochromator_slabs*sizeof(double));
     mono_sandwich_y = (double*)malloc(lamellas*monochromator_slabs*sizeof(double));
     mono_sandwich_z = (double*)malloc(lamellas*monochromator_slabs*sizeof(double));
     mono_sandwich_rot_x = (double*)malloc(lamellas*monochromator_slabs*sizeof(double));
     mono_sandwich_rot_y = (double*)malloc(lamellas*monochromator_slabs*sizeof(double));
     mono_sandwich_rot_z = (double*)malloc(lamellas*monochromator_slabs*sizeof(double));
+    if (NULL == mono_sandwich_x || NULL == mono_sandwich_y || NULL == mono_sandwich_z
+          || NULL == mono_sandwich_rot_x || NULL == mono_sandwich_rot_y || NULL == mono_sandwich_rot_z){
+      free(mono_sandwich_x);
+      free(mono_sandwich_y);
+      free(mono_sandwich_z);
+      free(mono_sandwich_rot_x);
+      free(mono_sandwich_rot_y);
+      free(mono_sandwich_rot_z);
+      printf("ERROR: monochromator not properly allocated. Exiting\n");
+      exit(-1);
+    }
     //FOCUSING MONOCHROMATOR ARRRAY
     double gap = 0.0001;
     double total_mono_height = 0.209;

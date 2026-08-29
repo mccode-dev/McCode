@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<head>
+  <script src="@LIBPATH@d3.v4.min.js"></script>
+  <script src="@LIBPATH@plotfuncs.js"></script>
+  <style>
+    .coplot-legend {
+      position: fixed;
+      top: 8px;
+      right: 12px;
+      font-family: sans-serif;
+      font-size: 13px;
+      background: rgba(255,255,255,0.85);
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      line-height: 1.6;
+    }
+    .coplot-legend .swatch {
+      display: inline-block;
+      width: 14px;
+      height: 3px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .coplot-legend a { color: inherit; }
+  </style>
+</head>
+<body style="margin:0;overflow:hidden">
+<div class="coplot-legend">
+@LEGEND_ROWS@
+</div>
+<script>
+  // JSON array of N params objects, one per co-plotted dataset (index 0
+  // carries the actual figure title; the rest only need x/y/yerr/colour -
+  // see get_params_json() in mccoplot.py).
+  var paramsList = @PARAMS_LIST@;
+
+  // Plot1D's constructor only auto-scales its axes from the single dataset
+  // passed to it, so we construct with dataset 0, then extend the axis
+  // bounds to also cover every other dataset before adding them and
+  // forcing a redraw - otherwise later series could render partially (or
+  // fully) outside the visible axes if their range exceeds dataset 0's.
+  var plt = new Plot1D(paramsList[0], d3.select("body").append("svg"), logscale=@LOGSCALE@);
+
+  var xmin = plt.xmin, xmax = plt.xmax, ymin = plt.ymin, ymax = plt.ymax;
+  for (var i = 1; i < paramsList.length; i++) {
+    var p = paramsList[i];
+    var pos = p['y'].filter(function(v) { return v > 0; });
+    var yminI = pos.length ? Math.min.apply(null, pos) : ymin;
+    xmin = Math.min(xmin, d3.min(p['x']));
+    xmax = Math.max(xmax, d3.max(p['x']));
+    ymin = Math.min(ymin, yminI);
+    ymax = Math.max(ymax, d3.max(p['y']) * 1.05);
+  }
+  plt.xmin = xmin; plt.xmax = xmax; plt.ymin = ymin; plt.ymax = ymax;
+
+  for (var i = 1; i < paramsList.length; i++) {
+    plt.plotOneMore(paramsList[i]);
+  }
+  plt._draw_1d_axes(plt.hdl.wplt, plt.hdl.hplt, plt.xmin, plt.xmax, plt.ymin, plt.ymax, plt.hdl.axisGroup);
+
+  plt.rgstrMouseClickPlot( () => { console.log("click"); } );
+  plt.rgstrMouseCtrlClickPlot( () => { console.log("ctrl click"); } );
+  plt.rgstrMouseRClickPlot( () => { console.log("right click"); } );
+</script>
+</body>
+</html>

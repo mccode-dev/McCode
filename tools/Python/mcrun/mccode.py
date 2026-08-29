@@ -170,11 +170,17 @@ class McStas:
         else:
             # Generate C-code (implicit: prepare for --trace or --no-trace mode if not no_main / Vitess)
             LOG.info('Regenerating c-file: %s', basename(self.cpath))
-            mccode_bin_abspath = str( pathlib.Path(mccode_config.directories['bindir']) / options.mccode_bin )
+            # options.mccode_bin may contain both a binary/cmd and parameters to it - so split by space and use [0]
+            cogen = options.mccode_bin.split(' ')[0]
+            cogenparms = ' '.join(options.mccode_bin.split(' ')[1:])
+
+            mccode_bin_abspath = str( pathlib.Path(mccode_config.directories['bindir']) / cogen )
             if not os.path.exists(mccode_bin_abspath):
                 LOG.warning('Full-path code-generator "%s" not found!!', mccode_bin_abspath)
                 mccode_bin_abspath=basename(mccode_bin_abspath)
                 LOG.warning('Attempting replacement by "%s"', mccode_bin_abspath)
+            if cogenparms is not None:
+                mccode_bin_abspath = mccode_bin_abspath + ' ' + cogenparms
 
             if not options.no_main:
                 trace='-t'
@@ -283,6 +289,25 @@ class McStas:
             line = re.sub(r'\\', '/', line)
             if re.search('CFLAGS=', line):
                 label, flags = line.split('=', 1)
+
+                # mcstas-antlr / mcxtrace-antlr may emit a CFLAGS value that
+                # spans several lines (e.g. a DEPENDENCY string containing
+                # embedded newlines). Continuation lines aren't part of the
+                # generated file's other header-comment fields - they just
+                # sit before the closing ' */' marker of that comment block -
+                # so keep consuming lines from the same iterator until we
+                # see it (bounded, for safety).
+                extra = 0
+                for contline in ccode:
+                    counter += 1
+                    extra += 1
+                    contline = contline.decode().rstrip()
+                    contline = re.sub(r'\\', '/', contline)
+                    if contline.strip() == '*/':
+                        break
+                    flags += ' ' + contline.strip()
+                    if extra > 50:
+                        break
 
                 # Insert NEXUSFLAGS if instrument/comps request this
                 flags = re.sub(r'\@NEXUSFLAGS\@', mccode_config.compilation['NEXUSFLAGS'], flags)

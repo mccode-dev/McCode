@@ -1,0 +1,99 @@
+% @MCCODE_PREFIX@COPLOT-MATPLOTLIB(1)
+% @FLAVOR_UPPER@ @MCCODE_PARTICLE@ Ray Tracing Team
+% @MCCODE_DATE@
+
+# NAME
+
+**@MCCODE_PREFIX@coplot-matplotlib** - Co-plotting (overlaying) two @MCCODE_NAME@ simulation results' 1D monitors using Matplotlib
+
+# SYNOPSIS
+
+**@MCCODE_PREFIX@coplot-matplotlib** [-h] [-A LABEL_A] [-B LABEL_B] [--colour-a COLOUR_A] [--colour-b COLOUR_B] [-t] [--html] [--format FORMAT] [--output OUTPUT] [--log] [--backend BACKEND] a b
+
+# DESCRIPTION
+
+The front-end **@MCCODE_PREFIX@coplot-matplotlib** is a companion to
+**@MCCODE_PREFIX@plotdiff-matplotlib**, sharing its command-line syntax and
+monitor-matching logic. Instead of computing and plotting the *difference*
+between two simulation results, **@MCCODE_PREFIX@coplot-matplotlib**
+overlays the two datasets on the same axes, for direct visual comparison of
+curve shape and position rather than the size of the gap between them.
+
+`a` and `b` may each be either a simulation output directory (as produced by
+`@MCCODE_PREFIX@run`, containing a `mccode.sim` file) or a single monitor
+data file. Monitors are matched between `a` and `b` by output filename,
+exactly as in **@MCCODE_PREFIX@plotdiff-matplotlib**.
+
+Only 1D monitors are supported. A monitor present in only one of the two
+inputs, or a monitor pair that isn't a matching 1D/1D pair (e.g. a 2D
+monitor, or mismatched binning), is skipped with a warning printed to the
+console; use **@MCCODE_PREFIX@plotdiff-matplotlib** for 2D comparisons.
+
+This tool reuses the same Matplotlib panel-layout code (figure sizing,
+panel grid, font scaling, title wrapping) as **@MCCODE_PREFIX@plot-matplotlib**,
+applied to overlaid monitor pairs instead of single monitors. Each panel
+shows both curves with a draggable legend; unlike ordinary
+**@MCCODE_PREFIX@plot-matplotlib**, there is no click-based drill-down,
+since a co-plot panel is already the finest level of detail on offer.
+Keyboard shortcuts (log toggle, save PNG/PDF/SVG/JPG, quit, help) work as
+usual - see the shortcuts printed on startup.
+
+# OPTIONS
+
+**-h, --help**
+:   show this help message and exit
+
+**-A LABEL_A, --label-a LABEL_A**
+:   short label used for simulation `a` in the legend/titles (default: the
+    basename of `a`)
+
+**-B LABEL_B, --label-b LABEL_B**
+:   short label used for simulation `b` in the legend/titles (default: the
+    basename of `b`)
+
+**--colour-a COLOUR_A**
+:   override the overlay colour used for `a` (default `#1f77b4`, blue)
+
+**--colour-b COLOUR_B**
+:   override the overlay colour used for `b` (default `#d62728`, red)
+
+**-t, --test**
+:   print the matched monitor pairs before plotting
+
+**--html**
+:   save plot to html using mpld3 (linux only)
+
+**--format FORMAT**
+:   save plot to pdf/png/eps/svg... without bringing up window
+
+**--output OUTPUT**
+:   save plot to given file without bringing up window. Extension (e.g.
+    pdf/png/eps/svg) can be specified in the file name or `--format`
+
+**--log**
+:   initiate plot(s) with log of signal
+
+**--backend BACKEND**
+:   use non-default backend for matplotlib plot
+
+# FILES
+
+/usr/share/@FLAVOR@/resources
+/usr/share/@FLAVOR@/tools/Python/mccodelib/mccode_config.json
+~/.@FLAVOR@/mccode_config.json
+http://www.@FLAVOR@.org
+
+# EXAMPLES
+
+Run the *Test_SX* example (Single crystal diffraction) twice with different parameters, and overlay a 1D monitor from each
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_a -n 1e7 TTH=13.4`
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_b -n 1e7 TTH=14.0`
+:   - `@MCCODE_PREFIX@coplot-matplotlib output_a output_b`
+
+# AUTHORS
+
+@MCCODE_NAME@ Team (@FLAVOR@.org)
+
+# SEE ALSO
+
+@FLAVOR@(1), @MCCODE_PREFIX@doc(1), @MCCODE_PREFIX@plot(1), @MCCODE_PREFIX@plot-matplotlib(1), @MCCODE_PREFIX@plotdiff-matplotlib(1), @MCCODE_PREFIX@coplot-html(1), @MCCODE_PREFIX@run(1), @MCCODE_PREFIX@gui(1), @MCCODE_PREFIX@display(1)

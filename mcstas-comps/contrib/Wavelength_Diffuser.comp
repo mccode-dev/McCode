@@ -1,0 +1,62 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Wavelength_Diffuser
+*
+* %I
+* Written by: Viktor L. Holm
+* Date: Aug 13, 2019
+* Origin: University of Copenhagen
+*
+* Wavelength-diffuser: Applies Gaussian smearing in wavelength.
+*
+* %D
+* A component that applies a Gaussian smearing in wavelength to the incoming neutron.
+* The smearing is defined by a normal-distributed uncertainty in wavelength from 0 to +/- dlambda.
+*
+* Example: Wavelength_Diffuser(dlambda = 1)
+*
+* %P
+* INPUT PARAMETERS:
+*
+* dlambda: [AA] Sigma-value for Gaussian wavelength-smearing
+*
+* OUTPUT PARAMETERS:
+*
+* %E
+*******************************************************************************/
+DEFINE COMPONENT Wavelength_Diffuser
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS (dlambda = 1)
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+DECLARE
+%{
+
+%}
+INITIALIZE
+%{
+
+%}
+
+TRACE
+  %{
+  double Rand, l_save;
+  int k;
+
+  Rand = randnorm ();
+
+  l_save = (2 * PI / V2K) / sqrt (vx * vx + vy * vy + vz * vz);
+
+  Rand = (2 * PI / V2K) / ((Rand * dlambda * l_save + l_save) * sqrt (vx * vx + vy * vy + vz * vz));
+
+  vx *= Rand;
+  vy *= Rand;
+  vz *= Rand;
+  %}
+
+END
