@@ -49,8 +49,8 @@
 *
 * Variables calculated in the component
 *
-* my_s: Attenuation factor due to scattering [m^-1]
-* my_a: Attenuation factor due to absorbtion [m^-1]
+* mu_s: Attenuation factor due to scattering [m^-1]
+* mu_a: Attenuation factor due to absorbtion [m^-1]
 *
 * %Link
 * The test/example instrument <a href="../examples/SANS.instr">SANS.instr</a>.
@@ -67,11 +67,60 @@ target_x = 0, target_y = 0, target_z = 6, int target_index=0,
 focus_xw=0, focus_yh=0, focus_aw=0, focus_ah=0,  focus_r=0)
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+SHARE %{
+
+   #pragma acc routine seq
+  double
+  Mind (double A, double B) {
+    if (A < B)
+      return A;
+    else
+      return B;
+  };
+
+  #pragma acc routine seq
+  double
+  Maxd (double A, double B) {
+    if (A > B)
+      return A;
+    else
+      return B;
+  };
+
+  #pragma acc routine seq
+  int
+  MinI (int A, int B) {
+    if (A < B)
+      return A;
+    else
+      return B;
+  };
+
+  #pragma acc routine seq
+  int
+  MaxI (int A, int B) {
+    if (A > B)
+      return A;
+    else
+      return B;
+  };
+
+
+  double dSigdOmega(double R, double Phi, double Delta_rho, double q){
+      
+    double f = 3 * (sin (q * R) - q * R * cos (q * R)) / (q * R * q * R * q * R);
+    double V = 4 * PI * R * R * R / 3 ;
+  
+    return Phi * Delta_rho * Delta_rho * V * f*f;
+  }
+%}
 DECLARE
 %{
-  double my_s_pre;
-  double my_a_v;
+  double mu_a_v;
   double shape;
+  DArray1d Idsdw;
+  double Qminl;
+  double Qmaxl;
 %}
 INITIALIZE
 %{
@@ -103,14 +152,50 @@ INITIALIZE
     printf ("Sans_spheres: %s: The target is not defined. Using direct beam (Z-axis).\n", NAME_CURRENT_COMP);
     target_z = 1;
   }
+  if (focus_ah || focus_aw) { // Convert focus from degrees to radians
+    focus_aw *= PI / 180;
+    focus_ah *= PI / 180;
+  }
 
-  my_a_v = sigma_abs * 2200; /* Is not yet divided by v.*/
+  mu_a_v = sigma_abs * 2200; /* Is not yet divided by v.*/
 
-  my_s_pre = Phi * 4 * PI * R * R * R / 3 * Delta_rho * Delta_rho;
+  // Perform integral of dsigdomega over all of omega for use in adjusting the weight of the neutron.
+  int iii, kkk;
+  double Qmind = 0.0000001;
+  double Qmaxd = 100;
+
+  Qminl = log10 (Qmind);
+  Qmaxl = log10 (Qmaxd);
+
+  double q, Isq;
+  double qmin, qmax, step;
+  int istp;
+
+  istp = floor ((Qmaxl - Qminl) * 300.0 + 0.5);
+
+  Idsdw = create_darr1d (31);
+
+  // Use the integration over Q for 30 different wavelengths, taken from SANS_spheres2.comp
+  /* By integration, calculate the coherent scattering cross-section for the relevant wavelength range */
+  for (iii = 1; iii <= 30; iii++) { /* wavelength in AA, up to 30 */
+    Idsdw[iii] = 0.0;
+    Isq = 0.0;
+    qmin = 0.0;
+    step = (log10 (Mind (Qmaxd, 4.0 * PI / iii)) - Qminl) / istp;
+    for (kkk = 0; kkk <= istp; kkk++) {
+      qmax = pow (10.0, Qminl + kkk * step);
+      q = 0.5 * (qmin + qmax);
+      Isq += dSigdOmega (R, Phi, Delta_rho, q) * q * (qmax - qmin);
+      qmin = qmax;
+    };
+    Idsdw[iii] = Isq;
+  };
 %}
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, my_s;
+  double t0, t1, v, l_full, l_in, l_out, dt, mu_s, Scoh;
+  double k0, lambda;
+  int Ilam, Ilam2;
   double aim_x = 0, aim_y = 0, aim_z = 1;
   double f, solid_angle, vx_i, vy_i, vz_i, qx, qy, qz, q;
   char intersect = 0;
@@ -130,7 +215,20 @@ TRACE
     l_full = v * (t1 - t0);          /* Length of full path through sample */
     dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
     PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    l_in = v * (dt - t0);            /* Penetration in sample */
+    k0 = V2K * v;
+    lambda = 2.0 * PI / k0;
+    Ilam = MaxI (floor (lambda), 1);
+    Ilam2 = MinI (Ilam + 1, 30);
+    /* Coherent "SANS" scattering  - in 3 intervals, asymptotic values at the low and high WL end */
+    if (lambda <= 1.0)
+      Scoh = 2 * PI * Idsdw[1] / (k0 * k0);
+    else {
+      if (lambda >= 30.0)
+        Scoh = 2 * PI * Idsdw[30] / (k0 * k0);
+      else
+        Scoh = 2 * PI * ((Ilam2 - lambda) * Idsdw[Ilam] + (lambda - Ilam) * Idsdw[Ilam2]) / (k0 * k0);
+    };
 
     vx_i = vx;
     vy_i = vy;
@@ -155,10 +253,18 @@ TRACE
     qy = V2K * (vy_i - vy);
     qz = V2K * (vz_i - vz);
     q = sqrt (qx * qx + qy * qy + qz * qz);
+    if (shape == 0)
+      intersect = cylinder_intersect (&t0, &t1, x, y, z, vx, vy, vz, radius, yheight);
+    else if (shape == 1)
+      intersect = box_intersect (&t0, &t1, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
+    else if (shape == 2)
+      intersect = sphere_intersect (&t0, &t1, x, y, z, vx, vy, vz, radius);
+    l_out = v * t1;
+    PROP_DT (t1);
 
-    f = 3 * (sin (q * R) - q * R * cos (q * R)) / (q * R * q * R * q * R);
+    mu_s = dSigdOmega (R, Phi, Delta_rho, q);
 
-    double pmul = l_full * solid_angle / (4 * PI) * my_s_pre * f * f * exp (-(my_a_v / v) * l_full);
+    double pmul = l_full * solid_angle * mu_s * exp (-(mu_a_v / v + Scoh) * (l_in + l_out));
     p = p * pmul;
     SCATTER;
   }

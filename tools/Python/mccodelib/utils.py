@@ -691,12 +691,22 @@ def get_instr_site(instr_file):
         
     return site
 
+# Directory names used to hold auto-generated .instr snippets that are
+# %include'd by a parent instrument, e.g.
+# mcstas-comps/examples/.../generated_includes/foo.instr. These are not
+# standalone instruments in their own right, so get_instr_comp_files() prunes
+# them from traversal entirely -- keeping them out of mctest, mcgui, mcdoc,
+# and any other consumer of this function.
+EXCLUDED_INSTR_DIRNAMES = {"generated_includes","includes","snippets"}
+
 def get_instr_comp_files(mydir, recursive=True, instrfilter=None, withcomp=None, compfilter=None):
     ''' returns list of filename with path of all .instr and .comp recursively from dir "mydir"
 
     181211: added recursive, defaults to True to preserve backwards compatibility
     191114: added instrfilter and compfilter, which filters results based on filename (before the dot)
     061225: added withcomp, for filtering instruments using a certain comp
+    260828: added pruning of EXCLUDED_INSTR_DIRNAMES (e.g. generated_includes),
+            which hold generated/included .instr snippets rather than standalone instruments
     '''
     instrreg = None
     compreg = None
@@ -706,7 +716,8 @@ def get_instr_comp_files(mydir, recursive=True, instrfilter=None, withcomp=None,
     files_instr = [] 
     files_comp = []
 
-    for (dirpath, _, files) in os.walk(mydir):
+    for (dirpath, dirnames, files) in os.walk(mydir):
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_INSTR_DIRNAMES]
         for f in files:
             # get instr files
             if splitext(f)[1] == '.instr':
