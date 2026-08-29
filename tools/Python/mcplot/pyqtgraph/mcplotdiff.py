@@ -72,14 +72,12 @@ def main(args):
         # run pqtg frontend: reuse the ordinary plotfuncs.plot rendering
         # code, but start out on the diverging colour map (better suited to
         # signed difference data) and a window title that makes the a/b
-        # comparison explicit. If the auto-derived labels collided (e.g.
-        # two runs both ending in a plain ".../<instrument>/1/" folder) and
-        # default_labels() fell back to bare "A"/"B", those letters alone
-        # carry no identifying information - show the full source paths in
-        # the title instead.
+        # comparison explicit. label_a/label_b already carry full
+        # identification even when the auto-derived labels collided (e.g.
+        # two runs both ending in a plain ".../<instrument>/1/" folder) -
+        # default_labels() falls back to using each side's full input path
+        # as its label directly in that case.
         title = 'diff: %s - %s' % (label_a, label_b)
-        if used_fallback:
-            title = 'diff: A: %s   B: %s' % (args.a, args.b)
         plotter = pqtgfrontend.McPyqtgraphPlotter(
             graph, sourcedir=dir_a, plot_func=plotfuncs.plot, invcanvas=args.invcanvas,
             title=title,

@@ -7,13 +7,17 @@
 * Origin: ESS
 * %INSTRUMENT_SITE: ESS
 *
-* Test instrument for the updated BF1 butterfly moderator design
+* Test instrument for the updated BF1 butterfly moderator design including a simple guide.
 *
 * %D
-* Test instrument for the updated BF1 butterfly moderator design.
+* Test instrument for the updated BF1 butterfly moderator design including a simple guide with 10 m straight flight-path followed by a 50 m curved guide.
 *
-* The below example gives a 50-50 (statistics-wise) cold/thermal beam at beamline N10.
-* %Example: sector=N beamline=10 cold=0.5 Detector: Monitor2_xy1_I=4.4e+11
+* The below example gives a 50-50 (statistics-wise) cold/thermal beam at beamline S2.
+* Example: sector=S beamline=2 cold=0.5 Detector: Monitor2_xy1_I=1.59e+11
+*
+* Use the ESS_butterfly_MCPL_test instrument for direct comparison with MCPL-based source descriptions.
+*
+* %Example: sector=S beamline=2 cold=0.5 Detector: Monitor2_xy1_I=1.59e+11
 *
 *
 * %P
@@ -28,22 +32,17 @@
 * cold:          [1]    Defines the statistical fraction of events emitted from the cold part of the moderator
 * Yheight:       [m]    Defines the moderator height. Valid values are 0.03 m and 0.06 m
 * delta:         [m]    Parameter that allows to scan "collimator" position
-* thres:         [ ]    Weight-threshold, neutrons with higher weight are absorbed
-* repeat:        [ ]    Number of MCPL file repetitions
-* v_smear:       [1]    When repeating events, make a Gaussian MC choice within v_smear*V around particle velocity V
-* pos_smear:     [m]    When repeating events, make a flat MC choice of position within pos_smear around particle starting position 
-* dir_smear:     [deg]  When repeating events, make a Gaussian MC choice of direction within dir_smear around particle direction
 * n_pulses:      [1]    Number of pulses to simulate
+* allmons:       [1]    Flag to include also debugging-monitor output
 *
 * %L
 * <reference/HTML link>
 * Benchmarking website available at <a href="http://ess_butterfly.mcstas.org">http://ess_butterfly.mcstas.org</a>
 * %E
 *******************************************************************************/
-DEFINE INSTRUMENT ESS_butterfly_Guide_curved_test(string sector="N",
-  int beamline=1,Lmin=0.2,Lmax=20,c_performance=1,t_performance=1,
-  int index=25,dist=0,cold=1,Yheight=0.03,delta=0,thres=0.003,repeat=1,
-  v_smear=0.1,pos_smear=0.01,dir_smear=0.01,int n_pulses=1)
+DEFINE INSTRUMENT ESS_butterfly_Guide_curved_test(string sector="S",
+  int beamline=2,Lmin=0.2,Lmax=20,c_performance=1,t_performance=1,
+  int index=0,dist=2,cold=0.5,Yheight=0.03,delta=0,int n_pulses=1,int allmons=0)
 
 
 DECLARE %{
@@ -90,8 +89,8 @@ USERVARS %{
   double SrcX;
   double SrcY;
   double SrcZ;
-  double Emin;
-  double Emax;
+  double E_min;
+  double E_max;
   double Eneutron;
   double T0;
   double L0;
@@ -142,7 +141,6 @@ TRACE
 COMPONENT Origin = Progress_bar()
 AT (0, 0, 0) ABSOLUTE
 
-
 COMPONENT vinROT2 = Arm()
 AT(0,0,0) RELATIVE PREVIOUS
   ROTATED (0,-90,0) RELATIVE PREVIOUS
@@ -154,14 +152,13 @@ AT(0,0,0) RELATIVE PREVIOUS
 COMPONENT vin = Arm()
 AT(0,0,0) RELATIVE PREVIOUS
 
-/* Focusing for this use of the source is a little unphysical: 1x1cm @ 1m ~ 1e-4 steradian. To be useful in a "proper" instrument, you should of course illuminate your beamport fully!*/
 COMPONENT Source = ESS_butterfly(sector=sector,beamline=beamline,Lmin=Lmin,Lmax=Lmax,c_performance=c_performance,t_performance=t_performance,dist=dist,target_index=index,cold_frac=cold, yheight=Yheight,
 				 focus_xw=0.12, focus_yh=0.12, n_pulses=n_pulses)
  AT (DeltaX,0,DeltaZ) ABSOLUTE
   ROTATED (0, ANGLE, 0) ABSOLUTE
 
-COMPONENT Sphere0 = PSD_monitor_4PI(filename="rotated", radius=2.2,restore_neutron=1)
-AT (0,0,0) RELATIVE Source
+COMPONENT Sphere0 = PSD_monitor_4PI(filename="rotated", radius=2.2,restore_neutron=1, nowritefile=!allmons)
+WHEN (allmons) AT (0,0,0) RELATIVE Source
 
 COMPONENT BackTrace = Shape(xwidth=0.3,yheight=0.3)
   AT (0,0,0.08) RELATIVE Source
@@ -172,16 +169,18 @@ EXTEND %{
   SrcX=x;SrcY=y;SrcZ=z;
   Eneutron=VS2E*(vx*vx + vy*vy + vz*vz);
   if (Eneutron>EminTh) {
-    Emin=EminC;Emax=EmaxC;
+    E_min=EminC;E_max=EmaxC;
     IsCold=0;
   } else {
-    Emin=EminTh;Emax=EmaxTh;
+    E_min=EminTh;E_max=EmaxTh;
     IsCold=1;
   }
   T0=t;
   L0=myL;
 %}
 
+COMPONENT POSTATSource=PSD_monitor(xwidth=0.31,yheight=0.31)
+AT (0,0,0) RELATIVE BackTrace
 
 /* These arms are just to ensure we get a good view of the monolith */
 COMPONENT Arm1 = Arm()
@@ -190,49 +189,48 @@ COMPONENT Arm1 = Arm()
 COMPONENT Arm2 = Arm()
   AT (0,0,3.5) RELATIVE Source
 
-COMPONENT AutoTOFL0 = Monitor_nD(xwidth=XW, yheight=YH, user1="T0", user2="L0", options="user1 limits=[0 5e-3] bins=51, user2 limits=[0.1 20] bins=41", restore_neutron=1)
+COMPONENT AutoTOFL0 = Monitor_nD(xwidth=XW, yheight=YH, user1="T0", user2="L0", options="user1 limits=[0 5e-3] bins=51, user2 limits=[0.1 20] bins=41", restore_neutron=1,filename="AutoTOFL0")
 AT (0, 0, 0.001) RELATIVE BackTrace
 
-COMPONENT AutoTOF0 = Monitor_nD(xwidth=XW, yheight=YH, user1="T0", options="user1 limits=[0 5e-3] bins=51", restore_neutron=1)
+COMPONENT AutoTOF0 = Monitor_nD(xwidth=XW, yheight=YH, user1="T0", options="user1 limits=[0 5e-3] bins=51", restore_neutron=1,filename="AutoTOF0")
  AT (0, 0, 0.001) RELATIVE PREVIOUS
 
-COMPONENT AutoL0 = Monitor_nD(xwidth=XW, yheight=YH, user1="L0", options="user1 limits=[0.1 20] bins=41", restore_neutron=1)
+COMPONENT AutoL0 = Monitor_nD(xwidth=XW, yheight=YH, user1="L0", options="user1 limits=[0.1 20] bins=41", restore_neutron=1,filename="AutoL0")
  AT (0, 0, 0.001) RELATIVE PREVIOUS
 
-COMPONENT PSD0= Monitor_nD(filename="flat",xwidth=0.2,yheight=0.2,user1="SrcX",user2="SrcY",options="user1 limits=[-0.1 0.1] bins=90, user2 limits=[-0.1 0.1] bins=90,", restore_neutron=1)
+COMPONENT PSD0= Monitor_nD(filename="flat",xwidth=0.2,yheight=0.2,user1="SrcX",user2="SrcY",options="user1 limits=[-0.1 0.1] bins=90, user2 limits=[-0.1 0.1] bins=90,", restore_neutron=1,filename="PSD0")
   AT (0,0,0.001) RELATIVE PREVIOUS
 
-COMPONENT PSD1=Monitor_nD(filename="flatC",xwidth=0.2,yheight=0.2,user1="SrcX",user2="SrcY",options="user1 limits=[-0.1 0.1] bins=90, user2 limits=[-0.1 0.1] bins=90,", restore_neutron=1)
+COMPONENT PSD1=Monitor_nD(filename="flatC",xwidth=0.2,yheight=0.2,user1="SrcX",user2="SrcY",options="user1 limits=[-0.1 0.1] bins=90, user2 limits=[-0.1 0.1] bins=90,", restore_neutron=1,filename="PSD1")
   WHEN (Eneutron<EminTh) AT (0,0,0.001) RELATIVE PREVIOUS
 
-COMPONENT PSD2=Monitor_nD(filename="flatT",xwidth=0.16,yheight=0.16,user1="SrcX",user2="SrcY",options="user1 limits=[-0.1 0.1] bins=90, user2 limits=[-0.1 0.1] bins=90,", restore_neutron=1)
+COMPONENT PSD2=Monitor_nD(filename="flatT",xwidth=0.16,yheight=0.16,user1="SrcX",user2="SrcY",options="user1 limits=[-0.1 0.1] bins=90, user2 limits=[-0.1 0.1] bins=90,", restore_neutron=1,filename="PSD2")
   WHEN (Eneutron>=EminTh) AT (0,0,0.001) RELATIVE PREVIOUS
 
 
-COMPONENT MonND1 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1)
+COMPONENT MonND1 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1,filename="MonND1")
   AT (0, 0, 1) RELATIVE Source
 
-COMPONENT CWidth = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1)
+COMPONENT CWidth = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1,filename="CWidth")
   WHEN(Eneutron<=EmaxC && Eneutron>=EminC) AT (0, 0, 1) RELATIVE Source
 
-COMPONENT TWidth = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1)
+COMPONENT TWidth = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", options=options1, restore_neutron=1,filename="TWidth")
   WHEN(Eneutron<=EmaxTh && Eneutron>=EminTh) AT (0, 0, 1) RELATIVE Source
 
-COMPONENT MonND2 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcY", username1="Vertical position COLD / [m]", options=options4, restore_neutron=1)
+COMPONENT MonND2 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcY", username1="Vertical position COLD / [m]", options=options4, restore_neutron=1,filename="MonND2")
   WHEN(IsCold) AT (0, 0, 1) RELATIVE Source
 
-COMPONENT MonND2_2 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcY", username1="Vertical position THERMAL/ [m]", options=options4, restore_neutron=1)
+COMPONENT MonND2_2 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcY", username1="Vertical position THERMAL/ [m]", options=options4, restore_neutron=1,filename="MonND2_2")
   WHEN(!IsCold) AT (0, 0, 1) RELATIVE Source
 
-COMPONENT MonND3 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", user2="SrcY",username2="Vertical position / [m]", options=options2, restore_neutron=1)
+COMPONENT MonND3 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Horizontal position / [m]", user2="SrcY",username2="Vertical position / [m]", options=options2, restore_neutron=1,filename="MonND3")
  AT (0, 0, 1) RELATIVE Source
 
-COMPONENT MonND4 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Emission position / [m]", user2="SrcZ", username2="Z-component of position / [m]", options="user1 bins=201 limits=[-0.3,0.3], user2 bins=201 limits=[-0.3,0.3]", restore_neutron=1)
+COMPONENT MonND4 = Monitor_nD(xwidth=XW, yheight=YH, user1="SrcX", username1="Emission position / [m]", user2="SrcZ", username2="Z-component of position / [m]", options="user1 bins=201 limits=[-0.3,0.3], user2 bins=201 limits=[-0.3,0.3]", restore_neutron=1,filename="MonND4")
  AT (0, 0, 1) RELATIVE Source
 
 
-
-COMPONENT AutoTOFL = Monitor_nD(xwidth=0.1, yheight=0.1, options="tof limits=[0 15e-3] bins=51, lambda limits=[0.1 20] bins=41", restore_neutron=1)
+COMPONENT AutoTOFL = Monitor_nD(xwidth=0.1, yheight=0.1, options="tof limits=[0 15e-3] bins=51, lambda limits=[0.1 20] bins=41", restore_neutron=1,filename="AutoTOFL")
  AT (0, 0, 2) RELATIVE Source
 
 
@@ -241,8 +239,8 @@ COMPONENT AutoTOFL = Monitor_nD(xwidth=0.1, yheight=0.1, options="tof limits=[0 
 COMPONENT BrillmonCOLD = Brilliance_monitor(
     nlam = 101, nt = 101, filename = "brillCOLD", t_0 = -1000,
     t_1 =4e4, lambda_0 = lambdamin, lambda_1 = lambdamax,
-    Freq =14, toflambda=1 ,tofcuts=0, srcarea=(100*0.072*100*Yheight), restore_neutron=1,source_dist=2,xwidth=0.1,yheight=0.1)
-WHEN(IsCold)  AT (0, 0, 2) RELATIVE Source
+    Freq =14, toflambda=1 ,tofcuts=0, srcarea=(100*0.072*100*Yheight), restore_neutron=1,source_dist=2,xwidth=0.1,yheight=0.1,nowritefile=!allmons)
+WHEN(allmons && IsCold)  AT (0, 0, 2) RELATIVE Source
 
 /* Measures "collimated" brilliance of the cold source over fixed 6 cm wide area x central part vertically. */
 /* Used for calibration of performance wrt. MCNP BF1 output, see http://ess_butterfly.mcstas.org */
@@ -256,8 +254,8 @@ COMPONENT BrillmonCOLD_COLL = Brilliance_monitor(
 COMPONENT BrillmonTHRM = Brilliance_monitor(
     nlam = 101, nt = 101, filename = "brillTHRM", t_0 = -1000,
     t_1 =4e4, lambda_0 = lambdamin, lambda_1 = lambdamax,
-    Freq =14, toflambda=1,tofcuts=0, srcarea=(100*0.108*100*Yheight), restore_neutron=1,source_dist=2,xwidth=0.1,yheight=0.1)
-  WHEN (!IsCold) AT (0, 0, 2) RELATIVE Source
+    Freq =14, toflambda=1,tofcuts=0, srcarea=(100*0.108*100*Yheight), restore_neutron=1,source_dist=2,xwidth=0.1,yheight=0.1,nowritefile=!allmons)
+  WHEN (allmons && !IsCold) AT (0, 0, 2) RELATIVE Source
 
 /* Measures "collimated" brilliance of the thermal source over fixed 6 cm wide area (or smaller at beamlines no. 1,2) x central part vertically. */
 /* Used for calibration of performance wrt. MCNP BF1 output, see http://ess_butterfly.mcstas.org */
@@ -273,12 +271,20 @@ COMPONENT PSD0x= Monitor_nD(filename="flat_x",xwidth=0.1,yheight=0.1,user1="SrcX
   COMPONENT PSD1x=Monitor_nD(filename="flatC_x",xwidth=0.1,yheight=0.1,user1="SrcX",user2="SrcY",options="user1 limits=[-0.08 0.08] bins=90, user2 limits=[-0.08 0.08] bins=90,", restore_neutron=1)
 WHEN (Eneutron<EminTh) AT (0,0,0.001) RELATIVE PREVIOUS
 
-  COMPONENT PSD2x=Monitor_nD(filename="flatT_x",xwidth=0.1,yheight=0.1,user1="SrcX",user2="SrcY",options="user1 limits=[-0.08 0.08] bins=90, user2 limits=[-0.08 0.08] bins=90,", restore_neutron=1)
+COMPONENT PSD2x=Monitor_nD(filename="flatT_x",xwidth=0.1,yheight=0.1,user1="SrcX",user2="SrcY",options="user1 limits=[-0.08 0.08] bins=90, user2 limits=[-0.08 0.08] bins=90,", restore_neutron=1)
 WHEN (Eneutron>=EminTh) AT (0,0,0.001) RELATIVE PREVIOUS
 
+COMPONENT Flux_incoming=Monitor_nD(xwidth=0.05,yheight=0.1,filename="Flux_incoming",options="x, y pr cm2", bins=100)
+  AT (0, 0, 2) RELATIVE Source
+
+COMPONENT GuideStraight=Guide(w1 = 0.05, h1 = 0.1, l = 10)
+  AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT Flux_mid=Monitor_nD(xwidth=0.05,yheight=0.1,filename="Flux_mid",options="x, y pr cm2", bins=100)
+  AT (0, 0, 10) RELATIVE GuideStraight
 
 COMPONENT GuideR = Guide_curved(
-    w1 = 0.1, h1 = 0.1, l = 50, curvature=3000)
+    w1 = 0.05, h1 = 0.1, l = 50, curvature=3000)
   AT (0,0,0.001) RELATIVE PREVIOUS
 
   COMPONENT RArm=Arm()
@@ -290,9 +296,32 @@ COMPONENT GuideR = Guide_curved(
   ROTATED (0, calcAlpha(50,3000),0) RELATIVE GuideR
 
 COMPONENT Monitor2_xy1 = Monitor_nD(
-    options = "x limits=[-0.06 0.06] bins=51, y limits=[-0.06 0.06] bins=51,", xwidth = 0.12, yheight = 0.12)
+  options = "x limits=[-0.06 0.06] bins=51, y limits=[-0.06 0.06] bins=51,", xwidth = 0.12, yheight = 0.12,filename="Monitor2_xy1")
  AT (0, 0, 0.05) RELATIVE RArm
 
+COMPONENT Monitor_X = Monitor_nD(
+  options = "x limits=[-0.06 0.06] bins=51", xwidth = 0.12, yheight = 0.12,filename="Monitor_X")
+    AT (0, 0, 0) RELATIVE Monitor2_xy1
+
+COMPONENT Monitor_Y = Monitor_nD(
+  options = "y limits=[-0.06 0.06] bins=51", xwidth = 0.12, yheight = 0.12,filename="Monitor_Y")
+    AT (0, 0, 0) RELATIVE Monitor2_xy1
+
+COMPONENT Monitor_divH = Monitor_nD(
+  options = "hdiv limits=[-1.5 1.5] bins=51", xwidth = 0.12, yheight = 0.12,filename="Monitor_divH")
+    AT (0, 0, 0) RELATIVE Monitor2_xy1
+
+COMPONENT Monitor_divV = Monitor_nD(
+  options = "vdiv limits=[-1.5 1.5] bins=51", xwidth = 0.12, yheight = 0.12,filename="Monitor_divV")
+    AT (0, 0, 0) RELATIVE Monitor2_xy1
+
+COMPONENT Monitor_t = Monitor_nD(
+  options = "t limits=[0 350e-3] bins=351", xwidth = 0.12, yheight = 0.12,filename="Monitor_t")
+    AT (0, 0, 0) RELATIVE Monitor2_xy1
+  
+COMPONENT Flux_end=Monitor_nD(xwidth=0.05,yheight=0.1,filename="Flux_end",options="x, y pr cm2", bins=100)
+  AT (0, 0, 0) RELATIVE Monitor2_xy1
+  
 /* /\* Uncomment these helper-arms to view "full" monolith *\/ */
 
 COMPONENT DummyArm1 = Arm()

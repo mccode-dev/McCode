@@ -27,29 +27,36 @@
 </head>
 <body style="margin:0;overflow:hidden">
 <div class="coplot-legend">
-  <div><span class="swatch" style="background:@COLOUR_A@"></span>A @DATALINK_A@</div>
-  <div><span class="swatch" style="background:@COLOUR_B@"></span>B @DATALINK_B@</div>
+@LEGEND_ROWS@
 </div>
 <script>
-  var paramsA = @PARAMS_A@;
-  var paramsB = @PARAMS_B@;
+  // JSON array of N params objects, one per co-plotted dataset (index 0
+  // carries the actual figure title; the rest only need x/y/yerr/colour -
+  // see get_params_json() in mccoplot.py).
+  var paramsList = @PARAMS_LIST@;
 
   // Plot1D's constructor only auto-scales its axes from the single dataset
-  // passed to it, so we construct with A, then extend the axis bounds to
-  // also cover B before adding B's series and forcing a redraw - otherwise
-  // B's curve could render partially (or fully) outside the visible axes
-  // if its range exceeds A's.
-  var plt = new Plot1D(paramsA, d3.select("body").append("svg"), logscale=@LOGSCALE@);
+  // passed to it, so we construct with dataset 0, then extend the axis
+  // bounds to also cover every other dataset before adding them and
+  // forcing a redraw - otherwise later series could render partially (or
+  // fully) outside the visible axes if their range exceeds dataset 0's.
+  var plt = new Plot1D(paramsList[0], d3.select("body").append("svg"), logscale=@LOGSCALE@);
 
-  var posB = paramsB['y'].filter(function(v) { return v > 0; });
-  var yminB = posB.length ? Math.min.apply(null, posB) : plt.ymin;
+  var xmin = plt.xmin, xmax = plt.xmax, ymin = plt.ymin, ymax = plt.ymax;
+  for (var i = 1; i < paramsList.length; i++) {
+    var p = paramsList[i];
+    var pos = p['y'].filter(function(v) { return v > 0; });
+    var yminI = pos.length ? Math.min.apply(null, pos) : ymin;
+    xmin = Math.min(xmin, d3.min(p['x']));
+    xmax = Math.max(xmax, d3.max(p['x']));
+    ymin = Math.min(ymin, yminI);
+    ymax = Math.max(ymax, d3.max(p['y']) * 1.05);
+  }
+  plt.xmin = xmin; plt.xmax = xmax; plt.ymin = ymin; plt.ymax = ymax;
 
-  plt.xmin = Math.min(plt.xmin, d3.min(paramsB['x']));
-  plt.xmax = Math.max(plt.xmax, d3.max(paramsB['x']));
-  plt.ymin = Math.min(plt.ymin, yminB);
-  plt.ymax = Math.max(plt.ymax, d3.max(paramsB['y']) * 1.05);
-
-  plt.plotOneMore(paramsB);
+  for (var i = 1; i < paramsList.length; i++) {
+    plt.plotOneMore(paramsList[i]);
+  }
   plt._draw_1d_axes(plt.hdl.wplt, plt.hdl.hplt, plt.xmin, plt.xmax, plt.ymin, plt.ymax, plt.hdl.axisGroup);
 
   plt.rgstrMouseClickPlot( () => { console.log("click"); } );

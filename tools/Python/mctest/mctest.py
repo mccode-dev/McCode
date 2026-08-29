@@ -33,6 +33,11 @@ def get_processor_info():
 
     return ""
 
+def paths_overlap(a: pathlib.Path, b: pathlib.Path) -> bool:
+    a = a.resolve()
+    b = b.resolve()
+    return a == b or a.is_relative_to(b) or b.is_relative_to(a)
+
 #
 # Functionality
 #
@@ -299,12 +304,13 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     num_compilefail=0
     num_runfail=0
     num_valfail=0
+    num_noexample=0
 
     # Over all test success flag
     anyfailed=False
 
     # compile, record time
-    global ncount, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed
+    global ncount, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
@@ -312,6 +318,11 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         logging.info("c-lint'ing instruments [seconds]...")
 
     for test in tests:
+        if strict and test.testnb==0:
+            logging.info("!! No test(s) found in %s !!" % test.instrname)
+            anyfailed=True
+            num_noexample = num_noexample + 1
+            pass
         # if binary exists, set compile time = 0 and continue
         binfile = os.path.splitext(test.localfile)[0] + "." + mccode_config.platform["EXESUFFIX"].lower()
         compilefailed=os.path.splitext(test.localfile)[0] + ".failed"
@@ -394,7 +405,12 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     logging.info("Running tests / getting status...")
     runfailed=False
     for test in tests:
-        if test.linted:
+        if strict and test.testnb==0:
+            runfailed = True
+            formatstr = "%-" + "%ds: FAILURE: tool in --strict mode and instrument includes no %%%%Example: line(s)!" % (maxnamelen+1)
+            logging.info(formatstr % test.instrname)
+            continue
+        elif test.linted:
             formatstr = "%-" + "%ds:  Linter only" % (maxnamelen+1)
             logging.info(formatstr % test.instrname)
             continue
@@ -561,7 +577,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     for t in tests:
         obj[t.get_display_name()] = t.get_json_repr()
     obj["_meta"] = metainfo
-    return (obj, anyfailed, num_compilefail, num_runfail, num_valfail)
+    return (obj, anyfailed, num_compilefail, num_runfail, num_valfail, num_noexample)
 
 #
 # Utility
@@ -629,7 +645,7 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     logging.info("Testing: %s" % version)
     logging.info("")
 
-    (results, failed, num_compilefail, num_runfail, num_valfail) = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter)
+    (results, failed, num_compilefail, num_runfail, num_valfail, num_noexample) = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter)
 
     reportfile = os.path.join(labeldir, "testresults_%s.json" % (mccode_config.configuration["MCCODE"]+"-"+version+suffix))
     open(os.path.join(reportfile), "w").write(json.dumps(results, indent=2))
@@ -640,8 +656,12 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     print("Overall test result:")
     if (failed):
         if (not permissive):
-            print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
-            exit(-1)
+            if (not strict):
+                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
+                exit(-1)
+            else:
+                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off / %d missing %%Example(s))" % (num_compilefail, num_runfail, num_valfail, num_noexample) )
+                exit(-1)
         else:
             print("Failures reported but tool was run in permissive mode (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
     else:
@@ -732,7 +752,7 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
 
                 # craete the proper test dir
                 labeldir = create_label_dir(testdir, label)
-                results, failed, num_compilefail, num_runfail, num_valfail = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter, label0)
+                results, failed, num_compilefail, num_runfail, num_valfail, num_noexample= mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter, label0)
 
                 # write local test result
                 reportfile = os.path.join(labeldir, "testresults_%s.json" % (os.path.basename(labeldir)))
@@ -815,7 +835,7 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed
+    global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict
     ncount = "1e6"
     if args.ncount:
         ncount = args.ncount[0]
@@ -835,6 +855,25 @@ def main(args):
     if args.local:
         runLocal = args.local
 
+    # Check for collision between testdir and mccoderoot / runlocal
+    if args.local:
+        if paths_overlap(pathlib.Path(args.local),pathlib.Path(testdir)):
+            logging.info("Local input path %s and output path %s overlap. This is not allowed!" % (args.local, testdir))
+            quit(1)
+        # Check for mccode.sim in local dir and raise a warning if found:
+        matches = list(pathlib.Path(args.local).rglob("mccode.sim"))
+        if len(matches):
+            logging.info("Local input path %s contains mccode.sim data (extra input files?) This may lead to errors/warnings..." % args.local)
+
+    else:
+        if paths_overlap(pathlib.Path(mccoderoot),pathlib.Path(testdir)):
+            logging.info("MCCODE root dir %s and output path %s overlap. This is not allowed!" % (mccoderoot, testdir))
+            quit(1)
+        # Check for mccode.sim in mccoderoot and raise a warning if found:
+        matches = list(pathlib.Path(mccoderoot).rglob("mccode.sim"))
+        if len(matches):
+            logging.info("MCCODE root dir %s contains mccode.sim data (extra input files?) This may lead to errors/warnings..." % mccoderoot)
+
     if instrfilter:
         isuffix=instrfilter.replace(',', '_')
         suffix = '_' + isuffix
@@ -849,7 +888,12 @@ def main(args):
         else:
             suffix = '_' + args.suffix[0]
 
-    suffix=suffix + "_" + ncount + "_" + platform.system() + "_" + utils.get_datetimestr()
+    if not args.uid:
+        uid = "_" + utils.get_datetimestr()
+    else:
+        uid = "_" + args.uid[0]
+
+    suffix=suffix + "_" + ncount + "_" + platform.system() + uid
     if runLocal:
         suffix = suffix + '_LOCAL'
 
@@ -885,9 +929,18 @@ def main(args):
     else:
         displaymax=60
 
+    if args.strict and args.permissive:
+        logging.error("ERROR: Permissive mode and strict mode can not be combined!")
+        exit(-1)
+
     if args.permissive:
         permissive = True
         logging.info("Permissive mode, tool will not report failure on failed instruments")
+
+    strict = False
+    if args.strict:
+        strict = True
+        logging.info("Strict mode, tool will report failure for instruments without %Example")
 
     if not configfilter:
         run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix)
@@ -906,18 +959,20 @@ if __name__ == '__main__':
     parser.add_argument('--instr', nargs="?", help='test only intruments matching this filter (py regex). Comma-separated list allowed for multiple filters.')
     parser.add_argument('--comp', nargs=1, help='test only intruments utilising COMP. Useful for testing the instrument suite after component changes.')
     parser.add_argument('--mccoderoot', nargs='?', help='manually select root search folder for mccode installations')
-    parser.add_argument('--testdir', nargs='?', help='output test results directly in this dir (default CWD)')
+    parser.add_argument('--testdir', nargs='?', help='output test results directly in this dir (default CWD). Used testdir and --local path can not overlap!')
     parser.add_argument('--limit', nargs=1, help='test only the first [LIMIT] instrs')
     parser.add_argument('--verbose', action='store_true', help='output a test/notest instrument status header before each test')
     parser.add_argument('--skipnontest', action='store_true', help='Skip compilation of instruments without a test')
     parser.add_argument('--suffix', nargs=1, help='Add suffix to test directory name, e.g. 3.x-dev_suffix')
+    parser.add_argument('--uid', nargs=1, help='Unique identifier for suffix, e.g. CI worker id (if unset a timestamp is used)')
     parser.add_argument('--nexus', action='store_true', help='Compile for / use NeXus output format everywhere')
     parser.add_argument('--lint', action='store_true', help='Just run the c-linter')
     parser.add_argument('--compilemax', nargs=1, help='Maximum time (s) allowed pr. compilation (default 600s)(if run with --lint muliplied x100)')
     parser.add_argument('--runmax', nargs=1, help='Maximum time (s) allowed pr. test Example run (default 3600s)')
     parser.add_argument('--displaymax', nargs=1, help='Maximum time allowed pr. test Example DISPLAY run (default 60s)')
-    parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional.')
-    parser.add_argument('--local', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR')
+    parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional. Can not be combined with --strict.')
+    parser.add_argument('--strict', action='store_true', help='Let instruments without %%Example line(s) instantly fail. Can not be combined with --permissive.')
+    parser.add_argument('--local', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR. Local path and --testdir can not overlap!')
     args = parser.parse_args()
 
     try:

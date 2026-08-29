@@ -1,6 +1,6 @@
-# The `ESS_butterfly_Guide_curved_test` Instrument
+# The `ESS_MCPL_generate_filtered` Instrument
 
-*McStas: Test instrument for the updated BF1 butterfly moderator design including a simple guide.*
+*McStas: Instrument meant to 'filter' legacy target division MCPL files.*
 
 ## Identification
 
@@ -12,12 +12,13 @@
 ## Description
 
 ```text
-Test instrument for the updated BF1 butterfly moderator design including a simple guide with 10 m straight flight-path followed by a 50 m curved guide.
+Instrument meant to 'filter' legacy target division MCPL files (i.e. S2.mcpl.gz -> S2_filtered.mcpl.gz) for use with
+e.g. the ESS_butterfly_MCPL_test instrument and filter=1.
 
-The below example gives a 50-50 (statistics-wise) cold/thermal beam at beamline S2.
-Example: sector=S beamline=2 cold=0.5 Detector: Monitor2_xy1_I=1.59e+11
+To function, the instrument needs a local copy of the MCPL description you want to work with, e.g. from
+https://public.esss.dk/users/willend/MCPL/
 
-Use the ESS_butterfly_MCPL_test instrument for direct comparison with MCPL-based source descriptions.
+The instrument assumes that binary MCPL datasets are available in . named [sector][beamline].mcpl.gz, i.e. W8.mcpl.gz.
 ```
 
 ## Input parameters
@@ -37,12 +38,11 @@ Parameters in **boldface** are required; the others are optional.
 | cold | 1 | Defines the statistical fraction of events emitted from the cold part of the moderator | 0.5 |
 | Yheight | m | Defines the moderator height. Valid values are 0.03 m and 0.06 m | 0.03 |
 | delta | m | Parameter that allows to scan "collimator" position | 0 |
-| n_pulses | 1 | Number of pulses to simulate | 1 |
 | allmons | 1 | Flag to include also debugging-monitor output | 0 |
 
 ## Links
 
-- [Source code](ESS_butterfly_Guide_curved_test.instr) for `ESS_butterfly_Guide_curved_test.instr`.
+- [Source code](ESS_MCPL_generate_filtered.instr) for `ESS_MCPL_generate_filtered.instr`.
 - <reference/HTML link>
 - Benchmarking website available at <a href="http://ess_butterfly.mcstas.org">http://ess_butterfly.mcstas.org</a>
 

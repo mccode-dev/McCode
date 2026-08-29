@@ -324,10 +324,12 @@ def write_index(outdir, entries, label_a, label_b, path_a=None, path_b=None, use
 
         path_a/path_b/used_fallback come from default_labels(): when the
         auto-derived labels collided (e.g. two runs both ending in a plain
-        ".../<instrument>/1/" folder) and were replaced with bare "A"/"B",
-        used_fallback is True - in that case those bare letters carry no
-        identifying information on their own, so the full source paths are
-        shown as well.
+        ".../<instrument>/1/" folder), default_labels() falls back to using
+        each side's full input path as its label directly - so label_a/
+        label_b already carry full identification in that case, and
+        path_a/path_b/used_fallback are only kept here for backward
+        compatibility with existing callers; nothing further is shown for
+        them.
     """
     filename = os.path.join(outdir, "index.html")
 
@@ -351,18 +353,11 @@ def write_index(outdir, entries, label_a, label_b, path_a=None, path_b=None, use
         outfile.write("  .iframe-wrap iframe { transform-origin: top left; display: block; }\n")
         outfile.write("  #sizecontrol { margin-bottom: 16px; font-size: 14px; }\n")
         outfile.write("  #sizecontrol input[type=range] { vertical-align: middle; margin: 0 8px; }\n")
-        outfile.write("  .pathnote { color: #666666; font-size: 13px; }\n")
         outfile.write("</style>\n")
         outfile.write("</head><body>\n")
         outfile.write("<h1>Difference plots: A vs B</h1>\n")
         outfile.write(f"<h2>A={label_a}<br>B={label_b}</h2>\n")
         outfile.write(f"<p>diff.monitor = ({label_a}).monitor &minus; ({label_b}).monitor</p>\n")
-        if used_fallback and path_a and path_b:
-            # label_a/label_b are bare "A"/"B" here (see default_labels()),
-            # since the two source paths' basenames collided (e.g. both
-            # ended in ".../<instrument>/1/") - show the actual paths so
-            # the comparison is still identifiable.
-            outfile.write(f"<p class='pathnote'>A: {path_a}<br>B: {path_b}</p>\n")
         outfile.write("<div id='sizecontrol'>\n")
         outfile.write("  <label for='sizeslider'>Figure size:</label>\n")
         outfile.write(f"  <input type='range' id='sizeslider' min='20' max='200' value='{init_pct}' step='5'>\n")

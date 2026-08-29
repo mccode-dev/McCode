@@ -2,23 +2,30 @@
 '''
 matplotlib mccoplot frontend.
 
-This is a companion to mcplotdiff.py (mcplot-diff-matplotlib), sharing its
-command-line syntax and monitor-matching logic. Instead of computing and
-plotting the *difference* between two simulation results, mccoplot.py
-overlays the two datasets on the same axes, for direct visual comparison of
-curve shape and position rather than the size of the gap between them.
+This is a companion to mcplotdiff.py (mcplot-diff-matplotlib), sharing
+part of its command-line syntax and monitor-matching logic. Instead of
+computing and plotting the *difference* between two simulation results,
+mccoplot.py overlays any number (2 or more) of datasets on the same axes,
+for direct visual comparison of curve shape and position across all of
+them at once, rather than the difference tool's pairwise "how big is the
+gap". Unlike the diff tools (which are deliberately staying two-way only),
+this is an interactive, end-user comparison tool - typically used with a
+handful (2-8 or so) of related runs, e.g. sweeping a parameter or comparing
+several code versions/platforms against each other directly, not against
+one designated reference.
 
-Only 1D monitors are supported: a and b are matched by output filename via
-mccodelib.mcplotdiffloader.match_1d_monitors() (shared with the
-mcplot-coplot-html frontend), and any matched pair that isn't a 1D/1D match
-is skipped with a warning - overlaying two 2D images doesn't have an
-equally natural single-plot representation, so that case is left to the
-diff tools instead.
+Only 1D monitors are supported: datasets are matched by output filename via
+mccodelib.mcplotdiffloader.match_monitors_multi() (shared with the
+mcplot-coplot-html/-pyqtgraph frontends), and any monitor that isn't a
+matching 1D monitor across *every* dataset is skipped with a warning -
+overlaying more than two 2D images doesn't have an equally natural
+single-plot representation, so that case is left to the (two-way) diff
+tools instead.
 
 Rendering reuses plotfuncs.py's panel-layout helpers (figure sizing, panel
 grid math, font scaling, title wrapping) - the same ones mcplot.py and
 mcplotdiff.py use - but with its own drawing/driver code, since a co-plot
-panel overlays two curves rather than showing one Data1D/Data2D from a plot
+panel overlays N curves rather than showing one Data1D/Data2D from a plot
 graph. There's deliberately no click-based drill-down here (unlike ordinary
 mcplot-matplotlib): a co-plot panel is already the finest level of detail
 on offer, so there's nothing further to navigate into. Keyboard shortcuts
@@ -39,13 +46,26 @@ import plotfuncs
 from mccodelib import mcplotdiffloader as diffloader
 from mccodelib import mccode_config
 
-# Default overlay colours (a, b): a colourblind-friendly blue/red pair.
-COLOUR_A = '#1f77b4'
-COLOUR_B = '#d62728'
+
+def _legend_letters(n):
+    """ 'A', 'B', 'C', ... - the same compact, purely positional legend
+        markers the html/pyqtgraph co-plot tools use, deliberately
+        independent of `labels` itself: resolve_labels() now defaults to
+        each dataset's full input path when the auto-derived short names
+        would otherwise collide, which is exactly the information a
+        legend entry has no room for - keeping the legend on fixed,
+        compact letters regardless of how long the real labels are is
+        what avoids a repeat of the earlier issue where legend content
+        grew unpredictably. """
+    import string
+    letters = string.ascii_uppercase
+    if n <= len(letters):
+        return list(letters[:n])
+    return ['S%d' % i for i in range(n)]
 
 
-def _plot_coplot_panel(data_a, data_b, i, n, log, label_a, label_b, colour_a, colour_b):
-    ''' plot one overlaid (a, b) pair into subplot i of n '''
+def _plot_coplot_panel(datas, labels, colours, i, n, log):
+    ''' plot one overlaid N-dataset group into subplot i of n '''
     dims = plotfuncs._calc_panel_size(n)
     subplt = plotfuncs.pylab.subplot(dims[1], dims[0], i + 1)
 
@@ -53,19 +73,18 @@ def _plot_coplot_panel(data_a, data_b, i, n, log, label_a, label_b, colour_a, co
     title_fontsize = plotfuncs._title_fontsize(n)
     verbose = (n == 1)
 
-    xmin = data_a.xlimits[0]
-    xmax = data_a.xlimits[1]
+    d0 = datas[0]
+    xmin = d0.xlimits[0]
+    xmax = d0.xlimits[1]
     plotfuncs.pylab.xlim(xmin, xmax)
 
-    x = np.array(data_a.xvals).astype(float)
-    ya = np.array(data_a.yvals).astype(float)
-    yaerr = np.array(data_a.y_err_vals).astype(float)
-    yb = np.array(data_b.yvals).astype(float)
-    yberr = np.array(data_b.y_err_vals).astype(float)
-
-    ylabel = data_a.ylabel
-    if log:
-        def _tolog(y, yerr):
+    ylabel = d0.ylabel
+    series = []  # (x, y, yerr) per dataset, post log-transform if needed
+    for data in datas:
+        x = np.array(data.xvals).astype(float)
+        y = np.array(data.yvals).astype(float)
+        yerr = np.array(data.y_err_vals).astype(float)
+        if log:
             y = y.copy()
             invalid = np.where(y <= 0)
             valid = np.where(y > 0)
@@ -73,31 +92,33 @@ def _plot_coplot_panel(data_a, data_b, i, n, log, label_a, label_b, colour_a, co
                 min_valid = np.min(y[valid])
                 y[invalid] = min_valid / 10
             yerr = yerr / y
-            return np.log(y), yerr
-        ya, yaerr = _tolog(ya, yaerr)
-        yb, yberr = _tolog(yb, yberr)
-        ylabel = "log(" + data_a.ylabel + ")"
+            y = np.log(y)
+        series.append((x, y, yerr))
+    if log:
+        ylabel = "log(" + d0.ylabel + ")"
 
-    plotfuncs.pylab.errorbar(x, ya, yaerr, color=colour_a, label=label_a)
-    plotfuncs.pylab.errorbar(x, yb, yberr, color=colour_b, label=label_b)
+    for (x, y, yerr), letter, colour in zip(series, _legend_letters(len(datas)), colours):
+        plotfuncs.pylab.errorbar(x, y, yerr, color=colour, label=letter)
 
-    plotfuncs.pylab.xlabel(data_a.xlabel, fontsize=fontsize, fontweight='bold')
+    plotfuncs.pylab.xlabel(d0.xlabel, fontsize=fontsize, fontweight='bold')
     plotfuncs.pylab.ylabel(ylabel, fontsize=fontsize, fontweight='bold')
 
-    # short title in an overview grid, fuller detail (matching data_a.title
-    # and both sides' I/statistics) once drilled down to a single panel -
-    # the same "verbose only at n==1" convention plotfuncs.plot_single_data
-    # uses for ordinary (non-coplot) monitors.
+    # short title in an overview grid, fuller detail (matching d0.title and
+    # every dataset's identity/I/statistics) once drilled down to a single
+    # panel - the same "verbose only at n==1" convention
+    # plotfuncs.plot_single_data uses for ordinary (non-coplot) monitors.
     if verbose:
         try:
-            title = '%s [%s]\n%s\n%s: I=%s Err=%s N=%s; %s\n%s: I=%s Err=%s N=%s; %s' % (
-                data_a.component, data_a.filename, data_a.title,
-                label_a, data_a.values[0], data_a.values[1], data_a.values[2], data_a.statistics,
-                label_b, data_b.values[0], data_b.values[1], data_b.values[2], data_b.statistics)
+            letters = _legend_letters(len(datas))
+            lines = ['%s [%s]' % (d0.component, d0.filename), d0.title]
+            for data, letter, label in zip(datas, letters, labels):
+                lines.append('%s=%s: I=%s Err=%s N=%s; %s' % (
+                    letter, label, data.values[0], data.values[1], data.values[2], data.statistics))
+            title = '\n'.join(lines)
         except Exception:
-            title = '%s [%s]' % (data_a.component, data_a.filename)
+            title = '%s [%s]' % (d0.component, d0.filename)
     else:
-        title = '%s [%s]' % (data_a.component, data_a.filename)
+        title = '%s [%s]' % (d0.component, d0.filename)
     title = plotfuncs._wrap_title(title, plotfuncs._title_wrap_width(n, title_fontsize))
     plotfuncs.pylab.title(title, fontsize=title_fontsize, fontweight='bold')
 
@@ -109,27 +130,25 @@ def _plot_coplot_panel(data_a, data_b, i, n, log, label_a, label_b, colour_a, co
 
 
 class McCoplotPlotter():
-    ''' Matplotlib co-plot frontend: renders a grid of overlaid (a, b) 1D
-        monitor pairs, with the same overview <-> single-panel navigation
+    ''' Matplotlib co-plot frontend: renders a grid of overlaid N-dataset
+        monitor groups, with the same overview <-> single-panel navigation
         as ordinary mcplot-matplotlib/mcplotdiff-matplotlib (click a panel
         to view it full-size; right-click, 'b', or back-navigate to
         return), reusing plotfuncs.py's generic click()/keypress()/
         print_help()/dumpfile() directly - none of those depend on there
         being an actual plot graph, they just need a list of "click_cbs"
         (one per currently-visible panel) and a "back_cb". Since a co-plot
-        pair has no further level of detail beyond the single-panel view
+        group has no further level of detail beyond the single-panel view
         (unlike an ordinary monitor's plot graph, which can have further
         primaries/secondaries to sweep through), click_cbs is simply empty
         once drilled down - only the back-navigation remains active. '''
 
-    def __init__(self, pairs, label_a, label_b, colour_a, colour_b, log, path_note=None):
-        self.pairs = pairs
-        self.label_a = label_a
-        self.label_b = label_b
-        self.colour_a = colour_a
-        self.colour_b = colour_b
+    def __init__(self, pairs, labels, colours, log, identity_note=None):
+        self.pairs = pairs  # [(key, [data_0, ..., data_N-1]), ...]
+        self.labels = labels
+        self.colours = colours
         self.log = log
-        self.path_note = path_note
+        self.identity_note = identity_note
         self.current = None  # None = overview grid; else index into self.pairs
         self.event_dc_cid = None
 
@@ -167,24 +186,52 @@ class McCoplotPlotter():
         fig = plotfuncs.pylab.figure(figsize=(fig_w, fig_h))
 
         self.subplts = [
-            _plot_coplot_panel(data_a, data_b, i, n, self.log,
-                                self.label_a, self.label_b, self.colour_a, self.colour_b)
-            for i, (key, data_a, data_b) in enumerate(visible)
+            _plot_coplot_panel(datas, self.labels, self.colours, i, n, self.log)
+            for i, (key, datas) in enumerate(visible)
         ]
 
-        fig.subplots_adjust(left=0.06, right=0.98, top=0.97, bottom=0.06,
-                             wspace=0.3, hspace=0.35)
+        if n == 1:
+            # Single-panel drill-down: the verbose title now includes one
+            # letter=label identity line per dataset (in addition to the
+            # existing component/filename/monitor-title/stats lines), so
+            # its height grows with how many datasets are co-plotted - a
+            # fixed top margin tuned for the old, shorter title clipped the
+            # top lines off the figure entirely once there were more than
+            # a couple of datasets. Scale the margin down (more headroom)
+            # as N grows; this is a rough heuristic; matches the
+            # established style of _title_wrap_width()'s own "good enough"
+            # character-width estimate rather than exact text measurement.
+            n_datasets = len(visible[0][1])
+            top = max(0.45, 0.95 - 0.045 * n_datasets)
+            fig.subplots_adjust(left=0.06, right=0.98, top=top, bottom=0.06,
+                                 wspace=0.3, hspace=0.35)
+        else:
+            fig.subplots_adjust(left=0.06, right=0.98, top=0.97, bottom=0.06,
+                                 wspace=0.3, hspace=0.35)
 
-        if self.path_note:
-            # label_a/label_b are bare "A"/"B" here (see default_labels()),
-            # since the two source paths' basenames collided (e.g. both
-            # ended in ".../<instrument>/1/") - shown once as a figure-
-            # level title (matplotlib's actual "figure title" concept,
-            # distinct from each panel's own title) rather than repeated
-            # inside every panel, which would get cluttered across a
-            # multi-panel overview.
-            fig.suptitle(self.path_note, fontsize=9, y=0.998, va='top')
-            fig.subplots_adjust(top=0.90 if n == 1 else 0.92)
+        if self.identity_note and n > 1:
+            # The legend now always uses compact positional letters
+            # (_legend_letters()), never the real labels directly (which
+            # may now be a full input path - see resolve_labels()) - shown
+            # once as a figure-level title (matplotlib's actual "figure
+            # title" concept, distinct from each panel's own title) rather
+            # than repeated inside every panel's legend, which would get
+            # cluttered across a multi-panel overview.
+            #
+            # Only in the overview grid (n > 1), not the single-panel
+            # drill-down view: at n==1, _plot_coplot_panel()'s own verbose
+            # title already spells out the full letter=label mapping (plus
+            # per-dataset stats) inside the panel itself, so a suptitle
+            # here would be a redundant second copy of the same text - and,
+            # with both competing for the same cramped space above a
+            # single (2x-scaled) panel, they visibly overlapped.
+            suptitle_fontsize = 9
+            usable_w_in = fig_w * 0.95
+            avg_char_width_in = (suptitle_fontsize * 0.6) / 72.0
+            wrap_width = max(20, int(usable_w_in / avg_char_width_in))
+            wrapped_note = plotfuncs.textwrap.fill(self.identity_note, width=wrap_width)
+            fig.suptitle(wrapped_note, fontsize=suptitle_fontsize, y=0.998, va='top')
+            fig.subplots_adjust(top=0.92 if '\n' not in wrapped_note else 0.88)
 
         # Left-click on a panel drills into it (only meaningful in overview
         # mode - once already on a single panel there's nowhere further to
@@ -232,8 +279,8 @@ class McCoplotPlotter():
 
 
 def main(args):
-    ''' load and match two simulation results' 1D monitors, then hand the
-        resulting pairs to the matplotlib co-plot frontend above. '''
+    ''' load and match N simulation results' 1D monitors, then hand the
+        resulting groups to the matplotlib co-plot frontend above. '''
     logging.basicConfig(level=logging.INFO)
 
     # ensure keyboardinterrupt ctr-c
@@ -241,10 +288,19 @@ def main(args):
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     try:
-        label_a = args.label_a[0] if args.label_a else None
-        label_b = args.label_b[0] if args.label_b else None
-        colour_a = args.colour_a[0] if args.colour_a else COLOUR_A
-        colour_b = args.colour_b[0] if args.colour_b else COLOUR_B
+        paths = args.datasets
+        if len(paths) < 2:
+            print("mccoplot: need at least 2 datasets to co-plot, got %d" % len(paths))
+            quit()
+
+        given_labels = args.labels[0].split(',') if args.labels else [None] * len(paths)
+        if len(given_labels) != len(paths):
+            print("mccoplot: --labels has %d entries but %d datasets were given"
+                  % (len(given_labels), len(paths)))
+            quit()
+        given_labels = [l if l else None for l in given_labels]
+
+        given_colours = args.colours[0].split(',') if args.colours else None
 
         if args.format or args.output:
             matplotlib.use('template')
@@ -259,50 +315,51 @@ def main(args):
         from matplotlib import pylab
         plotfuncs.pylab = pylab
 
-        label_a, label_b, used_fallback = diffloader.default_labels(args.a, args.b, label_a, label_b)
+        labels, used_fallback = diffloader.resolve_labels(paths, given_labels)
+        colours = diffloader.resolve_colours(len(paths), given_colours)
 
-        # When the auto-derived labels collided (e.g. two runs both ending
-        # in a plain ".../<instrument>/1/" folder) and default_labels()
-        # fell back to bare "A"/"B", those letters carry no identifying
-        # information on their own - show the full source paths as a
-        # figure-level suptitle instead, while the per-panel legend keeps
-        # just "A"/"B".
-        path_note = None
-        if used_fallback:
-            path_note = "A: %s   B: %s" % (args.a, args.b)
+        # Shown as a figure-level suptitle: the legend itself now always
+        # uses compact positional letters (_legend_letters()), never
+        # `labels` directly, so this "A=<label>" mapping is the only place
+        # (in the overview grid at least) that ties a legend entry back to
+        # which dataset it actually is - needed unconditionally now, not
+        # just when resolve_labels() had to fall back to full paths.
+        letters = _legend_letters(len(paths))
+        identity_note = "   ".join("%s=%s" % (letter, lbl) for letter, lbl in zip(letters, labels))
 
+        monitors_list = []
         try:
-            monitors_a, dir_a = diffloader.load_monitors(args.a)
-            monitors_b, dir_b = diffloader.load_monitors(args.b)
+            for p in paths:
+                monitors, _ = diffloader.load_monitors(p)
+                monitors_list.append(monitors)
         except Exception as e:
             print('mccoplot loader: ' + e.__str__())
             plotfuncs.print_help(nogui=True)
             quit()
 
-        pairs = diffloader.match_1d_monitors(monitors_a, monitors_b, label_a, label_b)
+        pairs = diffloader.match_monitors_multi(monitors_list, labels)
 
         if len(pairs) == 0:
-            print("mccoplot: no matching 1D monitors found between '%s' and '%s', nothing to plot."
-                  % (args.a, args.b))
+            print("mccoplot: no matching 1D monitors found across all %d datasets, nothing to plot."
+                  % len(paths))
             quit()
 
         if args.test:
-            print("mccoplot: %d matched 1D monitor pair(s):" % len(pairs))
-            for key, data_a, data_b in pairs:
-                print("  - %s (%s)" % (key, data_a.component))
+            print("mccoplot: %d matched 1D monitor group(s) across %d datasets:" % (len(pairs), len(paths)))
+            for key, datas in pairs:
+                print("  - %s (%s)" % (key, datas[0].component))
 
         # default base name for --format/--output dumps and for --html,
         # since there's no single simulation file to derive it from -
         # deliberately built from the actual input paths (dirsafe_name),
-        # not label_a/label_b: those may legitimately collapse to bare
-        # "A"/"B" when their basenames collide (see default_labels()),
+        # not the display labels: those may legitimately collapse to bare
+        # letters when their basenames collide (see resolve_labels()),
         # which would otherwise make every such comparison overwrite the
-        # same "coplot_A_vs_B.*" files - a real problem for batch/CI use
-        # running many comparisons out of one working directory.
-        plotfuncs.filenamebase = "coplot_%s_vs_%s" % (
-            diffloader.dirsafe_name(args.a), diffloader.dirsafe_name(args.b))
+        # same "coplot_A_vs_B....*" files - a real problem for batch/CI
+        # use running many comparisons out of one working directory.
+        plotfuncs.filenamebase = "coplot_" + "_vs_".join(diffloader.dirsafe_name(p) for p in paths)
 
-        plotter = McCoplotPlotter(pairs, label_a, label_b, colour_a, colour_b, log=args.log, path_note=path_note)
+        plotter = McCoplotPlotter(pairs, labels, colours, log=args.log, identity_note=identity_note)
 
         if (sys.platform == "linux" or sys.platform == "linux2") and args.html:
             # save to html and exit
@@ -327,13 +384,16 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('a', help='first simulation file or directory')
-    parser.add_argument('b', help='second simulation file or directory, co-plotted alongside "a"')
-    parser.add_argument('-A', '--label-a', nargs=1, help='short label used for simulation a in the legend/titles')
-    parser.add_argument('-B', '--label-b', nargs=1, help='short label used for simulation b in the legend/titles')
-    parser.add_argument('--colour-a', nargs=1, help='override the overlay colour used for a (default %s)' % COLOUR_A)
-    parser.add_argument('--colour-b', nargs=1, help='override the overlay colour used for b (default %s)' % COLOUR_B)
-    parser.add_argument('-t', '--test', action='store_true', default=False, help='print the matched monitor pairs before plotting')
+    parser.add_argument('datasets', nargs='+',
+                         help='2 or more simulation files or directories to co-plot together '
+                              '(e.g. "mccoplot run_a run_b run_c")')
+    parser.add_argument('-L', '--labels', nargs=1,
+                         help='comma-separated short labels, one per dataset, in the same order '
+                              '(e.g. --labels "RunA,RunB,RunC"); default: derived from each path')
+    parser.add_argument('-C', '--colours', nargs=1,
+                         help='comma-separated overlay colours, one per dataset, in the same order; '
+                              'default: %s' % ', '.join(diffloader.DEFAULT_PALETTE))
+    parser.add_argument('-t', '--test', action='store_true', default=False, help='print the matched monitor groups before plotting')
     parser.add_argument('--html', action='store_true', help='save plot to html using mpld3 (linux only)')
     parser.add_argument('--format', dest='format', help='save plot to pdf/png/eps/svg... without bringing up window')
     parser.add_argument('--output', nargs=1, dest='output', default=None,

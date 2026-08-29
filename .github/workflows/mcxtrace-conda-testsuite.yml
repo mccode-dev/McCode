@@ -47,13 +47,15 @@ jobs:
         environment-file: dependencies.yml 
         environment-name: mcxtrace
 
-    - name: Check versions
+    - name: Check versions and set worker label
       id: version-checks
       run: |
            which python3
            python3 --version
            which cmake
            cmake --version
+           MYWORKERID=`echo ${RUNNER_TRACKING_ID} | md5sum |  cut -c1-12`
+           echo MYWORKERID=${MYWORKERID} >> "$GITHUB_ENV"
 
     - name: Configure build and install mcxtrace
       id: mcxtrace-install
@@ -107,7 +109,7 @@ jobs:
              export TMPDIR=${HOME}/tmp
            fi
            # Run the test with 2 core mpi
-           ${MXTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }}
+           ${MXTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
 
     - name: 'Tar output files'
       id: tar-package
