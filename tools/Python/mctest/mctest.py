@@ -752,7 +752,7 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
 
                 # craete the proper test dir
                 labeldir = create_label_dir(testdir, label)
-                results, failed, num_compilefail, num_runfail, num_valfail = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter, label0)
+                results, failed, num_compilefail, num_runfail, num_valfail, num_noexample= mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter, label0)
 
                 # write local test result
                 reportfile = os.path.join(labeldir, "testresults_%s.json" % (os.path.basename(labeldir)))

@@ -16,11 +16,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto' }
-          - { os: macos-latest, mpi: 'openmpi', nmpi: '2' }
-          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto' }
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
+          - { os: macos-latest, mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
+          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
-    name: ${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
+    name: ${{ matrix.os }}.${{ matrix.mpi }}.${{ matrix.cogen }}.conda-testsuite
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -59,6 +60,24 @@ jobs:
       id: mcstas-install
       run: |
            ./src/devel/bin/mccode-build-conda -m mcstas -s $PWD/src -b $PWD/build_mcstas
+
+    - name: Setup mcstas-antlr
+      id: setup-mcstas-antlr
+      if: matrix.cogen == 'antlr'
+      continue-on-error: true
+      run: |
+        # Cache checkout src/ with mccode-antlr
+        if [ "${{ matrix.cogen }}" == "antlr" ];
+        then
+          # Set up config file to use mcstas-antlr
+          MCCODE_CONFIG=`mcrun --write-user-config | cut -f4 -d\ `
+          sed -i.bak s+\"MCCOGEN\"\:\ \"mcstas\",+\"MCCOGEN\"\:\ \"mcstas-antlr\ -I\$\{CONDA_PREFIX\}/share/mcstas/resources\",+g ${MCCODE_CONFIG}
+          grep -H COGEN ${MCCODE_CONFIG}
+          MCCODEANTLR_FLAGS__NEXUS=`grep NEXUSFLAGS ${MCCODE_CONFIG} |cut -f4 -d\"`
+          echo "MCCODEANTLR_FLAGS__NEXUS=${MCCODEANTLR_FLAGS__NEXUS}" >> "$GITHUB_ENV"
+          # Pre-poulate mccode-antlr cache
+          mccode-antlr cache populate --from-path src/ --flavor mcstas
+        fi
 
     - name: Validate build output
       id: build-validation
@@ -107,7 +126,7 @@ jobs:
              export TMPDIR=${HOME}/tmp
            fi
            # Run the test with 2 core mpi
-           ${MCTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }} --uid=${RUNNER_TRACKING_ID}
+           ${MCTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }} --uid=${RUNNER_TRACKING_ID}
     - name: 'Tar output files'
       id: tar-package
       if: always()
@@ -117,15 +136,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcstas-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz run_test-suite
+           tar cvfz mcstas-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz run_test-suite
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcstas-artefacts-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
-        path: "mcstas-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz"
+        name: mcstas-artefacts-${{ matrix.os }}.${{ matrix.cogen }}.${{ matrix.mpi }}.conda-testsuite
+        path: "mcstas-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3
