@@ -5,12 +5,54 @@ and assembling it in a plot-friendly way.
 import glob
 import re
 import os
+import numpy as np
 from os.path import isfile, isdir, join, dirname, basename, splitext, exists
 from os import walk
 from decimal import Decimal
 
 from .flowchart import FCNDecisionBool, FCNDecisionMulti, FCNProcess, FCNTerminal, FlowChartControl
 from .plotgraph import PlotGraphPrint, DataHandle, PNMultiple, PNSingle
+
+
+def _parse_data_block(lines_block):
+    ''' Fast, vectorized parser for a block of whitespace-separated numeric
+        data lines (e.g. the "# Data" or "# Events" section of a 2D monitor,
+        or the data rows of a 1D monitor), returning a list of rows (each a
+        list of floats).
+
+        This replaces what used to be a per-line, per-value Python float()
+        loop in _parse_1D_monitor()/_parse_2D_monitor() - for a 2D monitor
+        that's one Python-level float() call per grid cell (e.g. 90000 for a
+        300x300 PSD monitor, doubled if an Events section is present), which
+        dominates load time for instruments with sizeable 2D monitors.
+        np.fromstring(..., sep=' ') parses the whole block in one call
+        instead of looping in Python.
+
+        Falls back to the slower, more permissive line-by-line parser (which
+        silently skips any line that fails to parse, matching the historical
+        behaviour) if the fast path doesn't cleanly apply - e.g. a genuinely
+        malformed/truncated file, blank lines within the block, or a jagged
+        block with inconsistent column counts between rows. This keeps the
+        common case fast without sacrificing correctness on the edge cases
+        the original loop happened to tolerate. '''
+    if not lines_block:
+        return []
+    try:
+        ncols = len(lines_block[0].split())
+        if ncols == 0:
+            raise ValueError('empty first line in data block')
+        flat = np.concatenate([np.fromstring(line, dtype=float, sep=' ') for line in lines_block])
+        if flat.size != ncols * len(lines_block):
+            raise ValueError('unexpected element count (jagged or malformed data block)')
+        return flat.reshape(len(lines_block), ncols).tolist()
+    except Exception:
+        rows = []
+        for l in lines_block:
+            try:
+                rows.append([float(item) for item in l.strip().split()])
+            except Exception:
+                pass
+        return rows
 
 
 '''
@@ -193,24 +235,13 @@ def _parse_1D_monitor(text):
 
         # load the actual data
         lines = text.splitlines()
-        xvals = []
-        yvals = []
-        y_err_vals = []
-        Nvals = []
-        for l in lines:
-            if '#' in l:
-                continue
+        data_lines = [l for l in lines if '#' not in l]
+        rows = _parse_data_block(data_lines)
 
-            vals = l.split()
-            xvals.append(float(vals[0]))
-            yvals.append(float(vals[1]))
-            y_err_vals.append(float(vals[2]))
-            Nvals.append(float(vals[3]))
-
-        data.xvals = xvals
-        data.yvals = yvals
-        data.y_err_vals = y_err_vals
-        data.Nvals = Nvals
+        data.xvals      = [r[0] for r in rows]
+        data.yvals      = [r[1] for r in rows]
+        data.y_err_vals = [r[2] for r in rows]
+        data.Nvals      = [r[3] for r in rows]
 
     except Exception as e:
         print('Data1D load error.')
@@ -279,13 +310,15 @@ def _parse_2D_monitor(text):
         dat = True
         datacount=0;
         events = False
+        data_lines = []
+        events_lines = []
         for l in lines:
             if '# Data ' in l:
                 datacount=datacount+1;
                 # In case we meet mutiple # Data entries, file is probably saved via -USR2 or from 
                 # Progress_bar(). In that case, better flush earlier data entries:
                 if (datacount>1):
-                    data.zvals=[]
+                    data_lines=[]
                 dat = True
                 continue
 
@@ -301,18 +334,13 @@ def _parse_2D_monitor(text):
                 continue
 
             if dat:
-                try:
-                    vals = [float(item) for item in l.strip().split()]
-                    data.zvals.append(vals)
-                except:
-                    pass
+                data_lines.append(l)
 
             if events:
-                try:
-                    vals = [float(item) for item in l.strip().split()]
-                    data.counts.append(vals)
-                except:
-                    pass
+                events_lines.append(l)
+
+        data.zvals = _parse_data_block(data_lines)
+        data.counts = _parse_data_block(events_lines)
 
     except Exception as e:
         print('Data2D load error.')

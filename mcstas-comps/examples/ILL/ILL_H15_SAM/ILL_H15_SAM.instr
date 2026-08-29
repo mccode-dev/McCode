@@ -31,12 +31,12 @@
 *
 * Example (typical "real-life" measurement sequence):
 *
-*	mcrun ILL_H15_SAM.instr --gravity -n1e7 -dLargeQ lambda=5.2
-*	mcrun ILL_H15_SAM.instr --gravity -n1e7 -dSmallQ guide1=0 guide2=0 guide3=0 lsd=6.8
+*	mcrun ILL_H15_SAM.instr --gravity -n1e8 -dLargeQ lambda=5.2
+*	mcrun ILL_H15_SAM.instr --gravity -n1e8 -dSmallQ guide1=0 guide2=0 guide3=0 lsd=6.8
 *
 * (Corresponding test-suite entries:)
-* %Example: ILL_H15_SAM.instr --gravity lambda=5.2 Detector: psd_I=1272.79
-* %Example: ILL_H15_SAM.instr --gravity guide1=0 guide2=0 guide3=0 lsd=6.8 Detector: psd_I=1980.7
+* %Example: ILL_H15_SAM.instr --gravity lambda=5.2 Detector: psd_I=15486.6
+* %Example: ILL_H15_SAM.instr --gravity guide1=0 guide2=0 guide3=0 lsd=6.8 Detector: psd_I=25468.3
 *
 * %P
 * lambda:      	[AA]	Wavelength mean value
@@ -142,6 +142,13 @@ INITIALIZE %{
 	printf("Sample-to-detector distance = %g m\n",lsd);
 	printf("Q-range = %g-%g AA^-1\n",qmin,qmax);
 	printf("...\n\n");
+	/* Ensure that we are running with at least 1e8 neutrons if not 'displaying' */
+	if (!mcdotrace) {
+	  if (mcget_ncount()<1e8) {
+	    MPI_MASTER(printf("This instrument needs higher statistics to converge. Increasing your ncount=%llu to 1e8\n",mcget_ncount()));
+	    mcset_ncount(1e8);
+	  }
+	}
 %}
 
 TRACE
@@ -705,19 +712,19 @@ WHEN(ssshape==2) AT (0,0,0) RELATIVE SampleSlitPos
 COMPONENT sample = Monitor_nD(xwidth=ssw, yheight=ssh, bins=1)
 AT (0,0,0.045) RELATIVE SampleSlitPos
 
-COMPONENT SamplePos = Arm()
+SPLIT 100 COMPONENT SamplePos = Arm()
 AT (0,0,0.05) RELATIVE SampleSlitPos
 
-SPLIT COMPONENT H2O = Incoherent(
+COMPONENT H2O = Incoherent(
 	sigma_abs=0.665, sigma_inc=160.521, Vc=29.969,
 	xwidth=1e-2, yheight=4e-2, zdepth=1e-3, 
 	p_interact=1, focus_xw=0.64, focus_yh=0.64, target_z=lsd)
 WHEN(sampleno==1) AT (0,0,0) RELATIVE SamplePos
 
-SPLIT COMPONENT AgBeh = Powder1(d=58.4, d_phi=tthmax*RAD2DEG, xwidth=1e-2, yheight=4e-2, zdepth=1e-3)
+COMPONENT AgBeh = Powder1(d=58.4, d_phi=tthmax*RAD2DEG, xwidth=1e-2, yheight=4e-2, zdepth=1e-3)
 WHEN(sampleno==2) AT (0,0,0) RELATIVE SamplePos
 
-SPLIT COMPONENT Spheres = Sans_spheres(
+COMPONENT Spheres = Sans_spheres(
 	R=100, Phi=1e-3, Delta_rho=1.0, 
 	xwidth=1e-2, yheight=4e-2, zdepth=1e-3,
 	focus_xw=0.64, focus_yh=0.64, target_z=lsd)

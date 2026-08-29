@@ -15,30 +15,49 @@
 * Test instrument for the H Frielinghaus SANS_benchmark2 component. 
 *
 * The below test uses defaults of the instrument (SANS_benchmark2 modnum=11)
-* %Example: -y Detector: PSDnear_I=8000
+* %Example: -y Detector: PSDnear_I=7400
+*
+* Many sample-modes are available, from the SANS_benchmark2 component:
+* The component includes 19 sample-model-settings:
+* case 0 - no coherent scattering
+* case 1 - polymer with Mw = 2.000g/mol
+* case 2 - polymer with Mw = 1.000.000g/mol
+* case 3 - microemulsion
+* case 4 - wormlike micelle
+* case 5 - sphere, R = 25 AA
+* case 6 - sphere, R = 500 AA
+* case 7 - polymer blend
+* case 8 - diblock copolymer
+* case 9 - multilamellar vesicles
+* case 10 - logarithmically spaced series of sharp peaks
+* case 11 - logarithmically spaced series of sharp delta peaks !!!!!!
+* ...
+* case 15 - sphere, R = 150 AA
+* case 18   free
+*
 *
 * %Parameters
-* cnum: []     Set to 0.0 for no polarizer as for benchmarking the normal SANS samples, to 2.0 for two cavities, keep default values as much as possible
-* lbdmin: []   
-* lbdmax: []   
-* NGbend: []   
-* NGblen: []   
-* Clen: []     
-* SampD: []    
-* bendL: []    
-* bendR: []    
-* bendM: []    
-* bendiM: []   
-* dfltM: []    
-* vorPl: []    for two cavities
-* PolLen: []   for two cavities
-* PolTot: []   for two cavities
-* MDOWN: []    
-* Min: []      
-* ROT: []      
-* modnum: []   
-* sglscatt: [] 
-* incs: []     
+* cnum:     [1] 'Degree of beam-polarisation'. Set to 0.0 for no polarizer as for benchmarking the normal SANS samples, to 2.0 for two cavities, keep default values as much as possible
+* lbdmin:  [AA] Minimum wavelength produced at source
+* lbdmax:  [AA] Maximum wavelength produced at source
+* NGbend:   [m] Bender dimension, horizontal
+* NGblen:   [m] Bender dimension, vertical
+* Clen:     [m] Collimation length
+* SampD:    [m] Sample 'half-dimension' (geometry is actually 2 x value)
+* bendL:  [rad] Bender angle of deflection
+* bendR:    [m] Bender radius of curvature
+* bendM:    [1] Bender 'outer curve mirror m-value'
+* bendiM:   [1] Bender 'inner curve mirror m-value'
+* dfltM:    [1] Bender 'top/bottom mirror m-value'
+* vorPl:    [m] If >0, post-bender Guide-element
+* PolLen:   [m] If >0, length of polariser
+* PolTot:   [m] Total primary optic length
+* MDOWN:    [1] m-value of the Fe/Si-wafer for spin down neutrons
+* Min:      [1] m-value of material for top. horz. mirror of the outer guide
+* ROT:    [deg] Pre-polariser cavity-rotation angle arounz (only if polarised mode)
+* modnum:   [1] Sample 'mode' (see mcdoc for SANS_benchmark2 component)
+* sglscatt: [1] Sample control of single/multiple scattering (see mcdoc for SANS_benchmark2 component)
+* incs:     [1] Sample fraction of incoherently scattered neutrons (see mcdoc for SANS_benchmark2 component)
 *
 * %End
 *******************************************************************************/
@@ -161,26 +180,13 @@ COMPONENT guide2 = Guide(w1=NGblen, h1=NGblen, w2=NGblen, h2=NGblen, l=20.001-Cl
   AT (0, 0, PolTot+0.0007) RELATIVE vorpl
   ROTATED (0,0,0)   RELATIVE vorpl
 
-/*
-COMPONENT colap  = Slit(xmin=-0.015,xmax=0.015,ymin=-0.015,ymax=0.015)
-  AT (0, 0,20.0015-Clen) RELATIVE guide2
-  ROTATED (0,0,0)   RELATIVE vorpl
-*/
-
 COMPONENT smpap  = Slit(xmin=-0.5*SampD,xmax=0.5*SampD,ymin=-0.5*SampD,ymax=0.5*SampD)
   AT (0, 0,20.0020) RELATIVE guide2
   ROTATED (0,0,0)   RELATIVE vorpl
 
-/*
-COMPONENT PSDaft = Monitor_nD  (xmin = -SampD, xmax = SampD, ymin = -SampD, ymax = SampD,
-                                options  = "hdiv bins=2 limits[-99 9] ; lambda bins=50 limits[1.0 20.0]",
-                                filename = "after_sample_slit.psd")
-  AT (0, 0,20.0030) RELATIVE guide2
-  ROTATED (0,0,0)   RELATIVE vorpl
-*/
 
 
-SPLIT 1000 COMPONENT repeat = Arm()
+SPLIT 2000 COMPONENT repeat = Arm()
   AT (0, 0,20.00367) RELATIVE guide2
   ROTATED (0,0,0)   RELATIVE vorpl
 
@@ -188,7 +194,7 @@ COMPONENT sample = SANS_benchmark2(xwidth=2.0*SampD, yheight=2.0*SampD, zthick=0
    AT (0,0,20.0040) RELATIVE guide2
   ROTATED (0,0,0)   RELATIVE vorpl
 
-COMPONENT det    = TOFSANSdet( plength=0.003163, ssdist=22.0124+2.0*bendL+PolTot,
+COMPONENT det = TOFSANSdet( plength=0.003163, ssdist=22.0124+2.0*bendL+PolTot,
                                coldis = Clen, Sthckn = 0.1,
                                ds1=1.0,       xw1=0.0, yh1=0.0, hl1=0.0,           /* first one switched off */
                                ds2=Clen*.125, xw2=1.0, yh2=1.0, hl2=0.2,

@@ -49,12 +49,20 @@ setlocal EnableExtensions DisableDelayedExpansion
 :: ---------------------------------------------------------------------------
 :: 0. Admin check
 :: ---------------------------------------------------------------------------
+echo McCode helper-script for installation of MSVC and utilities
+echo .
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERROR] This script must be run as Administrator.
+    echo WARNING:
+    echo .
+    echo Your user is not Administrator
+    echo .
+    echo If possible, please attempt a rerun of this script as Administrator,
     echo         Right-click the file and choose "Run as administrator".
+    echo .
+    echo Use ^C to cancel / use any other key to attempt with current permissions
     pause
-    exit /b 1
+    echo ... Proceeding with current permissions...
 )
 
 echo.
@@ -119,7 +127,7 @@ if /i "%PROCESSOR_ARCHITECTURE%" == "ARM64" (
 :: ---------------------------------------------------------------------------
 echo.
 echo [STEP 1/2] Installing Visual Studio 2022 Build Tools ...
-echo           (This downloads ~2–4 GB and may take 10–30 minutes.)
+echo           (This downloads ~2 to 4 GB and may take 10 to 30 minutes.)
 echo.
 
 winget install ^

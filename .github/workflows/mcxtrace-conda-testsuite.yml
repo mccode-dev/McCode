@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, mpi: 'openmpi' }
-          - { os: macos-latest, mpi: 'openmpi' }
-          - { os: windows-latest, mpi: 'msmpi' }
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto' }
+          - { os: macos-latest, mpi: 'openmpi', nmpi: '2' }
+          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto' }
 
     name: ${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
     runs-on: ${{ matrix.os }}
@@ -47,13 +47,15 @@ jobs:
         environment-file: dependencies.yml 
         environment-name: mcxtrace
 
-    - name: Check versions
+    - name: Check versions and set worker label
       id: version-checks
       run: |
            which python3
            python3 --version
            which cmake
            cmake --version
+           MYWORKERID=`echo ${RUNNER_TRACKING_ID} | md5sum |  cut -c1-12`
+           echo MYWORKERID=${MYWORKERID} >> "$GITHUB_ENV"
 
     - name: Configure build and install mcxtrace
       id: mcxtrace-install
@@ -107,7 +109,7 @@ jobs:
              export TMPDIR=${HOME}/tmp
            fi
            # Run the test with 2 core mpi
-           ${MXTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=2
+           ${MXTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
 
     - name: 'Tar output files'
       id: tar-package
@@ -127,6 +129,121 @@ jobs:
       with:
         name: mcxtrace-artefacts-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
         path: "mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz"
+
+    - name: Setup tmate session for manual debugging
+      uses: mxschmitt/action-tmate@v3
+      if: always() && (inputs.manual-debugging == true)
+      with:
+        limit-access-to-actor: true
+
+  compare:
+    name: mcxtrace-conda-testsuite-comparison
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        path: src
+
+    - name: Get conda dependency list
+      id: conda-deps
+      run: |
+           ./src/devel/bin/mccode-create-conda-yml -m mcxtrace -n mcxtrace -o dependencies.yml
+
+    - uses: mamba-org/setup-micromamba@v3
+      with:
+        environment-name: mcxtrace
+        environment-file: dependencies.yml
+
+
+    - name: Configure build and install mcxtrace
+      id: mcxtrace-install
+      run: |
+           # Only the Python tooling (mxviewtest, mxplotdiff-html, mxplot-html) is
+           # actually needed here - the diff/report generation is platform-agnostic
+           # regardless of which OS originally produced the monitor data - but we
+           # reuse the exact same install path as the build job for consistency,
+           # rather than maintaining a second, lighter-weight install mechanism.
+           ./src/devel/bin/mccode-build-conda -m mcxtrace -s $PWD/src -b $PWD/build_mcxtrace
+
+    - name: 'Download all platform test artifacts'
+      id: download
+      uses: actions/download-artifact@v6
+      with:
+        # matches mcxtrace-artefacts-ubuntu-latest.openmpi.conda-testsuite,
+        # mcxtrace-artefacts-macos-latest.openmpi.conda-testsuite,
+        # mcxtrace-artefacts-windows-latest.msmpi.conda-testsuite - by pattern
+        # rather than hardcoded names, so this keeps working if the build
+        # matrix gains/loses a platform
+        pattern: mcxtrace-artefacts-*.conda-testsuite
+        path: downloaded_artifacts
+
+    - name: 'Merge platform columns into one shared testdir'
+      id: merge
+      run: |
+           set -e
+           set -u
+           set -x
+
+           mkdir mcxtrace-nightly
+           REFLABEL=""
+
+           # Each platform's tarball contains exactly one label directory
+           # directly under run_test-suite/ (e.g.
+           # mcxtrace-1.99.99_mpi_x_2_ubuntu-latest_openmpi_<ncount>_Linux_<datetime>).
+           # mxviewtest treats each such directory as one comparison "column",
+           # so merging them as siblings under one shared testdir is all that's
+           # needed to make them comparable.
+           for tgz in downloaded_artifacts/*/*.tgz; do
+             work=$(mktemp -d)
+             tar xzf "$tgz" -C "$work"
+             artifact_name=$(basename "$(dirname "$tgz")")
+
+             for labeldir in "$work"/run_test-suite/*/; do
+               if [[ "$artifact_name" == *"ubuntu-latest"* ]]; then
+               REFLABEL=$(basename "$labeldir")
+             fi
+               mv $labeldir mcxtrace-nightly/
+               done
+             done
+             rm -rf "$work"
+
+           if [ -z "$REFLABEL" ]; then
+             echo "WARNING: could not identify the ubuntu-latest/conda reference column"
+           else
+           echo "REFLABEL=$REFLABEL" >> "$GITHUB_ENV"
+           echo "Reference column: $REFLABEL"
+           fi
+
+    - name: 'Run mxviewtest across all platform columns'
+      id: viewtest
+      run: |
+           cd "$PWD/mcxtrace-nightly"
+           if [ -z "$REFLABEL" ]; then
+             mxviewtest --reflabel "$REFLABEL" --nobrowse
+           else
+             mxviewtest --reflabel --nobrowse
+           fi
+
+    - name: 'Tar mcxtrace-nightly output (all platform folders + comparison table)'
+      id: tar-package
+      if: always()
+      run: |
+           tar cvfz mcxtrace-conda-testsuite-comparison.tgz mcxtrace-nightly
+
+    - name: 'Upload comparison artifact'
+      id: comparison-upload
+      uses: actions/upload-artifact@v6
+      if: always()
+      with:
+        name: mcxtrace-testsuite-comparison
+        path: mcxtrace-conda-testsuite-comparison.tgz
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3

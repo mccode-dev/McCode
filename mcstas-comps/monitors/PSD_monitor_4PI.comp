@@ -72,7 +72,7 @@ INITIALIZE
 
 TRACE
 %{
-  double t0, t1, phi, theta;
+  double t0, t1, theta, phi;
   int i, j;
 
   if (sphere_intersect (&t0, &t1, x, y, z, vx, vy, vz, radius) && t1 > 0) {
@@ -80,18 +80,18 @@ TRACE
       t0 = t1;
     /* t0 is now time of intersection with the sphere. */
     mcPROP_DT (t0);
-    phi = atan2 (x, z);
-    i = floor (nx * (phi / (2 * PI) + 0.5));
-    if (i >= nx)
-      i = nx - 1; /* Special case for phi = PI. */
-    else if (i < 0)
-      i = 0;
-    theta = asin (y / radius);
-    j = floor (ny * (theta + PI / 2) / PI + 0.5);
-    if (j >= ny)
-      j = ny - 1; /* Special case for y = radius. */
-    else if (j < 0)
-      j = 0;
+
+    /* Measure longitude via atan2. Returned values will be in [-PI PI] */
+    theta = atan2 (x, z);
+
+    /* Map to nx * [0 1] interval */
+    i = floor (nx * 0.5*(theta / PI+1));
+
+    /* Measure latitude via asin(elevation/radius). Returned values will be in [-PI/2 PI/2] */
+    phi = asin (y / radius);
+
+    /* Map to ny * [0 1] interval */
+    j = floor (ny * (phi + PI / 2) / PI);
 
     double p2 = p * p;
     #pragma acc atomic

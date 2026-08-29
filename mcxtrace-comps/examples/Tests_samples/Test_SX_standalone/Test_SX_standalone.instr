@@ -1,0 +1,71 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=http://www.mcxtrace.org
+*
+* Instrument: Test_SX_standalone
+*
+* %Identification
+* Written by: E. Farhi
+* Date: Sept 26th 2019
+* Origin: Synchrotron Soleil
+* Release: McXtrace 3.5
+* Version: $Revision$
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Unit-test instrument for the Single_crystal sample component.
+*
+* Simply a model source illuminating a SX sample.
+* The default sample itself is a Mo bulk crystal.
+*
+* %Example: -y Detector: psd_Diff_I=2.29638e-13
+*
+* %Parameters
+* reflections: [str] List of powder reflections, LAU/CIF format.
+* E0:          [keV] Source mean energy of xrays.
+* dE:          [keV] Source energy half spread of x-rays.
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT Test_SX_standalone(string reflections="Mo.lau", E0 = 7, dE = 6.9)
+
+DECLARE %{
+#define DIFFRACTION 1
+#define FLUORESCENCE 2
+%}
+
+USERVARS %{
+  int Stype;
+%}
+
+INITIALIZE %{
+
+%}
+
+TRACE
+COMPONENT src = Source_flat(
+    yheight = 1e-3, xwidth = 1e-3, dist = 10, focus_xw = 1e-3,
+    focus_yh = 1e-3, E0 = E0, dE = dE)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT sample_pos=Arm()
+AT (0, 0, 10) RELATIVE PREVIOUS
+
+COMPONENT sample = Single_crystal(reflections=reflections, material_datafile="NULL", 
+    radius = .5e-4, yheight = 1e-3, mosaic=5)
+AT (0, 0, 0) RELATIVE sample_pos
+EXTEND %{
+  if(!SCATTERED) ABSORB;
+  else if (type == 'c') Stype=DIFFRACTION;
+  else Stype=FLUORESCENCE;
+%}
+
+COMPONENT psd4pi = PSD_monitor_4PI(
+    nx = 180, ny = 180, filename = "psd4pi", radius = 0.1, restore_xray = 1)
+AT (0, 0, 0) RELATIVE sample
+
+COMPONENT psd_Diff = PSD_monitor_4PI(
+    nx = 180, ny = 180, filename = "psd4pi_diff", radius = 0.1, restore_xray = 1)
+WHEN (Stype == DIFFRACTION)
+AT (0, 0, 0) RELATIVE sample
+
+END

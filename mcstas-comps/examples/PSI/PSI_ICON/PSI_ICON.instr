@@ -1,0 +1,579 @@
+/************************************************
+*
+* McStas model of the ICON imaging instrument at PSI, CH.
+*
+* %Identification
+* Written by: Peter Willendrup (DTU/ESS), Estrid B. Naver (DTU), based on earlier model from Ludovic Giller.
+*
+* Date: June, 2021
+* Origin: DTU/ESS
+* %INSTRUMENT_SITE: PSI
+*
+* McStas model of the ICON imaging instrument at PSI, CH.
+*
+* %Description
+* McStas model of the ICON imaging instrument at PSI, CH. Based on earlier model from Ludovic Giller, see links below.
+*
+* The model was developed for an ICON beamtime focussing on exeriments using 'Propagation-based phase-contrast' aka. the Paganin-method.
+* The sample in the model is a series of metal sheets, each with different scattring/refracting properties. A refined version of this
+* instrument file was later used in the publication by Estrid B. Naver et. al., see links below.
+*
+* %Example: PSI_ICON.instr -y Detector: VarDetectorZoom_I=852147
+*
+* %Parameters
+* lambda_min: [AA] Minimum wavelength on wavelength monitors
+* lambda_max: [AA] Maximum wavelength on wavelength monitors
+* Lambda_Min: [AA] Minimum wavelength produced from source
+* Lambda_Max: [AA] Maximum wavelength produced from source
+* eventmode:   [1] Flag to store neutron events with calculated sample-detector travel
+* nx:          [1] Number of x-pixels, camera
+* ny:          [1] Number of y-pixels, camera
+* sp:          [m] Overall goniometer z-position wrt. camera
+* tx:          [m] Goniometer x-translation
+* ty:          [m] Goniometer y-translation
+* tz:          [m] Goniometer z-translation
+* rx:          [m] Goniometer x-rotation
+* ry:          [m] Goniometer y-rotation
+* rz:          [m] Goniometer z-rotation
+* delta_eps:   [m] Finite distance separating metal-slabs in sample
+* delta_y:     [1] Size-factor between slabs of Zr and Al
+* all_mons:    [1] Flag to enable all monitors in the instrument
+*
+* %Link
+* <a href="https://doi.org/10.1016/j.nima.2007.11.061">Ludovic Gilller et. al., NIMA 586 (2008) pp. 59-63</a> 
+* <a href="https://doi.org/10.1107/S1600576724003030">Estrid B. Naver et. al., JAC 57 (2024) pp.701-713</a>
+*
+* %End
+***************************************************/
+
+DEFINE INSTRUMENT PSI_ICON(lambda_min=0.3,lambda_max=10.0, int eventmode=0, int all_mons=0, int nx=512, int ny=512, 
+			   Lambda_Min=4.1, Lambda_Max=10, sp=0,tx=0,ty=-0.0075,tz=0,rx=0,ry=0,rz=0,delta_eps=1e-9,delta_y=0.1) 
+
+DECLARE 
+%{ 
+   double blende, blende_radius, blende_exit_radius, blende_propa_window;
+   int blende_int;
+   //double Lambda_Min, Lambda_Max;									/* must be done to use the switch statement */
+   double BL1_x_opening, BL1_y_opening;
+   double BL1x_minus, BL1x_plus, BL1y_minus, BL1y_plus;
+   double BL2_x_opening, BL2_y_opening;
+   double BL2x_minus, BL2x_plus, BL2y_minus, BL2y_plus;
+   char   options[128];
+   char   zoomoptions[128];
+   char   zoomoptionsICON[128];
+   double lmin;
+   double lmax;
+   double kmin;
+   double kmax;
+   double tmin;
+   double tmax;
+   double vmin;
+   double vmax;
+   double sd;
+   double bc_lens; 
+   double n_lens;
+   double rho_lens;
+   double layer1;
+   double layer2;
+   double layer3;
+   double pos_layer1;
+   double pos_layer3;
+   int prepostslabs;
+   double lambda0;
+   double sigma_coh, density, weight,sigma_inc,sigma_abs;
+   double sp0;
+   
+   // Overall "box" dimenstions
+   double XWbox;
+   double YHbox;
+   double ZDbox;
+   // "Step-size" along y and z
+   double ystep;
+   double zstep;
+   
+   // Materials
+   double Al_sig_coh;
+   double Al_sig_inc;
+   double Al_sig_abs;
+   double Al_density;
+   double Al_weight;
+
+   double Al_thick1;
+   double Al_thick2;
+
+   double Al_high1;
+   double Al_high2;
+   
+   double Zr_sig_coh;
+   double Zr_sig_inc;
+   double Zr_sig_abs;
+   double Zr_density;
+   double Zr_weight;
+
+   double Zr_thick1;
+   double Zr_thick2;
+
+   double Zr_high1;
+   double Zr_high2;
+   
+   double Zdepth;
+
+
+%} 
+
+
+USERVARS %{
+  int flag_Zr1;
+  int flag_Zr2;
+  int flag_Al1;
+  int flag_Al2;
+  double x0;
+  double y0;
+  double z0;
+  double l_sample;
+%}
+
+INITIALIZE 
+%{
+
+  Zdepth = 0.025/3; // from drawing, square is cut in 3
+  Zr_thick1 = 25e-6;
+  Zr_thick2 = Zr_thick1 * 2;
+
+  Zr_high1 = 0.025;
+  Al_high2 = Zr_high1*(1-delta_y);  
+  Zr_high2 = Zr_high1*(1-2*delta_y);
+  Al_high1 = Zr_high1*(1-3*delta_y);
+  
+  Al_thick1 = 10e-6;
+  Al_thick2 = Al_thick1 * 2;
+
+  XWbox = 0.02;
+  YHbox = 0.055;
+  ZDbox = 0.005;
+  ystep = YHbox / 11.0;
+  zstep = ZDbox / 10.0;
+  
+  Al_sig_coh=1.495;
+  Al_sig_inc=0.0082;
+  Al_sig_abs=0.231;
+  Al_density=2.7;
+  Al_weight=26.982;
+  
+  Zr_sig_coh=6.44;
+  Zr_sig_inc=0.02;
+  Zr_sig_abs=0.185;
+  Zr_density=6.52;
+  Zr_weight=95.91;
+
+  BL1_x_opening=250;
+  BL1_y_opening=250;
+  BL2_x_opening=250;
+  BL2_y_opening=250;
+  blende=20;
+  blende_radius = blende/2/1000;
+  
+  blende_propa_window = (blende+2)/1000;
+ 
+  blende_int = blende*100;
+
+  MPI_MASTER( 
+    printf("\n***********************************************************************\n");
+  );
+
+  switch(blende_int)
+    {
+    case 8000:
+      blende_exit_radius = 0.041;
+      break;
+    case 4000:
+      blende_exit_radius = 0.0275;
+      break;
+    case 2000:
+      blende_exit_radius = 0.0175;
+      break;
+    case 1000:
+      blende_exit_radius = 0.0125;
+      break;
+    case 100:
+      blende_exit_radius = 0.009;
+      break;
+    case 50:
+      blende_exit_radius = 0.009;
+      break;
+    default:
+      blende_exit_radius = 0.0175;
+      blende_radius = 0.01;
+      MPI_MASTER( 
+	printf("\n The blende given is not existing for ICON, it has been set to 20mm. \n\n");
+      );
+    }
+  MPI_MASTER(
+    printf("\n Blende radius %g m\n",blende_radius);
+    printf("\n Blende exit radius %g m\n",blende_exit_radius);
+    printf("\n***********************************************************************\n");
+  );
+
+
+  BL1x_minus = BL1_x_opening/(-2000);
+  BL1y_minus = BL1_y_opening/(-2000);
+  BL1x_plus = BL1_x_opening/2000;
+  BL1y_plus = BL1_y_opening/2000;
+  
+  BL2x_minus = BL2_x_opening/(-2000);
+  BL2y_minus = BL2_y_opening/(-2000);
+  BL2x_plus = BL2_x_opening/2000;
+  BL2y_plus = BL2_y_opening/2000;
+  
+  
+  
+  sprintf(options, "square x bins=%i, y bins=%i", nx,ny); 
+  sprintf(zoomoptions, "square x bins=%i, y bins=%i", 900,900);
+  sprintf(zoomoptionsICON, "square x bins=%i, y bins=%i", (int)(2037),(int)(2037));
+  lmin = Lambda_Min;
+  lmax = Lambda_Max;
+  lambda0 = (lmin+lmax)/2.0;
+  kmax = 2*PI / lmin;
+  kmin = 2*PI / lmax;
+  vmax = AA2MS * kmax;
+  vmin = AA2MS * kmin;
+
+  
+  // "starting" sample position
+  sp0 = 7.482;
+%} 
+ 
+TRACE 
+ 
+ 
+COMPONENT toolbar = Progress_bar( 
+    percent = 10.0) 
+  AT (0, 0, 0) RELATIVE ABSOLUTE 
+ 
+ 
+COMPONENT a1 = Arm() 
+  AT (0,0,0) ABSOLUTE 
+
+
+/*******************************************************************************/
+/************** description of ICON source and interior ************************/
+/*******************************************************************************/
+
+
+COMPONENT csource = Source_gen4(
+    w = 0.06437, h=0.093,
+    dist=4.677+7.5, xw=0.03, yh=0.03,
+    Lmin = Lambda_Min, Lmax = Lambda_Max,
+    /* Original source parameters from Ludovic Giller */
+    /* T1=103.972, I1=(4.035e12/4/PI),
+       T2=25.56,I2=(2.503e12/4/PI),
+       T3=151.888,I3=(1.399e13/4/PI),
+       HEtailA=1.061e12/4/PI,
+       HEtailL0=-0.453)*/
+    /* RITA-II source parameters */
+    /* T1=301.287, I1=(1.27e13/4/PI),
+       T2=105.655,I2=(3.818e12/4/PI),
+       T3=25.379,I3=(2.331e12/4/PI),
+       HEtailA=8.306e11/4/PI, HEtailL0=-0.398 */
+    /* BOA  source parameters */
+    T1=103.972, I1=(4.035e12/4/PI),
+    T2=25.56,I2=(2.503e12/4/PI),
+    T3=298.411,I3=(1.399e13/4/PI),
+    HEtailA=1.061e12/4/PI,
+    HEtailL0=-0.453)
+AT (0,0,1.523) RELATIVE a1  
+
+COMPONENT source = Arm()
+  AT(0,0,0) RELATIVE PREVIOUS
+
+COMPONENT source_spectra = L_monitor( 
+    nL = 250, filename = "source_spectra", xwidth = 1, 
+    yheight = 1, Lmin = lambda_min, Lmax = lambda_max, nowritefile=(!all_mons)) 
+WHEN (all_mons)  AT (0, 0, 1.524) RELATIVE a1
+
+COMPONENT PSD1 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD1.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons)  AT (0, 0, 1.5245) Relative a1
+
+
+COMPONENT radius1_plugin = Slit(
+    radius=0.12)
+  AT (-0.088, 0, 1.525) RELATIVE a1
+
+
+COMPONENT PSD2 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD2.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons)  AT (0, 0, 1.5255) Relative a1
+
+
+COMPONENT Wagen1_entrance = Slit(
+    xmin = -0.04, xmax = 0.04, ymin = -0.04, ymax = 0.04)
+  AT (0, 0, 1.896) RELATIVE a1
+
+
+
+/* We placed a SQUARED propagation window just in front of the blende			*/
+
+/* Modulable collimation : circular "Blende" (length 0.295m)						*/
+/* The "Blende" can have a diameter of 80mm, 40mm, 20mm, 10mm, 1mm, 0.5mm					*/
+/* For this we use the parameter "blende" which corresponds to the diameter in mm 				*/
+/* => the radius of the slit in meter is blende/2/1000 	       	   	       */
+/* This preliminar calculation is done in the INITIALIZE section			*/
+
+/* It is also a new reference point in accordance to the meter in the ICON bunker 	*/
+
+COMPONENT PSD3 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD3.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0, 0, 4.676) Relative a1
+
+
+COMPONENT Blende_entrance = Slit(
+    radius = blende_radius)
+  AT (0, 0, 4.677) RELATIVE a1
+
+
+COMPONENT PSD4 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD4.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0, 0, 4.678) Relative a1
+
+
+/* The radius of the "Blende" exit is depending on the "Blende" entrance 		*/
+/* This preliminar setting is done in the INITIALIZE section 				*/
+
+COMPONENT PSD5 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD5.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0, 0, 4.971) Relative a1
+
+
+COMPONENT Blende_exit = Slit(
+    radius = blende_exit_radius)
+  AT (0, 0, 4.972) RELATIVE a1
+
+  
+COMPONENT PSD6 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD6.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0, 0, 4.973) Relative a1
+
+COMPONENT PSD7 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD7.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0, 0, 6.122) Relative a1
+
+
+COMPONENT Wagen4_exit = Slit(
+    xmin = -0.04, xmax = 0.04, ymin = -0.04, ymax = 0.04)
+  AT (0, 0, 6.123) RELATIVE a1
+
+COMPONENT PSD8 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD8.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0, 0, 6.124) Relative a1
+
+
+/* 20cm vacuum aperture and vacuum pipe (length 835mm) between the small and main bunker*/
+
+  
+COMPONENT extraaperture = Slit(
+      xwidth=0.01, yheight=0.01)
+ AT (0, 0, 2.0) RELATIVE Blende_entrance
+
+  
+COMPONENT PSD9 = PSD_monitor(
+    nx = 200, ny = 200, filename = "PSD9.dat",
+    xwidth = 0.15, yheight = 0.15, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0, 0, 3.4279) Relative Blende_entrance
+
+  
+  
+COMPONENT Vac_pipe_entrance = Slit(
+    radius = 0.200)
+  AT (0, 0, 3.428) RELATIVE Blende_entrance
+
+COMPONENT Vac_pipe_exit = Slit(
+    radius = 0.200)
+  AT (0, 0, 4.263) RELATIVE Blende_entrance
+
+
+/**************************************************************************************/
+/********** end of ICON  description up to the entrance of the big bunker *************/
+/**************************************************************************************/
+
+
+/* monitors to check the source as it looks at the entrance of the second bunker */
+ 
+
+COMPONENT source_spectra_check = L_monitor( 
+    nL = 50, filename = "source_spectra_check", xwidth = 1, 
+    yheight = 1, Lmin = lambda_min, Lmax = lambda_max, restore_neutron=1, nowritefile=(!all_mons)) 
+WHEN (all_mons) AT (0, 0, 0.0001) RELATIVE Vac_pipe_exit
+ 
+COMPONENT PSD_after_source = PSD_monitor( 
+    nx = 200, ny = 200, filename = "PSD_after_source.dat", 
+    xwidth = 0.25, yheight = 0.25, restore_neutron=1, nowritefile=(!all_mons)) 
+WHEN (all_mons) AT (0, 0, 0.00015) RELATIVE Vac_pipe_exit
+
+
+COMPONENT PSD_after_source_s = PSD_monitor( 
+    nx = 200, ny = 200, filename = "PSD_after_source_s.dat", 
+    xwidth = 0.1, yheight = 0.1, restore_neutron=1, nowritefile=(!all_mons)) 
+WHEN (all_mons) AT (0, 0, 0.0002) RELATIVE Vac_pipe_exit
+
+COMPONENT PSDlinX_after_source = PSDlin_monitor(
+    nbins = 100, filename = "PSDlinX_after_source.dat", xmin = -0.045, xmax = 0.045,
+    ymin = -0.045, ymax = 0.045, restore_neutron=1, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0.002, 0.0, 0.0003) RELATIVE Vac_pipe_exit
+ 
+COMPONENT source_divergence_check = Divergence_monitor( 
+    nh = 100, nv = 100, filename = "divsource.dat", xmin = -0.15, 
+    xmax = 0.15, ymin = -0.15, ymax = 0.15, maxdiv_h = 5, 
+    maxdiv_v = 5, restore_neutron=1, nowritefile=(!all_mons)) 
+WHEN (all_mons) AT (0, 0, 0.0004) RELATIVE Vac_pipe_exit
+
+
+COMPONENT Center0 = Arm()
+  AT (0,0,6.864) RELATIVE Blende_entrance
+
+COMPONENT PSD_sample = PSD_monitor( 
+    nx = 200, ny = 200, filename = "PSD_sample", 
+    xwidth = 0.01, yheight = 0.01, restore_neutron=1, nowritefile=(!all_mons)) 
+WHEN (all_mons)   AT (0, 0, 0.0001) RELATIVE PREVIOUS
+ 
+COMPONENT sample_divergence = Divergence_monitor( 
+    nh = 100, nv = 100, filename = "divsample.dat", xmin = -0.01, 
+    xmax = 0.01, ymin = -0.01, ymax = 0.01, maxdiv_h = 0.2, 
+    maxdiv_v = 0.2, restore_neutron=1, nowritefile=(!all_mons)) 
+WHEN (all_mons)  AT (0, 0, 0.0001) RELATIVE PREVIOUS
+  
+COMPONENT Center = Arm()
+  AT (0,0,sp0-sp) RELATIVE Blende_entrance
+
+
+COMPONENT PSD_sampleBIG = PSD_monitor( 
+    nx = 200, ny = 200, filename = "PSD_sample_BIG", 
+    xwidth = 0.03, yheight = 0.03, restore_neutron=1, nowritefile=(!all_mons)) 
+WHEN (all_mons) AT (0, 0, 0.0001) RELATIVE PREVIOUS
+ 
+COMPONENT sample_divergenceBIG = Divergence_monitor( 
+    nh = 100, nv = 100, filename = "divsample_BIG.dat", xmin = -0.01, 
+    xmax = 0.03, ymin = -0.03, ymax = 0.01, maxdiv_h = 0.2, 
+    maxdiv_v = 0.2, restore_neutron=1, nowritefile=(!all_mons)) 
+WHEN (all_mons) AT (0, 0, 0.0001) RELATIVE PREVIOUS
+    
+  
+COMPONENT Goniometer = Arm()
+AT (tx,ty,tz) RELATIVE Center
+ROTATED(rx,ry,rz) RELATIVE Center
+
+SPLIT 100 COMPONENT SampleIn = Arm()
+AT(0,0,-Zdepth/2.0-1e-9) RELATIVE Goniometer
+EXTEND %{
+  PROP_Z0;
+  Coords Pos;
+  Rotation Rot;
+  Pos = coords_neg(POS_A_CURRENT_COMP);
+  rot_transpose(ROT_A_CURRENT_COMP,Rot);
+  _class_particle tmp = *_particle;
+  mccoordschange(Pos, Rot, &tmp);
+  x0=particle_getvar(&tmp,"x",NULL);
+  y0=particle_getvar(&tmp,"y",NULL);
+  z0=particle_getvar(&tmp,"z",NULL);
+  l_sample=0;
+%}
+
+// Longest Zr blade first
+COMPONENT Zr1 = Refractor(p_reflect=0,p_interact=0,
+			  sigma_coh=Zr_sig_coh, sigma_inc=Zr_sig_inc, sigma_abs=Zr_sig_abs,
+			  density=Zr_density, weight=Zr_weight,
+			  xwidth=Zr_thick1, yheight=Zr_high1, zdepth = Zdepth)
+AT (0,0,0) RELATIVE Goniometer
+GROUP Foils
+EXTEND %{
+  if (SCATTERED) flag_Zr1=1;
+%}
+
+COMPONENT Al2 = Refractor(p_reflect=0,p_interact=0,
+			  sigma_coh=Al_sig_coh, sigma_inc=Al_sig_inc, sigma_abs=Al_sig_abs,
+			  density=Al_density, weight=Al_weight,
+			  xwidth=Al_thick2, yheight=Al_high2, zdepth = Zdepth)
+  AT (delta_eps+(Zr_thick1+Al_thick2)/2.0,-(Zr_high1-Al_high2)/2.0,0) RELATIVE Zr1
+GROUP Foils
+EXTEND %{
+  if (SCATTERED) flag_Al2=1;
+%}
+
+COMPONENT Zr2 = Refractor(p_reflect=0,p_interact=0,
+			  sigma_coh=Zr_sig_coh, sigma_inc=Zr_sig_inc, sigma_abs=Zr_sig_abs,
+			  density=Zr_density, weight=Zr_weight,
+			  xwidth=Zr_thick2, yheight=Zr_high2, zdepth = Zdepth)
+AT (delta_eps+(Zr_thick2+Al_thick2)/2.0,-(Al_high2-Zr_high2)/2.0,0) RELATIVE Al2
+GROUP Foils
+EXTEND %{
+  if (SCATTERED) flag_Zr2=1;
+%}
+
+
+COMPONENT Al1 = Refractor(p_reflect=0,p_interact=0,
+			  sigma_coh=Al_sig_coh, sigma_inc=Al_sig_inc, sigma_abs=Al_sig_abs,
+			  density=Al_density, weight=Al_weight,
+			  xwidth=Al_thick1, yheight=Al_high1, zdepth = Zdepth)
+AT (delta_eps+(Zr_thick2+Al_thick1)/2.0,-(Zr_high2-Al_high1)/2.0,0) RELATIVE Zr2
+GROUP Foils
+EXTEND %{
+  if (SCATTERED) flag_Al1=1;
+%}
+
+
+COMPONENT FoilArm = Arm()
+AT (0,0,0) RELATIVE Zr1
+GROUP Foils
+EXTEND %{
+  SCATTER;
+%}
+
+
+COMPONENT SampleOut = Arm()
+AT(0,0,Zdepth/2.0+1e-9) RELATIVE Goniometer
+EXTEND %{
+  PROP_Z0;
+  Coords Pos;
+  Rotation Rot;
+  Pos = coords_neg(POS_A_CURRENT_COMP);
+  rot_transpose(ROT_A_CURRENT_COMP,Rot);
+  _class_particle tmp = *_particle;
+  mccoordschange(Pos, Rot, &tmp);
+  double XX0,YY0,ZZ0;
+  XX0=particle_getvar(&tmp,"x",NULL);
+  YY0=particle_getvar(&tmp,"y",NULL);
+  ZZ0=particle_getvar(&tmp,"z",NULL);
+  l_sample=l_sample +sqrt((XX0-x0)*(XX0-x0)+(YY0-y0)*(YY0-y0)+(ZZ0-z0)*(ZZ0-z0));
+%}
+
+COMPONENT L_sample=Monitor_nD(user1="l_sample", username1="l_sample", options="previous parallel user1 x y z vx vy vz list all neutrons", nowritefile=(!eventmode))
+  WHEN (eventmode)  AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT VarDetector = Monitor_nD(options=zoomoptionsICON, xwidth=0.0275, yheight=0.0275, filename="detectorVAR",restore_neutron=1, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0,0,7.5) RELATIVE Blende_entrance
+
+COMPONENT VarDetectorZoom = Monitor_nD(options=zoomoptions, xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, filename="detectorVARzoom",restore_neutron=1)
+  AT (0,0,7.5) RELATIVE Blende_entrance
+
+COMPONENT Detector1D = PSDlin_monitor(filename="detector_1D", xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, nbins=900,restore_neutron=1)
+    AT (0,0,7.5) RELATIVE Blende_entrance
+  
+COMPONENT VarDetectorSignal = Monitor_nD(options=zoomoptions, xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, filename="detectorVARzoomSignal",restore_neutron=1, nowritefile=(!all_mons))
+  WHEN (all_mons && (flag_Zr1 || flag_Zr2 || flag_Al1 || flag_Al2))  AT (0,0,7.5) RELATIVE Blende_entrance
+
+COMPONENT VarDetectorZr = Monitor_nD(options=zoomoptions, xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, filename="detectorVARzoomZr",restore_neutron=1, nowritefile=(!all_mons))
+  WHEN (all_mons && (flag_Zr1 || flag_Zr2)) AT (0,0,7.5) RELATIVE Blende_entrance
+
+COMPONENT VarDetectorAl = Monitor_nD(options=zoomoptions, xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, filename="detectorVARzoomAl",restore_neutron=1, nowritefile=(!all_mons))
+  WHEN (all_mons && (flag_Al1 || flag_Al2))  AT (0,0,7.5) RELATIVE Blende_entrance
+
+ 
+END

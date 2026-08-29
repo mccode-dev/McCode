@@ -62,6 +62,8 @@
 * focus_r:       [m]   focusing on circle with this radius
 * skip_convex_check: [1] when set to 1, skips the check for whether input .off file is convex.
 * coordinate_scale [1e-3] Multiplier that the vertex positions are multiplied by. Set to 1 for input coordinates in meters. Set to 1e-3 for input coordinates in mm.
+* all_surfaces:       [string] Comma seperated string of Union surface definitions defined prior to this component
+* cut_surface:   [string] Comma seperated string of Union surface definitions defined prior to this component, applied to all internal cuts
 * init:          [string] name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
@@ -130,7 +132,7 @@ SHARE
     uint16_t attribute_byte_count;
   } Triangle;
   #pragma pack(pop)
- void 
+  void
   check_open_file_errors (FILE* fp, char* filename) {
     if (fp == NULL) {
       printf ("\n\nERROR: %s could not be opened by Union_mesh component.\n\n", filename);
@@ -213,10 +215,10 @@ SHARE
           if (count >= capacity) {
             capacity *= 2;
             void* tmp = realloc (triangles, capacity * sizeof (Triangle));
-            if (tmp) {
+            if (!tmp) {
+              perror ("ERROR: Memory reallocation failed");
               free (triangles);
               free (tmp);
-              perror ("ERROR: Memory reallocation failed");
               fclose (file);
               exit (1);
             }
@@ -277,8 +279,8 @@ SHARE
     int x_are_equal, y_are_equal, z_are_equal;
     int* map_old_to_unique = malloc (sizeof (int) * *n_verts);
     if (map_old_to_unique == NULL || unique_vertices == NULL) {
-      printf("\nERROR ON MALLOC IN UNION MESH STL READ\n"); 
-      exit(1);
+      printf ("\nERROR ON MALLOC IN UNION MESH STL READ\n");
+      exit (1);
     }
     int unique_counter = 0;
     int vert_index_in_faces = 0;

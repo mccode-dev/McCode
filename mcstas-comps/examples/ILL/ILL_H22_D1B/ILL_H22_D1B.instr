@@ -111,6 +111,13 @@ if (verbose) {
   printf("* Sample: '%s' in Al cryostat.\n", Powder);
 }
 
+/* Ensure that we are running with at least 1e7 neutrons if not 'displaying' */
+ if (!mcdotrace) {
+   if (mcget_ncount()<1e7) {
+     MPI_MASTER(printf("This instrument needs higher statistics to converge. Increasing your ncount=%llu to 1e7\n",mcget_ncount()));
+     mcset_ncount(1e7);
+   }
+ }
 %}
 
 /* Here comes the TRACE section, where the actual      */

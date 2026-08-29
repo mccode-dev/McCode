@@ -14,20 +14,23 @@
 * Release: McXtrace 1.1
 *
 * Block of an attenuating material
-* 
+*
 * %Description
 * A chunk of attenuating material. Attenuation is computed through
-* the effective length travelled within the material. 
+* the effective length travelled within the material.
 * No scattering is modelled at present.
 *
 * Filter shape may be a cylinder, a sphere, a box or any other shape.
-*   box/plate:       xwidth x yheight x zdepth 
+*   box/plate:       xwidth x yheight x zdepth
 *   cylinder:        radius x yheight (along Y axis)
 *   sphere:          radius
 *   any shape:       geometry=OFF/PLY_file
 *
 * Example: Filter(material_datafile="Ge.txt",
 *   geometry="wire.ply",xwidth=0.02,yheight=0,zdepth=0)
+* Example: Filter(material_datafile="Ge.txt",xwidth=0.02,yheight=0.02, zdepth=1e-4)
+* Example: Filter(material_datafile="Ge.txt",radius=1e-4,yheight=0.02)
+* Example: Filter(material_datafile="Ge.txt",radius=1e-3, refraction=1)
 *
 * %Parameters
 * INPUT PARAMETERS
@@ -39,28 +42,24 @@
 * material_datafile: [str] File where the material parameters for the filter may be found. Format is similar to what may be found off the NIST website. [Be.txt]
 * geometry:   [str] File containing the polygon definition of a general shape object. When xwidth is also given, the object is rescaled accordingly (OFF/PLY)
 * fixed_delta:[0/1] Use a fixed delta to compute refraction - useful for debugging.
-* refraction: [0/1] If nonzero, refraction is enabled.
+* mu_col:     [idx] Column index to pick up absorption length mu, counted from 0. Use with non-standard input file, e.g. 2-3 column files. -1 means attempt autodetect.
+* refraction: [0/1] If nonzero, refraction is enabled. (Only functional for basic geometries, does not yet work for OFF)
 *
 * %Link
-* Meshlab https://www.meshlab.net/
-* %Link
-* Geomview and Object File Format (OFF) <http://www.geomview.org>
-* %Link
-* Java version of Geomview (display only) jroff.jar <http://www.holmes3d.net/graphics/roffview/> 
-* %Link
-* qhull <http://qhull.org>
-* %Linkink
-* Powercrust https://www.cs.ucdavis.edu/~amenta/powercrust.html
-* %Link
-* material datafile obtained from http://physics.nist.gov/cgi-bin/ffast/ffast.pl
+* <a href="https://www.meshlab.net/">Meshlab</a> - viewer for OFF files
+* <a href="http://www.geomview.org">Geomview and Object File Format (OFF)</a> - OFF file definition and examples
+* <a href="http://www.holmes3d.net/graphics/roffview/">jroff.jar - Java version of Geomview (display only)</a>
+* <a href="http://qhull.org">Qhull</a> - for calculating a convex hull from points.
+* <a href="https://www.cs.ucdavis.edu/~amenta/powercrust.html">Powercrust</a> - for reconstructing a solid geometry from a point cloud.
+* Most material datafile inpus may obtained from <a href="https://physics.nist.gov/PhysRefData/FFast/form.html<https://physics.nist.gov/PhysRefData/FFast/form.html">NIST FFast</a>
 * %End
 *******************************************************************************/
 DEFINE COMPONENT Filter
 
-SETTING PARAMETERS (refraction=1,fixed_delta=0,string material_datafile="Be.txt",
-    string geometry=0,xwidth=0,yheight=0,zdepth=0,radius=0)
+SETTING PARAMETERS (refraction=0,fixed_delta=0,string material_datafile="Be.txt",
+    string geometry=0,xwidth=0,yheight=0,zdepth=0,radius=0, int mu_col=-1)
 
-/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
 SHARE
 %{
@@ -160,14 +159,28 @@ INITIALIZE
     fprintf (stderr, "Warning(%s): %s not found in header of %s, set to 1\n", NAME_CURRENT_COMP, "rho", material_datafile);
     rho = 1;
   }
-
-  /*If we are using a three column format assume only attenuation
-   I.e. set the delta prefactor to 0*/
-  if (table.columns == 3) {
-    mu_c = 1;
-    delta_prefactor = 0;
-  } else {
-    mu_c = 5;
+  if (table.columns < 6) {
+    // "Few or many" columns, use mu_col to pinpoint mu column location
+    if (mu_col == -1 || mu_col >= table.columns) {
+      fprintf (stderr,
+               "Error(%s): Found %i columns in %s. Did NOT detect known NIST file format. Please give a relevant mu_col value to define the mu-column! Exit!\n",
+               NAME_CURRENT_COMP, table.columns, material_datafile);
+      exit (-1);
+    } else {
+      mu_c = mu_col;
+      delta_prefactor = 0;
+    }
+  } else if (table.columns >= 6) {
+    // ... fingers crossed this is "Legacy" NIST format
+    if (mu_col == -1) {
+      mu_c = 5;
+    } else if (mu_col < table.columns) {
+      mu_c = mu_col;
+    } else {
+      fprintf (stderr, "Error(%s): Found %i columns in %s and you gave a mu_col of %i. Please correct. Exit!\n", NAME_CURRENT_COMP, table.columns,
+               material_datafile, mu_col);
+      exit (-1);
+    }
     delta_prefactor = NA * (rho * 1e-24) / Ar * 2.0 * M_PI * RE;
   }
   if (10 * (double)mcget_ncount () > (table.max_x - table.min_x) / (table.step_x)) {
@@ -175,6 +188,12 @@ INITIALIZE
     printf ("%s: Rebinning material data (%s) for faster tracing...", NAME_CURRENT_COMP, material_datafile);
     Table_Rebin (&(table));
     printf ("done\n");
+  }
+  if (shape != CUBE) {
+    if (refraction) {
+      fprintf (stderr, "Warning(%s): refraction=1 not supported with chosen geometry\n", NAME_CURRENT_COMP);
+      refraction = 0;
+    }
   }
 %}
 
@@ -223,6 +242,24 @@ TRACE
           nz = 1.0;
         };
         break;
+      case SPHERE:
+        nx = x;
+        ny = y;
+        nz = z;
+        NORM (nx, ny, nz);
+        break;
+      case CYLINDER:
+        if (fabs (y - yheight * 0.5) < FLT_EPSILON || fabs (y + yheight * 0.5) < FLT_EPSILON) {
+          x = 0.0;
+          y = 1.0;
+          z = 0.0;
+        } else {
+          nx = x;
+          nz = z;
+          ny = 0.0;
+          NORM (nx, ny, nz);
+        }
+        break;
       default:
         1;
       }
@@ -264,6 +301,24 @@ TRACE
           ny = 0.0;
           nz = 1.0;
         };
+        break;
+      case SPHERE:
+        nx = x;
+        ny = y;
+        nz = z;
+        NORM (nx, ny, nz);
+        break;
+      case CYLINDER:
+        if (fabs (y - yheight * 0.5) < FLT_EPSILON || fabs (y + yheight * 0.5) < FLT_EPSILON) {
+          x = 0.0;
+          y = 1.0;
+          z = 0.0;
+        } else {
+          nx = x;
+          nz = z;
+          ny = 0.0;
+          NORM (nx, ny, nz);
+        }
         break;
       default:
         1;

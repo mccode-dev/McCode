@@ -243,37 +243,52 @@ FINALLY %{
     finishSimulation(&s);
 %}
 
-MCDISPLAY//TODO this does not work as of now does not show the orientation of the flat conics
+MCDISPLAY
 %{
-  // PW 20260112 Suppressed. Cals to rConic make no sense since the flat mirrors are NOT conical...
-
   /* //Enlarge xy-plane when mcdisplay is ran with --zoom */
-  /* magnify("xy"); */
+  magnify ("xy");
 
-  /* 	//Draw xy-axis contour for Conic Surfaces */
-  /* 	int i; */
-  /*   for (i = 0; i < s.num_f; i++) { */
-  /*       double step = (s.f[i].ze-s.f[i].zs)/100; */
-  /*       double cz; */
-  /* 	    for (cz = s.f[i].zs+step; cz <= s.f[i].ze; cz+= step) { */
-  /*           double rp = rConic(cz-step,s.f[i]); */
-  /*           double rc = rConic(cz, s.f[i]); */
+  double half_mirror_sidelength = 0.5 * mirror_sidelength;
 
-  /*           line(0,rp,cz-step,0,rc,cz); */
-  /*           line(0,-rp,cz-step,0,-rc,cz); */
+  // Draw xy-axis contour for Conic Surfaces */
+  int i;
+  for (i = 0; i < s.num_f; i++) {
+    double step = (s.f[i].ze - s.f[i].zs) / 100;
+    double cz, rp, rc;
+	double last_cz = 0;
 
-  /*           line(rp,0,cz-step,rc,0,cz); */
-  /*           line(-rp,0,cz-step,-rc,0,cz); */
-  /*       } */
-  /*   } */
+    cz = s.f[i].zs;
 
-  /*   //Draw xy-axis cross hairs for Disks */
-  /*   for (i = 0; i < s.num_di; i++) { */
-  /*       line(s.di[i].r0, 0, s.di[i].z0, s.di[i].r1, 0, s.di[i].z0); */
-  /*       line(-s.di[i].r0, 0, s.di[i].z0, -s.di[i].r1, 0, s.di[i].z0); */
-  /*       line(0, s.di[i].r0, s.di[i].z0, 0, s.di[i].r1,s.di[i].z0); */
-  /*       line(0, -s.di[i].r0, s.di[i].z0, 0, -s.di[i].r1,s.di[i].z0); */
-  /*   } */
+    // front line
+    rp = wFlat (cz, s.f[i]);
+    line (rp, -half_mirror_sidelength, cz, rp, half_mirror_sidelength, cz);
+    line (-rp, -half_mirror_sidelength, cz, -rp, half_mirror_sidelength, cz);
+
+    for (cz = s.f[i].zs + step; cz < s.f[i].ze; cz += step) {
+      rp = wFlat (cz - step, s.f[i]);
+      rc = wFlat (cz, s.f[i]);
+
+      line (rp, -half_mirror_sidelength, cz - step, rc, -half_mirror_sidelength, cz);
+      line (rp, half_mirror_sidelength, cz - step, rc, half_mirror_sidelength, cz);
+      line (-rp, -half_mirror_sidelength, cz - step, -rc, -half_mirror_sidelength, cz);
+      line (-rp, half_mirror_sidelength, cz - step, -rc, half_mirror_sidelength, cz);
+
+      last_cz = cz;
+    }
+
+    // The for loop above may end before the actual end of the ellipse, this adds the last piece
+    // cz to s.f[i].ze
+    rp = wFlat (last_cz, s.f[i]);
+    rc = wFlat (s.f[i].ze, s.f[i]);
+    line (rp, -half_mirror_sidelength, last_cz, rc, -half_mirror_sidelength, s.f[i].ze);
+    line (rp, half_mirror_sidelength, last_cz, rc, half_mirror_sidelength, s.f[i].ze);
+    line (-rp, -half_mirror_sidelength, last_cz, -rc, -half_mirror_sidelength, s.f[i].ze);
+    line (-rp, half_mirror_sidelength, last_cz, -rc, half_mirror_sidelength, s.f[i].ze);
+
+    // end line
+    line (rc, -half_mirror_sidelength, s.f[i].ze, rc, half_mirror_sidelength, s.f[i].ze);
+    line (-rc, -half_mirror_sidelength, s.f[i].ze, -rc, half_mirror_sidelength, s.f[i].ze);
+  }
 %}
 
 END

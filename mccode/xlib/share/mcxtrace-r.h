@@ -49,6 +49,8 @@
 #define SCATTER0 do {DEBUG_SCATTER(); SCATTERED++;} while(0)
 #define SCATTER SCATTER0
 
+void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER from within libaries */
+
 #define JUMPTOCOMP(comp) mcphoton->_index = INDEX_COMP(comp);
 
 /*magnet stuff is probably redundant*/

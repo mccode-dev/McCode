@@ -41,31 +41,9 @@
 DEFINE INSTRUMENT Test_Absorption(int index=1, string material="Mn.txt", E0=6.5, dE=1)
 
 DECLARE %{
-  #ifndef WIN32
-  #include <unistd.h>
-  #else
-  #ifdef WIN32
-  #include <io.h>
-  #define F_OK 0
-  #define access _access
-  #endif
-  #endif
 %}
 
 INITIALIZE %{
-// create a material/off file for Abs_objects
-MPI_MASTER(
-  if (!(access("input_small.dat", F_OK)==0)) {
-    FILE *fp = fopen("input_small.dat", "w");
-    if (fp == NULL) exit(fprintf(stderr, "ERROR: can not open file for Abs_objects\n"));
-    fprintf(fp, "1\n");
-    fprintf(fp, "%s cube.off -0.0005 -0.0005 -0.0005 0.001 0.001 0.0001\n\n", material);
-    fclose(fp);
-  }
-);
-#ifdef USE_MPI
-MPI_Barrier(MPI_COMM_WORLD);
-#endif
 %}
 
 TRACE

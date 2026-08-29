@@ -1,0 +1,114 @@
+% @MCCODE_PREFIX@PLOTDIFF-html(1)
+% @FLAVOR_UPPER@ @MCCODE_PARTICLE@ Ray Tracing Team
+% @MCCODE_DATE@
+
+# NAME
+
+**@MCCODE_PREFIX@plotdiff-html** - Plotting the difference between two @MCCODE_NAME@ simulation results in a browser
+
+# SYNOPSIS
+
+**@MCCODE_PREFIX@plotdiff-html** [-h] [-n] [-D] [-l] [--autosize] [--libpath [LIBPATH ...]] [-o OUTPUT] [-A LABEL_A] [-B LABEL_B] [-W WIDTH] [-H HEIGHT] a b
+
+# DESCRIPTION
+
+The front-end **@MCCODE_PREFIX@plotdiff-html** is a program that produces plots of the
+*difference* between the monitors of two @MCCODE_NAME@ simulation results, i.e.
+`diff.monN = a.monN - b.monN` for every monitor output file `monN` that is
+present, with matching binning, in both simulation results `a` and `b`. This
+is useful to quickly spot how two simulation runs differ, e.g. after a
+component or parameter change, a McCode version upgrade, or comparing MPI vs.
+non-MPI results.
+
+`a` and `b` may each be either a simulation output directory (as produced by
+`@MCCODE_PREFIX@run`, containing a `mccode.sim` file) or a single monitor data
+file. Only monitors present in both `a` and `b`, with identical binning, are
+compared; monitors found in only one of the two inputs, or with mismatched
+binning, are skipped with a warning.
+
+By default, each difference dataset is also written out in standard McCode
+ASCII ("# comment header + data body") format alongside the HTML plots,
+with a `mccode.sim` index generated too (when comparing two simulation
+folders), so the output directory is itself a normal McCode simulation
+directory that can be reopened directly by
+**@MCCODE_PREFIX@plot-html**/**@MCCODE_PREFIX@plot-pyqtgraph**/**@MCCODE_PREFIX@plot-matplotlib**,
+or any other McCode-format-aware tool. Each generated HTML plot also links
+directly to its underlying `.dat` file. Pass `-D`/`--no-dat` to skip this and
+only produce the HTML plots.
+
+For 1D monitors, the difference curve is plotted with error bars computed
+from standard error propagation. For 2D monitors, since differences can be
+both positive and negative, a diverging blue/white/red colour scale centred
+on zero is used instead of the ordinary mcplot-html colour scale; blue is
+negative (`b` bigger than `a`), white is (approximately) zero, and red is
+positive (`a` bigger than `b`). The "log" variant of a 2D plot uses a signed
+(symlog-style) transform so that small differences remain visible while
+preserving their sign.
+
+This is the web/html difference-plotting tool (in browser), and reuses the
+same client-side plotting code as **@MCCODE_PREFIX@plot-html**.
+
+# OPTIONS
+
+**-h, --help**
+:   show this help message and exit
+
+**-n, --nobrowse**
+:   do not open a webbrowser viewer
+
+**-D, --no-dat**
+:   do not write each difference dataset out in standard McCode ASCII
+    format (and skip the `mccode.sim` index in folder mode); by default
+    these files are written alongside the HTML plots
+
+**-l, --log**
+:   when comparing two single monitor files, also produce a log-style plot.
+    (When comparing two simulation folders, both a linear and a log-style
+    plot are always produced for every monitor, just like
+    **@MCCODE_PREFIX@plot-html**.)
+
+**--autosize**
+:   expand to window size on load
+
+**--libpath [LIBPATH ...]**
+:   js lib files path
+
+**-o OUTPUT, --output OUTPUT**
+:   specify output directory for the generated plots (default:
+    `diff_<a>_vs_<b>` in the current directory)
+
+**-A LABEL_A, --label-a LABEL_A**
+:   short label used for simulation `a` in titles and filenames (default:
+    the basename of `a`)
+
+**-B LABEL_B, --label-b LABEL_B**
+:   short label used for simulation `b` in titles and filenames (default:
+    the basename of `b`)
+
+**-W WIDTH, --width WIDTH**
+:   width of iframes
+
+**-H HEIGHT, --height HEIGHT**
+:   height of iframes
+
+# FILES
+
+/usr/share/@FLAVOR@/resources
+/usr/share/@FLAVOR@/tools/Python/mccodelib/mccode_config.json
+~/.@FLAVOR@/mccode_config.json
+http://www.@FLAVOR@.org
+
+# EXAMPLES
+
+Run the *Test_SX* example (Single crystal diffraction) twice with different parameters, and plot the difference
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_a -n 1e7 TTH=13.4`
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_b -n 1e7 TTH=14.0`
+:   - `@MCCODE_PREFIX@plotdiff-html output_a output_b`
+
+# AUTHORS
+
+McStas Team (@FLAVOR@.org)
+
+# SEE ALSO
+
+@FLAVOR@(1), @MCCODE_PREFIX@doc(1), @MCCODE_PREFIX@plot(1), @MCCODE_PREFIX@plot-html(1), @MCCODE_PREFIX@run(1), @MCCODE_PREFIX@gui(1), @MCCODE_PREFIX@display(1)

@@ -2278,6 +2278,7 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
     struct pointer_to_1d_double_list intersection_list;
 
     intersection_list.num_elements = 0;
+    intersection_list.elements = NULL;
 
     r1[0] = position1.x;
     r1[1] = position1.y;
@@ -2334,8 +2335,9 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
     free(temp_intersection);
     // Now we have a list of intersection distances between r1 and r2 and all volumes.
     // This list needs to be sorted before we continue!
-
-    qsort(intersection_list.elements,intersection_list.num_elements,sizeof (double), Sample_compare_doubles);
+	if (intersection_list.num_elements > 0) {
+    	qsort(intersection_list.elements,intersection_list.num_elements,sizeof (double), Sample_compare_doubles);
+	}
     
     Coords *points=malloc((intersection_list.num_elements+2)*sizeof(Coords));
     if (!points) {

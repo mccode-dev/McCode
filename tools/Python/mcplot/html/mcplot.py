@@ -6,11 +6,11 @@ import logging
 import os
 import sys
 import numpy as np
-import scipy.misc
 import io
 import base64
 import json
 import subprocess
+import concurrent.futures
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
@@ -20,8 +20,21 @@ from mccodelib import mccode_config
 from shutil import copyfile
 from PIL import Image
 
-WIDTH = 700
-HEIGHT = 480
+global WIDTH,HEIGHT
+WIDTH = 1024
+HEIGHT = 768
+
+def get_default_workers():
+    ''' Number of per-monitor plot jobs to run in parallel by default: the
+        number of processors available to this process. Prefers
+        os.sched_getaffinity(0) (Linux only) over os.cpu_count(), since the
+        former respects cgroup/taskset CPU restrictions (e.g. inside a
+        container or batch job allocation) that the latter ignores. '''
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:
+        # os.sched_getaffinity doesn't exist on macOS/Windows
+        return os.cpu_count() or 4
 
 def file_base_name(file_name):
     if '.' in file_name:
@@ -35,13 +48,14 @@ def path_base_name(path):
     file_name = os.path.basename(path)
     return file_base_name(file_name)
 
-def get_html(template_name, params, simfile):
+def get_html(template_name, params, simfile, use_logscale):
     '''  '''
     text = open(os.path.join(os.path.dirname(__file__),template_name)).read()
     text = text.replace("@PARAMS@", params)
     text = text.replace("@DATAFILE@", simfile)
-    
-    logscalestr = "true" if logscale==True else "false"
+    text = text.replace("@DATALINK@", "Click for ascii data")
+
+    logscalestr = "true" if use_logscale else "false"
     text = text.replace("@LOGSCALE@", logscalestr)
     text = text.replace("@LIBPATH@", libpath)
     return text
@@ -155,7 +169,7 @@ def get_params_str_2D(data):
                 print(e)
 
     # encode png as base64 string
-    image_log = Image.fromarray(img_log.astype(np.uint8))
+    image_log = Image.fromarray(np.flipud(img_log).astype(np.uint8))
     output = io.BytesIO()
     image_log.save(output, format="png")
     encoded_2d_data_log = str(base64.b64encode(output.getvalue())).lstrip('b').strip("\'")
@@ -220,37 +234,77 @@ def browse(html_filepath):
 def plotfunc(node, filename=None):
     ''' plot a plotnode to a html file as an svg-plot using plotfuncs.js and d3.v4.min.js '''
 
-    global logscale
     if isinstance(filename, list):
         filename = filename[0]
     # get data and set file path
     if type(node) is PNSingle:
         data = node.getdata_idx(0)
-        return plotfunc_single(data, filename)
+        return plotfunc_single(data, filename, use_logscale=logscale)
 
     elif type(node) is PNMultiple:
-        data = node.getdata_lst()
-        data_lst = data
-        
-        f     = []
-        f_log = []
-        count = 0
+        data_lst = node.getdata_lst()
+
+        # Each monitor's linear and log-scale pages are fully independent
+        # (own numpy arrays, own PIL image, own output file - no shared
+        # matplotlib-style global figure/axes state the way the
+        # mcplot-matplotlib tool has), so unlike that tool this is safe to
+        # parallelize directly: build the full list of (monitor, use_log)
+        # jobs up front and run them through a bounded thread pool, instead
+        # of the previous sequential loop that flipped a shared global
+        # `logscale` flag between calls (unsafe to parallelize as-is, since
+        # concurrent threads would race on that flag).
+        jobs = []
         for dat in data_lst:
-            logscale = False
-            f.append(plotfunc_single(dat))
-            logscale = True
-            f_log.append(plotfunc_single(dat))
-            count += 1
+            jobs.append((dat, False))
+            jobs.append((dat, True))
+
+        def _run_job(job):
+            dat, use_log = job
+            return plotfunc_single(dat, None, use_logscale=use_log)
+
+        max_workers = get_default_workers()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # executor.map preserves input order regardless of completion
+            # order, so results[0::2]/[1::2] line up with data_lst as before
+            results = list(executor.map(_run_job, jobs))
+
+        f     = results[0::2]
+        f_log = results[1::2]
         # now create an overview HTML (index.html with <iframe>)
         directory  = os.path.dirname(f[0])
+        baseinstr = os.path.basename(os.getcwd())
+        print(baseinstr)
+        print(os.getcwd())
         if filename is None:
             filename = os.path.join(directory, "index.html")
             
         with open(filename, 'w') as outfile:
             outfile.write("<html><head>\n")
-            outfile.write(f"<title>Simulation results {directory}</title>\n")
+            outfile.write(f"<title>Simulation results in folder {baseinstr}/{directory}</title>\n")
+            gridgap = int(round(WIDTH * 0.05))
+            initial_scale = 0.5
+            init_w = WIDTH * initial_scale
+            init_h = HEIGHT * initial_scale
+            init_pct = int(round(initial_scale * 100))
+            outfile.write("<style>\n")
+            outfile.write("  body { background-color: #e0e0e0; margin: 12px; font-family: sans-serif; }\n")
+            outfile.write(f"  .plotgrid {{ display: flex; flex-wrap: wrap; gap: {gridgap}px; }}\n")
+            outfile.write("  .plotcell { background-color: #ffffff; display: flex; flex-direction: column; align-items: flex-start; }\n")
+            outfile.write("  .plotcell iframe { border: none; }\n")
+            outfile.write("  .plotcell .links { margin-top: 4px; width: 100%; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 4px 12px; }\n")
+            outfile.write("  .iframe-wrap { overflow: hidden; border: 2px solid #b0b0b0; }\n")
+            outfile.write("  .iframe-wrap iframe { transform-origin: top left; display: block; }\n")
+            outfile.write("  #sizecontrol { margin-bottom: 16px; font-size: 14px; }\n")
+            outfile.write("  #sizecontrol input[type=range] { vertical-align: middle; margin: 0 8px; }\n")
+            outfile.write("</style>\n")
             outfile.write("</head><body>\n")
-            outfile.write(f"<h1>Simulation results {directory}</h1>\n")
+            outfile.write(f"<h1>Simulation results {baseinstr}/{directory}</h1>\n")
+            outfile.write("<div id='sizecontrol'>\n")
+            outfile.write("  <label for='sizeslider'>Figure size:</label>\n")
+            outfile.write(f"  <input type='range' id='sizeslider' min='20' max='200' value='{init_pct}' step='5'>\n")
+            outfile.write(f"  <span id='sizevalue'>{init_pct}%</span>\n")
+            outfile.write("</div>\n")
+            outfile.write("<div class='plotgrid'>\n")
             for fname in f:
                 basename = os.path.basename(fname)
                 if os.path.dirname(filename) == directory:  
@@ -261,8 +315,12 @@ def plotfunc(node, filename=None):
                     # we are saving outside simulation dir
                     # we use full path
                     linkname = os.path.join(directory, basename)
-                outfile.write(f"<iframe src='{linkname}' title='{basename}' width={WIDTH} height={HEIGHT}></iframe> \n")
-                outfile.write(f"<a href='{linkname}' target=_blank>[ {basename} ]</a><br>\n")
+                outfile.write(f"<div class='plotcell' data-base-w='{WIDTH}' style='width:{init_w}px;'>\n")
+                outfile.write(f"<div class='iframe-wrap' data-base-w='{WIDTH}' data-base-h='{HEIGHT}' style='width:{init_w}px;height:{init_h}px;'>\n")
+                outfile.write(f"<iframe src='{linkname}' title='{basename}' width={WIDTH} height={HEIGHT} style='transform:scale({initial_scale});'></iframe>\n")
+                outfile.write("</div>\n")
+                outfile.write("<div class='links'>\n")
+                outfile.write(f"<a href='{linkname}' target=_blank>[ {basename} ]</a>\n")
                 # add the LOG-scale plot, if any
                 filepart = os.path.splitext(basename)
                 basename = filepart[0]+"_log"+filepart[1]
@@ -276,17 +334,42 @@ def plotfunc(node, filename=None):
                         # we are saving outside simulation dir
                         # we use full path
                         linkname = os.path.join(directory, basename)
-                    outfile.write(f"<a href='{basename}' target=_blank>[ {basename} ]</a><br>\n")
+                    outfile.write(f"<a href='{basename}' target=_blank>[ {basename} ]</a>\n")
+                outfile.write("</div>\n")
+                outfile.write("</div>\n")
+            outfile.write("</div>\n")
+            outfile.write("<script>\n")
+            outfile.write("  var slider = document.getElementById('sizeslider');\n")
+            outfile.write("  var sizevalue = document.getElementById('sizevalue');\n")
+            outfile.write("  var wraps = document.querySelectorAll('.iframe-wrap');\n")
+            outfile.write("  var cells = document.querySelectorAll('.plotcell');\n")
+            outfile.write("  slider.addEventListener('input', function() {\n")
+            outfile.write("    var scale = slider.value / 100;\n")
+            outfile.write("    sizevalue.textContent = slider.value + '%';\n")
+            outfile.write("    wraps.forEach(function(wrap) {\n")
+            outfile.write("      var bw = parseFloat(wrap.dataset.baseW);\n")
+            outfile.write("      var bh = parseFloat(wrap.dataset.baseH);\n")
+            outfile.write("      wrap.style.width = (bw * scale) + 'px';\n")
+            outfile.write("      wrap.style.height = (bh * scale) + 'px';\n")
+            outfile.write("      var fr = wrap.querySelector('iframe');\n")
+            outfile.write("      fr.style.transform = 'scale(' + scale + ')';\n")
+            outfile.write("    });\n")
+            outfile.write("    cells.forEach(function(cell) {\n")
+            outfile.write("      var bw = parseFloat(cell.dataset.baseW);\n")
+            outfile.write("      cell.style.width = (bw * scale) + 'px';\n")
+            outfile.write("    });\n")
+            outfile.write("  });\n")
+            outfile.write("</script>\n")
             outfile.write("</body></html>\n")
         return filename
     
-def plotfunc_single(data, f = None):
+def plotfunc_single(data, f = None, use_logscale=False):
     """save the data node into given file"""
     # three cases of plot data (1D, 2D and multiple), each block should end with a fully formed 'text' variable
     text = ""
     
     if f is None:
-        if logscale:
+        if use_logscale:
             f = data.filepath + "_log.html"
         else:
             f = data.filepath + ".html"
@@ -296,11 +379,11 @@ def plotfunc_single(data, f = None):
     
     # create 1D html
     if type(data) is Data1D:
-        text = get_html('template_1d.html', get_params_str_1D(data), os.path.basename(data.filename))
+        text = get_html('template_1d.html', get_params_str_1D(data), os.path.basename(data.filename), use_logscale)
 
     # create 2D html
     elif type(data) is Data2D:
-        text = get_html('template_2d.html', get_params_str_2D(data), os.path.basename(data.filename))
+        text = get_html('template_2d.html', get_params_str_2D(data), os.path.basename(data.filename), use_logscale)
     
     # write to file
     with open(f, 'w') as fid:
@@ -333,7 +416,7 @@ def main(args):
             simdir = simfile
             simfile = os.path.join(simdir,'mccode.sim')
         else:
-            printf(simfile + " is neither a file or directory, exiting")
+            print(simfile + " is neither a .sim file or directory, exiting")
             exit(-1)
 
     # logscale house keeping
@@ -346,6 +429,12 @@ def main(args):
     global autosize
     if args.autosize:
         autosize = True
+    global WIDTH
+    if args.width:
+        WIDTH=int(args.width[0])
+    global HEIGHT
+    if args.height:
+        HEIGHT=int(args.height[0])
 
     # TODO: safeguard, exit: if simfile is not a file or a directory
 
@@ -384,8 +473,8 @@ if __name__ == '__main__':
     parser.add_argument('--autosize', action='store_true', help='expand to window size on load')
     parser.add_argument('--libpath', nargs='*', help='js lib files path')
     parser.add_argument('-o','--output', nargs=1, help='specify output file (.html extension)')
-
+    parser.add_argument('-W','--width', nargs=1, help='width of iframes')
+    parser.add_argument('-H','--height', nargs=1, help='heigth of iframes')
     args = parser.parse_args()
 
     main(args)
-

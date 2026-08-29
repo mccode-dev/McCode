@@ -48,15 +48,13 @@ typedef struct t_reflec_eth_prmtc{
 } t_reflec_theta_e_prmtc;
 typedef struct reflec_T {
   enum reflec_Type type;
-  union {
-    struct t_reflec_bare rb;
-    struct t_reflec_coating rc;
-    struct t_reflec_q_prmtc rqpm;
-    struct t_reflec_parratt rp;
-    struct t_reflec_constant rconst;
-    struct t_reflec_kinematic rk;
-    struct t_reflec_eth_prmtc rethpm;
-  } prms;
+  struct t_reflec_bare rb;
+  struct t_reflec_coating rc;
+  struct t_reflec_q_prmtc rqpm;
+  struct t_reflec_parratt rp;
+  struct t_reflec_constant rconst;
+  struct t_reflec_kinematic rk;
+  struct t_reflec_eth_prmtc rethpm;
 } t_Reflec;
 /* reflectivity-lib.c */
 int reflec_Init(t_Reflec *R, enum reflec_Type type, char *file, void *pars);

@@ -33,7 +33,8 @@ def plot(node, i, plt, opts):
     elif type(data) is Data2D:
         view_box, lyt = plot_Data2D(data, plt, log=opts['log'], legend=opts['legend'], icolormap=opts['icolormap'],
                                     verbose=opts['verbose'], fontsize=opts['fontsize'],
-                                    cbmin=opts.get('cbmin', None), cbmax=opts.get('cbmax', None))
+                                    cbmin=opts.get('cbmin', None), cbmax=opts.get('cbmax', None),
+                                    nplots=opts.get('nplots', None), cell_height=opts.get('cell_height', None))
         return view_box, lyt
     elif type(data) is Data0D:
         view_box = plot_Data0D(data, plt, log=opts['log'], legend=opts['legend'], icolormap=opts['icolormap'],
@@ -44,6 +45,18 @@ def plot(node, i, plt, opts):
         return None, None
 
 GlobalColormap='none'
+
+# Ordered list of colormap names cycled through by the 'c' key in the
+# interactive frontend; kept at module level so other tools (e.g.
+# mcplot-diff-pyqtgraph) can look up a colormap's index reliably.
+COLORMAP_KEYS = ['jet','autumn','bone','colorcube','cool','copper','gray','hot',
+                 'hsv','parula','pink','spring','summer','winter','diverging']
+
+
+def get_colormap_index(name):
+    ''' Index of a named colormap within COLORMAP_KEYS, e.g. for use as the
+        'icolormap' starting value of a McPyqtgraphPlotter. '''
+    return COLORMAP_KEYS.index(name)
 
 
 class ModLegend(pg.LegendItem):
@@ -63,12 +76,23 @@ class ModLegend(pg.LegendItem):
         self.layout.setContentsMargins(0, 0, 0, 0)
         row = self.layout.rowCount()
         self.items.append((sample, label))
+        # sample (the colour swatch icon) was being constructed but never
+        # actually placed into the layout - only the text label was, so no
+        # colour swatch was ever visible, regardless of how many legend
+        # entries or curves were involved.
+        self.layout.addItem(sample, row, 0)
         self.layout.addItem(label, row, 1)
         self.updateSize()
 
     def paint(self, p, *args):
         p.setPen(pg.functions.mkPen(255,255,255,225))
-        p.setBrush(pg.functions.mkBrush(255,255,255,255))
+        # Semi-transparent (was fully opaque, alpha=255): a legend with
+        # many rows (e.g. mccoplot's N-dataset overlay legend) can grow
+        # tall enough to sit directly on top of real curve data in the
+        # plot's corner - an opaque background then genuinely hides that
+        # data rather than just labelling it. Still solid enough to keep
+        # the legend text itself readable against busy plots.
+        p.setBrush(pg.functions.mkBrush(255,255,255,200))
         p.drawRect(self.boundingRect())
 
 
@@ -134,6 +158,8 @@ def plot_Data1D(data, plt, log=False, fromzero=False, legend=True, icolormap=0, 
         # this construct reduces the requiremet for header data in Data1D, in case of an error during parsing of the string
         try:
             lname1 = '<center>%s<br>I = %s</center>' % (data.component, data.values[0])
+            if hasattr(data, 'diff_pct_str'):
+                lname1 = '<center>%s<br>I = %s<br>Diff: %s</center>' % (data.component, data.values[0], data.diff_pct_str)
             if verbose:
                 lname1 = '%s [%s]<br><br>%s<br><br>I = %s Err = %s N = %s; %s' % (data.component, data.filename, data.title, data.values[0], data.values[1], data.values[2], data.statistics)
         except:
@@ -148,6 +174,29 @@ def plot_Data1D(data, plt, log=False, fromzero=False, legend=True, icolormap=0, 
     vb = plt.getViewBox()
 
     return vb
+
+
+def _diverging_colormap(n=64):
+    ''' Blue-white-red diverging colour map (colorbrewer 'RdBu', reversed so
+        that blue = low/negative, red = high/positive), generated the same
+        way as the mcplot-diff-html tool's colour map, for use when viewing
+        signed difference data (e.g. via mcplot-diff-pyqtgraph). '''
+    c_neg = np.array([33, 102, 172])   # blue  -> low/negative values
+    c_mid = np.array([255, 255, 255])  # white -> zero
+    c_pos = np.array([178, 24, 43])    # red   -> high/positive values
+
+    cm = np.zeros((n, 4), dtype=np.ubyte)
+    for i in range(n):
+        t = i / (n - 1)  # 0..1
+        if t <= 0.5:
+            frac = t / 0.5
+            rgb = c_neg + frac * (c_mid - c_neg)
+        else:
+            frac = (t - 0.5) / 0.5
+            rgb = c_mid + frac * (c_pos - c_mid)
+        cm[i, 0:3] = np.round(rgb)
+        cm[i, 3] = 255
+    return cm
 
 
 def get_color_map(idx, pos_min, pos_max):
@@ -169,10 +218,11 @@ def get_color_map(idx, pos_min, pos_max):
         'spring'  : np.array([[255,   0, 255, 255], [255,   4, 251, 255], [255,   8, 247, 255], [255,  12, 243, 255], [255,  16, 239, 255], [255,  20, 235, 255], [255,  24, 231, 255], [255,  28, 227, 255], [255,  32, 223, 255], [255,  36, 219, 255], [255,  40, 215, 255], [255,  45, 210, 255], [255,  49, 206, 255], [255,  53, 202, 255], [255,  57, 198, 255], [255,  61, 194, 255], [255,  65, 190, 255], [255,  69, 186, 255], [255,  73, 182, 255], [255,  77, 178, 255], [255,  81, 174, 255], [255,  85, 170, 255], [255,  89, 166, 255], [255,  93, 162, 255], [255,  97, 158, 255], [255, 101, 154, 255], [255, 105, 150, 255], [255, 109, 146, 255], [255, 113, 142, 255], [255, 117, 138, 255], [255, 121, 134, 255], [255, 125, 130, 255], [255, 130, 125, 255], [255, 134, 121, 255], [255, 138, 117, 255], [255, 142, 113, 255], [255, 146, 109, 255], [255, 150, 105, 255], [255, 154, 101, 255], [255, 158,  97, 255], [255, 162,  93, 255], [255, 166,  89, 255], [255, 170,  85, 255], [255, 174,  81, 255], [255, 178,  77, 255], [255, 182,  73, 255], [255, 186,  69, 255], [255, 190,  65, 255], [255, 194,  61, 255], [255, 198,  57, 255], [255, 202,  53, 255], [255, 206,  49, 255], [255, 210,  45, 255], [255, 215,  40, 255], [255, 219,  36, 255], [255, 223,  32, 255], [255, 227,  28, 255], [255, 231,  24, 255], [255, 235,  20, 255], [255, 239,  16, 255], [255, 243,  12, 255], [255, 247,   8, 255], [255, 251,   4, 255], [255, 255,   0, 255]], dtype=np.ubyte),
         'summer'  : np.array([[  0, 128, 102, 255], [  4, 130, 102, 255], [  8, 132, 102, 255], [ 12, 134, 102, 255], [ 16, 136, 102, 255], [ 20, 138, 102, 255], [ 24, 140, 102, 255], [ 28, 142, 102, 255], [ 32, 144, 102, 255], [ 36, 146, 102, 255], [ 40, 148, 102, 255], [ 45, 150, 102, 255], [ 49, 152, 102, 255], [ 53, 154, 102, 255], [ 57, 156, 102, 255], [ 61, 158, 102, 255], [ 65, 160, 102, 255], [ 69, 162, 102, 255], [ 73, 164, 102, 255], [ 77, 166, 102, 255], [ 81, 168, 102, 255], [ 85, 170, 102, 255], [ 89, 172, 102, 255], [ 93, 174, 102, 255], [ 97, 176, 102, 255], [101, 178, 102, 255], [105, 180, 102, 255], [109, 182, 102, 255], [113, 184, 102, 255], [117, 186, 102, 255], [121, 188, 102, 255], [125, 190, 102, 255], [130, 192, 102, 255], [134, 194, 102, 255], [138, 196, 102, 255], [142, 198, 102, 255], [146, 200, 102, 255], [150, 202, 102, 255], [154, 204, 102, 255], [158, 206, 102, 255], [162, 208, 102, 255], [166, 210, 102, 255], [170, 212, 102, 255], [174, 215, 102, 255], [178, 217, 102, 255], [182, 219, 102, 255], [186, 221, 102, 255], [190, 223, 102, 255], [194, 225, 102, 255], [198, 227, 102, 255], [202, 229, 102, 255], [206, 231, 102, 255], [210, 233, 102, 255], [215, 235, 102, 255], [219, 237, 102, 255], [223, 239, 102, 255], [227, 241, 102, 255], [231, 243, 102, 255], [235, 245, 102, 255], [239, 247, 102, 255], [243, 249, 102, 255], [247, 251, 102, 255], [251, 253, 102, 255], [255, 255, 102, 255]], dtype=np.ubyte),
         'winter'  : np.array([[  0,   0, 255, 255], [  0,   4, 253, 255], [  0,   8, 251, 255], [  0,  12, 249, 255], [  0,  16, 247, 255], [  0,  20, 245, 255], [  0,  24, 243, 255], [  0,  28, 241, 255], [  0,  32, 239, 255], [  0,  36, 237, 255], [  0,  40, 235, 255], [  0,  45, 233, 255], [  0,  49, 231, 255], [  0,  53, 229, 255], [  0,  57, 227, 255], [  0,  61, 225, 255], [  0,  65, 223, 255], [  0,  69, 221, 255], [  0,  73, 219, 255], [  0,  77, 217, 255], [  0,  81, 215, 255], [  0,  85, 213, 255], [  0,  89, 210, 255], [  0,  93, 208, 255], [  0,  97, 206, 255], [  0, 101, 204, 255], [  0, 105, 202, 255], [  0, 109, 200, 255], [  0, 113, 198, 255], [  0, 117, 196, 255], [  0, 121, 194, 255], [  0, 125, 192, 255], [  0, 130, 190, 255], [  0, 134, 188, 255], [  0, 138, 186, 255], [  0, 142, 184, 255], [  0, 146, 182, 255], [  0, 150, 180, 255], [  0, 154, 178, 255], [  0, 158, 176, 255], [  0, 162, 174, 255], [  0, 166, 172, 255], [  0, 170, 170, 255], [  0, 174, 168, 255], [  0, 178, 166, 255], [  0, 182, 164, 255], [  0, 186, 162, 255], [  0, 190, 160, 255], [  0, 194, 158, 255], [  0, 198, 156, 255], [  0, 202, 154, 255], [  0, 206, 152, 255], [  0, 210, 150, 255], [  0, 215, 148, 255], [  0, 219, 146, 255], [  0, 223, 144, 255], [  0, 227, 142, 255], [  0, 231, 140, 255], [  0, 235, 138, 255], [  0, 239, 136, 255], [  0, 243, 134, 255], [  0, 247, 132, 255], [  0, 251, 130, 255], [  0, 255, 128, 255]], dtype=np.ubyte),
+        'diverging'  : _diverging_colormap(),
     }
     # < To this line >
 
-    keys=['jet','autumn','bone','colorcube','cool','copper','gray','hot','hsv','parula','pink','spring','summer','winter']
+    keys = COLORMAP_KEYS
     idx = idx % len(keys)
     colormap = colormaps[keys[idx]]
     #print(f"colourbar min: {pos_min}, max: {pos_max}, pos: {pos}.")
@@ -186,7 +236,39 @@ def get_color_map(idx, pos_min, pos_max):
     return pg.ColorMap(pos, colormap)
 
 
-def plot_Data2D(data, plt, log=False, legend=True, icolormap=0, verbose=False, fontsize=10, cbmin=None, cbmax=None):
+def _colorbar_fontsize(nplots, fontsize, cell_height=None):
+    ''' Point size for the colour bar's tick labels.
+
+        Base size scales with the total number of monitors currently in
+        view (nplots), not the already-bucketed `fontsize` used for the
+        main plot text: stays at 8pt for views of 12 monitors or fewer,
+        then shrinks gradually (floored at 6pt) as the view gets more
+        crowded. Falls back to the previous fontsize-derived sizing if
+        `nplots` isn't supplied.
+
+        That base size is then scaled by `cell_height` - the actual
+        on-screen pixel height of one grid cell - relative to a reference
+        cell height (REFERENCE_CELL_HEIGHT). This means the same 12-pane
+        overview gets a visibly bigger colour bar font on a large/maximised
+        window than when squeezed into a small one, rather than a fixed
+        size regardless of how much room is actually available. Result is
+        clamped to [6, 14]pt. '''
+    if nplots is None:
+        base = max(6, int(fontsize) - 4)
+    elif nplots <= 12:
+        base = 8
+    else:
+        base = max(6, 8 - (nplots - 12) // 6)
+
+    if not cell_height:
+        return base
+
+    REFERENCE_CELL_HEIGHT = 300  # px; roughly a 12-pane overview on a typical laptop screen
+    scaled = round(base * (cell_height / REFERENCE_CELL_HEIGHT))
+    return max(6, min(scaled, 14))
+
+
+def plot_Data2D(data, plt, log=False, legend=True, icolormap=0, verbose=False, fontsize=10, cbmin=None, cbmax=None, nplots=None, cell_height=None):
     ''' create a layout and populate a plotItem with data Data2D, adding a color bar '''
     # data
     img = pg.ImageItem()
@@ -244,6 +326,8 @@ def plot_Data2D(data, plt, log=False, legend=True, icolormap=0, verbose=False, f
 
         try:
             lname1 = '<center>%s<br>I = %s</center>' % (data.component, data.values[0])
+            if hasattr(data, 'diff_pct_str'):
+                lname1 = '<center>%s<br>I = %s<br>Diff: %s</center>' % (data.component, data.values[0], data.diff_pct_str)
             if verbose:
                 lname1 = '%s [%s]<br><br>%s<br><br>I = %s Err = %s N = %s; %s' % (data.component, data.filename, data.title, data.values[0], data.values[1], data.values[2], data.statistics)
         except:
@@ -299,6 +383,13 @@ def plot_Data2D(data, plt, log=False, legend=True, icolormap=0, verbose=False, f
         colorbar.axes['left']['item'].show()
         colorbar.axes['left']['item'].setStyle(showValues=False)
         colorbar.axes['right']['item'].show()
+
+        # Colour bar tick labels: noticeably smaller than the main plot's
+        # axis/legend text (which uses `fontsize` as-is), since the bar
+        # itself is only 40px wide and doesn't need large numbers.
+        cb_font = QtGui.QFont()
+        cb_font.setPointSize(_colorbar_fontsize(nplots, fontsize, cell_height))
+        colorbar.axes['right']['item'].setTickFont(cb_font)
 
         colorbar.getViewBox().autoRange(padding=0)
 

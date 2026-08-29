@@ -27,7 +27,9 @@
 * %Example: Test_FluoPowder.instr -n 1e5 E0=15 index=2 Detector: Sph_mon_pow_I=1.89664e-18
 * %Example: Test_FluoPowder.instr E0=15 index=3 Detector: Sph_mon_I=2.8904e-18
 * %Example: Test_FluoPowder.instr E0=15 index=4 Detector: Sph_mon_flu_I=6.18074e-19
-* %Example: Test_FluoPowder.instr E0=15 index=5 Detector: Sph_mon_I=1.76094e-18
+* Example: Test_FluoPowder.instr E0=15 index=5 Detector: Sph_mon_I=1.76094e-18
+*
+* (Fluorescence+PowderN GROUP is unstable on GPU, disable index=5 test for now)
 *
 * %Parameters
 * E0:          [keV]  Source mean energy of xrays.
@@ -41,26 +43,39 @@
 DEFINE INSTRUMENT Test_FluoPowder(E0=15, dE=0.05, L1=10, string material="LaB6.cif",
     int index=3, delta_d_d=3e-4)
 
+DECLARE %{
+	char SXfile[128];
+	int barns;
+%}
+
 USERVARS %{
   int scatt_type; // 3=diff 0=fluo
 %}
 
 INITIALIZE %{
-  MPI_MASTER(
+
   switch (index) {
     case 1:
-      printf("%s: Using PowderN (pure diffraction)\n", NAME_INSTRUMENT); break;
+      MPI_MASTER(printf("%s: Using PowderN (pure diffraction)\n", NAME_INSTRUMENT);); break;
     case 2:
-      printf("%s: Using Single_crystal (pure diffraction, powder average)\n", NAME_INSTRUMENT); break;
+      MPI_MASTER(printf("%s: Using Single_crystal (pure diffraction, powder average)\n", NAME_INSTRUMENT);); break;
     case 3:
-      printf("%s: Using FluoPowder (fluorescence+diffraction)\n", NAME_INSTRUMENT); break;
+      MPI_MASTER(printf("%s: Using FluoPowder (fluorescence+diffraction)\n", NAME_INSTRUMENT);); break;
     case 4:
-      printf("%s: Using Fluorescence (pure fluorescence)\n", NAME_INSTRUMENT); break;
+      MPI_MASTER(printf("%s: Using Fluorescence (pure fluorescence)\n", NAME_INSTRUMENT);); break;
     case 5:
-      printf("%s: Using Fluorescence+PowderN in a GROUP (fluorescence+diffraction)\n", NAME_INSTRUMENT); break;
+      MPI_MASTER(printf("%s: Using Fluorescence+PowderN in a GROUP (fluorescence+diffraction)\n", NAME_INSTRUMENT);); break;
     default:
-      exit(printf("%s: Unknown sample index %i. Use index=1-4.", NAME_INSTRUMENT, index));
-  });
+      MPI_MASTER(printf("%s: Unknown sample index %i. Use index=1-4.\n", NAME_INSTRUMENT, index););
+      exit(-1);
+  }
+  #ifndef _MSC_EXTENSIONS
+  sprintf(SXfile,"%s",material);
+  barns=0;
+  #else
+  sprintf(SXfile,"%s.%s",material,"hkl");
+  barns=1;
+  #endif
 %}
 
 TRACE
@@ -88,7 +103,7 @@ EXTEND %{
 %}
 
 COMPONENT SX = Single_crystal(
-    radius=0.5e-6, reflections=material,powder=1, mosaic=5, delta_d_d=delta_d_d)
+    radius=0.5e-6, reflections=SXfile,powder=1, mosaic=5, delta_d_d=delta_d_d, barns=barns)
 WHEN (index == 2)
 AT (0, 0, 0) RELATIVE sample_cradle
 EXTEND %{

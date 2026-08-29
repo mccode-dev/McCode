@@ -1,0 +1,87 @@
+% @MCCODE_PREFIX@PLOTDIFF-MATPLOTLIB(1)
+% @FLAVOR_UPPER@ @MCCODE_PARTICLE@ Ray Tracing Team
+% @MCCODE_DATE@
+
+# NAME
+
+**@MCCODE_PREFIX@plotdiff-matplotlib** - Plotting the difference between two @MCCODE_NAME@ simulation results using Matplotlib
+
+# SYNOPSIS
+
+**@MCCODE_PREFIX@plotdiff-matplotlib** [-h] [-A LABEL_A] [-B LABEL_B] [-t] [--html] [--format FORMAT] [--output OUTPUT] [--log] [--backend BACKEND] a b
+
+# DESCRIPTION
+
+The front-end **@MCCODE_PREFIX@plotdiff-matplotlib** produces plots of the
+*difference* between the monitors of two @MCCODE_NAME@ simulation results,
+i.e. `diff.monN = a.monN - b.monN` for every monitor output file `monN` that
+is present, with matching binning, in both simulation results `a` and `b`.
+This is useful to quickly spot how two simulation runs differ, e.g. after a
+component or parameter change, a McCode version upgrade, or comparing MPI
+vs. non-MPI results.
+
+`a` and `b` may each be either a simulation output directory (as produced by
+`@MCCODE_PREFIX@run`, containing a `mccode.sim` file) or a single monitor
+data file. Only monitors present in both `a` and `b`, with identical
+binning, are compared; monitors found in only one of the two inputs, or with
+mismatched binning, are skipped with a warning printed to the console.
+
+This tool reuses the same Matplotlib-based plotting code as
+**@MCCODE_PREFIX@plot-matplotlib** (mouse click drill-down, keyboard
+shortcuts, PNG/PDF/SVG export, etc. -- see the keyboard shortcuts printed on
+startup), applied to the computed diff monitors instead of a single
+simulation's monitors.
+
+# OPTIONS
+
+**-h, --help**
+:   show this help message and exit
+
+**-A LABEL_A, --label-a LABEL_A**
+:   short label used for simulation `a` in titles/filenames (default: the
+    basename of `a`)
+
+**-B LABEL_B, --label-b LABEL_B**
+:   short label used for simulation `b` in titles/filenames (default: the
+    basename of `b`)
+
+**-t, --test**
+:   plot graph structure test/print
+
+**--html**
+:   save plot to html using mpld3 (linux only)
+
+**--format FORMAT**
+:   save plot to pdf/png/eps/svg... without bringing up window
+
+**--output OUTPUT**
+:   save plot to given file without bringing up window. Extension (e.g.
+    pdf/png/eps/svg) can be specified in the file name or `--format`
+
+**--log**
+:   initiate plot(s) with log of signal
+
+**--backend BACKEND**
+:   use non-default backend for matplotlib plot
+
+# FILES
+
+/usr/share/@FLAVOR@/resources
+/usr/share/@FLAVOR@/tools/Python/mccodelib/mccode_config.json
+~/.@FLAVOR@/mccode_config.json
+http://www.@FLAVOR@.org
+
+# EXAMPLES
+
+Run the *Test_SX* example (Single crystal diffraction) twice with different parameters, and plot the difference
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_a -n 1e7 TTH=13.4`
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_b -n 1e7 TTH=14.0`
+:   - `@MCCODE_PREFIX@plotdiff-matplotlib output_a output_b`
+
+# AUTHORS
+
+@MCCODE_NAME@ Team (@FLAVOR@.org)
+
+# SEE ALSO
+
+@FLAVOR@(1), @MCCODE_PREFIX@doc(1), @MCCODE_PREFIX@plot(1), @MCCODE_PREFIX@plot-matplotlib(1), @MCCODE_PREFIX@plotdiff-html(1), @MCCODE_PREFIX@plotdiff-pyqtgraph(1), @MCCODE_PREFIX@run(1), @MCCODE_PREFIX@gui(1), @MCCODE_PREFIX@display(1)

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Wrapper script for @P@plotdiff-matplotlib-py
+
+@MCCODE_BASH_STANDARD_PREAMBLE@
+
+TOOL="@P@plotdiff"
+UTILDIR="${MCCODE_TOOLDIR}/Python/@P@plot/matplotlib"
+
+
+#NB: miniconda should be installed next to the tool folder:
+if [ -d "${MCCODE_TOOLDIR}/../miniconda3" ]; then
+    source "${MCCODE_TOOLDIR}/../miniconda3/bin/activate" "${MCCODE_TOOLDIR}/../miniconda3"
+    export PATH=${MCCODE_TOOLDIR}/../miniconda3/bin/:$PATH
+fi
+
+canrun() {
+    if ! [ -x "${UTILDIR}/${TOOL}.py" ]; then
+        exit 127;
+    fi
+
+    modules="matplotlib numpy"
+    cmd=""
+    for name in ${modules}; do
+        cmd="${cmd}import ${name}; "
+    done
+    python3 -c "${cmd}"
+}
+
+if ( canrun ); then
+    python3 -u ${UTILDIR}/${TOOL}.py "$@"
+else
+    @FLAVOR@_errmsg Failed to run Python ${TOOL} - permissions or missing dependencies\?
+fi

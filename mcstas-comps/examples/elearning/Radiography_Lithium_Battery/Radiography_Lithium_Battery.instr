@@ -1,0 +1,279 @@
+/*******************************************************************************
+*         McStas instrument definition URL=https://www.mcstas.org
+*
+* Instrument: Radiography_Lithium_Battery
+*
+* %Identification
+* Written by: Mads Bertelsen and Viktor L. Holm
+* Date: 2020-2021
+* Origin: University of Copenhagen
+* %INSTRUMENT_SITE: elearning
+*
+* Instrument to study radiographic imaging of a LiFePO4 battery under charge/discharge. Developed for PaNOSC (EU H2020 GA No. 823852).
+*
+* %Description
+* Instrument to study radiographic imaging of a LiFePO4 battery under charge/discharge. Developed for PaNOSC (EU H2020 GA No. 823852).
+*
+* Nota Bene: For simpification, this version of the instrument does <strong>NOT</strong> currently react to setting "battery_charge".
+*
+* Radiography_Lithium_Battery was derived from Radiography_absorbing_edge. by Linda Udby and Peter Willendrup.
+*
+* %Example: Radiography_Lithium_Battery -y Detector: PSD_1cm_detector_50mum_I=9.97993e-16
+*
+* %Parameters
+* D: 	          [m] Diameter of pinhole before sample
+* L:	          [m] Distance between pinhole and sample
+* l:	          [m] Distance between sample and detector
+* sample_used:    [1] Flag to indicate if battery stack sample (0) or single-slab calibration sample (1) is in the beam
+* battery_charge: [1] Level of charge of battery (Currently not functional!)
+*
+* %Link
+* Originally developed for the <a href="https://e-learning.pan-training.eu/">PaNOSC e-learning portal</a>
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT Radiography_Lithium_Battery(D=0.01,L=5, l=0.10, sample_used=0, battery_charge=1.0)	
+
+DECLARE
+%{
+  double L0  = 5.0;   
+double thickness_one_layer_um;
+double thickness_one_layer_m;
+double thickness_all_layers_um;
+double battery_thickness_um;
+double battery_thickness_m;
+
+double negative_foil_thickness_m;
+double negative_electrode_thickness_m;
+double seperator_thickness_m;
+double positive_electrode_thickness_m;
+double positive_foil_thickness_m;
+
+double LiC6_inc,LiC6_abs;
+double LiFePO4_inc,LiFePO4_abs;
+
+
+// Remember to add generated include declare section
+#include "./generated_includes/battery_stack_declare.c"
+
+double battery_width;
+double battery_depth;
+double negative_foil_thickness_um;
+double negative_electrode_thickness_um;
+double seperator_thickness_um;
+double positive_electrode_thickness_um;
+double positive_foil_thickness_um;
+double end_safety;
+
+double sample_xoff ; /* Sample x offset */
+double det_w = 0.10;
+double det_h = 0.10;  
+double sample_x=0.10;
+double sample_y=0.10;
+double sigma_inc=1e-4;/*Smallest possible value close to 0 where the absorption XS is still correctly calculated in the Incoherent component*/
+double sqrt2=1.414214;         
+double frac_interact=1e-6; // set to something close to zero since we don't want to look at inchorent scattering. But do not set to 0 since then the scattering from sigma_inc will be considered            
+
+double sigma_abs=5.08;
+double Vc=13.827;
+double sample_z=0.01;
+
+double Rota=90;
+%}
+
+INITIALIZE
+%{
+
+
+sample_xoff  = sample_x/2*sqrt(2); /* Sample x offset */
+
+if (sample_used == 1){Rota = 0;}
+
+battery_width=0.02;
+battery_depth=0.01;
+negative_foil_thickness_um=100;
+negative_electrode_thickness_um=150;
+seperator_thickness_um=80;
+positive_electrode_thickness_um=190;
+positive_foil_thickness_um=95;
+end_safety=0.0001;
+
+negative_foil_thickness_m=negative_foil_thickness_um * 1E-6;
+negative_electrode_thickness_m=negative_electrode_thickness_um * 1E-6;
+seperator_thickness_m=seperator_thickness_um * 1E-6;
+positive_electrode_thickness_m=positive_electrode_thickness_um * 1E-6;
+positive_foil_thickness_m=positive_foil_thickness_um * 1E-6;
+
+// Calculate layer thickness
+thickness_one_layer_um=2*negative_electrode_thickness_um+negative_foil_thickness_um+2*seperator_thickness_um+2*positive_electrode_thickness_um+positive_foil_thickness_um;
+thickness_one_layer_m = thickness_one_layer_um * 1E-6;
+
+thickness_all_layers_um=number_of_layers*thickness_one_layer_um;
+
+// Add extra layer of seperator on top
+battery_thickness_um = thickness_all_layers_um + seperator_thickness_um;
+battery_thickness_m = battery_thickness_um * 1E-6;
+
+
+
+// Li content in LiC6 part depends on charge level, and thus do the cross sections for incoherent / absorption
+
+//LiC6 attenuation factors (inc,abs) (1.5562,118.5159)
+//C6 attenuation factors (inc,abs) (0.0113,0.0397)
+
+LiC6_inc = 0.0113 + battery_charge*(1.5562-0.0113);
+LiC6_abs = 0.0397 + battery_charge*(118.5159-0.0397);
+
+//LiFePO4 attenuation factors (inc,abs) (1.8253,100.6390)
+//FePO4 attenuation factors (inc,abs) (0.0221,0.43554)
+
+LiFePO4_inc = 1.8253 - battery_charge*(1.8253-0.0221);
+LiFePO4_abs = 100.6390 - battery_charge*(100.6390-0.43554);
+
+
+// Remember to add generated include initialize section
+#include "./generated_includes/battery_stack_initialize.c"
+
+
+
+
+
+
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0,0,0) ABSOLUTE
+
+// For testing
+COMPONENT Copper_Incoherent = Incoherent_process(sigma=4.6701, packing_factor=1, unit_cell_volume=100,interact_fraction=-1)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Copper_Powder = Powder_process(reflections="Cu.laz")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Copper = Union_make_material(my_absorption= 32.0961,process_string="Copper_Incoherent,Copper_Powder")
+AT (0,0,0) ABSOLUTE
+
+
+// May update to a cathode mix?
+COMPONENT LiC6_incoherent = Incoherent_process(sigma=LiC6_inc, packing_factor=1, unit_cell_volume=100,interact_fraction=-1)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT LiC6_fake_powder = Powder_process(reflections="C_battery.laz")
+  //COMPONENT LiC6_fake_powder = Powder_battery_process(reflections="C_battery.laz",temperature=300,charge_level=battery_charge)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT LiC6 = Union_make_material(my_absorption=LiC6_abs,process_string="LiC6_incoherent,LiC6_fake_powder")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT POE_incoherent = Incoherent_process(sigma=476.7338, packing_factor=1, unit_cell_volume=100,interact_fraction=-1)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Electrolyte = Union_make_material(my_absorption=1.9862,process_string="POE_incoherent")
+AT (0,0,0) ABSOLUTE
+
+// May update to annode mix?
+COMPONENT LiFePO4_incoherent = Incoherent_process(sigma=LiFePO4_inc, packing_factor=1, unit_cell_volume=100,interact_fraction=-1)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT LiFePO4_powder = Powder_process(reflections="LiFePO4.lau")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT LiFePO4 = Union_make_material(my_absorption=LiFePO4_abs,process_string="LiFePO4_incoherent,LiFePO4_powder")
+AT (0,0,0) ABSOLUTE
+
+
+COMPONENT Aluminum_incoherent = Incoherent_process(sigma=0.0494, packing_factor=1, unit_cell_volume=100,interact_fraction=-1)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Aluminum_Powder = Powder_process(reflections="Al.laz")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Aluminum = Union_make_material(my_absorption=1.3920,process_string="Aluminum_incoherent,Aluminum_Powder")
+AT (0,0,0) ABSOLUTE
+
+
+
+
+
+COMPONENT Origin = Progress_bar()
+AT (0,0,0) ABSOLUTE
+
+COMPONENT source = Source_gen(
+    dist = L0, focus_xw = D, focus_yh = D, lambda0 = 1.798,
+    dlambda = 1, I1 = 1, yheight = 0.1, xwidth = 0.1,
+    target_index = 1)
+  AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT pinhole = Slit(
+    radius = D/2)
+  AT (0, 0, L0) RELATIVE source
+
+COMPONENT incoherent = Incoherent(
+    xwidth=1, 
+    yheight=1,
+    zdepth=0.001, 
+    target_z=L+l+battery_depth,
+    focus_xw = 0.006, 
+    focus_yh=battery_width*1.1,
+    sigma_abs=0.0001, 
+    sigma_inc=0.0001, 
+    Vc=1)
+AT (0, 0, 0.001) RELATIVE PREVIOUS
+
+COMPONENT samplearm = Arm()
+AT (0,0,L) RELATIVE pinhole
+ROTATED (0,0,Rota) RELATIVE pinhole
+
+%include "./generated_includes/battery_stack_trace.instr"
+
+
+
+COMPONENT battery = Union_master()
+WHEN(sample_used==0)
+AT (0,0,0) RELATIVE samplearm
+ROTATED (0, 0, 0) RELATIVE samplearm
+
+COMPONENT Stop = Union_stop()
+AT (0,0,0) RELATIVE samplearm
+
+COMPONENT edge_sample = Incoherent(
+    xwidth = sample_x, yheight = sample_y, zdepth = sample_z,
+    target_x = det_w, target_y = det_h, target_index = 1,
+    sigma_abs = sigma_abs, sigma_inc = sigma_inc, Vc = Vc, p_interact=frac_interact)
+  WHEN(sample_used==1)
+  AT (sample_x/2, 0, 0) RELATIVE samplearm
+  ROTATED (0, 0, 0) RELATIVE samplearm 
+
+
+COMPONENT PSD_1cm_detector_50mum = PSD_monitor(
+    xwidth = 0.006,  yheight=battery_width, filename="2D_PSD_detector", restore_neutron=1,nx=500,ny=200)
+  AT (0, 0, L+l+battery_depth) RELATIVE pinhole
+
+
+COMPONENT edge_monitor_50mum = PSDlin_monitor(xwidth= 0.006,yheight=battery_width,nbins=500, filename="edge_monitor")
+AT (0, 0, L+l+0.0001) RELATIVE pinhole
+
+
+COMPONENT edge_monitor_diff = PSDlin_diff_monitor(xmin=-0.00031,xmax=0.00026,yheight =0.02,nx=50, filename="edge_monitor_zoom")
+AT (0, 0, L+l+0.0002) RELATIVE pinhole
+
+
+
+END
+
+
+
+
+
+
+
+
+
+
+
+
+

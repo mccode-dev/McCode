@@ -125,7 +125,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccode_config.py.in" "${WORK}/mccode
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccode_config.json.in" "${WORK}/mccode_config.json" @ONLY)
 
 # Python files
-foreach(name __init__.py fcparticleparser.py utils.py flowchart.py instrgeom.py instrparser.py mcdisplayutils.py mcplotloader.py nodetree.py particleparser.py pipetools.py plotgraph.py pqtgfrontend.py cflags.py)
+foreach(name __init__.py fcparticleparser.py utils.py flowchart.py instrgeom.py instrparser.py mcdisplayutils.py mcplotloader.py mcplotdiffloader.py nodetree.py particleparser.py pipetools.py plotgraph.py pqtgfrontend.py cflags.py)
   install(
     FILES "${PROJECT_SOURCE_DIR}/${name}"
     DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"

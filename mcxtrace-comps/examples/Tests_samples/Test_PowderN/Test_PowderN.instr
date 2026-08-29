@@ -18,8 +18,10 @@
 * Alternatively, the Single_crystal (powder mode) and FluoPowder components can also be tested.
 *
 * %Example: index=1 Detector: Sph_mon_I=1.26755e-11
-* %Example: index=2 Detector: Sph_mon_I=4.44793e-13
+* Example: index=2 Detector: Sph_mon_I=4.44793e-13
 * %Example: index=3 Detector: Sph_mon_I=1.98093e-11
+*
+* (Unittest disabled for Single_crystal powder-mode, numerically unstable on GPU)
 *
 * %Parameters
 * E0:          [keV]  Source energy (width 1 keV)
@@ -37,6 +39,21 @@
 *******************************************************************************/
 DEFINE INSTRUMENT Test_PowderN(E0=15, L1=10, int directbeam=0, string reflections="LaB6.cif",
   int SPLITS=1, frac_c=0.8, frac_i=0.1, frac_t=0.1, d_phi=0, int index=1)
+
+DECLARE %{
+	char SXfile[128];
+	int barns;
+%}
+
+INITIALIZE %{
+  #ifndef _MSC_EXTENSIONS
+  sprintf(SXfile,"%s",reflections);
+  barns=0;
+  #else
+  sprintf(SXfile,"%s.%s",reflections,"hkl");
+  barns=1;
+  #endif
+%}
 
 TRACE
 
@@ -68,8 +85,8 @@ EXTEND %{
 %}
 
 COMPONENT SX = Single_crystal(
-    radius=0.5e-4, yheight=1e-3, reflections=reflections,powder=1,
-    p_transmit=frac_t, mosaic=1, sigma_inc=-1)
+    radius=0.5e-4, yheight=1e-3, reflections=SXfile,powder=1,
+    p_transmit=frac_t, mosaic=1, sigma_inc=-1, barns=barns)
 WHEN (index == 2)
 AT (0, 0, 0) RELATIVE sample_cradle
 EXTEND %{

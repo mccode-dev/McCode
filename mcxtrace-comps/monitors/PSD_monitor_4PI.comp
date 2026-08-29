@@ -53,8 +53,6 @@ DECLARE
 %}
 INITIALIZE
 %{
-  int i, j;
-
   PSD_N = create_darr2d (nx, ny);
   PSD_p = create_darr2d (nx, ny);
   PSD_p2 = create_darr2d (nx, ny);
@@ -63,9 +61,10 @@ INITIALIZE
   if (!strcmp (filename, "\0"))
     sprintf (filename, "%s", NAME_CURRENT_COMP);
 %}
+
 TRACE
 %{
-  double l0, l1, psi, theta;
+  double l0, l1, theta, psi;
   int i, j;
 
   if (sphere_intersect (&l0, &l1, x, y, z, kx, ky, kz, radius) && l1 > 0) {
@@ -73,25 +72,29 @@ TRACE
       l0 = l1;
     /* l0 is the intersection length with the sphere. */
     PROP_DL (l0);
-    psi = atan2 (x, z);
-    i = floor (nx * (psi / (2 * PI) + 0.5));
-    if (i >= nx)
-      i = nx - 1; /* Special case for psi = PI. */
-    else if (i < 0)
-      i = 0;
-    theta = asin (y / radius);
-    j = floor (ny * (theta + PI / 2) / PI + 0.5);
-    if (j >= ny)
-      j = ny - 1; /* Special case for y = radius. */
-    else if (j < 0)
-      j = 0;
+
+    /* Measure longitude via atan2. Returned values will be in [-PI PI] */
+    theta = atan2 (x, z);
+    
+    /* Map to nx * [0 1] interval */
+    i = floor (nx * 0.5*(theta / PI+1));
+
+    /* Measure latitude via asin(elevation/radius). Returned values will be in [-PI/2 PI/2] */
+    psi = asin (y / radius);
+
+    /* Map to ny * [0 1] interval */
+    j = floor (ny * (psi + PI / 2) / PI);
+
     double p2 = p * p;
     #pragma acc atomic
     PSD_N[i][j] = PSD_N[i][j] + 1;
+
     #pragma acc atomic
     PSD_p[i][j] = PSD_p[i][j] + p;
+
     #pragma acc atomic
     PSD_p2[i][j] = PSD_p2[i][j] + p2;
+
     SCATTER;
   }
   if (restore_xray) {

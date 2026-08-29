@@ -67,7 +67,7 @@ SETTING PARAMETERS (string coating="Ref_W_B4C.txt",
 
 SHARE 
 %{
-  #include <complex.h>
+  %include "mccode-complex-lib"
   %include "read_table-lib"
   %include "reflectivity-lib"
   /*something that would be relevant for ALL elliptical mirrors*/
@@ -108,7 +108,6 @@ INITIALIZE
   /* calculation of the elliptical parameters according to the input mirror parameters:
   ellipse major axis a/2, minor axis b/2, M-magnification factor, Z0&Y0 - position of the mirror centre in the elliptical coordinate system.*/
   double Theta = DEG2RAD * theta;
-
   if (xwidth)
     width = xwidth;
   if (zdepth)
@@ -128,8 +127,12 @@ INITIALIZE
   if (!Gamma && !Lambda) {
     /*refrain from using kinematical approximation - instead use reflectivity datafile*/
     kinematical = 0;
-    /* reflectivity datafile parsing COATING_UNDEFINED - means set the type according to what is found in the file*/
-    status = reflec_Init (&re, COATING_UNDEFINED, coating, NULL);
+    if (coating && strlen (coating) && strcmp (coating, "NULL")) {
+      status = reflec_Init (&re, COATING_UNDEFINED, coating, NULL);
+    } else {
+      /*assume a constant reflectivity*/
+      status = reflec_Init (&re, CONSTANT, NULL, &(R0));
+    }
   } else {
     kinematical = 1;
     re.type = KINEMATIC;
@@ -140,7 +143,7 @@ INITIALIZE
 
 TRACE
 %{
-  double K, vink;
+  double k, s;
   double x_el, y_el, z_el;    // beginning coordinates transformed into the ellipse system
   double kx_el, ky_el, kz_el; // kvector transformed into the ellipse system, hence
 
@@ -150,7 +153,7 @@ TRACE
   double kxn, kyn, kzn; // reflected ray's kvector
 
   /* get the photon's coordinates and kvector in the ellipse frame */
-  K = sqrt (kx * kx + ky * ky + kz * kz);
+  k = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
 
   CoordTransME (&x_el, &y_el, &z_el, x, y, z, Z0, Y0, xi);
   CoordTransME (&kx_el, &ky_el, &kz_el, kx, ky, kz, 0, 0, xi);
@@ -189,10 +192,10 @@ TRACE
           nz = 1.0;
         }
         NORM (nx, ny, nz);
-        vink = scalar_prod (nx, ny, nz, kx_el, ky_el, kz_el);
-        kxn = kx_el - 2.0 * vink * nx;
-        kyn = ky_el - 2.0 * vink * ny;
-        kzn = kz_el - 2.0 * vink * nz;
+        s = scalar_prod (nx, ny, nz, kx_el, ky_el, kz_el);
+        kxn = kx_el - 2.0 * s * nx;
+        kyn = ky_el - 2.0 * s * ny;
+        kzn = kz_el - 2.0 * s * nz;
         NORM (kxn, kyn, kzn);
 
         double kxo, kyo, kzo;
@@ -200,28 +203,20 @@ TRACE
         kyo = ky, kzo = kz;
         CoordTransEM (&kx, &ky, &kz, kxn, kyn, kzn, 0, 0, xi);
 
-        kx = K * kx;
-        ky = K * ky;
-        kz = K * kz;
+        NORM (kx, ky, kz);
 
-        double QQ, EE, Ref;
+        kx = k * kx;
+        ky = k * ky;
+        kz = k * kz;
+
+        double QQ;
+        double Ref = R0;
         QQ = sqrt ((kx - kxo) * (kx - kxo) + (ky - kyo) * (ky - kyo) + (kz - kzo) * (kz - kzo));
-        EE = K * K2E;
-
-        if (kinematical) {
-          /*
-           * \Lambda: thickness of bilayer - following notation in Als-Nielsen/McMorrow
-           * \Gamma:  \Gamma*\Lambda thickness of high electron density material.
-           * r1(zeta) = 2 i r_0 \rho_{AB} \left(\frac{\Lambda^2 \Gamma}{\zeta}\right) \frac{\sin\left(\pi\Gamma\zeta\right)}{\pi\Gamma\zeta);
-           */
-          Ref = reflecq (re, QQ, 0, 0, 0);
-          if (Ref > 1) {
-            /*Reflectivity can't be >1*/
-            Ref = 1.0;
-          }
-        } else {
-          /*interpolate in table*/
-          Ref = reflecq (re, QQ, 0, 0, 0);
+        /* Evaluate reflectivity curve */
+        Ref = reflecq (re, QQ, 0, k, fabs (90 - acos (s / k) * RAD2DEG));
+        /*Reflectivity can't be >1*/
+        if (Ref > 1) {
+          Ref = 1.0;
         }
 
         /* apply reflectivity */

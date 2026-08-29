@@ -310,7 +310,15 @@ def add_mcstas_options(parser):
 
     add('-d', '--dir',
         metavar='DIR', type=str,
-        help='Put all data files in directory DIR')
+        help='Put all data files in directory DIR. If unspecified INSTRUMENT_TIMESTAMP is used')
+
+    add('--dirprefix',
+        metavar='dirprefix', type=str,
+        help='Put all data files in directory PREFIX_TIMESTAMP')
+
+    add('--dirsuffix',
+        metavar='dirsuffix', type=str,
+        help='Put all data files in directory INSTRUMENT_DIRSUFFIX')
 
     add('-a', '--append',
         action='store_true', default=False,
@@ -400,11 +408,27 @@ def expand_options(options):
         options.use_funnel = True
 
     # Output dir
+    # Case 1, we got a directory. Just use that
+    if options.dir is not None:
+        pass;
+
+    # Case 2, no directory but we got a prefix
+    if options.dir is None and options.dirprefix is not None:
+        options.dir = "%s_%s" % \
+                      (options.dirprefix,
+                       datetime.strftime(datetime.now(), DATE_FORMAT_PATH))
+
+    # Case 3, no directory, generate one from instr name
     if options.dir is None:
         instr = options.instr
         instr = instr.endswith('.instr') and instr[:-6] or instr
-        # use unique directory when unspecified
-        options.dir = "%s_%s" % \
+        # Case 3.1, dirsuffix is given, use this instead of timestamp
+        if options.dirsuffix is not None:
+            options.dir = "%s_%s" % \
+                      (basename(instr),options.dirsuffix)
+        # Case 4.2 'fallback', generate from instr name and timestamp
+        else:# use unique directory neither dirname or suffix is specified
+            options.dir = "%s_%s" % \
                       (basename(instr),
                        datetime.strftime(datetime.now(), DATE_FORMAT_PATH))
         # alert user

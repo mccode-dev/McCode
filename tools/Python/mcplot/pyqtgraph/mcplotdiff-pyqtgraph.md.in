@@ -1,0 +1,77 @@
+% @MCCODE_PREFIX@PLOTDIFF(1)
+% @FLAVOR_UPPER@ @MCCODE_PARTICLE@ Ray Tracing Team
+% @MCCODE_DATE@
+
+# NAME
+
+**@MCCODE_PREFIX@plotdiff-pyqtgraph** - Interactively plotting the difference between two @MCCODE_NAME@ simulation results
+
+# SYNOPSIS
+
+**@MCCODE_PREFIX@plotdiff-pyqtgraph** [-h] [-A LABEL_A] [-B LABEL_B] [-t] [--invcanvas] a b
+
+# DESCRIPTION
+
+The front-end **@MCCODE_PREFIX@plotdiff-pyqtgraph** interactively browses the
+*difference* between the monitors of two @MCCODE_NAME@ simulation results, i.e.
+`diff.monN = a.monN - b.monN` for every monitor output file `monN` that is
+present, with matching binning, in both simulation results `a` and `b`. This
+is useful to quickly spot how two simulation runs differ, e.g. after a
+component or parameter change, a McCode version upgrade, or comparing MPI vs.
+non-MPI results.
+
+`a` and `b` may each be either a simulation output directory (as produced by
+`@MCCODE_PREFIX@run`, containing a `mccode.sim` file) or a single monitor data
+file. Only monitors present in both `a` and `b`, with identical binning, are
+compared; monitors found in only one of the two inputs, or with mismatched
+binning, are skipped with a warning printed to the console.
+
+This tool reuses the same interactive pyqtgraph frontend as
+**@MCCODE_PREFIX@plot-pyqtgraph** (mouse/keyboard interaction, colour map
+cycling, PNG/SVG export, etc. -- see the keyboard shortcuts printed on
+startup, or press F1/h in the plot window), applied to the computed diff
+monitors instead of a single simulation's monitors. Since difference data is
+signed, 2D monitors default to a diverging blue/white/red colour map (blue =
+negative, i.e. `b` bigger than `a`; red = positive, i.e. `a` bigger than
+`b`); press 'c' to cycle to another colour map as usual.
+
+# OPTIONS
+
+**-h, --help**
+:   show this help message and exit
+
+**-A LABEL_A, --label-a LABEL_A**
+:   short label used for simulation `a` in the window title (default: the
+    basename of `a`)
+
+**-B LABEL_B, --label-b LABEL_B**
+:   short label used for simulation `b` in the window title (default: the
+    basename of `b`)
+
+**-t, --test**
+:   mccode data loader test run (prints the diff plot graph structure)
+
+**--invcanvas**
+:   invert canvas background from black to white
+
+# FILES
+
+/usr/share/@FLAVOR@/resources
+/usr/share/@FLAVOR@/tools/Python/mccodelib/mccode_config.json
+~/.@FLAVOR@/mccode_config.json
+http://www.@FLAVOR@.org
+
+# EXAMPLES
+
+Run the *Test_SX* example (Single crystal diffraction) twice with different parameters, and browse the difference
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_a -n 1e7 TTH=13.4`
+:   - `@MCCODE_PREFIX@run Test_SX.instr -d output_b -n 1e7 TTH=14.0`
+:   - `@MCCODE_PREFIX@plotdiff-pyqtgraph output_a output_b`
+
+# AUTHORS
+
+@MCCODE_NAME@ Team (@FLAVOR@.org)
+
+# SEE ALSO
+
+@FLAVOR@(1), @MCCODE_PREFIX@doc(1), @MCCODE_PREFIX@plot(1), @MCCODE_PREFIX@plot-pyqtgraph(1), @MCCODE_PREFIX@plotdiff-html(1), @MCCODE_PREFIX@run(1), @MCCODE_PREFIX@gui(1), @MCCODE_PREFIX@display(1)

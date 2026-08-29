@@ -56,7 +56,7 @@ INITIALIZE
 %{
   int status;
 
-  if (coating && strlen (coating)) {
+  if (coating && strlen (coating) && strcmp (coating, "NULL")) {
     status = reflec_Init (&re, COATING_UNDEFINED, coating, NULL);
   } else {
     /*assume a constant reflectivity*/
@@ -74,7 +74,8 @@ INITIALIZE
 TRACE
 %{
   double l0, l1, dl, alpha, n, nx, nz, s, k, knx, knz;
-
+  /* dl init - cppcheck complains about algorithm below */
+  dl=0;
   /*do we hit the mirror within range?*/
   // PROP_Z0;
   k = sqrt (scalar_prod (kx, 0, kz, kx, 0, kz));

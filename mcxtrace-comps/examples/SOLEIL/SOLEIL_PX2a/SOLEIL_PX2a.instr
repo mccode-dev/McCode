@@ -28,8 +28,8 @@
 * This is a simplified model with an Undulator, mirrors, a double crystal 
 * monochromator, a sample stage and a detector.
 *
-* %Example: E0=12.65 sample="Mo.lau" Detector: Eiger9M_I=3e+11
-* %Example: E0=12.65 Detector: Eiger9M_I=1.5e+15
+* %Example: E0=12.65 sample="Mo.lau" SPLITs=1500 Detector: psd4pi_I=1.75e+12
+* %Example: E0=12.65 sample="adrenaline.lau" SPLITs=4200 Detector: psd4pi_I=4.5e+15
 *
 * %Parameters
 * E0:    [keV] Energy selected at the Undulator.
@@ -51,8 +51,8 @@ DEFINE INSTRUMENT SOLEIL_PX2a(
   E0=12.65, hfm_radius=495, vfm_radius=859,
   mirror_grazing_angle=4e-3,
   string sample="adrenaline.lau",
-  rotX=0, rotY=0, rotZ=0)
-
+  rotX=0, rotY=0, rotZ=0, SPLITs=10)
+DEPENDENCY " -DMCSX_REFL_SLIST_SIZE=1024 "
 DECLARE
 %{
     double calculated_angle;
@@ -70,7 +70,17 @@ INITIALIZE
     exit(fprintf(stderr, "ERROR: Monochromator can not reach this energy (arg=%g > 1)\n",
       arg));
   calculated_angle = RAD2DEG*asin(arg);
-  
+  /* Ensure that we are running with at least 1e7 neutrons/core if not 'displaying' */
+  #ifndef USE_MPI
+  #define mpi_node_count 1
+  #endif
+  if (!mcdotrace) {
+    if (mcget_ncount()<=1e7) {
+      MPI_MASTER(printf("This instrument needs higher statistics to converge. Increasing your ncount=%llu to ",mcget_ncount()));
+      mcset_ncount(mpi_node_count*1e7);
+      MPI_MASTER(printf("%llu\n",mcget_ncount()));
+    }
+  }
 %}
 
 TRACE
@@ -208,8 +218,8 @@ COMPONENT sample_monitor = Monitor_nD(
   options = "x y", bins=100)
   AT (0, 0, 0) RELATIVE sample_stage
 
-SPLIT COMPONENT sample = Single_crystal(reflections=sample, material_datafile="NULL", 
-  radius = .5e-4, yheight = 5e-3, p_transmit = 0, mosaic=0.1)
+SPLIT SPLITs COMPONENT sample = Single_crystal(reflections=sample, material_datafile="NULL",
+  radius = .5e-4, yheight = 5e-3, p_transmit = 0, mosaic=0.1, order=1)
   AT (0, 0, 0) RELATIVE sample_stage
   ROTATED (rotX,rotY,rotZ) RELATIVE sample_stage
 EXTEND %{

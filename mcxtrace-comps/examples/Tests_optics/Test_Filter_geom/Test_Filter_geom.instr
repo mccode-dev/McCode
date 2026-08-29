@@ -1,0 +1,91 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=http://www.mcxtrace.org
+*
+* Instrument: Test_filter_geom
+*
+* %Identification
+* Written by: Erik Knudsen (erkn@risoe.dtu.dk)
+* Date: July 5th 2011
+* Origin: Ris&oslash; DTU
+* Version: 1.0_rc2
+* %INSTRUMENT_SITE: Tests_optics
+*
+* Test instrument for checking the geometry options of the Filter.comp component
+*
+* %Description
+* Test instrument for checking the Filter.comp component
+* Specifically this instrument checks the geometry options and refraction
+*
+* %Parameters
+* filter_mat: []   Chemical symbol of the filter material
+* thickness:  [m]  thickness of the filter block
+* L0:         [AA] centre wavlength of the source
+* DL:         [AA] half width of the (uniform) wavelength distribution
+* F2:         [1]  add a 2nd filter component further away
+*
+* %Example: DL=4.9 L0=5 filter_mat="Be.txt" Detector: psd2_I=0.760008
+* %Example: DL=4.9 L0=5 filter_mat="Be.txt" shape=1 Detector: psd2_I=0.57936
+* %Example: DL=4.9 L0=5 filter_mat="Be.txt" shape=2 Detector: psd2_I=0.415209
+* %Example: DL=4.9 L0=5 filter_mat="Be.txt" refraction=1 Detector: psd2_I=0.759422
+* %Example: DL=4.9 L0=5 filter_mat="Be.txt" refraction=1 shape=1 Detector: psd2_I=0.571845
+* %Example: DL=4.9 L0=5 filter_mat="Be.txt" refraction=1 shape=2 Detector: psd2_I=0.40875
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT Test_Filter_geom(string filter_mat="Rh.txt",thickness=100e-6,L0=1,DL=0.1, F2=0, int shape=0, refraction=0)
+
+DECLARE
+%{
+%}
+
+INITIALIZE
+%{
+%}
+
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT(0,0,0) ABSOLUTE
+
+
+COMPONENT Source=Source_div(
+    lambda0=L0,dlambda=DL,  xwidth=thickness*2, yheight=thickness*2
+)
+AT (0,0,0) RELATIVE Origin
+
+COMPONENT l_mon0 = L_monitor(
+    filename="l_mon0",nL=200,xwidth=0.1, yheight=0.1, Lmin=L0-1.1*DL, Lmax=L0+1.1*DL
+)
+AT (0,0,1e-6) RELATIVE Source
+
+COMPONENT filter_box = Filter(
+    material_datafile=filter_mat, xwidth=thickness, yheight=0.1,zdepth=thickness, refraction=refraction
+)
+WHEN (shape == 0) AT (0,0,0.5) RELATIVE Source
+
+COMPONENT filter_sphere = Filter(
+    material_datafile=filter_mat, radius=thickness, refraction=refraction
+)
+WHEN (shape == 1) AT (0,0,0.5) RELATIVE Source
+
+COMPONENT filter_cyl = Filter(
+    material_datafile=filter_mat,yheight=0.1,radius=thickness, refraction=refraction
+)
+WHEN (shape == 2) AT (0,0,0.5) RELATIVE Source
+
+COMPONENT psd1 = PSD_monitor(xwidth = thickness*4, yheight= thickness*4, nx=512, ny=512, filename="psd1", restore_xray=1)
+AT(0,0,thickness*2) RELATIVE filter_box
+
+COMPONENT psd2 = PSD_monitor(xwidth = thickness*4, yheight= thickness*4, nx=512, ny=512, filename="psd2", restore_xray=1)
+AT(0,0,0.1) RELATIVE filter_box
+
+COMPONENT l_mon1 = L_monitor(
+    filename="l_mon1",nL=200,xwidth=0.1, yheight=0.1, Lmin=L0-1.1*DL, Lmax=L0+1.1*DL
+)
+AT (0,0,1) RELATIVE Source
+
+
+
+END

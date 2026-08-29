@@ -17,6 +17,7 @@ import shutil
 import platform
 import subprocess
 import io
+from datetime import datetime
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
@@ -31,6 +32,11 @@ def get_processor_info():
         return subprocess.check_output(command, shell=True).strip().decode('utf-8')
 
     return ""
+
+def paths_overlap(a: pathlib.Path, b: pathlib.Path) -> bool:
+    a = a.resolve()
+    b = b.resolve()
+    return a == b or a.is_relative_to(b) or b.is_relative_to(a)
 
 #
 # Functionality
@@ -294,9 +300,17 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             tests = tests + populated
             pass
 
+    # Issue counters
+    num_compilefail=0
+    num_runfail=0
+    num_valfail=0
+    num_noexample=0
+
+    # Over all test success flag
+    anyfailed=False
 
     # compile, record time
-    global ncount, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax
+    global ncount, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
@@ -304,14 +318,20 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         logging.info("c-lint'ing instruments [seconds]...")
 
     for test in tests:
+        if strict and test.testnb==0:
+            logging.info("!! No test(s) found in %s !!" % test.instrname)
+            anyfailed=True
+            num_noexample = num_noexample + 1
+            pass
         # if binary exists, set compile time = 0 and continue
         binfile = os.path.splitext(test.localfile)[0] + "." + mccode_config.platform["EXESUFFIX"].lower()
-        failed=os.path.splitext(test.localfile)[0] + ".failed"
+        compilefailed=os.path.splitext(test.localfile)[0] + ".failed"
         # if we linted, continue
         linted=os.path.splitext(test.localfile)[0] + ".linted"
-        if os.path.exists(failed):
+        if os.path.exists(compilefailed):
             test.compiled = False
             test.compiletime = -1
+            anyfailed=True
         elif os.path.exists(binfile):
             test.compiled = True
             test.compiletime = 0
@@ -367,9 +387,10 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                         f.close()
                         test.linted = True
                     else:
+                        num_compilefail = num_compilefail + 1
                         formatstr = "%-" + "%ds: COMPILE ERROR using:\n" % maxnamelen
                         logging.info(formatstr % test.instrname + cmd)
-                        f = open(failed, "a")
+                        f = open(compilefailed, "a")
                         f.write(formatstr % test.instrname + cmd)
                         f.close()
             else:
@@ -382,15 +403,19 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     # run, record time
     logging.info("")
     logging.info("Running tests / getting status...")
-    failed=False
+    runfailed=False
     for test in tests:
-        if test.linted:
+        if strict and test.testnb==0:
+            runfailed = True
+            formatstr = "%-" + "%ds: FAILURE: tool in --strict mode and instrument includes no %%%%Example: line(s)!" % (maxnamelen+1)
+            logging.info(formatstr % test.instrname)
+            continue
+        elif test.linted:
             formatstr = "%-" + "%ds:  Linter only" % (maxnamelen+1)
             logging.info(formatstr % test.instrname)
             continue
         elif not test.compiled:
             formatstr = "%-" + "%ds:   NO COMPILE" % (maxnamelen+1)
-            failed=True
             logging.info(formatstr % test.instrname)
             continue
         if test.testnb <= 1:
@@ -420,20 +445,21 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 if openacc is True:
                     if version:
                         cmd = cmd + " --override-config=" + join(os.path.dirname(__file__), mccode_config.configuration["MCCODE"] + "-test",version)
-                    cmd = cmd + " -s 1000 %s %s -n%s --openacc --mpi=%s -d%d > run_stdout_%d.txt 2>&1" % (test.instrname, test.parvals, ncount, mpi, test.testnb, test.testnb)
+                    cmd = cmd + " -s %s %s %s -n%s --openacc --mpi=%s -d%d > run_stdout_%d.txt 2>&1" % (seed, test.instrname, test.parvals, ncount, mpi, test.testnb, test.testnb)
                 else:
                     if version:
                         cmd = cmd + " --override-config=" + join(os.path.dirname(__file__), mccode_config.configuration["MCCODE"] + "-test",version)
-                    cmd = cmd + " -s 1000 %s %s -n%s --mpi=%s -d%d > run_stdout_%d.txt 2>&1" % (test.instrname, test.parvals, ncount, mpi, test.testnb, test.testnb)
+                    cmd = cmd + " -s %s %s %s -n%s --mpi=%s -d%d > run_stdout_%d.txt 2>&1" % (seed, test.instrname, test.parvals, ncount, mpi, test.testnb, test.testnb)
             else:
                 if version:
                     cmd = cmd + " --override-config=" + join(os.path.dirname(__file__), mccode_config.configuration["MCCODE"] + "-test",version)
-                cmd = cmd + " -s 1000 %s %s -n%s -d%d > run_stdout_%d.txt 2>&1" % (test.instrname, test.parvals, ncount, test.testnb, test.testnb)
+                cmd = cmd + " -s %s %s %s -n%s -d%d > run_stdout_%d.txt 2>&1" % (seed, test.instrname, test.parvals, ncount, test.testnb, test.testnb)
 
             retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
             t2 = time.time()
             didwrite = os.path.exists(join(testdir, test.instrname, str(test.testnb), "mccode.sim"))
             didwrite_nexus = os.path.exists(join(testdir, test.instrname, str(test.testnb), "mccode.h5"))
+
             test.didrun = retcode != 0 or didwrite or didwrite_nexus
             test.runtime = t2 - t1
         else:
@@ -445,7 +471,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         if not test.didrun:
             formatstr = "%-" + "%ds: RUNTIME ERROR" % (maxnamelen+1)
             logging.info(formatstr % instrname + ", " + cmd)
-            failed=True
+            runfailed=True
             continue
 
         resbase="(No file)"
@@ -456,7 +482,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 test.testval = extraction[0]
             else:
                 test.testval = -1
-                failed=True
+                runfailed=True
             resbase ="run_stdout_%d.txt" % (test.testnb)
             resfile = join(testdir,test.instrname,resbase)
         # Look for detector output in run_stdout
@@ -469,11 +495,13 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 test.testval = val
             else:
                 test.testval=-1
-                failed=True
+                runfailed=True
 
         percent=0
         if test.didrun:
-            if failed:
+            if runfailed:
+                num_runfail = num_runfail + 1
+                anyfailed=True
                 suffix += " + !! RUNTIME FAILURE - see %s !! " % (resbase)
             formatstr = "%-" + "%ds: " % (maxnamelen+1) + \
                 "{:3d}.".format(math.floor(test.runtime)) + str(test.runtime-int(test.runtime)).split('.')[1][:2]
@@ -481,13 +509,34 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 percent=round(100.0*test.testval/test.targetval)
                 if percent<80 or percent>120:
                     suffix += " <--- BIG DISCREPANCY??"
+                    num_valfail = num_valfail + 1
+                    anyfailed=True
                 logging.info(formatstr % test.get_display_name() + "    [val: " + str(test.testval) + " / " + str(test.targetval) + " = " + str(percent) + " %]" + suffix)
             else:                 # Special case, expected test target value is 0
                 logging.info(formatstr % test.get_display_name() + "    [val: " + str(test.testval) + " vs " + str(test.targetval) + " (absolute vs 0) ]" + suffix)
+                        # if output is not h5, launch plotter on the output data
+            if didwrite:
+                # PDF overview plot
+                matplotter  = mccode_config.configuration["MCPLOT"].split('-')[0] + "-matplotlib"
+                cmd = matplotter + " %d/ --format=pdf --output %d/01_overview.pdf" %  (test.testnb, test.testnb)
+                plot1 = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
+                # Interactive html plots
+                htmlplotter = mccode_config.configuration["MCPLOT"].split('-')[0] + "-html"
+                cmd = htmlplotter + " %d/ --nobrowse --output %d/02_plots.html" %  (test.testnb, test.testnb)
+                plot2 = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
+                if plot1 and plot2:
+                    logging.info(" - Test %d plots generated OK" % test.testnb)
+                elif plot1:
+                    logging.info(" - Test %d Overview plot OK, HTML plot Failure!" % test.testnb)
+                elif plot2:
+                    logging.info(" - Test %d HTML plot OK, Overview plot Failure!" % test.testnb)
+                else:
+                    logging.info(" - Generating plots Failed!" % test.testnb)
         else:
             logging.info((formatstr % test.get_display_name()) + (" !! [TEST INDICATES RUNTIME ERROR - see %s  + suffix ] !!" % (resbase)))
         suffix=""
-        failed=False
+        # Reset
+        runfailed=False
         # save test result to disk
         test.testcomplete = True
         if not skipped:
@@ -528,7 +577,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     for t in tests:
         obj[t.get_display_name()] = t.get_json_repr()
     obj["_meta"] = metainfo
-    return obj, failed
+    return (obj, anyfailed, num_compilefail, num_runfail, num_valfail, num_noexample)
 
 #
 # Utility
@@ -596,8 +645,8 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     logging.info("Testing: %s" % version)
     logging.info("")
 
-    results, failed = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter)
-    
+    (results, failed, num_compilefail, num_runfail, num_valfail, num_noexample) = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter)
+
     reportfile = os.path.join(labeldir, "testresults_%s.json" % (mccode_config.configuration["MCCODE"]+"-"+version+suffix))
     open(os.path.join(reportfile), "w").write(json.dumps(results, indent=2))
 
@@ -607,10 +656,14 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     print("Overall test result:")
     if (failed):
         if (not permissive):
-            print("FAILED! One or more tests errored")
-            exit(-1)
+            if (not strict):
+                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
+                exit(-1)
+            else:
+                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off / %d missing %%Example(s))" % (num_compilefail, num_runfail, num_valfail, num_noexample) )
+                exit(-1)
         else:
-            print("Failures reported but tool was run in permissive mode.")
+            print("Failures reported but tool was run in permissive mode (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
     else:
         print("SUCCESS")
 
@@ -630,7 +683,7 @@ def run_version_test(testdir, mccoderoot, limit, instrfilter, compfilter, versio
         logging.info("Testing: %s" % version)
         logging.info("")
 
-        results, failed = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter, version)
+        results, failed, num_compilefail, num_runfail, num_valfail = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter, version)
     finally:
         deactivate_mccode_version(oldpath)
 
@@ -699,7 +752,7 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
 
                 # craete the proper test dir
                 labeldir = create_label_dir(testdir, label)
-                results, failed = mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter, label0)
+                results, failed, num_compilefail, num_runfail, num_valfail, num_noexample= mccode_test(mccoderoot, labeldir, limit, instrfilter, compfilter, label0)
 
                 # write local test result
                 reportfile = os.path.join(labeldir, "testresults_%s.json" % (os.path.basename(labeldir)))
@@ -782,15 +835,44 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax
+    global ncount, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict
     ncount = "1e6"
     if args.ncount:
         ncount = args.ncount[0]
     elif args.n:
         ncount = args.n[0]
 
+    seed = "1000"
+    if args.seed:
+        seed = args.seed[0]
+    elif args.s:
+        seed = args.s[0]
+
+    if seed == "0" or seed == "NULL":
+        # Emulate McCode 'epoch' seed, however applied to all active tests / sim runs...
+        seed = round((datetime.now() - datetime(1970, 1, 1)).total_seconds())
+
     if args.local:
         runLocal = args.local
+
+    # Check for collision between testdir and mccoderoot / runlocal
+    if args.local:
+        if paths_overlap(pathlib.Path(args.local),pathlib.Path(testdir)):
+            logging.info("Local input path %s and output path %s overlap. This is not allowed!" % (args.local, testdir))
+            quit(1)
+        # Check for mccode.sim in local dir and raise a warning if found:
+        matches = list(pathlib.Path(args.local).rglob("mccode.sim"))
+        if len(matches):
+            logging.info("Local input path %s contains mccode.sim data (extra input files?) This may lead to errors/warnings..." % args.local)
+
+    else:
+        if paths_overlap(pathlib.Path(mccoderoot),pathlib.Path(testdir)):
+            logging.info("MCCODE root dir %s and output path %s overlap. This is not allowed!" % (mccoderoot, testdir))
+            quit(1)
+        # Check for mccode.sim in mccoderoot and raise a warning if found:
+        matches = list(pathlib.Path(mccoderoot).rglob("mccode.sim"))
+        if len(matches):
+            logging.info("MCCODE root dir %s contains mccode.sim data (extra input files?) This may lead to errors/warnings..." % mccoderoot)
 
     if instrfilter:
         isuffix=instrfilter.replace(',', '_')
@@ -806,7 +888,12 @@ def main(args):
         else:
             suffix = '_' + args.suffix[0]
 
-    suffix=suffix + "_" + ncount + "_" + platform.system() + "_" + utils.get_datetimestr()
+    if not args.uid:
+        uid = "_" + utils.get_datetimestr()
+    else:
+        uid = "_" + args.uid[0]
+
+    suffix=suffix + "_" + ncount + "_" + platform.system() + uid
     if runLocal:
         suffix = suffix + '_LOCAL'
 
@@ -842,9 +929,18 @@ def main(args):
     else:
         displaymax=60
 
+    if args.strict and args.permissive:
+        logging.error("ERROR: Permissive mode and strict mode can not be combined!")
+        exit(-1)
+
     if args.permissive:
         permissive = True
         logging.info("Permissive mode, tool will not report failure on failed instruments")
+
+    strict = False
+    if args.strict:
+        strict = True
+        logging.info("Strict mode, tool will report failure for instruments without %Example")
 
     if not configfilter:
         run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix)
@@ -855,24 +951,28 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ncount', nargs=1, help='ncount sent to %s' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('-n', nargs=1, help='ncount sent to %s' % (mccode_config.configuration["MCRUN"]) )
+    parser.add_argument('--seed', nargs=1, help='seed sent to %s (default 1000 - use 0/NULL to "randomize")' % (mccode_config.configuration["MCRUN"]) )
+    parser.add_argument('-s', nargs=1, help='seed sent to %s (default 1000 - use 0/NULL to "randomize")' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--mpi', nargs=1, help='mpi nodecount sent to %s' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--openacc', action='store_true', help='openacc flag sent to %s' % (mccode_config.configuration["MCRUN"]))
     parser.add_argument('--config', nargs="?", help='test this specific config only - label name or absolute path')
     parser.add_argument('--instr', nargs="?", help='test only intruments matching this filter (py regex). Comma-separated list allowed for multiple filters.')
     parser.add_argument('--comp', nargs=1, help='test only intruments utilising COMP. Useful for testing the instrument suite after component changes.')
     parser.add_argument('--mccoderoot', nargs='?', help='manually select root search folder for mccode installations')
-    parser.add_argument('--testdir', nargs='?', help='output test results directly in this dir (default CWD)')
+    parser.add_argument('--testdir', nargs='?', help='output test results directly in this dir (default CWD). Used testdir and --local path can not overlap!')
     parser.add_argument('--limit', nargs=1, help='test only the first [LIMIT] instrs')
     parser.add_argument('--verbose', action='store_true', help='output a test/notest instrument status header before each test')
     parser.add_argument('--skipnontest', action='store_true', help='Skip compilation of instruments without a test')
     parser.add_argument('--suffix', nargs=1, help='Add suffix to test directory name, e.g. 3.x-dev_suffix')
+    parser.add_argument('--uid', nargs=1, help='Unique identifier for suffix, e.g. CI worker id (if unset a timestamp is used)')
     parser.add_argument('--nexus', action='store_true', help='Compile for / use NeXus output format everywhere')
     parser.add_argument('--lint', action='store_true', help='Just run the c-linter')
     parser.add_argument('--compilemax', nargs=1, help='Maximum time (s) allowed pr. compilation (default 600s)(if run with --lint muliplied x100)')
     parser.add_argument('--runmax', nargs=1, help='Maximum time (s) allowed pr. test Example run (default 3600s)')
     parser.add_argument('--displaymax', nargs=1, help='Maximum time allowed pr. test Example DISPLAY run (default 60s)')
-    parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional.')
-    parser.add_argument('--local', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR')
+    parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional. Can not be combined with --strict.')
+    parser.add_argument('--strict', action='store_true', help='Let instruments without %%Example line(s) instantly fail. Can not be combined with --permissive.')
+    parser.add_argument('--local', help='Instruments to test are NOT picked up from MCCODE installation, instead from --local=DIR. Local path and --testdir can not overlap!')
     args = parser.parse_args()
 
     try:

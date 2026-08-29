@@ -139,17 +139,19 @@ class ParticleBundleWeaver(object):
     
     def new_comp(self, compname):
         if self._story is None:
-            raise Exception("You must add a particle story before adding a compgroup.")
-        if self._compgroup is not None:
-            raise Exception("Close the current compgroup before adding a new one.")
-        self._compgroup = ParticleCompGroup(compname)
-        self._story.add_group(self._compgroup)
+            pass
+        elif self._compgroup is not None:
+            pass
+        else:
+            self._compgroup = ParticleCompGroup(compname)
+            self._story.add_group(self._compgroup)
 
     def new_point(self, point_str):
         if self._compgroup is None:
-            raise Exception("You must add a compgroup before adding points.")
-        point = ParticleState(point_str)
-        self._compgroup.add_event(point)
+            pass
+        else:
+            point = ParticleState(point_str)
+            self._compgroup.add_event(point)
     
     def close_comp(self):
         self._compgroup = None

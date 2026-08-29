@@ -111,10 +111,10 @@ class ViewModel():
     '''
     Logstate / view-options housekeeping object.
     '''
-    def __init__(self, log=False, fromzero=False, legend=True, sourcedir=None):
+    def __init__(self, log=False, fromzero=False, legend=True, sourcedir=None, icolormap=0):
         self.log = log
         self.fromzero = fromzero
-        self.icolormap = 0
+        self.icolormap = icolormap
         self.legend = legend
         self.sourcedir = sourcedir
 
@@ -159,17 +159,23 @@ class McPyqtgraphPlotter():
     PyQt5, PyQt6, PySide2, and PySide6 without branching.
     '''
 
-    def __init__(self, plotgraph, sourcedir, plot_func, invcanvas):
+    def __init__(self, plotgraph, sourcedir, plot_func, invcanvas, title=None, icolormap=0):
         '''
         plotgraph  : plotgraph root node
-        sourcedir  : data files source directory
+        sourcedir  : data files source directory (also used for the 'x'
+                     expand-subplots shortcut, which lists and re-plots its
+                     immediate subdirectories)
         plot_func  : user-supplied plotting function
                      signature: (node, i, plt, opts) -> (view_box, plt_item)
         invcanvas  : invert background (white bg / black fg)
+        title      : window title; defaults to sourcedir if not given
+        icolormap  : starting colormap index (see plotfuncs.COLORMAP_KEYS)
         '''
         self.graph     = plotgraph
         self.sourcedir = sourcedir
         self.plot_func = plot_func
+        self.title     = title if title is not None else sourcedir
+        self.icolormap = icolormap
 
         self.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
 
@@ -184,9 +190,9 @@ class McPyqtgraphPlotter():
     def runplot(self):
         node = self.graph
 
-        self.create_plotwindow(title=self.sourcedir)
+        self.create_plotwindow(title=self.title)
 
-        self.viewmodel = ViewModel(sourcedir=self.sourcedir)
+        self.viewmodel = ViewModel(sourcedir=self.sourcedir, icolormap=self.icolormap)
 
         self.plot_node(node)
         self.update_statusbar(None, node, None)
@@ -227,8 +233,8 @@ class McPyqtgraphPlotter():
             # Very old Qt5 fallback
             rect = QtWidgets.QApplication.desktop().screenGeometry()
 
-        w = int(0.7 * rect.width())
-        h = int(0.7 * rect.height())
+        w = int(0.85 * rect.width())
+        h = int(0.85 * rect.height())
         self.main_window.resize(w, h)
 
         self.plot_layout = pg.GraphicsLayout(border=None)
@@ -382,7 +388,7 @@ class McPyqtgraphPlotter():
     # ------------------------------------------------------------------
 
     def get_plot_func_opts(self, fromzero, log, legend, icolormap,
-                           verbose, fontsize, cbmin=None, cbmax=None):
+                           verbose, fontsize, cbmin=None, cbmax=None, cell_height=None):
         d = {}
         d['log']       = log
         d['fromzero']  = fromzero
@@ -390,6 +396,7 @@ class McPyqtgraphPlotter():
         d['icolormap'] = icolormap
         d['verbose']   = verbose
         d['fontsize']  = fontsize
+        d['cell_height'] = cell_height
         if cbmin is not None and cbmax is not None:
             d['cbmin'] = cbmin
             d['cbmax'] = cbmax
@@ -422,9 +429,30 @@ class McPyqtgraphPlotter():
 
         plt    = pg.PlotItem()
         rowlen = get_golden_rowlen(n)
+        rows   = math.ceil(n / rowlen) if rowlen > 0 else 1
+
+        # Approximate on-screen height of a single grid cell, from the
+        # *current* window size (so it reacts to live window resizes, not
+        # just the size at startup). Used to scale the colour bar's tick
+        # font: the same 12-pane overview should get a bigger colour bar
+        # font on a large/maximised window than squeezed into a small one.
+        win_size = self.main_window.size()
+        cell_height = win_size.height() / rows if rows > 0 else win_size.height()
 
         verbose  = n <= 4
-        fontsize = (4, 10, 14)[int(n <= 2) + int(n < 12)]
+        # NOTE: plotfuncs.plot_Data2D() only draws its colour-bar panel when
+        # fontsize >= 8 (it (mis)uses this text-sizing value as a crowding
+        # threshold), so the smallest tier below must never go under 8.
+        # The breakpoint for that smallest tier is deliberately set above 12
+        # (rather than at 12) since a 12-pane overview is common enough that
+        # it should keep the more readable 10pt size; only genuinely dense
+        # views (>16 monitors) drop to 8pt.
+        if n <= 2:
+            fontsize = 14
+        elif n <= 16:
+            fontsize = 10
+        else:
+            fontsize = 8
 
         if self.viewmodel.logstate():
             cbmin = cbmax = None
@@ -436,7 +464,7 @@ class McPyqtgraphPlotter():
             self.viewmodel.logstate(),
             self.viewmodel.legendstate(),
             self.viewmodel.cmapindex(),
-            verbose, fontsize, cbmin, cbmax)
+            verbose, fontsize, cbmin, cbmax, cell_height=cell_height)
 
         view_box, plt_itm = self.plot_func(node, i, plt, options)
         if view_box:

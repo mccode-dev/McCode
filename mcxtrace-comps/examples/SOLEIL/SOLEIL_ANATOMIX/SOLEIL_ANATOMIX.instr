@@ -55,7 +55,7 @@
 * EH3             | 165.7-174.1 | Guard slits; TXM sample stage and zone-plate table;  microtomography sample stage; detector table | EH3
 * EH4             | 197.2-208.5 | Guard slits; microtomography sample stage; detector table; X-ray grating interferometer | EH4
 *
-* %Example: -n 1e5 E0=17 Detector: psd_monitor_after_cc_I=8.7e+17
+* %Example: -n 1e5 E0=17 Detector: psd_monitor_after_cc_I=1e18
 *
 * %Parameters
 * E0:    [keV] Energy selected at the Undulator.
@@ -76,6 +76,7 @@ DEFINE INSTRUMENT SOLEIL_ANATOMIX(E0=11, Emono=0, dE=1, ANGLE=0, string sample="
 DECLARE
 %{
     double calculated_angle;
+    char emonopts[128];
 %}
 
 INITIALIZE
@@ -91,6 +92,7 @@ INITIALIZE
     } else {
       exit(printf("%s: ERROR: Monochromator energy is outside the Undulator bandwidth.\n", NAME_INSTRUMENT));
     }
+    sprintf(emonopts,"energy limits=[%g %g], y",E0-dE,E0+dE);
 %}
 
 TRACE
@@ -110,7 +112,7 @@ COMPONENT e_repartition_before_cc = Monitor_nD(
     xwidth=0.01, 
     yheight=0.01, 
     restore_xray=1, 
-    options="auto energy, y", bins=100,
+    options=emonopts, bins=100,
     filename="e_repartition_before_cc")
 AT (0, 0, 50) RELATIVE PREVIOUS
 

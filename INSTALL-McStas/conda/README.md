@@ -1,6 +1,6 @@
-# Install McStas 3.7.6 through conda-forge (macOS, Linux or Windows host)
+# Install McStas 3.7.9 through conda-forge (macOS, Linux or Windows host)
 
-* We a set of conda-packages for installing McStas 3.7.6.x through conda
+* We a set of conda-packages for installing McStas 3.7.9.x through conda
 
 ## Get yourself a conda / mamba / micromamba - we recommend micromamba!
 Due to the complex [licensing situation](https://discuss.scientific-python.org/t/response-to-anaconda-switch-to-paid-plans/1395) with the commercial Anaconda ecosystem, we clearly recommend McStas users to start from an open-source entry-point such as
@@ -9,11 +9,11 @@ Due to the complex [licensing situation](https://discuss.scientific-python.org/t
 ## Once micromamba is installed installed:
 * Initially, you may list mcstas versions available on conda-forge, just to be sure you pick them up:
 * ```micromamba search mcstas --channel conda-forge```, should give you many lines of the form
-* ```mcstas                         3.7.6      hc.31654_1  conda-forge   ```
+* ```mcstas                         3.7.9      hc.31654_1  conda-forge   ```
 * To install McStas with all needed dependencies in the environment `mcstas`, run
 * ```micromamba create --name mcstas --channel conda-forge --channel nodefaults mcstas```
 * The `--name` argument defines the environment to create for the mcstas installation
-* A specific version may be installed via e.g. ```micromamba create --name mcstas --channel conda-forge --channel nodefaults mcstas=3.7.6```
+* A specific version may be installed via e.g. ```micromamba create --name mcstas --channel conda-forge --channel nodefaults mcstas=3.7.9```
 * For some conda variants you may need an `env` in the  syntax like this: `conda env create ...` 
 
 ## Note for use on Windows

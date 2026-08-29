@@ -1,7 +1,10 @@
 ### Free-form text area
 _Please describe what your PR is adding in terms of features or bugfixes:_
 
-
+--------------
+### Declaration of use of AI-tools
+* [ ] Please add a checkmark here if you used AI-tools during the work for this contribution
+* Furter, please describe how / where and for what the tools were used:
 
 --------------
 ### Development OS / boundary conditions

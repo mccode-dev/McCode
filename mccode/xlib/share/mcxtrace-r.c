@@ -88,6 +88,20 @@ _class_particle mcgetstate(_class_particle mcphoton, double *x, double *y, doubl
   return(mcphoton);
 } /* mcgetstate */
 
+/*******************************************************************************
+* SCATTER_func: provides function to SCATTER from within libaries
+*******************************************************************************/
+void SCATTER_func(_class_particle *_particle) {
+  if(mcdotrace) {
+	  printf("SCATTER: %g, %g, %g, %g, %g, %g, %g, %g, %g, %g, %g, %g\n",
+	         _particle->x,_particle->y,_particle->z,
+	         _particle->kx,_particle->ky,_particle->kz,
+			 _particle->phi,_particle->t,
+			 _particle->Ex,_particle->Ey,_particle->Ez,
+			 _particle->p);
+  }
+  if (!_particle->_absorbed) _particle->_scattered++;
+}  /* SCATTER_func */
 
 /*******************************************************************************
 * mcgenstate: set default photon parameters 

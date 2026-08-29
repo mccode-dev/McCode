@@ -386,9 +386,9 @@ class Plot2D {
   }
   _plot_2d_data(w, h, xmin, xmax, ymin, ymax, img2dData, imgColorbar, cbMin, cbMax, anchorElement) {
     // colorbar width
-    var w_cb = 85; // this is the total width of space, image and ticks
+    var w_cb = 100; // this is the total width of space, image and ticks
     var w_cbimg = 15;
-    var w_cbticks = 45;
+    var w_cbticks = 60; // widened from 45 to give the colorbar's tick numbers more room on the right edge
 
     if (_is_small_mode(w, h)) {
       var w_cb = 10; // this is the total width of space, image and ticks
@@ -476,7 +476,12 @@ class Plot2D {
       .attr('width', wi)
       .attr('height', hi)
       .attr('preserveAspectRatio', 'none')
-      .attr("xlink:href","data:image/jpg;base64," + img2dData);
+      .attr("xlink:href","data:image/jpg;base64," + img2dData)
+      .attr("style",
+        "image-rendering: optimizeSpeed;" +      // legacy SVG value (old Firefox/IE)
+        "image-rendering: -moz-crisp-edges;" +   // older Firefox
+        "image-rendering: crisp-edges;" +        // spec value
+        "image-rendering: pixelated;");          // Chrome/Safari/modern Firefox (nearest-neighbor)
 
     var cbScale = d3.scaleLinear()
       .domain([cbMin, cbMax])
@@ -580,9 +585,9 @@ function _draw_labels(w, h, xlabel, ylabel, title, svg_branch, plotfunc_inner) {
   var dl = yLabelGrp.node().getBBox().height; // height and width are confused here, due to the rotation
   var db = xLabelGrp.node().getBBox().height;
 
-  var wplt = wlab - 3.75*dl;
+  var wplt = wlab - 4.75*dl;
   var hplt = hlab - (1.3*dt + 2.1*db);
-  var xplt = 4.0*dl;
+  var xplt = 5.0*dl; // widened from 4.0*dl to give y-axis tick labels more clearance from the y-axis title
   var yplt = dt + 0.3*dl;
 
   var titx = wlab/2;

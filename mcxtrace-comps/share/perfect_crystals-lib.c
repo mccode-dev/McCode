@@ -255,9 +255,7 @@ int Mx_DiffractionDispersion(cdouble kqvals[4], cdouble xi0[4], cdouble xih[4],
         kq=initroots[rootloops];
 #if MCDEBUG
 #ifndef OPENACC
-        fprintf(stderr,"Batterman Cole dispersion Newton Iterations, starting at root =(%.3e + %.3e i) \n",
-                creal(kq), cimag(kq)
-                );
+        fprintf(stderr,"Batterman Cole dispersion Newton Iterations, starting at root =(%.3e + %.3e i) \n", creal(kq), cimag(kq));
 #endif
 #endif
         int stepcount=0;
@@ -276,11 +274,10 @@ int Mx_DiffractionDispersion(cdouble kqvals[4], cdouble xi0[4], cdouble xih[4],
             stepcount++;
 #ifdef MCDEBUG_EXTRA
 #ifndef OPENACC
-        fprintf(stderr,"Batterman Cole dispersion Newton Iterations, starting at root =(%.3e + %.3e i) \n",
-            fprintf(stderr,"Batterman Cole dispersion Newton Iterations, step count=%d, pv=%.3e dv=%.3e "
-                    "kq=(%.3e + %.3e I) shift=%.3e\n",
-                    stepcount,
-                    cabs(pv), cabs(dv), creal(kq), cimag(kq), cabs(dd) );
+        fprintf(stderr,"Batterman Cole dispersion Newton Iterations, starting at root =(%.3e + %.3e i) \n",creal(kq), cimag(kq));
+	fprintf(stderr,"Batterman Cole dispersion Newton Iterations, step count=%d, pv=%.3e dv=%.3e "
+		"kq=(%.3e + %.3e I) shift=%.3e\n",
+		stepcount, cabs(pv), cabs(dv), creal(kq), cimag(kq), cabs(dd) );
 #endif
 #endif
         } while ( ((cabs(dd) > 1e-15) && (stepcount < 20)) );
