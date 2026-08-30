@@ -564,19 +564,21 @@ def _load_sweep_monitors(rootdir):
     monitors_by_subdir = []
     for s in subdirs:
         mons = get_subdir_monitors(s)
-        if mons is not None:
+        if mons:
             monitors_by_subdir.append(mons)
         else:
-            # A discovered subfolder without a usable mccode.sim inside it
-            # - e.g. a step that crashed partway through writing its own
-            # output, after the subfolder itself was created but before
-            # mccode.sim was written. Skip it here rather than letting a
-            # None entry propagate into monitors_by_subdir and crash the
+            # A discovered subfolder without usable monitor data - either
+            # no mccode.sim at all (get_subdir_monitors() returns None),
+            # or a mccode.sim that exists but has zero "begin data" blocks
+            # (returns [] - e.g. the simulation crashed after writing its
+            # header but before writing monitor results
+            # Either way, skip it here rather than letting an empty (or
+            # None) entry propagate into monitors_by_subdir and crash the
             # indexing below; load_sweep()'s own root/secondary
             # length-mismatch check further down already warns (rather
             # than crashing) if this ever leaves the secondary monitor
             # count out of sync with mccode.dat's row count.
-            print("_load_sweep_monitors: skipping subdir %s (no valid mccode.sim found)" % s)
+            print("_load_sweep_monitors: skipping subdir %s (no usable monitor data found)" % s)
 
     if not monitors_by_subdir:
         # No subfolder had usable data at all (e.g. every scan step
