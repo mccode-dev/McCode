@@ -92,8 +92,13 @@ def add_mcrun_options(parser):
         help='Read parameters from file FILE')
 
     add('-N', '--numpoints',
-        type=int, metavar='NP',
-        help='Set number of scan points')
+        metavar='NP',
+        help='Set number of scan points. A single integer applies the same '
+             'point count to every scanned parameter (the default, and the '
+             'only valid form without -M). With -M/--multi, a comma-separated '
+             'list (e.g. -N=5,10,20) instead gives each scanned parameter its '
+             'own point count, in the same order the parameters are listed '
+             'on the command line.')
 
     add('--seeds',
         metavar='SEEDS',
@@ -101,11 +106,20 @@ def add_mcrun_options(parser):
 
     add('-L', '--list',
         action='store_true',
-        help='Use a fixed list of points for linear scanning')
+        help='Use a fixed list of points for scanning, walking every scanned '
+             'parameter\'s list together in lockstep (all lists must then be '
+             'the same length). Combine with -M/--multi instead to take the '
+             'cartesian product of each parameter\'s own list (lists may then '
+             'have different lengths).')
 
     add('-M', '--multi',
         action='store_true',
-        help='Run a multi-dimensional scan')
+        help='Run a multi-dimensional scan (the cartesian product of every '
+             'scanned parameter\'s own points, rather than walking them all '
+             'in lockstep). Combine with -L/--list (each parameter\'s '
+             'explicit list can then have a different length) or give -N '
+             'a comma-separated list (see -N/--numpoints) for per-parameter '
+             'point counts.')
 
     add("--scan_split",
         type=int,
@@ -595,31 +609,89 @@ def main():
     if options.list and options.seeds:
         raise OptionValueError('--seeds cannot be used with --list')
 
+    # Parse -N/--numpoints (a plain string now, not auto-int'd by optparse -
+    # see add_mcrun_options()): with -M/--multi it may be a comma-separated
+    # list of integers, one per scanned parameter in the same order the
+    # parameters were given on the command line, rather than a single
+    # integer applied uniformly to every dimension. A list form without -M
+    # is rejected outright: a plain (co-linear) scan walks every parameter
+    # in lockstep over the same number of steps, so per-dimension point
+    # counts don't apply there. Unreachable when --list was also given,
+    # thanks to the check just above.
+    numpoints_list = None
+    if options.numpoints is not None:
+        numpoints_parts = str(options.numpoints).split(',')
+        if len(numpoints_parts) > 1:
+            if not options.multi:
+                raise OptionValueError(
+                    'A comma-separated list for -N/--numpoints (e.g. -N=5,10,20) is only valid '
+                    'together with -M/--multi.')
+            try:
+                numpoints_list = [int(p) for p in numpoints_parts]
+            except ValueError:
+                raise OptionValueError('-N/--numpoints list must contain only integers: "%s"' % options.numpoints)
+            if any(n < 2 for n in numpoints_list):
+                raise OptionValueError(
+                    'Cannot scan using only one data point - every entry in -N/--numpoints must be at least 2.')
+            options.numpoints = None  # resolved into numpoints_list/numpoints_dict instead, below
+        else:
+            try:
+                options.numpoints = int(numpoints_parts[0])
+            except ValueError:
+                raise OptionValueError(
+                    '-N/--numpoints must be an integer (or, with -M, a comma-separated list of integers): "%s"'
+                    % options.numpoints)
+
     if options.list:
         if len(intervals) == 0:
             raise OptionValueError(
                 '--list was chosen but no lists was presented.')
-        pointlist = list(intervals.values())
-        points = len(pointlist[0])
-        if not (all(map(lambda i: len(i) == points, intervals.values()))):
+        if options.multi:
+            # -L + -M: cartesian product across each parameter's own
+            # explicit list of points - unlike plain -L (which walks every
+            # list together in lockstep, requiring them all to be the same
+            # length), each dimension is independent here, so the lists
+            # may have different lengths.
+            interval_points = MultiInterval.from_list(intervals)
+            options.numpoints = 1
+            for values in intervals.values():
+                options.numpoints *= len(values)
+        else:
+            pointlist = list(intervals.values())
+            points = len(pointlist[0])
+            if not (all(map(lambda i: len(i) == points, intervals.values()))):
+                raise OptionValueError(
+                    'All variables must have an equal amount of points.')
+            interval_points = LinearInterval.from_list(
+                points, intervals)
+            options.numpoints = points
+
+    elif numpoints_list is not None:
+        # -M + -N=a,b,c,...: per-dimension point counts, no explicit lists
+        if len(numpoints_list) != len(intervals):
             raise OptionValueError(
-                'All variables must have an equal amount of points.')
-        interval_points = LinearInterval.from_list(
-            points, intervals)
+                '-N/--numpoints list has %d entr%s but %d parameter%s being scanned (%s); '
+                'provide exactly one point-count per scanned parameter, in the same order.' % (
+                    len(numpoints_list), 'y' if len(numpoints_list) == 1 else 'ies',
+                    len(intervals), '' if len(intervals) == 1 else 's are',
+                    ', '.join(intervals)))
+        numpoints_dict = dict(zip(intervals.keys(), numpoints_list))
+        interval_points = MultiInterval.from_range(numpoints_dict, intervals)
+        total = 1
+        for n in numpoints_list:
+            total *= n
+        options.numpoints = total
 
-    scan = options.multi or options.numpoints
-    if (options.numpoints is not None and options.numpoints < 2) or (scan and options.numpoints is None):
-        raise OptionValueError((f'Cannot scan variable(s) {", ".join(intervals)} using only one data point. '
-                                'Please use -N to specify the number of points.'))
-    ## ## This *was* unreachable due to its indentation. Should it be removed entirely?
-    # # Check that input is valid decimals
-    # if not all(map(lambda i: len(i) == 2 and all(map(is_decimal, i)), intervals.values())):
-    #     raise OptionValueError(f'Could not parse intervals -- result: {intervals}')
+    else:
+        scan = options.multi or options.numpoints
+        if (options.numpoints is not None and options.numpoints < 2) or (scan and options.numpoints is None):
+            raise OptionValueError((f'Cannot scan variable(s) {", ".join(intervals)} using only one data point. '
+                                    'Please use -N to specify the number of points.'))
 
-    if options.multi is not None:
-        interval_points = MultiInterval.from_range(options.numpoints, intervals)
-    elif options.numpoints is not None:
-        interval_points = LinearInterval.from_range(options.numpoints, intervals)
+        if options.multi is not None:
+            interval_points = MultiInterval.from_range(options.numpoints, intervals)
+        elif options.numpoints is not None:
+            interval_points = LinearInterval.from_range(options.numpoints, intervals)
 
 
     # Check that mpi and scan split are not both used. Default to mpi if they are
@@ -628,9 +700,6 @@ def main():
         
     # Parameters for linear scanning present
     if interval_points and (options.scan_split is None):
-        # In case of list, update with number of list points
-        if options.list:
-            options.numpoints=len(pointlist[0])
         scanner = Scanner(mcstas, intervals)
         scanner.set_points(interval_points)
         if (not options.dir == ''):

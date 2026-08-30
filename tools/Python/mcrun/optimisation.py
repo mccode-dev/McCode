@@ -211,6 +211,13 @@ class MultiInterval:
 
     @staticmethod
     def from_range(N, intervals):
+        """ N is either a single int (the same point count applied to
+            every scanned dimension - the original behaviour) or a dict
+            mapping each interval key to its own point count (mcrun's
+            -N=a,b,c,... list-form, only valid together with -M, letting
+            different parameters be sampled at different resolutions -
+            e.g. a coarse 3-point sweep on one axis against a fine
+            20-point sweep on another). """
         print(f"MultiInterval from {N=} and {intervals=}")
         # base case: no intervals yields empty dict
         if len(intervals) == 0:
@@ -219,10 +226,32 @@ class MultiInterval:
         # recursively generate the multi dict
         intervals = intervals.copy()
         key, minmax = intervals.popitem()
-        for step in range(N):
-            point = point_at(N, key, minmax, step)
+        n_here = N[key] if isinstance(N, dict) else N
+        for step in range(n_here):
+            point = point_at(n_here, key, minmax, step)
             for dic in MultiInterval.from_range(N, intervals):
                 dic[key] = point
+                yield dic
+
+    @staticmethod
+    def from_list(intervals):
+        """ Cartesian product across each key's own explicit list of
+            points (mcrun's -L/--list combined with -M/--multi). Unlike
+            LinearInterval.from_list() (co-linear: every key's list is
+            walked together in lockstep, so all lists must be the same
+            length), each key here is varied independently, so the lists
+            may have different lengths - which is also how different
+            parameters naturally end up with different numbers of scan
+            points in this mode, without needing a separate -N. """
+        print(f"MultiInterval from_list {intervals=}")
+        if len(intervals) == 0:
+            yield {}
+            return
+        intervals = intervals.copy()
+        key, values = intervals.popitem()
+        for value in values:
+            for dic in MultiInterval.from_list(intervals):
+                dic[key] = value
                 yield dic
 
 
