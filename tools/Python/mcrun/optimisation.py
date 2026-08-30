@@ -17,6 +17,37 @@ except:
 LOG = getLogger('optimisation')
 
 
+def _list_scan_xlimits(lst):
+    """ Computes the (xmin, xmax) header hint for an -L/--list scan's
+        first scanned parameter, matching whatever will actually end up
+        plotted as that parameter's x-values.
+
+        A genuinely numeric list (the common case, e.g. -L lambda=2,3)
+        uses its own real min/max - this MUST match resolve_scan_value()'s
+        numeric passthrough for the actual per-point column written into
+        mccode.dat, since the matplotlib frontend's plot_single_data()
+        uses this value directly via pylab.xlim(xmin, xmax) to set the
+        visible axis range. 
+
+        A non-numeric list (e.g. -L filename=Na2Ca3Al2F14.laz,...) uses
+        the 0-based index range (0..N-1) instead, matching
+        resolve_scan_value()'s own index-substitution fallback for that
+        case - a literal min()/max() of the raw strings would be
+        lexicographic and meaningless there anyway. """
+    try:
+        numeric_vals = [float(v) for v in lst]
+        return min(numeric_vals), max(numeric_vals)
+    except (TypeError, ValueError):
+        # Non-numeric: resolve_scan_value() substitutes each value with
+        # its own 0-based index within intervals[key]
+        # (list(intervals[key]).index(value)), so the matching range is
+        # (0, len(lst)-1) - NOT (1, len(lst)), which would itself clip the
+        # first data point (plotted at x=0) outside the visible axis, the
+        # same class of bug this function exists to avoid for the numeric
+        # case above.
+        return 0, len(lst) - 1
+
+
 def build_header(options, params, intervals, detectors):
     template = """
 # Instrument-source: '%(instr)s'
@@ -44,8 +75,7 @@ def build_header(options, params, intervals, detectors):
     xvars = ', '.join(hdrparams)
     lst = intervals[list(params)[0]]
     if options.list:
-        xmin=1
-        xmax=len(lst)
+        xmin, xmax = _list_scan_xlimits(lst)
     else:
         xmin = min(lst)
         xmax = max(lst)
@@ -132,16 +162,16 @@ end data
     # TODO: figure out correct scan type
     numpoints = 1 if options.optimize else options.numpoints
 
-    # -L list scan: use the position (1..N) within the list, matching
-    # build_header()'s existing convention for -L scans above - meaningful
-    # for a non-numeric list (e.g. filenames), where a literal min()/max()
-    # of the raw strings would be lexicographic and essentially
-    # meaningless, and harmless for a numeric one (the actual per-point
-    # values are written into mccode.dat itself; this is just the
-    # header's overall axis-range hint). Equidistant (-N/-M, non-list)
-    # scans are untouched, keeping their existing min()/max() behaviour.
+    # -L list scan: use the shared helper, which keeps the real min/max
+    # for a numeric list (matching what actually gets plotted - see
+    # _list_scan_xlimits()'s own docstring for why this matters), not just
+    # for a non-numeric one (e.g. filenames), where a literal min()/max()
+    # of the raw strings would be lexicographic and meaningless, so a
+    # 0-based index range (matching resolve_scan_value()'s own index
+    # substitution) is used instead. Equidistant (-N/-M, non-list) scans
+    # are untouched, keeping their existing min()/max() behaviour.
     if options.list:
-        xmin, xmax = 1, len(first_key_interval)
+        xmin, xmax = _list_scan_xlimits(first_key_interval)
     else:
         xmin, xmax = min(first_key_interval), max(first_key_interval)
 
