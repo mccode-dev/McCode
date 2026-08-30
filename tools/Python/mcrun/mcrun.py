@@ -474,9 +474,17 @@ def get_parameters(options):
         if '=' in param:
             key, value = param.split('=', 1)
             interval = value.split(',')
+            # Protect against trailing (or doubled) commas (empty-string entries
+            n_before = len(interval)
+            interval = [v for v in interval if v != '']
+            if len(interval) != n_before:
+                LOG.warning('Ignoring %d empty value(s) in parameter "%s" '
+                            '(check for a trailing or doubled comma)', n_before - len(interval), key)
             # When just one point is present, fix as constant
             if len(interval) == 1:
-                fixed_params[key] = value
+                fixed_params[key] = interval[0]
+            elif len(interval) == 0:
+                LOG.warning('Ignoring parameter "%s": no values left after removing empty entries', key)
             else:
                 LOG.debug('interval[%s]: %s', key, interval)
                 intervals[key] = interval
