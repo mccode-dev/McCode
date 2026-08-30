@@ -502,7 +502,7 @@ def _load_sweep_monitors(rootdir):
         dirsignature = (dirname, mnames)
         for f in fnames:
             # NOTE: this will attempt to load all files except for mccode.sim
-            if f not in mnames and f != 'mccode.sim' and f != 'mcstas.sim':
+            if f not in mnames and f != 'mccode.sim':
                 mnames.append(f)
         arg.append(dirsignature)
 
@@ -512,16 +512,35 @@ def _load_sweep_monitors(rootdir):
         walkfunc(subdirtuple, root, files)
     del subdirtuple[0] # remove root dir
     subdirs = [t[0] for t in subdirtuple]
-    # get the right order of subdirs by recreating them a little bit
-    subdirs = [join(dirname(subdirs[i]), str(i)) for i in range(len(subdirs))] # sortalpha(subdirs)
+    # Sort by the REAL, actual numeric folder name (e.g. "0", "1", "3",
+    # "4" - numerically, not alphabetically, since alphabetical sort would
+    # put "10" before "2") - rather than the previous approach of
+    # renaming every subdir BY ITS POSITION in os.walk()'s traversal order
+    # (`join(dirname(subdirs[i]), str(i))`). That renaming assumed
+    # scan-step subfolders are always named consecutively with no gaps,
+    # which no longer holds now that a failed scan step's subfolder is
+    # deliberately never created (mcrun's Scanner.run()/Scanner_split now
+    # tolerate individual failed points rather than aborting the whole
+    # scan - see tools/Python/mcrun/optimisation.py). A gap used to
+    # silently rename every subfolder from that point on to a DIFFERENT,
+    # wrong path, misattributing each remaining step's data to the wrong
+    # index - surfacing as anything from wrong data to the "list index
+    # out of range" this caused (a later step's own mccode.sim declaring
+    # fewer monitors than the one it got misaligned with expected).
+    try:
+        subdirs = sorted(subdirs, key=lambda p: int(basename(p)))
+    except ValueError:
+        # Subfolder names aren't purely numeric for some reason - fall
+        # back to a plain alphabetical ordering rather than crashing
+        # outright (matches this function's previous fallback comment,
+        # "sortalpha(subdirs)", which was never actually reachable before).
+        subdirs = sorted(subdirs)
 
     # get the monitor ordering right by snooping the '  filename:' labels out of the scan point file 0/mccode.sim
     def get_subdir_monitors(subdir):
         mons = []
         if exists(join(subdir, 'mccode.sim')):
             indexfile='mccode.sim'
-        elif exists(join(subdir, 'mccode.sim')):
-            indexfile='mcstas.sim'
         else:
             return
 
@@ -544,7 +563,28 @@ def _load_sweep_monitors(rootdir):
 
     monitors_by_subdir = []
     for s in subdirs:
-        monitors_by_subdir.append(get_subdir_monitors(s))
+        mons = get_subdir_monitors(s)
+        if mons is not None:
+            monitors_by_subdir.append(mons)
+        else:
+            # A discovered subfolder without a usable mccode.sim inside it
+            # - e.g. a step that crashed partway through writing its own
+            # output, after the subfolder itself was created but before
+            # mccode.sim was written. Skip it here rather than letting a
+            # None entry propagate into monitors_by_subdir and crash the
+            # indexing below; load_sweep()'s own root/secondary
+            # length-mismatch check further down already warns (rather
+            # than crashing) if this ever leaves the secondary monitor
+            # count out of sync with mccode.dat's row count.
+            print("_load_sweep_monitors: skipping subdir %s (no valid mccode.sim found)" % s)
+
+    if not monitors_by_subdir:
+        # No subfolder had usable data at all (e.g. every scan step
+        # failed) - return no secondary monitors rather than crashing on
+        # monitors_by_subdir[0] below. load_sweep() still has the root
+        # sweep curves from mccode.dat either way; it just won't have a
+        # per-step drill-down to offer.
+        return []
 
     # notice that columns and rows are swapped, so we get to use a
     # list-of-lists data structure, with rows the same monitor
@@ -599,7 +639,7 @@ def has_filename(args):
 def is_mccodesim_or_mccodedat(args):
     f = args['simfile']
     f_name = basename(f)
-    return (f_name == 'mccode.sim' or f_name == 'mcstas.sim' or f_name == 'mccode.dat') and isfile(f)
+    return (f_name == 'mccode.sim' or f_name == 'mccode.dat') and isfile(f)
 
 
 def is_monitorfile(args):
@@ -649,8 +689,6 @@ def is_mccodesim_w_monitors(args):
     # checks mccode.sim existence
     if isfile(join(d, 'mccode.sim')):
         indexfile='mccode.sim'
-    elif isfile(join(d, 'mcstas.sim')):
-        indexfile='mcstas.sim'
     else:
         return False
 
@@ -661,8 +699,6 @@ def is_mccodesim_w_monitors(args):
     datfiles = glob.glob(join(d, '*'))
     if 'mccode.sim' in datfiles: 
         datfiles.remove('mccode.sim')
-    if 'mcstas.sim' in datfiles: 
-        datfiles.remove('mcstas.sim')
     if 'mccode.dat' in datfiles: 
         datfiles.remove('mccode.dat')
     return len(datfiles) > 0
@@ -675,8 +711,6 @@ def has_datfile(args):
     datfiles = glob.glob(join(d, '*'))
     if 'mccode.sim' in datfiles: 
         datfiles.remove('mccode.sim')
-    if 'mcstas.sim' in datfiles: 
-        datfiles.remove('mcstas.sim')
     if 'mccode.dat' in datfiles: 
         datfiles.remove('mccode.dat')
     if len(datfiles) > 0:
@@ -696,8 +730,6 @@ def has_multiple_datfiles(args):
     datfiles = glob.glob(join(d, '*'))
     if 'mccode.sim' in datfiles:
         datfiles.remove('mccode.sim')
-    if 'mcstas.sim' in datfiles:
-        datfiles.remove('mcstas.sim')
     if 'mccode.dat' in datfiles:
         datfiles.remove('mccode.dat')
     for f in datfiles:
@@ -743,8 +775,6 @@ def load_simulation(args):
     # load monitor data handles
     if isfile(join(d, 'mccode.sim')):
         indexfile='mccode.sim'
-    elif isfile(join(d, 'mcstas.sim')):
-        indexfile='mcstas.sim'
     else:
         indexfile=''
     data_lst = _load_data_from_mcfiles(_get_filenames_from_mccodesim(join(d, indexfile)))
@@ -764,8 +794,6 @@ def load_simulation(args):
 def load_sweep(args):
     d = args['directory']
     f_dat = join(d, 'mccode.dat')
-    if isfile(join(d, 'mcstas.sim')):
-        f_dat = join(d, 'mcstas.sim')
 
     # load primary data_handle, 1D sweep values
     data_handle_lst_sweep1D = _load_multiplot_1D_lst(f_dat)
