@@ -98,7 +98,9 @@ def add_mcrun_options(parser):
              'only valid form without -M). With -M/--multi, a comma-separated '
              'list (e.g. -N=5,10,20) instead gives each scanned parameter its '
              'own point count, in the same order the parameters are listed '
-             'on the command line.')
+             'on the command line. Not needed at all for a parameter given as '
+             '"min:delta:max" (see the usage line above) - the point count is '
+             'computed from the requested bin width instead.')
 
     add('--seeds',
         metavar='SEEDS',
@@ -469,10 +471,60 @@ def get_parameters(options):
     ''' Get fixed and scan/optimise parameters '''
     fixed_params = {}
     intervals = {}
+    # Per-key point counts implied by the "a:delta:b" syntax below - kept
+    # separate from intervals (which only ever holds the [a, b] endpoints,
+    # matching every other scan mode's shape) so main() can tell which
+    # parameters had an explicit point count baked into their own syntax,
+    # as opposed to needing one supplied via -N.
+    equidistant_numpoints = {}
 
     for param in options.params:
         if '=' in param:
             key, value = param.split('=', 1)
+
+            # "par=a:delta:b" - an equidistant scan specified by its bin
+            # width (delta) rather than an explicit point count: mcrun
+            # computes how many points are needed to cover [a, b] in steps
+            # of (approximately - see rounding below) delta, rather than
+            # the user needing to work out -N by hand. Checked before the
+            # comma-based interval parsing below, since a colon can never
+            # appear in a numeric value/list, so a colon anywhere in the
+            # value unambiguously means this syntax was intended.
+            if ':' in value:
+                parts = value.split(':')
+                if len(parts) != 3:
+                    raise OptionValueError(
+                        'Parameter "%s" uses "a:delta:b" syntax but has %d colon-separated part(s) '
+                        '(expected exactly 3: start:delta:stop): "%s"' % (key, len(parts), value))
+                try:
+                    a, delta, b = (float(p) for p in parts)
+                except ValueError:
+                    raise OptionValueError(
+                        'Parameter "%s" uses "a:delta:b" syntax but not all three parts are numbers: "%s"'
+                        % (key, value))
+                if delta == 0:
+                    raise OptionValueError(
+                        'Parameter "%s" uses "a:delta:b" syntax with delta=0, which would need '
+                        'infinitely many points: "%s"' % (key, value))
+                if a == b:
+                    raise OptionValueError(
+                        'Parameter "%s" uses "a:delta:b" syntax with a == b (%s), so there is nothing '
+                        'to scan - use a fixed value "%s=%s" instead.' % (key, a, key, a))
+                # Rounds to the nearest point count that covers [a, b] as
+                # closely as possible to the requested delta - the actual
+                # step size (recomputed from a, b, and this rounded N, the
+                # same way every other equidistant scan already works via
+                # LinearInterval/MultiInterval.from_range()) will usually
+                # differ very slightly from delta itself, since [a, b]
+                # isn't guaranteed to be an exact multiple of delta and
+                # both endpoints are always included.
+                n_points = max(2, round(abs(b - a) / abs(delta)) + 1)
+                intervals[key] = [str(a), str(b)]
+                equidistant_numpoints[key] = n_points
+                LOG.debug('interval[%s]: %s (a:delta:b syntax, delta=%s -> %d points)',
+                          key, intervals[key], delta, n_points)
+                continue
+
             interval = value.split(',')
             # When just one point is present, fix as constant
             if len(interval) == 1:
@@ -482,7 +534,7 @@ def get_parameters(options):
                 intervals[key] = interval
         else:
             LOG.warning('Ignoring invalid parameter: "%s"', param)
-    return (fixed_params, intervals)
+    return (fixed_params, intervals, equidistant_numpoints)
 
 
 def find_instr_file(instr):
@@ -506,7 +558,7 @@ def main():
 
     # Add options
     usage = ('usage: %prog [-cpnN] Instr [-sndftgahi] '
-             'params={val|min,max|min,guess,max}...')
+             'params={val|min,max|min:delta:max|min,guess,max}...')
     parser = OptionParser(usage, version=mccode_config.configuration['MCCODE_VERSION'])
 
     add_mcrun_options(parser)
@@ -581,7 +633,7 @@ def main():
     mcstas = McStas(options.instr)
     mcstas.prepare(options)
 
-    (fixed_params, intervals) = get_parameters(options)
+    (fixed_params, intervals, equidistant_numpoints) = get_parameters(options)
     # Add --seeds as an 'interval', to allow scanning simulation seed
     if options.seeds:
         intervals['--seed']=options.seeds.split(',')
@@ -608,6 +660,25 @@ def main():
     # Can't both do list and --seeds scanning
     if options.list and options.seeds:
         raise OptionValueError('--seeds cannot be used with --list')
+
+    # The "a:delta:b" syntax (see get_parameters()) already determines its
+    # own equidistant point count for whichever parameter(s) use it - it
+    # doesn't mix with -L (a fundamentally different, explicit-list scan
+    # mode; intervals[key] would be a [min, max] pair from a:delta:b, not
+    # an explicit list of values, regardless of what else is being
+    # scanned). An explicit -N is only actually redundant/conflicting when
+    # EVERY scanned parameter already gets its point count from a:delta:b
+    # - a scan mixing a:delta:b with a plain "min,max" parameter still
+    # legitimately needs -N to say how many points THAT one should have
+    # (see the "mixed" branch below).
+    if equidistant_numpoints and options.list:
+        raise OptionValueError(
+            'The "a:delta:b" syntax (used for %s) specifies an equidistant scan and cannot be '
+            'combined with -L/--list.' % ', '.join(equidistant_numpoints))
+    if equidistant_numpoints and options.numpoints and len(equidistant_numpoints) == len(intervals):
+        raise OptionValueError(
+            'The "a:delta:b" syntax (used for %s) already determines its own point count for every '
+            'scanned parameter, so an explicit -N/--numpoints is redundant here.' % ', '.join(equidistant_numpoints))
 
     # Parse -N/--numpoints (a plain string now, not auto-int'd by optparse -
     # see add_mcrun_options()): with -M/--multi it may be a comma-separated
@@ -681,6 +752,56 @@ def main():
         for n in numpoints_list:
             total *= n
         options.numpoints = total
+
+    elif equidistant_numpoints:
+        # "a:delta:b" syntax: each such parameter already has its own
+        # point count computed in get_parameters(), independent of -N/-M.
+        if len(equidistant_numpoints) == len(intervals):
+            # Every scanned parameter uses a:delta:b.
+            distinct_n = set(equidistant_numpoints.values())
+            if options.multi:
+                # -M: cartesian product, each dimension keeping its own
+                # delta-derived point count - identical in spirit to
+                # -N=a,b,c,... + -M above, just sourced from delta instead.
+                interval_points = MultiInterval.from_range(equidistant_numpoints, intervals)
+                total = 1
+                for n in equidistant_numpoints.values():
+                    total *= n
+                options.numpoints = total
+            elif len(distinct_n) == 1:
+                # No -M, but every parameter's delta happens to imply the
+                # same point count anyway - a perfectly ordinary co-linear
+                # scan, so there's no need to force the user to add -M.
+                options.numpoints = distinct_n.pop()
+                interval_points = LinearInterval.from_range(options.numpoints, intervals)
+            else:
+                raise OptionValueError(
+                    'Parameter(s) %s use "a:delta:b" syntax with different resulting point counts (%s) - '
+                    'add -M/--multi to scan them independently (a cartesian product), or use matching '
+                    'delta values for a co-linear scan.' % (
+                        ', '.join(equidistant_numpoints),
+                        ', '.join('%s=%d' % (k, v) for k, v in equidistant_numpoints.items())))
+        else:
+            # Mixed: some parameters use a:delta:b, others a plain min,max
+            # (no delta) that still needs a point count from somewhere.
+            missing = [k for k in intervals if k not in equidistant_numpoints]
+            if not options.multi:
+                raise OptionValueError(
+                    'Parameter(s) %s use "a:delta:b" syntax alongside plain interval(s) %s - add '
+                    '-M/--multi to scan them independently, or use "a:delta:b" for every scanned '
+                    'parameter.' % (', '.join(equidistant_numpoints), ', '.join(missing)))
+            if options.numpoints is None:
+                raise OptionValueError(
+                    'Parameter(s) %s need a point count - use "a:delta:b" syntax for them too, or '
+                    'supply a plain -N value.' % ', '.join(missing))
+            full_numpoints_dict = dict(equidistant_numpoints)
+            for k in missing:
+                full_numpoints_dict[k] = options.numpoints
+            interval_points = MultiInterval.from_range(full_numpoints_dict, intervals)
+            total = 1
+            for n in full_numpoints_dict.values():
+                total *= n
+            options.numpoints = total
 
     else:
         scan = options.multi or options.numpoints
