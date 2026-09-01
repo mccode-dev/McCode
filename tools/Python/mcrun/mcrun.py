@@ -112,7 +112,10 @@ def add_mcrun_options(parser):
              'parameter\'s list together in lockstep (all lists must then be '
              'the same length). Combine with -M/--multi instead to take the '
              'cartesian product of each parameter\'s own list (lists may then '
-             'have different lengths).')
+             'have different lengths). A parameter given as "min:delta:max" '
+             '(see the usage line above) is expanded into its own explicit '
+             'list of equidistant points and can be freely mixed with other, '
+             'explicitly-listed parameters (e.g. a list of filenames) under -L.')
 
     add('-M', '--multi',
         action='store_true',
@@ -512,17 +515,33 @@ def get_parameters(options):
                         'to scan - use a fixed value "%s=%s" instead.' % (key, a, key, a))
                 # Rounds to the nearest point count that covers [a, b] as
                 # closely as possible to the requested delta - the actual
-                # step size (recomputed from a, b, and this rounded N, the
-                # same way every other equidistant scan already works via
-                # LinearInterval/MultiInterval.from_range()) will usually
-                # differ very slightly from delta itself, since [a, b]
-                # isn't guaranteed to be an exact multiple of delta and
-                # both endpoints are always included.
+                # step size will usually differ very slightly from delta
+                # itself, since [a, b] isn't guaranteed to be an exact
+                # multiple of delta and both endpoints are always included.
                 n_points = max(2, round(abs(b - a) / abs(delta)) + 1)
-                intervals[key] = [str(a), str(b)]
-                equidistant_numpoints[key] = n_points
-                LOG.debug('interval[%s]: %s (a:delta:b syntax, delta=%s -> %d points)',
-                          key, intervals[key], delta, n_points)
+                step = (b - a) / (n_points - 1)
+                if options.list:
+                    # -L is active: a:delta:b conceptually already IS a
+                    # list of equidistant points, so expand it into the
+                    # full explicit list here and let it flow through the
+                    # exact same -L/-M machinery as any other explicit
+                    # list (e.g. an accompanying filename list) - no
+                    # special-casing needed anywhere else for this case.
+                    intervals[key] = [str(a + i * step) for i in range(n_points)]
+                    LOG.debug('interval[%s]: %s (a:delta:b syntax, expanded to %d explicit points for -L)',
+                              key, intervals[key], n_points)
+                else:
+                    # -L not given: keep the [a, b] endpoint pair, with the
+                    # point count tracked separately - main()'s normal
+                    # -N/-M machinery (LinearInterval/MultiInterval
+                    # .from_range()) already knows how to turn an
+                    # endpoint pair plus a point count into the same
+                    # equidistant points, without needing them written out
+                    # explicitly here.
+                    intervals[key] = [str(a), str(b)]
+                    equidistant_numpoints[key] = n_points
+                    LOG.debug('interval[%s]: %s (a:delta:b syntax, delta=%s -> %d points)',
+                              key, intervals[key], delta, n_points)
                 continue
 
             interval = value.split(',')
@@ -669,20 +688,14 @@ def main():
     if options.list and options.seeds:
         raise OptionValueError('--seeds cannot be used with --list')
 
-    # The "a:delta:b" syntax (see get_parameters()) already determines its
-    # own equidistant point count for whichever parameter(s) use it - it
-    # doesn't mix with -L (a fundamentally different, explicit-list scan
-    # mode; intervals[key] would be a [min, max] pair from a:delta:b, not
-    # an explicit list of values, regardless of what else is being
-    # scanned). An explicit -N is only actually redundant/conflicting when
-    # EVERY scanned parameter already gets its point count from a:delta:b
-    # - a scan mixing a:delta:b with a plain "min,max" parameter still
-    # legitimately needs -N to say how many points THAT one should have
+    # An explicit -N is only actually redundant/conflicting when EVERY
+    # scanned parameter already gets its point count from "a:delta:b"
+    # syntax (see get_parameters()) without -L active (with -L, a:delta:b
+    # expands directly into an explicit list in intervals[key], so
+    # equidistant_numpoints stays empty and this check can't fire at all).
+    # A scan mixing a:delta:b with a plain "min,max" parameter still
+    # legitimately needs -N to say how many points that one should have
     # (see the "mixed" branch below).
-    if equidistant_numpoints and options.list:
-        raise OptionValueError(
-            'The "a:delta:b" syntax (used for %s) specifies an equidistant scan and cannot be '
-            'combined with -L/--list.' % ', '.join(equidistant_numpoints))
     if equidistant_numpoints and options.numpoints and len(equidistant_numpoints) == len(intervals):
         raise OptionValueError(
             'The "a:delta:b" syntax (used for %s) already determines its own point count for every '
