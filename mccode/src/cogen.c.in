@@ -1863,22 +1863,14 @@ int cogen_raytrace(struct instr_def *instr)
                         "Split_%s_counter< SplitS_%s; "
                         "Split_%s_counter++) {",
       comp->name, comp->name, comp->name, comp->name);
-      coutf("      randstate_t randbackup[7];");
-      coutf("      randbackup[0] = _particle->randstate[0];");
-      coutf("      randbackup[1] = _particle->randstate[1];");
-      coutf("      randbackup[2] = _particle->randstate[2];");
-      coutf("      randbackup[3] = _particle->randstate[3];");
-      coutf("      randbackup[4] = _particle->randstate[4];");
-      coutf("      randbackup[5] = _particle->randstate[5];");
-      coutf("      randbackup[6] = _particle->randstate[6];");
+      coutf("      randstate_t randbackup[RANDSTATE_LEN];");
+      coutf("      for (int Split_%s_randstate_idx = 0; Split_%s_randstate_idx < RANDSTATE_LEN; Split_%s_randstate_idx++) {", comp->name, comp->name, comp->name);
+      coutf("        randbackup[Split_%s_randstate_idx] = _particle->randstate[Split_%s_randstate_idx];", comp->name, comp->name);
+      coutf("      }");
       coutf("      *_particle=Split_%s_particle;", comp->name); // restore particle for SPLIT loop
-      coutf("      _particle->randstate[0] = randbackup[0];");
-      coutf("      _particle->randstate[1] = randbackup[1];");
-      coutf("      _particle->randstate[2] = randbackup[2];");
-      coutf("      _particle->randstate[3] = randbackup[3];");
-      coutf("      _particle->randstate[4] = randbackup[4];");
-      coutf("      _particle->randstate[5] = randbackup[5];");
-      coutf("      _particle->randstate[6] = randbackup[6];");
+      coutf("      for (int Split_%s_randstate_idx = 0; Split_%s_randstate_idx < RANDSTATE_LEN; Split_%s_randstate_idx++) {", comp->name, comp->name, comp->name);
+      coutf("        _particle->randstate[Split_%s_randstate_idx] = randbackup[Split_%s_randstate_idx];", comp->name, comp->name);
+      coutf("      }");
       // Experimentally taking out the following line of code following discussions with Milan Klausz:
       // It seems that especially for the _uid=0 particle we get strange repetitions in the rng.
       // coutf("      srandom(_hash(_particle->_uid* %lu *(1+Split_%s_counter)));", comp->index, comp->name);
@@ -2436,8 +2428,10 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#endif");
   cout("#if RNG_ALG == _RNG_ALG_MT // MT ");
   cout("#define randstate_t uint32_t");
+  cout("#define RANDSTATE_LEN 1");
   cout("#elif RNG_ALG == _RNG_ALG_KISS  // KISS");
   cout("#define randstate_t uint64_t");
+  cout("#define RANDSTATE_LEN 7");
   cout("#endif");
   cout("");
 
