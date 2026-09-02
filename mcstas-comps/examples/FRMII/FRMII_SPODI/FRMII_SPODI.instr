@@ -1,0 +1,250 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: FRMII_SPODI
+*
+* %Identification
+* Written by: V. Kochetov, C. Hauf, M. Hoelzel, and A. Senyshyn
+* Date: August 24, 2026
+* Origin: MLZ, Garching, Germany
+* %INSTRUMENT_SITE: FRMII
+*
+* Simple monochromator diffractometer for powders
+*
+* %Description
+* SPODI is a high-resolution thermal neutron diffractometer at the research
+* reactor Heinz Maier-Leibnitz (FRM II) especially dedicated to structural
+* studies of complex systems. Unique features like a very large monochromator
+* take-off angle of 155 degrees and a 5 m monochromator-sample distance in its
+* standard configuration achieve both high-resolution and a good profile shape
+* for a broad scattering angle range of 160 degrees. Two-dimensional data are
+* collected by an array of 80 vertical position sensitive 3He detectors typically
+* during 40 resolution steps of 0.05 degrees.
+*
+* List of available wavelengths in A delivered by germanium monochromator:
+* Reflection    Take-off 155 degrees, L2=5m      Take-off 135 degrees, L2=2.8m
+* Ge 331            2.536 A                           2.396 A
+* Ge 551            1.549 A                           1.463 A
+* Ge 771            1.111 A                           1.050 A
+*
+* The implemented model corresponds to the standard setup with the take-off angle
+* of 155 degrees, Ge 551 reflection giving rise to the wavelength of ~1.5482 AA,
+* and L2 of 5 m. A simplified detector system is used instead of 80 linear Soller
+* collimators plus PSD tube detectors. This includes radial collimator with the same
+* divergence of 10 minutes and banana detector with 3200 bins to simulate
+* the 2D data that are collected on the real detectors.
+*
+* %Example: -y -n1e8 Detector: theta_full_I=31556.9
+* 
+* %Parameters
+* lambda: [A]        Wavelength; if 0, calculated from HKLmono and TOA
+* HKLmono: [str]     Miller indices of the Ge-monochromator reflection
+* TOA: [deg]         Take-Off Angle; if 0, calculated from HKLmono and lambda
+* L2: [m]            Distance from the monochromator to the sample
+* Dsample: [m]       Sample diameter
+* Hsample: [m]       Sample height
+* Powder: [str]      LAZ/HKL/PCR/CIF file for powder description
+* Holder: [ ]        Flag to enable (1) / disable (0) the vanadium sample holder
+* StartTheta: [deg]  Start angle of the detector relative to the beam
+* 
+* %Link
+* M. Hoelzel, A. Senyshyn, N. Juenke, H. Boysen, W. Schmahl and H. Fuess, Nucl. Instr. and Meth. in Ph A 667 (2012) 32-37
+*
+* %End 
+********************************************************************************/
+
+DEFINE INSTRUMENT FRMII_SPODI(double lambda=1.5482,
+                              string HKLmono="551",
+                              double TOA=0,
+                              double L2=5.0,
+                              double Dsample=8e-3,
+                              double Hsample=40e-3,
+                              string Powder="Na2Ca3Al2F14.laz",
+                              int Holder=0,
+                              double StartTheta=0)
+
+DECLARE
+%{
+  const double L1 = 16.92;      // source-monochromator distance
+  const double L3 = 1.117;      // sample-detector distance
+  const double ALPHA3 = 10;     // radial collimator divergence in minutes
+  const double Dheight = 0.4;   // real detector height
+  const double NSplit = 10000;  // number of neutrons to be split at the sample/holder
+  double RV;                    // monochromator vertical curvature [m]
+  double DM;                    // monochromator d-spacing [A]
+  double cone_angle;            // focusing scattering angle in vertical plane
+  double Rsample;               // sample radius [m]
+  double NSplitSample;          // number of neutrons to be split at the sample
+  double NSplitHolder;          // number of neutrons to be split at the holder
+%}
+
+INITIALIZE
+%{
+  int hkl[3]; // monochromator reflection indices
+  // parse HKLmono string
+  if (strcmp(HKLmono, "331") != 0 && strcmp(HKLmono, "551") != 0 && strcmp(HKLmono, "771") != 0) {
+    fprintf(stderr, "Error: invalid HKLmono parameter (331, 551, 771)\n");
+    exit(1);
+  }
+  hkl[0] = HKLmono[0]-'0';
+  hkl[1] = HKLmono[1]-'0';
+  hkl[2] = HKLmono[2]-'0';
+  // calculate monochromator d-spacing using Ge unit cell length of 5.6574 A
+  DM = 5.6574/sqrt(hkl[0]*hkl[0]+hkl[1]*hkl[1]+hkl[2]*hkl[2]);
+  // calculate lambda if equal to 0 or TOA if equal to 0
+  if (lambda == 0 && TOA != 0)
+    lambda = 2*DM*fabs(sin(TOA/2*DEG2RAD));
+  if (TOA == 0 && lambda != 0)
+    TOA = 2*asin(lambda/(2*DM))*RAD2DEG;
+  if (lambda == 0 && TOA == 0) {
+    fprintf(stderr, "Error: lambda and take-off angle (TOA) cannot be both 0\n");
+    exit(1);
+  }
+  // calculate monochromator vertical curvature
+  RV = lambda/DM/(1/L1+1/L2);
+  // calculate the cone focusing angle of scattering on the detector (d_phi var)
+  cone_angle = RAD2DEG*atan2(Dheight+2*Hsample, L3);
+  Rsample = Dsample/2.0;
+  if (Holder == 1) { // split rays at the sample holder
+    NSplitSample = 1;
+    NSplitHolder = NSplit;
+  } else if (Holder == 0) { // split rays at the sample
+    NSplitSample = NSplit;
+    NSplitHolder = 1;
+  } else {
+    fprintf(stderr, "Error: invalid Holder parameter (0 or 1)\n");
+    exit(1);
+  }
+  //
+  printf("-- Spodi configuration:\n");
+  printf("-- Monochromator: DM=%.5g [Angs] RV=%.5g [m], HKL: %d%d%d, take-off angle=%.5g [deg]\n",
+         DM, RV, hkl[0], hkl[1], hkl[2], TOA);
+  printf("-- Incoming beam: lambda=%.5g [AA]\n", lambda);
+  printf("-- Scattering in vertical plane is restricted to angle %.4g deg.\n", cone_angle);
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_gen(
+ yheight=0.3, xwidth=0.1, Lmin=lambda-0.06, Lmax=lambda+0.06,
+ dist=2, focus_xw=0.028, focus_yh=0.102,
+ T1=285.6, I1=3.06E+13,
+ T2=300, I2=1.68E+12,
+ T3=429.9, I3=6.77E+12)
+AT (0, 0, 0) RELATIVE origin
+
+// In-pile neutron guide
+COMPONENT in_pile_1 = Guide_channeled(
+ w1=0.028, h1=0.102, w2=0.028, h2=0.102, l=0.7614,
+ R0=0.995, Qcx=0.0217, Qcy=0.0217, alphax=5.3,
+ alphay=5.87, W=0.00033, mx=2, my=3)
+AT (0, 0, 2.0) RELATIVE source
+
+// In-pile neutron guide
+COMPONENT in_pile_2 = COPY(in_pile_1)(
+ w1=0.027, h1=0.101, w2=0.027, h2=0.101, l=0.9896)
+AT (0, 0, 0.7814) RELATIVE in_pile_1
+
+// In-pile neutron guide
+COMPONENT in_pile_3 = COPY(in_pile_1)(
+ w1=0.026, h1=0.1, w2=0.026, h2=0.1, l=0.1935)
+AT (0, 0, 1.0096) RELATIVE in_pile_2
+
+// Thermal beam guide
+COMPONENT SR8a = COPY(in_pile_1)(
+ w1=0.025, h1=0.1, w2=0.025, h2=0.2, l=12.56,
+ alphax=5.76, alphay=5.64)
+AT (0, 0, 0.2685) RELATIVE in_pile_3
+
+// Monochromator
+SPLIT 10 COMPONENT mono_curved = Monochromator_curved(
+ NH=1, NV=15, mosaich=20.0, mosaicv=11.0, r0=0.445,
+ RV=RV, DM=DM, width=0.06, height=0.2)
+AT (0, 0, 12.86) RELATIVE SR8a
+ROTATED (0, TOA/2.0, 0) RELATIVE SR8a
+
+COMPONENT spodi_beam = Arm()
+AT (0, 0, 0) RELATIVE mono_curved
+ROTATED (0, TOA, 0) RELATIVE SR8a
+
+// 4m beam tube if L2 distance allows for it ('long' configuration)
+COMPONENT vacuumed_tube = COPY(in_pile_1)(
+ w1=0.02, h1=0.2, w2=0.02, h2=0.09, l=3.93, mx=0, my=0)
+WHEN (L2 > 4.0) AT (0, 0, 0.22) RELATIVE spodi_beam
+
+// slit to define the beam size at the sample position ('short' configuration)
+COMPONENT slit_sample = Slit(xwidth=0.02, yheight=0.06)
+WHEN (L2 <= 4.0) AT (0, 0, L2-0.35) RELATIVE spodi_beam
+
+// Monitor flux at the sample position
+COMPONENT psd_sample = PSD_monitor(
+ nx=200, ny=200, filename="sample_psd.dat", xwidth=0.05, yheight=0.2, restore_neutron=1)
+AT (0, 0, L2-Rsample-1.3e-3) RELATIVE spodi_beam
+
+// Monitor wavelength at the sample position
+COMPONENT lambda_sample = L_monitor(
+ nL=1500, xwidth=0.05, yheight=0.2,
+ Lmin=lambda-0.06, Lmax=lambda+0.06,
+ restore_neutron=1, filename="sample_lambda.dat")
+AT (0, 0, L2-Rsample-1.2e-3) RELATIVE spodi_beam
+
+// Monitor divergence at the sample position
+COMPONENT div_sample = Divergence_monitor(
+  xwidth=0.05, yheight=0.2, restore_neutron=1, maxdiv_h=3.0,
+  maxdiv_v=4.0, nh=400, nv=200, filename="sample_div.dat")
+ AT (0, 0, L2-Rsample-1.1e-3) RELATIVE spodi_beam
+
+// Sample holder
+SPLIT NSplitHolder COMPONENT sample_holder = PowderN(
+  reflections="V.lau", radius=Rsample+0.51e-3, yheight=Hsample,
+  concentric=1, thickness=0.5e-3, p_interact=0.1, d_phi=cone_angle)
+WHEN (Holder) AT (0, 0, L2) RELATIVE spodi_beam
+
+// // Powder sample
+SPLIT NSplitSample COMPONENT sample = PowderN(
+ reflections=Powder, radius=Rsample, yheight=Hsample, d_phi=cone_angle)
+AT (0, 0, L2) RELATIVE spodi_beam
+
+// Sample holder back wall
+COMPONENT sample_holder_back = COPY(sample_holder)(concentric=0)
+WHEN (Holder) AT (0, 0, L2) RELATIVE spodi_beam
+
+// Simple beamstop
+COMPONENT beamstop = Beamstop(xwidth=0.06, yheight=Dheight)
+AT (0, 0, L2+0.429) RELATIVE spodi_beam
+
+// Detector system
+COMPONENT detector_arm = Arm()
+AT (0, 0, 0) RELATIVE sample
+ROTATED (0, -StartTheta, 0) RELATIVE spodi_beam
+
+// ALPHA3 quasi-radial collimator
+COMPONENT collimador_radial = Collimator_radial(
+  yheight=0.3, length=0.35, divergence=ALPHA3, approx=1,
+  theta_min=-160, theta_max=0, radius=L3-0.35-0.0127)
+WHEN (ALPHA3 > 0) AT (0, 0, 0) RELATIVE detector_arm
+
+// perfect 1D detector (theta)
+COMPONENT theta_narrow = Monitor_nD(
+ radius=L3-1e-3, yheight=0.01, filename="theta_narrow.dat",
+ restore_neutron=1, options="banana, theta limits=[0,160], bins=3200")
+AT (0, 0, 0) RELATIVE detector_arm
+ROTATED (0, 0, 180) RELATIVE detector_arm
+
+COMPONENT theta_full = Monitor_nD(
+ radius=L3-0.5e-3, yheight=Dheight, restore_neutron=1, filename="theta_full.dat",
+ options="banana, theta limits=[0,160], bins=3200")
+AT (0, 0, 0) RELATIVE detector_arm
+ROTATED (0, 0, 180) RELATIVE detector_arm
+
+// perfect 2D detector (theta,y)
+COMPONENT theta_2d = Monitor_nD(
+ radius=L3, yheight=Dheight, filename="theta_2d.dat",
+ options="banana, theta limits=[0,160] bins=3200, y, bins=254")
+AT (0, 0, 0) RELATIVE detector_arm
+ROTATED (0, 0, 180) RELATIVE detector_arm
+
+END
