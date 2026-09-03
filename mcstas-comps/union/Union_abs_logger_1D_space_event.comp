@@ -494,14 +494,9 @@ INITIALIZE
 
   sprintf (this_abs_storage.Vars.option, "mantid square x limits=[-0.0005,0.0005] bins=3 y limits=[%f %f] bins=%i", -0.5 * yheight, 0.5 * yheight, n);
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Union_abs_logger_1D_space_event:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
   // Need to tell the monitor from what integer its pixel id range starts, and it necessary to avoid overlaps.
   // global_mantid_min_pixel_id is initialized as 0, and each monitor adds its number of pixels to avoid overlap.
-  int global_mantid_min_pixel_id = (int)COMP_GETPAR3 (Union_init, init, global_mantid_min_pixel_id);
+  int global_mantid_min_pixel_id = g_mantid_min_pixel_id;
   sprintf (option_string_part, ", neutron pixel min=%i t, list all neutrons", global_mantid_min_pixel_id);
   global_mantid_min_pixel_id += 3 * n;
 
@@ -532,8 +527,8 @@ INITIALIZE
   if (!this_abs_storage.temp_abs_1D_event_data.elements)
     exit (fprintf (stderr, "Union_abs_logger_1D_space_event: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
-  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = COMP_GETPAR3 (Union_init, init, global_positions_to_transform_list);
-  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = COMP_GETPAR3 (Union_init, init, global_rotations_to_transform_list);
+  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = &g_positions_to_transform_list;
+  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = &g_rotations_to_transform_list;
   // Test position and rotation stored in a data storage, and pointers assigned to transform lists
   this_abs_storage.position = POS_A_CURRENT_COMP;
   add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_storage.position);
@@ -583,8 +578,8 @@ INITIALIZE
   abs_logger_list_element.component_index = INDEX_CURRENT_COMP;
   abs_logger_list_element.abs_logger = &this_abs_logger;
 
-  struct pointer_to_global_geometry_list* global_geometry_list = COMP_GETPAR3 (Union_init, init, global_geometry_list);
-  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = COMP_GETPAR3 (Union_init, init, global_specific_volumes_abs_logger_list);
+  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
+  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = &g_specific_volumes_abs_logger_list;
   // In order to run the logger at the right times, pointers to this logger is stored in each volume it logs,
   //  and additionally for each available process. If a process is not logged, the pointer is simply not stored.
   int process_index;
@@ -605,7 +600,7 @@ INITIALIZE
   } else {
     // Send to global_all_volumes_logger_list
     // Here there is no system for selecting processes as well
-    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = COMP_GETPAR3 (Union_init, init, global_all_volume_abs_logger_list);
+    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = &g_all_volume_abs_logger_list;
     add_element_to_abs_logger_list (global_all_volume_abs_logger_list, abs_logger_list_element);
   }
  %}

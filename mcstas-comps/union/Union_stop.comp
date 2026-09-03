@@ -9,37 +9,33 @@
 * Version: $Revision: 0.1 $
 * Origin: University of Copenhagen
 *
-* Stop component that must be placed after all Union components for instrument to compile correctly
+* Deprecated no-op placeholder, kept for backward compatibility.
 *
 * %D
 * Part of the Union components, a set of components that work together and thus
 *  sperates geometry and physics within McStas.
-* The use of this component requires other components to be used.
 *
-* 1) One specifies a number of processes using process components
-* 2) These are gathered into material definitions using this component
-* 3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
-* 4) A Union_master component placed after all of the above
+* This component used to be required as the LAST component. It pulled in the
+*  dispatch switch (union-suffix.c) so it would be compiled after all the
+*  process components had defined their PROCESS DETECTOR macros.
 *
-* Only in step 4 will any simulation happen, and per default all geometries
-*  defined before the master, but after the previous will be simulated here.
+* That is no longer needed: the code generator now detects that the instrument
+*  uses Union (by the presence of a Union_master) and auto-injects the dispatch
+*  switch after all the component SHARE sections. The Union_init and
+*  Union_stop components are therefore optional.
 *
-* There is a dedicated manual available for the Union_components
-*
-* Algorithm:
-* Described elsewhere
+* This definition is kept only so that existing instruments that still place a
+*  Union_stop component continue to compile. It has no effect.
 *
 * %P
 * INPUT PARAMETERS:
 *
 * CALCULATED PARAMETERS:
 *
-* GLOBAL PARAMETERS:
-*
 * %L
 *
 * %E
-******************************************************************************/
+ ******************************************************************************/
 
 DEFINE COMPONENT Union_stop
 
@@ -50,11 +46,6 @@ SETTING PARAMETERS()
 
 SHARE
 %{
-  #ifndef Union
-  #error "The Union_init component must be included before this Union_stop component"
-  #endif
-
-  %include "union-suffix.c"
 %}
 
 DECLARE
@@ -66,4 +57,3 @@ INITIALIZE
 %}
 
 END
-

@@ -72,8 +72,6 @@ SHARE
 #define Union $Revision: 0.8 $
 
 
-%include "union-init.c"
-
 #endif
 
 
@@ -188,13 +186,8 @@ if (radius <= 0) {
   exit(1);
 }
 
-if (_getcomp_index(init) < 0) {
-fprintf(stderr,"Union_sphere:%s: Error identifying Union_init component, %s is not a known component name.\n",
-NAME_CURRENT_COMP, init);
-exit(-1);
-}
 // Get global variable from init component
-struct pointer_to_global_material_list *global_material_list = COMP_GETPAR3(Union_init, init, global_material_list);
+struct pointer_to_global_material_list *global_material_list = &g_material_list;
 // Use sanitation
 #ifdef MATERIAL_DETECTOR
 if (global_material_list->num_elements == 0) {
@@ -213,7 +206,7 @@ this_sphere_volume.geometry.is_masked_volume = 0;
 this_sphere_volume.geometry.is_exit_volume = 0;
 this_sphere_volume.geometry.is_mask_volume = 0;
 
-struct pointer_to_global_geometry_list *global_geometry_list = COMP_GETPAR3(Union_init, init, global_geometry_list);
+struct pointer_to_global_geometry_list *global_geometry_list = &g_geometry_list;
 // Read the material input, or if it lacks, use automatic linking.
 if (mask_string && strlen(mask_string) && strcmp(mask_string, "NULL") && strcmp(mask_string, "0")) {
     // A mask volume is used to limit the extend of other volumes, called the masked volumes. These are specified in the mask_string.

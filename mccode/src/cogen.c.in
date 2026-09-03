@@ -1170,6 +1170,28 @@ void cogen_getparticlevar_fct(struct instr_def *instr)
 }
 
 /*******************************************************************************
+* cogen_instr_uses_union: return 1 if the instrument uses the Union component
+* family. A Union_master (or Union_master_GPU) is always present when Union is
+* used, so its presence triggers auto-injection of the shared Union header/state
+* (front) and the dispatch switch (back).
+*******************************************************************************/
+static int cogen_instr_uses_union(struct instr_def *instr)
+{
+  List_handle liter;
+  struct comp_inst *comp;
+
+  liter = list_iterate(instr->complist);
+  while((comp = list_next(liter)))
+  {
+    if (comp->def && (strcmp(comp->def->name, "Union_master") == 0
+        || strcmp(comp->def->name, "Union_master_GPU") == 0))
+      return 1;
+  }
+  list_iterate_end(liter);
+  return 0;
+}
+
+/*******************************************************************************
 * cogen_decls: write the declaration part from the instrument description
 *   that is the particle definition, the instrument parameters, the DECLARE part,
 *   and all SHARE sections from components.
@@ -1186,6 +1208,7 @@ int cogen_decls(struct instr_def *instr)
   struct instr_formal *i_formal; /* Name of instrument formal parameter. */
   long index = 0;
   int  warnings = 0;
+  int  is_union = cogen_instr_uses_union(instr);
 
   /* a previous call to cogen_header writes the file header */
 
@@ -1196,6 +1219,18 @@ int cogen_decls(struct instr_def *instr)
   coutf("* instrument '%s' and components DECLARE", instr->name);
   cout("***************************************************************************** */");
   cout("");
+
+  /* Union components: auto-inject the shared header and global state before
+  * any component SHARE/DECLARE that uses the Union types or globals. */
+  if (is_union) {
+    cout("");
+    cout("/* Union components: shared header and global state (auto-injected) */");
+    cout("#ifndef Union");
+    cout("#define Union 1");
+    cout("#endif");
+    embed_file("union-lib.c");
+    embed_file("union-init.c");
+  }
 
   /* 1. particle definition */
   /* moved to cogen_header, as this is needed in mccode-r */
@@ -1350,6 +1385,14 @@ int cogen_decls(struct instr_def *instr)
     cout("/*             End of SHARE user declarations for all components              */");
     cout("/* ************************************************************************** */");
     cout("");
+  }
+
+  /* Union components: auto-inject the dispatch switch after all component
+  * SHAREs, so every process/surface DETECTOR macro is already defined. */
+  if (is_union) {
+    cout("");
+    cout("/* Union components: dispatch switch (auto-injected) */");
+    embed_file("union-suffix.c");
   }
 
   /* 5. write component declares */

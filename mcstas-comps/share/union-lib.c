@@ -9,9 +9,14 @@
 * Version: $Revision: 0.1 $
 * Origin: University of Copenhagen
 *
-* Functions and structure definitons for Union components.
-*
-******************************************************************************/
+ * Functions and structure definitons for Union components.
+ *
+ ******************************************************************************/
+
+// Include guard: this file is auto-injected by the code generator and must
+// expand exactly once even if referenced more than once.
+#ifndef UNION_LIB_C
+#define UNION_LIB_C
 
 // -------------    Definition of data structures   ---------------------------------------------
 // GPU
@@ -9217,7 +9222,9 @@ void fill_surface_stack(char *input_string, struct pointer_to_global_surface_lis
 
 void overwrite_if_empty(char *input_string, char *overwrite) {
    if (!(input_string && strlen(input_string) && strcmp(input_string, "NULL") && strcmp(input_string, "0"))) {
-	   strcpy(input_string, overwrite);
+       strcpy(input_string, overwrite);
    }
 }
+
+#endif /* UNION_LIB_C */
 

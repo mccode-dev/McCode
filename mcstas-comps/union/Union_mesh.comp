@@ -660,14 +660,7 @@ INITIALIZE
   focus_initialize (&mesh_vol.geometry, POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, target_index, target_x,
                     target_y, target_z, focus_aw, focus_ah, focus_xw, focus_xh, focus_r, NAME_CURRENT_COMP);
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr,
-             "Union_mesh:%s: Error identifying Union_init component,"
-             "%s is not a known component name.\n",
-             NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-  struct pointer_to_global_material_list* global_material_list = COMP_GETPAR3 (Union_init, init, global_material_list);
+  struct pointer_to_global_material_list* global_material_list = &g_material_list;
 
   // Use sanitation
   #ifdef MATERIAL_DETECTOR
@@ -690,7 +683,7 @@ INITIALIZE
   mesh_vol.geometry.is_exit_volume = 0;
   mesh_vol.geometry.is_mask_volume = 0;
 
-  struct pointer_to_global_geometry_list* global_geometry_list = COMP_GETPAR3 (Union_init, init, global_geometry_list);
+  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
   //==============================================================================
   //                         Find out what this component masks
   //==============================================================================
@@ -957,7 +950,7 @@ INITIALIZE
   mesh_vol.geometry.surface_stack_for_each_face[0] = &surface_stack;
   mesh_vol.geometry.internal_cut_surface_stack = &cut_surface_stack;
 
-  struct pointer_to_global_surface_list* global_surface_list = COMP_GETPAR3 (Union_init, init, global_surface_list);
+  struct pointer_to_global_surface_list* global_surface_list = &g_surface_list;
   fill_surface_stack (all_surfaces, global_surface_list, NAME_CURRENT_COMP, &surface_stack);
   fill_surface_stack (cut_surface, global_surface_list, NAME_CURRENT_COMP, &cut_surface_stack);
 

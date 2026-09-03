@@ -534,13 +534,8 @@ INITIALIZE
   // In order to run the logger at the right times, pointers to this logger is stored in each volume it logs,
   //  and additionally for each avaiable process. If a process is not logged, the pointer is simply not stored.
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Union_logger_1D:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_geometry_list* global_geometry_list = COMP_GETPAR3 (Union_init, init, global_geometry_list);
-  struct pointer_to_global_logger_list* global_specific_volumes_logger_list = COMP_GETPAR3 (Union_init, init, global_specific_volumes_logger_list);
+  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
+  struct pointer_to_global_logger_list* global_specific_volumes_logger_list = &g_specific_volumes_logger_list;
 
   // Need to find the volumes for which the processes should have a reference to this logger
   if (target_geometry && strlen (target_geometry) && strcmp (target_geometry, "NULL") && strcmp (target_geometry, "0")) {
@@ -577,7 +572,7 @@ INITIALIZE
   } else {
     // Send to global_all_volumes_logger_list
     // Here there is no system for selecting processes as well
-    struct pointer_to_global_logger_list* global_all_volume_logger_list = COMP_GETPAR3 (Union_init, init, global_all_volume_logger_list);
+    struct pointer_to_global_logger_list* global_all_volume_logger_list = &g_all_volume_logger_list;
     add_element_to_logger_list (global_all_volume_logger_list, logger_list_element);
   }
  %}

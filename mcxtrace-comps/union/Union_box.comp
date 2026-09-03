@@ -80,8 +80,6 @@ SHARE
 #define Union $Revision: 0.8 $
 
 
-%include "union-init.c"
-
 #endif
 
 void mcdisplay_box_function(struct lines_to_draw *lines_to_draw_output,int index, struct geometry_struct **Geometries,int number_of_volumes) {
@@ -247,13 +245,7 @@ if (yheight2 <= 0 && yheight2 != -1) {
 }
 
 // Get global variable from init component
-if (_getcomp_index(init) < 0) {
-fprintf(stderr,"Union_box:%s: Error identifying Union_init component, %s is not a known component name.\n",
-NAME_CURRENT_COMP, init);
-exit(-1);
-}
-
-struct pointer_to_global_material_list *global_material_list = COMP_GETPAR3(Union_init, init, global_material_list);
+struct pointer_to_global_material_list *global_material_list = &g_material_list;
 // Use sanitation
 if (global_material_list->num_elements == 0) {
   printf("\nERROR: Need to define a material using Union_make_material before using a Union geometry component. \n");
@@ -264,7 +256,7 @@ if (global_material_list->num_elements == 0) {
 this_box_volume.geometry.is_masked_volume = 0;
 this_box_volume.geometry.is_exit_volume = 0;
 this_box_volume.geometry.is_mask_volume = 0;
-struct pointer_to_global_geometry_list *global_geometry_list = COMP_GETPAR3(Union_init, init, global_geometry_list);
+struct pointer_to_global_geometry_list *global_geometry_list = &g_geometry_list;
 // check if the volume is a mask, if it is the material string is irelevant.
 if (mask_string && strlen(mask_string) && strcmp(mask_string, "NULL") && strcmp(mask_string, "0")) {
     // A mask volume is used to limit the extend of other volumes, called the masked volumes. These are specified in the mask_string.

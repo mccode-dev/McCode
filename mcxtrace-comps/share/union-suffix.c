@@ -6,6 +6,11 @@ update Union master to use the flexible functions
 deal with loggers and conditionals
 */
 
+// Include guard: auto-injected by the code generator (once); keeps the
+// dispatch functions from being defined twice during transition.
+#ifndef UNION_SUFFIX_C
+#define UNION_SUFFIX_C
+
 int physics_my(enum process choice, double *my,double *k_initial, union data_transfer_union data_transfer, struct focus_data_struct *focus_data, _class_particle *_particle) {
 
     int output = 0; // Error return value
@@ -111,3 +116,5 @@ int physics_scattering(enum process choice, double *k_final, double *k_initial, 
     #endif
     return output;
 }
+
+#endif /* UNION_SUFFIX_C */

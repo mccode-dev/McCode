@@ -313,13 +313,8 @@ INITIALIZE
   this_conditional_data.Total_scat_max = total_order_max;
   this_conditional_data.Total_scat_min = total_order_min;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Union_conditional_standard:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = COMP_GETPAR3 (Union_init, init, global_positions_to_transform_list);
-  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = COMP_GETPAR3 (Union_init, init, global_rotations_to_transform_list);
+  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = &g_positions_to_transform_list;
+  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = &g_rotations_to_transform_list;
   // Test position and rotation stored in a data storage, and pointers assigned to transform lists
   this_conditional_data.test_position = POS_A_CURRENT_COMP;
   add_position_pointer_to_list (global_positions_to_transform_list, &this_conditional_data.test_position);
@@ -333,7 +328,7 @@ INITIALIZE
   // Set the data union to be for this specific type of conditional, and supply it with a pointer to its static data
   this_data_union.p_standard = &this_conditional_data;
 
-  struct global_tagging_conditional_list_struct* global_tagging_conditional_list = COMP_GETPAR3 (Union_init, init, global_tagging_conditional_list);
+  struct global_tagging_conditional_list_struct* global_tagging_conditional_list = &g_tagging_conditional_list;
 
   if (master_tagging == 1) {
     // Apply this conditional to the next master components tagging system
@@ -362,10 +357,10 @@ INITIALIZE
                                       &conditional_function_standard, &this_data_union);
   }
 
-  struct pointer_to_global_logger_list* global_specific_volumes_logger_list = COMP_GETPAR3 (Union_init, init, global_specific_volumes_logger_list);
-  struct pointer_to_global_logger_list* global_all_volume_logger_list = COMP_GETPAR3 (Union_init, init, global_all_volume_logger_list);
-  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = COMP_GETPAR3 (Union_init, init, global_specific_volumes_abs_logger_list);
-  struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = COMP_GETPAR3 (Union_init, init, global_all_volume_abs_logger_list);
+  struct pointer_to_global_logger_list* global_specific_volumes_logger_list = &g_specific_volumes_logger_list;
+  struct pointer_to_global_logger_list* global_all_volume_logger_list = &g_all_volume_logger_list;
+  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = &g_specific_volumes_abs_logger_list;
+  struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = &g_all_volume_abs_logger_list;
 
   // Need to find the loggers which need to have this conditional applied
   if (target_loggers && strlen (target_loggers) && strcmp (target_loggers, "NULL") && strcmp (target_loggers, "0")) {

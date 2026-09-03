@@ -6,39 +6,36 @@
 * %I
 * Written by: Mads Bertelsen and Erik B Knudsen
 * Date: 20.08.15
+* Version: $Revision: 0.1 $
 * Origin: ESS DMSC & DTU Physics
 *
-* Stop component that must be placed after all Union components for instrument to compile correctly
+* Deprecated no-op placeholder, kept for backward compatibility.
 *
 * %D
 * Part of the Union components, a set of components that work together and thus
 *  separates geometry and physics within McXtrace.
-* The use of this component requires other components to be used.
 *
-* 1) One specifies a number of processes using process components
-* 2) These are gathered into material definitions using Union_make_material
-* 3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
-* 4) A Union_master component placed after all of the above
+* This component used to be required as the LAST component. It pulled in the
+*  dispatch switch (union-suffix.c) so it would be compiled after all the
+*  process components had defined their PROCESS DETECTOR macros.
 *
-* Only in step 4 will any simulation happen, and per default all geometries
-*  defined before this master, but after the previous will be simulated here.
+* That is no longer needed: the code generator now detects that the instrument
+*  uses Union (by the presence of a Union_master) and auto-injects the dispatch
+*  switch after all the component SHARE sections. The Union_init and
+*  Union_stop components are therefore optional.
 *
-* There is a dedicated manual available for the Union components
-*
-* Algorithm:
-* Described elsewhere
+* This definition is kept only so that existing instruments that still place a
+*  Union_stop component continue to compile. It has no effect.
 *
 * %P
 * INPUT PARAMETERS:
 *
 * OUTPUT PARAMETERS:
 *
-* GLOBAL PARAMETERS:
-*
 * %L
 *
 * %E
-******************************************************************************/
+ ******************************************************************************/
 
 DEFINE COMPONENT Union_stop
 DEFINITION PARAMETERS ()
@@ -49,15 +46,6 @@ OUTPUT PARAMETERS ()
 
 SHARE
 %{
-#ifndef Union
-#define Union $Revision: 0.8 $
-
-
-%include "union-init.c"
-
-#endif
-
-%include "union-suffix.c"
 %}
 
 DECLARE
