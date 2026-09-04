@@ -123,6 +123,7 @@ class InstrExampleTest:
             self.linted=obj['linted']
             self.compiled=obj['compiled']
             self.compiletime=obj['compiletime']
+            self.displaytime=obj.get('displaytime')
             self.displayed=obj['displayed']
             self.didrun=obj['didrun']
             self.runtime=obj['runtime']
@@ -419,11 +420,12 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             logging.info(formatstr % test.instrname)
             continue
         if test.testnb <= 1:
+            displaytime = test.displaytime if test.displaytime is not None else 0
             if test.displayed:
-                formatstr = "%-" + "%ds:   Display OK (%ds)" % (maxnamelen+1, test.displaytime)
+                formatstr = "%-" + "%ds:   Display OK (%ds)" % (maxnamelen+1, displaytime)
                 logging.info(formatstr % test.instrname)
             else:
-                formatstr = "%-" + "%ds:   Display FAILED (%ds)" % (maxnamelen+1, test.displaytime)
+                formatstr = "%-" + "%ds:   Display FAILED (%ds)" % (maxnamelen+1, displaytime)
                 logging.info(formatstr % test.instrname)
 
         # runable tests have testnb > 0
