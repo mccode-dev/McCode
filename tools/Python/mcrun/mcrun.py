@@ -52,12 +52,12 @@ def build_checker(accept, msg='Invalid value'):
     return checker
 
 
-def add_mcrun_options(parser):
+def add_mcrun_cogen_options(parser):
     ''' Add option group for McRun options to parser '''
 
     # McRun options
-    opt = OptionGroup(parser, '%s options' % (mccode_config.configuration["MCRUN"]))
-    add = opt.add_option
+    cogenopt = OptionGroup(parser, '%s code-generation + main options' % (mccode_config.configuration["MCRUN"]))
+    add = cogenopt.add_option
 
     add('-c', '--force-compile',
         action='store_true',
@@ -87,91 +87,6 @@ def add_mcrun_options(parser):
         metavar='D3',
         help='Set extra -D args (implies -c)')
 
-    add('-p', '--param',
-        metavar='FILE',
-        help='Read parameters from file FILE')
-
-    add('-N', '--numpoints',
-        metavar='NP',
-        help='Set number of scan points. A single integer applies the same '
-             'point count to every scanned parameter (the default, and the '
-             'only valid form without -M). With -M/--multi, a comma-separated '
-             'list (e.g. -N=5,10,20) instead gives each scanned parameter its '
-             'own point count, in the same order the parameters are listed '
-             'on the command line. Not needed at all for a parameter given as '
-             '"min:delta:max" (see the usage line above) - the point count is '
-             'computed from the requested bin width instead.')
-
-    add('--seeds',
-        metavar='SEEDS',
-        help='Set range of seeds to scan (each must be: SEED != 0)')
-
-    add('-L', '--list',
-        action='store_true',
-        help='Use a fixed list of points for scanning, walking every scanned '
-             'parameter\'s list together in lockstep (all lists must then be '
-             'the same length). Combine with -M/--multi instead to take the '
-             'cartesian product of each parameter\'s own list (lists may then '
-             'have different lengths). A parameter given as "min:delta:max" '
-             '(see the usage line above) is expanded into its own explicit '
-             'list of equidistant points and can be freely mixed with other, '
-             'explicitly-listed parameters (e.g. a list of filenames) under -L.')
-
-    add('-M', '--multi',
-        action='store_true',
-        help='Run a multi-dimensional scan (the cartesian product of every '
-             'scanned parameter\'s own points, rather than walking them all '
-             'in lockstep). Combine with -L/--list (each parameter\'s '
-             'explicit list can then have a different length) or give -N '
-             'a comma-separated list (see -N/--numpoints) for per-parameter '
-             'point counts.')
-
-    add("--scan_split",
-        type=int,
-        metavar="scan_split",
-        help='Scan by parallelising steps as individual cpu threads. Initialise by number of wanted threads (e.g. your number of cores).')
-
-    add('--autoplot',
-        action='store_true',
-        help='Open plotter on generated dataset')
-
-    add('--invcanvas',
-        action='store_true',
-        help='Forward request for inverted canvas to plotter')
-
-    add('--autoplotter',
-        action='store',
-        type=str,
-        help='Specify the plotter used with --autoplot')
-
-    add('--embed',
-        action='store_true', default=True,
-        help='Store copy of instrument file in output directory')
-
-    # Multiprocessing
-    add('--mpi',
-        metavar='NB_CPU',
-        help='Spread simulation over NB_CPU machines using MPI')
-
-    # Accellerator-support
-    add('--openacc',
-        action='store_true', default=False,
-        help='parallelize using openacc')
-
-    add('--funnel',
-        action='store_true', default=False,
-        help='funneling simulation flow, e.g. for mixed CPU/GPU')
-
-    add('--machines',
-        metavar='machines',
-        help='Defines path of MPI machinefile to use in parallel mode')
-
-    # Optimisation
-    add('--optimise-file',
-        metavar='FILE',
-        help='Store scan results in FILE '
-             '(defaults to: "mccode.dat")')
-
     add('--no-cflags',
         action='store_true', default=False,
         help='Disable optimising compiler flags for faster compilation')
@@ -182,20 +97,62 @@ def add_mcrun_options(parser):
 
     add('--verbose',
         action='store_true', default=False,
-        help='Enable verbose output')
+        help='Enable verbose output during code-generation and simulation')
 
-    add('--write-user-config',
-        action='store_true', default=False,
-        help='Generate a user config file')
+    add('-p', '--param',
+        metavar='FILE',
+        help='Forward parameters from file FILE to Instrument ')
+    parser.add_option_group(cogenopt)
 
-    add('--edit-user-config',
-        action='store_true', default=False,
-        help='Generate and edit user config file in EDITOR')
+def add_mcrun_adv_options(parser):
 
-    
-    add('--override-config',
-        metavar='PATH', default=False,
-        help='Load config file from specific dir')
+    scanopt = OptionGroup(parser, 'Parameter scan options')
+    add = scanopt.add_option
+
+    add('-N', '--numpoints',
+        metavar='NP',
+        help='Set number of scan points. Two input modes available: '
+             ' 1) A single integer applies the same point count to every '
+             '   scanned parameter (default, and only valid form without -M)'
+             ' 2) Together with -M/--multi, a comma-separated list '
+             '   (e.g. -N=5,10,20) gives each scanned parameter its '
+             '   own point count, in the order in which parameters are listed '
+             '   on the command line. If a parameter is given as par="min:delta:max"'
+             '   the point count is instead computed from the requiested bin width.')
+
+    add('-L', '--list',
+        action='store_true',
+        help='Use list-mode scanning. Multiple input modes avavailble: '
+             ' 1) If multiple lists (of identical length) are given (and -M is '
+             '    not requested) the lists are scanned together in lockstep.'
+             ' 2) Combined with -M/--multi, the cartesian product of each '
+             '   parameter\'s own list is used to set up a multidimensional '
+             '   \'grid\' scan (lists may have different lengths)'
+             ' 3) Any parameter given as "min:delta:max" is expanded into its '
+             '   own explicit list of equidistant points and mey be freely mixed '
+             '   with other, explicitly-listed parameters '
+             '   (e.g. a list of filenames) under -L.')
+
+    add('-M', '--multi',
+        action='store_true',
+        help='Run a multi-dimensional scan (cartesian product of every '
+             'scanned parameter\'s points, rather than a co-linear scan). '
+             'Combine with -L/--list or give -N as a comma-separated list '
+             '(see -N/--numpoints). ')
+
+    add("--scan_split",
+        type=int,
+        metavar="scan_split",
+        help='Scan by parallelising steps as individual cpu threads. Initialise by number of wanted threads (e.g. your number of cores).')
+
+    add('--seeds',
+        metavar='SEEDS',
+        help='Set range of seeds to scan (each must be: SEED != 0)')
+    parser.add_option_group(scanopt)
+
+    optopt = OptionGroup(parser, 'Optimization options')
+    add = optopt.add_option
+   # Optimisation
 
     add('--optimize',
         action='store_true', default=False,
@@ -255,7 +212,10 @@ def add_mcrun_options(parser):
         nargs=1,
         default="",
     )
-
+    add('--optimise-file',
+        metavar='FILE',
+        help='Store scan results in FILE '
+             '(defaults to: "mccode.dat")')
     #    --optimize-maxiter maxiter  max iter of optimization
     #    --tol tol          tolerance criteria to end the optimization
     #    --method method    Method to maximize the intensity in ['nelder-mead', 'powell', 'cg', 'bfgs', 'newton-cg', 'l-bfgs-b', 'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']
@@ -264,6 +224,76 @@ def add_mcrun_options(parser):
     #                       https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html?highlight=minimize
     #    --minimize         choose to minimize the function if needed
     #    --monitor monitor  monitor name
+    parser.add_option_group(optopt)
+
+    plotopt = OptionGroup(parser, 'Autoplot options')
+    add = plotopt.add_option
+
+    add('--autoplot',
+        action='store_true',
+        help='Open plotter on generated dataset')
+
+    add('--invcanvas',
+        action='store_true',
+        help='Forward request for inverted canvas to plotter')
+
+    add('--autoplotter',
+        action='store',
+        type=str,
+        help='Specify the plotter used with --autoplot')
+    parser.add_option_group(plotopt)
+
+    mpiopt = OptionGroup(parser, 'MPI options')
+    add = mpiopt.add_option
+
+    # Multiprocessing
+    add('--mpi',
+        metavar='NB_CPU',
+        help='Spread simulation over NB_CPU machines using MPI')
+
+    add('--machines',
+        metavar='machines',
+        help='Defines path of MPI machinefile to use in parallel mode')
+    parser.add_option_group(mpiopt)
+
+    accopt = OptionGroup(parser, 'OpenACC options')
+    add = accopt.add_option
+    # Accellerator-support
+    add('--openacc',
+        action='store_true', default=False,
+        help='parallelize using openacc')
+
+    add('--funnel',
+        action='store_true', default=False,
+        help='funneling simulation flow, e.g. for mixed CPU/GPU')
+    
+    add('--vecsize',
+        metavar='VECSIZE', default='',
+        help='vector length in OpenACC parallel scenarios')
+
+    add('--numgangs',
+        metavar='NUMGANGS', default='',
+        help='number of \'gangs\' in OpenACC parallel scenarios')
+
+    add('--gpu_innerloop',
+        metavar='INNERLOOP', default='',
+        help='Maximum particles in an OpenACC kernel run. (If INNERLOOP is smaller than ncount we repeat)')
+    parser.add_option_group(accopt)
+
+    othopt = OptionGroup(parser, 'Config- options')
+    add = othopt.add_option
+
+    add('--write-user-config',
+        action='store_true', default=False,
+        help='Generate a user config file')
+
+    add('--edit-user-config',
+        action='store_true', default=False,
+        help='Generate and edit user config file in EDITOR')
+
+    add('--override-config',
+        metavar='PATH', default=False,
+        help='Load config file from specific dir')
 
     cfg_items = ['bindir','libdir','resourcedir','tooldir']
     cfg_items_prettyprint =   '"%s", and "%s"'%('", "'.join(cfg_items[:-1]),cfg_items[-1])
@@ -272,14 +302,14 @@ def add_mcrun_options(parser):
         help="Print selected cfg item and exit (paths are resolved and absolute). Allowed values are %s."%cfg_items_prettyprint
     )
 
-    parser.add_option_group(opt)
+    parser.add_option_group(othopt)
 
 
 def add_mcstas_options(parser):
     ''' Add option group for McStas options to parser '''
 
-    opt = OptionGroup(parser, 'Instrument options')
-    add = opt.add_option
+    instropt = OptionGroup(parser, 'Instrument options')
+    add = instropt.add_option
 
     # Misc options
     check_seed = build_checker(lambda seed: seed != 0,
@@ -309,6 +339,24 @@ def add_mcstas_options(parser):
         add('-g', '--gravitation', '--gravity',
             action='store_true', default=False,
             help='Enable gravitation for all trajectories')
+
+    # Information
+    add('-i', '--info',
+        action='store_true', default=False,
+        help='Detailed instrument information')
+
+    add('--list-parameters', action='store_true', default=False,
+        help='Print the instrument parameters to standard out')
+
+    add('--meta-list', action='store_true', default=False, help='Print all metadata defining component names')
+    add('--meta-defined', default=None, help="Print metadata names for component, or indicate if component:name exists")
+    add('--meta-type', default=None, help="Print metadata type for component:name")
+    add('--meta-data', default=None, help="Print metadata for component:name")
+            
+    parser.add_option_group(instropt)
+
+    outputopt = OptionGroup(parser, 'Output options')
+    add = outputopt.add_option
 
     # Data options
     dir_exists = lambda path: isdir(abspath(path))
@@ -359,36 +407,11 @@ def add_mcstas_options(parser):
         metavar='BUFSIZ', default=mccode_config.configuration["NDBUFFERSIZE"],
         help='Monitor_nD list/buffer-size (defaults to '+mccode_config.configuration["NDBUFFERSIZE"]+')')
 
-    add('--vecsize',
-        metavar='VECSIZE', default='',
-        help='vector length in OpenACC parallel scenarios')
+    add('--embed',
+        action='store_true', default=True,
+        help='Store copy of instrument file in output directory')
 
-    add('--numgangs',
-        metavar='NUMGANGS', default='',
-        help='number of \'gangs\' in OpenACC parallel scenarios')
-
-    add('--gpu_innerloop',
-        metavar='INNERLOOP', default='',
-        help='Maximum particles in an OpenACC kernel run. (If INNERLOOP is smaller than ncount we repeat)')
-
-    add('--no-output-files',
-        action='store_true', default=False,
-        help='Do not write any data files')
-
-    # Information
-    add('-i', '--info',
-        action='store_true', default=False,
-        help='Detailed instrument information')
-
-    add('--list-parameters', action='store_true', default=False,
-        help='Print the instrument parameters to standard out')
-
-    add('--meta-list', action='store_true', default=False, help='Print all metadata defining component names')
-    add('--meta-defined', default=None, help="Print metadata names for component, or indicate if component:name exists")
-    add('--meta-type', default=None, help="Print metadata type for component:name")
-    add('--meta-data', default=None, help="Print metadata for component:name")
-
-    parser.add_option_group(opt)
+    parser.add_option_group(outputopt)
 
 
 def expand_options(options):
@@ -588,8 +611,9 @@ def main():
              'params={val|min,max|min:delta:max|min,guess,max}...')
     parser = OptionParser(usage, version=mccode_config.configuration['MCCODE_VERSION'])
 
-    add_mcrun_options(parser)
+    add_mcrun_cogen_options(parser)
     add_mcstas_options(parser)
+    add_mcrun_adv_options(parser)
 
     # Parse options
     (options, args) = parser.parse_args()
