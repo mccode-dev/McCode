@@ -403,6 +403,10 @@ def add_mcstas_options(parser):
             help='Flag to attempt inclusion of XML-based IDF when --format=NeXus '
                  '(format list obtained from <instr>.%s -h)' % mccode_config.platform["EXESUFFIX"])
 
+    add('--no-output-files',
+        action='store_true', default=False,
+        help='Do not write any data files')
+
     add('--bufsiz',
         metavar='BUFSIZ', default=mccode_config.configuration["NDBUFFERSIZE"],
         help='Monitor_nD list/buffer-size (defaults to '+mccode_config.configuration["NDBUFFERSIZE"]+')')
