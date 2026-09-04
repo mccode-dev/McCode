@@ -118,18 +118,18 @@ def add_mcrun_adv_options(parser):
              '   (e.g. -N=5,10,20) gives each scanned parameter its '
              '   own point count, in the order in which parameters are listed '
              '   on the command line. If a parameter is given as par="min:delta:max"'
-             '   the point count is instead computed from the requiested bin width.')
+             '   the point count is instead computed from the requested bin width.')
 
     add('-L', '--list',
         action='store_true',
-        help='Use list-mode scanning. Multiple input modes avavailble: '
+        help='Use list-mode scanning. Multiple input modes available: '
              ' 1) If multiple lists (of identical length) are given (and -M is '
              '    not requested) the lists are scanned together in lockstep.'
              ' 2) Combined with -M/--multi, the cartesian product of each '
              '   parameter\'s own list is used to set up a multidimensional '
              '   \'grid\' scan (lists may have different lengths)'
              ' 3) Any parameter given as "min:delta:max" is expanded into its '
-             '   own explicit list of equidistant points and mey be freely mixed '
+             '   own explicit list of equidistant points and may be freely mixed '
              '   with other, explicitly-listed parameters '
              '   (e.g. a list of filenames) under -L.')
 
