@@ -131,6 +131,19 @@ end data
     # TODO: figure out correct scan type
     numpoints = 1 if options.optimize else options.numpoints
 
+    # -L list scan: use the position (1..N) within the list, matching
+    # build_header()'s existing convention for -L scans above - meaningful
+    # for a non-numeric list (e.g. filenames), where a literal min()/max()
+    # of the raw strings would be lexicographic and essentially
+    # meaningless, and harmless for a numeric one (the actual per-point
+    # values are written into mccode.dat itself; this is just the
+    # header's overall axis-range hint). Equidistant (-N/-M, non-list)
+    # scans are untouched, keeping their existing min()/max() behaviour.
+    if options.list:
+        xmin, xmax = 1, len(first_key_interval)
+    else:
+        xmin, xmax = min(first_key_interval), max(first_key_interval)
+
     values = {
         'instr': options.instr,
         'date': datetime.strftime(datetime.now(), '%a %b %d %H %M %Y'),
@@ -145,8 +158,8 @@ end data
         'xvars': interval_names,
         'yvars': ' '.join(f'({d}_I,{d}_ERR' for d in detectors),
 
-        'xmin': min(first_key_interval),
-        'xmax': max(first_key_interval),
+        'xmin': xmin,
+        'xmax': xmax,
 
         'filename': basename(options.optimise_file) or 'mccode.dat',
         'variables': ' '.join(intervals.keys()) + ' '.join(f'{d}_I {d}_ERR' for d in detectors),
@@ -189,6 +202,50 @@ def point_at(N, key, minmax, step):
     return step * (high - low) / Decimal(N - 1) + low
 
 
+def resolve_scan_value(key, value, intervals):
+    """ Returns a numeric representation of one scanned parameter's value
+        for one scan point, for writing into mccode.dat's per-point data
+        row (mccode.dat's format is a matrix of numbers - see module
+        docstring/build_header() - so every column needs one, regardless
+        of what kind of value the parameter itself actually is).
+
+        A genuinely numeric value (the overwhelming majority of scans, and
+        the only kind LinearInterval/MultiInterval.from_range() ever
+        produce) passes straight through unchanged - this function has no
+        effect at all outside of an -L/--list scan with a non-numeric
+        list.
+
+        A non-numeric value (e.g. a -L scan like
+        filename=Na2Ca3Al2F14.laz,YBaCuO.lau,Fe.laz,Cu.laz) is replaced by
+        its own *index* within intervals[key] - the position it appears
+        at in the original -L list, e.g. that list gives indices 0,1,2,3
+        respectively - so mccode.dat keeps a properly numeric column for
+        this parameter too, and remains plottable against it (as a
+        categorical/index axis) rather than needing the actual string
+        embedded in a number matrix.
+
+        Each scanned parameter is resolved independently, unlike the
+        previous behaviour of collapsing the ENTIRE row down to a single
+        step-index the moment ANY ONE scanned parameter was non-numeric -
+        which silently discarded every OTHER parameter's real value too
+        (numeric ones included), and produced only one parameter column
+        regardless of how many were actually being scanned - a mismatch
+        against the header's declared xvars/variables count that broke
+        every downstream plotting tool, since they parse a fixed number
+        of parameter columns based on that count. """
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return float(list(intervals[key]).index(value))
+    except (KeyError, ValueError):
+        # value isn't literally in intervals[key] (shouldn't normally
+        # happen, since scan points are always built FROM intervals[key] -
+        # but fall back to a stable value rather than crashing outright)
+        return float(abs(hash(value)) % 1000000)
+
+
 class LinearInterval:
     """ Intervals for linear scanning """
 
@@ -211,6 +268,13 @@ class MultiInterval:
 
     @staticmethod
     def from_range(N, intervals):
+        """ N is either a single int (the same point count applied to
+            every scanned dimension - the original behaviour) or a dict
+            mapping each interval key to its own point count (mcrun's
+            -N=a,b,c,... list-form, only valid together with -M, letting
+            different parameters be sampled at different resolutions -
+            e.g. a coarse 3-point sweep on one axis against a fine
+            20-point sweep on another). """
         print(f"MultiInterval from {N=} and {intervals=}")
         # base case: no intervals yields empty dict
         if len(intervals) == 0:
@@ -219,10 +283,32 @@ class MultiInterval:
         # recursively generate the multi dict
         intervals = intervals.copy()
         key, minmax = intervals.popitem()
-        for step in range(N):
-            point = point_at(N, key, minmax, step)
+        n_here = N[key] if isinstance(N, dict) else N
+        for step in range(n_here):
+            point = point_at(n_here, key, minmax, step)
             for dic in MultiInterval.from_range(N, intervals):
                 dic[key] = point
+                yield dic
+
+    @staticmethod
+    def from_list(intervals):
+        """ Cartesian product across each key's own explicit list of
+            points (mcrun's -L/--list combined with -M/--multi). Unlike
+            LinearInterval.from_list() (co-linear: every key's list is
+            walked together in lockstep, so all lists must be the same
+            length), each key here is varied independently, so the lists
+            may have different lengths - which is also how different
+            parameters naturally end up with different numbers of scan
+            points in this mode, without needing a separate -N. """
+        print(f"MultiInterval from_list {intervals=}")
+        if len(intervals) == 0:
+            yield {}
+            return
+        intervals = intervals.copy()
+        key, values = intervals.popitem()
+        for value in values:
+            for dic in MultiInterval.from_list(intervals):
+                dic[key] = value
                 yield dic
 
 
@@ -247,7 +333,15 @@ def _simulate_point(args):
 
     for key in intervals:
         mcstas.set_parameter(key, point[key])
-        par_values.append(point[key])
+        # set_parameter() above needs the real value (a genuine instrument
+        # filename parameter needs the actual string, not an index) - only
+        # what goes into the OUTPUT ROW (par_values, eventually written to
+        # mccode.dat) needs the numeric-or-index resolution. Unlike
+        # Scanner.run() (only reachable for -L scans), this path is shared
+        # with plain equidistant multi-dim scans too, but
+        # resolve_scan_value() is a no-op for those - every value is
+        # already numeric there.
+        par_values.append(resolve_scan_value(key, point[key], intervals))
 
     current_dir = f'{mcstas_dir}/{i}'
     mcstas.run(pipe=False, extra_opts={'dir': current_dir})
@@ -322,17 +416,22 @@ class Scanner:
                     LOG.info(f"Write step detectors line into {self.outfile}")
                     values = ['%s %s' % (d.intensity, d.error) for d in detectors]
 
-                    # Normal equidistant scan
                     if not self.mcstas.options.list:
+                        # Normal equidistant scan: LinearInterval/MultiInterval
+                        # .from_range() only ever produce numeric values, so
+                        # this is unchanged.
                         line = '%s %s\n' % (' '.join(map(str, par_values)), ' '.join(values))
                     else:
-                        try:
-                            # Check if parameters are numeric/float
-                            par_floats = [float(x) for x in par_values]
-                            line = '%s %s\n' % (' '.join(map(str, par_floats)), ' '.join(values))
-                        except:
-                            # otherwise use simple 'index' (may be scanning e.g. a filename)
-                            line = '%s %s\n' % (str(i), ' '.join(values))
+                        # -L list scan: resolve each scanned parameter's
+                        # value independently (see resolve_scan_value()) -
+                        # a genuinely numeric value passes straight
+                        # through, and only a non-numeric one (e.g. a
+                        # filename) becomes its own index within that
+                        # parameter's own list, keeping one proper numeric
+                        # column per scanned parameter either way.
+                        resolved = [resolve_scan_value(key, val, self.intervals)
+                                    for key, val in zip(self.intervals.keys(), par_values)]
+                        line = '%s %s\n' % (' '.join(map(str, resolved)), ' '.join(values))
                     outfile.write(line)
                     outfile.flush()
 

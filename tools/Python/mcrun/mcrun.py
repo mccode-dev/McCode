@@ -52,12 +52,12 @@ def build_checker(accept, msg='Invalid value'):
     return checker
 
 
-def add_mcrun_options(parser):
+def add_mcrun_cogen_options(parser):
     ''' Add option group for McRun options to parser '''
 
     # McRun options
-    opt = OptionGroup(parser, '%s options' % (mccode_config.configuration["MCRUN"]))
-    add = opt.add_option
+    cogenopt = OptionGroup(parser, '%s code-generation + main options' % (mccode_config.configuration["MCRUN"]))
+    add = cogenopt.add_option
 
     add('-c', '--force-compile',
         action='store_true',
@@ -87,72 +87,6 @@ def add_mcrun_options(parser):
         metavar='D3',
         help='Set extra -D args (implies -c)')
 
-    add('-p', '--param',
-        metavar='FILE',
-        help='Read parameters from file FILE')
-
-    add('-N', '--numpoints',
-        type=int, metavar='NP',
-        help='Set number of scan points')
-
-    add('--seeds',
-        metavar='SEEDS',
-        help='Set range of seeds to scan (each must be: SEED != 0)')
-
-    add('-L', '--list',
-        action='store_true',
-        help='Use a fixed list of points for linear scanning')
-
-    add('-M', '--multi',
-        action='store_true',
-        help='Run a multi-dimensional scan')
-
-    add("--scan_split",
-        type=int,
-        metavar="scan_split",
-        help='Scan by parallelising steps as individual cpu threads. Initialise by number of wanted threads (e.g. your number of cores).')
-
-    add('--autoplot',
-        action='store_true',
-        help='Open plotter on generated dataset')
-
-    add('--invcanvas',
-        action='store_true',
-        help='Forward request for inverted canvas to plotter')
-
-    add('--autoplotter',
-        action='store',
-        type=str,
-        help='Specify the plotter used with --autoplot')
-
-    add('--embed',
-        action='store_true', default=True,
-        help='Store copy of instrument file in output directory')
-
-    # Multiprocessing
-    add('--mpi',
-        metavar='NB_CPU',
-        help='Spread simulation over NB_CPU machines using MPI')
-
-    # Accellerator-support
-    add('--openacc',
-        action='store_true', default=False,
-        help='parallelize using openacc')
-
-    add('--funnel',
-        action='store_true', default=False,
-        help='funneling simulation flow, e.g. for mixed CPU/GPU')
-
-    add('--machines',
-        metavar='machines',
-        help='Defines path of MPI machinefile to use in parallel mode')
-
-    # Optimisation
-    add('--optimise-file',
-        metavar='FILE',
-        help='Store scan results in FILE '
-             '(defaults to: "mccode.dat")')
-
     add('--no-cflags',
         action='store_true', default=False,
         help='Disable optimising compiler flags for faster compilation')
@@ -163,20 +97,62 @@ def add_mcrun_options(parser):
 
     add('--verbose',
         action='store_true', default=False,
-        help='Enable verbose output')
+        help='Enable verbose output during code-generation and simulation')
 
-    add('--write-user-config',
-        action='store_true', default=False,
-        help='Generate a user config file')
+    add('-p', '--param',
+        metavar='FILE',
+        help='Forward parameters from file FILE to Instrument ')
+    parser.add_option_group(cogenopt)
 
-    add('--edit-user-config',
-        action='store_true', default=False,
-        help='Generate and edit user config file in EDITOR')
+def add_mcrun_adv_options(parser):
 
-    
-    add('--override-config',
-        metavar='PATH', default=False,
-        help='Load config file from specific dir')
+    scanopt = OptionGroup(parser, 'Parameter scan options')
+    add = scanopt.add_option
+
+    add('-N', '--numpoints',
+        metavar='NP',
+        help='Set number of scan points. Two input modes available: '
+             ' 1) A single integer applies the same point count to every '
+             '   scanned parameter (default, and only valid form without -M)'
+             ' 2) Together with -M/--multi, a comma-separated list '
+             '   (e.g. -N=5,10,20) gives each scanned parameter its '
+             '   own point count, in the order in which parameters are listed '
+             '   on the command line. If a parameter is given as par="min:delta:max"'
+             '   the point count is instead computed from the requested bin width.')
+
+    add('-L', '--list',
+        action='store_true',
+        help='Use list-mode scanning. Multiple input modes available: '
+             ' 1) If multiple lists (of identical length) are given (and -M is '
+             '    not requested) the lists are scanned together in lockstep.'
+             ' 2) Combined with -M/--multi, the cartesian product of each '
+             '   parameter\'s own list is used to set up a multidimensional '
+             '   \'grid\' scan (lists may have different lengths)'
+             ' 3) Any parameter given as "min:delta:max" is expanded into its '
+             '   own explicit list of equidistant points and may be freely mixed '
+             '   with other, explicitly-listed parameters '
+             '   (e.g. a list of filenames) under -L.')
+
+    add('-M', '--multi',
+        action='store_true',
+        help='Run a multi-dimensional scan (cartesian product of every '
+             'scanned parameter\'s points, rather than a co-linear scan). '
+             'Combine with -L/--list or give -N as a comma-separated list '
+             '(see -N/--numpoints). ')
+
+    add("--scan_split",
+        type=int,
+        metavar="scan_split",
+        help='Scan by parallelising steps as individual cpu threads. Initialise by number of wanted threads (e.g. your number of cores).')
+
+    add('--seeds',
+        metavar='SEEDS',
+        help='Set range of seeds to scan (each must be: SEED != 0)')
+    parser.add_option_group(scanopt)
+
+    optopt = OptionGroup(parser, 'Optimization options')
+    add = optopt.add_option
+   # Optimisation
 
     add('--optimize',
         action='store_true', default=False,
@@ -236,7 +212,10 @@ def add_mcrun_options(parser):
         nargs=1,
         default="",
     )
-
+    add('--optimise-file',
+        metavar='FILE',
+        help='Store scan results in FILE '
+             '(defaults to: "mccode.dat")')
     #    --optimize-maxiter maxiter  max iter of optimization
     #    --tol tol          tolerance criteria to end the optimization
     #    --method method    Method to maximize the intensity in ['nelder-mead', 'powell', 'cg', 'bfgs', 'newton-cg', 'l-bfgs-b', 'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']
@@ -245,6 +224,76 @@ def add_mcrun_options(parser):
     #                       https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html?highlight=minimize
     #    --minimize         choose to minimize the function if needed
     #    --monitor monitor  monitor name
+    parser.add_option_group(optopt)
+
+    plotopt = OptionGroup(parser, 'Autoplot options')
+    add = plotopt.add_option
+
+    add('--autoplot',
+        action='store_true',
+        help='Open plotter on generated dataset')
+
+    add('--invcanvas',
+        action='store_true',
+        help='Forward request for inverted canvas to plotter')
+
+    add('--autoplotter',
+        action='store',
+        type=str,
+        help='Specify the plotter used with --autoplot')
+    parser.add_option_group(plotopt)
+
+    mpiopt = OptionGroup(parser, 'MPI options')
+    add = mpiopt.add_option
+
+    # Multiprocessing
+    add('--mpi',
+        metavar='NB_CPU',
+        help='Spread simulation over NB_CPU machines using MPI')
+
+    add('--machines',
+        metavar='machines',
+        help='Defines path of MPI machinefile to use in parallel mode')
+    parser.add_option_group(mpiopt)
+
+    accopt = OptionGroup(parser, 'OpenACC options')
+    add = accopt.add_option
+    # Accellerator-support
+    add('--openacc',
+        action='store_true', default=False,
+        help='parallelize using openacc')
+
+    add('--funnel',
+        action='store_true', default=False,
+        help='funneling simulation flow, e.g. for mixed CPU/GPU')
+    
+    add('--vecsize',
+        metavar='VECSIZE', default='',
+        help='vector length in OpenACC parallel scenarios')
+
+    add('--numgangs',
+        metavar='NUMGANGS', default='',
+        help='number of \'gangs\' in OpenACC parallel scenarios')
+
+    add('--gpu_innerloop',
+        metavar='INNERLOOP', default='',
+        help='Maximum particles in an OpenACC kernel run. (If INNERLOOP is smaller than ncount we repeat)')
+    parser.add_option_group(accopt)
+
+    othopt = OptionGroup(parser, 'Config- options')
+    add = othopt.add_option
+
+    add('--write-user-config',
+        action='store_true', default=False,
+        help='Generate a user config file')
+
+    add('--edit-user-config',
+        action='store_true', default=False,
+        help='Generate and edit user config file in EDITOR')
+
+    add('--override-config',
+        metavar='PATH', default=False,
+        help='Load config file from specific dir')
 
     cfg_items = ['bindir','libdir','resourcedir','tooldir']
     cfg_items_prettyprint =   '"%s", and "%s"'%('", "'.join(cfg_items[:-1]),cfg_items[-1])
@@ -253,14 +302,14 @@ def add_mcrun_options(parser):
         help="Print selected cfg item and exit (paths are resolved and absolute). Allowed values are %s."%cfg_items_prettyprint
     )
 
-    parser.add_option_group(opt)
+    parser.add_option_group(othopt)
 
 
 def add_mcstas_options(parser):
     ''' Add option group for McStas options to parser '''
 
-    opt = OptionGroup(parser, 'Instrument options')
-    add = opt.add_option
+    instropt = OptionGroup(parser, 'Instrument options')
+    add = instropt.add_option
 
     # Misc options
     check_seed = build_checker(lambda seed: seed != 0,
@@ -290,6 +339,24 @@ def add_mcstas_options(parser):
         add('-g', '--gravitation', '--gravity',
             action='store_true', default=False,
             help='Enable gravitation for all trajectories')
+
+    # Information
+    add('-i', '--info',
+        action='store_true', default=False,
+        help='Detailed instrument information')
+
+    add('--list-parameters', action='store_true', default=False,
+        help='Print the instrument parameters to standard out')
+
+    add('--meta-list', action='store_true', default=False, help='Print all metadata defining component names')
+    add('--meta-defined', default=None, help="Print metadata names for component, or indicate if component:name exists")
+    add('--meta-type', default=None, help="Print metadata type for component:name")
+    add('--meta-data', default=None, help="Print metadata for component:name")
+            
+    parser.add_option_group(instropt)
+
+    outputopt = OptionGroup(parser, 'Output options')
+    add = outputopt.add_option
 
     # Data options
     dir_exists = lambda path: isdir(abspath(path))
@@ -336,40 +403,19 @@ def add_mcstas_options(parser):
             help='Flag to attempt inclusion of XML-based IDF when --format=NeXus '
                  '(format list obtained from <instr>.%s -h)' % mccode_config.platform["EXESUFFIX"])
 
-    add('--bufsiz',
-        metavar='BUFSIZ', default=mccode_config.configuration["NDBUFFERSIZE"],
-        help='Monitor_nD list/buffer-size (defaults to '+mccode_config.configuration["NDBUFFERSIZE"]+')')
-
-    add('--vecsize',
-        metavar='VECSIZE', default='',
-        help='vector length in OpenACC parallel scenarios')
-
-    add('--numgangs',
-        metavar='NUMGANGS', default='',
-        help='number of \'gangs\' in OpenACC parallel scenarios')
-
-    add('--gpu_innerloop',
-        metavar='INNERLOOP', default='',
-        help='Maximum particles in an OpenACC kernel run. (If INNERLOOP is smaller than ncount we repeat)')
-
     add('--no-output-files',
         action='store_true', default=False,
         help='Do not write any data files')
 
-    # Information
-    add('-i', '--info',
-        action='store_true', default=False,
-        help='Detailed instrument information')
+    add('--bufsiz',
+        metavar='BUFSIZ', default=mccode_config.configuration["NDBUFFERSIZE"],
+        help='Monitor_nD list/buffer-size (defaults to '+mccode_config.configuration["NDBUFFERSIZE"]+')')
 
-    add('--list-parameters', action='store_true', default=False,
-        help='Print the instrument parameters to standard out')
+    add('--embed',
+        action='store_true', default=True,
+        help='Store copy of instrument file in output directory')
 
-    add('--meta-list', action='store_true', default=False, help='Print all metadata defining component names')
-    add('--meta-defined', default=None, help="Print metadata names for component, or indicate if component:name exists")
-    add('--meta-type', default=None, help="Print metadata type for component:name")
-    add('--meta-data', default=None, help="Print metadata for component:name")
-
-    parser.add_option_group(opt)
+    parser.add_option_group(outputopt)
 
 
 def expand_options(options):
@@ -455,10 +501,76 @@ def get_parameters(options):
     ''' Get fixed and scan/optimise parameters '''
     fixed_params = {}
     intervals = {}
+    # Per-key point counts implied by the "a:delta:b" syntax below - kept
+    # separate from intervals (which only ever holds the [a, b] endpoints,
+    # matching every other scan mode's shape) so main() can tell which
+    # parameters had an explicit point count baked into their own syntax,
+    # as opposed to needing one supplied via -N.
+    equidistant_numpoints = {}
 
     for param in options.params:
         if '=' in param:
             key, value = param.split('=', 1)
+
+            # "par=a:delta:b" - an equidistant scan specified by its bin
+            # width (delta) rather than an explicit point count: mcrun
+            # computes how many points are needed to cover [a, b] in steps
+            # of (approximately - see rounding below) delta, rather than
+            # the user needing to work out -N by hand. Checked before the
+            # comma-based interval parsing below, since a colon can never
+            # appear in a numeric value/list, so a colon anywhere in the
+            # value unambiguously means this syntax was intended.
+            if ':' in value:
+                parts = value.split(':')
+                if len(parts) != 3:
+                    raise OptionValueError(
+                        'Parameter "%s" uses "a:delta:b" syntax but has %d colon-separated part(s) '
+                        '(expected exactly 3: start:delta:stop): "%s"' % (key, len(parts), value))
+                try:
+                    a, delta, b = (float(p) for p in parts)
+                except ValueError:
+                    raise OptionValueError(
+                        'Parameter "%s" uses "a:delta:b" syntax but not all three parts are numbers: "%s"'
+                        % (key, value))
+                if delta == 0:
+                    raise OptionValueError(
+                        'Parameter "%s" uses "a:delta:b" syntax with delta=0, which would need '
+                        'infinitely many points: "%s"' % (key, value))
+                if a == b:
+                    raise OptionValueError(
+                        'Parameter "%s" uses "a:delta:b" syntax with a == b (%s), so there is nothing '
+                        'to scan - use a fixed value "%s=%s" instead.' % (key, a, key, a))
+                # Rounds to the nearest point count that covers [a, b] as
+                # closely as possible to the requested delta - the actual
+                # step size will usually differ very slightly from delta
+                # itself, since [a, b] isn't guaranteed to be an exact
+                # multiple of delta and both endpoints are always included.
+                n_points = max(2, round(abs(b - a) / abs(delta)) + 1)
+                step = (b - a) / (n_points - 1)
+                if options.list:
+                    # -L is active: a:delta:b conceptually already IS a
+                    # list of equidistant points, so expand it into the
+                    # full explicit list here and let it flow through the
+                    # exact same -L/-M machinery as any other explicit
+                    # list (e.g. an accompanying filename list) - no
+                    # special-casing needed anywhere else for this case.
+                    intervals[key] = [str(a + i * step) for i in range(n_points)]
+                    LOG.debug('interval[%s]: %s (a:delta:b syntax, expanded to %d explicit points for -L)',
+                              key, intervals[key], n_points)
+                else:
+                    # -L not given: keep the [a, b] endpoint pair, with the
+                    # point count tracked separately - main()'s normal
+                    # -N/-M machinery (LinearInterval/MultiInterval
+                    # .from_range()) already knows how to turn an
+                    # endpoint pair plus a point count into the same
+                    # equidistant points, without needing them written out
+                    # explicitly here.
+                    intervals[key] = [str(a), str(b)]
+                    equidistant_numpoints[key] = n_points
+                    LOG.debug('interval[%s]: %s (a:delta:b syntax, delta=%s -> %d points)',
+                              key, intervals[key], delta, n_points)
+                continue
+
             interval = value.split(',')
             # When just one point is present, fix as constant
             if len(interval) == 1:
@@ -468,7 +580,7 @@ def get_parameters(options):
                 intervals[key] = interval
         else:
             LOG.warning('Ignoring invalid parameter: "%s"', param)
-    return (fixed_params, intervals)
+    return (fixed_params, intervals, equidistant_numpoints)
 
 
 def find_instr_file(instr):
@@ -492,11 +604,12 @@ def main():
 
     # Add options
     usage = ('usage: %prog [-cpnN] Instr [-sndftgahi] '
-             'params={val|min,max|min,guess,max}...')
+             'params={val|min,max|min:delta:max|min,guess,max}...')
     parser = OptionParser(usage, version=mccode_config.configuration['MCCODE_VERSION'])
 
-    add_mcrun_options(parser)
+    add_mcrun_cogen_options(parser)
     add_mcstas_options(parser)
+    add_mcrun_adv_options(parser)
 
     # Parse options
     (options, args) = parser.parse_args()
@@ -567,7 +680,7 @@ def main():
     mcstas = McStas(options.instr)
     mcstas.prepare(options)
 
-    (fixed_params, intervals) = get_parameters(options)
+    (fixed_params, intervals, equidistant_numpoints) = get_parameters(options)
     # Add --seeds as an 'interval', to allow scanning simulation seed
     if options.seeds:
         intervals['--seed']=options.seeds.split(',')
@@ -595,31 +708,152 @@ def main():
     if options.list and options.seeds:
         raise OptionValueError('--seeds cannot be used with --list')
 
+    # An explicit -N is only actually redundant/conflicting when EVERY
+    # scanned parameter already gets its point count from "a:delta:b"
+    # syntax (see get_parameters()) without -L active (with -L, a:delta:b
+    # expands directly into an explicit list in intervals[key], so
+    # equidistant_numpoints stays empty and this check can't fire at all).
+    # A scan mixing a:delta:b with a plain "min,max" parameter still
+    # legitimately needs -N to say how many points that one should have
+    # (see the "mixed" branch below).
+    if equidistant_numpoints and options.numpoints and len(equidistant_numpoints) == len(intervals):
+        raise OptionValueError(
+            'The "a:delta:b" syntax (used for %s) already determines its own point count for every '
+            'scanned parameter, so an explicit -N/--numpoints is redundant here.' % ', '.join(equidistant_numpoints))
+
+    # Parse -N/--numpoints (a plain string now, not auto-int'd by optparse -
+    # see add_mcrun_options()): with -M/--multi it may be a comma-separated
+    # list of integers, one per scanned parameter in the same order the
+    # parameters were given on the command line, rather than a single
+    # integer applied uniformly to every dimension. A list form without -M
+    # is rejected outright: a plain (co-linear) scan walks every parameter
+    # in lockstep over the same number of steps, so per-dimension point
+    # counts don't apply there. Unreachable when --list was also given,
+    # thanks to the check just above.
+    numpoints_list = None
+    if options.numpoints is not None:
+        numpoints_parts = str(options.numpoints).split(',')
+        if len(numpoints_parts) > 1:
+            if not options.multi:
+                raise OptionValueError(
+                    'A comma-separated list for -N/--numpoints (e.g. -N=5,10,20) is only valid '
+                    'together with -M/--multi.')
+            try:
+                numpoints_list = [int(p) for p in numpoints_parts]
+            except ValueError:
+                raise OptionValueError('-N/--numpoints list must contain only integers: "%s"' % options.numpoints)
+            if any(n < 2 for n in numpoints_list):
+                raise OptionValueError(
+                    'Cannot scan using only one data point - every entry in -N/--numpoints must be at least 2.')
+            options.numpoints = None  # resolved into numpoints_list/numpoints_dict instead, below
+        else:
+            try:
+                options.numpoints = int(numpoints_parts[0])
+            except ValueError:
+                raise OptionValueError(
+                    '-N/--numpoints must be an integer (or, with -M, a comma-separated list of integers): "%s"'
+                    % options.numpoints)
+
     if options.list:
         if len(intervals) == 0:
             raise OptionValueError(
                 '--list was chosen but no lists was presented.')
-        pointlist = list(intervals.values())
-        points = len(pointlist[0])
-        if not (all(map(lambda i: len(i) == points, intervals.values()))):
+        if options.multi:
+            # -L + -M: cartesian product across each parameter's own
+            # explicit list of points - unlike plain -L (which walks every
+            # list together in lockstep, requiring them all to be the same
+            # length), each dimension is independent here, so the lists
+            # may have different lengths.
+            interval_points = MultiInterval.from_list(intervals)
+            options.numpoints = 1
+            for values in intervals.values():
+                options.numpoints *= len(values)
+        else:
+            pointlist = list(intervals.values())
+            points = len(pointlist[0])
+            if not (all(map(lambda i: len(i) == points, intervals.values()))):
+                raise OptionValueError(
+                    'All variables must have an equal amount of points.')
+            interval_points = LinearInterval.from_list(
+                points, intervals)
+            options.numpoints = points
+
+    elif numpoints_list is not None:
+        # -M + -N=a,b,c,...: per-dimension point counts, no explicit lists
+        if len(numpoints_list) != len(intervals):
             raise OptionValueError(
-                'All variables must have an equal amount of points.')
-        interval_points = LinearInterval.from_list(
-            points, intervals)
+                '-N/--numpoints list has %d entr%s but %d parameter%s being scanned (%s); '
+                'provide exactly one point-count per scanned parameter, in the same order.' % (
+                    len(numpoints_list), 'y' if len(numpoints_list) == 1 else 'ies',
+                    len(intervals), '' if len(intervals) == 1 else 's are',
+                    ', '.join(intervals)))
+        numpoints_dict = dict(zip(intervals.keys(), numpoints_list))
+        interval_points = MultiInterval.from_range(numpoints_dict, intervals)
+        total = 1
+        for n in numpoints_list:
+            total *= n
+        options.numpoints = total
 
-    scan = options.multi or options.numpoints
-    if (options.numpoints is not None and options.numpoints < 2) or (scan and options.numpoints is None):
-        raise OptionValueError((f'Cannot scan variable(s) {", ".join(intervals)} using only one data point. '
-                                'Please use -N to specify the number of points.'))
-    ## ## This *was* unreachable due to its indentation. Should it be removed entirely?
-    # # Check that input is valid decimals
-    # if not all(map(lambda i: len(i) == 2 and all(map(is_decimal, i)), intervals.values())):
-    #     raise OptionValueError(f'Could not parse intervals -- result: {intervals}')
+    elif equidistant_numpoints:
+        # "a:delta:b" syntax: each such parameter already has its own
+        # point count computed in get_parameters(), independent of -N/-M.
+        if len(equidistant_numpoints) == len(intervals):
+            # Every scanned parameter uses a:delta:b.
+            distinct_n = set(equidistant_numpoints.values())
+            if options.multi:
+                # -M: cartesian product, each dimension keeping its own
+                # delta-derived point count - identical in spirit to
+                # -N=a,b,c,... + -M above, just sourced from delta instead.
+                interval_points = MultiInterval.from_range(equidistant_numpoints, intervals)
+                total = 1
+                for n in equidistant_numpoints.values():
+                    total *= n
+                options.numpoints = total
+            elif len(distinct_n) == 1:
+                # No -M, but every parameter's delta happens to imply the
+                # same point count anyway - a perfectly ordinary co-linear
+                # scan, so there's no need to force the user to add -M.
+                options.numpoints = distinct_n.pop()
+                interval_points = LinearInterval.from_range(options.numpoints, intervals)
+            else:
+                raise OptionValueError(
+                    'Parameter(s) %s use "a:delta:b" syntax with different resulting point counts (%s) - '
+                    'add -M/--multi to scan them independently (a cartesian product), or use matching '
+                    'delta values for a co-linear scan.' % (
+                        ', '.join(equidistant_numpoints),
+                        ', '.join('%s=%d' % (k, v) for k, v in equidistant_numpoints.items())))
+        else:
+            # Mixed: some parameters use a:delta:b, others a plain min,max
+            # (no delta) that still needs a point count from somewhere.
+            missing = [k for k in intervals if k not in equidistant_numpoints]
+            if not options.multi:
+                raise OptionValueError(
+                    'Parameter(s) %s use "a:delta:b" syntax alongside plain interval(s) %s - add '
+                    '-M/--multi to scan them independently, or use "a:delta:b" for every scanned '
+                    'parameter.' % (', '.join(equidistant_numpoints), ', '.join(missing)))
+            if options.numpoints is None:
+                raise OptionValueError(
+                    'Parameter(s) %s need a point count - use "a:delta:b" syntax for them too, or '
+                    'supply a plain -N value.' % ', '.join(missing))
+            full_numpoints_dict = dict(equidistant_numpoints)
+            for k in missing:
+                full_numpoints_dict[k] = options.numpoints
+            interval_points = MultiInterval.from_range(full_numpoints_dict, intervals)
+            total = 1
+            for n in full_numpoints_dict.values():
+                total *= n
+            options.numpoints = total
 
-    if options.multi is not None:
-        interval_points = MultiInterval.from_range(options.numpoints, intervals)
-    elif options.numpoints is not None:
-        interval_points = LinearInterval.from_range(options.numpoints, intervals)
+    else:
+        scan = options.multi or options.numpoints
+        if (options.numpoints is not None and options.numpoints < 2) or (scan and options.numpoints is None):
+            raise OptionValueError((f'Cannot scan variable(s) {", ".join(intervals)} using only one data point. '
+                                    'Please use -N to specify the number of points.'))
+
+        if options.multi is not None:
+            interval_points = MultiInterval.from_range(options.numpoints, intervals)
+        elif options.numpoints is not None:
+            interval_points = LinearInterval.from_range(options.numpoints, intervals)
 
 
     # Check that mpi and scan split are not both used. Default to mpi if they are
@@ -628,9 +862,6 @@ def main():
         
     # Parameters for linear scanning present
     if interval_points and (options.scan_split is None):
-        # In case of list, update with number of list points
-        if options.list:
-            options.numpoints=len(pointlist[0])
         scanner = Scanner(mcstas, intervals)
         scanner.set_points(interval_points)
         if (not options.dir == ''):
