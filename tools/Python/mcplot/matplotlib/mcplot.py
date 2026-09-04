@@ -45,6 +45,19 @@ def main(args):
             if (h5file):
                 if not os.path.isabs(h5file):
                     h5file = os.path.join(os.getcwd(),h5file)
+                # A NeXus-format scan (as opposed to a single simulation)
+                # also writes a scan-summary mccode.dat alongside
+                # mccode.h5. If it's there, also spawn a separate,
+                # independent instance of this same mcplot variant pointed
+                # directly at mccode.dat, running in the background
+                # alongside the HDFVIEW.
+                datfile = os.path.join(os.path.dirname(h5file), 'mccode.dat')
+                if os.path.isfile(datfile):
+                    try:
+                        print('Also spawning %s on %s' % (os.path.basename(__file__), datfile))
+                        subprocess.Popen([sys.executable, os.path.abspath(__file__), datfile])
+                    except Exception as e:
+                        print('Could not launch a second mcplot instance on ' + datfile + ': ' + e.__str__())
                 try:
                     cmd = mccode_config.configuration['HDFVIEW'] + ' ' + h5file
                     print('Spawning ' + mccode_config.configuration['HDFVIEW'])

@@ -5,6 +5,7 @@ from decimal import Decimal
 from os.path import join 
 from multiprocessing import Pool
 import copy
+import re
 
 try:
   from scipy.optimize import minimize
@@ -14,6 +15,37 @@ except:
   pass
 
 LOG = getLogger('optimisation')
+
+
+def _list_scan_xlimits(lst):
+    """ Computes the (xmin, xmax) header hint for an -L/--list scan's
+        first scanned parameter, matching whatever will actually end up
+        plotted as that parameter's x-values.
+
+        A genuinely numeric list (the common case, e.g. -L lambda=2,3)
+        uses its own real min/max - this MUST match resolve_scan_value()'s
+        numeric passthrough for the actual per-point column written into
+        mccode.dat, since the matplotlib frontend's plot_single_data()
+        uses this value directly via pylab.xlim(xmin, xmax) to set the
+        visible axis range. 
+
+        A non-numeric list (e.g. -L filename=Na2Ca3Al2F14.laz,...) uses
+        the 0-based index range (0..N-1) instead, matching
+        resolve_scan_value()'s own index-substitution fallback for that
+        case - a literal min()/max() of the raw strings would be
+        lexicographic and meaningless there anyway. """
+    try:
+        numeric_vals = [float(v) for v in lst]
+        return min(numeric_vals), max(numeric_vals)
+    except (TypeError, ValueError):
+        # Non-numeric: resolve_scan_value() substitutes each value with
+        # its own 0-based index within intervals[key]
+        # (list(intervals[key]).index(value)), so the matching range is
+        # (0, len(lst)-1) - NOT (1, len(lst)), which would itself clip the
+        # first data point (plotted at x=0) outside the visible axis, the
+        # same class of bug this function exists to avoid for the numeric
+        # case above.
+        return 0, len(lst) - 1
 
 
 def build_header(options, params, intervals, detectors):
@@ -43,8 +75,7 @@ def build_header(options, params, intervals, detectors):
     xvars = ', '.join(hdrparams)
     lst = intervals[list(params)[0]]
     if options.list:
-        xmin=1
-        xmax=len(lst)
+        xmin, xmax = _list_scan_xlimits(lst)
     else:
         xmin = min(lst)
         xmax = max(lst)
@@ -131,16 +162,16 @@ end data
     # TODO: figure out correct scan type
     numpoints = 1 if options.optimize else options.numpoints
 
-    # -L list scan: use the position (1..N) within the list, matching
-    # build_header()'s existing convention for -L scans above - meaningful
-    # for a non-numeric list (e.g. filenames), where a literal min()/max()
-    # of the raw strings would be lexicographic and essentially
-    # meaningless, and harmless for a numeric one (the actual per-point
-    # values are written into mccode.dat itself; this is just the
-    # header's overall axis-range hint). Equidistant (-N/-M, non-list)
-    # scans are untouched, keeping their existing min()/max() behaviour.
+    # -L list scan: use the shared helper, which keeps the real min/max
+    # for a numeric list (matching what actually gets plotted - see
+    # _list_scan_xlimits()'s own docstring for why this matters), not just
+    # for a non-numeric one (e.g. filenames), where a literal min()/max()
+    # of the raw strings would be lexicographic and meaningless, so a
+    # 0-based index range (matching resolve_scan_value()'s own index
+    # substitution) is used instead. Equidistant (-N/-M, non-list) scans
+    # are untouched, keeping their existing min()/max() behaviour.
     if options.list:
-        xmin, xmax = 1, len(first_key_interval)
+        xmin, xmax = _list_scan_xlimits(first_key_interval)
     else:
         xmin, xmax = min(first_key_interval), max(first_key_interval)
 
@@ -194,6 +225,52 @@ def mcsimdetectors(directory_name: str):
     blocks = [{k.strip(): v.strip() for k, v in [z.split(':', 1) for z in b.split('\n')]} for b in blocks]
     # This object only cares about extracting the (name, I, Err, N, data file) sets for each detector
     return [Detector(d['component'], *d['values'].split(), d['filename'], d['statistics']) for d in blocks]
+
+
+# Matches one of a simulation binary's own "Detector: ..." summary lines,
+# e.g.:
+#   Detector: PSDbefore_guides_I=2.34581e+09 PSDbefore_guides_ERR=2.34585e+06 PSDbefore_guides_N=999991 "PSDbefore_guides.dat"
+# The detector name itself can contain underscores (as in the example
+# above), so a plain \w+ before "_I=" isn't reliable - a backreference
+# instead requires the SAME name to reappear before "_ERR=" and "_N=",
+# which correctly anchors the split point regardless of what characters
+# the name itself contains.
+DETECTOR_STDOUT_RE = re.compile(
+    r'Detector:\s*(.+?)_I=(\S+)\s+\1_ERR=(\S+)\s+\1_N=(\S+)\s+"([^"]*)"'
+)
+
+
+def parse_detectors_from_stdout(stdout_text):
+    """ Parses a simulation's own "Detector: NAME_I=... NAME_ERR=...
+        NAME_N=... "file.dat"" summary lines directly out of its stdout,
+        and returns them as the same list of Detector objects
+        mcsimdetectors() builds from a per-step mccode.sim file.
+
+        Needed specifically for --format=NeXus scans: the default McCode
+        output format writes one mccode.sim/mccode.dat pair per scan step,
+        each in its own "dir/0", "dir/1", ... subfolder, which
+        mcsimdetectors() reads back after each step. NeXus format instead
+        (intentionally) accumulates every step into a single shared .h5
+        file (see Scanner.run()'s options.append=True for the NeXus
+        branch) - so there is no per-step mccode.sim to read detector
+        values back from at all; mcsimdetectors() finds only a .h5 file
+        there and returns nothing. The underlying simulation binary still
+        prints its normal per-run "Detector: ..." summary to stdout
+        regardless of output format, though, so that's used as the source
+        of per-step detector values in the NeXus case instead. """
+    from mccode import Detector
+    if not stdout_text:
+        return []
+    detectors = []
+    for match in DETECTOR_STDOUT_RE.finditer(stdout_text):
+        name, intensity, error, count, path = match.groups()
+        # Detector()'s "statistics" argument is normally the ';'-separated
+        # X0=...;dX=...; block that also appears in mccode.sim's per-monitor
+        # header block - stdout's one-line summary doesn't carry that, so
+        # fall back to Detector's own defaults (X0=0, dX=1, Y0=0, dY=1) by
+        # passing an empty string.
+        detectors.append(Detector(name, intensity, error, count, path, ''))
+    return detectors
 
 
 def point_at(N, key, minmax, step):
@@ -344,8 +421,35 @@ def _simulate_point(args):
         par_values.append(resolve_scan_value(key, point[key], intervals))
 
     current_dir = f'{mcstas_dir}/{i}'
-    mcstas.run(pipe=False, extra_opts={'dir': current_dir})
-    detectors = mcsimdetectors(current_dir)
+    is_nexus = mcstas.options.format.lower() == 'nexus'
+    # See Scanner.run()'s matching NeXus branch: there is no per-step
+    # mccode.sim to read detector values back from in NeXus mode, so
+    # capture stdout (pipe=True) and parse its "Detector: ..." summary
+    # lines directly instead of calling mcsimdetectors().
+    try:
+        stdout_text = mcstas.run(pipe=is_nexus, extra_opts={'dir': current_dir})
+        if is_nexus:
+            detectors = parse_detectors_from_stdout(stdout_text)
+        else:
+            detectors = mcsimdetectors(current_dir)
+        if not detectors:
+            # No exception, but nothing usable either (e.g. a NeXus step
+            # whose stdout didn't contain any "Detector: ..." lines at
+            # all) - treated the same as a runtime failure below: skip
+            # this point rather than writing an empty/malformed row.
+            LOG.warning('Scan step %d produced no detector data - skipping this point. Parameters were: %s',
+                        i, ', '.join(f'{k}={v}' for k, v in point.items()))
+            detectors = None
+    except Exception as e:
+        # A single failed scan point (simulation crash, non-zero exit,
+        # unreadable output, ...) shouldn't take down the whole scan -
+        # log it and report no detectors for this point; Scanner_split.run()
+        # already skips any result with detectors=None rather than writing
+        # a row for it, so the scan carries on to the remaining points and
+        # mccode.dat simply omits this one.
+        LOG.warning('Scan step %d failed (%s: %s) - skipping this point and continuing with the rest of the scan. '
+                    'Parameters were: %s', i, type(e).__name__, e, ', '.join(f'{k}={v}' for k, v in point.items()))
+        detectors = None
 
     result = {
         'index': i,
@@ -380,60 +484,132 @@ class Scanner:
         if mcstas_dir == '':
             mcstas_dir = '.'
 
+        points = list(self.points)
+        header_written = False
+        skipped = []
+
         with open(self.outfile, 'w') as outfile:
-            for i, point in enumerate(self.points):
+            for i, point in enumerate(points):
                 par_values = []
                 for key in self.intervals:
                     self.mcstas.set_parameter(key, point[key])
                     LOG.debug("%s: %s", key, point[key])
                     par_values.append(point[key])
 
-                if not self.mcstas.options.format.lower() == 'nexus':
-                    LOG.info(', '.join(f'{name}: {value}' for name, value in point.items()))
-                    # Change subdirectory as an extra option (dir/1 -> dir/2)
-                    current_dir = f'{mcstas_dir}/{i}'
-                    LOG.info(f"Output step into scan directory {current_dir}")
-                    self.mcstas.run(pipe=False, extra_opts={'dir': current_dir})
-                else:
-                    current_dir = mcstas_dir
-                    LOG.info(f"NeXus output step into scan directory {current_dir}")
-                    self.mcstas.options.append=True
-                    self.mcstas.run(pipe=False, extra_opts={'dir': current_dir})
+                try:
+                    if not self.mcstas.options.format.lower() == 'nexus':
+                        LOG.info(', '.join(f'{name}: {value}' for name, value in point.items()))
+                        # Change subdirectory as an extra option (dir/1 -> dir/2)
+                        current_dir = f'{mcstas_dir}/{i}'
+                        LOG.info(f"Output step into scan directory {current_dir}")
+                        self.mcstas.run(pipe=False, extra_opts={'dir': current_dir})
+                        LOG.info("Finish running step, get detectors")
+                        detectors = mcsimdetectors(current_dir)
+                    else:
+                        current_dir = mcstas_dir
+                        LOG.info(f"NeXus output step into scan directory {current_dir}")
+                        self.mcstas.options.append=True
+                        # NeXus (intentionally) accumulates every step into one
+                        # shared .h5 file rather than a per-step mccode.sim/
+                        # mccode.dat, so there is no per-step results file to
+                        # read detector values back from at all -
+                        # mcsimdetectors() would just find a .h5 file here and
+                        # return nothing. Capture the simulation's own stdout
+                        # instead (pipe=True) and parse its "Detector: ..."
+                        # summary lines directly (see
+                        # parse_detectors_from_stdout()) - the underlying
+                        # binary always prints that per-run summary regardless
+                        # of output format.
+                        stdout_text = self.mcstas.run(pipe=True, extra_opts={'dir': current_dir})
+                        if stdout_text:
+                            # pipe=True suppresses the simulation's live
+                            # console output in favour of capturing it for
+                            # parsing - echo it back so nothing is silently
+                            # lost, just delayed until the step completes
+                            # rather than streamed in real time.
+                            print(stdout_text, end='' if stdout_text.endswith('\n') else '\n')
+                        LOG.info("Finish running step, get detectors from stdout")
+                        detectors = parse_detectors_from_stdout(stdout_text)
+                except Exception as e:
+                    # A single failed scan point (simulation crash,
+                    # non-zero exit, unreadable output, a bad parameter
+                    # combination the instrument itself rejects, ...)
+                    # shouldn't take down the whole scan - log it clearly
+                    # (which parameters were in play) and move on to the
+                    # next point rather than writing anything for this one.
+                    LOG.warning(
+                        'Scan step %d/%d failed (%s: %s) - skipping this point and continuing with the rest of '
+                        'the scan. Parameters were: %s', i + 1, len(points), type(e).__name__, e,
+                        ', '.join(f'{k}={v}' for k, v in point.items()))
+                    skipped.append(i)
+                    continue
 
-                LOG.info("Finish running step, get detectors")
-                detectors = mcsimdetectors(current_dir)
-                if detectors is not None:
-                    LOG.info("Got detectors")
-                    if i == 0:
-                        LOG.info("Write headers")
-                        names = [det.name for det in detectors]
-                        outfile.write(build_header(self.mcstas.options, self.intervals.keys(), self.intervals, names))
+                if not detectors:
+                    # No exception, but nothing usable either (e.g. a NeXus
+                    # step whose stdout didn't contain any
+                    # "Detector: ..." lines at all) - skip this point too,
+                    # rather than writing an empty/malformed row that would
+                    # desync the column count from the header.
+                    LOG.warning('Scan step %d/%d produced no detector data - skipping this point. Parameters were: %s',
+                                i + 1, len(points), ', '.join(f'{k}={v}' for k, v in point.items()))
+                    skipped.append(i)
+                    continue
+
+                LOG.info("Got detectors")
+                if not header_written:
+                    # Written on the first SUCCESSFUL point, not
+                    # unconditionally at index 0 - point 0 might itself be
+                    # the one that failed above.
+                    LOG.info("Write headers")
+                    names = [det.name for det in detectors]
+                    outfile.write(build_header(self.mcstas.options, self.intervals.keys(), self.intervals, names))
+                    # NeXus format writes every scan step's data into
+                    # its own combined mccode.h5 rather than per-step
+                    # mccode.sim/detector files - a scan-level
+                    # mccode.sim here would describe mccode.dat
+                    # correctly on its own, but would misleadingly
+                    # look like the usual pairing with per-monitor
+                    # detector files that don't actually exist in
+                    # NeXus mode, so it's skipped. mccode.dat itself is
+                    # still written either way, and stays directly
+                    # plottable via its own embedded header alone (see
+                    # mcplotloader.py's load_sweep_dat_only()).
+                    if self.mcstas.options.format.lower() != 'nexus':
                         # Opening a file inside of this loop seems like a bad idea ... oh well
                         with open(self.simfile, 'w') as simfile:
                             simfile.write(build_mccodesim_header(self.mcstas.options, self.intervals, names,
                                                                 version=self.mcstas.version))
-                        LOG.info("Wrote headers")
-                    LOG.info(f"Write step detectors line into {self.outfile}")
-                    values = ['%s %s' % (d.intensity, d.error) for d in detectors]
+                    LOG.info("Wrote headers")
+                    header_written = True
+                LOG.info(f"Write step detectors line into {self.outfile}")
+                values = ['%s %s' % (d.intensity, d.error) for d in detectors]
 
-                    if not self.mcstas.options.list:
-                        # Normal equidistant scan: LinearInterval/MultiInterval
-                        # .from_range() only ever produce numeric values, so
-                        # this is unchanged.
-                        line = '%s %s\n' % (' '.join(map(str, par_values)), ' '.join(values))
-                    else:
-                        # -L list scan: resolve each scanned parameter's
-                        # value independently (see resolve_scan_value()) -
-                        # a genuinely numeric value passes straight
-                        # through, and only a non-numeric one (e.g. a
-                        # filename) becomes its own index within that
-                        # parameter's own list, keeping one proper numeric
-                        # column per scanned parameter either way.
-                        resolved = [resolve_scan_value(key, val, self.intervals)
-                                    for key, val in zip(self.intervals.keys(), par_values)]
-                        line = '%s %s\n' % (' '.join(map(str, resolved)), ' '.join(values))
-                    outfile.write(line)
-                    outfile.flush()
+                if not self.mcstas.options.list:
+                    # Normal equidistant scan: LinearInterval/MultiInterval
+                    # .from_range() only ever produce numeric values, so
+                    # this is unchanged.
+                    line = '%s %s\n' % (' '.join(map(str, par_values)), ' '.join(values))
+                else:
+                    # -L list scan: resolve each scanned parameter's
+                    # value independently (see resolve_scan_value()) -
+                    # a genuinely numeric value passes straight
+                    # through, and only a non-numeric one (e.g. a
+                    # filename) becomes its own index within that
+                    # parameter's own list, keeping one proper numeric
+                    # column per scanned parameter either way.
+                    resolved = [resolve_scan_value(key, val, self.intervals)
+                                for key, val in zip(self.intervals.keys(), par_values)]
+                    line = '%s %s\n' % (' '.join(map(str, resolved)), ' '.join(values))
+                outfile.write(line)
+                outfile.flush()
+
+        if skipped:
+            LOG.warning('%d of %d scan point(s) failed or produced no data and were skipped '
+                        '(step indices: %s). %s contains only the %d successful point(s).',
+                        len(skipped), len(points), ', '.join(str(s) for s in skipped),
+                        self.outfile, len(points) - len(skipped))
+        else:
+            LOG.info('Scan complete: all %d point(s) succeeded.', len(points))
 
 
 class Scanner_split:
@@ -478,28 +654,43 @@ class Scanner_split:
         # Sort results to preserve order
         results.sort(key=lambda r: r['index'])
 
+        skipped = [r['index'] for r in results if not r['detectors']]
+
         with open(self.outfile, 'w') as outfile:
             wrote_headers = False
             for result in results:
-                if result['detectors'] is None:
+                if not result['detectors']:
                     continue
 
                 if not wrote_headers:
                     names = [d.name for d in result['detectors']]
                     outfile.write(build_header(self.mcstas.options, self.intervals.keys(), self.intervals, names))
-                    with open(self.simfile, 'w') as simfile:
-                        simfile.write(build_mccodesim_header(
+                    # See Scanner.run()'s matching NeXus branch: skip the
+                    # scan-level mccode.sim for NeXus format, for the same
+                    # reason - mccode.dat itself is still written and
+                    # stays plottable on its own.
+                    if self.mcstas.options.format.lower() != 'nexus':
+                        with open(self.simfile, 'w') as simfile:
+                            simfile.write(build_mccodesim_header(
                             self.mcstas.options,
                             self.intervals,
                             names,
                             version=self.mcstas.version
-                        ))
+                            ))
                     wrote_headers = True
 
                 values = ['%s %s' % (d.intensity, d.error) for d in result['detectors']]
                 line = '%s %s\n' % (' '.join(map(str, result['params'])), ' '.join(values))
                 outfile.write(line)
                 outfile.flush()
+
+        if skipped:
+            LOG.warning('%d of %d scan point(s) failed or produced no data and were skipped '
+                        '(step indices: %s). %s contains only the %d successful point(s).',
+                        len(skipped), len(results), ', '.join(str(s) for s in skipped),
+                        self.outfile, len(results) - len(skipped))
+        else:
+            LOG.info('Scan complete: all %d point(s) succeeded.', len(results))
 
 
 class Optimizer:
