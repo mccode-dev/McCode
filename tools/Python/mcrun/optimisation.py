@@ -162,16 +162,16 @@ end data
     # TODO: figure out correct scan type
     numpoints = 1 if options.optimize else options.numpoints
 
-    # -L list scan: use the position (1..N) within the list, matching
-    # build_header()'s existing convention for -L scans above - meaningful
-    # for a non-numeric list (e.g. filenames), where a literal min()/max()
-    # of the raw strings would be lexicographic and essentially
-    # meaningless, and harmless for a numeric one (the actual per-point
-    # values are written into mccode.dat itself; this is just the
-    # header's overall axis-range hint). Equidistant (-N/-M, non-list)
-    # scans are untouched, keeping their existing min()/max() behaviour.
+    # -L list scan: use the shared helper, which keeps the real min/max
+    # for a numeric list (matching what actually gets plotted - see
+    # _list_scan_xlimits()'s own docstring for why this matters), not just
+    # for a non-numeric one (e.g. filenames), where a literal min()/max()
+    # of the raw strings would be lexicographic and meaningless, so a
+    # 0-based index range (matching resolve_scan_value()'s own index
+    # substitution) is used instead. Equidistant (-N/-M, non-list) scans
+    # are untouched, keeping their existing min()/max() behaviour.
     if options.list:
-        xmin, xmax = 1, len(first_key_interval)
+        xmin, xmax = _list_scan_xlimits(first_key_interval)
     else:
         xmin, xmax = min(first_key_interval), max(first_key_interval)
 
@@ -528,8 +528,8 @@ class Scanner:
                             # lost, just delayed until the step completes
                             # rather than streamed in real time.
                             print(stdout_text, end='' if stdout_text.endswith('\n') else '\n')
-                            LOG.info("Finish running step, get detectors from stdout")
-                            detectors = parse_detectors_from_stdout(stdout_text)
+                        LOG.info("Finish running step, get detectors from stdout")
+                        detectors = parse_detectors_from_stdout(stdout_text)
                 except Exception as e:
                     # A single failed scan point (simulation crash,
                     # non-zero exit, unreadable output, a bad parameter
@@ -555,7 +555,7 @@ class Scanner:
                     skipped.append(i)
                     continue
 
-                    LOG.info("Got detectors")
+                LOG.info("Got detectors")
                 if not header_written:
                     # Written on the first SUCCESSFUL point, not
                     # unconditionally at index 0 - point 0 might itself be
@@ -579,48 +579,37 @@ class Scanner:
                         with open(self.simfile, 'w') as simfile:
                             simfile.write(build_mccodesim_header(self.mcstas.options, self.intervals, names,
                                                                 version=self.mcstas.version))
-                        LOG.info("Wrote headers")
-                        header_written = True
-                        LOG.info(f"Write step detectors line into {self.outfile}")
-                        values = ['%s %s' % (d.intensity, d.error) for d in detectors]
+                    LOG.info("Wrote headers")
+                    header_written = True
+                LOG.info(f"Write step detectors line into {self.outfile}")
+                values = ['%s %s' % (d.intensity, d.error) for d in detectors]
 
-                    if not self.mcstas.options.list:
-                        # Normal equidistant scan: LinearInterval/MultiInterval
-                        # .from_range() only ever produce numeric values, so
-                        # this is unchanged.
-                        line = '%s %s\n' % (' '.join(map(str, par_values)), ' '.join(values))
-                    else:
-                        # -L list scan: resolve each scanned parameter's
-                        # value independently (see resolve_scan_value()) -
-                        # a genuinely numeric value passes straight
-                        # through, and only a non-numeric one (e.g. a
-                        # filename) becomes its own index within that
-                        # parameter's own list, keeping one proper numeric
-                        # column per scanned parameter either way.
-                        resolved = [resolve_scan_value(key, val, self.intervals)
-                                    for key, val in zip(self.intervals.keys(), par_values)]
-                        line = '%s %s\n' % (' '.join(map(str, resolved)), ' '.join(values))
-                        outfile.write(line)
-                        outfile.flush()
+                if not self.mcstas.options.list:
+                    # Normal equidistant scan: LinearInterval/MultiInterval
+                    # .from_range() only ever produce numeric values, so
+                    # this is unchanged.
+                    line = '%s %s\n' % (' '.join(map(str, par_values)), ' '.join(values))
+                else:
+                    # -L list scan: resolve each scanned parameter's
+                    # value independently (see resolve_scan_value()) -
+                    # a genuinely numeric value passes straight
+                    # through, and only a non-numeric one (e.g. a
+                    # filename) becomes its own index within that
+                    # parameter's own list, keeping one proper numeric
+                    # column per scanned parameter either way.
+                    resolved = [resolve_scan_value(key, val, self.intervals)
+                                for key, val in zip(self.intervals.keys(), par_values)]
+                    line = '%s %s\n' % (' '.join(map(str, resolved)), ' '.join(values))
+                outfile.write(line)
+                outfile.flush()
 
-                    if not self.mcstas.options.list:
-                        # Normal equidistant scan: LinearInterval/MultiInterval
-                        # .from_range() only ever produce numeric values, so
-                        # this is unchanged.
-                        line = '%s %s\n' % (' '.join(map(str, par_values)), ' '.join(values))
-                    else:
-                        # -L list scan: resolve each scanned parameter's
-                        # value independently (see resolve_scan_value()) -
-                        # a genuinely numeric value passes straight
-                        # through, and only a non-numeric one (e.g. a
-                        # filename) becomes its own index within that
-                        # parameter's own list, keeping one proper numeric
-                        # column per scanned parameter either way.
-                        resolved = [resolve_scan_value(key, val, self.intervals)
-                                    for key, val in zip(self.intervals.keys(), par_values)]
-                        line = '%s %s\n' % (' '.join(map(str, resolved)), ' '.join(values))
-                        outfile.write(line)
-                        outfile.flush()
+        if skipped:
+            LOG.warning('%d of %d scan point(s) failed or produced no data and were skipped '
+                        '(step indices: %s). %s contains only the %d successful point(s).',
+                        len(skipped), len(points), ', '.join(str(s) for s in skipped),
+                        self.outfile, len(points) - len(skipped))
+        else:
+            LOG.info('Scan complete: all %d point(s) succeeded.', len(points))
 
 
 class Scanner_split:
@@ -688,7 +677,7 @@ class Scanner_split:
                             names,
                             version=self.mcstas.version
                             ))
-                        wrote_headers = True
+                    wrote_headers = True
 
                 values = ['%s %s' % (d.intensity, d.error) for d in result['detectors']]
                 line = '%s %s\n' % (' '.join(map(str, result['params'])), ' '.join(values))
