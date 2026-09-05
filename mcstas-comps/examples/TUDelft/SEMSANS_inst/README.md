@@ -1,4 +1,4 @@
-# The `SEMSANS_instrument` Instrument
+# The `SEMSANS_inst` Instrument
 
 *McStas: SEMSANS-instrument*
 
@@ -62,6 +62,6 @@ Parameters in **boldface** are required; the others are optional.
 
 ## Links
 
-- [Source code](SEMSANS_instrument.instr) for `SEMSANS_instrument.instr`.
+- [Source code](SEMSANS_inst.instr) for `SEMSANS_inst.instr`.
 
 ---
