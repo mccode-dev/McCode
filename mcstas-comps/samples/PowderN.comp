@@ -165,7 +165,6 @@
 * density: [g/cm^3]    Density of material. rho=density/weight/1e24*N_A.
 * nb_atoms: [1]        Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell
 * target_index: [1]    Relative index of component to focus incoherent scattering at, e.g. next is +1
-* order: [1]           Flag that determines whether the intensity should (1) not (0) be dampened by weighting multiple scattering
 *
 * CALCULATED PARAMETERS:
 * line_info: [struct]  internal structure containing many members/info
@@ -206,7 +205,7 @@ SETTING PARAMETERS (string reflections="NULL", string geometry="NULL",
   radius=0, yheight=0, xwidth=0, zdepth=0, thickness=0,
   pack=1, Vc=0, sigma_abs=0, sigma_inc=0, delta_d_d=0, p_inc=0.1, p_transmit=0.1,
   DW=0, nb_atoms=1, d_omega=0, d_phi=0, tth_sign=0, p_interact=0.8,
-  concentric=0, density=0, weight=0, barns=1, Strain=0, focus_flip=0, int target_index=0, int order=1)
+  concentric=0, density=0, weight=0, barns=1, Strain=0, focus_flip=0, int target_index=0)
 
 DEPENDENCY "@NCRYSTALFLAGS@"
 
@@ -452,9 +451,7 @@ SHARE
     struct line_data* list = NULL;
     list = (struct line_data*)malloc (nhkl * sizeof (struct line_data));
     if (!list) {
-      exit (fprintf (stderr,
-                     "PowderN: %s: Error: Could not allocate line array\n",
-                     info->compname));
+      exit (fprintf (stderr, "PowderN: %s: Error: Could not allocate line array\n", info->compname));
     }
     info->sigma_a = ncrystal_info_getxsectabsorption (ncobj);
     info->sigma_i = ncrystalpowdern_determine_sigma_inc (ncobj);
@@ -608,9 +605,7 @@ SHARE
     /* allocate line_data array */
     list = (struct line_data*)malloc (size * sizeof (struct line_data));
     if (!list) {
-      exit (fprintf (stderr,
-                     "PowderN: %s: Error: Could not allocate line array\n",
-                     info->compname));
+      exit (fprintf (stderr, "PowderN: %s: Error: Could not allocate line array\n", info->compname));
     }
 
     for (i = 0; i < size; i++) {
@@ -1142,11 +1137,7 @@ TRACE
       } else {
         dt = dt * (t3 - t2) + (t2 - t0); /* Possibly also 'backside' part */
       }
-      if (order) {
-        my_s = line_info.my_s_v2_sum / (v * v) + line_info.my_inc;
-      } else {
-        my_s = line_info.my_inc;
-      }
+      my_s = line_info.my_s_v2_sum / (v * v) + line_info.my_inc;
       /* Total attenuation from scattering */
       lfree = 0;
       ntype = rand01 ();
