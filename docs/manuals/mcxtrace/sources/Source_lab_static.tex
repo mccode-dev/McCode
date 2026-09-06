@@ -1,0 +1,86 @@
+\subsection*{X-ray tube laboratory source}
+\label{s:source-lab}
+\index{Sources!X-ray tube laboratory source}
+
+\textbf{Source\_lab} is a model of a laboratory X-ray tube. An electron ray hits a
+target of specified material. Currently, only single material targets are
+allowed. To model multiple material targets one could construct a model with two
+or more sources simultaneously. This has consequences for intensity of the source which should be downscaled accordingly.
+
+An electron beam of rectangular transverse crossection (\textit{width,height}) and energy \textit{E0}
+impinges on the target of material. Wrt. the electron beam, the target is
+considereded infinitely thick. The beam is considered to have uniform
+intenisty. Thus, the spatial distribution of x-ray generation will be
+exponential in the depth of the material.
+
+Further, an exit aperture is defined with dimensions
+(\textit{focus\_xw,focus\_yh}). The centre of the aperture is situated at a
+distance \textit{dist} \si{m} from where the electron beam hits the target slab
+at an elevation of \textit{take\_off} (see Figure~\ref{f:source_lab}).  
+
+The \textbf{Source\_lab} coordinate system has its origin in the center of the
+elctron beam at the surface of the
+anode material and is oriented such that the z-axis points at the center of the
+exit window, and the x-axis is parallel to the \emph{width} of the electron
+beam. 
+
+Note that the exit aperture is merely an opening. If the
+material absorption of a window, e.g. Be, is to be taken into account a
+\textbf{Filter} (section~\ref{s:filter}) should be inserted after the exit
+aperture. 
+
+\begin{figure}
+\label{f:source_lab}
+\centering
+\def\svgwidth{\columnwidth}
+%\input{../figures/source_lab.pdf_tex}
+\import{figures/}{source_lab.pdf_tex}
+\caption{Geometry of the \textbf{Source\_lab} component. An electron beam impinges at a right angle on
+an anode material, where X-rays are generated. The Origin is defined to be a the centre of the electron beam
+on the anode surface, and the coordinate system is oriented such that the $\boldsymbol{z}$-axis point towards
+the exit aperture.} 
+\end{figure}
+
+For each photon ray to be generated, a Monte Carlo choice is made to
+generate either a Bremsstrahlung photon or one from one of the x-ray emission
+lines of the material. $( 1-\mathit{frac} )$ of the rays are generated from characteristic
+emission, and $( \mathit{frac} )$ from Bremsstrahlung. In most cases Bremsstrahlung is
+unwanted background, which is why the default is $0.1$. Note that this
+\emph{only} governs how much of the available statistics is diverted into
+simulating Bremsstrahlung. It does not have an impact on what intensity is detected
+in subsequent monitors --- only on the errorbars of the detected numbers.
+
+The spectral characteristics of the generated Bremsstrahlung is goverened by
+the model suggested by Kramer~\cite{kramers1923}. Although disputed in several
+subsequent papers, the model is simple, and sufficiently accurate for many
+background estimation purposes.
+
+Characteristic emission on the other hand is sampled from a set of Lorentzian
+functions with central wavelengths found in the work by \cite{bearden1967x} with
+spectral widths taken from \cite{krause1979natural}.
+
+An example of beam spectral characteristics emitted from a Cu-anode target
+detected $1$ mm  from an exit aperture of $1\times 1$ \si{cm\squared} $10$ \si{cm} downstream from the
+target at a \textit{take\_off}angle of $6\si{\degree}$ is seen in
+figure~\ref{f:source_lab_spectrum}.
+\begin{figure}
+\label{f:source_lab_spectrum}
+\caption{Intensity vs. wavelenghth for a Cu-anode laboratory source.}
+\end{figure}
+
+\textbf{Source\_lab} includes a set of common anode materials: \{Cr, Co, Cu, Ga, Mo, Ag, W\}. More materials can be added by the following procedure:
+\begin{enumerate}
+\item Find the atomic number, $Z$, for the material you want to add. So far only single materials are supported.
+\item Look up (and note down) the central energies of (up to) 6 characteristic lines for the material in e.g. \cite{bearden1967x}. Also note down the number lines you have recorded.
+\item Look up the natural spectral widths of those lines in \cite{krause1979natural}.
+\item Find the relative intensity of the the set of lines. For instance from the x-ray data booklet.
+\item Note down the ionization energy $E_I(Z)$, and flourescence yield, $Y(Z)$, of the anode material.
+\end{enumerate}
+With this information assemble a code line as:\\
+\texttt{\{$Z$,$E_I(Z)$,$Y(Z)$,$n$,\{$[E_C]$\},\{$[W]$\},\{$[I]$\}\},}\\
+ and put it in the source file \texttt{Source\_lab.comp}, just above the line that reads\\
+\texttt{\{0,0.0,0.0,0,\{0,0,0,0,0,0\},\{0,0,0,0,0,0\},\{0,0,0,0,0,0\}\}}\\
+in the \texttt{SHARE} section of the component source code.
+Here $[E_C]$ refers to a comma separated list of characteristic energies in \si{keV}, $[W]$ a
+list of characteristic widths in \si{keV}, and $[I]$ a list of relative line intensities.
+Lastly, $n$ denotes the number of x-ray lines.

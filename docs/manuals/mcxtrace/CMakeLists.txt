@@ -55,12 +55,12 @@ include(CPack)
 
 message( "LaTeX configuration" )
 # set(LATEX_OUTPUT_PATH ".")
-file(GLOB LIST RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.tex" "*.sty" "*.bib" "*.bst" "[m-s]*/*.tex" "[m-s]*/*.parms" "figures/*" "Semi_mirror.comp")
+file(GLOB LIST CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.tex" "*.sty" "*.bib" "*.bst" "[a-z]*/*.tex" "[a-z]*/*.parms" "figures/*" "Semi_mirror.comp")
 
-foreach(NAME sources samples optics monitors misc)
+foreach(NAME sources samples optics monitors misc union sasmodels contrib obsolete astrox)
   add_custom_command(
     OUTPUT "${NAME}.done"
-    COMMAND "${PROJECT_SOURCE_DIR}/get_mxdoc_snippets.sh" "${NAME}" "${PROJECT_SOURCE_DIR}"
+    COMMAND "mxdoc" "--tex" "--in-repo" "--dir=${CMAKE_SOURCE_DIR}/../../../mcxtrace-comps/${NAME}" "--outdir=${PROJECT_BINARY_DIR}"
     WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
     )
 endforeach()
@@ -77,7 +77,7 @@ add_latex_document(
 add_latex_document(
   Component_manual.tex 
   INPUTS ${LIST}
-  DEPENDS sources.done samples.done optics.done monitors.done misc.done
+  DEPENDS sources.done samples.done optics.done monitors.done misc.done union.done sasmodels.done contrib.done obsolete.done astrox.done
   BIBFILES "mcxtrace.bib"
   USE_INDEX
   FORCE_PDF

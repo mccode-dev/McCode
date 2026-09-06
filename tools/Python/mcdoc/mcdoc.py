@@ -103,9 +103,251 @@ def _tex(s):
     return s
 
 
+# Standalone tokens that are ASCII shorthand for Angstrom in McStas
+# comp/instr headers -- "AA" is the dominant convention, but "Angs",
+# "Ang", "Angstrom"/"Angstroms" also appear. All are converted to the
+# proper LaTeX \AA{} (ring-A) symbol; see _tex_with_angstrom() below.
+_ANGSTROM_RE = re.compile(r'\b(?:AA|Angstroms?|Angs?)\b')
+
+
+# ------------------------------------------------------------------
+#   %D "Description" field -> flowing LaTeX (instead of one big
+#   \verbatim block), with a small, whitelisted set of embedded HTML
+#   tags (per the McDoc format spec) converted to real LaTeX, and any
+#   line that looks like an ASCII-art diagram/aligned table kept
+#   verbatim so its alignment survives.
+# ------------------------------------------------------------------
+
+def _is_tabular_line(line):
+    ''' Heuristic: does this line look like part of an ASCII-art diagram
+    or an aligned parameter/data table, rather than ordinary prose? '''
+    if line.strip() == '':
+        return False
+    # Three or more consecutive spaces almost always signals column
+    # alignment (two spaces is common after a period in plain prose, so
+    # we deliberately require more than that to avoid false positives).
+    if re.search(r'   +', line):
+        return True
+    # Box-drawing / ruler-like sequences (----, ====, |---|, +===+, ...)
+    if re.search(r'[|+][-=]{2,}|[-=]{3,}[|+]', line):
+        return True
+    # Lines dominated by non-letter characters (numeric columns, symbols)
+    stripped = line.strip()
+    letters = sum(c.isalpha() for c in stripped)
+    if len(stripped) >= 6 and letters / len(stripped) < 0.4:
+        return True
+    return False
+
+
+def _convert_inline_markup(s):
+    '''
+    Converts a small, well-known set of literal HTML tags -- as explicitly
+    permitted in McDoc %D sections, see the McDoc format documentation --
+    to LaTeX, while leaving everything else as literal text. Unlike a full
+    HTML/Markdown parser, this never reinterprets '_', '*', '#' etc. as
+    markup, so ordinary scientific/programming text (variable names,
+    multiplications, ...) is never mangled.
+
+    Handles <a href="URL">link text</a> spans (including ones whose text
+    was hard-wrapped across multiple source lines, e.g. long DOIs split
+    for 80-column .comp headers) by collapsing internal whitespace; if the
+    collapsed link text is identical to the URL itself (the extremely
+    common "<a href='URL'>URL</a>" convention in these headers), the clean
+    URL is used as the display text rather than whatever fragment survived
+    the line wrap, avoiding artifacts like ".../JNR- 190117".
+    '''
+    tokens = []
+    def stash(repl):
+        tokens.append(repl)
+        return '\x01%d\x02' % (len(tokens) - 1)
+
+    # <a href="URL">text</a>  ->  \htmladdnormallink{text}{URL}
+    # (single DOTALL pass so link text spanning a hard line-wrap is seen
+    # as one unit, rather than being processed line-by-line beforehand)
+    def repl_a(m):
+        attrs, inner = m.group(1), m.group(2)
+        href = re.search(r'href\s*=\s*"([^"]*)"', attrs, re.IGNORECASE)
+        url = href.group(1) if href else ''
+        collapsed_inner = re.sub(r'\s+', '', inner)
+        collapsed_url = re.sub(r'\s+', '', url)
+        if url and collapsed_inner == collapsed_url:
+            # display text is just the (possibly line-wrapped) URL itself:
+            # use the clean URL, not the fragmented/space-joined version
+            display = url
+        else:
+            display = re.sub(r'\s+', ' ', inner).strip()
+        return stash(r'\htmladdnormallink{%s}{%s}' % (_tex_with_angstrom(display), _tex(url)))
+    s = re.sub(r'<a\s+([^>]*)>(.*?)</a\s*>', repl_a, s, flags=re.IGNORECASE | re.DOTALL)
+
+    # <img src="URL" ...>  ->  \includegraphics{URL}  (best effort; only
+    # works if URL is a local path resolvable from the manual build dir)
+    def repl_img(m):
+        src = re.search(r'src\s*=\s*"([^"]*)"', m.group(0), re.IGNORECASE)
+        path = src.group(1) if src else ''
+        return stash(r'\includegraphics[width=0.8\textwidth]{%s}' % path if path else '')
+    s = re.sub(r'<img\s+[^>]*/?>', repl_img, s, flags=re.IGNORECASE)
+
+    # basic inline style tags
+    simple = {
+        'b': r'\textbf{', 'strong': r'\textbf{',
+        'i': r'\textit{', 'em': r'\textit{',
+        'tt': r'\texttt{', 'code': r'\texttt{',
+        'u': r'\underline{',
+        'sub': r'_{', 'sup': r'^{',
+    }
+    for tag, latex_open in simple.items():
+        s = re.sub(r'<%s\s*>' % tag, lambda m, o=latex_open: stash(o), s, flags=re.IGNORECASE)
+        s = re.sub(r'</%s\s*>' % tag, lambda m: stash('}'), s, flags=re.IGNORECASE)
+
+    # <br> -> line break
+    s = re.sub(r'<br\s*/?>', lambda m: stash('\\\\'), s, flags=re.IGNORECASE)
+
+    # Collapse any remaining whitespace runs (including the real newlines
+    # from the original multi-line paragraph, which we now receive intact
+    # so that the <a>...</a> handling above could see across them) to a
+    # single space, exactly like ordinary paragraph reflow.
+    s = re.sub(r'\s+', ' ', s).strip()
+
+    # Standalone "AA"/"Angs"/"Ang"/"Angstrom(s)" (Angstrom) tokens -> \AA{}.
+    # Detected here, on the raw text (with only tag-derived placeholders
+    # interspersed, which can't create false word boundaries), and
+    # stashed via the *same* top-level tokens list as everything else
+    # above -- this is safe because it is a sibling top-level
+    # substitution into s, not nested inside another not-yet-resolved
+    # stashed value (contrast with _tex_with_angstrom(), which is for
+    # standalone/isolated use).
+    s = _ANGSTROM_RE.sub(lambda m: stash(r'\AA{}'), s)
+
+    # Escape everything else exactly like normal LaTeX text (this also
+    # correctly turns any *unrecognized* '<tag>' into literal, visible
+    # \textless{}tag\textgreater{} rather than silently dropping it).
+    s = _tex(s)
+
+    # restore the stashed, already-correct LaTeX macros
+    def restore(m):
+        return tokens[int(m.group(1))]
+    s = re.sub(r'\x01(\d+)\x02', restore, s)
+    return s
+
+
+def _description_to_latex(text):
+    '''
+    Converts a McDoc %D "Description" field to reasonably well-typeset
+    LaTeX: flowing, hyphenated paragraphs for ordinary prose (including a
+    small set of embedded HTML tags per the McDoc format spec), while any
+    line that looks like an ASCII-art diagram or aligned parameter table
+    is kept in a \verbatim block so its alignment survives. This replaces
+    dumping the whole field into one big \verbatim block, which typeset
+    badly (no wrapping/hyphenation, monospace font throughout) and could
+    not reflect embedded links or basic formatting.
+    '''
+    if not text:
+        return ''
+    lines = text.split('\n')
+    out_blocks = []
+    buf_prose = []
+    buf_code = []
+
+    def flush_prose():
+        if buf_prose:
+            # Note: paragraphs (split on blank lines) are handed to
+            # _convert_inline_markup with their internal newlines still
+            # intact, so it can see across a hard-wrapped <a>...</a> span
+            # (e.g. a long DOI split for 80-column .comp headers) as one
+            # unit; ordinary newline-to-space reflow happens inside it.
+            paragraph = '\n'.join(buf_prose)
+            for p in re.split(r'\n\s*\n', paragraph):
+                if p.strip() != '':
+                    out_blocks.append(_convert_inline_markup(p))
+            buf_prose.clear()
+
+    def flush_code():
+        if buf_code:
+            out_blocks.append('\\begin{verbatim}\n' + '\n'.join(buf_code) + '\n\\end{verbatim}')
+            buf_code.clear()
+
+    for line in lines:
+        if _is_tabular_line(line):
+            flush_prose()
+            buf_code.append(line)
+        else:
+            flush_code()
+            buf_prose.append(line)
+    flush_code()
+    flush_prose()
+
+    return '\n\n'.join(out_blocks)
+
+
 def _mccode_label():
     ''' Returns ('McStas' or 'McXtrace') depending on the active flavour. '''
     return 'McXtrace' if mccode_config.get_mccode_prefix() == 'mx' else 'McStas'
+
+
+def _tex_with_angstrom(s):
+    r'''
+    Like _tex(), but additionally converts standalone Angstrom shorthand
+    tokens -- "AA" is the dominant convention in McStas comp/instr
+    headers, but "Angs", "Ang", "Angstrom"/"Angstroms" also appear, since
+    the actual \AA{} (Angstrom, ring-A) character is rarely typed directly
+    -- into the proper LaTeX \AA{} symbol.
+
+    The token detection deliberately happens on the *raw*, not-yet-escaped
+    text (protected via a stash/placeholder, exactly like
+    _convert_inline_markup does for HTML tags) rather than after _tex()
+    has run. This matters: in raw text, '_' is a word character, so
+    "AA_test" (AA embedded in a longer identifier) correctly has no word
+    boundary and is left alone; if detection ran on the *escaped* text
+    instead, the '_' would already have become '\_', a non-word character
+    that creates a spurious boundary and incorrectly triggers a match.
+    This function is self-contained (fully resolves its own placeholder
+    before returning), so it is always safe to call standalone; it must
+    NOT be used to build a fragment that gets embedded inside another,
+    not-yet-resolved stashed placeholder elsewhere, since nested
+    placeholders are not resolved by a single re.sub pass.
+    '''
+    if s is None:
+        return ''
+    s = str(s)
+    tokens = []
+    def stash(repl):
+        tokens.append(repl)
+        return '\x01%d\x02' % (len(tokens) - 1)
+    s = _ANGSTROM_RE.sub(lambda m: stash(r'\AA{}'), s)
+    s = _tex(s)
+    def restore(m):
+        return tokens[int(m.group(1))]
+    return re.sub(r'\x01(\d+)\x02', restore, s)
+
+
+def _format_unit(unit):
+    r'''
+    Formats a parameter's unit string for the LaTeX table. Any explicit
+    caret-based exponent -- "AA^3", "cm^-2", "AA^(-1)", ... -- is
+    converted to a proper LaTeX math-mode superscript (e.g. AA$^{3}$)
+    instead of being escaped into a literal caret character. Standalone
+    "AA" tokens (Angstrom) become \AA{} via _tex_with_angstrom(). Units
+    with no caret (e.g. the common bare "AA-1" convention) still get
+    their "AA" converted; everything else is escaped exactly like
+    ordinary text.
+    '''
+    if not unit:
+        return ''
+    parts = []
+    last = 0
+    for m in re.finditer(r'\^\(?(-?\d+(?:\.\d+)?)\)?', unit):
+        parts.append(('text', unit[last:m.start()]))
+        parts.append(('sup', m.group(1)))
+        last = m.end()
+    parts.append(('text', unit[last:]))
+    out = []
+    for kind, chunk in parts:
+        if kind == 'text':
+            if chunk:
+                out.append(_tex_with_angstrom(chunk))
+        else:
+            out.append('$^{%s}$' % chunk)
+    return ''.join(out)
 
 
 # ==================================================================
@@ -656,7 +898,7 @@ class InstrParser:
 
     def parse(self):
         ''' parses the given file '''
-        f = open(self.filename)
+        f = open(self.filename, encoding='utf-8')
         logging.debug('parsing file "%s"' % self.filename)
 
         header = utils.read_header(f)
@@ -826,7 +1068,7 @@ Generated for %VERSION%
 class CompParser(InstrParser):
     def parse(self):
         ''' override '''
-        f = open(self.filename)
+        f = open(self.filename, encoding='utf-8')
         logging.debug('parsing file "%s"' % self.filename)
 
         header = utils.read_header(f)
@@ -1299,7 +1541,7 @@ class InstrLatexDocWriter:
         out.append(r'\begin{document}')
         out.append(r'\maketitle')
         out.append('')
-        out.append(_tex(short_descr))
+        out.append(_tex_with_angstrom(short_descr))
         out.append('')
         out.append(r'\section*{Identification}')
         out.append(r'\begin{itemize}')
@@ -1310,9 +1552,7 @@ class InstrLatexDocWriter:
         out.append(r'\end{itemize}')
         out.append('')
         out.append(r'\section*{Description}')
-        out.append(r'\begin{lstlisting}')
-        out.append(i.description if i.description is not None else '')
-        out.append(r'\end{lstlisting}')
+        out.append(_description_to_latex(i.description))
         out.append('')
         out.append(r'\section*{Input parameters}')
         out.append(r'Parameters in \textbf{boldface} are required; the others are optional.')
@@ -1326,15 +1566,15 @@ class InstrLatexDocWriter:
             name_tex = _tex(name)
             if required:
                 name_tex = r'\textbf{%s}' % name_tex
-            out.append('%s & %s & %s & %s \\\\' % (name_tex, _tex(unit), _tex(doc), _tex(defval)))
+            out.append('%s & %s & %s & %s \\\\' % (name_tex, _format_unit(unit), _tex_with_angstrom(doc), _tex(defval)))
         out.append(r'\bottomrule')
         out.append(r'\end{longtable}')
         out.append('')
         out.append(r'\section*{Links}')
         out.append(r'\begin{itemize}')
-        out.append(r'  \item \href{run:%s}{Source code} for \texttt{%s}.' % (i.filepath, _tex(os.path.basename(i.filepath))))
+        out.append(r'  \item Instrument source code found in file \texttt{%s}.' % (_tex(os.path.basename(i.filepath))))
         for l in i.links:
-            out.append(r'  \item %s' % _tex(l))
+            out.append(r'  \item %s' % _convert_inline_markup(l))
         out.append(r'\end{itemize}')
         out.append('')
         out.append(r'\vspace{1em}')
@@ -1364,7 +1604,7 @@ class CompLatexDocWriter:
 
         out = [] # Drop the [_LATEX_PREAMBLE]
         out.append(r'\section{The \texttt{%s} %s Component}' % (_tex(i.name), _tex(flavour)))
-        out.append(_tex(short_descr))
+        out.append(_tex_with_angstrom(short_descr))
         out.append('')
         out.append(r'\subsection*{Identification}')
         out.append(r'\begin{itemize}')
@@ -1375,9 +1615,7 @@ class CompLatexDocWriter:
         out.append(r'\end{itemize}')
         out.append('')
         out.append(r'\subsection*{Description}')
-        out.append(r'\begin{lstlisting}')
-        out.append(i.description if i.description is not None else '')
-        out.append(r'\end{lstlisting}')
+        out.append(_description_to_latex(i.description))
         out.append('')
         out.append(r'\subsection*{Input parameters}')
         out.append(r'Parameters in \textbf{boldface} are required; the others are optional.')
@@ -1391,7 +1629,7 @@ class CompLatexDocWriter:
             name_tex = _tex(name)
             if required:
                 name_tex = r'\textbf{%s}' % name_tex
-            out.append('%s & %s & %s & %s \\\\' % (name_tex, _tex(unit), _tex(doc), _tex(defval)))
+            out.append('%s & %s & %s & %s \\\\' % (name_tex, _format_unit(unit), _tex_with_angstrom(doc), _tex(defval)))
         out.append(r'\bottomrule')
         out.append(r'\end{longtable}')
         out.append('')
@@ -1399,9 +1637,9 @@ class CompLatexDocWriter:
         out.append(r'\begin{itemize}')
         out.append(r'  \item Component source code found in file \texttt{%s}.' % (_tex(os.path.basename(i.filepath))))
         for l in i.links:
-            out.append(r'  \item %s' % _tex(l))
+            out.append(r'  \item %s' % _convert_inline_markup(l))
         out.append(r'\end{itemize}')
-        out.append(r'\IfFileExists{%s_static.tex}{\input{%s_static.tex}}{}' % (i.name, i.name))
+        out.append(r'\IfFileExists{%s/%s_static.tex}{\input{%s/%s_static.tex}}{}' % (i.category, i.name, i.category, i.name))
         self.text = '\n'.join(out)
         return self.text
 
@@ -1416,7 +1654,7 @@ def write_file(filename, text, failsilent=False):
 
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        f = open(filename, 'w')
+        f = open(filename, 'w', encoding='utf-8')
         f.write(text)
         f.close()
     except Exception as e:
