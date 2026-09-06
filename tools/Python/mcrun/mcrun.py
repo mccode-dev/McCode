@@ -519,8 +519,11 @@ def get_parameters(options):
             # the user needing to work out -N by hand. Checked before the
             # comma-based interval parsing below, since a colon can never
             # appear in a numeric value/list, so a colon anywhere in the
-            # value unambiguously means this syntax was intended.
-            if ':' in value:
+            # value would otherwise unambiguously mean this syntax was
+            # intended - EXCEPT double-colon syntax from NCrystal-backed
+            # reflections="stdlib::ZnO_sg186_ZincOxide.ncmat;temp=300K"
+            # used in context of PowderN. Filter out from the start:
+            if ':' in value and '::' not in value:
                 parts = value.split(':')
                 if len(parts) != 3:
                     raise OptionValueError(
