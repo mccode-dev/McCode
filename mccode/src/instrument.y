@@ -1284,15 +1284,16 @@ instref: "COPY" '(' compref ')' actuallist /* make a copy of a previous instance
         comp_src = $3;
         palloc(comp);
         comp->def    = comp_src->def;
-        comp->extend = comp_src->extend;
-        comp->group  = comp_src->group;
-        comp->jump   = comp_src->jump;
-        comp->when   = comp_src->when;
         /* now catenate src and actual parameters */
         comp->actuals= symtab_create();
         symtab_cat(comp->actuals, $5);
         symtab_cat(comp->actuals, comp_src->actuals);
-        comp->metadata = metadata_list_copy(comp_src->metadata);
+	/* All other proprties are initialized from fresh */
+	comp->extend = codeblock_new();
+        comp->group  = NULL;
+        comp->jump   = list_create();
+        comp->when   = NULL;
+        comp->metadata = list_create();
         $$ = comp;
       }
     | "COPY" '(' compref ')'
@@ -1304,12 +1305,13 @@ instref: "COPY" '(' compref ')' actuallist /* make a copy of a previous instance
         comp->defpar = comp_src->defpar;
         comp->setpar = comp_src->setpar;
         comp->def    = comp_src->def;
-        comp->extend = comp_src->extend;
-        comp->group  = comp_src->group;
-        comp->jump   = comp_src->jump;
-        comp->when   = comp_src->when;
         comp->actuals= comp_src->actuals;
-        comp->metadata = metadata_list_copy(comp_src->metadata);
+	/* All other proprties are initialized from fresh */
+	comp->extend = codeblock_new();
+        comp->group  = NULL;
+        comp->jump   = list_create();
+        comp->when   = NULL;
+        comp->metadata = list_create();
         $$ = comp;
       }
     | TOK_ID actuallist /* define new instance with def+set parameters */
@@ -1325,7 +1327,7 @@ instref: "COPY" '(' compref ')' actuallist /* make a copy of a previous instance
         comp->jump   = list_create();
         comp->when   = NULL;
         comp->actuals= $2;
-        comp->metadata = metadata_list_copy(def->metadata);
+        comp->metadata = list_create();
         $$ = comp;
       }
 ;
@@ -1417,28 +1419,6 @@ component: removable cpuonly split "COMPONENT" instname '=' instref
 	  }
         }
         if ($13->linenum) {
-#ifdef GENERATE_C
-	  if (comp->extend->linenum>0) {
-	    fprintf(stderr, "\n-----------------------------------------------------------\n");
-	    fprintf(stderr, "WARNING: Existing (COPY) EXTEND block in COMPONENT %s:\n", comp->name);
-	    List_handle liter = list_iterate(comp->extend->lines);
-	    List_handle liter2 = list_iterate($13->lines);
-	    char *line, *line2;
-	    fprintf(stderr, "  EXTEND %%{\n");
-	    while((line = list_next(liter))) {
-	      fprintf(stderr, "  %s",line);
-	    }
-	    list_iterate_end(liter);
-	    fprintf(stderr, "  %%}\n");
-	    fprintf(stderr, "\nis overwritten by:\n");
-	    fprintf(stderr, "  EXTEND %%{\n");
-	    while((line2 = list_next(liter2))) {
-	      fprintf(stderr, "  %s",line2);
-	    }
-	    list_iterate_end(liter2);
-	    fprintf(stderr, "  %%}\n-----------------------------------------------------------\n");
-	  }
-#endif
 	  comp->extend= $13;  /* EXTEND block*/
 	}
         if (list_len($14))  comp->jump  = $14;
