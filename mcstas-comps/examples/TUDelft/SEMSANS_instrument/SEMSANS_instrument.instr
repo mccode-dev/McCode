@@ -15,6 +15,7 @@
 * SEMSANS instrument with 2 isosceles triangular field coils
 *
 * %Example: -y Detector: TOF_det_I=2.87073e-09
+* %Example: debug=1 Detector: TOF_det_I=2.87073e-09
 *
 * %Parameters
 * triacoil_depth: [m]   Half of the triangular coil depth in z-direction (one right triangle)
@@ -56,10 +57,11 @@
 * detector_pos: [m]     Position of detector
 * tlow: [mu-s]          tmin of detector
 * thigh: [mu-s]         tmax of detector
+* debug: [1]            Debug flag - when enabled more monitor outputs appear
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT SEMSANS_instrument(triacoil_depth=1.935000e-01, triacoil_width=7.042824e-02, triacoil_height=3.000000e-01, pol_zdepth=9.300000e-01, vcoil_zdepth=1.500000e-01, Guide1_depth=1.650000e-02, Guide2_depth=3.315000e-01, Guide3_depth=3.315000e-01, Guide4_depth=5.650000e-02, Bguide=-5.000000e-04, Bextra=-2.120000e-02, Bt2=-4.440000e-03, Bt1=-2.560000e-03, DLambda=4.166366e+00, Lambda=4.559500e+00, flippos=3.100000e-02, FLIP=1.000000e+00, chop1_pos=5.000000e-01, chop2_pos=9.740000e-01, pol_pos=1.907000e+00, analyser_pos=6.072000e+00, grating_w=1.570000e-03, grating_a=2.930000e-03, slit_1_pos=2.957000e+00, slit_2_pos=5.437000e+00, Guide1_pos=3.307000e+00, Guide2_pos=3.710500e+00, Guide3_pos=4.342000e+00, Guide4_pos=5.060500e+00, vcoil_12_pos=3.157000e+00, vcoil_34_pos=4.192000e+00, vcoil_56_pos=5.267000e+00, triacoil_1_pos=3.517000e+00, triacoil_2_pos=4.867000e+00, grating_pos=6.757000e+00, detector_pos=6.957000e+00, tlow=2.190523040779461e+03, thigh=1.214744595341338e+04)
+DEFINE INSTRUMENT SEMSANS_instrument(triacoil_depth=1.935000e-01, triacoil_width=7.042824e-02, triacoil_height=3.000000e-01, pol_zdepth=9.300000e-01, vcoil_zdepth=1.500000e-01, Guide1_depth=1.650000e-02, Guide2_depth=3.315000e-01, Guide3_depth=3.315000e-01, Guide4_depth=5.650000e-02, Bguide=-5.000000e-04, Bextra=-2.120000e-02, Bt2=-4.440000e-03, Bt1=-2.560000e-03, DLambda=4.166366e+00, Lambda=4.559500e+00, flippos=3.100000e-02, FLIP=1.000000e+00, chop1_pos=5.000000e-01, chop2_pos=9.740000e-01, pol_pos=1.907000e+00, analyser_pos=6.072000e+00, grating_w=1.570000e-03, grating_a=2.930000e-03, slit_1_pos=2.957000e+00, slit_2_pos=5.437000e+00, Guide1_pos=3.307000e+00, Guide2_pos=3.710500e+00, Guide3_pos=4.342000e+00, Guide4_pos=5.060500e+00, vcoil_12_pos=3.157000e+00, vcoil_34_pos=4.192000e+00, vcoil_56_pos=5.267000e+00, triacoil_1_pos=3.517000e+00, triacoil_2_pos=4.867000e+00, grating_pos=6.757000e+00, detector_pos=6.957000e+00, tlow=2.190523040779461e+03, thigh=1.214744595341338e+04, int debug=0)
 
 /* The DECLARE section allows us to declare variables or  small      */
 /* functions in C syntax. These may be used in the whole instrument. */
@@ -88,6 +90,13 @@ COMPONENT source = Source_simple(
   lambda0 = Lambda,dlambda = DLambda)
 AT (0, 0, 0) RELATIVE Origin
 
+// Monitors at source
+COMPONENT sourcePSD = PSD_monitor(xwidth=0.01,yheight=0.01, nowritefile=(!debug))
+WHEN (debug) AT (0,0,0) RELATIVE Origin
+
+COMPONENT sourceWL = L_monitor(xwidth=0.01,yheight=0.01, Lmin=Lambda-DLambda/2.0, Lmax=Lambda+DLambda/2.0, nowritefile=(!debug))
+WHEN (debug) AT (0,0,0) RELATIVE Origin
+
 // First chopper
 COMPONENT chop1 = DiskChopper(radius=0.21, theta_0=20, nu=25, nslit=2, phase=-10, isfirst=1, yheight=0.21)
 AT (0, 0, chop1_pos) RELATIVE Origin
@@ -95,6 +104,11 @@ AT (0, 0, chop1_pos) RELATIVE Origin
 // Second chopper
 COMPONENT chop2 = DiskChopper(radius=0.21, theta_0=20, nu=25, nslit=2, phase=20-10, isfirst=0, yheight=0.21)
 AT (0, 0, chop2_pos) RELATIVE Origin
+
+// Lmon post chopper
+COMPONENT chopWL = L_monitor(xwidth=0.01,yheight=0.01, Lmin=Lambda-DLambda/2.0, Lmax=Lambda+DLambda/2.0, nowritefile=(!debug))
+WHEN (debug) AT (0,0,0) RELATIVE chop2
+
 
 // Polariser
 COMPONENT polarizer = Set_pol(py=1)
@@ -105,9 +119,13 @@ COMPONENT slit_1 = Slit(
    xwidth=15e-3,yheight=15e-3)
 AT (0,0,slit_1_pos) RELATIVE Origin
 
+// PSD post first slit
+COMPONENT slitPSD = PSD_monitor(xwidth=0.02,yheight=0.02, nowritefile=(!debug))
+WHEN (debug) AT (0,0,0) RELATIVE slit_1
+
 //First v-coil of first v-coil pair
 COMPONENT vcoil1=Pol_pi_2_rotator(
-    xwidth=0.15,yheight=0.15,zdepth=vcoil_zdepth,rx=0,ry=0,rz=FLIP*1)
+    xwidth=0.15,yheight=0.15,zdepth=vcoil_zdepth,rx=0,ry=0,rz=FLIP*1.0)
 AT (0,0,vcoil_12_pos-vcoil_zdepth) RELATIVE Origin
 
 //Second v-coil of first v-coil pair
@@ -115,15 +133,18 @@ COMPONENT vcoil2=Pol_pi_2_rotator(
     xwidth=0.15,yheight=0.15,zdepth=vcoil_zdepth,rx=0,ry=1,rz=0)
 AT (0,0,vcoil_12_pos) RELATIVE Origin
 
+// PSD post 1st v-coil pair
+COMPONENT vcoilPSD = PSD_monitor(xwidth=0.2,yheight=0.2, nowritefile=(!debug))
+WHEN (debug) AT (0,0,vcoil_zdepth) RELATIVE vcoil2
 
 // START GUIDEFIELD 1
 COMPONENT Guide_field1 = Pol_Bfield(field_type=1, xwidth=0.4, yheight=0.4, Bx=0, By=Bguide+Bextra, Bz=0)
-     AT (0,0,Guide1_pos) RELATIVE Origin
+AT (0,0,Guide1_pos) RELATIVE Origin
 
 
 // STOP GUIDE FIELD 1
 COMPONENT Guide_field1_cp = Pol_Bfield_stop()
-     AT (0,0,Guide1_pos+Guide1_depth) RELATIVE Origin
+AT (0,0,Guide1_pos+Guide1_depth) RELATIVE Origin
 
 
 // TRIA COIL 1
@@ -132,10 +153,13 @@ COMPONENT triacoil_1=Pol_triafield(
     B=Bt1, Bguide=Bguide)
   AT (0,0,triacoil_1_pos-triacoil_depth) RELATIVE Origin
 
+// PSD post triangular coil 1
+COMPONENT triaPSD = PSD_monitor(xwidth=0.4,yheight=0.4, nowritefile=(!debug))
+WHEN (debug) AT (0,0,Guide2_pos) RELATIVE Origin
 
 // START GUIDEFIELD 2
 COMPONENT Guide_field2 = Pol_Bfield(field_type=1, xwidth=0.4, yheight=0.4, Bx=0, By=Bguide, Bz=0)
-     AT (0,0,Guide2_pos) RELATIVE Origin
+AT (0,0,Guide2_pos) RELATIVE Origin
 
 
 // STOP GUIDE FIELD 2
@@ -156,24 +180,24 @@ AT (0,0,vcoil_34_pos+flippos) RELATIVE Origin
 
 // START GUIDEFIELD 3
 COMPONENT Guide_field3 = Pol_Bfield(field_type=1, xwidth=0.4, yheight=0.4, Bx=0, By=Bguide, Bz=0)
-     AT (0,0,Guide3_pos+flippos) RELATIVE Origin
+AT (0,0,Guide3_pos+flippos) RELATIVE Origin
 
 
 // STOP GUIDE FIELD 3
 COMPONENT Guide_field3_cp = Pol_Bfield_stop()
-     AT (0,0,Guide3_pos+Guide3_depth) RELATIVE Origin
+AT (0,0,Guide3_pos+Guide3_depth) RELATIVE Origin
 
 
 // START TRIA COIL 2
 COMPONENT triacoil_2=Pol_triafield(
     xwidth=triacoil_width,yheight=triacoil_height,zdepth=2*triacoil_depth,
     B=Bt2, Bguide=Bguide)
-  AT (0,0,triacoil_2_pos-triacoil_depth) RELATIVE Origin
+AT (0,0,triacoil_2_pos-triacoil_depth) RELATIVE Origin
 
 
 // START GUIDEFIELD 4
 COMPONENT Guide_field4 = Pol_Bfield(field_type=1, xwidth=0.4, yheight=0.4, Bx=0, By=Bguide, Bz=0)
-     AT (0,0,Guide4_pos) RELATIVE Origin
+AT (0,0,Guide4_pos) RELATIVE Origin
 
 
 // STOP GUIDE FIELD 4
@@ -195,10 +219,17 @@ COMPONENT slit_2=Slit(
     xwidth=15e-3,yheight=15e-3)
 AT(0,0,slit_2_pos) RELATIVE Origin
 
+// PSD post second slit
+COMPONENT slit2PSD = PSD_monitor(xwidth=0.4,yheight=0.4, nowritefile=(!debug))
+WHEN (debug) AT (0,0,0) RELATIVE slit_2
+
 //Analyser
 COMPONENT analyser=PolAnalyser_ideal(mx=0,my=1,mz=0)
-     AT(0,0,analyser_pos) RELATIVE Origin
+AT(0,0,analyser_pos) RELATIVE Origin
 
+// PSD post analyser
+COMPONENT anaPSD = PSD_monitor(xwidth=0.4,yheight=0.4, nowritefile=(!debug))
+WHEN (debug) AT (0,0,0) RELATIVE analyser
 
 //THIS IS GRATING
 		COMPONENT GratingSlit1_1 = Slit(xwidth=grating_w,yheight=5e-3)
@@ -241,6 +272,9 @@ COMPONENT TOF_det =  TOF_monitor(xwidth = 0.05, yheight = 0.05,
           					     nt=251, tmin=tlow, tmax=thigh, filename="TOF_det")
 AT (0, 0, detector_pos) RELATIVE Origin
 
+// Final PSD
+COMPONENT finalPSD = PSD_monitor(xwidth=0.05,yheight=0.05, nowritefile=(!debug))
+WHEN (debug) AT (0,0,0) RELATIVE TOF_det
 
 /* This section is executed when the simulation ends (C code). Other    */
 /* optional sections are : SAVE                                         */
