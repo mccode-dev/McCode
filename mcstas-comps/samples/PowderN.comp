@@ -414,7 +414,38 @@ SHARE
 
   int
   read_line_data_ncrystal (const char* cfgstr, struct line_info_struct* info) {
-    ncrystal_info_t ncobj = ncrystal_create_info (cfgstr);
+    /* NCrystal has no notion of the McStas search path (current dir,
+     * instrument source/executable directory, HOME, MCSTAS/data,
+     * MCSTAS/contrib -- see Open_File() in read_table-lib.c), so a bare
+     * on-disk filename (e.g. "autogen_Foo_sg62_cod123.ncmat") that would
+     * be found for a plain .laz/.lau reflections file is NOT automatically
+     * found when passed on to NCrystal as-is. Resolve it here using the
+     * same, already platform-independent Open_File() search, and hand
+     * NCrystal the full resolved path instead. Virtual/online sources
+     * (identified by "::", e.g. "stdlib::Foo.ncmat" or "codid::1234") and
+     * absolute paths are left untouched: Open_File() either succeeds
+     * immediately (absolute paths are tried verbatim, first) or fails
+     * cleanly, in which case cfgstr is passed on to NCrystal unmodified. */
+    char ncrystal_cfgstr[1024];
+    const char *effective_cfgstr = cfgstr;
+    {
+      const char *semicolon = strchr (cfgstr, ';');
+      size_t flen = semicolon ? (size_t) (semicolon - cfgstr) : strlen (cfgstr);
+      char filepart[1024];
+      char resolved_path[1024];
+      FILE *probe;
+      if (flen >= sizeof (filepart)) flen = sizeof (filepart) - 1;
+      strncpy (filepart, cfgstr, flen);
+      filepart[flen] = '\0';
+      probe = Open_File (filepart, "r", resolved_path);
+      if (probe) {
+        fclose (probe);
+        snprintf (ncrystal_cfgstr, sizeof (ncrystal_cfgstr), "%s%s",
+                  resolved_path, semicolon ? semicolon : "");
+        effective_cfgstr = ncrystal_cfgstr;
+      }
+    }
+    ncrystal_info_t ncobj = ncrystal_create_info (effective_cfgstr);
     if (ncrystal_info_nphases (ncobj) != 0) {
       exit (fprintf (stderr,
                      "PowderN: %s: Error: Only single phase NCrystal "
@@ -428,7 +459,7 @@ SHARE
               "does not contain reflections\n",
               info->compname);
     } else {
-      MPI_MASTER (printf ("PowderN: %s: Loading %d reflections from %s\n", info->compname, nhkl, cfgstr););
+      MPI_MASTER (printf ("PowderN: %s: Loading %d reflections from %s\n", info->compname, nhkl, effective_cfgstr););
     }
     unsigned spacegroup, n_atoms;
     double lattice_a, lattice_b, lattice_c, alpha, beta, gamma, cell_volume;
