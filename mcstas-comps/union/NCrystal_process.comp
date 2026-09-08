@@ -74,7 +74,6 @@
 * INPUT PARAMETERS:
 * cfg:               [str]    NCrystal material configuration string (details <a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">on this page</a>).
 * interact_fraction: [1]      How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
-* init:              [string] Name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
 * NCrystal_storage          // Storage used to communicate with the probability and scattering function
@@ -114,7 +113,7 @@
 
 DEFINE COMPONENT NCrystal_process // Remember to change the name of process here
 
-SETTING PARAMETERS(string cfg = "", interact_fraction=-1, string init="init")
+SETTING PARAMETERS(string cfg = "", interact_fraction=-1)
 DEPENDENCY "@NCRYSTALFLAGS@"
 
 SHARE
@@ -215,8 +214,9 @@ SHARE
     ekin = vsq2ekin * K2V * k_mag * K2V * k_mag;
     ekin_final = 0.0;
     // Call NCrystal library, dirout and delta_ekin is updated
-    ncrystal_samplescatter (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin, (const double (*)[3]) & dir, &ekin_final, &dirout);
-	
+    ncrystal_samplescatter (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin, (const double (*)[3]) & dir, &ekin_final,
+                            &dirout);
+
     if (ekin_final <= 0) {
       // not expected to happen much, but an interaction could in principle bring the neutron to rest.
       return 0; // Eqivalent to ABSORB

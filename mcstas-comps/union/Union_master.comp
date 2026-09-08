@@ -42,7 +42,6 @@
 *   enable_conditionals:                 [0/1] Use conditionals with this master
 *   inherit_number_of_scattering_events: [0/1] Inherit the number of scattering events from last master
 *   weight_ratio_limit:                  [1]   Limit on the ratio between initial weight and current, ray absorbed if ratio becomes lower than limit
-*   init:                                [string] Name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
 *
@@ -63,8 +62,8 @@ SETTING PARAMETERS(int enable_refraction = 1,
                    history_limit=300000,
                    enable_conditionals=1,
                    inherit_number_of_scattering_events=0,
-                   weight_ratio_limit=1e-90,
-                   string init="init")
+                    weight_ratio_limit=1e-90
+                   )
 
 NOACC
 
@@ -1804,14 +1803,15 @@ TRACE
                 selected_sampling = i;
                 break;
               }
-              abs_weight_factor *= (current_p_physics->total_mus[selected_sampling] - mu_at_speed * current_p_physics->dist) / current_p_physics->total_mus[selected_sampling];
+              abs_weight_factor
+                  *= (current_p_physics->total_mus[selected_sampling] - mu_at_speed * current_p_physics->dist) / current_p_physics->total_mus[selected_sampling];
 
               // printf("\nSelected_sampling = %d\n", selected_sampling);
 
               // printf("dist i = %g\tdist=%g\n", dist_i, dist);
-              double sampled_dist
-                  = safety_distance
-                    - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[selected_sampling]))) / current_p_physics->total_mus[selected_sampling] * current_p_physics->dist;
+              double sampled_dist = safety_distance
+                                    - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[selected_sampling])))
+                                          / current_p_physics->total_mus[selected_sampling] * current_p_physics->dist;
               length_to_scattering = current_p_physics->cumul_dists[selected_sampling] - current_p_physics->dist / 2 + sampled_dist;
             }
             // Select process
@@ -1945,7 +1945,7 @@ TRACE
           // Logging for detector components assosiated with this volume
           for (log_index = 0; log_index < Volumes[current_volume]->abs_loggers.num_elements; log_index++) {
             // This function calls a logger function which in turn stores some data among the passed, and possibly performs some basic data analysis
-			// Position and k_new given in master coordinates, the abs_logger must transform to its coordnate system if required
+            // Position and k_new given in master coordinates, the abs_logger must transform to its coordnate system if required
             Volumes[current_volume]->abs_loggers.p_abs_logger[log_index]->function_pointers.active_record_function (
                 &abs_position, k_new, initial_weight * (1.0 - abs_weight_factor), t + t_abs_propagation, scattered_flag[current_volume],
                 number_of_scattering_events, Volumes[current_volume]->abs_loggers.p_abs_logger[log_index], &abs_loggers_with_data_array);

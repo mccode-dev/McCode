@@ -58,7 +58,6 @@
 * overwrite_logger_weight: [1]   Default = 0, overwrite = 1
 * end_volume:           [1]      Not used yet
 * last_volume_index:    [1]      Not used yet
-* init:                 [string] Name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
 * this_material:            Structure that contains information on this material
@@ -74,7 +73,7 @@
 
 DEFINE COMPONENT Union_conditional_PSD
 
-SETTING PARAMETERS(string target_loggers="NULL", int master_tagging=0, int tagging_extend_index = -1, xwidth, yheight,time_min=0, time_max=0, overwrite_logger_weight=0, string init="init") // E limit, |k| limit, volumes to have visited, processes that was used, end volume, last process
+SETTING PARAMETERS(string target_loggers="NULL", int master_tagging=0, int tagging_extend_index = -1, xwidth, yheight,time_min=0, time_max=0, overwrite_logger_weight=0) // E limit, |k| limit, volumes to have visited, processes that was used, end volume, last process
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -283,8 +282,8 @@ INITIALIZE
       new_tagging_element = malloc (sizeof (struct global_tagging_conditional_element_struct));
       new_tagging_element->extend_index = tagging_extend_index;
       new_tagging_element->conditional_list.num_elements = 0;
-	  new_tagging_element->conditional_list.p_data_unions = NULL;		  
-      new_tagging_element->conditional_list.conditional_functions = NULL;	  
+      new_tagging_element->conditional_list.p_data_unions = NULL;
+      new_tagging_element->conditional_list.conditional_functions = NULL;
       strcpy (new_tagging_element->name, NAME_CURRENT_COMP);
 
       // printf("adding new element to global_tagging_conditional_list \n");
@@ -451,10 +450,9 @@ FINALLY
   // Remember to clean up allocated lists
   free (accepted_loggers_specific.elements);
   free (accepted_loggers_all.elements);
-  free(accepted_abs_loggers_all.elements);
-  free(accepted_abs_loggers_specific.elements);
+  free (accepted_abs_loggers_all.elements);
+  free (accepted_abs_loggers_specific.elements);
   // if (accepted_tagging.num_elements > 0) free(accepted_tagging.elements);
 %}
 
 END
-
