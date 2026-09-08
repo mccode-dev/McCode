@@ -1,0 +1,129 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Test PowderN output
+*
+* %Identification
+* Written by: M. Bertelsen and P. Willendrup
+* Date: November 2024
+* Origin: ESS DMSC
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Test output of PowderN, NCrystal and Single_crystal on a spherical monitor / PSD.
+*
+* %Description
+* A test instrument for Powder output from different sample components.
+*
+* %Example: lambda=2.5 directbeam=0 comp=0 material=Ge SPLITS=1 Detector: Sph_mon_I=3.67e+08
+* %Example: lambda=2.5 directbeam=0 comp=0 material=Ge SPLITS=1 Detector: psd_mon_I=7.35e+05
+* %Example: lambda=2.5 directbeam=0 comp=1 material=Ge SPLITS=1 Detector: Sph_mon_I=4.2e+08
+* %Example: lambda=2.5 directbeam=0 comp=1 material=Ge SPLITS=1 Detector: psd_mon_I=8.3e+05
+* %Example: lambda=2.5 directbeam=0 comp=0 material=Al twotheta=76.5 SPLITS=1 Detector: Sph_mon_I=9.1e+07
+* %Example: lambda=2.5 directbeam=0 comp=0 material=Al twotheta=76.5 SPLITS=1 Detector: psd_mon_I=1.94e+05
+* %Example: lambda=2.5 directbeam=0 comp=1 material=Al twotheta=76.5 SPLITS=1 Detector: Sph_mon_I=1.1e+08
+* %Example: lambda=2.5 directbeam=0 comp=1 material=Al twotheta=76.5 SPLITS=1 Detector: psd_mon_I=2e+05
+* %Example: lambda=2.5 directbeam=0 comp=0 material=LaMnO3 twotheta=80 SPLITS=1 Detector: Sph_mon_I=2.48e+08
+* %Example: lambda=2.5 directbeam=0 comp=0 material=LaMnO3 twotheta=80 SPLITS=1 Detector: psd_mon_I=1.78e+05
+* %Example: lambda=2.5 directbeam=0 comp=1 material=LaMnO3 twotheta=80 SPLITS=1 Detector: Sph_mon_I=3.1e+08
+* %Example: lambda=2.5 directbeam=0 comp=1 material=LaMnO3 twotheta=80 SPLITS=1 Detector: psd_mon_I=2.1e+05
+* %Example: lambda=2.5 directbeam=0 comp=0 material=NaCl twotheta=78 SPLITS=1 Detector: Sph_mon_I=2.13e+08
+* %Example: lambda=2.5 directbeam=0 comp=0 material=NaCl twotheta=78 SPLITS=1 Detector: psd_mon_I=3.2e+05
+* %Example: lambda=2.5 directbeam=0 comp=1 material=NaCl twotheta=78 SPLITS=1 Detector: Sph_mon_I=2.5e+08
+* %Example: lambda=2.5 directbeam=0 comp=1 material=NaCl twotheta=78 SPLITS=1 Detector: psd_mon_I=3.4e+05
+*
+* %Parameters
+* comp:          [1] 0=PowderN-with-NCMAT, 1=PowderN
+* lambda:     [Angs] Wavelength emitted from source, 1% wl-interval around.
+* L1:            [m] Source-sample distance
+* directbeam:    [1] Suppress direct beam or not
+* material:    [str] Material string for picking up CIF (PowderN/Single_Crystal) and ncmat (NCrystal)
+* SPLITS:        [1] Number of SPLIT's before sample
+* frac_t:        [1] Fraction of stats assigned to unscattered, "direct beam"
+* sxmos:    [arcmin] Mosaicity to use in Single_crystal case
+* twotheta:    [deg] Angle for 2\theta detector for detailed view
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_PowderN_solo(int comp=1, lambda=2.5, L1=10, int directbeam=0, string material="Ge", int SPLITS=1, frac_t=0.1, sxmos=60, twotheta=94)
+	
+DECLARE %{
+  char ciffile[128];
+  char ncmatfile[128];
+  char powdern_reflections[128];
+%}
+
+/* The INITIALIZE section is executed when the simulation starts     */
+/* (C code). You may use them as component parameter values.         */
+INITIALIZE
+%{
+
+  if (!strcmp("Ge",material)) {
+    sprintf(ciffile,"Ge.cif");
+    sprintf(ncmatfile,"autogen_Ge_sg227_cod9011050.ncmat");
+  } else if (!strcmp("Al",material)) {
+    sprintf(ciffile,"Al.cif");
+    sprintf(ncmatfile,"autogen_Al_sg225_cod1502689.ncmat");
+  } else if (!strcmp("LaMnO3",material)) {
+    /* PWFIXME:
+       Temporary workaround to not run cif2hkl on LaMnO3 on Windows... */
+    #ifdef _MSC_EXTENSIONS
+    sprintf(ciffile,"LaMnO3.lau");
+    #else
+    sprintf(ciffile,"LaMnO3.cif");
+    #endif
+    sprintf(ncmatfile,"autogen_LaMnO3_sg62_cod1006141.ncmat");
+  } else if (!strcmp("NaCl",material)) {
+    sprintf(ciffile,"NaCl.cif");
+    sprintf(ncmatfile,"autogen_ClNa_sg225_cod1000041.ncmat");
+  } else {
+    fprintf(stderr,"Material %s not supported\n",material);
+    exit(-1);
+  }
+  if ( comp == 0 ) {
+    // Special: Use PowderN but with the ncmat file
+    sprintf(powdern_reflections,"%s",ncmatfile);
+    comp=1;
+  } else {
+    sprintf(powdern_reflections,"%s",ciffile);
+  }
+%}
+
+/* Here comes the TRACE section, where the actual      */
+/* instrument is defined as a sequence of components.  */
+TRACE
+
+REMOVABLE COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+/* source with constant flux */
+REMOVABLE COMPONENT Source = Source_gen(
+    radius = 0.11, dist = L1, focus_xw = 0.01, focus_yh = 0.1,
+    lambda0 = lambda, dlambda = lambda*0.01,
+    T1=229.6,I1=5.32e13,T2=1102, I2=4.37e12, T3=437.1,I3=3.84e13)
+  AT (0, 0, 0) RELATIVE Origin
+
+/* TIP: monochromator cradle */ 
+SPLIT SPLITS COMPONENT sample_cradle = Arm()
+  AT (0, 0, L1) RELATIVE PREVIOUS
+
+COMPONENT Pow_PowderN = PowderN(
+	radius=0.005, yheight=0.1, reflections=powdern_reflections, p_transmit=frac_t)
+WHEN (comp==1)
+AT (0, 0, 0) RELATIVE sample_cradle
+
+  COMPONENT Beamstop = Beamstop(xwidth=0.015, yheight=0.105)
+WHEN (directbeam==0)
+AT (0, 0, 0.1) RELATIVE sample_cradle
+  
+COMPONENT Sph_mon = PSD_monitor_4PI(nx=360,ny=180, radius=1, restore_neutron=1, filename="Sphere")
+  AT (0, 0, 0) RELATIVE sample_cradle
+	  
+COMPONENT peak_dir = Arm()
+AT (0,0,0) RELATIVE sample_cradle
+ROTATED (0, twotheta, 0) RELATIVE sample_cradle
+	  
+COMPONENT psd_mon = PSD_monitor(xwidth=0.08, yheight=0.05, nx=100, ny=100, restore_neutron=1, filename="PSD")
+AT (0,0,1) RELATIVE peak_dir
+
+/* The END token marks the instrument definition end */
+END
