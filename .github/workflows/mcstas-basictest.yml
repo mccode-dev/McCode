@@ -472,7 +472,9 @@ jobs:
                export SCOPE=" "
              fi
              mkdir -p run_mctest && cd run_mctest
-             ${MCTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=instrCHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             for (( i=0; i<10; i++ )); do
+               ${MCTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=instrCHANGES_${i}_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             done
              ${MCVIEWTEST_EXECUTABLE} --nobrowse $PWD
            fi
 
