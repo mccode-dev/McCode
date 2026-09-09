@@ -480,6 +480,28 @@ def parse_header(text):
     
     return info
 
+def format_examples(test_text):
+    '''
+    Splits the raw %Example header text (as stored in
+    InstrCompHeaderInfo.test) into an ordered list of (line, is_example)
+    tuples. Lines starting with the '%Example:' tag have the leading
+    '%Example:' tag replaced with 'Test:' (so they render as
+    'Test: ...') and are flagged True so that doc writers can highlight
+    them (e.g. in bold); all other lines are passed through unchanged and
+    flagged False. Order is preserved even when %Example: lines are
+    interspersed with other text.
+    '''
+    lines = []
+    if not test_text:
+        return lines
+    for l in test_text.splitlines():
+        m = re.match(r'%Example:\s*(.*)', l)
+        if m:
+            lines.append(('Test: ' + m.group(1), True))
+        else:
+            lines.append((l, False))
+    return lines
+
 def read_define_instr(file):
     '''
     Reads lines from file obj until DEFINE INSTRUMENT, then reads lines until ")".

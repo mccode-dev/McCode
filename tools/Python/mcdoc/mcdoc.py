@@ -278,6 +278,51 @@ def _description_to_latex(text):
 
     return '\n\n'.join(out_blocks)
 
+def _examples_html_body(test_text):
+    ''' Render the %Example: header lines as an HTML <LI> list, in
+    original order. Lines tagged as '%Example:' are shown in bold as
+    'Test: ...'; any other lines in the section are shown unmodified.
+    Returns '' when there are no lines to show. '''
+    items = utils.format_examples(test_text)
+    if not items:
+        return ''
+    rendered = []
+    for line, is_example in items:
+        content = '<strong>%s</strong>' % line if is_example else line
+        rendered.append('  <LI> %s' % content)
+    return '\n'.join(rendered)
+
+
+def _examples_md_body(test_text):
+    ''' Render the %Example: header lines as a Markdown bullet list, in
+    original order. Lines tagged as '%Example:' are shown in bold as
+    'Test: ...'; any other lines in the section are shown unmodified.
+    Returns '' when there are no lines to show. '''
+    items = utils.format_examples(test_text)
+    if not items:
+        return ''
+    rendered = []
+    for line, is_example in items:
+        text = _md_text(line)
+        rendered.append('- **%s**' % text if is_example else '- %s' % text)
+    return '\n'.join(rendered)
+
+
+def _examples_tex_body(test_text):
+    ''' Render the %Example: header lines as a LaTeX itemize list, in
+    original order. Lines tagged as '%Example:' are shown in bold as
+    'Test: ...'; any other lines in the section are shown unmodified.
+    Returns '' when there are no lines to show. '''
+    items = utils.format_examples(test_text)
+    if not items:
+        return ''
+    rendered = [r'\begin{itemize}']
+    for line, is_example in items:
+        esc = _tex(line)
+        rendered.append(r'  \item \textbf{%s}' % esc if is_example else r'  \item %s' % esc)
+    rendered.append(r'\end{itemize}')
+    return '\n'.join(rendered)
+
 
 def _mccode_label():
     ''' Returns ('McStas' or 'McXtrace') depending on the active flavour. '''
@@ -943,6 +988,7 @@ class InstrDocWriter:
         h = h.replace(t[5], i.origin)
         h = h.replace(t[6], i.date)
         h = h.replace(t[7], i.description)
+        h = h.replace(t[14], _examples_html_body(i.test))
 
         h = h.replace(t[8], self.par_header)
         doc_rows = ''
@@ -987,7 +1033,8 @@ class InstrDocWriter:
             '%INSTRFILE%',
             '%INSTRFILE_BASE%',
             '%LINKS%',
-            '%VERSION%']
+            '%VERSION%',
+            '%EXAMPLES%']
     par_str = "<TR> <TD>%s</TD><TD>%s</TD><TD>%s</TD><TD ALIGN=RIGHT>%s</TD></TR>"
     par_str_boldface = "<TR> <TD><strong>%s</strong></TD><TD>%s</TD><TD>%s</TD><TD ALIGN=RIGHT>%s</TD></TR>"
     par_header = par_str % ('<strong>Name</strong>', '<strong>Unit</strong>', '<strong>Description</strong>', '<strong>Default</strong>')
@@ -1013,6 +1060,7 @@ $(function () {
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
  | <A href="#desc">Description</A>
+ | <A href="#ex">Examples</A>
  | <A href="#ipar">Input parameters</A>
  | <A href="#links">Links</A> ]
 </P>
@@ -1035,6 +1083,13 @@ $(function () {
 %DESCRIPTION%
 </PRE>
 
+<H2><A NAME=ex></A>Examples</H2>
+(Test cases in bold)
+
+<UL>
+%EXAMPLES%
+</UL>
+
 <H2><A NAME=ipar></A>Input parameters</H2>
 Parameters in <B>boldface</B> are required;
 the others are optional.
@@ -1054,6 +1109,7 @@ the others are optional.
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
  | <A href="#desc">Description</A>
+ | <A href="#ex">Examples</A>
  | <A href="#ipar">Input parameters</A>
  | <A href="#links">Links</A> ]
 </P>
@@ -1119,6 +1175,7 @@ class CompDocWriter:
         h = h.replace(t[5], i.origin)
         h = h.replace(t[6], i.date)
         h = h.replace(t[7], i.description)
+        h = h.replace(t[15], _examples_html_body(i.test))
 
         h = h.replace(t[8], self.par_header)
 
@@ -1173,7 +1230,8 @@ class CompDocWriter:
             '%COMPFILE_BASE%',
             '%LINKS%',
             '%VERSION%',
-            '%PARLIST%']
+            '%PARLIST%',
+            '%EXAMPLES%']
     par_str = "<TR> <TD>%s</TD><TD>%s</TD><TD>%s</TD><TD ALIGN=RIGHT>%s</TD><TD ALIGN=RIGHT>%s</TD></TR>"
     par_str_boldface = "<TR> <TD><strong>%s</strong></TD><TD>%s</TD><TD>%s</TD><TD ALIGN=RIGHT>%s</TD><TD ALIGN=RIGHT>%s</TD></TR>"
     par_header = par_str % ('<strong>Name</strong>', '<strong>Unit</strong>', '<strong>Description</strong>', '<strong>Default</strong>', '<input type="text" value="' + "CompInstanceName" + '" id="instance">')
@@ -1297,6 +1355,7 @@ $(function () {
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
  | <A href="#desc">Description</A>
+ | <A href="#ex">Examples</A>
  | <A href="#ipar">Input parameters</A>
  | <A href="#links">Links</A> ]
 </P>
@@ -1318,6 +1377,13 @@ $(function () {
 <PRE>
 %DESCRIPTION%
 </PRE>
+
+<H2><A NAME=ex></A>Examples</H2>
+(Test cases in bold)
+
+<UL>
+%EXAMPLES%
+</UL>
 
 <H2><A NAME=ipar></A>Input parameters</H2>
 Parameters in <B>boldface</B> are required;
@@ -1359,6 +1425,7 @@ the others are optional.
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
  | <A href="#desc">Description</A>
+ | <A href="#ex">Examples</A>
  | <A href="#ipar">Input parameters</A>
  | <A href="#links">Links</A> ]
 </P>
@@ -1418,6 +1485,10 @@ class InstrMdDocWriter:
         lines.append(_md_text(i.description))
         lines.append('```')
         lines.append('')
+        lines.append('## Examples')
+        lines.append('')
+        lines.append(_examples_md_body(i.test))
+        lines.append('')
         lines.append('## Input parameters')
         lines.append('')
         lines.append('Parameters in **boldface** are required; the others are optional.')
@@ -1476,6 +1547,10 @@ class CompMdDocWriter:
         lines.append('```text')
         lines.append(_md_text(i.description))
         lines.append('```')
+        lines.append('')
+        lines.append('## Examples')
+        lines.append('')
+        lines.append(_examples_md_body(i.test))
         lines.append('')
         lines.append('## Input parameters')
         lines.append('')
@@ -1554,6 +1629,9 @@ class InstrLatexDocWriter:
         out.append(r'\section*{Description}')
         out.append(_description_to_latex(i.description))
         out.append('')
+        out.append(r'\section*{Examples}')
+        out.append(_examples_tex_body(i.test))
+        out.append('')
         out.append(r'\section*{Input parameters}')
         out.append(r'Parameters in \textbf{boldface} are required; the others are optional.')
         out.append('')
@@ -1616,6 +1694,9 @@ class CompLatexDocWriter:
         out.append('')
         out.append(r'\subsection*{Description}')
         out.append(_description_to_latex(i.description))
+        out.append('')
+        out.append(r'\subsection*{Examples}')
+        out.append(_examples_tex_body(i.test))
         out.append('')
         out.append(r'\subsection*{Input parameters}')
         out.append(r'Parameters in \textbf{boldface} are required; the others are optional.')
