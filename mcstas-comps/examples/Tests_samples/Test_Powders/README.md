@@ -1,4 +1,4 @@
-# The `Test_PowderN` Instrument
+# The `Test_Powders` Instrument
 
 *McStas: Test output of PowderN, NCrystal and Single_crystal on a spherical monitor / PSD.*
 
