@@ -19,6 +19,10 @@ with angle restriction (neutrons that scatter in Fe in front of a tube and
 enter a different tube are absorbed). This model does not include the H16 guide.
 ```
 
+## Examples
+
+- **Test: lambda=4.5 Detector: Detector_Sqw_I=8.5E5**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

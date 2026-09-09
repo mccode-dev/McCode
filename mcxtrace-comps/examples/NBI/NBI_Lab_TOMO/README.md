@@ -16,6 +16,11 @@ Consists simply of a Mo-source, a sample, an Al-filter and a detector, all in li
 The sample is a chess-king off-shape.
 ```
 
+## Examples
+
+- **Test: NBI_Lab_TOMO.instr -n 1e5 fname="spectrumU50_th5.dat" Omega=0 detw=0.2 deth=0.2 Detector: Detector_Si_I=3.9e+13**
+- **Test: NBI_Lab_TOMO.instr fname="spectrumU50_th5.dat" Detector: Detector_Si_I=9.77305e+11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

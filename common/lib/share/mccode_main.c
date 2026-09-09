@@ -150,7 +150,7 @@ int mccode_main(int argc, char *argv[])
 #endif
 
 // MT specific init, note that per-ray init is empty
-#if RNG_ALG == 2
+#if RNG_ALG == 1
   mt_srandom(mcseed);
 #endif
 

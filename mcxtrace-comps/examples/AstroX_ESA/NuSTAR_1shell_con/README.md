@@ -30,6 +30,10 @@ width: pore width ?
 Example: NuSTAR_1shell_con.instr shellnumber=1
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -71,6 +71,7 @@
 * init:            [string] name of Union_init component (typically "init", default)
 * time_min:        [s] Minimum time to log
 * time_max:        [s] Maximum time to log
+* nowritefile:     [1]      If set, logger will skip writing to disk
 *
 * OUTPUT PARAMETERS:
 *
@@ -85,7 +86,7 @@ DEFINE COMPONENT Union_abs_logger_1D_time
 DEFINITION PARAMETERS ()
 SETTING PARAMETERS(string target_geometry="NULL",
                    time_min=0, time_max, n=100,
-                   string filename="NULL", order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init")
+                   string filename="NULL", order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init", int nowritefile=0)
 OUTPUT PARAMETERS ()
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -503,10 +504,12 @@ TRACE
 SAVE
 %{
   // Write to disk
-  DETECTOR_OUT_1D (this_abs_storage.Detector_1D.title_string, this_abs_storage.Detector_1D.string_axis, this_abs_storage.Detector_1D.string_axis_value,
-                   this_abs_storage.Detector_1D.string_axis_short, this_abs_storage.Detector_1D.min, this_abs_storage.Detector_1D.max,
-                   this_abs_storage.Detector_1D.bins, &this_abs_storage.Detector_1D.Array_N[0], &this_abs_storage.Detector_1D.Array_p[0],
-                   &this_abs_storage.Detector_1D.Array_p2[0], this_abs_storage.Detector_1D.Filename);
+  if (!nowritefile) {
+    DETECTOR_OUT_1D (this_abs_storage.Detector_1D.title_string, this_abs_storage.Detector_1D.string_axis, this_abs_storage.Detector_1D.string_axis_value,
+                     this_abs_storage.Detector_1D.string_axis_short, this_abs_storage.Detector_1D.min, this_abs_storage.Detector_1D.max,
+                     this_abs_storage.Detector_1D.bins, &this_abs_storage.Detector_1D.Array_N[0], &this_abs_storage.Detector_1D.Array_p[0],
+                     &this_abs_storage.Detector_1D.Array_p2[0], this_abs_storage.Detector_1D.Filename);
+  }
 %}
 
 FINALLY

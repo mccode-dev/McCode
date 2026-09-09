@@ -34,6 +34,10 @@ obtained by scanning the temperature. A complete thermal variation of the
 diffraction patterns (1.5 - 300 K) can be achieved in few hours (3-5h).
 ```
 
+## Examples
+
+- **Test: lambda=2.52 Detector: D1B_BananaTheta_I=5415.58**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -26,6 +26,14 @@ These parameter and the sphere radius match now with the magnetic fields below t
 A pretty high number of neutrons is needed to get good statistics in the fine position sensitive detector.
 ```
 
+## Examples
+
+- **Test: -y Detector: det_I=7.8145e-08**
+- 
+- Other examples:
+- SESANS_Delft -n 100000000 -N 31 L0=2.165 DL=0.02 By=0,0.0468 AnaSign=1
+- SESANS_Delft -n 100000000 -N 31 L0=2.165 DL=0.02 By=0,0.0468 AnaSign=-1
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

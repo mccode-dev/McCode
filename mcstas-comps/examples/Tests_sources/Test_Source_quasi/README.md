@@ -15,6 +15,11 @@
 This instrument is a unit test for the quasi-stochastic source component.
 ```
 
+## Examples
+
+- **Test: Test_Source_quasi.instr SRC=0 Detector: psd_I=1.21847E-18**
+- **Test: Test_Source_quasi.instr SRC=1 Detector: psd_I=1.21847E-18**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

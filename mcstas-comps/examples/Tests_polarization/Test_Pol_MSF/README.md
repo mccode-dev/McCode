@@ -17,6 +17,10 @@ This instrument demonstrates how to use the component
 Pol_constBfield to make a Mezei Spin flipper.
 ```
 
+## Examples
+
+- **Test: Test_Pol_MSF.instr Detector: pollambdaMonitor2z_I=0.136736**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

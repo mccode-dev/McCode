@@ -31,6 +31,10 @@ in q, to avoid overly lagre data-files.
 Example: ATHENA_cfgA_1mm.instr porenumber=3
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

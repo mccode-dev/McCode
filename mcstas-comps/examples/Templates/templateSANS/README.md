@@ -16,6 +16,10 @@ etc. Will be developed further at later time.*
 Very simple test instrument for the Sans_spheres component
 ```
 
+## Examples
+
+- **Test: lambda=6 Detector: detector_I=0.556137**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

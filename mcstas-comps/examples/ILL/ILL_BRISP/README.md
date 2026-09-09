@@ -69,6 +69,10 @@ In this model, the sample is a plate of thickness e=4 mm, surrounded by an
 Al or Nb container, inside an Al shield (phi=10 cm).
 ```
 
+## Examples
+
+- **Test: coh="V.lau" Detector: Detector_I=31.55**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

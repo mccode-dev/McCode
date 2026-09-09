@@ -17,6 +17,10 @@ Instrument developed for the HighNESS EU project, describing a Wolter Optics
 Focusing SANS (WOFSANS_v2), applied for the study of moderator parameters.
 ```
 
+## Examples
+
+- **Test: WOFSANS width=0.15 Detector: PSD_10_I=4e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

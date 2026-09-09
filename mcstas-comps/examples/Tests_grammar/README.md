@@ -19,6 +19,12 @@ Test instrument for GROUP of monitors using restore_neutron.
 3rd test: Adding a "catchall" arm recovers the intensity
 ```
 
+## Examples
+
+- **Test: mcrun Test_GROUP_restore catchall=0 Detector: Mon00_12_I=1.00e+06**
+- **Test: mcrun Test_GROUP_restore catchall=0 dim=3 Detector: psd_monitor_4pi_3m_I=4.22e+06**
+- **Test: mcrun Test_GROUP_restore catchall=1 dim=3 Detector: psd_monitor_4pi_3m_I=6.00e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

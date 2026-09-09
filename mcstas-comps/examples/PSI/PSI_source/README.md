@@ -20,6 +20,10 @@ using this instrumentfile, with SHIFT=0 and 0.1. This will displace the detector
 a bin-width, which is a standard procedure at the DMC diffractometer
 ```
 
+## Examples
+
+- **Test: lambda=2.5666 Detector: PSDbefore_guides_I=2.54332e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

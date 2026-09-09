@@ -391,12 +391,9 @@ class McGuiState(QtCore.QObject):
                 if int(nsteps) > 1: # Numeric, this is scan step mode
                     feedback = 'Scan mode: N=' + str(nsteps) + ' steps. '
                     runstr = runstr + ' -N ' + str(nsteps)
-            except: # Check for list mode
-                if nsteps == '-L' or nsteps == 'list':
-                    runstr = runstr + ' -L '
-                    feedback = 'Scanning, -L list mode. '
-                else:
-                    feedback = 'Ignored scan input (' + str(nsteps) +') '
+            except: # Check for list mode / --multi
+                feedback = 'Attempt scanning with parameters: ' + str(nsteps) + ' '
+                runstr = runstr + ' ' + str(nsteps)
         
         # gravity
         if fixed_params[3]:

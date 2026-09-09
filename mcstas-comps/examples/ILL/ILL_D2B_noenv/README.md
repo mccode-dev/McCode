@@ -38,6 +38,10 @@ Ge       511 DM=1.089 AA
 Ge       533 DM=0.863 AA
 ```
 
+## Examples
+
+- **Test: lambda=1 Detector: D2B_BananaPSD_I=8308.35**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

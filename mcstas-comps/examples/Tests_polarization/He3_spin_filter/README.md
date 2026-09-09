@@ -17,6 +17,13 @@ For the values POLHE=.8 and .5 results comply with "Batz, M et al. “(3) He Spi
 Journal of research of the National Institute of Standards and Technology vol. 110,3 293-8. 1 Jun. 2005, doi:10.6028/jres.110.042"
 ```
 
+## Examples
+
+- **Test: POLHE=0.5 Detector: postpol_monitor_flux_I=1.8e-23**
+- **Test: POLHE=0.8 Detector: postpol_monitor_flux_I=2.3e-23**
+- **Test: POLHE=0.5 box=1 Detector: postpol_monitor_flux_I=1.8e-23**
+- **Test: POLHE=0.8 box=1 Detector: postpol_monitor_flux_I=2.3e-23**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

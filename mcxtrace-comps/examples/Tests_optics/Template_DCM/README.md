@@ -19,6 +19,10 @@ simply add Arms before and after the crystal assembly that rotate by
 The crystal is illuminated by a model point source.
 ```
 
+## Examples
+
+- **Test: theta=9.17 Detector: emon_dcm1_I=6.14859e-10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

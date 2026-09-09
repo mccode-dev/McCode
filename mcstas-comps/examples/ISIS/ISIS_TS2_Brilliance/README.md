@@ -19,6 +19,10 @@ The Brilliance_monitor is used to determine both the mean and peak brilliances, 
 Example: ISIS_brilliance Detector: Brillmon_I=3.80e+15 (First detector output)
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

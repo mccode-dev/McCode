@@ -60,6 +60,7 @@
 * order_volume_process: [1]      Only log rays that scatter for the n'th time in the same geometry, uwsing the same process
 * logger_conditional_extend_index: [1] If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger_conditional_extend", and one would then acces logger_conditional_extend[n] if logger_conditional_extend_index is set to n
 * init:                 [string] Name of Union_init component (typically "init", default)
+* nowritefile:          [1]      If set, logger will skip writing to disk
 *
 * CALCULATED PARAMETERS:
 *
@@ -76,7 +77,7 @@ SETTING PARAMETERS(string target_geometry="NULL",string target_process="NULL",
     string Q_direction_1="x", Q1_min=-5,Q1_max=5, n1=90,
     string Q_direction_2="z", Q2_min=-5,Q2_max=5, n2=90,
     string filename="NULL", order_total=0, order_volume=0,
-    order_volume_process=0,logger_conditional_extend_index=-1, string init="init")
+    order_volume_process=0,logger_conditional_extend_index=-1, string init="init", int nowritefile=0)
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -669,10 +670,12 @@ TRACE
 SAVE
 %{
   // Write to disk
-  DETECTOR_OUT_2D (this_storage.Detector_2D.title_string, this_storage.Detector_2D.string_axis_1, this_storage.Detector_2D.string_axis_2,
-                   this_storage.Detector_2D.D1min, this_storage.Detector_2D.D1max, this_storage.Detector_2D.D2min, this_storage.Detector_2D.D2max,
-                   this_storage.Detector_2D.bins_1, this_storage.Detector_2D.bins_2, *this_storage.Detector_2D.Array_N, *this_storage.Detector_2D.Array_p,
-                   *this_storage.Detector_2D.Array_p2, this_storage.Detector_2D.Filename);
+  if (!nowritefile) {
+    DETECTOR_OUT_2D (this_storage.Detector_2D.title_string, this_storage.Detector_2D.string_axis_1, this_storage.Detector_2D.string_axis_2,
+                     this_storage.Detector_2D.D1min, this_storage.Detector_2D.D1max, this_storage.Detector_2D.D2min, this_storage.Detector_2D.D2max,
+                     this_storage.Detector_2D.bins_1, this_storage.Detector_2D.bins_2, *this_storage.Detector_2D.Array_N, *this_storage.Detector_2D.Array_p,
+                     *this_storage.Detector_2D.Array_p2, this_storage.Detector_2D.Filename);
+  }
 %}
 
 FINALLY

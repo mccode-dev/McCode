@@ -22,6 +22,10 @@ line consists of the time-of-flight in microseconds followed by seven
 intensities of neutrons from each individual analyser blade.
 ```
 
+## Examples
+
+- **Test: TT=-30 Detector: mon9_I=7.4973e-08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

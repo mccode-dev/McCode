@@ -20,6 +20,10 @@ two beam holes at take-off angles of 90 deg and 115 deg, corresponding to 4.7
 Angs and 5.6 Angs beams and incorporates the slit systems.
 ```
 
+## Examples
+
+- **Test: m=1.2 Detector: D16_BananaTheta_I=9.7E+04**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

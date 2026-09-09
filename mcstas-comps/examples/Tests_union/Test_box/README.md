@@ -18,6 +18,10 @@ be set, and when two or more geometries overlap, the one with highest
 priority determines what material is simulated in that region.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

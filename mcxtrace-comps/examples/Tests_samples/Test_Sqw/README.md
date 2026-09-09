@@ -15,6 +15,10 @@
 A test instrument for testing Isotropic_Sqw output on a spherical monitor.
 ```
 
+## Examples
+
+- **Test: E0=12 Detector: Sph_mon_I=3.63728e-21**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

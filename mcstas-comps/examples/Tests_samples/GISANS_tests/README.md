@@ -18,6 +18,10 @@ developed to model the GISANS features described in M. S. Hellsing et. al [1]
 Test case 1, grazing incidence from front
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

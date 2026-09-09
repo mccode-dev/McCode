@@ -19,6 +19,10 @@ The sample in the model is a series of metal sheets, each with different scattri
 instrument file was later used in the publication by Estrid B. Naver et. al., see links below.
 ```
 
+## Examples
+
+- **Test: PSI_ICON.instr -y Detector: VarDetectorZoom_I=852147**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -28,6 +32,7 @@ Parameters in **boldface** are required; the others are optional.
 | lambda_min | AA | Minimum wavelength on wavelength monitors | 0.3 |
 | lambda_max | AA | Maximum wavelength on wavelength monitors | 10.0 |
 | eventmode | 1 | Flag to store neutron events with calculated sample-detector travel | 0 |
+| all_mons | 1 | Flag to enable all monitors in the instrument | 0 |
 | nx | 1 | Number of x-pixels, camera | 512 |
 | ny | 1 | Number of y-pixels, camera | 512 |
 | Lambda_Min | AA | Minimum wavelength produced from source | 4.1 |

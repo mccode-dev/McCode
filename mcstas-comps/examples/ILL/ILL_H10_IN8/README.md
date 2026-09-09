@@ -38,6 +38,10 @@ In this TAS configuration, Cu200 is used as monochromator and Cu111 as
 analyser, with a single type detector.
 ```
 
+## Examples
+
+- **Test: QM=1 EN=0 Sqw_coh=V.lau Detector: D7_SC3_1D_I=9.36585e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

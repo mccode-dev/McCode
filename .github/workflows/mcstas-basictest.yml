@@ -282,7 +282,7 @@ jobs:
           MCCODEANTLR_FLAGS__NEXUS=`grep NEXUSFLAGS ${MCCODE_CONFIG} |cut -f4 -d\"`
           echo "MCCODEANTLR_FLAGS__NEXUS=${MCCODEANTLR_FLAGS__NEXUS}" >> "$GITHUB_ENV"
           # Pre-poulate mccode-antlr cache
-          mccode-antlr cache populate --from-path src/ --flavor mcstas
+          mccode-antlr cache populate --from-path src/ --flavor mcstas --no-strict --check-hashes
         fi
 
     - name: Validate build output (conda)
@@ -325,6 +325,11 @@ jobs:
            if [ "${{ matrix.method }}" == "source" ]; then
              echo "$PWD/install_mcstas/bin" >> "$GITHUB_PATH"
            fi
+           # If compiler is clang, set up mpicc to use clang
+           if [ "${{ matrix.CC }}" == "clang" ]; then
+             echo "OMPI_CC=clang" >> "$GITHUB_ENV"
+             echo "OMPI_CXX=clang++" >> "$GITHUB_ENV"
+           fi
 
     # Start of tests (shared across all 5 matrix legs)
     - name: Launch RNG test instrument
@@ -348,7 +353,7 @@ jobs:
            fi
            test -n "$(command -v mcstas${EXESUFFIX})"
            mcstas${EXESUFFIX} --version
-           mctest${SUFFIX} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
+           mctest${SUFFIX} --verbose --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
            export SUM=`find run_rngtest -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
            export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
            if [ "${EXPECTED}" == "${SUM}" ];
@@ -376,8 +381,11 @@ jobs:
            fi
            test -n "$(command -v mcstas${EXESUFFIX})"
            mcstas${EXESUFFIX} --version
-           mctest${SUFFIX} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }} --uid=${MYWORKERID}
-           mctest${SUFFIX} --mpi=${{ matrix.nmpi }} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
+           mctest${SUFFIX} --verbose --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource,Masked_ESS_butterfly_image --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }} --uid=${MYWORKERID}
+           if [ "${{ matrix.nmpi }}" != "0" ];
+           then
+             mctest${SUFFIX}  --verbose --mpi=${{ matrix.nmpi }} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource,Masked_ESS_butterfly_image --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
+           fi
 
     - name: Check for modified instruments
       id: instr-test
@@ -422,8 +430,8 @@ jobs:
            fi
            echo "Diffing against: $DIFFBASE"
 
-           export CHANGEDCOMPS=`git diff --name-only $DIFFBASE HEAD | grep \.comp\$ | grep mcstas-comps | xargs -n1 basename | sed s/\.comp//g | sort | uniq | xargs echo`
-           export NUMCHANGEDCOMPS=`git diff --name-only $DIFFBASE HEAD | grep \.comp\$ | grep mcstas-comps | wc -l | xargs echo`
+           export CHANGEDCOMPS=$(git diff --name-only $DIFFBASE HEAD | grep '\.comp$' | grep mcstas-comps | xargs -n1 basename | sed 's/\.comp//g' | sort | uniq | xargs echo)
+           export NUMCHANGEDCOMPS=$(git diff --name-only $DIFFBASE HEAD | grep '\.comp$' | grep mcstas-comps | wc -l | xargs echo)
            cd -
            compindex=0
            if [ "$NUMCHANGEDCOMPS" != "0" ];
@@ -434,7 +442,7 @@ jobs:
                  NUMMATCH=`find src/mcstas-comps -name \*.instr -exec grep -H ${comp} \{\} \; | cut -f1 -d: | sort | uniq | wc -l`
                  if [ "$NUMMATCH" -gt "0" ];
                  then
-                   ${MCTEST_EXECUTABLE} --mpi=${{ matrix.nmpi }} --testdir run_mctest --comp=${comp} --suffix=${{ matrix.cogen }}_CHANGES${compindex}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+                   ${MCTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir run_mctest --comp=${comp} --suffix=${{ matrix.cogen }}_CHANGES${compindex}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
                    compindex=$(( compindex+1 ))
                  else
                    echo No matching tests found
@@ -444,8 +452,8 @@ jobs:
 
            cd src
            export RUNALL="NO"
-           export CHANGEDINSTR=`git diff --name-only $DIFFBASE HEAD | grep \.instr\$ | grep mcstas-comps | xargs -n1 basename | sed s/\.instr//g | sort | uniq | xargs echo | sed s/\ /,/g`
-           export NUMCHANGEDINSTR=`git diff --name-only $DIFFBASE HEAD | grep \.instr\$ | grep mcstas-comps | wc -l | xargs echo`
+           export CHANGEDINSTR=$(git diff --name-only $DIFFBASE HEAD | grep '\.instr$' | grep mcstas-comps | xargs -n1 basename | sed 's/\.instr//g' | sort | uniq | xargs echo | sed 's/ /,/g')
+           export NUMCHANGEDINSTR=$(git diff --name-only $DIFFBASE HEAD | grep '\.instr$' | grep mcstas-comps | wc -l | xargs echo)
            echo ----
            echo $NUMCHANGEDCOMPS components and $NUMCHANGEDINSTR instruments were changed, resulting in this list:
            echo $CHANGEDINSTR
@@ -464,7 +472,7 @@ jobs:
                export SCOPE=" "
              fi
              mkdir -p run_mctest && cd run_mctest
-             ${MCTEST_EXECUTABLE}  --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=instrCHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             ${MCTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=instrCHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
              ${MCVIEWTEST_EXECUTABLE} --nobrowse $PWD
            fi
 

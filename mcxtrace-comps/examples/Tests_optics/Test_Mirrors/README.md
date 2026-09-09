@@ -19,9 +19,31 @@ index=1: Mirror_elliptic
 index=2: Mirror_parabolic
 index=3: Mirror_curved
 index=4: Mirror_toroid
-index=5: Mirror_toroid_pothole
-index=6: Multilayer_elliptic
+index=5: Multilayer_elliptic
+index=6: Mirror_toroid_pothole (contrib)
 ```
+
+## Examples
+
+- **Test: Test_Mirrors.instr index=0 gamma=5 Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=1 gamma=5 Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=2 gamma=5 Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=3 gamma=5 Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=4 gamma=5 Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=5 gamma=5 Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=6 gamma=5 Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=0 gamma=0.1 coating=Ref_W_Si.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=1 gamma=0.1 coating=Ref_W_Si.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=2 gamma=0.1 coating=Ref_W_Si.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=3 gamma=0.1 coating=Ref_W_Si.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=4 gamma=0.1 coating=Ref_W_Si.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=5 gamma=0.1 coating=Ref_W_Si.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=0 gamma=0.1 coating=Ref_W_B4C.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=1 gamma=0.1 coating=Ref_W_B4C.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=2 gamma=0.1 coating=Ref_W_B4C.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=3 gamma=0.1 coating=Ref_W_B4C.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=4 gamma=0.1 coating=Ref_W_B4C.txt Detector: psd4_I=2e-08**
+- **Test: Test_Mirrors.instr index=5 gamma=0.1 coating=Ref_W_B4C.txt Detector: psd4_I=2e-08**
 
 ## Input parameters
 
@@ -29,11 +51,12 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| gamma | deg | Nominal glancing angle of mirror | 0.5 |
+| gamma | deg | Nominal glancing angle of mirror | 5 |
 | index | 1 | Index of the Mirror component to test | 1 |
 | L | m | Distance source-mirror and mirror-detector | 2 |
 | radius | m | Radius of curvature | 1000 |
 | E0 | keV | Mean photon energy | 12.5 |
+| coating | string | "None" or reflectivity file, such as "Ref_W_B4C.txt" | "NULL" |
 
 ## Links
 

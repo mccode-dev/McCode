@@ -16,6 +16,10 @@ Example: Split an MCPL file at a wavelength of 0.5 AA
 mcrun MCPL_filter_wavelength MCPLfile=my.mcpl.gz wavelength=0.5
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

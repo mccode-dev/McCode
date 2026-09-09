@@ -18,6 +18,10 @@ The tested monitor is a 1-dimensional Q-monitor that calculates Q from "measured
 i.e. not from particle velocity parameters.
 ```
 
+## Examples
+
+- **Test: theta=0.91**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

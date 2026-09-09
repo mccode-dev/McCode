@@ -25,6 +25,11 @@ Journal of Instrumentation, 8 (2013), no 10, http://dx.doi.org/10.1088/1748-0221
 2. Results from calculations published in the previous paper were obtained using McStas ISIS_moderator component (Face="W5")
 ```
 
+## Examples
+
+- **Test: -y Detector: psd4pi_I=0.34**
+- **Test: -y --format=NeXus Detector: psd4pi_I=0.34**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

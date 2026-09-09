@@ -15,6 +15,11 @@
 The H142 S-curved cold guide at the ILL feeding IN12
 ```
 
+## Examples
+
+- **Test: m=1 Detector: GuideOut_Phic_I=9.1e+09**
+- **Test: -g m=1 Detector: GuideOut_Phic_I=9.1e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

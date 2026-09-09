@@ -21,6 +21,10 @@ your the instrument with an installed GSL, you should use MCSTAS_CFLAGS like
 MCSTAS_CFLAGS = -g -O2 -lm -lgsl -lgslcblas
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -46,6 +46,10 @@ Manganese and chrome scan: mxrun SOLEIL_ROCK.instr E0=5.700,6.800 scan=1 sample_
 Pretty energy repartition monitor result: mxrun SOLEIL_ROCK.instr E0=17.000 cc=2 -n1e8
 ```
 
+## Examples
+
+- **Test: E0=15.918 Detector: fluo_monitor_I=2e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

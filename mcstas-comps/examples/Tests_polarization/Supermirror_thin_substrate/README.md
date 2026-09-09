@@ -15,6 +15,10 @@
 Test instrument for a thin-substrate supermirrror (component SupermirrorFlat)
 ```
 
+## Examples
+
+- **Test: Supermirror_thin_substrate.instr src_x=0.01 Detector: spectrum_I=4.11233e-05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

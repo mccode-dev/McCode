@@ -32,11 +32,16 @@ See the <a href="https://www.ill.eu/for-all-users/instruments/instruments-list/s
 
 Example (typical "real-life" measurement sequence):
 
-mcrun ILL_H15_SAM.instr --gravity -n1e7 -dLargeQ lambda=5.2
-mcrun ILL_H15_SAM.instr --gravity -n1e7 -dSmallQ guide1=0 guide2=0 guide3=0 lsd=6.8
+mcrun ILL_H15_SAM.instr --gravity -n1e8 -dLargeQ lambda=5.2
+mcrun ILL_H15_SAM.instr --gravity -n1e8 -dSmallQ guide1=0 guide2=0 guide3=0 lsd=6.8
 
 (Corresponding test-suite entries:)
 ```
+
+## Examples
+
+- **Test: ILL_H15_SAM.instr --gravity lambda=5.2 Detector: psd_I=15486.6**
+- **Test: ILL_H15_SAM.instr --gravity guide1=0 guide2=0 guide3=0 lsd=6.8 Detector: psd_I=25468.3**
 
 ## Input parameters
 

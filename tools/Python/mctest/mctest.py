@@ -123,6 +123,7 @@ class InstrExampleTest:
             self.linted=obj['linted']
             self.compiled=obj['compiled']
             self.compiletime=obj['compiletime']
+            self.displaytime=obj.get('displaytime')
             self.displayed=obj['displayed']
             self.didrun=obj['didrun']
             self.runtime=obj['runtime']
@@ -419,11 +420,12 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             logging.info(formatstr % test.instrname)
             continue
         if test.testnb <= 1:
+            displaytime = test.displaytime if test.displaytime is not None else 0
             if test.displayed:
-                formatstr = "%-" + "%ds:   Display OK (%ds)" % (maxnamelen+1, test.displaytime)
+                formatstr = "%-" + "%ds:   Display OK (%ds)" % (maxnamelen+1, displaytime)
                 logging.info(formatstr % test.instrname)
             else:
-                formatstr = "%-" + "%ds:   Display FAILED (%ds)" % (maxnamelen+1, test.displaytime)
+                formatstr = "%-" + "%ds:   Display FAILED (%ds)" % (maxnamelen+1, displaytime)
                 logging.info(formatstr % test.instrname)
 
         # runable tests have testnb > 0
@@ -808,20 +810,22 @@ def main(args):
         # Figure out "mccoderoot" location from calling local mc/mcxrunxs
         if shutil.which(mccode_config.configuration["MCRUN"]) is not None:
             if (verbose):
-                print("Probing " + mccode_config.configuration["MCRUN"] + " --showcfg=resourcedir for 'mccoderoot'")
+                logging.info("Probing " + mccode_config.configuration["MCRUN"] + " --showcfg=resourcedir for 'mccoderoot'")
             metalog = LineLogger()
-            utils.run_subtool_to_completion(mccode_config.configuration["MCRUN"] + " --showcfg=resourcedir", stdout_cb=metalog.logline)
-            mccoderoot=metalog.lst[0]
+            try:
+                utils.run_subtool_to_completion(mccode_config.configuration["MCRUN"] + " --showcfg=resourcedir", stdout_cb=metalog.logline)
+                mccoderoot=metalog.lst[0]
+            except:
+                logging.info("Probe using mcrun/mxrun --showcfg=resourcedir failed. Next attempt using env var...")
         # Probe environment variable
         MCCODE = mccode_config.configuration["MCCODE"].upper()
         if os.environ[MCCODE] is not None:
             if (verbose):
-                print("Probing " + MCCODE + " env var for 'mccoderoot'")
+                logging.info("Probing " + MCCODE + " env var for 'mccoderoot'")
             mccoderoot=os.environ[MCCODE]
         # Fallback attempt
         if not mccoderoot:
-            if (verbose):
-                print("Using fallback value /usr/share/mcstas for 'mccoderoot'")
+            logging.info("Using fallback value /usr/share/mcstas for 'mccoderoot'")
             mccoderoot = "/usr/share/mcstas/"
     if not os.path.exists(mccoderoot):
         logging.info("mccoderoot does not exist")

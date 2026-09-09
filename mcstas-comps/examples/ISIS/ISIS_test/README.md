@@ -17,6 +17,10 @@ Refer to the documentation in MCSTAS/contrib/doc/ISISdoc.pdf (.ps)
 for further instructions on using the ISIS_moderator component
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

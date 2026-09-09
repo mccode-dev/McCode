@@ -26,6 +26,10 @@ Cu       002 DM=1.807 AA
 Cu       220 DM=1.278 AA
 ```
 
+## Examples
+
+- **Test: lambda=0.7 Detector: BananaTheta_I=1.44351e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

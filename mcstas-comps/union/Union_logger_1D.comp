@@ -58,6 +58,7 @@
 * order_volume_process: [1]      Only log rays that scatter for the n'th time in the same geometry, using the same process
 * logger_conditional_extend_index: [1] If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger_conditional_extend", and one would then acces logger_conditional_extend[n] if logger_conditional_extend_index is set to n
 * init:                 [string] Name of Union_init component (typically "init", default)
+* nowritefile:          [1]      If set, logger will skip writing to disk
 *
 * CALCULATED PARAMETERS:
 *
@@ -70,7 +71,7 @@
 
 DEFINE COMPONENT Union_logger_1D
 
-SETTING PARAMETERS(string target_geometry="NULL", string target_process="NULL", min_value, max_value, n1=90, string variable="time",string filename="NULL", order_total=0, order_volume=0, order_volume_process=0, logger_conditional_extend_index=-1, string init="init")
+SETTING PARAMETERS(string target_geometry="NULL", string target_process="NULL", min_value, max_value, n1=90, string variable="time",string filename="NULL", order_total=0, order_volume=0, order_volume_process=0, logger_conditional_extend_index=-1, string init="init", int nowritefile=0)
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -588,10 +589,12 @@ TRACE
 SAVE
 %{
   // Write to disk
-  DETECTOR_OUT_1D (this_storage.Detector_1D.title_string, this_storage.Detector_1D.string_axis, this_storage.Detector_1D.string_axis_value,
-                   this_storage.Detector_1D.string_axis_short, this_storage.Detector_1D.min, this_storage.Detector_1D.max, this_storage.Detector_1D.bins,
-                   &this_storage.Detector_1D.Array_N[0], &this_storage.Detector_1D.Array_p[0], &this_storage.Detector_1D.Array_p2[0],
-                   this_storage.Detector_1D.Filename);
+  if (!nowritefile) {
+    DETECTOR_OUT_1D (this_storage.Detector_1D.title_string, this_storage.Detector_1D.string_axis, this_storage.Detector_1D.string_axis_value,
+                     this_storage.Detector_1D.string_axis_short, this_storage.Detector_1D.min, this_storage.Detector_1D.max, this_storage.Detector_1D.bins,
+                     &this_storage.Detector_1D.Array_N[0], &this_storage.Detector_1D.Array_p[0], &this_storage.Detector_1D.Array_p2[0],
+                     this_storage.Detector_1D.Filename);
+  }
 %}
 
 

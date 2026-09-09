@@ -23,6 +23,12 @@ e.g. total detector intensity as a function of position, one can map out impurit
 their scattering properties.
 ```
 
+## Examples
+
+- **Test: ESRF_ID01.instr Pix=0 Piy=0 Detector: PSDMonitor_I=3.26027e-05**
+- **Test: ESRF_ID01.instr Delta=65.88 Eta=32.945 Pix=50 Piy=-50 Detector: MAXIPix_I=1.77323e-06**
+- **Test: ESRF_ID01.instr Delta=67.44 Eta=33.22 Pix=50 Piy=-50 Detector: MAXIPix_I=2.26516e-06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

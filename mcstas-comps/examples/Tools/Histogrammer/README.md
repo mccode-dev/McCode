@@ -30,6 +30,10 @@ Example: mcrun Histogrammer.instr filename="events.dat" MODE=1 options="sphere t
 - Reads a Virtual_output generated event file and applies a spherical PSD
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

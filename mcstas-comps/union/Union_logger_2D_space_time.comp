@@ -65,6 +65,7 @@
 * order_volume_process: [1]      Only log rays that scatter for the n'th time in the same geometry, using the same process
 * logger_conditional_extend_index: [1] If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger_conditional_extend", and one would then acces logger_conditional_extend[n] if logger_conditional_extend_index is set to n
 * init:                 [string] Name of Union_init component (typically "init", default)
+* nowritefile:          [1]      If set, logger will skip writing to disk
 *
 * CALCULATED PARAMETERS:
 *
@@ -77,7 +78,7 @@
 
 DEFINE COMPONENT Union_logger_2D_space_time
 
-SETTING PARAMETERS(string target_geometry="NULL",string target_process="NULL",D1_min=-5,D1_max=5,D2_min=-5,D2_max=5,time_min=0,time_max=1,string D_direction_1="x", string D_direction_2="z",string filename="NULL", n1=90, n2=90, time_bins=10, order_total=0,order_volume=0,order_volume_process=0,logger_conditional_extend_index=-1, string init="init")
+SETTING PARAMETERS(string target_geometry="NULL",string target_process="NULL",D1_min=-5,D1_max=5,D2_min=-5,D2_max=5,time_min=0,time_max=1,string D_direction_1="x", string D_direction_2="z",string filename="NULL", n1=90, n2=90, time_bins=10, order_total=0,order_volume=0,order_volume_process=0,logger_conditional_extend_index=-1, string init="init", int nowritefile=0)
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -339,8 +340,7 @@ SHARE
                                   [storage->temp_2DS_t_data.elements[index].index_3]++;
 
       storage->Detector_3D.Array_p[storage->temp_2DS_t_data.elements[index].index_1][storage->temp_2DS_t_data.elements[index].index_2]
-                                  [storage->temp_2DS_t_data.elements[index].index_3]
-          += storage->temp_2DS_t_data.elements[index].weight;
+                                  [storage->temp_2DS_t_data.elements[index].index_3] += storage->temp_2DS_t_data.elements[index].weight;
 
       storage->Detector_3D.Array_p2[storage->temp_2DS_t_data.elements[index].index_1][storage->temp_2DS_t_data.elements[index].index_2]
                                    [storage->temp_2DS_t_data.elements[index].index_3]
@@ -363,12 +363,10 @@ SHARE
                                   [storage->temp_2DS_t_data.elements[index].index_3]++;
 
       storage->Detector_3D.Array_p[storage->temp_2DS_t_data.elements[index].index_1][storage->temp_2DS_t_data.elements[index].index_2]
-                                  [storage->temp_2DS_t_data.elements[index].index_3]
-          += final_weight;
+                                  [storage->temp_2DS_t_data.elements[index].index_3] += final_weight;
 
       storage->Detector_3D.Array_p2[storage->temp_2DS_t_data.elements[index].index_1][storage->temp_2DS_t_data.elements[index].index_2]
-                                   [storage->temp_2DS_t_data.elements[index].index_3]
-          += final_weight;
+                                   [storage->temp_2DS_t_data.elements[index].index_3] += final_weight;
     }
     clear_temp_2DS_t (data_union);
   }
@@ -767,14 +765,16 @@ SAVE
 %{
   // Write to disk
 
-  for (loop_index = 0; loop_index < this_storage.Detector_3D.bins_3; loop_index++) {
-    sprintf (number_string, "%d", loop_index);
-    sprintf (part_filename, "%s_%s", this_storage.Detector_3D.Filename, number_string);
+  if (!nowritefile) {
+    for (loop_index = 0; loop_index < this_storage.Detector_3D.bins_3; loop_index++) {
+      sprintf (number_string, "%d", loop_index);
+      sprintf (part_filename, "%s_%s", this_storage.Detector_3D.Filename, number_string);
 
-    DETECTOR_OUT_2D (this_storage.Detector_3D.title_string, this_storage.Detector_3D.string_axis_1, this_storage.Detector_3D.string_axis_2,
-                     this_storage.Detector_3D.D1min, this_storage.Detector_3D.D1max, this_storage.Detector_3D.D2min, this_storage.Detector_3D.D2max,
-                     this_storage.Detector_3D.bins_1, this_storage.Detector_3D.bins_2, &this_storage.Detector_3D.Array_N[loop_index][0][0],
-                     &this_storage.Detector_3D.Array_p[loop_index][0][0], &this_storage.Detector_3D.Array_p2[loop_index][0][0], part_filename);
+      DETECTOR_OUT_2D (this_storage.Detector_3D.title_string, this_storage.Detector_3D.string_axis_1, this_storage.Detector_3D.string_axis_2,
+                       this_storage.Detector_3D.D1min, this_storage.Detector_3D.D1max, this_storage.Detector_3D.D2min, this_storage.Detector_3D.D2max,
+                       this_storage.Detector_3D.bins_1, this_storage.Detector_3D.bins_2, &this_storage.Detector_3D.Array_N[loop_index][0][0],
+                       &this_storage.Detector_3D.Array_p[loop_index][0][0], &this_storage.Detector_3D.Array_p2[loop_index][0][0], part_filename);
+    }
   }
 %}
 

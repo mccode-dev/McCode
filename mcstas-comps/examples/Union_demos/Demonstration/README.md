@@ -21,6 +21,11 @@ multiple scattering occur and events are thus taking place in the last
 two samples.
 ```
 
+## Examples
+
+- **Test: stick_displacement=0 Detector: m4pi_I=21849.9**
+- **Test: stick_displacement=0 Detector: Banana_monitor_I=101.8**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -93,6 +93,13 @@ endif()
 
 install( DIRECTORY "examples/"  DESTINATION "${DEST_DATADIR_EXAMPLES}")
 
+# Contributed mcstas-chopper-lib (Greg Tucker): fetched at configure time and
+# installed into share/contrib/examples -- see cmake/Modules/ChopperLib.cmake
+option( ENABLE_CHOPPERLIB "Fetch & install contributed mcstas-chopper-lib (lib snippets, contrib comps, example instruments)" ON )
+if ( ENABLE_CHOPPERLIB AND NOT EXCLUDE_CONTRIB )
+  include( ChopperLib )
+endif()
+
 
 # Include mcstas-comp revision tag file
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/revision.in" "${WORK}/revision" @ONLY)

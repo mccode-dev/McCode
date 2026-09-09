@@ -22,6 +22,14 @@ The idea is to compare the fluorescence and diffraction patterns:
 
 ```
 
+## Examples
+
+- **Test: index=1 Detector: psd_Diff_I=2.29638e-13**
+- **Test: index=2 Detector: psd_Diff_I=6.1e-14**
+- Example: index=3 Detector: psd_Diff_I=1.19386e-13
+- 
+- (Fluorescence+Single_crystal GROUP is unstable on GPU, disable index=3 test for now)
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

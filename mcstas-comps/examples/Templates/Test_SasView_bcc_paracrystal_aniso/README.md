@@ -18,6 +18,10 @@ Very simple test instrument for the SasView_bcc_paracrystal component
 Example: model_scale=1 Detector: detector_I=83.8252
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

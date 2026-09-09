@@ -23,6 +23,10 @@ This is a lab-scale diffractometer, Brucker D8 Advance type.
 Example: <parameters=values>
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
