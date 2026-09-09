@@ -201,6 +201,30 @@ void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER f
   } while(0)
 
 
+/* Propagation variants that always use straight-line motion. */
+#define PROP_NO_G_DT(dt) \
+  do { \
+    if(dt < 0 && allow_backprop == 0) { RESTORE=1; ABSORB; }; \
+    mcPROP_DT(dt); \
+    DISALLOW_BACKPROP; \
+  } while(0)
+
+#define PROP_NO_G_Z0 \
+  do { \
+    mcPROP_Z0; \
+  } while(0)
+
+#define PROP_NO_G_X0 \
+  do { \
+    mcPROP_X0; \
+  } while(0)
+
+#define PROP_NO_G_Y0 \
+  do { \
+    mcPROP_Y0; \
+  } while(0)
+
+
 #ifdef DEBUG
 
 #define DEBUG_STATE() if(!mcdotrace); else \
