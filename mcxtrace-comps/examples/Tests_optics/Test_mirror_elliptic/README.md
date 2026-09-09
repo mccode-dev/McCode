@@ -18,6 +18,10 @@ Try distance_from_source = 1 (rays reflected back towards the center)
 distance_from_source = 0.5 (rays reflected back in a parallel-like fashion)
 ```
 
+## Examples
+
+- **Test: distance_from_source=1 Detector: psd_monitor_I=3.3e-9**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

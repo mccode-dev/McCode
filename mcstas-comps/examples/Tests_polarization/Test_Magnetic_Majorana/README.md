@@ -22,6 +22,10 @@ Seeger et al. NIM A: Volume 457, Issues 1-2 , 11 January 2001, Pages 338-346
 Note that there are some sytematic fluctuation with the current solution.
 ```
 
+## Examples
+
+- **Test: Blarge=1.0 -n 10000 Detector: pollambdaMonitor2z_I=8.79645e-07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

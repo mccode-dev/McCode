@@ -36,6 +36,10 @@ with monitoring of the scattering in angular (diffraction) and energy modes
 (for spectroscopy).
 ```
 
+## Examples
+
+- **Test: lambda=5 Detector: H5_I=1.03234e+14**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

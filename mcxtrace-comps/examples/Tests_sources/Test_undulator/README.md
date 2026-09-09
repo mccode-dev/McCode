@@ -15,6 +15,10 @@
 A simple undulator with parameters as in Kim, 1989 (sec. 4).
 ```
 
+## Examples
+
+- **Test: Test_undulator.instr minh=1 maxh=2 FAST=1 Detector: e_monitor1_I=2e+14**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

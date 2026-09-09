@@ -17,6 +17,13 @@ Where applicable, the temperature is set to 80K (corresponding to the header
 of the Be.trm file used in Filter_gen
 ```
 
+## Examples
+
+- **Test: Filter=0 Detector: L_out_I=2183.87**
+- **Test: Filter=1 T=80 Detector: L_out_I=1875.02**
+- **Test: Filter=2 Detector: L_out_I=1868.5**
+- **Test: Filter=3 Detector: L_out_I=2011.26**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

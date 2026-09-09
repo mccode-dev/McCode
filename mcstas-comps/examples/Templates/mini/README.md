@@ -15,6 +15,10 @@
 Minimalistic instrument for testing GPU implementation
 ```
 
+## Examples
+
+- **Test: mini.instr dummy=0 Detector: detector_I=345.995**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

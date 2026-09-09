@@ -15,6 +15,12 @@
 Simply runs a short test to check that Set_pol, Pol_analyser_ideal, and Pol_monitor really do work
 ```
 
+## Examples
+
+- **Test: xory=1 Detector: monitor_I=25.9341**
+- **Test: xory=0 Detector: monitor_I=4.4496**
+- **Test: xory=1 Detector: pmonitory_I=-0.70717**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -19,6 +19,12 @@ to the monitor. The particles have unit weight and hence the intensity scales
 with the simulated statistics. (Use input parameter Ncount for setting the stats).
 ```
 
+## Examples
+
+- **Test: Ncount=1000 jumps=10 Detector: PSD_I=10000**
+- **Test: Ncount=1000 jumps=20 Detector: PSD_I=20000**
+- **Test: Ncount=100000 jumps=10 Detector: PSD_I=1e6**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

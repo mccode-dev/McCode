@@ -15,6 +15,10 @@
 A mere unit test instrument. Also includes a perfectly flat Mirror as reference.
 ```
 
+## Examples
+
+- **Test: Test_Mirror_toroid.instr gamma=5 Detector: psd3_I=7.21499e-08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

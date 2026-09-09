@@ -15,6 +15,10 @@
 Quick and dirty test instrument write-up for Vertical_Bender.
 ```
 
+## Examples
+
+- **Test: Test_Vertical_Bender.instr -g curvature=10000 Detector: Pout_I=0.00134901**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

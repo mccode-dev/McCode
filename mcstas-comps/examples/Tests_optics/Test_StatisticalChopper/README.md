@@ -16,6 +16,10 @@ This instrument is a simple model of a kind of TOF instrument, with powder sampl
 and statistical chopper. The de-correlation is also performed in a dedicated monitor.
 ```
 
+## Examples
+
+- **Test: lambda=1 Detector: time_mon2_I=3.44e-12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

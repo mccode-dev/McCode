@@ -44,6 +44,13 @@ By scanning across thickness values, one then finds a curve, that should fit the
 analytical calculations.
 ```
 
+## Examples
+
+- **Test: mcrun Test_Incoherent_MS sample=none Detector: total_scat_I=9.99909e+06**
+- **Test: mcrun Test_Incoherent_MS sample=thin Detector: psd_det_I=27.12**
+- **Test: mcrun Test_Incoherent_MS sample=thick Detector: psd_det_I=26.59**
+- **Test: mcrun Test_Incoherent_MS sample=thick Detector: psd_det_I=26.59**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

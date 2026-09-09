@@ -15,6 +15,10 @@
 Simple test instrument for the Virtual_input component
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

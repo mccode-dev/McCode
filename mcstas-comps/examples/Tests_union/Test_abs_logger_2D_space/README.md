@@ -18,6 +18,10 @@ Includes conditional component to test record_to_temp functionality
 of investigated abs_logger.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

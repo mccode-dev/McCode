@@ -67,6 +67,10 @@ Q-range:             0.2 < Q/Å-1 < 4.9
 Q-resolution:        ΔQ/Å-1 < 0.1
 ```
 
+## Examples
+
+- **Test: TM=301 Detector: SamposPSD_I=5905.14**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

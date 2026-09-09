@@ -25,6 +25,10 @@ quantitative analysis of spin incoherent samples. The high flux allows for
 kinetic experiments with time resolution of the order of few milliseconds.
 ```
 
+## Examples
+
+- **Test: ILL_H142_D33.instr lambda=14 dlambda=1.4 Detector: PSD_I=2e-07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

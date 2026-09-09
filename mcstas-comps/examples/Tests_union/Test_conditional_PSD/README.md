@@ -17,6 +17,10 @@ its output to neutrons that reached the conditional_PSD area in specified
 time interval. This is used to investigate origin of interesting signals.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

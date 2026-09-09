@@ -32,6 +32,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
+## Examples
+
+- **Test: sample_cfg="Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x" Detector: powder_pattern_detc_I=4.4e-11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

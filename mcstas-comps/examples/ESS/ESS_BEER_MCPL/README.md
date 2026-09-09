@@ -48,6 +48,11 @@ ESS_BEER_MCPL input=BEER_MCB.mcpl repetition=50 pwdfile=duplex.laz lc=9.35 lam0=
 Detector: psdtof_I=98.3885
 ```
 
+## Examples
+
+- **Test: input=BEER_MR.mcpl repetition=50 lc=6.65 modul=0 mod_twidth=0.0029 Detector: psdtof_I=138.421**
+- Example: input=BEER_MCB.mcpl repetition=50 lc=9.35 modul=1 mod_twidth=0.0029 Detector: psdtof_I=49.1942
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

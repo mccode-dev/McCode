@@ -16,6 +16,10 @@ This instrument is a model of IN22@ILL with PG002 monochromator/analyzer,
 installed at the end of the H25 supermirror thermal guide.
 ```
 
+## Examples
+
+- **Test: KI=3.84 QM=1 Sqw_coh=V.lau Detector: Sample_Cradle_I=4.5e+07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

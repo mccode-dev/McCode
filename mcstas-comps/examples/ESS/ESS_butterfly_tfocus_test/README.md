@@ -17,6 +17,12 @@ Test instrument for the updated BF1 butterfly moderator design.
 The below example gives a 50-50 (statistics-wise) cold/thermal beam at beamline N10.
 ```
 
+## Examples
+
+- **Test: mcrun ESS_butterfly_test.instr sector=N beamline=1 cold=0.5 Detector: AutoTOFLend_I=1.5e+08**
+- 
+- This variant is set up with time-focusing from the source - for comparison with with ESS_butterfly_tfocus_NOFOCUS_test which runs without focusing from the source.
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

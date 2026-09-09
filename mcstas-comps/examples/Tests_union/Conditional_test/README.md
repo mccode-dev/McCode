@@ -15,6 +15,12 @@
 Use of all conditional components in one instrument file
 ```
 
+## Examples
+
+- **Test: dummy=1 Detector: detector_scat_I=40.2053**
+- **Test: dummy=1 Detector: test_logger_2D_space_zx_con_time_I=76662.3**
+- **Test: dummy=1 Detector: test_logger_2D_space_zx_con_PSD_I=387.97**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

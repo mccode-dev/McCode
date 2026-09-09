@@ -16,6 +16,11 @@ Cross comparison of Selector components, using McStas and
 contributed components. It shows that all implementations are equivalent.
 ```
 
+## Examples
+
+- **Test: selector=1 Detector: VS_Mon_I=0.009**
+- **Test: selector=2 Detector: VS_Mon_I=0.0093**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

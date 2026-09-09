@@ -17,6 +17,11 @@ component, and the SANS_spheres2 component, in order to ensure that they
 give the same value in this specific case.
 ```
 
+## Examples
+
+- **Test: use_SANS_spheres2=0 Detector: psd_det_I=9.73795e+06**
+- **Test: use_SANS_spheres2=1 Detector: psd_det_I=9.73795e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

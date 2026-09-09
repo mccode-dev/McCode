@@ -15,6 +15,10 @@
 The H113 supermirror ballistic curved cold guide at the ILL feeding PF1b
 ```
 
+## Examples
+
+- **Test: lambda=10 Detector: GuideOut_Phic_I=2.3402e+10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

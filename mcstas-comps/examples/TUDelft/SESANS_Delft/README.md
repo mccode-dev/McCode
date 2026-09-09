@@ -26,6 +26,12 @@ The foil-angle, thickness and wavelength yield now matched parameters to have th
 These parameter and the sphere radius match now with the magnetic fields below to get a good measurement range.
 ```
 
+## Examples
+
+- **Test: -y Detector: det_I=2.2537e-07**
+- 
+- Scan Example: SESANS_Delft -n 1000000 -N 31 L0=2.165 DL=0.02 By=0,0.0468
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

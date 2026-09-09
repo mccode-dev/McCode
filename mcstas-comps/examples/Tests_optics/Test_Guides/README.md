@@ -17,6 +17,18 @@ contributed components. It shows that all implementations are equivalent,
 except the Guide_honeycomb which has a different geometry.
 ```
 
+## Examples
+
+- **Test: Guide=1 Detector: Monitor2_xy_I=0.00726875**
+- **Test: Guide=2 Detector: Monitor2_xy_I=0.00725213**
+- **Test: Guide=3 Detector: Monitor2_xy_I=0.00727304**
+- **Test: Guide=4 Detector: Monitor2_xy_I=0.00721742**
+- **Test: Guide=5 Detector: Monitor2_xy_I=0.00721742**
+- **Test: Guide=6 Detector: Monitor2_xy_I=0.00721742**
+- **Test: Guide=7 Detector: Monitor2_xy_I=0.00724912**
+- **Test: Guide=8 Detector: Monitor2_xy_I=0.00683072**
+- **Test: Guide=9 Detector: Monitor2_xy_I=0.00724912**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

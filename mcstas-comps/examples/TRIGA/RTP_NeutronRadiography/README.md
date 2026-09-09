@@ -17,6 +17,10 @@ PUSPATI (RTP). It uses the thermal beam port 3.
 The sample is made of 2 concentric cylinders made of Cu and Fe.
 ```
 
+## Examples
+
+- **Test: theta=20 phi=10 Detector: image_plate_eff_I=9.54919e+07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

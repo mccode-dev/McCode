@@ -15,6 +15,11 @@
 Unit test for the GROUP logic
 ```
 
+## Examples
+
+- **Test: SIGNI=1  Detector: psd00_I=7.9e-8**
+- **Test: SIGNI=-1 Detector: psd00_I=7.9e-8**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

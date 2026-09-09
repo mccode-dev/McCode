@@ -15,6 +15,10 @@
 Model of the ESRF ID11 Transfocator based beamline.
 ```
 
+## Examples
+
+- **Test: ESRF_ID11.instr ANGLE=0 Detector: psd_eh3_sample_I=0.284963**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -15,6 +15,10 @@
 A test instrument for Incoherent output on spherical monitor.
 ```
 
+## Examples
+
+- **Test: lambda=1 Detector: Sph_mon_I=1.12762e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

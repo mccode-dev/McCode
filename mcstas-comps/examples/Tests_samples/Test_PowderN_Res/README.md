@@ -21,6 +21,10 @@ By default, absorption in the sample is effectively suppressed.
 Example: Lambda0=2.5667 dLambda=0.01 radius=0.001,0.021 TT=71.8 D_PHI=6 SPLITS=117 Distance=30 sig_abs=1e-09 -N21
 ```
 
+## Examples
+
+- **Test: Lambda0=2.5667 dLambda=0.01 radius=0.01 TT=71.8 D_PHI=6 SPLITS=117 Distance=30 sig_abs=1e-09 Detector: DetectorSmall_I=288.57**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

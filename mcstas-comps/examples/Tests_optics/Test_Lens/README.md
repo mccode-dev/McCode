@@ -17,6 +17,14 @@
 
 ```
 
+## Examples
+
+- %Description
+- 
+- Very simple setup with 30 stacked lenses which focus a cold neutron,
+- non diverging beam (ideal case). A set of PSD monitors is positioned
+- around the focusing point to show the beam spot.
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -41,6 +41,10 @@ Detector:    image plate 1250 x 450 mm2
 Sample:      at 2.710 mm from the end of the guide H143.
 ```
 
+## Examples
+
+- **Test: -y Detector: ImagePlate_I=959000**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

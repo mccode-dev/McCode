@@ -15,6 +15,10 @@
 
 ```
 
+## Examples
+
+- **Test: kI=1.55 Detector: dpsd1_I=4.3e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -18,6 +18,10 @@ Test with:
 mcdisplay -y -c
 ```
 
+## Examples
+
+- **Test: pin_rad=0.0025 Detector:det_I=4.63384e-06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

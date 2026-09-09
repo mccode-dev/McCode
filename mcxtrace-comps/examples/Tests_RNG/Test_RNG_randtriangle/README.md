@@ -21,6 +21,10 @@ For a low statistics, one may e.g. check that setting the seed gives
 varied output or fixing the seed gives fixed output·
 ```
 
+## Examples
+
+- **Test: Ncount=20000000 Detector: PSD_I=1.0**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

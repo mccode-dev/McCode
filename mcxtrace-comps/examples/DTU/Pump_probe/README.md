@@ -17,6 +17,10 @@ Instrument short description*
 Instrument longer description (type, elements, usage...)
 ```
 
+## Examples
+
+- **Test: Pump_probe.instr Dt=2e-9 Detector: dpsd1_I=1.7077e-28**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

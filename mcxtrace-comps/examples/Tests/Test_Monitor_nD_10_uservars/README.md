@@ -15,6 +15,10 @@
 Instrument demonstrating 10 uservars available in Monitor_nD
 ```
 
+## Examples
+
+- **Test: NCount=1e3 Detector: Flex2D_I=1000**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -1,6 +1,6 @@
-# The `Test_Filter` Instrument
+# The `Test_Filter_geom` Instrument
 
-*McXtrace: Test instrument for checking the Filter.comp component*
+*McXtrace: Test instrument for checking the geometry options of the Filter.comp component*
 
 ## Identification
 
@@ -13,6 +13,7 @@
 
 ```text
 Test instrument for checking the Filter.comp component
+Specifically this instrument checks the geometry options and refraction
 ```
 
 ## Examples
@@ -25,15 +26,16 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| filter_mat |  | Chemical symbol / datafile of the filter material | "Rh.txt" |
+| filter_mat |  | Chemical symbol of the filter material | "Rh.txt" |
 | thickness | m | thickness of the filter block | 100e-6 |
 | L0 | AA | centre wavlength of the source | 1 |
 | DL | AA | half width of the (uniform) wavelength distribution | 0.1 |
 | F2 | 1 | add a 2nd filter component further away | 0 |
-| mu_col | idx | Index of mu-column (from 0) in datafile (required for some inputs). | -1 |
+| shape |  |  | 0 |
+| refraction |  |  | 0 |
 
 ## Links
 
-- [Source code](Test_Filter.instr) for `Test_Filter.instr`.
+- [Source code](Test_Filter_geom.instr) for `Test_Filter_geom.instr`.
 
 ---

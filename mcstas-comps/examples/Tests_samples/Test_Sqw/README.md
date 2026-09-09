@@ -15,6 +15,10 @@
 A test instrument for testing Isotropic_Sqw output on a spherical monitor.
 ```
 
+## Examples
+
+- **Test: lambda=1 Detector: Sph_mon_I=1.21087e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

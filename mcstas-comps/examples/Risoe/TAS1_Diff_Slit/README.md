@@ -23,6 +23,10 @@ Here it is used as a diffractometer for a collimation alignment study. The
 sample is a slit and there is no analyzer.
 ```
 
+## Examples
+
+- **Test: C1=30 TT=0 Detector: sng_I=2e-5**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

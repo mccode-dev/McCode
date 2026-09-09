@@ -16,6 +16,11 @@ A simple test insrument for the transmission grating component. Two examples
 of gratings are included matching those in the Chandra X-ray Observatory
 ```
 
+## Examples
+
+- **Test: Test_grating_trans.instr E0=1.2 dE=0.01 GD=3 MEG=0 Detector: psd_giant_I=0.0269197**
+- **Test: Test_grating_trans.instr E0=1.2 dE=0.01 GD=3 MEG=1 Detector: psd_giant_I=0.0573462**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -15,6 +15,10 @@
 This is a unit test for the MCPL_output component.
 ```
 
+## Examples
+
+- **Test: Ncount=1e3 Detector: m1_I=2.42284e+11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

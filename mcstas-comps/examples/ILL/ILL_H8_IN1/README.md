@@ -41,6 +41,10 @@ In this TAS configuration, Cu220 are used as monochromator and analyser,
 with a single type detector.
 ```
 
+## Examples
+
+- **Test: QM=1 Sqw_coh=V.lau Detector: D7_SC3_1D_I=1.06671e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -40,6 +40,10 @@ with multiple scattering, customized monitors, and the SPLIT mechanism to
 improve the statistics. The H15 guide is not described in this model.
 ```
 
+## Examples
+
+- **Test: lambda=4.14 Detector: M_theta_t_all_I=120000**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

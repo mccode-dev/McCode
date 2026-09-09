@@ -19,6 +19,11 @@ P Parameters are the ones used in the general simulation, i.e when the FOI is in
 P2 parameters are used when the strain of the beamline is the FOI, i.e what happens when the distances change.
 ```
 
+## Examples
+
+- **Test: E0=0.03 dE=0 undK=0 Nper=187 zm_mirror1=14 theta_mirror1=3 R0_M1=1 zm_mirror2=2 R0_M2=1  grating_mode=0 zm_mirror3=1 theta_mirror3=3 R0_M3=1 zm_ExitSlit=9 xwidth_ExSlit=0.005 yheight_ExSlit=0.005 zm_mirror4=19 theta_mirror4=3 R0_M4=1 SourceChoice=0 cff=2.25 m=3 Exitslit_yshift=2 Detector: M4Before_e_monitor_I=5.64942e-20**
+- **Test: E0=0.6 Detector: M4Before_e_monitor_I=1.80435e-21**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

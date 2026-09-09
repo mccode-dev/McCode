@@ -15,6 +15,11 @@
 Example instrument that shows some ways of using Conics_Ph and Conics_EH
 ```
 
+## Examples
+
+- **Test: Test_Conics_pairs OPTIC=1 Detector: psd_i_I=1.41346e-12**
+- **Test: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_I=4.92971e-21**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

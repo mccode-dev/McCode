@@ -30,6 +30,10 @@ In this TAS configuration, PG002 is used as monochromator analyser,
 with a single type detector.
 ```
 
+## Examples
+
+- **Test: KI=1.55 QM=1 Sqw_coh=V.lau Detector: Sample_Cradle_I=7.5962E+07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

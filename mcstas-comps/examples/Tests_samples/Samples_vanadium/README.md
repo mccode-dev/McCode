@@ -16,6 +16,10 @@ This instrument shows the vanadium sample scattering anisotropy.
 This is an effect of attenuation of the beam in the cylindrical sample.
 ```
 
+## Examples
+
+- **Test: ROT=0 Detector: PSD_4pi_I=7.97023e-05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -17,6 +17,10 @@ component. It is a very simple implementation of a Laue camera using 4PI spheric
 monitors.
 ```
 
+## Examples
+
+- **Test: Test_single_magnetic_crystal.instr L0=4 Detector: PSD4PImon_I=3.89987e-06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

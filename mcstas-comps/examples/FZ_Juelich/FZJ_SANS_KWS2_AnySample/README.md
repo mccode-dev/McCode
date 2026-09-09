@@ -16,6 +16,13 @@ KWS2 SANS instrument at FZ-Juelich. Custom sample (None, Guinier, Debye or Any).
 Sample is at 40 m from source. 2 detectors.
 ```
 
+## Examples
+
+- **Test: lambda=7 sample=0 Detector: detector_I=3450**
+- **Test: lambda=7 sample=1 Detector: detector_I=1182**
+- **Test: lambda=7 sample=2 Detector: detector_I=1751**
+- **Test: lambda=7 sample=3 Detector: detector_I=1249**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

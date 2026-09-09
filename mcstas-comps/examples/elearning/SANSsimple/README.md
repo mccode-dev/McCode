@@ -17,6 +17,10 @@ Instrument longer description (type, elements, usage...)
 Example: mcrun SANSsimple.instr <parameters=values>
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

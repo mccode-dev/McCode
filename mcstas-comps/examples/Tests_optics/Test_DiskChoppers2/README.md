@@ -16,6 +16,13 @@ Simple test instrument that compares DiskChoppers with a simple, rotating Slit.
 When ABSORBER is set, a slab of B4C is acts as absorbing medium.
 ```
 
+## Examples
+
+- **Test: Test_DiskChoppers.instr chopper=0 Detector: Tofl_I=0.0005**
+- **Test: Test_DiskChoppers.instr chopper=1 Detector: Tofl_I=0.0005**
+- **Test: Test_DiskChoppers.instr chopper=0 ABSORBER=1 Detector: Tofl_I=0.0007**
+- **Test: Test_DiskChoppers.instr chopper=1 ABSORBER=1 Detector: Tofl_I=0.0007**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

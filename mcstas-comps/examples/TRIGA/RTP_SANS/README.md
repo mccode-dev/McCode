@@ -27,6 +27,10 @@ and SANS set-up. The Be filter is in the monochromator block.
 Example: mcrun RTP_SANS.instr lambda=5
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

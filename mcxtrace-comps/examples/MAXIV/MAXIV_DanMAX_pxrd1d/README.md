@@ -17,6 +17,10 @@ This early version uses a Gaussian approximation source, and a simple bandpass f
 as the multilayer.
 ```
 
+## Examples
+
+- **Test: MAXIV_DanMAX_pxrd1d.instr -c -n1e6 E0=15 PXRD_SIMPLE=1 Detector: dm_strip_banana_I=0.00081782**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

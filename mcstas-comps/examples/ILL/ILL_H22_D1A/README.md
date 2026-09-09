@@ -42,6 +42,10 @@ Al environment (e.g. cryostat/furnace shield).
 This instrument was installed on the H22 guide.
 ```
 
+## Examples
+
+- **Test: lambda=1.911 Detector: BananaPSD_I=3.8578E+05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

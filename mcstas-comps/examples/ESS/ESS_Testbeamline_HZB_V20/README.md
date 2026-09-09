@@ -16,6 +16,10 @@ McStas model of the ESS testbeamline V20 at HZB in Berlin. Please note that not
 all geometrical sizes, distances and parameters have been fully validated.
 ```
 
+## Examples
+
+- **Test: ESS_Testbeamline_HZB_V20 lambda_min=1 frequency=14 Detector: time_lambda_FOC2_I=1.2e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

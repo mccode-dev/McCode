@@ -23,6 +23,10 @@ and a Unix/Mac) in the tools/matlab folder to reconstruct a 3D volume of the obj
 isosurface to do thresholding for extraction of the object surface.
 ```
 
+## Examples
+
+- **Test: omega=0 Detector: monitor_I=2.23492e-09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
