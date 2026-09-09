@@ -20,6 +20,12 @@ Select sample model with 'model_index':
 47= SasView_parallelepiped
 ```
 
+## Examples
+
+- **Test: model_index=1 Ncount=1e5 par1=4 par2=1 par3=40 par4=20 par5=400 Detector: detector_I=605**
+- **Test: model_index=3 Ncount=1e5 par1=220 par2=0.06 par3=40 par4=4 par5=1 Detector: detector_I=4.2**
+- **Test: model_index=47 Ncount=1e5 par1=4 par2=2 par3=35 par4=75 par5=400 Detector: detector_I=297**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

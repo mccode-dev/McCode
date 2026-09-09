@@ -20,6 +20,10 @@ Note that this model does not include much of the beamline optics, instead it em
 by settgin relevant beam parameters from a model source.
 ```
 
+## Examples
+
+- **Test: ESRF_BM29.instr Lambda=1 Detector: QMonitor_I=5.2e-12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

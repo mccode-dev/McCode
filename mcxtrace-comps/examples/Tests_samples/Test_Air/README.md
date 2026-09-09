@@ -16,6 +16,10 @@ This instrument checks whether the Air component works as intended.
 A point source illuminates  the central part of a rectangular volume of air ( 0.02 x 0.02 x Lair  m^3 ).
 ```
 
+## Examples
+
+- **Test: Test_Air.instr AIR=1 E0=7 Lair=0.01 Detector: fpi_scat_I=7.94701e-15**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

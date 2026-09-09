@@ -40,6 +40,10 @@ Position | Element
 32.09    | a set of detectors (transmission, XRD and XRF), radius 654 mm
 ```
 
+## Examples
+
+- **Test: E0=13 Detector: sample_stage_I=2.20096e+10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

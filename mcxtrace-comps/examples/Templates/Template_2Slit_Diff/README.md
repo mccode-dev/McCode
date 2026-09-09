@@ -17,6 +17,10 @@ Two identical slits are positioned 1m downstream from a point source, The slit
 width and their separation may be varied. The slit height is set to .8e-6 m.
 ```
 
+## Examples
+
+- **Test: SLITW=1e-6 SLITSEP=4e-6 Detector: psd0_I=7.1e-14**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

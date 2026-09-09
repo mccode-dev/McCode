@@ -17,6 +17,10 @@ The slit is positioned 1m downstream from a point source. The slit
 width may be varied. The slit height is set to .8e-6 m.
 ```
 
+## Examples
+
+- **Test: SLITW=5e-6 Detector: psd0_I=9.89638e-14**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -16,6 +16,11 @@ A unit test instrument for the Source component that can take input from a SPECT
 of an undulator/wiggler etc. and input it into McXtrace.
 ```
 
+## Examples
+
+- **Test: Test_source_spectra.instr flag4d=0 E0=12.4 dE=0.001 stemx=sp8LU_x stemy=sp8LU_y Detector: psd2_I=1.42775e+11**
+- **Test: Test_source_spectra.instr flag4d=1 E0=12.4 dE=0.001 stem4d=sp8LU_xy Detector: psd2_I=3.53418e-06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
