@@ -25,7 +25,8 @@
 *  Union_stop components are therefore optional.
 *
 * This definition is kept only so that existing instruments that still place a
-*  Union_stop component continue to compile. It has no effect.
+*  Union_stop component continue to compile. It emits a deprecation warning
+*  and has no effect.
 *
 * %P
 * INPUT PARAMETERS:
@@ -44,20 +45,9 @@ SETTING PARAMETERS()
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
-SHARE
-%{
-  #ifndef UNION_SUFFIX_C
-  /* Compatibility path for code generators without Union auto-injection. */
-  %include "union-suffix.c"
-  #endif
-%}
-
-DECLARE
-%{
-%}
-
 INITIALIZE
 %{
+  MPI_MASTER (printf ("WARNING: Union_stop is deprecated; Union components finalize automatically.\n"););
 %}
 
 END
