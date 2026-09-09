@@ -429,13 +429,14 @@ jobs:
              export DIFFBASE=$(git merge-base origin/main HEAD)
            fi
            echo "Diffing against: $DIFFBASE"
-
+           export RUNALL="NO"
            export CHANGEDCOMPS=$(git diff --name-only $DIFFBASE HEAD | grep '\.comp$' | grep mcstas-comps | xargs -n1 basename | sed 's/\.comp//g' | sort | uniq | xargs echo)
            export NUMCHANGEDCOMPS=$(git diff --name-only $DIFFBASE HEAD | grep '\.comp$' | grep mcstas-comps | wc -l | xargs echo)
            cd -
            compindex=0
            if [ "$NUMCHANGEDCOMPS" != "0" ];
            then
+             if [ "$NUMCHANGEDCOMPS" -lt "5" ]; then
                for comp in $CHANGEDCOMPS;
                do
                  echo Finding tests including component $comp
@@ -448,10 +449,12 @@ jobs:
                    echo No matching tests found
                  fi
                done
+             else
+               export RUNALL="YES"
+             fi
            fi
 
            cd src
-           export RUNALL="NO"
            export CHANGEDINSTR=$(git diff --name-only $DIFFBASE HEAD | grep '\.instr$' | grep mcstas-comps | xargs -n1 basename | sed 's/\.instr//g' | sort | uniq | xargs echo | sed 's/ /,/g')
            export NUMCHANGEDINSTR=$(git diff --name-only $DIFFBASE HEAD | grep '\.instr$' | grep mcstas-comps | wc -l | xargs echo)
            echo ----
