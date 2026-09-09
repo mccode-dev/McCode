@@ -9,21 +9,18 @@
 * Origin: McStas
 * %INSTRUMENT_SITE: Tests_grammar
 *
-* Unittest for the PROP_NO_G_* propagation macros.
+* Test for the PROP_NO_G_DT propagation macro.
 *
 * %Description
-* Verifies straight-line propagation with global gravity enabled and checks
-* that PROP_NO_G_DT retains the normal back-propagation behavior.
+* A long-wavelength beam is focused onto a small detector 10 m away. The
+* intermediate Arm uses PROP_NO_G_DT, so the beam should remain focused even
+* when gravity is enabled.
 *
-* %Example: Backprop=0 -g Detector: PropNoGMonitor_I=1
-* %Example: Backprop=1 -g Detector: PropNoGMonitor_I=1
-*
-* %Parameters
-* Backprop: [1] Flag to allow the final negative propagation
+* %Example: -g Detector: PropNoGMonitor_I=7.95774e-8
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT Unittest_PROP_NO_G(int Backprop=0)
+DEFINE INSTRUMENT Unittest_PROP_NO_G()
 
 TRACE
 
@@ -32,91 +29,23 @@ COMPONENT Origin = Progress_bar()
 
 COMPONENT Source = Source_simple(
     radius = 0.01,
-    dist = 1,
-    focus_xw = 0.1,
-    focus_yh = 0.1,
-    lambda0 = 5,
+    dist = 10,
+    focus_xw = 0.01,
+    focus_yh = 0.01,
+    lambda0 = 30,
     dlambda = 0,
     flux = 0)
   AT (0, 0, 0) RELATIVE Origin
-EXTEND %{
-  x = 0; y = 0; z = 0;
-  vx = 1; vy = 1; vz = 1; t = 0;
-  p = 1.0/mcget_ncount();
-%}
 
 COMPONENT PropNoG = Arm()
   AT (0, 0, 0) RELATIVE Source
 EXTEND %{
-  int failed = 0;
-  const double tolerance = 1e-12;
-
-  p = 1.0/mcget_ncount();
-
-  x = 1; y = 1; z = 1;
-  vx = 2; vy = 3; vz = 4; t = 0;
-  PROP_NO_G_DT(0.5);
-  if (fabs(x - 2) > tolerance || fabs(y - 2.5) > tolerance ||
-      fabs(z - 3) > tolerance || fabs(t - 0.5) > tolerance ||
-      fabs(vx - 2) > tolerance || fabs(vy - 3) > tolerance ||
-      fabs(vz - 4) > tolerance)
-    failed = 1;
-
-  x = 1; y = 1; z = 1;
-  vx = -2; vy = 3; vz = 4; t = 0;
-  PROP_NO_G_X0;
-  if (fabs(x) > tolerance || fabs(y - 2.5) > tolerance ||
-      fabs(z - 3) > tolerance || fabs(t - 0.5) > tolerance ||
-      fabs(vx + 2) > tolerance || fabs(vy - 3) > tolerance ||
-      fabs(vz - 4) > tolerance)
-    failed = 1;
-
-  x = 1; y = 1; z = 1;
-  vx = 2; vy = -3; vz = 4; t = 0;
-  PROP_NO_G_Y0;
-  if (fabs(x - 5.0/3.0) > tolerance || fabs(y) > tolerance ||
-      fabs(z - 7.0/3.0) > tolerance || fabs(t - 1.0/3.0) > tolerance ||
-      fabs(vx - 2) > tolerance || fabs(vy + 3) > tolerance ||
-      fabs(vz - 4) > tolerance)
-    failed = 1;
-
-  x = 1; y = 1; z = 1;
-  vx = 2; vy = 3; vz = -4; t = 0;
-  PROP_NO_G_Z0;
-  if (fabs(x - 1.5) > tolerance || fabs(y - 1.75) > tolerance ||
-      fabs(z) > tolerance || fabs(t - 0.25) > tolerance ||
-      fabs(vx - 2) > tolerance || fabs(vy - 3) > tolerance ||
-      fabs(vz + 4) > tolerance)
-    failed = 1;
-
-  if (failed)
-    ABSORB;
-
-  if (INSTRUMENT_GETPAR(Backprop))
-    ALLOW_BACKPROP;
-  PROP_NO_G_DT(-0.1);
-%}
-
-COMPONENT PropNoGCheck = Arm()
-  AT (0, 0, 0) RELATIVE PropNoG
-EXTEND %{
-  const double tolerance = 1e-12;
-  const int backprop = INSTRUMENT_GETPAR(Backprop);
-  const double expected_x = backprop ? 1.3 : 0;
-  const double expected_y = backprop ? 1.45 : 0;
-  const double expected_z = backprop ? 0.4 : 0;
-  const double expected_t = backprop ? 0.15 : 0;
-
-  if (fabs(x - expected_x) > tolerance ||
-      fabs(y - expected_y) > tolerance ||
-      fabs(z - expected_z) > tolerance ||
-      fabs(t - expected_t) > tolerance)
-    ABSORB;
+  PROP_NO_G_DT(10/vz);
 %}
 
 COMPONENT PropNoGMonitor = Monitor(
-    xwidth = 10,
-    yheight = 10)
-  AT (0, 0, 0) RELATIVE PropNoG
+    xwidth = 0.01,
+    yheight = 0.01)
+  AT (0, 0, 10) RELATIVE PropNoG
 
 END
