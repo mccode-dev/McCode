@@ -35,12 +35,12 @@ Please consult https://www.mcstas.org and https://www.mcxtrace.org or https://gi
 
 **Access point for documentation:**
 * [McCode tool cheat-sheet](tools/Python/README.md)
-* [McCode INSTRUMENT grammar](doc/GRAMMAR/Instrument/INSTRUMENT_Grammar.md)
-* [McCode COMPONENT grammar](doc/GRAMMAR/Component/COMPONENT_Grammar.md)
+* [McCode INSTRUMENT grammar](docs/GRAMMAR/Instrument/INSTRUMENT_Grammar.md)
+* [McCode COMPONENT grammar](docs/GRAMMAR/Component/COMPONENT_Grammar.md)
 * [Latest McStas component docs](https://mcstas.org/download/components/current/)
-* [Latest McStas manuals](doc/manuals/mcstas)
+* [Latest McStas manuals](docs/manuals/mcstas)
 * [Latest McXtrace component docs](https://mcxtrace.org/download/components/current/)
-* [Latest McXtrace manuals](doc/manuals/mcxtrace)
+* [Latest McXtrace manuals](docs/manuals/mcxtrace)
 
 *******************************************************************************
 ```
