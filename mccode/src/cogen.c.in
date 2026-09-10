@@ -1192,36 +1192,6 @@ static int cogen_instr_uses_union(struct instr_def *instr)
 }
 
 /*******************************************************************************
-* Reject Union components when the instrument has no Union master before the
-* generated C file reaches the compiler, which would otherwise report a large
-* number of secondary missing-library errors.
-*******************************************************************************/
-static void cogen_validate_union(struct instr_def *instr)
-{
-  if (cogen_instr_uses_union(instr))
-    return;
-
-  List_handle liter = list_iterate(instr->complist);
-  struct comp_inst *comp;
-  while ((comp = list_next(liter))) {
-    List_handle shareiter = list_iterate(comp->def->share_code->lines);
-    char *line;
-    while ((line = list_next(shareiter))) {
-      if (strstr(line, "Union library not loaded")) {
-        fprintf(stderr,
-                "ERROR: Trying to add component %s of type %s which require the Union library to be loaded: Add a Union_master component to load the libraries.\n",
-                comp->name, comp->def->name);
-        list_iterate_end(shareiter);
-        list_iterate_end(liter);
-        exit(1);
-      }
-    }
-    list_iterate_end(shareiter);
-  }
-  list_iterate_end(liter);
-}
-
-/*******************************************************************************
 * cogen_decls: write the declaration part from the instrument description
 *   that is the particle definition, the instrument parameters, the DECLARE part,
 *   and all SHARE sections from components.
@@ -3246,8 +3216,6 @@ void
 cogen(char *output_name, struct instr_def *instr)
 {
   int warnings = 0;
-
-  cogen_validate_union(instr);
 
   /* INITIALISE output file. */
   if(!output_name || !output_name[0] || !strcmp(output_name, "-"))
