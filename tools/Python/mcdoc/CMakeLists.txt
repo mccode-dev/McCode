@@ -121,8 +121,17 @@ if(NOT WINDOWS)
       FILES "${TOOLDOCS_DIR}/${TOOLDOCS_PAGE}.md"
       DESTINATION "${DEST_DATADIR_DOC}"
     )
+  endforeach()
+
+  # HTML pages use the same basenames, except mcdoc itself: the source tree
+  # keeps that one as mcdoc_tool.html, since a plain mcdoc.html would clash
+  # with the mcdoc/mxdoc master overview page that `mcdoc --install`
+  # (re)generates at this same DEST_DATADIR_DOC destination.
+  set(TOOLDOCS_HTML_PAGES README codegen mcrun mcgui mcplot mcdisplay mctest mcdoc_tool)
+
+  foreach(TOOLDOCS_HTML_PAGE ${TOOLDOCS_HTML_PAGES})
     install(
-      FILES "${TOOLDOCS_DIR}/${TOOLDOCS_PAGE}.html"
+      FILES "${TOOLDOCS_DIR}/${TOOLDOCS_HTML_PAGE}.html"
       DESTINATION "${DEST_DATADIR_DOC}"
     )
   endforeach()
