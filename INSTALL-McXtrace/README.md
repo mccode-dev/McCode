@@ -1,5 +1,7 @@
 # Installation instructions for McXtrace 3.8.0
 
+For a description of the release changes please consult the [McCode release notes](RELEASE_NOTES.md)
+
 Please consult the individual platform instructions:
 
 * [Windows 11 64bit](Windows/README.md)
