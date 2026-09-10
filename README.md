@@ -34,6 +34,7 @@ Please consult https://www.mcstas.org and https://www.mcxtrace.org or https://gi
 * [McXtrace Intel + arm64 macOS](https://nightly.link/mccode-dev/McCode/workflows/mcxtrace-autobuild/main/mcxtrace-artefacts-macos-latest.zip)
 
 **Access point for documentation:**
+* [Latest developments](INSTALL-McStas/RELEASE_NOTES.md)
 * [McCode tool cheat-sheet](tools/Python/README.md)
 * [McCode INSTRUMENT grammar](docs/GRAMMAR/Instrument/INSTRUMENT_Grammar.md)
 * [McCode COMPONENT grammar](docs/GRAMMAR/Component/COMPONENT_Grammar.md)
