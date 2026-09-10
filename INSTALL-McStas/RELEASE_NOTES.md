@@ -1,4 +1,4 @@
-Changes in McStas/McXtrace 3.8.2
+Changes in McStas/McXtrace 3.8.3
 
 *Covers everything since the last full release, 3.7.9 (July 2, 2026), including all changes already shipped quietly via the intermediate conda-forge releases 3.7.10–3.7.25, and a ground-up rewrite of the McStas/McXtrace manuals.*
 
@@ -87,4 +87,4 @@ Changes in McStas/McXtrace 3.8.2
 * @mads-bertelsen-agentic made their first contribution in #2624
 * @MilanKlausz made their first contribution in #2638
 
-**Full Changelog**: https://github.com/mccode-dev/McCode/compare/v3.7.9...v3.8.2
+**Full Changelog**: https://github.com/mccode-dev/McCode/compare/v3.7.9...v3.8.3
