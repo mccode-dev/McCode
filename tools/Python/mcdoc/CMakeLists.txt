@@ -77,9 +77,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 # Configure fallback script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdoc.in" "${WORK}/${P}doc" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdoc.md.in" "${WORK}/${P}doc.md" @ONLY)
-
 # Main script, including rename mcdoc/mxdoc
 install(
   FILES "${PROJECT_SOURCE_DIR}/mcdoc.py"
@@ -110,10 +107,41 @@ if(NOT WINDOWS)
     PROGRAMS "${WORK}/${P}doc"
     DESTINATION ${DEST_BINDIR}
     )
-    
+
+  # Flat, flavor-agnostic tool documentation for the whole Python/ tool tree.
+  # These hand-maintained .md/.html pages replace the old per-tool
+  # <tool>.md.in -> <tool>.md configure/install steps (now removed from
+  # each tool's own CMakeLists.txt); mcdoc installs the full set once,
+  # to the same DEST_DATADIR_DOC destination those used to go to.
+  set(TOOLDOCS_DIR "${PROJECT_SOURCE_DIR}/..")
+  set(TOOLDOCS_PAGES README codegen mcrun mcgui mcplot mcdisplay mctest mcdoc)
+
+  foreach(TOOLDOCS_PAGE ${TOOLDOCS_PAGES})
+    install(
+      FILES "${TOOLDOCS_DIR}/${TOOLDOCS_PAGE}.md"
+      DESTINATION "${DEST_DATADIR_DOC}"
+    )
+    install(
+      FILES "${TOOLDOCS_DIR}/${TOOLDOCS_PAGE}.html"
+      DESTINATION "${DEST_DATADIR_DOC}"
+    )
+  endforeach()
+
+  # McStas/McXtrace language grammar reference (kept generic, not
+  # per-flavor). Installed under its own Component/ and Instrument/
+  # subdirectories so the relative cross-links between the two pages
+  # keep working once installed.
+  set(GRAMMAR_DIR "${PROJECT_SOURCE_DIR}/../../../docs/GRAMMAR")
+
   install(
-    FILES "${WORK}/${P}doc.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
+    FILES "${GRAMMAR_DIR}/Component/COMPONENT_Grammar.md"
+          "${GRAMMAR_DIR}/Component/COMPONENT_Grammar.html"
+    DESTINATION "${DEST_DATADIR_DOC}/Component"
+  )
+  install(
+    FILES "${GRAMMAR_DIR}/Instrument/INSTRUMENT_Grammar.md"
+          "${GRAMMAR_DIR}/Instrument/INSTRUMENT_Grammar.html"
+    DESTINATION "${DEST_DATADIR_DOC}/Instrument"
   )
 
 endif()

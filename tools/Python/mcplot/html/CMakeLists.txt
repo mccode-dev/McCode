@@ -78,9 +78,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 # Configure fallback script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplot.in" "${WORK}/${P}plot-html" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplot-html.md.in" "${WORK}/${P}plot-html.md" @ONLY)
-
 # Main script, including rename mc/mxplot
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcplot.py"
@@ -91,9 +88,6 @@ install(
 # Configure fallback script for the a-b difference plotter
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplotdiff.in" "${WORK}/${P}plotdiff-html" @ONLY)
 
-# Configure doc for the a-b difference plotter
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplotdiff-html.md.in" "${WORK}/${P}plotdiff-html.md" @ONLY)
-
 # Difference-plotter script, including rename mc/mxplotdiff
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcplotdiff.py"
@@ -103,9 +97,6 @@ install(
 
 # Configure fallback script for the a-b co-plotter
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot.in" "${WORK}/${P}coplot-html" @ONLY)
-
-# Configure doc for the a-b co-plotter
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot-html.md.in" "${WORK}/${P}coplot-html.md" @ONLY)
 
 # Co-plotter script, including rename mc/mxcoplot
 install(
@@ -141,11 +132,6 @@ if(NOT WINDOWS)
     )
     
   install(
-    FILES "${WORK}/${P}plot-html.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-
-  install(
     PROGRAMS ${PROJECT_SOURCE_DIR}/mcplotdiff.py
     DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
     RENAME "${P}plotdiff.py"
@@ -157,11 +143,6 @@ if(NOT WINDOWS)
     )
 
   install(
-    FILES "${WORK}/${P}plotdiff-html.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-
-  install(
     PROGRAMS ${PROJECT_SOURCE_DIR}/mccoplot.py
     DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
     RENAME "${P}coplot.py"
@@ -171,10 +152,5 @@ if(NOT WINDOWS)
     PROGRAMS "${WORK}/${P}coplot-html"
     DESTINATION ${DEST_BINDIR}
     )
-
-  install(
-    FILES "${WORK}/${P}coplot-html.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
 
 endif()

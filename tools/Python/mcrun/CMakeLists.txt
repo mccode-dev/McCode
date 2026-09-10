@@ -76,9 +76,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 # Configure fallback script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcrun.in" "${WORK}/${P}run" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcrun.md.in" "${WORK}/${P}run.md" @ONLY)
-
 # Configure jupyter tool script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/jupylab.in" "${WORK}/${FLAVOR}-jupylab" @ONLY)
 
@@ -145,9 +142,4 @@ if(NOT WINDOWS)
     RENAME "${FLAVOR}-acc_gpu_bind"
     )
     
-  install(
-    FILES "${WORK}/${P}run.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-  
 endif()
