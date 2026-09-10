@@ -600,14 +600,12 @@ class OverviewDocWriter:
  | <A href="%LINK_FILECOLON_SHARE%">share</A> ]
 </P>
 <P ALIGN=CENTER>
-[ <a href="file://%MCCODE_DOCDIR%/mcstas-manual.pdf">User Manual</a>
-| <a href="file://%MCCODE_DOCDIR%/mcstas-components.pdf">Component Manual</a> ]
-| <a href="file://%MCCODE_LIBDIR%/">McCode lib dir</a> ]
-</P>
-<P ALIGN=CENTER>
 [ <a href="README.html">Tool docs</a>
 | <a href="Instrument/INSTRUMENT_Grammar.html">Instrument Grammar</a>
-| <a href="Component/COMPONENT_Grammar.html">Component Grammar</a> ]
+| <a href="Component/COMPONENT_Grammar.html">Component Grammar</a>
+| <a href="file://%MCCODE_DOCDIR%/mcstas-manual.pdf">User Manual</a>
+| <a href="file://%MCCODE_DOCDIR%/mcstas-components.pdf">Component Manual</a> ]
+| <a href="file://%MCCODE_LIBDIR%/">McCode lib dir</a> ]
 </P>
 
 <CENTER><H1>Components and Instruments from the Library for <i>McStas</i></H1></CENTER>
