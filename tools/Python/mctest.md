@@ -12,7 +12,6 @@ result against the target value recorded in the instrument header.
 
 | Option | Description |
 |---|---|
-| `TESTVERSION` | *(optional)* specific McCode version to test |
 | `--ncount N`, `-n N` | ncount sent to `mcrun` (default: `1e6`) |
 | `--seed S`, `-s S` | seed sent to `mcrun` (default: `1000`; `0`/`NULL` randomises) |
 | `--mpi N` | MPI node count sent to `mcrun` |
@@ -34,7 +33,6 @@ result against the target value recorded in the instrument header.
 | `--displaymax S` | max seconds allowed per test display run (default: 60) |
 | `--permissive` | exit 0 even if some tests fail |
 | `--strict` | Let instruments without %%Example line(s) instantly fail. |
-| `--versions` | display local version info |
 | `--verbose` | print a test/no-test status header before each test |
 
 ## mcviewtest / mxviewtest
