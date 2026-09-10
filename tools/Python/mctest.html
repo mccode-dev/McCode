@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>mctest family</title>
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    line-height: 1.6;
+    color: #1a1a1a;
+    background: #fff;
+}
+h1, h2, h3 { line-height: 1.25; }
+h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: 0.4rem; }
+h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.6rem; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+    background: #f6f8fa;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.9em;
+}
+pre {
+    background: #f6f8fa;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.95em;
+}
+th, td {
+    border: 1px solid #d0d7de;
+    padding: 0.5rem 0.8rem;
+    text-align: left;
+    vertical-align: top;
+}
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(even) { background: #fbfbfb; }
+hr { border: none; border-top: 1px solid #e1e4e8; margin: 2rem 0; }
+em { color: #57606a; }
+.nav-top, .nav-bottom { margin-bottom: 1.5rem; }
+.nav-bottom { margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<p><a href="README.html">&larr; back to overview</a></p>
+<h1 id="mctest-family">mctest family</h1>
+<p>Installation testing / benchmarking tools, under <code>tools/Python/mctest</code>.</p>
+<h2 id="mctest-mxtest">mctest / mxtest</h2>
+<p>Runs every <code>%Example</code> test embedded in the instrument library, compiling,
+displaying (single-particle), and running each one, then compares the
+result against the target value recorded in the instrument header.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--ncount N</code>, <code>-n N</code></td>
+<td>ncount sent to <code>mcrun</code> (default: <code>1e6</code>)</td>
+</tr>
+<tr>
+<td><code>--seed S</code>, <code>-s S</code></td>
+<td>seed sent to <code>mcrun</code> (default: <code>1000</code>; <code>0</code>/<code>NULL</code> randomises)</td>
+</tr>
+<tr>
+<td><code>--mpi N</code></td>
+<td>MPI node count sent to <code>mcrun</code></td>
+</tr>
+<tr>
+<td><code>--openacc</code></td>
+<td>pass <code>--openacc</code> to <code>mcrun</code></td>
+</tr>
+<tr>
+<td><code>--nexus</code></td>
+<td>compile/run with NeXus output format everywhere</td>
+</tr>
+<tr>
+<td><code>--lint</code></td>
+<td>just run the C-linter (no simulation run)</td>
+</tr>
+<tr>
+<td><code>--config CONFIG</code></td>
+<td>test only this specific config — label name or absolute path</td>
+</tr>
+<tr>
+<td><code>--instr PATTERN</code></td>
+<td>test only instruments matching this regex (comma-separated for multiple)</td>
+</tr>
+<tr>
+<td><code>--comp COMP</code></td>
+<td>test only instruments that use component <code>COMP</code></td>
+</tr>
+<tr>
+<td><code>--mccoderoot DIR</code></td>
+<td>root search folder for McCode installations</td>
+</tr>
+<tr>
+<td><code>--testdir DIR</code></td>
+<td>write test results directly into <code>DIR</code> (default: cwd)</td>
+</tr>
+<tr>
+<td><code>--local DIR</code></td>
+<td>pick up instruments to test from <code>DIR</code> instead of the McCode installation</td>
+</tr>
+<tr>
+<td><code>--limit N</code></td>
+<td>test only the first <code>N</code> instruments per version</td>
+</tr>
+<tr>
+<td><code>--skipnontest</code></td>
+<td>skip compiling instruments that have no <code>%Example</code> test</td>
+</tr>
+<tr>
+<td><code>--suffix SUFFIX</code></td>
+<td>append <code>SUFFIX</code> to the test directory name</td>
+</tr>
+<tr>
+<td><code>--uid ID</code></td>
+<td>unique identifier for the suffix (default: timestamp)</td>
+</tr>
+<tr>
+<td><code>--compilemax S</code></td>
+<td>max seconds allowed per compilation (default: 600; x100 with <code>--lint</code>)</td>
+</tr>
+<tr>
+<td><code>--runmax S</code></td>
+<td>max seconds allowed per test run (default: 3600)</td>
+</tr>
+<tr>
+<td><code>--displaymax S</code></td>
+<td>max seconds allowed per test display run (default: 60)</td>
+</tr>
+<tr>
+<td><code>--permissive</code></td>
+<td>exit 0 even if some tests fail</td>
+</tr>
+<tr>
+<td><code>--strict</code></td>
+<td>Let instruments without %%Example line(s) instantly fail.</td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>print a test/no-test status header before each test</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mcviewtest-mxviewtest">mcviewtest / mxviewtest</h2>
+<p>Builds a single browsable HTML comparison report from one or more <code>mctest</code>
+result sets (as written by <code>mctest --testdir</code>), diffing/co-plotting each
+row against a chosen reference column via <code>mcplotdiff-html</code>/<code>mccoplot-html</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>testdir</code></td>
+<td><em>(optional)</em> root folder containing <code>mctest</code> result subfolders (default: cwd)</td>
+</tr>
+<tr>
+<td><code>--reflabel LABEL</code></td>
+<td>reference column/label to compare against (default: oldest subfolder in cwd)</td>
+</tr>
+<tr>
+<td><code>--testroot DIR</code></td>
+<td>test-root folder for interactive result management/cleanup</td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>output excessive debug information</td>
+</tr>
+<tr>
+<td><code>--nobrowse</code></td>
+<td>do not open a browser on completion</td>
+</tr>
+<tr>
+<td><code>--nodiff</code></td>
+<td>do not generate diff/co-plot comparison cells</td>
+</tr>
+<tr>
+<td><code>--diff-errors-only</code></td>
+<td>only diff rows that show a discrepancy (default: diff every valid row)</td>
+</tr>
+<tr>
+<td><code>--diffmax S</code></td>
+<td>max seconds per diff/co-plot comparison (default: 300)</td>
+</tr>
+<tr>
+<td><code>--diffworkers N</code></td>
+<td>number of comparisons to run in parallel (default: number of CPUs)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a href="README.html">&larr; back to overview</a></p>
+</body>
+</html>
