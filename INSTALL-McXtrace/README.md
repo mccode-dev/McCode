@@ -1,4 +1,4 @@
-# Installation instructions for McXtrace 3.8.0
+# Installation instructions for McXtrace 3.8.1
 
 For a description of the release changes please consult the [McCode release notes](RELEASE_NOTES.md)
 
