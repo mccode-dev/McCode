@@ -53,7 +53,22 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${NSIS_NAME}")
 
 # Debian
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, ${FLAVOR}-comps")
-set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-tools-python-${P}doc-3.5.1")
+
+# mcdoc now installs the flat tool-doc pages (mcrun.md, mcgui.md, mctest.md,
+# mcplot.md, mcdisplay.md, ...) that used to be shipped by those tools' own
+# packages (see each one's now-removed <tool>.md.in configure/install
+# step). Any version of those packages older than this one still owns the
+# same paths under DEST_DATADIR_DOC, so dpkg refuses the overwrite unless
+# we declare it here: Replaces lets this package take the files, Breaks
+# forces dpkg/apt to upgrade or remove the older sibling package in
+# lock-step instead of leaving it installed with a file mcdoc has since
+# taken over (which is what caused "trying to overwrite .../mcgui.md").
+set(CPACK_DEBIAN_PACKAGE_REPLACES
+  "${FLAVOR}-tools-python-${P}doc-3.5.1, ${FLAVOR}-tools-python-${P}run (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}gui (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}test (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}plot-pyqtgraph (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}display-pyqtgraph (<< ${MCCODE_VERSION})"
+)
+set(CPACK_DEBIAN_PACKAGE_BREAKS
+  "${FLAVOR}-tools-python-${P}run (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}gui (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}test (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}plot-pyqtgraph (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}display-pyqtgraph (<< ${MCCODE_VERSION})"
+)
 
 # RPM
 if (RPMPROFILE)
