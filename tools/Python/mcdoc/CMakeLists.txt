@@ -113,12 +113,22 @@ if(NOT WINDOWS)
   # <tool>.md.in -> <tool>.md configure/install steps (now removed from
   # each tool's own CMakeLists.txt); mcdoc installs the full set once,
   # to the same DEST_DATADIR_DOC destination those used to go to.
-  set(TOOLDOCS_DIR "${PROJECT_SOURCE_DIR}/..")
+  #
+  # mkdist (see buildscripts/build_debs_*, build_windows_*, ...) packages
+  # each tool as a standalone component: it fresh-copies *only* this
+  # mcdoc/ source directory into an isolated work dir (cp -LR) and
+  # configures/cpacks from there, so anything referenced here must live
+  # inside PROJECT_SOURCE_DIR itself. That's why the flat docs and the
+  # grammar reference are pulled in via local symlinks (README.md,
+  # codegen.md, ..., Component/, Instrument/, alongside the pre-existing
+  # COPYING and cmake/ symlinks) rather than "../" paths into the wider
+  # source tree -- cp -LR dereferences those symlinks, so the real files
+  # land in the packaging work dir exactly like COPYING and cmake/ already do.
   set(TOOLDOCS_PAGES README codegen mcrun mcgui mcplot mcdisplay mctest mcdoc)
 
   foreach(TOOLDOCS_PAGE ${TOOLDOCS_PAGES})
     install(
-      FILES "${TOOLDOCS_DIR}/${TOOLDOCS_PAGE}.md"
+      FILES "${PROJECT_SOURCE_DIR}/${TOOLDOCS_PAGE}.md"
       DESTINATION "${DEST_DATADIR_DOC}"
     )
   endforeach()
@@ -131,7 +141,7 @@ if(NOT WINDOWS)
 
   foreach(TOOLDOCS_HTML_PAGE ${TOOLDOCS_HTML_PAGES})
     install(
-      FILES "${TOOLDOCS_DIR}/${TOOLDOCS_HTML_PAGE}.html"
+      FILES "${PROJECT_SOURCE_DIR}/${TOOLDOCS_HTML_PAGE}.html"
       DESTINATION "${DEST_DATADIR_DOC}"
     )
   endforeach()
@@ -140,16 +150,14 @@ if(NOT WINDOWS)
   # per-flavor). Installed under its own Component/ and Instrument/
   # subdirectories so the relative cross-links between the two pages
   # keep working once installed.
-  set(GRAMMAR_DIR "${PROJECT_SOURCE_DIR}/../../../docs/GRAMMAR")
-
   install(
-    FILES "${GRAMMAR_DIR}/Component/COMPONENT_Grammar.md"
-          "${GRAMMAR_DIR}/Component/COMPONENT_Grammar.html"
+    FILES "${PROJECT_SOURCE_DIR}/Component/COMPONENT_Grammar.md"
+          "${PROJECT_SOURCE_DIR}/Component/COMPONENT_Grammar.html"
     DESTINATION "${DEST_DATADIR_DOC}/Component"
   )
   install(
-    FILES "${GRAMMAR_DIR}/Instrument/INSTRUMENT_Grammar.md"
-          "${GRAMMAR_DIR}/Instrument/INSTRUMENT_Grammar.html"
+    FILES "${PROJECT_SOURCE_DIR}/Instrument/INSTRUMENT_Grammar.md"
+          "${PROJECT_SOURCE_DIR}/Instrument/INSTRUMENT_Grammar.html"
     DESTINATION "${DEST_DATADIR_DOC}/Instrument"
   )
 
