@@ -83,6 +83,287 @@ SHARE
   #ifndef MASTER_DETECTOR
   #define MASTER_DETECTOR dummy
   #endif
+
+  int
+  volume_is_only_absorber (struct Volume_struct* Volume) {
+    // This function returns true if a volume does not have any physical processes
+    // and if the volume is not a vacuum.
+    if (!Volume->p_physics->number_of_processes && !Volume->p_physics->is_vacuum)
+      return 1;
+    return 0;
+  }
+
+  int
+  process_needs_inhomogenous_sampling (struct physics_struct* current_p_physics, struct scattering_process_struct* process) {
+    if (current_p_physics->sampling_points != 0) {
+      if (process->needs_cross_section_focus || process->sampling_points != -1)
+        return 1;
+    }
+    return 0;
+  }
+
+  void
+  adjust_abs_weight_factor (struct Volume_struct* Volume, double* my_sum_plus_abs, double* length_to_boundary, double* v_length, double* time_to_boundary,
+                            double* abs_weight_factor, int* abs_weight_factor_set) {
+    *my_sum_plus_abs = Volume->p_physics->my_a * (2200 / *v_length);
+    *length_to_boundary = *time_to_boundary * *v_length;
+
+    *abs_weight_factor = exp (-Volume->p_physics->my_a * 2200 * *time_to_boundary);
+    *abs_weight_factor_set = 1;
+
+    #ifdef Union_trace_verbal_setting
+    printf ("name of material: %s \n", Volume->name);
+    printf ("length to boundery  = %f\n", length_to_boundary);
+    printf ("absorption cross section  = %f\n", Volume->p_physics->my_a);
+    printf ("chance to get through this length of absorber: %f %%\n", 100 * exp (-Volume->p_physics->my_a * length_to_boundary));
+    #endif
+  }
+
+
+  void
+  transform_wavevector_into_local_coord_system (struct Volume_struct* Volume, Coords* wavevector_rotated, double (*k_rotated)[3], int* p_index,
+                                                Coords* wavevector, Coords* ray_position_geometry) {
+
+    int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index;
+    *wavevector_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *wavevector);
+    coords_get (*wavevector_rotated, &(*k_rotated)[0], &(*k_rotated)[1], &(*k_rotated)[2]);
+
+    if (Volume->p_physics->p_scattering_array[*p_index].needs_cross_section_focus == 1) {
+      // Prepare focus data using ray_position_geometry of forced scattering point which will be prepared if any process needs cross_section time
+      // focusing
+      Coords ray_position_geometry_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *ray_position_geometry);
+
+      int focus_data_index = Volume->geometry.focus_array_indices.elements[*p_index];
+      struct focus_data_struct* this_focus_data = &Volume->geometry.focus_data_array.elements[focus_data_index];
+      this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated); // Aim vector for this ray
+
+      #ifdef Union_trace_verbal_setting
+      printf ("Checking process number : %d, it was not isotropic, so RayAim updated \n", *p_index);
+      print_position (*ray_position_geometry, "ray_position_geometry");
+      print_position (ray_position_geometry_rotated, "ray_position_geometry_rotated");
+      print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
+      #endif
+    }
+  }
+
+
+
+  void
+  move_and_aim_neutron (struct physics_struct* current_p_physics, int i, struct scattering_process_struct* process, _class_particle* _particle,
+                        struct Volume_struct* Volume, int* p_index, Coords* ray_velocity, Coords* ray_position, struct focus_data_struct* this_focus_data) {
+    // Transport neutron to place inside geometry
+    *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz);
+    // Find location of scattering point in master coordinate system without changing main position / velocity variables
+    Coords direction = coords_scalar_mult (*ray_velocity, 1.0 / length_of_position_vector (*ray_velocity));
+    Coords sampling_displacement = coords_scalar_mult (direction, current_p_physics->cumul_dists[i]);
+    Coords sampling_point = coords_add (*ray_position, sampling_displacement);
+    Coords sampling_point_geometry = coords_sub (sampling_point, Volume->geometry.center);
+    // Also focus the ray at this point, if the component needs focusing
+    if (process->needs_cross_section_focus) {
+      if (Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index != -1) {
+        int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index;
+        sampling_point_geometry = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], sampling_point_geometry);
+      }
+      this_focus_data->RayAim = coords_sub (this_focus_data->Aim, sampling_point_geometry);
+    }
+    // Calculate mu and probability
+    coords_get (sampling_point_geometry, &_particle->x, &_particle->y, &_particle->z);
+  }
+
+  int
+  mu_and_intersect_dist_safeguard (double mu_sum, double length_to_boundary, double safety_distance2, int* scattering_event) {
+    if (mu_sum < 1E-18) {
+      *scattering_event = 0;
+      return 0;
+    }
+    if (length_to_boundary < safety_distance2) {
+      *scattering_event = 0;
+      return 0;
+    }
+    return 1;
+  }
+
+
+  void
+  focus_in_cross_section_set_forced_point_and_dir (double* forced_length_to_scattering, double* safety_distance, double* safety_distance2, double* length_to_boundary,
+                                             _class_particle* _particle, Coords* ray_velocity, Coords* ray_position_geometry, Coords* ray_position,
+                                             struct Volume_struct* Volume, struct focus_data_struct* this_focus_data) {
+    // Sample length_to_scattering in linear manner
+    *forced_length_to_scattering = *safety_distance + rand01 () * (*length_to_boundary - *safety_distance2);
+
+    *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz); // Test for root cause
+    // Find location of scattering point in master coordinate system without changing main position / velocity variables
+    Coords direction = coords_scalar_mult (*ray_velocity, 1.0 / length_of_position_vector (*ray_velocity));
+    Coords scattering_displacement = coords_scalar_mult (direction, *forced_length_to_scattering);
+    Coords forced_ray_scattering_point = coords_add (*ray_position, scattering_displacement);
+    *ray_position_geometry = coords_sub (forced_ray_scattering_point, Volume->geometry.center); // ray_position relative to geometry center
+
+    // Calculate the aim for non isotropic processes
+    this_focus_data = &Volume->geometry.focus_data_array.elements[0];
+    this_focus_data->RayAim = coords_sub (this_focus_data->Aim, *ray_position_geometry); // Aim vector for this ray
+
+    #ifdef Union_trace_verbal_setting
+    printf ("Prepared for focus in cross section calculation in volume: %s \n", Volume->name);
+    printf ("forced_length_to_scattering =%lf \n", forced_length_to_scattering);
+    print_position (*ray_position, "ray_position");
+    print_position (direction, "direction");
+    print_position (scattering_displacement, "scattering_displacement");
+    print_position (forced_ray_scattering_point, "forced_ray_scattering_point");
+    print_position (*ray_position_geometry, "ray_position_geometry");
+    printf ("for isotropic processes this RayAim is used \n");
+    print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
+    #endif
+  }
+
+  void
+  focus_in_cross_section_set_scat_length (double* length_to_scattering, double* forced_length_to_scattering, double* weight, double* length_to_boundary,
+                             double* my_sum_plus_abs) {
+    // Respect forced length to scattering chosen by process
+    *length_to_scattering = *forced_length_to_scattering;
+    // Drawing between 0 and L from constant s = 1/L and should have been q = A*exp(-kz).
+    // Normalizing A*exp(-kz) over 0 to L: A = k/(1-exp(-k*L))
+    // Weight correction is ratio between s and q, L*A*exp(-kz) = L*k*exp(-kz)/(1-exp(-Lk))
+    *weight *= *length_to_boundary * *my_sum_plus_abs * exp (-*length_to_scattering * *my_sum_plus_abs) / (1.0 - exp (-*length_to_boundary * *my_sum_plus_abs));
+    #ifdef Union_trace_verbal_setting
+    printf ("Used forced length to scattering, %lf \n", length_to_scattering);
+    #endif
+  }
+
+
+  void
+  inhomogenous_set_cumul_dist_array (struct physics_struct* current_p_physics, int i) {
+    current_p_physics->cumul_dists[i] = (i > 0) ? current_p_physics->cumul_dists[i - 1] + current_p_physics->dist : current_p_physics->dist / 2;
+  }
+
+  void
+  inhomogenous_sample_transmission_probability (struct physics_struct* current_p_physics, struct Volume_struct* Volume, double* real_transmission_probability,
+                                                double v_length) {
+    // Calculate the probabilities and then add them cumulatively
+    memset (current_p_physics->total_mus, 0, sizeof (double) * current_p_physics->sampling_points);
+
+    for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
+      struct scattering_process_struct* process_i = &Volume->p_physics->p_scattering_array[i];
+      if (process_i->needs_numerical_integration != 1)
+        for (int j = 0; j < current_p_physics->sampling_points; j++) {
+          current_p_physics->total_mus[j] += current_p_physics->mus[i][0] * current_p_physics->dist;
+        }
+      else
+        for (int j = 0; j < current_p_physics->sampling_points; j++) {
+          current_p_physics->total_mus[j] += current_p_physics->mus[i][j] * current_p_physics->dist;
+        }
+    }
+    // for (int i =0;i<current_p_physics->sampling_points;i++){
+    //     printf("\nTotalmu=%g\tinteger=%d\n", current_p_physics->total_mus[i], i);
+    // }
+    double mu_at_speed = Volume->p_physics->my_a * (2200 / v_length);
+    for (int j = 0; j < current_p_physics->sampling_points; j++) {
+      current_p_physics->total_mus[j] += mu_at_speed * current_p_physics->dist;
+    }
+    double trans_prob;
+    for (int i = 0; i < current_p_physics->sampling_points; i++) {
+      trans_prob = exp (-current_p_physics->total_mus[i]);
+      if (i == 0)
+        current_p_physics->cumul_transmission_prob[i] = trans_prob;
+      else
+        current_p_physics->cumul_transmission_prob[i] = current_p_physics->cumul_transmission_prob[i - 1] * trans_prob;
+    }
+
+    *real_transmission_probability = current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1];
+  }
+
+  double
+  inhomogenous_sample_scattering_point (struct Volume_struct* Volume, struct physics_struct* current_p_physics, double* abs_weight_factor, double* v_length,
+                                        double* safety_distance, int* selected_sampling) {
+
+    // Numerical integration happens, and therefore we must choose between the different samples
+    // We do this by drawing a random number between 0 and max cumul prob,
+    // and then seeing which cumul prob is the first to include it.
+    *abs_weight_factor = 1;
+    double mu_at_speed = Volume->p_physics->my_a * (2200 / *v_length);
+    double pseudo_rand = rand01 () * (1 - current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1]);
+    for (int i = 0; i < current_p_physics->sampling_points; i++) {
+      // printf("\nCumul trans prob = %g\t pseudo rand = %g\n", current_p_physics->cumul_transmission_prob[i], pseudo_rand);
+      if (pseudo_rand >= 1 - current_p_physics->cumul_transmission_prob[i])
+        continue;
+      *selected_sampling = i;
+      break;
+    }
+    *abs_weight_factor
+        *= (current_p_physics->total_mus[*selected_sampling] - mu_at_speed * current_p_physics->dist) / current_p_physics->total_mus[*selected_sampling];
+
+    // printf("\nSelected_sampling = %d\n", selected_sampling);
+
+    // printf("dist i = %g\tdist=%g\n", dist_i, dist);
+    double sampled_dist = *safety_distance
+                          - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[*selected_sampling])))
+                                / current_p_physics->total_mus[*selected_sampling] * current_p_physics->dist;
+    return current_p_physics->cumul_dists[*selected_sampling] - current_p_physics->dist / 2 + sampled_dist;
+  }
+
+
+  void
+  inhomogenous_choose_process (struct physics_struct* current_p_physics, struct Volume_struct* Volume, double* culmative_probability, double* mc_prop,
+                               double* my_sum, int* selected_sampling, int* selected_process) {
+    for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
+      *culmative_probability += current_p_physics->mus[i][*selected_sampling] / *my_sum;
+      if (*culmative_probability > *mc_prop) {
+        *selected_process = i;
+        break;
+      }
+    }
+  }
+
+
+  int
+  p_interact_is_set (struct Volume_struct* Volume) {
+    if (Volume->geometry.geometry_p_interact != 0) {
+      return 1;
+    }
+    return 0;
+  }
+
+  void
+  p_interact_check_scattering_event (struct Volume_struct* Volume, int* scattering_event, double* weight, double real_transmission_prob) {
+    double mc_transmission_prob = 1 - Volume->geometry.geometry_p_interact;
+    *scattering_event = rand01 () > mc_transmission_prob;
+    if (*scattering_event) {
+      // Scattering event happens, this is the correction for the weight
+      *weight *= (1.0 - real_transmission_prob) / (1.0 - mc_transmission_prob);
+    } else {
+      // Scattering event does not happen, this is the appropriate correction
+      *weight *= real_transmission_prob / mc_transmission_prob;
+    }
+  }
+
+  void
+  p_interact_select_process (struct Volume_struct* Volume, double* my_trace_fraction_control, double* my_trace, double* total_process_interact,
+                             double* culmative_probability, double* mc_prop, double* weight, double* my_sum, int* selected_process) {
+    // Interact_fraction is used to influence the choice of process in this material
+    *mc_prop = rand01 ();
+    *culmative_probability = 0;
+    *total_process_interact = 1.0;
+
+    // If any of the processes have probability 0, they are excluded from the selection
+    for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
+      if (my_trace[i] < 1E-18) {
+        // When this happens, the total force probability is corrected and the probability for this particular instance is set to 0
+        *total_process_interact -= Volume->p_physics->p_scattering_array[i].process_p_interact;
+        my_trace_fraction_control[i] = 0;
+        // In cases where my_trace is not zero, the forced fraction is still used.
+      } else
+        my_trace_fraction_control[i] = Volume->p_physics->p_scattering_array[i].process_p_interact;
+    }
+    // Randomly select a process using the weights stored in my_trace_fraction_control divided by total_process_interact
+    for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
+      *culmative_probability += my_trace_fraction_control[i] / *total_process_interact;
+      if (*culmative_probability > *mc_prop) {
+        *selected_process = i;
+        *weight *= (my_trace[i] / *my_sum) * (*total_process_interact / my_trace_fraction_control[i]);
+        break;
+      }
+    }
+  }
+
 %}
 
 DECLARE
@@ -1543,28 +1824,16 @@ TRACE
       scattering_event = 0;                                                          // Assume a scattering event will not occur
 
       // Check if a scattering event should occur
-      if (current_volume != 0) { // Volume 0 is always vacuum, and if this is the current volume, an event will not occur
-        if (Volumes[current_volume]->p_physics->number_of_processes == 0) { // If there are no processes, the volume could be vacuum or an absorber
-          if (Volumes[current_volume]->p_physics->is_vacuum == 0) {
-            // This volume does not have physical processes but does have an absorption cross section, so the ray weight is reduced accordingly
-
-            my_sum_plus_abs = Volumes[current_volume]->p_physics->my_a * (2200 / v_length);
-            length_to_boundary = time_to_boundery * v_length;
-
-            abs_weight_factor = exp (-Volumes[current_volume]->p_physics->my_a * 2200 * time_to_boundery);
-            abs_weight_factor_set = 1;
-
-            #ifdef Union_trace_verbal_setting
-            printf ("name of material: %s \n", Volumes[current_volume]->name);
-            printf ("length to boundery  = %f\n", length_to_boundary);
-            printf ("absorption cross section  = %f\n", Volumes[current_volume]->p_physics->my_a);
-            printf ("chance to get through this length of absorber: %f %%\n", 100 * exp (-Volumes[current_volume]->p_physics->my_a * length_to_boundary));
-            #endif
-          }
+      if (current_volume != 0) {                                 // Volume 0 is always vacuum, and if this is the current volume, an event will not occur
+        if (volume_is_only_absorber (Volumes[current_volume])) { // If there are no processes, the volume could be vacuum or an absorber
+          adjust_abs_weight_factor (Volumes[current_volume], &my_sum_plus_abs, &length_to_boundary, &v_length, &time_to_boundery, &abs_weight_factor,
+                                    &abs_weight_factor_set);
         } else {
           // Since there is a non-zero number of processes in this material, all the scattering cross section for these are calculated
           struct physics_struct* current_p_physics = Volumes[current_volume]->p_physics;
           int selected_sampling = -1;
+          double forced_length_to_scattering;
+          Coords ray_position_geometry;
           my_sum = 0;
           k[0] = V2K * vx;
           k[1] = V2K * vy;
@@ -1572,56 +1841,10 @@ TRACE
           p_my_trace = my_trace;
           wavevector = coords_set (k[0], k[1], k[2]);
           length_to_boundary = time_to_boundery * v_length;
-
-          double forced_length_to_scattering;
-          Coords ray_position_geometry;
-
           // If any process in this material needs focusing, sample scattering position and update focus_data accordingly
           if (current_p_physics->any_process_needs_cross_section_focus == 1) {
-            // Sample length_to_scattering in linear manner
-            forced_length_to_scattering = safety_distance + rand01 () * (length_to_boundary - safety_distance2);
-
-            ray_velocity = coords_set (vx, vy, vz); // Test for root cause
-            // Find location of scattering point in master coordinate system without changing main position / velocity variables
-            Coords direction = coords_scalar_mult (ray_velocity, 1.0 / length_of_position_vector (ray_velocity));
-            Coords scattering_displacement = coords_scalar_mult (direction, forced_length_to_scattering);
-            Coords forced_ray_scattering_point = coords_add (ray_position, scattering_displacement);
-            ray_position_geometry
-                = coords_sub (forced_ray_scattering_point, Volumes[current_volume]->geometry.center); // ray_position relative to geometry center
-
-            // Calculate the aim for non isotropic processes
-            this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[0];
-            this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
-
-            #ifdef Union_trace_verbal_setting
-            printf ("Prepared for focus in cross section calculation in volume: %s \n", Volumes[current_volume]->name);
-            printf ("forced_length_to_scattering =%lf \n", forced_length_to_scattering);
-            print_position (ray_position, "ray_position");
-            print_position (direction, "direction");
-            print_position (scattering_displacement, "scattering_displacement");
-            print_position (forced_ray_scattering_point, "forced_ray_scattering_point");
-            print_position (ray_position_geometry, "ray_position_geometry");
-            printf ("for isotropic processes this RayAim is used \n");
-            print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
-            #endif
-
-            /*
-            // update focus data for this ray (could limit this to only update the necessary focus_data element, but there are typically very few)
-            int f_index;
-            for (f_index=0; f_index < Volumes[current_volume]->geometry.focus_data_array.num_elements; f_index++) {
-            this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[f_index];
-            // Coords ray_position_geometry_rotated = rot_apply(this_focus_data.absolute_rotation, ray_position_geometry);
-            this_focus_data->RayAim = coords_sub(this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
-            }
-
-            printf("calculated forced_length_to_scattering = %lf, new RayAim \n", forced_length_to_scattering);
-            print_position(direction, "direction");
-            print_position(scattering_displacement, "scattering_displacement");
-            print_position(forced_ray_scattering_point, "forced_ray_scattering_point");
-            print_position(ray_position_geometry, "ray_position_geometry");
-            print_position(this_focus_data->RayAim, "this_focus_data->RayAim");
-            */
-
+            focus_in_cross_section_set_forced_point_and_dir (&forced_length_to_scattering, &safety_distance, &safety_distance2, &length_to_boundary, _particle,
+                                                       &ray_velocity, &ray_position_geometry, &ray_position, Volumes[current_volume], this_focus_data);
           } else {
             forced_length_to_scattering = -1.0; // Signals that no forcing needed, could also if on the selected process struct
           }
@@ -1635,24 +1858,8 @@ TRACE
 
             if (Volumes[current_volume]->p_physics->p_scattering_array[p_index].non_isotropic_rot_index != -1) {
               // If the process is not isotropic, the wavevector is transformed into the local coordinate system of the process
-              int non_isotropic_rot_index = Volumes[current_volume]->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
-              wavevector_rotated = rot_apply (Volumes[current_volume]->geometry.process_rot_matrix_array[non_isotropic_rot_index], wavevector);
-              coords_get (wavevector_rotated, &k_rotated[0], &k_rotated[1], &k_rotated[2]);
-
-              if (Volumes[current_volume]->p_physics->p_scattering_array[p_index].needs_cross_section_focus == 1) {
-                // Prepare focus data using ray_position_geometry of forced scattering point which will be prepared if any process needs cross_section time
-                // focusing
-                Coords ray_position_geometry_rotated
-                    = rot_apply (Volumes[current_volume]->geometry.process_rot_matrix_array[non_isotropic_rot_index], ray_position_geometry);
-                this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated); // Aim vector for this ray
-                                                                                                            #ifdef Union_trace_verbal_setting
-                printf ("Checking process number : %d, it was not isotropic, so RayAim updated \n", p_index);
-                print_position (ray_position_geometry, "ray_position_geometry");
-                print_position (ray_position_geometry_rotated, "ray_position_geometry_rotated");
-                print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
-                #endif
-              }
-
+              transform_wavevector_into_local_coord_system (Volumes[current_volume], &wavevector_rotated, &k_rotated, &p_index, &wavevector,
+                                                            &ray_position_geometry);
             } else {
               k_rotated[0] = k[0];
               k_rotated[1] = k[1];
@@ -1667,39 +1874,23 @@ TRACE
             double mu;
             current_p_physics->dist = length_to_boundary / current_p_physics->sampling_points - safety_distance;
 
-            if (process->sampling_points != -1 || (process->needs_cross_section_focus == 1 && current_p_physics->sampling_points != 0)) {
-              // Populate length and probability arrays:
+            if (process_needs_inhomogenous_sampling (current_p_physics, process)) {
+              // If mulitple sampling is required for this process, populate the neutron distance and probability arrays:
               Coords original_position = coords_set (x, y, z);
+              double mu;
+              *p_my_trace = 0;
+              this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[0];
               for (int i = 0; i < current_p_physics->sampling_points; i++) {
-                current_p_physics->cumul_dists[i] = (i > 0) ? current_p_physics->cumul_dists[i - 1] + current_p_physics->dist : current_p_physics->dist / 2;
-                // Transport neutron to place inside geometry
-                ray_velocity = coords_set (vx, vy, vz);
-                // Find location of scattering point in master coordinate system without changing main position / velocity variables
-                Coords direction = coords_scalar_mult (ray_velocity, 1.0 / length_of_position_vector (ray_velocity));
-                Coords sampling_displacement = coords_scalar_mult (direction, current_p_physics->cumul_dists[i]);
-                Coords sampling_point = coords_add (ray_position, sampling_displacement);
-                Coords sampling_point_geometry = coords_sub (sampling_point, Volumes[current_volume]->geometry.center);
-                // Also focus the ray at this point, if the component needs focusing
-                if (process->needs_cross_section_focus) {
-                  this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[0];
-                  if (Volumes[current_volume]->p_physics->p_scattering_array[p_index].non_isotropic_rot_index != -1) {
-                    int non_isotropic_rot_index = Volumes[current_volume]->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
-                    sampling_point_geometry
-                        = rot_apply (Volumes[current_volume]->geometry.process_rot_matrix_array[non_isotropic_rot_index], sampling_point_geometry);
-                  }
-                  this_focus_data->RayAim = coords_sub (this_focus_data->Aim, sampling_point_geometry);
-                }
+                inhomogenous_set_cumul_dist_array (current_p_physics, i);
+                move_and_aim_neutron (current_p_physics, i, process, _particle, Volumes[current_volume], &p_index, &ray_velocity, &ray_position, this_focus_data);
                 // Calculate mu and probability
-                coords_get (sampling_point_geometry, &x, &y, &z);
                 physics_my (process->eProcess, &mu, k_rotated, process->data_transfer, this_focus_data, _particle);
                 current_p_physics->mus[p_index][i] = mu;
+                *p_my_trace += mu / current_p_physics->sampling_points;
               }
-
               coords_get (original_position, &x, &y, &z);
-              *p_my_trace = 0;
-              for (int i = 0; i < current_p_physics->sampling_points; i++)
-                *p_my_trace += current_p_physics->mus[p_index][i] / current_p_physics->sampling_points;
-            } else {
+            }
+            if (!process_needs_inhomogenous_sampling (current_p_physics, process)) {
               physics_output = physics_my (process->eProcess, p_my_trace, k_rotated, process->data_transfer, this_focus_data, _particle);
               if (current_p_physics->sampling_points != 0) {
                 current_p_physics->mus[p_index][0] = *p_my_trace;
@@ -1726,59 +1917,21 @@ TRACE
           // New flow:length_to_boundary
 
           // Calculate if scattering happens based on my_sub_plus_abs
-          if (my_sum < 1E-18) {
-            scattering_event = 0;
-          } else if (length_to_boundary < safety_distance2) {
-            scattering_event = 0;
-          } else {
+          if (mu_and_intersect_dist_safeguard (my_sum, length_to_boundary, safety_distance2, &scattering_event)) {
+            // First calculate the transmission probability
             if (current_p_physics->sampling_points == 0) {
               real_transmission_probability = exp (-length_to_boundary * my_sum_plus_abs);
-            } else if (current_p_physics->sampling_points != 0) {
-              // Calculate the probabilities and then add them cumulatively
-              memset (current_p_physics->total_mus, 0, sizeof (double) * current_p_physics->sampling_points);
-
-              for (int i = 0; i < Volumes[current_volume]->p_physics->number_of_processes; i++) {
-                struct scattering_process_struct* process_i = &Volumes[current_volume]->p_physics->p_scattering_array[i];
-                if (process_i->needs_numerical_integration != 1)
-                  for (int j = 0; j < current_p_physics->sampling_points; j++) {
-                    current_p_physics->total_mus[j] += current_p_physics->mus[i][0] * current_p_physics->dist;
-                  }
-                else
-                  for (int j = 0; j < current_p_physics->sampling_points; j++) {
-                    current_p_physics->total_mus[j] += current_p_physics->mus[i][j] * current_p_physics->dist;
-                  }
-              }
-              // for (int i =0;i<current_p_physics->sampling_points;i++){
-              //     printf("\nTotalmu=%g\tinteger=%d\n", current_p_physics->total_mus[i], i);
-              // }
-              double mu_at_speed = Volumes[current_volume]->p_physics->my_a * (2200 / v_length);
-              for (int j = 0; j < current_p_physics->sampling_points; j++) {
-                current_p_physics->total_mus[j] += mu_at_speed * current_p_physics->dist;
-              }
-              double trans_prob;
-              for (int i = 0; i < current_p_physics->sampling_points; i++) {
-                trans_prob = exp (-current_p_physics->total_mus[i]);
-                if (i == 0)
-                  current_p_physics->cumul_transmission_prob[i] = trans_prob;
-                else
-                  current_p_physics->cumul_transmission_prob[i] = current_p_physics->cumul_transmission_prob[i - 1] * trans_prob;
-              }
-
-              real_transmission_probability = current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1];
             }
-            // printf("Trans prop = %g\n", real_transmission_probability);
-            if (Volumes[current_volume]->geometry.geometry_p_interact != 0) {
-              mc_transmission_probability = (1.0 - Volumes[current_volume]->geometry.geometry_p_interact);
-              if ((scattering_event = (rand01 () > mc_transmission_probability))) {
-                // Scattering event happens, this is the correction for the weight
-                p *= (1.0 - real_transmission_probability) / (1.0 - mc_transmission_probability);
-              } else {
-                // Scattering event does not happen, this is the appropriate correction
-                p *= real_transmission_probability / mc_transmission_probability;
-              }
+
+            if (current_p_physics->sampling_points != 0) {
+              inhomogenous_sample_transmission_probability (current_p_physics, Volumes[current_volume], &real_transmission_probability, v_length);
+            }
+
+            // Then check if we scatter.
+            if (p_interact_is_set (Volumes[current_volume])) {
+              p_interact_check_scattering_event (Volumes[current_volume], &scattering_event, &p, real_transmission_probability);
             } else {
               // probability to scatter is the natural value
-              // printf("Real transmission prob %g\n", real_transmission_probability);
               scattering_event = rand01 () > real_transmission_probability;
             }
           }
@@ -1795,61 +1948,15 @@ TRACE
               printf ("WARNING: Absorption weight factor above 1! Should not happen! \n");
             // Select distance to scattering position
             if (current_p_physics->sampling_points != 0) {
-              // Numerical integration happens, and therefore we must choose between the different samples
-              // We do this by drawing a random number between 0 and max cumul prob,
-              // and then seeing which cumul prob is the first to include it.
-              abs_weight_factor = 1;
-              double mu_at_speed = Volumes[current_volume]->p_physics->my_a * (2200 / v_length);
-              double pseudo_rand = rand01 () * (1 - current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1]);
-              for (int i = 0; i < current_p_physics->sampling_points; i++) {
-                // printf("\nCumul trans prob = %g\t pseudo rand = %g\n", current_p_physics->cumul_transmission_prob[i], pseudo_rand);
-                if (pseudo_rand >= 1 - current_p_physics->cumul_transmission_prob[i])
-                  continue;
-                selected_sampling = i;
-                break;
-              }
-              abs_weight_factor *= (current_p_physics->total_mus[selected_sampling] - mu_at_speed * current_p_physics->dist) / current_p_physics->total_mus[selected_sampling];
-
-              // printf("\nSelected_sampling = %d\n", selected_sampling);
-
-              // printf("dist i = %g\tdist=%g\n", dist_i, dist);
-              double sampled_dist
-                  = safety_distance
-                    - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[selected_sampling]))) / current_p_physics->total_mus[selected_sampling] * current_p_physics->dist;
-              length_to_scattering = current_p_physics->cumul_dists[selected_sampling] - current_p_physics->dist / 2 + sampled_dist;
+              length_to_scattering = inhomogenous_sample_scattering_point (Volumes[current_volume], current_p_physics, &abs_weight_factor, &v_length,
+                                                                           &safety_distance, &selected_sampling);
             }
             // Select process
             if (Volumes[current_volume]->p_physics->number_of_processes == 1) { // trivial case
               // Select the only available process, which will always have index 0
               selected_process = 0;
             } else {
-              if (Volumes[current_volume]->p_physics->interact_control == 1) {
-                // Interact_fraction is used to influence the choice of process in this material
-                mc_prop = rand01 ();
-                culmative_probability = 0;
-                total_process_interact = 1.0;
-
-                // If any of the processes have probability 0, they are excluded from the selection
-                for (iterator = 0; iterator < Volumes[current_volume]->p_physics->number_of_processes; iterator++) {
-                  if (my_trace[iterator] < 1E-18) {
-                    // When this happens, the total force probability is corrected and the probability for this particular instance is set to 0
-                    total_process_interact -= Volumes[current_volume]->p_physics->p_scattering_array[iterator].process_p_interact;
-                    my_trace_fraction_control[iterator] = 0;
-                    // In cases where my_trace is not zero, the forced fraction is still used.
-                  } else
-                    my_trace_fraction_control[iterator] = Volumes[current_volume]->p_physics->p_scattering_array[iterator].process_p_interact;
-                }
-                // Randomly select a process using the weights stored in my_trace_fraction_control divided by total_process_interact
-                for (iterator = 0; iterator < Volumes[current_volume]->p_physics->number_of_processes; iterator++) {
-                  culmative_probability += my_trace_fraction_control[iterator] / total_process_interact;
-                  if (culmative_probability > mc_prop) {
-                    selected_process = iterator;
-                    p *= (my_trace[iterator] / my_sum) * (total_process_interact / my_trace_fraction_control[iterator]);
-                    break;
-                  }
-                }
-
-              } else {
+              if (Volumes[current_volume]->p_physics->interact_control != 1) {
                 // Select a process based on their relative attenuations factors
                 mc_prop = rand01 ();
                 culmative_probability = 0;
@@ -1862,14 +1969,12 @@ TRACE
                     }
                   }
                 } else {
-                  for (iterator = 0; iterator < Volumes[current_volume]->p_physics->number_of_processes; iterator++) {
-                    culmative_probability += current_p_physics->mus[iterator][selected_sampling] / my_sum;
-                    if (culmative_probability > mc_prop) {
-                      selected_process = iterator;
-                      break;
-                    }
-                  }
+                  inhomogenous_choose_process (current_p_physics, Volumes[current_volume], &culmative_probability, &mc_prop, &my_sum, &selected_sampling,
+                                               &selected_process);
                 }
+              } else {
+                p_interact_select_process (Volumes[current_volume], my_trace_fraction_control, my_trace, &total_process_interact, &culmative_probability,
+                                           &mc_prop, &p, &my_sum, &selected_process);
               }
             }
 
@@ -1877,16 +1982,7 @@ TRACE
             if (current_p_physics->sampling_points == 0) {
               // No numerical integration is necessary.
               if (process->needs_cross_section_focus == 1) {
-                // Respect forced length to scattering chosen by process
-                length_to_scattering = forced_length_to_scattering;
-                // Drawing between 0 and L from constant s = 1/L and should have been q = A*exp(-kz).
-                // Normalizing A*exp(-kz) over 0 to L: A = k/(1-exp(-k*L))
-                // Weight correction is ratio between s and q, L*A*exp(-kz) = L*k*exp(-kz)/(1-exp(-Lk))
-                p *= length_to_boundary * my_sum_plus_abs * exp (-length_to_scattering * my_sum_plus_abs) / (1.0 - exp (-length_to_boundary * my_sum_plus_abs));
-                #ifdef Union_trace_verbal_setting
-                printf ("Used forced length to scattering, %lf \n", length_to_scattering);
-                #endif
-
+                focus_in_cross_section_set_scat_length (&length_to_scattering, &forced_length_to_scattering, &p, &length_to_boundary, &my_sum_plus_abs);
               } else {
                 // Decided the ray scatters, choose where on truncated exponential from safety_distance to length_to_boundary - safety_distance
                 length_to_scattering
@@ -1949,7 +2045,7 @@ TRACE
           // Logging for detector components assosiated with this volume
           for (log_index = 0; log_index < Volumes[current_volume]->abs_loggers.num_elements; log_index++) {
             // This function calls a logger function which in turn stores some data among the passed, and possibly performs some basic data analysis
-			// Position and k_new given in master coordinates, the abs_logger must transform to its coordnate system if required
+            // Position and k_new given in master coordinates, the abs_logger must transform to its coordnate system if required
             Volumes[current_volume]->abs_loggers.p_abs_logger[log_index]->function_pointers.active_record_function (
                 &abs_position, k_new, initial_weight * (1.0 - abs_weight_factor), t + t_abs_propagation, scattered_flag[current_volume],
                 number_of_scattering_events, Volumes[current_volume]->abs_loggers.p_abs_logger[log_index], &abs_loggers_with_data_array);
