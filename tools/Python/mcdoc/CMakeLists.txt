@@ -103,6 +103,32 @@ install(
   WORLD_READ WORLD_EXECUTE
   )
 
+# Wrapper-scripts on windows are handled via
+# cmake Modules/MCUtil
+if(NOT WINDOWS)
+  add_custom_target(
+    "CREATE_${PROJECT_NAME}_SYMLINK" ALL DEPENDS "${WORK}/${P}doc"
+    )
+
+  install(
+    FILES "${WORK}/${P}doc"
+    DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
+    PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+  )
+  install(
+    PROGRAMS "${WORK}/${P}doc"
+    DESTINATION ${DEST_BINDIR}
+  )
+endif()
+
+  # Flat, flavor-agnostic tool documentation for the whole Python/ tool tree.
+  # These hand-maintained .md/.html pages replace the old per-tool
+  # <tool>.md.in -> <tool>.md configure/install steps (now removed from
+  # each tool's own CMakeLists.txt); mcdoc installs the full set once,
+  # to the same DEST_DATADIR_DOC destination those used to go to.
 
 foreach(TOOLDOCS_PAGE ${TOOLDOCS_PAGES})
   get_filename_component(TOOLDOCS_PAGE_REAL "${PROJECT_SOURCE_DIR}/${TOOLDOCS_PAGE}.md" REALPATH)
@@ -146,24 +172,4 @@ install(
   DESTINATION "${DEST_DATADIR_DOC}/Instrument"
 )
 
-# Wrapper-scripts on windows are handled via
-# cmake Modules/MCUtil
-if(NOT WINDOWS)
-  add_custom_target(
-    "CREATE_${PROJECT_NAME}_SYMLINK" ALL DEPENDS "${WORK}/${P}doc"
-    )
 
-  install(
-    FILES "${WORK}/${P}doc"
-    DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
-    PERMISSIONS
-    OWNER_READ OWNER_WRITE OWNER_EXECUTE
-    GROUP_READ GROUP_EXECUTE
-    WORLD_READ WORLD_EXECUTE
-  )
-  install(
-    PROGRAMS "${WORK}/${P}doc"
-    DESTINATION ${DEST_BINDIR}
-    )
-
-endif()
