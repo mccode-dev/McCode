@@ -67,7 +67,7 @@ set(CPACK_DEBIAN_PACKAGE_REPLACES
   "${FLAVOR}-tools-python-${P}doc-3.5.1, ${FLAVOR}-tools-python-${P}run (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}gui (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}test (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}plot-pyqtgraph (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}display-pyqtgraph (<< ${MCCODE_VERSION})"
 )
 set(CPACK_DEBIAN_PACKAGE_BREAKS
-  "${FLAVOR}-tools-python-${P}run (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}gui (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}test (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}plot-pyqtgraph (<< ${MCCODE_VERSION}), ${FLAVOR}-tools-python-${P}display-pyqtgraph (<< ${MCCODE_VERSION})"
+  "${FLAVOR}-tools-python-${P}run (<< 3.8.0), ${FLAVOR}-tools-python-${P}gui (<< 3.8.0), ${FLAVOR}-tools-python-${P}test (<< 3.8.0), ${FLAVOR}-tools-python-${P}plot-pyqtgraph (<< 3.8.0), ${FLAVOR}-tools-python-${P}display-pyqtgraph (<< 3.8.0)"
 )
 
 # RPM
