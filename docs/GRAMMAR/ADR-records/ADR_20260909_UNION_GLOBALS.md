@@ -8,7 +8,7 @@ This is a proposed change
 
 The original Union components were developed under McStas 2.X and used global variables for a number 
 of lists that were used to transfer information between components. 
-In McStas / McXtrace 3.X that was no longer possible, so an Union_init and Union_stop method was 
+In McStas and McXtrace 3.X that was no longer possible, so an Union_init and Union_stop component was 
 added, they were required to surround all the Union components used in an instrument. The `Union_init` 
 loaded the required libraries and set up the global variables, then all other Union components would read the
 variables from that component, needing the name on it as an input (standard convention is init), so
@@ -21,9 +21,9 @@ and `union-suffix.c`.
 
 Let the code generator insert the `union-init.c`, union-lib.c and union-suffix.c files at the
 appropriate positions if a `Union_master` or a `Union_master_GPU` is detected. It works by searching
-for a `Union_master` component, if found it adds `read_table-lib.h`, `union-lib.c` and `union-init.c`
-before SHARE and `union-suffix.c` after SHARE. It also creates a Union define that can be used
-to detect whether Union is active in this instrument.
+for a `Union_master`/`Union_master_GPU` component, if found it adds `read_table-lib.h`, `union-lib.c` 
+and `union-init.c` before SHARE and `union-suffix.c` after SHARE. It also creates a Union define that
+can be used to detect whether Union is active in this instrument.
 
 All Union components emit compile errors if the Union define does not yet exist, this is done in each
 component. 
@@ -48,14 +48,14 @@ be loaded.
 
 Still easy for developers to find the .c files in share to update them.
 
-Cogen would need to be updated if Union_master name is changed.
+Cogen would need to be updated if `Union_master` or `Union_master_GPU` name is changed.
 
 ## Behaviour
 
 - In valid use, Union systems no longer need the `Union_init`  and `Union_stop`
 - Using the `Union_init` and `Union_stop` won't break instruments, but show deprication warnings
 - Using the init parameter in Union components will fail as the parameter is removed
-- Compilation fails if any Union component is used without a Union_master
+- Compilation fails if any Union component is used without a `Union_master` or `Union_master_GPU`
 
 
 
