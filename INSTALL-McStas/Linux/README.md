@@ -1,4 +1,4 @@
-# Install McStas 3.8.3 on Linux and Unix.
+# Install McStas 3.8.4 on Linux and Unix.
 
 * We provide Debian packages for `x86_64` an `arm64` and recommend our
 	[conda-forge](../conda/README.md) install mechanism for any other platform.
