@@ -38,7 +38,6 @@
 * refraction_density:   [g/cm^3]  Density of the refracting material. density < 0 means the material is outside/before the shape.
 * refraction_weight:    [g/mol]  Molar mass of the refracting material
 * refraction_SLD:       [AA^-2]  Scattering length density of material (overwrites sigma_coh, density and weight)
-* init:                 [string] Name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
 * this_material:            Structure that contains information on this material
@@ -55,14 +54,14 @@
 DEFINE COMPONENT Union_make_material
 
 SETTING PARAMETERS(string process_string="NULL", my_absorption,absorber=0, 
-                   refraction_density=0, refraction_sigma_coh=0, refraction_weight=0,  refraction_SLD=-1500,
-				   string init="init")
+                    refraction_density=0, refraction_sigma_coh=0, refraction_weight=0,  refraction_SLD=-1500
+			   )
 
 SHARE
 %{
 
   #ifndef Union
-  #error "The Union_init component must be included before this Union_make_material component"
+  #error "ERROR: Union_make_material requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   // This function checks if global_process_element should be included in this material when using automatic linking, returns 1 if yes, 0 if no.
@@ -198,13 +197,8 @@ INITIALIZE
     exit (1);
   }
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Union_make_material:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
-  struct pointer_to_global_material_list* global_material_list = COMP_GETPAR3 (Union_init, init, global_material_list);
+  struct pointer_to_global_process_list* global_process_list = &g_process_list;
+  struct pointer_to_global_material_list* global_material_list = &g_material_list;
 
   if (absorber == 0) {
     if (process_string && strlen (process_string) && strcmp (process_string, "NULL") && strcmp (process_string, "0")) {
@@ -294,8 +288,8 @@ FINALLY
   if (accepted_processes.num_elements > 0)
     free (accepted_processes.elements);
 
-  struct pointer_to_global_geometry_list* global_geometry_list = COMP_GETPAR3 (Union_init, init, global_geometry_list);
-  struct pointer_to_global_master_list* global_master_list = COMP_GETPAR3 (Union_init, init, global_master_list);
+  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
+  struct pointer_to_global_master_list* global_master_list = &g_master_list;
 
   // Checking if any Union volumes are defined after the master component
   #ifdef MASTER_DETECTOR
@@ -332,4 +326,3 @@ FINALLY
 %}
 
 END
-

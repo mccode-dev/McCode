@@ -41,7 +41,6 @@
 * packing_factor:    [1]     How dense is the material compared to optimal 0-1
 * unit_cell_volume:  [AA^3]  Unit cell volume
 * interact_fraction: [1]     How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
-* init:              [string] name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
 *
@@ -53,7 +52,7 @@
 
 DEFINE COMPONENT Incoherent_process
 
-SETTING PARAMETERS(sigma=5.08, f_QE=0, gamma=0, packing_factor=1, unit_cell_volume=13.8, interact_fraction=-1, string init="init")
+SETTING PARAMETERS(sigma=5.08, f_QE=0, gamma=0, packing_factor=1, unit_cell_volume=13.8, interact_fraction=-1)
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -61,7 +60,7 @@ SETTING PARAMETERS(sigma=5.08, f_QE=0, gamma=0, packing_factor=1, unit_cell_volu
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this Incoherent_process component"
+  #error "ERROR: Incoherent_process requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   struct Incoherent_physics_storage_struct {
@@ -173,12 +172,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Incoherent_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  struct pointer_to_global_process_list* global_process_list = &g_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 

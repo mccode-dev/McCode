@@ -9,9 +9,14 @@
 * Version: $Revision: 0.1 $
 * Origin: University of Copenhagen
 *
-* Functions and structure definitons for Union components.
-*
-******************************************************************************/
+ * Functions and structure definitons for Union components.
+ *
+ ******************************************************************************/
+
+// Include guard: this file is auto-injected by the code generator and must
+// expand exactly once even if referenced more than once.
+#ifndef UNION_LIB_C
+#define UNION_LIB_C
 
 // -------------    Definition of data structures   ---------------------------------------------
 // GPU
@@ -8473,3 +8478,5 @@ void record_abs_to_file(double *r, double t1, double *r_old, double t2, double w
   }
 
 };
+
+#endif /* UNION_LIB_C */

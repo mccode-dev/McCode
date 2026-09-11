@@ -64,7 +64,6 @@
 * order_total:     [1]      Only log rays that have scattered n times, -1 for all orders
 * order_volume:    [1]      Only log rays that have scattered n times in the same geometry, -1 for all orders
 * logger_conditional_extend_index: [1] If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger_conditional_extend", and one would then access logger_conditional_extend[n] if logger_conditional_extend_index is set to n
-* init:            [string] Name of Union_init component (typically "init", default)
 * xwidth: [m]            Width of detector.
 * yheight: [m]           Height of detector.
 * zdepth: [m]            Thickness of detector (z).
@@ -118,7 +117,7 @@
 DEFINE COMPONENT Union_abs_logger_nD
 DEFINITION PARAMETERS ()
 SETTING PARAMETERS(string target_geometry="NULL",
-                   order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init",
+                   order_total=-1, order_volume=-1, logger_conditional_extend_index=-1,
 				   string user0="",string user1="", string user2="", string user3="", string user4="",
 		                   string user5="",string user6="", string user7="", string user8="", string user9="",
 				   xwidth=0, yheight=0, zdepth=0,
@@ -134,7 +133,7 @@ OUTPUT PARAMETERS ()
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this Union_abs_logger_nD component"
+  #error "ERROR: Union_abs_logger_nD requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   %include "monitor_nd-lib"
@@ -534,13 +533,8 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   if (!this_abs_storage.temp_abs_nD_data.elements)
     exit (fprintf (stderr, "Union_abs_logger_nD: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Union_abs_logger_nD:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = COMP_GETPAR3 (Union_init, init, global_positions_to_transform_list);
-  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = COMP_GETPAR3 (Union_init, init, global_rotations_to_transform_list);
+  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = &g_positions_to_transform_list;
+  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = &g_rotations_to_transform_list;
   // Test position and rotation stored in a data storage, and pointers assigned to transform lists
   this_abs_storage.position = POS_A_CURRENT_COMP;
   add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_storage.position);
@@ -567,8 +561,8 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   abs_logger_list_element.component_index = INDEX_CURRENT_COMP;
   abs_logger_list_element.abs_logger = &this_abs_logger;
 
-  struct pointer_to_global_geometry_list* global_geometry_list = COMP_GETPAR3 (Union_init, init, global_geometry_list);
-  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = COMP_GETPAR3 (Union_init, init, global_specific_volumes_abs_logger_list);
+  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
+  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = &g_specific_volumes_abs_logger_list;
   // In order to run the logger at the right times, pointers to this logger is stored in each volume it logs,
   //  and additionally for each avaiable process. If a process is not logged, the pointer is simply not stored.
   int process_index;
@@ -589,7 +583,7 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   } else {
     // Send to global_all_volumes_logger_list
     // Here there is no system for selecting processes as well
-    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = COMP_GETPAR3 (Union_init, init, global_all_volume_abs_logger_list);
+    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = &g_all_volume_abs_logger_list;
     add_element_to_abs_logger_list (global_all_volume_abs_logger_list, abs_logger_list_element);
   }
  %}
@@ -615,4 +609,3 @@ FINALLY INHERIT Monitor_nD EXTEND
 MCDISPLAY INHERIT Monitor_nD
 
 END
-

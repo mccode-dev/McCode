@@ -74,7 +74,6 @@
 * INPUT PARAMETERS:
 * cfg:               [str]    NCrystal material configuration string (details <a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">on this page</a>).
 * interact_fraction: [1]      How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
-* init:              [string] Name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
 * NCrystal_storage          // Storage used to communicate with the probability and scattering function
@@ -114,13 +113,13 @@
 
 DEFINE COMPONENT NCrystal_process // Remember to change the name of process here
 
-SETTING PARAMETERS(string cfg = "", interact_fraction=-1, string init="init")
+SETTING PARAMETERS(string cfg = "", interact_fraction=-1)
 DEPENDENCY "@NCRYSTALFLAGS@"
 
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this NCrystal_process component"
+  #error "ERROR: NCrystal_process requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   #if defined(WIN32) || defined(_WIN32)
@@ -215,8 +214,9 @@ SHARE
     ekin = vsq2ekin * K2V * k_mag * K2V * k_mag;
     ekin_final = 0.0;
     // Call NCrystal library, dirout and delta_ekin is updated
-    ncrystal_samplescatter (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin, (const double (*)[3]) & dir, &ekin_final, &dirout);
-	
+    ncrystal_samplescatter (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin, (const double (*)[3]) & dir, &ekin_final,
+                            &dirout);
+
     if (ekin_final <= 0) {
       // not expected to happen much, but an interaction could in principle bring the neutron to rest.
       return 0; // Eqivalent to ABSORB
@@ -415,12 +415,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "NCrystal_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  struct pointer_to_global_process_list* global_process_list = &g_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 
