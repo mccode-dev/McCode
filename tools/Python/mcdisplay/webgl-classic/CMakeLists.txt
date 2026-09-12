@@ -76,9 +76,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 # Configure fallback script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdisplay.in" "${WORK}/${P}display" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdisplay-webgl-classic.md.in" "${WORK}/${P}display-webgl-classic.md" @ONLY)
-
 # Main script, including rename mc/mxdisplay
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcdisplay.py"
@@ -109,8 +106,4 @@ if(NOT WINDOWS)
     RENAME "${P}display-webgl-classic"
     )
     
-  install(
-    FILES "${WORK}/${P}display-webgl-classic.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
 endif()

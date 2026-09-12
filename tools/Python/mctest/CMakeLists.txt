@@ -78,9 +78,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mctest.in" "${WORK}/${P}test" @ONLY)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcviewtest.in" "${WORK}/${P}viewtest" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mctest.md.in" "${WORK}/${P}test.md" @ONLY)
-
 
 # Main script, including rename mctest/mxtest
 install(
@@ -142,9 +139,4 @@ if(NOT WINDOWS)
     DESTINATION ${DEST_BINDIR}
   )
   
-  install(
-    FILES "${WORK}/${P}test.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-
 endif()

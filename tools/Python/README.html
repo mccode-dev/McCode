@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>McStas / McXtrace User Tools Cheat Sheet</title>
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    line-height: 1.6;
+    color: #1a1a1a;
+    background: #fff;
+}
+h1, h2, h3 { line-height: 1.25; }
+h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: 0.4rem; }
+h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.6rem; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+    background: #f6f8fa;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.9em;
+}
+pre {
+    background: #f6f8fa;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.95em;
+}
+th, td {
+    border: 1px solid #d0d7de;
+    padding: 0.5rem 0.8rem;
+    text-align: left;
+    vertical-align: top;
+}
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(even) { background: #fbfbfb; }
+hr { border: none; border-top: 1px solid #e1e4e8; margin: 2rem 0; }
+em { color: #57606a; }
+.nav-top, .nav-bottom { margin-bottom: 1.5rem; }
+.nav-bottom { margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<h1 id="mcstas-mcxtrace-user-tools-cheat-sheet">McStas / McXtrace User Tools Cheat Sheet</h1>
+<p>Source: <code>McCode/tools/Python</code> (plus <code>McCode/tools/matlab</code> for the legacy Matlab/Octave/iFit variants)</p>
+<p><strong>Naming convention:</strong> almost everything named <code>mc&lt;something&gt;</code> on the McStas
+side has a direct <code>mx&lt;something&gt;</code> counterpart on the McXtrace side, built
+from the <em>same</em> source, with the neutron/photon ("particle") wording
+and a few McStas-only options (e.g. <code>--gravity</code>, time-of-flight mode)
+adjusted accordingly. Where a tool has several rendering <strong>variants</strong>
+(html / matplotlib / pyqtgraph / webgl / ...), the variant is appended after
+a dash, e.g. <code>mcplot-html</code> / <code>mxplot-html</code>.</p>
+<p><strong>On the commandline:</strong> Most tools accept <code>--help</code></p>
+<h2 id="tool-class-pages">Tool-class pages</h2>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="codegen.html">Code generators</a></td>
+<td><code>mcstas</code>/<code>mcxtrace</code>, <code>mcstas-pygen</code>/<code>mcxtrace-pygen</code>, <code>mcstas-jupylab</code>/<code>mcxtrace-jupylab</code></td>
+</tr>
+<tr>
+<td><a href="mcgui.html">mcgui</a></td>
+<td><code>mcgui</code> / <code>mxgui</code></td>
+</tr>
+<tr>
+<td><a href="mcrun.html">mcrun</a></td>
+<td><code>mcrun</code> / <code>mxrun</code></td>
+</tr>
+<tr>
+<td><a href="mcplot.html">mcplot family</a></td>
+<td><code>mcplot</code> / <code>mxplot</code>, <code>mcplotdiff</code> / <code>mxplotdiff</code>, <code>mccoplot</code> / <code>mxcoplot</code> — html / matplotlib / pyqtgraph / matlab variants</td>
+</tr>
+<tr>
+<td><a href="mcdisplay.html">mcdisplay family</a></td>
+<td><code>mcdisplay</code> / <code>mxdisplay</code> — pyqtgraph (default) / matplotlib / webgl / webgl-classic / cad / matlab variants</td>
+</tr>
+<tr>
+<td><a href="mctest.html">mctest family</a></td>
+<td><code>mctest</code> / <code>mxtest</code>, <code>mcviewtest</code> / <code>mxviewtest</code></td>
+</tr>
+<tr>
+<td><a href="mcdoc_tool.html">mcdoc</a></td>
+<td><code>mcdoc</code> / <code>mxdoc</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="quick-reference-which-tool-for-which-job">Quick reference: which tool for which job?</h2>
+<table>
+<thead>
+<tr>
+<th>I want to...</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compile an <code>.instr</code> file to C directly (rarely needed by hand)</td>
+<td><a href="codegen.html#mcstas-mcxtrace"><code>mcstas</code> / <code>mcxtrace</code></a></td>
+</tr>
+<tr>
+<td>Convert an <code>.instr</code> model to Python for use with McStasScript</td>
+<td><a href="codegen.html#mcstas-pygen-mcxtrace-pygen-convert-an-instrument-to-python"><code>mcstas-pygen</code> / <code>mcxtrace-pygen</code></a></td>
+</tr>
+<tr>
+<td>Explore an instrument interactively in Jupyter via McStasScript</td>
+<td><a href="codegen.html#mcstas-jupylab-mcxtrace-jupylab-explore-an-instrument-in-jupyter"><code>mcstas-jupylab</code> / <code>mcxtrace-jupylab</code></a></td>
+</tr>
+<tr>
+<td>Edit/compile/run instruments interactively</td>
+<td><a href="mcgui.html"><code>mcgui</code> / <code>mxgui</code></a></td>
+</tr>
+<tr>
+<td>Run a simulation from the command line, or a parameter scan/optimisation</td>
+<td><a href="mcrun.html"><code>mcrun</code> / <code>mxrun</code></a></td>
+</tr>
+<tr>
+<td>Plot one simulation's results</td>
+<td><a href="mcplot.html#mcplot-mxplot"><code>mcplot-{html,matplotlib,pyqtgraph}</code> <br> <code>mxplot-{html,matplotlib,pyqtgraph}</code></a></td>
+</tr>
+<tr>
+<td>Compare exactly two simulations (<code>a - b</code>)</td>
+<td><a href="mcplot.html#mcplotdiff-mxplotdiff"><code>mcplotdiff-{html,matplotlib,pyqtgraph}</code> <br> <code>mxplotdiff-{html,matplotlib,pyqtgraph}</code></a></td>
+</tr>
+<tr>
+<td>Overlay 2+ simulations for direct comparison</td>
+<td><a href="mcplot.html#mccoplot-mxcoplot"><code>mccoplot-{html,matplotlib,pyqtgraph}</code> <br> <code>mxcoplot-{html,matplotlib,pyqtgraph}</code></a></td>
+</tr>
+<tr>
+<td>Visualise instrument geometry + particle trajectories</td>
+<td><a href="mcdisplay.html"><code>mcdisplay-{pyqtgraph,matplotlib,webgl,webgl-classic}</code> <br> <code>mxdisplay-{pyqtgraph,matplotlib,webgl,webgl-classic}</code></a></td>
+</tr>
+<tr>
+<td>Export instrument geometry to a CAD file</td>
+<td><a href="mcdisplay.html#mcdisplay-cad-mxdisplay-cad-bonus-export-instrument-geometry-to-cad"><code>mcdisplay-cad</code> <br> <code>mxdisplay-cad</code></a></td>
+</tr>
+<tr>
+<td>Plot/display results in Matlab, Octave, or iFit instead</td>
+<td><a href="mcplot.html#mcplot-matlab-mxplot-matlab-legacy-matlaboctaveifit-variant"><code>mcplot-matlab</code> / <code>mxplot-matlab</code></a> <br> <a href="mcdisplay.html#mcdisplay-matlab-mxdisplay-matlab-legacy-matlaboctaveifit-variant"><code>mcdisplay-matlab</code> / <code>mxdisplay-matlab</code></a></td>
+</tr>
+<tr>
+<td>Test/benchmark the whole instrument library against a McCode installation</td>
+<td><a href="mctest.html#mctest-mxtest"><code>mctest</code> / <code>mxtest</code></a></td>
+</tr>
+<tr>
+<td>Build a browsable pass/fail + diff report from <code>mctest</code> results</td>
+<td><a href="mctest.html#mcviewtest-mxviewtest"><code>mcviewtest</code> / <code>mxviewtest</code></a></td>
+</tr>
+<tr>
+<td>Generate/browse instrument &amp; component documentation</td>
+<td><a href="mcdoc_tool.html"><code>mcdoc</code> / <code>mxdoc</code></a></td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

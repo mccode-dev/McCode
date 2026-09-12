@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>McStas / McXtrace COMPONENT grammar</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1b1f24;
+  --muted: #57606a;
+  --border: #d0d7de;
+  --code-bg: #f6f8fa;
+  --code-border: #d8dee4;
+  --link: #0969da;
+  --toc-bg: #f6f8fa;
+  --th-bg: #f0f2f4;
+  --hr: #d0d7de;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --border: #30363d;
+    --code-bg: #161b22;
+    --code-border: #30363d;
+    --link: #4493f8;
+    --toc-bg: #161b22;
+    --th-bg: #171b21;
+    --hr: #30363d;
+  }
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0;
+  padding: 2.5rem 1.25rem 4rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height: 1.62;
+  font-size: 16px;
+}
+article {
+  max-width: 860px;
+  margin: 0 auto;
+}
+h1, h2, h3, h4 {
+  font-weight: 600;
+  line-height: 1.3;
+  scroll-margin-top: 1rem;
+}
+h1 {
+  font-size: 1.85rem;
+  margin: 0 0 1.1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+h2 {
+  font-size: 1.35rem;
+  margin: 2.6rem 0 1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+h3 {
+  font-size: 1.08rem;
+  margin: 1.8rem 0 0.7rem;
+  color: var(--fg);
+}
+p { margin: 0.85rem 0; }
+ul, ol { padding-left: 1.4rem; margin: 0.85rem 0; }
+li { margin: 0.35rem 0; }
+li > ul, li > ol { margin: 0.35rem 0; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: none; border-top: 1px solid var(--hr); margin: 2.4rem 0; }
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.87em;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.85em;
+  line-height: 1.55;
+  white-space: pre;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.1rem 0;
+  font-size: 0.93em;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: var(--th-bg);
+  font-weight: 600;
+}
+strong { font-weight: 600; }
+em { font-style: italic; }
+.toc {
+  background: var(--toc-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 1.3rem;
+  margin: 1.2rem 0 2rem;
+  font-size: 0.93em;
+}
+.toc > ul { margin: 0.3rem 0; }
+.toc ul { padding-left: 1.2rem; }
+.toc-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hr);
+  color: var(--muted);
+  font-size: 0.85em;
+}
+footer code { font-size: 0.95em; }
+</style>
+</head>
+<body>
+<article>
+<h1 id="mcstas-mcxtrace-component-grammar">McStas / McXtrace COMPONENT grammar</h1>
+<p>This is one of two companion cheat sheets: this file covers <code>.comp</code> <strong>component</strong>
+files; the companion <a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a> covers <code>.instr</code>
+<strong>instrument</strong> files. Each is written to stand alone — a little material (the
+reserved-keyword table, the particle-terminology note, the shared-grammar note) is
+intentionally duplicated in both. Keywords are case-insensitive but conventionally written in UPPERCASE; identifiers
+are case-sensitive C identifiers. Sources are listed at the end of the document (§13).</p>
+<p><strong>On "McStas" vs "McXtrace" vs "particle":</strong> the instrument/component grammar itself —
+every keyword and syntax rule in this document — is identical between the two codes; it's
+one shared parser. What differs is the physics carried by the traced entity: McStas
+traces neutrons, McXtrace traces X-ray photons. This cheat sheet uses the neutral term
+<strong>"particle"</strong> throughout for the thing being traced through a component, and only calls
+out "neutron" or "photon" specifically where the two codes' <em>behaviour</em> (not grammar)
+actually differs — chiefly, the fields making up the particle's state, which every
+component's <code>TRACE</code> code reads and writes:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>McStas (neutron)</th>
+<th>McXtrace (photon)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Position</td>
+<td><code>x, y, z</code> [m]</td>
+<td><code>x, y, z</code> [m]</td>
+</tr>
+<tr>
+<td>Direction/momentum</td>
+<td>velocity <code>vx, vy, vz</code> [m/s]</td>
+<td>wavevector <code>kx, ky, kz</code> [Å⁻¹]</td>
+</tr>
+<tr>
+<td>Extra kinematic field</td>
+<td>—</td>
+<td>phase <code>phi</code> [rad]</td>
+</tr>
+<tr>
+<td>Polarization</td>
+<td>spin <code>sx, sy, sz</code></td>
+<td>polarization vector <code>Ex, Ey, Ez</code></td>
+</tr>
+<tr>
+<td>Time</td>
+<td><code>t</code> [s]</td>
+<td><code>t</code> [s]</td>
+</tr>
+<tr>
+<td>Weight</td>
+<td><code>p</code></td>
+<td><code>p</code></td>
+</tr>
+</tbody>
+</table>
+<p>A component's <code>TRACE</code> C code operates directly on these fields (by whichever names apply
+to the code you're writing for). <code>USERVARS</code> fields (§7 below) are appended to the same
+per-particle struct — the grammar for declaring them is identical in both codes.</p>
+<hr />
+<p><strong>Notation used for grammar skeletons in this document:</strong> <code>[ ... ]</code> marks an element (or
+whole clause) as <em>optional</em>; <code>( a | b | c )</code> marks a <em>required choice</em> among alternatives.
+Both are meta-notation and never appear literally in a <code>.instr</code>/<code>.comp</code> file. Everything
+else — including bare <code>{ }</code> and, especially, <code>%{ ... %}</code> — is <strong>literal syntax</strong>: <code>%{ %}</code>
+is the actual embedded-C-code delimiter, and bare <code>{ }</code> shows up as-is in real code (e.g.
+a <code>vector</code> default like <code>axis={0,1,0}</code>). The two never mean "optional" in this document.</p>
+<p><strong>Contents</strong></p>
+<div class="toc"><p class="toc-label">Contents</p>
+<ul>
+<li><a href="#mcstas-mcxtrace-component-grammar">McStas / McXtrace COMPONENT grammar</a><ul>
+<li><a href="#1-component-file-skeleton">1. Component file skeleton</a></li>
+<li><a href="#2-define-component-header">2. DEFINE COMPONENT header</a></li>
+<li><a href="#3-setting-parameters">3. SETTING PARAMETERS</a></li>
+<li><a href="#4-component-level-dependency">4. Component-level DEPENDENCY</a></li>
+<li><a href="#5-share-vs-declare">5. SHARE vs DECLARE</a></li>
+<li><a href="#6-noacc-marking-a-component-class-gpu-incompatible">6. NOACC — marking a component class GPU-incompatible</a></li>
+<li><a href="#7-uservars-initialize-trace-save-finally-mcdisplay">7. USERVARS, INITIALIZE, TRACE, SAVE, FINALLY, MCDISPLAY</a></li>
+<li><a href="#8-metadata-at-component-definition-level">8. METADATA at component-definition level</a></li>
+<li><a href="#9-inherit-component-heritage">9. INHERIT — component heritage</a></li>
+<li><a href="#10-end-component-level">10. END (component level)</a></li>
+<li><a href="#11-reserved-keyword-reference">11. Reserved keyword reference</a><ul>
+<li><a href="#obsolete-rejected-keywords">Obsolete / rejected keywords</a></li>
+</ul>
+</li>
+<li><a href="#12-source-material-for-this-reference">12. Source-material for this reference</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<h2 id="1-component-file-skeleton">1. Component file skeleton</h2>
+<pre><code class="language-c">DEFINE COMPONENT name [INHERIT parent]
+
+SETTING PARAMETERS (s1, s2 = default, ...)
+[OUTPUT PARAMETERS (o1, o2, ...)]      // legacy; parses but effect 
+
+[DEPENDENCY &quot;...&quot;]
+[NOACC] // marks that component TRACE code can not be offloaded to GPU via OpenACC
+
+SHARE
+%{ // C shared once across all instances of this component %}
+
+DECLARE
+%{ // becomes the per-instance member fields of this component's generated C struct, see §5 %}
+
+USERVARS
+%{ // per-particle fields, same mechanism as instrument-level USERVARS %}
+
+INITIALIZE
+%{ // run once per instance, at start %}
+
+TRACE
+%{ // the actual particle/component interaction %}
+
+[SAVE %{ ... %}]
+[FINALLY %{ ... %}]
+[MCDISPLAY %{ ... %}]                  // alias: DISPLAY
+
+END
+</code></pre>
+<p>Section order above is what the grammar enforces; every section except <code>DEFINE COMPONENT
+name</code> and <code>TRACE</code>/<code>END</code> is optional. A component definition may also carry one or more
+<code>METADATA</code> blocks (§8) and, in the <code>TRACE</code> section of an <em>instrument</em> that uses this
+component, be positioned/duplicated/grouped — see the companion instrument-grammar file
+for that side of things.</p>
+<h2 id="2-define-component-header">2. <code>DEFINE COMPONENT</code> header</h2>
+<pre><code class="language-c">DEFINE COMPONENT Slit
+DEFINE COMPONENT Place INHERIT Arm          // whole-component inheritance, see §9
+DEFINE COMPONENT MyComp NOACC               // GPU-incompatible component class, see §6
+</code></pre>
+<p>This marks the beginning of the definition and names the component. <code>INHERIT parent</code>
+(§9) and <code>NOACC</code> (§6) are both optional modifiers on this header line.</p>
+<h2 id="3-setting-parameters">3. <code>SETTING PARAMETERS</code></h2>
+<pre><code class="language-c">SETTING PARAMETERS (radius, height, pack = 1, string filename = &quot;out.dat&quot;,
+                     vector axis = {0,1,0}, symbol my_func)
+</code></pre>
+<ul>
+<li><strong><code>SETTING PARAMETERS</code></strong> is the <em>only</em> supported way to declare a component's
+  parameters. They compile to ordinary (usually <code>double</code>-typed) C variables and accept
+  arbitrary C expressions as actual arguments from the instrument file.</li>
+<li>Occasionally you will find components with an <strong><code>OUTPUT PARAMETERS</code></strong> list (alias <code>PRIVATE PARAMETERS</code>) which is silently ignored. Its former job was to trigger
+  identifier-renaming so <code>DECLARE</code> variables from different instances of the same
+  component wouldn't collide; that's now handled structurally instead (see §5). You may
+  still see it in older <code>.comp</code> files; it's harmless to leave in place, and safe to delete.</li>
+<li>Parameter types, all under <code>SETTING PARAMETERS</code>:</li>
+<li><code>double</code> (the default if untyped), <code>int</code>, <code>string</code> (or <code>char *</code>)</li>
+<li><code>vector</code> (or <code>double *</code>) — a numeric array literal (<code>axis={0,1,0}</code>) or the name of a
+    <code>double[]</code> declared in the instrument's <code>DECLARE</code>; defaults to <code>NULL</code> unless given an
+    explicit default.</li>
+<li><code>symbol</code> — a bare C identifier (e.g. to pass a user function pointer or preprocessor
+    symbol through unevaluated).
+  <strong>Note:</strong> instrument parameters (<a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a>, §2) support only
+  double/int/string/vector — <code>symbol</code> is a <em>component</em>-parameter-only type.</li>
+<li><code>name = value</code> marks a parameter optional, exactly as for instrument parameters. Don't
+  give a natural-default-free parameter (guide length, slit size, ...) a default value
+  just for convenience — it removes a useful "you forgot to set this" error.</li>
+</ul>
+<h2 id="4-component-level-dependency">4. Component-level <code>DEPENDENCY</code></h2>
+<pre><code class="language-c">DEPENDENCY &quot;-lLIB1 -lLIB2 ..&quot;
+</code></pre>
+<p>Works exactly like the instrument-level line (<a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a>, §3) — appends
+compiler/linker flags needed by this component's C code (external library calls, etc.).
+Must precede <code>SHARE</code>/<code>DECLARE</code>. Flags from every component actually used in an instrument
+are concatenated with the instrument's own <code>DEPENDENCY</code> line into one <code>CFLAGS=...</code> string.</p>
+<h2 id="5-share-vs-declare">5. <code>SHARE</code> vs <code>DECLARE</code></h2>
+<pre><code class="language-c">SHARE
+%{
+  // emitted ONCE total, no matter how many instances exist
+%}
+
+DECLARE
+%{
+  // becomes the per-instance member fields of this component's generated C struct
+%}
+</code></pre>
+<ul>
+<li><strong><code>SHARE</code></strong> code is emitted <strong>once</strong> in the generated simulation, regardless of how many
+  instances of the component the instrument uses — put shared types, helper functions, and
+  large static tables here. Located before <code>DECLARE</code>.</li>
+<li><strong><code>DECLARE</code></strong>, in a fairly raw/literal sense, becomes the internals of a per-instance
+  component struct in the running instrument. This means that every declaration in this block 
+  should be of the form</li>
+</ul>
+<pre><code class="language-c">DECLARE %{
+  double* myvar; // &quot;type varname;&quot; ONLY — no initializers, no multi-declarations
+%}
+</code></pre>
+<ul>
+<li>Under the hood, each component <em>type</em> gets
+  its own generated C struct, and every instance of that component in the instrument gets
+  its own separately-instantiated variable of that struct type. The variables you declare
+  in <code>DECLARE</code> are parsed straight out of your C code and become member fields of that
+  struct.</li>
+<li><code>%include "file"</code> inside a <code>%{ %}</code> block in either section pulls in a runtime C library
+  from the component search path (see the <a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a>'s <code>%include</code> section).</li>
+</ul>
+<h2 id="6-noacc-marking-a-component-class-gpu-incompatible">6. <code>NOACC</code> — marking a component class GPU-incompatible</h2>
+<pre><code class="language-c">DEFINE COMPONENT MyComp NOACC
+</code></pre>
+<ul>
+<li>Declares that this component <strong>class</strong> can never be compiled for GPU/OpenACC execution
+  (e.g. its <code>TRACE</code> section calls out to a C library with no GPU-compatible
+  implementation). This automatically pulls in the <code>DEPENDENCY "-DFUNNEL"</code> flag, enabling
+  McStas/McXtrace's CPU/GPU "funneling" mode, so that an instrument mixing GPU-friendly and
+  <code>NOACC</code> components can still run under <code>--openacc</code> — at the cost of funneling particles
+  back to the CPU just for that component's computation.</li>
+<li>The complementary, <strong>per-instance</strong> keyword is <code>CPU</code>, set in an instrument's <code>TRACE</code>
+  section (not here) to force one specific instance of an otherwise GPU-capable component
+  to run on CPU only — see the companion instrument-grammar file.</li>
+</ul>
+<h2 id="7-uservars-initialize-trace-save-finally-mcdisplay">7. <code>USERVARS</code>, <code>INITIALIZE</code>, <code>TRACE</code>, <code>SAVE</code>, <code>FINALLY</code>, <code>MCDISPLAY</code></h2>
+<pre><code class="language-c">USERVARS
+%{
+  double myvar;   // &quot;type varname;&quot; ONLY — no initializers, no multi-declarations
+%}
+
+INITIALIZE
+%{
+  // C code run once per instance, at simulation start; may modify SETTING parameters
+%}
+
+TRACE
+%{
+  // the actual computation of the interaction between the particle and the component
+%}
+
+SAVE
+%{
+  // C code executed whenever a (partial) data save is triggered
+%}
+
+FINALLY
+%{
+  // C code executed once, at simulation end
+%}
+
+MCDISPLAY               // alias: DISPLAY
+%{
+  // C code to draw the component geometry for mcdisplay
+%}
+</code></pre>
+<ul>
+<li><strong><code>USERVARS</code></strong> at component level uses the identical mechanism as instrument-level
+  <code>USERVARS</code> (<a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a>, §4): declarations of the exact form <code>type varname;</code>,
+  appended to the same per-particle state struct as the built-in fields (see the state
+  table above) and to any instrument-level <code>USERVARS</code> fields. Prefer these over <code>DECLARE</code>
+  globals for any per-particle flag read across components/<code>EXTEND</code> blocks — they stay
+  correct under <code>SPLIT</code>, MPI, and GPU/OpenACC, where a shared <code>DECLARE</code> global would not.</li>
+<li><strong><code>TRACE</code></strong> is mandatory for components interacting with the particle and holds the 
+  component'score physics: it should propagate the
+  particle to the component (helper macros like <code>PROP_Z0</code>/<code>PROP_DT</code> are typically used),
+  compute the interaction, and call the <code>SCATTER</code> macro whenever the particle's state is
+  meaningfully changed/detected — this both drives correct 3D visualization and is what
+  <code>GROUP</code> (<a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a>, §7) tests to decide which group member "wins". <code>ABSORB</code>
+  terminates tracing for that particle; <code>ALLOW_BACKPROP</code> (called before a <code>PROP_</code> call)
+  permits negative-time backpropagation instead of the default absorb-on-negative-time
+  behaviour.</li>
+<li><strong><code>SAVE</code></strong>, <strong><code>FINALLY</code></strong>, and <strong><code>MCDISPLAY</code></strong>/<code>DISPLAY</code> are all optional, and behave
+  analogously to their instrument-level namesakes (<a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a>, §15) — <code>SAVE</code> on
+  (partial) data save, <code>FINALLY</code> once at simulation end, <code>MCDISPLAY</code> to draw geometry.</li>
+</ul>
+<h2 id="8-metadata-at-component-definition-level">8. <code>METADATA</code> at component-definition level</h2>
+<pre><code class="language-c">DEFINE COMPONENT File
+SETTING PARAMETERS (string filename, string metadatakey = &quot;&quot;, int keep = 0)
+METADATA &quot;text/plain&quot; default_note
+%{
+  Default per-definition metadata text.
+%}
+...
+END
+</code></pre>
+<ul>
+<li><code>METADATA type name %{ ...text... %}</code> may appear inside a component <strong>definition</strong>
+  (any number of blocks) — attaches a named, typed block of arbitrary text, with zero
+  effect on the simulated physics, purely for downstream tools (IDF fragments, JSON
+  geometry blobs, CIF snippets, notes) to retrieve without parsing generated C. <code>type</code>/
+  <code>name</code> are bare identifiers or quoted strings (quote for MIME-style types like
+  <code>"application/json"</code>).</li>
+<li>Definition-level metadata is inherited by <strong>every instance</strong> of the component, and (per
+  the usual <code>INHERIT</code> rules, §9) by any component that <code>INHERIT</code>s from it. An
+  instance-level <code>METADATA</code> block of the same <code>name</code>, attached in an instrument's <code>TRACE</code>
+  section (see the companion instrument-grammar file, §12), overrides the
+  definition-level one for that one instance.</li>
+<li>Inspect from the command line via <code>mcrun --meta-list</code>, <code>--meta-defined=comp[:name]</code>,
+  <code>--meta-type=comp:name</code>, <code>--meta-data=comp:name</code>.</li>
+</ul>
+<h2 id="9-inherit-component-heritage">9. <code>INHERIT</code> — component heritage</h2>
+<p>Whole-component inheritance (copies every section from the parent, minus its doc header;
+override/extend any section by re-declaring it):</p>
+<pre><code class="language-c">DEFINE COMPONENT Place INHERIT Arm
+END
+</code></pre>
+<p>(real, minimal example from <code>mcstas-comps/optics/Place.comp</code>)</p>
+<pre><code class="language-c">DEFINE COMPONENT child_name INHERIT parent_name
+  SETTING PARAMETERS (newpar1, newpar2)
+  INITIALISE
+    INHERIT parent_name
+    EXTEND
+    %{ // C code appended to parent_name's INITIALIZE %}
+  SAVE
+  %{ // C code that fully REPLACES parent_name's SAVE %}
+END
+</code></pre>
+<p>Per-section <code>INHERIT parent_name</code> (optionally followed by <code>EXTEND %{ ... %}</code>) is written
+<strong>inside that section's own block</strong>, right after the section keyword — not as a top-level
+clause. A bare <code>INHERIT parent</code> for a section replaces it wholesale with the parent's code;
+<code>INHERIT parent EXTEND %{ ... %}</code> instead appends the given code after the parent's.</p>
+<p>You can also pull in individual sections from <strong>any</strong> component without inheriting the
+whole definition (the top-level <code>DEFINE COMPONENT</code> line doesn't itself use <code>INHERIT</code>):</p>
+<pre><code class="language-c">DEFINE COMPONENT name(...)
+SETTING PARAMETERS (...)
+DECLARE
+  INHERIT parent1
+INITIALISE
+  INHERIT parent2
+  EXTEND %{ // appended to parent2's INITIALIZE %}
+TRACE
+  INHERIT parent3
+END
+</code></pre>
+<p>Mixing sections from different sources this way needs care around variable naming
+collisions. <code>EXTEND</code> used this way (attached to an <code>INHERIT</code>ed section, inside a
+component definition) is a different mechanism from the instrument-level <code>EXTEND</code> modifier
+on a <code>COMPONENT</code> instance (<a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a>, §9) — same keyword, but one extends an
+inherited <em>section of a component definition</em>, the other extends one <em>instance's</em> <code>TRACE</code>
+from the instrument file.</p>
+<h2 id="10-end-component-level">10. <code>END</code> (component level)</h2>
+<pre><code class="language-c">END
+</code></pre>
+<p>Mandatory; closes the component definition.</p>
+<hr />
+<h2 id="11-reserved-keyword-reference">11. Reserved keyword reference</h2>
+<p>All tokens below are reserved and case-insensitive; do not reuse them as C identifiers.
+"Scope": <strong>I</strong> = valid in instrument definitions (<a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a>), <strong>C</strong> = valid in
+component definitions (this file).</p>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Scope</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ABSOLUTE</code></td>
+<td>I</td>
+<td>Global coordinate frame for <code>AT</code>/<code>ROTATED</code>.</td>
+</tr>
+<tr>
+<td><code>AT</code></td>
+<td>I</td>
+<td>Component position.</td>
+</tr>
+<tr>
+<td><code>COMPONENT</code></td>
+<td>I</td>
+<td>Declares a component instance.</td>
+</tr>
+<tr>
+<td><code>COPY</code></td>
+<td>I</td>
+<td>Duplicate a preceding instance.</td>
+</tr>
+<tr>
+<td><code>CPU</code></td>
+<td>I</td>
+<td>Force one instance to run on CPU only.</td>
+</tr>
+<tr>
+<td><code>DECLARE</code></td>
+<td>I, C</td>
+<td>C global declarations (§5).</td>
+</tr>
+<tr>
+<td><code>DEFINE</code></td>
+<td>I, C</td>
+<td>Starts an <code>INSTRUMENT</code> or <code>COMPONENT</code> definition (§2).</td>
+</tr>
+<tr>
+<td><code>DEFINITION</code></td>
+<td>C</td>
+<td>No longer supported — raises a compile error if used (§3).</td>
+</tr>
+<tr>
+<td><code>DEPENDENCY</code></td>
+<td>I, C</td>
+<td>Compiler/linker flags (§4).</td>
+</tr>
+<tr>
+<td><code>DISPLAY</code></td>
+<td>C</td>
+<td>Alias for <code>MCDISPLAY</code> (§7).</td>
+</tr>
+<tr>
+<td><code>END</code></td>
+<td>I, C</td>
+<td>Ends the definition (§10).</td>
+</tr>
+<tr>
+<td><code>EXTEND</code></td>
+<td>I, C</td>
+<td>Appends C code after a <code>TRACE</code>, or after an <code>INHERIT</code>ed section (§9).</td>
+</tr>
+<tr>
+<td><code>FINALLY</code></td>
+<td>I, C</td>
+<td>C code run at simulation end (§7).</td>
+</tr>
+<tr>
+<td><code>GROUP</code></td>
+<td>I</td>
+<td>Exclusive ("XOR") component group.</td>
+</tr>
+<tr>
+<td><code>%include</code></td>
+<td>I, C</td>
+<td>Import a file — component/instrument, or (inside <code>%{ %}</code>) a C library.</td>
+</tr>
+<tr>
+<td><code>INHERIT</code></td>
+<td>C</td>
+<td>Derive a component (whole or per-section) from a parent (§9).</td>
+</tr>
+<tr>
+<td><code>INITIALIZE</code> / <code>INITIALISE</code></td>
+<td>I, C</td>
+<td>C code run once at start-up (§7).</td>
+</tr>
+<tr>
+<td><code>ITERATE</code></td>
+<td>I</td>
+<td><code>JUMP</code> loop-count clause.</td>
+</tr>
+<tr>
+<td><code>JUMP</code></td>
+<td>I</td>
+<td>Conditional/iterative non-sequential propagation.</td>
+</tr>
+<tr>
+<td><code>MCDISPLAY</code></td>
+<td>C</td>
+<td>C code to draw component geometry (§7, alias <code>DISPLAY</code>).</td>
+</tr>
+<tr>
+<td><code>METADATA</code></td>
+<td>I, C</td>
+<td>Attach a named, typed text block (§8).</td>
+</tr>
+<tr>
+<td><code>MYSELF</code></td>
+<td>I</td>
+<td>Self-reference for <code>COPY</code>/<code>JUMP</code>.</td>
+</tr>
+<tr>
+<td><code>NEXT</code> / <code>NEXT(n)</code></td>
+<td>I</td>
+<td>Forward instance reference, for <code>JUMP</code>.</td>
+</tr>
+<tr>
+<td><code>NOACC</code></td>
+<td>C</td>
+<td>Marks a component class GPU-incompatible (§6).</td>
+</tr>
+<tr>
+<td><code>OUTPUT</code></td>
+<td>C</td>
+<td>Alias for <code>PRIVATE PARAMETERS</code>; parses but no longer has any effect (§3, §5).</td>
+</tr>
+<tr>
+<td><code>PARAMETERS</code></td>
+<td>C</td>
+<td>Qualifier after <code>SETTING</code>/<code>OUTPUT</code>/<code>PRIVATE</code> (and the rejected <code>DEFINITION</code>) (§3).</td>
+</tr>
+<tr>
+<td><code>PREVIOUS</code> / <code>PREVIOUS(n)</code></td>
+<td>I, C</td>
+<td>Backward instance reference.</td>
+</tr>
+<tr>
+<td><code>PRIVATE</code></td>
+<td>C</td>
+<td>Alias for <code>OUTPUT PARAMETERS</code>; parses but no longer has any effect (§3, §5).</td>
+</tr>
+<tr>
+<td><code>RELATIVE</code></td>
+<td>I</td>
+<td>Relative coordinate frame for <code>AT</code>/<code>ROTATED</code>.</td>
+</tr>
+<tr>
+<td><code>REMOVABLE</code></td>
+<td>I</td>
+<td>Skip this component when the file is <code>%include</code>'d.</td>
+</tr>
+<tr>
+<td><code>ROTATED</code></td>
+<td>I</td>
+<td>Component orientation.</td>
+</tr>
+<tr>
+<td><code>SAVE</code></td>
+<td>I, C</td>
+<td>C code run on (partial) data save (§7).</td>
+</tr>
+<tr>
+<td><code>SEARCH</code></td>
+<td>I</td>
+<td>Extra component/instrument search directory — TRACE-section only.</td>
+</tr>
+<tr>
+<td><code>SETTING</code></td>
+<td>C</td>
+<td>Component parameters compiled as ordinary C variables (§3).</td>
+</tr>
+<tr>
+<td><code>SHARE</code></td>
+<td>C</td>
+<td>C code emitted once, shared across all instances (§5).</td>
+</tr>
+<tr>
+<td><code>SHELL</code></td>
+<td>I, C</td>
+<td>Run a shell command at parse time.</td>
+</tr>
+<tr>
+<td><code>SPLIT</code></td>
+<td>I</td>
+<td>Boost downstream statistics by event repetition.</td>
+</tr>
+<tr>
+<td><code>TRACE</code></td>
+<td>I, C</td>
+<td>The particle-propagation / component-interaction section (§7).</td>
+</tr>
+<tr>
+<td><code>USERVARS</code></td>
+<td>I, C</td>
+<td>Per-particle custom fields (§7).</td>
+</tr>
+<tr>
+<td><code>WHEN</code></td>
+<td>I</td>
+<td>Conditional component activation, or <code>JUMP</code> condition.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="obsolete-rejected-keywords">Obsolete / rejected keywords</h3>
+<p><code>STATE PARAMETERS</code>, <code>POLARISATION PARAMETERS</code>, and <code>DEFINITION PARAMETERS</code> (§3) are all
+still recognised by the grammar but <strong>immediately raise a compile error if used</strong> —
+leftovers from older grammar versions (the first two long-standing, <code>DEFINITION
+PARAMETERS</code> more recently). Remove them if you see them in an old <code>.instr</code>/<code>.comp</code> file.
+Separately, <code>OUTPUT PARAMETERS</code>/<code>PRIVATE PARAMETERS</code> (§3, §5) are <strong>not</strong> rejected — they
+still parse without error — but no longer have any effect; they're inert rather than
+erroring. All four are usually a sign the file, or the documentation it was written
+against, predates the current McStas/McXtrace.</p>
+<hr />
+<h2 id="12-source-material-for-this-reference">12. Source-material for this reference</h2>
+<ul>
+<li><code>mccode/src/instrument.y</code>, <code>mccode/src/instrument.l</code> — the Bison/Flex grammar itself
+  (authoritative; shared verbatim between McStas and McXtrace).</li>
+<li><code>docpkg/manuals/mcstas/manual.pdf</code>, chapter 4, "The McStas kernel and meta-language",
+  especially §4.5 ("Writing component definitions") and §4.6 ("Extending component
+  definitions").</li>
+<li><code>docpkg/manuals/mcxtrace/manual.pdf</code>, chapter 6 (equivalent kernel/meta-language chapter)
+  and section 6.1 (notational conventions / particle state fields).</li>
+<li><code>mcstas-comps/optics/Place.comp</code> (minimal <code>INHERIT</code> example), <code>mcstas-comps/optics/
+  Diaphragm.comp</code>, <code>mcxtrace-comps/optics/Diaphragm.comp</code>, <code>mcxtrace-comps/optics/
+  Place.comp</code> (further <code>INHERIT</code> users), and the <code>mcstas-comps/examples/Tests_other/
+  test_File/test_File.instr</code> / <code>mcxtrace-comps/examples/Tests_other/test_File/
+  test_File.instr</code> pair (<code>METADATA</code> usage against the <code>File</code> component).</li>
+</ul>
+<p>See also: <a href="../Instrument/INSTRUMENT_Grammar.html"><code>INSTRUMENT grammar</code></a></p>
+<footer>Generated from <code>COMPONENT_Grammar.md</code> — McCode grammar documentation.</footer>
+</article>
+</body>
+</html>

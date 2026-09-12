@@ -78,9 +78,6 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplot.in" "${WORK}/${P}plot" @ONLY)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplotdiff.in" "${WORK}/${P}plotdiff" @ONLY)
 
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplot-pyqtgraph.md.in" "${WORK}/${P}plot-pyqtgraph.md" @ONLY)
-
 # Main script, including rename mc/mxplot
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcplot.py"
@@ -91,9 +88,6 @@ install(
 # Configure fallback script for the a-b difference plotter
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplotdiff.in" "${WORK}/${P}plotdiff-pyqtgraph" @ONLY)
 
-# Configure doc for the a-b difference plotter
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplotdiff-pyqtgraph.md.in" "${WORK}/${P}plotdiff-pyqtgraph.md" @ONLY)
-
 # Difference-plotter script, including rename mc/mxplotdiff
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcplotdiff.py"
@@ -103,9 +97,6 @@ install(
 
 # Configure fallback script for the a-b co-plotter
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot.in" "${WORK}/${P}coplot-pyqtgraph" @ONLY)
-
-# Configure doc for the a-b co-plotter
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot-pyqtgraph.md.in" "${WORK}/${P}coplot-pyqtgraph.md" @ONLY)
 
 # Co-plotter script, including rename mc/mxcoplot
 install(
@@ -145,17 +136,6 @@ if(NOT WINDOWS)
     )
     
   install(
-    FILES "${WORK}/${P}plot-pyqtgraph.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-  
-    install(
-    FILES "${WORK}/${P}plot-pyqtgraph.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-    RENAME "${P}plot.md"
-  )
-
-  install(
     PROGRAMS ${PROJECT_SOURCE_DIR}/mcplotdiff.py
     DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
     RENAME "${P}plotdiff.py"
@@ -173,11 +153,6 @@ if(NOT WINDOWS)
     )
 
   install(
-    FILES "${WORK}/${P}plotdiff-pyqtgraph.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-
-  install(
     PROGRAMS ${PROJECT_SOURCE_DIR}/mccoplot.py
     DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
     RENAME "${P}coplot.py"
@@ -193,10 +168,5 @@ if(NOT WINDOWS)
     DESTINATION ${DEST_BINDIR}
     RENAME "${P}coplot"
     )
-
-  install(
-    FILES "${WORK}/${P}coplot-pyqtgraph.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
 
 endif()

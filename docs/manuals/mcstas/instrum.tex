@@ -3,75 +3,131 @@
 \chapter{Instrument examples}
 \label{s:instrument}
 
-In this section, we present a few typical instruments.  We then give a longer
-description of three selected instruments. We present the \MCS versions of the
-Ris\o\ standard triple axis spectrometer TAS1 (\ref{s:TAS1}) and the ISIS
+In this section, we present a few typical instruments from the \MCS example
+library.  We then give a longer description of three selected worked
+examples: a simple sample test instrument (\ref{s:V-instr}), the historical
+Ris\o\ triple-axis spectrometer TAS1 (\ref{s:TAS1}), and the ISIS
 time-of-flight spectrometer PRISMA (\ref{s:PRISMA}).
 
-But first we present an example of a component test instrument: the instrument
-to test the component \textbf{V\_sample} (\ref{s:V-instr}).
-%
-%The source text for the three instrument definitions
-%is listed in Appendix~\ref{instcode}.
 These instrument files are included in the \MCS distribution in the
-\verb+examples/+ directory.  Most of the instrument examples there-in may be
-executed automatically throught the \MCS self-test procedure.  The list of instrument examples has been extended
-considerably, see the ``Neutron Site'' menu in mcgui (See page
-\ref{p:neutronsite}).
+\verb+examples/+ directory (\verb+mcstas-comps/examples+ in the source
+tree), organised by facility/category. Any of them can be loaded from
+\texttt{mcgui}'s \textbf{New from Template} menu (known as ``Neutron site''
+in older \MCS releases, see section~\ref{p:neutronsite}): selecting one
+copies the instrument into your working directory, ready to edit, run, or
+trace.
+
+The list below is a curated tour, not an exhaustive catalogue -- new
+example instruments are added continuously as facilities contribute
+instrument descriptions. Use \verb+mcdoc+ (section~\ref{s:mcdoc-run}) or
+browse the \verb+examples/+ directory directly for the full, current list.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{A quick tour of instrument examples}
 \label{s:quick-tour-instr}
 
-\subsection{Neutron site: Brookhaven}
+\subsection{Templates}
 
-The former Brookhaven reactor hosted the H8 triple-axis spectrometer. This latter was modelled in order to cross-check the NISP, Vitess, Restrax, McStas and IDEAS neutron propagation Monte Carlo codes. Results were published in \textit{Neutron News} \textbf{13} (No. 4), 24-29 (2002).
+The \texttt{Templates} category is the recommended starting point for new
+instrument work: skeleton instruments to copy and adapt, covering the most
+common instrument classes -- \texttt{template} and \texttt{template\_simple}
+(bare instrument skeletons), \texttt{templateTAS} (triple-axis, including a
+basic in-plane UB-matrix transformation for resolution estimation),
+\texttt{templateTOF} and \texttt{templateDIFF} (time-of-flight and powder
+diffraction), \texttt{templateSANS}/\texttt{templateSANS2}/\texttt{templateSANS\_MCPL}
+and \texttt{templateSasView} (small-angle scattering, the latter using the
+\texttt{SasView\_model} interface to SasView/sasmodels form factors),
+\texttt{templateLaue} and \texttt{templateNMX}/\texttt{templateNMX\_TOF}
+(single-crystal Laue diffraction), and \texttt{Demo\_shape\_primitives}
+(illustrates the general-purpose shape/geometry components). Instrument
+parameters are documented in each file's header (readable via
+\verb+mcdoc+) and are designed to cover most instruments of the
+corresponding class.
 
-\subsection{Neutron site: Tools}
+\subsection{Risoe}
 
-This category currently contains a special \verb+Histogrammer+ that can read any event file from Vitess, MCNP, tripoli and McStas in order to produce histograms of any type. This is a very powerful tool to analyse sparse huge events data sets.
+Historical Ris\o\ National Laboratory instruments, including the TAS1
+triple-axis spectrometer family described in detail in section
+\ref{s:TAS1} below. TAS1 was decommissioned along with the DR3 reactor, but
+its detailed McStas model remains one of the most thoroughly
+validated example instruments in the distribution (see the model-vs-measurement
+comparisons in section~\ref{data:TAS1}), and it constitutes the default
+regression test series for the \MCS distribution.
 
-\subsection{Neutron site: ILL}
+\subsection{ISIS}
 
-Cold and thermal guide models are given in the ILL neutron site. Descriptions are very accurate, based on actual drawings, including all elements with curvature and gaps. Simulated capture fluxes were found in very good agreement with measurements.
+Instruments modelled on ISIS spallation-source beamlines, several using the
+\texttt{ISIS\_moderator} source component (built from MCNP moderator
+calculations): \texttt{ISIS\_CRISP} and \texttt{ISIS\_SANS2d} (reflectometry
+and SANS), \texttt{ISIS\_HET}, \texttt{ISIS\_LET}, \texttt{ISIS\_MERLIN} and
+\texttt{ISIS\_TOSCA\_preupgrade} (chopper spectrometers), \texttt{ISIS\_GEM}
+and \texttt{ISIS\_OSIRIS} (powder diffraction and backscattering), and
+\texttt{ISIS\_Prisma2}, a simple time-of-flight instrument with a RITA-style
+analyser described in detail in section~\ref{s:PRISMA} below.
 
-Additionally, the \verb+IN12+ triple-axis instrument has been detailed, in its
-year 2005 configuration. It is located at the end of the H15 cold guide. The
-sample is a Vanadium rod.
+\subsection{ILL}
 
-The \verb+IN6+ instrument is a hybrid time-of-flight spectrometer with 3
-monochromators and a Fermi chopper. The sample is an isotropic scatterer
-(liquid). It makes use of the SPLIT keyword to enhance statistics.
+Cold and thermal guide models for a large number of ILL instruments,
+several based on detailed technical drawings, e.g. \texttt{ILL\_H15},
+\texttt{ILL\_H16}, \texttt{ILL\_H22} and \texttt{ILL\_H53} (guide systems)
+feeding instrument-specific models such as \texttt{ILL\_H15\_IN6} (a
+hybrid time-of-flight spectrometer with three monochromators and a Fermi
+chopper; a usage example of the \texttt{GROUP} and \texttt{SPLIT} keywords,
+see sections~\ref{s:instrdefs-extend-group} and~\ref{s:instrdefs-extend-enhance}
+in the Component Manual), \texttt{ILL\_H15\_D11} and \texttt{ILL\_H512\_D22}
+(SANS), \texttt{ILL\_H22\_D1A}/\texttt{ILL\_H22\_D1B} and \texttt{ILL\_D2B}
+(powder diffraction), \texttt{ILL\_H53\_IN14} and \texttt{ILL\_H142\_IN12}
+(triple-axis), \texttt{ILL\_IN5} and \texttt{ILL\_IN4} (time-of-flight),
+and \texttt{ILL\_H22\_VIVALDI}/\texttt{ILL\_H143\_LADI} (Laue diffraction).
 
-The \verb+ILL_TOF_Env+ example is a simple neutron pulse (e.g. from a chopper system coming out of IN4, IN5 or IN6) illuminating a sample, with a container around and a cylinder shaped sample environment.
+\subsection{ESS}
 
-\subsection{Neutron site: tests}
+Design studies for the European Spallation Source, built around the
+\texttt{ESS\_butterfly} moderator/source component, e.g.
+\texttt{ESS\_IN5\_reprate} (a cold chopper multi-frame spectrometer for the
+long-pulsed ESS timing structure) and \texttt{ESS\_BEER\_MCPL} (illustrating
+MCPL-based event exchange between simulation stages, see the User Manual
+section on MCPL/event files).
 
-This large set of examples shows simple instruments using particular components (samples, polarized beams, detectors). They may be used as starting point for further more complex models.
+\subsection{Union\_demos, Union\_sample\_environments, Union\_validation}
 
-\subsection{Neutron site: ISIS}
+Worked examples of the Union framework (contributed by Mads Bertelsen),
+which separates sample/environment \emph{geometry} from \emph{physical
+process} definitions and supports multiple scattering within arbitrarily
+complex, nested sample-environment assemblies. \texttt{Union\_demos/Demonstration}
+is a good first read: several powder samples in cans, a sample holder, and
+a surrounding cryostat, illustrating the syntax and possibilities of the
+Union components. See the Component Manual chapter on samples for the
+underlying Union component reference.
 
-You will find here examples of ISIS instruments, some of them using the ISIS moderator component (obtained from MCNP computations).
+\subsection{NCrystal}
 
-\subsection{Neutron site: Ris\o\ }
+Examples using the \texttt{NCrystal\_sample} component, interfacing the
+external NCrystal library for physically detailed elastic and inelastic
+scattering from single crystals, powders, and (to some extent) liquids,
+based on material scattering kernels.
 
-This section contains former Ris\o\  instruments, which constitue the default test series for the \MCS distribution.
+\subsection{Tests\_* categories}
 
-\subsection{Neutron site: PSI}
+A large set of \texttt{Tests\_sources}, \texttt{Tests\_optics},
+\texttt{Tests\_samples}, \texttt{Tests\_monitors}, \texttt{Tests\_polarization},
+\texttt{Tests\_union}, \texttt{Tests\_grammar}, \texttt{Tests\_RNG},
+\texttt{Tests\_MCPL\_etc} and \texttt{Tests\_other} instruments exercise
+individual components or language features in isolation. These are the
+backbone of the \MCS regression test suite (run via \texttt{mctest}, see
+section~\ref{s:mctest}), but are equally useful as minimal starting points
+when learning how a specific component behaves. \texttt{Tests\_samples/Samples\_vanadium}
+is described in detail in section~\ref{s:V-instr} below.
 
-The Focus time-of-flight instrument is, with the ILL IN6 and IN12 models, the most advanced example. It as been built from drawings, including the guide and all optics elements. Simulated capture fluxes were found in good agreement with measurements.
+\subsection{Other facility categories}
 
-\subsection{Neutron site: Tutorial}
-
-A typical diffractometer including a powder sample and a Rescal-type triple-axis models are in this category. Instrument parameters enable models to cope with most existing instruments of these classes. The TAS model includes a basic in-plane UB-matrix transformation. It may be used to estimate the resolution functions of a TAS configuration.
-
-\subsection{Neutron site: ESS}
-
-This section contains design studies for the future, long-pulsed European
-Spallation Source (ESS). The only contents is currently the
-\verb+ESS_IN5_reprate+ instrument for simulating an IN5-TYPE (cold chopper)
-multi-frame spectrometer for the long-pulsed ESS. (Also serves as example
-instrument for \verb+Tunneling_sample.comp+.)
+Further contributed instrument models exist for BNL, DTU, FZ\_J\"ulich, HZB,
+HighNESS, LLB, Necsa, PSI, SINE2020, SNS, TRIGA and TU~Delft, alongside a
+\texttt{Mantid} category (instruments paired with Mantid IDF export via
+\texttt{mcdisplay-mantid\_xml}, see section~\ref{s:mcdisplay}) and a
+\texttt{Tools} category (utility instruments, e.g. for reading back
+third-party event files via MCPL). Use \verb+mcdoc+ to search across all
+categories by keyword, component used, or facility name.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{A test instrument for the component V\_sample}
@@ -83,7 +139,7 @@ this instrument both to present an
 example test instrument and because it despite its simplicity
 has produced quite non-trivial results.
 
-The instrument consists of a narrow source,
+The instrument, \texttt{Tests\_samples/Samples\_vanadium}, consists of a narrow source,
 a 60' collimator, a V-sample shaped as a hollow cylinder
 with height 15 mm, inner diameter 16 mm, and outer diameter 24 mm
 at a distance of 1 m from the source.
@@ -137,6 +193,9 @@ the detailed technical drawings of the real spectrometer.
 The TAS 1 simulation was the first detailed work
 performed with the \MCS package.
 For further details see reference~\cite{tas1_report}.
+The instrument family lives under \texttt{Risoe/} in the example library,
+e.g. \texttt{Risoe/TAS1\_Vana} and \texttt{Risoe/TAS1\_Powder}, and is also
+known by its historical name \texttt{linup-*} in older documentation.
 
 At the spectrometer, the channel from the cold source
 to the monochromator is asymmetric, since the first
@@ -249,15 +308,6 @@ For a comparison on a slightly different instrument
 (analyser-detector collimator inserted),
 see Figure~\ref{f:v_2ta_zero}.
 
-%\begin{figure}
-%  \begin{center}
-%    \includegraphics[width=0.6\textwidth]{figures/vanadium-plot-1}
-%  \end{center}
-%\caption{First simulated $2\theta_a$ scan on a vanadium sample.
-%Collimations: open-30'-28'-open.}
-%\label{f:v_2ta_offset}
-%\end{figure}
-
 \begin{figure}[htp!]
   \begin{center}
     \includegraphics[width=0.6\textwidth]{figures/vanadium-plot-2}
@@ -299,6 +349,13 @@ Collimations: open-30'-28'-67'.
 \label{f:v_ea}
 \end{figure}
 
+For a modern triple-axis instrument that is not tied to a specific,
+decommissioned facility, see the \texttt{Templates/templateTAS} example
+instead, which additionally includes a basic in-plane UB-matrix
+transformation useful for estimating resolution functions of an
+arbitrary TAS configuration (see also \texttt{mcresplot}, section
+\ref{s:mcresplot}).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The time-of-flight spectrometer PRISMA}
@@ -311,6 +368,8 @@ in collaboration with Mark Hagen, now at SNS, written a simple
 simulation of a time-of-flight instrument loosely based on the ISIS
 spectrometer PRISMA. The simulation was used to investigate the effect
 of using a RITA-style analyser instead of the normal PRISMA backend.
+The instrument is distributed as \texttt{ISIS/ISIS\_Prisma2} in the
+example library.
 
 We have used the simple time-of-flight source \textbf{Tof\_source}.
 The neutrons pass through a
@@ -332,7 +391,10 @@ is then modified to construct seven different time-of-flight histograms,
 one for each crystal (see the source code for the instrument
 for details). One way to think of this is that
 the analyser blades paint a color on each neutron which is then
-observed in the detector.
+observed in the detector. Since \MCS~3.x, the same effect could
+alternatively be achieved more simply using a \texttt{USERVARS} field
+(section~\ref{s:uservars}) rather than a global \texttt{DECLARE} variable,
+which additionally makes the technique safe under SPLIT/GPU execution.
 An illustration of the instrument is shown in figure~\ref{f:PRISMA}.
 Test results are shown in Appendix~\ref{data:PRISMA}.
 

@@ -68,9 +68,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 # Configure fallback script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdisplay.in" "${WORK}/${P}display" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdisplay-matplotlib.md.in" "${WORK}/${P}display-matplotlib.md" @ONLY)
-
 # Main script, including rename mc/mx
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcdisplay.py"
@@ -102,9 +99,4 @@ if(NOT WINDOWS)
     RENAME "${P}display-matplotlib"
     )
     
-  install(
-    FILES "${WORK}/${P}display-matplotlib.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-  
 endif()

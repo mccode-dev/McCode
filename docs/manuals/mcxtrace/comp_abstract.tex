@@ -2,219 +2,88 @@
 \label{s:components}
 \index{Library!Components|textbf}
 
-This chapter presents an abstract of existing components.
-As a complement to this chapter and the
-detailed description in the \MCX component manual,
-you may use the \verb+mxdoc -s+ command to obtain the on-line
-component documentation and refer to the McXtrace web-page~\cite{mcxtrace_webpage}
-where all components are documented using the MxDoc\index{Tools!mxdoc} system.
+This chapter presents an abstract of the \MCX component library's
+structure and categories. It intentionally does \emph{not} attempt to
+enumerate every component with its parameter list -- the library is large
+and changes between releases, so any hand-maintained table here would
+inevitably drift out of date (as earlier editions of this manual did).
+Instead, each component category chapter that follows (Sources, Optics,
+Samples, Monitors, \ldots) documents a curated selection of representative
+components in depth, with their full, current parameter lists pulled
+directly from the component source's McDoc header at build time (see
+section~\ref{s:mxdoc} for the McDoc comment format). For the complete,
+authoritative, always-current list of every component and its parameters,
+use the \verb+mxdoc+ front-end:
+\begin{lstlisting}
+mxdoc
+mxdoc searchterm
+mxdoc file.comp
+\end{lstlisting}
+The first form generates and opens a browsable \textit{index.html} catalog
+of the whole library (both the standard installation and any local/custom
+components); the second searches for and displays documentation for all
+components matching \textit{searchterm}; the third displays the
+documentation of one specific component file. See
+section~\ref{s:mxdoc-run} in the User Manual for the full \verb+mxdoc+
+reference.
 
-\section{A short overview of the \MCX\ component library}
+\section{Component categories}
 \label{s:comp-overview}
 
-The table in this section gives a quick overview of available \MCX\ components
-provided with the distribution, in the \verb+MCXTRACE+ library. The
-location of this library is detailed in section~\ref{s:files}.
-All of them are believed to be reliable, and some amount of systematic
-tests have been carried out.
-However, no absolute guarantee be given concerning their accuracy.\index{Environment variable!MCXTAS}
+The library (located under the \verb+mcxtrace-comps+ directory of the
+\MCX source/installation tree, see section~\ref{s:files} in the User
+Manual for how \MCX locates it) is organised into the following top-level
+categories:
 
-The \verb+contrib+ directory of the library contains components
-that were submitted by \MCX users,
-but where responsibility has not (yet) been taken by the \MCX core team. \index{Library!Components!contrib}
+\begin{description}
+\item[sources] Components that define the initial photon ray state --
+  including point, flat, divergent and full-featured laboratory-source
+  models -- see chapter~\ref{c:sources}.
+\item[optics] Mirrors, lenses, slits, crystal monochromators, and other
+  beam-manipulating components.
+\item[samples] Components modelling matter placed in the beam for
+  scattering/absorption studies (SAXS models, powders, single crystals,
+  \ldots) -- see chapter~\ref{c:samples}.
+\item[monitors] Components that record/histogram the photon beam without
+  otherwise affecting it.
+\item[misc] Components that do not fit the other categories, e.g. the
+  \texttt{Progress\_bar} and beam-statistics utilities.
+\item[union] The Union framework: a set of process/geometry components
+  that can be freely combined to describe complex, possibly nested and
+  overlapping sample environments with multiple scattering, decoupling
+  the description of \emph{where} matter is from \emph{what} it does to
+  the photon (Compton/Rayleigh scattering, photoelectric absorption,
+  powder diffraction, \ldots).
+\item[sasmodels] Small-angle scattering form factors generated from the
+  SasView/sasmodels project, exposed via the \texttt{SasView\_model}
+  component.
+\item[astrox] Components specific to the AstroX branch of \MCX, modelling
+  grazing-incidence X-ray optics for astronomical instrumentation (nested
+  Wolter-type mirror shells, pore and micropore optics).
+\item[contrib] Components contributed by \MCX users. The \MCX core team
+  provides the same technical support as for other categories, but
+  authored and maintained the code less directly; contributed components
+  are generally reliable, but see each component's own validation/bugs
+  notes. Components in \texttt{contrib} that mature and gain wide use are
+  periodically promoted into one of the core categories above -- always
+  check with \verb+mxdoc+ rather than assuming a component's category from
+  an older document.
+\item[obsolete] Components that were renamed or superseded. They are kept,
+  and continue to work, purely for backwards compatibility with existing
+  instrument files; new instrument development should avoid them
+  (\verb+mxdoc+ will point to the current replacement where one exists).
+\end{description}
 
-%Additionally the \verb+obsolete+ directory of the library gathers components that were renamed, or considered to be outdated.
-%These component are kept for backwards compatibility and
-%they still all work as before.\index{Library!Components!obsolete}
+\section{Data files}
+\index{Library!Components!data}
 
-The \verb+mxdoc+ front-end (section~\ref{s:mxdoc-run}) enables to display both the
-catalog of the \MCX\ library, e.g using: \index{Tools!mxdoc}
-\begin{quote}
-  \verb|mxdoc|
-\end{quote}
-as well as the documentation of specific components, e.g with:
-\begin{quote}
-  \verb|mxdoc --text| \textit{name} \\
-  \verb|mxdoc| \textit{file.comp}
-\end{quote}
-The first line will search for all components matching \textit{name}, and display their help section as text, where as the second example will display the help corresponding to the \textit{file.comp} component, using your BROWSER\index{Environment variable!BROWSER} setting, or as text if unset. The \verb+--help+ option will display the command help, as usual.
+Some components require external data files, e.g. atomic form factors,
+element-specific absorption/refraction data from the NIST database, or
+multilayer/crystal reflectivity curves. Such files distributed with \MCX
+are located in the \verb+data+ sub-directory of the library and are
+accessible to any component using the shared library read routines
+without needing local copies.
 
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.32\textwidth}|p{0.62\textwidth}|}
-      \hline
-       {\bfseries \MCX/sources} & Description \\
-       \hline
-Source\_pt & Point source with uniform, Gaussian or general wavelength/energy distribution.\\
-Source\_flat & Flat surface source with uniform, Gaussian or general wavelength/energy distribution.\\
-Source\_div & Flat surface source with general wavelength/energy distribution and a given divergence.\\
-Source\_gaussian & Flat source with a Gaussian cross section and a specified divergence.\\
-Source\_lab & Full featured model of a laboratory X-ray source.\\
-      \hline
-    \end{tabular}
-    \caption{Source and source-related components of the \MCX\ library.}
-    \label{t:comp-sources}
-    \index{Library!Components!sources}
-    }
-  \end{center}
-\end{table}
-
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.32\textwidth}|p{0.62\textwidth}|}
-      \hline
-       {\bfseries \MCX/optics} & Description \\
-       \hline
- Arm                &  Arm/optical bench. \\
- Beamstop          &   Rectangular/circular beam stop. \\
- Filter        &   A general absorption filter which can be any material. \\
- Lens\_simple & Model of a thin compound refractive lens\\
- Lens\_parab  & Detailed model of a parabolic compound refractive lens of any material\\
- Mirror\_curved & Cylindrically curved mirror with scalar reflectivity\\
- Mirror\_ellioptic & Elliptically curved mirror with scalar reflectivity\\
- Mirror\_parabolic & Parabolically curved mirror with scalar reflectivity\\
- Multilayer\_elliptic & General, full featured model of an elliptically curved multilayer mirror\\
- Slit & Perfect slit, may be either rectangular or circular\\
- Slit\_N & Multichanneled slit, i.e. a grating\\
-        \hline
-\end{tabular}
-    \caption{Optics components of the \MCX library.}
-    \label{t:comp-optics}
-    \index{Library!Components!optics}
-    }
-  \end{center}
-\end{table}
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.32\textwidth}|p{0.62\textwidth}|}
-      \hline
-       {\bfseries \MCX/samples} & Description \\
-       \hline
-  PowderN      &  General powder sample with N
-                scattering vectors, using a data file. Can assume \emph{concentric} shape,
-		i.e. can be used to model sample enviroment.\\
-  
-  Perfect\_crystal & Model of a prefect crystal, for instance to be used as a monochromator\\ 
-  Saxs\_spheres  & Simple sample for Small Angle X-ray Scattering - hard spheres \\
-  Single\_crystal & Mosaic single crystal with multiple scattering vectors
-                    using a data file. \\
-        \hline
-                  \end{tabular}
-    \caption{Sample components of the \MCX library.}
-    \label{t:comp-samples}
-    \index{Library!Components!samples}
-    }
-  \end{center}
-\end{table}
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.32\textwidth}|p{0.62\textwidth}|}
-      \hline
-       {\bfseries McXtrace/monitors} & Description \\
-       \hline
-%DivLambda\_monitor &  Divergence/wavelength monitor. \\
-%DivPos\_monitor  &    Divergence/position monitor (acceptance diagram). \\
-%Divergence\_monitor &  Horizontal+vertical divergence monitor (2D). \\
-EPSD\_monitor    &    A monitor measuring x-ray intensity vs. position,\\
-       &but restricted to a particular energy interval.\\
-E\_monitor       &    Energy-sensitive monitor. \\
-%Hdiv\_monitor    &    Horizontal divergence monitor \\
-L\_monitor        &  Wavelength-sensitive monitor. \\
-Monitor          &   Simple single detector/monitor. \\
-Monitor\_nD      &   General monitor that can output
-                    0/1/2D signals (Intensity or signal vs. [something]
-                    and vs. [something] ...). \\
-PSD\_monitor     &    Position-sensitive monitor. \\
-PSD\_monitor\_4PI  &   Spherical position-sensitive detector. \\
-%PSDcyl\_monitor  &    A 2D position-sensitive monitor. The shape is
-%                    cylindrical with the axis vertical. The monitor
-%                    covers the whole cylinder (360 degrees). \\
-%PSDlin\_monitor   &   Rectangular 1D PSD, measuring intensity vs.
-%                    vertical position, x. \\
-TOFLambda\_monitor &  Time-of-flight vs. wavelength monitor. \\
-%TOF\_cylPSD\_monitor & Cylindrical (2pi) PSD Time-of-flight monitor. \\
-TOF\_monitor     &    Rectangular Time-of-flight monitor. \\
-%TOFlog\_mon      &    Rectangular Time-of-flight monitor with logarithmic
-%                    time binning. \\
-      \hline
-    \end{tabular}
-    \caption{Selected Monitor components of the \MCX\ library.}
-    \label{t:comp-monitors}
-    \index{Library!Components!monitors}
-    }
-  \end{center}
-\end{table}
-
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.32\textwidth}|p{0.62\textwidth}|}
-      \hline
-       {\bfseries \MCX/misc} & Description \\
-       \hline
- Progress\_bar     &  Displays status of a running simulation.
-                      May also trigger intermediate SAVE.\\
- Beam\_spy         & A monitor that displays mean statistics (no output file). \\
-      \hline
-    \end{tabular}
-    \caption{Miscellaneous components of the \MCX\ library.}
-    \label{t:comp-misc}
-    \index{Library!Components!misc}
-    }
-  \end{center}
-\end{table}
-
-%\begin{table}
-%  \begin{center}
-%    {\let\my=\\
-%    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-%      \hline
-%       {\bfseries \MCX\/contrib} & Description \\
-%       \hline
-%
-%      \hline
-%    \end{tabular}
-%    \caption{Contributed components of the \MCX\ library.}
-%    \index{Library!Components!contrib}
-%    \label{t:comp-contrib}
-%    }
-%  \end{center}
-%\end{table}
-
-%\begin{table}
-%  \begin{center}
-%    {\let\my=\\
-%    \begin{tabular}{|p{0.24\textwidth}|p{0.7\textwidth}|}
-%      \hline
-%       {\bfseries MCXTAS/share} & Description \\
-%       \hline
-%       adapt\_tree-lib  & Handles a simulation optimisation space for
-%       adatative importance sampling.
-%                          Used by the Source\_adapt component. \\
-%       {\bfseries mcstas-r}      &   Main Run-time library (always included). \\
-%       monitor\_nd-lib & Handles multiple monitor types.
-%                        Used by Monitor\_nD, Res\_monitor, \ldots \\
-%       read\_table-lib  & Enables to read a data table (text/binary) to be used within
-%                          an instrument or a component. \\
-%       vitess-lib &     Enables to read/write Vitess event binary files.
-%                        Used by Vitess\_input and Vitess\_output \\
-%      \hline
-%    \end{tabular}
-%    \caption{Shared libraries of the \MCX library. See Appendix~\ref{c:kernelcalls} for details.}
-%    \label{t:comp-share}
-%    \index{Library!Components!share}
-%    \index{Library!Run-time}
-%    }
-%  \end{center}
-%\end{table}
-%
 \begin{table}
   \begin{center}
     {\let\my=\\
@@ -222,12 +91,11 @@ TOF\_monitor     &    Rectangular Time-of-flight monitor. \\
       \hline
        {\bfseries \MCX/data} & Description \\
        \hline
-       Al.txt, He.txt, etc. & Data files from the NIST-database (covering the elements with $Z\in[1..92]$) to be used for absorption and refraction.\\
-       Fe\_bpy\_ES\_DFT.txt, Fe\_bpy\_GS\_DFT.txt & Ground- and excited state atom positions of Iron tris bipyridine for use with \verb+Molecule\_2state+.\\
+       Al.txt, He.txt, etc. & Data files from the NIST database (covering the elements with $Z\in[1..92]$) to be used for absorption and refraction.\\
        FormFactors.txt & Atomic form factors for elements with $Z\in[1..92]$.\\
        Ref\_W\_B4C.txt & Reflectivity of a W-B4C multilayer.\\
        Ref\_W\_Si.txt &  Reflectivity of a W-Si multilayer.\\
-\hline
+      \hline
     \end{tabular}
     \caption{Data files of the \MCX library.}
     \label{t:comp-data}
@@ -236,27 +104,9 @@ TOF\_monitor     &    Rectangular Time-of-flight monitor. \\
   \end{center}
 \end{table}
 
-\begin{table}
-  \begin{center}
-    {\let\my=\\
-    \begin{tabular}{|p{0.32\textwidth}|p{0.62\textwidth}|}
-      \hline
-       {\bfseries \MCX/examples} & Description \\
-      \hline
-%      Test\_*.instr & Unit test instrument models designed to verify the workings of various component models. Also they are useful as a starting point for figuring out how to use a particular component.\\
-      JJ\_SAXS.instr & A model of the SAXSlab laboratory SAXS-system which was a prototype of the one currently sold by SAXSlab.\\
-      Pump\_probe & Generic pump-probe experiment instrument.\\
-      NSLS2\_CHX.instr & Model of the CHX hard X-ray beamline at NSLS2.\\
-      MAXII\_811.instr & Surface diffraction and EXAFS-bealine at MAXlab\\
-      MAXII\_711.instr & Powder diffraction beamline at MAXlab.\\
-      ESRF\_ID11.instr & The ESRF ID11 3DXRD beamline.\\
-      Be\_BM\_beamline.instr & Design study of a bending magnet beamline using refractive lenses and a slit as monochromator.\\
-      XFEL\_SPB.instr & Model of the beamtransport system of the SPB beamline at XFEL.\\ 
-      \hline
-    \end{tabular}
-    \caption{Instrument example files of the \MCX library. These example instruments are accessible through the \texttt{mxgui} ``X-ray site'' menu.}
-    \label{t:comp-instr}
-    \index{Library!Instruments}
-    }
-  \end{center}
-\end{table}
+\section{Component and instrument examples}
+
+An overview of the example instrument library, organised by facility and
+category, is given in the User Manual, chapter~\ref{s:instrument}. Every
+\texttt{.instr} file there is discoverable via \verb+mxgui+'s
+\textbf{New from Template} menu, or via \verb+mxdoc+.

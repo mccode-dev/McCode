@@ -77,9 +77,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 # Configure fallback script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplot.in" "${WORK}/${P}plot-matplotlib" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplot-matplotlib.md.in" "${WORK}/${P}plot-matplotlib.md" @ONLY)
-
 # Main script, including rename mc/mxplot
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcplot.py"
@@ -90,9 +87,6 @@ install(
 # Configure fallback script for the a-b difference plotter
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplotdiff.in" "${WORK}/${P}plotdiff-matplotlib" @ONLY)
 
-# Configure doc for the a-b difference plotter
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcplotdiff-matplotlib.md.in" "${WORK}/${P}plotdiff-matplotlib.md" @ONLY)
-
 # Difference-plotter script, including rename mc/mxplotdiff
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcplotdiff.py"
@@ -102,9 +96,6 @@ install(
 
 # Configure fallback script for the a-b co-plotter
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot.in" "${WORK}/${P}coplot-matplotlib" @ONLY)
-
-# Configure doc for the a-b co-plotter
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mccoplot-matplotlib.md.in" "${WORK}/${P}coplot-matplotlib.md" @ONLY)
 
 # Co-plotter script, including rename mc/mxcoplot
 install(
@@ -141,11 +132,6 @@ if(NOT WINDOWS)
     )
     
   install(
-    FILES "${WORK}/${P}plot-matplotlib.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-
-  install(
     PROGRAMS ${PROJECT_SOURCE_DIR}/mcplotdiff.py
     DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
     RENAME "${P}plotdiff.py"
@@ -155,11 +141,6 @@ if(NOT WINDOWS)
     PROGRAMS "${WORK}/${P}plotdiff-matplotlib"
     DESTINATION ${DEST_BINDIR}
     )
-
-  install(
-    FILES "${WORK}/${P}plotdiff-matplotlib.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
 
   install(
     PROGRAMS ${PROJECT_SOURCE_DIR}/mccoplot.py
@@ -172,8 +153,4 @@ if(NOT WINDOWS)
     DESTINATION ${DEST_BINDIR}
     )
 
-  install(
-    FILES "${WORK}/${P}coplot-matplotlib.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
 endif()

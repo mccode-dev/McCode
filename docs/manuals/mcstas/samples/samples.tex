@@ -12,8 +12,12 @@ virtual experiments it is of importance to have realistic and
 detailed sample descriptions. \MCS contains both simple and detailed
 samples.
 
-We first consider incoherent scattering. The simple component \textbf{V-sample}
-performs both incoherent scattering and absorption.
+We first consider incoherent scattering. The general-purpose
+\textbf{Incoherent} component performs incoherent scattering and absorption
+for an arbitrary shape; the older, simpler \textbf{V\_sample} component that
+previously served this role has moved to the \textbf{obsolete} component
+category (see the Component Manual's Obsolete chapter) and is superseded by
+\textbf{Incoherent}.
 
 An important component class is elastic Bragg scattering from an ideal powder.
 The component \textbf{PowderN} models a powder scatterer with reflections
@@ -149,7 +153,7 @@ In our Monte-Carlo simulations, we may choose the scattering
 parameters by making a Monte-Carlo choice of $l_1$ and $\Omega$
 from a distribution different from $P(l_1,\Omega)$.
 By doing this, we must adjust $\pi_i$ according to
-the probability transformation rule (\ref{probrule}).
+the probability transformation rule (\ref{e:probrule}).
 If we {\em e.g.}\ choose the scattering depth, $l_1$,
 from a flat distribution in $[ 0 ; l_\textrm{full} ]$,
 and choose the directional dependence from $g(\Omega)$,
@@ -160,7 +164,7 @@ f(l_1,\Omega) = g(\Omega) / l_\textrm{full} ,
 $l_\textrm{full}$ is here the path length through the sample
 as taken by a non-scattered neutron (although we here
 assume that all simulated neutrons are being scattered).
-According to (\ref{probrule}), the neutron weight factor
+According to (\ref{e:probrule}), the neutron weight factor
 is now adjusted by the amount
 \begin{equation}     \label{sampleprob}
 \pi_i(l_1,\Omega) =
@@ -181,19 +185,30 @@ All samples have been constructed with a focusing
 and a non-focusing option.
 
 
-\subsection{Future development of sample components}
-There is still room for much more development of functionality in
-\MCS samples.
+\subsection{Small-angle scattering (SANS) and other sample models}
+\index{SANS}
 
-A more general SANS sample is under development.
-In addition, a reflectometry sample will soon be developed. In the mean time, you may use the \verb+SiC+ contributed component.
-
-In general, all samples are assumed to be homogeneous. There would also be
-potential in developing an inhomogeneous sample, e.g. with
-spatially varying lattice constant, relevant for stress/strain scanners.
-Inhomogeneously absorbing sample for tomography could also be possible.
-Further, no polarization effects are yet taken into account in any
-of the samples.
+Beyond the simple isotropic small-angle model \textbf{Sans\_spheres}
+(scattering from a dilute collection of hard spheres), \MCS provides two
+further, much richer routes to SANS sample modelling:
+\begin{itemize}
+\item native McStas SANS models contributed in the \texttt{contrib}
+  category (\texttt{SANSSpheres}, \texttt{SANSCylinders},
+  \texttt{SANSNanodiscs}, \texttt{SANSPDB}, and many others -- see the
+  Component Manual's Contributed Components chapter), several with
+  polydisperse and multiple-scattering variants;
+\item the \texttt{sasmodels} category (see the Component Manual's dedicated
+  chapter), exposing the same, actively maintained SANS/USANS form-factor
+  library used for data fitting in SasView, via the generic
+  \texttt{SasView\_model} interface.
+\end{itemize}
+In general, all samples are assumed to be homogeneous. There is potential in
+developing inhomogeneous samples, e.g. with a spatially varying lattice
+constant (relevant for stress/strain scanners) or inhomogeneous absorption
+(relevant for tomography), and reflectometry sample models beyond
+\texttt{Multilayer\_Sample} (contrib). Polarization effects are handled by
+a dedicated set of polarisation-aware optics and field components rather
+than the samples described in this chapter -- see Appendix~\ref{c:polarization}.
 
 
 \input{samples/Incoherent}         \newpage
@@ -204,3 +219,9 @@ of the samples.
 \input{samples/Phonon_simple}           \newpage
 %\input{LSCO.tex}            \newpage
 \input{samples/Isotropic_Sqw}
+
+\newpage
+\section{Samples for resolution-function calculations}
+\input{samples/Res_sample}
+
+\input{samples/TOFRes_sample}

@@ -82,14 +82,23 @@ numbers with this distribution.
 \section{Random generator}
 \index{Random numbers!generator|textbf}
 
-Even though there is
-the possibility to use the system random generator, as well as the initial \MCS
-version 1.1 random generator, the default algorithm is the so-called "Mersenne
-Twister", by Makoto Matsumoto and Takuji Nishimura. See \\
-\verb+http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/emt.html+ for original
-source.
+As of \MCS 3.x, the default random number generator is a 64-bit
+adaptation of Marsaglia's \emph{KISS} (``Keep It Simple Stupid'')
+generator, a composite of a linear congruential generator, a xorshift
+generator, and a multiply-with-carry generator, combined to give a very
+long period ($>2^{127}$) while remaining fast and simple. Crucially,
+KISS runs identically on both CPU and GPU/OpenACC, which is why it
+replaced the previously used Mersenne Twister as the default: Mersenne
+Twister's large internal state does not parallelize well and is
+currently not functional for GPU-accelerated simulations
+(section~\ref{s:gpu}).
 
-It is considered today to be by far the best random generator, which means that
-both its period is extremely large $2^{19937}-1$, and cross-correlations are
-negligible, i.e distributions are homogeneous and independent up to 623
-dimensions. It is also extremely fast.
+The classic "Mersenne Twister" generator, by Makoto Matsumoto and
+Takuji Nishimura (see \\
+\verb+http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/emt.html+ for the
+original source), remains available as a build-time alternative for
+CPU-only simulations, selected by compiling the generated instrument
+with \verb+-DRNG_ALG=1+ (e.g. via the \verb+MCSTAS_CFLAGS+ environment
+variable, or \mcs's C-compiler flag options). It has an extremely
+large period ($2^{19937}-1$) and negligible cross-correlations up to
+623 dimensions, but should not be selected for GPU/OpenACC runs.
