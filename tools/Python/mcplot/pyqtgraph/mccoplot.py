@@ -132,7 +132,7 @@ def _legend_fontsize(n_datasets, base_fontsize):
         return max(6, base_fontsize - 4)
 
 
-def plot_coplot_1D(datas, plt, labels, colours, log=False, legend=True, fontsize=10, verbose=False):
+def plot_coplot_1D(datas, plt, labels, colours, log=False, legend=True, fontsize=10, verbose=False, show_title=True):
     ''' overlay N Data1D objects (datas) into the pyqtgraph PlotItem plt '''
     d0 = datas[0]
     series = []  # (x, y, e) per dataset
@@ -161,13 +161,21 @@ def plot_coplot_1D(datas, plt, labels, colours, log=False, legend=True, fontsize
     xmax = max(np.max(x) for x, y, e in series)
     plt.setXRange(xmin, xmax, padding=0)
 
-    try:
-        header = '%s [%s]' % (d0.component, d0.filename)
-        if verbose:
-            header = '%s [%s]<br>%s' % (d0.component, d0.filename, d0.title)
-    except Exception:
-        header = '%s' % d0.component
-    plt.setTitle(header)
+    # Title skipped entirely (not just set to an empty string) when
+    # show_title is False - for a long list of co-plotted datasets the
+    # verbose header in particular grows with the number of datasets, and
+    # PlotItem's title row doesn't reliably auto-grow to fit it (see
+    # McCoplotPlotter._render()'s own note on this same limitation for the
+    # identity_note header), so at high N it can end up clipping into or
+    # crowding out the actual plot area.
+    if show_title:
+        try:
+            header = '%s [%s]' % (d0.component, d0.filename)
+            if verbose:
+                header = '%s [%s]<br>%s' % (d0.component, d0.filename, d0.title)
+        except Exception:
+            header = '%s' % d0.component
+        plt.setTitle(header)
     plt.getAxis('bottom').setLabel(d0.xlabel)
     plt.getAxis('left').setLabel(d0.ylabel)
 
@@ -214,12 +222,14 @@ class McCoplotPlotter():
         is live there. '''
 
     def __init__(self, pairs, labels, colours, invcanvas=False, title=None,
-                 identity_note=None, filenamebase=None):
+                 identity_note=None, filenamebase=None, no_legends=False, no_titles=False):
         self.pairs = pairs  # [(key, [data_0, ..., data_N-1]), ...]
         self.labels = labels
         self.colours = colours
         self.log = False
         self.identity_note = identity_note
+        self.no_legends = no_legends
+        self.no_titles = no_titles
         self.current = None  # None = overview grid; else index into self.pairs
         self.viewbox_list = []
         self.title = title if title is not None else ('coplot: %s' % ' vs '.join(labels))
@@ -315,7 +325,7 @@ class McCoplotPlotter():
         rowlen = max(1, int(math.sqrt(n * 1.61803398875)))
 
         row_offset = 0
-        if self.identity_note:
+        if self.identity_note and not self.no_titles:
             # The legend now always uses compact positional letters
             # (_legend_letters()), never the real labels directly - this
             # header row is what maps each letter back to its actual
@@ -359,7 +369,8 @@ class McCoplotPlotter():
         for i, (key, datas) in enumerate(visible):
             plt = pg.PlotItem()
             vb = plot_coplot_1D(datas, plt, self.labels, self.colours,
-                                 log=self.log, fontsize=fontsize, verbose=verbose)
+                                 log=self.log, fontsize=fontsize, verbose=verbose,
+                                 legend=not self.no_legends, show_title=not self.no_titles)
             self.viewbox_list.append(vb)
             self.plot_layout.addItem(plt, row_offset + i // rowlen, i % rowlen)
 
@@ -497,7 +508,8 @@ def main(args):
 
         plotter = McCoplotPlotter(pairs, labels, colours,
                                    invcanvas=args.invcanvas, title=title, identity_note=identity_note,
-                                   filenamebase="coplot_" + "_vs_".join(diffloader.dirsafe_name(p) for p in paths))
+                                   filenamebase="coplot_" + "_vs_".join(diffloader.dirsafe_name(p) for p in paths),
+                                   no_legends=args.no_legends, no_titles=args.no_titles)
         print(get_help_string())
         plotter.run()
 
@@ -521,6 +533,14 @@ if __name__ == '__main__':
                               'default: %s' % ', '.join(diffloader.DEFAULT_PALETTE))
     parser.add_argument('-t', '--test', action='store_true', default=False, help='print the matched monitor groups before plotting')
     parser.add_argument('--invcanvas', action='store_true', help='invert canvas background from black to white')
+    parser.add_argument('--no-legends', action='store_true', default=False,
+                         help='do not draw the per-panel legend (the compact A/B/C/... letters) - '
+                              'useful with many co-plotted datasets, where the legend box itself can '
+                              'grow tall enough to cover a large part of the panel')
+    parser.add_argument('--no-titles', action='store_true', default=False,
+                         help='do not draw panel titles or the on-canvas dataset identity header - '
+                              'useful with many co-plotted datasets, where the verbose single-panel '
+                              'title (one line per dataset) can end up taller than the plot itself')
     args = parser.parse_args()
 
     mccode_config.load_config("user")
