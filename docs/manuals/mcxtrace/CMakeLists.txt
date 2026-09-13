@@ -2,7 +2,7 @@ cmake_minimum_required( VERSION 3.17.0 )
 
 # This will install McXtrace components
 set(FLAVOR mcxtrace)
-project(${FLAVOR}_manuals NONE)
+project(${FLAVOR}_manuals C)
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 message( "CMAKE_SOURCE_DIR=        ${CMAKE_SOURCE_DIR}" )
