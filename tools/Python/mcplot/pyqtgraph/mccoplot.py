@@ -112,6 +112,27 @@ def _legend_letters(n):
     return ['S%d' % i for i in range(n)]
 
 
+def _build_verbose_title_lines(datas, labels):
+    ''' The per-line breakdown of a single-monitor co-plot's identity/
+        statistics: component/filename, the monitor's own title, then one
+        "letter=label: I=... Err=... N=...; statistics" line per
+        co-plotted dataset - the same level of detail the matplotlib
+        co-plot variant's own _build_verbose_title_lines() shows, used
+        here for the title side-window (see McCoplotPlotter._render() and
+        plotfuncs.show_text_window()) when --no-titles is set for a
+        single-monitor view. '''
+    d0 = datas[0]
+    try:
+        letters = _legend_letters(len(datas))
+        lines = ['%s [%s]' % (d0.component, d0.filename), d0.title]
+        for data, letter, label in zip(datas, letters, labels):
+            lines.append('%s=%s: I=%s Err=%s N=%s; %s' % (
+                letter, label, data.values[0], data.values[1], data.values[2], data.statistics))
+        return lines
+    except Exception:
+        return ['%s [%s]' % (d0.component, d0.filename)]
+
+
 def _legend_fontsize(n_datasets, base_fontsize):
     """ Legend text size, shrinking as the number of co-plotted datasets
         (not the number of panels/monitors in the grid - a separate
@@ -232,6 +253,15 @@ class McCoplotPlotter():
         self.no_titles = no_titles
         self.current = None  # None = overview grid; else index into self.pairs
         self.viewbox_list = []
+        # Separate side windows (see _render()) shown only for the
+        # single-monitor drill-down (n==1) view, when --no-titles/
+        # --no-legends have freed up the main plot but the information
+        # itself shouldn't just disappear. Unlike the matplotlib variant,
+        # Qt windows are independent objects with no "current window"
+        # concept to worry about disturbing - closing/replacing these by
+        # direct reference is all that's needed.
+        self.title_window = None
+        self.legend_window = None
         self.title = title if title is not None else ('coplot: %s' % ' vs '.join(labels))
         # deliberately NOT derived from labels here: those may legitimately
         # collapse to bare letters when their basenames collide (see
@@ -302,7 +332,23 @@ class McCoplotPlotter():
         self.current = idx
         self._replot()
 
+    def _close_side_windows(self):
+        ''' Closes any previously-open title/legend side windows by direct
+            reference - called at the start of every _render(), so a stale
+            side window from a previous single-monitor view never lingers
+            after navigating to a different monitor or back to the
+            overview grid. '''
+        for attr in ('title_window', 'legend_window'):
+            window = getattr(self, attr)
+            if window is not None:
+                try:
+                    window.close()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+
     def _render(self):
+        self._close_side_windows()
         # Rebuilt from scratch each time, rather than clear()-ing and
         # reusing the same GraphicsLayout: pg.GraphicsLayout.clear() proved
         # unreliable specifically when the grid shape changes between
@@ -373,6 +419,21 @@ class McCoplotPlotter():
                                  legend=not self.no_legends, show_title=not self.no_titles)
             self.viewbox_list.append(vb)
             self.plot_layout.addItem(plt, row_offset + i // rowlen, i % rowlen)
+
+        # Single-monitor view only ("not an overview-plot"): when
+        # --no-titles/--no-legends have freed up the main plot, open a
+        # separate, full-screen-height, narrow side window for each piece
+        # of information that was removed, rather than losing it outright.
+        if n == 1:
+            datas = visible[0][1]
+            if self.no_titles:
+                lines = [(line, None) for line in _build_verbose_title_lines(datas, self.labels)]
+                self.title_window = plotfuncs.show_text_window(lines, 'mccoplot: title')
+            if self.no_legends:
+                letters = _legend_letters(len(datas))
+                legend_lines = [('%s = %s' % (letter, label), colour)
+                                 for letter, label, colour in zip(letters, self.labels, self.colours)]
+                self.legend_window = plotfuncs.show_text_window(legend_lines, 'mccoplot: legend')
 
     def _get_plot_index(self, pos):
         ''' Index of the viewbox containing scene-position pos, or -1.

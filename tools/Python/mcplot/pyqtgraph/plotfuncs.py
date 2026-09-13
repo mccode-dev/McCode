@@ -5,7 +5,7 @@ import os
 import sys
 import numpy as np
 import pyqtgraph as pg
-from pyqtgraph.Qt import QtGui
+from pyqtgraph.Qt import QtGui, QtWidgets, QtCore
 
 from pyqtgraph.graphicsItems.LegendItem import LegendItem, ItemSample
 
@@ -94,6 +94,74 @@ class ModLegend(pg.LegendItem):
         # the legend text itself readable against busy plots.
         p.setBrush(pg.functions.mkBrush(255,255,255,200))
         p.drawRect(self.boundingRect())
+
+
+def _screen_size_px():
+    ''' (width, height) in pixels of the primary screen, via Qt itself -
+        used to size a side window to the full available screen height
+        (see show_text_window()). Qt is already the active GUI toolkit
+        here (unlike the matplotlib co-plot variant, which needs a
+        throwaway tkinter window purely to query this). '''
+    screen = QtWidgets.QApplication.primaryScreen()
+    if screen is not None:
+        size = screen.size()
+        return size.width(), size.height()
+    # very old Qt5 fallback, matching mccoplot.py's own _create_window()
+    rect = QtWidgets.QApplication.desktop().screenGeometry()
+    return rect.width(), rect.height()
+
+
+def show_text_window(lines, window_title, width_px=380):
+    ''' Opens a separate, tall (full screen height), narrow Qt window with
+        `lines` (a list of (text, colour) tuples, one per row - colour=None
+        for the default) shown top-to-bottom in a single rich-text label,
+        font size scaled down as needed so all lines fit within the
+        window's height. Used for mccoplot-pyqtgraph's "single monitor"
+        title/legend side windows (see McCoplotPlotter._render() in
+        mccoplot.py): with many co-plotted datasets, a long title/legend
+        no longer has to compete with the main plot for space (that's what
+        --no-titles/--no-legends already achieve), but the information
+        isn't simply lost either - it moves to its own appropriately-sized
+        window instead. Returns the new QMainWindow, so the caller can
+        track and explicitly close it later (Qt windows are independent
+        objects with no "current window" concept to worry about disturbing,
+        unlike matplotlib's figure-close bookkeeping - see the matplotlib
+        variant's own show_text_window() for the contrast). '''
+    screen_w_px, screen_h_px = _screen_size_px()
+    width_px = min(width_px, int(screen_w_px * 0.3))
+
+    window = QtWidgets.QMainWindow()
+    window.setWindowTitle(window_title)
+    window.resize(width_px, screen_h_px)
+
+    n_lines = max(1, len(lines))
+    usable_h_px = screen_h_px * 0.94
+    # 1.6x line spacing, clamped to a sane readable range regardless of how
+    # few or many lines there are.
+    fontsize_px = min(20, max(8, int(usable_h_px / (n_lines * 1.6))))
+
+    html_lines = []
+    for text, colour in lines:
+        colour_attr = ' style="color:%s;"' % colour if colour else ''
+        html_lines.append('<div%s>%s</div>' % (colour_attr, text))
+
+    label = QtWidgets.QLabel('\n'.join(html_lines))
+    label.setTextFormat(QtCore.Qt.RichText)
+    label.setWordWrap(True)
+    label.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
+    label.setContentsMargins(8, 8, 8, 8)
+    font = label.font()
+    font.setFamily('monospace')
+    font.setPixelSize(fontsize_px)
+    label.setFont(font)
+
+    scroll = QtWidgets.QScrollArea()
+    scroll.setWidget(label)
+    scroll.setWidgetResizable(True)
+    window.setCentralWidget(scroll)
+
+    window.show()
+    return window
 
 
 def plot_Data0D(data, plt, log=False, legend=True, icolormap=0, verbose=True, fontsize=10):

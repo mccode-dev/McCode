@@ -11,6 +11,7 @@ simulation's plot graph.
 import os
 import sys
 import math
+import subprocess
 import textwrap
 import numpy as np
 
@@ -131,6 +132,84 @@ def _wrap_title(title, width):
         textwrap.fill(line, width=width) if line else line
         for line in title.split('\n')
     )
+
+
+def _screen_size_inches():
+    ''' Best-effort (width, height) of the primary screen, in inches - used
+        to size a side window to the full available screen height (see
+        show_text_window()).
+
+        Queried via a throwaway tkinter root window, but critically NOT in
+        this process directly: on at least one real-world macOS/Tcl-Tk/
+        Python combination, merely initialising a Tk root window crashed
+        with a native NSInvalidArgumentException
+        ('-[NSApplication macOSVersion]: unrecognized selector') that
+        aborted the WHOLE process via SIGABRT. That is a native Objective-C
+        /Tcl-level crash, not a Python exception - no try/except in this
+        process can catch or survive it, so the try/except below is only
+        useful against ordinary Python-level failures (tkinter missing,
+        no display, etc), not this one. Running the actual query in a
+        short-lived subprocess instead means that if IT crashes, only that
+        throwaway subprocess dies - this process (and any plot window(s)
+        it's already showing) are completely unaffected, and this just
+        falls back to the generic default below exactly as if tkinter or a
+        display simply weren't available at all. '''
+    try:
+        result = subprocess.run(
+            [sys.executable, '-c',
+             'import tkinter\n'
+             'r = tkinter.Tk()\n'
+             'r.withdraw()\n'
+             'print(r.winfo_screenwidth(), r.winfo_screenheight(), r.winfo_fpixels("1i"))\n'
+             'r.destroy()\n'],
+            capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip():
+            px_w, px_h, dpi = (float(v) for v in result.stdout.split())
+            if px_w > 0 and px_h > 0 and dpi > 0:
+                return px_w / dpi, px_h / dpi
+    except Exception:
+        pass
+    return (14.0, 8.0)  # roughly a 1920x1080-at-96dpi display, in inches
+
+
+def show_text_window(lines, window_title, width_in=4.5):
+    ''' Opens a separate, tall (full screen height), narrow matplotlib
+        figure with `lines` (a list of (text, colour) tuples, one per row -
+        colour=None for the default black) placed top-to-bottom, font size
+        scaled down as needed so all of them fit within the window's
+        height. Used for mccoplot-matplotlib's "single monitor" title/
+        legend side windows (see McCoplotPlotter._render() in mccoplot.py):
+        with many co-plotted datasets, a long title/legend no longer has
+        to compete with the main plot for space (that's what --no-titles/
+        --no-legends already achieve), but the information isn't simply
+        lost either - it moves to its own appropriately-sized window
+        instead. Returns the new Figure, so the caller can track and
+        explicitly close it later (it deliberately does NOT rely on
+        matplotlib's own "current figure" bookkeeping for that, since a
+        side window shouldn't become "current" out from under the main
+        plot window's own close/redraw cycle). '''
+    screen_w_in, screen_h_in = _screen_size_inches()
+    width_in = min(width_in, screen_w_in * 0.3)
+    fig = pylab.figure(figsize=(width_in, screen_h_in))
+    try:
+        fig.canvas.manager.set_window_title(window_title)
+    except Exception:
+        pass  # not every backend supports a custom window title
+
+    n_lines = max(1, len(lines))
+    top_margin = 0.02
+    usable_h_in = screen_h_in * (1.0 - 2 * top_margin)
+    # 1.5x line spacing, clamped to a sane readable range regardless of how
+    # few or many lines there are.
+    fontsize = min(16, max(6, (usable_h_in * 72) / (n_lines * 1.5)))
+    line_height = (1.0 - 2 * top_margin) / n_lines
+
+    for i, (text, colour) in enumerate(lines):
+        y = 1.0 - top_margin - i * line_height
+        fig.text(0.04, y, text, fontsize=fontsize, va='top', ha='left',
+                  color=colour or 'black', family='monospace')
+
+    return fig
 
 
 def plot_single_data(node, i, n, log):
