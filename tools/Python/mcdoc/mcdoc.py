@@ -23,6 +23,12 @@ import subprocess
 from os.path import join, basename
 import pathlib
 
+# Capture the shell's CWD *before* any downstream import can chdir. Some
+# mccodelib modules (e.g. mccode_config) may change the process CWD as a
+# side effect of loading system configuration, which would otherwise make
+# './mcdoc.html' land next to the script instead of the user's CWD.
+_INVOCATION_CWD = os.getcwd()
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
 
@@ -2054,7 +2060,7 @@ def main(args):
             quit()
 
         if args.in_repo==False:
-            mcdoc_html_filepath = os.path.join(docdir, mccode_config.get_mccode_prefix()+'doc.html')
+            mcdoc_html_filepath = os.path.join(_INVOCATION_CWD, mccode_config.get_mccode_prefix()+'doc.html')
         else:
             mcdoc_html_filepath = None
         write_overview_docs(comp_infos, instr_infos, comp_infos_local, instr_infos_local,
@@ -2063,7 +2069,7 @@ def main(args):
                             formats=formats,
                             printlog=args.verbose)
 
-        subprocess.Popen('%s %s' % (mccode_config.configuration['BROWSER'], os.path.join('.',mccode_config.get_mccode_prefix()+'doc.html')), shell=True)
+        subprocess.Popen('%s %s' % (mccode_config.configuration['BROWSER'], os.path.join(_INVOCATION_CWD, mccode_config.get_mccode_prefix()+'doc.html')), shell=True)
 
 
 if __name__ == '__main__':
