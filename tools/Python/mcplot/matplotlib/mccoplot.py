@@ -64,7 +64,28 @@ def _legend_letters(n):
     return ['S%d' % i for i in range(n)]
 
 
-def _plot_coplot_panel(datas, labels, colours, i, n, log):
+def _build_verbose_title_lines(datas, labels):
+    ''' The per-line breakdown of a single-monitor co-plot's verbose title:
+        component/filename, the monitor's own title, then one
+        "letter=label: I=... Err=... N=...; statistics" line per
+        co-plotted dataset. Shared between _plot_coplot_panel()'s in-plot
+        title and McCoplotPlotter._render()'s separate title side-window
+        (see show_text_window() in plotfuncs.py), so a long dataset list's
+        title text can be moved out of the main plot entirely (via
+        --no-titles) without the information simply being lost. '''
+    d0 = datas[0]
+    try:
+        letters = _legend_letters(len(datas))
+        lines = ['%s [%s]' % (d0.component, d0.filename), d0.title]
+        for data, letter, label in zip(datas, letters, labels):
+            lines.append('%s=%s: I=%s Err=%s N=%s; %s' % (
+                letter, label, data.values[0], data.values[1], data.values[2], data.statistics))
+        return lines
+    except Exception:
+        return ['%s [%s]' % (d0.component, d0.filename)]
+
+
+def _plot_coplot_panel(datas, labels, colours, i, n, log, no_legends=False, no_titles=False):
     ''' plot one overlaid N-dataset group into subplot i of n '''
     dims = plotfuncs._calc_panel_size(n)
     subplt = plotfuncs.pylab.subplot(dims[1], dims[0], i + 1)
@@ -107,24 +128,28 @@ def _plot_coplot_panel(datas, labels, colours, i, n, log):
     # every dataset's identity/I/statistics) once drilled down to a single
     # panel - the same "verbose only at n==1" convention
     # plotfuncs.plot_single_data uses for ordinary (non-coplot) monitors.
-    if verbose:
-        try:
-            letters = _legend_letters(len(datas))
-            lines = ['%s [%s]' % (d0.component, d0.filename), d0.title]
-            for data, letter, label in zip(datas, letters, labels):
-                lines.append('%s=%s: I=%s Err=%s N=%s; %s' % (
-                    letter, label, data.values[0], data.values[1], data.values[2], data.statistics))
-            title = '\n'.join(lines)
-        except Exception:
+    # Skipped entirely (no pylab.title() call at all, not just an empty
+    # one) when no_titles is set - for a long list of co-plotted datasets
+    # the verbose form in particular grows by one line per dataset, and at
+    # 20+ datasets can end up taking more vertical space than the actual
+    # plot itself.
+    if not no_titles:
+        if verbose:
+            title = '\n'.join(_build_verbose_title_lines(datas, labels))
+        else:
             title = '%s [%s]' % (d0.component, d0.filename)
-    else:
-        title = '%s [%s]' % (d0.component, d0.filename)
-    title = plotfuncs._wrap_title(title, plotfuncs._title_wrap_width(n, title_fontsize))
-    plotfuncs.pylab.title(title, fontsize=title_fontsize, fontweight='bold')
+        title = plotfuncs._wrap_title(title, plotfuncs._title_wrap_width(n, title_fontsize))
+        plotfuncs.pylab.title(title, fontsize=title_fontsize, fontweight='bold')
 
-    leg = plotfuncs.pylab.legend(loc='upper left', fontsize=title_fontsize, framealpha=0.85,
-                                  handlelength=1.2, handletextpad=0.5, borderpad=0.4)
-    leg.set_draggable(True)
+    # Legend similarly skipped entirely (not just made invisible) when
+    # no_legends is set - with many co-plotted datasets the legend box
+    # itself (one row per dataset) can grow tall enough to cover a large
+    # fraction of the panel, which is exactly the "can't see the actual
+    # plots" problem this option exists to avoid.
+    if not no_legends:
+        leg = plotfuncs.pylab.legend(loc='upper left', fontsize=title_fontsize, framealpha=0.85,
+                                      handlelength=1.2, handletextpad=0.5, borderpad=0.4)
+        leg.set_draggable(True)
 
     return subplt
 
@@ -143,14 +168,25 @@ class McCoplotPlotter():
         primaries/secondaries to sweep through), click_cbs is simply empty
         once drilled down - only the back-navigation remains active. '''
 
-    def __init__(self, pairs, labels, colours, log, identity_note=None):
+    def __init__(self, pairs, labels, colours, log, identity_note=None, no_legends=False, no_titles=False):
         self.pairs = pairs  # [(key, [data_0, ..., data_N-1]), ...]
         self.labels = labels
         self.colours = colours
         self.log = log
         self.identity_note = identity_note
+        self.no_legends = no_legends
+        self.no_titles = no_titles
         self.current = None  # None = overview grid; else index into self.pairs
         self.event_dc_cid = None
+        # Separate side windows (see _render()) shown only for the
+        # single-monitor drill-down (n==1) view, when --no-titles/
+        # --no-legends have freed up the main plot but the information
+        # itself shouldn't just disappear. Tracked explicitly (rather than
+        # relying on matplotlib's own "current figure") so they can be
+        # closed by reference on every re-render, including when
+        # navigating away from the single-monitor view entirely.
+        self.title_window = None
+        self.legend_window = None
 
     def _flip_log(self):
         self.log = not self.log
@@ -179,37 +215,66 @@ class McCoplotPlotter():
         plotfuncs.keypress(event, back_cb=self._show_overview, replot_cb=self._replot,
                             togglelog_cb=self._flip_log)
 
-    def _render(self):
+    def _close_side_windows(self):
+        ''' Closes any previously-open title/legend side windows by direct
+            reference (see __init__'s note on why not via matplotlib's own
+            "current figure") - called at the start of every _render(), so
+            a stale side window from a previous single-monitor view never
+            lingers after navigating to a different monitor or back to the
+            overview grid. '''
+        for attr in ('title_window', 'legend_window'):
+            fig = getattr(self, attr)
+            if fig is not None:
+                try:
+                    plotfuncs.pylab.close(fig)
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+
+    def _render(self, side_windows=True):
+        self._close_side_windows()
         visible = self._visible_pairs()
         n = len(visible)
         fig_w, fig_h = plotfuncs._figure_size(n)
         fig = plotfuncs.pylab.figure(figsize=(fig_w, fig_h))
 
         self.subplts = [
-            _plot_coplot_panel(datas, self.labels, self.colours, i, n, self.log)
+            _plot_coplot_panel(datas, self.labels, self.colours, i, n, self.log,
+                                no_legends=self.no_legends, no_titles=self.no_titles)
             for i, (key, datas) in enumerate(visible)
         ]
 
         if n == 1:
-            # Single-panel drill-down: the verbose title now includes one
-            # letter=label identity line per dataset (in addition to the
-            # existing component/filename/monitor-title/stats lines), so
-            # its height grows with how many datasets are co-plotted - a
-            # fixed top margin tuned for the old, shorter title clipped the
-            # top lines off the figure entirely once there were more than
-            # a couple of datasets. Scale the margin down (more headroom)
-            # as N grows; this is a rough heuristic; matches the
-            # established style of _title_wrap_width()'s own "good enough"
-            # character-width estimate rather than exact text measurement.
-            n_datasets = len(visible[0][1])
-            top = max(0.45, 0.95 - 0.045 * n_datasets)
+            if self.no_titles:
+                # No title text is drawn at all in this case (see
+                # _plot_coplot_panel()), so there's nothing to reserve
+                # extra vertical space for - use the same generous margin
+                # as the overview grid case below, rather than the
+                # dataset-count-scaled one a few lines down (which exists
+                # specifically to make room for the verbose title that
+                # isn't being drawn here).
+                top = 0.97
+            else:
+                # Single-panel drill-down: the verbose title now includes
+                # one letter=label identity line per dataset (in addition
+                # to the existing component/filename/monitor-title/stats
+                # lines), so its height grows with how many datasets are
+                # co-plotted - a fixed top margin tuned for the old,
+                # shorter title clipped the top lines off the figure
+                # entirely once there were more than a couple of datasets.
+                # Scale the margin down (more headroom) as N grows; this is
+                # a rough heuristic, matching the established style of
+                # _title_wrap_width()'s own "good enough" character-width
+                # estimate rather than exact text measurement.
+                n_datasets = len(visible[0][1])
+                top = max(0.45, 0.95 - 0.045 * n_datasets)
             fig.subplots_adjust(left=0.06, right=0.98, top=top, bottom=0.06,
                                  wspace=0.3, hspace=0.35)
         else:
             fig.subplots_adjust(left=0.06, right=0.98, top=0.97, bottom=0.06,
                                  wspace=0.3, hspace=0.35)
 
-        if self.identity_note and n > 1:
+        if self.identity_note and n > 1 and not self.no_titles:
             # The legend now always uses compact positional letters
             # (_legend_letters()), never the real labels directly (which
             # may now be a full input path - see resolve_labels()) - shown
@@ -241,6 +306,34 @@ class McCoplotPlotter():
             self.click_cbs = [lambda idx=i: self._show_single(idx) for i in range(n)]
         else:
             self.click_cbs = []
+
+        # Single-monitor view only ("not an overview-plot", per the actual
+        # request this responds to): when --no-titles/--no-legends have
+        # freed up the main plot, open a separate, full-screen-height,
+        # narrow side window for each piece of information that was
+        # removed, rather than losing it outright. side_windows=False (see
+        # html()) skips this entirely for the non-interactive mpld3 export
+        # path, where a GUI side window would serve no purpose and could
+        # even fail outright in a headless export context.
+        if side_windows and n == 1:
+            datas = visible[0][1]
+            if self.no_titles:
+                lines = [(line, None) for line in _build_verbose_title_lines(datas, self.labels)]
+                self.title_window = plotfuncs.show_text_window(lines, 'mccoplot: title')
+            if self.no_legends:
+                letters = _legend_letters(len(datas))
+                legend_lines = [('%s = %s' % (letter, label), colour)
+                                 for letter, label, colour in zip(letters, self.labels, self.colours)]
+                self.legend_window = plotfuncs.show_text_window(legend_lines, 'mccoplot: legend')
+            # Side windows created above (via plotfuncs.pylab.figure())
+            # become matplotlib's new "current figure" - restore the main
+            # plot figure as current before returning, since _replot()'s
+            # own pylab.close() (no arguments - see its docstring) closes
+            # whatever figure is current at the time, and needs that to
+            # still be THIS figure on the next call, not a leftover side
+            # window.
+            if self.title_window is not None or self.legend_window is not None:
+                plotfuncs.pylab.figure(fig.number)
 
         return fig
 
@@ -274,7 +367,7 @@ class McCoplotPlotter():
         ''' render and save to html using mpld3 '''
         import mpld3
         plotfuncs.pylab.close()
-        self._render()
+        self._render(side_windows=False)
         mpld3.save_html(plotfuncs.pylab.gcf(), fileobj)
 
 
@@ -359,7 +452,8 @@ def main(args):
         # use running many comparisons out of one working directory.
         plotfuncs.filenamebase = "coplot_" + "_vs_".join(diffloader.dirsafe_name(p) for p in paths)
 
-        plotter = McCoplotPlotter(pairs, labels, colours, log=args.log, identity_note=identity_note)
+        plotter = McCoplotPlotter(pairs, labels, colours, log=args.log, identity_note=identity_note,
+                                   no_legends=args.no_legends, no_titles=args.no_titles)
 
         if (sys.platform == "linux" or sys.platform == "linux2") and args.html:
             # save to html and exit
@@ -401,6 +495,14 @@ if __name__ == '__main__':
                               '(e.g. pdf/png/eps/svg) can be specified in the file name or --format')
     parser.add_argument('--log', action='store_true', help='initiate plot(s) with log of signal')
     parser.add_argument('--backend', dest='backend', help='use non-default backend for matplotlib plot')
+    parser.add_argument('--no-legends', action='store_true', default=False,
+                         help='do not draw the per-panel legend (the compact A/B/C/... letters) - '
+                              'useful with many co-plotted datasets, where the legend box itself can '
+                              'grow tall enough to cover a large part of the panel')
+    parser.add_argument('--no-titles', action='store_true', default=False,
+                         help='do not draw panel titles or the figure-level dataset identity note - '
+                              'useful with many co-plotted datasets, where the verbose single-panel '
+                              'title (one line per dataset) can end up taller than the plot itself')
 
     args = parser.parse_args()
 
