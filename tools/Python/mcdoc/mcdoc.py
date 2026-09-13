@@ -2004,10 +2004,8 @@ def main(args):
 
                 instr = re.search(r'[\w0-9]+\.instr', args.searchterm)
                 comp = re.search(r'[\w0-9]+\.comp', args.searchterm)
-                if getattr(args, 'in_repo', True):
-                        docdir = mccode_config.directories["docdir"]
-                else:
-                    docdir=''
+
+                docdir = mccode_config.directories["docdir"]
 
                 if instr:
                     f_base = os.path.splitext(os.path.basename(f))[0]
