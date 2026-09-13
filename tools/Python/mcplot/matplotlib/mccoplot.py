@@ -64,6 +64,27 @@ def _legend_letters(n):
     return ['S%d' % i for i in range(n)]
 
 
+def _build_verbose_title_lines(datas, labels):
+    ''' The per-line breakdown of a single-monitor co-plot's verbose title:
+        component/filename, the monitor's own title, then one
+        "letter=label: I=... Err=... N=...; statistics" line per
+        co-plotted dataset. Shared between _plot_coplot_panel()'s in-plot
+        title and McCoplotPlotter._render()'s separate title side-window
+        (see show_text_window() in plotfuncs.py), so a long dataset list's
+        title text can be moved out of the main plot entirely (via
+        --no-titles) without the information simply being lost. '''
+    d0 = datas[0]
+    try:
+        letters = _legend_letters(len(datas))
+        lines = ['%s [%s]' % (d0.component, d0.filename), d0.title]
+        for data, letter, label in zip(datas, letters, labels):
+            lines.append('%s=%s: I=%s Err=%s N=%s; %s' % (
+                letter, label, data.values[0], data.values[1], data.values[2], data.statistics))
+        return lines
+    except Exception:
+        return ['%s [%s]' % (d0.component, d0.filename)]
+
+
 def _plot_coplot_panel(datas, labels, colours, i, n, log, no_legends=False, no_titles=False):
     ''' plot one overlaid N-dataset group into subplot i of n '''
     dims = plotfuncs._calc_panel_size(n)
@@ -114,15 +135,7 @@ def _plot_coplot_panel(datas, labels, colours, i, n, log, no_legends=False, no_t
     # plot itself.
     if not no_titles:
         if verbose:
-            try:
-                letters = _legend_letters(len(datas))
-                lines = ['%s [%s]' % (d0.component, d0.filename), d0.title]
-                for data, letter, label in zip(datas, letters, labels):
-                    lines.append('%s=%s: I=%s Err=%s N=%s; %s' % (
-                        letter, label, data.values[0], data.values[1], data.values[2], data.statistics))
-                title = '\n'.join(lines)
-            except Exception:
-                title = '%s [%s]' % (d0.component, d0.filename)
+            title = '\n'.join(_build_verbose_title_lines(datas, labels))
         else:
             title = '%s [%s]' % (d0.component, d0.filename)
         title = plotfuncs._wrap_title(title, plotfuncs._title_wrap_width(n, title_fontsize))
@@ -165,6 +178,15 @@ class McCoplotPlotter():
         self.no_titles = no_titles
         self.current = None  # None = overview grid; else index into self.pairs
         self.event_dc_cid = None
+        # Separate side windows (see _render()) shown only for the
+        # single-monitor drill-down (n==1) view, when --no-titles/
+        # --no-legends have freed up the main plot but the information
+        # itself shouldn't just disappear. Tracked explicitly (rather than
+        # relying on matplotlib's own "current figure") so they can be
+        # closed by reference on every re-render, including when
+        # navigating away from the single-monitor view entirely.
+        self.title_window = None
+        self.legend_window = None
 
     def _flip_log(self):
         self.log = not self.log
@@ -193,7 +215,24 @@ class McCoplotPlotter():
         plotfuncs.keypress(event, back_cb=self._show_overview, replot_cb=self._replot,
                             togglelog_cb=self._flip_log)
 
-    def _render(self):
+    def _close_side_windows(self):
+        ''' Closes any previously-open title/legend side windows by direct
+            reference (see __init__'s note on why not via matplotlib's own
+            "current figure") - called at the start of every _render(), so
+            a stale side window from a previous single-monitor view never
+            lingers after navigating to a different monitor or back to the
+            overview grid. '''
+        for attr in ('title_window', 'legend_window'):
+            fig = getattr(self, attr)
+            if fig is not None:
+                try:
+                    plotfuncs.pylab.close(fig)
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+
+    def _render(self, side_windows=True):
+        self._close_side_windows()
         visible = self._visible_pairs()
         n = len(visible)
         fig_w, fig_h = plotfuncs._figure_size(n)
@@ -268,6 +307,34 @@ class McCoplotPlotter():
         else:
             self.click_cbs = []
 
+        # Single-monitor view only ("not an overview-plot", per the actual
+        # request this responds to): when --no-titles/--no-legends have
+        # freed up the main plot, open a separate, full-screen-height,
+        # narrow side window for each piece of information that was
+        # removed, rather than losing it outright. side_windows=False (see
+        # html()) skips this entirely for the non-interactive mpld3 export
+        # path, where a GUI side window would serve no purpose and could
+        # even fail outright in a headless export context.
+        if side_windows and n == 1:
+            datas = visible[0][1]
+            if self.no_titles:
+                lines = [(line, None) for line in _build_verbose_title_lines(datas, self.labels)]
+                self.title_window = plotfuncs.show_text_window(lines, 'mccoplot: title')
+            if self.no_legends:
+                letters = _legend_letters(len(datas))
+                legend_lines = [('%s = %s' % (letter, label), colour)
+                                 for letter, label, colour in zip(letters, self.labels, self.colours)]
+                self.legend_window = plotfuncs.show_text_window(legend_lines, 'mccoplot: legend')
+            # Side windows created above (via plotfuncs.pylab.figure())
+            # become matplotlib's new "current figure" - restore the main
+            # plot figure as current before returning, since _replot()'s
+            # own pylab.close() (no arguments - see its docstring) closes
+            # whatever figure is current at the time, and needs that to
+            # still be THIS figure on the next call, not a leftover side
+            # window.
+            if self.title_window is not None or self.legend_window is not None:
+                plotfuncs.pylab.figure(fig.number)
+
         return fig
 
     def _replot(self):
@@ -300,7 +367,7 @@ class McCoplotPlotter():
         ''' render and save to html using mpld3 '''
         import mpld3
         plotfuncs.pylab.close()
-        self._render()
+        self._render(side_windows=False)
         mpld3.save_html(plotfuncs.pylab.gcf(), fileobj)
 
 
