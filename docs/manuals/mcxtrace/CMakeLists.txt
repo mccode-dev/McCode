@@ -1,9 +1,8 @@
 cmake_minimum_required( VERSION 3.17.0 )
 
-# This will install McXtrace user and component manuals.
+# This will install McXtrace components
 set(FLAVOR mcxtrace)
-project(${FLAVOR}_manuals C)
-
+project(${FLAVOR}_manuals NONE)
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 message( "CMAKE_SOURCE_DIR=        ${CMAKE_SOURCE_DIR}" )
@@ -16,15 +15,14 @@ message( "include MCUtil" )
 include(MCUtil)
 message( "include UseLATEX" )
 include(UseLATEX)
-#set(PDFLATEX_COMPILER "/usr/bin/xelatex")
+# set(PDFLATEX_COMPILER "/usr/bin/xelatex")
 message( "setup MCCODE" )
 setupMCCODE("${FLAVOR}")
-
 # CPack configuration
 message( "CPack configuration" )
 set(CPACK_PACKAGE_NAME          "${FLAVOR}-manuals")
 set(CPACK_RESOURCE_FilE_LICENSE "${PROJECT_SOURCE_DIR}/../COPYING")
-set(CPACK_PACKAGE_CONTACT       "erkn@fysik.dtu.dk")
+set(CPACK_PACKAGE_CONTACT       "pkwi@fysik.dtu.dk")
 
 set(CPACK_PACKAGE_VERSION       "${MCCODE_MAJOR}.${MCCODE_MINOR}.${MCCODE_PATCH}")
 set(CPACK_PACKAGE_VERSION_MAJOR "${MCCODE_MAJOR}")
@@ -51,6 +49,7 @@ endif()
 # Debian
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}")
 set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-manuals-3.5.1")
+
 include(CPack)
 
 message( "LaTeX configuration" )
