@@ -1376,7 +1376,6 @@ $(function () {
 <H2><A NAME=id></A>Identification</H2>
 
 <UL>
-  <LI> <B>Site: </B>%SITE%
   <LI> <B>Author: </B>%AUTHOR%
   <LI> <B>Origin: </B>%ORIGIN%
   <LI> <B>Date: </B>%DATE%
@@ -1386,9 +1385,6 @@ $(function () {
 <PRE>
 %DESCRIPTION%
 </PRE>
-
-<H2><A NAME=ex></A>Examples</H2>
-(Test cases in bold)
 
 <UL>
 %EXAMPLES%
