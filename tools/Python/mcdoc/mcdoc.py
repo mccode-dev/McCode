@@ -1363,7 +1363,6 @@ $(function () {
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
  | <A href="#desc">Description</A>
- | <A href="#ex">Examples</A>
  | <A href="#ipar">Input parameters</A>
  | <A href="#links">Links</A> ]
 </P>
@@ -1375,7 +1374,6 @@ $(function () {
 <H2><A NAME=id></A>Identification</H2>
 
 <UL>
-  <LI> <B>Site: </B>%SITE%
   <LI> <B>Author: </B>%AUTHOR%
   <LI> <B>Origin: </B>%ORIGIN%
   <LI> <B>Date: </B>%DATE%
@@ -1385,13 +1383,6 @@ $(function () {
 <PRE>
 %DESCRIPTION%
 </PRE>
-
-<H2><A NAME=ex></A>Examples</H2>
-(Test cases in bold)
-
-<UL>
-%EXAMPLES%
-</UL>
 
 <H2><A NAME=ipar></A>Input parameters</H2>
 Parameters in <B>boldface</B> are required;
@@ -1545,7 +1536,6 @@ class CompMdDocWriter:
         lines.append('')
         lines.append('## Identification')
         lines.append('')
-        lines.append('- **Site:** %s' % _md_text(i.site))
         lines.append('- **Author:** %s' % _md_text(i.author))
         lines.append('- **Origin:** %s' % _md_text(i.origin))
         lines.append('- **Date:** %s' % _md_text(i.date))
@@ -1556,9 +1546,6 @@ class CompMdDocWriter:
         lines.append(_md_text(i.description))
         lines.append('```')
         lines.append('')
-        lines.append('## Examples')
-        lines.append('')
-        lines.append(_examples_md_body(i.test))
         lines.append('')
         lines.append('## Input parameters')
         lines.append('')
@@ -1694,7 +1681,6 @@ class CompLatexDocWriter:
         out.append('')
         out.append(r'\subsection*{Identification}')
         out.append(r'\begin{itemize}')
-        out.append(r'  \item \textbf{Site:} %s'   % _tex(i.site))
         out.append(r'  \item \textbf{Author:} %s' % _tex(i.author))
         out.append(r'  \item \textbf{Origin:} %s' % _tex(i.origin))
         out.append(r'  \item \textbf{Date:} %s'   % _tex(i.date))
@@ -1702,9 +1688,6 @@ class CompLatexDocWriter:
         out.append('')
         out.append(r'\subsection*{Description}')
         out.append(_description_to_latex(i.description))
-        out.append('')
-        out.append(r'\subsection*{Examples}')
-        out.append(_examples_tex_body(i.test))
         out.append('')
         out.append(r'\subsection*{Input parameters}')
         out.append(r'Parameters in \textbf{boldface} are required; the others are optional.')
