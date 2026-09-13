@@ -1364,7 +1364,6 @@ $(function () {
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
  | <A href="#desc">Description</A>
- | <A href="#ex">Examples</A>
  | <A href="#ipar">Input parameters</A>
  | <A href="#links">Links</A> ]
 </P>
@@ -1385,10 +1384,6 @@ $(function () {
 <PRE>
 %DESCRIPTION%
 </PRE>
-
-<UL>
-%EXAMPLES%
-</UL>
 
 <H2><A NAME=ipar></A>Input parameters</H2>
 Parameters in <B>boldface</B> are required;
