@@ -48,7 +48,6 @@
 * m:                  [1]      m-value of material. Zero means completely absorbing.
 * W:                  [AA^-1]   Width of supermirror cut-off
 * reflect:            [str]    Name of reflectivity file. Format q(Angs-1) R(0-1)
-* init:               [string] Name of Union_init component (typically "init", default)
 *
 * %L
 *
@@ -57,13 +56,13 @@
 
 DEFINE COMPONENT Template_surface // Remember to change the name of process here
 
-SETTING PARAMETERS(string reflect=0, R0=0.99, Qc=0.0219, alpha=6.07, m=2, W=0.003, string init="init")
+SETTING PARAMETERS(string reflect=0, R0=0.99, Qc=0.0219, alpha=6.07, m=2, W=0.003)
 
 
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this Template_surface component"
+  #error "ERROR: Template_surface requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   %include "read_table-lib"
@@ -191,12 +190,7 @@ INITIALIZE
   global_surface_element.component_index = INDEX_CURRENT_COMP;
   global_surface_element.p_surface_process = &This_surface;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Template_surface:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_surface_list* global_surface_list = COMP_GETPAR3 (Union_init, init, global_surface_list);
+  struct pointer_to_global_surface_list* global_surface_list = &g_surface_list;
   add_element_to_surface_list (global_surface_list, global_surface_element);
  %}
 
