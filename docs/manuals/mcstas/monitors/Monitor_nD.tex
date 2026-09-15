@@ -7,66 +7,44 @@ This component is a general Monitor that can output 0/1/2D signals
 
 \subsection*{Identification}
 \begin{itemize}
-  \item \textbf{Site:} 
   \item \textbf{Author:} \textless{}a href="mailto:farhi@ill.fr"\textgreater{}Emmanuel Farhi\textless{}/a\textgreater{}
   \item \textbf{Origin:} \textless{}a href="http://www.ill.fr"\textgreater{}ILL\textless{}/a\textgreater{}
   \item \textbf{Date:} 14th Feb 2000.
 \end{itemize}
 
 \subsection*{Description}
-\begin{lstlisting}
-This component is a general Monitor that can output 0/1/2D signals
-It can produce many 1D signals (one for any variable specified in
-option list), or a single 2D output (two variables correlation).
-Also, an additional 'list' of neutron events can be produced.
-By default, monitor is square (in x/y plane). A disk shape is also possible
-The 'cylinder' and 'banana' option will change that for a banana shape
-The 'sphere' option simulates spherical detector. The 'box' is a box.
-The cylinder, sphere and banana should be centered on the scattering point.
-The monitored flux may be per monitor unit area, and weighted by
-a lambda/lambda(2200m/s) factor to obtain standard integrated capture flux.
-In normal configuration, the Monitor_nD measures the current parameters
-of the neutron that is beeing detected. But a PreMonitor_nD component can
-be used in order to study correlations between a neutron being detected in
-a Monitor_nD place, and given parameters that are monitored elsewhere
-(at <b>PreMonitor_nD</b>).
-The monitor can also act as a 3He gas detector, taking into account the
-detection efficiency.
+This component is a general Monitor that can output 0/1/2D signals It can produce many 1D signals (one for any variable specified in option list), or a single 2D output (two variables correlation). Also, an additional 'list' of neutron events can be produced. By default, monitor is square (in x/y plane). A disk shape is also possible The 'cylinder' and 'banana' option will change that for a banana shape The 'sphere' option simulates spherical detector. The 'box' is a box. The cylinder, sphere and banana should be centered on the scattering point. The monitored flux may be per monitor unit area, and weighted by a lambda/lambda(2200m/s) factor to obtain standard integrated capture flux. In normal configuration, the Monitor\_nD measures the current parameters of the neutron that is beeing detected. USERVARS may be used in order to study correlations between a neutron being detected in a Monitor\_nD place, and given parameters that are monitored elsewhere (at the point of initialisation of the USERVARS). The monitor can also act as a 3He gas detector, taking into account the detection efficiency.
 
-The 'bins' and 'limits' modifiers are to be used after each variable,
-and 'auto','log' and 'abs' come before it. (eg: auto abs log hdiv bins=10
-limits=[-5 5]) When placed after all variables,  these two latter modifiers
-apply to the signal (e.g. intensity). Unknown keywords are ignored.
-If no limits are specified for a given observable, reasonable defaults will be
-applied. Note that these implicit limits are <b>even</b> applied in list mode.
+The 'bins' and 'limits' modifiers are to be used after each variable, and 'auto','log' and 'abs' come before it. (eg: auto abs log hdiv bins=10 limits=[-5 5]) When placed after all variables, these two latter modifiers apply to the signal (e.g. intensity). Unknown keywords are ignored. If no limits are specified for a given observable, reasonable defaults will be applied. Note that these implicit limits are \textbf{even} applied in list mode.
 
-<b>Implicit limits for typical variables:</b>
-(consult monitor_nd-lib.c if you don't find your variable here)
-x, y, z: Derived from detection-object geometry
+\textbf{Implicit limits for typical variables:} (consult monitor\_nd-lib.c if you don't find your variable here) x, y, z: Derived from detection-object geometry
+
+\begin{verbatim}
 k: [0 10] Angs-1
 v: [0 1e6] m/s
 t: [0 1] s
-p: [0 FLT_MAX] in intensity-units
+\end{verbatim}
+
+p: [0 FLT\_MAX] in intensity-units
+
+\begin{verbatim}
 vx, vy: [-1000 1000] m/s
 vz: [0 10000] m/s
 kx, ky: [-1 1] Angs-1
 kz: [-10 10] Angs-1
-energy, omega: [0 100] meV
-lambda,wavelength: [0 100] Angs
-sx, sy, sz: [-1 1] in polarisation-units
-angle: [-50 50] deg
-divergence, vdiv, hdiv, xdiv, ydiv: [-5 5] deg
-longitude, lattitude: [-180 180] deg
-neutron: [0 simulaton_ncount]
-id, pixel id: [0 FLT_MAX]
-uservars u1,u2,u3: [-1e10 1e10]
+\end{verbatim}
 
-In the case of multiple components at the same position, the 'parallel'
-keyword must be used in each instance instead of defining a GROUP.
+energy, omega: [0 100] meV lambda,wavelength: [0 100] \AA{} sx, sy, sz: [-1 1] in polarisation-units angle: [-50 50] deg divergence, vdiv, hdiv, xdiv, ydiv: [-5 5] deg longitude, lattitude: [-180 180] deg neutron: [0 simulaton\_ncount] id, pixel id: [0 FLT\_MAX]
 
-<b>Possible options are</b>
-Variables to record:
-kx ky kz k wavevector [Angs-1] Wavevector on x,y,z and norm
+\begin{verbatim}
+uservars u0,u1,u2,u3,u4,u5,u6,u7,u8,u9: [-1e10 1e10]
+\end{verbatim}
+
+In the case of multiple components at the same position, the 'parallel' keyword must be used in each instance instead of defining a GROUP.
+
+\textbf{Possible options are} Variables to record: kx ky kz k wavevector [\AA{}-1] Wavevector on x,y,z and norm
+
+\begin{verbatim}
 vx vy vz v            [m/s]    Velocity on x,y,z and norm
 x y z radius          [m]      Distance, Position and norm
 xy, yz, xz            [m]      Radial position in xy, yz and xz plane
@@ -81,15 +59,28 @@ hdiv divergence xdiv  [deg]    horizontal divergence (x)
 angle                 [deg]    divergence from <z> direction
 theta longitude       [deg]    longitude (x/z) for sphere and cylinder
 phi   lattitude       [deg]    lattitude (y/z) for sphere and cylinder
+\end{verbatim}
 
-user user1            will monitor the [Mon_Name]_Vars.UserVariable{1|2|3}
+\begin{verbatim}
+user0 user1           will monitor the [Mon_Name]_Vars.UserVariable{0|1|2|3|4|5}
 user2 user3           to be assigned in an other component (see below)
+\end{verbatim}
 
+user4 user5 user6 user7 user8 user9
+
+\begin{verbatim}
+Premonitoring:            Please use uservars in place of the former PreMonitor_nD.
+\end{verbatim}
+
+\begin{verbatim}
 p intensity flux      [n/s  or  n/cm^2/s]
 ncounts n neutron     [1]      neutron ID, i.e current event index
 pixel id              [1]      pixelID in histogram made of preceeding vars, e.g. 'theta y'. To set an offset PixelID use the 'min=value' keyword. Sets event mode.
+\end{verbatim}
 
-<b>Other options keywords are:</b>
+\textbf{Other options keywords are:}
+
+\begin{verbatim}
 abs                       Will monitor the abs of the following variable or of the signal (if used after all variables)
 auto                      Automatically set detector limits for one/all
 all  {limits|bins|auto}   To set all limits or bins values or auto mode
@@ -100,25 +91,36 @@ capture                   weight by lambda/lambda(2200m/s) capture flux
 file=string               Detector image file name. default is component name, plus date and variable extension.
 incoming                  Monitor incoming beam in non flat det
 limits=[min max]          Lower/Upper limits for axes (see up for the variable unit)
+\end{verbatim}
+
 list=[counts=1000] or all For a long file of neutron characteristics with [counts] or all events
+
+\begin{verbatim}
 log                       Will monitor the log of the following variable or of the signal (if used after all variables)
 min=[min_value]           Same as limits, but only sets the min or max
-max=[max_value]
+\end{verbatim}
+
+max=[max\_value]
+
+\begin{verbatim}
 multiple                  Create multiple independant 1D monitors files
 no or not                 Revert next option
 outgoing                  Monitor outgoing beam (default)
 parallel                  Use this option when the next component is at the same position (parallel components)
 per cm2                   Intensity will be per cm^2 (detector area). Displays beam section.
 per steradian             Displays beam solid angle in steradian
-premonitor                Will monitor neutron parameters stored previously with <b>PreMonitor_nD</b>.
 signal=[var]              Will monitor [var] instead of usual intensity
 slit or absorb            Absorb neutrons that are out detector
 source                    The monitor will save neutron states
 inactivate                To inactivate detector (0D detector)
 verbose                   To display additional informations
-3He_pressure=[3 in bars]  The 3He gas pressure in detector. 3He_pressure=0 is perfect detector (default)
+\end{verbatim}
+
+3He\_pressure=[3 in bars] The 3He gas pressure in detector. 3He\_pressure=0 is perfect detector (default)
 
 Detector shape options (specified as xwidth,yheight,zdepth or x/y/z/min/max)
+
+\begin{verbatim}
 box                       Box of size xwidth, yheight, zdepth.
 cylinder                  To get a cylindrical monitor (diameter is xwidth or set radius, height is yheight).
 banana                    Same as cylinder, without top/bottom, on restricted angular area; use theta variable with limits to define arc. (diameter is xwidth or set radius, height is yheight).
@@ -126,57 +128,41 @@ disk                      Disk flat xy monitor. diameter is xwidth.
 sphere                    To get a spherical monitor (e.g. a 4PI) (diameter is xwidth or set radius).
 square                    Square flat xy monitor (xwidth, yheight).
 previous                  The monitor uses PREVIOUS component as detector surface. Or use 'geometry' parameter to specify any PLY/OFF geometry file.
+\end{verbatim}
 
-<b>EXAMPLES:</b>
-<ul>
-<li>MyMon = Monitor_nD(xwidth = 0.1, yheight = 0.1, zdepth = 0,
-&emsp;&emsp;options = "intensity per cm2 angle,limits=[-5 5] bins=10,with
-&emsp;&emsp;borders, file = mon1");
-will monitor neutron angle from [z] axis, between -5
-and 5 degrees, in 10 bins, into "mon1.A" output 1D file
+\textbf{EXAMPLES:} \textless{}ul\textgreater{} \textless{}li\textgreater{}MyMon = Monitor\_nD(xwidth = 0.1, yheight = 0.1, zdepth = 0, \&emsp;\&emsp;options = "intensity per cm2 angle,limits=[-5 5] bins=10,with \&emsp;\&emsp;borders, file = mon1"); will monitor neutron angle from [z] axis, between -5 and 5 degrees, in 10 bins, into "mon1.A" output 1D file
 
-<li> options = "sphere theta phi outgoing"
-for a sphere PSD detector (out beam)  and saves into file "MyMon_[Date_ID].th_ph"
+\textless{}li\textgreater{} options = "sphere theta phi outgoing" for a sphere PSD detector (out beam) and saves into file "MyMon\_[Date\_ID].th\_ph"
 
-<li> options = "banana, theta limits=[10,130], bins=120, y"
-a theta/height banana detector
+\textless{}li\textgreater{} options = "banana, theta limits=[10,130], bins=120, y" a theta/height banana detector
 
-<li> options = "angle radius all auto"
-is a 2D monitor with automatic limits
+\textless{}li\textgreater{} options = "angle radius all auto" is a 2D monitor with automatic limits
 
-<li> options = "list=1000 kx ky kz energy"
-records 1000 neutron event in a file
+\textless{}li\textgreater{} options = "list=1000 kx ky kz energy" records 1000 neutron event in a file
 
-<li> options = "multiple kx ky kz, auto abs log t, and list all neutrons"
-makes 4 output 1D files and produces a complete list for all neutrons
-and monitor log(abs(tof)) within automatic limits (for t)
+\textless{}li\textgreater{} options = "multiple kx ky kz, auto abs log t, and list all neutrons" makes 4 output 1D files and produces a complete list for all neutrons and monitor log(abs(tof)) within automatic limits (for t)
 
-<li> options = "theta y, sphere, pixel min=100"
-a 4pi detector which outputs an event list with pixelID from the actual
-detector surface, starting from index 100.
+\textless{}li\textgreater{} options = "theta y, sphere, pixel min=100" a 4pi detector which outputs an event list with pixelID from the actual detector surface, starting from index 100.
 
-</ul>
-To dynamically define a number of bins, or limits:
+\textless{}/ul\textgreater{} To dynamically define a number of bins, or limits:
+
+\begin{verbatim}
 Use in DECLARE:    char op[256];
-Use in INITIALIZE: sprintf(op, "lambda limits=[%g %g], bins=%i", lmin, lmax, lbin);
+\end{verbatim}
+
+Use in INITIALIZE: sprintf(op, "lambda limits=[\%g \%g], bins=\%i", lmin, lmax, lbin);
+
+\begin{verbatim}
 Use in TRACE:      Monitor_nD(... options=op ...)
+\end{verbatim}
 
-<b>How to monitor any instrument/component variable into a Monitor_nD</b>
-Suppose you want to monitor a variable 'age' which you assign somwhere in
-the instrument:
-COMPONENT MyMonitor = Monitor_nD(
-xwidth = 0.1, yheight = 0.1,
-user1="age", username1="Age of the Captain [years]",
-options="user1, auto")
+\textbf{How to monitor any instrument/component variable into a Monitor\_nD} Suppose you want to monitor a variable 'age' which you assign somwhere in the instrument: COMPONENT MyMonitor = Monitor\_nD( xwidth = 0.1, yheight = 0.1, user1="age", username1="Age of the Captain [years]", options="user1, auto")
+
+\begin{verbatim}
 AT ...
+\end{verbatim}
 
-See also the example in <a href="PreMonitor_nD.html">PreMonitor_nD</a> to
-monitor neutron parameters cross-correlations.
-
-%BUGS
-The 'auto' option for guessing optimal variable bounds should NOT be used with MPI
-as each process may use different limits.
-\end{lstlisting}
+\%BUGS The 'auto' option for guessing optimal variable bounds should NOT be used with MPI as each process may use different limits.
 
 \subsection*{Input parameters}
 Parameters in \textbf{boldface} are required; the others are optional.
@@ -186,9 +172,16 @@ Parameters in \textbf{boldface} are required; the others are optional.
 \textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
 \midrule
 \endhead
+user0 & str & Variable name of USERVAR to be monitored by user0. & "" \\
 user1 & str & Variable name of USERVAR to be monitored by user1. & "" \\
 user2 & str & Variable name of USERVAR to be monitored by user2. & "" \\
 user3 & str & Variable name of USERVAR to be monitored by user3. & "" \\
+user4 & str & Variable name of USERVAR to be monitored by user4. & "" \\
+user5 & str & Variable name of USERVAR to be monitored by user5. & "" \\
+user6 & str & Variable name of USERVAR to be monitored by user6. & "" \\
+user7 & str & Variable name of USERVAR to be monitored by user7. & "" \\
+user8 & str & Variable name of USERVAR to be monitored by user8. & "" \\
+user9 & str & Variable name of USERVAR to be monitored by user9. & "" \\
 xwidth & m & Width of detector. & 0 \\
 yheight & m & Height of detector. & 0 \\
 zdepth & m & Thickness of detector (z). & 0 \\
@@ -208,50 +201,21 @@ filename & str & Output file name (overrides file=XX option). & "NULL" \\
 geometry & str & Name of an OFF file to specify a complex geometry detector & "NULL" \\
 nowritefile & 1 & If set, monitor will skip writing to disk & 0 \\
 nexus\_bins & 1 & NeXus mode only: store component BIN information \textless{}br\textgreater{}(-1 disable, 0 enable for list mode monitor, 1 enable for any montor) & 0 \\
+username0 & str & Name assigned to User0 & "NULL" \\
 username1 & str & Name assigned to User1 & "NULL" \\
 username2 & str & Name assigned to User2 & "NULL" \\
 username3 & str & Name assigned to User3 & "NULL" \\
+username4 & str & Name assigned to User4 & "NULL" \\
+username5 & str & Name assigned to User5 & "NULL" \\
+username6 & str & Name assigned to User6 & "NULL" \\
+username7 & str & Name assigned to User7 & "NULL" \\
+username8 & str & Name assigned to User8 & "NULL" \\
+username9 & str & Name assigned to User9 & "NULL" \\
 \bottomrule
 \end{longtable}
 
 \subsection*{Links}
 \begin{itemize}
-  \item \href{run:/home/willend/willend-McCode/mcstas-comps/monitors/Monitor_nD.comp}{Source code} for \texttt{Monitor\_nD.comp}.
-  \item \textless{}a href="PreMonitor\_nD.html"\textgreater{}PreMonitor\_nD\textless{}/a\textgreater{}
+  \item Component source code found in file \texttt{Monitor\_nD.comp}.
 \end{itemize}
-\IfFileExists{Monitor_nD_static.tex}{\input{Monitor_nD_static.tex}}{}
-\subsection{Monitoring neutron parameter correlations via USERVARS}
-
-The first imediate usage of the Monitor\_nD component is when one requires to identify cross-correlations between some neutron parameters, e.g. position and divergence (\textit{aka} phase-space diagram). 
-\begin{lstlisting}
-options="x dx, auto", bins=30
-\end{lstlisting}
-This example records the correlation between position and divergence of neutrons at a given instrument location.
-
-But it is also possible to search for cross-correlation between two part of the instrument simulation. One example is the acceptance phase-diagram, which shows the neutron caracteristics at the input required to reach the end of the simulation. This \emph{spatial} correlation may be revealed using \index{Monitors!Neutron parameter correlations, USERVARS}\ref{s:monnd:user} initialised in an \textbf{EXTEND} block of an earlier component. \textbf{USERVARS} may store neutron parameters at a given instrument location, to be used with a later Monitor\_nD location for monitoring:
-
-\begin{lstlisting}
-USERVARS \%{
-  double x_in;
-  double xdiv_in;
-\%}
-
-TRACE
-
-COMPONENT CorrelationLocation = Arm()
-AT (...)
-EXTEND \%{
-  x_in=x;
-  // Calculate divergence wrt. z
-  xdiv_in = RAD2DEG * atan2 (vx, vz);
-\%}
-
-  (... e.g. a guide system )
-
-  COMPONENT CorrelationMonitor  = Monitor_nD(
-   user1=''x_in'', user2=''xdiv_in'',
-   username1=''Upstream pos'',  username2=''Upstream div''
-   options="user1 user2, auto, all bins=30")
-AT (...)
-\end{lstlisting}
-which performs the same monitoring as the previous example, but with a spatial correlation constrain. Indeed, it records the position \textit{vs} the divergence of neutrons at the correlation location, but only if they reach the monitoring position.
+\IfFileExists{monitors/Monitor_nD_static.tex}{\input{monitors/Monitor_nD_static.tex}}{}

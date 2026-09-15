@@ -1,0 +1,167 @@
+\section{The \texttt{Isotropic\_Sqw} McXtrace Component}
+Isotropic sample handling multiple scattering and absorption for a general
+S(q,w) (coherent)
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} E. Farhi, V. Hugouvieux
+  \item \textbf{Origin:} Synchrotron SOLEIL
+  \item \textbf{Date:} March 2022
+\end{itemize}
+
+\subsection*{Description}
+An isotropic sample handling multiple scattering and including as input the dynamic structure factor of the chosen sample (e.g. from Molecular Dynamics). Handles elastic/inelastic, coherent scattering - depending on the input S(q,w) - with multiple scattering and absorption. Only the norm of q is handled (not the vector), and thus suitable for liquids, gazes, amorphous and powder samples.
+
+The implementation will automatically nornalise S(q,w) so that S(q) -\textgreater{} 1 at large q (parameter norm=-1). Alternatively, the S(q,w) data will be multiplied by 'norm' for positive values. Use norm=0 or 1 to use the raw data as input.
+
+The material temperature can be defined in the S(q,w) data files (see below) or set manually as parameter T. Setting T=-1 disables detailed balance. Setting T=-2 attempts to guess the temperature from the input S(q,w) data which must then be non-classical and extend on both energy sides (+/-). To use the S(q,w) data as is, without temperature effect, set T=-1 and norm=1.
+
+Both non symmetric (quantum) and classical S(q,w) data sets can be given by mean of the 'classical' parameter (see below).
+
+Additionally, for single order scattering (order=1), you may restrict the vertical spreading of the scattering area using d\_phi parameter.
+
+An important option to enhance statistics is to set 'p\_interact' to, say, 30 percent (0.3) in order to force a fraction of the beam to scatter. This will result on a larger number of scattered events, retaining intensity.
+
+If you use this component and produce valuable scientific results, please cite authors with references bellow (in \htmladdnormallink{Links}{\#links}). E. Farhi et al, J Comp Phys 228 (2009) 5251
+
+\textbf{Sample shape:} Sample shape may be a cylinder, a sphere, a box or any other shape
+
+\begin{verbatim}
+box/plate:       xwidth x yheight x zdepth (thickness=0)
+\end{verbatim}
+
+hollow box/plate:xwidth x yheight x zdepth and thickness\textgreater{}0
+
+\begin{verbatim}
+cylinder:        radius x yheight (thickness=0)
+\end{verbatim}
+
+hollow cylinder: radius x yheight and thickness\textgreater{}0
+
+\begin{verbatim}
+sphere:          radius (yheight=0 thickness=0)
+hollow sphere:   radius and thickness>0 (yheight=0)
+any shape:       geometry=OFF file
+\end{verbatim}
+
+The complex geometry option handles any closed non-convex polyhedra. It computes the intersection points of the photon ray with the object transparently, so that it can be used like a regular sample object. It supports the OFF, PLY and NOFF file format but not COFF (colored faces). Such files may be generated from XYZ data using: qhull \textless{} coordinates.xyz Qx Qv Tv o \textgreater{} geomview.off or powercrust coordinates.xyz and viewed with geomview or java -jar jroff.jar (see below). The default size of the object depends of the OFF file data, but its bounding box may be resized using xwidth,yheight and zdepth.
+
+\textbf{Concentric components:} This component has the ability to contain other components when used in hollow cylinder geometry (namely sample environment, e.g. cryostat and furnace structure). Such component 'shells' should be split into input and output side surrounding the 'inside' components. First part must then use 'concentric=1' flag to enter the inside part. The component itself must be repeated to mark the end of the concentric zone. The number of concentric shells and number of components inside is not limited.
+
+COMPONENT S\_in = Isotropic\_Sqw(Sqw\_coh="Al.laz", concentric=1, ...) AT (0,0,0) RELATIVE sample\_position
+
+COMPONENT something\_inside ... // e.g. the sample itself or other materials
+
+COMPONENT S\_out = COPY(S\_in)(concentric=0) AT (0,0,0) RELATIVE sample\_position
+
+\textbf{Sqw file format:} File format for S(Q,w) (coherent) should contain 3 numerical blocks, defining q axis values (vector), then energy axis values (vector), then a matrix with one line per q axis value, containing Sqw values for each energy axis value. Comments (starting with '\#') and non numerical lines are ignored and used to separate blocks. Sampling must be regular. Some parameters can be specified in comment lines, namely (00 is a numerical value):
+
+\begin{verbatim}
+# sigma_coh   00 coherent scattering cross section in [barn], e.g. 0.66524*f
+\end{verbatim}
+
+\# Temperature 00 in [K]
+
+\begin{verbatim}
+# V_rho       00 atom density per Angs^3
+# density     00 in [g/cm^3]
+# weight      00 in [g/mol]
+# classical   00 [0=contains Bose factor (measurement) ; 1=classical symmetric]
+\end{verbatim}
+
+Example: \# q axis values \# vector of m values in Angstroem-1
+
+\begin{verbatim}
+0.001000 .... 3.591000
+\end{verbatim}
+
+\# w axis values \# vector of n values in meV
+
+\begin{verbatim}
+0.001391 ... 1.681391
+\end{verbatim}
+
+\# sqw values (one line per q axis value) \# matrix of S(q,w) values (m rows x n values), one line per q value,
+
+\begin{verbatim}
+9.721422  10.599145 ... 0.000000
+10.054191 11.025244 ... 0.000000
+\end{verbatim}
+
+...
+
+\begin{verbatim}
+0.000000            ... 3.860253
+\end{verbatim}
+
+See for instance file He4\_liq\_coh.sqw. Such files may be obtained from e.g. INX, Nathan, Lamp and IDA softwares, as well as Molecular Dynamics (nMoldyn). When the provided S(q,w) data is obtained from the classical correlation function G(r,t), which is real and symmetric in time, the 'classical=1' parameter should be set in order to multiply the file data with exp(hw/2kT). Otherwise, the S(q,w) is NOT symmetrised (classical). If the S(q,w) data set includes both negative and positive energy values, setting 'classical=-1' will attempt to guess what type of S(q,w) it is. The temperature can also be determined this way. In case you do not know if the data is classical or quantum, assume it is usually classical at high temperatures, and quantum otherwise (T \textless{} typical mode excitations). The positive energy values correspond to Stokes processes, i.e. material gains energy, and photons loose energy. The energy range is symmetrized to allow up and down scattering, taking into account detailed balance exp(-hw/2kT).
+
+You may also generate such S(q,w) 2D files using \htmladdnormallink{iFit}{http://ifit.mccode.org/McStas.html\#mozTocId297488}
+
+\textbf{Powder file format:} Files for coherent elastic powder scattering may also be used. Format specification follows the same principle as in the PowderN component, with parameters:
+
+powder\_format= Crystallographica: \{ 4,5,7,0,0,0,0, 0,0 \}
+
+\begin{verbatim}
+Fullprof:          { 4,0,8,0,0,5,0, 0,0 }
+Undefined:         { 0,0,0,0,0,0,0, 0,0 }
+Lazy:              {17,6,0,0,0,0,0,13,0 }
+qSq:               {-1,0,0,0,0,0,1, 0,0 }  // special case for [q,Sq] table
+or:                {j,d,F2,DW,Delta_d/d,1/2d,q,F,strain}
+\end{verbatim}
+
+or column indexes (starting from 1) given as comments in the file header (e.g. '\#column\_j 4'). Refer to the PowderN component for more details. Delta\_d/d and Debye-Waller factor may be specified for all lines with the 'powder\_Dd' and 'powder\_DW' parameters. The reflection list should be ordered by decreasing d-spacing values.
+
+Additionally a special [q,Sq] format is also defined with: powder\_format=qSq for which column 1 is 'q' and column 2 is 'S(q)'.
+
+\textbf{Examples:} Isotropic\_Sqw(radius=0.0005, yheight=0.001, Sqw\_coh="Rb\_liq\_coh.sqw",verbose=3, p\_interact=0.95)
+
+2- powder sample Isotropic\_Sqw(..., Sqw\_coh="Al.laz")
+
+\%BUGS: When used in concentric mode, multiple bouncing scattering (traversing the hollow part) is not taken into account.
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+powder\_format & no quotes & name or definition of column indexes in file & \{0,0,0,0,0,0,0,0,0\} \\
+Sqw\_coh & str & Name of the file containing the values of Q, w and S(Q,w) Coherent part; Q in \AA{}-1, E in meV, S(q,w) in meV-1. Use 0, NULL or "" to disable. & 0 \\
+geometry & str & Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust & 0 \\
+material & str & Absorption file. & "NULL" \\
+radius & m & Outer radius of sample in (x,z) plane. cylinder/sphere. & 0 \\
+thickness & m & Thickness of hollow sample Negative value extends the hollow volume outside of the box/cylinder. & 0 \\
+xwidth & m & width for a box sample shape & 0 \\
+yheight & m & Height of sample in vertical direction for box/cylinder shapes & 0 \\
+zdepth & m & depth for a box sample shape & 0 \\
+threshold & 1 & Value under which S(Q,w) is not accounted for. to set according to the S(Q,w) values, i.e. not too low. & 1e-20 \\
+order & 1 & Limit multiple scattering up to given order 0:all (default), 1:single, 2:double, ... & 0 \\
+T & K & Temperature of sample, detailed balance. Use T=-1 to disable it, and T=-2 to guess it from non-classical S(q,w) input. & 0 \\
+verbose & 1 & Verbosity level (0:silent, 1:normal, 2:verbose, 3:debug). A verbosity\textgreater{}1 also computes dispersions and S(q,w) analysis. & 1 \\
+d\_phi & deg & scattering vertical angular spreading (usually the height of the next component/detector). Use 0 for full space. This is only relevant for single scattering (order=1). & 0 \\
+concentric & 1 & Indicate that this component has a hollow geometry and may contain other components. It should then be duplicated after the inside part (only for box, cylinder, sphere) [1] & 0 \\
+rho & \AA{}-3 & Density of scattering elements (nb atoms/unit cell V\_0). & 0 \\
+sigma\_coh & barns & Thomson cross-section of the material. For an atom, this is f*0.665 barns, where f is the number of free electrons, f -\textgreater{} atomic number Z. & 0.66524 \\
+classical & 1 & Assumes the S(q,w) data from the files is a classical S(q,w), and multiply that data by exp(hw/2kT) on up/down energy sides. Use 0 when obtained from raw experiments, 1 from molecular dynamics. Use -1 to guess from a data set including both energy sides. & -1 \\
+powder\_Dd & 1 & global Delta\_d/d spreading, or 0 if ideal. & 0 \\
+powder\_DW & 1 & global Debey-Waller factor, if not in |F2| or 1. & 0 \\
+powder\_Vc & \AA{}$^{3}$ & volume of the unit cell & 0 \\
+density & g/cm$^{3}$ & density of material. V\_rho=density/weight/1e24*N\_A & 0 \\
+weight & g/mol & atomic/molecular weight of material & 0 \\
+p\_interact & 1 & Force a given fraction of the beam to scatter, keeping intensity right, to enhance small signals (-1 inactivate). & -1 \\
+norm & 1 & Normalize S(q,w) when -1 (default). Use raw data when 1, multiplier for S(q,w) when norm\textgreater{}0. & -1 \\
+powder\_barns & 1 & 0 when |F2| data in powder file are fm\textasciicircum{}2, 1 when in barns (barns=1 for laz, barns=0 for lau type files). & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Isotropic\_Sqw.comp}.
+  \item Atomic form factors f http://lampx.tugraz.at/\textasciitilde{}hadley/ss1/crystaldiffraction/atomicformfactors/formfactors.php
+  \item E. Farhi, V. Hugouvieux, M.R. Johnson, and W. Kob, Journal of Computational Physics 228 (2009) 5251-5261 "Virtual experiments: Combining realistic neutron scattering instrument and sample simulations"
+  \item H. Schober, Collection SFN 10 (2010) 159-336
+\end{itemize}
+\IfFileExists{samples/Isotropic_Sqw_static.tex}{\input{samples/Isotropic_Sqw_static.tex}}{}
