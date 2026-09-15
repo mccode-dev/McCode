@@ -248,7 +248,7 @@ def add_mcrun_adv_options(parser):
 
     # Multiprocessing
     add('--mpi',
-        metavar='NB_CPU',
+        metavar='NB_CPU', default=1,
         help='Spread simulation over NB_CPU machines using MPI')
 
     add('--machines',
