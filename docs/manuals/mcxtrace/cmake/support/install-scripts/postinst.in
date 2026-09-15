@@ -1,0 +1,230 @@
+#!/usr/bin/env bash
+
+# Extract CMake macros during configure
+UNAME=`uname -s`
+
+@MCCODE_BASH_STANDARD_PREAMBLE@
+export PATH=${MCCODE_BINDIR}:${PATH}
+
+PREFIX="@CMAKE_INSTALL_PREFIX@"
+
+if [ "$1" == "set_mccode_default" ]; then
+    # If we are being called with the input parameter default, this is a call
+    # for post-configuration using mcgui and the PREFIX value should be
+    # defined from the location of this script
+    PREFIX=${MCCODE_RESOURCEDIR}
+fi
+
+FLAVOR="@FLAVOR@"
+VERSION="3.8.5"
+MC="@MCCODE_PREFIX@"
+
+echo "Post-install configuring $FLAVOR v. $VERSION on $UNAME."
+echo "PREFIX was set to $PREFIX"
+# Include installation path before any attempt to postconfig
+export PATH=${MCCODE_BINDIR}:${PATH}
+MCCODE=${FLAVOR}
+
+# Function to check if link exists, then remove it
+function checklinkrm {
+    if [ -h $1 ]; then
+	rm $1
+    fi
+}
+
+# Function probing / removing old links
+function checklinks {
+    # - Check for possibly existing links in /usr/bin or /usr/local/bin and remove them...
+        # McCode itself
+    checklinkrm /usr/bin/@FLAVOR@
+    checklinkrm /usr/local/bin/@FLAVOR@
+    checklinkrm /usr/bin/@FLAVOR@-pygen
+    checklinkrm /usr/local/bin/@FLAVOR@-pygen
+        # MCPL tool
+    checklinkrm /usr/bin/mcpltool
+    checklinkrm /usr/local/bin/mcpltool  
+        # mcrun variants
+    checklinkrm /usr/bin/@MCCODE_PREFIX@run
+    checklinkrm /usr/bin/@MCCODE_PREFIX@run.pl
+    checklinkrm /usr/bin/@MCCODE_PREFIX@run-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@run
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@run.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@run-py
+	# mcgui variants
+    checklinkrm /usr/bin/@MCCODE_PREFIX@gui
+    checklinkrm /usr/bin/@MCCODE_PREFIX@gui.pl
+    checklinkrm /usr/bin/@MCCODE_PREFIX@gui-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@gui
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@gui.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@gui-py
+	# mcplot 
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot.pl
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot-chaco-py
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot-chaco
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot-matplotlib-py
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot-matplotlib
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot-matlab
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot-pyqtgraph-py
+    checklinkrm /usr/bin/@MCCODE_PREFIX@plot-pyqtgraph
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot-chaco-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot-chaco
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot-matplotlib-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot-matplotlib
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot-matlab
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot-pyqtgraph-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@plot-pyqtgraph
+	# mcdisplay
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display.pl
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-py
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-x3d-py
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-x3d
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-matplotlib-py
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-matplotlib
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-vtk-py
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-vtk
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-webgl-py
+    checklinkrm /usr/bin/@MCCODE_PREFIX@display-webgl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-x3d-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-x3d
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-matplotlib-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-matplotlib
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-vtk-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-vtk
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-webgl-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-webgl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-pyqtgraph-py
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@display-pyqtgraph
+        # other stuff
+    checklinkrm /usr/bin/@MCCODE_PREFIX@daemon
+    checklinkrm /usr/bin/@MCCODE_PREFIX@daemon.pl
+    checklinkrm /usr/bin/@MCCODE_PREFIX@doc
+    checklinkrm /usr/bin/@MCCODE_PREFIX@doc.pl
+    checklinkrm /usr/bin/@MCCODE_PREFIX@format
+    checklinkrm /usr/bin/@MCCODE_PREFIX@format.pl
+    checklinkrm /usr/bin/@MCCODE_PREFIX@formatgui
+    checklinkrm /usr/bin/@MCCODE_PREFIX@formatgui.pl
+    checklinkrm /usr/bin/@MCCODE_PREFIX@resplot
+    checklinkrm /usr/bin/@MCCODE_PREFIX@resplot.pl
+    checklinkrm /usr/bin/@FLAVOR@tovitess
+    checklinkrm /usr/bin/@FLAVOR@tovitess.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@daemon
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@daemon.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@doc
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@doc.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@format
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@format.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@formatgui
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@formatgui.pl
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@resplot
+    checklinkrm /usr/local/bin/@MCCODE_PREFIX@resplot.pl
+    checklinkrm /usr/local/bin/@FLAVOR@tovitess
+    checklinkrm /usr/local/bin/@FLAVOR@tovitess.pl
+}
+
+
+# If this Unix has "modulefiles" installed in /etc, dump environment config there,
+# else a simple set of links will do...
+if [ -d /etc/modulefiles ]; 
+then
+    mkdir -p /etc/modulefiles/${FLAVOR}
+    # Is this RPM-postinstall, potentially relocated?
+    if [[ -z "$RPM_INSTALL_PREFIX" ]]; 
+    then
+	if [[ -f ${PREFIX}/@DEST_DATADIR_COMPS@/${FLAVOR}-module ]]; then
+	  cp ${PREFIX}/@DEST_DATADIR_COMPS@/${FLAVOR}-module /etc/modulefiles/${FLAVOR}/${VERSION}
+	elif  [[ -f ${MCCODE_RESOURCEDIR}/${FLAVOR}-module ]]; then
+	  cp ${MCCODE_RESOURCEDIR}/${FLAVOR}-module /etc/modulefiles/${FLAVOR}/${VERSION}
+	fi
+    else
+	if [ -f ${RPM_INSTALL_PREFIX}/@DEST_DATADIR_COMPS@/${FLAVOR}-module ];
+	then
+	    sed -i.bak s+/usr/local+${RPM_INSTALL_PREFIX}+g ${RPM_INSTALL_PREFIX}/@DEST_DATADIR_COMPS@/${FLAVOR}-module
+	    cp ${RPM_INSTALL_PREFIX}/@DEST_DATADIR_COMPS@/${FLAVOR}-module /etc/modulefiles/${FLAVOR}/${VERSION}
+	fi
+	if [ ${RPM_INSTALL_PREFIX} == /usr/local ];
+	then
+	    ln -sf ${RPM_INSTALL_PREFIX}/@DEST_BINDIR@/* /usr/local/bin/
+	fi
+    fi
+fi
+
+# Look for relevant locations of gtksourceview folder
+if [ -f  ${PREFIX}/@DEST_DATADIR_EDITORS@/mccode.lang ];
+then
+    # Recent GTK on Linux
+    if [ -d /usr/share/gtksourceview-4/language-specs/ ];
+    then
+	cp ${PREFIX}/@DEST_DATADIR_EDITORS@/mccode.lang  /usr/share/gtksourceview-4/language-specs/
+    fi
+    # Slighly older GTK on Linux
+    if [ -d /usr/share/gtksourceview-3/language-specs/ ];
+    then
+	cp ${PREFIX}/@DEST_DATADIR_EDITORS@/mccode.lang  /usr/share/gtksourceview-3/language-specs/
+    fi
+    # homebrew Arm on mac
+    if [ -d /opt/homebrew/share/gtksourceview-4/language-specs/ ];
+    then
+	cp ${PREFIX}/@DEST_DATADIR_EDITORS@/mccode.lang  /opt/homebrew/share/gtksourceview-4/language-specs/
+    fi
+    # homebrew Intel on mac
+    if [ -d /usr/local/share/gtksourceview-4/language-specs/ ];
+    then
+	cp ${PREFIX}/@DEST_DATADIR_EDITORS@/mccode.lang  /usr/local/share/gtksourceview-4/language-specs/
+    fi
+fi
+
+
+# Try to figure out if this is a Debian package, a Mac OS X bundle or a generic unix...
+if [[ ${PREFIX} = /usr/share* ]]; 
+then
+    # Looks like a Debian package - should really be handled via update-alternatives...
+    BINTARGET="/usr/bin"
+    checklinks
+elif [[ ${UNAME} = Darwin* || ${PREFIX} = /Applications* ]]
+then
+    # Looks like a Mac - dump links in /usr/local/bin
+    BINTARGET="/usr/local/bin"
+    # Also drop a link to the mccode "system folder" as it may otherwise be hard to find for "expert users"
+    mkdir -p /usr/local/${FLAVOR}
+    # - Should not be done if called from the 'app bundle' installer - and only once
+    if [[ ${PREFIX} = */Contents/Resources ]]; then
+	if [ ! -h /usr/local/@DEST_RESOURCEDIR@ ]; then
+	    ln -sf ${PREFIX}/@DEST_RESOURCEDIR@ /usr/local/@DEST_RESOURCEDIR@
+	fi
+    fi
+    checklinks
+else
+    # OK - nothing clever then
+    BINTARGET=${PREFIX}/bin
+    checklinks
+fi
+if [ -d ${BINTARGET} ];
+then
+    if [[ ${BINTARGET} != ${MCCODE_BINDIR} ]]; then
+      for i in ${MCCODE_BINDIR}/*; do
+        if [[ ! -f ${BINTARGET}/$i ]]; then
+          ln -sf ${MCCODE_BINDIR}/$i ${BINTARGET}/$i
+        fi
+      done
+    fi
+    if [[ -f ${MCCODE_RESOURCEDIR}/${FLAVOR}-environment ]]; then
+      ln -sf ${MCCODE_RESOURCEDIR}/${FLAVOR}-environment ${BINTARGET}/${FLAVOR}-${VERSION}-environment
+    elif [[ -f ${MCCODE_RESOURCEDIR}/../${FLAVOR}-environment ]]; then
+      ln -sf ${MCCODE_RESOURCEDIR}/../${FLAVOR}-environment ${BINTARGET}/${FLAVOR}-${VERSION}-environment
+    fi
+else
+    echo "Sorry, your BINTARGET folder \"${BINTARGET}\" does not exist, dropping link creation"
+fi
+
+# Check if mcdoc is installed and if it needs to run
+if [ -x ${MCCODE_BINDIR}/${MC}doc ] && \
+    [ -d ${MCCODE_RESOURCEDIR}/examples ]; then
+    ${MCCODE_BINDIR}/${MC}doc -i &>/dev/null
+fi

@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+
+if [[ 1 == 1 ]]; then
+  # Legacy McCode PATH setup 
+  TOPENV="$0"
+
+  # Check if we are being called with a non-full path
+  if [[ $TOPENV != "/"* ]]; then
+    TOPENV="$PWD/$TOPENV"
+  fi
+
+  # Iterate down a (possible) chain of symlinks (macOS does not have readlink -f)
+  while [ -L "$TOPENV" ];
+  do
+    TOPENV=`readlink "$TOPENV"`
+  done
+  TOPENV=`dirname $TOPENV`
+  TOPENV=`dirname $TOPENV`
+  TOPENV=`dirname $TOPENV`
+
+else
+  TOPENV="\$( cd -P \"\$( dirname \"\${BASH_SOURCE[0]}\" )\" && pwd )"
+fi
+
+
+
+ARCH=`uname -m`
+UNAME=`uname -s`
+
+# On macOS, shorten TMPDIR 
+if [[ ${UNAME} = Darwin* ]]; then
+    export TMPDIR=/tmp
+    OSXVER=`sw_vers -productVersion|cut -f 1 -d.`
+fi
+
+export PATH=$TOPENV/miniconda3/bin:$PATH
+
+export @FLAVOR_UPPER@=$TOPENV/@DEST_DATADIR_COMPS@
+
+export PATH=$TOPENV/@DEST_BINDIR@:$PATH
+# Check if we are running with miniconda-provided python libs and set PYTHONPATH accordingly
+if [ -d "$@FLAVOR_UPPER@/miniconda3" ]; then
+    #Activation hook for conda 
+    _conda_bindir="$@FLAVOR_UPPER@/miniconda3/bin"
+    function conda() {
+	unset conda
+	eval "$(${_conda_bindir}/conda shell.bash hook 2> /dev/null)"
+	conda "$@"
+    }
+    conda activate $@FLAVOR_UPPER@/miniconda3
+    export PS1='(@FLAVOR@-3.8.5/miniconda3) \W \$ '
+else
+    export PS1='@FLAVOR@-3.8.5 env \W \$ '
+fi
+
+ 
+if [ -d "$@FLAVOR_UPPER@/share/NCrystal/python/" ]; then
+    export PYTHONPATH=$@FLAVOR_UPPER@/share/NCrystal/python/:$PYTHONPATH
+fi
+
+# Finally, launch jupyter, potentially via $1 as input
+export INSTRUMENT=$1
+# Check if we got an input file or not
+if [ -z "${INSTRUMENT}" ]; then
+    # Still empty? Look for most recent local .py or .ipynb file
+    export INSTRUMENT=`ls -rt *.py *.ipynb | tail -1`
+    if [ -z "${INSTRUMENT}" ]; then
+	# Still empty? Just open .
+	export INSTRUMENT="."
+    fi
+fi
+
+# Got an input, check if it has suffix .instr
+if [[ "${INSTRUMENT}" == *".instr" ]]; then
+    @FLAVOR@-jupylab ${INSTRUMENT}
+else
+    jupyter lab ${INSTRUMENT}
+fi
+

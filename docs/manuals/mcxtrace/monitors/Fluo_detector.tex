@@ -1,0 +1,55 @@
+\section{The \texttt{Fluo\_detector} McXtrace Component}
+Detector for fluorescence, e.g. Silicon Drift Detector (SDD) or High Purity Germanium (HPGe).
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} E. Farhi
+  \item \textbf{Origin:} Synchrotron SOLEIL
+  \item \textbf{Date:} May 2025
+\end{itemize}
+
+\subsection*{Description}
+A detector that records energy spectrum from e.g. fluorescence. This component handles: - fluorescence detector escape (energy shift from detector K-alpha) - fluorescence detector pile-up (sum aka time-coincidence aka pile-up within detector dead-time) - energy resolution (above Fano level)
+
+The detector geometry can be a rectangle xwidth*yheight, or a disk of given 'radius'. When the radius is given negative, a 4PI detector sphere of given radius is assumed.
+
+The detector escape corresponds with a fluorescence excitation within the detector itself that subtracts the K-alpha detector level from the sample scattered energy. The level of escape peaks in set as 'escape\_ratio', e.g. 1-2 \%.
+
+The detector pile-up is related to the detector dead-time, within which time coincidence between two fluorescence photons are summed-up. The level of pile-up is set as 'pileup\_ratio', e.g. 1-2 \% which can increase for high count rates that saturate the detector.
+
+Last, the fluorescence peak shape is broadened using an electronic noise (at E=0) and a nominal resolution at E=resolution\_energy (in keV). You may set the electronic\_noise to zero for a perfect detector (Fano limit). To use a constant resolution, set the resolution\_energy=0.
+
+Example: Fluo\_detector(xwidth=0.1, yheight=0.1, Emin=1, Emax=50, nE=20, filename="Output.nrj")
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+radius & m & Radius of disk detector (in XY plane). When given as negative, a 4PI sphere is assumed. & 0 \\
+xwidth & m & Width  of rectangle detector. & 0 \\
+yheight & m & Height of rectangle detector. & 0 \\
+Emin & keV & Minimum energy to detect. & 1 \\
+Emax & keV & Maximum energy to detect. & 39 \\
+nE & m & Number of energy channels. & 2000 \\
+filename & str & Name of file in which to store the detector image. & 0 \\
+restore\_xray & 0/1 & If set, the monitor does not influence the x-ray state. & 0 \\
+escape\_ratio & 1 & Detector escape peak ratio,  e.g. 0.01-0.02. Zero inactivates. & 0.01 \\
+escape\_energy & keV & Detector escape peak energy, e.g. 1.739 for Si, 9.886 for Ge. & 1.739 \\
+pileup\_ratio & 1 & Sum aka time coincidence aka pile-up detector peak ratio, e.g. 0.01-0.02. This is e.g. the dead-time ratio. Zero inactivates. & 0.01 \\
+electronic\_noise & keV & Electronic noise at E=0, FWHM in keV. Use electronic\_noise=0 for Fano limit. & 0.1 \\
+resolution\_energy & keV & Energy at which resolution is given, e.g. 5.9 keV Mn K-alpha. & 6 \\
+resolution & keV & Resolution FWHM in keV at resolution\_energy. & 0.2 \\
+flag\_lorentzian & 1 & When 1, the line shapes are assumed to be Lorentzian, else Gaussian. & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Fluo\_detector.comp}.
+  \item Fluorescence https://en.wikipedia.org/wiki/Fluorescence
+\end{itemize}
+\IfFileExists{monitors/Fluo_detector_static.tex}{\input{monitors/Fluo_detector_static.tex}}{}
