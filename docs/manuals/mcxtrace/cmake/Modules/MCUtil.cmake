@@ -128,8 +128,8 @@ macro(setupMCCODE FLAVOR)
     ## Set mkdist-provided version
     string(CONFIGURE "3.8.5"   MCCODE_VERSION @ONLY)
     string(CONFIGURE "McXtrace"      MCCODE_NAME @ONLY)    # e.g. McStas or McXtrace
-    string(CONFIGURE "Sep. 15, 2026"      MCCODE_DATE @ONLY)    # e.g. MONTH. DAY, YEAR
-    string(CONFIGURE "McXtrace 3.8.5 - Sep. 15, 2026"    MCCODE_STRING @ONLY)  # MCCODE_NAME MCCODE_VERSION - MCCODE_DATE
+    string(CONFIGURE "Sep. 16, 2026"      MCCODE_DATE @ONLY)    # e.g. MONTH. DAY, YEAR
+    string(CONFIGURE "McXtrace 3.8.5 - Sep. 16, 2026"    MCCODE_STRING @ONLY)  # MCCODE_NAME MCCODE_VERSION - MCCODE_DATE
     string(CONFIGURE "mcxtrace"   MCCODE_TARNAME @ONLY)
     string(CONFIGURE "@MCCODE_PARTICLE@"  MCCODE_PARTICLE @ONLY)  # neutron or xray
     string(CONFIGURE "@FLAVOR_UPPER@"     FLAVOR_UPPER @ONLY)   # MCSTAS or MCXTRACE
