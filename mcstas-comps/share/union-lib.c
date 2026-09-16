@@ -9228,7 +9228,6 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   volume_is_only_absorber (struct Volume_struct* Volume) {
     // This function returns true if a volume does not have any physical processes
     // and if the volume is not a vacuum.
-    printf("TESTING TESTING \n");
     if (!Volume->p_physics->number_of_processes && !Volume->p_physics->is_vacuum)
       return 1;
     return 0;
@@ -9244,12 +9243,13 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   }
 
   void
-  adjust_abs_weight_factor (struct Volume_struct* Volume, double* my_sum_plus_abs, double* length_to_boundary, double* v_length, double* time_to_boundary,
+  adjust_abs_weight_factor (struct Volume_struct* Volume, double* my_sum_plus_abs, 
+                            double* length_to_boundary, double v_length, double time_to_boundary,
                             double* abs_weight_factor, int* abs_weight_factor_set) {
-    *my_sum_plus_abs = Volume->p_physics->my_a * (2200 / *v_length);
-    *length_to_boundary = *time_to_boundary * *v_length;
+    *my_sum_plus_abs = Volume->p_physics->my_a * (2200 / v_length);
+    *length_to_boundary = time_to_boundary * v_length;
 
-    *abs_weight_factor = exp (-Volume->p_physics->my_a * 2200 * *time_to_boundary);
+    *abs_weight_factor = exp (-Volume->p_physics->my_a * 2200 * time_to_boundary);
     *abs_weight_factor_set = 1;
 
     #ifdef Union_trace_verbal_setting
@@ -9262,24 +9262,24 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
 
   void
-  transform_wavevector_into_local_coord_system (struct Volume_struct* Volume, Coords* wavevector_rotated, double (*k_rotated)[3], int* p_index,
+  transform_wavevector_into_local_coord_system (struct Volume_struct* Volume, Coords* wavevector_rotated, double (*k_rotated)[3], int p_index,
                                                 Coords* wavevector, Coords* ray_position_geometry) {
 
-    int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index;
+    int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
     *wavevector_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *wavevector);
     coords_get (*wavevector_rotated, &(*k_rotated)[0], &(*k_rotated)[1], &(*k_rotated)[2]);
 
-    if (Volume->p_physics->p_scattering_array[*p_index].needs_cross_section_focus == 1) {
+    if (Volume->p_physics->p_scattering_array[p_index].needs_cross_section_focus == 1) {
       // Prepare focus data using ray_position_geometry of forced scattering point which will be prepared if any process needs cross_section time
       // focusing
       Coords ray_position_geometry_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *ray_position_geometry);
 
-      int focus_data_index = Volume->geometry.focus_array_indices.elements[*p_index];
+      int focus_data_index = Volume->geometry.focus_array_indices.elements[p_index];
       struct focus_data_struct* this_focus_data = &Volume->geometry.focus_data_array.elements[focus_data_index];
       this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated); // Aim vector for this ray
 
       #ifdef Union_trace_verbal_setting
-      printf ("Checking process number : %d, it was not isotropic, so RayAim updated \n", *p_index);
+      printf ("Checking process number : %d, it was not isotropic, so RayAim updated \n", p_index);
       print_position (*ray_position_geometry, "ray_position_geometry");
       print_position (ray_position_geometry_rotated, "ray_position_geometry_rotated");
       print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
@@ -9291,7 +9291,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
   void
   move_and_aim_neutron (struct physics_struct* current_p_physics, int i, struct scattering_process_struct* process, _class_particle* _particle,
-                        struct Volume_struct* Volume, int* p_index, Coords* ray_velocity, Coords* ray_position, struct focus_data_struct* this_focus_data) {
+                        struct Volume_struct* Volume, int p_index, Coords* ray_velocity, Coords* ray_position, struct focus_data_struct* this_focus_data) {
     // Transport neutron to place inside geometry
     *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz);
     // Find location of scattering point in master coordinate system without changing main position / velocity variables
@@ -9301,8 +9301,8 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
     Coords sampling_point_geometry = coords_sub (sampling_point, Volume->geometry.center);
     // Also focus the ray at this point, if the component needs focusing
     if (process->needs_cross_section_focus) {
-      if (Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index != -1) {
-        int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[*p_index].non_isotropic_rot_index;
+      if (Volume->p_physics->p_scattering_array[p_index].non_isotropic_rot_index != -1) {
+        int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
         sampling_point_geometry = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], sampling_point_geometry);
       }
       this_focus_data->RayAim = coords_sub (this_focus_data->Aim, sampling_point_geometry);
@@ -9326,11 +9326,11 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
 
   void
-  focus_in_cross_section_set_forced_point_and_dir (double* forced_length_to_scattering, double* safety_distance, double* safety_distance2, double* length_to_boundary,
+  focus_in_cross_section_set_forced_point_and_dir (double* forced_length_to_scattering, double safety_distance, double safety_distance2, double length_to_boundary,
                                              _class_particle* _particle, Coords* ray_velocity, Coords* ray_position_geometry, Coords* ray_position,
                                              struct Volume_struct* Volume, struct focus_data_struct* this_focus_data) {
     // Sample length_to_scattering in linear manner
-    *forced_length_to_scattering = *safety_distance + rand01 () * (*length_to_boundary - *safety_distance2);
+    *forced_length_to_scattering = safety_distance + rand01 () * (length_to_boundary - safety_distance2);
 
     *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz); // Test for root cause
     // Find location of scattering point in master coordinate system without changing main position / velocity variables
@@ -9357,14 +9357,14 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   }
 
   void
-  focus_in_cross_section_set_scat_length (double* length_to_scattering, double* forced_length_to_scattering, double* weight, double* length_to_boundary,
-                             double* my_sum_plus_abs) {
+  focus_in_cross_section_set_scat_length (double* length_to_scattering, double forced_length_to_scattering, double* weight, double length_to_boundary,
+                             double my_sum_plus_abs) {
     // Respect forced length to scattering chosen by process
-    *length_to_scattering = *forced_length_to_scattering;
+    *length_to_scattering = forced_length_to_scattering;
     // Drawing between 0 and L from constant s = 1/L and should have been q = A*exp(-kz).
     // Normalizing A*exp(-kz) over 0 to L: A = k/(1-exp(-k*L))
     // Weight correction is ratio between s and q, L*A*exp(-kz) = L*k*exp(-kz)/(1-exp(-Lk))
-    *weight *= *length_to_boundary * *my_sum_plus_abs * exp (-*length_to_scattering * *my_sum_plus_abs) / (1.0 - exp (-*length_to_boundary * *my_sum_plus_abs));
+    *weight *= length_to_boundary * my_sum_plus_abs * exp (-*length_to_scattering * my_sum_plus_abs) / (1.0 - exp (-length_to_boundary * my_sum_plus_abs));
     #ifdef Union_trace_verbal_setting
     printf ("Used forced length to scattering, %lf \n", length_to_scattering);
     #endif
@@ -9413,14 +9413,14 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   }
 
   double
-  inhomogenous_sample_scattering_point (struct Volume_struct* Volume, struct physics_struct* current_p_physics, double* abs_weight_factor, double* v_length,
-                                        double* safety_distance, int* selected_sampling) {
+  inhomogenous_sample_scattering_point (struct Volume_struct* Volume, struct physics_struct* current_p_physics, double* abs_weight_factor, double v_length,
+                                        double safety_distance, int* selected_sampling) {
 
     // Numerical integration happens, and therefore we must choose between the different samples
     // We do this by drawing a random number between 0 and max cumul prob,
     // and then seeing which cumul prob is the first to include it.
     *abs_weight_factor = 1;
-    double mu_at_speed = Volume->p_physics->my_a * (2200 / *v_length);
+    double mu_at_speed = Volume->p_physics->my_a * (2200 / v_length);
     double pseudo_rand = rand01 () * (1 - current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1]);
     for (int i = 0; i < current_p_physics->sampling_points; i++) {
       // printf("\nCumul trans prob = %g\t pseudo rand = %g\n", current_p_physics->cumul_transmission_prob[i], pseudo_rand);
@@ -9435,7 +9435,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
     // printf("\nSelected_sampling = %d\n", selected_sampling);
 
     // printf("dist i = %g\tdist=%g\n", dist_i, dist);
-    double sampled_dist = *safety_distance
+    double sampled_dist = safety_distance
                           - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[*selected_sampling])))
                                 / current_p_physics->total_mus[*selected_sampling] * current_p_physics->dist;
     return current_p_physics->cumul_dists[*selected_sampling] - current_p_physics->dist / 2 + sampled_dist;
@@ -9443,11 +9443,11 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
 
   void
-  inhomogenous_choose_process (struct physics_struct* current_p_physics, struct Volume_struct* Volume, double* culmative_probability, double* mc_prop,
-                               double* my_sum, int* selected_sampling, int* selected_process) {
+  inhomogenous_choose_process (struct physics_struct* current_p_physics, struct Volume_struct* Volume, double* culmative_probability, double mc_prop,
+                               double my_sum, int selected_sampling, int* selected_process) {
     for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
-      *culmative_probability += current_p_physics->mus[i][*selected_sampling] / *my_sum;
-      if (*culmative_probability > *mc_prop) {
+      *culmative_probability += current_p_physics->mus[i][selected_sampling] / my_sum;
+      if (*culmative_probability > mc_prop) {
         *selected_process = i;
         break;
       }
@@ -9478,7 +9478,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
   void
   p_interact_select_process (struct Volume_struct* Volume, double* my_trace_fraction_control, double* my_trace, double* total_process_interact,
-                             double* culmative_probability, double* mc_prop, double* weight, double* my_sum, int* selected_process) {
+                             double* culmative_probability, double* mc_prop, double* weight, double my_sum, int* selected_process) {
     // Interact_fraction is used to influence the choice of process in this material
     *mc_prop = rand01 ();
     *culmative_probability = 0;
@@ -9499,7 +9499,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
       *culmative_probability += my_trace_fraction_control[i] / *total_process_interact;
       if (*culmative_probability > *mc_prop) {
         *selected_process = i;
-        *weight *= (my_trace[i] / *my_sum) * (*total_process_interact / my_trace_fraction_control[i]);
+        *weight *= (my_trace[i] / my_sum) * (*total_process_interact / my_trace_fraction_control[i]);
         break;
       }
     }
