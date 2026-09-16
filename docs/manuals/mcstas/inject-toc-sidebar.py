@@ -90,6 +90,28 @@ def find_title(master_fn):
         text = text[:half].strip().rstrip(',')
     return text
 
+LOGO_FILENAMES = {"DTU_logo.png", "DTU_logo",
+                  "mcstas_logo_reflection.png", "mcstas_logo_reflection",
+                  "mcxtrace_logo", "mcxtrace_logo.png"}
+
+def mark_content_figures(content):
+    """Tag every <img> tag with class="mccode-content-figure", except the
+    known front-page logos (matched by filename, so this works regardless
+    of which page an image appears on) -- lets CSS grow content figures
+    without also blowing up the small, intentionally-sized logos."""
+    def replacer(m):
+        img_tag = m.group(0)
+        src_match = re.search(r'src="([^"]+)"', img_tag)
+        if not src_match:
+            return img_tag
+        basename = src_match.group(1).rsplit('/', 1)[-1]
+        if basename in LOGO_FILENAMES:
+            return img_tag
+        if 'class="' in img_tag:
+            return re.sub(r'class="', 'class="mccode-content-figure ', img_tag, count=1)
+        return img_tag[:4] + ' class="mccode-content-figure"' + img_tag[4:]
+    return re.sub(r'<img\b[^>]*>', replacer, content, flags=re.IGNORECASE)
+
 def linkify_images(content):
     """Wrap every <img> tag in <a href="SAME_SRC" target="_blank">, so
     clicking any figure opens the raw image standalone in a new tab."""
@@ -111,6 +133,7 @@ def inject(doc, toc_html, header_html):
         if 'id="mccode-toc-sidebar"' in content:
             continue  # already injected (re-run safety)
         content = linkify_images(content)
+        content = mark_content_figures(content)
         # Insert CSS + sidebar right after <body ...>, then the header bar,
         # then open the content div; close it right before </body>.
         content, n1 = re.subn(
