@@ -18,6 +18,15 @@ include(UseLATEX)
 # set(PDFLATEX_COMPILER "/usr/bin/xelatex")
 message( "setup MCCODE" )
 setupMCCODE("${FLAVOR}")
+
+# Generate title.tex / title_comp.tex from their .in templates, substituting
+# the actual build version (@MCCODE_VERSION@) -- this is the version passed
+# as argument 1 to build_manuals_mcstas, already threaded through by
+# setupMCCODE() above via mkdist, with no changes needed there. Runs at
+# configure time, landing in ${CMAKE_CURRENT_BINARY_DIR} (== LATEX_OUTPUT_PATH
+# below), so the LaTeX build finds them there like any other input.
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/title.tex.in" "${CMAKE_CURRENT_BINARY_DIR}/title.tex" @ONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/title_comp.tex.in" "${CMAKE_CURRENT_BINARY_DIR}/title_comp.tex" @ONLY)
 # CPack configuration
 message( "CPack configuration" )
 set(CPACK_PACKAGE_NAME          "${FLAVOR}-manuals")
@@ -118,7 +127,8 @@ install(FILES "${PROJECT_BINARY_DIR}/Component_manual.pdf"
 # failing the whole manuals build.
 find_program(HTLATEX_EXECUTABLE htlatex)
 find_program(BASH_EXECUTABLE bash)
-if(HTLATEX_EXECUTABLE AND BASH_EXECUTABLE)
+find_program(PYTHON3_EXECUTABLE python3)
+if(HTLATEX_EXECUTABLE AND BASH_EXECUTABLE AND PYTHON3_EXECUTABLE)
   foreach(DOC manual Component_manual)
     add_custom_command(
       OUTPUT "${PROJECT_BINARY_DIR}/${DOC}-html.tgz"
@@ -128,11 +138,12 @@ if(HTLATEX_EXECUTABLE AND BASH_EXECUTABLE)
       COMMAND "makeindex" "${DOC}.idx"
       COMMAND "${HTLATEX_EXECUTABLE}" "${DOC}.tex" "html,3,mathjax" " -cvalidate" ""
       COMMAND "${HTLATEX_EXECUTABLE}" "${DOC}.tex" "html,3,mathjax" " -cvalidate" ""
+      COMMAND "${PYTHON3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/inject-toc-sidebar.py" "${DOC}"
       COMMAND "${BASH_EXECUTABLE}" "-c" "cat '${CMAKE_CURRENT_SOURCE_DIR}/html-style-overrides.css' >> '${DOC}.css'"
       COMMAND "${BASH_EXECUTABLE}" "-c" "tar czf '${DOC}-html.tgz' ${DOC}*.html ${DOC}.css figures 2>/dev/null || tar czf '${DOC}-html.tgz' ${DOC}*.html ${DOC}.css"
       WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
-      DEPENDS "${PROJECT_BINARY_DIR}/${DOC}.pdf" "${CMAKE_CURRENT_SOURCE_DIR}/html-style-overrides.css" "${CMAKE_CURRENT_SOURCE_DIR}/generate-xbb-files.sh"
-      COMMENT "Building HTML version of ${DOC} (tex4ht/MathJax) and packaging as ${DOC}-html.tgz"
+      DEPENDS "${PROJECT_BINARY_DIR}/${DOC}.pdf" "${CMAKE_CURRENT_SOURCE_DIR}/html-style-overrides.css" "${CMAKE_CURRENT_SOURCE_DIR}/generate-xbb-files.sh" "${CMAKE_CURRENT_SOURCE_DIR}/inject-toc-sidebar.py"
+      COMMENT "Building HTML version of ${DOC} (tex4ht/MathJax), injecting TOC sidebar, and packaging as ${DOC}-html.tgz"
       VERBATIM
       )
     add_custom_target("${DOC}_html" ALL DEPENDS "${PROJECT_BINARY_DIR}/${DOC}-html.tgz")
@@ -149,5 +160,5 @@ if(HTLATEX_EXECUTABLE AND BASH_EXECUTABLE)
     OPTIONAL
   )
 else()
-  message(WARNING "htlatex and/or bash not found -- skipping HTML manual generation. Install texlive-plain-generic (htlatex/tex4ht) and dvipng to enable the .tgz HTML manuals.")
+  message(WARNING "htlatex, bash and/or python3 not found -- skipping HTML manual generation. Install texlive-plain-generic (htlatex/tex4ht) and dvipng to enable the .tgz HTML manuals.")
 endif()
