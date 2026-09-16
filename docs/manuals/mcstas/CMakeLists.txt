@@ -122,15 +122,16 @@ if(HTLATEX_EXECUTABLE AND BASH_EXECUTABLE)
   foreach(DOC manual Component_manual)
     add_custom_command(
       OUTPUT "${PROJECT_BINARY_DIR}/${DOC}-html.tgz"
-      COMMAND "${BASH_EXECUTABLE}" "-c" "find figures -type f \\( -iname '*.pdf' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \\) -exec extractbb {} \\; 2>/dev/null || true"
+      COMMAND "${BASH_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/generate-xbb-files.sh"
       COMMAND "${HTLATEX_EXECUTABLE}" "${DOC}.tex" "html,3,mathjax" " -cvalidate" ""
       COMMAND "bibtex" "${DOC}"
       COMMAND "makeindex" "${DOC}.idx"
       COMMAND "${HTLATEX_EXECUTABLE}" "${DOC}.tex" "html,3,mathjax" " -cvalidate" ""
       COMMAND "${HTLATEX_EXECUTABLE}" "${DOC}.tex" "html,3,mathjax" " -cvalidate" ""
+      COMMAND "${BASH_EXECUTABLE}" "-c" "cat '${CMAKE_CURRENT_SOURCE_DIR}/html-style-overrides.css' >> '${DOC}.css'"
       COMMAND "${BASH_EXECUTABLE}" "-c" "tar czf '${DOC}-html.tgz' ${DOC}*.html ${DOC}.css figures 2>/dev/null || tar czf '${DOC}-html.tgz' ${DOC}*.html ${DOC}.css"
       WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
-      DEPENDS "${PROJECT_BINARY_DIR}/${DOC}.pdf"
+      DEPENDS "${PROJECT_BINARY_DIR}/${DOC}.pdf" "${CMAKE_CURRENT_SOURCE_DIR}/html-style-overrides.css" "${CMAKE_CURRENT_SOURCE_DIR}/generate-xbb-files.sh"
       COMMENT "Building HTML version of ${DOC} (tex4ht/MathJax) and packaging as ${DOC}-html.tgz"
       VERBATIM
       )
