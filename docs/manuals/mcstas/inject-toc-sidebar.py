@@ -90,6 +90,17 @@ def find_title(master_fn):
         text = text[:half].strip().rstrip(',')
     return text
 
+def linkify_images(content):
+    """Wrap every <img> tag in <a href="SAME_SRC" target="_blank">, so
+    clicking any figure opens the raw image standalone in a new tab."""
+    def replacer(m):
+        img_tag = m.group(0)
+        src_match = re.search(r'src="([^"]+)"', img_tag)
+        if not src_match:
+            return img_tag
+        return f'<a href="{src_match.group(1)}" target="_blank">{img_tag}</a>'
+    return re.sub(r'<img\b[^>]*>', replacer, content, flags=re.IGNORECASE)
+
 def inject(doc, toc_html, header_html):
     sidebar = f'<nav id="mccode-toc-sidebar">{toc_html}</nav>'
     files = sorted(glob.glob(f"{doc}*.html"))
@@ -99,6 +110,7 @@ def inject(doc, toc_html, header_html):
             content = f.read()
         if 'id="mccode-toc-sidebar"' in content:
             continue  # already injected (re-run safety)
+        content = linkify_images(content)
         # Insert CSS + sidebar right after <body ...>, then the header bar,
         # then open the content div; close it right before </body>.
         content, n1 = re.subn(
