@@ -79,6 +79,19 @@ foreach(NAME sources samples optics monitors misc union sasmodels contrib obsole
     )
 endforeach()
 
+# MD files
+foreach(NAME sources samples optics monitors misc union sasmodels contrib obsolete astrox)
+   file(GLOB ${NAME}_COMP_SOURCES_MD CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/../../../mcstas-comps/${NAME}/*.comp")
+   add_custom_command(
+     OUTPUT "${NAME}.mddone"
+     COMMAND "mxdoc" "--md" "--in-repo" "--dir=${CMAKE_SOURCE_DIR}/../../../mcxtrace-comps/${NAME}"
+     COMMAND "${CMAKE_COMMAND}" "-E" "touch" "${CMAKE_CURRENT_BINARY_DIR}/${NAME}.mddone"
+     DEPENDS "${CMAKE_SOURCE_DIR}/../../../tools/Python/mcdoc/mcdoc.py" ${${NAME}_COMP_SOURCES_MD}
+     WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+     COMMENT "Regenerating ${NAME} Markdown component/instrument doc snippets"
+     )
+endforeach()
+
 set(LATEX_OUTPUT_PATH "${PROJECT_BINARY_DIR}")
 add_latex_document(
   manual.tex 
