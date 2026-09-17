@@ -23,6 +23,12 @@ import subprocess
 from os.path import join, basename
 import pathlib
 
+# Capture the shell's CWD *before* any downstream import can chdir. Some
+# mccodelib modules (e.g. mccode_config) may change the process CWD as a
+# side effect of loading system configuration, which would otherwise make
+# './mcdoc.html' land next to the script instead of the user's CWD.
+_INVOCATION_CWD = os.getcwd()
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
 
@@ -1357,7 +1363,6 @@ $(function () {
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
  | <A href="#desc">Description</A>
- | <A href="#ex">Examples</A>
  | <A href="#ipar">Input parameters</A>
  | <A href="#links">Links</A> ]
 </P>
@@ -1369,7 +1374,6 @@ $(function () {
 <H2><A NAME=id></A>Identification</H2>
 
 <UL>
-  <LI> <B>Site: </B>%SITE%
   <LI> <B>Author: </B>%AUTHOR%
   <LI> <B>Origin: </B>%ORIGIN%
   <LI> <B>Date: </B>%DATE%
@@ -1379,13 +1383,6 @@ $(function () {
 <PRE>
 %DESCRIPTION%
 </PRE>
-
-<H2><A NAME=ex></A>Examples</H2>
-(Test cases in bold)
-
-<UL>
-%EXAMPLES%
-</UL>
 
 <H2><A NAME=ipar></A>Input parameters</H2>
 Parameters in <B>boldface</B> are required;
@@ -1539,7 +1536,6 @@ class CompMdDocWriter:
         lines.append('')
         lines.append('## Identification')
         lines.append('')
-        lines.append('- **Site:** %s' % _md_text(i.site))
         lines.append('- **Author:** %s' % _md_text(i.author))
         lines.append('- **Origin:** %s' % _md_text(i.origin))
         lines.append('- **Date:** %s' % _md_text(i.date))
@@ -1550,9 +1546,6 @@ class CompMdDocWriter:
         lines.append(_md_text(i.description))
         lines.append('```')
         lines.append('')
-        lines.append('## Examples')
-        lines.append('')
-        lines.append(_examples_md_body(i.test))
         lines.append('')
         lines.append('## Input parameters')
         lines.append('')
@@ -1688,7 +1681,6 @@ class CompLatexDocWriter:
         out.append('')
         out.append(r'\subsection*{Identification}')
         out.append(r'\begin{itemize}')
-        out.append(r'  \item \textbf{Site:} %s'   % _tex(i.site))
         out.append(r'  \item \textbf{Author:} %s' % _tex(i.author))
         out.append(r'  \item \textbf{Origin:} %s' % _tex(i.origin))
         out.append(r'  \item \textbf{Date:} %s'   % _tex(i.date))
@@ -1696,9 +1688,6 @@ class CompLatexDocWriter:
         out.append('')
         out.append(r'\subsection*{Description}')
         out.append(_description_to_latex(i.description))
-        out.append('')
-        out.append(r'\subsection*{Examples}')
-        out.append(_examples_tex_body(i.test))
         out.append('')
         out.append(r'\subsection*{Input parameters}')
         out.append(r'Parameters in \textbf{boldface} are required; the others are optional.')
@@ -2011,10 +2000,8 @@ def main(args):
 
                 instr = re.search(r'[\w0-9]+\.instr', args.searchterm)
                 comp = re.search(r'[\w0-9]+\.comp', args.searchterm)
-                if getattr(args, 'in_repo', True):
-                        docdir = mccode_config.directories["docdir"]
-                else:
-                    docdir=''
+
+                docdir = mccode_config.directories["docdir"]
 
                 if instr:
                     f_base = os.path.splitext(os.path.basename(f))[0]
@@ -2054,7 +2041,7 @@ def main(args):
             quit()
 
         if args.in_repo==False:
-            mcdoc_html_filepath = os.path.join(docdir, mccode_config.get_mccode_prefix()+'doc.html')
+            mcdoc_html_filepath = os.path.join(_INVOCATION_CWD, mccode_config.get_mccode_prefix()+'doc.html')
         else:
             mcdoc_html_filepath = None
         write_overview_docs(comp_infos, instr_infos, comp_infos_local, instr_infos_local,
@@ -2063,7 +2050,7 @@ def main(args):
                             formats=formats,
                             printlog=args.verbose)
 
-        subprocess.Popen('%s %s' % (mccode_config.configuration['BROWSER'], os.path.join('.',mccode_config.get_mccode_prefix()+'doc.html')), shell=True)
+        subprocess.Popen('%s %s' % (mccode_config.configuration['BROWSER'], os.path.join(_INVOCATION_CWD, mccode_config.get_mccode_prefix()+'doc.html')), shell=True)
 
 
 if __name__ == '__main__':
