@@ -27,6 +27,7 @@ setupMCCODE("${FLAVOR}")
 # below), so the LaTeX build finds them there like any other input.
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/title.tex.in" "${CMAKE_CURRENT_BINARY_DIR}/title.tex" @ONLY)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/title_comp.tex.in" "${CMAKE_CURRENT_BINARY_DIR}/title_comp.tex" @ONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/preamble_common.tex.in" "${CMAKE_CURRENT_BINARY_DIR}/preamble_common.tex" @ONLY)
 # CPack configuration
 message( "CPack configuration" )
 set(CPACK_PACKAGE_NAME          "${FLAVOR}-manuals")

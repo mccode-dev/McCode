@@ -21,7 +21,7 @@ Usage:
 where <DOC> is the manual's basename (e.g. "manual" or "Component_manual"),
 run from the directory containing the generated <DOC>*.html files.
 """
-import sys, re, glob, os
+import sys, re, glob, os, json
 
 SIDEBAR_CSS = """
 <style>
@@ -90,7 +90,7 @@ def find_title(master_fn):
         text = text[:half].strip().rstrip(',')
     return text
 
-LOGO_FILENAMES = {"DTU_logo.png", "DTU_logo",
+LOGO_FILENAMES = {"DTU_logo.png", "DTU_logo", "DTU_logo-.png", "DTU_logo-",
                   "mcstas_logo_reflection.png", "mcstas_logo_reflection",
                   "mcxtrace_logo", "mcxtrace_logo.png"}
 
@@ -111,6 +111,44 @@ def mark_content_figures(content):
             return re.sub(r'class="', 'class="mccode-content-figure ', img_tag, count=1)
         return img_tag[:4] + ' class="mccode-content-figure"' + img_tag[4:]
     return re.sub(r'<img\b[^>]*>', replacer, content, flags=re.IGNORECASE)
+
+# Every custom (non-standard) LaTeX macro found to be used inside math mode
+# anywhere across the manuals (verified empirically against the actual
+# generated output, not just recalled from memory) -- tex4ht's MathJax mode
+# passes math source through un-expanded, so MathJax needs to be told about
+# each of these directly; a few are flavour/chapter-specific but harmless to
+# register everywhere (an unused macro registration is a no-op).
+MATHJAX_MACROS = {
+    "PB": r"\mathbf{P}", "tP": r"\hat{\mathbf{P}}", "SB": r"\mathbf{S}",
+    "sB": r"\mathbf{s}", "BB": r"\mathbf{B}", "nB": r"\mathbf{n}",
+    "muB": r"\boldsymbol{\mu}", "muno": r"\hat{\boldsymbol{\mu}}",
+    "tauB": r"\boldsymbol{\sigma}", "dB": r"\mathbf{d}", "lB": r"\mathbf{l}",
+    "RB": r"\mathbf{R}", "Io": r"\hat{\mathbf{I}}", "so": r"\hat{\mathbf{s}}",
+    "sigmao": r"\boldsymbol{\hat\sigma}", "sigmaH": r"\hat\sigma",
+    "rhoo": r"\hat\rho", "alphao": r"\boldsymbol{\alpha}",
+    "betao": r"\boldsymbol{\beta}", "Q": r"\mathbf{Q}",
+    "tQ": r"\hat{\mathbf{Q}}", "tN": r"\hat{\mathbf{N}}", "FN": r"F_N",
+    "FM": r"F_M", "Ru": r"R_\uparrow", "Rd": r"R_\downarrow",
+    "nup": r"n^\uparrow", "nd": r"n^\downarrow", "Pu": r"P^\uparrow",
+    "Pd": r"P^\downarrow", "chiU": r"\chi_\uparrow", "chiD": r"\chi_\downarrow",
+    "madsq": r"\overline{|F_N(\mathbf{Q})|^2}",
+    "sqmad": r"\left|\overline{F_N(\mathbf{Q})}\right|^2",
+    "bd": r"\overline{|B_{ld}|^2}", "kappaB": r"\boldsymbol{\kappa}",
+    "etaB": r"\boldsymbol{\eta}", "alphaB": r"\boldsymbol{\alpha}",
+    "sigmaB": r"\boldsymbol{\sigma}", "Ombold": r"\boldsymbol{\Omega}",
+}
+
+def inject_mathjax_macros(content):
+    """Replace tex4ht's default window.MathJax config (just tex.tags) with
+    an extended one that also registers MATHJAX_MACROS, so custom LaTeX
+    macros used in equations actually render instead of showing as raw
+    source text. No-op (returns content unchanged) if this page has no
+    MathJax config block at all (i.e. no math on the page)."""
+    new_config = ('<script>window.MathJax = { tex: { tags: "ams", macros: '
+                  + json.dumps(MATHJAX_MACROS) + ' } }; </script>')
+    content, n = re.subn(r'<script>window\.MathJax\s*=.*?</script>',
+                          new_config, content, count=1, flags=re.DOTALL)
+    return content
 
 def linkify_images(content):
     """Wrap every <img> tag in <a href="SAME_SRC" target="_blank">, so
@@ -134,6 +172,7 @@ def inject(doc, toc_html, header_html):
             continue  # already injected (re-run safety)
         content = linkify_images(content)
         content = mark_content_figures(content)
+        content = inject_mathjax_macros(content)
         # Insert CSS + sidebar right after <body ...>, then the header bar,
         # then open the content div; close it right before </body>.
         content, n1 = re.subn(
