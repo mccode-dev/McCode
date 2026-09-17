@@ -42,7 +42,6 @@
 * atom_distance:     [AA]       Distance between atom's in chain
 * packing_factor:    [1]        How dense is the material compared to optimal 0-1
 * interact_fraction: [1]        How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
-* init:              [string] name of Union_init component (typically "init", default)
 *
 * CALCULATED PARAMETERS:
 * Template_storage          // Important to update this output paramter
@@ -57,13 +56,13 @@
 
 DEFINE COMPONENT AF_HB_1D_process // Remember to change the name of process here
 
-SETTING PARAMETERS(atom_distance=1, number_density=0, unit_cell_volume=0, A_constant=1, J_interaction=1, packing_factor=1, interact_fraction=-1, string init="init")
+SETTING PARAMETERS(atom_distance=1, number_density=0, unit_cell_volume=0, A_constant=1, J_interaction=1, packing_factor=1, interact_fraction=-1)
 
 
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this AF_HB_1D_process component"
+  #error "ERROR: AF_HB_1D_process requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   struct physical_constants_AF_HB_1D {
@@ -349,7 +348,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  struct pointer_to_global_process_list* global_process_list = &g_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 
