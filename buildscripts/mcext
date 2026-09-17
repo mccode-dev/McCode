@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""Create, refresh and verify McCode external-contribution manifests (*.ext).
+
+A *.ext manifest records, next to the directory an external contribution is
+populated into, where each of its files comes from and what its SHA256 is --
+see cmake/Modules/External.cmake for the format and for the CMake side that
+consumes it. This script is the other half: it computes those hashes so they
+need not be transcribed by hand, and re-checks them against upstream.
+
+  mcext check  [PATH ...]            do the recorded hashes still match
+                                     upstream? (CI-friendly: non-zero exit on
+                                     any mismatch). PATH may be a manifest or
+                                     a directory to search; default: the whole
+                                     McCode source tree.
+  mcext update MANIFEST [-v TAG]     recompute every sha256 in MANIFEST, after
+                                     optionally repointing it at a new
+                                     upstream tag.
+  mcext hash   URL [URL ...]         print the sha256 of each URL.
+
+"check" is the one to wire into CI. A mismatch means the bytes behind a fixed
+reference changed -- a moved tag, a regenerated release archive, a compromised
+host -- and that is exactly what the manifest exists to make visible.
+"""
+
+import argparse
+import hashlib
+import io
+import json
+import re
+import sys
+import tarfile
+import urllib.request
+import zipfile
+from pathlib import Path
+
+CHUNK = 1 << 16
+USER_AGENT = "mccode-mcext/1.0"
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def fetch(url: str) -> bytes:
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        return response.read()
+
+
+class Archive:
+    """A downloaded release archive, with "strip" leading components dropped."""
+
+    _cache: dict = {}
+
+    @classmethod
+    def get(cls, spec: dict) -> "Archive":
+        """One download per URL, however many manifests share the archive."""
+        key = (spec["url"], int(spec.get("strip", 1)))
+        if key not in cls._cache:
+            cls._cache[key] = cls(spec)
+        return cls._cache[key]
+
+    def __init__(self, spec: dict):
+        self.url = spec["url"]
+        self.strip = int(spec.get("strip", 1))
+        self.blob = fetch(self.url)
+        self.sha256 = sha256_bytes(self.blob)
+        if self.url.endswith(".zip"):
+            self._zip = zipfile.ZipFile(io.BytesIO(self.blob))
+            self._tar = None
+        else:
+            self._tar = tarfile.open(fileobj=io.BytesIO(self.blob), mode="r:*")
+            self._zip = None
+
+    def _members(self):
+        if self._tar is not None:
+            return [m.name for m in self._tar.getmembers() if m.isfile()]
+        return [n for n in self._zip.namelist() if not n.endswith("/")]
+
+    def read(self, member: str) -> bytes:
+        wanted = member.lstrip("./")
+        for name in self._members():
+            stripped = "/".join(name.split("/")[self.strip:])
+            if stripped == wanted:
+                if self._tar is not None:
+                    return self._tar.extractfile(name).read()
+                return self._zip.read(name)
+        raise KeyError(f"{member!r} is not in {self.url}")
+
+
+def inherit(entry: dict, defaults: dict, key: str):
+    value = entry.get(key)
+    return defaults.get(key) if value is None else value
+
+
+def split_manifest(document):
+    """Return (entries, contribution-wide defaults) for either manifest form."""
+    if isinstance(document, list):
+        return document, {}
+    if isinstance(document, dict):
+        entries = document.get("files")
+        if not isinstance(entries, list):
+            raise ValueError('object manifest has no "files" array')
+        return entries, document
+    raise ValueError("manifest must be a JSON array or object")
+
+
+def derived_base(entry: dict, defaults: dict):
+    git = inherit(entry, defaults, "git")
+    version = inherit(entry, defaults, "version")
+    if not git or not version:
+        return None
+    repo = re.sub(r"\.git$", "", git.rstrip("/"))
+    match = re.fullmatch(r"https?://github\.com/([^/]+)/([^/]+)", repo)
+    if not match:
+        return None
+    return f"https://raw.githubusercontent.com/{match[1]}/{match[2]}/{version}/"
+
+
+def entry_bytes(entry: dict, defaults: dict, archive):
+    """Fetch one entry's content; mirrors External.cmake's resolution order."""
+    name = entry["name"]
+    source = entry.get("from", name)
+    url = inherit(entry, defaults, "url")
+    base = inherit(entry, defaults, "base")
+    if url:
+        return fetch(url), url
+    if base:
+        full = base.rstrip("/") + "/" + source
+        return fetch(full), full
+    if archive is not None:
+        return archive.read(source), f"{archive.url}!{source}"
+    base = derived_base(entry, defaults)
+    if base:
+        full = base + source
+        return fetch(full), full
+    raise ValueError(f'entry {name!r} names no source')
+
+
+def load(path: Path):
+    document = json.loads(path.read_text())
+    entries, defaults = split_manifest(document)
+    return document, entries, defaults
+
+
+def open_archive(defaults: dict, entries):
+    """Download the release archive only if some entry actually needs it."""
+    spec = defaults.get("archive")
+    if not spec:
+        return None
+    for entry in entries:
+        if not inherit(entry, defaults, "url") and not inherit(entry, defaults, "base"):
+            return Archive.get(spec)
+    return None
+
+
+def manifests_under(paths):
+    found = []
+    for raw in paths:
+        path = Path(raw)
+        if path.is_dir():
+            found.extend(sorted(path.rglob("*.ext")))
+        else:
+            found.append(path)
+    return found
+
+
+def command_check(args) -> int:
+    roots = args.paths or [Path(__file__).resolve().parent.parent]
+    manifests = manifests_under(roots)
+    if not manifests:
+        print("no *.ext manifests found", file=sys.stderr)
+        return 1
+    failures = 0
+    for path in manifests:
+        try:
+            _, entries, defaults = load(path)
+            archive = open_archive(defaults, entries)
+        except Exception as error:                       # noqa: BLE001
+            print(f"{path}: FAILED to read: {error}")
+            failures += 1
+            continue
+        if archive is not None and defaults["archive"].get("sha256") not in (None, archive.sha256):
+            print(f"{path}: archive MISMATCH {defaults['archive']['url']}")
+            print(f"    recorded {defaults['archive']['sha256']}")
+            print(f"    upstream {archive.sha256}")
+            failures += 1
+        for entry in entries:
+            name = entry.get("name", "<unnamed>")
+            try:
+                blob, origin = entry_bytes(entry, defaults, archive)
+            except Exception as error:                   # noqa: BLE001
+                print(f"{path}: {name}: FAILED: {error}")
+                failures += 1
+                continue
+            actual = sha256_bytes(blob)
+            recorded = inherit(entry, defaults, "sha256")
+            if recorded is None:
+                print(f"{path}: {name}: no recorded sha256 (upstream is {actual})")
+                failures += 1
+            elif actual != recorded.lower():
+                print(f"{path}: {name}: MISMATCH ({origin})")
+                print(f"    recorded {recorded}")
+                print(f"    upstream {actual}")
+                failures += 1
+            elif args.verbose:
+                print(f"{path}: {name}: ok")
+    if failures:
+        print(f"\n{failures} problem(s) across {len(manifests)} manifest(s)")
+        return 1
+    print(f"{len(manifests)} manifest(s) verified against upstream")
+    return 0
+
+
+def command_update(args) -> int:
+    path = Path(args.manifest)
+    document, entries, defaults = load(path)
+
+    if args.version:
+        old = defaults.get("version")
+        if not old:
+            print(f"{path}: no \"version\" recorded, so there is nothing to repoint; "
+                  "edit the URLs by hand and re-run without --version", file=sys.stderr)
+            return 1
+
+        def repoint(holder, *keys):
+            for key in keys:
+                if isinstance(holder.get(key), str):
+                    holder[key] = holder[key].replace(old, args.version)
+
+        repoint(document, "version", "base", "url")
+        if isinstance(document.get("archive"), dict):
+            repoint(document["archive"], "url")
+        for entry in entries:
+            repoint(entry, "version", "base", "url")
+            if isinstance(entry.get("archive"), dict):
+                repoint(entry["archive"], "url")
+        entries, defaults = split_manifest(document)
+
+    archive = open_archive(defaults, entries)
+    if archive is not None:
+        defaults["archive"]["sha256"] = archive.sha256
+        print(f"archive {archive.url}\n    sha256 {archive.sha256}")
+    for entry in entries:
+        blob, origin = entry_bytes(entry, defaults, archive)
+        entry["sha256"] = sha256_bytes(blob)
+        print(f"{entry['name']}\n    {origin}\n    sha256 {entry['sha256']}")
+
+    path.write_text(json.dumps(document, indent=2) + "\n")
+    print(f"\nwrote {path}")
+    return 0
+
+
+def command_hash(args) -> int:
+    for url in args.urls:
+        print(f"{sha256_bytes(fetch(url))}  {url}")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="mcext",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    check = sub.add_parser("check", help="verify recorded hashes against upstream")
+    check.add_argument("paths", nargs="*", type=Path,
+                       help="manifests or directories to search (default: whole source tree)")
+    check.add_argument("-v", "--verbose", action="store_true", help="also report files that match")
+    check.set_defaults(run=command_check)
+
+    update = sub.add_parser("update", help="recompute the hashes in one manifest")
+    update.add_argument("manifest")
+    update.add_argument("-v", "--version", help="repoint the manifest at this upstream tag first")
+    update.set_defaults(run=command_update)
+
+    hash_cmd = sub.add_parser("hash", help="print the sha256 of one or more URLs")
+    hash_cmd.add_argument("urls", nargs="+")
+    hash_cmd.set_defaults(run=command_hash)
+
+    args = parser.parse_args()
+    return args.run(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

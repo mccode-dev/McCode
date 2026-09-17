@@ -9,6 +9,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 # Set McCode values (from mkdist or defaults)
 include(MCUtil)
 setupMCCODE("mcstas")
+include(External)
 
 option( ENABLE_CIF2HKL "Build Third Party code cif2hkl (fortran)" ON )#TODO: Only enable Fortran if this is on
 if ( ENABLE_CIF2HKL )
@@ -63,7 +64,7 @@ if ( ENABLE_NEUTRONICS )
 endif()
 
 # System c-code
-install( DIRECTORY "share/" DESTINATION "${DEST_DATADIR_CODEFILES}")
+install( DIRECTORY "share/" DESTINATION "${DEST_DATADIR_CODEFILES}" PATTERN "*.ext" EXCLUDE )
 
 # Editor syntax-highlighting etc
 if (NOT WINDOWS)
@@ -83,7 +84,7 @@ install( DIRECTORY "sasmodels/" DESTINATION "${DEST_DATADIR_COMPS}/sasmodels")
 
 # Contrib comps
 if ( NOT EXCLUDE_CONTRIB )
-  install( DIRECTORY "contrib/" DESTINATION "${DEST_DATADIR_COMPS}/contrib")
+  install( DIRECTORY "contrib/" DESTINATION "${DEST_DATADIR_COMPS}/contrib" PATTERN "*.ext" EXCLUDE )
 endif()
 
 # Data files
@@ -91,13 +92,21 @@ if ( NOT EXCLUDE_DATA )
   install( DIRECTORY "data/"    DESTINATION "${DEST_DATADIR_COMPS}/data")
 endif()
 
-install( DIRECTORY "examples/"  DESTINATION "${DEST_DATADIR_EXAMPLES}")
+install( DIRECTORY "examples/"  DESTINATION "${DEST_DATADIR_EXAMPLES}" PATTERN "*.ext" EXCLUDE )
 
-# Contributed mcstas-chopper-lib (Greg Tucker): fetched at configure time and
-# installed into share/contrib/examples -- see cmake/Modules/ChopperLib.cmake
-option( ENABLE_CHOPPERLIB "Fetch & install contributed mcstas-chopper-lib (lib snippets, contrib comps, example instruments)" ON )
-if ( ENABLE_CHOPPERLIB AND NOT EXCLUDE_CONTRIB )
-  include( ChopperLib )
+# External contributions. Every directory above that may hold contributed
+# files gets a matching call here: a "*.ext" manifest sitting in one of them
+# names the upstream repository, release and file hashes of files that are
+# fetched at configure time and installed beside that directory's own
+# contents. See cmake/Modules/External.cmake and docs/EXTERNAL-CONTRIBUTIONS.md.
+#
+# Everything reached this way is by definition contributed material -- the
+# externally contributed instruments under examples/ exercise the externally
+# contributed comps -- so EXCLUDE_CONTRIB drops all of it together.
+if ( NOT EXCLUDE_CONTRIB )
+  mccode_install_externals( DIRECTORY "share"    DESTINATION "${DEST_DATADIR_CODEFILES}" )
+  mccode_install_externals( DIRECTORY "contrib"  DESTINATION "${DEST_DATADIR_COMPS}/contrib" )
+  mccode_install_externals( DIRECTORY "examples" DESTINATION "${DEST_DATADIR_EXAMPLES}" )
 endif()
 
 
