@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.17.0 )
+cmake_minimum_required( VERSION 3.19 )
 
 # This will install McStas or McXtrace mc/mxrun
 project(perl-cluster-tools C)
