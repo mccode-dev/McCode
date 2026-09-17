@@ -249,7 +249,7 @@ def add_mcrun_adv_options(parser):
     # Multiprocessing
     add('--mpi',
         metavar='NB_CPU', default=1,
-        help='Spread simulation over NB_CPU machines using MPI')
+        help='Spread simulation over NB_CPU machines using MPI. Compilation with MPI is enabled by default, disable by setting --mpi=None or --mpi=0')
 
     add('--machines',
         metavar='machines',
@@ -429,7 +429,23 @@ def expand_options(options):
 
     # MPI
     if options.mpi is not None:
-        options.use_mpi = True
+        # String-based --mpi input, anything but "None" means enable mpi
+        if isinstance(options.mpi,str):
+            if not (options.mpi.upper()=="NONE"):
+                # Enable
+                options.use_mpi = True
+            else:
+                # Disable
+                options.mpi=None
+                options.use_mpi = False
+        # Numeric --mpi input any value >0 means enable mpi
+        elif not (options.mpi<1):
+            # Enable
+            options.use_mpi = True
+        else:
+            # Disable
+            options.mpi=None
+            options.use_mpi = False
         if options.openacc is True:
             options.cc = mccode_config.compilation['OACC']
         else:

@@ -631,6 +631,8 @@ class Ui_dlgStartSim(object):
         self.cbxClustering.setItemText(4, _translate("dlgStartSim", "OpenACC (recompile)"))
         self.cbxClustering.setItemText(5, _translate("dlgStartSim", "OpenACC and MPI"))
         self.cbxClustering.setItemText(6, _translate("dlgStartSim", "OpenACC and MPI (recompile)"))
+        self.cbxClustering.setCurrentIndex(1)
+    
         self.lblInspect.setText(_translate(     "dlgStartSim", "Inspect:"))
         self.lblAutoPlot.setText(_translate(    "dlgStartSim", "Autoplot:"))
         self.lblAutoPlot.setToolTip(_translate( "dlgStartSim", "Automatically show results with selected plotter at the end"))
