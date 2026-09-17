@@ -147,7 +147,7 @@ def inject_mathjax_macros(content):
     new_config = ('<script>window.MathJax = { tex: { tags: "ams", macros: '
                   + json.dumps(MATHJAX_MACROS) + ' } }; </script>')
     content, n = re.subn(r'<script>window\.MathJax\s*=.*?</script>',
-                          new_config, content, count=1, flags=re.DOTALL)
+                          lambda m: new_config, content, count=1, flags=re.DOTALL)
     return content
 
 def linkify_images(content):
