@@ -1,0 +1,65 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Test the generic event-list output API (mcevent_out_list)
+*
+* %Identification
+* Written by: McCode development
+* Date: 18 September 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* %Description
+* Fixture instrument that drives the EventOutList fixture component through the
+* full matrix of deterministic event-list output cases in a single run:
+*   - ListMulti : 3 events x 3 columns, filename without extension (baseline)
+*   - ListOneCol: 3 events x 1 column
+*   - ListZero  : 0 events (documented no-op, no file)
+ *   - ListBadCnt: negative event count (rejected, no file)
+ *   - ListBadWid: zero column count (rejected, no file)
+ *   - ListNull  : NULL data pointer for nonzero rows (rejected, no file)
+ *   - ListEmpty : empty column description (safe output)
+* The written rows are deterministic: row r, column c = r*10 + c.
+*
+* %Example: mcstas_test
+*
+* %Parameters
+* (none)
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_EventOutList()
+
+/* The TRACE section: a trivial source and one fixture instance per test case. */
+/* Neutron physics is irrelevant; the event lists are produced in SAVE.       */
+TRACE
+
+COMPONENT src = Source_simple(radius=0.1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT evMulti  = EventOutList(nevents=3, ncols=3, filename="ListMulti")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evOneCol = EventOutList(nevents=3, ncols=1, filename="ListOneCol", columns="v")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evOne    = EventOutList(nevents=1, ncols=3, filename="ListOneEv")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evZero   = EventOutList(nevents=0, ncols=3, filename="ListZero")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evBadCnt = EventOutList(nevents=-1, ncols=3, filename="ListBadCnt")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evBadWid = EventOutList(nevents=3, ncols=0, filename="ListBadWid")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evNull   = EventOutList(nevents=3, ncols=3, filename="ListNull", nullbuf=1)
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evEmpty  = EventOutList(nevents=3, ncols=3, filename="ListEmpty", columns="")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+/* The END token marks the instrument definition end */
+END
