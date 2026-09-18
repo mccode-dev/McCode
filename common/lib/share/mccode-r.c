@@ -2776,6 +2776,110 @@ MCDETECTOR mcevent_out_list(char *title, char *columns, long count, long width,
 }
 
 /*******************************************************************************
+* mc_event_buffer_init: allocate a fixed-capacity event buffer (host only).
+*   buffer:   MC_EVENT_BUFFER to initialize (must be non-NULL)
+*   capacity: maximum number of rows that fit (must be >= 0; 0 is a valid
+*             zero-capacity buffer that accepts no rows)
+*   width:    number of columns per row (must be >= 0)
+* Returns 0 on success, nonzero on error (null buffer, negative
+* capacity/width, or allocation failure). On error the buffer is left zeroed
+* (data=NULL, capacity=0) so any later append is a safe no-op that only
+* increments `dropped`.
+*
+* width==0 with capacity>0 is a documented, allowed degenerate case: init
+* succeeds, no storage is allocated (data stays NULL), appends reserve slots
+* and are accepted (count increments) while copying zero values, and saving
+* such a buffer through DETECTOR_OUT_LIST is a no-op, consistent with
+* mcevent_out_list's width==0 handling.
+*******************************************************************************/
+int mc_event_buffer_init(MC_EVENT_BUFFER *buffer, long capacity, long width)
+{
+  if (buffer == NULL) return(1);
+
+  memset(buffer, 0, sizeof(*buffer));
+  if (capacity < 0) return(1);
+  if (width < 0)    return(1);
+
+  buffer->width    = width;
+  buffer->capacity = capacity;
+
+  /* one flat allocation so buffer->data can go straight to DETECTOR_OUT_LIST */
+  if (capacity > 0 && width > 0) {
+    if ((uintmax_t)capacity >
+        (uintmax_t)SIZE_MAX / (uintmax_t)width / sizeof(double)) {
+      memset(buffer, 0, sizeof(*buffer));
+      return(1);
+    }
+    buffer->data = (double*)malloc((size_t)capacity * (size_t)width * sizeof(double));
+    if (buffer->data == NULL) {
+      /* allocation failed: degrade to a safe zero-capacity buffer */
+      memset(buffer, 0, sizeof(*buffer));
+      return(1);
+    }
+  }
+  return(0);
+}
+
+/*******************************************************************************
+* mc_event_buffer_free: release the buffer allocation (host only).
+*   Safe after init or for a zero-initialized empty buffer (data==NULL ->
+*   nothing freed) and idempotent: the fields are reset to zero and data set
+*   to NULL, so a second call is a no-op and cannot double-free.
+*******************************************************************************/
+void mc_event_buffer_free(MC_EVENT_BUFFER *buffer)
+{
+  if (buffer == NULL) return;
+  if (buffer->data != NULL) free(buffer->data);
+  memset(buffer, 0, sizeof(*buffer));
+}
+
+/*******************************************************************************
+* mc_event_buffer_append: store one row in the buffer (OpenACC-safe).
+*   Reserves the next row slot (atomically when compiled for device code,
+*   sequentially on the plain CPU path), checks capacity, then copies exactly
+*   `width` values for an accepted row. No allocation, I/O or printf here, so
+*   it may run on the device. Overflow never writes out of bounds: the
+*   rejected reservation is counted in `dropped` and the append returns 0.
+* Returns nonzero only when the row was stored; 0 for a full buffer, a null
+* buffer, or a null row (which leaves all counters unchanged).
+*
+* OpenACC: the buffer struct and its `data` array must be in device memory;
+* the caller owns that transfer (see the plan's OpenACC limitations). The CPU
+* (serial) path stores rows in insertion order; on the device only bounds and
+* the accepted count are guaranteed, not row order.
+*******************************************************************************/
+int mc_event_buffer_append(MC_EVENT_BUFFER *buffer, const double *row)
+{
+  long slot, c;
+
+  if (buffer == NULL || row == NULL) return(0);
+
+  /* reserve the next slot before writing anything; the #pragma is active
+     only when compiling OpenACC device code and ignored on the CPU path */
+  #pragma acc atomic capture
+  {
+    slot = buffer->next++;
+  }
+
+  /* overflow: count the rejection and never write out of bounds */
+  if (slot >= buffer->capacity) {
+    #pragma acc atomic
+    buffer->dropped++;
+    return(0);
+  }
+
+  /* accepted: copy exactly width values (a no-op when width==0, where data
+     is NULL and the loop body never executes) */
+  for (c = 0; c < buffer->width; c++)
+    buffer->data[slot * buffer->width + c] = row[c];
+
+  #pragma acc atomic
+  buffer->count++;
+
+  return(1);
+}
+
+/*******************************************************************************
  * mcuse_dir: set data/sim storage directory and create it,
  * or exit with error if exists
  ******************************************************************************/

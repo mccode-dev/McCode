@@ -984,6 +984,39 @@ MCDETECTOR mcevent_out_list(char *title, char *columns,
                   double *data, char *filename,
                   char *component, Coords position, Rotation rotation, int index);
 
+/* generic fixed-capacity event buffer (see mc_event_buffer_init/free/append).
+ * Row-major flat storage: data[r*width+c]. `next` is a reservation counter,
+ * kept separate from `count` because OpenACC threads may reserve slots
+ * concurrently and reservations may overflow the configured capacity (those
+ * are counted in `dropped` and never written). `data` is one flat allocation
+ * so it can be passed directly to DETECTOR_OUT_LIST. No hidden global state.
+ */
+typedef struct {
+  double *data;      /* flat row-major storage, NULL when uninitialized/freed */
+  long    width;     /* columns per row (>= 0) */
+  long    capacity;  /* maximum number of rows that fit (>= 0) */
+  long    count;     /* number of accepted (stored) rows (<= capacity) */
+  long    next;      /* next row slot to reserve (may exceed capacity) */
+  long    dropped;   /* appends rejected because the buffer was full */
+} MC_EVENT_BUFFER;
+
+/* Fixed-capacity event-buffer lifecycle.
+ *   mc_event_buffer_init: owns the allocation (host only); call it on an
+ *     uninitialized or already-freed buffer. It returns 0 on success,
+ *     nonzero on error (null buffer, negative capacity/width, overflow, or
+ *     allocation failure; on error the buffer is left zeroed).
+ *   mc_event_buffer_free: host only; safe after init or for a zero-initialized
+ *     empty buffer, and idempotent (a second call is a no-op, never a
+ *     double-free).
+ *   mc_event_buffer_append: callable from OpenACC device code; performs no
+ *     allocation, I/O or printf; returns nonzero only when the row was
+ *     stored, overflow increments `dropped` and returns 0.
+ */
+int  mc_event_buffer_init(MC_EVENT_BUFFER *buffer, long capacity, long width);
+void mc_event_buffer_free(MC_EVENT_BUFFER *buffer);
+#pragma acc routine
+int  mc_event_buffer_append(MC_EVENT_BUFFER *buffer, const double *row);
+
 /* wrappers to output functions, that automatically set NAME and POSITION */
 #define DETECTOR_OUT(p0,p1,p2) mcdetector_out_0D(NAME_CURRENT_COMP,p0,p1,p2,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 #define DETECTOR_OUT_0D(t,p0,p1,p2) mcdetector_out_0D(t,p0,p1,p2,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)

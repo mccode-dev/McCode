@@ -1,0 +1,88 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* %I
+* Written by: McCode development
+* Date: 18 September 2026
+* Origin: DTU
+*
+* Deterministic MC_EVENT_BUFFER fixture for the fixed-capacity event buffer
+* added to the common runtime (Step 3 of the generic event functions plan).
+* In SAVE it initializes a buffer, appends deterministic rows
+* row[r][c] = r*10 + c (independent of ncount and seed), saves only the
+* accepted rows with DETECTOR_OUT_LIST, prints deterministic diagnostics
+* (accepted/count/next/dropped) to stderr, and frees the buffer exactly once
+* (plus an optional safe second free). Neutron physics is a pass-through
+* no-op, so the behavior is fully deterministic in a single process.
+*
+* %P
+* cap:        [1]     maximum number of rows the buffer can hold (0 -> zero-capacity)
+* ncols:      [1]     number of columns per row (0 -> degenerate no-data buffer)
+* nrows:      [1]     number of rows appended (drives capacity overflow)
+* filename:   [string] output file name (extension added by the runtime)
+* columns:    [string] whitespace-separated column names
+* free_twice: [1]     if set, call mc_event_buffer_free a second time (safe no-op)
+* nowritefile:[1]     if set, skip writing
+*
+* %E
+ ******************************************************************************/
+
+DEFINE COMPONENT EventBuffer
+
+SETTING PARAMETERS (int cap=4, int ncols=3, int nrows=6,
+                    string filename="EventBuf", string columns="a b c",
+                    int free_twice=0, int nowritefile=0)
+
+TRACE
+%{
+  /* Fixture: the neutron state is left untouched (pass-through).
+     The event buffer is filled deterministically in SAVE. */
+%}
+
+SAVE
+%{
+  MC_EVENT_BUFFER buf = {0};
+  double *row = (double*)malloc((ncols > 0 ? ncols : 1) * sizeof(double));
+  long r, c;
+  long accepted = 0;
+
+  /* 1) initialize (null/negative arguments and zero capacity are safe) */
+  mc_event_buffer_init(&buf, cap, ncols);
+
+  /* 2) append deterministic rows: row r, column c = r*10 + c */
+  for (r = 0; r < nrows; r++) {
+    for (c = 0; c < ncols; c++)
+      row[c] = r * 10.0 + (double)c;
+    if (mc_event_buffer_append(&buf, row))
+      accepted++;
+  }
+  /* a null row must be rejected without touching any counter */
+  if (mc_event_buffer_append(&buf, NULL))
+    fprintf(stderr, "EventBuffer[%s]: TEST-FAIL null row accepted\n", NAME_CURRENT_COMP);
+
+  /* 3) save only the valid (accepted) rows, never the full capacity */
+  if (!nowritefile)
+    DETECTOR_OUT_LIST("Event buffer rows", columns,
+                      buf.count, buf.width, buf.data, filename);
+
+  /* 4) deterministic diagnostics: overflow is reported directly here, the
+     save helper/warning machinery is a later (Step 4) feature */
+  fprintf(stderr,
+          "EventBuffer[%s]: capacity=%d width=%d rows=%d "
+          "accepted=%ld count=%ld next=%ld dropped=%ld\n",
+          NAME_CURRENT_COMP, cap, ncols, nrows,
+          accepted, buf.count, buf.next, buf.dropped);
+
+  /* 5) exactly-once free, plus an optional safe second free */
+  mc_event_buffer_free(&buf);
+  if (free_twice)
+    mc_event_buffer_free(&buf);
+
+  free(row);
+%}
+
+END
