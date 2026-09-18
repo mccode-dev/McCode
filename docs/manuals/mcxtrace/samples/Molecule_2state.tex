@@ -1,0 +1,52 @@
+\section{The \texttt{Molecule\_2state} McXtrace Component}
+Disordered optical-excitable molecule sample.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Erik B Knudsen
+  \item \textbf{Origin:} DTU Physics
+  \item \textbf{Date:} October 2012
+\end{itemize}
+
+\subsection*{Description}
+A sample model for pump probe experiments which models disordered molecules in a volume (rectangular, cylindrical, or spherical). Molecules can be in one of two states (0 and 1). Scattering is either specified through F vs. q scattering curves or as a set of atom positions from which F vs. q is computed. At t=-delta\_t, a fraction of the molecules are put in state 1, from which they decay exponentially, with time constant t\_relax, into state 0. For t\textless{}-delta\_t all of the molecules are in the state specified by \textit{initial\_state}. To improve statistics, scattering may be limited to a "forward" cone with opening angle in [psimin, psimax]. Furthermore, scattering may be restricted to the azimuthal segment between [etamin,etamax].
+
+Example: Molecule\_2state( nq=512,state\_0\_file="Fe\_bpy\_GS\_DFT.txt",state\_1\_file="Fe\_bpy\_ES\_DFT.txt",radius=0.01, psimin=0, psimax=15*DEG2RAD, etamin=-1*DEG2RAD,etamax=1*DEG2RAD, t\_relax=600e-12, delta\_t=100e-9, excitation\_yield=0.2)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+delta\_t & s & Delay between the exciting event t=0. delay is negative, i.e. delta\_t\textgreater{}0 means the exciting event happens before t=0. & 100e-9 \\
+excitation\_yield & 1 & Mean fraction of molecules that get excited. & 0.2 \\
+t\_relax & s & Mean relaxation time (into state 0) of excited molecules. & 100e-9 \\
+initial\_state & 0/1 & Which state is Molecule\_2state in for t\textless{}delta\_t? Useful for modelling something that changes state slowly. & 0 \\
+psimin & rad & Minimum scattering angle off the optical axis. & 0 \\
+psimax & rad & Maximum scattering angle off the optical axis. & M\_PI\_2 \\
+etamin & rad & Minimum scattering angle around the optical axis. & -M\_PI \\
+etamax & rad & Maximum scattering angle around the optical axis. & M\_PI \\
+radius & m & Radius of cylindrical of spherical sample. & 0 \\
+yheight & m & Height of rectangular or cylindrical sample. & 0 \\
+xwidth & m & Width of rectangular sample. & 0 \\
+zdepth & m & Depth (thickness) of rectangular sample. & 0 \\
+concentration & m & Concentration or packing factor of sample. & 1 \\
+p\_transmit & m & Fraction of statistics devoted to sample direct (unscattered) beam. & 0.1 \\
+form\_factors & str & File from which to read atomic form factors. Defualt amounts to use the one shipped with McXtrace. & "FormFactors.txt" \\
+state\_0\_file & str & Isotropic scattering factors (parameterized by q), or atom positions are specified for state 0. & NULL \\
+state\_1\_file & str & Isotropic scattering factors (parameterized by q), or atom positions are specified for state 1. & NULL \\
+nq & 1 & Number of q-bins if F is to be computed from atom positions (Debye formalism). & 512 \\
+material\_datafile & str & Where to read f1 and f2 factors from in order to handle absorption. & "Be.txt" \\
+q\_parametric & 0/1 & When 0: Assume that datafiles contains atom positions. 1: datafiles contains F vs. q data. & 0 \\
+Emax & keV & Maximal energy for which scattering factors are computed. Must be larger than the maximal impinging energy. & 80 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Molecule\_2state.comp}.
+\end{itemize}
+\IfFileExists{samples/Molecule_2state_static.tex}{\input{samples/Molecule_2state_static.tex}}{}

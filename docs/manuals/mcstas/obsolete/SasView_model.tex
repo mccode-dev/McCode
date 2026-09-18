@@ -1,0 +1,753 @@
+\section{The \texttt{SasView\_model} McStas Component}
+This SANS sample exposes \textless{}a href="http://www.sasview.org"\textgreater{}SasView's\textless{}/a\textgreater{} scattering kernels to McStas. In this way SasView's monodisperse scattering kernels can be call from McStas.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Jakob Garde, Torben Nielsen, Peter Willendrup
+  \item \textbf{Origin:} SasView, DTU, European Spallation Source ERIC
+  \item \textbf{Date:} 03.02.2016
+\end{itemize}
+
+\subsection*{Description}
+\textbf{OBSOLETE} - we recommend using individual component models form the \textless{}pre\textgreater{}sasmodels\textless{}/pre\textgreater{} selection. If you keep using this component, be aware that the URLs listed in the table below are broken, please refer to the new revamped \htmladdnormallink{SasView model page}{https://www.sasview.org/docs/user/models/capped\_cylinder.html}.
+
+Sample for use in SANS instruments. The models describe mono disperse particles in thin solution. The sample geometry may have the shape:
+
+\begin{verbatim}
+Shape:        - A filled box with dimensions xwidth, yheight and zdepth.
+\end{verbatim}
+
+- A cylinder with dimensions radius and yheight. - A filled sphere given by radius.
+
+These parameters are mutually exclusive.
+
+Example using spheres in thin solution, with radius=200 \AA{} and a delta\_sld=0.6 fm/\AA{}\textasciicircum{}3: SasView\_model(model\_index=47, model\_scale=1.0, model\_pars=\{1, 7, 200\}, model\_abs=0.0, xwidth=0.01, yheight=0.01, zdepth=0.005,)
+
+The algorithm of this component requires use of the ISO C standard c99, standard from McStas 2.7 and 3.0.
+
+The list of scattering models in SasView is called sasmodels. The list of McStas available \htmladdnormallink{SasView sasmodels}{http://www.sasview.org/sasview/user/models/model\_functions.html\#model} are found in the table below.
+
+A few models may require manual documentation lookup using the above link to the SasView site.
+
+McStas does currently not support multiplication of formfactor models with structure factor models.
+
+The 2D scattering scattering kernels are denoted by modelname\_xy. I.e. to evalulate scattering from aligned cylinders use model\_index=10 to use cylinder\_xy.
+
+MDOC
+
+\textless{}table border=1\textgreater{}\textless{}tr\textgreater{}\textless{}td\textgreater{}\textbf{Model no.}\textless{}/td\textgreater{}\textless{}td\textgreater{}\textbf{SasView name}\textless{}/td\textgreater{}\textless{}td\textgreater{}\textbf{Parameters}\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 0\textless{}/td\textgreater{}\textless{}td\textgreater{}None\textless{}/td\textgreater{}\textless{}td\textgreater{}None\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 1\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{barbell}{http://www.sasview.org/sasview/user/models/model\_functions.html\#barbellmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, bell\_radius, radius, length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 2\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{barbell\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#barbellmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, bell\_radius, radius, length, theta, phi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 3\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{bcc\_paracrystal}{http://www.sasview.org/sasview/user/models/model\_functions.html\#bccparacrystalmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(dnn, d\_factor, radius, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 4\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{bcc\_paracrystal\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#bcc\_paracrystalmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(dnn, d\_factor, radius, sld, solvent\_sld, theta, phi, psi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 5\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{capped\_cylinder}{http://www.sasview.org/sasview/user/models/model\_functions.html\#cappedcylindermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, radius, cap\_radius, length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 6\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{capped\_cylinder\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#capped\_cylindermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, radius, cap\_radius, length, theta, phi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 7\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{core\_shell\_cylinder}{http://www.sasview.org/sasview/user/models/model\_functions.html\#coreshellcylindermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(core\_sld, shell\_sld, solvent\_sld, radius, thickness, length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 8\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{core\_shell\_cylinder\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#core\_shell\_cylindermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(core\_sld, shell\_sld, solvent\_sld, radius, thickness, length, theta, phi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{} 9\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{cylinder}{http://www.sasview.org/sasview/user/models/model\_functions.html\#cylindermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, radius, length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}10\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{cylinder\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#cylindermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, radius, length, theta, phi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}11\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{dab}{http://www.sasview.org/sasview/user/models/model\_functions.html\#dabmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}12\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{dab\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#dabmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}13\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{ellipsoid}{http://www.sasview.org/sasview/user/models/model\_functions.html\#ellipsoidmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, rpolar, requatorial)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}14\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{ellipsoid\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#ellipsoidmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, rpolar, requatorial, theta, phi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}15\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{fcc\_paracrystal}{http://www.sasview.org/sasview/user/models/model\_functions.html\#fccparacrystalmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(dnn, d\_factor, radius, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}16\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{fcc\_paracrystal\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#fcc\_paracrystalmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(dnn, d\_factor, radius, sld, solvent\_sld, theta, phi, psi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}17\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{flexible\_cylinder\_ex}{http://www.sasview.org/sasview/user/models/model\_functions.html\#flexiblecylinderexmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(length, kuhn\_length, radius, axis\_ratio, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}18\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{flexible\_cylinder\_ex\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#flexible\_cylinder\_exmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(length, kuhn\_length, radius, axis\_ratio, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}19\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{gaussian\_peak}{http://www.sasview.org/sasview/user/models/model\_functions.html\#gaussianpeakmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(q0, sigma)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}20\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{gaussian\_peak\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#gaussian\_peakmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(q0, sigma)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}21\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{guinier}{http://www.sasview.org/sasview/user/models/model\_functions.html\#guiniermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(rg)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}22\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{guinier\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#guiniermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(rg)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}23\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{hardsphere}{http://www.sasview.org/sasview/user/models/model\_functions.html\#hardspheremodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(effect\_radius, volfraction)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}24\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{hardsphere\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#hardspheremodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(effect\_radius, volfraction)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}25\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{HayterMSAsq}{http://www.sasview.org/sasview/user/models/model\_functions.html\#HayterMSAsqmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(effect\_radius, zz, VolFrac, Temp, csalt, dialec)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}26\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{HayterMSAsq\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#HayterMSAsqmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(effect\_radius, charge, volfraction, temperature, saltconc, dielectconst)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}27\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{hollow\_cylinder}{http://www.sasview.org/sasview/user/models/model\_functions.html\#hollowcylindermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius, core\_radius, length, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}28\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{hollow\_cylinder\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#hollow\_cylindermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius, core\_radius, length, sld, solvent\_sld, theta, phi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}29\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellar}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, thickness)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}30\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellar\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, thickness)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}31\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellar\_FFHG}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarFFHGmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(tail\_length, head\_length, sld, head\_sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}32\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellar\_FFHG\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellar\_FFHGmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(tail\_length, head\_length, sld, head\_sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}33\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellarCailleHG}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarCailleHGmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(tail\_length, head\_length, Nlayers, dd, Cp, tail\_sld, head\_sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}34\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellarCailleHG\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarCailleHGmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(tail\_length, head\_length, Nlayers, spacing, Caille\_parameter, sld, head\_sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}35\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellarPC}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarPCmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(th, Nlayers, davg, pd, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}36\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellarPC\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarPCmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(thickness, Nlayers, spacing, spacing\_polydisp, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}37\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellarPS}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarPSmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(del, Nlayers, dd, Cp, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}38\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lamellarPS\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarPSmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(thickness, Nlayers, spacing, Caille\_parameter, sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}39\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{linear\_pearls}{http://www.sasview.org/sasview/user/models/model\_functions.html\#linearpearlsmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius, edge\_sep, num\_pearls, pearl\_sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}40\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{linear\_pearls\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#linear\_pearlsmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius, edge\_sep, num\_pearls, pearl\_sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}41\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lorentz}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lorentzmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(cor\_length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}42\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{lorentz\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lorentzmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(cor\_length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}43\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{mass\_fractal}{http://www.sasview.org/sasview/user/models/model\_functions.html\#massfractalmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius, mass\_dim, cutoff\_length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}44\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{mass\_fractal\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#mass\_fractalmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius, mass\_dim, cutoff\_length)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}45\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{mass\_surface\_fractal}{http://www.sasview.org/sasview/user/models/model\_functions.html\#masssurfacefractalmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(mass\_dim, surface\_dim, cluster\_rg, primary\_rg)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}46\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{mass\_surface\_fractal\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#mass\_surface\_fractalmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(mass\_dim, surface\_dim, cluster\_rg, primary\_rg)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}47\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{parallelepiped}{http://www.sasview.org/sasview/user/models/model\_functions.html\#parallelepipedmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, a\_side, b\_side, c\_side)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}48\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{parallelepiped\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#parallelepipedmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, a\_side, b\_side, c\_side, theta, phi, psi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}49\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{pearl\_necklace}{http://www.sasview.org/sasview/user/models/model\_functions.html\#pearlnecklacemodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius, edge\_separation, string\_thickness, number\_of\_pearls, sld, string\_sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}50\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{pearl\_necklace\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#pearl\_necklacemodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius, edge\_separation, string\_thickness, number\_of\_pearls, sld, string\_sld, solvent\_sld)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}51\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{sphere}{http://www.sasview.org/sasview/user/models/model\_functions.html\#spheremodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, radius)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}52\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{sphere\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#spheremodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, radius)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}53\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{star\_polymer}{http://www.sasview.org/sasview/user/models/model\_functions.html\#starpolymermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius2, arms)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}54\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{star\_polymer\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#star\_polymermodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(radius2, arms)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}55\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{stickyhardsphere}{http://www.sasview.org/sasview/user/models/model\_functions.html\#stickyhardspheremodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(effect\_radius, volfraction, perturb, stickiness)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}56\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{stickyhardsphere\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#stickyhardspheremodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(effect\_radius, volfraction, perturb, stickiness)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}57\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{triaxial\_ellipsoid}{http://www.sasview.org/sasview/user/models/model\_functions.html\#triaxialellipsoidmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, req\_minor, req\_major, rpolar)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}tr\textgreater{}\textless{}td\textgreater{}58\textless{}/td\textgreater{}\textless{}td\textgreater{}\htmladdnormallink{triaxial\_ellipsoid\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#triaxial\_ellipsoidmodel}\textless{}/td\textgreater{}\textless{}td\textgreater{}(sld, solvent\_sld, req\_minor, req\_major, rpolar, theta, phi, psi)\textless{}/td\textgreater{}\textless{}/tr\textgreater{} \textless{}/table\textgreater{} \textless{}!DOCTYPE html\textgreater{} \textless{}html\textgreater{} \textless{}body\textgreater{} \textless{}p\textgreater{}\textless{}font size="24"\textgreater{}Available SasView sasmodels - Extended parameters description\textless{}/font\textgreater{}\textless{}/p\textgreater{} \textless{}table border=1\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}sasmodels name\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters \textless{}/td\textgreater{} \textless{}td\textgreater{}Units\textless{}/td\textgreater{} \textless{}td\textgreater{}Range\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{barbell}{http://www.sasview.org/sasview/user/models/model\_functions.html\#barbellmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 40, 20, 400 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{barbell\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#barbellmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 40, 20, 400, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Barbell scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}4e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Spherical bell radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylindrical bar radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder bar length\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{bcc}{http://www.sasview.org/sasview/user/models/model\_functions.html\#bccrystalmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 220, 0.06, 40, 4, 1 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{bcc\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#bccrystalmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 220, 0.06, 40, 4, 1, 60, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Nearest neighbour distance\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Paracrystal distortion factor\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Particle radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Particle scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{capped\_cylinder}{http://www.sasview.org/sasview/user/models/model\_functions.html\#cappedcylindermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 20, 20, 400 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{capped\_cylinder\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#cappedcylindermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 20, 20, 400, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cap radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder length\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{core\_shell\_cylinder}{http://www.sasview.org/sasview/user/models/model\_functions.html\#coreshellcylindermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 4, 1, 20, 20, 400 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{core\_shell\_cylinder\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#coreshellcylindermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 4, 1, 20, 20, 400, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder core scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder shell scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder core radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder shell thickness\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder length\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{cylinder}{http://www.sasview.org/sasview/user/models/model\_functions.html\#cylindermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 20, 400 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{cylinder\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#cylindermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 20, 400, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}4e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder length\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{dab}{http://www.sasview.org/sasview/user/models/model\_functions.html\#dabmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 50.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{dab\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#dabmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 50.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}correlation length\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{ellipsoid}{http://www.sasview.org/sasview/user/models/model\_functions.html\#ellipsoidmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 20, 400 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{ellipsoid\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#ellipsoidmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 20, 400, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Ellipsoid scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Polar radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Equatorial radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{fcc}{http://www.sasview.org/sasview/user/models/model\_functions.html\#fccrystalmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 220, 0.06, 40, 4, 1 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{fcc\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#fccrystalmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 220, 0.06, 40, 4, 1, 60, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Nearest neighbour distance\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Paracrystal distortion factor\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Particle radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Particle scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{flexible\_cylinder\_ex}{http://www.sasview.org/sasview/user/models/model\_functions.html\#flexiblecylinderexmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 1000.0, 100.0, 20.0, 1.5, 1.0, 6.3 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{flexible\_cylinder\_ex\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#flexiblecylinderexmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 1000.0, 100.0, 20.0, 1.5, 1.0, 6.3 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Length of the flexible cylinder\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Kuhn length of the flexible cylinder\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Radius of the flexible cylinder\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Axis\_ratio (major\_radius/radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{gaussian\_peak}{http://www.sasview.org/sasview/user/models/model\_functions.html\#peakgaussmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 0.05, 0.005 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{gaussian\_peak\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#peakgaussmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 0.05, 0.005 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Peak position\textless{}/td\textgreater{} \textless{}td\textgreater{}1/\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Peak width (standard deviation)\textless{}/td\textgreater{} \textless{}td\textgreater{}1/\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{guinier}{http://www.sasview.org/sasview/user/models/model\_functions.html\#guiniermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 60.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{guinier\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#guiniermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 60.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Radius of Gyration\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{hardsphere}{http://www.sasview.org/sasview/user/models/model\_functions.html\#hardspheremodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 50.0, 0.2 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{hardsphere\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#hardspheremodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 50.0, 0.2 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}effective radius of hard sphere\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}volume fraction of hard spheres\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0, 0.74]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{HayterMSAsq}{http://www.sasview.org/sasview/user/models/model\_functions.html\#HayterMSAsqmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 20.75, 19.0, 0.0192, 318.16, 0.0, 71.08 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{HayterMSAsq\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#HayterMSAsqmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 20.75, 19.0, 0.0192, 318.16, 0.0, 71.08 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}effective radius of hard sphere\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}charge on sphere (in electrons)\textless{}/td\textgreater{} \textless{}td\textgreater{}e\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}volume fraction of spheres\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0, 0.74]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}temperature, in Kelvin, for Debye length calculation\textless{}/td\textgreater{} \textless{}td\textgreater{}K\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}conc of salt, 1:1 electolyte, for Debye length\textless{}/td\textgreater{} \textless{}td\textgreater{}M\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}dielectric constant of solvent (default water), for Debye length\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{hollow\_cylinder}{http://www.sasview.org/sasview/user/models/model\_functions.html\#hollowcylindermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 30.0, 20.0, 400.0, 6.3, 1 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{hollow\_cylinder\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#hollowcylindermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 30.0, 20.0, 400.0, 6.3, 1, 90, 0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Hollow core radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder length\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cylinder sld\textless{}/td\textgreater{} \textless{}td\textgreater{}1/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent sld\textless{}/td\textgreater{} \textless{}td\textgreater{}1/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Theta angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[-360, 360]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Phi angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[-360, 360]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellar}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 1, 6, 50 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellar\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 1, 6, 50 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Layer scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Bilayer thickness\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellarCaille}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarCaillemodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 30.0, 20, 400.0, 0.1, 6.3, 1.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellarCaille\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarCaillemodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 30.0, 20, 400.0, 0.1, 6.3, 1.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}sheet thickness\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Number of layers\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}d-spacing of Caille S(Q)\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Caille parameter\textless{}/td\textgreater{} \textless{}td\textgreater{}1/\AA{}\textasciicircum{}2\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, 0.8]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}layer scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellarCailleHG}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarCailleHGmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 10, 2, 30, 40.0, 0.001, 0.4, 2.0, 6 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellarCailleHG\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarCailleHGmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 10, 2, 30, 40.0, 0.001, 0.4, 2.0, 6 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Tail thickness\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}head thickness\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Number of layers\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}d-spacing of Caille S(Q)\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Caille parameter\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, 0.8]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Tail scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Head scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellarFFHG}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarFFHGmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 15, 10, 0.4, 3.0, 6 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellarFFHG\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarFFHGmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 15, 10, 0.4, 3.0, 6 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Tail thickness\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}head thickness\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Tail scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Head scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellarPC}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarPCmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 33.0, 20, 250.0, 0.0, 1.0, 6.34 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lamellarPC\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lamellarPCmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 33.0, 20, 250.0, 0.0, 1.0, 6.34 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}sheet thickness\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Number of layers\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}d-spacing of paracrystal stack\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}d-spacing polydispersity\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}layer scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{linear\_pearls}{http://www.sasview.org/sasview/user/models/model\_functions.html\#linearpearlsmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 80.0, 350.0, 3.0, 1.0, 6.3 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{linear\_pearls\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#linearpearlsmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 80.0, 350.0, 3.0, 1.0, 6.3 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Radius of the pearls\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Length of the string segment - surface to surface\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Number of the pearls\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}SLD of the pearl spheres\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}SLD of the solvent\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lorentz}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lorentzmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 50.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{lorentz\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#lorentzmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 50.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Screening length\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{mass\_fractal}{http://www.sasview.org/sasview/user/models/model\_functions.html\#massfractalmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 10.0, 1.9, 100.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{mass\_fractal\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#massfractalmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 10.0, 1.9, 100.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Particle radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Mass fractal dimension\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[1.0, 6.0]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cut-off length\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{mass\_surface\_fractal}{http://www.sasview.org/sasview/user/models/model\_functions.html\#masssurfacefractalmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 1.8, 2.3, 86.7, 4000.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{mass\_surface\_fractal\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#masssurfacefractalmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 1.8, 2.3, 86.7, 4000.0 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Mass fractal dimension\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[1e-16, 6.0]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Surface fractal dimension\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[1e-16, 6.0]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Cluster radius of gyration\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Primary particle radius of gyration\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{parallelepiped}{http://www.sasview.org/sasview/user/models/model\_functions.html\#parallelepipedmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 35, 75, 400 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{parallelepiped\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#parallelepipedmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 35, 75, 400, 60, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parallelepiped scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Shorter side of the parallelepiped\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Second side of the parallelepiped\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Larger side of the parallelepiped\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Rotation angle around its own c axis against q plane\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{pearl\_necklace}{http://www.sasview.org/sasview/user/models/model\_functions.html\#pearlnecklacemodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 80.0, 350.0, 2.5, 3, 1.0, 1.0, 6.3 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{pearl\_necklace\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#pearlnecklacemodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 80.0, 350.0, 2.5, 3, 1.0, 1.0, 6.3 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Mean radius of the chained spheres\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Mean separation of chained particles\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Thickness of the chain linkage\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Mean number of pearls in each necklace\textless{}/td\textgreater{} \textless{}td\textgreater{}none\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Scattering length density of the chained spheres\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Scattering length density of the chain linkage\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Scattering length density of the solvent\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{sphere}{http://www.sasview.org/sasview/user/models/model\_functions.html\#spheremodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 1, 6, 50 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{sphere\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#spheremodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 1, 6, 50 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Layer scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Sphere radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{star\_polymer}{http://www.sasview.org/sasview/user/models/model\_functions.html\#starpolymermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 100.0, 3 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{star\_polymer\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#starpolymermodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 100.0, 3 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Ensemble radius of gyration squared of an arm\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.0, inf]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Number of arms in the model\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[1.0, 6.0]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{stickyhardsphere}{http://www.sasview.org/sasview/user/models/model\_functions.html\#stickyhardspheremodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 50.0, 0.2, 0.05, 0.2 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{stickyhardsphere\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#stickyhardspheremodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 50.0, 0.2, 0.05, 0.2 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}effective radius of hard sphere\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}volume fraction of hard spheres\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0, 0.74]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}perturbation parameter, epsilon\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>[0.01, 0.1]</td>
+\end{verbatim}
+
+\textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}stickiness, tau\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{triaxial\_ellipsoid}{http://www.sasview.org/sasview/user/models/model\_functions.html\#triaxialellipsoidmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 20, 400, 10 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\htmladdnormallink{triaxial\_ellipsoid\_xy}{http://www.sasview.org/sasview/user/models/model\_functions.html\#triaxialellipsoidmodel}\textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td> { 4, 1, 20, 400, 10, 60, 60, 60 }</td>
+\end{verbatim}
+
+\textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Parameters:\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Ellipsoid scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Solvent scattering length density\textless{}/td\textgreater{} \textless{}td\textgreater{}1e-6/\AA{}\textasciicircum{}2\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Minor equitorial radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Major equatorial radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Polar radius\textless{}/td\textgreater{} \textless{}td\textgreater{}\AA{}\textless{}/td\textgreater{} \textless{}td\textgreater{}[0, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}In plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}Out of plane angle\textless{}/td\textgreater{} \textless{}td\textgreater{}degrees\textless{}/td\textgreater{} \textless{}td\textgreater{}[-inf, inf]\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}td\textgreater{}\&nbsp;\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}/table\textgreater{}
+
+\begin{verbatim}
+<p> </p>
+<p> </p>
+\end{verbatim}
+
+\textless{}p\textgreater{}\textless{}font size="24"\textgreater{}Name convention: SasView - sasmodels \textless{}/font\textgreater{}\textless{}/p\textgreater{} \textless{}table border=1\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}SasView name\textless{}/td\textgreater{} \textless{}td\textgreater{}sasmodels name \textless{}/td\textgreater{} \textless{}td\textgreater{}P(Q) \textless{}/td\textgreater{} \textless{}td\textgreater{}S(Q)\textless{}/td\textgreater{} \textless{}td\textgreater{}Multiply\textless{}/td\textgreater{} \textless{}td\textgreater{}Multiplicity\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}BarBell\textless{}/td\textgreater{} \textless{}td\textgreater{}barbell \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}BCCrystal\textless{}/td\textgreater{} \textless{}td\textgreater{}bcc \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}CappedCylinder\textless{}/td\textgreater{} \textless{}td\textgreater{}capped\_cylinder \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}CoreShellCylinder\textless{}/td\textgreater{} \textless{}td\textgreater{}core\_shell\_cylinder \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}Cylinder\textless{}/td\textgreater{} \textless{}td\textgreater{}cylinder \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}DAB\textless{}/td\textgreater{} \textless{}td\textgreater{}dab \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}Ellipsoid\textless{}/td\textgreater{} \textless{}td\textgreater{}ellipsoid \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}FCCrystal\textless{}/td\textgreater{} \textless{}td\textgreater{}fcc \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}FlexCylEllipX\textless{}/td\textgreater{} \textless{}td\textgreater{}flexible\_cylinder\_ex \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}PeakGauss\textless{}/td\textgreater{} \textless{}td\textgreater{}gaussian\_peak \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}Guinier\textless{}/td\textgreater{} \textless{}td\textgreater{}guinier \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}HardsphereStructure\textless{}/td\textgreater{} \textless{}td\textgreater{}hardsphere \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+\end{verbatim}
+
+\textless{}td\textgreater{} Y \textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}HayterMSAStructure\textless{}/td\textgreater{} \textless{}td\textgreater{}HayterMSAsq \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+\end{verbatim}
+
+\textless{}td\textgreater{} Y \textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}HollowCylinder\textless{}/td\textgreater{} \textless{}td\textgreater{}hollow\_cylinder \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}Lamellar\textless{}/td\textgreater{} \textless{}td\textgreater{}lamellar \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}LamellarPS\textless{}/td\textgreater{} \textless{}td\textgreater{}lamellarCaille \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}LamellarPSHG\textless{}/td\textgreater{} \textless{}td\textgreater{}lamellarCailleHG \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}LamellarFFHG\textless{}/td\textgreater{} \textless{}td\textgreater{}lamellarFFHG \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}LamellarPCrystal\textless{}/td\textgreater{} \textless{}td\textgreater{}lamellarPC \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}LinearPearls\textless{}/td\textgreater{} \textless{}td\textgreater{}linear\_pearls \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}Lorentz\textless{}/td\textgreater{} \textless{}td\textgreater{}lorentz \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}MassFractal\textless{}/td\textgreater{} \textless{}td\textgreater{}mass\_fractal \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}MassSurfaceFractal\textless{}/td\textgreater{} \textless{}td\textgreater{}mass\_surface\_fractal \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}Parallelepiped\textless{}/td\textgreater{} \textless{}td\textgreater{}parallelepiped \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}PearlNecklace\textless{}/td\textgreater{} \textless{}td\textgreater{}pearl\_necklace \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}Sphere\textless{}/td\textgreater{} \textless{}td\textgreater{}sphere \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}StarPolymer\textless{}/td\textgreater{} \textless{}td\textgreater{}star\_polymer \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}StickyHSStructure\textless{}/td\textgreater{} \textless{}td\textgreater{}stickyhardsphere \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+\end{verbatim}
+
+\textless{}td\textgreater{} Y \textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}tr\textgreater{} \textless{}td\textgreater{}TriaxialEllipsoid\textless{}/td\textgreater{} \textless{}td\textgreater{}triaxial\_ellipsoid \textless{}/td\textgreater{}
+
+\begin{verbatim}
+<td>- </td>
+<td> - </td>
+\end{verbatim}
+
+\textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}td\textgreater{}-\textless{}/td\textgreater{} \textless{}/tr\textgreater{} \textless{}/table\textgreater{} \textless{}/body\textgreater{} \textless{}/html\textgreater{} MDOC\_END
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+model\_index &  & Index of the applied sasview model. Recompile instrument for changes to take effect. & 21 \\
+model\_scale &  & Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors  can be related to the scattering intensity by the particle volume fraction. & 1.0 \\
+model\_pars &  & Model parameters are given as a set of comma-separated values enclosed by \{\}, e.g. \{60\} for the model index 21 (the guinier model). Consult the sasview docs for further info. & \{60,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\} \\
+model\_abs & 1/m & Absorption cross section density at 2200 m/s & 0.5 \\
+xwidth & m & horiz. dimension of sample, as a width & 0 \\
+yheight & m & vert . dimension of sample, as a height for cylinder/box & 0 \\
+zdepth & m & depth of sample & 0 \\
+radius & m & Outer radius of sample in (x,z) plane for cylinder/sphere & 0 \\
+target\_x & m & relative focus target position & 0 \\
+target\_y & m & relative focus target position & 0 \\
+target\_z & m & relative focus target position & 6 \\
+target\_index & 1 & Relative index of component to focus at, e.g. next is +1 & 0 \\
+focus\_xw & m & horiz. dimension of a rectangular area & 0 \\
+focus\_yh & m & vert.  dimension of a rectangular area & 0 \\
+focus\_aw & deg & horiz. angular dimension of a rectangular area & 0 \\
+focus\_ah & deg & vert.  angular dimension of a rectangular area & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{SasView\_model.comp}.
+  \item http://www.sasview.org/sasview/user/models/model\_functions.html
+\end{itemize}
+\IfFileExists{obsolete/SasView_model_static.tex}{\input{obsolete/SasView_model_static.tex}}{}

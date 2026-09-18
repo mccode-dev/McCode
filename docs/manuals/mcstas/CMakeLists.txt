@@ -18,6 +18,16 @@ include(UseLATEX)
 # set(PDFLATEX_COMPILER "/usr/bin/xelatex")
 message( "setup MCCODE" )
 setupMCCODE("${FLAVOR}")
+
+# Generate title.tex / title_comp.tex from their .in templates, substituting
+# the actual build version (@MCCODE_VERSION@) -- this is the version passed
+# as argument 1 to build_manuals_mcstas, already threaded through by
+# setupMCCODE() above via mkdist, with no changes needed there. Runs at
+# configure time, landing in ${CMAKE_CURRENT_BINARY_DIR} (== LATEX_OUTPUT_PATH
+# below), so the LaTeX build finds them there like any other input.
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/title.tex.in" "${CMAKE_CURRENT_BINARY_DIR}/title.tex" @ONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/title_comp.tex.in" "${CMAKE_CURRENT_BINARY_DIR}/title_comp.tex" @ONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/preamble_common.tex.in" "${CMAKE_CURRENT_BINARY_DIR}/preamble_common.tex" @ONLY)
 # CPack configuration
 message( "CPack configuration" )
 set(CPACK_PACKAGE_NAME          "${FLAVOR}-manuals")
@@ -58,21 +68,27 @@ file(GLOB LIST CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_LIST_DIR}" "*.tex" "*
 
 # TeX snippets
 foreach(NAME sources samples optics monitors misc union sasmodels contrib obsolete)
-   # PWFIXME: ONLY SEMI-FUNCTIONAL
+   file(GLOB ${NAME}_COMP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/../../../mcstas-comps/${NAME}/*.comp")
    add_custom_command(
      OUTPUT "${NAME}.done"
-     COMMAND "mcdoc" "--tex" "--in-repo" "--dir=${CMAKE_SOURCE_DIR}/../../../mcstas-comps/${NAME}" "--outdir=${PROJECT_BINARY_DIR}"
+     COMMAND "mcdoc" "--tex" "--in-repo" "--dir=${CMAKE_SOURCE_DIR}/../../../mcstas-comps/${NAME}" "--outdir=${CMAKE_CURRENT_SOURCE_DIR}"
+     COMMAND "${CMAKE_COMMAND}" "-E" "touch" "${CMAKE_CURRENT_BINARY_DIR}/${NAME}.done"
+     DEPENDS "${CMAKE_SOURCE_DIR}/../../../tools/Python/mcdoc/mcdoc.py" ${${NAME}_COMP_SOURCES}
      WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+     COMMENT "Regenerating ${NAME} LaTeX component/instrument doc snippets (in-place in the source tree)"
      )
 endforeach()
 
 # MD files
 foreach(NAME sources samples optics monitors misc union sasmodels contrib obsolete)
-   # PWFIXME: ONLY SENMI-FUNCTIONAL
+   file(GLOB ${NAME}_COMP_SOURCES_MD CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/../../../mcstas-comps/${NAME}/*.comp")
    add_custom_command(
      OUTPUT "${NAME}.mddone"
      COMMAND "mcdoc" "--md" "--in-repo" "--dir=${CMAKE_SOURCE_DIR}/../../../mcstas-comps/${NAME}"
+     COMMAND "${CMAKE_COMMAND}" "-E" "touch" "${CMAKE_CURRENT_BINARY_DIR}/${NAME}.mddone"
+     DEPENDS "${CMAKE_SOURCE_DIR}/../../../tools/Python/mcdoc/mcdoc.py" ${${NAME}_COMP_SOURCES_MD}
      WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+     COMMENT "Regenerating ${NAME} Markdown component/instrument doc snippets"
      )
 endforeach()
 
@@ -103,3 +119,47 @@ install(FILES "${PROJECT_BINARY_DIR}/Component_manual.pdf"
   DESTINATION "${MANDEST}"
   RENAME "${CMANUAL}"
 )
+
+# --- HTML manual generation (tex4ht, MathJax math rendering), packaged as .tgz ---
+# Multi-pass build: htlatex -> bibtex -> makeindex -> htlatex x2 (to settle
+# cross-references and citations across the split HTML pages), then tar/gzip
+# the resulting page set. Requires texlive-plain-generic (htlatex/tex4ht) and
+# dvipng; skipped with a warning if htlatex isn't available rather than
+# failing the whole manuals build.
+find_program(HTLATEX_EXECUTABLE htlatex)
+find_program(BASH_EXECUTABLE bash)
+find_program(PYTHON3_EXECUTABLE python3)
+if(HTLATEX_EXECUTABLE AND BASH_EXECUTABLE AND PYTHON3_EXECUTABLE)
+  foreach(DOC manual Component_manual)
+    add_custom_command(
+      OUTPUT "${PROJECT_BINARY_DIR}/${DOC}-html.tgz"
+      COMMAND "${BASH_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/generate-xbb-files.sh"
+      COMMAND "${HTLATEX_EXECUTABLE}" "${DOC}.tex" "html,3,mathjax,charset=utf-8" " -cvalidate -cunihtf -utf8" ""
+      COMMAND "bibtex" "${DOC}"
+      COMMAND "makeindex" "${DOC}.idx"
+      COMMAND "${HTLATEX_EXECUTABLE}" "${DOC}.tex" "html,3,mathjax,charset=utf-8" " -cvalidate -cunihtf -utf8" ""
+      COMMAND "${HTLATEX_EXECUTABLE}" "${DOC}.tex" "html,3,mathjax,charset=utf-8" " -cvalidate -cunihtf -utf8" ""
+      COMMAND "${PYTHON3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/inject-toc-sidebar.py" "${DOC}"
+      COMMAND "${BASH_EXECUTABLE}" "-c" "cat '${CMAKE_CURRENT_SOURCE_DIR}/html-style-overrides.css' >> '${DOC}.css'"
+      COMMAND "${BASH_EXECUTABLE}" "-c" "tar czf '${DOC}-html.tgz' ${DOC}*.html ${DOC}.css figures 2>/dev/null || tar czf '${DOC}-html.tgz' ${DOC}*.html ${DOC}.css"
+      WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+      DEPENDS "${PROJECT_BINARY_DIR}/${DOC}.pdf" "${CMAKE_CURRENT_SOURCE_DIR}/html-style-overrides.css" "${CMAKE_CURRENT_SOURCE_DIR}/generate-xbb-files.sh" "${CMAKE_CURRENT_SOURCE_DIR}/inject-toc-sidebar.py"
+      COMMENT "Building HTML version of ${DOC} (tex4ht/MathJax), injecting TOC sidebar, and packaging as ${DOC}-html.tgz"
+      VERBATIM
+      )
+    add_custom_target("${DOC}_html" ALL DEPENDS "${PROJECT_BINARY_DIR}/${DOC}-html.tgz")
+  endforeach()
+
+  install(FILES "${PROJECT_BINARY_DIR}/manual-html.tgz"
+    DESTINATION "${MANDEST}"
+    RENAME "${FLAVOR}-manual-html.tgz"
+    OPTIONAL
+  )
+  install(FILES "${PROJECT_BINARY_DIR}/Component_manual-html.tgz"
+    DESTINATION "${MANDEST}"
+    RENAME "${FLAVOR}-components-html.tgz"
+    OPTIONAL
+  )
+else()
+  message(WARNING "htlatex, bash and/or python3 not found -- skipping HTML manual generation. Install texlive-plain-generic (htlatex/tex4ht) and dvipng to enable the .tgz HTML manuals.")
+endif()
