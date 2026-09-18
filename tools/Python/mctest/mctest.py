@@ -915,6 +915,7 @@ def main(args):
         logging.info("Disable MPI compilation")
 
     if args.mpi:
+        no_mpi = False
         mpi = args.mpi[0]
         logging.info("mpi count is: %s" % mpi)
         suffix = '_mpi_x_' + str(mpi) + suffix
