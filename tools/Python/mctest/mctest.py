@@ -847,6 +847,7 @@ def main(args):
 
     global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict
     ncount = "1e6"
+    no_mpi = False
     if args.ncount:
         ncount = args.ncount[0]
     elif args.n:
