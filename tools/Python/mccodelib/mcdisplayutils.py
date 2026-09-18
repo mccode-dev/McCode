@@ -18,7 +18,7 @@ else:
 
 class McDisplayReader(object):
     ''' High-level trace manager '''
-    def __init__(self, instr=None, inspect=None, default=False, n=300, dir=None, debug=False, options=None, trace=1, no_mpi=True, **kwds):
+    def __init__(self, instr=None, inspect=None, default=False, n=300, dir=None, debug=False, options=None, trace=1, no_mpi=False, **kwds):
         ext = mccode_config.platform["EXESUFFIX"]
 
         if instr is None or ('.instr' not in instr and ext not in instr):
