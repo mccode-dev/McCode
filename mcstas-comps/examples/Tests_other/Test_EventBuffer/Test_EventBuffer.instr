@@ -10,15 +10,19 @@
 * %INSTRUMENT_SITE: Tests_other
 *
 * %Description
-* Fixture instrument that drives the EventBuffer fixture component through the
-* MC_EVENT_BUFFER case matrix in a single run:
-*   - BufFill     : cap=4, nrows=6 -> 4 accepted rows in insertion order,
-*                   2 dropped, only the 4 valid rows written (no capacity rows)
-*   - BufZeroCap  : cap=0, nrows=3 -> zero-capacity append safety, all
-*                   rows dropped, no file (count=0 no-op)
-*   - BufFreeTwice: free_twice=1 -> exactly-once free plus a safe second free
-*   - BufZeroWid  : ncols=0, cap=3 -> documented degenerate case: no
-*                   storage allocated, appends copy nothing, no file
+ * Fixture instrument that drives the EventBuffer fixture component through the
+ * MC_EVENT_BUFFER case matrix in a single run:
+ *   - BufFill     : cap=4, nrows=6 -> 4 accepted rows in insertion order,
+ *                   2 dropped, only the 4 valid rows written (no capacity rows)
+ *   - BufZeroCap  : cap=0, nrows=3 -> zero-capacity append safety, all
+ *                   rows dropped, no file (count=0 no-op)
+ *   - BufFreeTwice: free_twice=1 -> exactly-once free plus a safe second free
+ *   - BufZeroWid  : ncols=0, cap=3 -> documented degenerate case: no
+ *                   storage allocated, appends copy nothing, no file
+ *   - BufSave     : save_helper=1, same params as BufFill -> output must be
+ *                   identical to BufFill.dat plus a one-time dropped warning
+ *   - BufSaveEmpty: save_helper=1, nrows=0 -> documented zero-event no-op
+ *                   through the save helper: no file, no warning
 * Rows are deterministic: row r, column c = r*10 + c. Diagnostics
 * (accepted/count/next/dropped per instance) are printed to stderr.
 *
@@ -49,6 +53,14 @@ COMPONENT evFreeTwice = EventBuffer(cap=4, ncols=3, nrows=2, filename="BufFreeTw
   AT (0, 0, 0.1) RELATIVE PREVIOUS
 
 COMPONENT evZeroWid = EventBuffer(cap=3, ncols=0, nrows=2, filename="BufZeroWid")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evSave = EventBuffer(cap=4, ncols=3, nrows=6, filename="BufSave",
+                               save_helper=1)
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evSaveEmpty = EventBuffer(cap=2, ncols=3, nrows=0, filename="BufSaveEmpty",
+                                    save_helper=1)
   AT (0, 0, 0.1) RELATIVE PREVIOUS
 
 /* The END token marks the instrument definition end */

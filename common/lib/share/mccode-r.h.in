@@ -984,6 +984,16 @@ MCDETECTOR mcevent_out_list(char *title, char *columns,
                   double *data, char *filename,
                   char *component, Coords position, Rotation rotation, int index);
 
+/* Monitor_nD-specific event-list output entry point (see mcevent_out_list_nd).
+ * Same validated, positive-dimension contract as mcevent_out_list, but preserves
+ * the flavor-specific x-label (xl) and the Monitor_nD options string (options,
+ * forwarded to the NeXus 'options' attribute) that the generic public API omits. */
+MCDETECTOR mcevent_out_list_nd(char *title, char *xl, char *columns,
+                  long count, long width,
+                  double *data, char *filename,
+                  char *component, Coords position, Rotation rotation,
+                  char *options, int index);
+
 /* generic fixed-capacity event buffer (see mc_event_buffer_init/free/append).
  * Row-major flat storage: data[r*width+c]. `next` is a reservation counter,
  * kept separate from `count` because OpenACC threads may reserve slots
@@ -1016,6 +1026,16 @@ int  mc_event_buffer_init(MC_EVENT_BUFFER *buffer, long capacity, long width);
 void mc_event_buffer_free(MC_EVENT_BUFFER *buffer);
 #pragma acc routine
 int  mc_event_buffer_append(MC_EVENT_BUFFER *buffer, const double *row);
+
+/* Host-only save path for a fixed-capacity event buffer. Saves exactly
+ * `count` accepted rows through mcevent_out_list (never `capacity`), reports
+ * `dropped` once through a non-fatal WARNING, and leaves the buffer
+ * unmodified. A NULL buffer is a documented no-op. See mc_event_buffer_save.
+ */
+MCDETECTOR mc_event_buffer_save(MC_EVENT_BUFFER *buffer, char *title,
+                                char *columns, char *filename,
+                                char *component, Coords position,
+                                Rotation rotation, int index);
 
 /* wrappers to output functions, that automatically set NAME and POSITION */
 #define DETECTOR_OUT(p0,p1,p2) mcdetector_out_0D(NAME_CURRENT_COMP,p0,p1,p2,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)

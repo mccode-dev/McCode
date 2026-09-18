@@ -2724,24 +2724,20 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
 }
 
 /*******************************************************************************
-* mcevent_out_list: generic public event-list output wrapper.
-*   Accepts positive, conventional dimensions and delegates to the existing
-*   low-level mcdetector_out_list, which uses a negative row count to force the
-*   row-oriented (one event per line) list output.
-*   title:    title of the data set
-*   columns:  whitespace-separated column names (may be empty/NULL)
-*   count:    number of valid rows (events); 0 gives a documented no-op
-*   width:    number of columns per row
-*   data:     row-major buffer data[r*width+c], non-NULL when count>0
-*   filename: output file name (extension/output directory handled by backend)
-* Returns the MCDETECTOR structure. A rejected/empty request returns a
-* structure with m=0 and an empty filename (the invalid-detector convention)
-* and writes no output. Existing McCode ASCII, NeXus, MPI rank-local and
-* filename behaviors are preserved.
+* mcevent_out_list_impl: shared validated delegation to the low-level
+* mcdetector_out_list. See mcevent_out_list for the argument/behavior contract.
+*   xl:      x-axis label written to the data-set header (e.g. "List of events").
+*        The Monitor_nD variant passes its own flavor-specific label.
+*   options: string forwarded to the detector metadata (the NeXus 'options'
+*        attribute). mcevent_out_list passes "None"; the Monitor_nD variant
+*        forwards its own options string.
+*   The negative row count hides the internal negative-dimension convention
+*   used by mcdetector_out_list to force the row-oriented list output.
 *******************************************************************************/
-MCDETECTOR mcevent_out_list(char *title, char *columns, long count, long width,
-                  double *data, char *filename,
-                  char *component, Coords position, Rotation rotation, int index)
+static MCDETECTOR mcevent_out_list_impl(char *title, char *xl, char *columns,
+                   long count, long width, double *data, char *filename,
+                   char *component, Coords position, Rotation rotation,
+                   char *options, int index)
 {
   MCDETECTOR detector;
 
@@ -2769,10 +2765,62 @@ MCDETECTOR mcevent_out_list(char *title, char *columns, long count, long width,
 
   /* delegate; the negative row count hides the internal negative-dimension
      convention used by mcdetector_out_list to force row-oriented list output */
-  return(mcdetector_out_list(title, "List of events", columns ? columns : "",
+  return(mcdetector_out_list(title, xl, columns ? columns : "",
                   -count, width,
                   data, filename,
+                  component, position, rotation, options, index));
+}
+
+/*******************************************************************************
+* mcevent_out_list: generic public event-list output wrapper.
+*   Accepts positive, conventional dimensions and delegates (through
+*   mcevent_out_list_impl) to the existing low-level mcdetector_out_list, which
+*   uses a negative row count to force the row-oriented (one event per line)
+*   list output. The public API uses the neutral x-label "List of events" and
+*   does not forward any Monitor-specific options ("None").
+*   title:    title of the data set
+*   columns:  whitespace-separated column names (may be empty/NULL)
+*   count:    number of valid rows (events); 0 gives a documented no-op
+*   width:    number of columns per row
+*   data:     row-major buffer data[r*width+c], non-NULL when count>0
+*   filename: output file name (extension/output directory handled by backend)
+* Returns the MCDETECTOR structure. A rejected/empty request returns a
+* structure with m=0 and an empty filename (the invalid-detector convention)
+* and writes no output. Existing McCode ASCII, NeXus, MPI rank-local and
+* filename behaviors are preserved.
+*******************************************************************************/
+MCDETECTOR mcevent_out_list(char *title, char *columns, long count, long width,
+                  double *data, char *filename,
+                  char *component, Coords position, Rotation rotation, int index)
+{
+  return(mcevent_out_list_impl(title, "List of events", columns,
+                  count, width,
+                  data, filename,
                   component, position, rotation, "None", index));
+}
+
+/*******************************************************************************
+* mcevent_out_list_nd: Monitor_nD-specific event-list output entry point.
+*   Same validated, positive-dimension contract as mcevent_out_list (shares
+*   mcevent_out_list_impl), but preserves the two Monitor_nD-specific pieces of
+*   metadata that the generic public API intentionally omits:
+*     - the flavor-specific x-label (xl, e.g. "List of neutron events" for
+*       McStas, "List of photon events" for McXtrace) written to the header, and
+*     - the Monitor_nD options string (options, forwarded to the detector
+*       metadata / NeXus 'options' attribute).
+*   This keeps Monitor_nD's list output byte-compatible with its pre-migration
+*   low-level mcdetector_out_list call until a generic metadata API exists.
+*   Host-only output plumbing (no acc routine).
+*******************************************************************************/
+MCDETECTOR mcevent_out_list_nd(char *title, char *xl, char *columns,
+                  long count, long width, double *data, char *filename,
+                  char *component, Coords position, Rotation rotation,
+                  char *options, int index)
+{
+  return(mcevent_out_list_impl(title, xl, columns,
+                  count, width,
+                  data, filename,
+                  component, position, rotation, options, index));
 }
 
 /*******************************************************************************
@@ -2877,6 +2925,43 @@ int mc_event_buffer_append(MC_EVENT_BUFFER *buffer, const double *row)
   buffer->count++;
 
   return(1);
+}
+
+/*******************************************************************************
+* mc_event_buffer_save: save the accepted rows of an event buffer (host only).
+*   Saves exactly `count` rows through mcevent_out_list (never `capacity`),
+*   so the normal extension/output-directory/format behavior applies. If
+*   `dropped` is nonzero (an overflow happened), a single WARNING containing
+*   the dropped count is printed to stderr before saving; the warning is not
+*   fatal and the buffer is left unmodified, so the caller can still report
+*   the counters itself.
+*   buffer:    MC_EVENT_BUFFER to save (a NULL buffer is a documented no-op)
+*   title:     title of the data set
+*   columns:   whitespace-separated column names (may be empty/NULL)
+*   filename:  output file name (extension/output directory handled by backend)
+*   component/position/rotation/index: metadata (pass NAME_CURRENT_COMP,
+*        POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP)
+* Returns the MCDETECTOR structure. A rejected/empty request returns the
+* invalid-detector sentinel (m=0, empty filename) and writes no output.
+*******************************************************************************/
+MCDETECTOR mc_event_buffer_save(MC_EVENT_BUFFER *buffer, char *title,
+                                char *columns, char *filename,
+                                char *component, Coords position,
+                                Rotation rotation, int index)
+{
+  if (buffer == NULL)
+    return(mcevent_out_list(title, columns, 0, 0, NULL, filename,
+                            component, position, rotation, index));
+
+  /* report the overflow once; not fatal and the buffer is left unmodified */
+  if (buffer->dropped > 0)
+    fprintf(stderr,
+            "WARNING: mc_event_buffer_save: %ld events dropped (capacity exceeded), saving %ld rows to '%s'\n",
+            buffer->dropped, buffer->count, filename ? filename : "");
+
+  return(mcevent_out_list(title, columns, buffer->count, buffer->width,
+                          buffer->data, filename,
+                          component, position, rotation, index));
 }
 
 /*******************************************************************************

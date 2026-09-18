@@ -1772,9 +1772,13 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
         /* handle the type of list output */
         strcpy(label, Vars->Monitor_Label);
         
-        detector = mcdetector_out_list(
+        /* Step 6: route the final list save through the generic event API
+           (positive count, shared validation) via the Monitor_nD-specific
+           entry point, which preserves the flavor x-label and the options
+           string (NeXus 'options' attribute) that the generic API omits. */
+        detector = mcevent_out_list_nd(
               label, "List of neutron events", Coord_X_Label,
-              -Vars->Buffer_Size, Vars->Coord_Number+1,
+              Vars->Buffer_Size, Vars->Coord_Number+1,
               Vars->Mon2D_Buffer,
               fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot, Vars->option,Vars->compcurindex);
       }
