@@ -831,7 +831,8 @@ MCDETECTOR mcdetector_statistics(
   double *this_p1=NULL; /* new 1D McCode array [x I E N]. Freed after writing data */
 
   /* if McCode/PGPLOT and rank==1 we create a new m*4 data block=[x I E N] */
-  if (detector.rank == 1 && strcasestr(detector.format,"McCode")) {
+  /* (not for lists: they carry no histogram statistics and must keep their data) */
+  if (detector.rank == 1 && strcasestr(detector.format,"McCode") && !strcasestr(detector.format,"list")) {
     this_p1 = (double *)calloc(detector.m*detector.n*detector.p*4, sizeof(double));
     if (!this_p1)
       exit(-fprintf(stderr, "Error: Out of memory creating %zi 1D " MCCODE_STRING " data set for file '%s' (detector_import)\n",
@@ -2720,6 +2721,58 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
 
   mcformat = format_org;
   return(detector);
+}
+
+/*******************************************************************************
+* mcevent_out_list: generic public event-list output wrapper.
+*   Accepts positive, conventional dimensions and delegates to the existing
+*   low-level mcdetector_out_list, which uses a negative row count to force the
+*   row-oriented (one event per line) list output.
+*   title:    title of the data set
+*   columns:  whitespace-separated column names (may be empty/NULL)
+*   count:    number of valid rows (events); 0 gives a documented no-op
+*   width:    number of columns per row
+*   data:     row-major buffer data[r*width+c], non-NULL when count>0
+*   filename: output file name (extension/output directory handled by backend)
+* Returns the MCDETECTOR structure. A rejected/empty request returns a
+* structure with m=0 and an empty filename (the invalid-detector convention)
+* and writes no output. Existing McCode ASCII, NeXus, MPI rank-local and
+* filename behaviors are preserved.
+*******************************************************************************/
+MCDETECTOR mcevent_out_list(char *title, char *columns, long count, long width,
+                  double *data, char *filename,
+                  char *component, Coords position, Rotation rotation, int index)
+{
+  MCDETECTOR detector;
+
+  /* rejected/empty request: invalid sentinel (m=0, empty filename), no output */
+  memset(&detector, 0, sizeof(detector));
+  detector.m = 0;
+  detector.filename[0] = '\0';
+
+  /* validate positive, conventional dimensions */
+  if (count < 0 || width < 0) {
+    fprintf(stderr, "WARNING: mcevent_out_list: invalid count=%ld or width=%ld; no list written\n", count, width);
+    return(detector);
+  }
+  if (count == 0) {
+    return(detector); /* a zero-event list is a documented no-op */
+  }
+  if (width == 0) {
+    fprintf(stderr, "WARNING: mcevent_out_list: width=0 with count=%ld; no list written\n", count);
+    return(detector);
+  }
+  if (data == NULL) {
+    fprintf(stderr, "WARNING: mcevent_out_list: null data for count=%ld width=%ld; no list written\n", count, width);
+    return(detector);
+  }
+
+  /* delegate; the negative row count hides the internal negative-dimension
+     convention used by mcdetector_out_list to force row-oriented list output */
+  return(mcdetector_out_list(title, "List of events", columns ? columns : "",
+                  -count, width,
+                  data, filename,
+                  component, position, rotation, "None", index));
 }
 
 /*******************************************************************************
