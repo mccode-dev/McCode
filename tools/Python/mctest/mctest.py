@@ -353,7 +353,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                     if openacc:
                         cmd = cmd + " --openacc "
                     mpiswitch = ''
-                    if no_mpi is not None:
+                    if no_mpi:
                         cmd = cmd + " --no-mpi "
                         mpiswitch = " --no-mpi "
                         mpi=None
