@@ -10,32 +10,36 @@
 * Date: 18 September 2026
 * Origin: DTU
 *
-* Deterministic MC_EVENT_BUFFER fixture for the fixed-capacity event buffer
-* added to the common runtime (Step 3 of the generic event functions plan).
-* In SAVE it initializes a buffer, appends deterministic rows
-* row[r][c] = r*10 + c (independent of ncount and seed), saves only the
-* accepted rows with DETECTOR_OUT_LIST, prints deterministic diagnostics
-* (accepted/count/next/dropped) to stderr, and frees the buffer exactly once
-* (plus an optional safe second free). Neutron physics is a pass-through
-* no-op, so the behavior is fully deterministic in a single process.
-*
-* %P
-* cap:        [1]     maximum number of rows the buffer can hold (0 -> zero-capacity)
-* ncols:      [1]     number of columns per row (0 -> degenerate no-data buffer)
-* nrows:      [1]     number of rows appended (drives capacity overflow)
-* filename:   [string] output file name (extension added by the runtime)
-* columns:    [string] whitespace-separated column names
-* free_twice: [1]     if set, call mc_event_buffer_free a second time (safe no-op)
-* nowritefile:[1]     if set, skip writing
-*
+ * Deterministic MC_EVENT_BUFFER fixture for the fixed-capacity event buffer
+ * added to the common runtime (Step 3 of the generic event functions plan)
+ * and the mc_event_buffer_save helper (Step 4). In SAVE it initializes a
+ * buffer, appends deterministic rows row[r][c] = r*10 + c (independent of
+ * ncount and seed), saves only the accepted rows, prints deterministic
+ * diagnostics (accepted/count/next/dropped) to stderr, and frees the buffer
+ * exactly once (plus an optional safe second free). Neutron physics is a
+ * pass-through no-op, so the behavior is fully deterministic in a single
+ * process.
+ *
+ * %P
+ * cap:         [1]     maximum number of rows the buffer can hold (0 -> zero-capacity)
+ * ncols:       [1]     number of columns per row (0 -> degenerate no-data buffer)
+ * nrows:       [1]     number of rows appended (drives capacity overflow)
+ * filename:    [string] output file name (extension added by the runtime)
+ * columns:     [string] whitespace-separated column names
+ * save_helper: [1]     if set, save with mc_event_buffer_save (Step 4) instead
+ *                       of the explicit DETECTOR_OUT_LIST call; both paths must
+ *                       produce identical output
+ * free_twice:  [1]     if set, call mc_event_buffer_free a second time (safe no-op)
+ * nowritefile: [1]     if set, skip writing
+ *
 * %E
  ******************************************************************************/
 
 DEFINE COMPONENT EventBuffer
 
 SETTING PARAMETERS (int cap=4, int ncols=3, int nrows=6,
-                    string filename="EventBuf", string columns="a b c",
-                    int free_twice=0, int nowritefile=0)
+                     string filename="EventBuf", string columns="a b c",
+                     int save_helper=0, int free_twice=0, int nowritefile=0)
 
 TRACE
 %{
@@ -64,13 +68,22 @@ SAVE
   if (mc_event_buffer_append(&buf, NULL))
     fprintf(stderr, "EventBuffer[%s]: TEST-FAIL null row accepted\n", NAME_CURRENT_COMP);
 
-  /* 3) save only the valid (accepted) rows, never the full capacity */
-  if (!nowritefile)
-    DETECTOR_OUT_LIST("Event buffer rows", columns,
-                      buf.count, buf.width, buf.data, filename);
+  /* 3) save only the valid (accepted) rows, never the full capacity;
+     save_helper=1 uses the Step 4 mc_event_buffer_save wrapper, which must
+     produce output identical to the explicit DETECTOR_OUT_LIST path */
+  if (!nowritefile) {
+    if (save_helper)
+      mc_event_buffer_save(&buf, "Event buffer rows", columns, filename,
+                           NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+                           ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
+    else
+      DETECTOR_OUT_LIST("Event buffer rows", columns,
+                        buf.count, buf.width, buf.data, filename);
+  }
 
-  /* 4) deterministic diagnostics: overflow is reported directly here, the
-     save helper/warning machinery is a later (Step 4) feature */
+  /* 4) deterministic diagnostics: the save helper does not modify the
+     buffer, so the counters still reflect this SAVE (the helper prints its
+     own one-time dropped warning) */
   fprintf(stderr,
           "EventBuffer[%s]: capacity=%d width=%d rows=%d "
           "accepted=%ld count=%ld next=%ld dropped=%ld\n",

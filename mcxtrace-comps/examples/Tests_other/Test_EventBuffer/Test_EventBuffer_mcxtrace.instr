@@ -1,0 +1,36 @@
+/*******************************************************************************
+*         McXtrace instrument definition
+*
+* Instrument: Test the fixed-capacity MC_EVENT_BUFFER API with McXtrace
+*
+* %Identification
+* Written by: McCode development
+* Date: 18 September 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* %Description
+* Minimal McXtrace companion for the flavor-neutral EventBuffer component
+* (used by the McStas Test_EventBuffer.instr). It exercises both the explicit
+* DETECTOR_OUT_LIST path and the mc_event_buffer_save helper; both must
+* produce the same deterministic rows (row r, column c = r*10 + c).
+*
+* %Example: mcxtrace_test
+*
+* %End
+ *******************************************************************************/
+DEFINE INSTRUMENT Test_EventBuffer_mcxtrace()
+
+TRACE
+
+COMPONENT src = Source_pt(focus_xw=0.1, focus_yh=0.1, dist=1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT evFill = EventBuffer(cap=4, ncols=3, nrows=6, filename="BufFill")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evSave = EventBuffer(cap=4, ncols=3, nrows=6, filename="BufSave",
+                               save_helper=1)
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+END
