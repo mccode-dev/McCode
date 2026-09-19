@@ -173,6 +173,11 @@ function( detect_platform_variables resultvarname )
     if ( NOT WINDOWS )
       set(MPILIB "mpi")
       set(MPIFLAGS "-DUSE_MPI -l${MPILIB}")
+      if ( MCCODE_BUILD_CONDA_PKG )
+	# On non-Windows conda, add include/lib paths for MPI - allows a "foreign compiler" (e.g. OpenACC) to pick up
+	# our shipped MPI libs
+	set( MPIFLAGS "-I\$\{CONDA_PREFIX\}/include -Wl,-rpath,$\{CONDA_PREFIX\}/lib -L\$\{CONDA_PREFIX\}/lib ${MPIFLAGS}" )
+      endif()
     else()
       if ( "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC" )
 	set(MPILIB "msmpi.lib")
