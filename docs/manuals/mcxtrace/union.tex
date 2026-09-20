@@ -46,6 +46,20 @@ volume. Because physics (processes) and geometry are separated, adding a
 new scattering process is a comparatively small task, and existing
 processes can be freely combined and reused across different shapes.
 
+\begin{figure}[htb!]
+\begin{center}
+\includegraphics[width=0.9\textwidth]{figures/union_traditional_vs_union}
+\end{center}
+\caption{Left: the linear succession of components in a traditional \MCX
+  instrument file. Right: the same instrument using Union components -- all
+  ray tracing for the sample environment happens inside a single master
+  component, which works around the normal \MCX component sequence to
+  achieve native multiple scattering between an arbitrary number of
+  volumes. (Originally illustrated for \MCS; the same principle applies
+  unchanged to \MCX.)}
+\label{fig:union-vs-traditional}
+\end{figure}
+
 It is entirely possible, and common, to mix ordinary \MCX components with
 Union components in the same instrument file -- the Union machinery only
 takes over between its own \texttt{Union\_init} and \texttt{Union\_master}
@@ -343,6 +357,21 @@ ensemble of volumes is analysed once to build, for every volume, the
 test from there, and the set of volumes the ray could possibly end up in
 immediately after leaving through its own boundary. This turns an
 $O(N)$-per-step cost into something close to $O(1)$ in typical geometries.
+Figure~\ref{fig:union-algorithm} sketches the resulting behaviour for a
+simple case (illustrated for a neutron ray, but the same principle applies
+unchanged to \MCX's x-rays).
+
+\begin{figure}[htb!]
+\begin{center}
+\includegraphics[width=0.9\textwidth]{figures/union_algorithm}
+\end{center}
+\caption{Illustration of the Union propagation algorithm for a single
+  scattering event between two overlapping volumes. Only intersections
+  actually relevant given the ray's current volume are calculated at each
+  step (the orange volume, never reachable from the ray's actual path
+  here, is never tested).}
+\label{fig:union-algorithm}
+\end{figure}
 
 \subsection{Known limitations}
 \label{sec:union-limitations}
