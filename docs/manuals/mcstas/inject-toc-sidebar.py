@@ -91,7 +91,7 @@ def find_title(master_fn):
     return text
 
 LOGO_FILENAMES = {"DTU_logo.png", "DTU_logo", "DTU_logo-.png", "DTU_logo-",
-                  "mcstas_logo_reflection.png", "mcstas_logo_reflection",
+                  "mcstas_logo.png", "mcstas_logo",
                   "mcxtrace_logo", "mcxtrace_logo.png"}
 
 def mark_content_figures(content):
