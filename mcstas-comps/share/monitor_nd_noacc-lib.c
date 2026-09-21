@@ -756,10 +756,16 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
     { Vars->Flag_Multiple = 1; /* default is n1D */
       if (Vars->Coord_Number != Vars->Coord_NumberNoPixel) Vars->Flag_List = 1; }
 
-    /* list and auto limits case : Vars->Flag_List or Vars->Flag_Auto_Limits
-     * -> Buffer to flush and suppress after Vars->Flag_Auto_Limits
-     */
-    if ((Vars->Flag_Auto_Limits || Vars->Flag_List) && Vars->Coord_Number)
+    /* The generic event buffer owns ordinary fixed-size lists. Keep the
+     * legacy buffer for auto-limit replay and list-all flushing. */
+    Vars->Mon2D_Buffer = NULL;
+    Vars->List_Buffer.data = NULL;
+    Vars->List_Buffer.width = 0;
+    Vars->List_Buffer.capacity = 0;
+    Vars->List_Buffer.count = 0;
+    Vars->List_Buffer.next = 0;
+    Vars->List_Buffer.dropped = 0;
+    if ((Vars->Flag_Auto_Limits || Vars->Flag_List >= 2) && Vars->Coord_Number)
     { /* Dim : (Vars->Coord_Number+1)*Vars->Buffer_Block matrix (for p, dp) */
       Vars->Mon2D_Buffer = (double *)malloc((Vars->Coord_Number+1)*Vars->Buffer_Block*sizeof(double));
       if (Vars->Mon2D_Buffer == NULL)
@@ -769,6 +775,16 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
         for (i=0; i < (Vars->Coord_Number+1)*Vars->Buffer_Block; Vars->Mon2D_Buffer[i++] = (double)0);
       }
       Vars->Buffer_Size = Vars->Buffer_Block;
+    }
+    else if (Vars->Flag_List == 1 && Vars->Coord_Number)
+    {
+      if (mc_event_buffer_init(&Vars->List_Buffer, (long)Vars->Buffer_Block,
+                               (long)(Vars->Coord_Number+1)))
+      {
+        printf("Monitor_nD: %s cannot allocate list event buffer (%li events). No list.\n",
+               Vars->compcurname, (long)Vars->Buffer_Block);
+        Vars->Flag_List = 0;
+      }
     }
 
     /* 1D and n1D case : Vars->Flag_Multiple */
@@ -1540,8 +1556,18 @@ int Monitor_nd_noaccTrace(Monitornd_noaccDefines_type *DEFS, Monitornd_noaccVari
     } /* end (Vars->Flag_Auto_Limits != 1) */
     
     if (Vars->Flag_Auto_Limits != 2 && !outsidebounds) /* not when reading auto limits Buffer */
-    { /* now store Coord into Buffer (no index needed) if necessary (list or auto limits) */
-      if ((Vars->Buffer_Counter < Vars->Buffer_Block) && ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1)))
+    { /* store ordinary lists in the generic buffer; retain the legacy path
+         for auto limits and list-all mode */
+      if (Vars->List_Buffer.data)
+      {
+        if (mc_event_buffer_append(&Vars->List_Buffer, Coord)
+            && Vars->Flag_Verbose && Vars->Flag_List == 1
+            && Vars->List_Buffer.capacity > 0
+            && Vars->List_Buffer.count >= Vars->List_Buffer.capacity)
+          printf("Monitor_nD: %s %li neutrons stored in List.\n",
+                 Vars->compcurname, Vars->List_Buffer.count);
+      }
+      else if ((Vars->Buffer_Counter < Vars->Buffer_Block) && ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1)))
       {
         for (i = 0; i <= Vars->Coord_Number; i++)
         {
@@ -1592,6 +1618,8 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
     double  XY=0, pp=0;
     double  Coord[MONnD_COORD_NMAX];
     long    Coord_Index[MONnD_COORD_NMAX];
+    long    List_Count;
+    double *List_Data;
     char    label[CHAR_BUF_LENGTH];
 
     MCDETECTOR detector;
@@ -1750,12 +1778,21 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
     if (strlen(Vars->Mon_File) > 0)
     {
       fname = (char*)malloc(strlen(Vars->Mon_File)+10*Vars->Coord_Number);
-      if (Vars->Flag_List && Vars->Mon2D_Buffer) /* List: DETECTOR_OUT_2D */
+      if (Vars->Flag_List && (Vars->List_Buffer.data || Vars->Mon2D_Buffer)) /* List */
       {
-       
-        if (Vars->Flag_List >= 2) Vars->Buffer_Size = Vars->Neutron_Counter;
-        if (Vars->Buffer_Size >= Vars->Neutron_Counter)
-          Vars->Buffer_Size = Vars->Neutron_Counter;
+        if (Vars->List_Buffer.data)
+        {
+          List_Count = Vars->List_Buffer.count;
+          List_Data = Vars->List_Buffer.data;
+        }
+        else
+        {
+          if (Vars->Flag_List >= 2) Vars->Buffer_Size = Vars->Neutron_Counter;
+          if (Vars->Buffer_Size >= Vars->Neutron_Counter)
+            Vars->Buffer_Size = Vars->Neutron_Counter;
+          List_Count = Vars->Buffer_Size;
+          List_Data = Vars->Mon2D_Buffer;
+        }
         strcpy(fname,Vars->Mon_File);
         if (strchr(Vars->Mon_File,'.') == NULL) strcat(fname, "_list");
 
@@ -1778,8 +1815,8 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
            string (NeXus 'options' attribute) that the generic API omits. */
         detector = mcevent_out_list_nd(
               label, "List of neutron events", Coord_X_Label,
-              Vars->Buffer_Size, Vars->Coord_Number+1,
-              Vars->Mon2D_Buffer,
+              List_Count, Vars->Coord_Number+1,
+              List_Data,
               fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot, Vars->option,Vars->compcurindex);
       }
       if (Vars->Flag_Multiple) /* n1D: DETECTOR_OUT_1D */
@@ -1993,6 +2030,7 @@ void Monitor_nd_noaccFinally(Monitornd_noaccDefines_type *DEFS,
     { /* Dim : (Vars->Coord_Number+1)*Vars->Buffer_Block matrix (for p, dp) */
       if (Vars->Mon2D_Buffer != NULL) free(Vars->Mon2D_Buffer);
     }
+    mc_event_buffer_free(&Vars->List_Buffer);
 
     /* 1D and n1D case : Vars->Flag_Multiple */
     if (Vars->Flag_Multiple && Vars->Coord_Number)
