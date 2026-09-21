@@ -10,14 +10,16 @@
 * Unit test instrument for Conics Pairs components
 *
 * %D
-* Example instrument that shows some ways of using Conics_Ph and Conics_EH
+ * Example instrument that shows some ways of using the Conics pair components
 *
-* %Example: Test_Conics_pairs OPTIC=1 Detector: psd_i_I=1.41346e-12
-* %Example: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_I=4.92971e-21
+ * %Example: Test_Conics_pairs OPTIC=1 Detector: psd_i_I=1.41346e-12
+ * %Example: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_I=4.92971e-21
+ * %Example: Test_Conics_pairs OPTIC=3 Detector: psd_i_I=1.47422e-12
+ * %Example: Test_Conics_pairs OPTIC=4 Detector: psd_i_I=3.07876e-17
 *
 * %P
 * <parameter1>: [<unit>] <parameter1 description>
-* OPTIC: [ ]     Flag to choose between 0: no optic, 1: EH pair, 2: PH pair
+ * OPTIC: [ ]     Flag to choose between 1: EH pair, 2: PH pair, 3: HE pair, 4: PP pair
 * ssize: [m]     Source radius
 * fs: [m]        Distance betwee nsource and optic mid plane
 * fi: [m]        Distance between optics mid plane and focal point.
@@ -41,18 +43,18 @@ DECLARE
 
 INITIALIZE
 %{
-  radii=malloc(nshells*sizeof(double));
+  radii = malloc (nshells * sizeof (double));
   if (!radii) {
-    fprintf(stderr, "Error allocating array of raddi in %s. Exit!\n",NAME_INSTRUMENT);
-    exit(-1);
+    fprintf (stderr, "Error allocating array of raddi in %s. Exit!\n", NAME_INSTRUMENT);
+    exit (-1);
   }
 
-  double dr=(rmax-rmin)/(nshells-1);
+  double dr = (rmax - rmin) / (nshells - 1);
 
   int i;
-  for(i=0; i<nshells; i++) {
-    radii[i]= rmax-i*dr;
-    printf("Radius %i: %g\n", i, radii[i]);
+  for (i = 0; i < nshells; i++) {
+    radii[i] = rmax - i * dr;
+    printf ("Radius %i: %g\n", i, radii[i]);
   }
 %}
 
@@ -90,6 +92,16 @@ COMPONENT cPH = Conics_PH(R0=R0,alpha=alpha,W=W,m=m,
     nshells=nshells, focal_length=10, radii=radii, lp=0.25, lh=0.25, disk=0
 )
 WHEN(OPTIC==2)AT(0,0,fs) RELATIVE ss
+
+COMPONENT cHE = Conics_HE(R0=R0,alpha=alpha,W=W,m=m,
+    nshells=nshells, focal_length_u=10, focal_length_d=10, radii=radii, le=0.25, lh=0.25, disk=1
+)
+WHEN(OPTIC==3) AT(0,0,fs) RELATIVE ss
+
+COMPONENT cPP = Conics_PP(R0=R0,alpha=alpha,W=W,m=m,
+    nshells=nshells, focal_length_u=10, focal_length_d=10, radii=radii, lp1=0.25, lp2=0.25, disk=0
+)
+WHEN(OPTIC==4) AT(0,0,fs) RELATIVE ss
 
 COMPONENT psd_o1 = COPY(psd_o0)(filename="psd_o1")
 AT(0,0,0.3+1e-3) RELATIVE PREVIOUS
