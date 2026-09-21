@@ -1,0 +1,71 @@
+/*******************************************************************************
+* Instrument: Test_Monitor_nD_noacc
+*
+* %I
+* Written by: McCode event-output work (Step 7)
+* Date: September 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_monitors
+*
+* %D
+* Compare ordinary fixed-capacity list output from Monitor_nD and its
+* non-OpenACC implementation. Both monitors see the same source and use
+* identical list options, including a small overflowing list.
+*
+* %Example: NCount=200 Detector: FlexRef_I=200
+*
+* %P
+* NCount: [1] Statistic to run with
+*
+* %L
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Monitor_nD_noacc(NCount=200)
+
+DECLARE
+%{
+%}
+
+USERVARS
+%{
+  double One;
+%}
+
+INITIALIZE
+%{
+  mcset_ncount((unsigned long long)NCount);
+%}
+
+TRACE
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT src = Source_simple(
+    lambda0=2, dlambda=0.02, dist=1, focus_xw=0.1, focus_yh=0.1)
+AT (0, 0, 0) RELATIVE PREVIOUS
+EXTEND %{
+  One=1;
+%}
+
+COMPONENT ND_acc = Monitor_nD(xwidth=0.4, yheight=0.4, restore_neutron=1,
+    filename="ND_acc", options="x y list")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT ND_noacc = Monitor_nD_noacc(xwidth=0.4, yheight=0.4,
+    restore_neutron=1, filename="ND_noacc", options="x y list")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT ND_acc_ovf = Monitor_nD(xwidth=0.4, yheight=0.4,
+    restore_neutron=1, filename="ND_acc_ovf", options="x y list=5")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT ND_noacc_ovf = Monitor_nD_noacc(xwidth=0.4, yheight=0.4,
+    restore_neutron=1, filename="ND_noacc_ovf", options="x y list=5")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT FlexRef = Flex_monitor_2D(nU1=3, nU2=3, Umin1=-1, Umax1=1,
+    Umin2=-1, Umax2=1, ustring1="x", ustring2="y", signal="One")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+END
