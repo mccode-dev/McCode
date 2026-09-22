@@ -2824,6 +2824,59 @@ MCDETECTOR mcevent_out_list_nd(char *title, char *xl, char *columns,
 }
 
 /*******************************************************************************
+ * mc_event_particle_row: copy the canonical particle state into an event row.
+ *   The destination must have MC_EVENT_PARTICLE_WIDTH values. The helper is
+ *   device-callable and performs no allocation or I/O; null arguments are a
+ *   safe no-op.
+ *******************************************************************************/
+void mc_event_particle_row(double *row, _class_particle *particle)
+{
+  if (row == NULL || particle == NULL) return;
+
+  #pragma acc atomic write
+  row[0] = particle->x;
+  #pragma acc atomic write
+  row[1] = particle->y;
+  #pragma acc atomic write
+  row[2] = particle->z;
+#if MCCODE_PARTICLE_CODE == 2112
+  #pragma acc atomic write
+  row[3] = particle->vx;
+  #pragma acc atomic write
+  row[4] = particle->vy;
+  #pragma acc atomic write
+  row[5] = particle->vz;
+  #pragma acc atomic write
+  row[6] = particle->t;
+  #pragma acc atomic write
+  row[7] = particle->sx;
+  #pragma acc atomic write
+  row[8] = particle->sy;
+  #pragma acc atomic write
+  row[9] = particle->sz;
+  #pragma acc atomic write
+  row[10] = particle->p;
+#elif MCCODE_PARTICLE_CODE == 22
+  #pragma acc atomic write
+  row[3] = particle->kx;
+  #pragma acc atomic write
+  row[4] = particle->ky;
+  #pragma acc atomic write
+  row[5] = particle->kz;
+  #pragma acc atomic write
+  row[6] = particle->t;
+  #pragma acc atomic write
+  row[7] = particle->Ex;
+  #pragma acc atomic write
+  row[8] = particle->Ey;
+  #pragma acc atomic write
+  row[9] = particle->Ez;
+  #pragma acc atomic write
+  row[10] = particle->p;
+#endif
+}
+
+/*******************************************************************************
 * mc_event_buffer_init: allocate a fixed-capacity event buffer (host only).
 *   buffer:   MC_EVENT_BUFFER to initialize (must be non-NULL)
 *   capacity: maximum number of rows that fit (must be >= 0; 0 is a valid
