@@ -1010,6 +1010,19 @@ typedef struct {
   long    dropped;   /* appends rejected because the buffer was full */
 } MC_EVENT_BUFFER;
 
+/* Canonical particle-state event row. The row contains position, propagation
+ * state, polarisation/field state, time, and weight in the flavor-specific
+ * order named by MC_EVENT_PARTICLE_COLUMNS. */
+#define MC_EVENT_PARTICLE_WIDTH 11
+#if MCCODE_PARTICLE_CODE == 2112
+# define MC_EVENT_PARTICLE_COLUMNS "x y z vx vy vz t sx sy sz p"
+#elif MCCODE_PARTICLE_CODE == 22
+# define MC_EVENT_PARTICLE_COLUMNS "x y z kx ky kz t Ex Ey Ez p"
+#endif
+
+#pragma acc routine
+void mc_event_particle_row(double *row, _class_particle *particle);
+
 /* Fixed-capacity event-buffer lifecycle.
  *   mc_event_buffer_init: owns the allocation (host only); call it on an
  *     uninitialized or already-freed buffer. It returns 0 on success,

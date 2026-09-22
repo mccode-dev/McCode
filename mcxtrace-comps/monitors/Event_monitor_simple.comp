@@ -45,28 +45,7 @@ TRACE
 
   unsigned long i = _particle->_uid;
   if (i < Nevents) {
-    #pragma acc atomic write
-    Events[i][1] = x;
-    #pragma acc atomic write
-    Events[i][2] = y;
-    #pragma acc atomic write
-    Events[i][3] = z;
-    #pragma acc atomic write
-    Events[i][4] = kx;
-    #pragma acc atomic write
-    Events[i][5] = ky;
-    #pragma acc atomic write
-    Events[i][6] = kz;
-    #pragma acc atomic write
-    Events[i][7] = t;
-    #pragma acc atomic write
-    Events[i][8] = Ex;
-    #pragma acc atomic write
-    Events[i][9] = Ey;
-    #pragma acc atomic write
-    Events[i][10] = Ez;
-    #pragma acc atomic write
-    Events[i][11] = p;
+    mc_event_particle_row(&Events[i][1], _particle);
   }
 %}
 
@@ -75,8 +54,9 @@ SAVE
   long i;
   for (i = 0; i < Nevents; i++) Events[i][0] = i;
   DETECTOR_OUT_LIST("Event monitor events",
-                    "id x y z kx ky kz t Ex Ey Ez p",
-                    Nevents, 12, Nevents ? Events[0] : NULL,
+                    "id " MC_EVENT_PARTICLE_COLUMNS,
+                    Nevents, MC_EVENT_PARTICLE_WIDTH + 1,
+                    Nevents ? Events[0] : NULL,
                     NAME_CURRENT_COMP);
   if (Nevents) destroy_darr2d (Events);
 %}
