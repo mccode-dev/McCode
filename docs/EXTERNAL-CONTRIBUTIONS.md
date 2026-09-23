@@ -124,7 +124,7 @@ from the Actions tab:
 - **check** re-verifies every recorded hash against upstream and fails on any
   mismatch: a moved tag, a regenerated release archive, a compromised host.
 
-The poll job needs the registrar GitHub App (`REGISTRAR_APP_ID` and
+The poll job needs the registrar GitHub App (`REGISTRAR_CLIENT_ID` and
 `REGISTRAR_PRIVATE_KEY`) and is skipped until it is configured; check needs no
 credentials.
 
