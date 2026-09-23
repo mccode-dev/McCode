@@ -1,0 +1,97 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: CoherentPhononPowder_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 24.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of CoherentPhononPowder_process: coherent one-phonon scattering from fcc Ni powder
+*
+* %Description
+* A monochromatic beam hits a Ni powder cylinder made from the Union process
+* CoherentPhononPowder_process (port of the MCViNE CoherentInelastic_PolyXtal
+* kernel), with the fcc Ni phonon dispersion from MCViNE (data/fccNi-phonons).
+*
+* method=0 samples phonon wave vectors as MCViNE does and scatters into 4pi. The
+* banana monitor then shows scattering angle vs. final energy, i.e. the powder
+* averaged one-phonon S(Q,E) seen through the kinematic constraints.
+* method=1 picks the final direction with the Union focusing of the geometry; with
+* focus=1 the scattering is focused onto the energy monitor at angle tth.
+*
+* %Example: method=1 focus=1 Detector: Edet_I=3.07e-10
+*
+* %Parameters
+* Ei:      [meV] Incident energy
+* T:       [K]   Sample temperature
+* tth:     [deg] Scattering angle of the energy monitor
+* method:  [1]   Sampling method of CoherentPhononPowder_process, 0: MCViNE (4pi), 1: focusing
+* focus:   [1]   With method=1: 1 focus scattering onto the energy monitor, 0: 4pi
+* radius:  [m]   Radius of the Ni cylinder
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT CoherentPhononPowder_test(Ei=60, T=300, tth=60, int method=0, int focus=0, radius=0.002)
+
+DECLARE
+%{
+  int target;
+  double fw;
+%}
+
+INITIALIZE
+%{
+  target = (focus && method == 1) ? 3 : 0;
+  fw = (focus && method == 1) ? 0.05 : 0;
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.005, dist=1, focus_xw=2*radius, focus_yh=0.02, E0=Ei, dE=0, flux=1)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+COMPONENT Ni_phonons = CoherentPhononPowder_process(dispersion_dir="fccNi-phonons", xyz_file="fccNi-phonons/Ni.xyz", T=T, method=method)
+AT (0, 0, 0) RELATIVE sample_pos
+
+// Ni: sigma_abs = 4.49 barn, V_uc = 10.9036 AA^3
+COMPONENT Ni = Union_make_material(my_absorption=100*4.49/10.9036, process_string="Ni_phonons")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT det_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, tth, 0) RELATIVE sample_pos
+
+COMPONENT sample = Union_cylinder(radius=radius, yheight=0.02, material_string="Ni", priority=1,
+                                  target_index=target, focus_xw=fw, focus_xh=fw)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Etheta = Monitor_nD(radius=1, yheight=0.2, restore_neutron=1,
+    options="banana, theta limits=[5 135] bins=130, energy limits=[0 100] bins=100", filename="Etheta.dat")
+WHEN (!focus)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Edet = E_monitor(xwidth=0.05, yheight=0.05, nE=200, Emin=0, Emax=100, filename="Edet.dat", restore_neutron=1)
+AT (0, 0, 1) RELATIVE det_arm
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+END

@@ -33,6 +33,8 @@ enum process {
   PhononSimple,
   Texture,
   IncoherentPhonon,
+  IncoherentElastic,
+  CoherentPhononPowder,
   IncoherentOnePhonon,
   CoherentPhononSingleXtal,
   NCrystal,
@@ -490,6 +492,8 @@ union data_transfer_union{
     struct Single_crystal_physics_storage_struct *pointer_to_a_Single_crystal_physics_storage_struct;
     struct AF_HB_1D_physics_storage_struct *pointer_to_a_AF_HB_1D_physics_storage_struct;
     struct IncoherentPhonon_physics_storage_struct *pointer_to_a_IncoherentPhonon_physics_storage_struct;
+    struct IncoherentElastic_physics_storage_struct *pointer_to_a_IncoherentElastic_physics_storage_struct;
+    struct CoherentPhononPowder_physics_storage_struct *pointer_to_a_CoherentPhononPowder_physics_storage_struct;
     struct IncoherentOnePhonon_physics_storage_struct *pointer_to_a_IncoherentOnePhonon_physics_storage_struct;
     struct CoherentPhononSingleXtal_physics_storage_struct *pointer_to_a_CoherentPhononSingleXtal_physics_storage_struct;
     struct PhononSimpleNumeric_physics_storage_struct *pointer_to_a_PhononSimpleNumeric_storage_struct;

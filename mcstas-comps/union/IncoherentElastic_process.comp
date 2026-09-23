@@ -1,0 +1,183 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Peter Willendrup, port of the MCViNE kernel by Jiao Lin
+* Date: 24.09.2026
+* Origin: DTU Physics
+*
+* Incoherent elastic scattering with a Debye-Waller factor
+*
+* %D
+* Port of the MCViNE kernel mccomponents/lib/kernels/sample/phonon/IncoherentElastic
+* (J.Y.Y. Lin et al., Caltech/ORNL) to a Union process.
+*
+* Isotropic elastic incoherent scattering reduced by the Debye-Waller factor,
+*   1/sigma_inc dsigma/dOmega = exp(-DW_core*Q^2)/(4 pi)
+* with DW_core = <u^2>/3 (2W = DW_core*Q^2). The inverse penetration depth is
+* sigma_inc/V, i.e. the Debye-Waller reduction is applied as a weight factor as in
+* MCViNE, so the attenuation corresponds to the full incoherent cross section.
+* With DW_core=0 the process is identical to Incoherent_process.
+*
+* The final direction is sampled using the Union focusing settings of the geometry.
+* (MCViNE samples the polar angle uniformly and weights with sin(theta), which is
+* equivalent without focusing.)
+*
+* DW_core can be obtained from a phonon DOS, e.g. with the MCViNE script
+* mcvine-debye-waller-core-from-phonon-dos, or as printed by
+* IncoherentOnePhonon_process for the same DOS, mass and temperature.
+*
+* Note on combining processes: as in MCViNE, the inverse penetration depth of this
+* process is the full cross section sigma/V_uc, and the kernel physics is carried by
+* the weight. When several processes describing parts of the same cross section are
+* combined in one material, e.g.
+*   IncoherentElastic_process + IncoherentOnePhonon_process,
+* their attenuations add up, so the attenuation is overestimated for thick samples.
+* Single scattering intensities are not affected.
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+* defined before the master, but after the previous will be simulated here.
+*
+* Absorption is not handled by this process, set it in Union_make_material.
+*
+* Example: IncoherentElastic_process(sigma_inc=5.08, unit_cell_volume=13.827, DW_core=0.0067)
+*
+* %P
+* INPUT PARAMETERS:
+* sigma_inc:         [barns]  Incoherent scattering cross section of the unit cell
+* unit_cell_volume:  [AA^3]   Unit cell volume
+* DW_core:           [AA^2]   Debye-Waller core, 2W = DW_core*Q^2 (= <u^2>/3)
+* packing_factor:    [1]      How dense is the material compared to optimal 0-1
+* interact_fraction: [1]      How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:              [string] Name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+* IEL_storage:       Storage struct transferred to Union_master
+*
+* %L
+* MCViNE: <a href="https://github.com/mcvine/mcvine">https://github.com/mcvine/mcvine</a>
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT IncoherentElastic_process
+
+SETTING PARAMETERS(double sigma_inc=5.08, double unit_cell_volume=13.827, double DW_core=0, double packing_factor=1,
+                   double interact_fraction=-1, string init="init")
+
+SHARE
+%{
+  #ifndef Union
+  #error "The Union_init component must be included before this IncoherentElastic_process component"
+  #endif
+
+  // Very important to add a pointer to this struct in the union-lib.c file
+  struct IncoherentElastic_physics_storage_struct {
+    double my_scattering;
+    double dw_core;
+  };
+
+  int
+  IncoherentElastic_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
+                                _class_particle* _particle) {
+    *my = data_transfer.pointer_to_a_IncoherentElastic_physics_storage_struct->my_scattering;
+    return 1;
+  }
+
+  int
+  IncoherentElastic_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
+                                        struct focus_data_struct* focus_data, _class_particle* _particle) {
+    double k_length = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
+    double solid_angle, Q2;
+    Coords k_out;
+
+    focus_data->focusing_function (&k_out, &solid_angle, focus_data);
+    NORM (k_out.x, k_out.y, k_out.z);
+    k_final[0] = k_out.x * k_length;
+    k_final[1] = k_out.y * k_length;
+    k_final[2] = k_out.z * k_length;
+    Q2 = (k_initial[0] - k_final[0]) * (k_initial[0] - k_final[0]) + (k_initial[1] - k_final[1]) * (k_initial[1] - k_final[1])
+         + (k_initial[2] - k_final[2]) * (k_initial[2] - k_final[2]);
+    *weight *= solid_angle * 0.25 / PI * exp (-data_transfer.pointer_to_a_IncoherentElastic_physics_storage_struct->dw_core * Q2);
+    return 1;
+  }
+
+  // These lines help with future error correction, and tell other Union components
+  //  that at least one process have been defined.
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+
+  #ifndef PROCESS_INCOHERENTELASTIC_DETECTOR
+  #define PROCESS_INCOHERENTELASTIC_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  struct IncoherentElastic_physics_storage_struct IEL_storage;
+
+  // Needed for transport to the main component, will be the same for all processes
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+%}
+
+INITIALIZE
+%{
+  if (sigma_inc < 0 || unit_cell_volume <= 0 || DW_core < 0) {
+    fprintf (stderr, "IncoherentElastic_process:%s: ERROR: sigma_inc and DW_core must be >= 0 and unit_cell_volume > 0\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  IEL_storage.my_scattering = packing_factor * sigma_inc / unit_cell_volume * 100; // barn/AA^3 -> 1/m
+  IEL_storage.dw_core = DW_core;
+
+  // First initialise This_process with default values:
+  scattering_process_struct_init (&This_process);
+
+  // Isotropic process
+  This_process.non_isotropic_rot_index = -1;
+  // Cross section does not depend on the focusing
+  This_process.needs_cross_section_focus = -1;
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = IncoherentElastic;
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_IncoherentElastic_physics_storage_struct = &IEL_storage;
+  This_process.probability_for_scattering_function = &IncoherentElastic_physics_my;
+  This_process.scattering_function = &IncoherentElastic_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+  sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index (init) < 0) {
+    fprintf (stderr, "IncoherentElastic_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
+    exit (-1);
+  }
+
+  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  add_element_to_process_list (global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+  // Trace should be empty, the simulation is done in Union_master
+%}
+
+END
