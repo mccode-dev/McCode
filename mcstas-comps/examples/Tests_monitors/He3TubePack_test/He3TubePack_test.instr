@@ -1,0 +1,82 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: He3TubePack_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 24.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_monitors
+*
+* Test of He3TubePack_detector: an 8-pack of 3He tubes behind a vanadium sample
+*
+* %Description
+* A pulsed white beam hits a vanadium cylinder (Incoherent) which scatters towards
+* an 8-pack of 3He position sensitive tubes (He3TubePack_detector, port of the MCViNE
+* He3Tube / EventModeMCA detector kernels) at distance L and angle tth. A reference
+* PSD monitor in front of the pack records the incoming intensity, so that the
+* wavelength dependent detection efficiency can be compared between the two.
+* With events=1 the pack writes the MCViNE event mode file events.dat.
+*
+* %Example: pressure=10 Detector: pack_I=101.7
+*
+* %Parameters
+* lambda0:  [AA]  Centre wavelength of the source
+* dlambda:  [AA]  Half width of the wavelength band
+* L:        [m]   Sample-pack distance
+* tth:      [deg] Scattering angle of the pack
+* pressure: [atm] 3He pressure of the tubes
+* events:   [1]   If set, write the binary event file events.dat
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT He3TubePack_test(lambda0=2, dlambda=1, L=2, tth=60, pressure=10, int events=0)
+
+DECLARE
+%{
+  double pitch;
+  double pack_w;
+%}
+
+INITIALIZE
+%{
+  pitch = 0.0286;
+  pack_w = 8 * pitch;
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.01, dist=10, focus_xw=0.01, focus_yh=0.03,
+                                 lambda0=lambda0, dlambda=dlambda, flux=1e10)
+AT (0, 0, 0) RELATIVE origin
+EXTEND %{
+  t = 1e-5 * randpm1 ();
+%}
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 10) RELATIVE origin
+
+COMPONENT vanadium = Incoherent(radius=0.005, yheight=0.03, sigma_abs=5.08, sigma_inc=5.08, Vc=13.827,
+                                target_index=2, focus_xw=pack_w, focus_yh=1)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT pack_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, tth, 0) RELATIVE sample_pos
+
+COMPONENT pack_ref = PSD_monitor(xwidth=pack_w, yheight=1, nx=8, ny=128, filename="pack_ref", restore_neutron=1)
+AT (0, 0, L - 0.02) RELATIVE pack_arm
+
+COMPONENT pack = He3TubePack_detector(ntubes=8, npixels=128, tube_radius=0.0127, tube_length=1, tube_spacing=pitch,
+                                      pressure=pressure, tofmin=0.002, tofmax=0.01, tofstep=1e-5,
+                                      events_file=events ? "events.dat" : "NULL")
+AT (0, 0, L) RELATIVE pack_arm
+
+END

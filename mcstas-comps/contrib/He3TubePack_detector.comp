@@ -1,0 +1,253 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Peter Willendrup, port of the MCViNE detector kernels by Jiao Lin
+* Date: 24.09.2026
+* Origin: DTU Physics
+*
+* Pack of 3He position sensitive detector tubes with absorption efficiency and MCViNE-compatible event mode output
+*
+* %D
+* Port of the MCViNE detector kernels mccomponents/lib/kernels/detector/He3, He3Tube,
+* Z2Channel, Tof2Channel and EventModeMCA (J.Y.Y. Lin et al., Caltech/ORNL), as used for
+* the tube detector packs of the SNS direct geometry spectrometers in MCViNE.
+*
+* A pack of ntubes parallel, vertical (along y) cylindrical tubes of radius tube_radius
+* and length tube_length, placed side by side along x with centre distance tube_spacing,
+* centred on the component position. Each tube is divided into npixels pixels along its
+* axis. For each tube crossed by the neutron, the absorption probability in the 3He gas is
+*   P = 1 - exp(-mu L),  mu = 5333 barn * lambda/1.798 AA * n,  n = pressure/(kB 300 K)
+* with L the path length in the tube. The absorption point is sampled along the path and
+* gives the pixel; the time of flight gives the tof channel. The ray then continues with
+* the transmitted weight (tube walls are not modelled).
+*
+* Output:
+*  - a 2D monitor of intensity vs. tube and pixel, and a 1D time of flight monitor,
+*  - optionally (events_file) binary events in the MCViNE EventModeMCA format: records of
+*    {unsigned int pixelID; unsigned int tofChannel; double n} (16 bytes, native byte
+*    order), with pixelID = (pack_index*ntubes + tube)*npixels + pixel and
+*    tofChannel = floor((t - tofmin)/tofstep). Events outside the tof range are not written.
+*    With MPI, each node writes its own file with the suffix .<node>.
+*
+* Example: He3TubePack_detector(ntubes=8, npixels=128, tube_radius=0.0127, tube_length=1,
+*            tube_spacing=0.0286, pressure=10, tofmin=0, tofmax=0.02, tofstep=1e-5,
+*            events_file="events.dat")
+*
+* %P
+* INPUT PARAMETERS:
+* ntubes:          [1]      Number of tubes in the pack
+* npixels:         [1]      Number of pixels per tube
+* tube_radius:     [m]      Inner radius of the tubes
+* tube_length:     [m]      Length of the tubes (active length)
+* tube_spacing:    [m]      Distance between tube axes. 0: 2*tube_radius
+* pressure:        [atm]    3He pressure
+* tofmin:          [s]      Minimum time of flight of the tof channels
+* tofmax:          [s]      Maximum time of flight of the tof channels
+* tofstep:         [s]      Width of the tof channels
+* pack_index:      [1]      Index of the pack, offsets the pixel IDs (several packs in an instrument)
+* events_file:     [string] Name of the binary event file (MCViNE format). Empty: no event file
+* filename:        [string] Base name of the histogram output files (default: component name)
+* restore_neutron: [1]      If set, the monitor does not influence the neutron state
+* nowritefile:     [1]      If set, monitor will skip writing histograms to disk
+*
+* %L
+* MCViNE: <a href="https://github.com/mcvine/mcvine">https://github.com/mcvine/mcvine</a>
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT He3TubePack_detector
+
+SETTING PARAMETERS(int ntubes=8, int npixels=128, tube_radius=0.0127, tube_length=1, tube_spacing=0, pressure=10,
+                   tofmin=0, tofmax=0.02, tofstep=1e-5, int pack_index=0, string events_file="", string filename="",
+                   int restore_neutron=0, int nowritefile=0)
+
+NOACC
+
+SHARE
+%{
+  // one event in the MCViNE EventModeMCA binary format
+  struct he3tube_event {
+    unsigned int pixelID;
+    unsigned int tofChannelNo;
+    double n;
+  };
+%}
+
+DECLARE
+%{
+  double mu_ref;  // absorption coefficient at 1.798 AA [1/m]
+  double pitch;
+  int ntof;
+  DArray2d Npix;
+  DArray2d Ppix;
+  DArray2d P2pix;
+  DArray1d Ntof;
+  DArray1d Ptof;
+  DArray1d P2tof;
+  FILE* evfp;
+  long nevents;
+%}
+
+INITIALIZE
+%{
+  if (ntubes < 1 || npixels < 1 || tube_radius <= 0 || tube_length <= 0 || pressure <= 0 || tofmax <= tofmin || tofstep <= 0) {
+    fprintf (stderr, "He3TubePack_detector:%s: ERROR: invalid parameters\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  pitch = tube_spacing > 0 ? tube_spacing : 2 * tube_radius;
+  if (pitch < 2 * tube_radius) {
+    fprintf (stderr, "He3TubePack_detector:%s: ERROR: tube_spacing is smaller than the tube diameter\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  // MCViNE He3 kernel: sigma_abs = 5333 barn at 1.798 AA, n = P[Pa] * 2.414e20 m^-3 (300 K)
+  mu_ref = 5333.0e-28 * pressure * 101325.0 * 2.414e20;
+  ntof = (int)ceil ((tofmax - tofmin) / tofstep);
+  Npix = create_darr2d (ntubes, npixels);
+  Ppix = create_darr2d (ntubes, npixels);
+  P2pix = create_darr2d (ntubes, npixels);
+  Ntof = create_darr1d (ntof);
+  Ptof = create_darr1d (ntof);
+  P2tof = create_darr1d (ntof);
+  if (!strcmp (filename, "\0"))
+    sprintf (filename, "%s", NAME_CURRENT_COMP);
+
+  evfp = NULL;
+  nevents = 0;
+  if (strlen (events_file) && strcmp (events_file, "NULL") && strcmp (events_file, "0")) {
+    char name[1024];
+    #ifdef USE_MPI
+    if (mpi_node_count > 1)
+      snprintf (name, 1024, "%.1000s.%d", events_file, mpi_node_rank);
+    else
+    #endif
+      snprintf (name, 1024, "%.1000s", events_file);
+    char* path = mcfull_file (name, NULL);
+    evfp = fopen (path, "wb");
+    if (!evfp) {
+      fprintf (stderr, "He3TubePack_detector:%s: ERROR: cannot open event file %s\n", NAME_CURRENT_COMP, path);
+      exit (-1);
+    }
+    free (path);
+  }
+%}
+
+TRACE
+%{
+  // tubes crossed by the ray, sorted by entry time
+  int i, j, n_hit = 0, tube[64], order[64];
+  double tin[64], tout[64], v = sqrt (vx * vx + vy * vy + vz * vz);
+  double x0 = -(ntubes - 1) * pitch / 2;
+  double p_det = 0;
+  if (v > 0) {
+    for (i = 0; i < ntubes && n_hit < 64; i++) {
+      double t0, t1;
+      if (cylinder_intersect (&t0, &t1, x - (x0 + i * pitch), y, z, vx, vy, vz, tube_radius, tube_length) && t1 > 0) {
+        if (t0 < 0)
+          t0 = 0;
+        tube[n_hit] = i;
+        tin[n_hit] = t0;
+        tout[n_hit] = t1;
+        order[n_hit] = n_hit;
+        n_hit++;
+      }
+    }
+    // insertion sort on entry time
+    for (i = 1; i < n_hit; i++)
+      for (j = i; j > 0 && tin[order[j]] < tin[order[j - 1]]; j--) {
+        int tmp = order[j];
+        order[j] = order[j - 1];
+        order[j - 1] = tmp;
+      }
+    double lambda = 2 * PI / (V2K * v), mu = mu_ref * lambda / 1.798, pw = p;
+    for (i = 0; i < n_hit; i++) {
+      int h = order[i];
+      double L = (tout[h] - tin[h]) * v;
+      double pabs = 1 - exp (-mu * L);
+      if (pabs <= 0)
+        continue;
+      // absorption point: exponential distribution truncated to the path in the tube
+      double s = -log (1 - rand01 () * pabs) / mu;
+      double ta = tin[h] + s / v;
+      double ya = y + vy * ta, ta_abs = t + ta;
+      double w = pw * pabs;
+      int pix = (int)floor ((ya + tube_length / 2) / tube_length * npixels);
+      if (pix >= 0 && pix < npixels) {
+        double w2 = w * w;
+        Npix[tube[h]][pix] += 1;
+        Ppix[tube[h]][pix] += w;
+        P2pix[tube[h]][pix] += w2;
+        if (ta_abs >= tofmin && ta_abs < tofmax) {
+          int it = (int)floor ((ta_abs - tofmin) / tofstep);
+          if (it >= 0 && it < ntof) {
+            Ntof[it] += 1;
+            Ptof[it] += w;
+            P2tof[it] += w2;
+            if (evfp) {
+              struct he3tube_event ev;
+              ev.pixelID = (unsigned int)(((long)pack_index * ntubes + tube[h]) * npixels + pix);
+              ev.tofChannelNo = (unsigned int)it;
+              ev.n = w;
+              fwrite (&ev, sizeof (ev), 1, evfp);
+              nevents++;
+            }
+          }
+        }
+      }
+      p_det += w;
+      pw *= 1 - pabs;
+    }
+    if (n_hit > 0) {
+      if (!restore_neutron) {
+        // continue with the transmitted weight
+        p = pw;
+        SCATTER;
+      }
+    }
+  }
+  if (restore_neutron) {
+    RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+  }
+%}
+
+SAVE
+%{
+  if (!nowritefile) {
+    char fn[1024];
+    snprintf (fn, 1024, "%.1000s_pixels", filename);
+    DETECTOR_OUT_2D ("He3 tube pack", "Tube index", "Pixel index", -0.5, ntubes - 0.5, -0.5, npixels - 0.5, ntubes, npixels, &Npix[0][0], &Ppix[0][0],
+                     &P2pix[0][0], fn);
+    snprintf (fn, 1024, "%.1000s_tof", filename);
+    DETECTOR_OUT_1D ("He3 tube pack time of flight", "Time of flight [s]", "Intensity", "t", tofmin, tofmin + ntof * tofstep, ntof, &Ntof[0], &Ptof[0],
+                     &P2tof[0], fn);
+  }
+  if (evfp)
+    fflush (evfp);
+%}
+
+FINALLY
+%{
+  if (evfp) {
+    fclose (evfp);
+    MPI_MASTER (printf ("He3TubePack_detector:%s: %ld events written to %s (MCViNE EventModeMCA format)\n", NAME_CURRENT_COMP, nevents, events_file););
+  }
+  destroy_darr2d (Npix);
+  destroy_darr2d (Ppix);
+  destroy_darr2d (P2pix);
+  destroy_darr1d (Ntof);
+  destroy_darr1d (Ptof);
+  destroy_darr1d (P2tof);
+%}
+
+MCDISPLAY
+%{
+  int i;
+  double x0 = -(ntubes - 1) * pitch / 2;
+  for (i = 0; i < ntubes; i++)
+    cylinder (x0 + i * pitch, 0, 0, tube_radius, tube_length, 0, 0, 1, 0);
+%}
+
+END

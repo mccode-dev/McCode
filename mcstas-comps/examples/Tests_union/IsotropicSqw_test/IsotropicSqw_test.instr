@@ -1,0 +1,99 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: IsotropicSqw_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 24.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of IsotropicSqw_process: isotropic S(q,w) from a McStas .sqw file (liquid He4)
+*
+* %Description
+* A monochromatic beam hits a cylinder of liquid He4 made from the Union process
+* IsotropicSqw_process (port of the MCViNE SQEkernel / GridSQE), reading
+* data/He4_liq_coh.sqw. Cross section, density and temperature are taken from the
+* file header, and S is normalised with the sum rule as in Isotropic_Sqw (norm=-1).
+* With comp_select=1 the standalone Isotropic_Sqw component is used
+* instead for comparison. method=0 samples (Q,E) as MCViNE, method=1 uses Union
+* focusing (focus=1: onto the energy monitor at angle tth).
+*
+* %Example: method=1 focus=1 Detector: Edet_I=2.81
+*
+* %Parameters
+* Ei:          [meV] Incident energy
+* tth:         [deg] Scattering angle of the energy monitor
+* method:      [1]   0: MCViNE sampling (4pi), 1: focusing
+* focus:       [1]   With method=1: 0 4pi, 1 focus onto the energy monitor
+* comp_select: [1]   0: IsotropicSqw_process (Union), 1: Isotropic_Sqw
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT IsotropicSqw_test(Ei=4, tth=60, int method=1, int focus=0, int comp_select=0)
+
+DECLARE
+%{
+  int target;
+  double fw;
+%}
+
+INITIALIZE
+%{
+  target = (focus && method == 1) ? 4 : 0;
+  fw = (focus && method == 1) ? 0.05 : 0;
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.002, dist=1, focus_xw=0.01, focus_yh=0.02, E0=Ei, dE=0, flux=1e10)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+COMPONENT He4 = IsotropicSqw_process(Sqw_file="He4_liq_coh.sqw", method=method, norm=-1)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT He4_mat = Union_make_material(my_absorption=100*0.00747*0.072, process_string="He4")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT det_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, tth, 0) RELATIVE sample_pos
+
+COMPONENT sample = Union_cylinder(radius=0.005, yheight=0.02, material_string="He4_mat", priority=1,
+                                  target_index=target, focus_xw=fw, focus_xh=fw)
+WHEN (comp_select == 0)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+WHEN (comp_select == 0)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT standalone = Isotropic_Sqw(Sqw_coh="He4_liq_coh.sqw", radius=0.005, yheight=0.02)
+WHEN (comp_select == 1)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Etheta = Monitor_nD(radius=1, yheight=0.2, restore_neutron=1,
+    options="banana, theta limits=[5 135] bins=130, energy limits=[2 6] bins=100", filename="Etheta.dat")
+WHEN (!focus)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Edet = E_monitor(xwidth=0.05, yheight=0.05, nE=200, Emin=2, Emax=6, filename="Edet.dat", restore_neutron=1)
+AT (0, 0, 1) RELATIVE det_arm
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+END

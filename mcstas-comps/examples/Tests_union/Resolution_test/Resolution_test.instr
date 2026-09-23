@@ -1,0 +1,106 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Resolution_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 24.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of Resolution_process: resolution / test scattering kernels in a Union sample
+*
+* %Description
+* A monochromatic beam hits a sample made from the Union process Resolution_process
+* (port of the MCViNE ConstantEnergyTransfer, ConstantQE, ConstantvQE and DGSSXRes
+* kernels), inside an aluminium container to show a resolution calculation including
+* the sample environment.
+* mode=0: constant energy transfer E, isotropic (or focused)
+* mode=1: constant |Q| and E, i.e. a cone of scattering (powder line)
+* mode=2: constant Q vector (along x, Q=Qx) and Gaussian distribution of E
+* mode=3: flat time of flight window [tof-dtof/2, tof+dtof/2] at the focusing target
+*         (the energy monitor)
+*
+* %Example: mode=0 Detector: Etheta_I=712
+*
+* %Parameters
+* Ei:   [meV]   Incident energy
+* mode: [1]     Resolution_process mode 0-3
+* E:    [meV]   Energy transfer (modes 0-2)
+* Q:    [AA^-1] Momentum transfer (mode 1: |Q|, mode 2: Qx)
+* tth:  [deg]   Scattering angle of the energy monitor (focusing target for mode 3)
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Resolution_test(Ei=30, int mode=0, E=10, Q=3, tth=60)
+
+DECLARE
+%{
+  int target;
+  double fw;
+  double tof_target;
+%}
+
+INITIALIZE
+%{
+  target = (mode == 3) ? 4 : 0;
+  fw = (mode == 3) ? 0.05 : 0;
+  // time of flight for elastic scattering to the energy monitor (2 m flight path)
+  tof_target = 2.0 / (SE2V * sqrt (Ei));
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.002, dist=1, focus_xw=0.01, focus_yh=0.02, E0=Ei, dE=0, flux=1e10)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+COMPONENT res = Resolution_process(mode=mode, E=E, Q=Q, Qx=Q, Qy=0, Qz=0, dE=0.5, tof=tof_target, dtof=0.1*tof_target, sigma=5, unit_cell_volume=40)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Al_inc = Incoherent_process(sigma=0.0082, unit_cell_volume=66.4)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT sample_mat = Union_make_material(my_absorption=0, process_string="res")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Al = Union_make_material(my_absorption=100*4*0.231/66.4, process_string="Al_inc")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT det_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, tth, 0) RELATIVE sample_pos
+
+COMPONENT sample = Union_cylinder(radius=0.004, yheight=0.02, material_string="sample_mat", priority=2,
+                                  target_index=target, focus_xw=fw, focus_xh=fw)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT can = Union_cylinder(radius=0.005, yheight=0.03, material_string="Al", priority=1)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Etheta = Monitor_nD(radius=1, yheight=0.2, restore_neutron=1,
+    options="banana, theta limits=[5 175] bins=170, energy limits=[0 60] bins=120", filename="Etheta.dat")
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Edet = Monitor_nD(xwidth=0.05, yheight=0.05, restore_neutron=1, options="energy limits=[0 60] bins=240", filename="Edet.dat")
+AT (0, 0, 1) RELATIVE det_arm
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+END

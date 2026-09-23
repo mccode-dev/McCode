@@ -1,0 +1,98 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: DispersionSingleXtal_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 24.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of DispersionSingleXtal_process: single crystal excitation with analytic dispersion
+*
+* %Description
+* A monochromatic beam hits a single crystal plate made from the Union process
+* DispersionSingleXtal_process (port of the MCViNE E_vQ_Kernel). The example uses a
+* nearest neighbour spin wave in a simple cubic lattice (a=4 AA),
+*   E(Q) = D*(3 - cos(2 pi h) - cos(2 pi k) - cos(2 pi l)) + gap,
+* with D=p1 and gap=p2, intensity S=1, and detailed balance at temperature T.
+* The crystal is rotated by A3 around the vertical axis.
+* With focus=0 a banana monitor records scattering angle vs. final energy (4pi),
+* with focus=1 scattering is focused onto the energy monitor at scattering angle tth.
+*
+* %Example: focus=1 Detector: Edet_I=0.0914
+*
+* %Parameters
+* Ei:    [meV] Incident energy
+* A3:    [deg] Crystal rotation around the vertical axis
+* tth:   [deg] Scattering angle of the energy monitor
+* D:     [meV] Spin wave stiffness parameter
+* gap:   [meV] Spin wave gap
+* T:     [K]   Temperature
+* focus: [1]   0: 4pi, 1: focus onto the energy monitor
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT DispersionSingleXtal_test(Ei=30, A3=0, tth=40, D=3, gap=1, T=50, int focus=0)
+
+DECLARE
+%{
+  int target;
+  double fw;
+%}
+
+INITIALIZE
+%{
+  target = focus ? 3 : 0;
+  fw = focus ? 0.02 : 0;
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.002, dist=1, focus_xw=0.01, focus_yh=0.01, E0=Ei, dE=0, flux=1e10)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+COMPONENT spinwave = DispersionSingleXtal_process(E_Q="p1*(3-cos(2*pi*h)-cos(2*pi*k)-cos(2*pi*l))+p2", S_Q="1",
+    sigma=5, unit_cell_volume=64, Emax=40, T=T, ax=4, by=4, cz=4, p1=D, p2=gap)
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, A3, 0) RELATIVE sample_pos
+
+COMPONENT crystal_mat = Union_make_material(my_absorption=0, process_string="spinwave")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT det_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, tth, 0) RELATIVE sample_pos
+
+COMPONENT crystal = Union_box(xwidth=0.02, yheight=0.02, zdepth=0.005, material_string="crystal_mat", priority=1,
+                              target_index=target, focus_xw=fw, focus_xh=fw)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Etheta = Monitor_nD(radius=1, yheight=0.2, restore_neutron=1,
+    options="banana, theta limits=[5 135] bins=130, energy limits=[0 60] bins=120", filename="Etheta.dat")
+WHEN (!focus)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Edet = E_monitor(xwidth=0.02, yheight=0.02, nE=300, Emin=0, Emax=60, filename="Edet.dat", restore_neutron=1)
+AT (0, 0, 1) RELATIVE det_arm
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+END

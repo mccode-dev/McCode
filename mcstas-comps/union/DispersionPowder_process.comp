@@ -1,0 +1,496 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Peter Willendrup, port of the MCViNE kernels by Jiao Lin
+* Date: 24.09.2026
+* Origin: DTU Physics
+*
+* Powder excitation with an analytical dispersion E(|Q|), optionally broadened
+*
+* %D
+* Port of the MCViNE kernels mccomponents/lib/kernels/sample/E_Q_Kernel,
+* Broadened_E_Q_Kernel and LorentzianBroadened_E_Q_Kernel (J.Y.Y. Lin et al.,
+* Caltech/ORNL) to a Union process.
+*
+* Scattering from an excitation in a powder or isotropic system,
+*   1/sigma d2sigma/dOmega dEf = kf/ki S(Q) R(E - E(Q)) / (4 pi)
+* with E = Ei-Ef the energy transfer, Q = |ki-kf| and R either a delta function
+* (broadening=0), a Gaussian with standard deviation W(Q) (broadening=1) or a
+* Lorentzian with half width at half maximum W(Q) (broadening=2).
+* E(Q) [meV], S(Q) [1] and W(Q) [meV] are expressions (tinyexpr syntax, see
+* <a href="https://github.com/codeplea/tinyexpr">https://github.com/codeplea/tinyexpr</a>)
+* in the variables Q [AA^-1], E [meV] (energy transfer, only in S_Q) and the free
+* parameters p1..p4, e.g. E_Q="30+5*sin(Q)", S_Q="1", W_Q="0.5+0.1*Q".
+* If T > 0 the excitation is also created with energy gain, E = -E(Q), and the
+* intensities are multiplied by the Bose factors n(E)+1 and n(E), respectively. For a
+* broadened excitation with T > 0 the line shape is taken as that of a damped mode,
+*   S(Q) [n(E)+1] (R(E-E(Q)) - R(E+E(Q))),
+* which fulfils detailed balance and stays finite at E=0.
+*
+* Two sampling methods are available:
+* method=0 (as MCViNE): Q is sampled uniformly in [Qmin, Qmax], E = E(Q) (+ a random
+*   broadening), the scattering angle follows from Q and the azimuthal angle is random.
+*   Union focusing is not used. Kinematically impossible samples are absorbed
+*   (MCViNE retries up to 100 times, which biases the normalisation).
+* method=1 (focusing): the final direction is sampled with the Union focusing of the
+*   geometry. Without broadening, kf is found by root finding of E(Q(kf)) - (Ei-Ef);
+*   with broadening, Ef is sampled uniformly within Ei-Emax..Ei+Emax (Ef > 0).
+*   Only Q values within [Qmin, Qmax] contribute.
+*
+* The inverse penetration depth is sigma/unit_cell_volume.
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+* defined before the master, but after the previous will be simulated here.
+*
+* Absorption is not handled by this process, set it in Union_make_material.
+*
+* %P
+* INPUT PARAMETERS:
+* E_Q:               [string]  Expression for the dispersion E(Q) [meV]
+* S_Q:               [string]  Expression for the intensity S(Q,E) [1]
+* W_Q:               [string]  Expression for the broadening W(Q) [meV] (Gaussian sigma or Lorentzian HWHM)
+* broadening:        [1]       0: none, 1: Gaussian, 2: Lorentzian
+* sigma:             [barns]   Scattering cross section of the unit cell, defines the inverse penetration depth
+* unit_cell_volume:  [AA^3]    Unit cell volume
+* Qmin:              [AA^-1]   Minimum Q of the excitation
+* Qmax:              [AA^-1]   Maximum Q of the excitation
+* Emax:              [meV]     method=1: maximum energy transfer considered, |E| < Emax
+* T:                 [K]       Temperature. 0: E(Q) only (no Bose factor). >0: loss and gain with Bose factors
+* method:            [1]       0: MCViNE sampling in Q (no focusing), 1: focusing
+* p1:                [1]       Free parameter available in the expressions
+* p2:                [1]       Free parameter available in the expressions
+* p3:                [1]       Free parameter available in the expressions
+* p4:                [1]       Free parameter available in the expressions
+* root_nsteps:       [1]       method=1: Number of intervals in kf in which roots are searched for
+* packing_factor:    [1]       How dense is the material compared to optimal 0-1
+* interact_fraction: [1]       How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:              [string]  Name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+* DPW_storage:       Storage struct transferred to Union_master
+*
+* %L
+* MCViNE: <a href="https://github.com/mcvine/mcvine">https://github.com/mcvine/mcvine</a>
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT DispersionPowder_process
+
+SETTING PARAMETERS(string E_Q="", string S_Q="1", string W_Q="0", int broadening=0, double sigma=1, double unit_cell_volume=1,
+                   double Qmin=0, double Qmax=10, double Emax=100, double T=0, int method=1,
+                   double p1=0, double p2=0, double p3=0, double p4=0,
+                   int root_nsteps=200, double packing_factor=1, double interact_fraction=-1, string init="init")
+
+SHARE
+%{
+  #ifndef Union
+  #error "The Union_init component must be included before this DispersionPowder_process component"
+  #endif
+
+  %include "tinyexpr.h"
+  %include "tinyexpr.c"
+
+  #ifndef DISPERSION_EXPR_TOOLS
+  #define DISPERSION_EXPR_TOOLS
+  #define DISP_T2E (1.0 / 11.605) // Kelvin to meV
+
+  // variables available in the expressions
+  struct disp_expr_vars {
+    double Qx, Qy, Qz, Q, h, k, l, E, p[4];
+  };
+
+  // compile an expression with the standard variable set
+  te_expr*
+  disp_compile (const char* expr, struct disp_expr_vars* v, const char* what, const char* comp) {
+    int err = 0;
+    te_variable vars[] = { { "Qx", &v->Qx }, { "Qy", &v->Qy }, { "Qz", &v->Qz }, { "Q", &v->Q },   { "h", &v->h },
+                           { "k", &v->k },   { "l", &v->l },   { "E", &v->E },   { "p1", &v->p[0] }, { "p2", &v->p[1] },
+                           { "p3", &v->p[2] }, { "p4", &v->p[3] } };
+    te_expr* e = te_compile (expr, vars, 12, &err);
+    if (!e) {
+      fprintf (stderr, "%s: ERROR: could not parse %s expression \"%s\" near character %d\n", comp, what, expr, err);
+      exit (-1);
+    }
+    return e;
+  }
+
+  // Bose factor: n+1 for energy loss (E>0), n for energy gain
+  double
+  disp_bose (double E, double T) {
+    double n = 1.0 / (exp (fabs (E) / (T * DISP_T2E)) - 1.0);
+    return E > 0 ? 1.0 + n : n;
+  }
+  #endif
+
+  // Very important to add a pointer to this struct in the union-lib.c file
+  struct DispersionPowder_physics_storage_struct {
+    struct disp_expr_vars v;
+    te_expr* E_expr;
+    te_expr* S_expr;
+    te_expr* W_expr;
+    int broad, meth, nsteps;
+    double qmin, qmax, emax, Temp;
+    double my_scattering;
+    double* roots;
+  };
+
+  double
+  dpw_eval (struct DispersionPowder_physics_storage_struct* s, te_expr* e, double Q, double E) {
+    s->v.Q = Q;
+    s->v.E = E;
+    return te_eval (e);
+  }
+
+  // context for f(kf) = sign*E(|ki-kf*dir|) - (Ei - Ef)
+  struct dpw_ctx {
+    struct DispersionPowder_physics_storage_struct* s;
+    double ki[3], Ei, dir[3];
+    int sign;
+  };
+
+  double
+  dpw_f (double kf, struct dpw_ctx* c) {
+    double Q2 = 0, q;
+    int d;
+    for (d = 0; d < 3; d++) {
+      q = c->ki[d] - kf * c->dir[d];
+      Q2 += q * q;
+    }
+    return c->sign * dpw_eval (c->s, c->s->E_expr, sqrt (Q2), 0) - (c->Ei - VS2E * K2V * K2V * kf * kf);
+  }
+
+  // Ridder's method with bracketing values fl, fh. Returns 1 on success
+  int
+  dpw_ridder (struct dpw_ctx* c, double xl, double xh, double fl, double fh, double xacc, double* root) {
+    double ans = xl, xm, fm, s, xnew, fnew;
+    int j;
+    if (fl == 0) {
+      *root = xl;
+      return 1;
+    }
+    if (fh == 0) {
+      *root = xh;
+      return 1;
+    }
+    if (fl * fh > 0)
+      return 0;
+    for (j = 0; j < 60; j++) {
+      xm = 0.5 * (xl + xh);
+      fm = dpw_f (xm, c);
+      s = sqrt (fm * fm - fl * fh);
+      if (s == 0.0) {
+        *root = xm;
+        return 1;
+      }
+      xnew = xm + (xm - xl) * ((fl >= fh ? 1.0 : -1.0) * fm / s);
+      if (j && fabs (xnew - ans) <= xacc) {
+        *root = xnew;
+        return 1;
+      }
+      ans = xnew;
+      fnew = dpw_f (ans, c);
+      if (fnew == 0.0) {
+        *root = ans;
+        return 1;
+      }
+      if ((fnew >= 0 ? fabs (fm) : -fabs (fm)) != fm) {
+        xl = xm;
+        fl = fm;
+        xh = ans;
+        fh = fnew;
+      } else if ((fnew >= 0 ? fabs (fl) : -fabs (fl)) != fl) {
+        xh = ans;
+        fh = fnew;
+      } else if ((fnew >= 0 ? fabs (fh) : -fabs (fh)) != fh) {
+        xl = ans;
+        fl = fnew;
+      } else
+        return 0;
+      if (fabs (xh - xl) <= xacc) {
+        *root = ans;
+        return 1;
+      }
+    }
+    return 0;
+  }
+
+  // normalised line shape R(x) with width w
+  double
+  dpw_lineshape (int broad, double x, double w) {
+    if (w <= 0)
+      return 0;
+    if (broad == 1)
+      return exp (-0.5 * x * x / (w * w)) / (sqrt (2 * PI) * w);
+    return w / (PI * (x * x + w * w));
+  }
+
+  int
+  DispersionPowder_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
+                               _class_particle* _particle) {
+    *my = data_transfer.pointer_to_a_DispersionPowder_physics_storage_struct->my_scattering;
+    return 1;
+  }
+
+  int
+  DispersionPowder_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
+                                       struct focus_data_struct* focus_data, _class_particle* _particle) {
+    struct DispersionPowder_physics_storage_struct* s = data_transfer.pointer_to_a_DispersionPowder_physics_storage_struct;
+    double ki, Ei, nsign = 1, C = VS2E * K2V * K2V;
+    int d, sign = 1;
+
+    ki = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
+    Ei = C * ki * ki;
+    if (s->Temp > 0) {
+      nsign = 2;
+      if (rand01 () < 0.5)
+        sign = -1;
+    }
+
+    if (s->meth == 0) {
+      // --- MCViNE E_Q_Kernel / (Lorentzian)Broadened_E_Q_Kernel ---
+      double Q = s->qmin + rand01 () * (s->qmax - s->qmin);
+      double E = sign * dpw_eval (s, s->E_expr, Q, 0);
+      if (s->broad) {
+        double w = dpw_eval (s, s->W_expr, Q, E);
+        if (w > 0) {
+          if (s->broad == 1)
+            E += w * randnorm ();
+          else
+            E += w * tan (PI * (rand01 () - 0.5));
+        }
+      }
+      double Ef = Ei - E;
+      if (Ef <= 0)
+        return 0;
+      double kf = sqrt (Ef / C);
+      double cost = (ki * ki + kf * kf - Q * Q) / (2 * ki * kf);
+      if (cost * cost > 1)
+        return 0;
+      double sint = sqrt (1 - cost * cost), phi = 2 * PI * rand01 ();
+      double e1[3] = { k_initial[0] / ki, k_initial[1] / ki, k_initial[2] / ki }, e2[3], e3[3], n;
+      if (fabs (e1[0]) > 1e-10 || fabs (e1[1]) > 1e-10) {
+        e2[0] = -e1[1];
+        e2[1] = e1[0];
+        e2[2] = 0;
+      } else {
+        e2[0] = 1;
+        e2[1] = 0;
+        e2[2] = 0;
+      }
+      n = sqrt (e2[0] * e2[0] + e2[1] * e2[1] + e2[2] * e2[2]);
+      for (d = 0; d < 3; d++)
+        e2[d] /= n;
+      e3[0] = e1[1] * e2[2] - e1[2] * e2[1];
+      e3[1] = e1[2] * e2[0] - e1[0] * e2[2];
+      e3[2] = e1[0] * e2[1] - e1[1] * e2[0];
+      for (d = 0; d < 3; d++)
+        k_final[d] = kf * (sint * cos (phi) * e2[d] + sint * sin (phi) * e3[d] + cost * e1[d]);
+      double S = dpw_eval (s, s->S_expr, Q, E);
+      if (s->Temp > 0) {
+        if (s->broad) {
+          // target [n(E)+1] (R(E-w) - R(E+w)), sampled from (R(E-w) + R(E+w))/2
+          double w0 = dpw_eval (s, s->E_expr, Q, E), wd = dpw_eval (s, s->W_expr, Q, E);
+          double Rm = dpw_lineshape (s->broad, E - w0, wd), Rp = dpw_lineshape (s->broad, E + w0, wd);
+          if (Rm + Rp <= 0)
+            return 0;
+          S *= disp_bose (E, s->Temp) * fabs (Rm - Rp) / (Rm + Rp);
+        } else
+          S *= disp_bose (E, s->Temp);
+      }
+      *weight *= nsign * S * (kf / ki) * Q * (s->qmax - s->qmin) / (2 * ki * kf);
+      return 1;
+    }
+
+    // --- method 1: focusing ---
+    double solid_angle;
+    Coords dir;
+    focus_data->focusing_function (&dir, &solid_angle, focus_data);
+    NORM (dir.x, dir.y, dir.z);
+    double Efmin = Ei - s->emax > 0 ? Ei - s->emax : 0, Efmax = Ei + s->emax, kf, Ef, pdf_factor;
+    if (s->broad == 0) {
+      // sharp excitation: root finding in kf
+      struct dpw_ctx c;
+      int i, nf = 0;
+      c.s = s;
+      c.Ei = Ei;
+      c.sign = sign;
+      for (d = 0; d < 3; d++)
+        c.ki[d] = k_initial[d];
+      c.dir[0] = dir.x;
+      c.dir[1] = dir.y;
+      c.dir[2] = dir.z;
+      if (sign > 0)
+        Efmax = Ei;
+      else
+        Efmin = Ei;
+      double kmin = sqrt (Efmin / C), kmax = sqrt (Efmax / C);
+      double step = (kmax - kmin) / s->nsteps, fl, fh, root, xacc = 1e-9 * ki;
+      fl = dpw_f (kmin, &c);
+      for (i = 0; i < s->nsteps; i++) {
+        fh = dpw_f (kmin + (i + 1) * step, &c);
+        if (dpw_ridder (&c, kmin + i * step, kmin + (i + 1) * step, fl, fh, xacc, &root))
+          if (nf == 0 || fabs (root - s->roots[nf - 1]) > 10 * xacc)
+            s->roots[nf++] = root;
+        fl = fh;
+      }
+      if (nf < 1)
+        return 0;
+      int index = (int)floor (rand01 () * nf);
+      if (index >= nf)
+        index = nf - 1;
+      kf = s->roots[index];
+      if (kf <= 0)
+        return 0;
+      double dk = ki / 200;
+      double dfdk = fabs (-dpw_f (kf + 2 * dk, &c) + 8 * dpw_f (kf + dk, &c) - 8 * dpw_f (kf - dk, &c) + dpw_f (kf - 2 * dk, &c)) / (12 * dk);
+      if (!(dfdk > 0))
+        return 0;
+      pdf_factor = nf * 2 * C * kf / dfdk;
+      Ef = C * kf * kf;
+    } else {
+      // broadened excitation: Ef uniform in the allowed window
+      Ef = Efmin + rand01 () * (Efmax - Efmin);
+      if (Ef <= 0)
+        return 0;
+      kf = sqrt (Ef / C);
+      pdf_factor = Efmax - Efmin;
+    }
+    double Q2 = 0, E = Ei - Ef;
+    k_final[0] = kf * dir.x;
+    k_final[1] = kf * dir.y;
+    k_final[2] = kf * dir.z;
+    for (d = 0; d < 3; d++)
+      Q2 += (k_initial[d] - k_final[d]) * (k_initial[d] - k_final[d]);
+    double Q = sqrt (Q2);
+    if (Q < s->qmin || Q > s->qmax)
+      return 0;
+    double S = dpw_eval (s, s->S_expr, Q, E);
+    if (s->broad) {
+      double w0 = dpw_eval (s, s->E_expr, Q, E), wd = dpw_eval (s, s->W_expr, Q, E);
+      if (s->Temp > 0) {
+        // detailed balance: [n(E)+1] (R(E-w) - R(E+w)), finite at E=0
+        S *= disp_bose (E, s->Temp) * fabs (dpw_lineshape (s->broad, E - w0, wd) - dpw_lineshape (s->broad, E + w0, wd));
+      } else
+        S *= dpw_lineshape (s->broad, E - w0, wd);
+      nsign = 1; // both signs are contained in the line shape
+    } else if (s->Temp > 0)
+      S *= disp_bose (E, s->Temp);
+    *weight *= solid_angle / (4 * PI) * nsign * pdf_factor * S * kf / ki;
+    return 1;
+  }
+
+  // These lines help with future error correction, and tell other Union components
+  //  that at least one process have been defined.
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+
+  #ifndef PROCESS_DISPERSIONPOWDER_DETECTOR
+  #define PROCESS_DISPERSIONPOWDER_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  struct DispersionPowder_physics_storage_struct DPW_storage;
+
+  // Needed for transport to the main component, will be the same for all processes
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+%}
+
+INITIALIZE
+%{
+  char who[512];
+  snprintf (who, 512, "DispersionPowder_process:%s", NAME_CURRENT_COMP);
+  memset (&DPW_storage, 0, sizeof (DPW_storage));
+
+  if (!strlen (E_Q)) {
+    fprintf (stderr, "%s: ERROR: E_Q must be given\n", who);
+    exit (-1);
+  }
+  if (sigma <= 0 || unit_cell_volume <= 0 || Emax <= 0 || root_nsteps < 1 || T < 0 || Qmin < 0 || Qmax <= Qmin) {
+    fprintf (stderr, "%s: ERROR: need sigma, unit_cell_volume, Emax, root_nsteps > 0, T >= 0 and 0 <= Qmin < Qmax\n", who);
+    exit (-1);
+  }
+  if (broadening < 0 || broadening > 2 || method < 0 || method > 1) {
+    fprintf (stderr, "%s: ERROR: broadening must be 0, 1 or 2 and method 0 or 1\n", who);
+    exit (-1);
+  }
+  DPW_storage.v.p[0] = p1;
+  DPW_storage.v.p[1] = p2;
+  DPW_storage.v.p[2] = p3;
+  DPW_storage.v.p[3] = p4;
+  DPW_storage.E_expr = disp_compile (E_Q, &DPW_storage.v, "E_Q", who);
+  DPW_storage.S_expr = disp_compile (strlen (S_Q) ? S_Q : "1", &DPW_storage.v, "S_Q", who);
+  DPW_storage.W_expr = disp_compile (strlen (W_Q) ? W_Q : "0", &DPW_storage.v, "W_Q", who);
+  DPW_storage.broad = broadening;
+  DPW_storage.meth = method;
+  DPW_storage.nsteps = root_nsteps;
+  DPW_storage.qmin = Qmin;
+  DPW_storage.qmax = Qmax;
+  DPW_storage.emax = Emax;
+  DPW_storage.Temp = T;
+  DPW_storage.my_scattering = packing_factor * sigma / unit_cell_volume * 100; // barn/AA^3 -> 1/m
+  DPW_storage.roots = malloc ((root_nsteps + 1) * sizeof (double));
+
+  // First initialise This_process with default values:
+  scattering_process_struct_init (&This_process);
+
+  // Isotropic process
+  This_process.non_isotropic_rot_index = -1;
+  // Cross section does not depend on the focusing
+  This_process.needs_cross_section_focus = -1;
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = DispersionPowder;
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_DispersionPowder_physics_storage_struct = &DPW_storage;
+  This_process.probability_for_scattering_function = &DispersionPowder_physics_my;
+  This_process.scattering_function = &DispersionPowder_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+  sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index (init) < 0) {
+    fprintf (stderr, "%s: Error identifying Union_init component, %s is not a known component name.\n", who, init);
+    exit (-1);
+  }
+
+  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  add_element_to_process_list (global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+  // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  te_free (DPW_storage.E_expr);
+  te_free (DPW_storage.S_expr);
+  te_free (DPW_storage.W_expr);
+  free (DPW_storage.roots);
+%}
+
+END

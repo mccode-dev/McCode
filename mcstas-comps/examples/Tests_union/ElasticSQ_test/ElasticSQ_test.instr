@@ -1,0 +1,83 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: ElasticSQ_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 24.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of ElasticSQ_process: elastic scattering from S(|Q|) or single crystal S(Q)
+*
+* %Description
+* A monochromatic beam hits a sample made from the Union process ElasticSQ_process
+* (port of the MCViNE SQkernel and SvQkernel).
+* crystal=0: liquid-like structure factor S(Q) with a first peak at Q0, given as an
+*            expression (1D table files "Q S" can be used via SQ_file).
+* crystal=1: single crystal diffuse scattering, here rods of intensity along l through
+*            integer h and k of a simple cubic lattice (a=4 AA), rotated by A3.
+* The banana monitor records the scattered intensity vs. scattering angle, the PSD
+* monitor behind the sample shows the diffuse pattern for crystal=1.
+*
+* %Example: crystal=0 Detector: theta_I=1520
+*
+* %Parameters
+* Ei:      [meV]   Incident energy
+* crystal: [1]     0: S(|Q|) liquid, 1: single crystal diffuse rods
+* Q0:      [AA^-1] Position of the first S(Q) peak (crystal=0)
+* A3:      [deg]   Crystal rotation around the vertical axis (crystal=1)
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT ElasticSQ_test(Ei=20, int crystal=0, Q0=2, A3=10)
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.002, dist=1, focus_xw=0.01, focus_yh=0.02, E0=Ei, dE=0, flux=1e10)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+COMPONENT liquid = ElasticSQ_process(SQ_expr="1+1.5*exp(-(Q-p1)^2/0.08)-0.4*exp(-(Q-1.6*p1)^2/0.3)", crystal=0,
+    sigma=5, unit_cell_volume=30, p1=Q0)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT diffuse = ElasticSQ_process(SQ_expr="exp(-(sin(pi*h)^2+sin(pi*k)^2)/0.02)", crystal=1,
+    sigma=5, unit_cell_volume=64, ax=4, by=4, cz=4)
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, A3, 0) RELATIVE sample_pos
+
+COMPONENT mat_liquid = Union_make_material(my_absorption=0, process_string="liquid")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT mat_crystal = Union_make_material(my_absorption=0, process_string="diffuse")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT sample = Union_cylinder(radius=0.005, yheight=0.02, material_string=crystal ? "mat_crystal" : "mat_liquid", priority=1)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT theta = Monitor_nD(radius=1, yheight=0.2, restore_neutron=1, options="banana, theta limits=[5 175] bins=170", filename="theta.dat")
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT psd = PSD_monitor(xwidth=1, yheight=1, nx=200, ny=200, filename="psd.dat", restore_neutron=1)
+AT (0, 0, 0.5) RELATIVE sample_pos
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+END
