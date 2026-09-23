@@ -215,7 +215,7 @@ class McGuiState(QtCore.QObject):
         return ((self.__instrFile != "") and (not self.isSimRunning()))
     
     __thread_exc_signal = QtCore.Signal(str)
-    def compile(self, mpi=False):
+    def compile(self, mpi=True):
         # using Qt in-built cross-thread signaling
         self.__thread_exc_signal.connect(handleExceptionMsg)
         
