@@ -33,6 +33,8 @@ enum process {
   PhononSimple,
   Texture,
   IncoherentPhonon,
+  IncoherentOnePhonon,
+  CoherentPhononSingleXtal,
   NCrystal,
   Non,
   Template
@@ -488,6 +490,8 @@ union data_transfer_union{
     struct Single_crystal_physics_storage_struct *pointer_to_a_Single_crystal_physics_storage_struct;
     struct AF_HB_1D_physics_storage_struct *pointer_to_a_AF_HB_1D_physics_storage_struct;
     struct IncoherentPhonon_physics_storage_struct *pointer_to_a_IncoherentPhonon_physics_storage_struct;
+    struct IncoherentOnePhonon_physics_storage_struct *pointer_to_a_IncoherentOnePhonon_physics_storage_struct;
+    struct CoherentPhononSingleXtal_physics_storage_struct *pointer_to_a_CoherentPhononSingleXtal_physics_storage_struct;
     struct PhononSimpleNumeric_physics_storage_struct *pointer_to_a_PhononSimpleNumeric_storage_struct;
     struct PhononSimple_physics_storage_struct *pointer_to_a_PhononSimple_storage_struct;
     struct MagnonSimple_physics_storage_struct *pointer_to_a_MagnonSimple_storage_struct;

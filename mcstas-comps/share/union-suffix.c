@@ -51,6 +51,16 @@ int physics_my(enum process choice, double *my,double *k_initial, union data_tra
             output = IncoherentPhonon_physics_my(my, k_initial, data_transfer, focus_data, _particle);
             break;
         #endif
+        #ifdef PROCESS_INCOHERENTONEPHONON_DETECTOR
+        case IncoherentOnePhonon:
+            output = IncoherentOnePhonon_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_COHERENTPHONONSINGLEXTAL_DETECTOR
+        case CoherentPhononSingleXtal:
+            output = CoherentPhononSingleXtal_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
         #ifdef PROCESS_NCRYSTAL_DETECTOR
         case NCrystal:
             output = NCrystal_physics_my(my, k_initial, data_transfer, focus_data, _particle);
@@ -118,6 +128,16 @@ int physics_scattering(enum process choice, double *k_final, double *k_initial, 
         #ifdef PROCESS_INCOHERENTPHONON_DETECTOR
         case IncoherentPhonon:
             output = IncoherentPhonon_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_INCOHERENTONEPHONON_DETECTOR
+        case IncoherentOnePhonon:
+            output = IncoherentOnePhonon_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_COHERENTPHONONSINGLEXTAL_DETECTOR
+        case CoherentPhononSingleXtal:
+            output = CoherentPhononSingleXtal_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
             break;
         #endif
         #ifdef PROCESS_NCRYSTAL_DETECTOR

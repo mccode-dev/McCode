@@ -1,0 +1,581 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Peter Willendrup, port of the MCViNE kernel by Jiao Lin
+* Date: 23.09.2026
+* Origin: DTU Physics
+*
+* Incoherent inelastic one-phonon scattering from a phonon density of states (DOS)
+*
+* %D
+* Port of the MCViNE kernels
+* mccomponents/lib/kernels/sample/phonon/IncoherentInelastic and
+* IncoherentInelastic_EnergyFocusing (J.Y.Y. Lin et al., Caltech/ORNL) to a Union process.
+*
+* One-phonon incoherent scattering in the incoherent (and cubic) approximation,
+*   d2sigma/dOmega dEf = sigma_inc/(4 pi) kf/ki exp(-2W) hbar^2Q^2/(2M) Z(|w|)/|w| [n(w)+1 or n(w)]
+* with Z the normalised phonon DOS and n the Bose factor. The Debye-Waller factor
+* 2W = DW_core*Q^2 is by default calculated from the DOS.
+*
+* The DOS file may be either
+*   - a 2-column ASCII file "E Z" (additional columns ignored). The energy unit is
+*     taken from DOS_unit, or else from a comment line whose first word contains
+*     "meV" or "TeraHz"/"THz" (e.g. "# E(meV) Z" or "# Frequency(TeraHz) DOS", as in
+*     MCViNE). THz means frequency, not angular frequency. Default is meV.
+*   - a binary MCViNE IDF "DOS" file (frequency in THz)
+* The DOS is prepared as in MCViNE (utils.nice_dos): curves with fewer than 500 points
+* are resampled on a 500 point grid starting at E=0, the low energy part is replaced
+* by a fitted parabola (smoothing the curve first if the fit is bad), and the curve
+* is normalised to unit area.
+*
+* The final energy is sampled uniformly in [Ei-Emax, Ei+Emax] (limited to Ef>0), with
+* Emax the maximum energy of the DOS. The final direction is sampled using the Union
+* focusing settings of the geometry (default 4pi). With dEf_focus > 0 the final
+* energy is instead only sampled within [Ef_focus-dEf_focus/2, Ef_focus+dEf_focus/2]
+* (energy focusing, e.g. for indirect geometry spectrometers).
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+* defined before the master, but after the previous will be simulated here.
+*
+* Absorption is not handled by this process, set it in Union_make_material.
+*
+* Example: IncoherentOnePhonon_process(DOS_file="V-dos.dat", sigma_inc=5.08,
+*            unit_cell_volume=27.66, mass=50.94, T=300)
+*
+* %P
+* INPUT PARAMETERS:
+* DOS_file:          [string]  Phonon DOS, 2-column ASCII (E Z) or MCViNE IDF binary
+* DOS_unit:          [string]  Energy unit of an ASCII DOS_file: "meV" or "THz". Empty: read from file comments, default meV
+* sigma_inc:         [barns]   Incoherent scattering cross section of the unit cell
+* unit_cell_volume:  [AA^3]    Unit cell volume
+* mass:              [amu]     Average atomic mass
+* T:                 [K]       Temperature
+* DW_core:           [AA^2]    Debye-Waller core, 2W = DW_core*Q^2. Negative: calculate from the DOS
+* packing_factor:    [1]       How dense is the material compared to optimal 0-1
+* Ef_focus:          [meV]     Centre of final energy window for energy focusing
+* dEf_focus:         [meV]     Width of final energy window. 0: no energy focusing
+* interact_fraction: [1]       How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:              [string]  Name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+* IOP_storage:       Storage struct transferred to Union_master
+*
+* %L
+* MCViNE: <a href="https://github.com/mcvine/mcvine">https://github.com/mcvine/mcvine</a>
+* %L
+* J.Y.Y. Lin et al., Nucl. Instrum. Methods A 810 (2016) 86
+* %L
+* G.L. Squires, Introduction to the Theory of Thermal Neutron Scattering, ch. 3
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT IncoherentOnePhonon_process
+
+SETTING PARAMETERS(string DOS_file="", string DOS_unit="", double sigma_inc=-1, double unit_cell_volume=-1, double mass=-1,
+                   double T=300, double DW_core=-1, double packing_factor=1, double Ef_focus=0, double dEf_focus=0,
+                   double interact_fraction=-1, string init="init")
+
+SHARE
+%{
+  #ifndef Union
+  #error "The Union_init component must be included before this IncoherentOnePhonon_process component"
+  #endif
+
+  %include "read_table-lib"
+  #include <ctype.h>
+
+  #ifndef INCOHERENTONEPHONON_SHARE
+  #define INCOHERENTONEPHONON_SHARE
+
+  #define IOP_T2E (1.0 / 11.605)                 // Kelvin to meV, as in MCViNE
+  #define IOP_HBAR 1.05457148e-34                // J s
+  #define IOP_EV 1.60217653e-19                  // J
+  #define IOP_AMU 1.66053886e-27                 // kg
+  #define IOP_HZ2MEV (IOP_HBAR / (1e-3 * IOP_EV)) // angular frequency [rad/s] to meV
+  #define IOP_SMALL_OMEGA 1e-2                   // |omega| < IOP_SMALL_OMEGA*Emax uses the parabolic DOS limit
+
+  // Very important to add a pointer to this struct in the union-lib.c file
+  struct IncoherentOnePhonon_physics_storage_struct {
+    // DOS on a regular grid, normalised to unit area
+    int nE;
+    double E0, dE, Emax;
+    double* Z;
+    double sod; // Z(E) ~ sod*E^2 for small E
+    // material
+    double M;      // average mass [amu]
+    double Temp;   // [K]
+    double dw_core; // [AA^2]
+    double my_scattering;
+    // energy focusing
+    double Ef_c, dEf_c;
+  };
+
+  // linearly interpolated, normalised DOS, zero outside [E0, Emax)
+  double
+  iop_dos (struct IncoherentOnePhonon_physics_storage_struct* s, double e) {
+    if (e < s->E0 || e >= s->Emax)
+      return 0;
+    double x = (e - s->E0) / s->dE;
+    int j = (int)floor (x);
+    if (j >= s->nE - 1)
+      j = s->nE - 2;
+    return s->Z[j] + (x - j) * (s->Z[j + 1] - s->Z[j]);
+  }
+
+  // Bose factor: n+1 for phonon creation (omega>0), n for annihilation
+  double
+  iop_bose (double omega, double T) {
+    if (omega == 0.0)
+      return 1.0;
+    double n = 1.0 / (exp (fabs (omega) / (T * IOP_T2E)) - 1.0);
+    return omega > 0 ? 1.0 + n : n;
+  }
+
+  // fit y = c x, return c and R^2 (mccomponents/math/regression/linear1.h)
+  double
+  iop_linreg (double* x, double* y, int N, double* R2) {
+    double xys = 0, xxs = 0, ys = 0, sstot = 0, sserr = 0, c;
+    int i;
+    for (i = 0; i < N; i++) {
+      xys += x[i] * y[i];
+      xxs += x[i] * x[i];
+      ys += y[i];
+    }
+    c = xys / xxs;
+    for (i = 0; i < N; i++) {
+      sstot += (y[i] - ys / N) * (y[i] - ys / N);
+      sserr += (y[i] - c * x[i]) * (y[i] - c * x[i]);
+    }
+    *R2 = sstot > 0 ? 1 - sserr / sstot : 1;
+    return c;
+  }
+
+  // fit first N (100 down to 20) points to c*E^2 (utils.fitparabolic). Returns 1 if the fit is good
+  int
+  iop_fitparabolic (double* E, double* g, int n, int force, const char* comp) {
+    int N = n < 100 ? n : 100, minN = 20, bad = 1, i;
+    double c = 0, R2;
+    double* x = malloc (N * sizeof (double));
+    while (N > minN) {
+      for (i = 0; i < N; i++)
+        x[i] = E[i] * E[i];
+      c = iop_linreg (x, g, N, &R2);
+      if (R2 < 0.9)
+        N--;
+      else {
+        bad = 0;
+        break;
+      }
+    }
+    free (x);
+    if (bad && !force)
+      return 0;
+    if (bad)
+      fprintf (stderr, "IncoherentOnePhonon_process:%s: WARNING: unable to fit the low energy part of the DOS to a parabola\n", comp);
+    for (i = 0; i < N; i++)
+      g[i] = c * E[i] * E[i];
+    return 1;
+  }
+
+  // Hanning window smoothing with reflected ends, as utils.smooth(window_len=21)
+  void
+  iop_smooth (double* g, int n) {
+    int L = 21, i, k, ns = n + 2 * (L - 1);
+    double *s, *w, *y, wsum = 0;
+    if (n < L)
+      return;
+    s = malloc (ns * sizeof (double));
+    w = malloc (L * sizeof (double));
+    y = malloc ((ns - L + 1) * sizeof (double));
+    for (i = 0; i < L - 1; i++)
+      s[i] = g[L - 1 - i]; // x[window_len-1:0:-1]
+    for (i = 0; i < n; i++)
+      s[L - 1 + i] = g[i];
+    for (i = 0; i < L - 1; i++)
+      s[L - 1 + n + i] = g[n - 1 - i]; // x[-1:-window_len:-1]
+    for (i = 0; i < L; i++) {
+      w[i] = 0.5 - 0.5 * cos (2 * PI * i / (L - 1));
+      wsum += w[i];
+    }
+    for (i = 0; i < ns - L + 1; i++) {
+      y[i] = 0;
+      for (k = 0; k < L; k++)
+        y[i] += w[k] / wsum * s[i + k];
+    }
+    for (i = 0; i < n; i++) // y[(L/2-1):-(L/2)-1]
+      g[i] = y[L / 2 - 1 + i];
+    free (s);
+    free (w);
+    free (y);
+  }
+
+  // Read DOS (ASCII or IDF), convert to meV, prepare as MCViNE, store in s
+  void
+  iop_load_dos (const char* file, const char* unit, struct IncoherentOnePhonon_physics_storage_struct* s, const char* comp) {
+    FILE* fp = Open_File ((char*)file, "rb", NULL);
+    double *E = NULL, *g = NULL, scale = 1;
+    int n = 0, i, cap = 0;
+    char head[64];
+    if (!fp) {
+      fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: cannot open DOS file %s\n", comp, file);
+      exit (-1);
+    }
+    if (fread (head, 1, 64, fp) == 64 && !strncmp (head, "DOS", 4)) {
+      // MCViNE IDF: 64 char type, int version, 1024 char comment, int N, double dE [THz], N doubles
+      int version, nb;
+      double dnu;
+      char comment[1024];
+      if (fread (&version, sizeof (int), 1, fp) != 1 || fread (comment, 1, 1024, fp) != 1024 || fread (&nb, sizeof (int), 1, fp) != 1
+          || fread (&dnu, sizeof (double), 1, fp) != 1 || nb < 2) {
+        fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: corrupt IDF DOS file %s\n", comp, file);
+        exit (-1);
+      }
+      n = nb;
+      E = malloc (n * sizeof (double));
+      g = malloc (n * sizeof (double));
+      if (fread (g, sizeof (double), n, fp) != (size_t)n) {
+        fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: IDF DOS file %s too short\n", comp, file);
+        exit (-1);
+      }
+      for (i = 0; i < n; i++)
+        E[i] = i * dnu;
+      scale = 2 * PI * 1e12 * IOP_HZ2MEV;
+    } else {
+      // ASCII
+      char line[4096], found_unit[16] = "";
+      rewind (fp);
+      while (fgets (line, sizeof (line), fp)) {
+        char* c = line;
+        double x, y;
+        while (*c == ' ' || *c == '\t')
+          c++;
+        if (*c == '#') {
+          char tok[256] = "";
+          if (!found_unit[0] && sscanf (c + 1, "%255s", tok) == 1) {
+            if (strstr (tok, "meV"))
+              strcpy (found_unit, "meV");
+            else if (strstr (tok, "TeraHz") || strstr (tok, "THz"))
+              strcpy (found_unit, "THz");
+          }
+          continue;
+        }
+        if (sscanf (c, "%lf %lf", &x, &y) != 2)
+          continue;
+        if (n == cap) {
+          cap = cap ? 2 * cap : 256;
+          E = realloc (E, cap * sizeof (double));
+          g = realloc (g, cap * sizeof (double));
+        }
+        E[n] = x;
+        g[n] = y;
+        n++;
+      }
+      if (unit && strlen (unit)) {
+        if (!strcmp (unit, "meV"))
+          scale = 1;
+        else if (!strcmp (unit, "THz") || !strcmp (unit, "TeraHz"))
+          scale = 2 * PI * 1e12 * IOP_HZ2MEV;
+        else {
+          fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: DOS_unit must be \"meV\" or \"THz\"\n", comp);
+          exit (-1);
+        }
+      } else if (!strcmp (found_unit, "THz"))
+        scale = 2 * PI * 1e12 * IOP_HZ2MEV;
+      else {
+        if (!found_unit[0])
+          MPI_MASTER (printf ("IncoherentOnePhonon_process:%s: no energy unit found in %s, assuming meV\n", comp, file););
+        scale = 1;
+      }
+    }
+    fclose (fp);
+    if (n < 2) {
+      fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: DOS file %s has fewer than 2 points\n", comp, file);
+      exit (-1);
+    }
+    for (i = 0; i < n; i++) {
+      E[i] *= scale;
+      if (i && E[i] <= E[i - 1]) {
+        fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: DOS energies must be strictly ascending\n", comp);
+        exit (-1);
+      }
+    }
+    if (E[0] < 0) {
+      fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: DOS energies must be positive\n", comp);
+      exit (-1);
+    }
+
+    // nice_dos: resample to 500 points from E=0 if the curve is coarse; otherwise ensure an equidistant grid
+    int uniform = 1;
+    for (i = 2; i < n; i++)
+      if (fabs ((E[i] - E[i - 1]) - (E[1] - E[0])) > 1e-6 * (E[n - 1] - E[0]))
+        uniform = 0;
+    if (n < 500 || !uniform) {
+      // numpy: E1 = arange(0, E[-1], E[-1]/500.), which may give 501 points due to rounding
+      double e0 = n < 500 ? 0 : E[0];
+      double de = n < 500 ? E[n - 1] / 500. : (E[n - 1] - E[0]) / (n - 1);
+      int n1 = n < 500 ? (int)ceil (E[n - 1] / de) : n;
+      double *E1 = malloc (n1 * sizeof (double)), *g1 = malloc (n1 * sizeof (double));
+      int j = 0;
+      for (i = 0; i < n1; i++) {
+        double x = e0 + i * de;
+        E1[i] = x;
+        if (x <= E[0])
+          g1[i] = g[0];
+        else if (x >= E[n - 1])
+          g1[i] = g[n - 1];
+        else {
+          while (E[j + 1] < x)
+            j++;
+          g1[i] = g[j] + (x - E[j]) / (E[j + 1] - E[j]) * (g[j + 1] - g[j]);
+        }
+      }
+      free (E);
+      free (g);
+      E = E1;
+      g = g1;
+      n = n1;
+    }
+    if (!iop_fitparabolic (E, g, n, 0, comp)) {
+      iop_smooth (g, n);
+      g[0] = 0;
+      iop_fitparabolic (E, g, n, 1, comp);
+    }
+    double area = 0;
+    for (i = 0; i < n; i++)
+      area += g[i];
+    area *= E[1] - E[0];
+    if (area <= 0) {
+      fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: DOS has zero area\n", comp);
+      exit (-1);
+    }
+    for (i = 0; i < n; i++)
+      g[i] /= area;
+
+    s->nE = n;
+    s->E0 = E[0];
+    s->dE = E[1] - E[0];
+    s->Emax = E[0] + s->dE * (n - 1);
+    s->Z = g;
+
+    // second order coefficient at E=0 from the first 20 points (LinearlyInterpolatedDOS::_compute_sod)
+    int Nfit = n < 20 ? n : 20;
+    double x[20], R2;
+    for (i = 0; i < Nfit; i++)
+      x[i] = (E[0] + s->dE * i) * (E[0] + s->dE * i);
+    s->sod = iop_linreg (x, g, Nfit, &R2);
+    if (R2 < .9) {
+      fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: failed to fit the first %d points of the DOS to a parabola\n", comp, Nfit);
+      exit (-1);
+    }
+    free (E);
+  }
+
+  // 2W/Q^2 [AA^2] from the DOS (DWFromDOS.icc, 100 sampling points)
+  double
+  iop_dw_core (struct IncoherentOnePhonon_physics_storage_struct* s, double avg_mass, double T, const char* comp) {
+    int nSample = 100, first = -1, i;
+    double emin = s->E0, emax = s->Emax;
+    double dw = (emax - emin) / (nSample - 1 + .00000001), core = 0;
+    double* f = calloc (nSample, sizeof (double));
+    for (i = 0; i < nSample; i++) {
+      double w = dw * i + emin;
+      double z = iop_dos (s, w);
+      if (w < emax / nSample / 100.)
+        continue;
+      if (first == -1)
+        first = i;
+      f[i] = (2 / (exp (w / (T * IOP_T2E)) - 1) + 1) / w * z;
+      core += f[i] * (i == nSample - 1 ? 0.5 : 1);
+    }
+    if (first == -1 || first + 1 >= nSample) {
+      fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: invalid DOS (no data for E>0)\n", comp);
+      exit (-1);
+    }
+    double f0 = f[first] - (dw * first + emin) * (f[first + 1] - f[first]) / dw;
+    core += f0 / 2;
+    core /= IOP_EV * 1e-3;
+    core *= dw;
+    core *= IOP_HBAR * IOP_HBAR / 2 / IOP_AMU / avg_mass;
+    core *= 1e20;
+    free (f);
+    return core;
+  }
+
+  #endif // INCOHERENTONEPHONON_SHARE
+
+  // Inverse penetration depth: constant sigma_inc/V_uc as in MCViNE
+  int
+  IncoherentOnePhonon_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
+                                  _class_particle* _particle) {
+    *my = data_transfer.pointer_to_a_IncoherentOnePhonon_physics_storage_struct->my_scattering;
+    return 1;
+  }
+
+  // IncoherentInelastic::S / IncoherentInelastic_EnergyFocusing::S
+  int
+  IncoherentOnePhonon_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
+                                          struct focus_data_struct* focus_data, _class_particle* _particle) {
+    struct IncoherentOnePhonon_physics_storage_struct* s = data_transfer.pointer_to_a_IncoherentOnePhonon_physics_storage_struct;
+    double vi[3], vi_l, Ei, Ef, e_range, solid_angle;
+    int d;
+    Coords dir;
+
+    for (d = 0; d < 3; d++)
+      vi[d] = K2V * k_initial[d];
+    vi_l = sqrt (vi[0] * vi[0] + vi[1] * vi[1] + vi[2] * vi[2]);
+    Ei = VS2E * vi_l * vi_l;
+
+    // final energy
+    if (s->dEf_c > 0) {
+      double lo = s->Ef_c - s->dEf_c / 2, hi = s->Ef_c + s->dEf_c / 2;
+      if (lo < Ei - s->Emax)
+        lo = Ei - s->Emax;
+      if (lo < 0)
+        lo = 0;
+      if (hi > Ei + s->Emax)
+        hi = Ei + s->Emax;
+      if (hi <= lo)
+        return 0;
+      e_range = hi - lo;
+      Ef = lo + rand01 () * e_range;
+    } else if (Ei > s->Emax) {
+      e_range = 2 * s->Emax;
+      Ef = Ei - s->Emax + rand01 () * e_range;
+    } else {
+      e_range = Ei + s->Emax;
+      Ef = rand01 () * e_range;
+    }
+    if (Ef <= 0)
+      return 0;
+    double omega = Ei - Ef;
+    double vf_l = sqrt (Ef / VS2E);
+
+    // final direction
+    focus_data->focusing_function (&dir, &solid_angle, focus_data);
+    NORM (dir.x, dir.y, dir.z);
+
+    double Q2 = 0;
+    k_final[0] = V2K * vf_l * dir.x;
+    k_final[1] = V2K * vf_l * dir.y;
+    k_final[2] = V2K * vf_l * dir.z;
+    for (d = 0; d < 3; d++)
+      Q2 += (k_initial[d] - k_final[d]) * (k_initial[d] - k_final[d]);
+    double EQ = VS2E * K2V * K2V * Q2; // hbar^2 Q^2 / 2m_n [meV]
+
+    double beta = 1. / (s->Temp * IOP_T2E);
+    double p = e_range / s->M * vf_l / vi_l * exp (-s->dw_core * Q2) * solid_angle / (4 * PI);
+    if (fabs (omega) < IOP_SMALL_OMEGA * s->Emax)
+      // omega -> 0: Bose factor -> 1/(beta omega), DOS -> sod*omega^2
+      p *= s->sod / beta * EQ;
+    else
+      p *= iop_bose (omega, s->Temp) * iop_dos (s, fabs (omega)) * EQ / fabs (omega);
+
+    *weight *= p;
+    return 1;
+  }
+
+  // These lines help with future error correction, and tell other Union components
+  //  that at least one process have been defined.
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+
+  #ifndef PROCESS_INCOHERENTONEPHONON_DETECTOR
+  #define PROCESS_INCOHERENTONEPHONON_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  struct IncoherentOnePhonon_physics_storage_struct IOP_storage;
+
+  // Needed for transport to the main component, will be the same for all processes
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+%}
+
+INITIALIZE
+%{
+  memset (&IOP_storage, 0, sizeof (IOP_storage));
+
+  if (!strlen (DOS_file)) {
+    fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: DOS_file must be given\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (sigma_inc <= 0 || unit_cell_volume <= 0 || mass <= 0 || T <= 0) {
+    fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: sigma_inc, unit_cell_volume, mass and T must be positive\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (dEf_focus < 0 || (dEf_focus > 0 && Ef_focus <= 0)) {
+    fprintf (stderr, "IncoherentOnePhonon_process:%s: ERROR: energy focusing needs Ef_focus > 0 and dEf_focus > 0\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+
+  iop_load_dos (DOS_file, DOS_unit, &IOP_storage, NAME_CURRENT_COMP);
+  IOP_storage.M = mass;
+  IOP_storage.Temp = T;
+  IOP_storage.dw_core = DW_core >= 0 ? DW_core : iop_dw_core (&IOP_storage, mass, T, NAME_CURRENT_COMP);
+  IOP_storage.my_scattering = packing_factor * sigma_inc / unit_cell_volume * 100; // barn/AA^3 -> 1/m
+  IOP_storage.Ef_c = Ef_focus;
+  IOP_storage.dEf_c = dEf_focus;
+
+  MPI_MASTER (printf ("IncoherentOnePhonon_process:%s: DOS %d points up to %g meV, DW_core=%g AA^2, my_scattering=%g 1/m\n", NAME_CURRENT_COMP, IOP_storage.nE,
+                      IOP_storage.Emax, IOP_storage.dw_core, IOP_storage.my_scattering););
+
+  // First initialise This_process with default values:
+  scattering_process_struct_init (&This_process);
+
+  // Isotropic process (powder / polycrystal)
+  This_process.non_isotropic_rot_index = -1;
+  // Cross section does not depend on the focusing
+  This_process.needs_cross_section_focus = -1;
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = IncoherentOnePhonon;
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_IncoherentOnePhonon_physics_storage_struct = &IOP_storage;
+  This_process.probability_for_scattering_function = &IncoherentOnePhonon_physics_my;
+  This_process.scattering_function = &IncoherentOnePhonon_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+  sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index (init) < 0) {
+    fprintf (stderr, "IncoherentOnePhonon_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
+    exit (-1);
+  }
+
+  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  add_element_to_process_list (global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+  // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  free (IOP_storage.Z);
+%}
+
+END

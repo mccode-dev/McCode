@@ -1,0 +1,105 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: CoherentPhononSingleXtal_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 23.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of CoherentPhononSingleXtal_process: coherent one-phonon scattering from fcc Ni
+*
+* %Description
+* A monochromatic beam hits a 2 mm thick fcc Ni single crystal plate, made from the
+* Union process CoherentPhononSingleXtal_process (port of the MCViNE
+* CoherentInelastic_SingleXtal kernel). The phonon dispersion (energies and
+* polarizations on a 21x21x21 grid in the primitive reciprocal cell) and the DOS
+* used for the Debye-Waller factor are read from the directory fccNi-phonons in
+* the MCViNE IDF format. The data are the fcc Ni test data from MCViNE.
+*
+* With focus=0 the scattered neutrons go into 4pi and are recorded by a banana
+* monitor as a map of scattering angle and final energy, where the phonon
+* branches are seen as sharp lines. With focus=1 scattering is focused onto
+* the small energy monitor at scattering angle tth, giving the energies where
+* the dispersion fulfils energy and momentum conservation for that single final
+* direction.
+*
+* The crystal can be rotated with A3 around the vertical axis.
+*
+* %Example: focus=1 Detector: Edet_I=3.78e-12
+*
+* %Parameters
+* Ei:     [meV] Incident energy
+* T:      [K]   Sample temperature
+* A3:     [deg] Rotation of the crystal around the vertical axis
+* tth:    [deg] Scattering angle of the energy monitor
+* focus:  [1]   0: scatter into 4pi, 1: focus scattering onto the energy monitor
+* thick:  [m]   Thickness of the crystal plate
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT CoherentPhononSingleXtal_test(Ei=60, T=300, A3=0, tth=60, int focus=0, thick=0.002)
+
+DECLARE
+%{
+  int target;
+  double fw;
+%}
+
+INITIALIZE
+%{
+  target = focus ? 3 : 0;
+  fw = focus ? 0.02 : 0;
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.002, dist=1, focus_xw=0.01, focus_yh=0.01, E0=Ei, dE=0, flux=1)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+// Lattice, grid and polarization vectors are defined in the frame of the process component
+COMPONENT Ni_phonons = CoherentPhononSingleXtal_process(dispersion_dir="fccNi-phonons", xyz_file="Ni.xyz", T=T)
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, A3, 0) RELATIVE sample_pos
+
+// Ni: sigma_abs = 4.49 barn, V_uc = 10.9036 AA^3
+COMPONENT Ni = Union_make_material(my_absorption=100*4.49/10.9036, process_string="Ni_phonons")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT det_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, tth, 0) RELATIVE sample_pos
+
+COMPONENT crystal = Union_box(xwidth=0.02, yheight=0.02, zdepth=thick, material_string="Ni", priority=1,
+                              target_index=target, focus_xw=fw, focus_xh=fw)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Etheta = Monitor_nD(radius=1, yheight=0.2, restore_neutron=1,
+    options="banana, theta limits=[5 135] bins=130, energy limits=[0 100] bins=200", filename="Etheta.dat")
+WHEN (!focus)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Edet = E_monitor(xwidth=0.02, yheight=0.02, nE=500, Emin=0, Emax=100, filename="Edet.dat", restore_neutron=1)
+AT (0, 0, 1) RELATIVE det_arm
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+END

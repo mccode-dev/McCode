@@ -1,0 +1,1109 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Peter Willendrup, port of the MCViNE kernel by Jiao Lin
+* Date: 23.09.2026
+* Origin: DTU Physics
+*
+* Coherent inelastic one-phonon scattering in a single crystal, using a phonon
+* dispersion (energies and polarization vectors) given on a grid in reciprocal space.
+*
+* %D
+* Port of the MCViNE kernel
+* mccomponents/lib/kernels/sample/phonon/CoherentInelastic_SingleXtal
+* (J.Y.Y. Lin et al., Caltech/ORNL) to a Union process.
+*
+* The phonon dispersion is read from a directory in the MCViNE "IDF" format,
+* containing the files
+*   Qgridinfo      Text file defining b1, b2, b3 [AA^-1] (the reciprocal cell spanned
+*                  by the grid) and n1, n2, n3 (grid points along each of them).
+*                  Simple Python-like expressions are allowed, e.g.
+*                    import math
+*                    twopi = 2*math.pi
+*                    b = 0.284*twopi
+*                    b1 = (b, -b, b)
+*                    n1 = n2 = n3 = 21
+*   Omega2         Binary file with squared phonon angular frequencies [rad^2/s^2]
+*   Polarizations  Binary file with (complex) phonon polarization vectors
+*   DOS            Binary file with the phonon DOS (only needed when the Debye-Waller
+*                  factor is calculated from the DOS, i.e. when DW_core < 0)
+* The grid covers the fractional coordinates [0,1] (both ends included) along
+* b1, b2 and b3, and the dispersion is assumed periodic with that cell.
+*
+* The crystal structure is read from an MCViNE/diffpy style xyz file:
+*   line 1:  number of atoms in the unit cell
+*   line 2:  the 9 components of the lattice vectors a1 a2 a3 [AA]
+*   line 3+: Symbol x y z [b_coh mass]
+* with x y z being fractional coordinates. The optional columns give the coherent
+* scattering length [fm] and the mass [amu] of that atom. When they are left out,
+* the component parameters b_coh and mass are used. The order of the atoms must
+* match the atom index of the Polarizations file.
+*
+* Lattice vectors, reciprocal grid vectors and polarization vectors are all given
+* in the local coordinate system of this process component, which can be rotated
+* using ROTATED to orient the crystal.
+*
+* Algorithm (as in MCViNE):
+* The inverse penetration depth is the constant sum(sigma_coh)/V_uc. At each
+* scattering event a final direction is picked (respecting Union focusing), a
+* phonon branch is picked among those with a minimum energy below
+* branch_Emin_factor*Ei, and the final neutron speeds fulfilling both energy and
+* momentum conservation are found by root finding. One of them is picked at
+* random and the ray weight is multiplied by the one-phonon structure factor,
+* Jacobian, Debye-Waller factor and Bose factor. If no solution is found the
+* ray is absorbed (weight 0) which keeps the estimate unbiased; MCViNE instead
+* retries up to 100 times, which slightly overestimates the intensity.
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+* defined before the master, but after the previous will be simulated here.
+*
+* Absorption is not handled by this process, set it in Union_make_material.
+*
+* Example: CoherentPhononSingleXtal_process(dispersion_dir="fccNi-phonons",
+*            xyz_file="Ni.xyz", b_coh=10.3, mass=58.6934, T=300)
+*
+* %P
+* INPUT PARAMETERS:
+* dispersion_dir:     [string]  Directory with the IDF dispersion files (Qgridinfo, Omega2, Polarizations, DOS)
+* xyz_file:           [string]  xyz file with lattice vectors and atoms (fractional coordinates) of the unit cell
+* b_coh:              [fm]      Coherent scattering length used for atoms without explicit value in xyz_file
+* mass:               [amu]     Atomic mass used for atoms without explicit value in xyz_file
+* T:                  [K]       Temperature
+* DW_core:            [AA^2]    Debye-Waller core, 2W = DW_core*Q^2. Negative: calculate from the DOS file in dispersion_dir
+* DOS_file:           [string]  Optional DOS file (IDF format) overriding dispersion_dir/DOS
+* packing_factor:     [1]       How dense is the material compared to optimal 0-1
+* branch_Emin_factor: [1]       Only branches with minimum energy below branch_Emin_factor*Ei are sampled
+* root_nsteps:        [1]       Number of intervals in which roots of omega(Q)-dE are searched for
+* root_xacc:          [m/s]     Accuracy of the final neutron speed from the root finder
+* deltaV_Jacobi:      [1]       Relative velocity step used for the numerical Jacobian
+* interact_fraction:  [1]       How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:               [string]  Name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+* CPSX_storage:       Storage struct transferred to Union_master
+*
+* %L
+* MCViNE: <a href="https://github.com/mcvine/mcvine">https://github.com/mcvine/mcvine</a>
+* %L
+* J.Y.Y. Lin et al., Nucl. Instrum. Methods A 810 (2016) 86
+* %L
+* G.L. Squires, Introduction to the Theory of Thermal Neutron Scattering, ch. 3
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT CoherentPhononSingleXtal_process
+
+SETTING PARAMETERS(string dispersion_dir="", string xyz_file="", double b_coh=-1, double mass=-1,
+                   double T=300, double DW_core=-1, string DOS_file="", double packing_factor=1,
+                   double branch_Emin_factor=1.5, int root_nsteps=100, double root_xacc=0.1,
+                   double deltaV_Jacobi=0.001, double interact_fraction=-1, string init="init")
+
+SHARE
+%{
+  #ifndef Union
+  #error "The Union_init component must be included before this CoherentPhononSingleXtal_process component"
+  #endif
+
+  %include "read_table-lib"
+  #include <ctype.h>
+
+  #ifndef COHERENTPHONONSINGLEXTAL_SHARE
+  #define COHERENTPHONONSINGLEXTAL_SHARE
+
+  #define CPSX_T2E (1.0 / 11.605)                 // Kelvin to meV, as in MCViNE
+  #define CPSX_HBAR 1.05457148e-34                // J s
+  #define CPSX_EV 1.60217653e-19                  // J
+  #define CPSX_AMU 1.66053886e-27                 // kg
+  #define CPSX_HZ2MEV (CPSX_HBAR / (1e-3 * CPSX_EV)) // angular frequency [rad/s] to meV
+  #define CPSX_MAXATOMS 1024
+
+  // Very important to add a pointer to this struct in the union-lib.c file
+  struct CoherentPhononSingleXtal_physics_storage_struct {
+    // grid dispersion
+    int n_atoms;
+    int n_branches;
+    int n[3];         // grid points along b1, b2, b3
+    double b[3][3];   // reciprocal cell of the grid [AA^-1], b[i] is vector b_i
+    double binv[3][3]; // binv[i] . b[j] = delta_ij, gives fractional coordinates
+    double* E;        // [n1][n2][n3][branch] phonon energy [meV]
+    double* pol;      // [n1][n2][n3][branch][atom][xyz][re/im]
+    double* Emin;     // per branch
+    double* Emax;     // per branch
+    // unit cell
+    double uc_vol;    // [AA^3]
+    double* pos;      // [atom][xyz] cartesian [AA]
+    double* bc;       // coherent scattering length [fm]
+    double* m;        // mass [amu]
+    double sigma_coh; // sum of coherent cross sections in unit cell [barn]
+    // physics
+    double Temp;
+    double dw_core;
+    double my_scattering;
+    // numerics
+    double emin_factor;
+    int nsteps;
+    double xacc;
+    double deltaV;
+    int* good_branches; // work array
+    double* roots;      // work array
+  };
+
+  // Context for the function omega(Q(vf)) - |Ei - Ef|
+  struct cpsx_omega_ctx {
+    struct CoherentPhononSingleXtal_physics_storage_struct* s;
+    int branch;
+    double vf_dir[3];
+    double vi[3];
+    double vi_l;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Grid lookup with periodic folding (PeriodicDispersion_3D +
+  // ChangeCoordinateSystem + LinearlyInterpolatedDispersionOnGrid_3D in MCViNE)
+  // ---------------------------------------------------------------------------
+  void
+  cpsx_grid_coords (struct CoherentPhononSingleXtal_physics_storage_struct* s, double* Q, int* i0, double* r) {
+    int d;
+    for (d = 0; d < 3; d++) {
+      double f = s->binv[d][0] * Q[0] + s->binv[d][1] * Q[1] + s->binv[d][2] * Q[2];
+      f -= floor (f);
+      if (f >= 1.0 || f < 0.0)
+        f = 0.0;
+      double x = f * (s->n[d] - 1);
+      int i = (int)floor (x);
+      double rem = x - i;
+      if (i >= s->n[d] - 1) {
+        i = s->n[d] - 2;
+        rem = 1.0;
+      }
+      i0[d] = i;
+      r[d] = rem;
+    }
+  }
+
+  // trilinear interpolation of a quantity stored at data[q*stride + offset]
+  double
+  cpsx_interp (struct CoherentPhononSingleXtal_physics_storage_struct* s, double* data, long stride, long offset, int* i0, double* r) {
+    double res = 0;
+    int dx, dy, dz;
+    for (dx = 0; dx < 2; dx++)
+      for (dy = 0; dy < 2; dy++)
+        for (dz = 0; dz < 2; dz++) {
+          double w = (dx ? r[0] : 1 - r[0]) * (dy ? r[1] : 1 - r[1]) * (dz ? r[2] : 1 - r[2]);
+          if (w == 0)
+            continue;
+          long q = ((long)(i0[0] + dx) * s->n[1] + (i0[1] + dy)) * s->n[2] + (i0[2] + dz);
+          res += w * data[q * stride + offset];
+        }
+    return res;
+  }
+
+  double
+  cpsx_energy (struct CoherentPhononSingleXtal_physics_storage_struct* s, int branch, double* Q) {
+    int i0[3];
+    double r[3];
+    cpsx_grid_coords (s, Q, i0, r);
+    return cpsx_interp (s, s->E, s->n_branches, branch, i0, r);
+  }
+
+  void
+  cpsx_polarization (struct CoherentPhononSingleXtal_physics_storage_struct* s, int branch, int atom, double* Q, double* re, double* im) {
+    int i0[3], d;
+    double r[3];
+    long stride = (long)s->n_branches * s->n_atoms * 6;
+    long base = ((long)branch * s->n_atoms + atom) * 6;
+    cpsx_grid_coords (s, Q, i0, r);
+    for (d = 0; d < 3; d++) {
+      re[d] = cpsx_interp (s, s->pol, stride, base + 2 * d, i0, r);
+      im[d] = cpsx_interp (s, s->pol, stride, base + 2 * d + 1, i0, r);
+    }
+  }
+
+  // omega(Q) - |Ei-Ef| as a function of the final speed (Omega_minus_deltaE.cc)
+  double
+  cpsx_omega_minus_dE (double vf, struct cpsx_omega_ctx* c) {
+    double Q[3];
+    int d;
+    for (d = 0; d < 3; d++)
+      Q[d] = V2K * (c->vi[d] - vf * c->vf_dir[d]);
+    return cpsx_energy (c->s, c->branch, Q) - VS2E * fabs (c->vi_l * c->vi_l - vf * vf);
+  }
+
+  // Ridder's method (mccomponents/math/rootfinding.cc). Returns 1 on success.
+  // fl, fh: function values at x1, x2 (already evaluated by the caller)
+  int
+  cpsx_zridd (struct cpsx_omega_ctx* c, double x1, double x2, double fl, double fh, double xacc, double* root) {
+    const double UNUSED = -1.11e30;
+    double ans, fm, fnew, s, xh, xl, xm, xnew, tmp;
+    int j;
+    if (fl * fh >= 0) {
+      if (fl == 0) {
+        *root = x1;
+        return 1;
+      }
+      if (fh == 0) {
+        *root = x2;
+        return 1;
+      }
+      return 0;
+    }
+    int converged = 0;
+    xl = x1;
+    xh = x2;
+    ans = UNUSED;
+    for (j = 1; j < 60 && !converged; j++) {
+      xm = 0.5 * (xl + xh);
+      fm = cpsx_omega_minus_dE (xm, c);
+      tmp = fm * fm - fh * fl;
+      if (tmp >= 0) {
+        s = sqrt (tmp);
+        if (s == 0.0) {
+          converged = 1;
+          break;
+        }
+        xnew = xm + (xm - xl) * ((fl >= fh ? 1.0 : -1.0) * fm / s);
+      } else {
+        xnew = xm;
+      }
+      if (fabs (xnew - ans) <= xacc) {
+        converged = 1;
+        break;
+      }
+      ans = xnew;
+      fnew = cpsx_omega_minus_dE (ans, c);
+      if (fnew == 0.0) {
+        converged = 1;
+        break;
+      }
+      if ((fnew >= 0 ? fabs (fm) : -fabs (fm)) != fm) {
+        xl = xm;
+        fl = fm;
+        xh = ans;
+        fh = fnew;
+      } else if ((fnew >= 0 ? fabs (fl) : -fabs (fl)) != fl) {
+        xh = ans;
+        fh = fnew;
+      } else if ((fnew >= 0 ? fabs (fh) : -fabs (fh)) != fh) {
+        xl = ans;
+        fl = fnew;
+      } else {
+        return 0;
+      }
+      if (fabs (xh - xl) <= xacc)
+        converged = 1;
+    }
+    if (!converged || ans == UNUSED)
+      return 0;
+    *root = ans;
+    return 1;
+  }
+
+  // FindRootsEvenly: search roots in nsteps equal intervals of [x1,x2].
+  // The function is evaluated once per interval boundary and shared by neighbouring intervals.
+  int
+  cpsx_find_roots (struct cpsx_omega_ctx* c, double x1, double x2, int nsteps, double xacc, double* roots) {
+    int i, nf = 0;
+    double step = (x2 - x1) / nsteps, root;
+    double fl = cpsx_omega_minus_dE (x1, c), fh;
+    for (i = 0; i < nsteps; i++) {
+      fh = cpsx_omega_minus_dE (x1 + step * (i + 1), c);
+      if (cpsx_zridd (c, x1 + step * i, x1 + step * (i + 1), fl, fh, xacc, &root))
+        roots[nf++] = root;
+      fl = fh;
+    }
+    return nf;
+  }
+
+  // Bose factor: n+1 for phonon creation (omega>0), n for annihilation
+  double
+  cpsx_bose (double omega, double T) {
+    if (omega == 0.0)
+      return 1.0;
+    double n = 1.0 / (exp (fabs (omega) / (T * CPSX_T2E)) - 1.0);
+    return omega > 0 ? 1.0 + n : n;
+  }
+
+  // ---------------------------------------------------------------------------
+  // File readers
+  // ---------------------------------------------------------------------------
+  FILE*
+  cpsx_open (const char* dir, const char* name, const char* mode, const char* comp) {
+    char path[1024];
+    FILE* fp;
+    if (dir && strlen (dir))
+      snprintf (path, 1024, "%s%c%s", dir, MC_PATHSEP_C, name);
+    else
+      snprintf (path, 1024, "%s", name);
+    fp = Open_File (path, mode, NULL);
+    if (!fp) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: cannot open file %s\n", comp, path);
+      exit (-1);
+    }
+    return fp;
+  }
+
+  // IDF header: 64 char filetype, int version, 1024 char comment
+  void
+  cpsx_idf_header (FILE* fp, const char* expected, const char* comp) {
+    char filetype[65];
+    char comment[1024];
+    int version;
+    if (fread (filetype, 1, 64, fp) != 64 || fread (&version, sizeof (int), 1, fp) != 1 || fread (comment, 1, 1024, fp) != 1024) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: could not read IDF header of %s file\n", comp, expected);
+      exit (-1);
+    }
+    filetype[64] = '\0';
+    if (strncmp (filetype, expected, strlen (expected))) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: file type is '%s', expected '%s'\n", comp, filetype, expected);
+      exit (-1);
+    }
+  }
+
+  // --- tiny evaluator for the python-like Qgridinfo file ---
+  #define CPSX_MAXVARS 64
+  struct cpsx_val {
+    int n;
+    double v[3];
+  };
+  struct cpsx_parser {
+    const char* p;
+    int nvars;
+    char names[CPSX_MAXVARS][64];
+    struct cpsx_val vals[CPSX_MAXVARS];
+    int error;
+  };
+
+  void
+  cpsx_skipws (struct cpsx_parser* P) {
+    while (*P->p == ' ' || *P->p == '\t' || *P->p == '\r')
+      P->p++;
+  }
+
+  struct cpsx_val cpsx_parse_list (struct cpsx_parser* P);
+  struct cpsx_val cpsx_parse_expr (struct cpsx_parser* P);
+
+  struct cpsx_val
+  cpsx_scalar (double x) {
+    struct cpsx_val r;
+    r.n = 1;
+    r.v[0] = x;
+    r.v[1] = r.v[2] = 0;
+    return r;
+  }
+
+  struct cpsx_val
+  cpsx_binop (struct cpsx_parser* P, struct cpsx_val a, struct cpsx_val b, char op) {
+    struct cpsx_val r;
+    int i, n = a.n > b.n ? a.n : b.n;
+    if (a.n != b.n && a.n != 1 && b.n != 1) {
+      P->error = 1;
+      return a;
+    }
+    r.n = n;
+    for (i = 0; i < 3; i++) {
+      double x = a.v[a.n == 1 ? 0 : i], y = b.v[b.n == 1 ? 0 : i];
+      switch (op) {
+      case '+':
+        r.v[i] = x + y;
+        break;
+      case '-':
+        r.v[i] = x - y;
+        break;
+      case '*':
+        r.v[i] = x * y;
+        break;
+      case '/':
+        r.v[i] = x / y;
+        break;
+      case '^':
+        r.v[i] = pow (x, y);
+        break;
+      }
+    }
+    return r;
+  }
+
+  struct cpsx_val
+  cpsx_parse_primary (struct cpsx_parser* P) {
+    struct cpsx_val r = cpsx_scalar (0);
+    cpsx_skipws (P);
+    if (*P->p == '(' || *P->p == '[') {
+      char close = (*P->p == '(') ? ')' : ']';
+      P->p++;
+      r = cpsx_parse_list (P);
+      cpsx_skipws (P);
+      if (*P->p != close)
+        P->error = 1;
+      else
+        P->p++;
+      return r;
+    }
+    if (isdigit (*P->p) || *P->p == '.') {
+      char* end;
+      r = cpsx_scalar (strtod (P->p, &end));
+      P->p = end;
+      return r;
+    }
+    if (isalpha (*P->p) || *P->p == '_') {
+      char name[64];
+      int len = 0, i;
+      while ((isalnum (*P->p) || *P->p == '_' || *P->p == '.') && len < 63)
+        name[len++] = *P->p++;
+      name[len] = '\0';
+      const char* fname = strncmp (name, "math.", 5) == 0 ? name + 5 : name;
+      cpsx_skipws (P);
+      if (*P->p == '(') { // function call
+        P->p++;
+        struct cpsx_val a = cpsx_parse_expr (P);
+        cpsx_skipws (P);
+        if (*P->p == ')')
+          P->p++;
+        else
+          P->error = 1;
+        double x = a.v[0];
+        if (!strcmp (fname, "sqrt"))
+          return cpsx_scalar (sqrt (x));
+        if (!strcmp (fname, "sin"))
+          return cpsx_scalar (sin (x));
+        if (!strcmp (fname, "cos"))
+          return cpsx_scalar (cos (x));
+        if (!strcmp (fname, "tan"))
+          return cpsx_scalar (tan (x));
+        if (!strcmp (fname, "abs") || !strcmp (fname, "fabs"))
+          return cpsx_scalar (fabs (x));
+        if (!strcmp (fname, "float"))
+          return cpsx_scalar (x);
+        P->error = 1;
+        return a;
+      }
+      if (!strcmp (fname, "pi"))
+        return cpsx_scalar (PI);
+      for (i = P->nvars - 1; i >= 0; i--)
+        if (!strcmp (P->names[i], name))
+          return P->vals[i];
+      fprintf (stderr, "CoherentPhononSingleXtal_process: Qgridinfo: unknown name '%s'\n", name);
+      P->error = 1;
+      return r;
+    }
+    P->error = 1;
+    return r;
+  }
+
+  struct cpsx_val cpsx_parse_unary (struct cpsx_parser* P);
+
+  struct cpsx_val
+  cpsx_parse_power (struct cpsx_parser* P) {
+    struct cpsx_val a = cpsx_parse_primary (P);
+    cpsx_skipws (P);
+    if (P->p[0] == '*' && P->p[1] == '*') {
+      P->p += 2;
+      a = cpsx_binop (P, a, cpsx_parse_unary (P), '^');
+    }
+    return a;
+  }
+
+  struct cpsx_val
+  cpsx_parse_unary (struct cpsx_parser* P) {
+    cpsx_skipws (P);
+    if (*P->p == '-') {
+      P->p++;
+      return cpsx_binop (P, cpsx_scalar (-1), cpsx_parse_unary (P), '*');
+    }
+    if (*P->p == '+') {
+      P->p++;
+      return cpsx_parse_unary (P);
+    }
+    return cpsx_parse_power (P);
+  }
+
+  struct cpsx_val
+  cpsx_parse_term (struct cpsx_parser* P) {
+    struct cpsx_val a = cpsx_parse_unary (P);
+    for (;;) {
+      cpsx_skipws (P);
+      if ((*P->p == '*' && P->p[1] != '*') || *P->p == '/') {
+        char op = *P->p++;
+        a = cpsx_binop (P, a, cpsx_parse_unary (P), op);
+      } else
+        return a;
+    }
+  }
+
+  struct cpsx_val
+  cpsx_parse_expr (struct cpsx_parser* P) {
+    struct cpsx_val a = cpsx_parse_term (P);
+    for (;;) {
+      cpsx_skipws (P);
+      if (*P->p == '+' || *P->p == '-') {
+        char op = *P->p++;
+        a = cpsx_binop (P, a, cpsx_parse_term (P), op);
+      } else
+        return a;
+    }
+  }
+
+  // comma separated list of scalars -> vector (up to 3 components)
+  struct cpsx_val
+  cpsx_parse_list (struct cpsx_parser* P) {
+    struct cpsx_val r, a;
+    r.n = 0;
+    r.v[0] = r.v[1] = r.v[2] = 0;
+    for (;;) {
+      cpsx_skipws (P);
+      if (*P->p == '\0' || *P->p == '\n' || *P->p == ')' || *P->p == ']')
+        break;
+      a = cpsx_parse_expr (P);
+      if (a.n == 1 && r.n < 3)
+        r.v[r.n++] = a.v[0];
+      else if (r.n == 0)
+        r = a;
+      else
+        P->error = 1;
+      cpsx_skipws (P);
+      if (*P->p == ',')
+        P->p++;
+      else
+        break;
+    }
+    return r;
+  }
+
+  void
+  cpsx_read_qgridinfo (const char* dir, struct CoherentPhononSingleXtal_physics_storage_struct* s, const char* comp) {
+    FILE* fp = cpsx_open (dir, "Qgridinfo", "r", comp);
+    struct cpsx_parser* P = calloc (1, sizeof (struct cpsx_parser));
+    char line[4096];
+    int lineno = 0, i;
+    while (fgets (line, sizeof (line), fp)) {
+      char *c, *targets[16];
+      int ntargets = 0;
+      lineno++;
+      if ((c = strchr (line, '#')))
+        *c = '\0';
+      c = line;
+      while (*c == ' ' || *c == '\t')
+        c++;
+      if (*c == '\0' || *c == '\n' || *c == '\r' || !strncmp (c, "import ", 7) || !strncmp (c, "from ", 5))
+        continue;
+      // split "a = b = expr" on '='
+      char* start = c;
+      while ((c = strchr (start, '=')) && ntargets < 16) {
+        *c = '\0';
+        targets[ntargets++] = start;
+        start = c + 1;
+      }
+      if (ntargets == 0) {
+        fprintf (stderr, "CoherentPhononSingleXtal_process:%s: Qgridinfo line %d ignored: %s", comp, lineno, line);
+        continue;
+      }
+      P->p = start;
+      P->error = 0;
+      struct cpsx_val v = cpsx_parse_list (P);
+      if (P->error) {
+        fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: could not parse Qgridinfo line %d\n", comp, lineno);
+        exit (-1);
+      }
+      for (i = 0; i < ntargets; i++) {
+        char name[64];
+        if (sscanf (targets[i], " %63[A-Za-z0-9_]", name) != 1)
+          continue;
+        if (P->nvars < CPSX_MAXVARS) {
+          strcpy (P->names[P->nvars], name);
+          P->vals[P->nvars++] = v;
+        }
+      }
+    }
+    fclose (fp);
+    const char* bn[3] = { "b1", "b2", "b3" };
+    const char* nn[3] = { "n1", "n2", "n3" };
+    int d, found;
+    for (d = 0; d < 3; d++) {
+      found = 0;
+      for (i = P->nvars - 1; i >= 0 && !found; i--)
+        if (!strcmp (P->names[i], bn[d]) && P->vals[i].n == 3) {
+          s->b[d][0] = P->vals[i].v[0];
+          s->b[d][1] = P->vals[i].v[1];
+          s->b[d][2] = P->vals[i].v[2];
+          found = 1;
+        }
+      if (!found) {
+        fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: %s (3-vector) not defined in Qgridinfo\n", comp, bn[d]);
+        exit (-1);
+      }
+      found = 0;
+      for (i = P->nvars - 1; i >= 0 && !found; i--)
+        if (!strcmp (P->names[i], nn[d]) && P->vals[i].n == 1) {
+          s->n[d] = (int)floor (P->vals[i].v[0] + 0.5);
+          found = 1;
+        }
+      if (!found || s->n[d] < 2) {
+        fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: %s (>=2) not defined in Qgridinfo\n", comp, nn[d]);
+        exit (-1);
+      }
+    }
+    free (P);
+  }
+
+  // x_star = (y x z)/vol etc. (mcni::get_inversions)
+  double
+  cpsx_inversions (double a[3][3], double inv[3][3]) {
+    int i, j;
+    double c[3][3];
+    for (i = 0; i < 3; i++) {
+      int i1 = (i + 1) % 3, i2 = (i + 2) % 3;
+      c[i][0] = a[i1][1] * a[i2][2] - a[i1][2] * a[i2][1];
+      c[i][1] = a[i1][2] * a[i2][0] - a[i1][0] * a[i2][2];
+      c[i][2] = a[i1][0] * a[i2][1] - a[i1][1] * a[i2][0];
+    }
+    double vol = a[0][0] * c[0][0] + a[0][1] * c[0][1] + a[0][2] * c[0][2];
+    for (i = 0; i < 3; i++)
+      for (j = 0; j < 3; j++)
+        inv[i][j] = c[i][j] / vol;
+    return vol;
+  }
+
+  void
+  cpsx_read_dispersion (const char* dir, struct CoherentPhononSingleXtal_physics_storage_struct* s, const char* comp) {
+    FILE* fp;
+    int D, Nb, Nq, br, q;
+    long nE, nP, i;
+
+    cpsx_read_qgridinfo (dir, s, comp);
+    if (fabs (cpsx_inversions (s->b, s->binv)) < 1e-12) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: b1, b2, b3 in Qgridinfo are not linearly independent\n", comp);
+      exit (-1);
+    }
+
+    // Omega2: D, N_b (atoms), N_q, then N_q x (N_b*D) doubles
+    fp = cpsx_open (dir, "Omega2", "rb", comp);
+    cpsx_idf_header (fp, "Omega2", comp);
+    if (fread (&D, sizeof (int), 1, fp) != 1 || fread (&Nb, sizeof (int), 1, fp) != 1 || fread (&Nq, sizeof (int), 1, fp) != 1) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: corrupt Omega2 file\n", comp);
+      exit (-1);
+    }
+    if (D != 3 || Nq != s->n[0] * s->n[1] * s->n[2] || Nb < 1 || Nb > CPSX_MAXATOMS) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: Omega2 has D=%d, N_atoms=%d, N_q=%d, but Qgridinfo gives %d x %d x %d points\n", comp, D,
+               Nb, Nq, s->n[0], s->n[1], s->n[2]);
+      exit (-1);
+    }
+    s->n_atoms = Nb;
+    s->n_branches = 3 * Nb;
+    nE = (long)Nq * s->n_branches;
+    s->E = malloc (nE * sizeof (double));
+    if (fread (s->E, sizeof (double), nE, fp) != (size_t)nE) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: Omega2 file too short\n", comp);
+      exit (-1);
+    }
+    fclose (fp);
+    for (i = 0; i < nE; i++)
+      s->E[i] = (s->E[i] < 0 ? 0 : sqrt (s->E[i])) * CPSX_HZ2MEV;
+
+    s->Emin = malloc (s->n_branches * sizeof (double));
+    s->Emax = malloc (s->n_branches * sizeof (double));
+    for (br = 0; br < s->n_branches; br++) {
+      s->Emin[br] = 1e300;
+      s->Emax[br] = -1e300;
+      for (q = 0; q < Nq; q++) {
+        double e = s->E[(long)q * s->n_branches + br];
+        if (e < s->Emin[br])
+          s->Emin[br] = e;
+        if (e > s->Emax[br])
+          s->Emax[br] = e;
+      }
+    }
+
+    // Polarizations: D, N_b, N_q, then N_q x (N_b*D) x N_b x D x 2 doubles
+    fp = cpsx_open (dir, "Polarizations", "rb", comp);
+    cpsx_idf_header (fp, "Polarizations", comp);
+    int D2, Nb2, Nq2;
+    if (fread (&D2, sizeof (int), 1, fp) != 1 || fread (&Nb2, sizeof (int), 1, fp) != 1 || fread (&Nq2, sizeof (int), 1, fp) != 1 || D2 != D || Nb2 != Nb
+        || Nq2 != Nq) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: Polarizations file inconsistent with Omega2 file\n", comp);
+      exit (-1);
+    }
+    nP = (long)Nq * s->n_branches * Nb * 3 * 2;
+    s->pol = malloc (nP * sizeof (double));
+    if (fread (s->pol, sizeof (double), nP, fp) != (size_t)nP) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: Polarizations file too short\n", comp);
+      exit (-1);
+    }
+    fclose (fp);
+  }
+
+  void
+  cpsx_read_xyz (const char* file, double b_default, double m_default, struct CoherentPhononSingleXtal_physics_storage_struct* s, const char* comp) {
+    FILE* fp = cpsx_open (NULL, file, "r", comp);
+    char line[4096];
+    double lat[3][3], inv[3][3];
+    int natoms = -1, stage = 0, ia = 0, d;
+    while (fgets (line, sizeof (line), fp)) {
+      char* c = line;
+      while (*c == ' ' || *c == '\t')
+        c++;
+      if (*c == '\0' || *c == '\n' || *c == '\r' || *c == '#')
+        continue;
+      if (stage == 0) {
+        natoms = atoi (c);
+        if (natoms != s->n_atoms) {
+          fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: %s has %d atoms, but the dispersion has %d\n", comp, file, natoms, s->n_atoms);
+          exit (-1);
+        }
+        s->pos = calloc (3 * natoms, sizeof (double));
+        s->bc = calloc (natoms, sizeof (double));
+        s->m = calloc (natoms, sizeof (double));
+        stage = 1;
+      } else if (stage == 1) {
+        if (sscanf (c, "%lf %lf %lf %lf %lf %lf %lf %lf %lf", &lat[0][0], &lat[0][1], &lat[0][2], &lat[1][0], &lat[1][1], &lat[1][2], &lat[2][0], &lat[2][1],
+                    &lat[2][2])
+            != 9) {
+          fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: line 2 of %s must contain the 9 components of the lattice vectors\n", comp, file);
+          exit (-1);
+        }
+        stage = 2;
+      } else if (ia < natoms) {
+        char sym[64];
+        double f[3], extra[3];
+        int nread = sscanf (c, "%63s %lf %lf %lf %lf %lf %lf", sym, &f[0], &f[1], &f[2], &extra[0], &extra[1], &extra[2]);
+        if (nread < 4) {
+          fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: could not parse atom line in %s: %s", comp, file, line);
+          exit (-1);
+        }
+        for (d = 0; d < 3; d++)
+          s->pos[3 * ia + d] = f[0] * lat[0][d] + f[1] * lat[1][d] + f[2] * lat[2][d];
+        if (nread >= 6) { // Symbol x y z b_coh mass
+          s->bc[ia] = extra[0];
+          s->m[ia] = extra[1];
+        } else {
+          s->bc[ia] = b_default;
+          s->m[ia] = m_default;
+        }
+        if (s->bc[ia] < 0 || s->m[ia] <= 0) {
+          fprintf (stderr,
+                   "CoherentPhononSingleXtal_process:%s: ERROR: atom %d (%s) has no scattering length / mass. Give them as columns 5 and 6 in %s or set b_coh and "
+                   "mass\n",
+                   comp, ia, sym, file);
+          exit (-1);
+        }
+        ia++;
+      }
+    }
+    fclose (fp);
+    if (ia != natoms) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: expected %d atoms in %s, read %d\n", comp, natoms, file, ia);
+      exit (-1);
+    }
+    s->uc_vol = fabs (cpsx_inversions (lat, inv));
+  }
+
+  // DOS (IDF): N_bins, dE [THz], then N_bins doubles. Returns 2W/Q^2 [AA^2] (DWFromDOS.icc)
+  double
+  cpsx_dw_core_from_dos (const char* dir, const char* file, double avg_mass, double T, const char* comp) {
+    FILE* fp = cpsx_open (dir, file, "rb", comp);
+    int nb, i, nSample = 100, first = -1;
+    double dE, *Z, area = 0;
+    cpsx_idf_header (fp, "DOS", comp);
+    if (fread (&nb, sizeof (int), 1, fp) != 1 || fread (&dE, sizeof (double), 1, fp) != 1 || nb < 2) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: corrupt DOS file\n", comp);
+      exit (-1);
+    }
+    Z = malloc (nb * sizeof (double));
+    if (fread (Z, sizeof (double), nb, fp) != (size_t)nb) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: DOS file too short\n", comp);
+      exit (-1);
+    }
+    fclose (fp);
+    dE *= 2 * PI * 1e12 * CPSX_HZ2MEV; // THz (not angular) -> meV
+    for (i = 0; i < nb; i++)
+      area += Z[i];
+    area *= dE;
+    for (i = 0; i < nb; i++)
+      Z[i] /= area;
+    double emin = 0, emax = dE * (nb - 1);
+    double dw = (emax - emin) / (nSample - 1 + .00000001), core = 0;
+    double* f = calloc (nSample, sizeof (double));
+    for (i = 0; i < nSample; i++) {
+      double w = dw * i + emin, z = 0;
+      // linearly interpolated DOS, zero outside [emin, emax)
+      if (w >= emin && w < emax) {
+        double x = (w - emin) / dE;
+        int j = (int)floor (x);
+        if (j >= nb - 1) {
+          j = nb - 2;
+        }
+        z = Z[j] + (x - j) * (Z[j + 1] - Z[j]);
+      }
+      if (w < emax / nSample / 100.)
+        continue;
+      if (first == -1)
+        first = i;
+      f[i] = (2 / (exp (w / (T * CPSX_T2E)) - 1) + 1) / w * z;
+      core += f[i] * (i == nSample - 1 ? 0.5 : 1);
+    }
+    if (first == -1 || first + 1 >= nSample) {
+      fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: invalid DOS (no data for E>0)\n", comp);
+      exit (-1);
+    }
+    double f0 = f[first] - (dw * first + emin) * (f[first + 1] - f[first]) / dw;
+    core += f0 / 2;
+    core /= CPSX_EV * 1e-3;
+    core *= dw;
+    core *= CPSX_HBAR * CPSX_HBAR / 2 / CPSX_AMU / avg_mass;
+    core *= 1e20;
+    free (f);
+    free (Z);
+    return core;
+  }
+
+  #endif // COHERENTPHONONSINGLEXTAL_SHARE
+
+  // Inverse penetration depth: constant sum(sigma_coh)/V_uc as in MCViNE
+  int
+  CoherentPhononSingleXtal_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
+                                       _class_particle* _particle) {
+    *my = data_transfer.pointer_to_a_CoherentPhononSingleXtal_physics_storage_struct->my_scattering;
+    return 1;
+  }
+
+  // CoherentInelastic_SingleXtal::pick_a_final_state
+  int
+  CoherentPhononSingleXtal_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
+                                               struct focus_data_struct* focus_data, _class_particle* _particle) {
+    struct CoherentPhononSingleXtal_physics_storage_struct* s = data_transfer.pointer_to_a_CoherentPhononSingleXtal_physics_storage_struct;
+    struct cpsx_omega_ctx ctx;
+    int d, br, ngood = 0, nf, index;
+    double vi_l, Ei, solid_angle;
+    Coords dir;
+
+    ctx.s = s;
+    for (d = 0; d < 3; d++)
+      ctx.vi[d] = K2V * k_initial[d];
+    vi_l = sqrt (ctx.vi[0] * ctx.vi[0] + ctx.vi[1] * ctx.vi[1] + ctx.vi[2] * ctx.vi[2]);
+    ctx.vi_l = vi_l;
+    Ei = VS2E * vi_l * vi_l;
+
+    // branches not too high compared to Ei
+    for (br = 0; br < s->n_branches; br++)
+      if (s->Emin[br] < Ei * s->emin_factor)
+        s->good_branches[ngood++] = br;
+    if (ngood == 0)
+      return 0;
+
+    // final direction
+    focus_data->focusing_function (&dir, &solid_angle, focus_data);
+    NORM (dir.x, dir.y, dir.z);
+    ctx.vf_dir[0] = dir.x;
+    ctx.vf_dir[1] = dir.y;
+    ctx.vf_dir[2] = dir.z;
+
+    // branch
+    index = (int)floor (rand01 () * ngood);
+    if (index >= ngood)
+      index = ngood - 1;
+    ctx.branch = s->good_branches[index];
+
+    // final speed from energy and momentum conservation
+    nf = cpsx_find_roots (&ctx, 0, 2 * vi_l, s->nsteps, s->xacc, s->roots);
+    if (nf < 1)
+      return 0;
+    index = (int)floor (rand01 () * nf);
+    if (index >= nf)
+      index = nf - 1;
+    double vf_l = s->roots[index];
+    if (vf_l <= 0)
+      return 0;
+
+    // Jacobian of the energy delta function, d(omega - dE)/dvf
+    double delta_v = s->deltaV * vi_l;
+    double f1 = cpsx_omega_minus_dE (vf_l - delta_v, &ctx);
+    double f2 = cpsx_omega_minus_dE (vf_l + delta_v, &ctx);
+    double Jacobi = fabs (f2 - f1) / (2 * delta_v);
+    if (Jacobi <= 0)
+      return 0;
+
+    double Ef = VS2E * vf_l * vf_l;
+    double omega = Ei - Ef;
+    if (omega == 0)
+      return 0;
+
+    double Q[3], Q2 = 0;
+    for (d = 0; d < 3; d++) {
+      Q[d] = V2K * (ctx.vi[d] - vf_l * ctx.vf_dir[d]);
+      Q2 += Q[d] * Q[d];
+    }
+
+    // |sum_d b_d/sqrt(M_d) exp(iQ.d) (Q.e_d)|^2 (scattering_length.icc)
+    double sre = 0, sim = 0;
+    int a;
+    for (a = 0; a < s->n_atoms; a++) {
+      double ere[3], eim[3];
+      cpsx_polarization (s, ctx.branch, a, Q, ere, eim);
+      double epslen = sqrt (ere[0] * ere[0] + ere[1] * ere[1] + ere[2] * ere[2] + eim[0] * eim[0] + eim[1] * eim[1] + eim[2] * eim[2]);
+      if (epslen <= 0)
+        continue;
+      double qe_re = (Q[0] * ere[0] + Q[1] * ere[1] + Q[2] * ere[2]) / epslen;
+      double qe_im = (Q[0] * eim[0] + Q[1] * eim[1] + Q[2] * eim[2]) / epslen;
+      double qd = Q[0] * s->pos[3 * a] + Q[1] * s->pos[3 * a + 1] + Q[2] * s->pos[3 * a + 2];
+      double pre = s->bc[a] / sqrt (s->m[a]);
+      double cr = cos (qd), ci = sin (qd);
+      sre += pre * (cr * qe_re - ci * qe_im);
+      sim += pre * (cr * qe_im + ci * qe_re);
+    }
+    double norm_of_slsum = (sre * sre + sim * sim) / 1e30 / (s->sigma_coh * 1e-28);
+    // ksquare2E of the normalised |..|^2 over |omega|
+    double sf = VS2E * K2V * K2V * norm_of_slsum / fabs (omega);
+
+    double DW = exp (-s->dw_core * Q2);
+    double kf_over_ki = vf_l / vi_l;
+
+    *weight *= solid_angle * ngood * nf * (2 * VS2E * vf_l / Jacobi) * sf * kf_over_ki * DW * cpsx_bose (omega, s->Temp);
+
+    k_final[0] = V2K * vf_l * ctx.vf_dir[0];
+    k_final[1] = V2K * vf_l * ctx.vf_dir[1];
+    k_final[2] = V2K * vf_l * ctx.vf_dir[2];
+    return 1;
+  }
+
+  // These lines help with future error correction, and tell other Union components
+  //  that at least one process have been defined.
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+
+  #ifndef PROCESS_COHERENTPHONONSINGLEXTAL_DETECTOR
+  #define PROCESS_COHERENTPHONONSINGLEXTAL_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  struct CoherentPhononSingleXtal_physics_storage_struct CPSX_storage;
+
+  // Needed for transport to the main component, will be the same for all processes
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+%}
+
+INITIALIZE
+%{
+  int ia;
+  double avg_mass = 0;
+
+  memset (&CPSX_storage, 0, sizeof (CPSX_storage));
+
+  if (!strlen (dispersion_dir)) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: dispersion_dir must be given\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (!strlen (xyz_file)) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: xyz_file must be given\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (T <= 0) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: T must be positive\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (root_nsteps < 1 || root_xacc <= 0 || deltaV_Jacobi <= 0) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: root_nsteps, root_xacc and deltaV_Jacobi must be positive\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+
+  cpsx_read_dispersion (dispersion_dir, &CPSX_storage, NAME_CURRENT_COMP);
+  cpsx_read_xyz (xyz_file, b_coh, mass, &CPSX_storage, NAME_CURRENT_COMP);
+
+  CPSX_storage.sigma_coh = 0;
+  for (ia = 0; ia < CPSX_storage.n_atoms; ia++) {
+    CPSX_storage.sigma_coh += 4 * PI * CPSX_storage.bc[ia] * CPSX_storage.bc[ia] / 100.0; // fm^2 -> barn
+    avg_mass += CPSX_storage.m[ia];
+  }
+  avg_mass /= CPSX_storage.n_atoms;
+  if (CPSX_storage.sigma_coh <= 0) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: total coherent cross section is zero\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+
+  CPSX_storage.Temp = T;
+  if (DW_core >= 0)
+    CPSX_storage.dw_core = DW_core;
+  else if (strlen (DOS_file))
+    CPSX_storage.dw_core = cpsx_dw_core_from_dos (NULL, DOS_file, avg_mass, T, NAME_CURRENT_COMP);
+  else
+    CPSX_storage.dw_core = cpsx_dw_core_from_dos (dispersion_dir, "DOS", avg_mass, T, NAME_CURRENT_COMP);
+
+  CPSX_storage.my_scattering = packing_factor * CPSX_storage.sigma_coh / CPSX_storage.uc_vol * 100; // barn/AA^3 -> 1/m
+  CPSX_storage.emin_factor = branch_Emin_factor;
+  CPSX_storage.nsteps = root_nsteps;
+  CPSX_storage.xacc = root_xacc;
+  CPSX_storage.deltaV = deltaV_Jacobi;
+  CPSX_storage.good_branches = malloc (CPSX_storage.n_branches * sizeof (int));
+  CPSX_storage.roots = malloc ((root_nsteps + 1) * sizeof (double));
+
+  MPI_MASTER (printf ("CoherentPhononSingleXtal_process:%s: %d atoms, %d branches, %dx%dx%d grid, V_uc=%g AA^3, sigma_coh=%g barn, "
+                      "DW_core=%g AA^2, my_scattering=%g 1/m\n",
+                      NAME_CURRENT_COMP, CPSX_storage.n_atoms, CPSX_storage.n_branches, CPSX_storage.n[0], CPSX_storage.n[1], CPSX_storage.n[2],
+                      CPSX_storage.uc_vol, CPSX_storage.sigma_coh, CPSX_storage.dw_core, CPSX_storage.my_scattering););
+
+  // First initialise This_process with default values:
+  scattering_process_struct_init (&This_process);
+
+  // Single crystal: the process has its own orientation
+  This_process.non_isotropic_rot_index = 1;
+  // Cross section does not depend on the focusing
+  This_process.needs_cross_section_focus = -1;
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = CoherentPhononSingleXtal;
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_CoherentPhononSingleXtal_physics_storage_struct = &CPSX_storage;
+  This_process.probability_for_scattering_function = &CoherentPhononSingleXtal_physics_my;
+  This_process.scattering_function = &CoherentPhononSingleXtal_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+  sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index (init) < 0) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
+    exit (-1);
+  }
+
+  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  add_element_to_process_list (global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+  // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  free (CPSX_storage.E);
+  free (CPSX_storage.pol);
+  free (CPSX_storage.Emin);
+  free (CPSX_storage.Emax);
+  free (CPSX_storage.pos);
+  free (CPSX_storage.bc);
+  free (CPSX_storage.m);
+  free (CPSX_storage.good_branches);
+  free (CPSX_storage.roots);
+%}
+
+END
