@@ -12,10 +12,16 @@
 * %D
  * Example instrument that shows some ways of using the Conics pair components
 *
- * %Example: Test_Conics_pairs OPTIC=1 Detector: psd_i_I=1.41346e-12
- * %Example: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_I=4.92971e-21
- * %Example: Test_Conics_pairs OPTIC=3 Detector: psd_i_I=1.47422e-12
- * %Example: Test_Conics_pairs OPTIC=4 ssize=1e-4 Detector: psd_i_I=9.03493e-10
+ * %Example: Test_Conics_pairs OPTIC=1 Detector: psd_i_I=6.91402e-13
+ * %Example: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_I=2.85546e-21
+ * %Example: Test_Conics_pairs OPTIC=3 Detector: psd_i_I=6.91402e-13
+ * %Example: Test_Conics_pairs OPTIC=4 ssize=1e-4 Detector: psd_i_I=8.66267e-09
+ * %Example: Test_Conics_pairs quadratic=1 Detector: psd_i_I=5.03026e-13
+ * %Example: Test_Conics_pairs quadratic=1 fs=8 fi=6 Detector: psd_i_I=1.26085e-12
+ * %Example: Test_Conics_pairs OPTIC=2 quadratic=1 fs=100000 Detector: psd_i_I=2.09716e-21
+ * %Example: Test_Conics_pairs OPTIC=3 quadratic=1 Detector: psd_i_I=5.03026e-13
+ * %Example: Test_Conics_pairs OPTIC=3 quadratic=1 fs=8 fi=6 Detector: psd_i_I=9.00287e-13
+ * %Example: Test_Conics_pairs OPTIC=4 quadratic=1 ssize=1e-4 Detector: psd_i_I=6.56678e-09
 *
 * %P
 * <parameter1>: [<unit>] <parameter1 description>
@@ -28,13 +34,14 @@
 * W:  [AA^-1]     Width of supermirror cut-off
 * alpha: [AA]    Slope of reflectivity for reflectivity curve approximation
 * nshells: [1]   Number of Wolter-optic shells
+* quadratic: [ ] Use the quadratic shell-radius mode instead of the radii vector
 *
 * %L
 * <reference/HTML link>
 *
 * %E
 *******************************************************************************/
-DEFINE INSTRUMENT Test_Conics_pairs(int OPTIC=1, ssize=1e-6, fs=10, fi=10, R0=0.99, m=3, W=0.003, alpha=6.07, int nshells=4, rmin=0.0031416, rmax=0.05236)
+DEFINE INSTRUMENT Test_Conics_pairs(int OPTIC=1, ssize=1e-6, fs=10, fi=10, R0=0.99, m=3, W=0.003, alpha=6.07, int nshells=4, rmin=0.0031416, rmax=0.05236, int quadratic=0)
 
 DECLARE
 %{
@@ -86,22 +93,42 @@ AT(0,0,fs) RELATIVE PREVIOUS
 COMPONENT cEH = Conics_EH(R0=R0,alpha=alpha,W=W,m=m,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, radii=radii, le=0.25, lh=0.25, disk=1
 )
-WHEN(OPTIC==1) AT(0,0,fs) RELATIVE ss
+WHEN(OPTIC==1 && !quadratic) AT(0,0,fs) RELATIVE ss
+
+COMPONENT cEH_quadratic = Conics_EH(R0=R0,alpha=alpha,W=W,m=m,
+    nshells=nshells, focal_length_u=fs, focal_length_d=fi, rmin=rmin, rmax=rmax, le=0.25, lh=0.25, disk=1
+)
+WHEN(OPTIC==1 && quadratic) AT(0,0,fs) RELATIVE ss
 
 COMPONENT cPH = Conics_PH(R0=R0,alpha=alpha,W=W,m=m,
     nshells=nshells, focal_length=fi, radii=radii, lp=0.25, lh=0.25, disk=0
 )
-WHEN(OPTIC==2)AT(0,0,fs) RELATIVE ss
+WHEN(OPTIC==2 && !quadratic) AT(0,0,fs) RELATIVE ss
+
+COMPONENT cPH_quadratic = Conics_PH(R0=R0,alpha=alpha,W=W,m=m,
+    nshells=nshells, focal_length=fi, rmin=rmin, rmax=rmax, lp=0.25, lh=0.25, disk=0
+)
+WHEN(OPTIC==2 && quadratic) AT(0,0,fs) RELATIVE ss
 
 COMPONENT cHE = Conics_HE(R0=R0,alpha=alpha,W=W,m=m,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, radii=radii, le=0.25, lh=0.25, disk=1
 )
-WHEN(OPTIC==3) AT(0,0,fs) RELATIVE ss
+WHEN(OPTIC==3 && !quadratic) AT(0,0,fs) RELATIVE ss
+
+COMPONENT cHE_quadratic = Conics_HE(R0=R0,alpha=alpha,W=W,m=m,
+    nshells=nshells, focal_length_u=fs, focal_length_d=fi, rmin=rmin, rmax=rmax, le=0.25, lh=0.25, disk=1
+)
+WHEN(OPTIC==3 && quadratic) AT(0,0,fs) RELATIVE ss
 
 COMPONENT cPP = Conics_PP(R0=R0,alpha=alpha,W=W,m=m,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, radii=radii, lp1=0.25, lp2=0.25, disk=0
 )
-WHEN(OPTIC==4) AT(0,0,fs) RELATIVE ss
+WHEN(OPTIC==4 && !quadratic) AT(0,0,fs) RELATIVE ss
+
+COMPONENT cPP_quadratic = Conics_PP(R0=R0,alpha=alpha,W=W,m=m,
+    nshells=nshells, focal_length_u=fs, focal_length_d=fi, rmin=rmin, rmax=rmax, lp1=0.25, lp2=0.25, disk=0
+)
+WHEN(OPTIC==4 && quadratic) AT(0,0,fs) RELATIVE ss
 
 COMPONENT psd_o1 = COPY(psd_o0)(filename="psd_o1")
 AT(0,0,0.3+1e-3) RELATIVE PREVIOUS

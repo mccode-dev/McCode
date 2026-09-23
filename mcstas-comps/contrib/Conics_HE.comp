@@ -69,42 +69,37 @@ DECLARE
 INITIALIZE
 %{
   ConicSurf* pm;
-  double th_c, alpha_p, alpha_h, fp2, dr, rr, cH, theta_1, theta_2, theta_i;
+  double dr, rr, cH, theta_1, theta_2, theta_i;
+  double constant, quadratic;
   int i;
 
   s = makeScene ();
-  /* Mode a, vector of radii */
-  if (radii) {
-    for (i = 0; i < nshells; i++) {
-      rr = radii[i];
-
-      Point pi = makePoint (0, rr, 0);
-      pm = addHyperboloid (-focal_length_u, -focal_length_u * 2, pi, -lh, 0, m, R0, Qc, W, alpha, &s);
-      addEllipsoid (-focal_length_u, focal_length_d, pi, 0, le, m, R0, Qc, W, alpha, &s);
-    }
-  } else {
-    /* Mode b, use quadratic law to distribute the shells */
+  if (!radii) {
+    /* Mode b, use quadratic law to distribute the shells. */
     dr = nshells > 1 ? (rmax - rmin) / (nshells - 1) : 0;
 
-    double constant, quadratic;
     quadratic = (rmax - rmin) / (rmax * rmax - rmin * rmin);
     constant = rmax - quadratic * rmax * rmax;
+  }
 
-    for (i = 0; i < nshells; i++) {
+  for (i = 0; i < nshells; i++) {
+    /* Mode a uses the supplied radii; mode b uses the quadratic distribution. */
+    if (radii) {
+      rr = radii[i];
+    } else {
       rr = rmax - dr * i;
       rr = constant + quadratic * rr * rr; // Quadratic distribution of radius covers angular space better
-      // printf("--------------------------------------------------------------------");
-      printf ("rr = %lf\n", rr);
-      // printf("--------------------------------------------------------------------");
+    }
 
-      Point pi = makePoint (0, rr, 0); // f-1);
-      // pm=addEllipsoid(-focal_length_u, focal_length_d  ,  pi, -le,  0, m,R0,Qc,W,alpha,&s);
-      // addHyperboloid(  focal_length_d, focal_length_d*2,  pi,   0, lh, m,R0,Qc,W,alpha,&s);
-
+    Point pi = makePoint (0, rr, 0);
+    if (focal_length_u == focal_length_d) {
+      /* The common focus is at infinity in this limit, so both surfaces are parabolic. */
+      pm = addParaboloid (-focal_length_u, pi, -lh, 0, m, R0, Qc, W, alpha, &s);
+      addParaboloid (focal_length_d, pi, 0, le, m, R0, Qc, W, alpha, &s);
+    } else {
       theta_1 = atan (rr / focal_length_u);
       theta_2 = atan (rr / focal_length_d);
       theta_i = 0.25 * (theta_1 + theta_2);
-
       cH = fabs (0.5 * (rr / tan (theta_2 - 2.0 * theta_i) - focal_length_d));
 
       pm = addHyperboloid (-focal_length_u - 2.0 * cH, -focal_length_u, pi, -lh, 0, m, R0, Qc, W, alpha, &s);
