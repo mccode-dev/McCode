@@ -12,8 +12,10 @@
 # mcstas-comps/contrib/ therefore finds either the .comp itself or an .ext
 # file naming the upstream repository, release and file hash it comes from.
 #
-# docs/EXTERNAL-CONTRIBUTIONS.md is the prose version of everything below, and
-# buildscripts/mcext computes and re-verifies the hashes a manifest records.
+# docs/EXTERNAL-CONTRIBUTIONS.md is the prose version of everything below.
+# The hashes a manifest records are computed and re-verified by mcext, which
+# lives with the external-registrar GitHub Action in
+# https://github.com/mccode-dev/external-registrar
 #
 # ---------------------------------------------------------------------------
 # Manifest format

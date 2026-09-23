@@ -12,8 +12,10 @@ the `.comp` itself or an `.ext` file naming the upstream repository, the
 release it is pinned to, and the SHA256 of every file taken from it. The
 record lives where you would look for the thing it describes.
 
-The CMake side is `cmake/Modules/External.cmake`; the manifests are kept
-honest by `buildscripts/mcext`.
+The CMake side is `cmake/Modules/External.cmake`. The manifests are written
+and kept honest by `mcext` and the GitHub Action around it, both in
+[mccode-dev/external-registrar](https://github.com/mccode-dev/external-registrar);
+`.github/workflows/external-contributions.yml` runs them here.
 
 ## Where the manifests live
 
@@ -106,31 +108,55 @@ A manifest may omit `sha256` only if the build is configured with
 `-DMCCODE_EXTERNALS_ALLOW_UNVERIFIED=ON`, which exists for bisecting an
 upstream problem and should not appear in a manifest's normal life.
 
-## Adding a contribution
+## Keeping contributions current
+
+`.github/workflows/external-contributions.yml` runs once a day, and on demand
+from the Actions tab:
+
+- **poll** looks up the latest release of every repository a manifest's `git`
+  names. When it finds one newer than McCode records, it opens a pull request
+  from `external/OWNER-REPO` that moves every manifest for that repository to
+  the new tag, with each hash computed from the files as published. A
+  repository can shape those manifests by keeping templates in a `.mccode/`
+  directory laid out like this tree; see the external-registrar README.
+  Closing such a PR unmerged declines that release; the next release is
+  proposed as usual.
+- **check** re-verifies every recorded hash against upstream and fails on any
+  mismatch: a moved tag, a regenerated release archive, a compromised host.
+
+The poll job needs the registrar GitHub App (`REGISTRAR_APP_ID` and
+`REGISTRAR_PRIVATE_KEY`) and is skipped until it is configured; check needs no
+credentials.
+
+## Adding a contribution, or changing one by hand
+
+`mcext` needs only Python 3.9+. Without installing anything:
+
+```sh
+pipx run --spec git+https://github.com/mccode-dev/external-registrar@v1 mcext --help
+```
+
+or `pip install git+https://github.com/mccode-dev/external-registrar@v1` to
+put `mcext` on your path. The steps below assume the latter.
 
 1. Create the directory the files belong in, if it does not exist.
 2. Write the manifest there with `name`/`git`/`version`/`base` (or `archive`)
    and the list of files, leaving the hashes out.
-3. Fill them in: `buildscripts/mcext update path/to/thing.ext`
+3. Fill them in: `mcext update path/to/thing.ext`
 4. Add a `mccode_install_externals()` call for the containing directory if one
    does not already exist — see `mcstas-comps/CMakeLists.txt`, where each call
    mirrors the `install( DIRECTORY ... )` rule for the same directory.
 
-To move a contribution to a new upstream release:
+Once that is merged, the poll job keeps the contribution current. To move to a
+release by hand instead, e.g. one the poll would not choose:
 
 ```sh
-buildscripts/mcext update mcstas-comps/contrib/chopper-lib.ext -v v4.2.1
+mcext update mcstas-comps/contrib/chopper-lib.ext -v v4.2.1
 ```
 
 which repoints every recorded URL at the new tag and recomputes every hash.
-
-To confirm nothing upstream has shifted under a pinned reference:
-
-```sh
-buildscripts/mcext check          # whole tree; non-zero exit on any mismatch
-```
-
-That is the command to run from CI.
+`mcext check [PATH ...]` runs the same verification as the check job, over
+the current directory by default.
 
 ## Build options
 
