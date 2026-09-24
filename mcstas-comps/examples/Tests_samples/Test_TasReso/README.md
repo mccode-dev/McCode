@@ -58,4 +58,17 @@ Parameters in **boldface** are required; the others are optional.
 
 - [Source code](Test_TasReso.instr) for `Test_TasReso.instr`.
 
+## Resolution events
+
+The `Res_monitor` instance writes `reso.dat` through the generic event-list
+output path. Its fixed column order is:
+
+```text
+ki_x ki_y ki_z kf_x kf_y kf_z x y z p_i p_f
+```
+
+The monitor's `bufsize` parameter controls the fixed event-buffer capacity;
+`bufsize=0` stores up to the instrument ray count. Overflow is reported as a
+warning and the accepted rows are still saved.
+
 ---

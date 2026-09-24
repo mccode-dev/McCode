@@ -194,6 +194,8 @@
     double **Mon2D_p2;
     double *Mon2D_Buffer;
     MC_EVENT_BUFFER List_Buffer;
+    MC_EVENT_CHUNK *List_Chunks;
+    MC_EVENT_CHUNK *List_Chunks_Tail;
     unsigned long PixelID;
 
     double mxmin,mxmax,mymin,mymax,mzmin,mzmax;
