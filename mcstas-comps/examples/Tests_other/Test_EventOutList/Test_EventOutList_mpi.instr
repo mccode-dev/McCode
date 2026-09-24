@@ -1,0 +1,30 @@
+/*******************************************************************************
+ * Instrument: Test_EventOutList_mpi
+ *
+ * MPI protocol fixture: rank zero emits no rows while the other rank emits
+ * three rows. The event output call must still be collective.
+ *
+ * %Parameters
+ * Rows: [3] rows emitted by the non-empty rank
+ *
+ * %Example: mcstas_test
+ *
+ * %End
+ *******************************************************************************/
+DEFINE INSTRUMENT Test_EventOutList_mpi(Rows=3)
+
+TRACE
+COMPONENT src = Source_simple(radius=0.1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT events = EventOutList(
+    nevents=(mpi_node_rank == 0 ? 0 : Rows),
+    ncols=3, filename="ListRankUnequal")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT eventsReverse = EventOutList(
+    nevents=(mpi_node_rank == 0 ? Rows : 0),
+    ncols=3, filename="ListRankReverse")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+END

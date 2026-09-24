@@ -87,6 +87,7 @@ SHARE %{
 DECLARE%{
   MonitornD_Defines_type DEFS;
   MonitornD_Variables_type Vars;
+  MC_EVENT_BUFFER event_buffer;
 
   unsigned long num_events;
   double* reso_events;
@@ -123,9 +124,13 @@ INITIALIZE %{
   reso_events = 0;
   reso_probabilities = 0;
 
+  long event_capacity = bufsize > 0 ? (long)bufsize : (long)mcget_ncount();
+  if (mc_event_buffer_init(&event_buffer, event_capacity, 11))
+    exit(fprintf(stderr, "TOFRes_monitor: %s: Error allocating event buffer.\n", NAME_CURRENT_COMP));
+
   if(live_calc) {
-    reso_events = malloc(mcget_ncount()*4*sizeof(double));
-    reso_probabilities = malloc(mcget_ncount()*sizeof(double));
+    reso_events = malloc((size_t)event_capacity*4*sizeof(double));
+    reso_probabilities = malloc((size_t)event_capacity*sizeof(double));
   }
 
   int i;
@@ -139,34 +144,12 @@ INITIALIZE %{
 
   if (strstr(tmp, "list"))
     exit(fprintf(stderr, "TOFRes_monitor: %s: Error: Only use geometry keywords (remove list from 'option').\n", NAME_CURRENT_COMP));
-  if (!bufsize)
-    sprintf(Vars.option, "%s borders list all, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10 n", tmp);
-  else
-    sprintf(Vars.option, "%s borders list=%f, ud1 ud2 ud3 ud4 ud5 ud6 ud7 ud8 ud9 ud10 n", tmp, bufsize);
+  sprintf(Vars.option, "%s", tmp);
 
   if (radius)
     xwidth = 2*radius;
 
   Monitor_nD_Init(&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, 0, 0);
-  Vars.Coord_Type[0] = DEFS.COORD_USERDOUBLE0; /* otherwise p is always the first variable */
-
-  if (Vars.Coord_Number != 11)
-    exit(fprintf(stderr,"TOFRes_monitor: %s: Error: Invalid number of variables to monitor (%li).\n", NAME_CURRENT_COMP, Vars.Coord_Number+1));
-
-  /* set the labels */
-  /* we have to record ki_x ki_y ki_z kf_x kf_y kf_z x y z p_i p_f */
-  int idx = 0;
-  strcpy(tmp,"ki_x"); strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"ki_y"); strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"ki_z"); strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"kf_x"); strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"kf_y"); strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"kf_z"); strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"x");    strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"y");    strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"z");    strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"p_i");  strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
-  strcpy(tmp,"p_f");  strcpy(Vars.Coord_Label[idx], tmp); strcpy(Vars.Coord_Var[idx++], tmp);
 
   if (filename != NULL)
     strncpy(Vars.Mon_File, filename, 128);
@@ -253,7 +236,7 @@ TRACE %{
     }
 
     /* Now fetch data from the TOFRes_sample. */
-    if(p > 0. && (!bufsize || num_events < bufsize))
+    if(p > 0.)
     {
       /* old behaviour not supported by openacc:
         struct Res_sample_struct *s =
@@ -281,35 +264,35 @@ TRACE %{
         event_pos[1] = particle_getvar(_particle, res_ry_var, NULL);
         event_pos[2] = particle_getvar(_particle, res_rz_var, NULL);
 
-        #pragma acc atomic capture
-        {
-          event_idx = num_events++;
-        }
+        double event_row[11];
+        event_row[0] = event_ki[0];
+        event_row[1] = event_ki[1];
+        event_row[2] = event_ki[2];
+        event_row[3] = event_kf[0];
+        event_row[4] = event_kf[1];
+        event_row[5] = event_kf[2];
+        event_row[6] = event_pos[0];
+        event_row[7] = event_pos[1];
+        event_row[8] = event_pos[2];
+        event_row[9] = event_pi;
+        event_row[10] = event_pf;
 
-        /* variables for Monitor_nD */
-        Vars.UserDoubles[0] = event_ki[0];
-        Vars.UserDoubles[1] = event_ki[1];
-        Vars.UserDoubles[2] = event_ki[2];
-        Vars.UserDoubles[3] = event_kf[0];
-        Vars.UserDoubles[4] = event_kf[1];
-        Vars.UserDoubles[5] = event_kf[2];
-        Vars.UserDoubles[6] = event_pos[0];
-        Vars.UserDoubles[7] = event_pos[1];
-        Vars.UserDoubles[8] = event_pos[2];
-        Vars.UserDoubles[9] = event_pi;
-        Vars.UserDoubles[10] = event_pf;
+        if (mc_event_buffer_append(&event_buffer, event_row)) {
+          #pragma acc atomic capture
+          {
+            event_idx = num_events++;
+          }
 
-        Monitor_nD_Trace(&DEFS, &Vars, _particle);
-
-        /* live calculation */
-        if(live_calc) {
-          reso_events[event_idx*4 + 0] = event_ki[0] - event_kf[0];
-          reso_events[event_idx*4 + 1] = event_ki[1] - event_kf[1];
-          reso_events[event_idx*4 + 2] = event_ki[2] - event_kf[2];
-          reso_events[event_idx*4 + 3] = tl2_k_to_E(
-              event_ki[0], event_ki[1], event_ki[2],
-              event_kf[0], event_kf[1], event_kf[2]);
-          reso_probabilities[event_idx] = event_pi * event_pf;
+          /* live calculation */
+          if(live_calc) {
+            reso_events[event_idx*4 + 0] = event_ki[0] - event_kf[0];
+            reso_events[event_idx*4 + 1] = event_ki[1] - event_kf[1];
+            reso_events[event_idx*4 + 2] = event_ki[2] - event_kf[2];
+            reso_events[event_idx*4 + 3] = tl2_k_to_E(
+                event_ki[0], event_ki[1], event_ki[2],
+                event_kf[0], event_kf[1], event_kf[2]);
+            reso_probabilities[event_idx] = event_pi * event_pf;
+          }
         }
       }
 
@@ -326,8 +309,12 @@ TRACE %{
 SAVE %{
   int dbg_save_events = 0;
 
-  /* save results, but do not free pointers */
-  Monitor_nD_Save(&DEFS, &Vars);
+  mc_event_buffer_save(&event_buffer,
+                       "TOF resolution monitor events",
+                       "ki_x ki_y ki_z kf_x kf_y kf_z x y z p_i p_f",
+                       filename,
+                       NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+                       ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
 
   /* live calculation */
   if(live_calc && num_events > 0) {
@@ -345,7 +332,7 @@ SAVE %{
 
     double cov[4*4], res[4*4];
     if(tl2_reso(reso_events, reso_probabilities, cov, res, num_events)) {
-      printf("Resolution calculation used %d neutron events.\n", num_events);
+      printf("Resolution calculation used %lu neutron events.\n", num_events);
       tl2_print_mat(cov, "Covariance matrix", 4, 4);
       tl2_print_mat(res, "Resolution matrix", 4, 4);
       printf("Please run \"mcresplot %s\" for a full analysis.\n", filename);
@@ -393,17 +380,20 @@ SAVE %{
 FINALLY %{
   /* free pointers */
   Monitor_nD_Finally(&DEFS, &Vars);
+  mc_event_buffer_free(&event_buffer);
 
   if(live_calc) {
     free(reso_events);
     free(reso_probabilities);
   }
-  destroy_darr2d(Covar_p);
-  destroy_darr2d(Covar_p2);
-  destroy_darr2d(Covar_N);
-  destroy_darr2d(Res_p);
-  destroy_darr2d(Res_p2);
-  destroy_darr2d(Res_N);
+  if(live_calc) {
+    destroy_darr2d(Covar_p);
+    destroy_darr2d(Covar_p2);
+    destroy_darr2d(Covar_N);
+    destroy_darr2d(Res_p);
+    destroy_darr2d(Res_p2);
+    destroy_darr2d(Res_N);
+  }
 %}
 
 

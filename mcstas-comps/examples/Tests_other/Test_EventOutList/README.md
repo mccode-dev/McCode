@@ -51,6 +51,16 @@ Expected deterministic data (rows = events, columns as named):
 20 21 22
 ```
 
+The MPI companion exercises unequal local event counts in both directions:
+rank zero is empty for `ListRankUnequal`, and rank one is empty for
+`ListRankReverse`. Both files must contain exactly `Rows` rows, with one
+collective save per component:
+
+```sh
+mcrun -n 4 --mpi=2 -I $(pwd) Test_EventOutList_mpi.instr Rows=10000
+mcrun -n 4 --mpi=2 --format=NeXus -I $(pwd) Test_EventOutList_mpi.instr Rows=3
+```
+
 The flavor-neutral component also has a minimal McXtrace companion instrument:
 
 ```sh
@@ -65,5 +75,6 @@ mxrun -n 1000 \
 - [McXtrace source code](../../../../mcxtrace-comps/examples/Tests_other/Test_EventOutList/Test_EventOutList_mcxtrace.instr)
   for the companion `Test_EventOutList_mcxtrace.instr`.
 - [Component](EventOutList.comp) for `EventOutList.comp`.
+- [MPI source code](Test_EventOutList_mpi.instr) for the unequal-rank fixture.
 
 ---
