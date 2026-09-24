@@ -1,0 +1,255 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=http://www.mcxtrace.org
+*
+* Instrument: SOLEIL_CRISTAL
+*
+* %Identification
+* Written by: FARHI Emmanuel with help of Claude (Anthropic), adapted from SOLEIL_MARS and SOLEIL_DIFFABS
+* Date: September 2026
+* Origin: SOLEIL
+* Version: 0.1
+* %INSTRUMENT_SITE: SOLEIL
+*
+* SOLEIL CRISTAL beamline: diffraction with 2/4/6-circle diffractometers.
+*
+* %Description
+* CRISTAL is a diffraction beam-line covering 5-30 keV (dE/E ~1e-4), fed by an
+* in-vacuum U20 undulator (98 periods, 20 mm period). The optical layout, in
+* beam order, is: primary slit, Si(111) double-crystal monochromator (DCM,
+* second crystal sagittally bent for horizontal focusing - not modelled here
+* for simplicity), a pair of horizontally-deflecting Si mirrors (Rh/Pt coated,
+* first one bendable, for horizontal focusing and harmonic rejection), a
+* secondary slit, and finally the sample stage. Most powder-diffraction work
+* is done on the 2-circle diffractometer, equipped with a curved Mythen-II
+* pixel detector (radius 720 mm). Only components that act on the beam are
+* modelled; hutch diagnostics such as xbpm, beam imagers and attenuators are
+* omitted for simplicity.
+*
+* %Example: E0=12 Detector: detector_diffraction_I=1e8
+*
+* %Parameters
+* E0:        [keV] Central energy of the beam
+* dE:        [keV] Energy half-bandwidth at the photon source
+* M1_angle:  [mrad] Grazing angle of the first (bendable) horizontal mirror
+* M2_angle:  [mrad] Grazing angle of the second horizontal mirror
+* M1_radius: [m]   Bending radius of mirror M1 (0=flat)
+* M2_radius: [m]   Bending radius of mirror M2 (0=flat)
+* M_coating: [str] Mirror coating (Rh or Pt stripe), e.g. "Rh.txt" or "Pt.dat"
+* reflections:[str] Sample structure file, LAU/CIF format
+*
+* %Link
+* https://www.synchrotron-soleil.fr/en/beamlines/cristal
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT SOLEIL_CRISTAL(E0=12, dE=1e-4,
+  M1_angle=3, M2_angle=3, M1_radius=0, M2_radius=0,
+  string M_coating="Rh.txt",
+  string reflections="LaB6_660b_AVID2.hkl")
+
+DECLARE
+%{
+  // Primary slit (Monochromator Ring Hutch, before the DCM)
+  double DistanceSourceToSlit1 = 14.0;
+  double Slit1Width  = 0.02;
+  double Slit1Height = 0.01;
+
+  // Si(111) DCM
+  double DistanceSourceToDCM = 17.0;
+  double dcm_gap = 0.01;
+  double DCM_theta;
+
+  // Mirror pair (Mirrors Hutch, horizontal deflection)
+  double DistanceSourceToM1 = 20.0;
+  double DistanceM1ToM2     = 0.5;
+  double M_length = 0.3;
+  double M_width  = 0.1;
+
+  // Secondary slit (end of Mirrors Hutch)
+  double DistanceSourceToSlit2 = 22.5;
+  double Slit2Width  = 0.03;
+  double Slit2Height = 0.02;
+
+  // Sample stage (2-circle powder diffractometer, BC Hutch)
+  double DistanceSourceToSample = 35.0;
+
+  // Mythen-II curved detector, radius 720 mm
+  double DetectorRadius = 0.72;
+%}
+
+INITIALIZE
+%{
+  // Si(111): a=5.4309 Angs, d111 = a/sqrt(3)
+  double d = 5.4309/sqrt(3);
+  double sin_theta = 12.398/(2*d*E0);
+
+  if (fabs(sin_theta) >= 1 || E0 < 5 || E0 > 30)
+    exit(fprintf(stderr,
+      "%s: ERROR: Si(111) can not reflect E0=%g keV (valid range ~5-30 keV). Aborting.\n",
+      NAME_INSTRUMENT, E0));
+
+  DCM_theta = asin(sin_theta)*RAD2DEG;
+
+  MPI_MASTER(
+  printf("%s: E0=%g [keV] dE=%g [keV]\n", NAME_INSTRUMENT, E0, dE);
+  printf("%s: DCM theta=%g [deg]\n",   NAME_INSTRUMENT, DCM_theta);
+  printf("%s: Mirrors M1=%g [mrad] M2=%g [mrad]\n", NAME_INSTRUMENT, M1_angle, M2_angle);
+  );
+
+  M1_angle *= RAD2DEG/1000;
+  M2_angle *= RAD2DEG/1000;
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+/* -------------------------------------- Source: in-vacuum U20 undulator */
+// Undulator (in-vacuum, 98 periods of 20 mm)
+COMPONENT Source = Undulator(
+  E0 = E0,
+  dE = dE,
+  Ee = 2.75,
+  Ie = 0.5,
+  K = 5,
+  sigex = 388e-6,
+  sigey = 8.1e-6,
+  sigepx = 14.5e-6,
+  sigepy = 4.61e-6,
+  focus_xw=Slit1Width, focus_yh=Slit1Height,
+  dist=DistanceSourceToSlit1)
+AT (0, 0, 0) RELATIVE origin
+
+/* -------------------------------------- Primary slit s1 */
+COMPONENT slit1 = Slit(
+    xwidth=Slit1Width, yheight=Slit1Height)
+AT (0, 0, DistanceSourceToSlit1) RELATIVE Source
+
+/* -------------------------------------- Si(111) DCM */
+COMPONENT dcm_location = Arm()
+AT (0, 0, DistanceSourceToDCM-DistanceSourceToSlit1) RELATIVE PREVIOUS
+
+COMPONENT dcm_xtal0 = Bragg_crystal(
+    length=0.1, width=0.05,
+    alpha=0, h=1, k=1, l=1, material="Si.txt", crystal_type=2)
+AT (0, 0, 0)             RELATIVE dcm_location
+ROTATED (-DCM_theta,0,0) RELATIVE dcm_location
+EXTEND
+%{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT arm_xtal0 = Arm()
+AT (0, 0, 0)             RELATIVE PREVIOUS
+ROTATED (-DCM_theta,0,0) RELATIVE PREVIOUS
+
+// second crystal: kept flat here for simplicity (sagittal bending for
+// horizontal focusing, as used on CRISTAL, is not modelled)
+COMPONENT dcm_xtal1 = COPY(dcm_xtal0)
+AT (0, dcm_gap, DCM_theta ? dcm_gap/tan(DCM_theta*DEG2RAD) : 0) RELATIVE dcm_xtal0
+ROTATED (DCM_theta,0,0) RELATIVE arm_xtal0
+EXTEND
+%{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT arm_xtal1 = Arm()
+AT (0, 0, 0)            RELATIVE PREVIOUS
+ROTATED (DCM_theta,0,0) RELATIVE PREVIOUS
+
+/*Diagnostic: energy after the DCM*/
+COMPONENT emon_dcm = E_monitor(
+    xwidth=0.05, yheight=0.05, filename="emon_dcm",
+    Emin=E0-3*dE, Emax=E0+3*dE, nE=101)
+AT (0, 0, 0.05) RELATIVE arm_xtal1
+
+/* -------------------------------------- Mirror M1 (bendable, horizontal) */
+COMPONENT M1_location = Arm()
+AT (0, 0, DistanceSourceToM1-DistanceSourceToDCM-0.05) RELATIVE PREVIOUS
+
+COMPONENT M1_rotated = Arm()
+AT (0, 0, 0)          RELATIVE M1_location
+ROTATED (-M1_angle,0,0) RELATIVE M1_location
+
+COMPONENT M1 = Mirror_curved(
+    length=M_length, width=M_width,
+    coating=M_coating, radius=M1_radius)
+AT (0, 0, 0)       RELATIVE M1_rotated
+ROTATED (0, 0, 90) RELATIVE M1_rotated
+EXTEND
+%{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT M1_out = Arm()
+AT (0, 0, 0)             RELATIVE M1_rotated
+ROTATED (-M1_angle,0,0)  RELATIVE M1_rotated
+
+/* -------------------------------------- Mirror M2 (fixed, horizontal) */
+COMPONENT M2_location = Arm()
+AT (0, 0, DistanceM1ToM2) RELATIVE M1_out
+
+COMPONENT M2_rotated = Arm()
+AT (0, 0, 0)           RELATIVE M2_location
+ROTATED (M2_angle,0,0) RELATIVE M2_location
+
+COMPONENT M2 = Mirror_curved(
+    length=M_length, width=M_width,
+    coating=M_coating, radius=M2_radius)
+AT (0, 0, 0)        RELATIVE M2_rotated
+ROTATED (0, 0, -90) RELATIVE M2_rotated
+EXTEND
+%{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT M2_out = Arm()
+AT (0, 0, 0)           RELATIVE M2_rotated
+ROTATED (M2_angle,0,0) RELATIVE M2_rotated
+
+/* -------------------------------------- Secondary slit s2 */
+COMPONENT slit2 = Slit(
+    xwidth=Slit2Width, yheight=Slit2Height)
+AT (0, 0, DistanceSourceToSlit2-DistanceSourceToM1-DistanceM1ToM2) RELATIVE PREVIOUS
+
+/*Diagnostic: beam profile after the mirrors*/
+COMPONENT psd_slit2 = PSD_monitor(filename="psd_slit2")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* -------------------------------------- Sample stage (2-circle diffractometer) */
+COMPONENT sample_stage = Arm()
+AT (0, 0, DistanceSourceToSample-DistanceSourceToSlit2) RELATIVE PREVIOUS
+
+SPLIT 10 COMPONENT powder = PowderN(
+    reflections=reflections,
+    xwidth=0.001, yheight=0.01, zdepth=5e-6,
+    p_interact=0.5, d_phi=5)
+AT (0, 0, 0) RELATIVE sample_stage
+GROUP samples
+
+// The Rayleigh scattering at E0 is large and creates massive background;
+// it is ignored here, as in the MARS/DIFFABS models.
+COMPONENT fluo = Fluorescence(
+    material=reflections,
+    xwidth=0.001, yheight=0.01, zdepth=5e-6,
+    focus_aw=180, focus_ah=5, target_z=1, flag_rayleigh=0,
+    p_interact=0.99)
+AT (0, 0, 0) RELATIVE sample_stage
+GROUP samples
+
+/* -------------------------------------- Detector: curved Mythen-II, R=720 mm */
+COMPONENT detector_diffraction = Monitor_nD(
+    bins=50000, options="abs theta", min=2, max=100,
+    radius=DetectorRadius, yheight=0.02, restore_xray=1)
+WHEN (0.75*E0 < K2E*sqrt(kx*kx+ky*ky+kz*kz)) // model detector energy discrimination
+AT (0, 0, 0) RELATIVE sample_stage
+
+COMPONENT detector_fluo = Monitor_nD(
+    bins=1024, options="energy", min=0, max=E0*1.2,
+    radius=DetectorRadius, yheight=0.02)
+WHEN (K2E*sqrt(kx*kx+ky*ky+kz*kz) < 0.95*E0)
+AT (0, 0, 0) RELATIVE sample_stage
+
+END
