@@ -13,11 +13,19 @@
 * Revised for McStas 3.1 on: May 31st 2022
 * Origin: ILL/MLZ
 *
+* OBSOLETE: use Guide_anyshape(file_coatings=1) instead.
 * Reflecting surface (guide and mirror) with any shape, defined from an OFF file
 * and a patch to allow m-, alpha- and W-values added per polygon face.
 * Derived from Guide_anyshape / Guide_anyshape_r .
 *
 * %D
+*
+* OBSOLETE: this component has been merged into Guide_anyshape. The per-face
+* coating mode of Guide_anyshape_r(m=0, alpha=0, W=0, ...) is obtained with
+*   Guide_anyshape(geometry=..., file_coatings=1, R0=..., Qc=...)
+* and the parameter override mode (any of m, alpha, W non-zero) with
+*   Guide_anyshape(geometry=..., m=..., alpha=..., W=...)
+* This version is kept only for backward compatibility of existing instruments.
 *
 * This is a reflecting object component, derived from Guide_anyshape.
 * Its shape, as well as m-, alpha- and W-values (IN THIS ORDER) for each face, are defined from
@@ -99,6 +107,7 @@ DECLARE
 
 INITIALIZE
 %{
+  MPI_MASTER (fprintf (stderr, "Guide_anyshape_r: %s: WARNING: this component is obsolete. Use Guide_anyshape(file_coatings=1) instead.\n", NAME_CURRENT_COMP););
   /* initialize OFF object from the file(s) */
   if (!off_init (geometry, xwidth, yheight, zdepth, !center, &offdata))
     exit (-1);

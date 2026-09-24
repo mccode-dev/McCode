@@ -40,8 +40,8 @@
 *     nv  i1 i2 ... inv   p0 p1 p2 ...
 *   They are available as data.facePropArray (column-major, see off_struct)
 *   or through off_face_prop(&data, face, k, default).
-*   Reflecting components (Guide_anyshape_r) use the convention
-*     p0 = m,  p1 = alpha [AA],  p2 = W [AA^-1]
+*   Reflecting components (Guide_anyshape with file_coatings=1) use the convention
+*     p0 = m,  p1 = alpha [AA],  p2 = W [AA^-1]  [, p3 = R0, p4 = Qc [AA^-1]]
 *   for which the convenience pointers face_m_Array, face_alpha_Array and
 *   face_W_Array are set when at least 3 properties are present.
 *   The face index returned by off_intersect_idx/off_x_intersect_idx is the
@@ -76,6 +76,8 @@
 #define OFF_FACEPROP_M      0
 #define OFF_FACEPROP_ALPHA  1
 #define OFF_FACEPROP_W      2
+#define OFF_FACEPROP_R0     3
+#define OFF_FACEPROP_QC     4
 
 typedef struct intersection {
 	MCNUM time;  	  //time of the intersection

@@ -1,5 +1,6 @@
 \section{The \texttt{Guide\_anyshape} McStas Component}
-Reflecting surface (guide and mirror) with any shape, defined from an OFF file.
+Reflecting surface (guide and mirror) with any shape, defined from an OFF file,
+optionally with m, alpha, W (R0, Qc) given per face in the file.
 
 \subsection*{Identification}
 \begin{itemize}
@@ -11,9 +12,18 @@ Reflecting surface (guide and mirror) with any shape, defined from an OFF file.
 \subsection*{Description}
 This is a reflecting object component. Its shape is defined from an OFF file, given with its file name. The object size is set as given from the file, where dimensions should be in meters. The bounding box may be re-scaled by specifying xwidth,yheight,zdepth parameters. The object may optionally be centered when using 'center=1'.
 
-The reflectivity is specified either from the usual parametric description R0,Qc,alpha,W,m, or from a reflectivity file 'reflect' with a 2 column format [q(\AA{}-1) R(0-1)].
+The reflectivity is specified either from the usual parametric description R0,Qc,alpha,W,m, or from a reflectivity file 'reflect' with a 2 column format [q(\AA{}-1) R(0-1)], or per face from the geometry file (file\_coatings=1).
 
-The complex OFF/PLY geometry option handles any closed non-convex polyhedra. It supports the OFF and NOFF file format but not COFF (colored faces). Such files may be generated from XYZ data using: qhull \textless{} coordinates.xyz Qx Qv Tv o \textgreater{} geomview.off or powercrust coordinates.xyz and viewed with geomview or java -jar jroff.jar (see below). The default size of the object depends of the OFF file data, but its bounding box may be resized using xwidth,yheight and zdepth. PLY geometry files are also supported.
+Per-face coatings (file\_coatings=1, replaces the former Guide\_anyshape\_r): the numbers following the vertex indices of each face in the OFF/PLY file are read as m, alpha, W (IN THIS ORDER), optionally followed by R0 and Qc:
+
+\begin{verbatim}
+nv  i1 i2 ... inv   m alpha W [R0 [Qc]]
+e.g.  4 0 5 6 4   3.0 6.07 0.003
+\end{verbatim}
+
+Values that are not given in the file are taken from the component parameters. See the example file Guide\_r.off. Former Guide\_anyshape\_r(m=0, alpha=0, W=0, ...) corresponds to Guide\_anyshape(file\_coatings=1, ...).
+
+The complex OFF/PLY geometry option handles any closed non-convex polyhedra, with polygons of any number of vertices. It supports the OFF, NOFF and COFF file formats (colours are ignored, but face colours would be interpreted as coatings when file\_coatings=1). Such files may be generated from XYZ data using: qhull \textless{} coordinates.xyz Qx Qv Tv o \textgreater{} geomview.off or powercrust coordinates.xyz and viewed with geomview or java -jar jroff.jar (see below). The default size of the object depends of the OFF file data, but its bounding box may be resized using xwidth,yheight and zdepth. PLY geometry files are also supported.
 
 \subsection*{Input parameters}
 Parameters in \textbf{boldface} are required; the others are optional.
@@ -35,6 +45,7 @@ m & 1 & m-value of material. Zero means completely absorbing. & 2 \\
 W & \AA{}$^{-1}$ & Width of supermirror cut-off & 0.003 \\
 reflect & q(\AA{}$^{-1}$ R(0-1) & (str)  Reflectivity file name. Format & 0 \\
 geometry & str & Name of the OFF/PLY file describing the guide geometry & 0 \\
+file\_coatings & 1 & When 1, use m, alpha, W [R0, Qc] given per face in the geometry file instead of the parameters (which then serve as defaults for values missing in the file). & 0 \\
 \bottomrule
 \end{longtable}
 
