@@ -1,0 +1,177 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2008, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Instrument: Test_abs_logger_nD_scintillator
+*
+* %Identification
+* Written by: Milán Klausz
+* Date: September 2026
+* Origin: ESS
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of the scintillator variant of the monitor_nD like absorption logger
+*
+* %Description
+* Test of the scintillator variant of the monitor_nD like absorption logger.
+*
+* Four GS20 converter tiles are illuminated by a near parallel beam, each with
+* its own Union_abs_logger_nD_scintillator attached. That logger is written for
+* one specific position sensitive detector, a GS20 converter layer read out by a
+* multi-anode photomultiplier tube (MAPMT), and represents the physics from the
+* neutron conversion up to a detection event being triggered in one of the MAPMT
+* pixels. Instead of logging each absorption where it happened, it distributes it
+* over the MAPMT pixel facing that position and its four neighbours, using
+* tabulated detection efficiencies from a separate Geant4 simulation.
+*
+* The four loggers cover histogram and event list output, the two MAPMT pixel
+* sizes, and the use of a conditional:
+*
+*   abs_logger_nD_scintillator                  histogram, 6 mm pixels
+*   abs_logger_nD_scintillator_con              histogram, 6 mm pixels, conditional
+*   abs_logger_nD_scintillator_high_resolution  histogram, 3 mm pixels
+*   abs_logger_nD_scintillator_list             event list, 6 mm pixels
+*
+* The high resolution logger sets is_high_resolution=1, which selects 3 mm
+* pixels and the corresponding set of pixel hit efficiency tables, and is binned
+* twice as finely so that one bin again corresponds to one pixel. It records a lower
+* intensity than the 6 mm loggers because a detection threshold suppresses
+* absorptions whose light is shared between neighbouring pixels. With 3 mm
+* pixels a larger fraction of the area lies close to a pixel boundary, and as
+* the light spread is a fixed physical width, even the pixel centre is within
+* its range, so a smaller fraction of absorptions yields an accepted detection.
+*
+* The conditional is a Union_conditional_standard with an energy window wide
+* enough to always evaluate true. It therefore exercises the record_to_temp
+* and write_temp_to_perm code path of the logger without changing which events
+* end up being recorded, so abs_logger_nD_scintillator_con should agree with
+* abs_logger_nD_scintillator.
+*
+* The list mode logger reports zero integrated intensity, since in list mode
+* the signal is written to the event file rather than accumulated into a
+* histogram. It therefore has no example line of its own, but is still run as
+* part of every test to exercise the event list output path.
+*
+* The Union_master is placed at an odd position and rotation relative to the
+* detector, which should leave all results unchanged, as the loggers record in
+* the coordinate system of the geometry they are attached to.
+*
+* %Example: Detector: abs_logger_nD_scintillator_I=9.37576e-13
+* %Example: Detector: abs_logger_nD_scintillator_con_I=9.37103e-13
+* %Example: Detector: abs_logger_nD_scintillator_high_resolution_I=2.88901e-13
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT Test_abs_logger_nD_scintillator()
+DEPENDENCY " -Wl,-rpath,CMD(ncrystal-config --show libdir) -LCMD(ncrystal-config --show libdir) -lNCrystal -ICMD(ncrystal-config --show includedir) -I@MCCODE_LIB@/share/ -DFUNNEL"
+
+DECLARE
+%{
+%}
+
+INITIALIZE
+%{
+%}
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_div(
+ xwidth = 0.1045, yheight = 0.1045,
+ focus_aw = 0.0001, focus_ah = 0.0001,
+ lambda0 = 6.0, dlambda = 0.01,
+ gauss = 0, flux = 1.0)
+AT (0.0, 0.0, -1.0) ABSOLUTE
+
+COMPONENT sample_position = Arm()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT NCrystal_GS20_ncrystal_process = NCrystal_process(
+ cfg = "gs20_95Li6_2p5gcm3.ncmat")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT NCrystal_GS20 = Union_make_material(
+ process_string = "NCrystal_GS20_ncrystal_process", my_absorption = 1463.28765716054)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT detector_tile_centre_position = Arm()
+AT (0.0, 0.0, 2.0) RELATIVE sample_position
+
+COMPONENT GS20 = Union_box(
+ material_string = "NCrystal_GS20", priority = 2000.0,
+ xwidth = 0.05, yheight = 0.05,
+ zdepth = 0.001)
+AT (0.02625, 0.02625, 0.0005) RELATIVE detector_tile_centre_position
+
+COMPONENT abs_logger_nD_scintillator = Union_abs_logger_nD_scintillator(
+ target_geometry = "GS20", xwidth = 0.05,
+ yheight = 0.05, options = "square x limits=[-0.024,0.024] bins=8 y limits=[-0.024,0.024] bins=8",
+ filename = "abs_logger_nD_scintillator", is_high_resolution = 0)
+AT (0.02625, 0.02625, 0) RELATIVE detector_tile_centre_position
+
+COMPONENT GS20_con = Union_box(
+ material_string = "NCrystal_GS20", priority = 2000.1,
+ xwidth = 0.05, yheight = 0.05,
+ zdepth = 0.001)
+AT (-0.02625, 0.02625, 0.0005) RELATIVE detector_tile_centre_position
+
+COMPONENT abs_logger_nD_scintillator_con = Union_abs_logger_nD_scintillator(
+ target_geometry = "GS20_con", xwidth = 0.05,
+ yheight = 0.05, options = "square x limits=[-0.024,0.024] bins=8 y limits=[-0.024,0.024] bins=8",
+ filename = "abs_logger_nD_scintillator_con", is_high_resolution = 0)
+AT (-0.02625, 0.02625, 0) RELATIVE detector_tile_centre_position
+
+COMPONENT GS20_high_resolution = Union_box(
+ material_string = "NCrystal_GS20", priority = 2000.2,
+ xwidth = 0.05, yheight = 0.05,
+ zdepth = 0.001)
+AT (0.02625, -0.02625, 0.0005) RELATIVE detector_tile_centre_position
+
+COMPONENT abs_logger_nD_scintillator_high_resolution = Union_abs_logger_nD_scintillator(
+ target_geometry = "GS20_high_resolution", xwidth = 0.05,
+ yheight = 0.05, options = "square x limits=[-0.024,0.024] bins=16 y limits=[-0.024,0.024] bins=16",
+ filename = "abs_logger_nD_scintillator_high_resolution", is_high_resolution = 1)
+AT (0.02625, -0.02625, 0) RELATIVE detector_tile_centre_position
+
+COMPONENT GS20_list = Union_box(
+ material_string = "NCrystal_GS20", priority = 2000.3,
+ xwidth = 0.05, yheight = 0.05,
+ zdepth = 0.001)
+AT (-0.02625, -0.02625, 0.0005) RELATIVE detector_tile_centre_position
+
+COMPONENT abs_logger_nD_scintillator_list = Union_abs_logger_nD_scintillator(
+ target_geometry = "GS20_list", xwidth = 0.05,
+ yheight = 0.05, options = "mantid square x limits=[-0.024,0.024] bins=8 y limits=[-0.024,0.024] bins=8, neutron pixel min=0 t, list all neutrons",
+ filename = "abs_logger_nD_scintillator_list", is_high_resolution = 0)
+AT (-0.02625, -0.02625, 0) RELATIVE detector_tile_centre_position
+
+// Energy window wide enough to always evaluate true, so that the
+// record_to_temp path of the attached logger is exercised without changing
+// which events it records
+COMPONENT conditional = Union_conditional_standard(
+ E_min = 0, E_max = 1e6,
+ target_loggers = "abs_logger_nD_scintillator_con")
+AT (0, 0, 0) RELATIVE detector_tile_centre_position
+
+// Master at odd position and rotation to ensure that does not impact results
+COMPONENT master = Union_master()
+AT (3, 0, -1) RELATIVE detector_tile_centre_position
+ROTATED (20, -5, 8) RELATIVE detector_tile_centre_position
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+FINALLY
+%{
+%}
+
+END
