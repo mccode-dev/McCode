@@ -125,7 +125,10 @@ INITIALIZE
 
   snprintf (filenamefoo, sizeof filenamefoo, "test%i.txt", (int)iproc);
 
-  mcset_ncount (ncount* nprocs);
+  if (!mcdotrace){
+    mcset_ncount (ncount* nprocs);
+  }
+
   if (nskip && !mcpl_seek (kdsource->plist->file, nskip)) {
     fprintf (stderr, "ERROR(%s): Could not seek ahead in MCPL file.\n", NAME_CURRENT_COMP);
     exit (-1);
@@ -137,7 +140,7 @@ TRACE
   double nrm;
   mcpl_particle_t part;
   KDS_rand_sample2 (_rand01_opague, (void*)_particle->randstate, kdsource, &part, 1, -1.0, NULL, 1);
-
+  
   #ifdef USE_MPI
   const uint64_t iproc = (uint64_t)mpi_node_rank;
   #else
