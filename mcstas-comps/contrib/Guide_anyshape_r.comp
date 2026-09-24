@@ -87,24 +87,29 @@ DEPENDENCY " -DUSE_OFF "
 SHARE
 %{
 %include "read_table-lib"
-%include "r-interoff-lib"
+%include "interoff-lib"
 %include "ref-lib"
 %}
 
 DECLARE
 %{
-  r_off_struct offdata;
+  off_struct offdata;
   int use_file_coatings; // Flag to specify whether to use (1) or not (0) the mirror parameters given in the .OFF file
 %}
 
 INITIALIZE
 %{
   /* initialize OFF object from the file(s) */
-  if (!r_off_init (geometry, xwidth, yheight, zdepth, !center, &offdata))
+  if (!off_init (geometry, xwidth, yheight, zdepth, !center, &offdata))
     exit (-1);
 
   if (m == 0 && alpha == 0 && W == 0) {
     use_file_coatings = 1;
+    if (offdata.nfaceprops < 3) {
+      fprintf (stderr, "Guide_anyshape_r: %s: Error: m, alpha, W are all 0, but %s does not define m, alpha and W values for each face.\n",
+               NAME_CURRENT_COMP, geometry);
+      exit (-1);
+    }
     printf ("Guide_anyshape_r: %s: All of m, alpha, W assigned 0: \n - We are using H. Jacobsen reflectivity model if m-values are given in %s\n",
             NAME_CURRENT_COMP, geometry);
   } else {
@@ -120,7 +125,7 @@ TRACE
   int counter = 0;
   /* main loop for multiple reflections */
   #ifdef OPENACC
-  r_off_struct thread_offdata = offdata;
+  off_struct thread_offdata = offdata;
   #else
   #define thread_offdata offdata
   #endif
@@ -137,7 +142,7 @@ TRACE
       coords_get (locgrav, &mc_gx, &mc_gy, &mc_gz);
     }
 
-    intersect = r_off_intersect (&t0, &t3, &n0, &n3, &faceindex0, &faceindex3, x, y, z, vx, vy, vz, mc_gx, mc_gy, mc_gz, thread_offdata);
+    intersect = off_intersect_idx (&t0, &t3, &n0, &n3, &faceindex0, &faceindex3, x, y, z, vx, vy, vz, mc_gx, mc_gy, mc_gz, thread_offdata);
 
     /* get the smallest positive */
     if (t0 > 0) {
@@ -173,9 +178,9 @@ TRACE
     double W_value = W;
 
     if (use_file_coatings == 1) {
-      m_value = offdata.face_m_Array[fi];
-      alpha_value = offdata.face_alpha_Array[fi];
-      W_value = offdata.face_W_Array[fi];
+      m_value = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_M, 0);
+      alpha_value = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_ALPHA, 0);
+      W_value = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_W, 0);
     }
     double par[] = { R0, Qc, alpha_value, m_value, W_value };
     StdReflecFunc (q, par, &R);
@@ -217,7 +222,7 @@ TRACE
 MCDISPLAY
 %{
   /* display the object */
-  r_off_display (offdata);
+  off_display (offdata);
 %}
 
 END
