@@ -1494,6 +1494,10 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         if (i >= 0 && i < Vars->Coord_Bin[1] && j >= 0 && j < Vars->Coord_Bin[2])
         {
           if (Vars->Mon2D_N) {
+	    /* Temporary workaround for the NVC OpenACC ICE (NVIDIA TPR#39009):
+	       use local pointer aliases for atomic writes through struct members.
+	       Once fixed upstream, remove these aliases and restore the original
+	       Vars->... atomic expressions. */
 	    double *Mon2D_N = Vars->Mon2D_N[i];
 	    double *Mon2D_p = Vars->Mon2D_p[i];
 	    double *Mon2D_p2 = Vars->Mon2D_p2[i];
