@@ -90,22 +90,23 @@ def find_title(master_fn):
         text = text[:half].strip().rstrip(',')
     return text
 
-LOGO_FILENAMES = {"DTU_logo.png", "DTU_logo", "DTU_logo-.png", "DTU_logo-",
-                  "mcstas_logo_reflection.png", "mcstas_logo_reflection",
-                  "mcxtrace_logo", "mcxtrace_logo.png"}
-
 def mark_content_figures(content):
     """Tag every <img> tag with class="mccode-content-figure", except the
-    known front-page logos (matched by filename, so this works regardless
-    of which page an image appears on) -- lets CSS grow content figures
-    without also blowing up the small, intentionally-sized logos."""
+    known front-page logos -- lets CSS grow content figures without also
+    blowing up the small, intentionally-sized logos. Matched by whether
+    the filename *contains* "logo" (case-insensitive) rather than an
+    exact-name lookup: tex4ht's PDF/EPS-to-image conversion can append an
+    unpredictable suffix (a numeric index, "-eps-converted-to", etc.), so
+    an exact-match list is too fragile -- every logo file in this project
+    (DTU_logo*, mcstas_logo*, mcxtrace_logo*) has "logo" in its name,
+    converted or not."""
     def replacer(m):
         img_tag = m.group(0)
         src_match = re.search(r'src="([^"]+)"', img_tag)
         if not src_match:
             return img_tag
         basename = src_match.group(1).rsplit('/', 1)[-1]
-        if basename in LOGO_FILENAMES:
+        if 'logo' in basename.lower():
             return img_tag
         if 'class="' in img_tag:
             return re.sub(r'class="', 'class="mccode-content-figure ', img_tag, count=1)
