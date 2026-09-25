@@ -1598,7 +1598,7 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         double *Mon2D_Buffer = Vars->Mon2D_Buffer;
         for (i = 0; i <= Vars->Coord_Number; i++)
         {
-	  // This is is where the list is appended. How to make this "atomic"?
+          // This is is where the list is appended. How to make this "atomic"?
           #pragma acc atomic write 
           Mon2D_Buffer[i + Vars->Buffer_Counter*(Vars->Coord_Number+1)] = Coord[i];
         }
