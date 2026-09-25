@@ -1,28 +1,6 @@
-@REM Isn't windows a lovely place???
-@set WORKDIR=%cd%
+@REM Build the static webgl app directly next to this script - no per-user
+@REM folder, no copying.
 @set TOOLDIR=%~dp0
-@cd %USERPROFILE%\AppData
-@if not exist "@FLAVOR@\" mkdir @FLAVOR@
-@cd @FLAVOR@
-
-@echo off
-@REM if %1% is set it contains basename($CONDA_DEFAULT_ENV)
-@set VERSIONDIR=@MCCODE_VERSION@%1%
-
-@if not exist "%VERSIONDIR%" mkdir %VERSIONDIR%
-@cd %VERSIONDIR%
-@if not exist "webgl\" mkdir webgl
-@cd webgl
-@copy /Y %TOOLDIR%\*.tsx .
-@copy /Y %TOOLDIR%\*.css .
-@copy /Y %TOOLDIR%\index.html .
-@copy /Y %TOOLDIR%\*.js .
-@copy /Y %TOOLDIR%\package.json .
-@Xcopy %TOOLDIR%\Contexts\ Contexts /c /i /e /h /y
-@xcopy %TOOLDIR%\utils\ utils /c /i /e /h /y
-@xcopy %TOOLDIR%\data-utils\ data-utils /c /i /e /h /y
-@xcopy %TOOLDIR%\components\ components /c /i /e /h /y
+@cd %TOOLDIR%
 @call npm.cmd install
 @call npm.cmd run build
-@cd %WORKDIR%\
-
