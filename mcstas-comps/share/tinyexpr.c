@@ -26,6 +26,9 @@
 // OF THE MCSTAS SOFTWARE PACKAGE
 
 
+#ifndef TINYEXPR_C
+#define TINYEXPR_C
+
 /* COMPILE TIME OPTIONS */
 
 /* Exponentiation associativity:
@@ -750,3 +753,5 @@ static void pn (const te_expr *n, int depth) {
 void te_print(const te_expr *n) {
     pn(n, 0);
 }
+
+#endif /* TINYEXPR_C */

@@ -1,0 +1,408 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Peter Willendrup, port of the MCViNE kernel by Jiao Lin
+* Date: 24.09.2026
+* Origin: DTU Physics
+*
+* Coherent inelastic one-phonon scattering in a powder (polycrystal), using a phonon
+* dispersion (energies and polarization vectors) given on a grid in reciprocal space.
+*
+* %D
+* Port of the MCViNE kernel
+* mccomponents/lib/kernels/sample/phonon/CoherentInelastic_PolyXtal
+* (J.Y.Y. Lin et al., Caltech/ORNL) to a Union process.
+*
+* The scattering is the orientational average of the single crystal one-phonon
+* cross section of CoherentPhononSingleXtal_process,
+*   1/sigma_coh d2sigma/dOmega dEf = kf/ki sum_s < A_s(RQ) delta(|Ei-Ef| - omega_s(RQ)) >_R
+* where A_s contains the normalised one-phonon structure factor, 1/|omega|,
+* the Debye-Waller and the Bose factor. Dispersion data (MCViNE IDF directory)
+* and crystal structure (xyz file) are given exactly as for
+* CoherentPhononSingleXtal_process, see that component for the file formats.
+*
+* Two sampling methods are available:
+*
+* method=0 (as MCViNE): a phonon branch and a phonon wave vector q (uniformly in a
+*   sphere of radius Qmax = ki + k(Ei+Emax)) are picked. The phonon energy fixes Ef
+*   (energy loss or gain), |q| fixes the scattering angle and the azimuthal angle is
+*   random. Union focusing is not used. Samples that are kinematically impossible
+*   are absorbed (weight 0) and the weight contains the exact sampled volume.
+*   MCViNE instead retries until a valid q is found and uses an approximate
+*   "accessible reciprocal volume", which only approximately normalises the result.
+* method=1 (focusing): the final direction is picked using the Union focusing of the
+*   geometry, a branch and an orientation (direction of q in the crystal) are picked
+*   at random and the final speed is found by root finding as in
+*   CoherentPhononSingleXtal_process. Use this with focusing onto detectors.
+*
+* Both methods give the same result (without focusing), method=0 is faster for 4pi
+* scattering, method=1 is much more efficient when focusing on a small detector.
+*
+* Note on combining processes: as in MCViNE, the inverse penetration depth of this
+* process is the full cross section sigma/V_uc, and the kernel physics is carried by
+* the weight. When several processes describing parts of the same cross section are
+* combined in one material, e.g.
+*   Powder_process + CoherentPhononPowder_process,
+* their attenuations add up, so the attenuation is overestimated for thick samples.
+* Single scattering intensities are not affected.
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+* defined before the master, but after the previous will be simulated here.
+*
+* Absorption is not handled by this process, set it in Union_make_material.
+*
+* Example: CoherentPhononPowder_process(dispersion_dir="fccNi-phonons",
+*            xyz_file="Ni.xyz", T=300, method=1)
+*
+* %P
+* INPUT PARAMETERS:
+* dispersion_dir:     [string]  Directory with the IDF dispersion files (Qgridinfo, Omega2, Polarizations, DOS)
+* xyz_file:           [string]  xyz file with lattice vectors and atoms (fractional coordinates) of the unit cell
+* b_coh:              [fm]      Coherent scattering length used for atoms without explicit value in xyz_file
+* mass:               [amu]     Atomic mass used for atoms without explicit value in xyz_file
+* T:                  [K]       Temperature
+* DW_core:            [AA^2]    Debye-Waller core, 2W = DW_core*Q^2. Negative: calculate from the DOS file in dispersion_dir
+* DOS_file:           [string]  Optional DOS file (IDF format) overriding dispersion_dir/DOS
+* method:             [1]       0: MCViNE sampling of q (no focusing), 1: focusing + root finding
+* min_omega:          [meV]     Phonons with energy below min_omega are ignored (singular 1/omega near Gamma)
+* packing_factor:     [1]       How dense is the material compared to optimal 0-1
+* branch_Emin_factor: [1]       If positive, only branches with minimum energy below branch_Emin_factor*Ei are sampled
+* root_nsteps:        [1]       method=1: Number of intervals in which roots of omega(Q)-dE are searched for
+* root_xacc:          [m/s]     method=1: Accuracy of the final neutron speed from the root finder
+* deltaV_Jacobi:      [1]       method=1: Relative velocity step used for the numerical Jacobian
+* interact_fraction:  [1]       How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:               [string]  Name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+* CPP_storage:        Storage struct transferred to Union_master
+*
+* %L
+* MCViNE: <a href="https://github.com/mcvine/mcvine">https://github.com/mcvine/mcvine</a>
+* %L
+* J.Y.Y. Lin et al., Nucl. Instrum. Methods A 810 (2016) 86
+* %L
+* G.L. Squires, Introduction to the Theory of Thermal Neutron Scattering, ch. 3
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT CoherentPhononPowder_process
+
+SETTING PARAMETERS(string dispersion_dir="", string xyz_file="", double b_coh=-1, double mass=-1,
+                   double T=300, double DW_core=-1, string DOS_file="", int method=1, double min_omega=0.01,
+                   double packing_factor=1, double branch_Emin_factor=-1, int root_nsteps=100, double root_xacc=0.1,
+                   double deltaV_Jacobi=0.001, double interact_fraction=-1, string init="init")
+
+SHARE
+%{
+  #ifndef Union
+  #error "The Union_init component must be included before this CoherentPhononPowder_process component"
+  #endif
+
+  %include "read_table-lib"
+  %include "phonon-dispersion-lib"
+
+  // Very important to add a pointer to this struct in the union-lib.c file
+  struct CoherentPhononPowder_physics_storage_struct {
+    struct phdisp_struct disp; // dispersion and unit cell
+    // physics
+    double Temp;
+    double dw_core;
+    double my_scattering;
+    double w_min;
+    // numerics
+    int meth;
+    double emin_factor;
+    int nsteps;
+    double xacc;
+    double deltaV;
+    int* good_branches; // work array
+    double* roots;      // work array
+  };
+
+  // Inverse penetration depth: constant sum(sigma_coh)/V_uc as in MCViNE
+  int
+  CoherentPhononPowder_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
+                                   _class_particle* _particle) {
+    *my = data_transfer.pointer_to_a_CoherentPhononPowder_physics_storage_struct->my_scattering;
+    return 1;
+  }
+
+  // A_s(Q) = ksquare2E(normalised |F|^2)/|omega| * DW * Bose, Q in the crystal frame
+  double
+  cpp_A (struct CoherentPhononPowder_physics_storage_struct* s, int branch, double* Q, double omega) {
+    double Q2 = Q[0] * Q[0] + Q[1] * Q[1] + Q[2] * Q[2];
+    double norm_of_slsum = phdisp_structure_factor (&s->disp, branch, Q);
+    return VS2E * K2V * K2V * norm_of_slsum / fabs (omega) * exp (-s->dw_core * Q2) * phdisp_bose (omega, s->Temp);
+  }
+
+  int
+  CoherentPhononPowder_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
+                                           struct focus_data_struct* focus_data, _class_particle* _particle) {
+    struct CoherentPhononPowder_physics_storage_struct* s = data_transfer.pointer_to_a_CoherentPhononPowder_physics_storage_struct;
+    int d, br, ngood = 0, index;
+    double vi[3], vi_l, Ei, ki;
+
+    for (d = 0; d < 3; d++)
+      vi[d] = K2V * k_initial[d];
+    vi_l = sqrt (vi[0] * vi[0] + vi[1] * vi[1] + vi[2] * vi[2]);
+    Ei = VS2E * vi_l * vi_l;
+    ki = V2K * vi_l;
+
+    // branches to sample
+    for (br = 0; br < s->disp.n_branches; br++)
+      if (s->emin_factor <= 0 || s->disp.Emin[br] < Ei * s->emin_factor)
+        s->good_branches[ngood++] = br;
+    if (ngood == 0)
+      return 0;
+    index = (int)floor (rand01 () * ngood);
+    if (index >= ngood)
+      index = ngood - 1;
+    br = s->good_branches[index];
+
+    if (s->meth == 0) {
+      // --- MCViNE CoherentInelastic_PolyXtal: sample q uniformly in a sphere ---
+      double Qmax = ki + V2K * sqrt ((Ei + s->disp.Emax_all) / VS2E);
+      double q[3], ql, omega, Ef, vf_l, vQ, nsign = 1;
+      do {
+        q[0] = randpm1 ();
+        q[1] = randpm1 ();
+        q[2] = randpm1 ();
+      } while (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] > 1);
+      for (d = 0; d < 3; d++)
+        q[d] *= Qmax;
+      ql = sqrt (q[0] * q[0] + q[1] * q[1] + q[2] * q[2]);
+      double pw = phdisp_energy (&s->disp, br, q);
+      if (pw < s->w_min)
+        return 0;
+      // energy loss or gain (pick_Ef)
+      if (pw < Ei) {
+        nsign = 2;
+        Ef = rand01 () >= 0.5 ? Ei + pw : Ei - pw;
+      } else
+        Ef = Ei + pw;
+      omega = Ei - Ef;
+      vf_l = sqrt (Ef / VS2E);
+      vQ = K2V * ql;
+      if (vQ < fabs (vi_l - vf_l) || vQ > vi_l + vf_l)
+        return 0;
+      // final direction: angle to ki from |q|, random azimuth (pick_v_f)
+      double cos_theta = (vi_l * vi_l + vf_l * vf_l - vQ * vQ) / (2 * vi_l * vf_l);
+      if (cos_theta > 1)
+        cos_theta = 1;
+      if (cos_theta < -1)
+        cos_theta = -1;
+      double sin_theta = sqrt (1 - cos_theta * cos_theta), phi = 2 * PI * rand01 ();
+      double e1[3] = { vi[0] / vi_l, vi[1] / vi_l, vi[2] / vi_l }, e2[3], e3[3], n;
+      if (fabs (e1[0]) > 1e-10 || fabs (e1[1]) > 1e-10) { // e2 = z x e1
+        e2[0] = -e1[1];
+        e2[1] = e1[0];
+        e2[2] = 0;
+      } else {
+        e2[0] = 1;
+        e2[1] = 0;
+        e2[2] = 0;
+      }
+      n = sqrt (e2[0] * e2[0] + e2[1] * e2[1] + e2[2] * e2[2]);
+      for (d = 0; d < 3; d++)
+        e2[d] /= n;
+      e3[0] = e1[1] * e2[2] - e1[2] * e2[1];
+      e3[1] = e1[2] * e2[0] - e1[0] * e2[2];
+      e3[2] = e1[0] * e2[1] - e1[1] * e2[0];
+      for (d = 0; d < 3; d++)
+        k_final[d] = V2K * vf_l * (sin_theta * cos (phi) * e2[d] + sin_theta * sin (phi) * e3[d] + cos_theta * e1[d]);
+      // weight: V_sphere * n_branches * n_sign * A / (2 ki^2 |q|)
+      double Vs = 4.0 / 3.0 * PI * Qmax * Qmax * Qmax;
+      *weight *= Vs * ngood * nsign * cpp_A (s, br, q, omega) / (2 * ki * ki * ql);
+      return 1;
+    }
+
+    // --- method 1: focused final direction, random crystal orientation, root finding ---
+    struct phdisp_omega_ctx ctx;
+    double solid_angle, u, cth, sth, ph;
+    Coords dir;
+    int nf;
+
+    ctx.s = &s->disp;
+    ctx.branch = br;
+    ctx.powder = 1;
+    ctx.vi_l = vi_l;
+    for (d = 0; d < 3; d++)
+      ctx.vi[d] = vi[d];
+    focus_data->focusing_function (&dir, &solid_angle, focus_data);
+    NORM (dir.x, dir.y, dir.z);
+    ctx.vf_dir[0] = dir.x;
+    ctx.vf_dir[1] = dir.y;
+    ctx.vf_dir[2] = dir.z;
+    // direction of Q in the crystal, uniform on the unit sphere (orientational average)
+    u = randpm1 ();
+    cth = u;
+    sth = sqrt (1 - u * u);
+    ph = 2 * PI * rand01 ();
+    ctx.qhat[0] = sth * cos (ph);
+    ctx.qhat[1] = sth * sin (ph);
+    ctx.qhat[2] = cth;
+
+    nf = phdisp_find_roots (&ctx, 0, 2 * vi_l, s->nsteps, s->xacc, s->roots);
+    if (nf < 1)
+      return 0;
+    index = (int)floor (rand01 () * nf);
+    if (index >= nf)
+      index = nf - 1;
+    double vf_l = s->roots[index];
+    if (vf_l <= 0)
+      return 0;
+    double delta_v = s->deltaV * vi_l;
+    double f1 = phdisp_omega_minus_dE (vf_l - delta_v, &ctx);
+    double f2 = phdisp_omega_minus_dE (vf_l + delta_v, &ctx);
+    double Jacobi = fabs (f2 - f1) / (2 * delta_v);
+    if (Jacobi <= 0)
+      return 0;
+    double omega = Ei - VS2E * vf_l * vf_l;
+    if (fabs (omega) < s->w_min)
+      return 0;
+    double Q[3], ql = 0;
+    for (d = 0; d < 3; d++) {
+      k_final[d] = V2K * vf_l * ctx.vf_dir[d];
+      ql += (k_initial[d] - k_final[d]) * (k_initial[d] - k_final[d]);
+    }
+    ql = sqrt (ql);
+    for (d = 0; d < 3; d++)
+      Q[d] = ql * ctx.qhat[d];
+    *weight *= solid_angle * ngood * nf * (2 * VS2E * vf_l / Jacobi) * cpp_A (s, br, Q, omega) * vf_l / vi_l;
+    return 1;
+  }
+
+  // These lines help with future error correction, and tell other Union components
+  //  that at least one process have been defined.
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+
+  #ifndef PROCESS_COHERENTPHONONPOWDER_DETECTOR
+  #define PROCESS_COHERENTPHONONPOWDER_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  struct CoherentPhononPowder_physics_storage_struct CPP_storage;
+
+  // Needed for transport to the main component, will be the same for all processes
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+%}
+
+INITIALIZE
+%{
+  char who[512];
+  snprintf (who, 512, "CoherentPhononPowder_process:%s", NAME_CURRENT_COMP);
+
+  memset (&CPP_storage, 0, sizeof (CPP_storage));
+
+  if (!strlen (dispersion_dir) || !strlen (xyz_file)) {
+    fprintf (stderr, "%s: ERROR: dispersion_dir and xyz_file must be given\n", who);
+    exit (-1);
+  }
+  if (T <= 0) {
+    fprintf (stderr, "%s: ERROR: T must be positive\n", who);
+    exit (-1);
+  }
+  if (method != 0 && method != 1) {
+    fprintf (stderr, "%s: ERROR: method must be 0 or 1\n", who);
+    exit (-1);
+  }
+  if (root_nsteps < 1 || root_xacc <= 0 || deltaV_Jacobi <= 0) {
+    fprintf (stderr, "%s: ERROR: root_nsteps, root_xacc and deltaV_Jacobi must be positive\n", who);
+    exit (-1);
+  }
+
+  phdisp_read_dispersion (dispersion_dir, &CPP_storage.disp, who);
+  phdisp_read_xyz (xyz_file, b_coh, mass, &CPP_storage.disp, who);
+  phdisp_cell_sums (&CPP_storage.disp);
+  if (CPP_storage.disp.sigma_coh <= 0) {
+    fprintf (stderr, "%s: ERROR: total coherent cross section is zero\n", who);
+    exit (-1);
+  }
+
+  CPP_storage.Temp = T;
+  if (DW_core >= 0)
+    CPP_storage.dw_core = DW_core;
+  else if (strlen (DOS_file))
+    CPP_storage.dw_core = phdisp_dw_core_from_dos (NULL, DOS_file, CPP_storage.disp.avg_mass, T, who);
+  else
+    CPP_storage.dw_core = phdisp_dw_core_from_dos (dispersion_dir, "DOS", CPP_storage.disp.avg_mass, T, who);
+
+  CPP_storage.my_scattering = packing_factor * CPP_storage.disp.sigma_coh / CPP_storage.disp.uc_vol * 100; // barn/AA^3 -> 1/m
+  CPP_storage.w_min = min_omega;
+  CPP_storage.meth = method;
+  CPP_storage.emin_factor = branch_Emin_factor;
+  CPP_storage.nsteps = root_nsteps;
+  CPP_storage.xacc = root_xacc;
+  CPP_storage.deltaV = deltaV_Jacobi;
+  CPP_storage.good_branches = malloc (CPP_storage.disp.n_branches * sizeof (int));
+  CPP_storage.roots = malloc ((root_nsteps + 1) * sizeof (double));
+
+  MPI_MASTER (printf ("%s: %d atoms, %d branches, %dx%dx%d grid, Emax=%g meV, V_uc=%g AA^3, sigma_coh=%g barn, DW_core=%g AA^2, my_scattering=%g 1/m, method=%d\n",
+                      who, CPP_storage.disp.n_atoms, CPP_storage.disp.n_branches, CPP_storage.disp.n[0], CPP_storage.disp.n[1], CPP_storage.disp.n[2],
+                      CPP_storage.disp.Emax_all, CPP_storage.disp.uc_vol, CPP_storage.disp.sigma_coh, CPP_storage.dw_core, CPP_storage.my_scattering,
+                      method););
+
+  // First initialise This_process with default values:
+  scattering_process_struct_init (&This_process);
+
+  // Isotropic process (powder)
+  This_process.non_isotropic_rot_index = -1;
+  // Cross section does not depend on the focusing
+  This_process.needs_cross_section_focus = -1;
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = CoherentPhononPowder;
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_CoherentPhononPowder_physics_storage_struct = &CPP_storage;
+  This_process.probability_for_scattering_function = &CoherentPhononPowder_physics_my;
+  This_process.scattering_function = &CoherentPhononPowder_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+  sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index (init) < 0) {
+    fprintf (stderr, "%s: Error identifying Union_init component, %s is not a known component name.\n", who, init);
+    exit (-1);
+  }
+
+  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  add_element_to_process_list (global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+  // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  phdisp_free (&CPP_storage.disp);
+  free (CPP_storage.good_branches);
+  free (CPP_storage.roots);
+%}
+
+END

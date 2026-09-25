@@ -1,0 +1,459 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Peter Willendrup, port of the MCViNE kernels by Jiao Lin
+* Date: 24.09.2026
+* Origin: DTU Physics
+*
+* Elastic scattering from a structure factor S(|Q|) (isotropic) or S(Q) (single crystal diffuse)
+*
+* %D
+* Port of the MCViNE kernels mccomponents/lib/kernels/sample/SQkernel (with GridSQ and
+* SQ_fromexpression) and SvQkernel (with GridSvQ and SvQ_fromexpression)
+* (J.Y.Y. Lin et al., Caltech/ORNL) to a Union process.
+*
+* Elastic scattering with
+*   1/sigma dsigma/dOmega = S(Q) / (4 pi)
+* where Q = ki-kf. With crystal=0, S depends on |Q| only (liquids, glasses, powders,
+* e.g. a measured structure factor). With crystal=1, S depends on the Q vector in the
+* local coordinate system of the process, which can be rotated to orient the crystal
+* (e.g. diffuse scattering of a single crystal).
+*
+* S is given either as an expression (tinyexpr syntax) in the variables
+*   Q [AA^-1], Qx, Qy, Qz [AA^-1], h, k, l [rlu, h = a.Q/(2 pi)] and p1..p4
+* or as a table in SQ_file:
+*   crystal=0: two columns "Q S" (Q ascending), linearly interpolated,
+*   crystal=1: four columns "x y z S" on a regular 3D grid (any order), trilinearly
+*              interpolated, with x y z = Qx Qy Qz [AA^-1] or, with grid_hkl=1, h k l.
+* S is zero outside the tabulated range.
+*
+* The final direction is sampled with the Union focusing of the geometry. For crystal=0,
+* method=0 samples Q uniformly in [Qmin, min(Qmax, 2ki)] instead (as MCViNE, no focusing),
+* which is more efficient for a structure factor with sharp features.
+* The inverse penetration depth is sigma/unit_cell_volume.
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+* defined before the master, but after the previous will be simulated here.
+*
+* Absorption is not handled by this process, set it in Union_make_material.
+*
+* %P
+* INPUT PARAMETERS:
+* SQ_file:           [string]  Table of S: "Q S" (crystal=0) or "x y z S" (crystal=1)
+* SQ_expr:           [string]  Expression for S, used when no SQ_file is given
+* crystal:           [1]       0: S(|Q|), isotropic; 1: S(Q vector), single crystal
+* grid_hkl:          [1]       crystal=1: 1 if the grid in SQ_file is given in h k l instead of Qx Qy Qz
+* sigma:             [barns]   Scattering cross section of the unit cell, defines the inverse penetration depth
+* unit_cell_volume:  [AA^3]    Unit cell volume
+* Qmin:              [AA^-1]   Minimum |Q|
+* Qmax:              [AA^-1]   Maximum |Q|
+* method:            [1]       crystal=0: 0 MCViNE sampling in Q (no focusing), 1 focusing
+* ax:                [AA]      First lattice vector, x coordinate (used for h)
+* ay:                [AA]      First lattice vector, y coordinate
+* az:                [AA]      First lattice vector, z coordinate
+* bx:                [AA]      Second lattice vector, x coordinate (used for k)
+* by:                [AA]      Second lattice vector, y coordinate
+* bz:                [AA]      Second lattice vector, z coordinate
+* cx:                [AA]      Third lattice vector, x coordinate (used for l)
+* cy:                [AA]      Third lattice vector, y coordinate
+* cz:                [AA]      Third lattice vector, z coordinate
+* p1:                [1]       Free parameter available in SQ_expr
+* p2:                [1]       Free parameter available in SQ_expr
+* p3:                [1]       Free parameter available in SQ_expr
+* p4:                [1]       Free parameter available in SQ_expr
+* packing_factor:    [1]       How dense is the material compared to optimal 0-1
+* interact_fraction: [1]       How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:              [string]  Name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+* ESQ_storage:       Storage struct transferred to Union_master
+*
+* %L
+* MCViNE: <a href="https://github.com/mcvine/mcvine">https://github.com/mcvine/mcvine</a>
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT ElasticSQ_process
+
+SETTING PARAMETERS(string SQ_file="", string SQ_expr="", int crystal=0, int grid_hkl=0, double sigma=1, double unit_cell_volume=1,
+                   double Qmin=0, double Qmax=100, int method=1,
+                   double ax=6.283185307179586, double ay=0, double az=0, double bx=0, double by=6.283185307179586, double bz=0,
+                   double cx=0, double cy=0, double cz=6.283185307179586, double p1=0, double p2=0, double p3=0, double p4=0,
+                   double packing_factor=1, double interact_fraction=-1, string init="init")
+
+SHARE
+%{
+  #ifndef Union
+  #error "The Union_init component must be included before this ElasticSQ_process component"
+  #endif
+
+  %include "read_table-lib"
+  %include "tinyexpr.h"
+  %include "tinyexpr.c"
+
+  #ifndef ELASTICSQ_SHARE
+  #define ELASTICSQ_SHARE
+  struct esq_vars {
+    double Qx, Qy, Qz, Q, h, k, l, p[4];
+  };
+  #endif
+
+  // Very important to add a pointer to this struct in the union-lib.c file
+  struct ElasticSQ_physics_storage_struct {
+    struct esq_vars v;
+    te_expr* expr;
+    int use_expr, cryst, hkl_grid, meth;
+    double a[3][3];
+    double qmin, qmax, my_scattering;
+    // 1D table
+    int n1;
+    double *tq, *tS;
+    // 3D grid
+    int n[3];
+    double *gax[3], *gS; // axis values and S[(i*n1+j)*n2+k]
+  };
+
+  // index i with a[i] <= x <= a[i+1], -1 if outside
+  int
+  esq_locate (double* a, int n, double x) {
+    int lo = 0, hi = n - 1;
+    if (n < 2 || x < a[0] || x > a[n - 1])
+      return -1;
+    while (hi - lo > 1) {
+      int mid = (lo + hi) / 2;
+      if (a[mid] <= x)
+        lo = mid;
+      else
+        hi = mid;
+    }
+    return lo;
+  }
+
+  double
+  esq_S (struct ElasticSQ_physics_storage_struct* s, double* Q) {
+    struct esq_vars* v = &s->v;
+    v->Qx = Q[0];
+    v->Qy = Q[1];
+    v->Qz = Q[2];
+    v->Q = sqrt (Q[0] * Q[0] + Q[1] * Q[1] + Q[2] * Q[2]);
+    if (v->Q < s->qmin || v->Q > s->qmax)
+      return 0;
+    v->h = (s->a[0][0] * Q[0] + s->a[0][1] * Q[1] + s->a[0][2] * Q[2]) / (2 * PI);
+    v->k = (s->a[1][0] * Q[0] + s->a[1][1] * Q[1] + s->a[1][2] * Q[2]) / (2 * PI);
+    v->l = (s->a[2][0] * Q[0] + s->a[2][1] * Q[1] + s->a[2][2] * Q[2]) / (2 * PI);
+    if (s->use_expr)
+      return te_eval (s->expr);
+    if (!s->cryst) {
+      int i = esq_locate (s->tq, s->n1, v->Q);
+      if (i < 0)
+        return 0;
+      double t = (v->Q - s->tq[i]) / (s->tq[i + 1] - s->tq[i]);
+      return (1 - t) * s->tS[i] + t * s->tS[i + 1];
+    }
+    double x[3] = { v->Qx, v->Qy, v->Qz }, r[3];
+    int i0[3], d, dx, dy, dz;
+    if (s->hkl_grid) {
+      x[0] = v->h;
+      x[1] = v->k;
+      x[2] = v->l;
+    }
+    for (d = 0; d < 3; d++) {
+      i0[d] = esq_locate (s->gax[d], s->n[d], x[d]);
+      if (i0[d] < 0)
+        return 0;
+      r[d] = (x[d] - s->gax[d][i0[d]]) / (s->gax[d][i0[d] + 1] - s->gax[d][i0[d]]);
+    }
+    double res = 0;
+    for (dx = 0; dx < 2; dx++)
+      for (dy = 0; dy < 2; dy++)
+        for (dz = 0; dz < 2; dz++) {
+          double w = (dx ? r[0] : 1 - r[0]) * (dy ? r[1] : 1 - r[1]) * (dz ? r[2] : 1 - r[2]);
+          if (w > 0)
+            res += w * s->gS[((long)(i0[0] + dx) * s->n[1] + (i0[1] + dy)) * s->n[2] + (i0[2] + dz)];
+        }
+    return res;
+  }
+
+  int
+  esq_cmp (const void* a, const void* b) {
+    double x = *(const double*)a, y = *(const double*)b;
+    return x < y ? -1 : x > y;
+  }
+
+  // unique sorted values of column c (stride 4) of data
+  int
+  esq_axis (double* data, long nrows, int c, double** out) {
+    double* v = malloc (nrows * sizeof (double));
+    long i;
+    int n = 0;
+    for (i = 0; i < nrows; i++)
+      v[i] = data[4 * i + c];
+    qsort (v, nrows, sizeof (double), esq_cmp);
+    for (i = 0; i < nrows; i++)
+      if (n == 0 || fabs (v[i] - v[n - 1]) > 1e-9 * (fabs (v[i]) + 1))
+        v[n++] = v[i];
+    *out = v;
+    return n;
+  }
+
+  void
+  esq_read_file (struct ElasticSQ_physics_storage_struct* s, const char* file, const char* comp) {
+    FILE* fp = Open_File ((char*)file, "r", NULL);
+    char line[4096];
+    int ncol = s->cryst ? 4 : 2;
+    long nrows = 0, cap = 0, i;
+    double* data = NULL;
+    if (!fp) {
+      fprintf (stderr, "%s: ERROR: cannot open SQ_file %s\n", comp, file);
+      exit (-1);
+    }
+    while (fgets (line, sizeof (line), fp)) {
+      double x[4];
+      char* c = line;
+      while (*c == ' ' || *c == '\t')
+        c++;
+      if (*c == '#' || *c == '%')
+        continue;
+      if (sscanf (c, "%lf %lf %lf %lf", &x[0], &x[1], &x[2], &x[3]) < ncol)
+        continue;
+      if (nrows == cap) {
+        cap = cap ? 2 * cap : 1024;
+        data = realloc (data, cap * 4 * sizeof (double));
+      }
+      for (i = 0; i < 4; i++)
+        data[4 * nrows + i] = x[i];
+      nrows++;
+    }
+    fclose (fp);
+    if (!s->cryst) {
+      s->n1 = nrows;
+      s->tq = malloc (nrows * sizeof (double));
+      s->tS = malloc (nrows * sizeof (double));
+      for (i = 0; i < nrows; i++) {
+        s->tq[i] = data[4 * i];
+        s->tS[i] = data[4 * i + 1];
+        if (i && s->tq[i] <= s->tq[i - 1]) {
+          fprintf (stderr, "%s: ERROR: Q values in %s must be ascending\n", comp, file);
+          exit (-1);
+        }
+      }
+      if (nrows < 2) {
+        fprintf (stderr, "%s: ERROR: %s must contain at least 2 rows\n", comp, file);
+        exit (-1);
+      }
+    } else {
+      int d;
+      for (d = 0; d < 3; d++)
+        s->n[d] = esq_axis (data, nrows, d, &s->gax[d]);
+      if ((long)s->n[0] * s->n[1] * s->n[2] != nrows || s->n[0] < 2 || s->n[1] < 2 || s->n[2] < 2) {
+        fprintf (stderr, "%s: ERROR: %s is not a complete regular grid (%ld rows, %d x %d x %d axis values)\n", comp, file, nrows, s->n[0], s->n[1],
+                 s->n[2]);
+        exit (-1);
+      }
+      s->gS = calloc (nrows, sizeof (double));
+      for (i = 0; i < nrows; i++) {
+        int idx[3];
+        for (d = 0; d < 3; d++) {
+          // index of the axis value closest to this grid coordinate
+          double x = data[4 * i + d];
+          int j = esq_locate (s->gax[d], s->n[d], x);
+          if (j < 0)
+            j = 0;
+          idx[d] = (j + 1 < s->n[d] && fabs (s->gax[d][j + 1] - x) < fabs (s->gax[d][j] - x)) ? j + 1 : j;
+        }
+        s->gS[((long)idx[0] * s->n[1] + idx[1]) * s->n[2] + idx[2]] = data[4 * i + 3];
+      }
+    }
+    free (data);
+  }
+
+  int
+  ElasticSQ_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
+                        _class_particle* _particle) {
+    *my = data_transfer.pointer_to_a_ElasticSQ_physics_storage_struct->my_scattering;
+    return 1;
+  }
+
+  int
+  ElasticSQ_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
+                                struct focus_data_struct* focus_data, _class_particle* _particle) {
+    struct ElasticSQ_physics_storage_struct* s = data_transfer.pointer_to_a_ElasticSQ_physics_storage_struct;
+    double ki = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]), Q[3];
+    int d;
+
+    if (!s->cryst && s->meth == 0) {
+      // --- MCViNE SQkernel: Q uniform in [Qmin, min(Qmax, 2ki)], random azimuth ---
+      double Q1 = s->qmin, Q2 = s->qmax < 2 * ki ? s->qmax : 2 * ki;
+      if (Q2 <= Q1)
+        return 0;
+      double q = Q1 + rand01 () * (Q2 - Q1);
+      double cost = 1 - q * q / (2 * ki * ki), sint = sqrt (1 - cost * cost), phi = 2 * PI * rand01 ();
+      double e1[3] = { k_initial[0] / ki, k_initial[1] / ki, k_initial[2] / ki }, e2[3], e3[3], n;
+      if (fabs (e1[0]) > 1e-10 || fabs (e1[1]) > 1e-10) {
+        e2[0] = -e1[1];
+        e2[1] = e1[0];
+        e2[2] = 0;
+      } else {
+        e2[0] = 1;
+        e2[1] = 0;
+        e2[2] = 0;
+      }
+      n = sqrt (e2[0] * e2[0] + e2[1] * e2[1] + e2[2] * e2[2]);
+      for (d = 0; d < 3; d++)
+        e2[d] /= n;
+      e3[0] = e1[1] * e2[2] - e1[2] * e2[1];
+      e3[1] = e1[2] * e2[0] - e1[0] * e2[2];
+      e3[2] = e1[0] * e2[1] - e1[1] * e2[0];
+      for (d = 0; d < 3; d++) {
+        k_final[d] = ki * (sint * cos (phi) * e2[d] + sint * sin (phi) * e3[d] + cost * e1[d]);
+        Q[d] = k_initial[d] - k_final[d];
+      }
+      *weight *= esq_S (s, Q) * q * (Q2 - Q1) / (2 * ki * ki);
+      return 1;
+    }
+
+    // --- focusing (SvQkernel samples 4pi uniformly) ---
+    double solid_angle;
+    Coords dir;
+    focus_data->focusing_function (&dir, &solid_angle, focus_data);
+    NORM (dir.x, dir.y, dir.z);
+    k_final[0] = ki * dir.x;
+    k_final[1] = ki * dir.y;
+    k_final[2] = ki * dir.z;
+    for (d = 0; d < 3; d++)
+      Q[d] = k_initial[d] - k_final[d];
+    *weight *= solid_angle / (4 * PI) * esq_S (s, Q);
+    return 1;
+  }
+
+  // These lines help with future error correction, and tell other Union components
+  //  that at least one process have been defined.
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+
+  #ifndef PROCESS_ELASTICSQ_DETECTOR
+  #define PROCESS_ELASTICSQ_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  struct ElasticSQ_physics_storage_struct ESQ_storage;
+
+  // Needed for transport to the main component, will be the same for all processes
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+%}
+
+INITIALIZE
+%{
+  char who[512];
+  snprintf (who, 512, "ElasticSQ_process:%s", NAME_CURRENT_COMP);
+  memset (&ESQ_storage, 0, sizeof (ESQ_storage));
+
+  if (sigma <= 0 || unit_cell_volume <= 0 || Qmin < 0 || Qmax <= Qmin) {
+    fprintf (stderr, "%s: ERROR: need sigma > 0, unit_cell_volume > 0 and 0 <= Qmin < Qmax\n", who);
+    exit (-1);
+  }
+  ESQ_storage.cryst = crystal ? 1 : 0;
+  ESQ_storage.hkl_grid = grid_hkl ? 1 : 0;
+  ESQ_storage.meth = method;
+  ESQ_storage.qmin = Qmin;
+  ESQ_storage.qmax = Qmax;
+  ESQ_storage.a[0][0] = ax;
+  ESQ_storage.a[0][1] = ay;
+  ESQ_storage.a[0][2] = az;
+  ESQ_storage.a[1][0] = bx;
+  ESQ_storage.a[1][1] = by;
+  ESQ_storage.a[1][2] = bz;
+  ESQ_storage.a[2][0] = cx;
+  ESQ_storage.a[2][1] = cy;
+  ESQ_storage.a[2][2] = cz;
+  ESQ_storage.v.p[0] = p1;
+  ESQ_storage.v.p[1] = p2;
+  ESQ_storage.v.p[2] = p3;
+  ESQ_storage.v.p[3] = p4;
+  if (strlen (SQ_file) && strcmp (SQ_file, "NULL") && strcmp (SQ_file, "0"))
+    esq_read_file (&ESQ_storage, SQ_file, who);
+  else if (strlen (SQ_expr)) {
+    int err = 0;
+    struct esq_vars* v = &ESQ_storage.v;
+    te_variable vars[] = { { "Qx", &v->Qx }, { "Qy", &v->Qy }, { "Qz", &v->Qz }, { "Q", &v->Q },     { "h", &v->h },     { "k", &v->k },
+                           { "l", &v->l },   { "p1", &v->p[0] }, { "p2", &v->p[1] }, { "p3", &v->p[2] }, { "p4", &v->p[3] } };
+    ESQ_storage.expr = te_compile (SQ_expr, vars, 11, &err);
+    if (!ESQ_storage.expr) {
+      fprintf (stderr, "%s: ERROR: could not parse SQ_expr \"%s\" near character %d\n", who, SQ_expr, err);
+      exit (-1);
+    }
+    ESQ_storage.use_expr = 1;
+  } else {
+    fprintf (stderr, "%s: ERROR: SQ_file or SQ_expr must be given\n", who);
+    exit (-1);
+  }
+  ESQ_storage.my_scattering = packing_factor * sigma / unit_cell_volume * 100; // barn/AA^3 -> 1/m
+
+  // First initialise This_process with default values:
+  scattering_process_struct_init (&This_process);
+
+  // Single crystal has its own orientation, otherwise isotropic
+  This_process.non_isotropic_rot_index = crystal ? 1 : -1;
+  // Cross section does not depend on the focusing
+  This_process.needs_cross_section_focus = -1;
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = ElasticSQ;
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_ElasticSQ_physics_storage_struct = &ESQ_storage;
+  This_process.probability_for_scattering_function = &ElasticSQ_physics_my;
+  This_process.scattering_function = &ElasticSQ_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+  sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index (init) < 0) {
+    fprintf (stderr, "%s: Error identifying Union_init component, %s is not a known component name.\n", who, init);
+    exit (-1);
+  }
+
+  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  add_element_to_process_list (global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+  // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  int d;
+  if (ESQ_storage.use_expr)
+    te_free (ESQ_storage.expr);
+  free (ESQ_storage.tq);
+  free (ESQ_storage.tS);
+  free (ESQ_storage.gS);
+  for (d = 0; d < 3; d++)
+    free (ESQ_storage.gax[d]);
+%}
+
+END

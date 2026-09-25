@@ -1,0 +1,356 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Peter Willendrup, port of the MCViNE kernel by Jiao Lin
+* Date: 23.09.2026
+* Origin: DTU Physics
+*
+* Coherent inelastic one-phonon scattering in a single crystal, using a phonon
+* dispersion (energies and polarization vectors) given on a grid in reciprocal space.
+*
+* %D
+* Port of the MCViNE kernel
+* mccomponents/lib/kernels/sample/phonon/CoherentInelastic_SingleXtal
+* (J.Y.Y. Lin et al., Caltech/ORNL) to a Union process.
+*
+* The phonon dispersion is read from a directory in the MCViNE "IDF" format,
+* containing the files
+*   Qgridinfo      Text file defining b1, b2, b3 [AA^-1] (the reciprocal cell spanned
+*                  by the grid) and n1, n2, n3 (grid points along each of them).
+*                  Simple Python-like expressions are allowed, e.g.
+*                    import math
+*                    twopi = 2*math.pi
+*                    b = 0.284*twopi
+*                    b1 = (b, -b, b)
+*                    n1 = n2 = n3 = 21
+*   Omega2         Binary file with squared phonon angular frequencies [rad^2/s^2]
+*   Polarizations  Binary file with (complex) phonon polarization vectors
+*   DOS            Binary file with the phonon DOS (only needed when the Debye-Waller
+*                  factor is calculated from the DOS, i.e. when DW_core < 0)
+* The grid covers the fractional coordinates [0,1] (both ends included) along
+* b1, b2 and b3, and the dispersion is assumed periodic with that cell.
+*
+* The crystal structure is read from an MCViNE/diffpy style xyz file:
+*   line 1:  number of atoms in the unit cell
+*   line 2:  the 9 components of the lattice vectors a1 a2 a3 [AA]
+*   line 3+: Symbol x y z [b_coh mass]
+* with x y z being fractional coordinates. The optional columns give the coherent
+* scattering length [fm] and the mass [amu] of that atom. When they are left out,
+* the component parameters b_coh and mass are used. The order of the atoms must
+* match the atom index of the Polarizations file.
+*
+* Lattice vectors, reciprocal grid vectors and polarization vectors are all given
+* in the local coordinate system of this process component, which can be rotated
+* using ROTATED to orient the crystal.
+*
+* Algorithm (as in MCViNE):
+* The inverse penetration depth is the constant sum(sigma_coh)/V_uc. At each
+* scattering event a final direction is picked (respecting Union focusing), a
+* phonon branch is picked among those with a minimum energy below
+* branch_Emin_factor*Ei, and the final neutron speeds fulfilling both energy and
+* momentum conservation are found by root finding. One of them is picked at
+* random and the ray weight is multiplied by the one-phonon structure factor,
+* Jacobian, Debye-Waller factor and Bose factor. If no solution is found the
+* ray is absorbed (weight 0) which keeps the estimate unbiased; MCViNE instead
+* retries up to 100 times, which slightly overestimates the intensity.
+*
+* Note on combining processes: as in MCViNE, the inverse penetration depth of this
+* process is the full cross section sigma/V_uc, and the kernel physics is carried by
+* the weight. When several processes describing parts of the same cross section are
+* combined in one material, e.g.
+*   Single_crystal_process + CoherentPhononSingleXtal_process,
+* their attenuations add up, so the attenuation is overestimated for thick samples.
+* Single scattering intensities are not affected.
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McStas.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+* defined before the master, but after the previous will be simulated here.
+*
+* Absorption is not handled by this process, set it in Union_make_material.
+*
+* Example: CoherentPhononSingleXtal_process(dispersion_dir="fccNi-phonons",
+*            xyz_file="Ni.xyz", b_coh=10.3, mass=58.6934, T=300)
+*
+* %P
+* INPUT PARAMETERS:
+* dispersion_dir:     [string]  Directory with the IDF dispersion files (Qgridinfo, Omega2, Polarizations, DOS)
+* xyz_file:           [string]  xyz file with lattice vectors and atoms (fractional coordinates) of the unit cell
+* b_coh:              [fm]      Coherent scattering length used for atoms without explicit value in xyz_file
+* mass:               [amu]     Atomic mass used for atoms without explicit value in xyz_file
+* T:                  [K]       Temperature
+* DW_core:            [AA^2]    Debye-Waller core, 2W = DW_core*Q^2. Negative: calculate from the DOS file in dispersion_dir
+* DOS_file:           [string]  Optional DOS file (IDF format) overriding dispersion_dir/DOS
+* packing_factor:     [1]       How dense is the material compared to optimal 0-1
+* branch_Emin_factor: [1]       Only branches with minimum energy below branch_Emin_factor*Ei are sampled
+* root_nsteps:        [1]       Number of intervals in which roots of omega(Q)-dE are searched for
+* root_xacc:          [m/s]     Accuracy of the final neutron speed from the root finder
+* deltaV_Jacobi:      [1]       Relative velocity step used for the numerical Jacobian
+* interact_fraction:  [1]       How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:               [string]  Name of Union_init component (typically "init", default)
+*
+* CALCULATED PARAMETERS:
+* CPSX_storage:       Storage struct transferred to Union_master
+*
+* %L
+* MCViNE: <a href="https://github.com/mcvine/mcvine">https://github.com/mcvine/mcvine</a>
+* %L
+* J.Y.Y. Lin et al., Nucl. Instrum. Methods A 810 (2016) 86
+* %L
+* G.L. Squires, Introduction to the Theory of Thermal Neutron Scattering, ch. 3
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT CoherentPhononSingleXtal_process
+
+SETTING PARAMETERS(string dispersion_dir="", string xyz_file="", double b_coh=-1, double mass=-1,
+                   double T=300, double DW_core=-1, string DOS_file="", double packing_factor=1,
+                   double branch_Emin_factor=1.5, int root_nsteps=100, double root_xacc=0.1,
+                   double deltaV_Jacobi=0.001, double interact_fraction=-1, string init="init")
+
+SHARE
+%{
+  #ifndef Union
+  #error "The Union_init component must be included before this CoherentPhononSingleXtal_process component"
+  #endif
+
+  %include "read_table-lib"
+  %include "phonon-dispersion-lib"
+
+  // Very important to add a pointer to this struct in the union-lib.c file
+  struct CoherentPhononSingleXtal_physics_storage_struct {
+    struct phdisp_struct disp; // dispersion and unit cell
+    // physics
+    double Temp;
+    double dw_core;
+    double my_scattering;
+    // numerics
+    double emin_factor;
+    int nsteps;
+    double xacc;
+    double deltaV;
+    int* good_branches; // work array
+    double* roots;      // work array
+  };
+
+  // Inverse penetration depth: constant sum(sigma_coh)/V_uc as in MCViNE
+  int
+  CoherentPhononSingleXtal_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
+                                       _class_particle* _particle) {
+    *my = data_transfer.pointer_to_a_CoherentPhononSingleXtal_physics_storage_struct->my_scattering;
+    return 1;
+  }
+
+  // CoherentInelastic_SingleXtal::pick_a_final_state
+  int
+  CoherentPhononSingleXtal_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
+                                               struct focus_data_struct* focus_data, _class_particle* _particle) {
+    struct CoherentPhononSingleXtal_physics_storage_struct* s = data_transfer.pointer_to_a_CoherentPhononSingleXtal_physics_storage_struct;
+    struct phdisp_omega_ctx ctx;
+    int d, br, ngood = 0, nf, index;
+    double vi_l, Ei, solid_angle;
+    Coords dir;
+
+    ctx.s = &s->disp;
+    ctx.powder = 0;
+    for (d = 0; d < 3; d++)
+      ctx.vi[d] = K2V * k_initial[d];
+    vi_l = sqrt (ctx.vi[0] * ctx.vi[0] + ctx.vi[1] * ctx.vi[1] + ctx.vi[2] * ctx.vi[2]);
+    ctx.vi_l = vi_l;
+    Ei = VS2E * vi_l * vi_l;
+
+    // branches not too high compared to Ei
+    for (br = 0; br < s->disp.n_branches; br++)
+      if (s->disp.Emin[br] < Ei * s->emin_factor)
+        s->good_branches[ngood++] = br;
+    if (ngood == 0)
+      return 0;
+
+    // final direction
+    focus_data->focusing_function (&dir, &solid_angle, focus_data);
+    NORM (dir.x, dir.y, dir.z);
+    ctx.vf_dir[0] = dir.x;
+    ctx.vf_dir[1] = dir.y;
+    ctx.vf_dir[2] = dir.z;
+
+    // branch
+    index = (int)floor (rand01 () * ngood);
+    if (index >= ngood)
+      index = ngood - 1;
+    ctx.branch = s->good_branches[index];
+
+    // final speed from energy and momentum conservation
+    nf = phdisp_find_roots (&ctx, 0, 2 * vi_l, s->nsteps, s->xacc, s->roots);
+    if (nf < 1)
+      return 0;
+    index = (int)floor (rand01 () * nf);
+    if (index >= nf)
+      index = nf - 1;
+    double vf_l = s->roots[index];
+    if (vf_l <= 0)
+      return 0;
+
+    // Jacobian of the energy delta function, d(omega - dE)/dvf
+    double delta_v = s->deltaV * vi_l;
+    double f1 = phdisp_omega_minus_dE (vf_l - delta_v, &ctx);
+    double f2 = phdisp_omega_minus_dE (vf_l + delta_v, &ctx);
+    double Jacobi = fabs (f2 - f1) / (2 * delta_v);
+    if (Jacobi <= 0)
+      return 0;
+
+    double Ef = VS2E * vf_l * vf_l;
+    double omega = Ei - Ef;
+    if (omega == 0)
+      return 0;
+
+    double Q[3], Q2 = 0;
+    for (d = 0; d < 3; d++) {
+      Q[d] = V2K * (ctx.vi[d] - vf_l * ctx.vf_dir[d]);
+      Q2 += Q[d] * Q[d];
+    }
+
+    // |sum_d b_d/sqrt(M_d) exp(iQ.d) (Q.e_d)|^2 / sigma_coh (scattering_length.icc)
+    double norm_of_slsum = phdisp_structure_factor (&s->disp, ctx.branch, Q);
+    // ksquare2E of the normalised |..|^2 over |omega|
+    double sf = VS2E * K2V * K2V * norm_of_slsum / fabs (omega);
+
+    double DW = exp (-s->dw_core * Q2);
+    double kf_over_ki = vf_l / vi_l;
+
+    *weight *= solid_angle * ngood * nf * (2 * VS2E * vf_l / Jacobi) * sf * kf_over_ki * DW * phdisp_bose (omega, s->Temp);
+
+    k_final[0] = V2K * vf_l * ctx.vf_dir[0];
+    k_final[1] = V2K * vf_l * ctx.vf_dir[1];
+    k_final[2] = V2K * vf_l * ctx.vf_dir[2];
+    return 1;
+  }
+
+  // These lines help with future error correction, and tell other Union components
+  //  that at least one process have been defined.
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+
+  #ifndef PROCESS_COHERENTPHONONSINGLEXTAL_DETECTOR
+  #define PROCESS_COHERENTPHONONSINGLEXTAL_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  struct CoherentPhononSingleXtal_physics_storage_struct CPSX_storage;
+
+  // Needed for transport to the main component, will be the same for all processes
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+%}
+
+INITIALIZE
+%{
+  memset (&CPSX_storage, 0, sizeof (CPSX_storage));
+
+  if (!strlen (dispersion_dir)) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: dispersion_dir must be given\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (!strlen (xyz_file)) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: xyz_file must be given\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (T <= 0) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: T must be positive\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (root_nsteps < 1 || root_xacc <= 0 || deltaV_Jacobi <= 0) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: ERROR: root_nsteps, root_xacc and deltaV_Jacobi must be positive\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+
+  char who[512];
+  snprintf (who, 512, "CoherentPhononSingleXtal_process:%s", NAME_CURRENT_COMP);
+  phdisp_read_dispersion (dispersion_dir, &CPSX_storage.disp, who);
+  phdisp_read_xyz (xyz_file, b_coh, mass, &CPSX_storage.disp, who);
+  phdisp_cell_sums (&CPSX_storage.disp);
+  if (CPSX_storage.disp.sigma_coh <= 0) {
+    fprintf (stderr, "%s: ERROR: total coherent cross section is zero\n", who);
+    exit (-1);
+  }
+
+  CPSX_storage.Temp = T;
+  if (DW_core >= 0)
+    CPSX_storage.dw_core = DW_core;
+  else if (strlen (DOS_file))
+    CPSX_storage.dw_core = phdisp_dw_core_from_dos (NULL, DOS_file, CPSX_storage.disp.avg_mass, T, who);
+  else
+    CPSX_storage.dw_core = phdisp_dw_core_from_dos (dispersion_dir, "DOS", CPSX_storage.disp.avg_mass, T, who);
+
+  CPSX_storage.my_scattering = packing_factor * CPSX_storage.disp.sigma_coh / CPSX_storage.disp.uc_vol * 100; // barn/AA^3 -> 1/m
+  CPSX_storage.emin_factor = branch_Emin_factor;
+  CPSX_storage.nsteps = root_nsteps;
+  CPSX_storage.xacc = root_xacc;
+  CPSX_storage.deltaV = deltaV_Jacobi;
+  CPSX_storage.good_branches = malloc (CPSX_storage.disp.n_branches * sizeof (int));
+  CPSX_storage.roots = malloc ((root_nsteps + 1) * sizeof (double));
+
+  MPI_MASTER (printf ("CoherentPhononSingleXtal_process:%s: %d atoms, %d branches, %dx%dx%d grid, V_uc=%g AA^3, sigma_coh=%g barn, "
+                      "DW_core=%g AA^2, my_scattering=%g 1/m\n",
+                      NAME_CURRENT_COMP, CPSX_storage.disp.n_atoms, CPSX_storage.disp.n_branches, CPSX_storage.disp.n[0], CPSX_storage.disp.n[1], CPSX_storage.disp.n[2],
+                      CPSX_storage.disp.uc_vol, CPSX_storage.disp.sigma_coh, CPSX_storage.dw_core, CPSX_storage.my_scattering););
+
+  // First initialise This_process with default values:
+  scattering_process_struct_init (&This_process);
+
+  // Single crystal: the process has its own orientation
+  This_process.non_isotropic_rot_index = 1;
+  // Cross section does not depend on the focusing
+  This_process.needs_cross_section_focus = -1;
+
+  // The type of the process must be saved in the global enum process
+  This_process.eProcess = CoherentPhononSingleXtal;
+
+  // Packing the data into a structure that is transported to the main component
+  This_process.data_transfer.pointer_to_a_CoherentPhononSingleXtal_physics_storage_struct = &CPSX_storage;
+  This_process.probability_for_scattering_function = &CoherentPhononSingleXtal_physics_my;
+  This_process.scattering_function = &CoherentPhononSingleXtal_physics_scattering;
+
+  // This will be the same for all process's, and can thus be moved to an include.
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+  sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+
+  if (_getcomp_index (init) < 0) {
+    fprintf (stderr, "CoherentPhononSingleXtal_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
+    exit (-1);
+  }
+
+  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  add_element_to_process_list (global_process_list, global_process_element);
+%}
+
+TRACE
+%{
+  // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  phdisp_free (&CPSX_storage.disp);
+  free (CPSX_storage.good_branches);
+  free (CPSX_storage.roots);
+%}
+
+END

@@ -51,6 +51,51 @@ int physics_my(enum process choice, double *my,double *k_initial, union data_tra
             output = IncoherentPhonon_physics_my(my, k_initial, data_transfer, focus_data, _particle);
             break;
         #endif
+        #ifdef PROCESS_RESOLUTION_DETECTOR
+        case Resolution:
+            output = Resolution_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_ELASTICSQ_DETECTOR
+        case ElasticSQ:
+            output = ElasticSQ_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_ISOTROPICSQW_DETECTOR
+        case IsotropicSqw:
+            output = IsotropicSqw_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_DISPERSIONPOWDER_DETECTOR
+        case DispersionPowder:
+            output = DispersionPowder_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_DISPERSIONSINGLEXTAL_DETECTOR
+        case DispersionSingleXtal:
+            output = DispersionSingleXtal_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_INCOHERENTELASTIC_DETECTOR
+        case IncoherentElastic:
+            output = IncoherentElastic_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_COHERENTPHONONPOWDER_DETECTOR
+        case CoherentPhononPowder:
+            output = CoherentPhononPowder_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_INCOHERENTONEPHONON_DETECTOR
+        case IncoherentOnePhonon:
+            output = IncoherentOnePhonon_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_COHERENTPHONONSINGLEXTAL_DETECTOR
+        case CoherentPhononSingleXtal:
+            output = CoherentPhononSingleXtal_physics_my(my, k_initial, data_transfer, focus_data, _particle);
+            break;
+        #endif
         #ifdef PROCESS_NCRYSTAL_DETECTOR
         case NCrystal:
             output = NCrystal_physics_my(my, k_initial, data_transfer, focus_data, _particle);
@@ -118,6 +163,51 @@ int physics_scattering(enum process choice, double *k_final, double *k_initial, 
         #ifdef PROCESS_INCOHERENTPHONON_DETECTOR
         case IncoherentPhonon:
             output = IncoherentPhonon_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_RESOLUTION_DETECTOR
+        case Resolution:
+            output = Resolution_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_ELASTICSQ_DETECTOR
+        case ElasticSQ:
+            output = ElasticSQ_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_ISOTROPICSQW_DETECTOR
+        case IsotropicSqw:
+            output = IsotropicSqw_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_DISPERSIONPOWDER_DETECTOR
+        case DispersionPowder:
+            output = DispersionPowder_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_DISPERSIONSINGLEXTAL_DETECTOR
+        case DispersionSingleXtal:
+            output = DispersionSingleXtal_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_INCOHERENTELASTIC_DETECTOR
+        case IncoherentElastic:
+            output = IncoherentElastic_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_COHERENTPHONONPOWDER_DETECTOR
+        case CoherentPhononPowder:
+            output = CoherentPhononPowder_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_INCOHERENTONEPHONON_DETECTOR
+        case IncoherentOnePhonon:
+            output = IncoherentOnePhonon_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
+            break;
+        #endif
+        #ifdef PROCESS_COHERENTPHONONSINGLEXTAL_DETECTOR
+        case CoherentPhononSingleXtal:
+            output = CoherentPhononSingleXtal_physics_scattering(k_final, k_initial, weight, data_transfer, focus_data, _particle);
             break;
         #endif
         #ifdef PROCESS_NCRYSTAL_DETECTOR

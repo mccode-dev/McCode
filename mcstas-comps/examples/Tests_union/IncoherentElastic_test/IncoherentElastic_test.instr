@@ -1,0 +1,71 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: IncoherentElastic_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 24.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of IncoherentElastic_process: incoherent elastic scattering with Debye-Waller factor
+*
+* %Description
+* A monochromatic beam hits a vanadium cylinder made from the Union process
+* IncoherentElastic_process (port of the MCViNE IncoherentElastic kernel).
+* The banana monitor shows the angular distribution, which falls off as
+* exp(-DW_core*Q^2) with Q = 2k sin(theta). With DW_core=0 the scattering is isotropic,
+* as for Incoherent_process. The default DW_core is the value for vanadium at 300 K
+* (from the V-dos.dat DOS used in IncoherentOnePhonon_test).
+*
+* %Example: DW_core=0.00669 Detector: theta_mon_I=1.29e+04
+*
+* %Parameters
+* Ei:      [meV]  Incident energy
+* DW_core: [AA^2] Debye-Waller core, 2W = DW_core*Q^2
+* radius:  [m]    Radius of the vanadium cylinder
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT IncoherentElastic_test(Ei=100, DW_core=0.00669, radius=0.005)
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.005, dist=1, focus_xw=2*radius, focus_yh=0.03, E0=Ei, dE=0, flux=1e10)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+// V: sigma_inc = 5.08 barn, V = 13.827 AA^3 per atom
+COMPONENT V_elastic = IncoherentElastic_process(sigma_inc=5.08, unit_cell_volume=13.827, DW_core=DW_core)
+AT (0, 0, 0) RELATIVE sample_pos
+
+// V: sigma_abs = 5.08 barn
+COMPONENT V = Union_make_material(my_absorption=100*5.08/13.827, process_string="V_elastic")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT sample = Union_cylinder(radius=radius, yheight=0.03, material_string="V", priority=1)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT theta_mon = Monitor_nD(radius=1, yheight=0.2, restore_neutron=1,
+    options="banana, theta limits=[5 175] bins=170", filename="theta.dat")
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+END

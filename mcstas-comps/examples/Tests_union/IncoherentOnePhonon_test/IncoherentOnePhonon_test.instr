@@ -1,0 +1,100 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: IncoherentOnePhonon_test
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: 23.09.2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Test of IncoherentOnePhonon_process: incoherent one-phonon scattering from a DOS
+*
+* %Description
+* A monochromatic beam hits a vanadium cylinder made from the Union process
+* IncoherentOnePhonon_process (port of the MCViNE IncoherentInelastic kernel),
+* using the vanadium phonon DOS from MCViNE (V-dos.dat, frequencies in THz).
+* The Debye-Waller factor is calculated from the DOS.
+*
+* A banana monitor records scattering angle vs. final energy, and an energy
+* monitor at scattering angle tth records the energy spectrum. With focus=1 the
+* scattering is focused onto the energy monitor. With dEf_focus > 0 only final
+* energies in [Ef_focus-dEf_focus/2, Ef_focus+dEf_focus/2] are generated.
+*
+* %Example: focus=1 Detector: Edet_I=9.91
+*
+* %Parameters
+* Ei:        [meV] Incident energy
+* T:         [K]   Sample temperature
+* tth:       [deg] Scattering angle of the energy monitor
+* focus:     [1]   0: scatter into 4pi, 1: focus scattering onto the energy monitor
+* Ef_focus:  [meV] Centre of the final energy window (energy focusing)
+* dEf_focus: [meV] Width of the final energy window, 0: no energy focusing
+* radius:    [m]   Radius of the vanadium cylinder
+*
+* %Link
+* MCViNE: https://github.com/mcvine/mcvine
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT IncoherentOnePhonon_test(Ei=50, T=300, tth=60, int focus=0, Ef_focus=0, dEf_focus=0, radius=0.005)
+
+DECLARE
+%{
+  int target;
+  double fw;
+%}
+
+INITIALIZE
+%{
+  target = focus ? 3 : 0;
+  fw = focus ? 0.05 : 0;
+%}
+
+TRACE
+
+COMPONENT init = Union_init()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.005, dist=1, focus_xw=0.012, focus_yh=0.03, E0=Ei, dE=0, flux=1e10)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+// V: sigma_inc = 5.08 barn, V = 13.827 AA^3 per atom
+COMPONENT V_phonons = IncoherentOnePhonon_process(DOS_file="V-dos.dat", sigma_inc=5.08, unit_cell_volume=13.827, mass=50.94, T=T,
+                                                  Ef_focus=Ef_focus, dEf_focus=dEf_focus)
+AT (0, 0, 0) RELATIVE sample_pos
+
+// V: sigma_abs = 5.08 barn
+COMPONENT V = Union_make_material(my_absorption=100*5.08/13.827, process_string="V_phonons")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT det_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_pos
+ROTATED (0, tth, 0) RELATIVE sample_pos
+
+COMPONENT sample = Union_cylinder(radius=radius, yheight=0.03, material_string="V", priority=1,
+                                  target_index=target, focus_xw=fw, focus_xh=fw)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Etheta = Monitor_nD(radius=1, yheight=0.2, restore_neutron=1,
+    options="banana, theta limits=[5 170] bins=165, energy limits=[0 100] bins=200", filename="Etheta.dat")
+WHEN (!focus)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT Edet = E_monitor(xwidth=0.05, yheight=0.05, nE=200, Emin=0, Emax=100, filename="Edet.dat", restore_neutron=1)
+AT (0, 0, 1) RELATIVE det_arm
+
+COMPONENT stop = Union_stop()
+AT (0, 0, 0) ABSOLUTE
+
+END
