@@ -1,0 +1,63 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* %I
+* Written by: McCode development
+* Date: 18 September 2026
+* Origin: DTU
+*
+* Deterministic event-list output fixture for the generic event-output API.
+* In SAVE it builds a fixed row-major double buffer buf[r*ncols+c] = r*10 + c
+* and writes it as an event list. Neutron physics is intentionally a
+* pass-through no-op so the written list is fully deterministic (independent
+* of ncount and seed).
+*
+* %P
+* nevents:    [1]     number of rows/events (0 -> no-op, <0 -> rejected)
+* ncols:      [1]     number of columns (0 -> rejected)
+* filename:   [string] output file name (extension added by the runtime)
+* columns:    [string] whitespace-separated column names
+* nullbuf:    [1]     if set, pass a NULL data pointer (invalid-input test)
+* nowritefile:[1]     if set, skip writing
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT EventOutList
+
+SETTING PARAMETERS (int nevents=3, int ncols=3, string filename="EventList",
+                    string columns="x y z", int nullbuf=0, int nowritefile=0)
+
+TRACE
+%{
+  /* Fixture: the neutron state is left untouched (pass-through).
+     The event list is produced deterministically in SAVE. */
+%}
+
+SAVE
+%{
+  long cnt = nevents;
+  long wdt = ncols;
+  double *buf = 0;
+  long i, j;
+
+  if (cnt > 0 && wdt > 0 && !nullbuf) {
+    buf = (double*)calloc(cnt*wdt, sizeof(double));
+    for (i = 0; i < cnt; i++)
+      for (j = 0; j < wdt; j++)
+        buf[i*wdt + j] = i*10.0 + (double)j;
+  }
+
+  if (!nowritefile) {
+    /* Generic public API: hides the negative-dimension convention of the
+       low-level list backend (see mcevent_out_list in the runtime). */
+    DETECTOR_OUT_LIST("Deterministic event list", columns, cnt, wdt, buf, filename);
+  }
+  if (buf) free(buf);
+%}
+
+END

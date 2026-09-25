@@ -1,0 +1,40 @@
+/*******************************************************************************
+ * Instrument: Test_EventBufferOpenACC
+ *
+ * %Identification
+ * Written by: McCode development
+ * Date: 22 September 2026
+ * Origin: DTU
+ * %INSTRUMENT_SITE: Tests_other
+ *
+ * %Description
+ * Exercise MC_EVENT_BUFFER appends from an OpenACC TRACE kernel. The buffer
+ * uses managed memory, so the runtime can copy its accepted rows after the
+ * device kernel has completed. Row order is intentionally not asserted.
+ *
+ * %Example: NCount=64
+ *
+ * %Parameters
+ * NCount: [1] number of particles to append
+ *
+ * %End
+ *******************************************************************************/
+DEFINE INSTRUMENT Test_EventBufferOpenACC(NCount=64)
+
+DECLARE
+%{
+%}
+
+INITIALIZE
+%{
+  mcset_ncount((unsigned long long)NCount);
+%}
+
+TRACE
+COMPONENT src = Source_simple(radius=0.1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT events = EventBufferOpenACC(capacity=8)
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+END

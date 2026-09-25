@@ -978,6 +978,133 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
                   double *p1, char *f,
 	          char *c, Coords posa, Rotation rot,char* options, int index);
 
+/* generic event-list output wrapper: positive count/width dimensions (see mcevent_out_list) */
+MCDETECTOR mcevent_out_list(char *title, char *columns,
+                  long count, long width,
+                  double *data, char *filename,
+                  char *component, Coords position, Rotation rotation, int index);
+
+/* Monitor_nD-specific event-list output entry point (see mcevent_out_list_nd).
+ * Same validated, positive-dimension contract as mcevent_out_list, but preserves
+ * the flavor-specific x-label (xl) and the Monitor_nD options string (options,
+ * forwarded to the NeXus 'options' attribute) that the generic public API omits. */
+MCDETECTOR mcevent_out_list_nd(char *title, char *xl, char *columns,
+                   long count, long width,
+                   double *data, char *filename,
+                   char *component, Coords position, Rotation rotation,
+                   char *options, int index);
+
+/* generic fixed-capacity event buffer (see mc_event_buffer_init/free/append).
+ * Row-major flat storage: data[r*width+c]. `next` is a reservation counter,
+ * kept separate from `count` because OpenACC threads may reserve slots
+ * concurrently and reservations may overflow the configured capacity (those
+ * are counted in `dropped` and never written). `data` is one flat allocation
+ * so it can be passed directly to DETECTOR_OUT_LIST. No hidden global state.
+ */
+typedef struct {
+  double *data;      /* flat row-major storage, NULL when uninitialized/freed */
+  long    width;     /* columns per row (>= 0) */
+  long    capacity;  /* maximum number of rows that fit (>= 0) */
+  long    count;     /* number of accepted (stored) rows (<= capacity) */
+  long    next;      /* next row slot to reserve (may exceed capacity) */
+  long    dropped;   /* appends rejected because the buffer was full */
+} MC_EVENT_BUFFER;
+
+/* A linked list of row-major event chunks. The list is consumed by the
+ * collective writer but the nodes and data remain owned by the caller. */
+typedef struct mc_event_chunk_struct {
+  double *data;
+  long count;
+  struct mc_event_chunk_struct *next;
+} MC_EVENT_CHUNK;
+
+/* Host-side ownership helpers for components that detach and queue filled
+ * buffers. append transfers ownership of `data` to the new node. */
+int mc_event_chunk_append(MC_EVENT_CHUNK **head, MC_EVENT_CHUNK **tail,
+                          double *data, long count);
+void mc_event_chunk_free(MC_EVENT_CHUNK **head);
+
+/* Host-side chunk writer. Rows are accumulated in a bounded current buffer;
+ * flush detaches that buffer and end performs one collective serialization.
+ * The writer never calls MPI or writes files from append/flush, so a caller
+ * may use it while preparing chunks at different rates on different ranks. */
+typedef struct {
+  MC_EVENT_BUFFER buffer;
+  MC_EVENT_CHUNK *chunks;
+  MC_EVENT_CHUNK *chunks_tail;
+  long width;
+  long chunk_capacity;
+  char title[CHAR_BUF_LENGTH];
+  char columns[CHAR_BUF_LENGTH];
+  char filename[CHAR_BUF_LENGTH];
+  char component[CHAR_BUF_LENGTH];
+  Coords position;
+  Rotation rotation;
+  int index;
+  int active;
+} MC_EVENT_WRITER;
+
+/* Internal-facing list entry point used by Monitor_nD and the writer. It
+ * preserves Monitor_nD's x-label/options metadata and writes all chunks in
+ * local list order through one collective event session. */
+MCDETECTOR mcevent_out_list_nd_chunks(char *title, char *xl, char *columns,
+                   long width, MC_EVENT_CHUNK *chunks,
+                   char *filename, char *component, Coords position,
+                   Rotation rotation, char *options, int index);
+
+/* Canonical particle-state event row. The row contains position, propagation
+ * state, polarisation/field state, time, and weight in the flavor-specific
+ * order named by MC_EVENT_PARTICLE_COLUMNS. */
+#define MC_EVENT_PARTICLE_WIDTH 11
+#if MCCODE_PARTICLE_CODE == 2112
+# define MC_EVENT_PARTICLE_COLUMNS "x y z vx vy vz t sx sy sz p"
+#elif MCCODE_PARTICLE_CODE == 22
+# define MC_EVENT_PARTICLE_COLUMNS "x y z kx ky kz t Ex Ey Ez p"
+#endif
+
+#pragma acc routine
+void mc_event_particle_row(double *row, _class_particle *particle);
+
+/* Fixed-capacity event-buffer lifecycle.
+ *   mc_event_buffer_init: owns the allocation (host only); call it on an
+ *     uninitialized or already-freed buffer. It returns 0 on success,
+ *     nonzero on error (null buffer, negative capacity/width, overflow, or
+ *     allocation failure; on error the buffer is left zeroed).
+ *   mc_event_buffer_free: host only; safe after init or for a zero-initialized
+ *     empty buffer, and idempotent (a second call is a no-op, never a
+ *     double-free).
+ *   mc_event_buffer_append: callable from OpenACC device code; performs no
+ *     allocation, I/O or printf; returns nonzero only when the row was
+ *     stored, overflow increments `dropped` and returns 0.
+ */
+int  mc_event_buffer_init(MC_EVENT_BUFFER *buffer, long capacity, long width);
+void mc_event_buffer_free(MC_EVENT_BUFFER *buffer);
+#pragma acc routine
+int  mc_event_buffer_append(MC_EVENT_BUFFER *buffer, const double *row);
+
+/* Host-only save path for a fixed-capacity event buffer. Saves exactly
+ * `count` accepted rows through mcevent_out_list (never `capacity`), reports
+ * `dropped` once through a non-fatal WARNING, and leaves the buffer
+ * unmodified. A NULL buffer is a documented no-op. See mc_event_buffer_save.
+ */
+MCDETECTOR mc_event_buffer_save(MC_EVENT_BUFFER *buffer, char *title,
+                                 char *columns, char *filename,
+                                 char *component, Coords position,
+                                 Rotation rotation, int index);
+
+/* Host-side generic chunked event writer. begin allocates one bounded chunk
+ * buffer, append adds one row, flush detaches the current chunk without doing
+ * I/O, and end serializes every queued chunk through the common ASCII/NeXus/
+ * MPI backend. `chunk_capacity` must be positive. */
+int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,
+                          long width, long chunk_capacity, char *filename,
+                          char *component, Coords position, Rotation rotation,
+                          int index);
+int mc_event_writer_append(MC_EVENT_WRITER *writer, const double *row);
+int mc_event_writer_write(MC_EVENT_WRITER *writer, long count, double *data);
+int mc_event_writer_flush(MC_EVENT_WRITER *writer);
+MCDETECTOR mc_event_writer_end(MC_EVENT_WRITER *writer);
+
 /* wrappers to output functions, that automatically set NAME and POSITION */
 #define DETECTOR_OUT(p0,p1,p2) mcdetector_out_0D(NAME_CURRENT_COMP,p0,p1,p2,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 #define DETECTOR_OUT_0D(t,p0,p1,p2) mcdetector_out_0D(t,p0,p1,p2,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
@@ -985,6 +1112,8 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
      mcdetector_out_1D(t,xl,yl,xvar,x1,x2,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 #define DETECTOR_OUT_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f) \
      mcdetector_out_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
+#define DETECTOR_OUT_LIST(title, columns, count, width, data, filename) \
+     mcevent_out_list(title, columns, count, width, data, filename, NAME_CURRENT_COMP, POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP)
 
 #ifdef USE_NEXUS
 #include "napi.h"

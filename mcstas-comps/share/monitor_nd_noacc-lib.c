@@ -756,10 +756,18 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
     { Vars->Flag_Multiple = 1; /* default is n1D */
       if (Vars->Coord_Number != Vars->Coord_NumberNoPixel) Vars->Flag_List = 1; }
 
-    /* list and auto limits case : Vars->Flag_List or Vars->Flag_Auto_Limits
-     * -> Buffer to flush and suppress after Vars->Flag_Auto_Limits
-     */
-    if ((Vars->Flag_Auto_Limits || Vars->Flag_List) && Vars->Coord_Number)
+    /* The generic event buffer owns ordinary fixed-size lists. Keep the
+     * legacy buffer for auto-limit replay and list-all flushing. */
+    Vars->Mon2D_Buffer = NULL;
+    Vars->List_Buffer.data = NULL;
+    Vars->List_Buffer.width = 0;
+    Vars->List_Buffer.capacity = 0;
+    Vars->List_Buffer.count = 0;
+    Vars->List_Buffer.next = 0;
+    Vars->List_Buffer.dropped = 0;
+    Vars->List_Chunks = NULL;
+    Vars->List_Chunks_Tail = NULL;
+    if ((Vars->Flag_Auto_Limits || Vars->Flag_List >= 2) && Vars->Coord_Number)
     { /* Dim : (Vars->Coord_Number+1)*Vars->Buffer_Block matrix (for p, dp) */
       Vars->Mon2D_Buffer = (double *)malloc((Vars->Coord_Number+1)*Vars->Buffer_Block*sizeof(double));
       if (Vars->Mon2D_Buffer == NULL)
@@ -769,6 +777,16 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
         for (i=0; i < (Vars->Coord_Number+1)*Vars->Buffer_Block; Vars->Mon2D_Buffer[i++] = (double)0);
       }
       Vars->Buffer_Size = Vars->Buffer_Block;
+    }
+    else if (Vars->Flag_List == 1 && Vars->Coord_Number)
+    {
+      if (mc_event_buffer_init(&Vars->List_Buffer, (long)Vars->Buffer_Block,
+                               (long)(Vars->Coord_Number+1)))
+      {
+        printf("Monitor_nD: %s cannot allocate list event buffer (%li events). No list.\n",
+               Vars->compcurname, (long)Vars->Buffer_Block);
+        Vars->Flag_List = 0;
+      }
     }
 
     /* 1D and n1D case : Vars->Flag_Multiple */
@@ -1184,13 +1202,35 @@ int Monitor_nd_noaccTrace(Monitornd_noaccDefines_type *DEFS, Monitornd_noaccVari
   if ((Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List >= 2))
   {
     if (Vars->Buffer_Size >= 1000000 || Vars->Flag_List == 3)
-    { /* save current (possibly append) and re-use Buffer */
-
-      Monitor_nd_noaccSave(DEFS, Vars);
-      Vars->Flag_List = 3;
-      Vars->Buffer_Block = Vars->Buffer_Size;
-      Vars->Buffer_Counter  = 0;
-      Vars->Neutron_Counter = 0;
+    { /* detach current rows and re-use a bounded trace buffer */
+      if (!Vars->Flag_Auto_Limits) {
+        double *filled = Vars->Mon2D_Buffer;
+        double *replacement = (double *)malloc((Vars->Coord_Number+1)
+                                                * Vars->Buffer_Size
+                                                * sizeof(double));
+        if (!replacement
+            || mc_event_chunk_append(&Vars->List_Chunks,
+                                     &Vars->List_Chunks_Tail,
+                                     filled, (long)Vars->Buffer_Counter)) {
+          free(replacement);
+          printf("Monitor_nD: %s cannot queue filled event chunk. Stopping list output.\n",
+                 Vars->compcurname);
+          Vars->Flag_List = 1;
+        } else {
+          Vars->Mon2D_Buffer = replacement;
+          Vars->Flag_List = 3;
+          Vars->Buffer_Block = Vars->Buffer_Size;
+          Vars->Buffer_Counter = 0;
+          Vars->Neutron_Counter = 0;
+        }
+      } else {
+        /* Auto-limit replay still owns this scratch buffer until SAVE. */
+        Monitor_nd_noaccSave(DEFS, Vars);
+        Vars->Flag_List = 3;
+        Vars->Buffer_Block = Vars->Buffer_Size;
+        Vars->Buffer_Counter  = 0;
+        Vars->Neutron_Counter = 0;
+      }
     }
     else
     {
@@ -1540,8 +1580,18 @@ int Monitor_nd_noaccTrace(Monitornd_noaccDefines_type *DEFS, Monitornd_noaccVari
     } /* end (Vars->Flag_Auto_Limits != 1) */
     
     if (Vars->Flag_Auto_Limits != 2 && !outsidebounds) /* not when reading auto limits Buffer */
-    { /* now store Coord into Buffer (no index needed) if necessary (list or auto limits) */
-      if ((Vars->Buffer_Counter < Vars->Buffer_Block) && ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1)))
+    { /* store ordinary lists in the generic buffer; retain the legacy path
+         for auto limits and list-all mode */
+      if (Vars->List_Buffer.data)
+      {
+        if (mc_event_buffer_append(&Vars->List_Buffer, Coord)
+            && Vars->Flag_Verbose && Vars->Flag_List == 1
+            && Vars->List_Buffer.capacity > 0
+            && Vars->List_Buffer.count >= Vars->List_Buffer.capacity)
+          printf("Monitor_nD: %s %li neutrons stored in List.\n",
+                 Vars->compcurname, Vars->List_Buffer.count);
+      }
+      else if ((Vars->Buffer_Counter < Vars->Buffer_Block) && ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1)))
       {
         for (i = 0; i <= Vars->Coord_Number; i++)
         {
@@ -1592,6 +1642,9 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
     double  XY=0, pp=0;
     double  Coord[MONnD_COORD_NMAX];
     long    Coord_Index[MONnD_COORD_NMAX];
+    long    List_Count;
+    double *List_Data;
+    MC_EVENT_CHUNK final_chunk;
     char    label[CHAR_BUF_LENGTH];
 
     MCDETECTOR detector;
@@ -1750,12 +1803,18 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
     if (strlen(Vars->Mon_File) > 0)
     {
       fname = (char*)malloc(strlen(Vars->Mon_File)+10*Vars->Coord_Number);
-      if (Vars->Flag_List && Vars->Mon2D_Buffer) /* List: DETECTOR_OUT_2D */
+      if (Vars->Flag_List) /* List */
       {
-       
-        if (Vars->Flag_List >= 2) Vars->Buffer_Size = Vars->Neutron_Counter;
-        if (Vars->Buffer_Size >= Vars->Neutron_Counter)
-          Vars->Buffer_Size = Vars->Neutron_Counter;
+        if (Vars->List_Buffer.data)
+        {
+          List_Count = Vars->List_Buffer.count;
+          List_Data = Vars->List_Buffer.data;
+        }
+        else
+        {
+          List_Count = Vars->Buffer_Counter;
+          List_Data = Vars->Mon2D_Buffer;
+        }
         strcpy(fname,Vars->Mon_File);
         if (strchr(Vars->Mon_File,'.') == NULL) strcat(fname, "_list");
 
@@ -1772,11 +1831,26 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
         /* handle the type of list output */
         strcpy(label, Vars->Monitor_Label);
         
-        detector = mcdetector_out_list(
-              label, "List of neutron events", Coord_X_Label,
-              -Vars->Buffer_Size, Vars->Coord_Number+1,
-              Vars->Mon2D_Buffer,
-              fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot, Vars->option,Vars->compcurindex);
+        /* Serialize queued full chunks and the final partial chunk through one
+           collective session. The temporary tail node remains caller-owned. */
+        final_chunk.data = List_Data;
+        final_chunk.count = List_Count;
+        final_chunk.next = NULL;
+        if (Vars->List_Chunks) {
+          Vars->List_Chunks_Tail->next = &final_chunk;
+          detector = mcevent_out_list_nd_chunks(
+                label, "List of neutron events", Coord_X_Label,
+                Vars->Coord_Number+1, Vars->List_Chunks,
+                fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,
+                Vars->option, Vars->compcurindex);
+          Vars->List_Chunks_Tail->next = NULL;
+        } else {
+          detector = mcevent_out_list_nd(
+                label, "List of neutron events", Coord_X_Label,
+                List_Count, Vars->Coord_Number+1, List_Data,
+                fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,
+                Vars->option, Vars->compcurindex);
+        }
       }
       if (Vars->Flag_Multiple) /* n1D: DETECTOR_OUT_1D */
       {
@@ -1989,6 +2063,9 @@ void Monitor_nd_noaccFinally(Monitornd_noaccDefines_type *DEFS,
     { /* Dim : (Vars->Coord_Number+1)*Vars->Buffer_Block matrix (for p, dp) */
       if (Vars->Mon2D_Buffer != NULL) free(Vars->Mon2D_Buffer);
     }
+    mc_event_buffer_free(&Vars->List_Buffer);
+    mc_event_chunk_free(&Vars->List_Chunks);
+    Vars->List_Chunks_Tail = NULL;
 
     /* 1D and n1D case : Vars->Flag_Multiple */
     if (Vars->Flag_Multiple && Vars->Coord_Number)
