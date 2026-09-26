@@ -17,6 +17,10 @@ It produces a tof-angle and angle-energy detectors and also exports the
 S(q,w) and S(q) data.
 ```
 
+## Examples
+
+- **Test: lambda=3.4 Detector: M_theta_t_I=1.60949e-07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

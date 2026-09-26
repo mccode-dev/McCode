@@ -15,6 +15,11 @@
 SEMSANS instrument with 2 isosceles triangular field coils
 ```
 
+## Examples
+
+- **Test: -y Detector: TOF_det_I=2.87073e-09**
+- **Test: debug=1 Detector: TOF_det_I=2.87073e-09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -59,6 +64,7 @@ Parameters in **boldface** are required; the others are optional.
 | detector_pos | m | Position of detector | 6.957000e+00 |
 | tlow | mu-s | tmin of detector | 2.190523040779461e+03 |
 | thigh | mu-s | tmax of detector | 1.214744595341338e+04 |
+| debug | 1 | Debug flag - when enabled more monitor outputs appear | 0 |
 
 ## Links
 

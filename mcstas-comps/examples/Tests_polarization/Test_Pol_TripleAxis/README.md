@@ -24,6 +24,10 @@ Three cases can be done:
 The Vanadium sample should give I(0)=2*(I(-1)+I(1)) and I(-1)=2*I(1).
 ```
 
+## Examples
+
+- **Test: OPTION=-1 Detector: pollambdaMonitorDet_I=5.63101e-12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

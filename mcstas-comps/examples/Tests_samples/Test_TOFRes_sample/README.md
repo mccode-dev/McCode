@@ -17,6 +17,10 @@ Testing resolution of a TOF spectrometer, use "reso.dat" output with mcresplot.p
 TOF resolution test instrument.
 ```
 
+## Examples
+
+- **Test: TWOTHETA=60 Detector: TOFL3_I=1.49356e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

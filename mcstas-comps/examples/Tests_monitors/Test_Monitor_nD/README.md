@@ -15,6 +15,10 @@
 A test instrument to compare Monitor_nD output against basic 1D and 2D monitors.
 ```
 
+## Examples
+
+- **Test: lambda=1 Detector: PSD_mon_I=8.34136e+10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

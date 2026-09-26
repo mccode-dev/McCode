@@ -15,6 +15,11 @@
 This instrument is a model of the FOCUS Spectrometer at PSI, Villigen, CH.
 ```
 
+## Examples
+
+- **Test: lambda=3.4 Detector: PSD_Fermi1_I=1.44416e+07**
+- Example: lambda=3.4 Detector: PSD_SAMPLE_I=1.58754E+05
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

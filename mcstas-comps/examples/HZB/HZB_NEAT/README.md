@@ -32,6 +32,11 @@ pulse (no frame overlap). The sample is a 2mm thick plate rotated by 45 degrees,
 which material can be any powder/liquid/amorphous sample.
 ```
 
+## Examples
+
+- **Test: lambda=6                       Detector: Detector_I=2900**
+- **Test: lambda=6 coh=Y2O3.laz inc=NULL Detector: Detector_I=1080**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

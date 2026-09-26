@@ -15,6 +15,10 @@
 Simple instrumentfile for estimating SNS brilliance, moderator is a the Granroth SNS_source applying linear interpolation in MCNPX tables.
 ```
 
+## Examples
+
+- **Test: filename=source_sct091_tu_02_1.dat Detector: Brillmon_I=7.11736e+12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

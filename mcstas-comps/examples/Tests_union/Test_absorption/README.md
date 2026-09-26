@@ -17,6 +17,10 @@ without processes and just the make_material component, and requires
 a few special cases.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

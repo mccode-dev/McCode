@@ -25,6 +25,10 @@ discrepancy at small angles especially if R0 of the mirror coating is lowered.
 Example: mcrun Mirror_validation.instr angle=0.7
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

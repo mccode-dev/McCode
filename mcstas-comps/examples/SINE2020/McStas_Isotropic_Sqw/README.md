@@ -23,6 +23,10 @@ The default material is liquid Rb as a cylinder of radius 0.01 m x height 0.07 m
 Example: McStas_Isotropic_Sqw Sqw_coh=Rb_liq_coh.sqw  Sqw_inc=Rb_liq_inc.sqw radius=0.01 yheight=0.07
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

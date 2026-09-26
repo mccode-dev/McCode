@@ -15,6 +15,15 @@
 A test instrument to compare Monitor_nD output against basic 1D and 2D monitors.
 ```
 
+## Examples
+
+- **Test: lambda=5 directbeam=0 Detector: Sph_mon_I=7.2e+7**
+- **Test: lambda=5 directbeam=0 SPLITS=5 Detector: Sph_mon_I=7.2e+7**
+- **Test: lambda=5 directbeam=0 SPLITS=10 Detector: Sph_mon_I=7.2e+7**
+- **Test: lambda=5 order=1 directbeam=0 Detector: Sph_mon_I=7.2e+7**
+- **Test: lambda=5 order=1 directbeam=0 SPLITS=5 Detector: Sph_mon_I=7.2e+7**
+- **Test: lambda=5 order=1 directbeam=0 SPLITS=10 Detector: Sph_mon_I=7.2e+7**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

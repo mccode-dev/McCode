@@ -16,6 +16,10 @@ The H142 beam is the only S-curved guide at the ILL. It is used here to feed
 the IN12 TAS spectrometer (classical configuration).
 ```
 
+## Examples
+
+- **Test: KI=2.662 QM=1 Sqw_coh=V.lau Detector: D7_SC3_1D_I=8.5e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

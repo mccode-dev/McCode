@@ -19,6 +19,11 @@ one source quadrant is repteated 'jumps' times. Resulting intensity should be:
 1 + 0.25*jumps;
 ```
 
+## Examples
+
+- **Test: jumps=10 Detector: PSD_I=3.5**
+- **Test: jumps=100 Detector: PSD_I=26**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

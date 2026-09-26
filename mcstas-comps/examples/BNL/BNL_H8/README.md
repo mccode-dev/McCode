@@ -20,6 +20,10 @@ cross comparison related in paper "A Model Instrument for Monte Carlo Code
 Comparisons", Neutron News 13 (No. 4), 24-29 (2002).
 ```
 
+## Examples
+
+- **Test: lambda=2.36 Detector: He3H_I=9.84026e-10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

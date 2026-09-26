@@ -15,6 +15,10 @@
 Test instrument for Transmission_V_polarisator, double layer reflectivity.
 ```
 
+## Examples
+
+- **Test: Test_V_cavity_SNAG_double_side.instr Lam=7 Detector: div_lambda_hor_I=1.0e+13**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

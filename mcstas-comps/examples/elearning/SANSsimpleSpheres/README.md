@@ -18,6 +18,10 @@ This simple SANS instrument is used for the SANS simulation quiz on th e-learnin
 Example: mcrun SANSsimple.instr  Lambda=10 DLambda=0
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

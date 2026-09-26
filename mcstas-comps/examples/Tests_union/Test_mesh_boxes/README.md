@@ -16,6 +16,10 @@ Instrument provided by Sam Lambrick from ISIS, that uses three meshes to
 make their boxes.
 ```
 
+## Examples
+
+- **Test: Detector: psd_detector_I=10.7752**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

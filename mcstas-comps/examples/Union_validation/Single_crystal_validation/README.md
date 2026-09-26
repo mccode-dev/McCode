@@ -15,6 +15,12 @@
 Validation of Union single crystal against standard single_crystal.
 ```
 
+## Examples
+
+- **Test: comp_select=1 Detector: Banana_monitor_I=9.5e5**
+- **Test: comp_select=1 Detector: PSDlin_transmission_scattered_I=793256**
+- **Test: comp_select=2 Detector: PSDlin_transmission_scattered_I=795548**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

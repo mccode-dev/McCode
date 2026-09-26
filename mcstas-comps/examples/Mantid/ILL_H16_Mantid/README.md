@@ -18,6 +18,10 @@ use with Mantid-friendly NeXus output. (See ILL_H16_IN5_Mantid or ILL_IN5_Mantid
 Example: m=1 Detector: GuideOut_Phic_I=1.85e+10
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

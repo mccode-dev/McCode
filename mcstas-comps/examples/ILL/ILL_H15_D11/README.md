@@ -36,6 +36,10 @@ Chamfers [mm] | 0.2            0.2             0.8             0.2
 Wavyness [rad]| 2.5e-5         1e-4            8e-4            2e-4
 ```
 
+## Examples
+
+- **Test: Lambda=4.51 Detector: SampleC_I=2.1e7**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

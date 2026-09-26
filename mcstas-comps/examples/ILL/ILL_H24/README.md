@@ -15,6 +15,10 @@
 The H24 curved thermal guide at the ILL feeding IN3, IN13, D10 and S42/Orient Express
 ```
 
+## Examples
+
+- **Test: m=1 Detector: GuideOut_Phic_I=1.22e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

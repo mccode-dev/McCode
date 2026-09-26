@@ -17,6 +17,12 @@ Instrument: ISIS_LET*
 This is a simulation of LET on ISIS TS2.
 ```
 
+## Examples
+
+- **Test: Ei=3.7 res=HF Detector: sample_PSDmon_I=31264.8**
+- **Test: Ei=3.7 res=I Detector: sample_PSDmon_I=17839.7**
+- **Test: Ei=3.7 res=HR Detector: sample_PSDmon_I=8835.3**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -17,6 +17,10 @@ Example on using Union components from the Union project manual
 Example: Detector: Banana_monitor_I=3.823e-05
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

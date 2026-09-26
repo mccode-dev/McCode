@@ -15,6 +15,10 @@
 
 ```
 
+## Examples
+
+- **Test: mcrun RTP_DIF.instr lambda=2.36 Detector: det_big_I=123752**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

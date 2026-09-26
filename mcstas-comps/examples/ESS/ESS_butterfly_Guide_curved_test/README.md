@@ -20,6 +20,10 @@ Example: sector=S beamline=2 cold=0.5 Detector: Monitor2_xy1_I=1.59e+11
 Use the ESS_butterfly_MCPL_test instrument for direct comparison with MCPL-based source descriptions.
 ```
 
+## Examples
+
+- **Test: sector=S beamline=2 cold=0.5 Detector: Monitor2_xy1_I=1.59e+11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

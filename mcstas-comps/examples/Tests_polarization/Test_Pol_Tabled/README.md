@@ -17,6 +17,11 @@ is working. The field referred to by the default input parameter MF is 10 \mu T 
 at entry and flips to l0 \mu T along the negative z-axis halfway through
 ```
 
+## Examples
+
+- **Test: -n1e4 interpol_method=default MF=flipfield.dat Detector: pol_6_I=1.0**
+- **Test: -n1e4 interpol_method=default MF=constfield.dat Detector: polx_6_I=0.05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

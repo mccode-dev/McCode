@@ -17,6 +17,10 @@ Refer to the documentation in MCSTAS/contrib/doc/ISISdoc.pdf (.ps)
 for further instructions on using the ISIS_moderator component
 ```
 
+## Examples
+
+- **Test: dummy=1 Detector: lam1_I=1.2551e+12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -16,6 +16,10 @@ Simple test instrument showing absorption image of a cryostat with vanadium
 sample using the Union components.
 ```
 
+## Examples
+
+- **Test: stick_displacement=0 Detector: screen_I=0.00925**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -21,6 +21,12 @@ The second monitor is placed physically "earlier" than the first, but logically 
 2) With Backprop=1 the second monitor should measure a signal since backpropagation is allowed
 ```
 
+## Examples
+
+- **Test: Backprop=0 Detector: PSDcloser_I=0**
+- **Test: Backprop=0.5 Detector: PSDcloser_I=0.049**
+- **Test: Backprop=1 Detector: PSDcloser_I=0.099**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

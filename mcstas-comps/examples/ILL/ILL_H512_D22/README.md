@@ -20,6 +20,14 @@ with monitoring of the scattering in angular (diffraction) and energy modes
 (for spectroscopy).
 ```
 
+## Examples
+
+- **Test: lambda=4.5 Detector: D22_Detector_I=2e+07**
+- 
+- Flux given at sample positions from <www.ill.fr>
+- ILL_H5: D22:  nu=23589.5 [rpm] lambda=4.5 [Angs] sample=H2O_liq.qSq
+- Flux 1.2e8 -- 7.1e7
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -15,6 +15,12 @@
 A test instrument to check if the component 'Source_pulsed' provides valid spectra and intensities.
 ```
 
+## Examples
+
+- **Test: source=1 Detector: m1_I=4.680e+09**
+- **Test: source=2 Detector: m1_I=2.305e+09**
+- **Test: source=3 Detector: m1_I=5.292e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -15,6 +15,10 @@
 Basic test instrument for the Monochromator_bent component
 ```
 
+## Examples
+
+- **Test: Test_Monochromator_bent.instr mono_mos=0 Detector: PSD_exit_monitor_I=0.543355**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -21,6 +21,11 @@ active when using a spherical sample shape (height=0).
 detector is 2.5 m diameter, with 40 cm heigh, 1 inch diameter detector tubes.
 ```
 
+## Examples
+
+- **Test: E0=4.94 Detector:  M_single_coh_I=5e-11**
+- **Test: E0=33 dE=1.07 dt=9.6e-6 Detector: M_single_coh_I=6.6e-10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

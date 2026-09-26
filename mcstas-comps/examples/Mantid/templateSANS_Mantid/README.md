@@ -23,6 +23,11 @@ Needed steps:
 3) mcrun templateSANS_Mantid -n1e6 --format=NeXus
 ```
 
+## Examples
+
+- **Test: lambda=6 Detector: PSDrad_I=105000000**
+- **Test: lambda=6 --format=NeXus Detector: PSDrad_I=105000000**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

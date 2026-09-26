@@ -26,6 +26,10 @@ purposes only.
 Example: mcrun h8_test_legacy.instr Lambda=2.36
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

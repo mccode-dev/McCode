@@ -16,6 +16,10 @@ Implements a test instrument for the component FlatEllipse_finite_mirror,
 implementing Nested Mirror Optic (NMO) as suggested by B&ouml;ni et al.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

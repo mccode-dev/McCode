@@ -18,6 +18,10 @@ an external component into an ensamle of Union components
 Example: stick_displacement=0 Detector: detector_I=189.144
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

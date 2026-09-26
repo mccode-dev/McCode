@@ -17,6 +17,10 @@ This instrument is a test instrument for the Lens_simple component.
 Notice effect of gravitation on the final beam.
 ```
 
+## Examples
+
+- **Test: lambda=20.15 Detector: detector_I=3.4633E+01**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

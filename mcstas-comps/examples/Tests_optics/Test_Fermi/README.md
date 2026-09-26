@@ -18,6 +18,13 @@ shows that all implementations are equivalent. However, approximating rotating
 guide are 30% faster than McStas Fermi chopper.
 ```
 
+## Examples
+
+- **Test: Fermi=1 Detector: Monitor2_xt_I=0.00051256**
+- **Test: Fermi=3 Detector: Monitor2_xt_I=0.00051377**
+- **Test: Fermi=4 Detector: Monitor2_xt_I=0.000572427**
+- **Test: Fermi=5 Detector: Monitor2_xt_I=0.00058003**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

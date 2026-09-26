@@ -20,6 +20,10 @@ The intensity on the first monitor should be the same as the sum
 of the two polarization monitors.
 ```
 
+## Examples
+
+- **Test: mirrorOption=0.99 Detector: lamReflec_I=3.27108e-05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

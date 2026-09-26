@@ -16,6 +16,13 @@ Very simple test instrument for the SANS_spheres2 component, derived / simplifie
 H. Frielinghaus SANS_benchmark2
 ```
 
+## Examples
+
+- **Test: lambda=6 Detector: detectorSANS_I=0.201795**
+- **Test: lambda=6 frac_dir=0.4 Detector: detectorDB_I=66.6933**
+- **Test: lambda=6 --format=NeXus Detector: detectorSANS_I=0.201795**
+- **Test: lambda=6 frac_dir=0.4 --format=NeXus Detector: detectorDB_I=66.6933**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

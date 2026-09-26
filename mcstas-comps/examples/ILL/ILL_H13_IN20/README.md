@@ -37,6 +37,10 @@ This model uses two Si111 monochromator and analyzers (unpolarized
 configuration).
 ```
 
+## Examples
+
+- **Test: QM=1 EN=0 Sqw_coh=V.lau Detector: D7_SC3_1D_I=4.83869e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

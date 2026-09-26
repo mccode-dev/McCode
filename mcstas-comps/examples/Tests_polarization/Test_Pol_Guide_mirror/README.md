@@ -17,6 +17,10 @@ in a non-polarizing setting, with absorbing walls. This is how it would be set t
 as a frame-overlap mirror.
 ```
 
+## Examples
+
+- **Test: mirrorIn=1 Detector: psdGuide_I=1.40915e+12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -16,6 +16,10 @@ A curved guide made of only two guide elements which are iterated with  slight
 rotation in between, to describe a long curved guide.
 ```
 
+## Examples
+
+- **Test: L=60 Detector: Mon_LambdaDX_Out_I=0.790318**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -23,6 +23,10 @@ to avoid conflicting with existing models of Al in the instrument file that incl
 sample environment.
 ```
 
+## Examples
+
+- **Test: stick_displacement=0 Detector: m4pi_I=7.3e2**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

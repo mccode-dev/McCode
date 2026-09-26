@@ -30,6 +30,10 @@ PG       002 DM=3.355 AA
 --------------------------
 ```
 
+## Examples
+
+- **Test: lambda=0.897 Detector: Detector_I=3704.83**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

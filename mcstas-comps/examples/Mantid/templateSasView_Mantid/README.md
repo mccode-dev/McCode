@@ -32,6 +32,10 @@ b) Run Mantid algorithm: 'ConvertUnits' using the 'wavelenth' and 'elastic' opti
 c) Run Mantid algorithm: 'Qxy' using the options 'MaxQxy=0.6', 'DeltaQ=0.003', 'SolidAngleWeighting=False'
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

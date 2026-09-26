@@ -15,6 +15,10 @@
 Necsa Neutron Powder Diffractometer located at beam port 5 of the SAFARI-1 research reactor, South Africa
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

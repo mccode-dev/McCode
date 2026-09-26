@@ -35,6 +35,10 @@ Cu       220 DM=1.278 AA
 Cu       111 DM=2.095 AA
 ```
 
+## Examples
+
+- **Test: lambda=1 Detector: Diff_BananaPSD_I=153038**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

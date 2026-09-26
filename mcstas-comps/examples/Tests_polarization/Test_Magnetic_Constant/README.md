@@ -20,6 +20,13 @@ This instrument matches the example: Test_Pol_MSF (under tests)
 made with the old component: Pol_constBfield
 ```
 
+## Examples
+
+- **Test: ROT_ANGLE=180 Detector: pollambdaMonitor2z_I=0.0768972**
+- **Test: ROT_ANGLE=180 ONOFF=1 Detector: pollambdaMonitor2z_I=0.0768972**
+- **Test: ROT_ANGLE=180 ONOFF=2 Detector: pollambdaMonitor2z_I=0.0768972**
+- **Test: ROT_ANGLE=180 ONOFF=3 Detector: pollambdaMonitor2z_I=0.0768972**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

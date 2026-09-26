@@ -32,6 +32,10 @@ Example: ISIS_TOSCA_preupgrade_Mantid.instr inc=Benzene_inc_CASTEP_MDANSE2018.sq
 Example: ISIS_TOSCA_preupgrade_Mantid.instr inc=Benzene_inc_CASTEP_MDANSE2018.sqw eventmode=1 --format=NeXus Detector: Sphere_I=0.686792
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -16,6 +16,10 @@ Simple test instrument for the SNS_source component.
 Refer to SNS <A href="http://neutrons.ornl.gov/instrument_systems/components/moderators.shtml">Source files.</A>
 ```
 
+## Examples
+
+- **Test: filename="source_sct091_tu_02_1.dat" Detector: det_I=9.89304e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

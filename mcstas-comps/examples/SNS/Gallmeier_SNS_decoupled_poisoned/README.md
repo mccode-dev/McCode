@@ -15,6 +15,10 @@
 Simple instrumentfile for estimating SNS brilliance, moderator is a the Gallmeier SNS_source_analytic applying Ikeda-Carpenter vs. Pade function fits to MCNPX tables.
 ```
 
+## Examples
+
+- **Test: filename=a1Gw2-2-f5_fit_fit.dat Detector: Brillmon_I=5.51519e+12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -22,6 +22,10 @@ PG       002 DM=3.355 AA (Highly Oriented Pyrolythic Graphite)
 Cu       220 DM=1.278 AA
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -16,6 +16,10 @@ McStas instrument for simulating IN5-TYPE (cold chopper) multi-frame spectromete
 The sample is incoherent with an inelastic tunneling line.
 ```
 
+## Examples
+
+- **Test: Lmin=4.9 Detector: PSDfast2_I=1.18335e+10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

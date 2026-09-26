@@ -52,6 +52,11 @@ WA=0.16, HA=0.08, RAH=-1, RAV=-1, DA=2.087, NHA=15, NVA=15,
 L1=2.33
 ```
 
+## Examples
+
+- **Test: QM=1 Sqw_coh=V.lau Detector: D7_SC3_1D_I=3.0e+08**
+- **Test: QM=1 Sqw_coh=V.lau Detector: He3H_I=260**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

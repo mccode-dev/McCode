@@ -21,6 +21,10 @@ B. Fultz,"Design and operation of the wide angular-range chopper spectrometer AR
 Spallation Neutron Source", Review of Scientific Instruments, 83 , 015114 (2012)</ul>
 ```
 
+## Examples
+
+- **Test: Fermi_nu=420 Detector: Full_cyl_I=235445**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

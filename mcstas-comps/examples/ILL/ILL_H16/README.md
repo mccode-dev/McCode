@@ -15,6 +15,10 @@
 The H16@ILL curved guide sending cold neutrons from the VCS to IN5.
 ```
 
+## Examples
+
+- **Test: m=1 Detector: GuideOut_Phic_I=1.85e+10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
