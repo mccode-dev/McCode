@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.17.0 )
+cmake_minimum_required( VERSION 3.19 )
 
 # This will install McStas manuals
 set(FLAVOR mcstas)
@@ -54,3 +54,31 @@ install(FILES "${PROJECT_SOURCE_DIR}/Component_manual.pdf"
   DESTINATION "${MANDEST}"
   RENAME "${CMANUAL}"
 )
+
+# --- HTML manuals: ship the .tgz archives alongside the PDFs, and extract
+# each into its own subdirectory under ${DEST_DATADIR_DOC} at install time.
+install(FILES "${PROJECT_SOURCE_DIR}/manual-html.tgz"
+  DESTINATION "${MANDEST}"
+)
+
+install(FILES "${PROJECT_SOURCE_DIR}/Component_manual-html.tgz"
+  DESTINATION "${MANDEST}"
+)
+
+install(CODE "
+  set(_extract_dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${MANDEST}/${FLAVOR}-manual\")
+  file(MAKE_DIRECTORY \"\${_extract_dir}\")
+  execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E tar xzf \"${PROJECT_SOURCE_DIR}/manual-html.tgz\"
+    WORKING_DIRECTORY \"\${_extract_dir}\"
+  )
+")
+
+install(CODE "
+  set(_extract_dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${MANDEST}/${FLAVOR}-components\")
+  file(MAKE_DIRECTORY \"\${_extract_dir}\")
+  execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E tar xzf \"${PROJECT_SOURCE_DIR}/Component_manual-html.tgz\"
+    WORKING_DIRECTORY \"\${_extract_dir}\"
+  )
+")

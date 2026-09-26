@@ -16,6 +16,10 @@ An example instrument that uses either Klein-Nishina, Rayleigh, or Compton on a 
 filled with whatever material is indicated by the atom number
 ```
 
+## Examples
+
+- **Test: E0=12 Detector: emon_sphere_I=1.7661e-10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

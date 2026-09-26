@@ -29,6 +29,10 @@ which points slightly down.
 In real life the beam axis is parallel to the ground and the source is shining slightly upwards.
 ```
 
+## Examples
+
+- **Test: Energy=8.05 Detector: detector_I=1.28656e+07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

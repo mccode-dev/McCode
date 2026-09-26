@@ -15,6 +15,11 @@
 This is a simple test-instrument for the bending magnet component.
 ```
 
+## Examples
+
+- **Test: Test_BM.instr SOURCE=0 e0=12.5 de=0.5 Detector: emon_I=2.93138e+13**
+- **Test: Test_BM.instr SOURCE=1 e0=12.5 de=0.5 Detector: emon_I=1.28549e+15**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -22,6 +22,11 @@ If mirrors are in the monochromators are automatically reposistioned to
 accomadate the deflected beam.
 ```
 
+## Examples
+
+- **Test: MAXII_811.instr M1=1 M2=1 M1_pitch=1 M2_pitch=1 theta=14.226   Detector: sphere_psd_I=2.0e+08**
+- **Test: MAXII_811.instr M1=0 M2=0 theta=14.226    Detector: hutch_E2_I=2.25761e+11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

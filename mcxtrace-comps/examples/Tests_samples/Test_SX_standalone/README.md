@@ -18,6 +18,10 @@ The default sample itself is a Mo bulk crystal.*
 
 ```
 
+## Examples
+
+- **Test: -y Detector: psd_Diff_I=2.29638e-13**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

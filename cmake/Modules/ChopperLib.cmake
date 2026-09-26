@@ -14,7 +14,7 @@ include(fetcher)
 
 set( CHOPPERLIB_REPO "https://github.com/mcdotstar/mcstas-chopper-lib.git" CACHE STRING
      "Location (URL or local path) of mcstas-chopper-lib sources." )
-set( CHOPPERLIB_VERSION "v4.0.0" CACHE STRING
+set( CHOPPERLIB_VERSION "v4.1.0" CACHE STRING
      "Git tag/ref of mcstas-chopper-lib to fetch. Pinned rather than tracking a branch: \
 chopper-lib is young, under active development, and its own README documents breaking \
 field renames between major versions." )

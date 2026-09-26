@@ -33,6 +33,16 @@ Please consult https://www.mcstas.org and https://www.mcxtrace.org or https://gi
 * [McXtrace arm64 Ubuntu deb's](https://nightly.link/mccode-dev/McCode/workflows/mcxtrace-autobuild/main/mcxtrace-artefacts-ubuntu-24.04-arm.zip)
 * [McXtrace Intel + arm64 macOS](https://nightly.link/mccode-dev/McCode/workflows/mcxtrace-autobuild/main/mcxtrace-artefacts-macos-latest.zip)
 
+**Access point for documentation:**
+* [Latest developments](INSTALL-McStas/RELEASE_NOTES.md)
+* [McCode tool cheat-sheet](tools/Python/README.md)
+* [McCode INSTRUMENT grammar](docs/GRAMMAR/Instrument/INSTRUMENT_Grammar.md)
+* [McCode COMPONENT grammar](docs/GRAMMAR/Component/COMPONENT_Grammar.md)
+* [Latest McStas component docs](https://mcstas.org/download/components/current/)
+* [Latest McStas manuals](docs/manuals/mcstas)
+* [Latest McXtrace component docs](https://mcxtrace.org/download/components/current/)
+* [Latest McXtrace manuals](docs/manuals/mcxtrace)
+
 *******************************************************************************
 ```
 This is McStas 3.x and McXtrace 3.x with GPU acceleration support

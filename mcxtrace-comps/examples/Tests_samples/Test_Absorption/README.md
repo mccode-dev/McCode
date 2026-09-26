@@ -22,6 +22,13 @@ This test compares the folowwing components:
 - index=4: Fluorescence
 ```
 
+## Examples
+
+- **Test: Test_Absorption.instr -n1e5 index=1 Detector: emon_I=8.25376e-12**
+- **Test: Test_Absorption.instr -n1e5 index=2 Detector: emon_I=8.24127e-12**
+- **Test: Test_Absorption.instr -n1e5 index=3 Detector: emon_I=8.28866e-12**
+- **Test: Test_Absorption.instr -n1e5 index=4 Detector: emon_I=9.36962e-10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

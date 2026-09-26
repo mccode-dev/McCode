@@ -24,6 +24,10 @@ mxrun -n 1e7 SSRL_bl_11_2_not_white_src.instr -N601 Etohit=6900,7500
 Example: Etohit=6900 Detector: EnergyMonitor_first_I=1.3e+10
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -33,6 +33,10 @@ parameters. Please be aware the by restricting the azimuthal range it is not unc
 the acceptance area of subsequent components. This is particularly the case for small psi.
 ```
 
+## Examples
+
+- **Test: Pump_probe_solvent.instr Dt=0 Detector: det_ccd_I=0.00664655**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

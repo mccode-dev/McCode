@@ -1,18 +1,42 @@
-\section{PSD\_monitor\_coh: The coherent PSD monitor}
-\index{Monitors!Position sensitive detector (PSD), coherent}
-\mcdoccomp{monitors/PSD_monitor_coh.parms}
+\section{The \texttt{PSD\_monitor\_coh} McXtrace Component}
+Position-sensitive monitor with phase integration.
 
-The component \texttt{PSD\_monitor\_coh} closely resembles its parent the \textbf{PSD\_monitor}, 
-and also propagates the photon ray to the detector
-surface in the $(x,y)$-plane, where the detector window is set
-by the $x$ and $y$ input coordinates.
-The coherent PSD monitor, though, is also sensitive considers the phase of the photon ray
-and emits not one but two datafiles, where one (\textit{filename}.abs) represents the coherent intensity 
-and the other (\textit{filename}.arg) the phase of the collected beam.
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Erik Knudsen
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} March 13, 2010
+\end{itemize}
 
-The first output file (.abs) from \texttt{PSD\_monitor\_coh} is the integrated counts, $n, I, M_2$,
-as well as three two-dimensional arrays of counts: $n(x,y), I(x,y), M_2(x,y)$.
-These arrays are written to a file, \verb+filename.abs+, and can be read e.g. by the tool
-\textbf{mxplot}, see the system manual.
-Likewise, the second output file (.arg) contains the integrated phases, and are written to the file 
-\verb+filename.arg+
+\subsection*{Description}
+An (n times m) pixel PSD monitor taking phase into account. As the i:th ray hits a pixel (j,k) in the monitor the intensity in that pixel will be updated as a complex sum, i.e. \textless{}math\textgreater{}P\_i = P\_\{i-1\} + p\_i exp\{-\textbackslash{}phi\_i\}\textless{}/math\textgreater{}.
+
+By setting ratio\textless{}1 the effective pixel area becomes a fraction of the ideal (which is to divide the xwidth and yheight intervals into nx and ny abutting subintervals). This reduces the monitor effective area by ratio\textasciicircum{}2. If the centering flag is set - the monitor will treat all rays as if they hit a pixel center. This behaves as if ratio -\textgreater{} 0, but at no cost in statistics.
+
+Example: PSD\_monitor\_coh(xwidth=0.1, yheight=0.1, nx=90, ny=90, filename="Output.psd")
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+nx &   & Number of pixel columns. & 90 \\
+ny &   & Number of pixel rows. & 90 \\
+filename & m & Name of file in which to store the detector images - the suffixes .abs and .arg will be added. & 0 \\
+restore\_xray &   & If set, the monitor does not influence the xray state. & 0 \\
+xwidth & m & Width of detector. & 0.05 \\
+yheight & m & Height of detector. & 0.05 \\
+ratio &   & ratio between pixel area and effective pixel area. & 1 \\
+centering &   & Treat all rays as if they hit the center of the pixel. & 1 \\
+nowritefile & 1 & If set, monitor will skip writing to disk & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{PSD\_monitor\_coh.comp}.
+\end{itemize}
+\IfFileExists{monitors/PSD_monitor_coh_static.tex}{\input{monitors/PSD_monitor_coh_static.tex}}{}

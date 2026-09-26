@@ -1,0 +1,101 @@
+\section{The \texttt{Union\_abs\_logger\_nD\_scintillator} McStas Component}
+Absorption logger for a specific position sensitive scintillator detector
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Milán Klausz, derived from Union\_abs\_logger\_nD by Mads Bertelsen
+  \item \textbf{Origin:} ESS
+  \item \textbf{Date:} 23.09.26
+\end{itemize}
+
+\subsection*{Description}
+Part of the Union components, a set of components that work together and thus separates geometry and physics within McStas. The use of this component requires other components to be used.
+
+1) One specifies a number of processes using process components 2) These are gathered into material definitions using Union\_make\_material 3) Geometries are placed using Union\_box/cylinder/sphere, assigned a material 4) Logger and conditional components can be placed which will record what happens 5) A Union\_master component placed after all of the above
+
+Only in step 5 will any simulation happen, and per default all geometries defined before this master, but after the previous will be simulated here.
+
+There is a dedicated manual available for the Union\_components
+
+This component is an absorption logger, and thus placed in point 4) above.
+
+An absorption logger will log something for each absorption event happening in the geometry or geometries on which it is attached. These are specified in the target\_geometry string. By leaving it blank, all geometries are logged, even the ones not defined at this point in the instrument file. Multiple geometries are specified as a comma separated list.
+
+This absorption logger stores absorption as events, with position, velocity, time and weight. The Monitor\_nD libraries are used to write the event files. This version is a close copy of Monitor\_nD, having the same interface, though the user must be aware that no propagation happens for rays to hit the detector pixels, instead it uses the position where the ray was absorbed. Values must still be set for xwidth and yheight: they do not select which absorptions are recorded, that is decided by the Union geometry named in target\_geometry, but a monitor with zero area is deactivated by Monitor\_nD.
+
+This absorption logger needs to be placed in space, the position and velocity is recorded in the coordinate system of the logger component.
+
+It is possible to attach one or more conditional components to this absorption logger. Such a conditional component would impose a condition on the state of the neutron after the Union\_master component that executes the simulation, and the absorption logger will only record the event if this condition is true.
+
+To use the logger\_conditional\_extend function, set it to some integer value n and make and extend section to the master component that runs the geometry. In this extend function, logger\_conditional\_extend[n] is 1 if the conditional stack evaluated to true, 0 if not. This way one can check what rays is logged using regular McStas monitors. Only works if a conditional is applied to this logger.
+
+This is a scintillator variant of Union\_abs\_logger\_nD, designed for a specific position sensitive scintillator detector: a GS20 converter layer read out by a multi-anode photomultiplier tube (MAPMT). The logger is placed in the converter layer, and represents the physics from the neutron conversion up to a detection event being triggered in one of the MAPMT pixels.
+
+Instead of logging each absorption at its own position, it converts it into up to five weighted detection events: the MAPMT pixel facing the absorption position and its four neighbours. The weights are tabulated position dependent detection efficiencies, read from the text files true/up/down/left/right\_pixel\_hit\_efficiency[\_high\_resolution].txt (must be present in the working directory). They answer the question "given that a neutron is absorbed at this position in the converter, what is the probability that a detection event is recorded in each MAPMT pixel", and were produced by a separate Geant4 simulation of the scintillation light, applying a detection threshold per pixel. That threshold suppresses events whose light is shared between neighbouring pixels and would otherwise be counted twice. Two MAPMT pixel sizes are supported, each with its own set of tables.
+
+Note that the detector geometry is hard coded to match the tabulated efficiency files, and is not derived from xwidth and yheight: the tables are read as a 100 x 100 grid of 0.5 mm bins covering a 50 x 50 mm converter tile, read out by a MAPMT pixel grid spanning the central 48.5 x 48.5 mm of that tile. Absorptions outside that map are clamped to its edge bins rather than rejected, so attaching this logger to a geometry of a different size silently gives meaningless efficiencies. Using it for another detector means replacing the efficiency files and adjusting these hard coded values together.
+
+The real MAPMT pixels are not actually all the same size: the outermost ring of pixels is 0.25 mm larger than the rest (3.25 mm vs 3 mm for the high resolution grid, 6.25 mm vs 6 mm for the low resolution one). Monitor\_nD only supports a uniform pixel size, so it cannot represent that directly. The trick used here is to build the Monitor\_nD pixel grid at the regular (smaller) pixel size, spanning the central 48 x 48 mm, and to treat the 0.25 mm wide band just outside it as still belonging to the perimeter pixels: an absorption position that falls in that band is shifted inward by 0.25 mm - onto the strip of the grid that Monitor\_nD considers part of the corresponding (undersized) perimeter pixel - before the position is handed to Monitor\_nD, so that Monitor\_nD bins the resulting detection event into the correct perimeter pixel. This repositioning is done purely for pixel assignment, after the pixel-hit detection efficiencies have already been looked up for the true, unshifted absorption position (see compute\_scintillator\_pixel\_hit\_probabilities and move\_perimeter\_det\_event\_inside\_monitor\_limits below).
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+target\_geometry & string & Comma separated list of geometry names that will be logged, leave empty for all volumes (even not defined yet) & "NULL" \\
+order\_total & 1 & Only log rays that have scattered n times, -1 for all orders & -1 \\
+order\_volume & 1 & Only log rays that have scattered n times in the same geometry, -1 for all orders & -1 \\
+logger\_conditional\_extend\_index & 1 & If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger\_conditional\_extend", and one would then access logger\_conditional\_extend[n] if logger\_conditional\_extend\_index is set to n & -1 \\
+init & string & Name of Union\_init component (typically "init", default) & "init" \\
+user0 & str & Variable name of USERVAR to be monitored by user0. & "" \\
+user1 & str & Variable name of USERVAR to be monitored by user1. & "" \\
+user2 & str & Variable name of USERVAR to be monitored by user2. & "" \\
+user3 & str & Variable name of USERVAR to be monitored by user3. & "" \\
+user4 & str & Variable name of USERVAR to be monitored by user4. & "" \\
+user5 & str & Variable name of USERVAR to be monitored by user5. & "" \\
+user6 & str & Variable name of USERVAR to be monitored by user6. & "" \\
+user7 & str & Variable name of USERVAR to be monitored by user7. & "" \\
+user8 & str & Variable name of USERVAR to be monitored by user8. & "" \\
+user9 & str & Variable name of USERVAR to be monitored by user9. & "" \\
+xwidth & m & Width of detector. & 0 \\
+yheight & m & Height of detector. & 0 \\
+zdepth & m & Thickness of detector (z). & 0 \\
+xmin & m & Lower x bound of opening & 0 \\
+xmax & m & Upper x bound of opening & 0 \\
+ymin & m & Lower y bound of opening & 0 \\
+ymax & m & Upper y bound of opening & 0 \\
+zmin & m & Lower z bound of opening & 0 \\
+zmax & m & Upper z bound of opening & 0 \\
+bins & 1 & Number of bins to force for all variables. Use 'bins' keyword in 'options' for heterogeneous bins & 0 \\
+min & u & Minimum range value to force for all variables. Use 'min' or 'limits' keyword in 'options' for other limits & -1e40 \\
+max & u & Maximum range value to force for all variables. Use 'max' or 'limits' keyword in 'options' for other limits & 1e40 \\
+restore\_neutron & 0|1 & Not functional for Union version & 0 \\
+radius & m & Radius of sphere/banana shape monitor & 0 \\
+options & str & String that specifies the configuration of the monitor. The general syntax is "[x] options..." (see \textless{}b\textgreater{}Descr.\textless{}/b\textgreater{}). & "NULL" \\
+filename & str & Output file name (overrides file=XX option). & "NULL" \\
+geometry & str & Name of an OFF file to specify a complex geometry detector & "NULL" \\
+nowritefile & 1 & If set, logger will skip writing to disk & 0 \\
+nexus\_bins & 1 & NeXus mode only: store component BIN information \textless{}br\textgreater{}(-1 disable, 0 enable for list mode monitor, 1 enable for any montor) & 0 \\
+username0 & str & Name assigned to User0 & "NULL" \\
+username1 & str & Name assigned to User1 & "NULL" \\
+username2 & str & Name assigned to User2 & "NULL" \\
+username3 & str & Name assigned to User3 & "NULL" \\
+username4 & str & Name assigned to User4 & "NULL" \\
+username5 & str & Name assigned to User5 & "NULL" \\
+username6 & str & Name assigned to User6 & "NULL" \\
+username7 & str & Name assigned to User7 & "NULL" \\
+username8 & str & Name assigned to User8 & "NULL" \\
+username9 & str & Name assigned to User9 & "NULL" \\
+is\_high\_resolution & 0|1 & Selects the MAPMT pixel size (0: low resolution, 6 mm pixels; 1: high resolution, 3 mm pixels), and correspondingly which set of pixel-hit-efficiency table files is read. & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Union\_abs\_logger\_nD\_scintillator.comp}.
+  \item See also \htmladdnormallink{the Monitor\_nD mcdoc page"}{../monitors/Monitor\_nD.html}
+\end{itemize}
+\IfFileExists{union/Union_abs_logger_nD_scintillator_static.tex}{\input{union/Union_abs_logger_nD_scintillator_static.tex}}{}

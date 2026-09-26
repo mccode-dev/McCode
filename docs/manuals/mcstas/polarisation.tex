@@ -1,30 +1,73 @@
-% Loads of preamble stripped off - now located in mcstas.tex
-
-%\newpage
-\chapter{Polarization in McStas}
+\chapter{Polarisation in McStas}
 \label{c:polarization}
-\begin{center}
-\Large{P. Christiansen (Ris{\o})\\\today}
-\end{center}
+\index{Polarisation|textbf}
+\index{Neutron polarisation|see{Polarisation}}
 
-\section{Introduction}
+% ---------------------------------------------------------------------
+% Notation used throughout this chapter. These macros are local to this
+% file (rather than added to the shared preamble) since they are
+% specific to the polarisation formalism below and not used elsewhere
+% in the manual. Bold/hatted vector and operator notation follows
+% Lovesey (\cite{lovesey84}) and Williams (\cite{gavin}).
+\providecommand{\PB}{\mathbf{P}}          % polarization vector
+\providecommand{\tP}{\hat{\mathbf{P}}}    % unit polarization vector
+\providecommand{\SB}{\mathbf{S}}          % simulated (McStas) polarization vector
+\providecommand{\sB}{\mathbf{s}}          % neutron spin vector
+\providecommand{\BB}{\mathbf{B}}          % magnetic field vector
+\providecommand{\nB}{\mathbf{n}}          % arbitrary unit direction vector
+\providecommand{\muB}{\boldsymbol{\mu}}   % magnetic moment vector
+\providecommand{\muno}{\hat{\boldsymbol{\mu}}} % neutron magnetic moment operator
+\providecommand{\tauB}{\boldsymbol{\tau}} % torque vector
+\providecommand{\dB}{\mathbf{d}}          % intra-cell atom position vector
+\providecommand{\lB}{\mathbf{l}}          % unit-cell lattice vector
+\providecommand{\RB}{\mathbf{R}}          % atomic position vector (R_ld = l+d)
+\providecommand{\Io}{\hat{\mathbf{I}}}    % nuclear spin operator
+\providecommand{\so}{\hat{\mathbf{s}}}    % neutron spin operator
+\providecommand{\sigmao}{\boldsymbol{\hat\sigma}} % vector of Pauli operators
+\providecommand{\sigmaH}{\hat\sigma}      % single Pauli operator component
+\providecommand{\rhoo}{\hat\rho}          % density matrix operator
+\providecommand{\alphao}{\boldsymbol{\alpha}} % spin-dependent potential amplitude
+\providecommand{\betao}{\boldsymbol{\beta}}   % spin-independent potential amplitude
+\providecommand{\Q}{\mathbf{Q}}           % scattering vector
+\providecommand{\tQ}{\hat{\mathbf{Q}}}    % unit scattering vector
+\providecommand{\tN}{\hat{\mathbf{N}}}    % unit vector along atomic (ferromagnet) spin
+\providecommand{\FN}{F_N}                 % unit cell nuclear structure factor
+\providecommand{\FM}{F_M}                 % unit cell magnetic structure factor
+\providecommand{\Ru}{R_\uparrow}          % spin-up reflectivity
+\providecommand{\Rd}{R_\downarrow}        % spin-down reflectivity
+\providecommand{\nup}{n^\uparrow}         % number of spin-up neutrons
+\providecommand{\nd}{n^\downarrow}        % number of spin-down neutrons
+\providecommand{\Pu}{P^\uparrow}          % probability of spin-up
+\providecommand{\Pd}{P^\downarrow}        % probability of spin-down
+\providecommand{\chiU}{\chi_\uparrow}     % spin-up eigenfunction
+\providecommand{\chiD}{\chi_\downarrow}   % spin-down eigenfunction
+\providecommand{\madsq}{\overline{|F_N(\Q)|^2}}       % mean-square structure factor (coherent)
+\providecommand{\sqmad}{\left|\overline{F_N(\Q)}\right|^2} % square of the mean (site-incoherent complement)
+\providecommand{\bd}{\overline{|B_{ld}|^2}}            % mean-square isotope/spin-incoherent term
+% ---------------------------------------------------------------------
 
-In the current release of McStas there are components with polarization
-capabilities. At the moment all such components should be understood as under
-development as the amount of testing and debugging of these components is
-small, and there are known problems.
+\MCS provides a set of components for simulating neutron beam polarisation
+and the optical elements that manipulate it: polarising monochromators,
+mirrors and guides, magnetic-field regions (including spin flippers and
+spin-echo coils), and polarisation-sensitive monitors. This chapter
+originated as an appendix written by P. Christiansen documenting the first
+polarisation components (2006); it is now promoted to a full chapter and
+brought up to date with the current \MCS~3.x component set and the
+\texttt{pol-lib} field/precession framework that underlies it.
 
-Here, we shall report on what have been done so far.
+We first describe the polarisation vector and how it is related to the
+neutron wave-function (section~\ref{sec:pol}) and then the physics of the
+scattering processes relevant to polarisation (section~\ref{sec:scat}).
+Section~\ref{sec:precession} describes in detail how \MCS propagates the
+polarisation vector through magnetic fields -- the numerical precession
+algorithm and the field functions available -- since this underlies every
+magnetic-field component in the library. Section~\ref{sec:new} then
+documents the current polarisation components themselves, organised by
+role, and section~\ref{sec:test} lists example and test instruments,
+including a worked spin-echo example.
 
-We first describe the polarization vector and how it is related to the neutron
-wave-function (section~\ref{sec:pol}) and then the physics of simple
-components that we need in McStas is reviewed (section~\ref{sec:scat}). In the
-last two sections the actual McStas polarization components are first
-described (section~\ref{sec:new}) and a list of test instruments in McStas is
-given (section~\ref{sec:test}).
-
-We rely heavily on the books~\cite{lovesey84,gavin} for the physics where
-the detailed calculations can be found.
+We rely heavily on the books~\cite{lovesey84,gavin} for the underlying
+physics, where the detailed calculations can be found.
 
 The notation used here (and in~\cite{gavin}) is $P$ (scalar), $\PB$
 (vector), $\tP$ (unit-vector), $\sigmaH$ (operator), and $\sigmao$
@@ -222,6 +265,15 @@ where $\omega_L = -\gamma_n B/\hbar$ is the Larmor frequency.\\
   use a right-handed (like e.g. McStas) or a left-handed (like e.g. NISP)
   coordinate system.
 \end{quote}
+
+This closed-form solution is exactly what the \textbf{Pol\_constBfield} and
+\textbf{Pol\_FieldBox} components (section~\ref{sec:new}) evaluate directly
+in one step for a spatially uniform field. For the general case of a
+spatially varying, rotating, or otherwise non-uniform field, \MCS instead
+integrates the precession numerically -- this general algorithm is
+described in section~\ref{sec:precession}, and is exactly the same physics
+applied piecewise over short enough intervals that the field can be treated
+as locally uniform.
 
 \section{Polarized Neutron Scattering}
 \label{sec:scat}
@@ -503,168 +555,394 @@ would have to use the general form of Eq.~\ref{eq:mono_sigma} and
 Eq.~\ref{eq:mono_pol} without the simplifying geometrical constraints for
 monochromators and guides.
 
-\section{New McStas Components}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Magnetic fields: the precession algorithm and field framework}
+\label{sec:precession}
+\index{Polarisation!precession algorithm|textbf}
+\index{Library!pol-lib}
+
+All magnetic-field-related polarisation components in \MCS share a common
+run-time library, \texttt{pol-lib} (\texttt{mccode/nlib/share/pol-lib.c}\slash
+\texttt{.h}), which provides the spin-precession integrator and a small set
+of built-in field functions. A separate library, \texttt{ref-lib}, provides
+the standard supermirror reflectivity function (\texttt{StdReflecFunc},
+section~\ref{sub:mono}) used by the polarising mirrors and guides.
+
+\subsection{The magnetic field stack}
+\label{sec:magnetstack}
+
+Rather than each field-producing component computing precession locally and
+independently, \texttt{pol-lib} maintains a small per-particle \emph{stack}
+of active magnetic fields, \texttt{\_particle->mcMagnet}. A component that
+defines a field region (e.g.\ \textbf{Pol\_Bfield}) \emph{pushes} a
+description of its field onto this stack when a particle enters the region,
+using
+\begin{quote}
+\texttt{mcmagnet\_push(\_particle, field\_type, \&rotation, \&position, stopbit, params[8])}
+\end{quote}
+where \texttt{field\_type} selects one of the built-in field functions
+(section~\ref{sec:fieldfuncs}), \texttt{rotation}/\texttt{position} record
+the field region's placement in the lab frame (so the field can later be
+evaluated in the region's own local coordinates regardless of where in the
+instrument it sits), and \texttt{params} holds up to 8 doubles of
+field-specific parameters (amplitude, extent, \ldots). A companion
+\textbf{Pol\_Bfield\_stop} component calls \texttt{mcmagnet\_pop()} to
+remove the field from the stack once the particle leaves the region.
+
+Because this is a stack rather than a single active field, \textbf{field
+regions may be nested or overlap}: any component placed between a
+\texttt{Pol\_Bfield}/\texttt{Pol\_Bfield\_stop} pair -- including another,
+independent field region -- experiences the vector sum of every field
+currently on the stack (evaluated by \texttt{mcmagnet\_get\_field()}, which
+walks the whole stack, transforms each field into the lab frame, and adds
+the contributions). A field region may also be declared \emph{closed}
+(\texttt{concentric=0}), in which case it pushes and pops its own field
+internally and no other components may be placed inside it -- this is the
+simpler, non-nestable mode used when a single self-contained field region
+is all that is needed.
+
+Whenever a particle is propagated through a region with an active field
+(technically: whenever \texttt{PROP\_DT} is called while
+\texttt{\_particle->mcMagnet} is non-\texttt{NULL}), the propagation macro
+transparently invokes the precession integrator described next, so that
+ordinary component code (slits, monitors, samples placed inside a field
+region) does not need to know anything about polarisation -- the spin
+precesses correctly regardless of what else is happening to the particle
+during that propagation step.
+
+\subsection{Numerical spin precession: \texttt{SimpleNumMagnetPrecession}}
+\label{sec:numprecession}
+\index{Polarisation!SimpleNumMagnetPrecession}
+
+The general-purpose precession routine, \texttt{SimpleNumMagnetPrecession()},
+integrates Eq.~\ref{eq:pol_magnetic} numerically along the particle's
+straight-line trajectory (gravity is \emph{not} accounted for inside the
+field itself) for a total propagation time $dt$, using an
+\emph{adaptive-step} scheme:
+
+\begin{enumerate}
+\item The field $\mathbf{B}_\mathrm{start}$ is evaluated at the particle's
+  current position (by querying the whole field stack, or -- for the
+  self-contained field components -- a single field function).
+\item A trial sub-step of length \texttt{mc\_pol\_initial\_timestep}
+  (default $10^{-5}$~s, capped at the remaining $dt$) is proposed, and the
+  field $\mathbf{B}_\mathrm{end}$ is evaluated at the particle's position at
+  the end of that trial step.
+\item If the angle between $\mathbf{B}_\mathrm{start}$ and
+  $\mathbf{B}_\mathrm{end}$ exceeds a threshold, \texttt{mc\_pol\_angular\_accuracy}
+  (default $1^\circ$), the trial step is halved and re-evaluated; this
+  repeats until the field direction changes by less than the threshold
+  over the sub-step (or the step size underflows to \texttt{FLT\_EPSILON}).
+  This is what makes the scheme \emph{adaptive}: in a slowly-varying or
+  uniform field, the integrator quickly settles on large sub-steps (up to
+  the $10^{-5}$~s cap), while in a rapidly rotating field (e.g. the
+  \texttt{rotating} or \texttt{majorana} functions of
+  section~\ref{sec:fieldfuncs}) it automatically refines the step until the
+  field is well approximated as locally uniform.
+\item Once an acceptable sub-step is found, the particle position and time
+  are advanced by that sub-step, and the spin is precessed \emph{about the
+  mean field over the sub-step}, $\bar{\mathbf{B}} = \tfrac12
+  (\mathbf{B}_\mathrm{start}+\mathbf{B}_\mathrm{end})$, by the angle
+  \[
+    \phi = \left(|\bar{\mathbf{B}}|\, \delta t\, \omega_L\right) \bmod 2\pi,
+    \qquad
+    \omega_L = -2\pi \times 29.16~\mathrm{MHz/T},
+  \]
+  matching Eq.~\ref{eq:precession} applied over the sub-step, using a
+  generic axis-angle rotation of $(s_x,s_y,s_z)$ about $\bar{\mathbf{B}}$
+  (rather than the special-case $z$-axis form of Eq.~\ref{eq:precession},
+  since $\bar{\mathbf{B}}$ may point in any direction).
+\item This is repeated, consuming the remaining $dt$ sub-step by sub-step,
+  until the whole requested propagation time has been precessed over.
+\end{enumerate}
+Positions/velocities/spin are tracked internally in the lab frame (fields
+are pushed to the stack together with the rotation/position needed to
+transform into and out of each field region's local frame) and the final
+spin is transformed back into the calling component's local frame before
+being returned. \textbf{Pol\_tabled\_field} (section~\ref{sec:new})
+re-implements this identical algorithm internally (rather than going
+through the shared field stack), so that it can query its own tabulated/
+interpolated field directly.
+
+Two component-specific accuracy parameters, exposed via
+\texttt{mc\_pol\_set\_timestep()} and \texttt{mc\_pol\_set\_angular\_accuracy()},
+allow the initial sub-step size and the angular-accuracy threshold to be
+tuned instrument-wide if the defaults are not adequate for a particular
+field geometry.
+
+\subsection{Available field functions}
+\label{sec:fieldfuncs}
+\index{Polarisation!field functions}
+
+The field pushed onto the stack by \textbf{Pol\_Bfield} is one of the
+following built-in functions, selected by the integer \texttt{field\_type}
+parameter (\texttt{Pol\_FieldBox} and \texttt{Pol\_constBfield} always use
+the constant-field case, evaluated in closed form rather than via the
+stack):
+
+\begin{description}
+\item[1 -- constant] $\mathbf{B}=(B_x,B_y,B_z)$, uniform throughout the
+  region.
+\item[2 -- rotating] $\mathbf{B}$ starts as $(0,B_y,0)$ at the entrance and
+  rotates smoothly to $(B_y,0,0)$ at the far end (over the region's
+  \texttt{zdepth}), following $B_x = B\sin(\tfrac{\pi}{2}z/L)$, $B_y =
+  B\cos(\tfrac{\pi}{2}z/L)$.
+\item[3 -- majorana] a large component along $x$ decreases linearly from
+  $+B_x$ to $-B_x$ across the region (passing through zero at the centre --
+  the classic ``Majorana flip'' geometry for studying spin-flip loss at a
+  field zero-crossing), plus a small, constant transverse component along
+  $y$.
+\item[6 -- gradient] linear interpolation of the full field vector between
+  two given endpoint vectors $\mathbf{B}_1$ (at $z=-L/2$) and
+  $\mathbf{B}_2$ (at $z=+L/2$) -- a generalisation of the majorana case to
+  an arbitrary field-vector gradient.
+\item[-1 -- tabled] used internally by \textbf{Pol\_tabled\_field}: the
+  field is not one of the analytic functions above but is instead
+  interpolated (via \texttt{interpolation-lib}, choosing between a
+  \texttt{kdtree} or \texttt{regular}-grid interpolator) from an externally
+  supplied point cloud file of $(x,y,z,B_x,B_y,B_z)$ rows -- this is the
+  route to use for a realistic, measured or finite-element-computed field
+  map.
+\item[4 (MSF) and 5 (RF)] reserved identifiers for a modulated/RF spin
+  flipper field; not implemented in the current release (a radio-frequency
+  field is more commonly modelled explicitly via a rotating-frame field
+  function or, for an idealised flipper, by simply mirroring the spin
+  vector, see \textbf{Pol\_SF\_ideal} below).
+\end{description}
+New field functions can be added by writing a function with the signature
+of e.g.\ \texttt{const\_magnetic\_field()} in \texttt{pol-lib.c} and adding
+a case to \texttt{magnetic\_field\_dispatcher()}; per the file header, this
+requires modifying the shared library rather than being an
+end-user-facing extension point.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Polarisation components in \MCS}
 \label{sec:new}
 
-The components written so far can be divided into four groups:
+The components below can be grouped by role:
 \begin{itemize}
-\item \textbf{Polarizers:} Components used to make the beam polarized.
-\item \textbf{Monitors:} Unphysical detectors that can measure the polarization
-of the neutrons.
-\item \textbf{Magnetic fields:} Components used to handle magnetic fields.
-\item \textbf{Samples:} Samples that affects the polarization.
+\item \textbf{Setting and analysing polarisation} (unphysical, for testing/idealised use).
+\item \textbf{Polarising monochromators, mirrors and guides} (physical, reflectivity-based).
+\item \textbf{Magnetic field regions} (precession, using the framework of section~\ref{sec:precession}).
+\item \textbf{Polarisation-sensitive monitors}.
+\item \textbf{Samples} affecting polarisation.
 \end{itemize}
+As of \MCS~3.x these are found in the \texttt{optics} and \texttt{monitors}
+component categories (not a dedicated ``polarisation'' category); a
+component is polarisation-aware precisely when its \texttt{TRACE} section
+reads and/or writes the particle's spin state $(s_x,s_y,s_z)$.
 
-\subsection{Polarizers}
-
-Some of the most common ways of polarizing a beam have been
-implemented.
-
-\begin{itemize}
-\item \textbf{Set\_pol:} This unphysical component can be used in two
-ways. Either to hard code the polarization to the vector $(px, py, pz)$
-or when randomOn!=0 to set the polarization vector to a random vector
-on the unit sphere.\\
-
-\item \textbf{Monochromator\_pol:} A monochromator that only does the $n=1$
-  reflection. For each neutron it calculates the wavelength which would give
-  Bragg reflection, $\lambda_\text{Bragg}$, and it then calculates, based on
-  one mosaicity and one d-spread, the reflection probability given the neutrons
-  actual $\lambda$.  The reflection probability is a Gaussian in $\Delta
-  \lambda = \lambda - \lambda_\text{Bragg}$, with the peak reflectivity and
-  polarization calculated as described in section~\ref{sub:mono}.
-
-  \begin{quote}
-    NB! Note that this monochromator reflects the neutrons billiard-like. In
-    \textbf{Monochromator\_flat} the mosaicity of the reflecting crystal is
-    taken into account, but the d-spread is not taken into account. One should
-    implement d-spread and mosaicity in a way similar to what is done in
-    \textbf{Single crystal}.
-  \end{quote}
-
-\item \textbf{Pol\_mirror:} Plane with a reflection probability for up
-and down. There are 3 options: always reflect, always transmit, or
-random select transmit/reflect.
-
-\begin{quote}
-  NB! Note that at the moment the plane only reflects from one side (because
-  it uses PROP\_Z0.
-\end{quote}
-
-\item \textbf{Pol\_bender:} Curved guide with the possibilities to
-  insert multiple slits, and have the end gap parallel to the entrance
-  or following the guide angle. It is possible to select different
-  coatings (mirror parameters) for each of the four sides.\\
-
-\item \textbf{Pol\_guide\_vmirror:} Straight guide with non-polarizing
-  coatings with two polarizing super mirrors sitting in a V shape
-  inside. \\
-\end{itemize}
-
-Note that for all the polarizing guides it is possible to define analytical
-functions or use tables for the up and down reflectivity descriptions.
-
-\subsection{Detectors}
+\subsection{Setting and analysing polarisation}
 
 \begin{itemize}
-\item \textbf{Pol\_monitor:} One defines a vector $\mathbf{m} = (mx,
-  my, mz)$ for the monitor and measures the projection of the spin
-  along this vector i.e. $\mathbf{m} \cdot \mathbf{S}$.\\
+\item \textbf{Set\_pol:} An unphysical, zero-size component (drawn like an
+  \texttt{Arm}) used to impose a polarisation state, in one of four modes
+  selected by \texttt{randomOn} and \texttt{normalize}: (i) hard-code the
+  polarisation to $(p_x,p_y,p_z)$; (ii) set it to a random vector \emph{on}
+  the unit sphere (fully polarised, random direction); (iii) set it to a
+  random vector \emph{within} the unit sphere (random direction and
+  degree of polarisation); (iv) hard-code the \emph{direction} of
+  $(p_x,p_y,p_z)$ but normalise it to unit polarisation.
 
-\item \textbf{PolLambda\_monitor:} Measures the projection of the
-  spin along the defined vector $\mathbf{m}$ (see
-  \textbf{Pol\_monitor}) as a function of the wavelength $\lambda$.
+\item \textbf{PolAnalyser\_ideal:} An unphysical, ideal polarisation
+  analyser. Given an analysis direction $\mathbf{m}=(m_x,m_y,m_z)$
+  ($|\mathbf{m}|\le 1$ for an imperfect analyser), it reduces the neutron
+  weight by the projection probability
+  $\tfrac12\bigl(1+\mathbf{S}\cdot\mathbf{m}\bigr)$ and collapses the
+  outgoing spin to $\mathbf{m}$, or absorbs the ray if that probability is
+  zero or negative.
 
-\item \textbf{MeanPolLambda\_monitor:} Measures the \emph{average}
-  projection of the spin along the defined vector $\mathbf{m}$ (see
-  \textbf{Pol\_monitor}) as a function of the wavelength $\lambda$.
-
-  \begin{quote}
-    NB! currently the error on the mean is shown ($\sigma/\sqrt(N)$), but it
-    might make more sense to show the spread ($\sigma$).
-  \end{quote}
+\item \textbf{Pol\_SF\_ideal:} An idealised spin flipper: within an
+  absorbing box, the polarisation vector is mirrored through the plane
+  through the origin with normal $(n_x,n_y,n_z)$ ($\mathbf{S}' = \mathbf{S}
+  - 2(\mathbf{S}\cdot\hat{\mathbf{n}})\hat{\mathbf{n}}$); rays missing the
+  box pass through untouched. This is the natural building block for a
+  spin-echo instrument's $\pi$-flip coils (section~\ref{sec:spinecho}) when
+  an idealised, 100\%-efficient flipper is sufficient.
 \end{itemize}
 
-\subsection{Magnetic fields}
+\subsection{Polarising monochromators, mirrors and guides}
+\label{sub:mono-comps}
 
-Much inspiration for the components and the tests have been found
-in~\cite{pol_seeger}.
+These all implement the physics of section~\ref{sub:mono}
+(Eqs.~\ref{eq:mono_sigma}--\ref{eq:mono_mag}): given reflectivities for
+spin up and down ($R_\uparrow$, $R_\downarrow$, either as
+\texttt{\{R0,Qc,alpha,m,W\}} parametrised curves via \texttt{ref-lib}'s
+\texttt{StdReflecFunc}, or as tabulated reflectivity files), the shared
+helper functions \texttt{GetMonoPolFNFM}, \texttt{GetMonoPolRefProb},
+\texttt{SetMonoPolRefOut} and \texttt{SetMonoPolTransOut} (all in
+\texttt{pol-lib}) compute $F_N$, $F_M$, the reflection probability, and the
+outgoing polarisation for both the reflected and transmitted branches.
+Since a 2024 revision (E.B.~Knudsen, P.~Willendrup, H.~Lee), all of these
+components treat a polarising reflection/transmission event as a
+projective quantum measurement along the mirror's quantisation axis: the
+in-plane spin components are explicitly zeroed ($s_x=s_z=0$) at the point
+of interaction, before the new $s_y$ is set by \texttt{SetMonoPolRefOut}/
+\texttt{SetMonoPolTransOut} -- reflecting that only the component of
+polarisation along the mirror's up direction survives a measurement-like
+interaction of this kind.
 
 \begin{itemize}
-\item \textbf{Pol\_constBfield:} A rectangular box with a constant magnetic
-  field in the y-direction. The x- and z-components of the spin precess with
-  the Larmor frequency $\omega_L$. It is possible to define the field in terms
-  of a wavelength so that the spin will precess 180 degrees for the given
-  wavelength. The component can be rotated to have the field along another
-  axis. \\
-
-\item \textbf{Pol\_simpleBfield:} The first attempt at a component for
-  handling general magnetic fields. It is a concentric component where you
-  define a start and stop component for each field, but this allows other
-  components, e.g. monitors, to be put inside the field. The component
-  overloads the propagation routines so that numerical spin propagation is
-  done for analytical magnetic fields.
-
-  \begin{quote}
-    NB! At the moment both components does not really check the boundaries of
-    the field on the sides, but merely assumes that the field starts at the
-    entrance plane and stops at the exit plane.
-
-    Also, some optimization remains for the numerical component and it would
-    be nice to support tabulated magnetic field files. However, the framework
-    developed for \textbf{Pol\_simpleBfield} is very general and should
-    easily facilitate these changes.
-  \end{quote}
-
+\item \textbf{Monochromator\_pol:} A flat, infinitely thin mosaic
+  monochromator/analyser crystal (Gaussian mosaic and $d$-spread,
+  billiard-ball reflection), the direct polarising analogue of
+  \textbf{Monochromator\_flat}, parametrised by \texttt{Rup}/\texttt{Rdown}
+  (or \texttt{Q}/\texttt{DM} for the lattice spacing).
+\item \textbf{Pol\_mirror:} A flat, infinitely thin, non-absorbing
+  polarising mirror in the $y$-$z$ plane, reflecting and/or transmitting
+  according to \texttt{p\_reflect} (use $-1$ to sample physically from the
+  mirror's own reflectivity, or a fixed value to force a chosen
+  reflect/transmit statistics split while re-weighting correctly).
+\item \textbf{Pol\_bender:} A curved, multi-slit polarising bender (based
+  on \textbf{Guide\_curved}), with independently specifiable
+  reflectivities for each of the four walls (top/bottom/left/right) and
+  gravity support.
+\item \textbf{Pol\_guide\_mirror}\ /\ \textbf{Pol\_guide\_vmirror:}
+  Straight rectangular guides with one (\texttt{\_mirror}) or two,
+  V-shaped (\texttt{\_vmirror}) polarising supermirrors sitting on the
+  diagonal(s) inside an otherwise ordinary (optionally non-polarising)
+  guide. Setting the up and down reflectivities of the diagonal mirror
+  equal turns either component into an unpolarised \emph{frame-overlap
+  mirror} instead -- a deliberate dual use of the same geometry.
 \end{itemize}
 
+\subsection{Magnetic field components}
+\label{sub:fieldcomps}
 
-\subsection{Samples}
+See section~\ref{sec:precession} for the shared precession algorithm and
+field functions used by these.
 
 \begin{itemize}
-\item \textbf{V\_sample:} Modified the sample so that the scattered
-  neutron has $\PB' = -1/3\PB$. Note that this component does not
-  handle multiple scattering, so this approach is correct. If the
-  components handled multiple scattering the polarization should be
-  set to $\PB' = (-1/3)^n\PB$, where $n$ is the number of
-  scatterings.\\
+\item \textbf{Pol\_Bfield} / \textbf{Pol\_Bfield\_stop:} The general-purpose
+  field region, supporting all of the field functions of
+  section~\ref{sec:fieldfuncs} and a box, cylindrical, spherical, or
+  window-shaped extent. Used together as a \texttt{concentric} pair
+  (\texttt{Pol\_Bfield} pushes the field, other components may be placed
+  freely inside, \texttt{Pol\_Bfield\_stop} pops it), or standalone as a
+  closed region (\texttt{concentric=0}) that nothing else may be placed
+  inside.
+\item \textbf{Pol\_FieldBox:} A simple, self-contained, non-nestable box
+  with a single uniform field $(B_x,B_y,B_z)$, evaluated with a direct,
+  single-step closed-form precession (Eq.~\ref{eq:precession}) rather than
+  the general stack/integrator -- the lightest-weight choice for a plain
+  guide field or spin-flip coil.
+\item \textbf{Pol\_tabled\_field:} A field region (box/cylinder/sphere, or
+  an arbitrary OFF/PLY-geometry volume) whose field is interpolated from an
+  externally supplied point-cloud file, using the same adaptive-step
+  precession algorithm re-implemented internally
+  (section~\ref{sec:numprecession}). The interpolation backend
+  (\texttt{kdtree} or \texttt{regular}-grid) can be chosen explicitly or
+  left to an automatic CPU/GPU-appropriate default.
+\item \textbf{Pol\_constBfield:} A rectangular, closed (non-nestable) box
+  with a constant field along its local $y$-axis, evaluated with the
+  closed-form solution of Eq.~\ref{eq:precession} directly (no field
+  stack). Convenient for guide fields and simple spin flippers: rather
+  than specifying $B$ directly, \texttt{fliplambda}/\texttt{flipangle} let
+  the field be specified as ``the field that flips a neutron of this
+  wavelength by this angle over this component's length'' -- exactly the
+  \texttt{GetConstantField()} helper of \texttt{pol-lib}.
 \end{itemize}
 
+\subsection{Polarisation-sensitive monitors}
 
-\section{Tests With New Components}
+\begin{itemize}
+\item \textbf{Pol\_monitor:} Measures the projection of the polarisation
+  onto a user-defined direction $\mathbf{m}=(m_x,m_y,m_z)$, i.e.\
+  $\mathbf{m}\cdot\mathbf{S}$, integrated over all detected rays.
+\item \textbf{PolLambda\_monitor:} As \textbf{Pol\_monitor}, resolved as a
+  function of wavelength $\lambda$.
+\item \textbf{MeanPolLambda\_monitor:} As \textbf{PolLambda\_monitor}, but
+  reporting the \emph{mean} polarisation projection per wavelength bin
+  (rather than the summed/integrated signal) -- the natural monitor for a
+  spin-echo polarisation-vs.-parameter scan (section~\ref{sec:spinecho}).
+\item \textbf{PSD\_monitor\_4PI\_spin:} A spherical, $4\pi$
+  position-sensitive monitor that additionally records the mean
+  polarisation projection per pixel, for mapping how polarisation varies
+  with scattering angle.
+\end{itemize}
+
+\subsection{Samples and polarisation}
+
+Few \MCS sample components currently propagate polarisation explicitly.
+The generic \textbf{Incoherent} component (the modern, general-purpose
+replacement for the historical, now-obsolete \textbf{V\_sample}) can be
+parametrised to reproduce the classic depolarising-incoherent-scatterer
+result of section~\ref{sec:scat}'s nuclear-scattering example
+($\mathbf{P}' = -\tfrac13\mathbf{P}$ per single incoherent scattering
+event, from the random projection of nuclear spin onto $\hat\sigma_x$ and
+$\hat\sigma_y$); as noted there, this simple factor is only exact for a
+single scattering event, and multiple scattering must be handled with
+some care (consecutive depolarisation by $(-\tfrac13)^n$ is only valid if
+each scattering order can be isolated). Magnetic (Bragg) scattering from
+an ordered magnetic structure, using the magnetic structure factor
+$F_M$ of section~\ref{sec:pol}, is not yet implemented as a general sample
+component; \textbf{Single\_crystal} and \textbf{PowderN} presently model
+only nuclear scattering and do not read or write the spin state.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Test and example instruments}
 \label{sec:test}
 
-All the test instruments can be found in the McStas examples folder
-(go to ``Neutron site/tests'' in mcgui).
+Every instrument below is found in the \texttt{Tests\_polarization}
+category of the example library (browsable via \texttt{mcgui}'s
+``New from Template'' menu, or \texttt{mcdoc}).
 
-There are basically two kind of tests. The first kind of tests shows
-that the polarizing component can reproduce the same results as a
-similar non-polarizing component:
+\subsection{Component-level regression tests}
+These verify a polarising component reduces correctly to its
+non-polarising counterpart, or exercise one component's specific physics
+in isolation: \textit{Test\_Pol\_Bender}, \textit{Test\_Pol\_FieldBox},
+\textit{Test\_Pol\_Guide\_mirror}, \textit{Test\_Pol\_Guide\_Vmirror},
+\textit{Test\_Pol\_Mirror}, \textit{Test\_Pol\_MSF},
+\textit{Test\_Pol\_SF\_ideal}, \textit{Test\_Pol\_Set},
+\textit{Test\_Pol\_Tabled}, \textit{Test\_pol\_ideal},
+\textit{Test\_Magnetic\_Constant}, \textit{Test\_Magnetic\_Majorana}, and
+\textit{Test\_Magnetic\_Rotation} (illustrating, respectively, the
+constant, majorana, and rotating field functions of
+section~\ref{sec:fieldfuncs}).
+
+\subsection{Test\_Pol\_TripleAxis}
+A complete example of a polarised triple-axis spectrometer: polarising
+monochromator and analyser, a vanadium (depolarising incoherent) sample,
+and a spin flipper -- illustrating how the individual components of
+section~\ref{sec:new} combine into a real instrument.
+
+\subsection{He3\_spin\_filter}
+Illustrates the use of a $^3$He spin filter cell for beam or analysis-side
+polarisation.
+
+\subsection{A spin-echo example: SE\_example}
+\label{sec:spinecho}
+\index{Spin-echo}
+
+\textit{SE\_example} (and its variant \textit{SE\_example2}, both written
+for the 2010 PNCMI school in Delft) is a mock-up transmission spin-echo
+instrument, and a compact illustration of most of the machinery described
+in this chapter working together:
 \begin{itemize}
-\item \textit{Test\_Monochromators.instr} : Intercomparison of
-  \textbf{Monochromator\_flat} and \textbf{Monochromator\_pol}.
-\item \textit{Test\_Pol\_Bender\_Vs\_Guide\_Curved.instr} : Intercomparison of
-  \textbf{Guide\_curved} and \textbf{Pol\_bender}.
+\item \textbf{Pol\_mirror} polarises the incoming beam and, symmetrically,
+  analyses the scattered beam.
+\item \textbf{Pol\_Bfield} regions define the two (oppositely-signed)
+  precession guide fields on either side of the sample position, exactly
+  the nested/concentric field-stack usage of section~\ref{sec:magnetstack}
+  (other components -- the sample, monitors -- sit \emph{inside} each
+  field region, between its \texttt{Pol\_Bfield}/\texttt{Pol\_Bfield\_stop}
+  pair).
+\item \textbf{MeanPolLambda\_monitor} records the mean polarisation
+  projection as a function of wavelength -- the classic spin-echo readout,
+  whose oscillation as a small guide-field perturbation \texttt{dBz} is
+  scanned traces out the echo signal.
 \end{itemize}
-
-The second type of test illustrates the polarizing capabilities of the
-component:
-\begin{itemize}
-\item \textit{Test\_Magnetic\_Constant.instr} : Constant magnetic field.
-\item \textit{Test\_Magnetic\_Majorana.instr} : Linearly decreasing field with
-  small transverse component.
-\item \textit{Test\_Magnetic\_Rotation.instr} : Rotating magnetic field.
-\item \textit{Test\_Magnetic\_Userdefined.instr} : Example of how to make a
-  user defined analytic magnetic field that can also depend on time.
-\item \textit{Test\_Pol\_Bender.instr} : Illustrates beam polarization with
-  the \textbf{Pol\_bender}.
-\item \textit{Test\_Pol\_Set.instr} : Tests \textbf{Pol\_set}.
-\item \textit{Test\_Pol\_Guide\_Vmirror.instr} : Illustrates beam polarization
-  with the \textbf{Pol\_guide\_vmirror}.
-\item \textit{Test\_Pol\_Mirror.instr} : Illustrates beam polarization
-  with the \textbf{Pol\_mirror}.
-\item \textit{Test\_Pol\_TripleAxis.instr} : An example of a triple axis
-  spectrometer with polarizing monochromators, a vanadium sample, and a spin
-  flipper.
-\end{itemize}
-
+A typical scan takes the form
+\begin{lstlisting}
+mcrun SE_example.instr dBz=-0.0001,0.0001 -N41 -n1e5
+\end{lstlisting}
+sweeping a small field imbalance \texttt{dBz} between the two precession
+regions and recording the resulting polarisation echo via
+\textbf{MeanPolLambda\_monitor}. The instrument's own parameters
+(\texttt{POL\_ANGLE}, \texttt{Bguide}, \texttt{Bflip}, \texttt{dBz},
+\texttt{Lam}, \texttt{dLam}) let the polariser/analyser angle, the guide-
+and flipper-field strengths, and the source wavelength band be adjusted
+independently, and an optional incoherent scatterer (\texttt{SAMPLE=1})
+can be inserted to study the effect of depolarising sample scattering on
+the echo.

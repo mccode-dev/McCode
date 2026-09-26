@@ -1,0 +1,97 @@
+\section{The \texttt{Inhomogenous\_incoherent\_process} McStas Component}
+A sample component to separate geometry and phsysics
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Daniel Lomholt Christensen
+  \item \textbf{Origin:} University of Copenhagen
+  \item \textbf{Date:} 26/01/2026
+\end{itemize}
+
+\subsection*{Description}
+This Union\_process is based on the Incoherent\_process.comp component originally written by Mads Bertelsen inspired by Kim Lefmann and Kristian Nielsen
+
+Part of the Union components, a set of components that work together and thus sperates geometry and physics within McStas. The use of this component requires other components to be used.
+
+1) One specifies a number of processes using process components like this one 2) These are gathered into material definitions using Union\_make\_material 3) Geometries are placed using Union\_box / Union\_cylinder, assigned a material 4) A Union\_master component placed after all of the above
+
+Only in step 4 will any simulation happen, and per default all geometries defined before the master, but after the previous will be simulated here.
+
+There is a dedicated manual available for the Union components
+
+Algorithm: The general algorithm for the Union system is described elsewhere.
+
+I here give a brief introduction as to what changes occur when using an inhomogenous process in your Union make material. It is expected that you understand the basic algorithm of the Union system before reading this.
+
+In Union, the neutron moves through a network of objects in a 3 dimensional world. When the neutron hits a material, the probability to scatter is calculated, and a Monte Carlo choice is taken, as to whether that neutron should scatter, or pass through. For a homogenous material (i.e constant attenuation coefficient \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{}), this probability is the Beer-Lambert law,
+
+\textless{}div class="latex"\textgreater{}
+
+\begin{verbatim}
+$P_s = 1 - e^{-\mu l}$
+\end{verbatim}
+
+\textless{}/div\textgreater{}
+
+Where \textless{}span class="latex"\textgreater{}\$P\_s\$\textless{}/span\textgreater{} is the scattering probability, and \textless{}span class="latex"\textgreater{}\$l\$\textless{}/span\textgreater{} is length of the neutron path throughout the object.
+
+For an inhomogenous material, this Beer-Lambert law must be modified, as \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} is a function of the position. Therefore the Beer-Lambert law becomes,
+
+\textless{}div class="latex"\textgreater{}
+
+\begin{verbatim}
+$P_s = \int^l_0 1 -  e^{-\mu(l')l'}dl'$
+\end{verbatim}
+
+\textless{}/div\textgreater{}
+
+Calculating this \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} in the inhomogenous case is often trivial, but not feasible, from a software development point of view (seeing as many different functions of \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} might be wanted). Instead the inhomogenous processes performs an approximate integral, by evaluating \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} at a number of points along the neutron path (This number is in fact number\_of\_sample\_points).
+
+For this incoherent process, the linear attenuation coefficient is,
+
+\textless{}div class="latex"\textgreater{} \$\textbackslash{}mu = pack/V\_u * 100 * \textbackslash{}sigma\$ \textless{}/div\textgreater{}
+
+Where \textless{}span class="latex"\textgreater{}\$pack\$\textless{}/span\textgreater{} is the packing factor of the material (defaults to 1), \textless{}span class="latex"\textgreater{}\$V\_u\$\textless{}/span\textgreater{} is the Unit cell volume, and \textless{}span class="latex"\textgreater{}\$\textbackslash{}sigma\$\textless{}/span\textgreater{} is the scattering cross section in barns. \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} therefore has units of \textless{}span class="latex"\textgreater{}\$m\textasciicircum{}\{-1\}\$\textless{}/span\textgreater{}.
+
+For this component each factor in the attenuation coefficient can be a "tiny expression". This means that it can be a mathematical equation such as \textless{}span class="latex"\textgreater{}\$\textbackslash{}sigma\_\{expr\} = "5.08 + 1000 * z * 2.35"\$\textless{}/span\textgreater{}. When the attenuation coefficient is calculated, then the current value of \textless{}span class="latex"\textgreater{}\$z\$\textless{}/span\textgreater{} is used to get \textless{}span class="latex"\textgreater{}\$\textbackslash{}sigma\$\textless{}/span\textgreater{}.
+
+The parameters that the tiny expression can rely upon are currently: The positions, \textless{}span class="latex"\textgreater{}\$x, y, z\$\textless{}/span\textgreater{} The velocities \textless{}span class="latex"\textgreater{}\$vx, vy, vz\$\textless{}/span\textgreater{} and the time \textless{}span class="latex"\textgreater{}\$t\$\textless{}/span\textgreater{}
+
+McStas uses a sligthly modified version of tiny expressions that evaluate exponentials from right to left instead of the standard left to right. Furthermore McStas has added two functions to tiny expressions. These are: A heavy side function hvs(variable, switch\_point, large\_val,small\_val) which returns large val if variable \textgreater{} switch\_point and small val otherwise.
+
+A gaussian distribution:
+
+gauss(A,sig,x), which evaluates to A*1/sqrt(2*PI)/sig*exp(-x\textasciicircum{}2/2/sig\textasciicircum{}2)
+
+An example using these can be found in the Test instrument for this component, called Test\_inhomogenous\_process.instr. Example \#9 implements a gaussian and a heavyside function. For more information on tiny expressions, see the link below.
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+sigma & barns & Incoherent scattering cross section & 0 \\
+sigma\_expr & string & Tiny expression to be calculated as replacement for sigma & "" \\
+packing\_factor & 1 & How dense is the material compared to optimal 0-1 & 1 \\
+packing\_factor\_expr & string & Tiny expression to be calculated as replacement for packing factor & "" \\
+unit\_cell\_volume & \AA{}$^{3}$ & Unit cell volume & 0 \\
+unit\_cell\_volume\_expr & string & Tiny expression to be calculated as replacement for the unit cell volume & "" \\
+gamma & meV & Lorentzian width of quasielastic broadening (HWHM) [1] & 0 \\
+gamma\_expr & meV & Tiny expression to be calculated as replacement for the gamma value. & "" \\
+f\_QE & 1 & Fraction of quasielastic scattering (rest is elastic) [1] & 0 \\
+number\_of\_sample\_points & 1 & Number of points that are sampled along the neutron path through a material & 20 \\
+interact\_fraction & 1 & How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1) & -1 \\
+verbose & 1 & Flag that prints out the values calculated in the cross section calculation & 0 \\
+init & string & name of Union\_init component (typically "init", default) & "init" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Inhomogenous\_incoherent\_process.comp}.
+  \item For information on how to write a tiny expression, see \htmladdnormallink{their github repository}{https://github.com/codeplea/tinyexpr}
+\end{itemize}
+\IfFileExists{union/Inhomogenous_incoherent_process_static.tex}{\input{union/Inhomogenous_incoherent_process_static.tex}}{}

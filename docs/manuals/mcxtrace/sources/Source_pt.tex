@@ -1,30 +1,48 @@
-\section{Source\_pt: A mathematical point emitting photons with a spectrum either uniform, gaussian or generated from a datafile}
-\label{s:source-pt}
-\index{Sources!Point source}
-\mcdoccomp{sources/Source_pt.parms}
+\section{The \texttt{Source\_pt} McXtrace Component}
+Release: McXtrace 0.1
 
-The simplest source model, where a mathematical point source at $(0,0,0)$ emits photons. The wavevector of the emitted photons
-is picked randomly in a defining aperture \emph{focus\_xw} by \emph{focus\_yh} m at $(0,0,\mathit{dist})$. 
-Please note that this aperture is merely a
-virtual aperture used to reduce the sampling space. This has a few
-implications: Other components may be placed without reference to the aperture,
-but if the aperture does not fill the full acceptance window of subsequent
-components your simulations will be biased. The aperture is simply there to provide efficient sampling.
+An x-ray point source
 
-If a \textit{spectrum\_file} is not supplied, the xray
-is given a weight which is the total wavelength-integrated intensity downscaled
-by the solid angle subtended by the defining aperture.
-The Energy/wavelength spectrum of the emitted photons is centered around \textit{E0} or  $\lambda 0$ with a width of \textit{dE} or $d\lambda$ respectively. 
-\textit{E0} takes precedence over $\lambda0$. Thus if $E0\neq0$ the the combination \textit{E0, dE} is used, $\lambda0,d\lambda$ otherwise.
-If \textit{gauss} (the default) is set to be non-zero the spectrum is Gaussian with mean \textit{E0} ($\lambda 0$) and standard deviation \textit{dE} ($d\lambda$), otherwise the
-spectrum is uniform in \textit{E0}$\pm$\textit{dE} ($\lambda 0\pm d\lambda$).
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Erik Knudsen
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} June 29th, 2009
+\end{itemize}
 
-If a \textit{spectrum\_file} \emph{is} supplied, a slightly different strategy is adopted. In this case the
-wavelength/energy range implied by the datafile is sampled unformly and each ray is assigned
-a weight corresponding to the intensity indicated by linear interpolation between datapoints
-at that wavelength. This implies an oversampling of weak parts of the intensity spectrum.
+\subsection*{Description}
+A simple source model emitting photons from a point source uniformly into 4pi. A square target centered on the Z-axis restricts the beam to that aperture. If an input spectrum datafile (spectrum\_file) is not specified, the beam is restricted to emit photons between E0+-dE keV, or lambda0+-dlambda \AA{}, whichever is given. The input spectrum file should be formatted such that x-ray energy/wavelength is in the first column and the intensity in the second. Any preceding lines starting with \# are considered part of the file header. If a datafile is given, a nonzero E¤0 value indicates that is is parametrized by energy ( in keV) as opposed to wavelength (in \AA{}). Wavelength is the default. Flux is given in the unit photons/s
 
-Currently only completely coherent or fully incoherent beams are supported. If
-\textit{randomphase} is specified emitted photons will be assigned a random phase, otherwise it is
-set to the value of \textit {phase}.
+Example: Source\_pt(dist=1,focus\_xw=0.1,focus\_yh=0.1, lamda=0.231, dlambda=0.002)
 
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+focus\_xw & m & Width of target & 0 \\
+focus\_yh & m & Height of target & 0 \\
+focus\_x0 & m & x-cocordinate of target centre. & 0 \\
+focus\_y0 & m & y-coordinate of target centre. & 0 \\
+flux & ph/s & Total flux radiated from the source. & 0 \\
+dist & m & Distance from source plane to sampling window. & 1 \\
+E0 & keV & Mean energy of xrays. & 0 \\
+dE & keV & Energy half spread of x-rays. & 0 \\
+lambda0 & \AA{} & Mean wavelength of x-rays. & 0 \\
+dlambda & \AA{} & Wavelength half spread of x-rays (flat or gaussian sigma). & 0 \\
+phase & rad & Set phase to something given. & 0 \\
+randomphase & 0/1 & If nonzero, the phase of the emotted photon is random, i.e. source is fully incoherent. otherwise the value of phase is used. & 1 \\
+gauss & 1 & Gaussian (1) or Flat (0) energy/wavelength distribution & 0 \\
+spectrum\_file & string & File from which to read an input spectrum. & "" \\
+verbose & 1 & Output more information runtime. & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Source\_pt.comp}.
+\end{itemize}
+\IfFileExists{sources/Source_pt_static.tex}{\input{sources/Source_pt_static.tex}}{}

@@ -1,0 +1,62 @@
+/* Custom style overrides for the McCode HTML manuals, appended to the
+   tex4ht-generated stylesheet on every build (see CMakeLists.txt).
+   Edit this file, not the generated <DOC>.css -- that one is regenerated
+   from scratch on every build and any direct edits will be lost. */
+
+/* Base body font: change family/size here to affect all running text */
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Headings */
+h1, h2, h3, h4 {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* Content figures: grow to ~80% of the document pane width (scales with
+   the actual available space, unlike a fixed pixel cap), centered.
+   Logos are excluded from this class by inject-toc-sidebar.py (matched
+   by "logo" appearing anywhere in the filename), so they don't get
+   blown up to 80% of the page. */
+.mccode-content-figure {
+  width: 80% !important;
+  height: auto !important;
+  display: block;
+  margin: 0 auto !important;
+}
+
+/* Logos: explicit, uniform size, independent of native pixel dimensions.
+   Different source logos have different native pixel sizes that don't
+   necessarily match each other or their intended printed size -- using
+   width (not max-width) forces them all to the same on-screen size,
+   rather than only ever being able to shrink an oversized one. Matched
+   via an attribute selector against the actual filename at render time,
+   so this doesn't depend on knowing exactly what tex4ht names the
+   converted file. */
+/* DTU logo: same convergence reasoning as the package logo above --
+   explicit width rather than natural size, so it renders consistently
+   regardless of its source file's native pixel dimensions. Deliberately
+   smaller than the package logo (roughly matching its 9mm-vs-50mm ratio
+   in the PDF version, rounded up a little for on-screen legibility). */
+img[src*="DTU" i] {
+  width: 40px;
+  height: auto;
+}
+
+img[src*="logo" i]:not([src*="DTU" i]) {
+  width: 125px;
+  height: auto;
+}
+
+/* Safe fallback for any other untagged image: never overflow its
+   container, but don't force a size -- natural size wins. */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Code listings (from the listings package) usually want to stay monospace
+   and NOT be affected by the max-width rule above in the same way images
+   are -- no override needed here unless you want to change their font. */

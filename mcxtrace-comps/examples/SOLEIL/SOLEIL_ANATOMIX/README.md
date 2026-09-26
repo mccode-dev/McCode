@@ -58,6 +58,10 @@ EH3             | 165.7-174.1 | Guard slits; TXM sample stage and zone-plate tab
 EH4             | 197.2-208.5 | Guard slits; microtomography sample stage; detector table; X-ray grating interferometer | EH4
 ```
 
+## Examples
+
+- **Test: -n 1e5 E0=17 Detector: psd_monitor_after_cc_I=1e18**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -235,6 +235,7 @@ union abs_logger_data_union{
   struct a_1D_event_abs_storage_struct *p_1D_event_abs_storage;
   struct a_nD_abs_storage_struct *p_nD_abs_storage;
   struct a_time_abs_storage_struct  *p_time_abs_storage;
+  struct a_nD_scintillator_abs_storage_struct *p_nD_scintillator_abs_storage;
   // Additional logger storage structs to be addedd
 };
 

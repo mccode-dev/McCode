@@ -41,9 +41,9 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| SAMPLE |  |  | 1 |
+| SAMPLE | 1 | 1=Incoherent, 2=PowderN(Al.lau), 3=Single_crystal(Al.lau) | 1 |
 | SPLITS | 1 | Number of SPLIT to do | 10 |
-| Pp0 | 1 | Dummy input parameter used internally | 1 |
+| Pp0 | 1 | Dummy input parameter used internally for ensuring unit evennt weight | 1 |
 
 ## Links
 

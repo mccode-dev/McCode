@@ -20,6 +20,10 @@ It can be found here: https://inis.iaea.org/collection/NCLCollectionStore/_Publi
 Example: Do a scan (scan parameter =1) from x_screw=20 to 103 mm. The calculated monitor "Wavelength(Ang) as a function of x_screw(mm)" will be a linear function. The monochromator functions properly.
 ```
 
+## Examples
+
+- **Test: x_screw=60 Detector: w_monitor_I=1.10881e-06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

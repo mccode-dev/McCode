@@ -16,6 +16,10 @@ Very simple setup to compare intensities diffracted by Monochromators.
 It shows that implementations are equivalent.
 ```
 
+## Examples
+
+- **Test: Test_capillary -n 1e6 TL=3 TR=0.001 L1=0.4 Detector: psd14_I=7.34669e-08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

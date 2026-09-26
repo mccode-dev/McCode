@@ -17,6 +17,14 @@ The default sample itself is an LaB6-powder.
 Alternatively, the Single_crystal (powder mode) and FluoPowder components can also be tested.
 ```
 
+## Examples
+
+- **Test: index=1 Detector: Sph_mon_I=1.26755e-11**
+- Example: index=2 Detector: Sph_mon_I=4.44793e-13
+- **Test: index=3 Detector: Sph_mon_I=1.98093e-11**
+- 
+- (Unittest disabled for Single_crystal powder-mode, numerically unstable on GPU)
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

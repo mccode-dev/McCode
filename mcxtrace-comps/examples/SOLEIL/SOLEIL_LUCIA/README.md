@@ -24,6 +24,10 @@ Position | Element
 29.1     | Fluorescence Detector at 90 deg
 ```
 
+## Examples
+
+- **Test: -n 1e7 E0=3.09 Detector: mon_spl_SDD_I=9.69081e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

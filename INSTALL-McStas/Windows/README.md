@@ -1,4 +1,4 @@
-# Installation of McStas 3.7.9 on Windows 64 bit Intel systems (some support for arm64)
+# Installation of McStas 3.8.4 on Windows 64 bit Intel systems (some support for arm64)
 ## *IMPORTANT: active internet connection required during installation*
 
 ###Please use either of:###
@@ -11,8 +11,8 @@
 
 **OPTION 2: New MSVC-bundle solution:**
 * As **Administrator**, run our new  [`install_msvc_for_conda.bat`](install_msvc_for_conda.bat) batch script to install MSVC and required packages to your system. Alternatively, [install MSVC manually](VScode_manual_install)
-* Please remove any existing MinGW-based version of McStas 3.7.9 before proceeding!
-* install the new MSVC based [McStas 3.7.9 MSVC metapackage](https://download.mcstas.org/mcstas-3.7.9/Windows/MSVC/McStas-Metapackage-3.7.9-MSVC-win64.exe)
+* Please remove any existing MinGW-based version of McStas 3.8.4 before proceeding!
+* install the new MSVC based [McStas 3.8.4 MSVC metapackage](https://download.mcstas.org/mcstas-3.8.4/Windows/MSVC/McStas-Metapackage-3.8.4-MSVC-win64.exe)
 * Option 2 should be fully functional on `arm64` processors.
 
 **OPTION 3: WSL**
@@ -20,8 +20,8 @@
 * Option 3 is fully functional on `arm64` processors.
 
 **OPTION 4: Legacy MinGW-bundle solution:**
-* Please remove any MSVC-based version of McStas 3.7.9 before proceeding!
-* install the legacy-style MinGW based [McStas 3.7.9 MinGW metapackage](https://download.mcstas.org/mcstas-3.7.9/Windows/MinGW/McStas-Metapackage-3.7.9-MinGW-win64.exe)
+* Please remove any MSVC-based version of McStas 3.8.4 before proceeding!
+* install the legacy-style MinGW based [McStas 3.8.4 MinGW metapackage](https://download.mcstas.org/mcstas-3.8.4/Windows/MinGW/McStas-Metapackage-3.8.4-MinGW-win64.exe)
 * Option 4 should be fully functional on `arm64` processors.
 	
 If you are `conda-forge` knowledgable already, you may also simply install a new environment as explained in [conda-forge](../conda/README.md)
