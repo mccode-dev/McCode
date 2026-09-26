@@ -26,6 +26,10 @@ reflection, and the d-spread is handled in a simple way
 McStas for completeness.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

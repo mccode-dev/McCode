@@ -15,6 +15,12 @@
 Validation of Union components against incoherent scattering component
 ```
 
+## Examples
+
+- **Test: comp_select=1 sample_radius=0.01 sample_height=0.01 pack=1 sigma_inc_vanadium=5.08 sigma_abs_vanadium=5.08 Vc_vanadium=13.827 geometry_interact=0.5 Detector: Detector: PSD_transmission_I=19084.8**
+- **Test: comp_select=1 sample_radius=0.01 sample_height=0.01 pack=1 sigma_inc_vanadium=5.08 sigma_abs_vanadium=5.08 Vc_vanadium=13.827 geometry_interact=0.5 Detector: Detector: PSDlin_scattering_I=1.10444**
+- **Test: comp_select=1 sample_radius=0.01 sample_height=0.01 pack=1 sigma_inc_vanadium=5.08 sigma_abs_vanadium=5.08 Vc_vanadium=13.827 geometry_interact=0.5 Detector: Detector: PSDlin_scattering_2_I=1.54102**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -15,6 +15,10 @@
 Very simple test instrument for the SasView_guinier component
 ```
 
+## Examples
+
+- **Test: model_scale=1 Detector: detector_I=0.445598**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -22,6 +22,10 @@ Here it is used as a diffractometer for monochromator rocking curves. The
 detector is at the sample position.
 ```
 
+## Examples
+
+- **Test: PHM=-37.077 Detector: sng_I=0.000429426**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

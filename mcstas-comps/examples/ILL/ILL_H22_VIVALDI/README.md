@@ -28,6 +28,10 @@ primitive unit cells up to 25 Angs on edge.
 This model include a cryostat and container description, with a crystal sample.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -23,6 +23,10 @@ An example mcpl input file corresponding to the default geometry can be generate
 templateSANS_MCPL
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

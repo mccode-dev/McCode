@@ -18,6 +18,12 @@ The Exact_radial_coll contributed component also takes into account the absorbin
 blade thickness between slits, which decreases slightly intensity.
 ```
 
+## Examples
+
+- **Test: Collimator=1 Detector: BananaTheta_I=1.52649e-08**
+- **Test: Collimator=2 Detector: BananaTheta_I=1.41509e-08**
+- **Test: Collimator=3 Detector: BananaTheta_I=1.581e-08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

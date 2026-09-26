@@ -15,6 +15,10 @@
 
 ```
 
+## Examples
+
+- **Test: inelastic=1 Detector: det_I=4.98e11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

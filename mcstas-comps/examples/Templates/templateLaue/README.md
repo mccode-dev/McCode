@@ -16,6 +16,11 @@ A single crystal sample is illuminated with a white cold beam.
 Based on a Laue tutorial written by K. Nielsen, Feb 7, 2000.
 ```
 
+## Examples
+
+- **Test: templateLaue reflections=YBaCuO.lau Detector: det_I=1.14351e+07**
+- **Test: templateLaue reflections=leucine.lau Detector: det_I=4.63548e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

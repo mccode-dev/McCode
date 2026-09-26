@@ -21,6 +21,10 @@ MeanPolLambda_montior is used to monitor beam polarisation.
 Example: mcrun SE_example.instr dBz=-0.0001,0.0001 -N41 -n1e5
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -32,8 +36,8 @@ Parameters in **boldface** are required; the others are optional.
 | Bguide | T | Field magnitude in guide fields | 0.1 |
 | Bflip | T | Magnitude of flipper fields, | 3e-4 |
 | dBz | T | Magnitude field perturbation in first guide field | 0 |
-| Lam | Angstrom | Mean wavelength of neutrons emitted from source | 8 |
-| dLam | Angstrom | Wavelength spread of neutrons emitted from source | 0.8 |
+| Lam | AA | Mean wavelength of neutrons emitted from source | 8 |
+| dLam | AA | Wavelength spread of neutrons emitted from source | 0.8 |
 
 ## Links
 

@@ -21,6 +21,10 @@ https://public.esss.dk/users/willend/MCPL/
 The instrument assumes that binary MCPL datasets are available in . named [sector][beamline].mcpl.gz, i.e. W8.mcpl.gz.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

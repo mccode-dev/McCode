@@ -23,6 +23,10 @@ The default material is Al as a cylinder of radius 0.01 m x height 0.02 m
 Example: McStas_Single_crystal reflections=Al.lau radius=0.01 yheight=0.02
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -15,6 +15,11 @@
 Example instrument that shows some ways of using Conics_Ph and Conics_EH
 ```
 
+## Examples
+
+- **Test: Test_Conics_pairs OPTIC=1 Detector: psd_i_I=1.41346e-12**
+- **Test: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_I=4.92971e-21**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -27,7 +32,7 @@ Parameters in **boldface** are required; the others are optional.
 | fi | m | Distance between optics mid plane and focal point. | 10 |
 | R0 | 1 | Mirror substrate reflectivity | 0.99 |
 | m | 1 | m-value of supermirrors | 3 |
-| W | AA-1 | Width of supermirror cut-off | 0.003 |
+| W | AA^-1 | Width of supermirror cut-off | 0.003 |
 | alpha | AA | Slope of reflectivity for reflectivity curve approximation | 6.07 |
 | nshells | 1 | Number of Wolter-optic shells | 4 |
 | rmin |  |  | 0.0031416 |

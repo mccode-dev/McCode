@@ -82,13 +82,18 @@ beam_wavelength_Angs=4.0, beam_resolution_meV=0.1,
 sample_detector_distance_m=3.5, detector_height_m=4.0
 ```
 
+## Examples
+
+- **Test: beam_wavelength_Angs=4.1 Detector: M_single_coh_I=8.7974e-11**
+- **Test: beam_wavelength_Angs=1.6 beam_resolution_meV=1.07 Detector: M_single_coh_I=3.50732e-09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| beam_wavelength_Angs | Angs | incident neutron beam wavelength | 2 |
+| beam_wavelength_Angs | AA | incident neutron beam wavelength | 2 |
 | beam_resolution_meV | meV | incident energy range full width | 0.1 |
 | sample_coh | str | sample coherent Sqw data file or NULL | "Rb_liq_coh.sqw" |
 | sample_inc | str | sample incoherent Sqw data file or NULL | "Rb_liq_inc.sqw" |

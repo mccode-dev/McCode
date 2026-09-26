@@ -17,6 +17,10 @@ The Incoherent component is here used with a description file. The shape may be 
 forcing the size of the bounding box.
 ```
 
+## Examples
+
+- **Test: geometry="socket.off" Detector: monitor_I=0.0150169**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

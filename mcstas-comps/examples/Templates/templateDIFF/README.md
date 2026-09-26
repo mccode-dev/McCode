@@ -35,14 +35,18 @@ Cu       220 DM=1.278 AA
 Cu       111 DM=2.095 AA
 ```
 
+## Examples
+
+- **Test: lambda=1 Detector: Diff_BananaPSD_I=153038**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Wavelength at monochromator, computed from DM and THETA_M if left as 0. | 1 |
-| DM | Angs | d-spacing of monochromator, computed from lambda and THETA_M if left as 0. | 3.355 |
+| lambda | AA | Wavelength at monochromator, computed from DM and THETA_M if left as 0. | 1 |
+| DM | AA | d-spacing of monochromator, computed from lambda and THETA_M if left as 0. | 3.355 |
 | Powder | str | File name for powder description | "Na2Ca3Al2F14.laz" |
 | RV | m | Monochromator vertical curvature, 0 for flat, -1 for automatic setting | -1 |
 | L1 | m | Source-Monochromator distance | 17 |

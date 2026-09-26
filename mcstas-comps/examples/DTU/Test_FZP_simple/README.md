@@ -15,6 +15,10 @@
 Simple test instrument for the FZP_simple component
 ```
 
+## Examples
+
+- **Test: Test_FZP_simple.instr lambda0=10 dlambda=1e-1 l1=40 Detector: psd_monitor_9_I=1.53e-05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

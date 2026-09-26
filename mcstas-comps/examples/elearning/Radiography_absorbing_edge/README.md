@@ -19,6 +19,10 @@ http://vnt.nmi3.org/moodle/mod/quiz/view.php?id=56
 Example: mcrun  Radiography_absorbing_edge.instr -n5e8 l=0.2 -d EdgeImaging
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

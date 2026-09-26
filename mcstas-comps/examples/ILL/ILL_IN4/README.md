@@ -64,15 +64,19 @@ In this model, the sample is a cylindrical liquid/powder/glass scatterer
 surrounded by a container and an Al cryostat.
 ```
 
+## Examples
+
+- **Test: lambda=1.2 DM=1.677 Detector: sample_flux_I=4.43306e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | wavelength | 2.2 |
-| dlambda | Angs | wavelength HALF spread at source | 0.1 |
-| DM | Angs | monochromator d-spacing | 3.355 |
+| lambda | AA | wavelength | 2.2 |
+| dlambda | AA | wavelength HALF spread at source | 0.1 |
+| DM | AA | monochromator d-spacing | 3.355 |
 | ETAM | arcmin | monochromator mosaic FWHM | 35 |
 | RMH | m | Monochromator horizontal curvature. Use -1 for auto. | -1 |
 | ratio | 1 | Disk Chopper ratio (nu=nu_FC/ratio) | 4 |

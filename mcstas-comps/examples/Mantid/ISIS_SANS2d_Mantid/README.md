@@ -31,6 +31,11 @@ In reality spectra and backgrounds will vary, fast background is likely much hig
 <p>RKH 2014
 ```
 
+## Examples
+
+- **Test: L1=3.926 Detector: detector_I=6871.7**
+- **Test: L1=3.926 --format=NeXus Detector: detector_I=6871.7**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

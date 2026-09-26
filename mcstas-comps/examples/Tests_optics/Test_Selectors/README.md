@@ -16,6 +16,11 @@ Cross comparison of Selector components, using McStas and
 contributed components. It shows that all implementations are equivalent.
 ```
 
+## Examples
+
+- **Test: selector=1 Detector: VS_Mon_I=0.009**
+- **Test: selector=2 Detector: VS_Mon_I=0.0093**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -23,7 +28,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | selector | 1 | Choice of the velocity selector to test, with | 1 |
-| lambda | Angs | neutron wavelength selected by the velocity selector | 4 |
+| lambda | AA | neutron wavelength selected by the velocity selector | 4 |
 | phi | deg | velocity selector twist angle | 48.3 |
 | d_vs | m | velocity selector rotating drum length | 0.25 |
 

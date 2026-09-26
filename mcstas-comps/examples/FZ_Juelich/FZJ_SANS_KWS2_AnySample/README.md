@@ -16,6 +16,13 @@ KWS2 SANS instrument at FZ-Juelich. Custom sample (None, Guinier, Debye or Any).
 Sample is at 40 m from source. 2 detectors.
 ```
 
+## Examples
+
+- **Test: lambda=7 sample=0 Detector: detector_I=3450**
+- **Test: lambda=7 sample=1 Detector: detector_I=1182**
+- **Test: lambda=7 sample=2 Detector: detector_I=1751**
+- **Test: lambda=7 sample=3 Detector: detector_I=1249**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -24,7 +31,7 @@ Parameters in **boldface** are required; the others are optional.
 |------|------|-------------|---------|
 | lambda | AA | Mean wavelength of neutrons | 7.0 |
 | dlambda | AA | Wavelength spread of neutrons | 0.7 |
-| FLUX | n/s/cm2/st | incoming neutron flux | 1e8 |
+| FLUX | n/s/cm^2/st | incoming neutron flux | 1e8 |
 | NGblen | m | collimation width/height | 0.05 |
 | sample | int | type of sample, as 0=None, 1='AnySample', 2='Debye' or 3='Guinier' | 0 |
 | Clen | m | distance to collimation in 0-20. Sample is at 40 m from source | 10.0 |

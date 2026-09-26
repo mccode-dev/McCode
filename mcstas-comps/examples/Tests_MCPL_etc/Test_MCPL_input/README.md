@@ -15,6 +15,11 @@
 This is a unit test for the MCPL_input component.
 ```
 
+## Examples
+
+- **Test: -n1e3 repeat=1 MCPLFILE=voutput.mcpl.gz     Detector: m1_I=2.42284e+11**
+- **Test: -n1e3 repeat=1 MCPLFILE=voutput_legacy.mcpl Detector: m1_I=2.42284e+11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

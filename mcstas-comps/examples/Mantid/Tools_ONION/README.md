@@ -22,6 +22,10 @@ For an example on how to analyze the data, see the 'Onion_analyzerScript.py' ava
 Acceptable statistics can be achieved by running the simulation with 1E7 neutrons (output file: ~400MB)
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

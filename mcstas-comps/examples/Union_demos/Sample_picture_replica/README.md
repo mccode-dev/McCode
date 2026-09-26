@@ -17,6 +17,10 @@ All arms are 30 cm below the actual center point in order to avoid arms
 in the mcdisplay picture.
 ```
 
+## Examples
+
+- **Test: Detector: detector_I=1977.65**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

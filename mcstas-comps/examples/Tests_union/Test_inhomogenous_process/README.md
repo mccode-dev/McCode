@@ -46,6 +46,19 @@ The 10th example plays with some more complex tiny expressions using the
 gaussian function and the heavyside function.
 ```
 
+## Examples
+
+- **Test: sample=thin Detector: lin_det_I=0.007387**
+- **Test: sample=union_inc Detector: lin_det_I=0.007387**
+- **Test: sample=union_inho Detector: lin_det_I=0.007387**
+- **Test: sample=inc_linear Detector: lin_det_I=0.017457**
+- **Test: sample=inho_linear Detector: lin_det_I=0.017457**
+- **Test: sample=inc_and_inho Detector: lin_det_I=0.017457**
+- **Test: sample=phonon thick=0.001 Detector: lin_det_I=0.00505839**
+- **Test: sample=inc_trans Detector: lin_det_I=0.081029**
+- **Test: sample=inho_trans Detector: lin_det_I=0.081040**
+- **Test: sample=gauss_heavy Detector: lin_det_I=0.0985658**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

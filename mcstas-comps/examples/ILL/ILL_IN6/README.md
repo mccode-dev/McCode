@@ -40,14 +40,18 @@ with multiple scattering, customized monitors, and the SPLIT mechanism to
 improve the statistics. The H15 guide is not described in this model.
 ```
 
+## Examples
+
+- **Test: lambda=4.14 Detector: M_theta_t_all_I=120000**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | wavelength within 4.14\|4.6\|5.12\|5.92 | 4.14 |
-| dlambda | Angs | wavelength HALF spread. default is 0.075 | 0.075 |
+| lambda | AA | wavelength within 4.14\|4.6\|5.12\|5.92 | 4.14 |
+| dlambda | AA | wavelength HALF spread. default is 0.075 | 0.075 |
 | SPEED | rpm | Fermi chopper speed.  -1=auto, 0=stopped in open pos. | -1 |
 | M1 | coder values | monochromator motor 1 position. -1=auto | -1 |
 | M2 | coder values | monochromator motor 2 positinn. -1=auto | -1 |

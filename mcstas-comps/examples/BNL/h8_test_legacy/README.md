@@ -26,13 +26,17 @@ purposes only.
 Example: mcrun h8_test_legacy.instr Lambda=2.36
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| Lambda | Angs | source energy | 2.36 |
+| Lambda | AA | source energy | 2.36 |
 
 ## Links
 

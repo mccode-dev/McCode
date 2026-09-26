@@ -40,6 +40,10 @@ hollow cylindrical sample. One Arm Component is used to place the Analyser Compo
 defined as ROT1.
 ```
 
+## Examples
+
+- **Test: mcrun BASIS_guide.instr Lam=6.4 Detector: Guide_end_PSD_I=8.1e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

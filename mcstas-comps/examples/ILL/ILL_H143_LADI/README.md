@@ -41,14 +41,18 @@ Detector:    image plate 1250 x 450 mm2
 Sample:      at 2.710 mm from the end of the guide H143.
 ```
 
+## Examples
+
+- **Test: -y Detector: ImagePlate_I=959000**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | wavelength | 3.2 |
-| dlambda | Angs | wavelength HALF spread. | 1 |
+| lambda | AA | wavelength | 3.2 |
+| dlambda | AA | wavelength HALF spread. | 1 |
 | reflections | str | list of reflections describing the sample SX | "leucine.lau" |
 
 ## Links

@@ -41,29 +41,33 @@ In this TAS configuration, Cu220 are used as monochromator and analyser,
 with a single type detector.
 ```
 
+## Examples
+
+- **Test: QM=1 Sqw_coh=V.lau Detector: D7_SC3_1D_I=1.06671e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| KF | Angs-1 | Outgoing neutron wavevector | 10 |
-| KI | Angs-1 | Incoming neutron wavevector | 0 |
-| QM | Angs-1 | Wavevector transfer in crystal | 0.5 |
+| KF | AA^-1 | Outgoing neutron wavevector | 10 |
+| KI | AA^-1 | Incoming neutron wavevector | 0 |
+| QM | AA^-1 | Wavevector transfer in crystal | 0.5 |
 | EN | meV | Energy transfer in crystal | 0 |
 | verbose | 1 | print TAS configuration. 0 to be quiet | 1 |
 | WM | m | Width of monochromator | 0.18 |
 | HM | m | Height of monochromator | 0.20 |
 | RMH | m | Monochromator horizontal curvature, 0 for flat, -1 for automatic setting | -1 |
 | RMV | m | Monochromator vertical curvature, 0 for flat, -1 for automatic setting | -1 |
-| DM | Angs | Monochromator d-spacing | 1.278 |
+| DM | AA | Monochromator d-spacing | 1.278 |
 | NHM | 1 | Number of horizontal slabs composing the monochromator | 15 |
 | NVM | 1 | Number of vertical slabs composing the monochromator | 15 |
 | WA | m | Width of analyzer | 0.16 |
 | HA | m | Height of analyzer | 0.12 |
 | RAH | m | Analyzer horizontal curvature, 0 for flat, -1 for automatic setting | -1 |
 | RAV | m | Analyzer vertical curvature, 0 for flat, -1 for automatic setting | -1 |
-| DA | Angs | Analyzer d-spacing | 1.278 |
+| DA | AA | Analyzer d-spacing | 1.278 |
 | NHA | 1 | Number of horizontal slabs composing the analyzer | 15 |
 | NVA | 1 | Number of vertical slabs composing the analyzer | 15 |
 | L1 | m | Source-Monochromator distance. Contains 1st Collimator of length 5.34 | 7 |

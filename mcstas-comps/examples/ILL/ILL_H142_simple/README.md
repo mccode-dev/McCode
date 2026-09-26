@@ -15,6 +15,11 @@
 The H142 S-curved cold guide at the ILL feeding IN12
 ```
 
+## Examples
+
+- **Test: m=1 Detector: GuideOut_xy_I=2.36784e+09**
+- (Target example monitor differs from standard ILL_H142 since we avoid Monitor_nD - and 'capture')
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

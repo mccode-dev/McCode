@@ -17,6 +17,10 @@ Instrument developed for the HighNESS EU project, describing a Wolter Optics
 Focusing SANS (WOFSANS_v2), applied for the study of moderator parameters.
 ```
 
+## Examples
+
+- **Test: WOFSANS width=0.15 Detector: PSD_10_I=4e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -34,7 +38,7 @@ Parameters in **boldface** are required; the others are optional.
 | det | m | Detector position for bandwidth calculation | 41.5 |
 | R0 | 1 | R0 low-angle reflectivity of optical coating | 0.99 |
 | m | 1 | m-value of optical coating | 3 |
-| W | AA-1 | Supermirror cut-off, optical coating | 0.003 |
+| W | AA^-1 | Supermirror cut-off, optical coating | 0.003 |
 | alpha | AA | alpha parmeter of optical coating | 6.07 |
 | nshells_ph | 1 | Number of conical shells simulated in PH-Wolter optic | 28 |
 | fi_ph | m | Focal length for PH-Wolter optic | 5.5 |

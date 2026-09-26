@@ -17,13 +17,17 @@ It produces a tof-angle and angle-energy detectors and also exports the
 S(q,w) and S(q) data.
 ```
 
+## Examples
+
+- **Test: lambda=3.4 Detector: M_theta_t_I=1.60949e-07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | source energy | 3.4 |
+| lambda | AA | source energy | 3.4 |
 | sample_coh | str | name of coherent Sqw data file | "Rb_liq_coh.sqw" |
 | sample_inc | str | name of incoherent Sqw data file | "Rb_liq_inc.sqw" |
 

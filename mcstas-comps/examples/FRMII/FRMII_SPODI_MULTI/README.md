@@ -32,6 +32,10 @@ of 155 degrees, Ge 551 reflection giving rise to the wavelength of ~1.5482 AA,
 and L2 of 5 m.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

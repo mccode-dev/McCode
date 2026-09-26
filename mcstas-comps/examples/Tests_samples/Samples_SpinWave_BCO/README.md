@@ -16,6 +16,12 @@ Simple test instrument for the SpinWave_BCO component.
 Refer to the component documentation for further instructions.
 ```
 
+## Examples
+
+- **Test: h=1 l=0 Detector: Emon_I=0.0517575**
+- **Test: h=0 l=0.5 E=6.73 Detector: Emon_I=0.0108855**
+- **Test: h=1 l=1 Detector: Emon_I=0.000655744**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

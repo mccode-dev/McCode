@@ -17,6 +17,10 @@ Instrument demonstrating how to bring multiple scattering information from
 a McStas simulation to Mantid (using NeXus output).
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

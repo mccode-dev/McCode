@@ -16,6 +16,10 @@ This is a test file for the Source_custom component
 Using the parameters for the HBS bi-spectral source
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

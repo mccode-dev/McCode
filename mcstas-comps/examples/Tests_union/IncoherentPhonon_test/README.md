@@ -18,6 +18,10 @@ V. Laliena, Uni Zaragoza.
 Example: comp_select=1 Detector: energy_mon_2_I=1156.84
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

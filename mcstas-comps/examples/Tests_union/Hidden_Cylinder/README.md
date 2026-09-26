@@ -20,6 +20,10 @@ To test this simply do
 a "mcdisplay Hidden_Cylinder.instr -c -y"
 ```
 
+## Examples
+
+- **Test: pin_rad=0.0025 Detector: det_I=3.42884e-06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

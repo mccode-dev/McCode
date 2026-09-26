@@ -17,14 +17,21 @@ Where applicable, the temperature is set to 80K (corresponding to the header
 of the Be.trm file used in Filter_gen
 ```
 
+## Examples
+
+- **Test: Filter=0 Detector: L_out_I=2183.87**
+- **Test: Filter=1 T=80 Detector: L_out_I=1875.02**
+- **Test: Filter=2 Detector: L_out_I=1868.5**
+- **Test: Filter=3 Detector: L_out_I=2011.26**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| Lmin | Angs | Lowest wavelength from source | 0.5 |
-| Lmax | Angs | Highest wavelength from source | 10 |
+| Lmin | AA | Lowest wavelength from source | 0.5 |
+| Lmax | AA | Highest wavelength from source | 10 |
 | Filter | 1 | Choice of filter 0: Filter_gen, 1: NCrystal, 2: PowderN, 3: Isotropic_Sqw | 0 |
 | nL | 1 | Number of wavelength bins in [Lmin Lmax] interval | 101 |
 | zdepth | m | Depth of Be-filter | 0.15 |
