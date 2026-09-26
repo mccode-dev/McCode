@@ -209,6 +209,7 @@ class FlowChartParticleTraceParser(object):
         d5 = FCNDecisionBool(fct=d_isstate)
         d5_b = FCNDecisionBool(fct=d_isscatter)
         d5_c = FCNDecisionBool(fct=d_iscomp)
+        d5_d = FCNDecisionBool(fct=d_isleave)
         d6 = FCNDecisionBool(fct=d_isstate)
         d7 = FCNDecisionBool(fct=d_isstate)
         d8 = FCNDecisionBool(fct=d_isleave)
@@ -242,7 +243,8 @@ class FlowChartParticleTraceParser(object):
         p5.set_nodenext(node_next=d5)
         d5.set_nodes(node_T=p6, node_F=d5_b)
         d5_b.set_nodes(node_T=p5, node_F=d5_c)
-        d5_c.set_nodes(node_T=d3, node_F=t6)
+        d5_c.set_nodes(node_T=d3, node_F=d5_d)
+        d5_d.set_nodes(node_T=p9, node_F=t6)
         p6.set_nodenext(node_next=d3)
         
         p7.set_nodenext(node_next=d6)
@@ -269,4 +271,3 @@ class FlowChartParticleTraceParser(object):
         flowchart.process(args)
         
         return weaver.get_particles()
-

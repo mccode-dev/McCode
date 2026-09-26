@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>mcrun / mxrun</title>
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    line-height: 1.6;
+    color: #1a1a1a;
+    background: #fff;
+}
+h1, h2, h3 { line-height: 1.25; }
+h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: 0.4rem; }
+h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.6rem; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+    background: #f6f8fa;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.9em;
+}
+pre {
+    background: #f6f8fa;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.95em;
+}
+th, td {
+    border: 1px solid #d0d7de;
+    padding: 0.5rem 0.8rem;
+    text-align: left;
+    vertical-align: top;
+}
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(even) { background: #fbfbfb; }
+hr { border: none; border-top: 1px solid #e1e4e8; margin: 2rem 0; }
+em { color: #57606a; }
+.nav-top, .nav-bottom { margin-bottom: 1.5rem; }
+.nav-bottom { margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<p><a href="README.html">&larr; back to overview</a></p>
+<h1 id="mcrun-mxrun">mcrun / mxrun</h1>
+<p>Options are identical between McStas and McXtrace (only the particle name
+in help text, and the McStas-only <code>-g</code>/<code>--gravitation</code> flag, differ).</p>
+<h2 id="mcrun-mxrun-general-compile-options">mcrun / mxrun — general &amp; compile options</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-c</code>, <code>--force-compile</code></td>
+<td>force rebuilding of instrument</td>
+</tr>
+<tr>
+<td><code>--cogen cogen</code></td>
+<td>Choice of code-generator (implies -c)</td>
+</tr>
+<tr>
+<td><code>-C</code>, <code>--c-lint</code></td>
+<td>Use c-linter (e.g. cppcheck) to lint the generated code. Configure linter via mccode_config.json. Implies -c and -v, but also NO simulation will be run.</td>
+</tr>
+<tr>
+<td><code>-I I</code></td>
+<td>Append to McCode search path (implies -c)</td>
+</tr>
+<tr>
+<td><code>--D1 D1</code></td>
+<td>Set extra -D args (implies -c)</td>
+</tr>
+<tr>
+<td><code>--D2 D2</code></td>
+<td>Set extra -D args (implies -c)</td>
+</tr>
+<tr>
+<td><code>--D3 D3</code></td>
+<td>Set extra -D args (implies -c)</td>
+</tr>
+<tr>
+<td><code>--no-cflags</code></td>
+<td>Disable optimising compiler flags for faster compilation</td>
+</tr>
+<tr>
+<td><code>--no-main</code></td>
+<td>Do not generate a main(), e.g. for use with mcstas2vitess.pl. Implies -c</td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>Enable verbose output during code-generation and simulation</td>
+</tr>
+<tr>
+<td><code>--write-user-config</code></td>
+<td>Generate a user config file</td>
+</tr>
+<tr>
+<td><code>--edit-user-config</code></td>
+<td>Generate and edit user config file in EDITOR</td>
+</tr>
+<tr>
+<td><code>--override-config PATH</code></td>
+<td>Load config file from specific dir</td>
+</tr>
+<tr>
+<td><code>--showcfg ITEM</code></td>
+<td><code>'Print selected cfg item and exit (paths are resolved and absolute). Allowed values are %s.' % cfg_items_prettyprint</code> <em>(dynamic expression - verify by hand)</em></td>
+</tr>
+<tr>
+<td><code>--embed</code></td>
+<td>Store copy of instrument file in output directory</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mcrun-mxrun-parameters-scanning-optimisation">mcrun / mxrun — parameters, scanning &amp; optimisation</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>param=val</code>, <code>param=min,max</code>, <code>param=min,delta,max</code>, <code>param=a,b,c,d</code></td>
+<td>fixed parameter, scan interval (comma-separated), list-oriented inputs</td>
+</tr>
+<tr>
+<td><code>-p FILE</code>, <code>--param FILE</code></td>
+<td>Forward parameters from file FILE to Instrument</td>
+</tr>
+<tr>
+<td><code>-N NP</code>, <code>--numpoints NP</code></td>
+<td>Set number of scan points. Two input modes available:  1) A single integer applies the same point count to every    scanned parameter (default, and only valid form without -M) 2) Together with -M/--multi, a comma-separated list    (e.g. -N=5,10,20) gives each scanned parameter its    own point count, in the order in which parameters are listed    on the command line. If a parameter is given as par="min:delta:max"   the point count is instead computed from the requested bin width.</td>
+</tr>
+<tr>
+<td><code>-L</code>, <code>--list</code></td>
+<td>Use list-mode scanning. Multiple input modes available:  1) If multiple lists (of identical length) are given (and -M is     not requested) the lists are scanned together in lockstep. 2) Combined with -M/--multi, the cartesian product of each    parameter's own list is used to set up a multidimensional    'grid' scan (lists may have different lengths) 3) Any parameter given as "min:delta:max" is expanded into its    own explicit list of equidistant points and may be freely mixed    with other, explicitly-listed parameters    (e.g. a list of filenames) under -L.</td>
+</tr>
+<tr>
+<td><code>-M</code>, <code>--multi</code></td>
+<td>Run a multi-dimensional scan (cartesian product of every scanned parameter's points, rather than a co-linear scan). Combine with -L/--list or give -N as a comma-separated list (see -N/--numpoints).</td>
+</tr>
+<tr>
+<td><code>--scan_split scan_split</code></td>
+<td>Scan by parallelising steps as individual cpu threads. Initialise by number of wanted threads (e.g. your number of cores).</td>
+</tr>
+<tr>
+<td><code>--seeds SEEDS</code></td>
+<td>Set range of seeds to scan (each must be: SEED != 0)</td>
+</tr>
+<tr>
+<td><code>--optimize</code></td>
+<td>Optimize instrument variable parameters to maximize monitors</td>
+</tr>
+<tr>
+<td><code>--optimize-maxiter optimize_maxiter</code></td>
+<td>Maximum number of optimization iterations to perform. Default=1000</td>
+</tr>
+<tr>
+<td><code>--optimize-tol optimize_tol</code></td>
+<td>Tolerance for optimization termination. When optimize-tol is specified, the selected optimization algorithm sets some relevant solver-specific tolerance(s) equal to optimize-tol</td>
+</tr>
+<tr>
+<td><code>--optimize-method optimize_method</code></td>
+<td>Optimization solver in ['powell', 'nelder-mead', 'cg', 'bfgs', 'newton-cg', 'l-bfgs-b', 'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov'] (default: powell) You can use your custom method method(fun, x0, args, <strong>kwargs, </strong>options). Please refer to scipy documentation for proper use of it: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html?highlight=minimize</td>
+</tr>
+<tr>
+<td><code>--optimize-eval optimize_eval</code></td>
+<td>Optimization expression to evaluate for each detector "d" structure. You may combine: "d.intensity" The detector intensity; "d.error"     The detector intensity uncertainty; "d.values"    An array with [intensity, error, counts]; "d.X0 d.Y0"   Center of signal (1st moment); "d.dX d.dY"   Width  of signal (2nd moment). Default is "d.intensity". Examples are:  "d.intensity/d.dX" and "d.intensity/d.dX/d.dY"</td>
+</tr>
+<tr>
+<td><code>--optimize-minimize</code></td>
+<td>Choose to minimize the monitors instead of maximize</td>
+</tr>
+<tr>
+<td><code>--optimize-monitor optimize_monitor</code></td>
+<td>Name of a single monitor to optimize (default is to use all)</td>
+</tr>
+<tr>
+<td><code>--optimise-file FILE</code></td>
+<td>Store scan results in FILE (defaults to: "mccode.dat")</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mcrun-mxrun-simulation-instrument-options">mcrun / mxrun — simulation &amp; instrument options</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--autoplot</code></td>
+<td>Open plotter on generated dataset</td>
+</tr>
+<tr>
+<td><code>--invcanvas</code></td>
+<td>Forward request for inverted canvas to plotter</td>
+</tr>
+<tr>
+<td><code>--autoplotter AUTOPLOTTER</code></td>
+<td>Specify the plotter used with --autoplot</td>
+</tr>
+<tr>
+<td><code>--mpi NB_CPU</code></td>
+<td>Spread simulation over NB_CPU machines using MPI</td>
+</tr>
+<tr>
+<td><code>--machines machines</code></td>
+<td>Defines path of MPI machinefile to use in parallel mode</td>
+</tr>
+<tr>
+<td><code>--openacc</code></td>
+<td>parallelize using openacc</td>
+</tr>
+<tr>
+<td><code>--funnel</code></td>
+<td>funneling simulation flow, e.g. for mixed CPU/GPU</td>
+</tr>
+<tr>
+<td><code>--vecsize VECSIZE</code></td>
+<td>vector length in OpenACC parallel scenarios</td>
+</tr>
+<tr>
+<td><code>--numgangs NUMGANGS</code></td>
+<td>number of 'gangs' in OpenACC parallel scenarios</td>
+</tr>
+<tr>
+<td><code>--gpu_innerloop INNERLOOP</code></td>
+<td>Maximum particles in an OpenACC kernel run. (If INNERLOOP is smaller than ncount we repeat)</td>
+</tr>
+<tr>
+<td><code>-s SEED</code>, <code>--seed SEED</code></td>
+<td>Set random seed (must be: SEED != 0)</td>
+</tr>
+<tr>
+<td><code>-n COUNT</code>, <code>--ncount COUNT</code></td>
+<td>Set number of neutrons to simulate</td>
+</tr>
+<tr>
+<td><code>-t trace</code>, <code>--trace trace</code></td>
+<td>Enable trace of neutrons through instrument</td>
+</tr>
+<tr>
+<td><code>--no-trace</code></td>
+<td>Disable trace of neutrons in instrument (combine with -c)</td>
+</tr>
+<tr>
+<td><code>-y</code>, <code>--yes</code></td>
+<td>Assume any default parameter value in instrument</td>
+</tr>
+<tr>
+<td><code>-g</code>, <code>--gravitation</code>, <code>--gravity</code></td>
+<td><em>(McStas only)</em> Enable gravitation for all trajectories</td>
+</tr>
+<tr>
+<td><code>-i</code>, <code>--info</code></td>
+<td>Detailed instrument information</td>
+</tr>
+<tr>
+<td><code>--list-parameters</code></td>
+<td>Print the instrument parameters to standard out</td>
+</tr>
+<tr>
+<td><code>--meta-list</code></td>
+<td>Print all metadata defining component names</td>
+</tr>
+<tr>
+<td><code>--meta-defined META_DEFINED</code></td>
+<td>Print metadata names for component, or indicate if component:name exists</td>
+</tr>
+<tr>
+<td><code>--meta-type META_TYPE</code></td>
+<td>Print metadata type for component:name</td>
+</tr>
+<tr>
+<td><code>--meta-data META_DATA</code></td>
+<td>Print metadata for component:name</td>
+</tr>
+<tr>
+<td><code>-d DIR</code>, <code>--dir DIR</code></td>
+<td>Put all data files in directory DIR. If unspecified INSTRUMENT_TIMESTAMP is used</td>
+</tr>
+<tr>
+<td><code>--dirprefix dirprefix</code></td>
+<td>Put all data files in directory PREFIX_TIMESTAMP</td>
+</tr>
+<tr>
+<td><code>--dirsuffix dirsuffix</code></td>
+<td>Put all data files in directory INSTRUMENT_DIRSUFFIX</td>
+</tr>
+<tr>
+<td><code>-a</code>, <code>--append</code></td>
+<td>Append data files to those already in directory DIR</td>
+</tr>
+<tr>
+<td><code>--format FORMAT</code></td>
+<td>Output data files using format FORMAT, usually McCode or NeXus (format list obtained from <instr>.out -h)</td>
+</tr>
+<tr>
+<td><code>--IDF</code></td>
+<td><em>(McStas only)</em> Flag to attempt inclusion of XML-based IDF when --format=NeXus (format list obtained from <instr>.out -h)</td>
+</tr>
+<tr>
+<td><code>--no-output-files</code></td>
+<td>Do not write any data files</td>
+</tr>
+<tr>
+<td><code>--bufsiz BUFSIZ</code></td>
+<td>Monitor_nD list/buffer-size (defaults to 1e7)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a href="README.html">&larr; back to overview</a></p>
+</body>
+</html>

@@ -18,7 +18,7 @@ else:
 
 class McDisplayReader(object):
     ''' High-level trace manager '''
-    def __init__(self, instr=None, inspect=None, default=False, n=300, dir=None, debug=False, options=None, trace=1, **kwds):
+    def __init__(self, instr=None, inspect=None, default=False, n=300, dir=None, debug=False, options=None, trace=1, no_mpi=False, **kwds):
         ext = mccode_config.platform["EXESUFFIX"]
 
         if instr is None or ('.instr' not in instr and ext not in instr):
@@ -27,8 +27,11 @@ class McDisplayReader(object):
         
         # assemble command
         mcruncmd = str(Path(mccode_config.directories['bindir'],mccode_config.configuration['MCRUN']))
-        
-        cmd = f"{mcruncmd} {instr} --no-output-files --trace={trace} --ncount={n}"
+
+        if no_mpi:
+            cmd = f"{mcruncmd} --no-mpi {instr} --no-output-files --trace={trace} --ncount={n}"
+        else:
+            cmd = f"{mcruncmd} {instr} --no-output-files --trace={trace} --ncount={n}"
 
         if dir:
             cmd = cmd + ' --dir=' + lexer.quote(dir)
@@ -90,6 +93,7 @@ def make_common_parser(filename, documentation):
     parser = ArgumentParser(description=documentation.replace('mcdisplay',scriptname))
     parser.add_argument('instr', help=f'display this instrument file (.instr or .{ext})')
     parser.add_argument('--default', action='store_true', help='automatically use instrument defaults for simulation run')
+    parser.add_argument('--no-mpi', action='store_true', help='Forward --no-mpi to run-script')
     parser.add_argument('options', nargs='*', help='simulation options and instrument params')
 
     return parser, prefix
