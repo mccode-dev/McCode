@@ -59,7 +59,7 @@
 
 DEFINE COMPONENT Powder_process
 
-SETTING PARAMETERS(string reflections="NULL",packing_factor=1, Vc=0, delta_d_d=0, DW=0, nb_atoms=1, d_phi=0, density=0, weight=0, barns=1, Strain=0, interact_fraction=-1, vector format={0, 0, 0, 0, 0, 0, 0, 0, 0}, string init="init")
+SETTING PARAMETERS(string reflections="NULL",packing_factor=1, Vc=0, delta_d_d=0, DW=0, nb_atoms=1, d_phi=0, density=0, weight=0, barns=1, Strain=0, interact_fraction=-1, vector format={0, 0, 0, 0, 0, 0, 0, 0, 0})
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -67,7 +67,7 @@ SETTING PARAMETERS(string reflections="NULL",packing_factor=1, Vc=0, delta_d_d=0
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this Powder_process component"
+  #error "ERROR: Powder_process requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   // Share section of PowderN 8/3 2016 from McStas.org
@@ -833,12 +833,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Powder_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  struct pointer_to_global_process_list* global_process_list = &g_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 

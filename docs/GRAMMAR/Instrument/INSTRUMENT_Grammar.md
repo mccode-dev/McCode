@@ -5,7 +5,7 @@ files; the companion [`COMPONENT grammar`](../Component/COMPONENT_Grammar.md) co
 files. Each is written to stand alone — a little material (the reserved-keyword table,
 the particle-terminology note, the shared-grammar note) is intentionally duplicated in
 both. Keywords are case-insensitive but conventionally written in UPPERCASE; identifiers
-are case-sensitive C identifiers. Sources are listed at the end of the document (§18).
+are case-sensitive C identifiers. Sources are listed at the end of the document (§17).
 
 **On "McStas" vs "McXtrace" vs "particle":** the instrument/component grammar itself —
 every keyword and syntax rule in this document — is identical between the two codes; it's
@@ -516,6 +516,6 @@ written against, predates the current McStas/McXtrace.
   `Tests_grammar/` folder (`Unittest_JUMP_ITERATE`, `Unittest_JUMP_WHEN`,
   `Test_Jump_Iterate`, `Test_GROUP`, `Unittest_SPLIT`), plus `ILL_H25.instr`,
   `SNS_BASIS.instr`, `templateTAS.instr`, `Test_FZP_simple.instr`, and `test_File.instr`.
-* `01_Advanced_grammar.pptx` (uploaded slide deck) — cross-checked, gaps noted in §17.
+* `01_Advanced_grammar.pptx` (uploaded slide deck) — used as a baseline and cross-checked against the grammar sources above.
 
-See also: `McStas_McXtrace_COMPONENT_Grammar.md` ([`COMPONENT grammar`](../Component/COMPONENT_Grammar.md), `.comp` grammar).
+See also: [`COMPONENT grammar`](../Component/COMPONENT_Grammar.md) (`.comp` grammar).

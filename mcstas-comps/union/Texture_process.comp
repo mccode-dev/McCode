@@ -36,7 +36,6 @@
 * fcoef_fn:          [s]      Path to a text file containing the Fourier coefficients of the ODF. It must have five columns: l m n Real(Clmn) Imag(Clmn)
 * lmax_user:         [1]      Cut-off for the Fourier series. If negative, the program uses all the coefficients provided in the file fcoef_fn
 * maxNeutronSaved:   [1]      Maximum number of neutron cross sections saved for reusing
-* init:              [string] Name of Union_init component (typically "init", default)
 * barns:             [1]      Flag to indicate if |F|^2 from 'crystal_fn' is in barns or fm^2. barns=1 for laz and isotropic constant elastic scattering (reflections=NULL), barns=0 for lau type files
 * order:             [1]      Limit scattering to this order
 *
@@ -54,13 +53,13 @@ DEFINE COMPONENT Texture_process // Remember to change the name of process here
 
 SETTING PARAMETERS(string crystal_fn=0, string fcoef_fn=0, int lmax_user=-1,
             barns = 0, order = 0, interact_fraction = -1, packing_factor = 1,
-	        int maxNeutronSaved = 1, string init="init")
+	        int maxNeutronSaved = 1)
 
 
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this Texture_process component"
+  #error "ERROR: Texture_process requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   %include "read_table-lib"
@@ -2427,12 +2426,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Texture_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  struct pointer_to_global_process_list* global_process_list = &g_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 

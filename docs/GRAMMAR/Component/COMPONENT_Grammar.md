@@ -5,7 +5,7 @@ files; the companion [`INSTRUMENT grammar`](../Instrument/INSTRUMENT_Grammar.md)
 **instrument** files. Each is written to stand alone — a little material (the
 reserved-keyword table, the particle-terminology note, the shared-grammar note) is
 intentionally duplicated in both. Keywords are case-insensitive but conventionally written in UPPERCASE; identifiers
-are case-sensitive C identifiers. Sources are listed at the end of the document (§13).
+are case-sensitive C identifiers. Sources are listed at the end of the document (§12).
 
 **On "McStas" vs "McXtrace" vs "particle":** the instrument/component grammar itself —
 every keyword and syntax rule in this document — is identical between the two codes; it's

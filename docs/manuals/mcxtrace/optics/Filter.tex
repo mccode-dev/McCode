@@ -1,0 +1,57 @@
+\section{The \texttt{Filter} McXtrace Component}
+Release: McXtrace 1.1
+
+Block of an attenuating material
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Erik Knudsen
+  \item \textbf{Origin:} DTU Physics
+  \item \textbf{Date:} Jan 24, 2011
+\end{itemize}
+
+\subsection*{Description}
+A chunk of attenuating material. Attenuation is computed through the effective length travelled within the material. No scattering is modelled at present.
+
+Filter shape may be a cylinder, a sphere, a box or any other shape.
+
+\begin{verbatim}
+box/plate:       xwidth x yheight x zdepth
+cylinder:        radius x yheight (along Y axis)
+sphere:          radius
+any shape:       geometry=OFF/PLY_file
+\end{verbatim}
+
+Example: Filter(material\_datafile="Ge.txt", geometry="wire.ply",xwidth=0.02,yheight=0,zdepth=0) Example: Filter(material\_datafile="Ge.txt",xwidth=0.02,yheight=0.02, zdepth=1e-4) Example: Filter(material\_datafile="Ge.txt",radius=1e-4,yheight=0.02) Example: Filter(material\_datafile="Ge.txt",radius=1e-3, refraction=1)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+refraction & 0/1 & If nonzero, refraction is enabled. (Only functional for basic geometries, does not yet work for OFF) & 0 \\
+fixed\_delta & 0/1 & Use a fixed delta to compute refraction - useful for debugging. & 0 \\
+material\_datafile & str & File where the material parameters for the filter may be found. Format is similar to what may be found off the NIST website. [Be.txt] & "Be.txt" \\
+geometry & str & File containing the polygon definition of a general shape object. When xwidth is also given, the object is rescaled accordingly (OFF/PLY) & 0 \\
+xwidth & m & Width of block. & 0 \\
+yheight & m & Height of block. & 0 \\
+zdepth & m & Thickness of block. & 0 \\
+radius & m & Radius of cylinder or sphere. & 0 \\
+mu\_col & idx & Column index to pick up absorption length mu, counted from 0. Use with non-standard input file, e.g. 2-3 column files. -1 means attempt autodetect. & -1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Filter.comp}.
+  \item \htmladdnormallink{Meshlab}{https://www.meshlab.net/} - viewer for OFF files
+  \item \htmladdnormallink{Geomview and Object File Format (OFF)}{http://www.geomview.org} - OFF file definition and examples
+  \item \htmladdnormallink{jroff.jar - Java version of Geomview (display only)}{http://www.holmes3d.net/graphics/roffview/}
+  \item \htmladdnormallink{Qhull}{http://qhull.org} - for calculating a convex hull from points.
+  \item \htmladdnormallink{Powercrust}{https://www.cs.ucdavis.edu/\textasciitilde{}amenta/powercrust.html} - for reconstructing a solid geometry from a point cloud.
+  \item Most material datafile inpus may obtained from \htmladdnormallink{NIST FFast}{https://physics.nist.gov/PhysRefData/FFast/form.html}
+\end{itemize}
+\IfFileExists{optics/Filter_static.tex}{\input{optics/Filter_static.tex}}{}

@@ -1,0 +1,57 @@
+\section{The \texttt{Laue\_crystal\_BC} McXtrace Component}
+Perfect, Laue crystal with common cubic structures (diamond, fcc, or bcc, and others if symmetry form factor multipliers provided explicitly)
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Marcus H Mendenhall, NIST \textless{}marcus.mendenhall@nist.gov\textgreater{}
+  \item \textbf{Origin:} NIST
+  \item \textbf{Date:} June, 2017
+\end{itemize}
+
+\subsection*{Description}
+NIST\_Laue\_crystal\_BC.comp is written by Marcus H. Mendenhall, NIST, Gaithersburg, MD, USA It is based on the full vector math and exact solution of the dispersion relation in Batterman and Cole, Reviews of Modern Physics 36 number 3, page 681, July 1964 Perfect crystal with common cubic structures (diamond, fcc, or bcc, and others if symmetry form factor multipliers provided explicitly)
+
+Reads atomic form factors from a data input file. The Laue\_Crystal code reflects rays in an ideal geometry, does not include surface imperfections or mosaicity.
+
+The crystal is positioned such that the long axis of the crystal surface coincides with z-axis and the outer normal to the crystal surface is along +y.
+
+The ratio of the transmitted beam and forward-diffracted Borrman-effect beam is a hack. The sum of the two is exactly right, but the actual ratio depends critically on geometry, and I just put in a wild estimate to allow one to demonstrate what the Borrmann effect looks like. If this is turned on, the displacement of the transmitted beam and forward diffracted beam at the back side of the crystal will be correctly computed. This displacement is only exact for symmetrical Laue; asymmetrical computation requires more effort, and is probably not worth it. The sampling of these processes are controlled by the 3 variables transmission\_sampling, forward\_diffraction\_sampling, and Laue\_sampling. Since 99\% of uses of this will have the transmitted beam turned off, and use Laue diffraction mode, the values should be just 0,0,1. If the general behavior of the transmitted beams is interesting, use 1,1,1 which samples all beams equally. Results weights are adjusted for this, so computed intensities won't be affected.
+
+Non-copyright notice: Contributed by the National Institute of Standards and Technology; not subject to copyright in the United States. This is not an official contribution, in that the results are in no way certified by NIST.
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+length & m & zdepth (length) of the crystal. & 0.05 \\
+width & m & width of the crystal. & 0.02 \\
+thickness & m & thickness of crystal (along y-axis, the surface normal) & 1e-4 \\
+V & \AA{}$^{3}$ & unit cell volume & 160.1826 \\
+form\_factors &   & "FormFactors.txt" from McXtrace install, usually & "FormFactors.txt" \\
+material &   & Si ("Si.txt"), Ge ("Ge.txt") & "Si.txt" \\
+alphax &   & x component of normal (unit vector) to crystal planes. Vector is usually [0,0,1] for symmetric Laue. Crystal surface itself has normal [0,1,0]. & 0.0 \\
+alphay &   & y component of normal (unit vector) to crystal planes. & 0.0 \\
+alphaz &   & z component of normal (unit vector) to crystal planes. & 1.0 \\
+debye\_waller\_B & \AA{}$^{2}$ & Debye-Waller temperature factor, M=B*(sin(theta)/lambda)\textasciicircum{}2*(2/3), default=silicon at room temp, 0.4632 & 0.4632 \\
+crystal\_type &   & 1 =\textgreater{} Mx\_crystal\_explicit: provide explicit real and imaginary form factor multipliers structure\_factor\_scale\_r, structure\_factor\_scale\_i, & 1 \\
+h &   & 1st Miller index of reflection & 1 \\
+k &   & 2nd Miller index of reflection & 1 \\
+l &   & 3rd Miller index of reflection & 1 \\
+structure\_factor\_scale\_r &   & real part of complex explicit override of structure factor multiplier for crystal structure if Bragg\_crystal\_explicit & 0.0 \\
+structure\_factor\_scale\_i &   & imaginary part of complex explicit override of structure factor multiplier for crystal structure if Bragg\_crystal\_explicit & 0.0 \\
+transmission\_sampling &   & enable sampling of transmission diffraction mode. & 1.0 \\
+forward\_diffraction\_sampling &   & enable sampling of forward diffraftion mode. & 1.0 \\
+laue\_sampling &   & enable sampling of Laue diffraction mode. & 1.0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Laue\_crystal\_BC.comp}.
+  \item material datafile obtained from http://physics.nist.gov/cgi-bin/ffast/ffast.pl
+\end{itemize}
+\IfFileExists{contrib/Laue_crystal_BC_static.tex}{\input{contrib/Laue_crystal_BC_static.tex}}{}

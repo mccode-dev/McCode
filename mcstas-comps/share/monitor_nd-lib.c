@@ -1494,13 +1494,20 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         if (i >= 0 && i < Vars->Coord_Bin[1] && j >= 0 && j < Vars->Coord_Bin[2])
         {
           if (Vars->Mon2D_N) {
+	    /* Temporary workaround for the NVC OpenACC ICE (NVIDIA TPR#39009):
+	       use local pointer aliases for atomic writes through struct members.
+	       Once fixed upstream, remove these aliases and restore the original
+	       Vars->... atomic expressions. */
+	    double *Mon2D_N = Vars->Mon2D_N[i];
+	    double *Mon2D_p = Vars->Mon2D_p[i];
+	    double *Mon2D_p2 = Vars->Mon2D_p2[i];
 	    double p2 = pp*pp;
             #pragma acc atomic
-	    Vars->Mon2D_N[i][j] = Vars->Mon2D_N[i][j]+1;
+	    Mon2D_N[j] = Mon2D_N[j]+1;
             #pragma acc atomic
-	    Vars->Mon2D_p[i][j] = Vars->Mon2D_p[i][j]+pp;
+	    Mon2D_p[j] = Mon2D_p[j]+pp;
             #pragma acc atomic
-	    Vars->Mon2D_p2[i][j] = Vars->Mon2D_p2[i][j] + p2;
+	    Mon2D_p2[j] = Mon2D_p2[j] + p2;
 	  }
         } else {
           outsidebounds=1; 
@@ -1514,13 +1521,16 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
           if (j >= 0 && j < Vars->Coord_Bin[i]) {
             if  (Vars->Flag_Multiple && Vars->Mon2D_N) {
 	      if (Vars->Mon2D_N) {
+		double *Mon2D_N = Vars->Mon2D_N[i-1];
+		double *Mon2D_p = Vars->Mon2D_p[i-1];
+		double *Mon2D_p2 = Vars->Mon2D_p2[i-1];
 		double p2 = pp*pp;
                 #pragma acc atomic
-		Vars->Mon2D_N[i-1][j] = Vars->Mon2D_N[i-1][j]+1;
+		Mon2D_N[j] = Mon2D_N[j]+1;
                 #pragma acc atomic
-		Vars->Mon2D_p[i-1][j] = Vars->Mon2D_p[i-1][j]+pp;
+		Mon2D_p[j] = Mon2D_p[j]+pp;
 		#pragma acc atomic
-		Vars->Mon2D_p2[i-1][j] = Vars->Mon2D_p2[i-1][j] + p2;
+		Mon2D_p2[j] = Mon2D_p2[j] + p2;
 	      }
 	    }
           } else { 
@@ -1535,11 +1545,12 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
     { /* now store Coord into Buffer (no index needed) if necessary (list or auto limits) */
       if ((Vars->Buffer_Counter < Vars->Buffer_Block) && ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1)))
       {
+        double *Mon2D_Buffer = Vars->Mon2D_Buffer;
         for (i = 0; i <= Vars->Coord_Number; i++)
         {
 	  // This is is where the list is appended. How to make this "atomic"?
           #pragma acc atomic write 
-          Vars->Mon2D_Buffer[i + Vars->Buffer_Counter*(Vars->Coord_Number+1)] = Coord[i];
+          Mon2D_Buffer[i + Vars->Buffer_Counter*(Vars->Coord_Number+1)] = Coord[i];
         }
 	    #pragma acc atomic update
         Vars->Buffer_Counter = Vars->Buffer_Counter + 1;
