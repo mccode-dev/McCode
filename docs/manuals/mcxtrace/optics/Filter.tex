@@ -1,82 +1,57 @@
-\section{Filter: A general absorption filter model}
-\label{s:filter}
-\index{Optics!Filter}
-\mcdoccomp{optics/Filter.parms}
+\section{The \texttt{Filter} McXtrace Component}
+Release: McXtrace 1.1
 
-This component is a filter in the shape of a rectangular block or a general
-shape defined by a set of polygons. Given an input file containing material
-parameters. Neccessary parameters are nominal density and a parameterization of
-the linear attenuation coefficient, $\mu$ as a function of wavelength (or
-energy).
+Block of an attenuating material
 
-The model is very simple: Firstly the X-ray is traced to find intersection points between ray and filter (0 or 2).
-If no intersection is found the x-ray is left untouched and nothing further happens.
-Assuming the ray intersects the filter: Secondly, the path length d$l$ within the filter is computed.
-Thirdly a $\mu = f(\lambda,\mathrm{material})$ is computed by interpolating in
-a datafile, and the x-ray weight is adjusted according to
-$p=p\exp(-\mathrm{d}l*\mu)$. The x-ray is left at the point where it exits the
-filter block (the $2$nd intersection).
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Erik Knudsen
+  \item \textbf{Origin:} DTU Physics
+  \item \textbf{Date:} Jan 24, 2011
+\end{itemize}
 
-Example data files corresponding to all elements up to $Z=92$ are distributed with \MCX in the
-\verb+MCXTRACE/data+ directory as \verb+*.txt+ files. These tables have been
-extracted from the NIST FFAST~\cite{NIST-ffast} x-ray database.
-To generate other datafiles from the same source a simple shell script:
-\verb+MCXTRACE/data/get_xray_db_data+ is also distributed with \MCX
-Running this script will connect to the NIST webiste and download a
-\verb+.html+ file. This output must now be modified such that \verb+html+-tags
-are removed and all header lines begin with $\#$
+\subsection*{Description}
+A chunk of attenuating material. Attenuation is computed through the effective length travelled within the material. No scattering is modelled at present.
 
-\subsection{Example}
-\label{getNISTdata}
-This is an example of how to download and generate datafiles for the \verb+Filter.comp+ and others.
+Filter shape may be a cylinder, a sphere, a box or any other shape.
 
-The distributed tables have been extracted from the NIST x-ray database. To ease generation of more dtafiles
-from the same source a simple shell script:\\
-\verb+MCXTRACE/data/get_xray_db_data+\\
-is also distributed with \MCX
-
-Running this script will connect to the NIST webiste and download a \verb+.html+ file. This output must now be modified wuch that \verb+html+-tags
-are removed and all header lines begin with $\#$.
-
-\begin {verbatim}
- /usr/local/lib/mcxtrace/data/get_xray_db_data 3 output.dat
-\end{verbatim}
-where the second parameter (3) is the atom number of the material, for which we want to generate a datafile.
-Now open the generated datafile (\verb+output.dat+) with your favourite text editor and make sure the file ends up looking like this
-\tiny
 \begin{verbatim}
-#Li (Z 3)
-#Atomic weight: A[r]  6.941000
-#Nominal density: rho 5.3300E-01
-#    rho[a](barns/atom) = [mu/rho](cm^2 g^-1)  x  1.15258E+01
-#    E(eV) [mu/rho](cm^2 g^-1) = f[2](e atom^-1)  x  6.06257E+06
-#    2 edges. Edge energies (keV):
-#
-#
-#    K      5.47500E-02  L I    5.34000E-03
-#
-#Relativistic correction estimate f[rel] (H82,3/5CL) = -9.8613E-04,
-#    -6.0000E-04 e atom^-1
-#    Nuclear Thomson correction f[NT] = -7.1131E-04 e atom^-1
-#
-#-------------------------------------------------------------------------------
-#Form Factors, Attenuation and Scattering Cross-sections
-#Z=3, E = 0.001 - 433 keV
-#
-#    E        f[1]         f[2]        [mu/rho]    [sigma/rho]  [mu/rho]   [mu/rho][K] lambda
-#                                    Photoelectric Coh+inc      Total
-#   keV        e atom^-1    e atom^-1   cm^2 g^-1   cm^2 g^-1   cm^2 g^-1   cm^2 g^-1  nm
-5.233200E-03  9.08733E-01  0.0000E+00  0.0000E+00  2.3914E-07  2.3914E-07  0.000E+00  2.369E+02
-5.313300E-03  8.59283E-01  0.0000E+00  0.0000E+00  2.5404E-07  2.5404E-07  0.000E+00  2.333E+02
-5.334660E-03  8.03599E-01  0.0000E+00  0.0000E+00  2.5813E-07  2.5813E-07  0.000E+00  2.324E+02
-5.366700E-03  8.56971E-01  1.0769E-01  1.2165E+05  2.6435E-07  1.2165E+05  0.000E+00  2.310E+02
-.
-.
-.
-3.788588E+02  3.00000E+00  3.9121E-08  6.2602E-07  8.4389E-02  8.4390E-02  6.123E-07  3.273E-03
-4.050001E+02  3.00000E+00  3.3438E-08  5.0054E-07  8.2127E-02  8.2128E-02  4.895E-07  3.061E-03
-4.329451E+02  3.00000E+00  2.8581E-08  4.0022E-07  7.9892E-02  7.9892E-02  3.913E-07  2.864E-03
+box/plate:       xwidth x yheight x zdepth
+cylinder:        radius x yheight (along Y axis)
+sphere:          radius
+any shape:       geometry=OFF/PLY_file
 \end{verbatim}
-\normalsize
-Please make sure you don't forget to remove the html-tags in the bottom of the file as well. In the future we will set
-up a more streamlined way of doing this.
+
+Example: Filter(material\_datafile="Ge.txt", geometry="wire.ply",xwidth=0.02,yheight=0,zdepth=0) Example: Filter(material\_datafile="Ge.txt",xwidth=0.02,yheight=0.02, zdepth=1e-4) Example: Filter(material\_datafile="Ge.txt",radius=1e-4,yheight=0.02) Example: Filter(material\_datafile="Ge.txt",radius=1e-3, refraction=1)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+refraction & 0/1 & If nonzero, refraction is enabled. (Only functional for basic geometries, does not yet work for OFF) & 0 \\
+fixed\_delta & 0/1 & Use a fixed delta to compute refraction - useful for debugging. & 0 \\
+material\_datafile & str & File where the material parameters for the filter may be found. Format is similar to what may be found off the NIST website. [Be.txt] & "Be.txt" \\
+geometry & str & File containing the polygon definition of a general shape object. When xwidth is also given, the object is rescaled accordingly (OFF/PLY) & 0 \\
+xwidth & m & Width of block. & 0 \\
+yheight & m & Height of block. & 0 \\
+zdepth & m & Thickness of block. & 0 \\
+radius & m & Radius of cylinder or sphere. & 0 \\
+mu\_col & idx & Column index to pick up absorption length mu, counted from 0. Use with non-standard input file, e.g. 2-3 column files. -1 means attempt autodetect. & -1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Filter.comp}.
+  \item \htmladdnormallink{Meshlab}{https://www.meshlab.net/} - viewer for OFF files
+  \item \htmladdnormallink{Geomview and Object File Format (OFF)}{http://www.geomview.org} - OFF file definition and examples
+  \item \htmladdnormallink{jroff.jar - Java version of Geomview (display only)}{http://www.holmes3d.net/graphics/roffview/}
+  \item \htmladdnormallink{Qhull}{http://qhull.org} - for calculating a convex hull from points.
+  \item \htmladdnormallink{Powercrust}{https://www.cs.ucdavis.edu/\textasciitilde{}amenta/powercrust.html} - for reconstructing a solid geometry from a point cloud.
+  \item Most material datafile inpus may obtained from \htmladdnormallink{NIST FFast}{https://physics.nist.gov/PhysRefData/FFast/form.html}
+\end{itemize}
+\IfFileExists{optics/Filter_static.tex}{\input{optics/Filter_static.tex}}{}

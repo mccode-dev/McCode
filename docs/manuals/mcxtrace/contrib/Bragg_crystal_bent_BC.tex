@@ -1,0 +1,69 @@
+\section{The \texttt{Bragg\_crystal\_bent\_BC} McXtrace Component}
+Bent, perfect crystal with common cubic structures (diamond, fcc, or bcc, and others if symmetry form factor multipliers provided explicitly)
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Marcus H Mendenhall, NIST \textless{}marcus.mendenhall@nist.gov\textgreater{}
+  \item \textbf{Origin:} NIST
+  \item \textbf{Date:} Dec 2016
+\end{itemize}
+
+\subsection*{Description}
+Bragg\_crystal\_bent\_BC.com is intended to supercede Bragg\_Crystal\_bent.comp For details see: The optics of focusing bent-crystal monochromators on X-ray powder diffractometers with application to lattice parameter determination and microstructure analysis, Marcus H. Mendenhall,* David Black and James P. Cline, J. Appl. Cryst. (2019). 52, https://doi.org/10.1107/S1600576719010951
+
+Reads atomic formfactors from a data input file. The Bragg\_Crystal code reflects ray in an ideal geometry, does not include surface imperfections or mosaicity
+
+The crystal code reflects ray in an ideal geometry, i.e. does not include surface imperfections or mosaicity. The crystal planes from which the reflection is made lies in the X-Z plane on the unbent crystal rotated by an angle alpha about the Y axis with respect to the crystal surface.
+
+The crystal itself is set in the X-Z plane positioned such that the long axis of the crystal surface coincides with the Z-axis, withs normal pointing in the poisitivce Y-direction.
+
+The asummetry angle alpha is defined so that positive alpha reduces the Bragg angle to the plane i.e. alpha=Thetain grazes the planes. if alpha!=0, one should restrict to rays which have small kx values, since otherwise the alpha rotation is not around the diffraction axis.
+
+The mirror is positioned such that the a-axis of the mirror ellipsoid is on the z-axis, the b-axis is along the y-axis and the c is along the x-axis. The reference point of the mirror is the ellipsoid centre, offset by one half-axis along the y-axis. (See the component manual for a drawing).
+
+Notation follows Tadashi Matsushita and Hiro-O Hashizume, X-RAY MONOCHROMATORS. Handbook on Synchrotron Radiation,North-Holland Publishing Company, 1:263–274, 1983.
+
+NOTE: elliptical coordinate code and documentation taken from Mirror\_elliptic.comp distributed in McXtrace v1.2 written by: Erik Knudsen. However, the coordinates are rotated to be consistent with Perfect\_Crystal.comp and NIST\_Perfect\_Crystal.comp Idealized elliptic mirror with surface ellipse and lattice ellipses independent, to allow construction of Johansson optics, for example.
+
+Non-copyright notice: Contributed by the National Institute of Standards and Technology; not subject to copyright in the United States. This is not an official contribution, in that the results are in no way certified by NIST.
+
+Example: Bragg\_crystal\_bent\_BC( length=0.05, width=0.02, V=160.1826, h=1, k=1, l=1, alpha=0)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+x\_a & m & 1st short half axis (along x). Commonly set to zero, which really implies infinite value, so crystal is an elliptic cylinder. & 0 \\
+y\_b & m & 2nd short half axis (along y), which is also the presumed near-normal direction, reflection near the y-z plane. & 1.0 \\
+z\_c & m & Long half axis (along z). Commonly a=0. b=c, which creates a circular cylindrical surface. & 1.0 \\
+lattice\_x\_a & m & Curvature matrix component around a for underlying lattice, for bent/ground/rebent crystals & 0 \\
+lattice\_y\_b & m & Curvature matrix component around b for underlying lattice, for bent/ground/rebent crystals & 1.0 \\
+lattice\_z\_c & m & curvature matrix component around c for underlying lattice, for bent/ground/rebent crystals THERE HAS BEEN NO TESTING for the case in which lattice\_x\_a != x\_a. & 1.0 \\
+length & m & z depth (length) of the crystal. & 0.05 \\
+width & m & x width of the crystal. & 0.02 \\
+V & \AA{}$^{3}$ & unit cell volume & 160.1826 \\
+form\_factors &  &  & "FormFactors.txt" \\
+material &   & Si, Ge (maybe also GaAs?) & "Si.txt" \\
+alpha & rad & Asymmetry angle (alpha=0 for symmetric reflection, i.e. the Bragg planes are parallel to the crystal surface) & 0.0 \\
+R0 &   & Reflectivity. Overrides the computed Darwin reflectivity. Probably only useful for debugging. & 0 \\
+debye\_waller\_B & \AA{}$^{2}$ & Debye-Waller temperature factor, M=B*(sin(theta)/lambda)\textasciicircum{}2*(2/3), default=silicon at room temp. & 0.4632 \\
+crystal\_type &   & 1 =\textgreater{} Mx\_crystal\_explicit: provide explicit real and imaginary form factor multipliers structure\_factor\_scale\_r, structure\_factor\_scale\_i; 2 =\textgreater{} Mx\_crystal\_diamond: diamond; 3 =\textgreater{} Mx\_crystal\_fcc: fcc; 4 =\textgreater{} Mx\_crystal\_fcc: bcc & 1 \\
+h &   & Miller index of reflection & 1 \\
+k &   & Miller index of reflection & 1 \\
+l &   & Miller index of reflection & 1 \\
+structure\_factor\_scale\_r &  &  & 0.0 \\
+structure\_factor\_scale\_i &  &  & 0.0 \\
+verbose &   & if non-zero: Output more information (warnings and messages) to the console. & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Bragg\_crystal\_bent\_BC.comp}.
+  \item material datafile obtained from http://physics.nist.gov/cgi-bin/ffast/ffast.pl
+\end{itemize}
+\IfFileExists{contrib/Bragg_crystal_bent_BC_static.tex}{\input{contrib/Bragg_crystal_bent_BC_static.tex}}{}

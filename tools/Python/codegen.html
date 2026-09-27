@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Code generators: mcstas / mcxtrace</title>
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    line-height: 1.6;
+    color: #1a1a1a;
+    background: #fff;
+}
+h1, h2, h3 { line-height: 1.25; }
+h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: 0.4rem; }
+h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.6rem; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+    background: #f6f8fa;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.9em;
+}
+pre {
+    background: #f6f8fa;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.95em;
+}
+th, td {
+    border: 1px solid #d0d7de;
+    padding: 0.5rem 0.8rem;
+    text-align: left;
+    vertical-align: top;
+}
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(even) { background: #fbfbfb; }
+hr { border: none; border-top: 1px solid #e1e4e8; margin: 2rem 0; }
+em { color: #57606a; }
+.nav-top, .nav-bottom { margin-bottom: 1.5rem; }
+.nav-bottom { margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<p><a href="README.html">&larr; back to overview</a></p>
+<h1 id="code-generators-mcstas-mcxtrace">Code generators: mcstas / mcxtrace</h1>
+<p>The actual compiler step underneath <code>mcrun -c</code> / <code>mcgui</code>'s "Compile" action: translates an <code>.instr</code> file into C, which is then compiled into the executable simulation. Identical options on both sides (only the tool name, and which environment variable is consulted for the component search path, differ).</p>
+<h2 id="mcstas-mcxtrace">mcstas / mcxtrace</h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>file</code></td>
+<td>the <code>.instr</code> file to translate</td>
+</tr>
+<tr>
+<td><code>-o FILE</code>, <code>--output-file=FILE</code></td>
+<td>place the generated C output in <code>FILE</code></td>
+</tr>
+<tr>
+<td><code>-v</code>, <code>--version</code></td>
+<td>print the full version header</td>
+</tr>
+<tr>
+<td><code>--version-num</code></td>
+<td>print the version number only</td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>display compilation process steps</td>
+</tr>
+<tr>
+<td><code>-I DIR</code>, <code>--search-dir=DIR</code></td>
+<td>append <code>DIR</code> to the component search list</td>
+</tr>
+<tr>
+<td><code>-t</code>, <code>--trace</code></td>
+<td>enable trace mode for instrument display (on by default)</td>
+</tr>
+<tr>
+<td><code>--no-trace</code></td>
+<td>disable trace mode</td>
+</tr>
+<tr>
+<td><code>--no-main</code></td>
+<td>do not create <code>main()</code> (for external embedding)</td>
+</tr>
+<tr>
+<td><code>--no-runtime</code></td>
+<td>do not embed the run-time libraries</td>
+</tr>
+<tr>
+<td><code>--source</code></td>
+<td>embed the instrument source code in the executable</td>
+</tr>
+</tbody>
+</table>
+<p><em>(The component search path also defaults to whatever the <code>MCSTAS</code>/<code>MCXTRACE</code> environment variable points at, if set. The help text's usage line also shows a <code>-p</code> flag that isn't explained in the option list itself. Ordinarily invoked indirectly via <code>mcrun</code>/<code>mxrun</code> or <code>mcgui</code>/<code>mxgui</code>, rather than run by hand.)</em></p>
+<h2 id="mcstas-pygen-mcxtrace-pygen-convert-an-instrument-to-python">mcstas-pygen / mcxtrace-pygen — convert an instrument to Python</h2>
+<p>A binary code-generator tool, sibling to <code>mcstas</code>/<code>mcxtrace</code> themselves: translates an <code>.instr</code> file into a Python module built on <strong><a href="https://panosc-vinyl.github.io/McStasScript/">McStasScript</a></strong> instead of C, so the instrument can be constructed, run, and plotted from Python instead of the <code>.instr</code>/<code>mcrun</code> route.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>file</code></td>
+<td>the <code>.instr</code> file to translate</td>
+</tr>
+<tr>
+<td><code>-o FILE</code>, <code>--output-file=FILE</code></td>
+<td>place the generated Python output in <code>FILE</code></td>
+</tr>
+<tr>
+<td><code>-v</code>, <code>--version</code></td>
+<td>print the full version header</td>
+</tr>
+<tr>
+<td><code>--version-num</code></td>
+<td>print the version number only</td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>display compilation process steps</td>
+</tr>
+<tr>
+<td><code>--lint</code></td>
+<td>generate a <code>.py</code> script for McStasScript-style "diagnostic" linting</td>
+</tr>
+</tbody>
+</table>
+<p><em>(Its usage synopsis also lists <code>-I dir1 ...</code>, <code>-t</code>, <code>-p</code>, <code>--no-main</code>, and <code>--no-runtime</code>, inherited from sharing the same usage line as <code>mcstas</code>/<code>mcxtrace</code> — but none of these are actually explained in <code>mcstas-pygen</code>/<code>mcxtrace-pygen</code>'s own <code>--help</code> text, so treat them as unconfirmed for this variant.)</em></p>
+<p>The generated module exposes a <code>make()</code> function returning a McStasScript instrument object, e.g.:</p>
+<pre><code class="language-python">import mcstasscript as ms
+from INSTRUMENT_generated import make
+instr = make()
+instr.show_diagram()
+instr.show_instrument()      # backend='webgl-classic' by default; also 'window' (pyqtgraph), 'webgl', 'pythreejs'
+data = instr.backengine()
+ms.make_sub_plot(data)
+</code></pre>
+<p>See the <a href="https://panosc-vinyl.github.io/McStasScript/">McStasScript documentation</a> for everything else you can do with the generated instrument object.</p>
+<h2 id="mcstas-jupylab-mcxtrace-jupylab-explore-an-instrument-in-jupyter">mcstas-jupylab / mcxtrace-jupylab — explore an instrument in Jupyter</h2>
+<p>A convenience wrapper around <code>mcstas-pygen</code>/<code>mcxtrace-pygen</code>: converts the given instrument, drops it into a ready-made notebook template (imports, <code>show_diagram()</code>/<code>show_instrument()</code>/<code>backengine()</code>/plotting cells, all pre-written), and launches <code>jupyter lab</code> on it.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>INSTR</code></td>
+<td>the <code>.instr</code> file to convert and open in a new Jupyter Lab notebook</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a href="README.html">&larr; back to overview</a></p>
+</body>
+</html>

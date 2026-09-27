@@ -1,20 +1,50 @@
-\section{Source\_flat: A flat surface emitting photons with a spectrum either uniform, gaussian or generated from a datafile}
-\label{source-flat}
-\index{Sources!Flat surface source}
-\mcdoccomp{sources/Source_flat.parms}
+\section{The \texttt{Source\_flat} McXtrace Component}
+Release: McXtrace 0.1\_alpha
 
-A simple source model, with a flat surface emitting photons. The surface in the
-$xy$-plane is specified as a rectangle with dimensions
-$\mathit{xwidth}\times \mathit{yheight}$ \si{m \squared}, or as a circle with \textit{radius} \si{m}. 
-The initial x-ray position is chosen randomly in the source surface --- its
-wavevector is chosen randomly (exactly as in the case of \textbf{Source\_pt})
-(section \ref{s:source-pt}) in the defining aperture with height \textit{focus\_yh} and
-width \textit{focus\_xw} placed at $(0,0,\mathit{dist})$. 
+A flat rectangular or circular surface emitting x-rays
 
-Just as for \textbf{Source\_pt} the aperture is for efficiency purposes and, if misused, may cause biasing.
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Erik Knudsen
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} September 25, 2009
+\end{itemize}
 
-With the exception of source size related parameters, all other parameters are
-identical to \textbf{Source\_pt} Note that this also applies to coherence and
-photon phase. If \textit{randomphase}$=0$ then a photon emitted from
-$(x_0,y_0,0)$ will in phase with a photon emitted from $(x_1,y_1,0)$. I.e. full
-transversal coherence.
+\subsection*{Description}
+A circular or rectangular xray source. Spectrum may be either gaussian or uniform around a central wavelength/energy or read from a datafile. Xrays are considered emitted uniformly into 4pi, but a square target retricts the beam to that window and scales the beam intensity accordingly. If an input spectrum datafile (spectrum\_file) is not specified, the beam is restricted to emit photons between E0+-dE keV, or lambda0+-dlambda \AA{}, whichever is given. The input spectrum file should be formatted such that x-ray energy/wavelength is in the first column and the intensity in the second. Any preceding lines starting with \# are considered part of the file header. If a datafile is given, a nonzero E0 value indicates that is is parametrized by energy (in keV) as opposed to wavelength (in \AA{}). Wavelength is the default. Flux is set in the unit photons/s
+
+Example: Source\_flat(xwidth=1e-3,yheight=1e-3, focus\_xw=0.5e-2, focus\_yh=0.45e-2,dist=1, E0=E0, dE=DE)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+radius & m & Radius of circle in (x,y,0) plane where x-rays are generated. & 0 \\
+yheight & m & Height of rectangle in (x,y,0) plane where x-rays are generated. & 0 \\
+xwidth & m & Width of rectangle in (x,y,0) plane where x-rays are generated. Overrides xmin and xmax. & 0 \\
+xmin & m & Lower bound of x-interval where photons are generated. & 0 \\
+xmax & m & Upper bound of x-interval where photons are generated. & 0 \\
+dist & m & Distance to target along z axis. & 0 \\
+focus\_xw & m & Width of target & .045 \\
+focus\_yh & m & Height of target & .12 \\
+E0 & keV & Mean energy of xrays. & 0 \\
+dE & keV & Energy half spread of x-rays (flat or gaussian sigma). & 0 \\
+lambda0 & \AA{} & Mean wavelength of x-rays. & 0 \\
+dlambda & \AA{} & Wavelength half spread of x-rays. & 0 \\
+flux & pht/s & Total flux radiated from the source & 0 \\
+gauss & 1 & Gaussian (1) or Flat (0) energy/wavelength distribution & 0 \\
+randomphase &   & If nonzero, the phase of the emotted photon is random, i.e. source is fully incoherent. otherwise the value of phase is used. & 1 \\
+phase & rad & Set phase to something given. & 0 \\
+spectrum\_file & string & Filename for optional spectrum-file & "" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Source\_flat.comp}.
+\end{itemize}
+\IfFileExists{sources/Source_flat_static.tex}{\input{sources/Source_flat_static.tex}}{}

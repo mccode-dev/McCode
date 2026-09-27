@@ -68,7 +68,6 @@
 * order_total:     [1] Only log rays that have scattered n times, -1 for all orders
 * order_volume:    [1] Only log rays that have scattered n times in the same geometry, -1 for all orders
 * logger_conditional_extend_index: [1] If a conditional is used with this logger, the result of each conditional calculation can be made available in extend as a array called "logger_conditional_extend", and one would then access logger_conditional_extend[n] if logger_conditional_extend_index is set to n
-* init:            [string] name of Union_init component (typically "init", default)
 * time_min:        [s] Minimum time to log
 * time_max:        [s] Maximum time to log
 * nowritefile:     [1]      If set, logger will skip writing to disk
@@ -86,7 +85,7 @@ DEFINE COMPONENT Union_abs_logger_1D_time
 DEFINITION PARAMETERS ()
 SETTING PARAMETERS(string target_geometry="NULL",
                    time_min=0, time_max, n=100,
-                   string filename="NULL", order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, string init="init", int nowritefile=0)
+                   string filename="NULL", order_total=-1, order_volume=-1, logger_conditional_extend_index=-1, int nowritefile=0)
 OUTPUT PARAMETERS ()
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -94,7 +93,7 @@ OUTPUT PARAMETERS ()
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this Union_abs_logger_1D_time component"
+  #error "ERROR: Union_abs_logger_1D_time requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   struct temp_time_abs_data_element_struct {
@@ -435,11 +434,6 @@ INITIALIZE
   if (!this_abs_storage.temp_time_abs_data.elements)
     exit (fprintf (stderr, "Union_abs_logger_1D_time: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Union_abs_logger_1D_time:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
   // printf("past direction choices sanitation \n");
 
   // Book keeping
@@ -470,8 +464,8 @@ INITIALIZE
 
   // printf("past logger_list_element assignment \n");
 
-  struct pointer_to_global_geometry_list* global_geometry_list = COMP_GETPAR3 (Union_init, init, global_geometry_list);
-  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = COMP_GETPAR3 (Union_init, init, global_specific_volumes_abs_logger_list);
+  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
+  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = &g_specific_volumes_abs_logger_list;
   // In order to run the logger at the right times, pointers to this logger is stored in each volume it logs,
   //  and additionally for each available process. If a process is not logged, the pointer is simply not stored.
   int process_index;
@@ -492,7 +486,7 @@ INITIALIZE
   } else {
     // Send to global_all_volumes_logger_list
     // Here there is no system for selecting processes as well
-    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = COMP_GETPAR3 (Union_init, init, global_all_volume_abs_logger_list);
+    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = &g_all_volume_abs_logger_list;
     add_element_to_abs_logger_list (global_all_volume_abs_logger_list, abs_logger_list_element);
   }
  %}
