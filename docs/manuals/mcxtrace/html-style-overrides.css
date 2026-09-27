@@ -18,7 +18,8 @@ h1, h2, h3, h4 {
 /* Content figures: grow to ~80% of the document pane width (scales with
    the actual available space, unlike a fixed pixel cap), centered.
    Logos are excluded from this class by inject-toc-sidebar.py (matched
-   by filename), so they keep their small, natural size untouched. */
+   by "logo" appearing anywhere in the filename), so they don't get
+   blown up to 80% of the page. */
 .mccode-content-figure {
   width: 80% !important;
   height: auto !important;
@@ -26,8 +27,32 @@ h1, h2, h3, h4 {
   margin: 0 auto !important;
 }
 
-/* Safe fallback for any image not tagged above (e.g. the logos): never
-   overflow its container, but don't force a size -- natural size wins. */
+/* Logos: explicit, uniform size, independent of native pixel dimensions.
+   Different source logos have different native pixel sizes that don't
+   necessarily match each other or their intended printed size -- using
+   width (not max-width) forces them all to the same on-screen size,
+   rather than only ever being able to shrink an oversized one. Matched
+   via an attribute selector against the actual filename at render time,
+   so this doesn't depend on knowing exactly what tex4ht names the
+   converted file. DTU_logo is excluded -- it's intentionally much
+   smaller (9mm vs 50mm in the PDF) than the package logo. */
+/* DTU logo: same convergence reasoning as the package logo above --
+   explicit width rather than natural size, so it renders consistently
+   regardless of its source file's native pixel dimensions. Deliberately
+   smaller than the package logo (roughly matching its 9mm-vs-50mm ratio
+   in the PDF version, rounded up a little for on-screen legibility). */
+img[src*="DTU" i] {
+  width: 40px;
+  height: auto;
+}
+
+img[src*="logo" i]:not([src*="DTU" i]) {
+  width: 125px;
+  height: auto;
+}
+
+/* Safe fallback for any other untagged image: never overflow its
+   container, but don't force a size -- natural size wins. */
 img {
   max-width: 100%;
   height: auto;

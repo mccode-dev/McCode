@@ -70,48 +70,34 @@ DECLARE
 INITIALIZE
 %{
   ConicSurf* pm;
-  double th_c, alpha_p, alpha_h, fp2, dr, rr, cH, theta_1, theta_2, theta_i;
+  double dr, rr, cH, theta_2, theta_i;
+  double constant, quadratic;
   int i;
 
   s = makeScene ();
-  /* Mode a, vector of radii */
-  if (radii) {
-    for (i = 0; i < nshells; i++) {
-      rr = radii[i];
-
-      th_c = tan (rr / focal_length);
-      alpha_p = th_c / 4.0;
-      alpha_h = 3 * alpha_p;
-
-      Point pi = makePoint (0, rr, 0); // f-1);
-      pm = addParaboloid (focal_length, pi, -lp, 0, m, R0, Qc, W, alpha, &s);
-      addHyperboloid (focal_length, focal_length, pi, 0, lh, m, R0, Qc, W, alpha, &s);
-    }
-  } else {
-    /* Mode b, use quadratic law to distribute the shells */
-    double constant, quadratic;
+  if (!radii) {
+    /* Mode b, use quadratic law to distribute the shells. */
     quadratic = (rmax - rmin) / (rmax * rmax - rmin * rmin);
     constant = rmax - quadratic * rmax * rmax;
     dr = nshells > 1 ? (rmax - rmin) / (nshells - 1) : 0;
-    for (i = 0; i < nshells; i++) {
+  }
+
+  for (i = 0; i < nshells; i++) {
+    /* Mode a uses the supplied radii; mode b uses the quadratic distribution. */
+    if (radii) {
+      rr = radii[i];
+    } else {
       rr = rmax - dr * i;
       rr = constant + quadratic * rr * rr; // Quadratic distribution of radius covers angular space better
-
-      th_c = tan (rr / focal_length);
-      alpha_p = th_c / 4.0;
-      alpha_h = 3 * alpha_p;
-
-      Point pi = makePoint (0, rr, 0); // f-1);
-
-      theta_1 = 0.0;
-      theta_2 = atan (rr / focal_length);
-      theta_i = 0.25 * (theta_1 + theta_2);
-
-      cH = fabs (0.5 * (rr / tan (theta_2 - 2.0 * theta_i) - focal_length));
-
-      pm = addParaboloid (focal_length + 2.0 * cH, pi, -lp, 0, m, R0, Qc, W, alpha, &s);
-      addHyperboloid (focal_length, focal_length + 2.0 * cH, pi, 0, lh, m, R0, Qc, W, alpha, &s);
     }
+
+    Point pi = makePoint (0, rr, 0);
+    theta_2 = atan (rr / focal_length);
+    theta_i = 0.25 * theta_2;
+    cH = fabs (0.5 * (rr / tan (theta_2 - 2.0 * theta_i) - focal_length));
+
+    pm = addParaboloid (focal_length + 2.0 * cH, pi, -lp, 0, m, R0, Qc, W, alpha, &s);
+    addHyperboloid (focal_length, focal_length + 2.0 * cH, pi, 0, lh, m, R0, Qc, W, alpha, &s);
   }
   if (disk) {
     addDisk (pm->zs, 0.0, rConic (pm->ze, *pm), &s);
@@ -185,4 +171,3 @@ MCDISPLAY
 %}
 	
 END
-

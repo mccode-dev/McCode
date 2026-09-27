@@ -32,51 +32,62 @@
 * %E
 ******************************************************************************/
 
+#ifndef UNION_INIT_C
+#define UNION_INIT_C
 
 // This file sets up global lists needed for Union components to communicate with each other
 // These all have dynamically allocated memory somewhere in the structure, which is deallocated
 //  by the last Union_master.
+//
+// This file is auto-injected by the code generator (mccode) at the front of the
+//  generated code whenever the instrument uses the Union component family
+//  (i.e. contains a Union_master). It no longer needs to be placed in a
+//  Union_init component. The globals use a 'g_' prefix so they do not collide
+//  with the component-local pointers of the same base name that each Union
+//  component declares.
 
 
 // Initialize global positions / rotations to transform lists
   // These are lists of pointers to positons / rotations, that will be updated from global frame
   //  to the frame of the master component that uses them in that masters initialize section.
-  struct global_positions_to_transform_list_struct global_positions_to_transform_list = {0,NULL};
-  struct global_rotations_to_transform_list_struct global_rotations_to_transform_list = {0,NULL};
+  struct global_positions_to_transform_list_struct g_positions_to_transform_list = {0,NULL};
+  struct global_rotations_to_transform_list_struct g_rotations_to_transform_list = {0,NULL};
 
 // Initialize global_process_list
   // Used to facilitate communication between processes and the other types of Union components
-  struct pointer_to_global_process_list global_process_list = {0,NULL};
+  struct pointer_to_global_process_list g_process_list = {0,NULL};
 
 // Initialize global_material_list
   // Used to facilitate communication between materials and the other types of Union components
-  struct pointer_to_global_material_list global_material_list = {0,NULL};
-  
+  struct pointer_to_global_material_list g_material_list = {0,NULL};
+
 // Initialize global_surface_list
   // Used to facilitate communication between surface components and other types of Union components
-  struct pointer_to_global_surface_list global_surface_list = {0,NULL};
+  struct pointer_to_global_surface_list g_surface_list = {0,NULL};
 
 // Initialize global_geometry_list
   // Used to facilitate communication between geometries and the other types of Union components
-  struct pointer_to_global_geometry_list global_geometry_list = {0,NULL};
+  struct pointer_to_global_geometry_list g_geometry_list = {0,NULL};
 
 // Initialize global_logger_lists
   // Used to facilitate communication between loggers and the other types of Union components
-  struct pointer_to_global_logger_list global_all_volume_logger_list = {0,NULL};
-  struct pointer_to_global_logger_list global_specific_volumes_logger_list = {0,NULL};
+  struct pointer_to_global_logger_list g_all_volume_logger_list = {0,NULL};
+  struct pointer_to_global_logger_list g_specific_volumes_logger_list = {0,NULL};
 
 // Initialize global_abs_logger_lists
-  struct pointer_to_global_abs_logger_list global_all_volume_abs_logger_list = {0,NULL};
-  struct pointer_to_global_abs_logger_list global_specific_volumes_abs_logger_list = {0,NULL};
+  struct pointer_to_global_abs_logger_list g_all_volume_abs_logger_list = {0,NULL};
+  struct pointer_to_global_abs_logger_list g_specific_volumes_abs_logger_list = {0,NULL};
 
 // Initialize global_tagging_conditional_list
   // Used to facilitate communication between conditionals and the other types of Union components
-  struct global_tagging_conditional_list_struct global_tagging_conditional_list = {0,0,NULL};
+  struct global_tagging_conditional_list_struct g_tagging_conditional_list = {0,0,NULL};
 
 // Initialize global_master_list
   // Used to facilitate communication between Master components (mainly for deallocation)
-  struct pointer_to_global_master_list global_master_list = {0,NULL};
+  struct pointer_to_global_master_list g_master_list = {0,NULL};
 
 // Initialize global_mantid_min_pixel_id
   // Used for ensuring pixel id's on Mantid monitors do not overlap
-  int global_mantid_min_pixel_id = 0;
+  int g_mantid_min_pixel_id = 0;
+
+#endif /* UNION_INIT_C */

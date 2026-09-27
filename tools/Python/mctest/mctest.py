@@ -939,7 +939,7 @@ def main(args):
     if args.compilemax:
         compilemax=int(args.compilemax[0])
     else:
-        compilemax=600
+        compilemax=1800
     if lint:
         compilemax=100*compilemax
     if args.displaymax:

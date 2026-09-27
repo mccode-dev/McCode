@@ -3,25 +3,11 @@
 
 set -e
 
-VERSIONDIR=@MCCODE_VERSION@
-if [ ! -z "${CONDA_DEFAULT_ENV}" ];
-then
-    THISENV=`basename ${CONDA_DEFAULT_ENV}`
-    VERSIONDIR=${VERSIONDIR}_${THISENV}
-fi
-
-cd ${HOME} && mkdir -p .@FLAVOR@ && cd .@FLAVOR@ && mkdir -p ${VERSIONDIR} && cd ${VERSIONDIR} && mkdir -p webgl && cd webgl
-
+# Build the static webgl app directly next to this script - no per-user
+# folder, no copying: this dir already holds App.tsx, package.json etc.
 FILE=${0}
-TOOLDIR=`dirname $FILE`
-cp ${TOOLDIR}/*.tsx .
-cp ${TOOLDIR}/*.css .
-cp ${TOOLDIR}/index.html .
-cp ${TOOLDIR}/*.js .
-cp ${TOOLDIR}/package.json .
-rsync -avz ${TOOLDIR}/Contexts/ Contexts
-rsync -avz ${TOOLDIR}/utils/ utils
-rsync -avz ${TOOLDIR}/data-utils/ data-utils
-rsync -avz ${TOOLDIR}/components/ components
+TOOLDIR=$(cd "$(dirname "$FILE")" && pwd)
+cd "${TOOLDIR}"
+
 npm install
 npm run build
