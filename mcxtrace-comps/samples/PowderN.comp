@@ -596,7 +596,10 @@ SHARE
     /* check if a line_info element has been recorded already - not on OpenACC */
     #ifndef OPENACC
     if (k >= line_info->k_min && k <= line_info->k_max && line_info->photon_passed >= CHAR_BUF_LENGTH) {
-      line = (int)floor (k - line_info->k_min) * CHAR_BUF_LENGTH / (line_info->k_max - line_info->k_min);
+      double frac = (k - line_info->k_min) / (line_info->k_max - line_info->k_min);
+      line = (int)floor(frac * CHAR_BUF_LENGTH);
+      if (line < 0) line = 0;
+      if (line >= CHAR_BUF_LENGTH) line = CHAR_BUF_LENGTH - 1;
       Nq = line_info->xs_Nq[line];
       *sum = line_info->xs_sum[line];
       if (!Nq && *sum == 0) {
@@ -1070,9 +1073,10 @@ TRACE
       if (photontype == 3) { /* Make coherent scattering event */
         if (line_info.count > 0) {
           /* choose line */
-          if (Nq > 1)
+          if (Nq > 1) {
             line = floor (Nq * rand01 ()); /* Select between Nq powder lines */
-          else
+            if (line >= Nq) line = (int)Nq - 1; /* guard rand01()==1.0 edge case */
+           } else
             line = 0;
           if (line_info.w[line])
             arg = line_info.q[line] * (1 + line_info.w[line] * randnorm ()) / (2.0 * k);
