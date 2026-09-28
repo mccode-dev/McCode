@@ -15,6 +15,10 @@
 Simply a bending magnet illuminating a reflection grating.
 ```
 
+## Examples
+
+- **Test: E0=1 Detector: psd_monitor_I=3.79378e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

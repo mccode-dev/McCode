@@ -42,15 +42,19 @@ Al environment (e.g. cryostat/furnace shield).
 This instrument was installed on the H22 guide.
 ```
 
+## Examples
+
+- **Test: lambda=1.911 Detector: BananaPSD_I=3.8578E+05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Wavelength at monochromator | 1.911 |
-| dlambda | Angs | Wavelength-spread around lambda at source | 0.03 |
-| DM | Angs | d-spacing of monochromator. Use DM=0 to compute the values from the requested wavelength. | 0 |
+| lambda | AA | Wavelength at monochromator | 1.911 |
+| dlambda | AA | Wavelength-spread around lambda at source | 0.03 |
+| DM | AA | d-spacing of monochromator. Use DM=0 to compute the values from the requested wavelength. | 0 |
 | RV | m | Radius of vertical focussing. flat for 0 | -1 |
 | powder | str | File name for powder sample description | "Na2Ca3Al2F14.laz" |
 | container | str | File name for container decription in Al cryostat/furnace | "V.laz" |

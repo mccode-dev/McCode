@@ -16,6 +16,11 @@ A non-divergent beam impinges on a masking image, with 2d-detectors up- and down
 of the mask.
 ```
 
+## Examples
+
+- **Test: Test_Mask.instr invert=0 Detector: psd1_I=0.223645**
+- **Test: Test_Mask.instr invert=1 Detector: psd1_I=0.670667**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -15,6 +15,10 @@
 The H25 supermirror curved thermal guide at the ILL feeding S18, D23 and IN22
 ```
 
+## Examples
+
+- **Test: m=2 Detector: GuideOut_Phic_I=1.17e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

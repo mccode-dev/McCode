@@ -18,6 +18,10 @@ with different coatings. Materials are simulated using NCrystal.
 Example: mcrun Bispectral.instr l_min=0.5 l_max=6.0
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

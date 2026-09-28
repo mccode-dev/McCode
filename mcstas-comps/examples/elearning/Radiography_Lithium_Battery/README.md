@@ -19,6 +19,10 @@ Nota Bene: For simpification, this version of the instrument does <strong>NOT</s
 Radiography_Lithium_Battery was derived from Radiography_absorbing_edge. by Linda Udby and Peter Willendrup.
 ```
 
+## Examples
+
+- **Test: Radiography_Lithium_Battery -y Detector: PSD_1cm_detector_50mum_I=9.97993e-16**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

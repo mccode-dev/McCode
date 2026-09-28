@@ -17,6 +17,10 @@ This early version uses a Gaussian approximation source, and a simple bandpass f
 as the multilayer.
 ```
 
+## Examples
+
+- **Test: MAXIV_DanMAX_pxrd2d.instr -c -n1e6 E0=15 Detector: Pilatus_2M_I=8.10837e-05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

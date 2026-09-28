@@ -25,6 +25,10 @@ This is a simple description of the MIXRAD Nikon X-ray tomograph installed at NE
 Example: <parameters=values>
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

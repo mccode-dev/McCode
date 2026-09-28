@@ -15,14 +15,18 @@
 Necsa Neutron Strain Scanner located at beam port 5 of the SAFARI-1 research reactor, South Africa
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| source_lam_min | Angs | Minimum wavelenth of source | 0.5 |
-| source_lam_max | Angs | Maximum wavelenth of source | 2.0 |
+| source_lam_min | AA | Minimum wavelenth of source | 0.5 |
+| source_lam_max | AA | Maximum wavelenth of source | 2.0 |
 | hi_res |  | Selects hi-resolution(1) or hi-intensity(0) reactor beam through primary shutter | 0 |
 | mono_Si_type |  | Monochromator Silicon type options: 422 400 311 511 111 331 | 311 |
 | mono_mosh | arc min | Monochromator horizontal mosaicity | 30 |

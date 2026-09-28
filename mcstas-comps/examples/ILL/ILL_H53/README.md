@@ -15,6 +15,10 @@
 The H53 curved cold guide at the ILL feeding IN14, IN16, D16, ADAM, CRYO-EDM
 ```
 
+## Examples
+
+- **Test: m=1.2 dlambda=8.5 Detector: H53_P5_Out_Phic_I=1.8081e+10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

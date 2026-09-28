@@ -50,6 +50,19 @@ cube.off: 6=PowderN,
 9=Incoherent
 ```
 
+## Examples
+
+- **Test: SAMPLE=1 STOP=1 Detector: PSD_Sphere_4pi_I=1.2321e+06**
+- **Test: SAMPLE=2 STOP=1 Detector: PSD_Sphere_4pi_I=1.2324e+06**
+- **Test: SAMPLE=3 STOP=1 Detector: PSD_Sphere_4pi_I=1.3196e+06**
+- **Test: SAMPLE=4 STOP=1 Detector: PSD_Sphere_4pi_I=1.3246e+06**
+- **Test: SAMPLE=5 STOP=1 Detector: PSD_Sphere_4pi_I=1.3252e+06**
+- **Test: SAMPLE=6 STOP=1 -n 1e5 Detector: PSD_Sphere_4pi_I=1.2324e+06**
+- **Test: SAMPLE=7 STOP=1 -n 1e5 Detector: PSD_Sphere_4pi_I=1.3225e+06**
+- **Test: SAMPLE=8 STOP=1 -n 1e5 Detector: PSD_Sphere_4pi_I=1.3233e+06**
+- **Test: SAMPLE=9 STOP=1 -n 1e5 Detector: PSD_Sphere_4pi_I=1.3239e+06**
+- **Test: SAMPLE=10 STOP=1 -n 1e5 Detector: PSD_Sphere_4pi_I=1.28905e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

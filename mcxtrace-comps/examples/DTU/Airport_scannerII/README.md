@@ -18,6 +18,10 @@ off/ply-files a scene is put together which may be used for tomography style
 simulations. The default input file contains a single object: a mechanical socket.
 ```
 
+## Examples
+
+- **Test: Airport_scannerII.instr -n1e5 Ncount=1e4 posX=-0.25 posY=-0.3 Detector: psd2_I=0.000629398**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

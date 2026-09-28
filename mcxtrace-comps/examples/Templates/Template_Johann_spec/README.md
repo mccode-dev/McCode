@@ -23,6 +23,10 @@ To include a Johann spectrometer in an instrument the sample should be put where
 source is in this template. and otherwis copy-paste.
 ```
 
+## Examples
+
+- **Test: L=2 dtheta_s=0 Detector: det4_I=9.5640e-05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

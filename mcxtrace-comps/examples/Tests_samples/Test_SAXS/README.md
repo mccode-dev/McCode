@@ -29,6 +29,20 @@ SAXSNanodiscsWithTagsFast SAMPLE=10
 SAXSPDBFast               SAMPLE=11
 ```
 
+## Examples
+
+- **Test: SAMPLE=0 Detector: PSDMonitor_I=2.93715e-14**
+- **Test: SAMPLE=1 Detector: PSDMonitor_I=2.7118e-14**
+- **Test: SAMPLE=2 Detector: PSDMonitor_I=2.64954e-14**
+- **Test: SAMPLE=3 Detector: PSDMonitor_I=9.77905e-15**
+- **Test: SAMPLE=4 Detector: PSDMonitor_I=1.16433e-10**
+- **Test: SAMPLE=5 Ncount=1e4 Detector: PSDMonitor_I=1.2001e-14**
+- **Test: SAMPLE=6 Ncount=1e4 Detector: PSDMonitor_I=1.2400e-14**
+- **Test: SAMPLE=7 Ncount=1e4 Detector: PSDMonitor_I=7.07865e-14**
+- **Test: SAMPLE=9 Detector: PSDMonitor_I=1.11073e-14**
+- **Test: SAMPLE=10 Detector: PSDMonitor_I=1.02884e-14**
+- **Test: SAMPLE=11 Detector: PSDMonitor_I=5.47707e-15**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

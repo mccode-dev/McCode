@@ -24,6 +24,10 @@ Example3: 2D TOF-lambda plot of beam:
 NDoptions=3 defines options="previous, auto, tof, lambda"
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -22,6 +22,16 @@ that source component does not support MPI.
 Example: source=1 Detector: m1_I=9.97273e+11
 ```
 
+## Examples
+
+- **Test: source=2 Detector: m1_I=9.48467e+11**
+- **Test: source=3 Detector: m1_I=9.96553e+11**
+- **Test: source=4 Detector: m1_I=9.966e+11**
+- **Test: source=5 Detector: m1_I=2.4279e+11**
+- **Test: source=6 Detector: m1_I=2.42284e+11**
+- **Test: source=7 Detector: m1_I=2.28139e+13**
+- **Test: source=8 Detector: m1_I=5.0787e+13**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -16,6 +16,10 @@ The H142 beam is the only S-curved guide at the ILL. It is used here to feed
 the IN12 TAS spectrometer (classical configuration).
 ```
 
+## Examples
+
+- **Test: KI=2.662 QM=1 Sqw_coh=V.lau Detector: D7_SC3_1D_I=8.5e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -23,8 +27,8 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | m | 1 | m-value of guide coating (H14/H142) | 1 |
-| KI | Angs-1 | central wavevector for incoming neutrons | 2.662 |
-| QM | Angs-1 | wavevector transfer modulus at the sample | 1.0 |
+| KI | AA^-1 | central wavevector for incoming neutrons | 2.662 |
+| QM | AA^-1 | wavevector transfer modulus at the sample | 1.0 |
 | EN | meV | energy transfer at the sample | 0.0 |
 | verbose |  | verbose-mode toggle | 1 |
 | WM | m | Width of monochromator | 0.08 |

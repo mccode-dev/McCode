@@ -17,6 +17,13 @@ Test instrument for the updated BF1 butterfly moderator design.
 The below example gives a 50-50 (statistics-wise) cold/thermal beam at beamline N10.
 ```
 
+## Examples
+
+- **Test: pulse_duration=2.857e-3 sector=N beamline=10 cold=0.5 Detector: AutoTOFL0_I=2.7e+11**
+- 
+- Was used to generate MCNP benchmarked output for the ESS_butterfly.comp - see
+- <a href="http://ess_butterfly.mcstas.org">http://ess_butterfly.mcstas.org</a>
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

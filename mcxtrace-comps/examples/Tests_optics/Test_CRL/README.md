@@ -19,6 +19,13 @@ This is a test with the
 - LENS=3: Lens_CRL_RTM
 ```
 
+## Examples
+
+- **Test: Test_CRL.instr LENS=0 L1=35.047 L2=17.523 Detector: line_I=1.20107e-12**
+- **Test: Test_CRL.instr LENS=1 L1=35.047 L2=17.523 Detector: pt_I=3.01094e-13**
+- **Test: Test_CRL.instr LENS=2 L1=35.047 L2=17.523 Detector: line_I=1.2957e-12**
+- **Test: Test_CRL.instr LENS=3 L1=35.047 L2=17.523 Detector: line_I=1.20107e-12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

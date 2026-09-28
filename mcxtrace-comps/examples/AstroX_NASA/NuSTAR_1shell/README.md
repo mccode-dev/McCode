@@ -29,6 +29,10 @@ rad_p: The radius at the "parabolic" and of the optic. At the source end.
 Example: NuSTAR_1shell.instr shellnumber=1
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

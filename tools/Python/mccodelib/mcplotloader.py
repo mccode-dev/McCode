@@ -502,7 +502,7 @@ def _load_sweep_monitors(rootdir):
         dirsignature = (dirname, mnames)
         for f in fnames:
             # NOTE: this will attempt to load all files except for mccode.sim
-            if f not in mnames and f != 'mccode.sim' and f != 'mcstas.sim':
+            if f not in mnames and f != 'mccode.sim':
                 mnames.append(f)
         arg.append(dirsignature)
 
@@ -512,16 +512,35 @@ def _load_sweep_monitors(rootdir):
         walkfunc(subdirtuple, root, files)
     del subdirtuple[0] # remove root dir
     subdirs = [t[0] for t in subdirtuple]
-    # get the right order of subdirs by recreating them a little bit
-    subdirs = [join(dirname(subdirs[i]), str(i)) for i in range(len(subdirs))] # sortalpha(subdirs)
+    # Sort by the REAL, actual numeric folder name (e.g. "0", "1", "3",
+    # "4" - numerically, not alphabetically, since alphabetical sort would
+    # put "10" before "2") - rather than the previous approach of
+    # renaming every subdir BY ITS POSITION in os.walk()'s traversal order
+    # (`join(dirname(subdirs[i]), str(i))`). That renaming assumed
+    # scan-step subfolders are always named consecutively with no gaps,
+    # which no longer holds now that a failed scan step's subfolder is
+    # deliberately never created (mcrun's Scanner.run()/Scanner_split now
+    # tolerate individual failed points rather than aborting the whole
+    # scan - see tools/Python/mcrun/optimisation.py). A gap used to
+    # silently rename every subfolder from that point on to a DIFFERENT,
+    # wrong path, misattributing each remaining step's data to the wrong
+    # index - surfacing as anything from wrong data to the "list index
+    # out of range" this caused (a later step's own mccode.sim declaring
+    # fewer monitors than the one it got misaligned with expected).
+    try:
+        subdirs = sorted(subdirs, key=lambda p: int(basename(p)))
+    except ValueError:
+        # Subfolder names aren't purely numeric for some reason - fall
+        # back to a plain alphabetical ordering rather than crashing
+        # outright (matches this function's previous fallback comment,
+        # "sortalpha(subdirs)", which was never actually reachable before).
+        subdirs = sorted(subdirs)
 
     # get the monitor ordering right by snooping the '  filename:' labels out of the scan point file 0/mccode.sim
     def get_subdir_monitors(subdir):
         mons = []
         if exists(join(subdir, 'mccode.sim')):
             indexfile='mccode.sim'
-        elif exists(join(subdir, 'mccode.sim')):
-            indexfile='mcstas.sim'
         else:
             return
 
@@ -544,7 +563,30 @@ def _load_sweep_monitors(rootdir):
 
     monitors_by_subdir = []
     for s in subdirs:
-        monitors_by_subdir.append(get_subdir_monitors(s))
+        mons = get_subdir_monitors(s)
+        if mons:
+            monitors_by_subdir.append(mons)
+        else:
+            # A discovered subfolder without usable monitor data - either
+            # no mccode.sim at all (get_subdir_monitors() returns None),
+            # or a mccode.sim that exists but has zero "begin data" blocks
+            # (returns [] - e.g. the simulation crashed after writing its
+            # header but before writing monitor results
+            # Either way, skip it here rather than letting an empty (or
+            # None) entry propagate into monitors_by_subdir and crash the
+            # indexing below; load_sweep()'s own root/secondary
+            # length-mismatch check further down already warns (rather
+            # than crashing) if this ever leaves the secondary monitor
+            # count out of sync with mccode.dat's row count.
+            print("_load_sweep_monitors: skipping subdir %s (no usable monitor data found)" % s)
+
+    if not monitors_by_subdir:
+        # No subfolder had usable data at all (e.g. every scan step
+        # failed) - return no secondary monitors rather than crashing on
+        # monitors_by_subdir[0] below. load_sweep() still has the root
+        # sweep curves from mccode.dat either way; it just won't have a
+        # per-step drill-down to offer.
+        return []
 
     # notice that columns and rows are swapped, so we get to use a
     # list-of-lists data structure, with rows the same monitor
@@ -599,7 +641,7 @@ def has_filename(args):
 def is_mccodesim_or_mccodedat(args):
     f = args['simfile']
     f_name = basename(f)
-    return (f_name == 'mccode.sim' or f_name == 'mcstas.sim' or f_name == 'mccode.dat') and isfile(f)
+    return (f_name == 'mccode.sim' or f_name == 'mccode.dat') and isfile(f)
 
 
 def is_monitorfile(args):
@@ -623,13 +665,24 @@ def is_sweepfolder(args):
 
 
 def is_broken_sweepfolder(args):
-    ''' not implemented (returns trivial answer) '''
-    return False
-
-
-def is_sweep_data_present(args):
-    ''' not implemented '''
-    raise Exception('is_sweep_data_present has not been implemented.')
+    ''' A sweep/scan directory that has mccode.dat (the combined scan-curve
+        file written by mcrun's Scanner/Scanner_split/Optimizer - see
+        tools/Python/mcrun/optimisation.py) but is missing mccode.sim -
+        e.g. because only mccode.dat was kept or shared on its own, or the
+        per-scan-step subfolders and their individual monitor files were
+        cleaned up/never transferred. is_sweepfolder() (checked just
+        before this in the flowchart) already requires BOTH files to be
+        present for the full, richer sweep view (load_sweep(), with its
+        per-step secondary drill-down) - reaching this function means that
+        check already failed, so finding mccode.dat here specifically
+        means mccode.sim must be the one missing. mccode.dat is
+        self-describing via its own '#'-prefixed header, though (see
+        _load_multiplot_1D_lst()), so the overlaid sweep curves themselves
+        can still be recovered and plotted even without mccode.sim or any
+        of the underlying per-monitor detector files - see
+        load_sweep_dat_only(). '''
+    d = args['directory']
+    return isfile(join(d, 'mccode.dat'))
 
 
 def is_mccodesim_w_monitors(args):
@@ -638,8 +691,6 @@ def is_mccodesim_w_monitors(args):
     # checks mccode.sim existence
     if isfile(join(d, 'mccode.sim')):
         indexfile='mccode.sim'
-    elif isfile(join(d, 'mcstas.sim')):
-        indexfile='mcstas.sim'
     else:
         return False
 
@@ -650,8 +701,6 @@ def is_mccodesim_w_monitors(args):
     datfiles = glob.glob(join(d, '*'))
     if 'mccode.sim' in datfiles: 
         datfiles.remove('mccode.sim')
-    if 'mcstas.sim' in datfiles: 
-        datfiles.remove('mcstas.sim')
     if 'mccode.dat' in datfiles: 
         datfiles.remove('mccode.dat')
     return len(datfiles) > 0
@@ -664,8 +713,6 @@ def has_datfile(args):
     datfiles = glob.glob(join(d, '*'))
     if 'mccode.sim' in datfiles: 
         datfiles.remove('mccode.sim')
-    if 'mcstas.sim' in datfiles: 
-        datfiles.remove('mcstas.sim')
     if 'mccode.dat' in datfiles: 
         datfiles.remove('mccode.dat')
     if len(datfiles) > 0:
@@ -685,8 +732,6 @@ def has_multiple_datfiles(args):
     datfiles = glob.glob(join(d, '*'))
     if 'mccode.sim' in datfiles:
         datfiles.remove('mccode.sim')
-    if 'mcstas.sim' in datfiles:
-        datfiles.remove('mcstas.sim')
     if 'mccode.dat' in datfiles:
         datfiles.remove('mccode.dat')
     for f in datfiles:
@@ -705,7 +750,6 @@ def test_decfuncs(simfile):
     print('is_monitorfile:            %s' % str(is_monitorfile(args)))
     print('is_sweepfolder:            %s' % str(is_sweepfolder(args)))
     print('is_broken_sweepfolder:     %s' % str(is_broken_sweepfolder(args)))
-    #print('is_sweep_data_present:    %s' % str(is_sweep_data_present(args))) # should not be called until implemented
     print('is_mccodesim_w_monitors:   %s' % str(is_mccodesim_w_monitors(args)))
     print('has_datfile:               %s' % str(has_datfile(args)))
     print('has_multiple_datfiles:     %s' % str(has_multiple_datfiles(args)))
@@ -733,8 +777,6 @@ def load_simulation(args):
     # load monitor data handles
     if isfile(join(d, 'mccode.sim')):
         indexfile='mccode.sim'
-    elif isfile(join(d, 'mcstas.sim')):
-        indexfile='mcstas.sim'
     else:
         indexfile=''
     data_lst = _load_data_from_mcfiles(_get_filenames_from_mccodesim(join(d, indexfile)))
@@ -754,8 +796,6 @@ def load_simulation(args):
 def load_sweep(args):
     d = args['directory']
     f_dat = join(d, 'mccode.dat')
-    if isfile(join(d, 'mcstas.sim')):
-        f_dat = join(d, 'mcstas.sim')
 
     # load primary data_handle, 1D sweep values
     data_handle_lst_sweep1D = _load_multiplot_1D_lst(f_dat)
@@ -853,6 +893,45 @@ def load_sweep_c(args):
     raise Exception('load_sweep_c is not implemented.')
 
 
+def load_sweep_dat_only(args):
+    ''' Fallback for a sweep/scan directory that has mccode.dat (the
+        combined scan-curve file) but not mccode.sim and/or the
+        underlying per-step subfolders and monitor files - see
+        is_broken_sweepfolder(). mccode.dat is self-describing via its own
+        '#'-prefixed header (component/filename/title/xvars/xlimits/
+        variables/yvars - the same fields build_header() in
+        tools/Python/mcrun/optimisation.py writes), so
+        _load_multiplot_1D_lst() can parse it directly with no other
+        input at all.
+
+        Only builds the root+primary levels (mirroring load_simulation()/
+        load_monitor_folder()'s two-level graphs): an overview showing
+        every monitor's sweep curve overlaid, and a primary per-monitor
+        drill-down to see just that one curve. There deliberately are no
+        secondaries here - load_sweep()'s secondary level lets you drill
+        further into an individual scan step's own raw monitor data
+        (loaded from that step's own subfolder+mccode.sim), which simply
+        doesn't exist in this fallback - only the combined sweep curves
+        do. Leaving secondaries as the default empty list is a normal,
+        supported plot-graph state (matching how a PNSingle leaf node, or
+        load_simulation()'s single-level case, has none either), not an
+        incomplete/degraded one - frontends already handle it as "nothing
+        further to click into" rather than an error. '''
+    d = args['directory']
+    f_dat = join(d, 'mccode.dat')
+
+    data_handle_lst_sweep1D = _load_multiplot_1D_lst(f_dat)
+    root = PNMultiple(data_handle_lst_sweep1D)
+
+    primnodes_lst = []
+    for data_handle in data_handle_lst_sweep1D:
+        primnode = PNSingle(data_handle)
+        primnodes_lst.append(primnode)
+    root.set_primaries(primnodes_lst)
+
+    return root
+
+
 def load_monitor_folder(args):
     # assume simfile is folder with multiple dat files
     d = args['directory']
@@ -892,8 +971,7 @@ class McCodeDataLoader():
         exit_term_case1  = FCNTerminal(key = "case1",  fct = load_monitor)
         exit_term_case2  = FCNTerminal(key = "case2",  fct = load_simulation)
         exit_term_case3  = FCNTerminal(key = "case3",  fct = load_sweep)
-        exit_term_case3b = FCNTerminal(key = "case3b", fct = throw_error)
-        exit_term_case3c = FCNTerminal(key = "case3c", fct = throw_error)
+        exit_term_case3fallback = FCNTerminal(key = "case3-fallback", fct = load_sweep_dat_only)
         exit_term_case4  = FCNTerminal(key = "case4",  fct = load_monitor_folder)
 
         # decision nodes (assembled in backwards order)
@@ -906,11 +984,8 @@ class McCodeDataLoader():
         dec_ismccodesimwmonitors = FCNDecisionBool(fct = is_mccodesim_w_monitors,
                                                    node_T = exit_term_case2,
                                                    node_F = dec_hasdatfile)
-        dec_datafolderspresent   = FCNDecisionBool(fct = is_sweep_data_present,
-                                                   node_T = exit_term_case3b,
-                                                   node_F = exit_term_case3c)
         dec_isbrokensweep        = FCNDecisionBool(fct = is_broken_sweepfolder,
-                                                   node_T = dec_datafolderspresent,
+                                                   node_T = exit_term_case3fallback,
                                                    node_F = dec_ismccodesimwmonitors)
         dec_issweepfolder        = FCNDecisionBool(fct = is_sweepfolder,
                                                    node_T = exit_term_case3,

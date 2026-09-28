@@ -17,6 +17,10 @@ This model includes the long beam transport from the source all the way into
 experimental hutch.
 ```
 
+## Examples
+
+- **Test: XFEL_SPB.instr preCRL=0 -n1e7 L0=1.3051 DL=0.01 Detector: detector_I=0.00194989**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -22,6 +22,10 @@ A single crystal sample is illuminated with a white cold beam.
 Based on a Laue tutorial written by K. Nielsen, Feb 7, 2000.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

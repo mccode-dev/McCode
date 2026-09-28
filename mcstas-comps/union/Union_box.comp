@@ -65,7 +65,6 @@
 * minus_z_surface:       [string] Comma seperated string of Union surface definitions defined prior to this component, applied to -z face of box
 * all_face_surface:      [string] Comma seperated string of Union surface definitions defined prior to this component, applied to all faces above
 * cut_surface:           [string] Comma seperated string of Union surface definitions defined prior to this component, applied to all internal cuts
-* init:                  [string] name of Union_init component (typically "init", default)
 * CALCULATED PARAMETERS:
 *
 * %L
@@ -82,13 +81,13 @@ SETTING PARAMETERS(string material_string=0, priority,
 				   string plus_x_surface=0, string minus_x_surface=0,
 				   string plus_y_surface=0, string minus_y_surface=0,
 				   string all_face_surface=0, string cut_surface=0, 
-				   p_interact = 0, string mask_string=0, string mask_setting=0, number_of_activations=1, string init="init")
+				   p_interact = 0, string mask_string=0, string mask_setting=0, number_of_activations=1)
 
 SHARE
 %{
 
   #ifndef Union
-  #error "The Union_init component must be included before this Union_box component"
+  #error "ERROR: Union_box requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   void
@@ -270,12 +269,7 @@ INITIALIZE
     exit (1);
   }
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Union_box:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_material_list* global_material_list = COMP_GETPAR3 (Union_init, init, global_material_list);
+  struct pointer_to_global_material_list* global_material_list = &g_material_list;
   // Use sanitation
   if (global_material_list->num_elements == 0) {
     printf ("\nERROR: Need to define a material using Union_make_material before using a Union geometry component. \n");
@@ -286,7 +280,7 @@ INITIALIZE
   this_box_volume.geometry.is_masked_volume = 0;
   this_box_volume.geometry.is_exit_volume = 0;
   this_box_volume.geometry.is_mask_volume = 0;
-  struct pointer_to_global_geometry_list* global_geometry_list = COMP_GETPAR3 (Union_init, init, global_geometry_list);
+  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
   // check if the volume is a mask, if it is the material string is irelevant.
   if (mask_string && strlen (mask_string) && strcmp (mask_string, "NULL") && strcmp (mask_string, "0")) {
     // A mask volume is used to limit the extend of other volumes, called the masked volumes. These are specified in the mask_string.
@@ -479,7 +473,7 @@ INITIALIZE
   this_box_volume.geometry.surface_stack_for_each_face[5] = &minus_y_surface_stack;
   this_box_volume.geometry.internal_cut_surface_stack = &cut_surface_stack; // This surface is used if the volume is cut by overlapping of higher priority volume
 
-  struct pointer_to_global_surface_list* global_surface_list = COMP_GETPAR3 (Union_init, init, global_surface_list);
+  struct pointer_to_global_surface_list* global_surface_list = &g_surface_list;
   fill_surface_stack (plus_x_surface, global_surface_list, NAME_CURRENT_COMP, &plus_x_surface_stack);
   fill_surface_stack (minus_x_surface, global_surface_list, NAME_CURRENT_COMP, &minus_x_surface_stack);
   fill_surface_stack (plus_y_surface, global_surface_list, NAME_CURRENT_COMP, &plus_y_surface_stack);
@@ -508,4 +502,3 @@ TRACE
 %}
 
 END
-

@@ -30,14 +30,18 @@ In this TAS configuration, PG002 is used as monochromator analyser,
 with a single type detector.
 ```
 
+## Examples
+
+- **Test: KI=1.55 QM=1 Sqw_coh=V.lau Detector: Sample_Cradle_I=7.5962E+07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| KI | Angs-1 | central wavevector for incoming neutrons | 1.55 |
-| QM | Angs-1 | wavevector transfer modulus at the sample | 1.0 |
+| KI | AA^-1 | central wavevector for incoming neutrons | 1.55 |
+| QM | AA^-1 | wavevector transfer modulus at the sample | 1.0 |
 | EN | meV | energy transfer at the sample | 0.0 |
 | verbose |  | toggle verbose mode | 1 |
 | WM | m | Width of monochromator | 0.15 |

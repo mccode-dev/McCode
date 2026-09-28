@@ -31,6 +31,10 @@ In reality spectra and backgrounds will vary, fast background is likely much hig
 <p>RKH 2014
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

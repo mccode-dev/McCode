@@ -21,6 +21,10 @@ For mono_curvh=0, mono_curvv=0 the monochromator is flat.
 For mono_curvh=-1, mono_curvv=-1 optimal horizontal and vertical focusing is chosen.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

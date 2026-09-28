@@ -15,6 +15,11 @@
 Use of all basic geometries, mesh(as a torus), sphere, cylinder, cone and box
 ```
 
+## Examples
+
+- **Test: meshfile="torus.off" Detector: detector_scat_I=47.5**
+- **Test: meshfile="torus.STL" Detector: detector_scat_I=47.5**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

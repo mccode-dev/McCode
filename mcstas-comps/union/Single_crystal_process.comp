@@ -84,13 +84,13 @@ SETTING PARAMETERS(string reflections=0, delta_d_d=1e-4,
             bx = 0, by = 0, bz = 0,
             cx = 0, cy = 0, cz = 0,
 	    aa=0, bb=0, cc=0, order=0, RX=0, RY=0, RZ=0, powder=0, PG=0,
-            interact_fraction=-1, packing_factor=1, string init="init")
+            interact_fraction=-1, packing_factor=1)
 
 
 SHARE
 %{
   #ifndef Union
-  #error "The Union_init component must be included before this Single_crystal_process component"
+  #error "ERROR: Single_crystal_process requires the Union library. Add a Union_master component to load the libraries."
   #endif
 
   %include "read_table-lib"
@@ -1162,12 +1162,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Single_crystal_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  struct pointer_to_global_process_list* global_process_list = &g_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 

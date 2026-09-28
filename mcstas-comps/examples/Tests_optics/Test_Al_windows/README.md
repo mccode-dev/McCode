@@ -26,6 +26,15 @@ Includes 3 models of increasing complexity / sophistication:
 (generated from CIF file COD / 1502689)
 ```
 
+## Examples
+
+- **Test: Window=1 thickness=0.001 Detector: OutputWL_I=0.099**
+- **Test: Window=2 thickness=0.001 Detector: OutputWL_I=0.099**
+- **Test: Window=3 thickness=0.001 Detector: OutputWL_I=0.099**
+- **Test: Window=1 thickness=0.005 Detector: OutputWL_I=0.098**
+- **Test: Window=2 thickness=0.005 Detector: OutputWL_I=0.098**
+- **Test: Window=3 thickness=0.005 Detector: OutputWL_I=0.098**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

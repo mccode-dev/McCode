@@ -20,6 +20,10 @@ Example: meshfile="torus.off" Detector: detector_scat_I=47.5
 Example: meshfile="torus.STL" Detector: detector_scat_I=47.5
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

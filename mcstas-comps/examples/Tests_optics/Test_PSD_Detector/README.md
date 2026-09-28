@@ -16,6 +16,10 @@ Test for PSD_Detector component showing charge drift
 and parallax effect when rotating detector with e.g. 'rot=10'
 ```
 
+## Examples
+
+- **Test: rot=0 Detector: mydet_I=3.57344e-18**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

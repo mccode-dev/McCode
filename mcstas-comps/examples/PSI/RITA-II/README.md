@@ -49,6 +49,10 @@ mcrun RITA-II.instr -n1e6 L0=3.418 BPL=0.97 BPH=1.03 EI=7 EF=5 SAMPLE=4 REP=10 Q
 Example: BPL=0.97 BPH=1.03 EI=5 EN=0 COLL_MS=40 SAMPLE=1 OUTFILTER=0 REP=10 Detector: psd_detector_I=216.427
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -56,7 +60,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | ITAR | mA | Relative neutron yield from the spallation target. Value relative to 2009 | 1.0 |
-| L0 | Angs | Centre of generated wavelength distribution from source | 4.045 |
+| L0 | AA | Centre of generated wavelength distribution from source | 4.045 |
 | BPL |  | Band Pass Low factor, multiplied on source wavelength L0 to allow neutrons with wavelengths with lambda {BPL*L0,BPH*L0} to be traced from the source. | 0.97 |
 | BPH |  | Band Pass High factor, multiplied on source wavelength L0 to allow neutrons with wavelengths with lambda {BPL*L0,BPH*L0} to be traced from the source. | 1.03 |
 | MONO_N | 1 | Order of reflection used on mono | 1 |
@@ -72,10 +76,10 @@ Parameters in **boldface** are required; the others are optional.
 | QH | rlu | Measurement QH position in crystal | 0 |
 | QK | rlu | Measurement QK position in crystal | 0 |
 | QL | rlu | Measurement QL position in crystal | 0 |
-| QM | Angs-1 | Wavevector transferred in sample, use QM=0 if (QH,QK,QL) is specified | 1.8051 |
-| AS | Angs | Sample lattice parameter A | 4.95 |
-| BS | Angs | Sample lattice parameter B | 4.95 |
-| CS | Angs | Sample lattice parameter C | 4.95 |
+| QM | AA^-1 | Wavevector transferred in sample, use QM=0 if (QH,QK,QL) is specified | 1.8051 |
+| AS | AA | Sample lattice parameter A | 4.95 |
+| BS | AA | Sample lattice parameter B | 4.95 |
+| CS | AA | Sample lattice parameter C | 4.95 |
 | AA | deg | Angle between lattice vectors B,C | 90 |
 | BB | deg | Angle between lattice vectors C,A | 90 |
 | CC | deg | Angle between lattice vectors A,B | 90 |

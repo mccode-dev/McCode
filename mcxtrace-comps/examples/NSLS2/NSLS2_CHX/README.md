@@ -20,6 +20,10 @@ The choice of the source sizes along with angular divergence corresponds to the 
 high emittance (e=0.99nm).
 ```
 
+## Examples
+
+- **Test: NSLS2_CHX -n1e6 L=33.5 L2=35.3 L3=44 Energy=10 Detector: Det_ff_I=2.82787e+16**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -17,6 +17,10 @@ A neutron beam polarized aling the x-axis is emitted with central wavelength suc
 that the  polarization is rotated pihalfturns radians in the field.
 ```
 
+## Examples
+
+- **Test: Test_Pol_FieldBox pihalfturns=3 Detector: pl1z_I=2.30783**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -1170,6 +1170,28 @@ void cogen_getparticlevar_fct(struct instr_def *instr)
 }
 
 /*******************************************************************************
+* cogen_instr_uses_union: return 1 if the instrument uses the Union component
+* family. A Union_master (or Union_master_GPU) is always present when Union is
+* used, so its presence triggers auto-injection of the shared Union header/state
+* (front) and the dispatch switch (back).
+*******************************************************************************/
+static int cogen_instr_uses_union(struct instr_def *instr)
+{
+  List_handle liter;
+  struct comp_inst *comp;
+
+  liter = list_iterate(instr->complist);
+  while((comp = list_next(liter)))
+  {
+    if (comp->def && (strcmp(comp->def->name, "Union_master") == 0
+        || strcmp(comp->def->name, "Union_master_GPU") == 0))
+      return 1;
+  }
+  list_iterate_end(liter);
+  return 0;
+}
+
+/*******************************************************************************
 * cogen_decls: write the declaration part from the instrument description
 *   that is the particle definition, the instrument parameters, the DECLARE part,
 *   and all SHARE sections from components.
@@ -1186,6 +1208,7 @@ int cogen_decls(struct instr_def *instr)
   struct instr_formal *i_formal; /* Name of instrument formal parameter. */
   long index = 0;
   int  warnings = 0;
+  int  is_union = cogen_instr_uses_union(instr);
 
   /* a previous call to cogen_header writes the file header */
 
@@ -1196,6 +1219,20 @@ int cogen_decls(struct instr_def *instr)
   coutf("* instrument '%s' and components DECLARE", instr->name);
   cout("***************************************************************************** */");
   cout("");
+
+  /* Union components: auto-inject the shared header and global state before
+  * any component SHARE/DECLARE that uses the Union types or globals. */
+  if (is_union) {
+    cout("");
+    cout("/* Union components: shared header and global state (auto-injected) */");
+    cout("#ifndef Union");
+    cout("#define Union 1");
+    cout("#endif");
+    /* union-lib.c uses t_Table in McXtrace Union structures. */
+    embed_file("read_table-lib.h");
+    embed_file("union-lib.c");
+    embed_file("union-init.c");
+  }
 
   /* 1. particle definition */
   /* moved to cogen_header, as this is needed in mccode-r */
@@ -1350,6 +1387,14 @@ int cogen_decls(struct instr_def *instr)
     cout("/*             End of SHARE user declarations for all components              */");
     cout("/* ************************************************************************** */");
     cout("");
+  }
+
+  /* Union components: auto-inject the dispatch switch after all component
+  * SHAREs, so every process/surface DETECTOR macro is already defined. */
+  if (is_union) {
+    cout("");
+    cout("/* Union components: dispatch switch (auto-injected) */");
+    embed_file("union-suffix.c");
   }
 
   /* 5. write component declares */
@@ -1863,9 +1908,14 @@ int cogen_raytrace(struct instr_def *instr)
                         "Split_%s_counter< SplitS_%s; "
                         "Split_%s_counter++) {",
       comp->name, comp->name, comp->name, comp->name);
-      coutf("      randstate_t randbackup = *_particle->randstate;");
+      coutf("      randstate_t randbackup[RANDSTATE_LEN];");
+      coutf("      for (int Split_%s_randstate_idx = 0; Split_%s_randstate_idx < RANDSTATE_LEN; Split_%s_randstate_idx++) {", comp->name, comp->name, comp->name);
+      coutf("        randbackup[Split_%s_randstate_idx] = _particle->randstate[Split_%s_randstate_idx];", comp->name, comp->name);
+      coutf("      }");
       coutf("      *_particle=Split_%s_particle;", comp->name); // restore particle for SPLIT loop
-      coutf("      *_particle->randstate = randbackup;");
+      coutf("      for (int Split_%s_randstate_idx = 0; Split_%s_randstate_idx < RANDSTATE_LEN; Split_%s_randstate_idx++) {", comp->name, comp->name, comp->name);
+      coutf("        _particle->randstate[Split_%s_randstate_idx] = randbackup[Split_%s_randstate_idx];", comp->name, comp->name);
+      coutf("      }");
       // Experimentally taking out the following line of code following discussions with Milan Klausz:
       // It seems that especially for the _uid=0 particle we get strange repetitions in the rng.
       // coutf("      srandom(_hash(_particle->_uid* %lu *(1+Split_%s_counter)));", comp->index, comp->name);
@@ -2423,8 +2473,10 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#endif");
   cout("#if RNG_ALG == _RNG_ALG_MT // MT ");
   cout("#define randstate_t uint32_t");
+  cout("#define RANDSTATE_LEN 1");
   cout("#elif RNG_ALG == _RNG_ALG_KISS  // KISS");
   cout("#define randstate_t uint64_t");
+  cout("#define RANDSTATE_LEN 7");
   cout("#endif");
   cout("");
 

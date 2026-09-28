@@ -32,6 +32,10 @@ Furthermore the sample environment is of course variable depending on the sample
 in question.
 ```
 
+## Examples
+
+- **Test: ILL_SALSA.instr lambda_mean=1.66795 Detector: Beam_entrance_monitor_psd_I=1.80888e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

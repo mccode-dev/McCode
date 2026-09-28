@@ -18,6 +18,11 @@ Daniel Gabriel Mazzone (daniel.mazzone@psi.ch) and Jakob Lass
 component in an instrument draft.
 ```
 
+## Examples
+
+- **Test: Test_Monochromator_bent_complex.instr mos=60 Detector: E_PSD_mon_end_I=0.000215194**
+- **Test: Test_Monochromator_bent_complex.instr mos=60 use_single_plane=1 Detector: E_PSD_mon_end_I=0.000215194**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
