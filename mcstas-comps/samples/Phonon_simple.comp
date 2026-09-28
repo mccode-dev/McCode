@@ -8,6 +8,18 @@
 * Date: 04.02.04
 * Origin: Risoe
 * Modified by: MB,    15.01.24   (removed extra K2V factor in weight, reduced scattered intensity significantly)
+* Modified by: PW,    03.08.26   (replaced the per-sub-interval zridd-only root scan with a
+*                                 3-point parabolic root finder, following an idea by Kim Lefmann:
+*                                 each sub-interval is sampled at its two endpoints and its
+*                                 midpoint; a plain sign change on either half is bracketed with
+*                                 an independent bisection search, while if all three samples
+*                                 share the same sign, the unique parabola through them is used
+*                                 to test for a hidden pair of roots around a local min/max of
+*                                 the dispersion. This needs markedly fewer sub-intervals
+*                                 (e_steps_low/e_steps_high) than the old zridd-only scan for the
+*                                 same accuracy, and drops the "Numerical Recipes" zridd
+*                                 (Ridder's method) algorithm entirely in favour of a plain,
+*                                 independently-written bisection.)
 *
 * A sample for phonon scattering based on cross section expressions from Squires, Ch.3.
 * Possibility for adding an (unphysical) bandgap.
@@ -25,7 +37,9 @@
 * Algorithm:
 * 0. Always perform the scattering if possible (otherwise ABSORB)
 * 1. Choose direction within a focusing solid angle
-* 2. Calculate the zeros of (E_i-E_f-hbar omega(kappa)) as a function of k_f
+* 2. Calculate the zeros of (E_i-E_f-hbar omega(kappa)) as a function of k_f, using a
+*    3-point (endpoints + midpoint) parabolic root finder per sub-interval, bracketing
+*    with plain bisection only where a sign change is detected
 * 3. Choose one value of k_f (always at least one is possible!)
 * 4. Perform the correct weight transformation
 *
@@ -51,8 +65,11 @@
 * target_z: [m]       position of target to focus at. Straight ahead.
 * target_index: [1]   relative index of component to focus at, e.g. next is +1 
 * gap: [meV]          Bandgap energy (unphysical)
-* e_steps_low: [1]    Amount of possible intersections beneath the elastic line
-* e_steps_high: [1]   Amount of possible intersections above the elastic line
+* e_steps_low: [1]    Amount of sub-intervals to scan beneath the elastic line for roots
+*                      (the 3-point parabolic root finder typically needs markedly fewer
+*                      of these than the old zridd-only scan needed for the same accuracy)
+* e_steps_high: [1]   Amount of sub-intervals to scan above the elastic line for roots
+*                      (see e_steps_low)
 *
 * CALCULATED PARAMETERS:
 * V_rho: [AA^-3]      Atomic density
@@ -109,9 +126,7 @@ SHARE
     return nb;
   }
   #undef T2E
-  /* Routine types from Numerical Recipies book */
   #define UNUSED (-1.11e30)
-  #define MAXRIDD 60
 
   void
   fatalerror_cpu (char* s) {
@@ -164,172 +179,352 @@ SHARE
     return (res_phonon - res_neutron);
   }
 
+  #define MAXBISECT 60 /* Max. bisections used to polish a bracketed root */
+
+  /* Plain bisection of a bracket [x1,x2] that may or may not actually
+   * contain a sign change - checked internally. This replaces the
+   * previous zridd() (a transcription of Ridder's method from
+   * "Numerical Recipes") with an independent, textbook algorithm:
+   * slower per-root than Ridder's method, but simple, robust, free of
+   * any NR heritage, and only ever invoked (via find_roots_3pt below)
+   * on brackets that the adaptive 3-point scan has already narrowed
+   * down, so the extra iterations cost little in practice. */
   double
-  zridd (double (*func) (struct neutron_params*, struct phonon_params*), double x1, double x2, struct neutron_params* neutron, struct phonon_params* phonon,
-         double xacc) {
+  bisect_root (double (*func) (struct neutron_params*, struct phonon_params*), double x1, double x2, struct neutron_params* neutron, struct phonon_params* phonon,
+               double xacc) {
+    double xl, xh, fl, fh, xm, fm;
     int j;
-    double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
     neutron->vf = x1;
     fl = func (neutron, phonon);
     neutron->vf = x2;
     fh = func (neutron, phonon);
-    if (fl * fh >= 0) {
-      if (fl == 0)
-        return x1;
-      if (fh == 0)
-        return x2;
-      return UNUSED;
-    } else {
-      xl = x1;
-      xh = x2;
-      ans = UNUSED;
-      for (j = 1; j < MAXRIDD; j++) {
-        xm = 0.5 * (xl + xh);
-        neutron->vf = xm;
-        fm = func (neutron, phonon);
-        s = sqrt (fm * fm - fl * fh);
-        if (s == 0.0)
-          return ans;
-        xnew = xm + (xm - xl) * ((fl >= fh ? 1.0 : -1.0) * fm / s);
-        if (fabs (xnew - ans) <= xacc)
-          return ans;
-        ans = xnew;
-        neutron->vf = ans;
-        fnew = func (neutron, phonon);
-        if (fnew == 0.0)
-          return ans;
-        if (fabs (fm) * SIGN (fnew) != fm) {
-          xl = xm;
-          fl = fm;
-          xh = ans;
-          fh = fnew;
-        } else if (fabs (fl) * SIGN (fnew) != fl) {
-          xh = ans;
-          fh = fnew;
-        } else if (fabs (fh) * SIGN (fnew) != fh) {
-          xl = ans;
-          fl = fnew;
-        } else
-          fatalerror ("never get here in zridd");
-        if (fabs (xh - xl) <= xacc)
-          return ans;
+    if (fl == 0)
+      return x1;
+    if (fh == 0)
+      return x2;
+    if (fl * fh > 0)
+      return UNUSED; /* not actually bracketed */
+
+    xl = x1;
+    xh = x2;
+    for (j = 0; j < MAXBISECT; j++) {
+      xm = 0.5 * (xl + xh);
+      neutron->vf = xm;
+      fm = func (neutron, phonon);
+      if (fm == 0.0 || fabs (xh - xl) <= xacc)
+        return xm;
+      if ((fm > 0.0) == (fl > 0.0)) {
+        xl = xm;
+        fl = fm;
+      } else {
+        xh = xm;
+        fh = fm;
       }
-      fatalerror ("zridd exceeded maximum iterations");
     }
-    return 0.0; /* Never get here */
+    return 0.5 * (xl + xh);
   }
 
   #pragma acc routine
   double
-  zridd_gpu (double x1, double x2, struct neutron_params* neutron, struct phonon_params* phonon, double xacc) {
+  bisect_root_gpu (double x1, double x2, struct neutron_params* neutron, struct phonon_params* phonon, double xacc) {
+    double xl, xh, fl, fh, xm, fm;
     int j;
-    double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
     neutron->vf = x1;
     fl = omega_q (neutron, phonon);
     neutron->vf = x2;
     fh = omega_q (neutron, phonon);
-    if (fl * fh >= 0) {
-      if (fl == 0)
-        return x1;
-      if (fh == 0)
-        return x2;
+    if (fl == 0)
+      return x1;
+    if (fh == 0)
+      return x2;
+    if (fl * fh > 0)
       return UNUSED;
-    } else {
-      xl = x1;
-      xh = x2;
-      ans = UNUSED;
-      for (j = 1; j < MAXRIDD; j++) {
-        xm = 0.5 * (xl + xh);
-        neutron->vf = xm;
-        fm = omega_q (neutron, phonon);
-        s = sqrt (fm * fm - fl * fh);
-        if (s == 0.0)
-          return ans;
-        xnew = xm + (xm - xl) * ((fl >= fh ? 1.0 : -1.0) * fm / s);
-        if (fabs (xnew - ans) <= xacc)
-          return ans;
-        ans = xnew;
-        neutron->vf = ans;
-        fnew = omega_q (neutron, phonon);
-        if (fnew == 0.0)
-          return ans;
-        if (fabs (fm) * SIGN (fnew) != fm) {
-          xl = xm;
-          fl = fm;
-          xh = ans;
-          fh = fnew;
-        } else if (fabs (fl) * SIGN (fnew) != fl) {
-          xh = ans;
-          fh = fnew;
-        } else if (fabs (fh) * SIGN (fnew) != fh) {
-          xl = ans;
-          fl = fnew;
-        } else
-          fatalerror ("never get here in zridd");
-        if (fabs (xh - xl) <= xacc)
-          return ans;
+
+    xl = x1;
+    xh = x2;
+    for (j = 0; j < MAXBISECT; j++) {
+      xm = 0.5 * (xl + xh);
+      neutron->vf = xm;
+      fm = omega_q (neutron, phonon);
+      if (fm == 0.0 || fabs (xh - xl) <= xacc)
+        return xm;
+      if ((fm > 0.0) == (fl > 0.0)) {
+        xl = xm;
+        fl = fm;
+      } else {
+        xh = xm;
+        fh = fm;
       }
-      fatalerror ("zridd exceeded maximum iterations");
     }
-    return 0.0; /* Never get here */
+    return 0.5 * (xl + xh);
   }
 
   #define ROOTACC 1e-8
 
+  /*-----------------------------------------------------------------------
+   * Parabolic 3-point root finder, following an idea by Kim Lefmann
+   * (email to Peter Willendrup and Daniel Lomholt, 2026), replacing the old
+   * "Numerical Recipes" inspired zridd algorithm used to bracket roots of
+   * f(x) = hw(x) - hwq(x) over a coarse grid of sub-intervals.
+   *
+   * Idea: instead of only checking for a sign change between the two
+   * endpoints of a sub-interval (which misses pairs of roots hiding
+   * around a local min/max, forcing many small sub-intervals), we
+   * evaluate f at the two endpoints x1, x3 AND the midpoint
+   * x2 = (x1+x3)/2. If f changes sign between neighbouring points, that
+   * half is handed to bisect_root() above. If all three values share
+   * the same sign, we fit the unique parabola f(X) = A X^2 + B X + C
+   * through the points (X = x - x2, so the samples are at
+   * X = -Delta, 0, +Delta with Delta = (x3-x1)/2), and use the
+   * parabola's vertex to decide whether a hidden double-root exists:
+   *
+   *   A = (y1 - 2 y2 + y3) / (2 Delta^2)
+   *   B = (y3 - y1) / (2 Delta)
+   *   C = y2
+   *   (Xm, Ym) = ( -B/(2A), C - B^2/(4A) )   <- vertex of the parabola
+   *
+   * - all samples > 0 and A > 0 (upward parabola dipping towards 0):
+   *     two roots exist iff the vertex lies inside [-Delta,+Delta]
+   *     and Ym < 0.
+   * - all samples > 0 and A < 0 (downward parabola, vertex is a max
+   *     that is still positive): no roots.
+   * - all samples < 0: mirrored logic (A < 0 can hide two roots if
+   *     Ym > 0, A > 0 cannot).
+   *
+   * Since the dispersions we deal with are well described by a 2nd
+   * order Taylor expansion around a local extremum, this catches the
+   * "sneaky" double-roots directly, requiring far fewer sub-intervals
+   * than a pure sign-change scan.
+   *---------------------------------------------------------------------*/
+
+  #pragma acc routine
+  void
+  parabola_coeffs (double y1, double y2, double y3, double Delta, double* A, double* B, double* C) {
+    *A = (y1 - 2.0 * y2 + y3) / (2.0 * Delta * Delta);
+    *B = (y3 - y1) / (2.0 * Delta);
+    *C = y2;
+  }
+
+  /* Checks whether the parabola A X^2 + B X + C (all three samples same
+   * sign, sign given by C) has two roots strictly inside (-Delta,+Delta).
+   * If so, returns 1 and stores the two local root coordinates (relative
+   * to the interval midpoint) in *X1, *X2. Otherwise returns 0. */
+  #pragma acc routine
+  int
+  parabola_two_roots (double A, double B, double C, double Delta, double* X1, double* X2) {
+    double Xm, Ym, disc, sq;
+
+    if (A == 0.0)
+      return 0; /* Degenerate/linear: no hidden extremum, handled by sign-change branch */
+
+    Xm = -B / (2.0 * A);
+    Ym = C - B * B / (4.0 * A);
+
+    if (Xm <= -Delta || Xm >= Delta)
+      return 0; /* Vertex (extremum) is outside the sampled interval: f is monotonic here */
+
+    if (C > 0.0) {
+      if (A < 0.0 || Ym >= 0.0)
+        return 0; /* downward parabola, or vertex still above zero: no roots */
+    } else if (C < 0.0) {
+      if (A > 0.0 || Ym <= 0.0)
+        return 0; /* upward parabola, or vertex still below zero: no roots */
+    } else {
+      return 0; /* C == 0: exact zero at midpoint, handled by caller via sign test */
+    }
+
+    disc = B * B - 4.0 * A * C; /* = -4 A Ym, guaranteed >= 0 by the checks above */
+    if (disc < 0.0)
+      disc = 0.0; /* guard against tiny round-off noise */
+    sq = sqrt (disc);
+    *X1 = (-B - sq) / (2.0 * A);
+    *X2 = (-B + sq) / (2.0 * A);
+    return 1;
+  }
+
+  /* Polishes a root estimate (typically from the parabola fit) back onto
+   * the true function f using a few Newton-Raphson steps with a
+   * numerical (central-difference) derivative. */
+  double
+  polish_root (double (*func) (struct neutron_params*, struct phonon_params*), double x_guess, struct neutron_params* neutron, struct phonon_params* phonon,
+               double xacc) {
+    double x, h, fx, fph, fmh, dfdx, dx;
+    int it;
+
+    x = x_guess;
+    h = 10.0 * xacc;
+    for (it = 0; it < 8; it++) {
+      neutron->vf = x;
+      fx = func (neutron, phonon);
+      neutron->vf = x + h;
+      fph = func (neutron, phonon);
+      neutron->vf = x - h;
+      fmh = func (neutron, phonon);
+      dfdx = (fph - fmh) / (2.0 * h);
+      if (dfdx == 0.0)
+        break;
+      dx = fx / dfdx;
+      x -= dx;
+      if (fabs (dx) <= xacc)
+        break;
+    }
+    return x;
+  }
+
+  #pragma acc routine
+  double
+  polish_root_gpu (double x_guess, struct neutron_params* neutron, struct phonon_params* phonon, double xacc) {
+    double x, h, fx, fph, fmh, dfdx, dx;
+    int it;
+
+    x = x_guess;
+    h = 10.0 * xacc;
+    for (it = 0; it < 8; it++) {
+      neutron->vf = x;
+      fx = omega_q (neutron, phonon);
+      neutron->vf = x + h;
+      fph = omega_q (neutron, phonon);
+      neutron->vf = x - h;
+      fmh = omega_q (neutron, phonon);
+      dfdx = (fph - fmh) / (2.0 * h);
+      if (dfdx == 0.0)
+        break;
+      dx = fx / dfdx;
+      x -= dx;
+      if (fabs (dx) <= xacc)
+        break;
+    }
+    return x;
+  }
+
+  /* Looks for roots of f in [x1,x3], evaluating at x1, x2=(x1+x3)/2, x3.
+   * Brackets and bisects any half where a sign change is detected, and
+   * uses the 3-point parabola test (see above) to catch a hidden pair of
+   * roots when all three samples share the same sign. Appends any roots
+   * found to list[*index]. At most 2 roots can be found per call. */
+  void
+  find_roots_3pt (double (*f) (struct neutron_params*, struct phonon_params*), double x1, double x3, struct neutron_params* neutron, struct phonon_params* phonon,
+                  double xacc, double* list, int* index) {
+    double x2, Delta, y1, y2, y3, A, B, C, Xr1, Xr2, root;
+    int s1, s2, s3;
+
+    x2 = 0.5 * (x1 + x3);
+    Delta = x2 - x1;
+
+    neutron->vf = x1;
+    y1 = f (neutron, phonon);
+    neutron->vf = x2;
+    y2 = f (neutron, phonon);
+    neutron->vf = x3;
+    y3 = f (neutron, phonon);
+
+    s1 = (y1 > 0) - (y1 < 0);
+    s2 = (y2 > 0) - (y2 < 0);
+    s3 = (y3 > 0) - (y3 < 0);
+
+    if (s1 == 0 || s2 == 0 || s1 != s2) {
+      root = bisect_root (f, x1, x2, neutron, phonon, xacc);
+      if (root != UNUSED)
+        list[(*index)++] = root;
+    }
+    if (s2 == 0 || s3 == 0 || s2 != s3) {
+      root = bisect_root (f, x2, x3, neutron, phonon, xacc);
+      if (root != UNUSED)
+        list[(*index)++] = root;
+    }
+    if (s1 != 0 && s1 == s2 && s2 == s3) {
+      /* All three samples share the same sign: check for a hidden parabolic double-root */
+      parabola_coeffs (y1, y2, y3, Delta, &A, &B, &C);
+      if (parabola_two_roots (A, B, C, Delta, &Xr1, &Xr2)) {
+        list[(*index)++] = polish_root (f, x2 + Xr1, neutron, phonon, xacc);
+        list[(*index)++] = polish_root (f, x2 + Xr2, neutron, phonon, xacc);
+      }
+    }
+  }
+
+  #pragma acc routine
+  void
+  find_roots_3pt_gpu (double x1, double x3, struct neutron_params* neutron, struct phonon_params* phonon, double xacc, double* list, int* index) {
+    double x2, Delta, y1, y2, y3, A, B, C, Xr1, Xr2, root;
+    int s1, s2, s3;
+
+    x2 = 0.5 * (x1 + x3);
+    Delta = x2 - x1;
+
+    neutron->vf = x1;
+    y1 = omega_q (neutron, phonon);
+    neutron->vf = x2;
+    y2 = omega_q (neutron, phonon);
+    neutron->vf = x3;
+    y3 = omega_q (neutron, phonon);
+
+    s1 = (y1 > 0) - (y1 < 0);
+    s2 = (y2 > 0) - (y2 < 0);
+    s3 = (y3 > 0) - (y3 < 0);
+
+    if (s1 == 0 || s2 == 0 || s1 != s2) {
+      root = bisect_root_gpu (x1, x2, neutron, phonon, xacc);
+      if (root != UNUSED)
+        list[(*index)++] = root;
+    }
+    if (s2 == 0 || s3 == 0 || s2 != s3) {
+      root = bisect_root_gpu (x2, x3, neutron, phonon, xacc);
+      if (root != UNUSED)
+        list[(*index)++] = root;
+    }
+    if (s1 != 0 && s1 == s2 && s2 == s3) {
+      /* All three samples share the same sign: check for a hidden parabolic double-root */
+      parabola_coeffs (y1, y2, y3, Delta, &A, &B, &C);
+      if (parabola_two_roots (A, B, C, Delta, &Xr1, &Xr2)) {
+        list[(*index)++] = polish_root_gpu (x2 + Xr1, neutron, phonon, xacc);
+        list[(*index)++] = polish_root_gpu (x2 + Xr2, neutron, phonon, xacc);
+      }
+    }
+  }
+
   void
   findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (struct neutron_params*, struct phonon_params*),
              struct neutron_params* neutron, struct phonon_params* phonon) {
-    double root;
     // Energy gain and energy loss spaces are not equally big. We check uniformly
     // So we use two different ranges
     double range_low = brack_mid - brack_low;
     double range_high = brack_high - brack_mid;
     // First in energy loss for the neutron
     for (int i = 0; i < phonon->e_steps_low_; i++) {
-      root = zridd (f, brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC);
-      if (root != UNUSED) {
-        list[(*index)++] = root;
-      }
+      find_roots_3pt (f, brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC, list,
+                      index);
     }
 
     // Then in energy gain for the neutron
     for (int i = 0; i < phonon->e_steps_high_; i++) {
-      root = zridd (f, brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon, ROOTACC);
-      if (root != UNUSED) {
-        list[(*index)++] = root;
-      }
+      find_roots_3pt (f, brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon, ROOTACC,
+                      list, index);
     }
   }
 
   #pragma acc routine
   void
   findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index, struct neutron_params* neutron, struct phonon_params* phonon) {
-    double root;
     // Energy gain and energy loss spaces are not equally big. We check uniformly
     // So we use two different ranges
     double range_low = brack_mid - brack_low;
     double range_high = brack_high - brack_mid;
     // First in energy loss for the neutron
     for (int i = 0; i < phonon->e_steps_low_; i++) {
-      root = zridd_gpu (brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC);
-      if (root != UNUSED) {
-        list[(*index)++] = root;
-      }
+      find_roots_3pt_gpu (brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC,
+                          list, index);
     }
 
     // Then in energy gain for the neutron
     for (int i = 0; i < phonon->e_steps_high_; i++) {
-      root = zridd_gpu (brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon, ROOTACC);
-      if (root != UNUSED) {
-        list[(*index)++] = root;
-      }
+      find_roots_3pt_gpu (brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon, ROOTACC,
+                          list, index);
     }
   }
 
   #undef UNUSED
-  #undef MAXRIDD
   #endif
 %}
 
@@ -378,17 +573,21 @@ INITIALIZE
 TRACE
 %{
   double* vf_list;
+  /* Each of the e_steps_low+e_steps_high sub-intervals can now yield up to
+     2 roots (the parabolic 3-point test can find a hidden double-root, or
+     both halves of a sub-interval can each contain a sign-change root), so
+     the list needs twice the number of sub-intervals as before. */
   #ifdef OPENACC
-  vf_list = (double*)malloc ((e_steps_low + e_steps_high) * sizeof (double)); // List of allowed final velocities. Has length of scan_steps
+  vf_list = (double*)malloc (2 * (e_steps_low + e_steps_high) * sizeof (double)); // List of allowed final velocities.
   #else
-  vf_list = (double*)calloc (e_steps_low + e_steps_high, sizeof (double)); // List of allowed final velocities. Has length of scan_steps
+  vf_list = (double*)calloc (2 * (e_steps_low + e_steps_high), sizeof (double)); // List of allowed final velocities.
   #endif
   if (!vf_list) {
     printf ("Memory allocation failed, fatal error!\n");
     exit (-1);
   }
   #ifdef OPENACC
-  for (int ii = 0; ii < e_steps_low + e_steps_high; ii++) {
+  for (int ii = 0; ii < 2 * (e_steps_low + e_steps_high); ii++) {
     vf_list[ii] = 0;
   }
   #endif
