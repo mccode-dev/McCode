@@ -1025,15 +1025,17 @@ int mc_event_chunk_append(MC_EVENT_CHUNK **head, MC_EVENT_CHUNK **tail,
 void mc_event_chunk_free(MC_EVENT_CHUNK **head);
 
 /* Host-side chunk writer. Rows are accumulated in a bounded current buffer;
- * flush detaches that buffer and end performs one collective serialization.
- * The writer never calls MPI or writes files from append/flush, so a caller
- * may use it while preparing chunks at different rates on different ranks. */
+ * flush spools that buffer and end performs one collective serialization.
+ * The writer never calls MPI or writes event output from append/flush, so a
+ * caller may use it while preparing chunks at different rates on different
+ * ranks. The temporary spool keeps memory bounded until end. */
 typedef struct {
   MC_EVENT_BUFFER buffer;
-  MC_EVENT_CHUNK *chunks;
-  MC_EVENT_CHUNK *chunks_tail;
+  FILE *spool;
   long width;
   long chunk_capacity;
+  long long rows;
+  long long chunks;
   char title[CHAR_BUF_LENGTH];
   char columns[CHAR_BUF_LENGTH];
   char filename[CHAR_BUF_LENGTH];
@@ -1041,6 +1043,7 @@ typedef struct {
   Coords position;
   Rotation rotation;
   int index;
+  int failed;
   int active;
 } MC_EVENT_WRITER;
 
@@ -1093,9 +1096,11 @@ MCDETECTOR mc_event_buffer_save(MC_EVENT_BUFFER *buffer, char *title,
                                  Rotation rotation, int index);
 
 /* Host-side generic chunked event writer. begin allocates one bounded chunk
- * buffer, append adds one row, flush detaches the current chunk without doing
- * I/O, and end serializes every queued chunk through the common ASCII/NeXus/
- * MPI backend. `chunk_capacity` must be positive. */
+ * buffer, append adds one row, flush spools the current chunk, and end
+ * serializes every spooled chunk through the common ASCII/NeXus/MPI backend.
+ * `chunk_capacity` must be positive. The spool is temporary and is removed by
+ * the platform when closed; it bounds event-data memory independently of the
+ * total number of rows. */
 int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,
                           long width, long chunk_capacity, char *filename,
                           char *component, Coords position, Rotation rotation,

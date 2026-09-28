@@ -1,0 +1,37 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Test the bounded generic event writer
+*
+* %Identification
+* Written by: McCode development
+* Date: 28 September 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* %Description
+* Deterministic fixture for the host-side chunked event writer. The append
+* case forces automatic and explicit local spool flushes, the write case uses
+* the bulk-row API, and the empty case verifies the zero-event no-op.
+*
+* %Example: mcstas_test
+*
+* %End
+ *******************************************************************************/
+DEFINE INSTRUMENT Test_EventWriter()
+
+TRACE
+
+COMPONENT src = Source_simple(radius=0.1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT append = EventWriter(nrows=11, chunk=3, filename="WriterAppend")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT write = EventWriter(nrows=8, chunk=2, filename="WriterWrite", use_write=1)
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT empty = EventWriter(nrows=0, chunk=2, filename="WriterEmpty")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+END

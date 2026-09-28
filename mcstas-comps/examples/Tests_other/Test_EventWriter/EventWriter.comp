@@ -1,0 +1,78 @@
+/*******************************************************************************
+ *
+ * McStas, neutron ray-tracing package
+ *         Copyright 1997-2002, All rights reserved
+ *         Risoe National Laboratory, Roskilde, Denmark
+ *         Institut Laue Langevin, Grenoble, France
+ *
+ * %I
+ * Written by: McCode development
+ * Date: 28 September 2026
+ * Origin: DTU
+ *
+ * Deterministic fixture for the bounded generic event writer. Rows are filled
+ * in SAVE, so the output does not depend on the source or random seed.
+ *
+ * %P
+ * nrows:       [1] number of rows to write
+ * chunk:       [1] maximum rows held before a local spool flush
+ * filename:    [string] output file name
+ * use_write:   [1] use mc_event_writer_write instead of append
+ *
+ * %E
+ *******************************************************************************/
+
+DEFINE COMPONENT EventWriter
+
+SETTING PARAMETERS (int nrows=11, int chunk=3, string filename="EventWriter",
+                    int use_write=0)
+
+TRACE
+%{
+  /* The deterministic rows are produced in SAVE. */
+%}
+
+SAVE
+%{
+  MC_EVENT_WRITER writer;
+  double row[3];
+  double *rows = NULL;
+  long i, c;
+  int status;
+
+  status = mc_event_writer_begin(&writer, "Bounded event writer",
+                                 "x y z", 3, chunk, filename,
+                                 NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+                                 ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
+  if (status) {
+    fprintf(stderr, "EventWriter[%s]: TEST-FAIL begin\n", NAME_CURRENT_COMP);
+  } else if (use_write) {
+    if (nrows > 0)
+      rows = (double*)malloc((size_t)nrows * 3 * sizeof(double));
+    for (i = 0; i < nrows; i++)
+      for (c = 0; c < 3; c++)
+        rows[3*i+c] = i*10.0 + (double)c;
+    if (!mc_event_writer_write(&writer, nrows, rows))
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL write\n", NAME_CURRENT_COMP);
+  } else {
+    for (i = 0; i < nrows; i++) {
+      for (c = 0; c < 3; c++)
+        row[c] = i*10.0 + (double)c;
+      if (!mc_event_writer_append(&writer, row))
+        fprintf(stderr, "EventWriter[%s]: TEST-FAIL append row %ld\n",
+                NAME_CURRENT_COMP, i);
+      if (i == 4 && mc_event_writer_flush(&writer))
+        fprintf(stderr, "EventWriter[%s]: TEST-FAIL explicit flush\n",
+                NAME_CURRENT_COMP);
+    }
+  }
+
+  if (!status)
+    fprintf(stderr, "EventWriter[%s]: rows=%lld chunks=%lld\n",
+            NAME_CURRENT_COMP, writer.rows + writer.buffer.count,
+            writer.chunks + (writer.buffer.count > 0 ? 1 : 0));
+  mc_event_writer_end(&writer);
+  if (rows) free(rows);
+%}
+
+END
