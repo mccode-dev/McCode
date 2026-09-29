@@ -2141,6 +2141,8 @@ int mcdetector_out_array_nexus(NXhandle f, char *part, double *data, MCDETECTOR 
 int mcdetector_out_data_nexus(NXhandle f, MCDETECTOR detector)
 {
   char data_name[CHAR_BUF_LENGTH];
+  int ret = NX_OK;
+  int written = 0;
 
   if (!f || !detector.m || mcdisable_output_files) return(NX_OK);
 
@@ -2178,14 +2180,20 @@ int mcdetector_out_data_nexus(NXhandle f, MCDETECTOR detector)
 
 	    /* write the actual data (appended if already exists) */
 	    if (!strcasestr(detector.format, "list") && !strcasestr(detector.format, "pixels")) {
-	      mcdetector_out_array_nexus(f, "data", detector.p1, detector);
-	      mcdetector_out_array_nexus(f, "errors", detector.p2, detector);
-	      mcdetector_out_array_nexus(f, "ncount", detector.p0, detector);
+	      if (mcdetector_out_array_nexus(f, "data", detector.p1, detector) != NX_OK)
+	        ret = NX_ERROR;
+	      if (mcdetector_out_array_nexus(f, "errors", detector.p2, detector) != NX_OK)
+	        ret = NX_ERROR;
+	      if (mcdetector_out_array_nexus(f, "ncount", detector.p0, detector) != NX_OK)
+	        ret = NX_ERROR;
 	    } else if (strcasestr(detector.format, "pixels")) {
-	      mcdetector_out_array_nexus(  f, "pixels", detector.p1, detector);
+	      if (mcdetector_out_array_nexus(f, "pixels", detector.p1, detector) != NX_OK)
+	        ret = NX_ERROR;
 	    } else {
-	      mcdetector_out_array_nexus(  f, "events", detector.p1, detector);
+	      if (mcdetector_out_array_nexus(f, "events", detector.p1, detector) != NX_OK)
+	        ret = NX_ERROR;
 	    }
+	    written = 1;
 	    NXclosegroup(f);
 	    NXopengroup(f, data_name, "NXdata");
 	    NXgetgroupID(nxhandle, &pLink);
@@ -2206,7 +2214,8 @@ int mcdetector_out_data_nexus(NXhandle f, MCDETECTOR detector)
       NXclosegroup(f);
     }
   }
-  return(NX_OK);
+  if (!written) ret = NX_ERROR;
+  return(ret);
 } /* mcdetector_out_array_nexus */
 
 #ifdef USE_MPI
@@ -2837,6 +2846,7 @@ typedef struct {
   FILE *ascii_file;
   int nexus;
   int ready;
+  int failed;
 } MC_EVENT_OUTPUT;
 
 static int mcevent_output_begin(MC_EVENT_OUTPUT *output, MCDETECTOR detector)
@@ -2856,6 +2866,8 @@ static int mcevent_output_begin(MC_EVENT_OUTPUT *output, MCDETECTOR detector)
 #ifdef USE_NEXUS
     mcdatainfo_out_nexus(nxhandle, detector);
     output->ready = 1;
+#else
+    output->failed = 1;
 #endif
     return(output->ready);
   }
@@ -2877,13 +2889,17 @@ static int mcevent_output_begin(MC_EVENT_OUTPUT *output, MCDETECTOR detector)
   fprintf(output->ascii_file, "# Data [%s/%s] %s:\n",
           detector.component, detector.filename, detector.zvar);
   output->ready = 1;
-  return(1);
+  if (ferror(output->ascii_file)) output->failed = 1;
+  return(!output->failed);
 }
 
-static void mcevent_output_chunk(MC_EVENT_OUTPUT *output, long rows,
-                                 double *data)
+static int mcevent_output_chunk(MC_EVENT_OUTPUT *output, long rows,
+                                double *data)
 {
-  if (!output || !output->ready || rows <= 0 || !data) return;
+  if (!output || !output->ready) return(0);
+  if (rows <= 0) return(1);
+  if (!data || output->failed) return(0);
+  if (mcdisable_output_files) return(1);
 
   if (output->nexus) {
 #ifdef USE_NEXUS
@@ -2892,29 +2908,39 @@ static void mcevent_output_chunk(MC_EVENT_OUTPUT *output, long rows,
     chunk.n = output->detector.n;
     chunk.p = 1;
     chunk.p1 = data;
-    mcdetector_out_data_nexus(nxhandle, chunk);
+    if (mcdetector_out_data_nexus(nxhandle, chunk) != NX_OK)
+      output->failed = 1;
+#else
+    output->failed = 1;
 #endif
   } else {
     mcdetector_out_array_ascii(output->detector.m, rows, data,
                                output->ascii_file,
                                output->detector.istransposed);
+    if (!output->ascii_file || ferror(output->ascii_file))
+      output->failed = 1;
   }
+  return(!output->failed);
 }
 
-static void mcevent_output_end(MC_EVENT_OUTPUT *output)
+static int mcevent_output_end(MC_EVENT_OUTPUT *output)
 {
-  if (!output) return;
-  if (output->ascii_file) fclose(output->ascii_file);
+  int result = 1;
+  if (!output) return(0);
+  if (output->ascii_file && fclose(output->ascii_file) != 0) result = 0;
   output->ascii_file = NULL;
   output->ready = 0;
+  if (output->failed) result = 0;
+  return(result);
 }
 
-static void mcevent_write_local_chunks(MC_EVENT_OUTPUT *output,
-                                       MC_EVENT_CHUNK *chunks)
+static int mcevent_write_local_chunks(MC_EVENT_OUTPUT *output,
+                                      MC_EVENT_CHUNK *chunks)
 {
   MC_EVENT_CHUNK *chunk;
   for (chunk = chunks; chunk; chunk = chunk->next)
-    mcevent_output_chunk(output, chunk->count, chunk->data);
+    if (!mcevent_output_chunk(output, chunk->count, chunk->data)) return(0);
+  return(1);
 }
 
 typedef struct {
@@ -2963,8 +2989,7 @@ static int mcevent_write_local_source(MC_EVENT_OUTPUT *output,
 
   if (!source || !source->valid) return(0);
   if (!source->spool) {
-    mcevent_write_local_chunks(output, source->chunks);
-    return(1);
+    return(mcevent_write_local_chunks(output, source->chunks));
   }
 
   rewind(source->spool);
@@ -2973,7 +2998,10 @@ static int mcevent_write_local_source(MC_EVENT_OUTPUT *output,
     double *data = NULL;
     if (!mcevent_source_read_chunk(source->spool, width, &rows, &data))
       return(0);
-    mcevent_output_chunk(output, rows, data);
+    if (!mcevent_output_chunk(output, rows, data)) {
+      free(data);
+      return(0);
+    }
     free(data);
   }
   return(ferror(source->spool) == 0);
@@ -3112,17 +3140,23 @@ static int mcevent_mpi_header(MC_EVENT_MPI_HEADER *header, long width,
 }
 
 static int mcevent_mpi_headers_match(MC_EVENT_MPI_HEADER *a,
-                                     MC_EVENT_MPI_HEADER *b)
+                                      MC_EVENT_MPI_HEADER *b)
 {
-  return a->magic == b->magic
-      && a->width == b->width
-      && a->index == b->index
-      && !strcmp(a->title, b->title)
-      && !strcmp(a->columns, b->columns)
-      && !strcmp(a->filename, b->filename)
-      && !strcmp(a->component, b->component)
-      && !strcmp(a->xlabel, b->xlabel)
-      && !strcmp(a->options, b->options);
+  int i;
+
+  if (a->magic != b->magic || a->width != b->width || a->index != b->index
+      || strcmp(a->title, b->title) != 0
+      || strcmp(a->columns, b->columns) != 0
+      || strcmp(a->filename, b->filename) != 0
+      || strcmp(a->component, b->component) != 0
+      || strcmp(a->xlabel, b->xlabel) != 0
+      || strcmp(a->options, b->options) != 0)
+    return(0);
+  for (i = 0; i < 3; i++)
+    if (a->position[i] != b->position[i]) return(0);
+  for (i = 0; i < 9; i++)
+    if (a->rotation[i] != b->rotation[i]) return(0);
+  return(1);
 }
 
 static int mcevent_mpi_send_chunks(MC_EVENT_CHUNK *chunks, long width,
@@ -3297,8 +3331,9 @@ static int mcevent_mpi_receive_chunks(MC_EVENT_OUTPUT *output, long width,
         free(data);
         return(MPI_ERR_COUNT);
       }
-      if (receive_data && *valid)
-        mcevent_output_chunk(output, rows, data);
+      if (receive_data && *valid
+          && !mcevent_output_chunk(output, rows, data))
+        *valid = 0;
       free(data);
     }
   }
@@ -3414,13 +3449,15 @@ static MCDETECTOR mcevent_write_session_source(char *title, char *xl,
       session_valid = 0;
     for (node_i = 0; node_i < mpi_node_count; node_i++) {
       if (node_i == mpi_node_root) continue;
-      if (headers)
-        mcevent_mpi_receive_chunks(&output, width, &headers[node_i], node_i,
-                                   &session_valid);
+      if (headers && mcevent_mpi_receive_chunks(
+              &output, width, &headers[node_i], node_i,
+              &session_valid) != MPI_SUCCESS)
+        session_valid = 0;
     }
-    if (session_valid) mcevent_output_end(&output);
-    else if (output.ready) mcevent_output_end(&output);
+    if (output.ready && !mcevent_output_end(&output))
+      session_valid = 0;
     free(headers);
+    if (!session_valid) detector = mcevent_invalid_detector();
     return(detector);
   }
 #endif
@@ -3435,13 +3472,17 @@ static MCDETECTOR mcevent_write_session_source(char *title, char *xl,
                                                     position, rotation,
                                                     options, index);
     MC_EVENT_OUTPUT output;
-    if (!detector.m || !mcevent_output_begin(&output, detector))
-      return(detector);
+    if (!detector.m) return(detector);
+    if (!mcevent_output_begin(&output, detector)) {
+      if (output.ready) mcevent_output_end(&output);
+      return(mcevent_invalid_detector());
+    }
     if (!mcevent_write_local_source(&output, source, width)) {
       mcevent_output_end(&output);
       return(mcevent_invalid_detector());
     }
-    mcevent_output_end(&output);
+    if (!mcevent_output_end(&output))
+      return(mcevent_invalid_detector());
     return(detector);
   }
 }
@@ -3799,9 +3840,13 @@ int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,
                           char *component, Coords position, Rotation rotation,
                           int index)
 {
-  if (!writer || width <= 0 || chunk_capacity <= 0) return(1);
+  if (!writer) return(1);
 
+  /* Make a rejected begin safe to finish with mc_event_writer_end. The caller
+     must not reuse an active writer without ending it first. */
   memset(writer, 0, sizeof(*writer));
+  if (width <= 0 || chunk_capacity <= 0) return(1);
+
   writer->width = width;
   writer->chunk_capacity = chunk_capacity;
   writer->position = position;

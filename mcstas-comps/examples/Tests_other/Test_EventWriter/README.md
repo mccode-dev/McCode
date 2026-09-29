@@ -23,6 +23,19 @@ rows and a capacity of 2. Both files contain rows in the deterministic form
 then gives the ranks different positive row/chunk counts. With `--mpi=2`, all
 three writers complete even when a rank has no local chunks. NeXus event
 datasets for the serial fixture have shapes `(11, 3)` and `(8, 3)`.
+The MPI fixture also gives `WriterMetadataMismatch` different component
+positions on the two ranks; the collective rejects the save without hanging
+instead of silently accepting root metadata.
+
+`WriterInvalidBegin` verifies that a rejected `chunk=0` begin leaves the
+writer safely inactive, so the matching `end` call is harmless. `WriterInvalidEnd`
+uses a path below a directory that does not exist. In ASCII mode the failed
+open is reported as an invalid detector when `end` enters the output session,
+after which the writer still releases its spool and buffer; this ASCII open
+failure is the asserted case. NeXus instead treats the same value as a dataset
+name; it sanitizes the path separator, so the save still produces a valid
+`(1, 3)` events dataset. The fixture does not assert that NeXus case, keeping
+the component focused on the ASCII open-failure path.
 
 Run from this directory with:
 

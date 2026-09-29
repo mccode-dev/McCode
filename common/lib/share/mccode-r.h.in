@@ -1095,10 +1095,12 @@ MCDETECTOR mc_event_buffer_save(MC_EVENT_BUFFER *buffer, char *title,
                                  char *component, Coords position,
                                  Rotation rotation, int index);
 
-/* Host-side generic chunked event writer. begin allocates one bounded chunk
- * buffer, append adds one row, flush spools the current chunk, and end
- * serializes every spooled chunk through the common ASCII/NeXus/MPI backend.
- * `chunk_capacity` must be positive. The spool is temporary and is removed by
+/* Host-side generic chunked event writer. begin clears the writer and, on
+ * success, allocates one bounded chunk buffer, append adds one row, flush
+ * spools the current chunk, and end serializes every spooled chunk through the
+ * common ASCII/NeXus/MPI backend. A rejected begin leaves the writer safely
+ * inactive, so end is still safe. `chunk_capacity` must be positive. The spool
+ * is temporary and is removed by
  * the platform when closed; it bounds event-data memory independently of the
  * total number of rows. */
 int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,

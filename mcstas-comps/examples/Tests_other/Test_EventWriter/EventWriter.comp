@@ -18,6 +18,9 @@
  * chunk:       [1] maximum rows held before a local spool flush
  * filename:    [string] output file name
  * use_write:   [1] use mc_event_writer_write instead of append
+ * expect_begin_failure: [1] treat a rejected begin as an expected case
+ * expect_end_failure: [1] treat an output serialization failure as expected
+ * expect_failure_in_nexus: [1] also expect end failure in NeXus mode
  *
  * %E
  *******************************************************************************/
@@ -25,7 +28,8 @@
 DEFINE COMPONENT EventWriter
 
 SETTING PARAMETERS (int nrows=11, int chunk=3, string filename="EventWriter",
-                    int use_write=0)
+                    int use_write=0, int expect_begin_failure=0,
+                    int expect_end_failure=0, int expect_failure_in_nexus=0)
 
 TRACE
 %{
@@ -37,15 +41,25 @@ SAVE
   MC_EVENT_WRITER writer;
   double row[3];
   double *rows = NULL;
+  MCDETECTOR detector;
   long i, c;
   int status;
+  int output_failure_expected;
+
+  output_failure_expected = expect_end_failure
+    && (expect_failure_in_nexus
+        || !(mcformat && strcasestr(mcformat, "NeXus")));
 
   status = mc_event_writer_begin(&writer, "Bounded event writer",
                                  "x y z", 3, chunk, filename,
                                  NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
                                  ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
   if (status) {
-    fprintf(stderr, "EventWriter[%s]: TEST-FAIL begin\n", NAME_CURRENT_COMP);
+    if (!expect_begin_failure)
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL begin\n", NAME_CURRENT_COMP);
+    else
+      fprintf(stderr, "EventWriter[%s]: expected begin rejection\n",
+              NAME_CURRENT_COMP);
   } else if (use_write) {
     if (nrows > 0)
       rows = (double*)malloc((size_t)nrows * 3 * sizeof(double));
@@ -71,7 +85,10 @@ SAVE
     fprintf(stderr, "EventWriter[%s]: rows=%lld chunks=%lld\n",
             NAME_CURRENT_COMP, writer.rows + writer.buffer.count,
             writer.chunks + (writer.buffer.count > 0 ? 1 : 0));
-  mc_event_writer_end(&writer);
+  detector = mc_event_writer_end(&writer);
+  if (output_failure_expected && detector.m != 0)
+    fprintf(stderr, "EventWriter[%s]: TEST-FAIL expected end failure\n",
+            NAME_CURRENT_COMP);
   if (rows) free(rows);
 %}
 
