@@ -1045,6 +1045,13 @@ typedef struct {
   int index;
   int failed;
   int active;
+  long long dropped;
+  void *direct_output;
+  MCDETECTOR direct_detector;
+  long long expected_rows;
+  int direct;
+  void *stream_output;
+  int stream;
 } MC_EVENT_WRITER;
 
 /* Internal-facing list entry point used by Monitor_nD and the writer. It
@@ -1098,19 +1105,51 @@ MCDETECTOR mc_event_buffer_save(MC_EVENT_BUFFER *buffer, char *title,
 /* Host-side generic chunked event writer. begin clears the writer and, on
  * success, allocates one bounded chunk buffer, append adds one row, flush
  * spools the current chunk, and end serializes every spooled chunk through the
- * common ASCII/NeXus/MPI backend. A rejected begin leaves the writer safely
- * inactive, so end is still safe. `chunk_capacity` must be positive. The spool
- * is temporary and is removed by
+ * common ASCII/NeXus/MPI backend. The begin_direct variant streams serial
+ * output when the final row count is known; it is not valid for MPI. A
+ * rejected begin leaves the writer safely inactive, so end is still safe.
+ * `chunk_capacity` must be positive. The spool is temporary and is removed by
  * the platform when closed; it bounds event-data memory independently of the
  * total number of rows. */
 int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,
-                          long width, long chunk_capacity, char *filename,
-                          char *component, Coords position, Rotation rotation,
-                          int index);
+                           long width, long chunk_capacity, char *filename,
+                           char *component, Coords position, Rotation rotation,
+                           int index);
+/* Begin a serial writer with a known final row count. Chunks are sent directly
+ * to the normal ASCII/NeXus backend at flush time instead of being spooled.
+ * The known count is required because both backends publish it in metadata
+ * before the first payload. MPI callers must use mc_event_writer_begin(). */
+int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
+                                  char *columns, long count, long width,
+                                  long chunk_capacity, char *filename,
+                                  char *component, Coords position,
+                                  Rotation rotation, int index);
+/* Begin a serial unknown-count stream. The output sink reserves the normal
+ * ASCII metadata count fields and patches them at end; NeXus uses its
+ * unlimited event dimension and rewrites the final detector metadata. MPI
+ * callers should use mc_event_writer_begin() until the host service protocol
+ * is available. */
+int mc_event_writer_begin_stream(MC_EVENT_WRITER *writer, char *title,
+                                 char *columns, long width,
+                                 long chunk_capacity, char *filename,
+                                 char *component, Coords position,
+                                 Rotation rotation, int index);
 int mc_event_writer_append(MC_EVENT_WRITER *writer, const double *row);
+/* OpenACC device-side append. This only reserves/copies into the writer's
+ * current buffer; the generated host batch boundary services that buffer. */
+#pragma acc routine
+int mc_event_writer_append_openacc(MC_EVENT_WRITER *writer,
+                                   const double *row);
 int mc_event_writer_write(MC_EVENT_WRITER *writer, long count, double *data);
 int mc_event_writer_flush(MC_EVENT_WRITER *writer);
 MCDETECTOR mc_event_writer_end(MC_EVENT_WRITER *writer);
+/* Host-side OpenACC batch service. It synchronizes registered writer buffers,
+ * spools or writes one bounded chunk, resets the device buffer, and leaves
+ * final ASCII/NeXus/MPI serialization to mc_event_writer_end. */
+void mc_event_writer_openacc_service(void);
+/* Discard a writer without entering MPI or serializing output. This is for
+ * host-side error/unwind cleanup when the matching collective end is skipped. */
+void mc_event_writer_discard(MC_EVENT_WRITER *writer);
 
 /* wrappers to output functions, that automatically set NAME and POSITION */
 #define DETECTOR_OUT(p0,p1,p2) mcdetector_out_0D(NAME_CURRENT_COMP,p0,p1,p2,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)

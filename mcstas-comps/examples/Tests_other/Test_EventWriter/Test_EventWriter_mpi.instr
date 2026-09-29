@@ -29,17 +29,22 @@ COMPONENT src = Source_simple(radius=0.1, lambda0=1)
   AT (0, 0, 0) ABSOLUTE
 
 COMPONENT rootEmpty = EventWriter(
-    nrows=(mpi_node_rank == 0 ? 0 : Rows), chunk=3,
+    nrows=(mpi_node_rank == 0 ? 0 : Rows), chunk=3, use_trace=1,
     filename="WriterRootEmpty")
   AT (0, 0, 0.1) RELATIVE PREVIOUS
 
 COMPONENT slaveEmpty = EventWriter(
-    nrows=(mpi_node_rank == 0 ? Rows : 0), chunk=3,
+    nrows=(mpi_node_rank == 0 ? Rows : 0), chunk=3, use_trace=1,
     filename="WriterSlaveEmpty")
   AT (0, 0, 0.1) RELATIVE PREVIOUS
 
 COMPONENT unequal = EventWriter(
-    nrows=Rows + mpi_node_rank, chunk=3, filename="WriterUnequal")
+    nrows=Rows + mpi_node_rank, chunk=3, use_trace=1,
+    filename="WriterUnequal")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT allEmpty = EventWriter(
+    nrows=0, chunk=2, use_trace=1, filename="WriterAllEmpty")
   AT (0, 0, 0.1) RELATIVE PREVIOUS
 
 COMPONENT metadata_mismatch = EventWriter(

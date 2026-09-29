@@ -1,0 +1,37 @@
+/*******************************************************************************
+ * Instrument: Test_EventWriterOpenACC
+ *
+ * %Identification
+ * Written by: McStas development
+ * Date: 29 September 2026
+ * Origin: DTU
+ * %INSTRUMENT_SITE: Tests_other
+ *
+ * %Description
+ * Exercise host-serviced bounded event chunks from OpenACC TRACE kernels.
+ * Choose NCount divisible by Chunk and use --gpu_innerloop=Chunk to force
+ * multiple device batches without padded histories.
+ *
+ * %Parameters
+ * NCount: [1] number of rows to emit
+ * Chunk:  [1] writer/device-batch capacity
+ *
+ * %Example: NCount=16,Chunk=4
+ *
+ * %End
+ *******************************************************************************/
+DEFINE INSTRUMENT Test_EventWriterOpenACC(NCount=16, Chunk=4)
+
+INITIALIZE
+%{
+  mcset_ncount((unsigned long long)NCount);
+%}
+
+TRACE
+COMPONENT src = Source_simple(radius=0.1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT events = EventWriterOpenACC(chunk=Chunk, filename="WriterOpenACC")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+END
