@@ -973,6 +973,20 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
                   double x1, double x2, double y1, double y2, long m,
                   long n, double *p0, double *p1, double *p2, char *f,
                   char *c, Coords pos, Rotation rot, int index);
+/* Host-only wrapper for averaging rank-local 2D matrices. Every MPI rank must
+ * call this function with the same positive dimensions and detector metadata.
+ * A rank contributes only when local_valid is nonzero and matrix is non-NULL.
+ * MPI ranks must provide matching positive dimensions; a mismatch is rejected
+ * collectively before any detector reduction.
+ * The wrapper normalizes each valid matrix by the global contributor count,
+ * delegates ASCII/NeXus output to mcdetector_out_2D, and frees its temporary
+ * detector arrays before returning. It returns the global contributor count,
+ * or zero when there are no valid contributors or setup fails. */
+long mcdetector_out_2D_average(char *title, char *xl, char *yl,
+                   double x1, double x2, double y1, double y2, long m,
+                   long n, const double *matrix, int local_valid,
+                   char *filename, char *component, Coords position,
+                   Rotation rotation, int index);
 MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
                   long m, long n,
                   double *p1, char *f,
@@ -1158,6 +1172,8 @@ void mc_event_writer_discard(MC_EVENT_WRITER *writer);
      mcdetector_out_1D(t,xl,yl,xvar,x1,x2,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 #define DETECTOR_OUT_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f) \
      mcdetector_out_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
+#define DETECTOR_OUT_2D_AVERAGE(t,xl,yl,x1,x2,y1,y2,m,n,matrix,local_valid,f) \
+      mcdetector_out_2D_average(t,xl,yl,x1,x2,y1,y2,m,n,matrix,local_valid,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 #define DETECTOR_OUT_LIST(title, columns, count, width, data, filename) \
      mcevent_out_list(title, columns, count, width, data, filename, NAME_CURRENT_COMP, POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP)
 

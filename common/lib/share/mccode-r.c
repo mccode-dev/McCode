@@ -2733,6 +2733,116 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
 
 } /* mcdetector_out_2D */
 
+/* Host-only wrapper for rank-local resolution-matrix averaging. */
+long mcdetector_out_2D_average(char *title, char *xl, char *yl,
+                   double x1, double x2, double y1, double y2,
+                   long m, long n, const double *matrix, int local_valid,
+                   char *filename, char *component, Coords position,
+                   Rotation rotation, int index)
+{
+  int local_dimensions_ok = m > 0 && n > 0;
+#ifdef USE_MPI
+  long local_dimensions[2] = {m, n};
+  long minimum_dimensions[2];
+  long maximum_dimensions[2];
+  int all_dimensions_ok = local_dimensions_ok;
+  if (MPI_Allreduce(local_dimensions, minimum_dimensions, 2, MPI_LONG,
+                    MPI_MIN, MPI_COMM_WORLD) != MPI_SUCCESS
+      || MPI_Allreduce(local_dimensions, maximum_dimensions, 2, MPI_LONG,
+                       MPI_MAX, MPI_COMM_WORLD) != MPI_SUCCESS
+      || MPI_Allreduce(&local_dimensions_ok, &all_dimensions_ok, 1, MPI_INT,
+                       MPI_MIN, MPI_COMM_WORLD) != MPI_SUCCESS)
+    return 0;
+  if (!all_dimensions_ok
+      || minimum_dimensions[0] != maximum_dimensions[0]
+      || minimum_dimensions[1] != maximum_dimensions[1])
+    return 0;
+#else
+  if (!local_dimensions_ok)
+    return 0;
+#endif
+
+  int local_contribution = local_valid && matrix != NULL;
+  long local_valid_count = local_contribution ? 1 : 0;
+  long global_valid_count = 0;
+
+#ifdef USE_MPI
+  if (MPI_Allreduce(&local_valid_count, &global_valid_count, 1, MPI_LONG,
+                    MPI_SUM, MPI_COMM_WORLD) != MPI_SUCCESS)
+    return 0;
+#else
+  global_valid_count = local_valid_count;
+#endif
+
+  if (global_valid_count <= 0)
+    return 0;
+
+  size_t element_count = 0;
+  int dimensions_ok = (uintmax_t)m <= (uintmax_t)SIZE_MAX / (uintmax_t)n;
+  if (dimensions_ok) {
+    uintmax_t product = (uintmax_t)m * (uintmax_t)n;
+    if (product > (uintmax_t)SIZE_MAX)
+      dimensions_ok = 0;
+    else
+      element_count = (size_t)product;
+  }
+  if (dimensions_ok && element_count > SIZE_MAX / sizeof(double))
+    dimensions_ok = 0;
+
+  double *p0 = NULL;
+  double *p1 = NULL;
+  double *p2 = NULL;
+  int local_allocation_ok = dimensions_ok;
+  if (local_allocation_ok) {
+    p0 = (double *)calloc(element_count, sizeof(double));
+    p1 = (double *)calloc(element_count, sizeof(double));
+    p2 = (double *)calloc(element_count, sizeof(double));
+    if (!p0 || !p1 || !p2)
+      local_allocation_ok = 0;
+  }
+
+  int allocation_ok = local_allocation_ok;
+#ifdef USE_MPI
+  if (MPI_Allreduce(&local_allocation_ok, &allocation_ok, 1, MPI_INT,
+                    MPI_MIN, MPI_COMM_WORLD) != MPI_SUCCESS) {
+    free(p0);
+    free(p1);
+    free(p2);
+    return 0;
+  }
+#endif
+  if (!allocation_ok) {
+    if (!local_allocation_ok)
+      fprintf(stderr,
+              "Error: mcdetector_out_2D_average: unable to allocate temporary arrays for %ld x %ld matrix.\n",
+              m, n);
+    free(p0);
+    free(p1);
+    free(p2);
+    return 0;
+  }
+
+  if (local_contribution) {
+    size_t i;
+    double scale = 1.0 / (double)global_valid_count;
+    for (i = 0; i < element_count; i++) {
+      p0[i] = 1.0;
+      p1[i] = matrix[i] * scale;
+      p2[i] = p1[i] * p1[i];
+    }
+  }
+
+  MCDETECTOR detector = mcdetector_out_2D(
+      title, xl, yl, x1, x2, y1, y2, m, n,
+      p0, p1, p2, filename, component, position, rotation, index);
+  if (detector.p1 && detector.p1 != p1)
+    free(detector.p1);
+  free(p0);
+  free(p1);
+  free(p2);
+  return global_valid_count;
+}
+
 /*******************************************************************************
 * mcdetector_out_2D_list: List mode 2D including forwarding "options" from
 * Monitor_nD

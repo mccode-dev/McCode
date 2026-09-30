@@ -103,13 +103,6 @@ DECLARE%{
   char res_rx_var[20];
   char res_ry_var[20];
   char res_rz_var[20];
-  /* Arrays for storing resolution matrix */
-  DArray2d Covar_p;
-  DArray2d Covar_p2;
-  DArray2d Covar_N;
-  DArray2d Res_p;
-  DArray2d Res_p2;
-  DArray2d Res_N;
 %}
 
 
@@ -132,7 +125,6 @@ INITIALIZE %{
     reso_probabilities = malloc((size_t)event_capacity*sizeof(double));
   }
 
-  int i;
   char tmp[1024];
   strcpy(Vars.compcurname, NAME_CURRENT_COMP);
 
@@ -165,15 +157,6 @@ INITIALIZE %{
   sprintf(res_rx_var, "res_rx_%i", index);
   sprintf(res_ry_var, "res_ry_%i", index);
   sprintf(res_rz_var, "res_rz_%i", index);
-  if(live_calc) {
-      /* Allocate arrays to save cov and res matrix */
-      Covar_p = create_darr2d(4, 4);
-      Covar_p2 = create_darr2d(4, 4);
-      Covar_N = create_darr2d(4, 4);
-      Res_p = create_darr2d(4, 4);
-      Res_p2 = create_darr2d(4, 4);
-      Res_N = create_darr2d(4, 4);
-  }
 %}
 
 
@@ -310,15 +293,7 @@ SAVE %{
                        NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
                        ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
 
-  /* Determine collectively whether any rank has event rows. */
-  int any_events = num_events > 0;
-  #ifdef USE_MPI
-  if (live_calc) {
-    int local_events = any_events;
-    MPI_Allreduce(&local_events, &any_events, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-  }
-  #endif
-  if(live_calc && any_events) {
+  if(live_calc) {
     if(dbg_save_events && num_events > 0) {
       /* save individual neutron events */
       #ifndef USE_MPI
@@ -347,46 +322,24 @@ SAVE %{
       }
     }
 
-    int successful_calculations = local_success;
-    #ifdef USE_MPI
-    MPI_Allreduce(&local_success, &successful_calculations, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    #endif
-    if (successful_calculations > 0) {
-      double contribution_scale = local_success ? 1.0 / successful_calculations : 0.0;
-      int i,j;
-      for(i=0;i<4;i++) {
-        for(j=0;j<4;j++) {
-          /* Empty and failed ranks contribute zero to all three arrays. */
-          Covar_N[i][j] = local_success ? 1 : 0;
-          Res_N[i][j] = local_success ? 1 : 0;
-	  /* Normalize successful local contributions by the global count. */
-	  Covar_p[i][j] = cov[4*i+j] * contribution_scale;
-	  Res_p[i][j] = res[4*i+j] * contribution_scale;
-	  /* "errors" */
-	  Covar_p2[i][j] = Covar_p[i][j] * Covar_p[i][j];
-	  Res_p2[i][j] = Res_p[i][j] * Res_p[i][j];
-        }
-      }
-      /* Nasty call to DETECTOR_OUT_2D to store covariance matrix */
-      char covar_fname[1024];
-      char res_fname[1024];
-      sprintf(covar_fname,"%s_%s", _comp->_name, "covar");
-      sprintf(res_fname,"%s_%s", _comp->_name, "resol");
-      DETECTOR_OUT_2D("Covariance",
-		      "Columns",
-		      "Rows",
-		      0.0, 4.0, 0.0, 4.0,
-		      4, 4,
-		      &Covar_N[0][0],&Covar_p[0][0],&Covar_p2[0][0],
-		      covar_fname);
-      DETECTOR_OUT_2D("Resolution",
-		      "Columns",
-		      "Rows",
-		      0.0, 4.0, 0.0, 4.0,
-		      4, 4,
-		      &Res_N[0][0],&Res_p[0][0],&Res_p2[0][0],
-		      res_fname);
-    }
+    char covar_fname[1024];
+    char res_fname[1024];
+    sprintf(covar_fname,"%s_%s", _comp->_name, "covar");
+    sprintf(res_fname,"%s_%s", _comp->_name, "resol");
+    DETECTOR_OUT_2D_AVERAGE("Covariance",
+                            "Columns",
+                            "Rows",
+                            0.0, 4.0, 0.0, 4.0,
+                            4, 4,
+                            cov, local_success,
+                            covar_fname);
+    DETECTOR_OUT_2D_AVERAGE("Resolution",
+                            "Columns",
+                            "Rows",
+                            0.0, 4.0, 0.0, 4.0,
+                            4, 4,
+                            res, local_success,
+                            res_fname);
   }
 %}
 
@@ -399,14 +352,6 @@ FINALLY %{
   if(live_calc) {
     free(reso_events);
     free(reso_probabilities);
-  }
-  if(live_calc) {
-    destroy_darr2d(Covar_p);
-    destroy_darr2d(Covar_p2);
-    destroy_darr2d(Covar_N);
-    destroy_darr2d(Res_p);
-    destroy_darr2d(Res_p2);
-    destroy_darr2d(Res_N);
   }
 %}
 
