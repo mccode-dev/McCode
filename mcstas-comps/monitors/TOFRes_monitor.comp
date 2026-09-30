@@ -121,8 +121,19 @@ INITIALIZE %{
     exit(fprintf(stderr, "TOFRes_monitor: %s: Error allocating event buffer.\n", NAME_CURRENT_COMP));
 
   if(live_calc) {
-    reso_events = malloc((size_t)event_capacity*4*sizeof(double));
-    reso_probabilities = malloc((size_t)event_capacity*sizeof(double));
+    if (event_capacity > 0
+        && (uintmax_t)event_capacity
+             > (uintmax_t)SIZE_MAX / (4 * sizeof(double)))
+      exit(fprintf(stderr, "TOFRes_monitor: %s: Error allocating resolution event arrays.\n", NAME_CURRENT_COMP));
+    if (event_capacity > 0) {
+      reso_events = malloc((size_t)event_capacity*4*sizeof(double));
+      reso_probabilities = malloc((size_t)event_capacity*sizeof(double));
+      if (!reso_events || !reso_probabilities) {
+        free(reso_events);
+        free(reso_probabilities);
+        exit(fprintf(stderr, "TOFRes_monitor: %s: Error allocating resolution event arrays.\n", NAME_CURRENT_COMP));
+      }
+    }
   }
 
   char tmp[1024];

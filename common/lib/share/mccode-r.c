@@ -2746,17 +2746,32 @@ long mcdetector_out_2D_average(char *title, char *xl, char *yl,
   long minimum_dimensions[2];
   long maximum_dimensions[2];
   int all_dimensions_ok = local_dimensions_ok;
-  if (MPI_Allreduce(local_dimensions, minimum_dimensions, 2, MPI_LONG,
-                    MPI_MIN, MPI_COMM_WORLD) != MPI_SUCCESS
-      || MPI_Allreduce(local_dimensions, maximum_dimensions, 2, MPI_LONG,
-                       MPI_MAX, MPI_COMM_WORLD) != MPI_SUCCESS
-      || MPI_Allreduce(&local_dimensions_ok, &all_dimensions_ok, 1, MPI_INT,
-                       MPI_MIN, MPI_COMM_WORLD) != MPI_SUCCESS)
+  if (mpi_node_count > 1) {
+    int mpi_status;
+    int dimensions_status = MPI_SUCCESS;
+    /* Keep every rank in the same collective sequence even if MPI reports an
+       error, rather than short-circuiting later Allreduce calls. */
+    mpi_status = MPI_Allreduce(local_dimensions, minimum_dimensions, 2,
+                               MPI_LONG, MPI_MIN, MPI_COMM_WORLD);
+    if (mpi_status != MPI_SUCCESS)
+      dimensions_status = mpi_status;
+    mpi_status = MPI_Allreduce(local_dimensions, maximum_dimensions, 2,
+                               MPI_LONG, MPI_MAX, MPI_COMM_WORLD);
+    if (mpi_status != MPI_SUCCESS)
+      dimensions_status = mpi_status;
+    mpi_status = MPI_Allreduce(&local_dimensions_ok, &all_dimensions_ok, 1,
+                               MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+    if (mpi_status != MPI_SUCCESS)
+      dimensions_status = mpi_status;
+    if (dimensions_status != MPI_SUCCESS)
+      return 0;
+    if (!all_dimensions_ok
+        || minimum_dimensions[0] != maximum_dimensions[0]
+        || minimum_dimensions[1] != maximum_dimensions[1])
+      return 0;
+  } else if (!local_dimensions_ok) {
     return 0;
-  if (!all_dimensions_ok
-      || minimum_dimensions[0] != maximum_dimensions[0]
-      || minimum_dimensions[1] != maximum_dimensions[1])
-    return 0;
+  }
 #else
   if (!local_dimensions_ok)
     return 0;
@@ -2767,9 +2782,13 @@ long mcdetector_out_2D_average(char *title, char *xl, char *yl,
   long global_valid_count = 0;
 
 #ifdef USE_MPI
-  if (MPI_Allreduce(&local_valid_count, &global_valid_count, 1, MPI_LONG,
-                    MPI_SUM, MPI_COMM_WORLD) != MPI_SUCCESS)
-    return 0;
+  if (mpi_node_count > 1) {
+    if (MPI_Allreduce(&local_valid_count, &global_valid_count, 1, MPI_LONG,
+                      MPI_SUM, MPI_COMM_WORLD) != MPI_SUCCESS)
+      return 0;
+  } else {
+    global_valid_count = local_valid_count;
+  }
 #else
   global_valid_count = local_valid_count;
 #endif
@@ -2803,12 +2822,14 @@ long mcdetector_out_2D_average(char *title, char *xl, char *yl,
 
   int allocation_ok = local_allocation_ok;
 #ifdef USE_MPI
-  if (MPI_Allreduce(&local_allocation_ok, &allocation_ok, 1, MPI_INT,
-                    MPI_MIN, MPI_COMM_WORLD) != MPI_SUCCESS) {
-    free(p0);
-    free(p1);
-    free(p2);
-    return 0;
+  if (mpi_node_count > 1) {
+    if (MPI_Allreduce(&local_allocation_ok, &allocation_ok, 1, MPI_INT,
+                      MPI_MIN, MPI_COMM_WORLD) != MPI_SUCCESS) {
+      free(p0);
+      free(p1);
+      free(p2);
+      return 0;
+    }
   }
 #endif
   if (!allocation_ok) {
