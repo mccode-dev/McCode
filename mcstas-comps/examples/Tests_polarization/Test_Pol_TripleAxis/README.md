@@ -35,7 +35,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | OPTION | 1 | See above | 0 |
-| LAMBDA | Angs | Source wavelength | 2.0 |
+| LAMBDA | AA | Source wavelength | 2.0 |
 | MOZ | Arc minutes | Mosaicity | 40 |
 
 ## Links

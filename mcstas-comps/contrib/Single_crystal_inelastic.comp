@@ -370,18 +370,25 @@ SHARE
       else
         cs = sqrt (info->m_cx * info->m_cx + info->m_cy * info->m_cy + info->m_cz * info->m_cz);
 
-      // Single crystal definition of B-matrix with z||b, x||cross(a,b), y||cross(x,z) [real-space]
-      //  [ 0,            0, sqrt( c*c*( 1-cos(beta)-[(cos(a)-cos(g)*cos(b))/sin(g)]**2 ) ]
-      //  [ b*sin(gamma), 0, c*(cos(alpha)-cos(gamma)*cos(beta))/sin(gamma) ]
-      //  [ b*cos(gamma), a, c*cos(beta) ]
-      info->m_bz = as;
-      info->m_by = 0;
+      // Single crystal definition of the real-space vectors (columns a, b, c)
+      // with z||b, x||cross(a,b), y||cross(z,x):
+      //  [ 0,            0, c*sqrt( 1 - cos(alpha)**2 - [(cos(beta)-cos(gamma)*cos(alpha))/sin(gamma)]**2 ) ]
+      //  [ a*sin(gamma), 0, c*(cos(beta)-cos(gamma)*cos(alpha))/sin(gamma) ]
+      //  [ a*cos(gamma), b, c*cos(alpha) ]
+      /* Real-space vectors with b along z and a in the yz-plane at the angle
+         gamma to b; c then has cos(alpha) along b, cos(beta) against a, and a
+         positive x component, which makes (a, b, c) right-handed.  Each vector
+         carries its own length: a = as, b = bs, c = cs.  (Before, a was given
+         the length bs and b the length as, and alpha/beta were exchanged in c,
+         so for a != b every |F(h,k,l)|^2 ended up at the position of (k,h,l).) */
       info->m_bx = 0;
-      info->m_az = bs * cos (info->m_cc * DEG2RAD);
-      info->m_ay = bs * sin (info->m_cc * DEG2RAD);
+      info->m_by = 0;
+      info->m_bz = bs;
       info->m_ax = 0;
-      info->m_cz = cs * cos (info->m_bb * DEG2RAD);
-      info->m_cy = cs * (cos (info->m_aa * DEG2RAD) - cos (info->m_cc * DEG2RAD) * cos (info->m_bb * DEG2RAD)) / sin (info->m_cc * DEG2RAD);
+      info->m_ay = as * sin (info->m_cc * DEG2RAD);
+      info->m_az = as * cos (info->m_cc * DEG2RAD);
+      info->m_cz = cs * cos (info->m_aa * DEG2RAD);
+      info->m_cy = cs * (cos (info->m_bb * DEG2RAD) - cos (info->m_cc * DEG2RAD) * cos (info->m_aa * DEG2RAD)) / sin (info->m_cc * DEG2RAD);
       info->m_cx = sqrt (cs * cs - info->m_cz * info->m_cz - info->m_cy * info->m_cy);
       /*
             // Matlab definition of b-matrix with x||a*, z||cross(a*,b*), y||cross(x,z)  [reciprocal space]

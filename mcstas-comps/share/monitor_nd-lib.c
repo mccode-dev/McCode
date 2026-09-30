@@ -1659,6 +1659,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
     char    label[CHAR_BUF_LENGTH];
 
     MCDETECTOR detector;
+    memset(&detector, 0, sizeof(detector));
     strcpy(detector.options,Vars->option);
     if (Vars->Flag_Verbose && Vars->Flag_per_cm2) {
       printf("Monitor_nD: %s: active flat detector area is %g [cm^2], total area is %g [cm^2]\n",
@@ -1880,7 +1881,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
             if (min1d == max1d) max1d = min1d+1e-6;
             p1m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
             p2m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
-            if (p2m == NULL) /* use Raw Buffer line output */
+            if (p1m == NULL || p2m == NULL) /* use Raw Buffer line output */
             {
               if (Vars->Flag_Verbose) printf("Monitor_nD: %s cannot allocate memory for output. Using raw data.\n", Vars->compcurname);
               if (p1m != NULL) free(p1m);
@@ -1958,14 +1959,11 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         p0m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
         p1m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
         p2m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
-        if (p2m == NULL)
+        if (p0m == NULL || p1m == NULL || p2m == NULL)
         {
           if (Vars->Flag_Verbose) printf("Monitor_nD: %s cannot allocate memory for 2D array (%zi). Skipping.\n", Vars->compcurname, 3*Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
-          /* comment out 'free memory' lines to avoid loosing arrays if
-               'detector' structure is used by other instrument parts
           if (p0m != NULL) free(p0m);
           if (p1m != NULL) free(p1m);
-          */
         }
         else
         {

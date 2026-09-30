@@ -1,0 +1,245 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=https://www.mcxtrace.org
+*
+* Instrument: ILL_NeXT_Xray
+*
+* %Identification
+* Written by: DRAFT, Peter Willendrup with Claude from public ILL / NeXT-Grenoble information
+* Date: September 2026
+* Origin: ILL
+* %INSTRUMENT_SITE: ILL
+*
+* NeXT (ILL) - the X-ray cone-beam tomography arm, operated simultaneously with
+* and perpendicular to the neutron beam (companion to ILL_H521_NeXT.instr)
+*
+* %Description
+* DRAFT model of the X-ray imaging option of NeXT-Grenoble at the ILL.
+*
+* Hardware (Tengattini et al., NIM A 968 (2020) 163939):
+*   - source:   Hamamatsu L12161-07 sealed microfocus tube, W target, Be window,
+*               up to 150 kV / 500 uA, minimum focal spot 5 um, 43 deg cone
+*   - detector: Varex PaxScan 2530HE flat panel, CsI scintillator,
+*               1792 x 2176 pixels of 139 um (portrait), up to 9 Hz (33 Hz bin 2)
+*   - source-detector distance: >= 500 mm (set by the 43 deg cone covering the
+*               ~25 x 30 cm panel), four source positions 20 mm apart
+*               -> SDD = 0.50, 0.52, 0.54, 0.56 m
+*   - the sample sits on the common (neutron) rotation axis; the source-object
+*               distance SOD sets the magnification M = SDD/SOD. The quoted 5 um
+*               resolution needs M ~ 28, i.e. SOD ~ 18-20 mm.
+*   - the ILL web page (2026) quotes a 20-300 kV source, i.e. the tube may have
+*               been upgraded; kV > 150 is allowed here but flagged.
+*
+* Geometry: the X-ray axis is the McXtrace z axis. At NeXT it is horizontal and
+* perpendicular to the neutron beam (neutrons travel along -x or +x here, depending
+* on the side of the source); the source/detector pivot (+-20 deg) is not modelled.
+*
+* The sample defaults to the same object as in ILL_H521_NeXT: a vertical Fe rod,
+* radius 5 mm, for direct bimodal comparison (the neutron model gives T~0.4 at the
+* rod centre in white beam). An inner inclusion (e.g. an H2O-filled bore) can be added.
+*
+* Detector: two ideal pixelated monitors on the flat-panel plane
+*   Xray_counts:  photon counts (photon-counting response)
+*   Xray_energy:  energy-weighted intensity [keV/s per pixel], a first-order model
+*                 of the energy-integrating CsI flat panel.
+* NOT modelled: CsI absorption efficiency vs energy, scintillator/optical blur,
+* focal-spot growth with tube power, heel effect, scatter from the sample
+* environment, and the 6 mm Pb / 10 mm + 5 mm B4C neutron shielding of the panel
+* (5 mm B4C over the active area transmits roughly 80-90 % at 40-150 keV).
+*
+* ASSUMPTIONS (to be checked):
+*   - Be exit window 0.2 mm (the L12161-07 datasheet value should be checked)
+*   - focal spot = electron-beam footprint on the anode (square, focal_spot)
+*   - anode take-off angle 12 deg (reflection-type microfocus tube, typical)
+*   - Source_lab is a thick-target Kramers model; absolute intensity is indicative
+*
+* %Example: kV=150 SOD=0.1 SDD=0.5 Detector: Xray_counts_I=176042000000
+*
+* %Parameters
+* kV:            [kV]  Tube acceleration voltage (<=150 for L12161-07; 20-300 per ILL web)
+* tube_current:  [A]   Electron beam current (<= 500e-6)
+* focal_spot:    [m]   Focal spot size (square electron footprint on the anode)
+* Emin:          [keV] Lowest photon energy simulated
+* anode:         [str] Anode material file
+* take_off:      [deg] Anode take-off angle
+* Be_window:     [m]   Be exit window thickness
+* filter:        [str] Pre-filter material file (e.g. "Cu.txt", "Al.txt", "Sn.txt")
+* filter_t:      [m]   Pre-filter thickness (0: no filter)
+* SOD:           [m]   Source - object (rotation axis) distance
+* SDD:           [m]   Source - detector distance (0.50, 0.52, 0.54, 0.56)
+* sample:        [1]   1: sample in beam, 0: flat field (open beam)
+* sample_mat:    [str] Sample (outer) material file
+* sample_rho:    [g/cm3] Sample density (0: take nominal density from file)
+* sample_radius: [m]   Radius of the cylindrical sample
+* sample_height: [m]   Height of the cylindrical sample
+* incl_mat:      [str] Material of a coaxial inner cylinder ("NULL" for none)
+* incl_radius:   [m]   Radius of the inner cylinder (0 for none)
+* incl_rho:      [g/cm3] Density of the inner cylinder (0: nominal)
+* sample_off:    [str] Optional OFF/PLY geometry for the outer sample, overrides the cylinder ("NULL": none)
+* omega:         [deg] Tomography rotation angle of the sample about the vertical axis
+* det_binning:   [1]   Detector binning (1: 1792x2176 native, 2, 4, ...)
+*
+* %Link
+* https://www.ill.eu/en/for-ill-users/instruments/instruments-list/next/
+* %Link
+* A. Tengattini et al., NeXT-Grenoble, the Neutron and X-ray tomograph in Grenoble,
+*   Nucl. Instrum. Meth. A 968 (2020) 163939, doi:10.1016/j.nima.2020.163939
+* %Link
+* NECSA_MIXRAD_Nikon_Tomo.instr (McXtrace examples) - similar lab-source tomograph
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT ILL_NeXT_Xray(kV=150, tube_current=100e-6, focal_spot=5e-6,
+  Emin=5, string anode="W.txt", take_off=12, Be_window=0.2e-3,
+  string filter="Cu.txt", filter_t=0,
+  SOD=0.1, SDD=0.5,
+  int sample=1, string sample_mat="Fe.txt", sample_rho=0,
+  sample_radius=0.005, sample_height=0.05,
+  string incl_mat="NULL", incl_radius=0, incl_rho=0,
+  string sample_off="NULL", omega=0,
+  int det_binning=4)
+
+DECLARE %{
+  /* Varex PaxScan 2530HE, portrait: 1792 (horizontal) x 2176 (vertical), 139 um */
+  int    det_nx_native = 1792;
+  int    det_ny_native = 2176;
+  double det_pixel     = 139e-6;
+  double det_w, det_h;
+  int    det_nx, det_ny;
+  double Emax;
+  double M;                 /* geometric magnification */
+  double voxel;             /* effective pixel size at the object */
+  double penumbra;          /* focal-spot blur referred to the object */
+  double cone_hw;           /* half-opening of the source cone [rad] */
+  double open_x, open_y;    /* region of the detector used for the open-beam spectrum */
+  double Ew;                /* saved weight for the energy-weighted detector */
+%}
+
+INITIALIZE %{
+  if (kV > 150)
+    fprintf(stderr, "%s: WARNING: kV=%g exceeds the 150 kV of the Hamamatsu L12161-07 "
+                    "(the ILL web page quotes up to 300 kV - check the installed tube)\n",
+                    NAME_INSTRUMENT, kV);
+  if (tube_current > 500e-6)
+    fprintf(stderr, "%s: WARNING: tube_current=%g A exceeds 500 uA\n", NAME_INSTRUMENT, tube_current);
+  if (SDD < 0.5 || SDD > 0.56)
+    fprintf(stderr, "%s: WARNING: SDD=%g m outside the 0.50-0.56 m range of the NeXT setup\n",
+                    NAME_INSTRUMENT, SDD);
+  if (SOD >= SDD) exit(fprintf(stderr, "%s: ERROR: SOD (%g) must be < SDD (%g)\n", NAME_INSTRUMENT, SOD, SDD));
+  if (det_binning < 1) det_binning = 1;
+
+  Emax   = kV;
+  det_nx = det_nx_native/det_binning;
+  det_ny = det_ny_native/det_binning;
+  det_w  = det_nx_native*det_pixel;
+  det_h  = det_ny_native*det_pixel;
+  M      = SDD/SOD;
+  voxel  = det_pixel*det_binning/M;
+  penumbra = focal_spot*(M-1)/M;      /* focal-spot unsharpness, object plane */
+  cone_hw  = 43.0/2*DEG2RAD;
+
+  /* open-beam spectrum window: beside the sample shadow, inside the detector */
+  open_x = 3*sample_radius*M;
+  if (open_x > det_w/2 - 0.01) open_x = det_w/2 - 0.01;
+
+  printf("%s: M=%.2f, effective pixel at object %.2f um (binning %d), "
+         "focal-spot unsharpness %.2f um, FoV at object %.1f x %.1f mm\n",
+         NAME_INSTRUMENT, M, voxel*1e6, det_binning, penumbra*1e6,
+         det_w/M*1e3, det_h/M*1e3);
+  if (2*SDD*tan(cone_hw) < sqrt(det_w*det_w+det_h*det_h))
+    printf("%s: note: the 43 deg cone does not fully cover the detector diagonal at SDD=%g m\n",
+           NAME_INSTRUMENT, SDD);
+  if (sample && 2*sample_radius*M > det_w)
+    printf("%s: note: the magnified sample (%g mm) is wider than the detector (%g mm)\n",
+           NAME_INSTRUMENT, 2*sample_radius*M*1e3, det_w*1e3);
+%}
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0,0,0) ABSOLUTE
+
+/* ---- microfocus X-ray tube ---------------------------------------------- */
+/* focusing on the full detector: every photon heads for the flat panel */
+COMPONENT anode_spot = Source_lab(
+  material_datafile = anode,
+  width = focal_spot, height = focal_spot, thickness = 100e-6,
+  E0 = kV, Emin = Emin, Emax = Emax,
+  take_off = take_off, tube_current = tube_current,
+  dist = SDD, focus_xw = det_w, focus_yh = det_h,
+  lorentzian = 1)
+AT (0,0,0) RELATIVE Origin
+
+/* Be exit window (assumed 0.2 mm) */
+COMPONENT Be_exit_window = Filter(material_datafile="Be.txt",
+  xwidth=0.02, yheight=0.02, zdepth=(Be_window > 0 ? Be_window : 1e-9))
+WHEN (Be_window > 0)
+AT (0,0,0.005) RELATIVE anode_spot
+
+/* optional beam-hardening pre-filter */
+COMPONENT prefilter = Filter(material_datafile=filter,
+  xwidth=0.05, yheight=0.05, zdepth=(filter_t > 0 ? filter_t : 1e-9)) /* 1e-9: Filter INITIALIZE runs even when WHEN is false */
+WHEN (filter_t > 0)
+AT (0,0,0.008) RELATIVE anode_spot
+
+COMPONENT source_spectrum = E_monitor(nE=300, Emin=0, Emax=Emax,
+  xwidth=0.03, yheight=0.03, restore_xray=1)
+AT (0,0,0.010) RELATIVE anode_spot
+
+/* ---- sample on the common neutron / X-ray rotation axis ------------------ */
+COMPONENT sample_axis = Arm()
+AT (0,0,SOD) RELATIVE anode_spot
+
+COMPONENT sample_plane = PSD_monitor(xwidth=4*sample_radius+0.01, yheight=sample_height,
+  nx=100, ny=100, restore_xray=1)
+AT (0,0,-sample_radius-0.001) RELATIVE sample_axis
+
+COMPONENT sample_rot = Arm()
+AT (0,0,0) RELATIVE sample_axis
+ROTATED (0,omega,0) RELATIVE sample_axis
+
+COMPONENT object = Absorption_sample(
+  material_datafile_o = sample_mat, rho_o = sample_rho,
+  radius_o = sample_radius, yheight_o = sample_height, geometry_o = sample_off,
+  material_datafile_i = incl_mat, rho_i = incl_rho,
+  radius_i = incl_radius, yheight_i = (incl_radius > 0 ? sample_height : 0))
+WHEN (sample)
+AT (0,0,0) RELATIVE sample_rot
+
+/* ---- flat-panel detector (Varex PaxScan 2530HE) ------------------------- */
+COMPONENT detector_plane = Arm()
+AT (0,0,SDD) RELATIVE anode_spot
+
+/* photon-counting image */
+COMPONENT Xray_counts = PSD_monitor(xwidth=det_w, yheight=det_h,
+  nx=det_nx, ny=det_ny, restore_xray=1)
+AT (0,0,0) RELATIVE detector_plane
+
+/* energy-integrating image (weight x E[keV]) - first-order CsI flat-panel response */
+COMPONENT Eweight_on = Arm()
+AT (0,0,0) RELATIVE detector_plane
+EXTEND %{
+  Ew = p;
+  p *= sqrt(kx*kx+ky*ky+kz*kz)*K2E;
+%}
+
+COMPONENT Xray_energy = PSD_monitor(xwidth=det_w, yheight=det_h,
+  nx=det_nx, ny=det_ny, restore_xray=1)
+AT (0,0,0) RELATIVE detector_plane
+
+COMPONENT Eweight_off = Arm()
+AT (0,0,0) RELATIVE detector_plane
+EXTEND %{
+  p = Ew;
+%}
+
+/* spectra behind the sample centre and in the open beam (for beam hardening
+   and transmission vs energy), 0.5 mm wide strips on the detector */
+COMPONENT spec_sample = E_monitor(nE=150, Emin=0, Emax=Emax,
+  xwidth=0.5e-3, yheight=0.5*sample_height*M, restore_xray=1)
+AT (0,0,0) RELATIVE detector_plane
+
+COMPONENT spec_open = E_monitor(nE=150, Emin=0, Emax=Emax,
+  xwidth=0.5e-3, yheight=0.5*sample_height*M, restore_xray=1)
+AT (open_x,0,0) RELATIVE detector_plane
+
+END

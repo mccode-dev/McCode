@@ -1,0 +1,83 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: NCrystal_PowderN_multiphase
+*
+* %Identification
+* Written by: T. Kittelmann
+* Date: 2026
+* Origin: ESS
+* %INSTRUMENT_SITE: NCrystal
+*
+* Example instrument for PowderN with a (multiphase) NCrystal material
+*
+* %Description
+* Simple powder diffractometer, with a PowderN sample whose reflections are
+* taken from a two-phase NCrystal material, with the cfg-string built from the
+* instrument parameters, e.g.
+*
+*   "phases<0.3*stdlib::Al_sg225.ncmat&0.7*stdlib::Cu_sg225.ncmat>"
+*
+* for the default parameters (the fractions are volume fractions).
+*
+* %Example: frac1=0.3 Detector: banana_I=6.03
+* %Example: frac1=1 Detector: banana_I=1.28
+* %Example: phase1="stdlib::Al_sg225.ncmat;density=0.5x" frac1=1 Detector: banana_I=0.649
+* %Example: phase2="stdlib::Epoxy_Araldite506_C18H20O3.ncmat" frac1=0.5 Detector: banana_I=22.3
+*
+* %Parameters
+* phase1: [string]  NCrystal cfg-string of the first phase.
+* phase2: [string]  NCrystal cfg-string of the second phase.
+* frac1: [1]        Volume fraction of the first phase (the second phase gets 1-frac1). With frac1=1 (or 0), only the first (or second) phase is used.
+* lambda: [AA]      Mean wavelength of the incident neutrons.
+*
+* %Link
+* https://github.com/mctools/ncrystal/wiki/
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT NCrystal_PowderN_multiphase(string phase1="stdlib::Al_sg225.ncmat", string phase2="stdlib::Cu_sg225.ncmat", frac1=0.3, lambda=2.0)
+
+DECLARE
+%{
+  char sample_cfg[1024];
+%}
+
+INITIALIZE
+%{
+  /* Build the cfg-string here, as the characters '<', '&' and '>' of the
+     multiphase syntax are problematic in instrument parameters. */
+  if (frac1 < 0 || frac1 > 1) {
+    fprintf (stderr, "Error: frac1 must be in the range [0,1]\n");
+    exit (-1);
+  }
+  if (frac1 == 1)
+    snprintf (sample_cfg, sizeof (sample_cfg), "%s", phase1);
+  else if (frac1 == 0)
+    snprintf (sample_cfg, sizeof (sample_cfg), "%s", phase2);
+  else
+    snprintf (sample_cfg, sizeof (sample_cfg), "phases<%.15g*%s&%.15g*%s>", frac1, phase1, 1.0 - frac1, phase2);
+  MPI_MASTER (printf ("Sample material: \"%s\"\n", sample_cfg););
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.001, dist=2, focus_xw=0.002, focus_yh=0.002,
+                                 lambda0=lambda, dlambda=0.4*lambda, flux=1e10)
+  AT (0, 0, 0) RELATIVE origin
+
+/* A small cylindrical powder sample (transmitted neutrons are removed). */
+SPLIT COMPONENT sample = PowderN(reflections=sample_cfg, radius=0.002, yheight=0.002, d_phi=0)
+  AT (0, 0, 2) RELATIVE source
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT banana = Monitor_nD(options="banana, theta limits=[5 175] bins=340",
+                              radius=1, yheight=0.5, filename="banana")
+  AT (0, 0, 0) RELATIVE sample
+
+END

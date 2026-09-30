@@ -28,6 +28,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 #include "mccode.h"
 
 #define GENERATE_PY 1
@@ -651,11 +653,17 @@ cogen_header(struct instr_def *instr, char *output_name)
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("# Python McStas instrument description");
   cout("def make(input_path=None):");
-  coutf("    instr = ms.McStas_instr(\"%s_generated\", author = \"McCode Py-Generator\", origin = \"ESS DMSC\", input_path=input_path)",instr->name);
+  if (pygen_instrument_name)
+    coutf("    instr = ms.McStas_instr(\"%s\", author = \"McCode Py-Generator\", origin = \"ESS DMSC\", input_path=input_path)",pygen_instrument_name);
+  else
+    coutf("    instr = ms.McStas_instr(\"%s_generated\", author = \"McCode Py-Generator\", origin = \"ESS DMSC\", input_path=input_path)",instr->name);
 #elif MCCODE_PROJECT == 2   /* xray */
   cout("# Python McXtrace instrument description");
   cout("def make(input_path=None):");
-  coutf("    instr = ms.McXtrace_instr(\"%s_generated\", author = \"McCode Py-Generator\", origin = \"ESS DMSC\", input_path=input_path)",instr->name);
+  if (pygen_instrument_name)
+    coutf("    instr = ms.McXtrace_instr(\"%s\", author = \"McCode Py-Generator\", origin = \"ESS DMSC\", input_path=input_path)",pygen_instrument_name);
+  else
+    coutf("    instr = ms.McXtrace_instr(\"%s_generated\", author = \"McCode Py-Generator\", origin = \"ESS DMSC\", input_path=input_path)",instr->name);
 #endif
   cout("    \n# Add collected DEPENDENCY strings");
   coutf("    instr.set_dependency('%s')",instr->dependency);
@@ -952,6 +960,141 @@ void detect_skipable_transforms(struct instr_def *instr) {
 * cogen: the code generator
 *   Generate the output file (in C).
 *******************************************************************************/
+
+/*******************************************************************************
+* Translation of %Example lines in the instrument file into McStasScript tests
+* (instr.add_test). The lines are parsed like mctest does, i.e. as
+*   %Example: PAR1=VAL1 PAR2=VAL2 ... Detector: MONITOR_I=VALUE
+*******************************************************************************/
+
+/* Copy of [begin,end) with surrounding whitespace removed. */
+static char *
+pygen_strip(char *begin, char *end)
+{
+  while (begin < end && isspace((unsigned char)*begin)) begin++;
+  while (end > begin && isspace((unsigned char)end[-1])) end--;
+  return str_dup_n(begin, end - begin);
+}
+
+static int
+pygen_is_number(char *s)
+{
+  char *endp;
+  strtod(s, &endp);
+  return s[0] && !*endp;
+}
+
+/* Print warning about ignored %Example line, and return 0. */
+static int
+pygen_ignore(char *line, char *reason)
+{
+  fprintf(stderr, "Warning: Ignoring %%Example line (%s): %s\n", reason, line);
+  return 0;
+}
+
+/* Translate one %Example line (text after "%Example:", without newline) into
+   an instr.add_test call. Returns 0 if the line was ignored (with warning). */
+static int
+pygen_translate_example(struct instr_def *instr, char *line, int ntests)
+{
+  char *det = strstr(line, "Detector:");
+  char *iu = det ? strstr(det, "_I=") : NULL;
+  char *monitor, *value, *tok, *next;
+  char *setpars = "", *inclpars = "";
+
+  if (!iu)
+    return pygen_ignore(line, "no \"Detector: MONITOR_I=VALUE\"");
+  monitor = pygen_strip(det + strlen("Detector:"), iu);
+  value = str_dup_n(iu + 3, strspn(iu + 3, "0123456789.+-eE"));
+  if (!monitor[0] || monitor[strspn(monitor, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")]
+      || !pygen_is_number(value))
+    return pygen_ignore(line, "invalid monitor name or value");
+
+  /* Parameter settings (whitespace separated NAME=VALUE tokens): */
+  for (tok = pygen_strip(line, det); *tok; tok = next) {
+    char *eq, *val;
+    struct instr_formal *formal = NULL, *f;
+    List_handle liter;
+    next = tok + strcspn(tok, " \t");
+    if (*next) {
+      *next++ = '\0';
+      next += strspn(next, " \t");
+    }
+    eq = strchr(tok, '=');
+    if (!eq || eq == tok)
+      return pygen_ignore(line, str_cat("invalid parameter setting \"", tok, "\"", NULL));
+    *eq = '\0';
+    val = eq + 1;
+    liter = list_iterate(instr->formals);
+    while ((f = list_next(liter)))
+      if (f->id && !strcmp(f->id, tok))
+        formal = f;
+    list_iterate_end(liter);
+    if (!formal)
+      return pygen_ignore(line, str_cat("unknown parameter \"", tok, "\"", NULL));
+    if (formal->type == instr_type_string) {
+      /* Strip quotes. The value is given to McStasScript without the double
+         quotes usually needed for string parameters, since add_test would
+         otherwise put those quotes into the %Example line: */
+      size_t n = strlen(val);
+      if (n >= 2 && (val[0] == '"' || val[0] == '\'') && val[n-1] == val[0]) {
+        val[n-1] = '\0';
+        val++;
+      }
+      if (strpbrk(val, "\"'\\"))
+        return pygen_ignore(line, str_cat("unsupported string value for \"", tok, "\"", NULL));
+      val = str_cat("'", val, "'", NULL);
+    } else if (formal->type != instr_type_int && formal->type != instr_type_double) {
+      return pygen_ignore(line, str_cat("unsupported type of \"", tok, "\"", NULL));
+    } else if (!pygen_is_number(val)) {
+      return pygen_ignore(line, str_cat("non-numeric value for \"", tok, "\"", NULL));
+    }
+    setpars = str_cat(setpars, setpars[0] ? ", " : "", "'", tok, "': ", val, NULL);
+    inclpars = str_cat(inclpars, inclpars[0] ? ", " : "", "'", tok, "'", NULL);
+  }
+
+  if (!ntests) {
+    cout("    # Tests corresponding to the %Example lines of the instrument. The");
+    cout("    # parameter values are restored afterwards, since add_test uses the");
+    cout("    # current parameter values:");
+    cout("    _parameter_values = {p: instr.parameters[p].value for p in instr.get_parameter_names()}");
+  }
+  if (setpars[0])
+    coutf("    instr.set_parameters({%s})", setpars);
+  coutf("    instr.add_test('%s', intensity=%s, included_pars=[%s])", monitor, value, inclpars);
+  return 1;
+}
+
+/* Emit McStasScript tests for all %Example lines in the instrument file. */
+static void
+cogen_tests(struct instr_def *instr)
+{
+  FILE *f;
+  long size;
+  char *text, *p;
+  int ntests = 0;
+
+  if (!instr->source || !(f = fopen(instr->source, "rb"))) {
+    fprintf(stderr, "Warning: Could not read instrument file to look for %%Example lines\n");
+    return;
+  }
+  fseek(f, 0, SEEK_END);
+  size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  text = mem(size + 1);
+  text[fread(text, 1, size, f)] = '\0';
+  fclose(f);
+
+  for (p = strstr(text, "%Example:"); p; p = strstr(p, "%Example:")) {
+    p += strlen("%Example:");
+    ntests += pygen_translate_example(instr, pygen_strip(p, p + strcspn(p, "\r\n")), ntests);
+  }
+  if (ntests) {
+    cout("    instr.set_parameters(_parameter_values)");
+    cout("");
+  }
+}
+
 void
 cogen(char *output_name, struct instr_def *instr)
 {
@@ -982,6 +1125,9 @@ cogen(char *output_name, struct instr_def *instr)
   def_uservars(instr);
 
   warnings += cogen_raytrace(instr); 
+
+  if (!lint && !pygen_no_tests)
+    cogen_tests(instr);
 
   cout("    # Instruct McStasscript not to 'check everythng'");
   cout("    instr.settings(checks=False)");

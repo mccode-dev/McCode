@@ -30,8 +30,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Wavelength at monochromator, computed from DM and THETA_M if left as 0. | 4.7 |
-| DM | Angs | d-spacing of monochromator, computed from lambda and THETA_M if left as 0. | 3.355 |
+| lambda | AA | Wavelength at monochromator, computed from DM and THETA_M if left as 0. | 4.7 |
+| DM | AA | d-spacing of monochromator, computed from lambda and THETA_M if left as 0. | 3.355 |
 | dlambda | AA | wavelength half width. | 0.05 |
 | Powder | str | File name for powder description. | "Na2Ca3Al2F14.laz" |
 | RV | m | Monochromator vertical curvature, 0 for flat, -1 for automatic setting | -1 |

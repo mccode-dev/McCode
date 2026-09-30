@@ -31,7 +31,7 @@ Parameters in **boldface** are required; the others are optional.
 |------|------|-------------|---------|
 | lambda | AA | Mean wavelength of neutrons | 7.0 |
 | dlambda | AA | Wavelength spread of neutrons | 0.7 |
-| FLUX | n/s/cm2/st | incoming neutron flux | 1e8 |
+| FLUX | n/s/cm^2/st | incoming neutron flux | 1e8 |
 | NGblen | m | collimation width/height | 0.05 |
 | sample | int | type of sample, as 0=None, 1='AnySample', 2='Debye' or 3='Guinier' | 0 |
 | Clen | m | distance to collimation in 0-20. Sample is at 40 m from source | 10.0 |

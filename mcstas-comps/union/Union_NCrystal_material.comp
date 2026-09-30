@@ -1,0 +1,208 @@
+/*******************************************************************************
+* Union material backed by one NCrystal configuration.
+*
+* This file is part of NCrystal (see https://mctools.github.io/ncrystal/).
+*
+* Copyright 2015-2022 NCrystal developers.
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+* http://www.apache.org/licenses/LICENSE-2.0.
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*
+* Original header text for NCrystal_sample.comp:
+* McStas sample component for the NCrystal scattering library. Find more
+* information at <a href="https://github.com/mctools/ncrystal/wiki">the NCrystal
+* wiki</a>. In particular, browse the available datafiles at <a
+* href="https://github.com/mctools/ncrystal/wiki/Data-library">Data-library</a>
+* and read about format of the configuration string expected in the "cfg"
+* parameter at <a
+* href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">Using-NCrystal</a>.
+*
+* NCrystal is available under the <a
+* href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 license</a>.
+* Depending on the configuration choices, optional NCrystal modules under
+* different licenses might be enabled - see <a
+* href="https://github.com/mctools/ncrystal/wiki/About">About</a> for more
+* details.
+*
+* %I
+* Written by: Mads Bertelsen
+* Date: 2026-09-28
+* Origin: ESS DMSC
+* Version: $Revision: 0.1 $
+*
+* %D
+* Creates one NCrystal scattering process and a complete Union material. The
+* absorption coefficient is obtained from the same NCrystal configuration, so
+* density modifiers such as density=0.6x are applied automatically. Use
+* NCrystal_process together with Union_make_material when NCrystal scattering
+* must be combined with other Union processes.
+* The user does not provide my_absorption for this component.
+*
+* This component requires a Union geometry and Union_master.
+*
+* %P
+* INPUT PARAMETERS:
+* cfg:                    [str]    NCrystal material configuration string (details <a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">on this page</a>).
+* interact_fraction:      [1]      Fraction of scattering events assigned to this process 0-1 (default -1 lets Union assign it).
+* include_SLD:            [0/1]    Include the scattering length density calculated from cfg in the material refraction information.
+ *******************************************************************************/
+
+/******************************************************************************/
+/* The shared NCrystal implementation originated from the following code:    */
+/*                                                                            */
+/*  This file is part of NCrystal (see https://mctools.github.io/ncrystal/)   */
+/*                                                                            */
+/*  Copyright 2015-2019 NCrystal developers                                   */
+/*                                                                            */
+/*  Licensed under the Apache License, Version 2.0 (the "License");           */
+/*  you may not use this file except in compliance with the License.          */
+/*  You may obtain a copy of the License at                                   */
+/*                                                                            */
+/*      http://www.apache.org/licenses/LICENSE-2.0                            */
+/*                                                                            */
+/*  Unless required by applicable law or agreed to in writing, software       */
+/*  distributed under the License is distributed on an "AS IS" BASIS,         */
+/*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  */
+/*  See the License for the specific language governing permissions and       */
+/*  limitations under the License.                                            */
+/*                                                                            */
+/******************************************************************************/
+
+DEFINE COMPONENT Union_NCrystal_material
+
+SETTING PARAMETERS(string cfg="", interact_fraction=-1, include_SLD=0)
+DEPENDENCY "@NCRYSTALFLAGS@"
+
+SHARE
+%{
+  #ifndef Union
+  #error "ERROR: Union_NCrystal_material requires the Union library. Add a Union_master component to load the libraries."
+  #endif
+
+  %include "union_ncrystal.c"
+
+  #ifndef MATERIAL_DETECTOR
+  #define MATERIAL_DETECTOR dummy
+  #endif
+
+  #ifndef UNION_MANUAL_LINKING_FUNCTION
+  #define UNION_MANUAL_LINKING_FUNCTION
+  int
+  manual_linking_function (char* name, char* input_string) {
+    char* token;
+    int return_integer = 0;
+    char local_string[124];
+
+    strcpy (local_string, input_string);
+    token = strtok (local_string, ",");
+    while (token != NULL) {
+      if (strcmp (token, name) == 0)
+        return_integer = 1;
+      token = strtok (NULL, ",");
+    }
+    return return_integer;
+  }
+  #endif
+%}
+
+DECLARE
+%{
+  struct global_material_element_struct global_material_element;
+  struct physics_struct this_material;
+  struct NCrystal_physics_storage_struct NCrystal_storage;
+  struct scattering_process_struct This_process;
+  ncrystalsample_t_union params;
+
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+%}
+
+INITIALIZE
+%{
+  memset (&params, 0, sizeof (params));
+  memset (&NCrystal_storage, 0, sizeof (NCrystal_storage));
+
+  if (0 == strcmp (NAME_CURRENT_COMP, "vacuum") || 0 == strcmp (NAME_CURRENT_COMP, "Vacuum")) {
+    printf ("ERROR, a Union material may not be called Vacuum. A vacuum volume may be created by material=\"Vacuum\" in a geometry component.\n");
+    exit (1);
+  }
+  if (0 == strcmp (NAME_CURRENT_COMP, "exit") || 0 == strcmp (NAME_CURRENT_COMP, "Exit")) {
+    printf ("ERROR, a Union material may not be called Exit. A exit volume may be created by material=\"Exit\" in a geometry component.\n");
+    exit (1);
+  }
+  ncrystal_union_check_version (NAME_CURRENT_COMP);
+  ncrystal_union_setup_conversion (&NCrystal_storage.ncrystal_convfact_vsq2ekin, &NCrystal_storage.ncrystal_convfact_ekin2vsq);
+  ncrystal_union_setup_rng ();
+
+  ncrystal_info_t info = ncrystal_create_info (cfg);
+  double numberdensity = ncrystal_union_get_numberdensity (info, NAME_CURRENT_COMP);
+  double absorption_cross_section = ncrystal_info_getxsectabsorption (info);
+  double refraction_SLD = 0.0;
+  if (include_SLD)
+    refraction_SLD = 1e-6 * ncrystal_info_getsld (info);
+  if (absorption_cross_section < 0.0)
+    NCMCERR2 (NAME_CURRENT_COMP, "Negative absorption cross section in the loaded NCrystal Info");
+  ncrystal_unref (&info);
+
+  params.density_factor = 0.01 / numberdensity;
+  params.inv_density_factor = 1.0 / params.density_factor;
+  params.scat = ncrystal_create_scatter (cfg);
+  params.proc_scat = ncrystal_cast_scat2proc (params.scat);
+  params.proc_scat_isoriented = !ncrystal_isnonoriented (params.proc_scat);
+  NCrystal_storage.stored_params = params;
+
+  scattering_process_struct_init (&This_process);
+  This_process.non_isotropic_rot_index = 1;
+  This_process.needs_cross_section_focus = -1;
+  This_process.eProcess = NCrystal;
+  This_process.data_transfer.pointer_to_a_NCrystal_physics_storage_struct = &NCrystal_storage;
+  This_process.probability_for_scattering_function = &NCrystal_physics_my;
+  This_process.scattering_function = &NCrystal_physics_scattering;
+  sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
+  This_process.process_p_interact = interact_fraction;
+  rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+
+  this_material.number_of_processes = 1;
+  this_material.is_vacuum = 0;
+  this_material.any_process_needs_cross_section_focus = -1;
+  this_material.p_scattering_array = malloc (sizeof (struct scattering_process_struct));
+  if (!this_material.p_scattering_array)
+    NCMCERR2 (NAME_CURRENT_COMP, "Unable to allocate the Union material process array");
+  this_material.p_scattering_array[0] = This_process;
+  this_material.my_a = 100.0 * numberdensity * absorption_cross_section;
+  sprintf (this_material.name, "%s", NAME_CURRENT_COMP);
+
+  this_material.has_refraction_info = include_SLD;
+  if (include_SLD) {
+    this_material.refraction_scattering_length_density = refraction_SLD;
+    this_material.refraction_Qc = 4.0 * sqrt (PI * fabs (refraction_SLD));
+  }
+
+  sprintf (global_material_element.name, "%s", NAME_CURRENT_COMP);
+  global_material_element.component_index = INDEX_CURRENT_COMP;
+  global_material_element.physics = &this_material;
+  struct pointer_to_global_material_list* global_material_list = &g_material_list;
+  add_element_to_material_list (global_material_list, global_material_element);
+%}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+  ncrystal_unref (&params.scat);
+  ncrystal_invalidate (&params.proc_scat);
+  free (this_material.p_scattering_array);
+%}
+
+END

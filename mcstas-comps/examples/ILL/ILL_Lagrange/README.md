@@ -40,8 +40,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Wavelength at monochromator | 0.897 |
-| DM | Angs | d-spacing of monochromator | 1.807 |
+| lambda | AA | Wavelength at monochromator | 0.897 |
+| DM | AA | d-spacing of monochromator | 1.807 |
 | RV | m | Monochromator vertical curvature, 0=flat, -1=automatic | -1 |
 | coh | str | File name for sample coherent scattering contribution | "Rb_liq_coh.sqw" |
 | inc | str | File name for sample incoherent scattering contribution | "Rb_liq_inc.sqw" |

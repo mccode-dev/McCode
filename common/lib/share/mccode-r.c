@@ -5847,7 +5847,7 @@ int solve_2nd_order(double *t0, double *t1, double A, double B, double C){
         if(t1) *t1=dt0;
       }else{
         *t0=dt0;
-        if(t1) *t1=dt0;
+        if(t1) *t1=dt1;
       }
     }
 

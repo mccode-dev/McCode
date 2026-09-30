@@ -43,8 +43,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | incident wavelength on sample | 6 |
-| dlambda | Angs | wavelength spread shot from the source | 0.05 |
+| lambda | AA | incident wavelength on sample | 6 |
+| dlambda | AA | wavelength spread shot from the source | 0.05 |
 | rpm | rpm | disk chopper rotation speed, setting the resolution, Hz=rpm/60. | 10000 |
 | coh | str | sample coherent S(q,w) file name. Use LAZ/LAU or SQW file | "Rb_liq_coh.sqw" |
 | inc | str | sample incoherent S(q,w) file name. Use NULL to scatter incoherently | "Rb_liq_inc.sqw" |

@@ -344,14 +344,20 @@ SHARE
       else
         cs = sqrt (info->m_cx * info->m_cx + info->m_cy * info->m_cy + info->m_cz * info->m_cz);
 
-      info->m_bz = as;
-      info->m_by = 0;
+      /* Real-space vectors with b along z and a in the yz-plane at the angle
+         gamma to b; c then has cos(alpha) along b, cos(beta) against a, and a
+         positive x component, which makes (a, b, c) right-handed.  Each vector
+         carries its own length: a = as, b = bs, c = cs.  (Before, a was given
+         the length bs and b the length as, and alpha/beta were exchanged in c,
+         so for a != b every |F(h,k,l)|^2 ended up at the position of (k,h,l).) */
       info->m_bx = 0;
-      info->m_az = bs * cos (info->m_cc * DEG2RAD);
-      info->m_ay = bs * sin (info->m_cc * DEG2RAD);
+      info->m_by = 0;
+      info->m_bz = bs;
       info->m_ax = 0;
-      info->m_cz = cs * cos (info->m_bb * DEG2RAD);
-      info->m_cy = cs * (cos (info->m_aa * DEG2RAD) - cos (info->m_cc * DEG2RAD) * cos (info->m_bb * DEG2RAD)) / sin (info->m_cc * DEG2RAD);
+      info->m_ay = as * sin (info->m_cc * DEG2RAD);
+      info->m_az = as * cos (info->m_cc * DEG2RAD);
+      info->m_cz = cs * cos (info->m_aa * DEG2RAD);
+      info->m_cy = cs * (cos (info->m_bb * DEG2RAD) - cos (info->m_cc * DEG2RAD) * cos (info->m_aa * DEG2RAD)) / sin (info->m_cc * DEG2RAD);
       info->m_cx = sqrt (cs * cs - info->m_cz * info->m_cz - info->m_cy * info->m_cy);
 
       printf ("Single_crystal: %s structure a=%g b=%g c=%g aa=%g bb=%g cc=%g ", (flag ? "INC" : SC_file), as, bs, cs, info->m_aa, info->m_bb, info->m_cc);

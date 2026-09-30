@@ -26,7 +26,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | source wavelength | 1 |
+| lambda | AA | source wavelength | 1 |
 
 ## Links
 
