@@ -110,7 +110,6 @@ DECLARE%{
   DArray2d Res_p;
   DArray2d Res_p2;
   DArray2d Res_N;
-  int num_cores;
 %}
 
 
@@ -174,11 +173,6 @@ INITIALIZE %{
       Res_p = create_darr2d(4, 4);
       Res_p2 = create_darr2d(4, 4);
       Res_N = create_darr2d(4, 4);
-      #ifdef USE_MPI
-      num_cores=mpi_node_count;
-      #else
-      num_cores=1;
-      #endif
   }
 %}
 
@@ -316,9 +310,16 @@ SAVE %{
                        NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
                        ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
 
-  /* live calculation */
-  if(live_calc && num_events > 0) {
-    if(dbg_save_events) {
+  /* Determine collectively whether any rank has event rows. */
+  int any_events = num_events > 0;
+  #ifdef USE_MPI
+  if (live_calc) {
+    int local_events = any_events;
+    MPI_Allreduce(&local_events, &any_events, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  }
+  #endif
+  if(live_calc && any_events) {
+    if(dbg_save_events && num_events > 0) {
       /* save individual neutron events */
       #ifndef USE_MPI
         const char* event_filename = "reso_events.dat";
@@ -330,49 +331,62 @@ SAVE %{
       tl2_save_events(reso_events, reso_probabilities, event_filename, num_events);
 	}
 
-    double cov[4*4], res[4*4];
-    if(tl2_reso(reso_events, reso_probabilities, cov, res, num_events)) {
-      printf("Resolution calculation used %lu neutron events.\n", num_events);
-      tl2_print_mat(cov, "Covariance matrix", 4, 4);
-      tl2_print_mat(res, "Resolution matrix", 4, 4);
-      printf("Please run \"mcresplot %s\" for a full analysis.\n", filename);
-    }
-    else {
-      printf("Error: Resolution matrix could not be calculated.");
-    }
-    int i,j;
-    for(i=0;i<4;i++) {
-      for(j=0;j<4;j++) {
-        /* "Events" */
-        Covar_N[i][j]=1;
-	Res_N[i][j]=1;
-	/* Covariance/resolution matrixces (potentiall pr. MPI node) */
-	Covar_p[i][j]=cov[4*i+j]/num_cores;
-	Res_p[i][j]=res[4*i+j]/num_cores;
-	/* "errors" */
-	Covar_p2[i][j]=(cov[4*i+j]/num_cores)*(cov[4*i+j]/num_cores);
-	Res_p2[i][j]=(res[4*i+j]/num_cores)*(res[4*i+j]/num_cores);
+    double cov[4*4] = {0};
+    double res[4*4] = {0};
+    int local_success = 0;
+    if (num_events > 0) {
+      local_success = tl2_reso(reso_events, reso_probabilities, cov, res, num_events);
+      if(local_success) {
+        printf("Resolution calculation used %lu neutron events.\n", num_events);
+        tl2_print_mat(cov, "Covariance matrix", 4, 4);
+        tl2_print_mat(res, "Resolution matrix", 4, 4);
+        printf("Please run \"mcresplot %s\" for a full analysis.\n", filename);
+      }
+      else {
+        printf("Error: Resolution matrix could not be calculated.");
       }
     }
-    /* Nasty call to DETECTOR_OUT_2D to store covariance matrix */
-    char covar_fname[1024];
-    char res_fname[1024];
-    sprintf(covar_fname,"%s_%s", _comp->_name, "covar");
-    sprintf(res_fname,"%s_%s", _comp->_name, "resol");
-    DETECTOR_OUT_2D("Covariance",
-		    "Columns",
-		    "Rows",
-		    0.0, 4.0, 0.0, 4.0,
-		    4, 4,
-		    &Covar_N[0][0],&Covar_p[0][0],&Covar_p2[0][0],
-		    covar_fname);
-    DETECTOR_OUT_2D("Resolution",
-		    "Columns",
-		    "Rows",
-		    0.0, 4.0, 0.0, 4.0,
-		    4, 4,
-		    &Res_N[0][0],&Res_p[0][0],&Res_p2[0][0],
-		    res_fname);
+
+    int successful_calculations = local_success;
+    #ifdef USE_MPI
+    MPI_Allreduce(&local_success, &successful_calculations, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    #endif
+    if (successful_calculations > 0) {
+      double contribution_scale = local_success ? 1.0 / successful_calculations : 0.0;
+      int i,j;
+      for(i=0;i<4;i++) {
+        for(j=0;j<4;j++) {
+          /* Empty and failed ranks contribute zero to all three arrays. */
+          Covar_N[i][j] = local_success ? 1 : 0;
+          Res_N[i][j] = local_success ? 1 : 0;
+	  /* Normalize successful local contributions by the global count. */
+	  Covar_p[i][j] = cov[4*i+j] * contribution_scale;
+	  Res_p[i][j] = res[4*i+j] * contribution_scale;
+	  /* "errors" */
+	  Covar_p2[i][j] = Covar_p[i][j] * Covar_p[i][j];
+	  Res_p2[i][j] = Res_p[i][j] * Res_p[i][j];
+        }
+      }
+      /* Nasty call to DETECTOR_OUT_2D to store covariance matrix */
+      char covar_fname[1024];
+      char res_fname[1024];
+      sprintf(covar_fname,"%s_%s", _comp->_name, "covar");
+      sprintf(res_fname,"%s_%s", _comp->_name, "resol");
+      DETECTOR_OUT_2D("Covariance",
+		      "Columns",
+		      "Rows",
+		      0.0, 4.0, 0.0, 4.0,
+		      4, 4,
+		      &Covar_N[0][0],&Covar_p[0][0],&Covar_p2[0][0],
+		      covar_fname);
+      DETECTOR_OUT_2D("Resolution",
+		      "Columns",
+		      "Rows",
+		      0.0, 4.0, 0.0, 4.0,
+		      4, 4,
+		      &Res_N[0][0],&Res_p[0][0],&Res_p2[0][0],
+		      res_fname);
+    }
   }
 %}
 
