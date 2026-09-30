@@ -38,7 +38,8 @@ is added.
 
 `WriterEmpty` is a zero-event no-op. The companion
 `Test_EventWriter_mpi.instr` puts rows on only one rank in each direction and
-then gives the ranks different positive row/chunk counts. Those three writers
+then gives the ranks different positive row/chunk counts (`Rows=7` produces
+seven rows on rank 0 and ten on rank 1 for the unequal writer). Those three writers
 append and flush during `TRACE`; `WriterAllEmpty` checks that every rank can
 enter an empty session. With `--mpi=2`, all four writers complete even when a
 rank has no local chunks. NeXus event datasets for the serial fixture have
@@ -57,6 +58,10 @@ failure is the asserted case. NeXus instead treats the same value as a dataset
 name; it sanitizes the path separator, so the save still produces a valid
 `(1, 3)` events dataset. The fixture does not assert that NeXus case, keeping
 the component focused on the ASCII open-failure path.
+
+`WriterInvalidDirectBegin` and `WriterInvalidStreamBegin` exercise the same
+rejected-begin/end contract for the serial known-count and unknown-count
+constructors. Neither case creates an output file.
 
 Run from this directory with:
 

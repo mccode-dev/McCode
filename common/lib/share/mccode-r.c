@@ -4435,6 +4435,9 @@ int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
     memset(writer, 0, sizeof(*writer));
     return(1);
   }
+  /* mcevent_session_detector can reject the descriptor before the output
+     backend initializes its state. Keep the rejected-begin cleanup safe. */
+  memset(output, 0, sizeof(*output));
   writer->direct_detector = mcevent_session_detector(
       title, "List of events", columns ? columns : "", count, width,
       filename, component, position, rotation, "None", index);
@@ -4499,6 +4502,7 @@ int mc_event_writer_begin_stream(MC_EVENT_WRITER *writer, char *title,
     memset(writer, 0, sizeof(*writer));
     return(1);
   }
+  memset(output, 0, sizeof(*output));
   /* A positive placeholder lets both existing metadata writers initialize;
      the final detector descriptor is rebuilt from the actual row count. */
   detector = mcevent_session_detector(title, "List of events",
