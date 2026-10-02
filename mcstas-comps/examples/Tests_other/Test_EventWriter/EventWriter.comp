@@ -1,0 +1,163 @@
+/*******************************************************************************
+ *
+ * McStas, neutron ray-tracing package
+ *         Copyright 1997-2002, All rights reserved
+ *         Risoe National Laboratory, Roskilde, Denmark
+ *         Institut Laue Langevin, Grenoble, France
+ *
+ * %I
+ * Written by: McCode development
+ * Date: 28 September 2026
+ * Origin: DTU
+ *
+ * Deterministic fixture for the bounded generic event writer. Save-time rows
+ * are independent of the source; use_trace additionally exercises appends
+ * during ray tracing with the same deterministic row values.
+ *
+ * %P
+ * nrows:       [1] number of rows to write
+ * chunk:       [1] maximum rows held before a local spool flush
+ * filename:    [string] output file name
+ * use_write:   [1] use mc_event_writer_write instead of append
+ * use_direct:  [1] stream directly when nrows is the known final count
+ * use_trace:   [1] append rows during ray tracing and finish in SAVE
+ * use_stream:  [1] stream unknown-count rows to the final serial output
+ * expect_begin_failure: [1] treat a rejected begin as an expected case
+ * expect_end_failure: [1] treat an output serialization failure as expected
+ * expect_failure_in_nexus: [1] also expect end failure in NeXus mode
+ *
+ * %E
+ *******************************************************************************/
+
+DEFINE COMPONENT EventWriter
+
+SETTING PARAMETERS (int nrows=11, int chunk=3, string filename="EventWriter",
+                    int use_write=0, int use_direct=0, int use_trace=0,
+                    int use_stream=0,
+                    int expect_begin_failure=0, int expect_end_failure=0,
+                    int expect_failure_in_nexus=0)
+
+DECLARE
+%{
+  MC_EVENT_WRITER trace_writer;
+  long trace_count;
+  int trace_status;
+%}
+
+INITIALIZE
+%{
+  trace_count = 0;
+  trace_status = 0;
+  if (use_trace || use_stream) {
+    if (use_stream)
+      trace_status = mc_event_writer_begin_stream(
+          &trace_writer, "Bounded event writer", "x y z", 3, chunk,
+          filename, NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+          ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
+    else
+      trace_status = mc_event_writer_begin(
+          &trace_writer, "Bounded event writer", "x y z", 3, chunk,
+          filename, NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+          ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
+    if (trace_status && !expect_begin_failure)
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL begin\n", NAME_CURRENT_COMP);
+  }
+%}
+
+TRACE
+%{
+  if ((use_trace || use_stream) && !trace_status && trace_count < nrows) {
+    double row[3];
+    long c;
+    for (c = 0; c < 3; c++) row[c] = trace_count*10.0 + (double)c;
+    if (!mc_event_writer_append(&trace_writer, row))
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL trace append row %ld\n",
+              NAME_CURRENT_COMP, trace_count);
+    else
+      trace_count++;
+  }
+%}
+
+SAVE
+%{
+  MC_EVENT_WRITER writer;
+  double row[3];
+  double *rows = NULL;
+  MCDETECTOR detector;
+  long i, c;
+  int status;
+  int output_failure_expected;
+
+  if (use_trace || use_stream) {
+    if (trace_status && expect_begin_failure)
+      fprintf(stderr, "EventWriter[%s]: expected begin rejection\n",
+              NAME_CURRENT_COMP);
+    if (!trace_status)
+      fprintf(stderr, "EventWriter[%s]: trace rows=%ld chunks=%lld%s\n",
+              NAME_CURRENT_COMP, trace_count,
+              trace_writer.chunks + (trace_writer.buffer.count > 0 ? 1 : 0),
+              use_stream ? " (stream)" : "");
+    detector = mc_event_writer_end(&trace_writer);
+  } else {
+    output_failure_expected = expect_end_failure
+      && !mcdisable_output_files
+      && (expect_failure_in_nexus
+          || !(mcformat && strcasestr(mcformat, "NeXus")));
+
+    if (use_direct)
+      status = mc_event_writer_begin_direct(&writer, "Bounded event writer",
+                                            "x y z", nrows, 3, chunk, filename,
+                                            NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+                                            ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
+    else
+      status = mc_event_writer_begin(&writer, "Bounded event writer",
+                                     "x y z", 3, chunk, filename,
+                                     NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+                                     ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
+    if (status) {
+      if (!expect_begin_failure)
+        fprintf(stderr, "EventWriter[%s]: TEST-FAIL begin\n", NAME_CURRENT_COMP);
+      else
+        fprintf(stderr, "EventWriter[%s]: expected begin rejection\n",
+                NAME_CURRENT_COMP);
+    } else if (use_write) {
+      if (nrows > 0)
+        rows = (double*)malloc((size_t)nrows * 3 * sizeof(double));
+      for (i = 0; i < nrows; i++)
+        for (c = 0; c < 3; c++)
+          rows[3*i+c] = i*10.0 + (double)c;
+      if (!mc_event_writer_write(&writer, nrows, rows))
+        fprintf(stderr, "EventWriter[%s]: TEST-FAIL write\n", NAME_CURRENT_COMP);
+    } else {
+      for (i = 0; i < nrows; i++) {
+        for (c = 0; c < 3; c++)
+          row[c] = i*10.0 + (double)c;
+        if (!mc_event_writer_append(&writer, row))
+          fprintf(stderr, "EventWriter[%s]: TEST-FAIL append row %ld\n",
+                  NAME_CURRENT_COMP, i);
+        if (i == 4 && mc_event_writer_flush(&writer))
+          fprintf(stderr, "EventWriter[%s]: TEST-FAIL explicit flush\n",
+                  NAME_CURRENT_COMP);
+      }
+    }
+
+    if (!status)
+      fprintf(stderr, "EventWriter[%s]: rows=%lld chunks=%lld\n",
+              NAME_CURRENT_COMP, writer.rows + writer.buffer.count,
+              writer.chunks + (writer.buffer.count > 0 ? 1 : 0));
+    detector = mc_event_writer_end(&writer);
+    if (output_failure_expected && detector.m != 0)
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL expected end failure\n",
+              NAME_CURRENT_COMP);
+  }
+  if (rows) free(rows);
+%}
+
+FINALLY
+%{
+  /* SAVE normally ends the trace writer; keep cleanup safe if SAVE is skipped. */
+  if ((use_trace || use_stream) && trace_writer.active)
+    mc_event_writer_discard(&trace_writer);
+%}
+
+END

@@ -1,0 +1,67 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Test the fixed-capacity MC_EVENT_BUFFER API
+*
+* %Identification
+* Written by: McCode development
+* Date: 18 September 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* %Description
+ * Fixture instrument that drives the EventBuffer fixture component through the
+ * MC_EVENT_BUFFER case matrix in a single run:
+ *   - BufFill     : cap=4, nrows=6 -> 4 accepted rows in insertion order,
+ *                   2 dropped, only the 4 valid rows written (no capacity rows)
+ *   - BufZeroCap  : cap=0, nrows=3 -> zero-capacity append safety, all
+ *                   rows dropped, no file (count=0 no-op)
+ *   - BufFreeTwice: free_twice=1 -> exactly-once free plus a safe second free
+ *   - BufZeroWid  : ncols=0, cap=3 -> documented degenerate case: no
+ *                   storage allocated, appends copy nothing, no file
+ *   - BufSave     : save_helper=1, same params as BufFill -> output must be
+ *                   identical to BufFill.dat plus a one-time dropped warning
+ *   - BufSaveEmpty: save_helper=1, nrows=0 -> documented zero-event no-op
+ *                   through the save helper: no file, no warning
+* Rows are deterministic: row r, column c = r*10 + c. Diagnostics
+* (accepted/count/next/dropped per instance) are printed to stderr.
+*
+* %Example: mcstas_test
+*
+* %Parameters
+* (none)
+*
+* %End
+ *******************************************************************************/
+DEFINE INSTRUMENT Test_EventBuffer()
+
+/* The TRACE section: a trivial source and one fixture instance per test case. */
+/* Neutron physics is irrelevant; the buffers are filled in SAVE.              */
+TRACE
+
+COMPONENT src = Source_simple(radius=0.1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT evFill = EventBuffer(cap=4, ncols=3, nrows=6, filename="BufFill")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evZeroCap = EventBuffer(cap=0, ncols=3, nrows=3, filename="BufZeroCap")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evFreeTwice = EventBuffer(cap=4, ncols=3, nrows=2, filename="BufFreeTwice",
+                                    free_twice=1)
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evZeroWid = EventBuffer(cap=3, ncols=0, nrows=2, filename="BufZeroWid")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evSave = EventBuffer(cap=4, ncols=3, nrows=6, filename="BufSave",
+                               save_helper=1)
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT evSaveEmpty = EventBuffer(cap=2, ncols=3, nrows=0, filename="BufSaveEmpty",
+                                    save_helper=1)
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+/* The END token marks the instrument definition end */
+END

@@ -14,14 +14,13 @@
 * Low-key event-monitor for debugging purposes.
 *
 * %D
-* Simple, low-key event-monitor for debugging purposes. No propagation,
-* no MPI support. Simply prints the event list to a log file in the SAVE section. 
-* The filename is "comp-instance".log
+* Simple, low-key event-monitor for debugging purposes. No propagation and
+* no MPI support; the saved rows use the standard McCode event-list path.
 *
 * %P
 * INPUT PARAMETERS:
 *
-* nevents:  [1]   Number of events to store and print
+* nevents:  [1]   Number of events to store and save
 *
 * %E
 *******************************************************************************/
@@ -32,24 +31,13 @@ SETTING PARAMETERS (nevents=1e6)
 DECLARE
 %{
   DArray2d Events;
-  unsigned long Nevents;
-  char fullfile[1024];
-  char outputdir[512];
+  long Nevents;
 %}
 INITIALIZE
 %{
-  Nevents = ceil (nevents);
-  Events = create_darr2d (Nevents, 11);
-  if (dirname == NULL) {
-    sprintf (outputdir, ".");
-  } else {
-    sprintf (outputdir, dirname);
-  }
-  #ifndef USE_MPI
-  sprintf (fullfile, "%s/%s.%s", outputdir, NAME_CURRENT_COMP, "log");
-  #else
-  sprintf (fullfile, "%s/%s_%i.%s", outputdir, NAME_CURRENT_COMP, mpi_node_rank, "log");
-  #endif
+  Nevents = (long)ceil (nevents);
+  if (Nevents < 0) Nevents = 0;
+  Events = Nevents ? create_darr2d (Nevents, 12) : NULL;
 %}
 
 TRACE
@@ -57,57 +45,20 @@ TRACE
 
   unsigned long i = _particle->_uid;
   if (i < Nevents) {
-    #pragma acc atomic write
-    Events[i][0] = x;
-    #pragma acc atomic write
-    Events[i][1] = y;
-    #pragma acc atomic write
-    Events[i][2] = z;
-    #pragma acc atomic write
-    Events[i][3] = kx;
-    #pragma acc atomic write
-    Events[i][4] = ky;
-    #pragma acc atomic write
-    Events[i][5] = kz;
-    #pragma acc atomic write
-    Events[i][6] = t;
-    #pragma acc atomic write
-    Events[i][7] = Ex;
-    #pragma acc atomic write
-    Events[i][8] = Ey;
-    #pragma acc atomic write
-    Events[i][9] = Ez;
-    #pragma acc atomic write
-    Events[i][10] = p;
+    mc_event_particle_row(&Events[i][1], _particle);
   }
 %}
 
 SAVE
 %{
-  FILE* fp;
-  printf ("Storing event logfile -->  %s\n", fullfile);
-  fp = fopen (fullfile, "w+");
-  if (!fp) {
-    fprintf (stderr, "Could not open file %s in w+ mode\n", fullfile);
-    exit (-1);
-  }
-  fprintf (fp, "# Event-file %s, contains %lu events\n", fullfile, Nevents);
-  fprintf (fp, "########################################### START EVENT LIST ##############################################\n");
-  fprintf (fp, "#   id        x        y        z       kx       ky       kz        t       Ex       Ey       Ez        p # \n");
-  fprintf (fp, "###########################################################################################################\n");
-  unsigned long i;
-  int j;
-  for (i = 0; i < Nevents; i++) {
-    fprintf (fp, "%6lu ", i);
-    for (j = 0; j < 11; j++) {
-      fprintf (fp, "%8.2g ", Events[i][j]);
-    }
-    fprintf (fp, "\n");
-  }
-  fprintf (fp, "###########################################################################################################\n");
-  fprintf (fp, "############################################ END EVENT LIST! ##############################################\n");
-  fclose (fp);
-  printf ("Done storing logfile.\n");
+  long i;
+  for (i = 0; i < Nevents; i++) Events[i][0] = i;
+  DETECTOR_OUT_LIST("Event monitor events",
+                    "id " MC_EVENT_PARTICLE_COLUMNS,
+                    Nevents, MC_EVENT_PARTICLE_WIDTH + 1,
+                    Nevents ? Events[0] : NULL,
+                    NAME_CURRENT_COMP);
+  if (Nevents) destroy_darr2d (Events);
 %}
 
 MCDISPLAY

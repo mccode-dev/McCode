@@ -1,0 +1,55 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: MPI protocol test for the bounded generic event writer
+*
+* %Identification
+* Written by: McCode development
+* Date: 28 September 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* %Description
+* The first two writers deliberately put rows on only one rank in opposite
+* directions. The third writer gives the ranks different positive row and
+* chunk counts. Every writer still enters one collective end operation.
+*
+* %Parameters
+* Rows: [7] rows used by the non-empty rank and the base of the unequal case
+*
+* %Example: mcstas_test
+*
+* %End
+ *******************************************************************************/
+DEFINE INSTRUMENT Test_EventWriter_mpi(Rows=7)
+
+TRACE
+
+COMPONENT src = Source_simple(radius=0.1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT rootEmpty = EventWriter(
+    nrows=(mpi_node_rank == 0 ? 0 : Rows), chunk=3, use_trace=1,
+    filename="WriterRootEmpty")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT slaveEmpty = EventWriter(
+    nrows=(mpi_node_rank == 0 ? Rows : 0), chunk=3, use_trace=1,
+    filename="WriterSlaveEmpty")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT unequal = EventWriter(
+    nrows=Rows + 3 * mpi_node_rank, chunk=3, use_trace=1,
+    filename="WriterUnequal")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT allEmpty = EventWriter(
+    nrows=0, chunk=2, use_trace=1, filename="WriterAllEmpty")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT metadata_mismatch = EventWriter(
+    nrows=1, chunk=1, filename="WriterMetadataMismatch",
+    expect_end_failure=1, expect_failure_in_nexus=1)
+  AT (0.01 * mpi_node_rank, 0, 0.1) RELATIVE PREVIOUS
+
+END

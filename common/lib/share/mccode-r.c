@@ -50,6 +50,8 @@
 #define pclose _pclose
 #endif
 #include <errno.h>
+#include <limits.h>
+#include <stdint.h>
 
 // UNIX specific headers (non-Windows)
 #if defined(__unix__) || defined(__APPLE__)
@@ -832,7 +834,8 @@ MCDETECTOR mcdetector_statistics(
   double *this_p1=NULL; /* new 1D McCode array [x I E N]. Freed after writing data */
 
   /* if McCode/PGPLOT and rank==1 we create a new m*4 data block=[x I E N] */
-  if (detector.rank == 1 && strcasestr(detector.format,"McCode")) {
+  /* (not for lists: they carry no histogram statistics and must keep their data) */
+  if (detector.rank == 1 && strcasestr(detector.format,"McCode") && !strcasestr(detector.format,"list")) {
     this_p1 = (double *)calloc(detector.m*detector.n*detector.p*4, sizeof(double));
     if (!this_p1)
       exit(-fprintf(stderr, "Error: Out of memory creating %zi 1D " MCCODE_STRING " data set for file '%s' (detector_import)\n",
@@ -1329,18 +1332,43 @@ void siminfo_out(char *format, ...)
 } /* siminfo_out */
 
 
+/* Unknown-count event streams reserve these fields in the normal ASCII
+ * metadata lines and replace the placeholder at finalization. The fixed
+ * field keeps the existing header order and avoids copying a completed data
+ * file just to insert a header at its beginning. */
+#define MC_EVENT_STREAM_COUNT_DIGITS 20
+typedef struct {
+  long type_count_offset;
+  long limits_count_offset;
+  int valid;
+} MC_EVENT_ASCII_PATCH;
+
 /*******************************************************************************
 * mcdatainfo_out: output detector header
 *   mcdatainfo_out(prefix, file_handle, detector) writes info to data file
 *******************************************************************************/
 static void
-mcdatainfo_out(char *pre, FILE *f, MCDETECTOR detector)
+mcdatainfo_out_ex(char *pre, FILE *f, MCDETECTOR detector,
+                  MC_EVENT_ASCII_PATCH *patch)
 {
+  long line_offset;
+  long type_line_offset;
+  int prefix_length;
+  int type_prefix_length;
+
   if (!f || !detector.m || mcdisable_output_files) return;
 
   /* output data ============================================================ */
   fprintf(f, "%sDate: %s (%li)\n",       pre, detector.date, detector.date_l);
-  fprintf(f, "%stype: %s\n",       pre, detector.type);
+  if (patch) {
+    type_line_offset = ftell(f);
+    prefix_length = fprintf(f, "%stype: list(%ld, ", pre, detector.m);
+    fprintf(f, "%0*lld)\n", MC_EVENT_STREAM_COUNT_DIGITS, 0LL);
+    type_prefix_length = prefix_length;
+    patch->type_count_offset = type_line_offset + type_prefix_length;
+  } else {
+    fprintf(f, "%stype: %s\n",       pre, detector.type);
+  }
   fprintf(f, "%sSource: %s\n",     pre, detector.instrument);
   fprintf(f, "%scomponent: %s\n",  pre, detector.component);
   fprintf(f, "%sposition: %s\n",   pre, detector.position);
@@ -1370,16 +1398,33 @@ mcdatainfo_out(char *pre, FILE *f, MCDETECTOR detector)
     }
   }
 
-  fprintf(f,
-    abs(detector.rank)==1 ?
-             "%sxlimits: %s\n" :
-             "%sxylimits: %s\n", pre, detector.limits);
+  if (patch) {
+    line_offset = ftell(f);
+    prefix_length = fprintf(f, "%s%slimits: 1 ", pre,
+                            abs(detector.rank) == 1 ? "x" : "xy");
+    fprintf(f, "%0*lld 1 %ld\n", MC_EVENT_STREAM_COUNT_DIGITS, 0LL,
+            detector.m);
+    patch->limits_count_offset = line_offset + prefix_length;
+    patch->valid = type_line_offset >= 0 && type_prefix_length >= 0
+      && line_offset >= 0 && prefix_length >= 0;
+  } else {
+    fprintf(f,
+      abs(detector.rank)==1 ?
+               "%sxlimits: %s\n" :
+               "%sxylimits: %s\n", pre, detector.limits);
+  }
   fprintf(f, "%svariables: %s\n", pre,
     strcasestr(detector.format, "list") ? detector.ylabel : detector.variables);
 
   fflush(f);
 
 } /* mcdatainfo_out */
+
+static void
+mcdatainfo_out(char *pre, FILE *f, MCDETECTOR detector)
+{
+  mcdatainfo_out_ex(pre, f, detector, NULL);
+}
 
 /* mcdetector_out_array_ascii: output a single array to a file
  *   m: columns
@@ -2452,6 +2497,79 @@ mcdatainfo_out_nexus(NXhandle f, MCDETECTOR detector)
   } /* NXdetector (instrument) */ 
 } /* mcdatainfo_out_nexus */
 
+/* Update attributes on an already-created event group. Re-running
+ * mcdatainfo_out_nexus attempts to recreate the group hierarchy, which some
+ * NeXus backends reject before reaching the existing group. Streaming needs
+ * only the final metadata update, so navigate the established hierarchy. */
+static int
+mcevent_update_nexus_metadata(NXhandle f, MCDETECTOR detector)
+{
+  char data_name[CHAR_BUF_LENGTH];
+
+  if (!f || !detector.m || mcdisable_output_files) return(NX_ERROR);
+  strcpy_valid(data_name, strlen(detector.filename) ?
+              detector.filename : detector.component);
+  if (NXopengroup(f, "instrument", "NXinstrument") != NX_OK) return(NX_ERROR);
+  if (NXopengroup(f, "components", "NXdata") != NX_OK) {
+    NXclosegroup(f);
+    return(NX_ERROR);
+  }
+  if (NXopengroup(f, detector.nexuscomp, "NXdata") != NX_OK) {
+    NXclosegroup(f);
+    NXclosegroup(f);
+    return(NX_ERROR);
+  }
+  if (NXopengroup(f, "output", "NXdetector") != NX_OK) {
+    NXclosegroup(f);
+    NXclosegroup(f);
+    NXclosegroup(f);
+    return(NX_ERROR);
+  }
+  if (NXopengroup(f, data_name, "NXdata") != NX_OK) {
+    NXclosegroup(f);
+    NXclosegroup(f);
+    NXclosegroup(f);
+    NXclosegroup(f);
+    return(NX_ERROR);
+  }
+
+  nxprintattr(f, "Date",       detector.date);
+  nxprintattr(f, "type",       detector.type);
+  nxprintattr(f, "Source",     detector.instrument);
+  nxprintattr(f, "component",  detector.component);
+  nxprintattr(f, "position",   detector.position);
+  nxprintattr(f, "title",      detector.title);
+  nxprintattr(f, !mcget_run_num() || mcget_run_num() >= mcget_ncount() ?
+              "Ncount" : "ratio", detector.ncount);
+  if (strlen(detector.filename))
+    nxprintattr(f, "filename", detector.filename);
+  nxprintattr(f, "statistics", detector.statistics);
+  nxprintattr(f, "signal",     detector.signal);
+  nxprintattr(f, "values",     detector.values);
+  if (detector.rank >= 1) {
+    nxprintattr(f, "xvar",   detector.xvar);
+    nxprintattr(f, "yvar",   detector.yvar);
+    nxprintattr(f, "xlabel", detector.xlabel);
+    nxprintattr(f, "ylabel", detector.ylabel);
+    if (detector.rank > 1) {
+      nxprintattr(f, "zvar",   detector.zvar);
+      nxprintattr(f, "zlabel", detector.zlabel);
+    }
+  }
+  nxprintattr(f, abs(detector.rank) == 1 ? "xlimits" : "xylimits",
+              detector.limits);
+  nxprintattr(f, "variables",
+              strcasestr(detector.format, "list") ?
+              detector.ylabel : detector.variables);
+
+  NXclosegroup(f);
+  NXclosegroup(f);
+  NXclosegroup(f);
+  NXclosegroup(f);
+  NXclosegroup(f);
+  return(NX_OK);
+}
+
 /*******************************************************************************
 * mcdetector_out_axis_nexus: write detector axis into current NXdata
 *   requires: NXdata to be opened
@@ -2576,6 +2694,8 @@ int mcdetector_out_array_nexus(NXhandle f, char *part, double *data, MCDETECTOR 
 int mcdetector_out_data_nexus(NXhandle f, MCDETECTOR detector)
 {
   char data_name[CHAR_BUF_LENGTH];
+  int ret = NX_OK;
+  int written = 0;
 
   if (!f || !detector.m || mcdisable_output_files) return(NX_OK);
 
@@ -2613,14 +2733,20 @@ int mcdetector_out_data_nexus(NXhandle f, MCDETECTOR detector)
 
 	    /* write the actual data (appended if already exists) */
 	    if (!strcasestr(detector.format, "list") && !strcasestr(detector.format, "pixels")) {
-	      mcdetector_out_array_nexus(f, "data", detector.p1, detector);
-	      mcdetector_out_array_nexus(f, "errors", detector.p2, detector);
-	      mcdetector_out_array_nexus(f, "ncount", detector.p0, detector);
+	      if (mcdetector_out_array_nexus(f, "data", detector.p1, detector) != NX_OK)
+	        ret = NX_ERROR;
+	      if (mcdetector_out_array_nexus(f, "errors", detector.p2, detector) != NX_OK)
+	        ret = NX_ERROR;
+	      if (mcdetector_out_array_nexus(f, "ncount", detector.p0, detector) != NX_OK)
+	        ret = NX_ERROR;
 	    } else if (strcasestr(detector.format, "pixels")) {
-	      mcdetector_out_array_nexus(  f, "pixels", detector.p1, detector);
+	      if (mcdetector_out_array_nexus(f, "pixels", detector.p1, detector) != NX_OK)
+	        ret = NX_ERROR;
 	    } else {
-	      mcdetector_out_array_nexus(  f, "events", detector.p1, detector);
+	      if (mcdetector_out_array_nexus(f, "events", detector.p1, detector) != NX_OK)
+	        ret = NX_ERROR;
 	    }
+	    written = 1;
 	    NXclosegroup(f);
 	    NXopengroup(f, data_name, "NXdata");
 	    NXgetgroupID(nxhandle, &pLink);
@@ -2641,7 +2767,8 @@ int mcdetector_out_data_nexus(NXhandle f, MCDETECTOR detector)
       NXclosegroup(f);
     }
   }
-  return(NX_OK);
+  if (!written) ret = NX_ERROR;
+  return(ret);
 } /* mcdetector_out_array_nexus */
 
 #ifdef USE_MPI
@@ -3044,6 +3171,137 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
 
 } /* mcdetector_out_2D */
 
+/* Host-only wrapper for rank-local resolution-matrix averaging. */
+long mcdetector_out_2D_average(char *title, char *xl, char *yl,
+                   double x1, double x2, double y1, double y2,
+                   long m, long n, const double *matrix, int local_valid,
+                   char *filename, char *component, Coords position,
+                   Rotation rotation, int index)
+{
+  int local_dimensions_ok = m > 0 && n > 0;
+#ifdef USE_MPI
+  long local_dimensions[2] = {m, n};
+  long minimum_dimensions[2];
+  long maximum_dimensions[2];
+  int all_dimensions_ok = local_dimensions_ok;
+  if (mpi_node_count > 1) {
+    int mpi_status;
+    int dimensions_status = MPI_SUCCESS;
+    /* Keep every rank in the same collective sequence even if MPI reports an
+       error, rather than short-circuiting later Allreduce calls. */
+    mpi_status = MPI_Allreduce(local_dimensions, minimum_dimensions, 2,
+                               MPI_LONG, MPI_MIN, MPI_COMM_WORLD);
+    if (mpi_status != MPI_SUCCESS)
+      dimensions_status = mpi_status;
+    mpi_status = MPI_Allreduce(local_dimensions, maximum_dimensions, 2,
+                               MPI_LONG, MPI_MAX, MPI_COMM_WORLD);
+    if (mpi_status != MPI_SUCCESS)
+      dimensions_status = mpi_status;
+    mpi_status = MPI_Allreduce(&local_dimensions_ok, &all_dimensions_ok, 1,
+                               MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+    if (mpi_status != MPI_SUCCESS)
+      dimensions_status = mpi_status;
+    if (dimensions_status != MPI_SUCCESS)
+      return 0;
+    if (!all_dimensions_ok
+        || minimum_dimensions[0] != maximum_dimensions[0]
+        || minimum_dimensions[1] != maximum_dimensions[1])
+      return 0;
+  } else if (!local_dimensions_ok) {
+    return 0;
+  }
+#else
+  if (!local_dimensions_ok)
+    return 0;
+#endif
+
+  int local_contribution = local_valid && matrix != NULL;
+  long local_valid_count = local_contribution ? 1 : 0;
+  long global_valid_count = 0;
+
+#ifdef USE_MPI
+  if (mpi_node_count > 1) {
+    if (MPI_Allreduce(&local_valid_count, &global_valid_count, 1, MPI_LONG,
+                      MPI_SUM, MPI_COMM_WORLD) != MPI_SUCCESS)
+      return 0;
+  } else {
+    global_valid_count = local_valid_count;
+  }
+#else
+  global_valid_count = local_valid_count;
+#endif
+
+  if (global_valid_count <= 0)
+    return 0;
+
+  size_t element_count = 0;
+  int dimensions_ok = (uintmax_t)m <= (uintmax_t)SIZE_MAX / (uintmax_t)n;
+  if (dimensions_ok) {
+    uintmax_t product = (uintmax_t)m * (uintmax_t)n;
+    if (product > (uintmax_t)SIZE_MAX)
+      dimensions_ok = 0;
+    else
+      element_count = (size_t)product;
+  }
+  if (dimensions_ok && element_count > SIZE_MAX / sizeof(double))
+    dimensions_ok = 0;
+
+  double *p0 = NULL;
+  double *p1 = NULL;
+  double *p2 = NULL;
+  int local_allocation_ok = dimensions_ok;
+  if (local_allocation_ok) {
+    p0 = (double *)calloc(element_count, sizeof(double));
+    p1 = (double *)calloc(element_count, sizeof(double));
+    p2 = (double *)calloc(element_count, sizeof(double));
+    if (!p0 || !p1 || !p2)
+      local_allocation_ok = 0;
+  }
+
+  int allocation_ok = local_allocation_ok;
+#ifdef USE_MPI
+  if (mpi_node_count > 1) {
+    if (MPI_Allreduce(&local_allocation_ok, &allocation_ok, 1, MPI_INT,
+                      MPI_MIN, MPI_COMM_WORLD) != MPI_SUCCESS) {
+      free(p0);
+      free(p1);
+      free(p2);
+      return 0;
+    }
+  }
+#endif
+  if (!allocation_ok) {
+    if (!local_allocation_ok)
+      fprintf(stderr,
+              "Error: mcdetector_out_2D_average: unable to allocate temporary arrays for %ld x %ld matrix.\n",
+              m, n);
+    free(p0);
+    free(p1);
+    free(p2);
+    return 0;
+  }
+
+  if (local_contribution) {
+    size_t i;
+    double scale = 1.0 / (double)global_valid_count;
+    for (i = 0; i < element_count; i++) {
+      p0[i] = 1.0;
+      p1[i] = matrix[i] * scale;
+      p2[i] = p1[i] * p1[i];
+    }
+  }
+
+  MCDETECTOR detector = mcdetector_out_2D(
+      title, xl, yl, x1, x2, y1, y2, m, n,
+      p0, p1, p2, filename, component, position, rotation, index);
+  if (detector.p1 && detector.p1 != p1)
+    free(detector.p1);
+  free(p0);
+  free(p1);
+  free(p2);
+  return global_valid_count;
+}
+
 /*******************************************************************************
 * mcdetector_out_2D_list: List mode 2D including forwarding "options" from
 * Monitor_nD
@@ -3158,6 +3416,1794 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
 
   mcformat = format_org;
   return(detector);
+}
+
+/* ========================================================================== */
+/*                         Generic event sessions                            */
+/* ========================================================================== */
+
+/* Event output is host-side. A session lets every MPI rank describe its
+ * local chunks first, then lets rank zero drain complete rank streams in a
+ * fixed order. This deliberately does not use the legacy list barrier loop:
+ * local row counts and local chunk counts may differ between ranks. */
+
+static MCDETECTOR mcevent_invalid_detector(void)
+{
+  MCDETECTOR detector;
+  memset(&detector, 0, sizeof(detector));
+  detector.filename[0] = '\0';
+  detector.m = 0;
+  return(detector);
+}
+
+static void mcevent_copy_string(char *dst, const char *src)
+{
+  if (!dst) return;
+  if (!src) src = "";
+  strncpy(dst, src, CHAR_BUF_LENGTH-1);
+  dst[CHAR_BUF_LENGTH-1] = '\0';
+}
+
+static int mcevent_chunk_summary(MC_EVENT_CHUNK *chunks, long width,
+                                 long long *rows, long long *chunk_count)
+{
+  MC_EVENT_CHUNK *chunk;
+  long long total = 0;
+  long long count = 0;
+  int valid = width > 0;
+
+  for (chunk = chunks; chunk; chunk = chunk->next) {
+    count++;
+    if (chunk->count < 0 || (chunk->count > 0 && chunk->data == NULL))
+      valid = 0;
+    if (chunk->count > 0) {
+      if (width <= 0 || (uintmax_t)chunk->count >
+          (uintmax_t)SIZE_MAX / (uintmax_t)width / sizeof(double))
+        valid = 0;
+      if (total > LLONG_MAX - (long long)chunk->count)
+        valid = 0;
+      else
+        total += (long long)chunk->count;
+    }
+  }
+
+  if (rows) *rows = total;
+  if (chunk_count) *chunk_count = count;
+  return(valid);
+}
+
+/* Build the detector descriptor without requiring a full event payload. A
+ * one-element dummy keeps detector_import's metadata/statistics path valid;
+ * list data are never inspected by mcdetector_statistics. */
+static MCDETECTOR mcevent_session_detector(char *title, char *xl,
+                    char *columns, long count, long width,
+                    char *filename, char *component, Coords position,
+                    Rotation rotation, char *options, int index)
+{
+  char format[CHAR_BUF_LENGTH];
+  const char *base = mcformat && strlen(mcformat) ? mcformat : "McCode";
+  double dummy = 0;
+  int nexus = strcasestr(base, "NeXus") != NULL;
+  MCDETECTOR detector;
+
+  snprintf(format, CHAR_BUF_LENGTH, "%s list", base);
+  detector = detector_import(format,
+    component, title,
+    1, 1, 1,
+    xl, columns, "Signal per bin",
+    "x", "y", "I",
+    1, count, 1, width, 0, 0,
+    filename, NULL, &dummy, NULL,
+    position, rotation, index);
+
+  /* Normalize dimensions and metadata for the two backends. ASCII uses the
+   * historical transposed detector layout to print row-major lines; NeXus
+   * stores the natural (rows, columns) shape. */
+  detector.rank = 2;
+  detector.p = 1;
+  detector.istransposed = nexus ? 0 : 1;
+  if (nexus) {
+    detector.m = count;
+    detector.n = width;
+    snprintf(detector.type, CHAR_BUF_LENGTH, "list(%ld, %ld)", count, width);
+  } else {
+    detector.m = width;
+    detector.n = count;
+    snprintf(detector.type, CHAR_BUF_LENGTH, "list(%ld, %ld)", width, count);
+  }
+  detector.xmin = 1;
+  detector.xmax = count;
+  detector.ymin = 1;
+  detector.ymax = width;
+  snprintf(detector.limits, CHAR_BUF_LENGTH, "1 %ld 1 %ld", count, width);
+  mcevent_copy_string(detector.xlabel, xl && strlen(xl) ? xl : "List of events");
+  mcevent_copy_string(detector.ylabel, columns && strlen(columns) ? columns : "None");
+  mcevent_copy_string(detector.options, options && strlen(options) ? options : "None");
+  detector.p0 = NULL;
+  detector.p1 = NULL;
+  detector.p2 = NULL;
+  return(detector);
+}
+
+typedef struct {
+  MCDETECTOR detector;
+  FILE *ascii_file;
+  int nexus;
+  int ready;
+  int failed;
+  int stream;
+  int opened;
+  long stream_width;
+  Coords position;
+  Rotation rotation;
+  int index;
+  MC_EVENT_ASCII_PATCH siminfo_patch;
+  MC_EVENT_ASCII_PATCH data_patch;
+} MC_EVENT_OUTPUT;
+
+static int mcevent_output_begin(MC_EVENT_OUTPUT *output, MCDETECTOR detector)
+{
+  int exists = 0;
+
+  memset(output, 0, sizeof(*output));
+  output->detector = detector;
+  output->nexus = strcasestr(detector.format, "NeXus") != NULL;
+
+  if (mcdisable_output_files) {
+    output->ready = 1;
+    return(1);
+  }
+
+  if (output->nexus) {
+#ifdef USE_NEXUS
+    mcdatainfo_out_nexus(nxhandle, detector);
+    output->ready = 1;
+#else
+    output->failed = 1;
+#endif
+    return(output->ready);
+  }
+
+  output->ascii_file = mcnew_file(detector.filename, "dat", &exists);
+  if (!output->ascii_file) return(0);
+
+  if (!exists) {
+    siminfo_out("\nbegin data\n");
+    mcdatainfo_out("  ", siminfo_file, detector);
+    siminfo_out("end data\n");
+
+    mcruninfo_out("# ", output->ascii_file);
+    mcdatainfo_out("# ", output->ascii_file, detector);
+    if (strcasestr(detector.format, "list"))
+      printf("Events:   \"%s\"\n",
+        strlen(detector.filename) ? detector.filename : detector.component);
+  }
+  fprintf(output->ascii_file, "# Data [%s/%s] %s:\n",
+          detector.component, detector.filename, detector.zvar);
+  output->ready = 1;
+  if (ferror(output->ascii_file)) output->failed = 1;
+  return(!output->failed);
+}
+
+static int mcevent_output_begin_stream(MC_EVENT_OUTPUT *output,
+                                       MCDETECTOR detector, Coords position,
+                                       Rotation rotation, int index)
+{
+  if (!output) return(0);
+  memset(output, 0, sizeof(*output));
+  output->detector = detector;
+  output->nexus = strcasestr(detector.format, "NeXus") != NULL;
+  output->stream = 1;
+  output->stream_width = output->nexus ? detector.n : detector.m;
+  output->position = position;
+  rot_copy(output->rotation, rotation);
+  output->index = index;
+  /* Delay creating the final file until the first non-empty chunk. This keeps
+     the established zero-event behavior: an empty stream creates no output. */
+  output->ready = 1;
+  return(1);
+}
+
+static int mcevent_output_open_stream(MC_EVENT_OUTPUT *output)
+{
+  char *path;
+  FILE *existing;
+  int exists = 0;
+
+  if (!output || !output->stream || !output->ready) return(0);
+  if (output->opened) return(!output->failed);
+  if (mcdisable_output_files) {
+    output->opened = 1;
+    return(1);
+  }
+
+  if (output->nexus) {
+#ifdef USE_NEXUS
+    mcdatainfo_out_nexus(nxhandle, output->detector);
+    output->opened = 1;
+    return(1);
+#else
+    output->failed = 1;
+    return(0);
+#endif
+  }
+
+  path = mcfull_file(output->detector.filename, "dat");
+  existing = fopen(path, "r");
+  if (existing) {
+    fclose(existing);
+    exists = 1;
+  }
+  if (exists) {
+    /* Existing append files have no patch locations for this stream. Keep
+       the legacy spooled writer as the compatible append path. */
+    fprintf(stderr,
+            "WARNING: unknown-count event stream requires a new output file: '%s'\n",
+            output->detector.filename);
+    free(path);
+    output->failed = 1;
+    return(0);
+  }
+  output->ascii_file = fopen(path, "w+");
+  free(path);
+  if (!output->ascii_file) {
+    output->failed = 1;
+    return(0);
+  }
+
+  siminfo_out("\nbegin data\n");
+  mcdatainfo_out_ex("  ", siminfo_file, output->detector,
+                    &output->siminfo_patch);
+  siminfo_out("end data\n");
+
+  mcruninfo_out("# ", output->ascii_file);
+  mcdatainfo_out_ex("# ", output->ascii_file, output->detector,
+                    &output->data_patch);
+  if (!output->data_patch.valid || !output->siminfo_patch.valid) {
+    output->failed = 1;
+    return(0);
+  }
+  printf("Events:   \"%s\"\n",
+         strlen(output->detector.filename) ? output->detector.filename
+                                            : output->detector.component);
+  fprintf(output->ascii_file, "# Data [%s/%s] %s:\n",
+          output->detector.component, output->detector.filename,
+          output->detector.zvar);
+  output->opened = 1;
+  if (ferror(output->ascii_file)) output->failed = 1;
+  return(!output->failed);
+}
+
+static int mcevent_patch_ascii_count(FILE *file,
+                                     MC_EVENT_ASCII_PATCH *patch,
+                                     long long rows)
+{
+  char value[MC_EVENT_STREAM_COUNT_DIGITS + 1];
+
+  if (!file || !patch || !patch->valid || rows < 0) return(0);
+  snprintf(value, sizeof(value), "%-*lld", MC_EVENT_STREAM_COUNT_DIGITS, rows);
+
+  if (fseek(file, patch->type_count_offset, SEEK_SET) != 0
+      || fwrite(value, 1, MC_EVENT_STREAM_COUNT_DIGITS, file)
+         != MC_EVENT_STREAM_COUNT_DIGITS
+      || fseek(file, patch->limits_count_offset, SEEK_SET) != 0
+      || fwrite(value, 1, MC_EVENT_STREAM_COUNT_DIGITS, file)
+         != MC_EVENT_STREAM_COUNT_DIGITS
+      || fflush(file) != 0
+      || fseek(file, 0, SEEK_END) != 0)
+    return(0);
+  return(1);
+}
+
+static int mcevent_patch_siminfo_count(MC_EVENT_ASCII_PATCH *patch,
+                                        long long rows)
+{
+  char *path;
+  FILE *file;
+  int result;
+
+  if (!patch || !patch->valid) return(0);
+  path = mcfull_file(siminfo_name, "sim");
+  file = fopen(path, "r+");
+  free(path);
+  if (!file) return(0);
+  result = mcevent_patch_ascii_count(file, patch, rows);
+  fclose(file);
+  return(result);
+}
+
+static MCDETECTOR mcevent_stream_detector(MC_EVENT_OUTPUT *output,
+                                           long long rows)
+{
+  MCDETECTOR detector = output->detector;
+  long width = output->stream_width;
+
+  detector.rank = 2;
+  detector.p = 1;
+  if (output->nexus) {
+    detector.m = (long)rows;
+    detector.n = width;
+    snprintf(detector.type, CHAR_BUF_LENGTH, "list(%ld, %ld)",
+             (long)rows, width);
+    detector.istransposed = 0;
+  } else {
+    detector.m = width;
+    detector.n = (long)rows;
+    snprintf(detector.type, CHAR_BUF_LENGTH, "list(%ld, %ld)",
+             width, (long)rows);
+    detector.istransposed = 1;
+  }
+  detector.xmin = 1;
+  detector.xmax = (long)rows;
+  detector.ymin = 1;
+  detector.ymax = width;
+  snprintf(detector.limits, CHAR_BUF_LENGTH, "1 %ld 1 %ld",
+           (long)rows, width);
+  detector.p0 = NULL;
+  detector.p1 = NULL;
+  detector.p2 = NULL;
+  return(detector);
+}
+
+static int mcevent_output_finalize_stream(MC_EVENT_OUTPUT *output,
+                                           long long rows)
+{
+  MCDETECTOR detector;
+
+  if (!output || !output->stream || !output->opened || output->failed)
+    return(output && !output->failed);
+  if (mcdisable_output_files) return(1);
+  if (rows <= 0 || rows > LONG_MAX || output->stream_width <= 0)
+    return(0);
+  detector = mcevent_stream_detector(output, rows);
+  if (!detector.m) return(0);
+
+  if (output->nexus) {
+#ifdef USE_NEXUS
+    /* Event datasets are created with an unlimited row dimension. Rewriting
+       the normal metadata at end keeps type/limits identical to a known-count
+       event output while the payload was written incrementally. */
+    return(mcevent_update_nexus_metadata(nxhandle, detector) == NX_OK);
+#else
+    return(0);
+#endif
+  }
+
+  if (!mcevent_patch_ascii_count(output->ascii_file,
+                                 &output->data_patch, rows))
+    return(0);
+  if (!mcevent_patch_siminfo_count(&output->siminfo_patch, rows))
+    return(0);
+  return(1);
+}
+
+static int mcevent_output_chunk(MC_EVENT_OUTPUT *output, long rows,
+                                double *data)
+{
+  if (!output || !output->ready) return(0);
+  if (rows <= 0) return(1);
+  if (!data || output->failed) return(0);
+  if (mcdisable_output_files) return(1);
+  if (output->stream && !mcevent_output_open_stream(output)) return(0);
+
+  if (output->nexus) {
+#ifdef USE_NEXUS
+    MCDETECTOR chunk = output->detector;
+    chunk.m = rows;
+    chunk.n = output->detector.n;
+    chunk.p = 1;
+    chunk.p1 = data;
+    if (mcdetector_out_data_nexus(nxhandle, chunk) != NX_OK)
+      output->failed = 1;
+#else
+    output->failed = 1;
+#endif
+  } else {
+    mcdetector_out_array_ascii(output->detector.m, rows, data,
+                               output->ascii_file,
+                               output->detector.istransposed);
+    if (!output->ascii_file || ferror(output->ascii_file))
+      output->failed = 1;
+  }
+  return(!output->failed);
+}
+
+static int mcevent_output_end(MC_EVENT_OUTPUT *output)
+{
+  int result = 1;
+  if (!output) return(0);
+  if (output->ascii_file && fclose(output->ascii_file) != 0) result = 0;
+  output->ascii_file = NULL;
+  output->ready = 0;
+  output->opened = 0;
+  if (output->failed) result = 0;
+  return(result);
+}
+
+static int mcevent_write_local_chunks(MC_EVENT_OUTPUT *output,
+                                      MC_EVENT_CHUNK *chunks)
+{
+  MC_EVENT_CHUNK *chunk;
+  for (chunk = chunks; chunk; chunk = chunk->next)
+    if (!mcevent_output_chunk(output, chunk->count, chunk->data)) return(0);
+  return(1);
+}
+
+typedef struct {
+  MC_EVENT_CHUNK *chunks;
+  FILE *spool;
+  long long rows;
+  long long chunk_count;
+  int valid;
+} MC_EVENT_SOURCE;
+
+static int mcevent_source_read_chunk(FILE *spool, long width,
+                                     long *rows, double **data)
+{
+  long long stored_rows;
+  size_t values;
+  size_t bytes;
+  double *chunk_data;
+
+  if (!spool || !rows || !data || width <= 0) return(0);
+  *rows = 0;
+  *data = NULL;
+  if (fread(&stored_rows, sizeof(stored_rows), 1, spool) != 1)
+    return(0);
+  if (stored_rows <= 0 || stored_rows > LONG_MAX
+      || (uintmax_t)stored_rows >
+           (uintmax_t)SIZE_MAX / (uintmax_t)width / sizeof(double))
+    return(0);
+
+  values = (size_t)stored_rows * (size_t)width;
+  bytes = values * sizeof(double);
+  chunk_data = (double *)malloc(bytes);
+  if (!chunk_data) return(0);
+  if (fread(chunk_data, sizeof(double), values, spool) != values) {
+    free(chunk_data);
+    return(0);
+  }
+  *rows = (long)stored_rows;
+  *data = chunk_data;
+  return(1);
+}
+
+static int mcevent_write_local_source(MC_EVENT_OUTPUT *output,
+                                       MC_EVENT_SOURCE *source, long width)
+{
+  long long sequence;
+
+  if (!source || !source->valid) return(0);
+  if (!source->spool) {
+    return(mcevent_write_local_chunks(output, source->chunks));
+  }
+
+  rewind(source->spool);
+  for (sequence = 0; sequence < source->chunk_count; sequence++) {
+    long rows;
+    double *data = NULL;
+    if (!mcevent_source_read_chunk(source->spool, width, &rows, &data))
+      return(0);
+    if (!mcevent_output_chunk(output, rows, data)) {
+      free(data);
+      return(0);
+    }
+    free(data);
+  }
+  return(ferror(source->spool) == 0);
+}
+
+#ifdef USE_MPI
+
+#define MC_EVENT_MPI_MAGIC 0x4d434556544c5353LL
+#define MC_EVENT_MPI_TAG_HEADER 2001
+#define MC_EVENT_MPI_TAG_CHUNK  2002
+#define MC_EVENT_MPI_TAG_DATA   2003
+#define MC_EVENT_MPI_TAG_END    2004
+#define MC_EVENT_MPI_TAG_READY  2005
+#define MC_EVENT_MPI_BLOCK_BYTES 65536
+
+typedef struct {
+  long long magic;
+  long long width;
+  long long rows;
+  long long chunk_count;
+  int index;
+  double position[3];
+  double rotation[9];
+  char title[CHAR_BUF_LENGTH];
+  char columns[CHAR_BUF_LENGTH];
+  char filename[CHAR_BUF_LENGTH];
+  char component[CHAR_BUF_LENGTH];
+  char xlabel[CHAR_BUF_LENGTH];
+  char options[CHAR_BUF_LENGTH];
+  int valid;
+} MC_EVENT_MPI_HEADER;
+
+typedef struct {
+  long long magic;
+  long long sequence;
+  long long rows;
+} MC_EVENT_MPI_CHUNK_HEADER;
+
+typedef struct {
+  long long magic;
+  long long chunks;
+  int valid;
+} MC_EVENT_MPI_END;
+
+static int mcevent_mpi_send_bytes(const void *data, size_t bytes,
+                                  int destination, int tag)
+{
+  size_t offset = 0;
+  size_t block = MC_EVENT_MPI_BLOCK_BYTES;
+
+  while (offset < bytes) {
+    size_t part = bytes - offset;
+    if (part > block) part = block;
+    if (MPI_Send((void *)((const char *)data + offset), (int)part,
+                 MPI_BYTE, destination, tag, MPI_COMM_WORLD) != MPI_SUCCESS)
+      return(MPI_ERR_COUNT);
+    offset += part;
+  }
+  return(MPI_SUCCESS);
+}
+
+static int mcevent_mpi_recv_bytes(void *data, size_t bytes, int source, int tag)
+{
+  size_t offset = 0;
+  size_t block = MC_EVENT_MPI_BLOCK_BYTES;
+  unsigned char scratch[MC_EVENT_MPI_BLOCK_BYTES];
+  while (offset < bytes) {
+    size_t part = bytes - offset;
+    if (part > block) part = block;
+    if (MPI_Recv(data ? (void *)((char *)data + offset) : (void *)scratch,
+                 (int)part, MPI_BYTE, source, tag, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE) != MPI_SUCCESS) {
+      return(MPI_ERR_COUNT);
+    }
+    offset += part;
+  }
+  return(MPI_SUCCESS);
+}
+
+static int mcevent_mpi_send_header(MC_EVENT_MPI_HEADER *header, int destination)
+{
+  return(mcevent_mpi_send_bytes(header, sizeof(*header), destination,
+                                MC_EVENT_MPI_TAG_HEADER));
+}
+
+static int mcevent_mpi_recv_header(MC_EVENT_MPI_HEADER *header, int source)
+{
+  return(mcevent_mpi_recv_bytes(header, sizeof(*header), source,
+                                MC_EVENT_MPI_TAG_HEADER));
+}
+
+static int mcevent_mpi_send_ready(int destination)
+{
+  int ready = 1;
+  return(mcevent_mpi_send_bytes(&ready, sizeof(ready), destination,
+                                MC_EVENT_MPI_TAG_READY));
+}
+
+static int mcevent_mpi_recv_ready(int source)
+{
+  int ready = 0;
+  if (mcevent_mpi_recv_bytes(&ready, sizeof(ready), source,
+                             MC_EVENT_MPI_TAG_READY) != MPI_SUCCESS)
+    return(MPI_ERR_COUNT);
+  return(ready == 1 ? MPI_SUCCESS : MPI_ERR_OTHER);
+}
+
+static int mcevent_mpi_header(MC_EVENT_MPI_HEADER *header, long width,
+                              long long rows, long long chunk_count,
+                              char *title, char *xl, char *columns,
+                              char *filename, char *component, char *options,
+                              Coords position, Rotation rotation, int index,
+                              int valid)
+{
+  int i, j;
+  memset(header, 0, sizeof(*header));
+  header->magic = MC_EVENT_MPI_MAGIC;
+  header->width = width;
+  header->rows = rows;
+  header->chunk_count = chunk_count;
+  header->index = index;
+  header->position[0] = position.x;
+  header->position[1] = position.y;
+  header->position[2] = position.z;
+  for (i = 0; i < 3; i++)
+    for (j = 0; j < 3; j++)
+      header->rotation[3*i+j] = rotation[i][j];
+  mcevent_copy_string(header->title, title);
+  mcevent_copy_string(header->columns, columns);
+  mcevent_copy_string(header->filename, filename);
+  mcevent_copy_string(header->component, component);
+  mcevent_copy_string(header->xlabel, xl);
+  mcevent_copy_string(header->options, options);
+  header->valid = valid;
+  return(0);
+}
+
+static int mcevent_mpi_headers_match(MC_EVENT_MPI_HEADER *a,
+                                      MC_EVENT_MPI_HEADER *b)
+{
+  int i;
+
+  if (a->magic != b->magic || a->width != b->width || a->index != b->index
+      || strcmp(a->title, b->title) != 0
+      || strcmp(a->columns, b->columns) != 0
+      || strcmp(a->filename, b->filename) != 0
+      || strcmp(a->component, b->component) != 0
+      || strcmp(a->xlabel, b->xlabel) != 0
+      || strcmp(a->options, b->options) != 0)
+    return(0);
+  for (i = 0; i < 3; i++)
+    if (a->position[i] != b->position[i]) return(0);
+  for (i = 0; i < 9; i++)
+    if (a->rotation[i] != b->rotation[i]) return(0);
+  return(1);
+}
+
+static int mcevent_mpi_send_chunks(MC_EVENT_CHUNK *chunks, long width,
+                                   int destination)
+{
+  MC_EVENT_CHUNK *chunk;
+  MC_EVENT_MPI_CHUNK_HEADER chunk_header;
+  MC_EVENT_MPI_END end_record;
+  long long sequence = 0;
+  int result = MPI_SUCCESS;
+
+  for (chunk = chunks; chunk; chunk = chunk->next) {
+    int send_data = chunk->count > 0 && chunk->data && width > 0;
+    chunk_header.magic = MC_EVENT_MPI_MAGIC;
+    chunk_header.sequence = sequence++;
+    chunk_header.rows = send_data ? chunk->count : 0;
+    if (send_data && ((uintmax_t)chunk->count >
+        (uintmax_t)SIZE_MAX / (uintmax_t)width / sizeof(double))) {
+      send_data = 0;
+      chunk_header.rows = 0;
+      result = MPI_ERR_COUNT;
+    }
+    if (mcevent_mpi_send_bytes(&chunk_header, sizeof(chunk_header),
+                               destination, MC_EVENT_MPI_TAG_CHUNK) != MPI_SUCCESS)
+      return(MPI_ERR_COUNT);
+    if (send_data) {
+      if (mcevent_mpi_send_bytes(chunk->data,
+          (size_t)chunk_header.rows * (size_t)width * sizeof(double),
+          destination, MC_EVENT_MPI_TAG_DATA) != MPI_SUCCESS)
+        return(MPI_ERR_COUNT);
+    }
+  }
+  end_record.magic = MC_EVENT_MPI_MAGIC;
+  end_record.chunks = sequence;
+  end_record.valid = result == MPI_SUCCESS;
+  if (mcevent_mpi_send_bytes(&end_record, sizeof(end_record), destination,
+                             MC_EVENT_MPI_TAG_END) != MPI_SUCCESS)
+    return(MPI_ERR_COUNT);
+  return(result);
+}
+
+static int mcevent_mpi_send_spool_bytes(FILE *spool, size_t bytes,
+                                        int destination)
+{
+  unsigned char block[MC_EVENT_MPI_BLOCK_BYTES];
+  size_t offset = 0;
+  int result = MPI_SUCCESS;
+
+  while (offset < bytes) {
+    size_t part = bytes - offset;
+    size_t got;
+    if (part > sizeof(block)) part = sizeof(block);
+    got = fread(block, 1, part, spool);
+    if (got != part) {
+      memset(block + got, 0, part - got);
+      result = MPI_ERR_COUNT;
+    }
+    if (mcevent_mpi_send_bytes(block, part, destination,
+                               MC_EVENT_MPI_TAG_DATA) != MPI_SUCCESS)
+      return(MPI_ERR_COUNT);
+    offset += part;
+  }
+  return(result);
+}
+
+static int mcevent_mpi_send_source(MC_EVENT_SOURCE *source, long width,
+                                   int destination)
+{
+  MC_EVENT_MPI_CHUNK_HEADER chunk_header;
+  MC_EVENT_MPI_END end_record;
+  long long sequence;
+  int result = MPI_SUCCESS;
+
+  if (!source) return(MPI_ERR_COUNT);
+  if (!source->spool)
+    return(mcevent_mpi_send_chunks(source->chunks, width, destination));
+  if (width <= 0) return(MPI_ERR_COUNT);
+
+  rewind(source->spool);
+  for (sequence = 0; sequence < source->chunk_count; sequence++) {
+    long long stored_rows = 0;
+    size_t values = 0;
+    size_t bytes = 0;
+    int valid = 1;
+
+    if (fread(&stored_rows, sizeof(stored_rows), 1, source->spool) != 1)
+      valid = 0;
+    if (stored_rows <= 0 || stored_rows > LONG_MAX
+        || (uintmax_t)stored_rows >
+             (uintmax_t)SIZE_MAX / (uintmax_t)width / sizeof(double))
+      valid = 0;
+    if (valid) {
+      values = (size_t)stored_rows * (size_t)width;
+      bytes = values * sizeof(double);
+    }
+
+    chunk_header.magic = MC_EVENT_MPI_MAGIC;
+    chunk_header.sequence = sequence;
+    chunk_header.rows = valid ? stored_rows : 0;
+    if (!valid) result = MPI_ERR_COUNT;
+    if (mcevent_mpi_send_bytes(&chunk_header, sizeof(chunk_header),
+                               destination, MC_EVENT_MPI_TAG_CHUNK)
+        != MPI_SUCCESS)
+      return(MPI_ERR_COUNT);
+    if (valid && mcevent_mpi_send_spool_bytes(source->spool, bytes,
+                                              destination) != MPI_SUCCESS)
+      result = MPI_ERR_COUNT;
+  }
+
+  end_record.magic = MC_EVENT_MPI_MAGIC;
+  end_record.chunks = source->chunk_count;
+  end_record.valid = result == MPI_SUCCESS;
+  if (mcevent_mpi_send_bytes(&end_record, sizeof(end_record), destination,
+                             MC_EVENT_MPI_TAG_END) != MPI_SUCCESS)
+    return(MPI_ERR_COUNT);
+  return(result);
+}
+
+static int mcevent_mpi_receive_chunks(MC_EVENT_OUTPUT *output, long width,
+                                      MC_EVENT_MPI_HEADER *header, int source,
+                                      int *valid)
+{
+  long long i;
+  long long expected = header ? header->chunk_count : -1;
+  MC_EVENT_MPI_CHUNK_HEADER chunk_header;
+  MC_EVENT_MPI_END end_record;
+
+  if (expected < 0) {
+    *valid = 0;
+  }
+
+  for (i = 0; expected < 0 || i < expected; i++) {
+    double *data = NULL;
+    size_t bytes = 0;
+    long rows = 0;
+    int receive_data = 0;
+
+    if (expected < 0) {
+      MPI_Status status;
+      if (MPI_Probe(source, MPI_ANY_TAG, MPI_COMM_WORLD, &status) != MPI_SUCCESS)
+        return(MPI_ERR_COUNT);
+      if (status.MPI_TAG == MC_EVENT_MPI_TAG_END) break;
+      if (status.MPI_TAG != MC_EVENT_MPI_TAG_CHUNK) {
+        *valid = 0;
+        return(MPI_ERR_TAG);
+      }
+    }
+
+    if (mcevent_mpi_recv_bytes(&chunk_header, sizeof(chunk_header), source,
+                               MC_EVENT_MPI_TAG_CHUNK) != MPI_SUCCESS)
+      return(MPI_ERR_COUNT);
+    if (chunk_header.magic != MC_EVENT_MPI_MAGIC
+        || chunk_header.sequence != i)
+      *valid = 0;
+    if (chunk_header.rows < 0 || chunk_header.rows > LONG_MAX) {
+      *valid = 0;
+    } else if (chunk_header.rows > 0 && width > 0
+               && (uintmax_t)chunk_header.rows <=
+                    (uintmax_t)SIZE_MAX / (uintmax_t)width / sizeof(double)) {
+      rows = (long)chunk_header.rows;
+      bytes = (size_t)rows * (size_t)width * sizeof(double);
+      data = (double *)malloc(bytes);
+      receive_data = data != NULL;
+      if (!receive_data) *valid = 0;
+    } else if (chunk_header.rows > 0) {
+      *valid = 0;
+    }
+
+    if (chunk_header.rows > 0) {
+      if (mcevent_mpi_recv_bytes(data, bytes, source, MC_EVENT_MPI_TAG_DATA)
+          != MPI_SUCCESS) {
+        free(data);
+        return(MPI_ERR_COUNT);
+      }
+      if (receive_data && *valid
+          && !mcevent_output_chunk(output, rows, data))
+        *valid = 0;
+      free(data);
+    }
+  }
+
+  if (mcevent_mpi_recv_bytes(&end_record, sizeof(end_record), source,
+                             MC_EVENT_MPI_TAG_END) != MPI_SUCCESS)
+    return(MPI_ERR_COUNT);
+  if (end_record.magic != MC_EVENT_MPI_MAGIC
+      || (expected >= 0 && end_record.chunks != expected)
+      || !end_record.valid)
+    *valid = 0;
+  return(MPI_SUCCESS);
+}
+
+#endif /* USE_MPI */
+
+static MCDETECTOR mcevent_write_session_source(char *title, char *xl,
+                    char *columns, long width, MC_EVENT_SOURCE *source,
+                    char *filename, char *component, Coords position,
+                    Rotation rotation, char *options, int index)
+{
+  long long local_rows = source ? source->rows : 0;
+  long long local_chunks = source ? source->chunk_count : 0;
+  int local_valid = source && source->valid && width > 0;
+
+#ifdef USE_MPI
+  if (mpi_node_count > 1) {
+    MC_EVENT_MPI_HEADER local_header;
+    MC_EVENT_OUTPUT output;
+    MC_EVENT_MPI_HEADER *headers = NULL;
+    MCDETECTOR detector = mcevent_invalid_detector();
+    long long total_rows = local_rows;
+    int session_valid = local_valid;
+    int node_i;
+
+    mcevent_mpi_header(&local_header, width, local_rows, local_chunks,
+                       title, xl, columns, filename, component, options,
+                       position, rotation, index, local_valid);
+
+    if (mpi_node_rank != mpi_node_root) {
+      if (mcevent_mpi_send_header(&local_header, mpi_node_root) != MPI_SUCCESS)
+        return(mcevent_invalid_detector());
+      if (mcevent_mpi_recv_ready(mpi_node_root) != MPI_SUCCESS)
+        return(mcevent_invalid_detector());
+      mcevent_mpi_send_source(source, width, mpi_node_root);
+      return(mcevent_invalid_detector());
+    }
+
+    headers = (MC_EVENT_MPI_HEADER *)calloc((size_t)mpi_node_count,
+                                             sizeof(*headers));
+    if (!headers) {
+      MC_EVENT_MPI_HEADER discarded_header;
+
+      fprintf(stderr, "WARNING: event session metadata allocation failed; draining MPI event streams\n");
+      session_valid = 0;
+      for (node_i = 0; node_i < mpi_node_count; node_i++) {
+        if (node_i == mpi_node_root) continue;
+        if (mcevent_mpi_recv_header(&discarded_header, node_i) != MPI_SUCCESS)
+          session_valid = 0;
+      }
+      for (node_i = 0; node_i < mpi_node_count; node_i++) {
+        if (node_i == mpi_node_root) continue;
+        mcevent_mpi_send_ready(node_i);
+      }
+      memset(&output, 0, sizeof(output));
+      for (node_i = 0; node_i < mpi_node_count; node_i++) {
+        if (node_i == mpi_node_root) continue;
+        mcevent_mpi_receive_chunks(&output, width, NULL, node_i,
+                                   &session_valid);
+      }
+      return(mcevent_invalid_detector());
+    } else {
+      headers[mpi_node_root] = local_header;
+      for (node_i = 0; node_i < mpi_node_count; node_i++) {
+        if (node_i == mpi_node_root) continue;
+        if (mcevent_mpi_recv_header(&headers[node_i], node_i) != MPI_SUCCESS) {
+          memset(&headers[node_i], 0, sizeof(headers[node_i]));
+          headers[node_i].chunk_count = -1;
+          session_valid = 0;
+          continue;
+        }
+        if (!mcevent_mpi_headers_match(&local_header, &headers[node_i])
+            || !headers[node_i].valid)
+          session_valid = 0;
+        if (headers[node_i].rows < 0
+            || total_rows > LLONG_MAX - headers[node_i].rows)
+          session_valid = 0;
+        else
+          total_rows += headers[node_i].rows;
+      }
+      for (node_i = 0; node_i < mpi_node_count; node_i++) {
+        if (node_i == mpi_node_root) continue;
+        if (mcevent_mpi_send_ready(node_i) != MPI_SUCCESS)
+          session_valid = 0;
+      }
+    }
+
+    if (session_valid && total_rows > 0 && total_rows <= LONG_MAX
+        && width > 0 && width <= LONG_MAX) {
+      detector = mcevent_session_detector(title, xl, columns,
+                                           (long)total_rows, width,
+                                           filename, component, position,
+                                           rotation, options, index);
+      if (!detector.m) session_valid = 0;
+      else if (!mcevent_output_begin(&output, detector)) session_valid = 0;
+    } else {
+      memset(&output, 0, sizeof(output));
+    }
+
+    /* Rank zero writes its own block first, then drains each slave completely
+     * before advancing. Slaves always send their explicit end record. */
+    if (session_valid && !mcevent_write_local_source(&output, source, width))
+      session_valid = 0;
+    for (node_i = 0; node_i < mpi_node_count; node_i++) {
+      if (node_i == mpi_node_root) continue;
+      if (headers && mcevent_mpi_receive_chunks(
+              &output, width, &headers[node_i], node_i,
+              &session_valid) != MPI_SUCCESS)
+        session_valid = 0;
+    }
+    if (output.ready && !mcevent_output_end(&output))
+      session_valid = 0;
+    free(headers);
+    if (!session_valid) detector = mcevent_invalid_detector();
+    return(detector);
+  }
+#endif
+
+  if (!local_valid || local_rows <= 0 || local_rows > LONG_MAX || width <= 0)
+    return(mcevent_invalid_detector());
+
+  {
+    MCDETECTOR detector = mcevent_session_detector(title, xl, columns,
+                                                    (long)local_rows, width,
+                                                    filename, component,
+                                                    position, rotation,
+                                                    options, index);
+    MC_EVENT_OUTPUT output;
+    if (!detector.m) return(detector);
+    if (!mcevent_output_begin(&output, detector)) {
+      if (output.ready) mcevent_output_end(&output);
+      return(mcevent_invalid_detector());
+    }
+    if (!mcevent_write_local_source(&output, source, width)) {
+      mcevent_output_end(&output);
+      return(mcevent_invalid_detector());
+    }
+    if (!mcevent_output_end(&output))
+      return(mcevent_invalid_detector());
+    return(detector);
+  }
+}
+
+static MCDETECTOR mcevent_write_session(char *title, char *xl, char *columns,
+                    long width, MC_EVENT_CHUNK *chunks, char *filename,
+                    char *component, Coords position, Rotation rotation,
+                    char *options, int index)
+{
+  MC_EVENT_SOURCE source;
+  memset(&source, 0, sizeof(source));
+  source.chunks = chunks;
+  source.valid = mcevent_chunk_summary(chunks, width,
+                                       &source.rows, &source.chunk_count);
+  return(mcevent_write_session_source(title, xl, columns, width, &source,
+                                       filename, component, position, rotation,
+                                       options, index));
+}
+
+MCDETECTOR mcevent_out_list_nd_chunks(char *title, char *xl, char *columns,
+                   long width, MC_EVENT_CHUNK *chunks,
+                   char *filename, char *component, Coords position,
+                   Rotation rotation, char *options, int index)
+{
+  return(mcevent_write_session(title, xl, columns, width, chunks,
+                               filename, component, position, rotation,
+                               options, index));
+}
+
+/*******************************************************************************
+* mcevent_out_list_impl: shared validated delegation to the low-level
+* mcdetector_out_list. See mcevent_out_list for the argument/behavior contract.
+*   xl:      x-axis label written to the data-set header (e.g. "List of events").
+*        The Monitor_nD variant passes its own flavor-specific label.
+*   options: string forwarded to the detector metadata (the NeXus 'options'
+*        attribute). mcevent_out_list passes "None"; the Monitor_nD variant
+*        forwards its own options string.
+*   The negative row count hides the internal negative-dimension convention
+*   used by mcdetector_out_list to force the row-oriented list output.
+*******************************************************************************/
+static MCDETECTOR mcevent_out_list_impl(char *title, char *xl, char *columns,
+                   long count, long width, double *data, char *filename,
+                   char *component, Coords position, Rotation rotation,
+                   char *options, int index)
+{
+  MC_EVENT_CHUNK chunk;
+
+  /* MPI ranks still enter the session for rejected/empty local payloads so a
+   * valid peer cannot wait for a rank that returned before the protocol. */
+  if (count < 0 || width < 0) {
+    fprintf(stderr, "WARNING: mcevent_out_list: invalid count=%ld or width=%ld; no list written\n", count, width);
+  } else if (width == 0 && count > 0) {
+    fprintf(stderr, "WARNING: mcevent_out_list: width=0 with count=%ld; no list written\n", count);
+  } else if (data == NULL && count > 0) {
+    fprintf(stderr, "WARNING: mcevent_out_list: null data for count=%ld width=%ld; no list written\n", count, width);
+  }
+
+  chunk.data = data;
+  chunk.count = count;
+  chunk.next = NULL;
+
+#ifdef USE_MPI
+  if (mpi_node_count > 1)
+    return(mcevent_write_session(title, xl, columns ? columns : "", width,
+                                 &chunk, filename, component, position,
+                                 rotation, options, index));
+#endif
+
+  if (count <= 0 || width <= 0 || data == NULL)
+    return(mcevent_invalid_detector()); /* documented serial no-op/rejection */
+
+  return(mcevent_write_session(title, xl, columns ? columns : "", width,
+                               &chunk, filename, component, position,
+                               rotation, options, index));
+}
+
+/*******************************************************************************
+* mcevent_out_list: generic public event-list output wrapper.
+*   Accepts positive, conventional dimensions and delegates (through
+*   mcevent_out_list_impl) to the existing low-level mcdetector_out_list, which
+*   uses a negative row count to force the row-oriented (one event per line)
+*   list output. The public API uses the neutral x-label "List of events" and
+*   does not forward any Monitor-specific options ("None").
+*   title:    title of the data set
+*   columns:  whitespace-separated column names (may be empty/NULL)
+*   count:    number of valid rows (events); 0 gives a documented no-op
+*   width:    number of columns per row
+*   data:     row-major buffer data[r*width+c], non-NULL when count>0
+*   filename: output file name (extension/output directory handled by backend)
+* Returns the MCDETECTOR structure. A rejected/empty request returns a
+* structure with m=0 and an empty filename (the invalid-detector convention)
+* and writes no output. Existing McCode ASCII, NeXus, MPI rank-local and
+* filename behaviors are preserved.
+*******************************************************************************/
+MCDETECTOR mcevent_out_list(char *title, char *columns, long count, long width,
+                  double *data, char *filename,
+                  char *component, Coords position, Rotation rotation, int index)
+{
+  return(mcevent_out_list_impl(title, "List of events", columns,
+                  count, width,
+                  data, filename,
+                  component, position, rotation, "None", index));
+}
+
+/*******************************************************************************
+* mcevent_out_list_nd: Monitor_nD-specific event-list output entry point.
+*   Same validated, positive-dimension contract as mcevent_out_list (shares
+*   mcevent_out_list_impl), but preserves the two Monitor_nD-specific pieces of
+*   metadata that the generic public API intentionally omits:
+*     - the flavor-specific x-label (xl, e.g. "List of neutron events" for
+*       McStas, "List of photon events" for McXtrace) written to the header, and
+*     - the Monitor_nD options string (options, forwarded to the detector
+*       metadata / NeXus 'options' attribute).
+*   This keeps Monitor_nD's list output byte-compatible with its pre-migration
+*   low-level mcdetector_out_list call until a generic metadata API exists.
+*   Host-only output plumbing (no acc routine).
+*******************************************************************************/
+MCDETECTOR mcevent_out_list_nd(char *title, char *xl, char *columns,
+                  long count, long width, double *data, char *filename,
+                  char *component, Coords position, Rotation rotation,
+                  char *options, int index)
+{
+  return(mcevent_out_list_impl(title, xl, columns,
+                  count, width,
+                  data, filename,
+                  component, position, rotation, options, index));
+}
+
+/*******************************************************************************
+ * mc_event_particle_row: copy the canonical particle state into an event row.
+ *   The destination must have MC_EVENT_PARTICLE_WIDTH values. The helper is
+ *   device-callable and performs no allocation or I/O; null arguments are a
+ *   safe no-op.
+ *******************************************************************************/
+void mc_event_particle_row(double *row, _class_particle *particle)
+{
+  if (row == NULL || particle == NULL) return;
+
+  #pragma acc atomic write
+  row[0] = particle->x;
+  #pragma acc atomic write
+  row[1] = particle->y;
+  #pragma acc atomic write
+  row[2] = particle->z;
+#if MCCODE_PARTICLE_CODE == 2112
+  #pragma acc atomic write
+  row[3] = particle->vx;
+  #pragma acc atomic write
+  row[4] = particle->vy;
+  #pragma acc atomic write
+  row[5] = particle->vz;
+  #pragma acc atomic write
+  row[6] = particle->t;
+  #pragma acc atomic write
+  row[7] = particle->sx;
+  #pragma acc atomic write
+  row[8] = particle->sy;
+  #pragma acc atomic write
+  row[9] = particle->sz;
+  #pragma acc atomic write
+  row[10] = particle->p;
+#elif MCCODE_PARTICLE_CODE == 22
+  #pragma acc atomic write
+  row[3] = particle->kx;
+  #pragma acc atomic write
+  row[4] = particle->ky;
+  #pragma acc atomic write
+  row[5] = particle->kz;
+  #pragma acc atomic write
+  row[6] = particle->t;
+  #pragma acc atomic write
+  row[7] = particle->Ex;
+  #pragma acc atomic write
+  row[8] = particle->Ey;
+  #pragma acc atomic write
+  row[9] = particle->Ez;
+  #pragma acc atomic write
+  row[10] = particle->p;
+#endif
+}
+
+/*******************************************************************************
+* mc_event_buffer_init: allocate a fixed-capacity event buffer (host only).
+*   buffer:   MC_EVENT_BUFFER to initialize (must be non-NULL)
+*   capacity: maximum number of rows that fit (must be >= 0; 0 is a valid
+*             zero-capacity buffer that accepts no rows)
+*   width:    number of columns per row (must be >= 0)
+* Returns 0 on success, nonzero on error (null buffer, negative
+* capacity/width, or allocation failure). On error the buffer is left zeroed
+* (data=NULL, capacity=0) so any later append is a safe no-op that only
+* increments `dropped`.
+*
+* width==0 with capacity>0 is a documented, allowed degenerate case: init
+* succeeds, no storage is allocated (data stays NULL), appends reserve slots
+* and are accepted (count increments) while copying zero values, and saving
+* such a buffer through DETECTOR_OUT_LIST is a no-op, consistent with
+* mcevent_out_list's width==0 handling.
+*******************************************************************************/
+int mc_event_buffer_init(MC_EVENT_BUFFER *buffer, long capacity, long width)
+{
+  if (buffer == NULL) return(1);
+
+  memset(buffer, 0, sizeof(*buffer));
+  if (capacity < 0) return(1);
+  if (width < 0)    return(1);
+
+  buffer->width    = width;
+  buffer->capacity = capacity;
+
+  /* one flat allocation so buffer->data can go straight to DETECTOR_OUT_LIST */
+  if (capacity > 0 && width > 0) {
+    if ((uintmax_t)capacity >
+        (uintmax_t)SIZE_MAX / (uintmax_t)width / sizeof(double)) {
+      memset(buffer, 0, sizeof(*buffer));
+      return(1);
+    }
+    buffer->data = (double*)malloc((size_t)capacity * (size_t)width * sizeof(double));
+    if (buffer->data == NULL) {
+      /* allocation failed: degrade to a safe zero-capacity buffer */
+      memset(buffer, 0, sizeof(*buffer));
+      return(1);
+    }
+  }
+  return(0);
+}
+
+/*******************************************************************************
+* mc_event_buffer_free: release the buffer allocation (host only).
+*   Safe after init or for a zero-initialized empty buffer (data==NULL ->
+*   nothing freed) and idempotent: the fields are reset to zero and data set
+*   to NULL, so a second call is a no-op and cannot double-free.
+*******************************************************************************/
+void mc_event_buffer_free(MC_EVENT_BUFFER *buffer)
+{
+  if (buffer == NULL) return;
+  if (buffer->data != NULL) free(buffer->data);
+  memset(buffer, 0, sizeof(*buffer));
+}
+
+/*******************************************************************************
+* mc_event_buffer_append: store one row in the buffer (OpenACC-safe).
+*   Reserves the next row slot (atomically when compiled for device code,
+*   sequentially on the plain CPU path), checks capacity, then copies exactly
+*   `width` values for an accepted row. No allocation, I/O or printf here, so
+*   it may run on the device. Overflow never writes out of bounds: the
+*   rejected reservation is counted in `dropped` and the append returns 0.
+* Returns nonzero only when the row was stored; 0 for a full buffer, a null
+* buffer, or a null row (which leaves all counters unchanged).
+*
+* OpenACC: the buffer struct and its `data` array must be in device memory;
+* the caller owns that transfer (see the plan's OpenACC limitations). The CPU
+* (serial) path stores rows in insertion order; on the device only bounds and
+* the accepted count are guaranteed, not row order.
+*******************************************************************************/
+int mc_event_buffer_append(MC_EVENT_BUFFER *buffer, const double *row)
+{
+  long slot, c;
+
+  if (buffer == NULL || row == NULL) return(0);
+
+  /* reserve the next slot before writing anything; the #pragma is active
+     only when compiling OpenACC device code and ignored on the CPU path */
+  #pragma acc atomic capture
+  {
+    slot = buffer->next++;
+  }
+
+  /* overflow: count the rejection and never write out of bounds */
+  if (slot >= buffer->capacity) {
+    #pragma acc atomic
+    buffer->dropped++;
+    return(0);
+  }
+
+  /* accepted: copy exactly width values (a no-op when width==0, where data
+     is NULL and the loop body never executes) */
+  for (c = 0; c < buffer->width; c++)
+    buffer->data[slot * buffer->width + c] = row[c];
+
+  #pragma acc atomic
+  buffer->count++;
+
+  return(1);
+}
+
+/*******************************************************************************
+* mc_event_buffer_save: save the accepted rows of an event buffer (host only).
+*   Saves exactly `count` rows through mcevent_out_list (never `capacity`),
+*   so the normal extension/output-directory/format behavior applies. If
+*   `dropped` is nonzero (an overflow happened), a single WARNING containing
+*   the dropped count is printed to stderr before saving; the warning is not
+*   fatal and the buffer is left unmodified, so the caller can still report
+*   the counters itself.
+*   buffer:    MC_EVENT_BUFFER to save (a NULL buffer is a documented no-op)
+*   title:     title of the data set
+*   columns:   whitespace-separated column names (may be empty/NULL)
+*   filename:  output file name (extension/output directory handled by backend)
+*   component/position/rotation/index: metadata (pass NAME_CURRENT_COMP,
+*        POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP)
+* Returns the MCDETECTOR structure. A rejected/empty request returns the
+* invalid-detector sentinel (m=0, empty filename) and writes no output.
+*******************************************************************************/
+MCDETECTOR mc_event_buffer_save(MC_EVENT_BUFFER *buffer, char *title,
+                                 char *columns, char *filename,
+                                 char *component, Coords position,
+                                 Rotation rotation, int index)
+{
+  if (buffer == NULL)
+    return(mcevent_out_list(title, columns, 0, 0, NULL, filename,
+                            component, position, rotation, index));
+
+  /* report the overflow once; not fatal and the buffer is left unmodified */
+  if (buffer->dropped > 0)
+    fprintf(stderr,
+            "WARNING: mc_event_buffer_save: %ld events dropped (capacity exceeded), saving %ld rows to '%s'\n",
+            buffer->dropped, buffer->count, filename ? filename : "");
+
+  return(mcevent_out_list(title, columns, buffer->count, buffer->width,
+                          buffer->data, filename,
+                          component, position, rotation, index));
+}
+
+int mc_event_chunk_append(MC_EVENT_CHUNK **head, MC_EVENT_CHUNK **tail,
+                          double *data, long count)
+{
+  MC_EVENT_CHUNK *chunk;
+  if (!head || !tail || count < 0 || (count > 0 && !data)) return(1);
+  chunk = (MC_EVENT_CHUNK *)malloc(sizeof(*chunk));
+  if (!chunk) return(1);
+  chunk->data = data;
+  chunk->count = count;
+  chunk->next = NULL;
+  if (*tail) (*tail)->next = chunk;
+  else       *head = chunk;
+  *tail = chunk;
+  return(0);
+}
+
+void mc_event_chunk_free(MC_EVENT_CHUNK **head)
+{
+  MC_EVENT_CHUNK *chunk;
+  if (!head) return;
+  chunk = *head;
+  while (chunk) {
+    MC_EVENT_CHUNK *next = chunk->next;
+    free(chunk->data);
+    free(chunk);
+    chunk = next;
+  }
+  *head = NULL;
+}
+
+#ifdef OPENACC
+typedef struct mc_event_writer_openacc_entry_struct {
+  MC_EVENT_WRITER *writer;
+  struct mc_event_writer_openacc_entry_struct *next;
+} MC_EVENT_WRITER_OPENACC_ENTRY;
+
+static MC_EVENT_WRITER_OPENACC_ENTRY *mc_event_writer_openacc_entries = NULL;
+
+static int mc_event_writer_openacc_register(MC_EVENT_WRITER *writer)
+{
+  MC_EVENT_WRITER_OPENACC_ENTRY *entry;
+
+  if (!writer) return(0);
+  for (entry = mc_event_writer_openacc_entries; entry; entry = entry->next)
+    if (entry->writer == writer) return(1);
+
+  entry = (MC_EVENT_WRITER_OPENACC_ENTRY *)malloc(sizeof(*entry));
+  if (!entry) return(0);
+  entry->writer = writer;
+  entry->next = mc_event_writer_openacc_entries;
+  mc_event_writer_openacc_entries = entry;
+  return(1);
+}
+
+static void mc_event_writer_openacc_unregister(MC_EVENT_WRITER *writer)
+{
+  MC_EVENT_WRITER_OPENACC_ENTRY **link = &mc_event_writer_openacc_entries;
+
+  while (*link) {
+    if ((*link)->writer == writer) {
+      MC_EVENT_WRITER_OPENACC_ENTRY *entry = *link;
+      *link = entry->next;
+      free(entry);
+      return;
+    }
+    link = &(*link)->next;
+  }
+}
+
+/* Component instances are mapped as one OpenACC object. Synchronizing only
+ * the nested buffer avoids copying every component at every GPU batch. The
+ * row allocation is normally managed memory; update it explicitly as well so
+ * the same path also works with an explicit OpenACC data mapping. */
+static int mc_event_writer_openacc_update_host(MC_EVENT_WRITER *writer)
+{
+  size_t values;
+
+  if (!writer) return(0);
+  acc_update_self(&writer->buffer, sizeof(writer->buffer));
+  if (writer->buffer.capacity < 0 || writer->buffer.width < 0) return(0);
+  if (writer->buffer.capacity > 0 && writer->buffer.width > 0
+      && (uintmax_t)writer->buffer.capacity >
+         (uintmax_t)SIZE_MAX / (uintmax_t)writer->buffer.width)
+    return(0);
+
+  if (!writer->buffer.data || writer->buffer.capacity <= 0
+      || writer->buffer.width <= 0)
+    return(1);
+
+  values = (size_t)writer->buffer.capacity * (size_t)writer->buffer.width;
+  if (values > SIZE_MAX / sizeof(double)) return(0);
+  acc_update_self(writer->buffer.data, values * sizeof(double));
+  return(1);
+}
+
+static void mc_event_writer_openacc_update_device(MC_EVENT_WRITER *writer)
+{
+  if (writer) acc_update_device(&writer->buffer, sizeof(writer->buffer));
+}
+#endif
+
+int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,
+                          long width, long chunk_capacity, char *filename,
+                          char *component, Coords position, Rotation rotation,
+                          int index)
+{
+  if (!writer) return(1);
+
+  /* Make a rejected begin safe to finish with mc_event_writer_end. The caller
+     must not reuse an active writer without ending it first. */
+  memset(writer, 0, sizeof(*writer));
+  if (width <= 0 || chunk_capacity <= 0) return(1);
+
+  writer->width = width;
+  writer->chunk_capacity = chunk_capacity;
+  writer->position = position;
+  rot_copy(writer->rotation, rotation);
+  writer->index = index;
+  mcevent_copy_string(writer->title, title);
+  mcevent_copy_string(writer->columns, columns);
+  mcevent_copy_string(writer->filename, filename);
+  mcevent_copy_string(writer->component, component);
+
+  writer->spool = tmpfile();
+  if (!writer->spool) {
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+  if (mc_event_buffer_init(&writer->buffer, chunk_capacity, width)) {
+    fclose(writer->spool);
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+  writer->active = 1;
+#ifdef OPENACC
+  if (!mc_event_writer_openacc_register(writer)) {
+    mc_event_buffer_free(&writer->buffer);
+    fclose(writer->spool);
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+#endif
+  return(0);
+}
+
+int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
+                                 char *columns, long count, long width,
+                                 long chunk_capacity, char *filename,
+                                 char *component, Coords position,
+                                 Rotation rotation, int index)
+{
+  MC_EVENT_OUTPUT *output;
+
+  if (!writer) return(1);
+  memset(writer, 0, sizeof(*writer));
+  if (count <= 0 || width <= 0 || chunk_capacity <= 0) return(1);
+#ifdef USE_MPI
+  if (mpi_node_count > 1) return(1);
+#endif
+
+  writer->width = width;
+  writer->chunk_capacity = chunk_capacity;
+  writer->expected_rows = count;
+  writer->position = position;
+  rot_copy(writer->rotation, rotation);
+  writer->index = index;
+  mcevent_copy_string(writer->title, title);
+  mcevent_copy_string(writer->columns, columns);
+  mcevent_copy_string(writer->filename, filename);
+  mcevent_copy_string(writer->component, component);
+
+  if (mc_event_buffer_init(&writer->buffer, chunk_capacity, width)) {
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+
+  output = (MC_EVENT_OUTPUT *)malloc(sizeof(*output));
+  if (!output) {
+    mc_event_buffer_free(&writer->buffer);
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+  /* mcevent_session_detector can reject the descriptor before the output
+     backend initializes its state. Keep the rejected-begin cleanup safe. */
+  memset(output, 0, sizeof(*output));
+  writer->direct_detector = mcevent_session_detector(
+      title, "List of events", columns ? columns : "", count, width,
+      filename, component, position, rotation, "None", index);
+  if (!writer->direct_detector.m
+      || !mcevent_output_begin(output, writer->direct_detector)) {
+    if (output->ready) mcevent_output_end(output);
+    free(output);
+    mc_event_buffer_free(&writer->buffer);
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+
+  writer->direct_output = output;
+  writer->direct = 1;
+  writer->active = 1;
+#ifdef OPENACC
+  if (!mc_event_writer_openacc_register(writer)) {
+    mcevent_output_end(output);
+    free(output);
+    mc_event_buffer_free(&writer->buffer);
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+#endif
+  return(0);
+}
+
+int mc_event_writer_begin_stream(MC_EVENT_WRITER *writer, char *title,
+                                 char *columns, long width,
+                                 long chunk_capacity, char *filename,
+                                 char *component, Coords position,
+                                 Rotation rotation, int index)
+{
+  MC_EVENT_OUTPUT *output;
+  MCDETECTOR detector;
+
+  if (!writer) return(1);
+  memset(writer, 0, sizeof(*writer));
+  if (width <= 0 || chunk_capacity <= 0) return(1);
+#ifdef USE_MPI
+  if (mpi_node_count > 1) return(1);
+#endif
+
+  writer->width = width;
+  writer->chunk_capacity = chunk_capacity;
+  writer->position = position;
+  rot_copy(writer->rotation, rotation);
+  writer->index = index;
+  mcevent_copy_string(writer->title, title);
+  mcevent_copy_string(writer->columns, columns);
+  mcevent_copy_string(writer->filename, filename);
+  mcevent_copy_string(writer->component, component);
+
+  if (mc_event_buffer_init(&writer->buffer, chunk_capacity, width)) {
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+
+  output = (MC_EVENT_OUTPUT *)malloc(sizeof(*output));
+  if (!output) {
+    mc_event_buffer_free(&writer->buffer);
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+  memset(output, 0, sizeof(*output));
+  /* A positive placeholder lets both existing metadata writers initialize;
+     the final detector descriptor is rebuilt from the actual row count. */
+  detector = mcevent_session_detector(title, "List of events",
+                                      columns ? columns : "", 1, width,
+                                      filename, component, position, rotation,
+                                      "None", index);
+  if (!detector.m || !mcevent_output_begin_stream(output, detector,
+                                                  position, rotation, index)) {
+    free(output);
+    mc_event_buffer_free(&writer->buffer);
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+  writer->stream_output = output;
+  writer->stream = 1;
+  writer->active = 1;
+#ifdef OPENACC
+  if (!mc_event_writer_openacc_register(writer)) {
+    mcevent_output_end(output);
+    free(output);
+    mc_event_buffer_free(&writer->buffer);
+    memset(writer, 0, sizeof(*writer));
+    return(1);
+  }
+#endif
+  return(0);
+}
+
+/* Write one already-detached chunk through the selected host-side sink. The
+ * caller owns the source buffer and may reset/reuse it after this returns. */
+static int mc_event_writer_write_rows(MC_EVENT_WRITER *writer, long count,
+                                      double *data)
+{
+  MC_EVENT_OUTPUT *output;
+  size_t values;
+  long long stored_rows;
+
+  if (!writer || count <= 0 || !data || writer->failed) return(1);
+  if (writer->width <= 0 || (uintmax_t)count >
+      (uintmax_t)SIZE_MAX / (uintmax_t)writer->width
+      || (uintmax_t)count * (uintmax_t)writer->width >
+         (uintmax_t)SIZE_MAX / sizeof(double))
+    return(1);
+  if (writer->rows > LLONG_MAX - (long long)count
+      || writer->chunks == LLONG_MAX)
+    return(1);
+
+  values = (size_t)count * (size_t)writer->width;
+  stored_rows = (long long)count;
+  if (writer->direct) {
+    output = (MC_EVENT_OUTPUT *)writer->direct_output;
+    if (!output || !mcevent_output_chunk(output, count, data)) return(1);
+  } else if (writer->stream) {
+    output = (MC_EVENT_OUTPUT *)writer->stream_output;
+    if (!output || !mcevent_output_chunk(output, count, data)) return(1);
+  } else {
+    if (!writer->spool
+        || fwrite(&stored_rows, sizeof(stored_rows), 1, writer->spool) != 1
+        || fwrite(data, sizeof(double), values, writer->spool) != values
+        || fflush(writer->spool) != 0)
+      return(1);
+  }
+
+  writer->rows += (long long)count;
+  writer->chunks++;
+  return(0);
+}
+
+int mc_event_writer_flush(MC_EVENT_WRITER *writer)
+{
+  long count;
+
+  if (!writer || !writer->active || writer->failed
+      || (!writer->spool && !writer->direct_output && !writer->stream_output))
+    return(1);
+  count = writer->buffer.count;
+  if (count <= 0) return(0);
+  if (mc_event_writer_write_rows(writer, count, writer->buffer.data)) {
+    writer->failed = 1;
+    return(1);
+  }
+
+  mc_event_buffer_free(&writer->buffer);
+  if (mc_event_buffer_init(&writer->buffer, writer->chunk_capacity,
+                           writer->width)) {
+    writer->failed = 1;
+    return(1);
+  }
+  return(0);
+}
+
+int mc_event_writer_append(MC_EVENT_WRITER *writer, const double *row)
+{
+  if (!writer || !writer->active || writer->failed || !row) return(0);
+  if (writer->buffer.count >= writer->buffer.capacity
+      && mc_event_writer_flush(writer))
+    return(0);
+  if (writer->direct
+      && writer->rows + (long long)writer->buffer.count >= writer->expected_rows)
+    return(0);
+  return(mc_event_buffer_append(&writer->buffer, row));
+}
+
+#pragma acc routine
+int mc_event_writer_append_openacc(MC_EVENT_WRITER *writer,
+                                   const double *row)
+{
+#ifdef OPENACC
+  /* The device path cannot touch FILEs or MPI. A host batch service drains
+     this bounded buffer after the surrounding GPU kernel completes. */
+  if (!writer || !writer->active || !row) return(0);
+  return(mc_event_buffer_append(&writer->buffer, row));
+#else
+  return(mc_event_writer_append(writer, row));
+#endif
+}
+
+int mc_event_writer_write(MC_EVENT_WRITER *writer, long count, double *data)
+{
+  long row;
+
+  if (!writer || !writer->active || writer->failed || count < 0
+      || (count > 0 && !data)) return(0);
+  if (count > 0 && (uintmax_t)count >
+      (uintmax_t)SIZE_MAX / (uintmax_t)writer->width / sizeof(double))
+    return(0);
+  for (row = 0; row < count; row++)
+    if (!mc_event_writer_append(writer, data +
+                                (size_t)row * (size_t)writer->width))
+      return(0);
+  return(1);
+}
+
+void mc_event_writer_openacc_service(void)
+{
+#ifdef OPENACC
+  MC_EVENT_WRITER_OPENACC_ENTRY *entry;
+
+  for (entry = mc_event_writer_openacc_entries; entry; entry = entry->next) {
+    MC_EVENT_WRITER *writer = entry->writer;
+    long count;
+
+    if (!writer || !writer->active) continue;
+    if (!mc_event_writer_openacc_update_host(writer)) {
+      writer->failed = 1;
+      writer->buffer.capacity = 0;
+    }
+
+    if (writer->buffer.dropped > 0) {
+      if (writer->dropped > LLONG_MAX - (long long)writer->buffer.dropped)
+        writer->failed = 1;
+      else
+        writer->dropped += (long long)writer->buffer.dropped;
+    }
+    count = writer->buffer.count;
+    if (!writer->failed && count > 0
+        && mc_event_writer_write_rows(writer, count, writer->buffer.data))
+      writer->failed = 1;
+
+    /* Keep the allocation and its device mapping. Only the counters are
+       reset, so the next kernel can reuse the same bounded chunk. */
+    writer->buffer.count = 0;
+    writer->buffer.next = 0;
+    writer->buffer.dropped = 0;
+    if (writer->failed) writer->buffer.capacity = 0;
+    mc_event_writer_openacc_update_device(writer);
+  }
+#endif
+}
+
+MCDETECTOR mc_event_writer_end(MC_EVENT_WRITER *writer)
+{
+  MCDETECTOR detector;
+  MC_EVENT_SOURCE source;
+  MC_EVENT_OUTPUT *output;
+
+  if (!writer || !writer->active)
+    return(mcevent_invalid_detector());
+
+#ifdef OPENACC
+  mc_event_writer_openacc_unregister(writer);
+#endif
+  if (writer->buffer.dropped > 0) {
+    if (writer->dropped > LLONG_MAX - (long long)writer->buffer.dropped)
+      writer->failed = 1;
+    else
+      writer->dropped += (long long)writer->buffer.dropped;
+    writer->buffer.dropped = 0;
+  }
+  if (writer->dropped > 0)
+    fprintf(stderr,
+            "WARNING: mc_event_writer: %lld events dropped in device buffers for '%s'\n",
+            writer->dropped, writer->filename);
+
+  if (writer->stream) {
+    output = (MC_EVENT_OUTPUT *)writer->stream_output;
+    if (mc_event_writer_flush(writer)) writer->failed = 1;
+    detector = (!writer->failed && writer->rows > 0 && output) ?
+      mcevent_stream_detector(output, writer->rows) :
+      mcevent_invalid_detector();
+    if (!writer->failed && writer->rows > 0
+        && !mcevent_output_finalize_stream(output, writer->rows))
+      writer->failed = 1;
+    if (output && !mcevent_output_end(output)) writer->failed = 1;
+    free(output);
+    mc_event_buffer_free(&writer->buffer);
+    if (writer->failed) detector = mcevent_invalid_detector();
+    memset(writer, 0, sizeof(*writer));
+    return(detector);
+  }
+
+  if (writer->direct) {
+    if (mc_event_writer_flush(writer)) writer->failed = 1;
+    if (writer->rows != writer->expected_rows) writer->failed = 1;
+    output = (MC_EVENT_OUTPUT *)writer->direct_output;
+    detector = writer->direct_detector;
+    if (output && !mcevent_output_end(output)) writer->failed = 1;
+    free(output);
+    mc_event_buffer_free(&writer->buffer);
+    if (writer->failed) detector = mcevent_invalid_detector();
+    memset(writer, 0, sizeof(*writer));
+    return(detector);
+  }
+
+  /* Even after a local spool failure, enter the collective session with the
+     successfully written prefix. This keeps other MPI ranks from waiting. */
+  if (mc_event_writer_flush(writer)) writer->failed = 1;
+  memset(&source, 0, sizeof(source));
+  source.spool = writer->spool;
+  source.rows = writer->rows;
+  source.chunk_count = writer->chunks;
+  source.valid = !writer->failed && writer->spool != NULL;
+  detector = mcevent_write_session_source(
+      writer->title, "List of events", writer->columns, writer->width,
+      &source, writer->filename, writer->component,
+      writer->position, writer->rotation, "None", writer->index);
+  if (writer->spool) fclose(writer->spool);
+  mc_event_buffer_free(&writer->buffer);
+  memset(writer, 0, sizeof(*writer));
+  return(detector);
+}
+
+void mc_event_writer_discard(MC_EVENT_WRITER *writer)
+{
+  MC_EVENT_OUTPUT *output;
+
+  if (!writer) return;
+#ifdef OPENACC
+  mc_event_writer_openacc_unregister(writer);
+#endif
+  if (writer->stream_output) {
+    output = (MC_EVENT_OUTPUT *)writer->stream_output;
+    mcevent_output_end(output);
+    free(output);
+  }
+  if (writer->direct_output) {
+    output = (MC_EVENT_OUTPUT *)writer->direct_output;
+    mcevent_output_end(output);
+    free(output);
+  }
+  if (writer->spool) fclose(writer->spool);
+  mc_event_buffer_free(&writer->buffer);
+  memset(writer, 0, sizeof(*writer));
 }
 
 /*******************************************************************************

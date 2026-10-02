@@ -1,0 +1,54 @@
+/*******************************************************************************
+ *
+ * %I
+ * Written by: McCode development
+ * Date: 22 September 2026
+ * Origin: DTU
+ *
+ * %D
+ * OpenACC fixture for MC_EVENT_BUFFER. Rows are appended from TRACE and saved
+ * after the device kernel completes. Device row order is intentionally not
+ * guaranteed; the fixed capacity and accepted/dropped counters are checked.
+ *
+ * %P
+ * capacity: [1] maximum number of rows in the device event buffer
+ *
+ * %E
+ *******************************************************************************/
+DEFINE COMPONENT EventBufferOpenACC
+
+SETTING PARAMETERS (int capacity=8)
+
+DECLARE
+%{
+  MC_EVENT_BUFFER events;
+%}
+
+INITIALIZE
+%{
+  mc_event_buffer_init(&events, capacity, 3);
+%}
+
+TRACE
+%{
+  double row[3];
+  row[0] = x;
+  row[1] = y;
+  row[2] = p;
+  mc_event_buffer_append(&events, row);
+%}
+
+SAVE
+%{
+  fprintf(stderr, "OpenACC event buffer[%s]: count=%ld next=%ld dropped=%ld\n",
+          NAME_CURRENT_COMP, events.count, events.next, events.dropped);
+  DETECTOR_OUT_LIST("OpenACC event rows", "x y p",
+                    events.count, events.width, events.data, "EventRows");
+%}
+
+FINALLY
+%{
+  mc_event_buffer_free(&events);
+%}
+
+END
