@@ -459,13 +459,15 @@ INITIALIZE
                   printf ("Monitor_nD: %s is using automatic limits option 'auto' together with MPI.\n"
                           "WARNING     this may create incorrect distributions (but integrated flux will be right).\n",
                           NAME_CURRENT_COMP););
-  #else
+  #endif
   #ifdef OPENACC
-  if (strstr (Vars.option, "auto"))
+  /* auto limits read the shared list buffer racily in TRACE: not supported on GPU */
+  if (Vars.Flag_Auto_Limits) {
     printf ("Monitor_nD: %s is requesting automatic limits option 'auto' together with OpenACC.\n"
             "WARNING     this feature is NOT supported using OpenACC and has been disabled!\n",
             NAME_CURRENT_COMP);
-  #endif
+    Vars.Flag_Auto_Limits = 0;
+  }
   #endif
 %}
 

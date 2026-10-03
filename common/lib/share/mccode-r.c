@@ -4174,14 +4174,11 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
     long j = lo + loclen - 1;
 
     // write into pbuffer at i and j
-    #pragma acc loop seq
     while (i < j) {
-      #pragma acc loop seq
       while (!particles[i]._absorbed && i<j) {
         pbuffer[i] = particles[i];
         i++;
       }
-      #pragma acc loop seq
       while (particles[j]._absorbed && i<j) {
         pbuffer[j] = particles[j];
         j--;
@@ -4203,7 +4200,6 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
 
   // determine lo's
   accumlen = 0;
-  #pragma acc loop seq
   for (long idx=0; idx<SAL_THREADS; idx++) {
     los[idx] = accumlen;
     accumlen = accumlen + lens[idx];
