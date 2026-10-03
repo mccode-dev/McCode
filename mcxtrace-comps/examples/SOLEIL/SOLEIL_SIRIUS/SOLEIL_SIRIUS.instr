@@ -1,0 +1,199 @@
+/*******************************************************************************
+*         McXtrace instrument definition for SIRIUS (SOLEIL)
+*
+* Instrument: SOLEIL_SIRIUS
+*
+* %Identification
+* Written by: FARHI Emmanuel
+* Date: September 2026
+* Origin: SOLEIL
+* Version: 0.1
+* %INSTRUMENT_SITE: SOLEIL
+*
+* SOLEIL SIRIUS beamline: Soft Interfaces and Resonant Investigation on Undulator Source
+*
+* %Description
+* SIRIUS is designed for Soft Matter research (1.4 - 13 keV). 
+* It features vertical focusing primary mirrors, a fixed-exit Si(111) 
+* monochromator, and a deflection mirror to enable grazing incidence 
+* measurements on liquid/solid interfaces.
+*
+* Position | Element
+* ---------|-------------------------------------------------------------
+* 0        | Source: Undulator (U26)
+* 14       | M1: Primary Mirror (Pd coated, vertical focusing)
+* 16       | MDC1: 1st Crystal (Flat, Si 111)
+* 16.01    | MDC2: 2nd Crystal (Sagittally bent, Si 111)
+* 18       | Deflection Mirror (for grazing incidence)
+* 30       | Sample Stage (XAS configuration)
+* 35       | Sample Stage (SEXAFS configuration)
+*
+* %Example: E0=8, dE=0.1, M1_angle=0.5, M2_angle=0.5, def_angle=2.0, sample_pos=30
+*
+* %Parameters
+* E0:               [keV]  Central energy (1.4 - 13 keV)
+* dE:               [keV]  Energy spread
+* M1_angle:         [deg]  Incidence angle of M1
+* M2_angle:         [deg]  Incidence angle of M2
+* def_angle:        [deg]  Deflection mirror tilt (for grazing incidence)
+* sample_pos:       [m]    Distance to sample (30 for XAS, 35 for SEXAFS)
+* sample:           [str] Sample structure file
+*
+* %Link
+* Documentation: APS_BL20.pdf
+*******************************************************************************/
+
+DEFINE INSTRUMENT SOLEIL_SIRIUS(E0=8, dE=0.1, 
+  M1_angle=0.5, M2_angle=0.5, def_angle=2.0,
+  sample_pos=30,
+  string sample="LaB6.cif")
+
+DECLARE
+%{
+  double DCM_theta;
+  double d_si;
+  double M1_radius;
+  double M2_radius;
+  double def_mirror_radius;
+%}
+
+INITIALIZE
+%{
+  // 1. Monochromator Setup (Si 111)
+  d_si = 0.3135e-3; // Si(111) d-spacing
+  double lambda = 12.3984 / E0;
+  DCM_theta = asin(lambda / (2.0 * d_si)) * RAD2DEG;
+
+  // 2. Mirror Radii (Approximation based on typical vertical focusing)
+  M1_radius = 1000.0; 
+  M2_radius = 1000.0;
+  def_mirror_radius = 1000.0;
+
+  MPI_MASTER(
+    printf("%s: E0=%g [keV] DCM_theta=%g [deg]\n", NAME_INSTRUMENT, E0, DCM_theta);
+    printf("%s: M1_angle=%g [deg] M2_angle=%g [deg] Deflect=%g [deg]\n", NAME_INSTRUMENT, M1_angle, M2_angle, def_angle);
+  );
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+// -----------------------------------------------------------------------------
+// SOURCE: Undulator (U26 type)
+// -----------------------------------------------------------------------------
+COMPONENT source = Bending_magnet(
+    E0 = E0, dE = dE,
+    Ee = 2.75, Ie = 0.5, B = 1.72, sigex=60e-6, sigey=25e-6)
+AT (0, 0, 0) RELATIVE origin
+
+// -----------------------------------------------------------------------------
+// OPTICS 1: Primary Mirrors (M1 & M2 - Vertically Focusing)
+// -----------------------------------------------------------------------------
+COMPONENT M1_loc = Arm()
+AT (0, 0, 14) RELATIVE origin
+
+COMPONENT M1_rot = Arm()
+AT (0, 0, 0) RELATIVE M1_loc
+ROTATED (-M1_angle, 0, 0) RELATIVE M1_loc
+
+COMPONENT M1 = Mirror_curved(
+    length=1.3, width=0.1,
+    coating="Pd.txt", radius=M1_radius)
+AT (0, 0, 0) RELATIVE M1_rot
+ROTATED (0, 0, 90) RELATIVE M1_rot
+EXTEND %{ 
+  if (!SCATTERED) ABSORB; 
+%}
+
+COMPONENT M1_out = Arm()
+AT (0, 0, 0) RELATIVE M1_rot
+ROTATED (-M1_angle, 0, 0) RELATIVE M1_loc
+
+// -----------------------------------------------------------------------------
+// OPTICS 2: Fixed-exit Double Crystal Monochromator (DCM)
+// -----------------------------------------------------------------------------
+COMPONENT DCM_loc = Arm()
+AT (0, 0, 2) RELATIVE M1_out // 14 + 2 = 16m
+
+// Crystal 1 (Flat)
+COMPONENT crystal1 = Bragg_crystal(
+    length=0.1, width=0.05,
+    material="Si.txt", h=1, k=1, l=1, crystal_type=1)
+AT (0, 0, 0) RELATIVE DCM_loc
+ROTATED (-DCM_theta, 0, 0) RELATIVE DCM_loc
+EXTEND %{ 
+  if (!SCATTERED) ABSORB; 
+%}
+
+// Crystal 2 (Bent for Sagittal focusing)
+COMPONENT crystal2 = COPY(crystal1)(
+    length=0.09)
+AT (0, 0, 0.01) RELATIVE crystal1
+ROTATED (DCM_theta, 0, 0) RELATIVE crystal1
+EXTEND %{ 
+  if (!SCATTERED) ABSORB; 
+%}
+
+COMPONENT DCM_out = Arm()
+AT (0, 0, 0) RELATIVE crystal2
+ROTATED (DCM_theta, 0, 0) RELATIVE DCM_loc
+
+// -----------------------------------------------------------------------------
+// OPTICS 3: Deflection Mirror (for Grazing Incidence)
+// -----------------------------------------------------------------------------
+COMPONENT def_loc = Arm()
+AT (0, 0, 2) RELATIVE DCM_out // 16 + 2 = 18m
+
+COMPONENT def_rot = Arm()
+AT (0, 0, 0) RELATIVE def_loc
+ROTATED (-def_angle, 0, 0) RELATIVE def_loc
+
+COMPONENT def_mirror = Mirror(
+    xwidth=0.1, yheight=0.05)
+AT (0, 0, 0) RELATIVE def_rot
+EXTEND %{ 
+  if (!SCATTERED) ABSORB; 
+%}
+
+COMPONENT def_out = Arm()
+AT (0, 0, 0) RELATIVE def_rot
+ROTATED (-def_angle, 0, 0) RELATIVE def_loc
+
+// -----------------------------------------------------------------------------
+// SAMPLE STAGE
+// -----------------------------------------------------------------------------
+COMPONENT sample_stage = Arm()
+AT (0, 0, sample_pos - 18) RELATIVE def_out 
+
+SPLIT COMPONENT powder = PowderN(
+    reflections=sample, 
+    xwidth=0.002, yheight=0.002, zdepth=1e-5,
+    p_interact=0.5)
+AT (0, 0, 0) RELATIVE sample_stage
+GROUP samples
+
+COMPONENT fluo = Fluorescence(
+    material=sample,
+    xwidth=0.002, yheight=0.002, zdepth=1e-5,
+    p_interact=1, target_z=1)
+AT (0, 0, 0) RELATIVE sample_stage
+GROUP samples
+
+// -----------------------------------------------------------------------------
+// DETECTORS
+// -----------------------------------------------------------------------------
+// 2D Detector (CCD/Pilatus style)
+COMPONENT det_2d = Monitor_nD(
+    radius=0.5, xwidth=0.1, yheight=0.1,
+    options="theta bins=256, phi bins=256")
+AT (0, 0, 1.0) RELATIVE sample_stage
+
+// Fluorescence Monitor
+COMPONENT det_fluo = Monitor_nD(
+    radius=0.1, options="energy", bins=128)
+AT (0, 0, 1.0) RELATIVE sample_stage
+
+END
+
