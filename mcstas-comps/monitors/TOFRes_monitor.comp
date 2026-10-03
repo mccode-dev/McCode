@@ -89,6 +89,7 @@ DECLARE%{
   MonitornD_Variables_type Vars;
 
   unsigned long num_events;
+  unsigned long reso_capacity;
   double* reso_events;
   double* reso_probabilities;
 
@@ -121,11 +122,13 @@ INITIALIZE %{
 
   num_events = 0;
   reso_events = 0;
+  reso_capacity = 0;
   reso_probabilities = 0;
 
   if(live_calc) {
-    reso_events = malloc(mcget_ncount()*4*sizeof(double));
-    reso_probabilities = malloc(mcget_ncount()*sizeof(double));
+    reso_capacity = (unsigned long)mcget_ncount();
+    reso_events = malloc(reso_capacity*4*sizeof(double));
+    reso_probabilities = malloc(reso_capacity*sizeof(double));
   }
 
   int i;
@@ -286,23 +289,25 @@ TRACE %{
           event_idx = num_events++;
         }
 
-        /* variables for Monitor_nD */
-        Vars.UserDoubles[0] = event_ki[0];
-        Vars.UserDoubles[1] = event_ki[1];
-        Vars.UserDoubles[2] = event_ki[2];
-        Vars.UserDoubles[3] = event_kf[0];
-        Vars.UserDoubles[4] = event_kf[1];
-        Vars.UserDoubles[5] = event_kf[2];
-        Vars.UserDoubles[6] = event_pos[0];
-        Vars.UserDoubles[7] = event_pos[1];
-        Vars.UserDoubles[8] = event_pos[2];
-        Vars.UserDoubles[9] = event_pi;
-        Vars.UserDoubles[10] = event_pf;
+        /* variables for Monitor_nD: per-particle copy, Vars.UserDoubles is shared by all GPU threads */
+        double ud[16] = { 0 };
+        ud[0] = event_ki[0];
+        ud[1] = event_ki[1];
+        ud[2] = event_ki[2];
+        ud[3] = event_kf[0];
+        ud[4] = event_kf[1];
+        ud[5] = event_kf[2];
+        ud[6] = event_pos[0];
+        ud[7] = event_pos[1];
+        ud[8] = event_pos[2];
+        ud[9] = event_pi;
+        ud[10] = event_pf;
 
-        Monitor_nD_Trace(&DEFS, &Vars, _particle);
+        Monitor_nD_Trace_ud(&DEFS, &Vars, _particle, ud);
 
         /* live calculation */
-        if(live_calc) {
+        /* event_idx can exceed the buffer with SPLIT upstream or when ncount is rounded up on GPU */
+        if(live_calc && event_idx < reso_capacity) {
           reso_events[event_idx*4 + 0] = event_ki[0] - event_kf[0];
           reso_events[event_idx*4 + 1] = event_ki[1] - event_kf[1];
           reso_events[event_idx*4 + 2] = event_ki[2] - event_kf[2];
@@ -330,6 +335,7 @@ SAVE %{
   Monitor_nD_Save(&DEFS, &Vars);
 
   /* live calculation */
+  if(live_calc && num_events > reso_capacity) num_events = reso_capacity;
   if(live_calc && num_events > 0) {
     if(dbg_save_events) {
       /* save individual neutron events */

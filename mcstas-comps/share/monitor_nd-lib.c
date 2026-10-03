@@ -1127,7 +1127,10 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 /* return values: 0=neutron was absorbed, -1=neutron was outside bounds, 1=neutron was measured*/
 /* ========================================================================= */
 
-int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle* _particle)
+/* Monitor_nD_Trace_ud: as Monitor_nD_Trace, but the user doubles (ud0..ud15)
+   are passed per call instead of being read from the shared Vars->UserDoubles.
+   Use this from components that set user doubles per particle (GPU-safe). */
+int Monitor_nD_Trace_ud(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle* _particle, double *UserDoubles)
 {
 
   double  XY=0, pp=0;
@@ -1327,37 +1330,37 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_P) XY = _particle->p;
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE0) XY = Vars->UserDoubles[0];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE0) XY = UserDoubles[0];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE1) XY = Vars->UserDoubles[1];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE1) XY = UserDoubles[1];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE2) XY = Vars->UserDoubles[2];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE2) XY = UserDoubles[2];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE3) XY = Vars->UserDoubles[3];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE3) XY = UserDoubles[3];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE4) XY = Vars->UserDoubles[4];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE4) XY = UserDoubles[4];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE5) XY = Vars->UserDoubles[5];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE5) XY = UserDoubles[5];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE6) XY = Vars->UserDoubles[6];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE6) XY = UserDoubles[6];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE7) XY = Vars->UserDoubles[7];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE7) XY = UserDoubles[7];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE8) XY = Vars->UserDoubles[8];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE8) XY = UserDoubles[8];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE9) XY = Vars->UserDoubles[9];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE9) XY = UserDoubles[9];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE10) XY = Vars->UserDoubles[10];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE10) XY = UserDoubles[10];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE11) XY = Vars->UserDoubles[11];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE11) XY = UserDoubles[11];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE12) XY = Vars->UserDoubles[12];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE12) XY = UserDoubles[12];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE13) XY = Vars->UserDoubles[13];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE13) XY = UserDoubles[13];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE14) XY = Vars->UserDoubles[14];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE14) XY = UserDoubles[14];
         else
-        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE15) XY = Vars->UserDoubles[15];
+        if (Set_Vars_Coord_Type == DEFS->COORD_USERDOUBLE15) XY = UserDoubles[15];
         else
         if (Set_Vars_Coord_Type == DEFS->COORD_HDIV) XY = RAD2DEG*atan2(_particle->vx,_particle->vz);
         else
@@ -1591,6 +1594,11 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
    Vars->Neutron_Counter++;
   }
   return 1;
+} /* end Monitor_nD_Trace_ud */
+
+int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle* _particle)
+{
+  return Monitor_nD_Trace_ud(DEFS, Vars, _particle, Vars->UserDoubles);
 } /* end Monitor_nD_Trace */
 
 /* ========================================================================= */

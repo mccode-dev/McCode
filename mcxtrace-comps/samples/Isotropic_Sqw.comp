@@ -2058,6 +2058,8 @@ INITIALIZE
 /*****************************************************************************/
 TRACE
 %{
+  /* per-particle scattering cross-section: local, VarSqw.my_s is shared by all GPU threads */
+  double my_s = VarSqw.my_s;
 
   int intersect = 0;        /* flag to continue/stop */
   double l0, l1, l2, l3;    /* times for intersections */
@@ -2205,7 +2207,10 @@ TRACE
         break;
       }
 
-      VarSqw.photon_enter++;
+      {
+        #pragma acc atomic
+        VarSqw.photon_enter++;
+      }
       p_mult = 1;
       k = sqrt (kx * kx + ky * ky + kz * kz);
 
@@ -2227,22 +2232,25 @@ TRACE
       }
       if (coh < 0)
         coh = 0;
-      VarSqw.my_s = (VarSqw.mat_rho * 100 * coh);
+      my_s = (VarSqw.mat_rho * 100 * coh);
 
-      my_t = my_a + VarSqw.my_s; /* total scattering Xsect */
+      my_t = my_a + my_s; /* total scattering Xsect */
       if (my_t <= 0) {
         if (VarSqw.photon_removed < VarSqw.maxloop)
           printf ("Isotropic_Sqw: %s: ERROR: Null total cross section %g. Removing event.\n", NAME_CURRENT_COMP, my_t);
-        VarSqw.photon_removed++;
+        {
+          #pragma acc atomic
+          VarSqw.photon_removed++;
+        }
         ABSORB; /* should never occur */
-      } else if (VarSqw.my_s <= 0) {
+      } else if (my_s <= 0) {
         if (VarSqw.verbose_output > 1 && VarSqw.photon_removed < VarSqw.maxloop)
-          printf ("Isotropic_Sqw: %s: Warning: Null scattering cross section %g. Ignoring.\n", NAME_CURRENT_COMP, VarSqw.my_s);
-        VarSqw.my_s = 0;
+          printf ("Isotropic_Sqw: %s: Warning: Null scattering cross section %g. Ignoring.\n", NAME_CURRENT_COMP, my_s);
+        my_s = 0;
       }
 
       /* Proba of scattering vs absorption (integrating along the whole trajectory) */
-      ws = VarSqw.my_s / my_t; /* (coh)/(coh+abs) */
+      ws = my_s / my_t; /* (coh)/(coh+abs) */
       d_path = (dl0 + dl2);    /* total path lenght in sample */
       /* Proba of transmission/interaction along length d_path */
       p_trans = exp (-my_t * d_path);
@@ -2251,7 +2259,7 @@ TRACE
       flag = 0; /* flag used for propagation to exit point before ending */
 
       /* are we next to the exit ? probably no scattering (avoid rounding errors) */
-      if (VarSqw.my_s * d_path <= 4e-7) {
+      if (my_s * d_path <= 4e-7) {
         flag = 1; /* No interaction before the exit */
       }
       /* force a given fraction of the beam to scatter */
@@ -2297,8 +2305,14 @@ TRACE
     if (intersect) { /* scattering event */
       double kf = 0, kf1, kf2;
       /* mean scattering probability and absorption fraction */
-      VarSqw.mean_scatt += (1 - exp (-VarSqw.my_s * d_path)) * p;
-      VarSqw.psum_scatt += p;
+      {
+        #pragma acc atomic
+        VarSqw.mean_scatt += (1 - exp (-VarSqw.my_s * d_path)) * p;
+      }
+      {
+        #pragma acc atomic
+        VarSqw.psum_scatt += p;
+      }
 
       /* Decaying exponential distribution of the path length before scattering */
       /* Select a point at which to scatter the photon, taking
@@ -2339,7 +2353,11 @@ TRACE
           tmp_rand = rand01 ();
           /* energy index for rand > cumul SW */
           index_w = Sqw_search_SW (Data_sqw, tmp_rand);
-          VarSqw.rw = (double)index_w;
+          { /* last-event diagnostics: not meaningful (and racy) on GPU */
+#ifndef OPENACC
+            VarSqw.rw = (double)index_w;
+#endif
+          }
           if (index_w >= 0 && &(Data_sqw.SW[index_w]) != NULL) {
             if (Data_sqw.w_bins > 1) {
               double w1, w2;
@@ -2379,7 +2397,11 @@ TRACE
 
           /* momentum index for rand > cumul SQ|W */
           index_q = Sqw_search_Q_proba_per_w (Data_sqw, tmp_rand, index_w);
-          VarSqw.rq = (double)index_q;
+          { /* last-event diagnostics: not meaningful (and racy) on GPU */
+#ifndef OPENACC
+            VarSqw.rq = (double)index_q;
+#endif
+          }
 
           if (index_q >= 0 && &(Data_sqw.SQW[index_w]) != NULL) {
             if (Data_sqw.q_bins > 1 && index_q > 0) {
@@ -2419,7 +2441,10 @@ TRACE
           } else {
             if (VarSqw.verbose_output >= 3 && VarSqw.photon_removed < VarSqw.maxloop)
               printf ("Isotropic_Sqw: %s: Warning: No suitable q transfer for w=%g.\n", NAME_CURRENT_COMP, omega);
-            VarSqw.photon_removed++;
+            {
+              #pragma acc atomic
+              VarSqw.photon_removed++;
+            }
             continue; /* no Q value for this w choice */
           }
 
@@ -2446,7 +2471,10 @@ TRACE
             printf ("Isotropic_Sqw: %s: Warning: No scattering [q,w] conditions\n"
                     "               last try (%i): type=%c w=%g q=%g cos(theta)=%g k=%g\n",
                     NAME_CURRENT_COMP, VarSqw.maxloop, (type ? type : '-'), omega, q, costheta, k);
-          VarSqw.photon_removed++;
+          {
+            #pragma acc atomic
+            VarSqw.photon_removed++;
+          }
           if (order && SCATTERED != order)
             ABSORB;
           break; /* finish multiple scattering loop */
@@ -2519,10 +2547,16 @@ TRACE
 
       } /* end if (flag) */
 
-      VarSqw.photon_exit++;
+      {
+        #pragma acc atomic
+        VarSqw.photon_exit++;
+      }
       p *= p_mult;
       if (p_mult > 1)
-        VarSqw.photon_pmult++;
+        {
+          #pragma acc atomic
+          VarSqw.photon_pmult++;
+        }
 
       /* test for a given multiple order */
       if (order && SCATTERED >= order) {
@@ -2539,19 +2573,41 @@ TRACE
   kf_y = ky;
   kf_z = kz;
   kf = k;
-  VarSqw.theta = theta;
+  { /* last-event diagnostics: not meaningful (and racy) on GPU */
+#ifndef OPENACC
+    VarSqw.theta = theta;
+#endif
+  }
 
   if (SCATTERED) {
 
     if (SCATTERED == 1) {
-      VarSqw.single_coh += p;
-      VarSqw.dq = sqrt ((kf_x - ki_x) * (kf_x - ki_x) + (kf_y - ki_y) * (kf_y - ki_y) + (kf_z - ki_z) * (kf_z - ki_z));
-      VarSqw.dw = VarSqw.sqw_K2E * (kf - ki);
+      {
+        #pragma acc atomic
+        VarSqw.single_coh += p;
+      }
+      { /* last-event diagnostics: not meaningful (and racy) on GPU */
+#ifndef OPENACC
+        VarSqw.dq = sqrt ((kf_x - ki_x) * (kf_x - ki_x) + (kf_y - ki_y) * (kf_y - ki_y) + (kf_z - ki_z) * (kf_z - ki_z));
+#endif
+      }
+      { /* last-event diagnostics: not meaningful (and racy) on GPU */
+#ifndef OPENACC
+        VarSqw.dw = VarSqw.sqw_K2E * (kf - ki);
+#endif
+      }
     } else
-      VarSqw.multi += p;
+      {
+        #pragma acc atomic
+        VarSqw.multi += p;
+      }
 
   } else
-    VarSqw.dq = VarSqw.dw = 0;
+    { /* last-event diagnostics: not meaningful (and racy) on GPU */
+#ifndef OPENACC
+      VarSqw.dq = VarSqw.dw = 0;
+#endif
+    }
 
   /* end TRACE */
 %}
