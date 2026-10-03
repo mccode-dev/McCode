@@ -1,0 +1,212 @@
+/*******************************************************************************
+*         McXtrace instrument definition for SAMBA (SOLEIL)
+*
+*
+* Instrument: SOLEIL_SAMBA
+*
+* %Identification
+* Written by: FARHI Emmanuel
+* Date: September 2026
+* Origin: SOLEIL
+* Version: 0.1
+* %INSTRUMENT_SITE: SOLEIL
+*
+* SOLEIL SAMBA beamline: absorption spectroscopy
+*
+* %Description
+* SAMBA is an XAS beamline (4.8 - 40 keV) using a Sagittal focusing
+* Double Crystal Monochromator (DCM) and two Pd-coated parabolic mirrors (M1, M2).
+*
+* Position | Element
+* ---------|-------------------------------------------------------------
+* 0        | Source: Bending Magnet (D09-1)
+* 14       | M1: Collimating Mirror (Pd coated)
+* 16       | MDC1: 1st Crystal (Flat, Si 220 or Si 111)
+* 17       | MDC2: 2nd Crystal (Sagittally bent, Si 220 or Si 111)
+* 18.5     | M2: Focusing Mirror (Pd coated)
+* 30       | Sample Stage (XAS configuration)
+* 35       | Sample Stage (SEXAFS configuration)
+*
+* %Example: E0=15, dE=0.1, M1_angle=0.2, M2_angle=0.2, DCM_type="220"
+*
+* %Parameters
+* E0:               [keV]  Central energy
+* dE:               [keV]  Energy spread
+* M1_angle:         [deg]  Incidence angle of M1 (vertical collimation)
+* M2_angle:         [deg]  Incidence angle of M2 (vertical focusing)
+* DCM_type:         [str]  "111" for 4-20 keV (focusing) or "220" for 5-40 keV (fast EXAFS)
+* sample:            [str] Sample structure file
+*
+* %Link
+* Documentation: APD Optique 6 / Samba.pdf
+*******************************************************************************/
+
+DEFINE INSTRUMENT SOLEIL_SAMBA(E0=15, dE=0.1,
+  M1_angle=0.2, M2_angle=0.2,
+  string DCM_type="220",
+  string sample="LaB6.cif")
+
+DECLARE
+%{
+  double DCM_theta;
+  double d_si;
+  double M1_radius;
+  double M2_radius;
+  double h;
+  double i_k, i_l;
+%}
+
+INITIALIZE
+%{
+  // 1. Monochromator Setup (Si 220 or Si 111)
+  if (strcmp(DCM_type, "220") == 0) {
+    d_si = 0.1354e-3; // Si(220) d-spacing
+    h = 1; i_k = 2; i_l = 0;
+  } else {
+    d_si = 0.3135e-3; // Si(111) d-spacing
+    h = 1; i_k = 1; i_l = 1;
+  }
+
+  // Bragg angle calculation
+  double lambda = 12.3984 / E0;
+  DCM_theta = asin(lambda / (2.0 * d_si)) * RAD2DEG;
+
+  // 2. Mirror Radii (Simplified model based on doc formulas)
+  // R_M * sin(theta_M) = 2 * d (where d is distance to focus)
+  // For collimation/focusing, we use the provided approximate values or angles.
+  // Here we allow the user to set angles, and we estimate radius.
+  M1_radius = (2.0 * 14.0) / sin(M1_angle * DEG2RAD);
+  M2_radius = (2.0 * 11.5) / sin(M2_angle * DEG2RAD);
+
+  MPI_MASTER(
+    printf("%s: E0=%g [keV] DCM_type=%s DCM_theta=%g [deg]\n", NAME_INSTRUMENT, E0, DCM_type, DCM_theta);
+    printf("%s: M1_angle=%g [deg] M2_angle=%g [deg]\n", NAME_INSTRUMENT, M1_angle, M2_angle);
+  );
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+// -----------------------------------------------------------------------------
+// SOURCE: Bending Magnet D09-1
+// -----------------------------------------------------------------------------
+COMPONENT BM_source = Bending_magnet(
+    E0 = E0, dE = dE,
+    Ee = 2.75, Ie = 0.5, B = 1.72, sigex=60.1e-6, sigey=24.9e-6)
+AT (0, 0, 0) RELATIVE origin
+
+// -----------------------------------------------------------------------------
+// OPTICS 1: M1 Collimating Mirror (at 14 m)
+// -----------------------------------------------------------------------------
+COMPONENT M1_location = Arm()
+AT (0, 0, 14) RELATIVE origin
+
+COMPONENT M1_rotated = Arm()
+AT (0, 0, 0) RELATIVE M1_location
+ROTATED (-M1_angle, 0, 0) RELATIVE M1_location
+
+COMPONENT M1 = Mirror_curved(
+    length=1.3, width=0.12,
+    coating="Pd.txt", radius=M1_radius)
+AT (0, 0, 0) RELATIVE M1_rotated
+ROTATED (0, 0, 90) RELATIVE M1_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB; 
+%}
+
+COMPONENT M1_out = Arm()
+AT (0, 0, 0) RELATIVE M1_rotated
+ROTATED (-M1_angle, 0, 0) RELATIVE M1_location
+
+// -----------------------------------------------------------------------------
+// OPTICS 2: Sagittal Focusing DCM (MDC1 at 16m, MDC2 at 17m)
+// -----------------------------------------------------------------------------
+COMPONENT DCM_loc1 = Arm()
+AT (0, 0, 2) RELATIVE M1_out // 14 + 2 = 16m
+
+COMPONENT bragg_crystal1 = Bragg_crystal(
+    length=0.1, width=0.06,
+    material="Si.txt", h=h, k=i_k, l=i_l,
+    crystal_type=1 // Flat
+)
+AT (0, 0, 0) RELATIVE DCM_loc1
+ROTATED (-DCM_theta, 0, 0) RELATIVE DCM_loc1
+EXTEND %{
+  if (!SCATTERED) ABSORB; 
+%}
+
+COMPONENT DCM_loc2 = Arm()
+AT (0, 0, 1) RELATIVE DCM_loc1 // 16 + 1 = 17m
+
+COMPONENT bragg_crystal2 = COPY(bragg_crystal1)(
+    length=0.09
+)
+AT (0, 0, 0) RELATIVE DCM_loc2
+ROTATED (DCM_theta, 0, 0) RELATIVE DCM_loc1
+EXTEND %{ 
+  if (!SCATTERED) ABSORB; 
+%}
+
+COMPONENT DCM_out = Arm()
+AT (0, 0, 0) RELATIVE DCM_loc2
+ROTATED (DCM_theta, 0, 0) RELATIVE DCM_loc1
+
+// -----------------------------------------------------------------------------
+// OPTICS 3: M2 Focusing Mirror (at 18.5 m)
+// -----------------------------------------------------------------------------
+COMPONENT M2_loc = Arm()
+AT (0, 0, 1.5) RELATIVE DCM_out // 17 + 1.5 = 18.5m
+
+COMPONENT M2_rotated = Arm()
+AT (0, 0, 0) RELATIVE M2_loc
+ROTATED (M2_angle, 0, 0) RELATIVE M2_loc
+
+COMPONENT M2 = Mirror_curved(
+    length=1.3, width=0.12,
+    coating="Pd.txt", radius=M2_radius)
+AT (0, 0, 0) RELATIVE M2_rotated
+ROTATED (0, 0, -90) RELATIVE M2_rotated
+EXTEND %{ 
+  if (!SCATTERED) ABSORB; 
+%}
+
+COMPONENT M2_out = Arm()
+AT (0, 0, 0) RELATIVE M2_rotated
+ROTATED (M2_angle, 0, 0) RELATIVE M2_loc
+
+// -----------------------------------------------------------------------------
+// SAMPLE STAGE (at 30 m)
+// -----------------------------------------------------------------------------
+COMPONENT sample_stage = Arm()
+AT (0, 0, 11.5) RELATIVE M2_out // 18.5 + 11.5 = 30m
+
+SPLIT COMPONENT powder = PowderN(
+    reflections=sample,
+    xwidth=0.002, yheight=0.002, zdepth=1e-5,
+    p_interact=0.5)
+AT (0, 0, 0) RELATIVE sample_stage
+GROUP samples
+
+COMPONENT fluo = Fluorescence(
+    material=sample,
+    xwidth=0.002, yheight=0.002, zdepth=1e-5,
+    p_interact=1, target_z=1)
+AT (0, 0, 0) RELATIVE sample_stage
+GROUP samples
+
+// -----------------------------------------------------------------------------
+// DETECTORS
+// -----------------------------------------------------------------------------
+// Transmission Monitor (Oxford Chamber style)
+COMPONENT det_trans = Monitor_nD(
+    radius=0.1, options="energy", bins=128)
+AT (0, 0, 1) RELATIVE sample_stage
+
+// Fluorescence Monitor (Canberra style)
+COMPONENT det_fluo = Monitor_nD(
+    radius=0.1, options="energy", bins=128)
+AT (0, 0, 1) RELATIVE sample_stage
+
+END
