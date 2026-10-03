@@ -4149,10 +4149,13 @@ mcstatic void norm_func(double *x, double *y, double *z) {
 #ifdef FUNNEL
 long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long len, long buffer_len, long flag_split, long* multiplier) {
   #define SAL_THREADS 1024 // num parallel sections
-  if (len<SAL_THREADS) return sort_absorb_last_serial(particles, len);
-
   if (multiplier != NULL) *multiplier = -1; // set default out value for multiplier
-  long newlen = 0;
+  long accumlen = 0;
+
+  if (len<SAL_THREADS) {
+    // small batch: serial compaction, but still apply the SPLIT below
+    accumlen = sort_absorb_last_serial(particles, len);
+  } else {
   long los[SAL_THREADS]; // target array startidxs
   long lens[SAL_THREADS]; // target array sublens
   long l = floor(len/(SAL_THREADS-1)); // subproblem_len
@@ -4199,7 +4202,7 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
   }
 
   // determine lo's
-  long accumlen = 0;
+  accumlen = 0;
   #pragma acc loop seq
   for (long idx=0; idx<SAL_THREADS; idx++) {
     los[idx] = accumlen;
@@ -4218,10 +4221,17 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
     }
   }
   //for (int ii=0;ii<accumlen;ii++) printf("%ld ", (psorted[ii]->_absorbed));
+  } // end parallel compaction
 
   // return (no SPLIT)
   if (flag_split != 1)
     return accumlen;
+
+  // nothing survived to the SPLIT: avoid division by zero below
+  if (accumlen == 0) {
+    if (multiplier != NULL) *multiplier = 0;
+    return 0;
+  }
 
   // SPLIT - repeat the non-absorbed block N-1 times, where len % accumlen = N + R
   int mult = buffer_len / accumlen; // TODO: possibly use a new arg, bufferlen, rather than len
