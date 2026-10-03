@@ -1,0 +1,458 @@
+/*******************************************************************************
+* Instrument: SOLEIL_NANOSCOPIUM
+*
+* %Identification
+* Written by: 
+* Date: 
+* Origin: Synchrotron SOLEIL
+* %INSTRUMENT_SITE: SOLEIL
+*
+* The NANOSCOPIUM tomography beam-line at Synchrotron SOLEIL.
+*
+* %Description
+* The beamline NANOSCOPIUM
+* works at photon energies between 5 and 50 keV. It is dedicated to full-field
+* radiography and tomography in absorption and phase contrast, with pixel sizes
+* from 20 nm to 20 µm.
+*
+* List of beamline elements. Distances are given from the center of the undulator.
+*
+* Position (m) |   Element
+* -------------|---------------------------------------------
+* 0            | Undulator (source)
+* 18.109       | Primary slits
+* 22.655       | Mirror M1 (curved) : horizontal deviation, vertical focus
+* 24.471       | Mirror M2 (curved) : horizontal deviation, horizontal focus
+* 75.758       | Secondary slits
+* 77.224       | Monochromator (DCM)
+* 82.064       | Slits Secondary source
+* 148.893      | Slits JJ XRay 1 (entry Nanoprobe 1)
+* 150.721      | Nano-probe 1
+* 154.353      | Slits JJ XRay 2 (entry Nanoprobe 2)
+* 154.856      | Mirror KB1 (elliptic) : vertical focus
+* 154.961      | Mirror KB2 (elliptic) : horizontal focus
+* 155.140      | Nano-probe 2
+* 
+* %Parameters
+* E_target    [keV] Energy selected at the Undulator.
+* dE          [keV] Energy spread at the Undulator.
+* Emono       [keV] Energy to be selected by the monochromator
+* coating_m2  [1]   2 stripes on M2 : Rh (coated : 1) or Si (uncoated : 0)
+* angle_m1_m2 [rad] Incidence angle on M1 and M2 mirrors
+* angle_kb    [rad] Incidence angle on KB mirrors
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT SOLEIL_NANOSCOPIUM(E_target=11, dE=1, Emono=0, int coating_m2=1, angle_m1_m2=2.5e-3, angle_kb=3e-3)
+
+DECLARE
+%{
+    char emonopts[128]; // string that will contains the option set in the Monitor nD
+    double angle_dcm; // incident angle on monochromator -> depends on energy wanted
+    double delta_dcm; // translation of the second crystal according to the energy selected
+    char material_coating_m2[20];
+    double E1_target;  // First harmonic coresponding to the energy selected
+    double f_fresnel;  // focal length of the fresnel zone plate (depends on energy selected)
+%}
+
+INITIALIZE
+%{
+    // COMPUTE THE BRAGG ANGLE -------------------------------------------------------------
+
+    if (Emono==0) Emono=E_target;
+    
+    // check if Emono is accessible and calculate the coresponding Bragg angle (if possible)
+    if (E_target-dE < Emono && Emono < E_target+dE) {
+
+      double arg= (12.39842*sqrt(3)) / (2*5.4309*Emono);
+      if (fabs(arg) > 1)
+        exit(printf("%s: ERROR: Monochromator can not reach this energy.\n", NAME_INSTRUMENT));
+       angle_dcm = RAD2DEG*asin(arg);
+       delta_dcm = 0.02 / tan(2.0*DEG2RAD*angle_dcm);
+    } else {
+      exit(printf("%s: ERROR: Monochromator energy is outside the Undulator bandwidth.\n", NAME_INSTRUMENT));
+    }
+
+    // COMPUTE THE 1st HARMONIC FOR UNDULATOR ---------------------------------------------
+    // search the largest odd harmonic so that K is valid (K>0 and K<K_max)
+    double K_max = 1.95;
+    int harmonic=1;
+    double K=0;
+    double Ee=2.75; // in GeV
+    double lambda_u = 18; // in cm
+
+    while ((K<=0 || K>K_max ) && harmonic < 51) {  // check if K is valid for the undulator
+        E1_target = E_target / harmonic;
+        double K2 = 2.0*( (0.95*Ee*Ee)/(E1_target*lambda_u) - 1);
+
+        if (K2>=0) K = sqrt(K2);
+        harmonic += 2;
+    }
+    harmonic -=2;
+    if (harmonic==51) {printf("Harmonic = %d, has stopped. E1_target = %g and K = %g \n", harmonic,E1_target, K);}
+    printf("With the selected energy %g keV, the calculated first harmonic is : harmonic %d = %g keV. \n", E_target, harmonic, E1_target);
+    printf("The corresponding K is : %g\n", K);
+
+    // SET OPTION FOR MONITOR_nD ----------------------------------------------------------
+    sprintf(emonopts,"energy limits=[%g %g], y",E_target-dE,E_target+dE);
+
+    // SET STRIPE USED IN M2 MIRROR --------------------------------------------------------
+    if (coating_m2==0) {
+        // uncoated surface_
+        sprintf(material_coating_m2,"Si.txt");
+    } else if (coating_m2==1) {
+        // coated surface
+        sprintf(material_coating_m2,"Rh.txt");
+    } else {
+        exit(printf("%s: ERROR: Invalid coating for M2, must be 0 (uncoated) or 1 (coated).\n", NAME_INSTRUMENT));
+    }
+    
+    // COMPUTE FOCAL LENGTH OF ZONE PLATE DEPENDING ON 
+    // the beam is approximately 100micrometers extended while entering in the zone plate -> diameter will be 100e-6m. We want a 50nm beam after the zone plate (Rayleigh criterion) delta_r_N = 40nm.
+    f_fresnel = (100e-6 * 40e-9 * E_target) / 12.39842;
+%}
+
+TRACE
+
+REMOVABLE COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+// -------------------------------- Source 
+
+// values are found in GMI
+// minimum gap = 5.5mm
+
+COMPONENT source=Undulator(
+ E0=E_target, dE=dE, Ee=2.75, dEe=0.001, Ie=0.5, 
+ E1st=E1_target, Nper=106, lu=1.8e-2, 
+ sigex=258.6e-6, sigey=8.8e-6, sigepx=31.2e-6, sigepy=3.5e-6, 
+ dist=76)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT e_monitor_source = E_monitor(
+    filename="e_monitor_source.dat", 
+    xwidth=0.1, 
+    yheight=0.1, 
+    Emin=E_target-dE, 
+    Emax=E_target+dE, 
+    nE=500,
+    restore_xray=1)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT psd_source=PSD_monitor_coh(
+    filename="psd_source.dat",
+    xwidth=0.05,
+    yheight=0.05,
+    centering=0,
+    restore_xray=1)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// ------------------------------------ Primary slits
+COMPONENT slit_1 = Slit(
+    xwidth=0.0008,
+    yheight=0.0008)
+AT (0,0,18.109) RELATIVE PREVIOUS
+
+// ------------------------------------ Mirror M1 (C03)
+
+// distance to source : 22655mm -> distance to previous : 4.555m
+// curvature in xy plane -> 90° rotation is needed -> width and length are exchanged
+COMPONENT m1_in=Arm()
+AT (0, 0, 4.555) RELATIVE PREVIOUS
+
+COMPONENT psd_m1_in=PSD_monitor(
+    filename="psd_m1_in.dat",
+    xwidth=0.002,
+    yheight=0.002)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT m1_roll=Arm()
+AT (0,0,0) RELATIVE PREVIOUS
+ROTATED (-90,0,0) RELATIVE PREVIOUS
+
+// Distance to source = 22.525m - distance to image = 59m => radius = 32.60m
+// in documentation, R_tangential > 10km and R_sagittal=81.5mm
+COMPONENT mirror_m1 = Mirror_curved(
+    radius=-0.0815, 
+    zdepth=0.029,
+    yheight=0.351,
+    coating="Rh.txt")          
+AT (0, 0, 0) RELATIVE PREVIOUS	
+ROTATED (0, 0, -angle_m1_m2*RAD2DEG) RELATIVE PREVIOUS
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT beam_deviation=Arm()
+AT (0,0,0) RELATIVE m1_in
+ROTATED (0,-2.0*angle_m1_m2*RAD2DEG,0) RELATIVE m1_in
+
+// ---------------------------------- Mirror M2 (C04)
+
+COMPONENT m2_in=Arm()
+AT (0,0,1.816) RELATIVE PREVIOUS
+
+COMPONENT psd_m2_in = PSD_monitor(
+    filename="psd_m2_in.dat", 
+    xwidth=0.0005, 
+    yheight=0.0005)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+// M2 should be placed at 1.816 from M1
+COMPONENT mirror_m2 = Mirror_curved(
+    radius=-21400, 
+    yheight=0.029,
+    zdepth=0.351,
+    coating=material_coating_m2)          
+AT (0, 0, 0) RELATIVE PREVIOUS	
+ROTATED (0, -angle_m1_m2*RAD2DEG, 0) RELATIVE PREVIOUS
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT mirror_m2_out = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, -angle_m1_m2*RAD2DEG, 0) RELATIVE PREVIOUS
+
+// ----------------------------------- Secondary slits (C05)
+// xwidth and yheight TODO
+COMPONENT slit_2 = Slit(
+    xwidth=2e-3,
+    yheight=5e-4)
+AT (0,0,51.287) RELATIVE PREVIOUS
+
+// ---------------------------------- Monochromator (C06)
+
+// dcm first crystal at 52.753m from M2 -> at 1.383 from secondary slits
+COMPONENT dcm_in=Arm()
+AT (0,0,1.383) RELATIVE PREVIOUS
+
+COMPONENT e_dcm_in = E_monitor(
+    filename="e_dcm_in.dat", 
+    xwidth=0.01, 
+    yheight=0.01, 
+    Emin=E_target-dE, 
+    Emax=E_target+dE, 
+    nE=500,
+    restore_xray=1)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT PSD_dcm_in=PSD_monitor(
+    filename="psd_dcm_in.dat",
+    xwidth=3e-3,
+    yheight=10e-4)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// the bragg crystal is in the YZ plane -> 90° rotation is needed
+COMPONENT bragg_roll=Arm()
+AT (0,0,0) RELATIVE PREVIOUS
+ROTATED (0,0,90) RELATIVE PREVIOUS
+
+COMPONENT bragg_crystal_1 = Bragg_crystal(
+    length=0.05,
+    width=0.02,
+    material = "Si.txt",
+    h = 1,
+    k = 1,
+    l = 1,
+    crystal_type = 2)
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-angle_dcm, 0, 0) RELATIVE PREVIOUS
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT dcm2_rot = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-angle_dcm, 0, 0) RELATIVE PREVIOUS
+
+// the distance between the two crystals is -h along the "absolute" X-axis where h is fixed at 20mm
+COMPONENT dcm_transl=Arm()
+AT (-0.02,0,delta_dcm) RELATIVE dcm_in
+
+// the second bragg crystal is in the YZ plane -> 90° rotation
+COMPONENT bragg_crystal_2 = Bragg_crystal(
+    length=0.115,
+    width=0.02,
+    material = "Si.txt",
+    h = 1,
+    k = 1,
+    l = 1,
+    crystal_type = 2)
+AT (0, 0, 0) RELATIVE dcm_transl
+ROTATED (angle_dcm, 0, 0) RELATIVE dcm2_rot
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT bragg2_out = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (angle_dcm, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT dcm_out = Arm()
+AT (0,0,0) RELATIVE PREVIOUS
+ROTATED (0,0,0) RELATIVE dcm_in
+
+COMPONENT e_dcm_out = E_monitor(
+    filename="e_dcm_out.dat", 
+    xwidth=0.1, 
+    yheight=0.1, 
+    Emin=E_target-dE, 
+    Emax=E_target+dE, 
+    nE=500,
+    restore_xray=1)
+AT (0, 0, 1) RELATIVE PREVIOUS
+ROTATED (0,0,0) RELATIVE PREVIOUS
+
+// ------------------------------------------ Slits secondary source (C08)
+COMPONENT secondary_source_slits=Arm()
+AT (0,0,4.84) RELATIVE dcm_out
+
+COMPONENT psd_ss_in=PSD_monitor(
+    filename="psd_ss_in.dat",
+    xwidth=0.002,
+    yheight=0.002)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// xwidth and yheight OK (opticaldesign_jsr_2015_0.pdf)
+COMPONENT slit_3 = Slit(
+    xwidth=20e-6,
+    yheight=20e-6)
+AT (0,0,0) RELATIVE PREVIOUS
+/*
+// ----------------------------------------- Slits entry Nano-probe 1 (CX2)
+// slits are at 71669mm from dcm
+COMPONENT jjxray1_slits=Arm()
+AT (0,0,66.829) RELATIVE secondary_source_slits
+
+// xwidth and yheight TODO
+COMPONENT slit_4 = Slit(
+    xwidth=0.01,
+    yheight=0.02)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// ---------------------------------------- Nano-probe 1 (CX2)
+COMPONENT nano_probe_1_in=Arm()
+AT (0,0,1.828) RELATIVE jjxray1_slits
+
+COMPONENT psd_nanoprobe1_in=PSD_monitor_coh(
+    filename="psd_nanoprobe1_in.dat",
+    xwidth=5e-3,
+    yheight=5e-3,
+    centering=0,
+    restore_xray=1)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// central stop
+COMPONENT centralStop=Beamstop(
+	radius=16e-6)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// Fresnel Zone Plate
+COMPONENT zoneplate=ZonePlate(
+    radius=100e-6,
+    L=f_fresnel,
+    lambda0=12.3984/14.0,
+    focus_xw=50e-9,
+    focus_yh=50e-9,
+    dist=f_fresnel)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// OSA
+COMPONENT OSA=Slit(
+	radius=7e-6)
+AT (0,0,f_fresnel/2.0) RELATIVE zoneplate
+
+COMPONENT psd_nanoprobe_1=PSD_monitor_coh(
+    filename="psd_monitor_nanoprobe1.dat",
+    xwidth=100e-6,
+    yheight=100e-6,
+    centering=0,
+    restore_xray=1)
+AT (0,0,f_fresnel) RELATIVE zoneplate
+*/
+// ---------------------------------------- jjxray2 slits : entry Nanoprobe2 (CX3)
+COMPONENT jjxray2_slits=Arm()
+AT (0,0,72.289) RELATIVE secondary_source_slits
+
+// xwidth and yheight TODO
+COMPONENT slit_5 = Slit(
+    xwidth=0.01,
+    yheight=0.02)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// -------------------------------------- Mirrors KB (CX3)
+
+COMPONENT kb_in=Arm()
+AT (0,0,0.503) RELATIVE jjxray2_slits
+
+COMPONENT psd_kb_in=PSD_monitor(
+    xwidth=100e-6,
+    yheight=100e-6)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT kb1_roll=Arm()
+AT (0,0,0) RELATIVE PREVIOUS
+ROTATED (0,0,-90) RELATIVE PREVIOUS
+
+// KB1 is an elliptic cylinder mirror, focusing the beam in vertical direction. In XZ plane
+// focal length =285mm -> radius = 2*285 = 570mm
+COMPONENT mirror_kb1=Mirror_curved(
+    yheight=0.04,
+    zdepth=0.1,
+    coating="Rh.tkt",
+    radius=-0.57)
+AT (0,0,0) RELATIVE PREVIOUS
+ROTATED (0,-angle_kb*RAD2DEG,0) RELATIVE PREVIOUS
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT kb1_beam_deviation=Arm()
+AT (0,0,0) RELATIVE PREVIOUS
+ROTATED (-2.0*angle_kb*RAD2DEG,0,0) RELATIVE kb_in
+
+COMPONENT psd_kb_mid=PSD_monitor(
+    xwidth=100e-6,
+    yheight=100e-6)
+AT (0,0,0.5) RELATIVE PREVIOUS
+
+// KB2 is an elliptic cylinder mirror, focusing the beam in horizontal direction -> 90° rotated around z-axis
+// focal length = 180mm -> radius = 360mm
+COMPONENT mirror_kb2=Mirror_curved(
+    yheight=0.04,
+    zdepth=0.1,
+    coating="Rh.txt",
+    radius=-0.36)
+AT (0,0,0.105) RELATIVE kb1_beam_deviation
+ROTATED (0,-angle_kb*RAD2DEG,0) RELATIVE PREVIOUS
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT kb_out=Arm()
+AT (0,0,0) RELATIVE PREVIOUS
+ROTATED (0,-angle_kb*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT psd_kb_out=PSD_monitor(
+    xwidth=100e-6,
+    yheight=100e-6)
+AT (0,0,0.03) RELATIVE kb_out
+
+COMPONENT psd_kb_out1=PSD_monitor(
+    xwidth=100e-6,
+    yheight=100e-6)
+AT (0,0,0.08) RELATIVE kb_out
+
+// -------------------------------------- Nano-probe 2 (CX3)
+
+COMPONENT nano_probe_2_in=Arm()
+AT (0,0,0.179) RELATIVE PREVIOUS
+
+COMPONENT psd_nanoprobe_2=PSD_monitor(
+    filename="psd_monitor_nanoprobe2.dat",
+    xwidth=0.01,
+    yheight=0.01)
+AT (0,0,0) RELATIVE PREVIOUS
+
+END
