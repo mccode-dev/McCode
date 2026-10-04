@@ -15,24 +15,26 @@ result against the target value recorded in the instrument header.
 | `--ncount N`, `-n N` | ncount sent to `mcrun` (default: `1e6`) |
 | `--seed S`, `-s S` | seed sent to `mcrun` (default: `1000`; `0`/`NULL` randomises) |
 | `--mpi N` | MPI node count sent to `mcrun` |
+| `--no-mpi` | compile and run without MPI (`--no-mpi` sent to `mcrun`) |
 | `--openacc` | pass `--openacc` to `mcrun` |
 | `--nexus` | compile/run with NeXus output format everywhere |
 | `--lint` | just run the C-linter (no simulation run) |
-| `--config CONFIG` | test only this specific config — label name or absolute path |
-| `--instr PATTERN` | test only instruments matching this regex (comma-separated for multiple) |
-| `--comp COMP` | test only instruments that use component `COMP` |
+| `--config CONFIG` | test only this specific config — label name (regex) or absolute path |
+| `--instr PATTERN` | test only instruments matching this regex (comma-separated for multiple); together with `--comp`, instruments matching either are tested |
+| `--comp COMP[,COMP...]` | test only instruments that use any of the given components (whole-word match) |
 | `--mccoderoot DIR` | root search folder for McCode installations |
 | `--testdir DIR` | write test results directly into `DIR` (default: cwd) |
 | `--local DIR` | pick up instruments to test from `DIR` instead of the McCode installation |
-| `--limit N` | test only the first `N` instruments per version |
+| `--limit N` | test only the first `N` instruments |
 | `--skipnontest` | skip compiling instruments that have no `%Example` test |
 | `--suffix SUFFIX` | append `SUFFIX` to the test directory name |
 | `--uid ID` | unique identifier for the suffix (default: timestamp) |
-| `--compilemax S` | max seconds allowed per compilation (default: 600; x100 with `--lint`) |
+| `--compilemax S` | max seconds allowed per compilation (default: 1800; x100 with `--lint`) |
 | `--runmax S` | max seconds allowed per test run (default: 3600) |
 | `--displaymax S` | max seconds allowed per test display run (default: 60) |
+| `--noplots` | do not generate plots (`01_overview.pdf`, `02_plots.html`) of the test output |
 | `--permissive` | exit 0 even if some tests fail |
-| `--strict` | Let instruments without %%Example line(s) instantly fail. |
+| `--strict` | let instruments without `%Example` line(s) fail immediately (cannot be combined with `--permissive`) |
 | `--verbose` | print a test/no-test status header before each test |
 
 ## mcviewtest / mxviewtest

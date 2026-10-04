@@ -71,7 +71,7 @@ Parameters in **boldface** are required; the others are optional.
 | D16_lambda | AA | D16 monochromator wavelength | 5.6 |
 | SADAM_lambda | AA | SuperADAM monochromator wavelength | 4.4 |
 | L_guide_end | m | Length of H521 guide after the SuperADAM monochromator (assumed) | 1.0 |
-| dcm_order | 1 | DCM Bragg orders: 1 = first order only, 0 = all orders (lambda/2, lambda/3 | 1 |
+| dcm_order | 1 | DCM Bragg orders: 1 = first order only, 0 = all orders (lambda/2, lambda/3 contamination, all with the same r0 -> overestimated) | 1 |
 | sel_alpha | deg | Velocity selector twist angle (sets dl/l; assumed value) | 26 |
 | dcm_mosaic | arcmin | DCM crystal mosaic (sets dl/l; assumed value) | 60 |
 | direct_focus | 1 | 1: source illuminates the H52 entrance directly (efficient), | 1 |

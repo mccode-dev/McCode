@@ -50,7 +50,7 @@ Parameters in **boldface** are required; the others are optional.
 | rotX | deg | Sample rotation around X | 0 |
 | rotY | deg | Sample rotation around Y | 0 |
 | rotZ | deg | Sample rotation around Z | 0 |
-| SPLITs |  |  | 10 |
+| SPLITs | 1 | Number of SPLIT repetitions at the sample | 10 |
 
 ## Links
 

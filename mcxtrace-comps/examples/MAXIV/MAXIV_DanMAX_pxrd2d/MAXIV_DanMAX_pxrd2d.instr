@@ -38,8 +38,9 @@
 * DMM: [ ]         If nonzero the multilayer mono is active.
 * DMM_e0: [keV]    The energy to tune the ML monochromator to. May be different from E0. If 0 the DMM is controlled by DMM_angle.
 * OH_2DCRL_N: [ ]  Number of 2D focus CRLs in the optics hutch transfocator. 0 means transfocator is inactive.
-* pxrd_2d_tthc: [ ] Rotation around the sample tube (i.e. the x-axis) of the 2d-area detector arm.
+* pxrd_2d_tthc: [deg] Rotation around the sample tube (i.e. the x-axis) of the 2d-area detector arm.
 * pxrd_2d_y: [m]   Offset of 2d-area detector centre perpendicular to the detector arm.
+* SDD_2D: [m] Sample-to-detector distance of the 2d-area detector
 * debugMon: [ ]    If nonzero, all intermediate monitors appear for debugging purposes.
 * beamStop: [ ]    If nonzero, a beamstop is in between sample and PXRD 2d-detector.
 * SPLITS: [ ]      Split-number at the sample position.
@@ -55,7 +56,7 @@ DEFINE INSTRUMENT MAXIV_DanMAX_pxrd2d(E0=35,DE=0.05,undK=0,undDetune=4,
         PXRDsampleap_h=300e-6, PXRDsampleap_w=300e-6,
         DMM_angle=0, DCM_angle=0,
         DCM=1, DMM=0,
-        OH_2DCRL_N=0, EH_2DCRL_N=0, D_EH_2DCRL=0,
+        OH_2DCRL_N=0,
         sample_radius=100e-6,
         pxrd_2d_y=135e-3, pxrd_2d_tthc=0, SDD_2D=150e-3,
         debugMon=1, beamStop=1, int SPLITS=100)
@@ -86,10 +87,6 @@ DECLARE
     const double oh_2dcrl_r=200e-6;
     int oh_2dcrl_N;
 
-    double eh_2dcrl_ap=0.2e-3;
-    const double eh_2dcrl_r=50e-6;
-    int eh_2dcrl_N;
-    double d_eh_2dcrl;
 
     double pxrd_sampleap_h;
     double pxrd_sampleap_w;
@@ -207,8 +204,6 @@ INITIALIZE
     printf("z ml mono offset is: %g, z si mono offset is: %g\n",DMM_d,DCM_d);
 
     oh_2dcrl_N=OH_2DCRL_N;
-    eh_2dcrl_N=EH_2DCRL_N;
-    d_eh_2dcrl=D_EH_2DCRL;
 
 
     pxrd_sampleap_h=PXRDsampleap_h;
@@ -446,20 +441,6 @@ AT(0,0,0) RELATIVE Imaging
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 /*XXX                                PXRD                                  XXX*/
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-/*XXX                        CRL FOCUS AT PXRD 2D                          XXX*/
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-/*COMPONENT eh_pre_crl_mon = COPY(src_mon)(filename="eh_pre_crl_mon")*/
-/*AT(0,0,d_eh_2dcrl-0.02) RELATIVE Imaging*/
-/**/
-/*COMPONENT eh_2dcrl_guard=Slit(radius=eh_2dcrl_ap)*/
-/*WHEN(EH_2DCRL_N) AT(0,0,d_eh_2dcrl-0.01) RELATIVE Imaging*/
-/**/
-/*COMPONENT eh_2dcrl= Lens_parab(*/
-/*        r=eh_2dcrl_r, r_ap=eh_2dcrl_ap, material_datafile="Be.txt", N=eh_2dcrl_N, d=30e-6)*/
-/*WHEN (EH_2DCRL_N) AT(0,0,d_eh_2dcrl) RELATIVE Imaging*/
 
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 /*XXX                               PXRD_2D                                XXX*/

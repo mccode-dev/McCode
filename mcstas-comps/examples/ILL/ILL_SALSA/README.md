@@ -56,7 +56,7 @@ Parameters in **boldface** are required; the others are optional.
 | horizontal_focus | mm | Choice of collimator focus in mm. Choose either 0.6, 2, or 4. | 0.6 |
 | outgoing_focus | mm | Choice of collimator focus in mm. Choose either 0.6, 2, or 4. | 0.6 |
 | measuring_angle | deg | Angle between the outgoing collimator and sample. Rotates in the negative direction of revolution. I.E with the clock. | 50 |
-| Debug |  |  | 0 |
+| Debug | 1 | Debug flag (currently not used by the instrument) | 0 |
 
 ## Links
 

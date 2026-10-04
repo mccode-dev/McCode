@@ -44,8 +44,6 @@ Parameters in **boldface** are required; the others are optional.
 | DCM |  | If nonzero the high-resolution SI DCM is active. | 1 |
 | DMM |  | If nonzero the multilayer mono is active. | 0 |
 | OH_2DCRL_N |  | Number of 2D focus CRLs in the optics hutch transfocator. 0 means transfocator is inactive. | 11 |
-| EH_2DCRL_N |  |  | 0 |
-| D_EH_2DCRL |  |  | 0 |
 | PXRD_SIMPLE |  | If zero - the full powder diffraction strip detector is active, else a single circular approximation is active. | 1 |
 | sample_radius | m | Powder sample cylinder radius | 100e-6 |
 | pxrd_strip_tth0 | deg | Angle offset of the PXRD 1d-strip detector from the optical axis. | 0 |

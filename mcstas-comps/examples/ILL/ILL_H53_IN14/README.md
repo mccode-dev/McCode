@@ -49,7 +49,7 @@ Parameters in **boldface** are required; the others are optional.
 | NHM | 1 | Number of vertical slabs composing the monochromator | 1 |
 | NVM | 1 | Number of horizontal slabs composing the monochromator | 9 |
 | RMV | m | Monochromator vertical curvature, 0 for flat, -1 for automatic setting | -1 |
-| DM |  |  | 3.355 |
+| DM | AA | Monochromator lattice spacing | 3.355 |
 | WA | m | Width of analyzer | 0.20 |
 | HA | m | Height of analyzer | 0.10 |
 | NHA | 1 | Number of horizontal slabs composing the analyzer | 11 |

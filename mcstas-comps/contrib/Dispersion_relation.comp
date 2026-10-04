@@ -258,9 +258,10 @@ SHARE
     aiming_vector[2] = target_z - z;
   };
   /* Choose the direction of the neutron in accordance with the next component */
+  #pragma acc routine
   double
   focus_neutron (double* direction_vx, double* direction_vy, double* direction_vz, double* aiming_vector, double focus_ah, double focus_aw, double focus_xw,
-                 double focus_yh, double focus_r, double (*rotation)[3]) {
+                 double focus_yh, double focus_r, double (*rotation)[3], _class_particle* _particle) {
     double solid_angle;
     if (focus_aw && focus_ah) {
       randvec_target_rect_angular (direction_vx, direction_vy, direction_vz, &solid_angle, aiming_vector[0], aiming_vector[1], aiming_vector[2], focus_aw,
@@ -660,7 +661,7 @@ TRACE
   distance_to_reflection = time_of_reflection * neutron.initial_size;
   // Focus the neutrons artificially, forward in the system.
   solid_angle = focus_neutron (&neutron.direction_vx, &neutron.direction_vy, &neutron.direction_vz, aiming_vector, focus_ah, focus_aw, focus_xw, focus_yh,
-                               focus_r, ROT_A_CURRENT_COMP);
+                               focus_r, ROT_A_CURRENT_COMP, _particle);
   // Find the different possible final velocities the neutron can have
   find_possible_final_velocities (possible_final_velocities, &number_of_solutions, &crystal, e_steps_low, e_steps_high, max_mode_energy, &neutron,
               dispersion_relations[dispersion_mode]);

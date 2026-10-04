@@ -41,7 +41,7 @@ Parameters in **boldface** are required; the others are optional.
 | cold | 1 | Defines the statistical fraction of events emitted from the cold part of the moderator | 0.5 |
 | Yheight | m | Defines the moderator height. Valid values are 0.03 m and 0.06 m | 0.03 |
 | delta | m | Parameter that allows to scan "collimator" position | 0 |
-| pulse_duration |  |  | 2.857e-3 |
+| pulse_duration | s | Pulse duration (currently not used by the instrument) | 2.857e-3 |
 
 ## Links
 

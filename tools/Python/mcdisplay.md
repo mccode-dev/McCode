@@ -13,6 +13,7 @@ All variants wrap `mcrun --trace` under the hood; `INSTR` plus any
 | `INSTR` | instrument file (`.instr` or compiled binary) |
 | `name=value ...` | simulation parameters, passed through to `mcrun` |
 | `--default` | automatically use instrument default parameter values |
+| `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particles to trace (default: 300) |
 | `--dirname DIR` | override output directory name |
 | `--inspect COMP` | show only rays reaching component `COMP` |
@@ -41,6 +42,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `INSTR` | instrument file |
 | `name=value ...` | simulation parameters |
 | `--default` | automatically use instrument default parameter values |
+| `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particles to trace (default: 300) |
 | `-t`, `--trace N` | visualisation mode (default: 2) |
 | `-d`, `--dirname DIR` | override output directory name |
@@ -59,6 +61,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `INSTR` | instrument file |
 | `name=value ...` | simulation parameters |
 | `--default` | automatically use instrument default parameter values |
+| `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particles to trace (default: 300) |
 | `-t`, `--trace N` | visualisation mode (default: 1) |
 | `-d`, `--dirname DIR` | override output directory name |
@@ -76,6 +79,7 @@ Requires the `cadquery` Python package.
 | `INSTR` | instrument file |
 | `name=value ...` | simulation parameters |
 | `--default` | automatically use instrument default parameter values |
+| `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particles to trace (default: 0 — geometry export doesn't need rays) |
 | `--dirname DIR` | override output directory name |
 | `-f`, `--format FMT` | output format: `step` (default), `stl`, `xml`, `vrml`, `gltf`, `vtkjs` |
