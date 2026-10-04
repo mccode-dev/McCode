@@ -34,8 +34,8 @@ Parameters in **boldface** are required; the others are optional.
 | TT | deg | Two-theta detetector-angle | 72.69 |
 | OM | deg | Sample rotation angle | -43.3 |
 | C | meV/AA^(-1) | Sample velocity of sound | 8 |
-| focus_r |  |  | 0 |
-| focus_a |  |  | 0 |
+| focus_r | m | Radius of the focusing disk seen from the sample | 0 |
+| focus_a | deg | Angular width and height of the focusing window seen from the sample | 0 |
 
 ## Links
 

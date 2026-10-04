@@ -33,8 +33,8 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | LENS |  | Which lens to use: 0=>Lens_parab, 1=>Lens_parab_Cyl, 2=>Lens_simple | 0 |
-| L1 |  | Distance from source to lens. | 1 |
-| L2 |  | Distance from lens to image plane | 11 |
+| L1 | m | Distance from source to lens. | 1 |
+| L2 | m | Distance from lens to image plane | 11 |
 
 ## Links
 

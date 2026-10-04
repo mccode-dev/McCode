@@ -34,7 +34,7 @@ Parameters in **boldface** are required; the others are optional.
 |------|------|-------------|---------|
 | divergence | degrees | angular divergence of neutrons reaching the sample | 0.4 |
 | distance | m | distance between source and sample | 32 |
-| filename |  |  | "source_sct521_bu_08_1.dat" |
+| filename | str | Source spectrum file for SNS_source | "source_sct521_bu_08_1.dat" |
 
 ## Links
 

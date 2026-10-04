@@ -44,7 +44,7 @@ Parameters in **boldface** are required; the others are optional.
 | inc_slit_to_cor | m | Incident slit to sample stage center of rotation | 0.01 |
 | inc_slit_width | m | Incident slit width 0.00013m to 0.006m | 0.006 |
 | inc_slit_height | m | Incident slit height 0m to 0.05m | 0.05 |
-| inc_slit_sep |  | Incident slit separation between width and height. <0:use emperical calc, >=0:distance in m | 0 |
+| inc_slit_sep | m | Incident slit separation between width and height. <0:use emperical calc, >=0:distance in m | 0 |
 | mono_to_cor | m | Distance between monochromator and center of rotation | 2.5 |
 | sample_dx | m | Sample delta x - positive to left of incident beam if sample_dom=0 | 0 |
 | sample_dy | m | Sample delta y - positive upword of incident beam | 0 |
@@ -53,7 +53,7 @@ Parameters in **boldface** are required; the others are optional.
 | det_takeoff | deg | Detector takeoff angle - positive anti-clockwise from incident beam | -114.375 |
 | cor_to_det | m | Distance between sample centre of rotation and detector | 1.179 |
 | dangle_interest | deg | Delta angle of interenterest. | 125 |
-| full_instrument |  |  | 1 |
+| full_instrument |  | When 1, simulates the complete instrument. When 0, only simulate from the outlet collimator | 1 |
 
 ## Links
 

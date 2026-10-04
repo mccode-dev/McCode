@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+'''
+Drop-in replacement for `git diff --name-only BASE [TARGET]` that leaves out
+.comp/.instr files whose changes are confined to the documentation header.
+
+A .comp/.instr file is listed only if its "code" differs between BASE and
+TARGET, where code means:
+  - everything from the DEFINE COMPONENT / DEFINE INSTRUMENT line onward, and
+  - the %Example: lines of the header (mctest uses them as test definitions),
+    so a header edit that touches %Example: lines still triggers a test run.
+Other header edits (mcdoc text, %P parameter docs, typos, units) are ignored,
+and so are whitespace-only edits: indentation, blank lines, re-wrapped lines,
+spacing around operators. Whitespace between two words (int a vs inta) and the
+line break after a #-preprocessor line or a line with // are still significant.
+
+For each listed .comp/.instr file, the reason (new, code, %Example) is written
+to stderr; stdout carries only the file names.
+
+Added or renamed files are always listed; deleted files never are (nothing to
+test). Files of any other type are passed through unchanged. With no TARGET,
+BASE is compared to the working tree, as `git diff BASE` does.
+
+Usage: mccode-git-diff-code BASE [TARGET]
+'''
+import re
+import subprocess
+import sys
+
+DEFINE = re.compile(r'^[ \t]*DEFINE[ \t]+(COMPONENT|INSTRUMENT)\b', re.M)
+EXAMPLE = re.compile(r'%Example:.*')
+
+
+def git(*args):
+    return subprocess.run(['git'] + list(args), check=True, capture_output=True,
+                          text=True, encoding='utf-8', errors='replace').stdout
+
+
+def content(rev, path):
+    ''' File text at rev (None = working tree); None if it does not exist there. '''
+    try:
+        if rev is None:
+            with open(path, encoding='utf-8', errors='replace') as f:
+                return f.read()
+        return git('show', '%s:%s' % (rev, path))
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def squash(text):
+    ''' Whitespace-insensitive form of a piece of C/McCode text. '''
+    out, cont = [], False
+    for line in text.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        keep = cont or s.startswith('#') or '//' in s   # line break matters here
+        if s.startswith('#') and not cont and out and out[-1] != '\n':
+            out.append('\n')
+        out.append(s)
+        cont = keep and s.endswith('\\')
+        out.append('\n' if keep and not cont else ' ')
+    flat = re.sub(r'[ \t]+', ' ', ''.join(out))
+    # drop spaces unless they separate two word characters (int a vs inta)
+    return re.sub(r'(?<!\w) | (?!\w)', '', flat)
+
+
+def split(text):
+    ''' (%Example lines, code body) of a .comp/.instr file, whitespace-insensitive. '''
+    m = DEFINE.search(text)
+    if not m:
+        return '', squash(text)  # unrecognised layout: compare everything
+    return squash('\n'.join(EXAMPLE.findall(text[:m.start()]))), squash(text[m.start():])
+
+
+def main(argv):
+    if len(argv) not in (2, 3) or argv[1] in ('-h', '--help'):
+        sys.stderr.write(__doc__)
+        return 2
+    base, target = argv[1], (argv[2] if len(argv) == 3 else None)
+    names = git('diff', '--name-only', '--diff-filter=d', base, *([target] if target else []), '--')
+    for path in names.splitlines():
+        if path.endswith(('.comp', '.instr')):
+            old, new = content(base, path), content(target, path)
+            if old is None or new is None:
+                why = 'new'
+            else:
+                (ex0, body0), (ex1, body1) = split(old), split(new)
+                why = ', '.join(w for w, a, b in (('code', body0, body1), ('%Example', ex0, ex1)) if a != b)
+                if not why:
+                    continue
+            sys.stderr.write('mccode-git-diff-code: %s (%s)\n' % (path, why))
+        print(path)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
