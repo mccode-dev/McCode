@@ -2,7 +2,7 @@
 * Instrument: SOLEIL_NANOSCOPIUM
 *
 * %Identification
-* Written by: 
+* Written by: C. Gaudry
 * Date: 
 * Origin: Synchrotron SOLEIL
 * %INSTRUMENT_SITE: SOLEIL
@@ -32,18 +32,20 @@
 * 154.856      | Mirror KB1 (elliptic) : vertical focus
 * 154.961      | Mirror KB2 (elliptic) : horizontal focus
 * 155.140      | Nano-probe 2
+*
+* %Example: E0=11 Detector: psd_kb_in_I=1.95278e+08
 * 
 * %Parameters
-* E_target    [keV] Energy selected at the Undulator.
-* dE          [keV] Energy spread at the Undulator.
-* Emono       [keV] Energy to be selected by the monochromator
-* coating_m2  [1]   2 stripes on M2 : Rh (coated : 1) or Si (uncoated : 0)
-* angle_m1_m2 [rad] Incidence angle on M1 and M2 mirrors
-* angle_kb    [rad] Incidence angle on KB mirrors
+* E0:         [keV] Energy selected at the Undulator.
+* dE:         [keV] Energy spread at the Undulator.
+* Emono:      [keV] Energy to be selected by the monochromator, or E0 when unset.
+* coating_m2: [1]   2 stripes on M2 : Rh (coated : 1) or Si (uncoated : 0)
+* angle_m1_m2:[rad] Incidence angle on M1 and M2 mirrors
+* angle_kb:   [rad] Incidence angle on KB mirrors
 *
 * %E
 *******************************************************************************/
-DEFINE INSTRUMENT SOLEIL_NANOSCOPIUM(E_target=11, dE=1, Emono=0, int coating_m2=1, angle_m1_m2=2.5e-3, angle_kb=3e-3)
+DEFINE INSTRUMENT SOLEIL_NANOSCOPIUM(E0=11, dE=1, Emono=0, int coating_m2=1, angle_m1_m2=2.5e-3, angle_kb=3e-3)
 
 DECLARE
 %{
@@ -59,10 +61,10 @@ INITIALIZE
 %{
     // COMPUTE THE BRAGG ANGLE -------------------------------------------------------------
 
-    if (Emono==0) Emono=E_target;
+    if (Emono==0) Emono=E0;
     
     // check if Emono is accessible and calculate the coresponding Bragg angle (if possible)
-    if (E_target-dE < Emono && Emono < E_target+dE) {
+    if (E0-dE < Emono && Emono < E0+dE) {
 
       double arg= (12.39842*sqrt(3)) / (2*5.4309*Emono);
       if (fabs(arg) > 1)
@@ -82,7 +84,7 @@ INITIALIZE
     double lambda_u = 18; // in cm
 
     while ((K<=0 || K>K_max ) && harmonic < 51) {  // check if K is valid for the undulator
-        E1_target = E_target / harmonic;
+        E1_target = E0 / harmonic;
         double K2 = 2.0*( (0.95*Ee*Ee)/(E1_target*lambda_u) - 1);
 
         if (K2>=0) K = sqrt(K2);
@@ -90,11 +92,11 @@ INITIALIZE
     }
     harmonic -=2;
     if (harmonic==51) {printf("Harmonic = %d, has stopped. E1_target = %g and K = %g \n", harmonic,E1_target, K);}
-    printf("With the selected energy %g keV, the calculated first harmonic is : harmonic %d = %g keV. \n", E_target, harmonic, E1_target);
+    printf("With the selected energy %g keV, the calculated first harmonic is : harmonic %d = %g keV. \n", E0, harmonic, E1_target);
     printf("The corresponding K is : %g\n", K);
 
     // SET OPTION FOR MONITOR_nD ----------------------------------------------------------
-    sprintf(emonopts,"energy limits=[%g %g], y",E_target-dE,E_target+dE);
+    sprintf(emonopts,"energy limits=[%g %g], y",E0-dE,E0+dE);
 
     // SET STRIPE USED IN M2 MIRROR --------------------------------------------------------
     if (coating_m2==0) {
@@ -109,7 +111,7 @@ INITIALIZE
     
     // COMPUTE FOCAL LENGTH OF ZONE PLATE DEPENDING ON 
     // the beam is approximately 100micrometers extended while entering in the zone plate -> diameter will be 100e-6m. We want a 50nm beam after the zone plate (Rayleigh criterion) delta_r_N = 40nm.
-    f_fresnel = (100e-6 * 40e-9 * E_target) / 12.39842;
+    f_fresnel = (100e-6 * 40e-9 * E0) / 12.39842;
 %}
 
 TRACE
@@ -123,7 +125,7 @@ AT (0, 0, 0) RELATIVE ABSOLUTE
 // minimum gap = 5.5mm
 
 COMPONENT source=Undulator(
- E0=E_target, dE=dE, Ee=2.75, dEe=0.001, Ie=0.5, 
+ E0=E0, dE=dE, Ee=2.75, dEe=0.001, Ie=0.5, 
  E1st=E1_target, Nper=106, lu=1.8e-2, 
  sigex=258.6e-6, sigey=8.8e-6, sigepx=31.2e-6, sigepy=3.5e-6, 
  dist=76)
@@ -133,8 +135,8 @@ COMPONENT e_monitor_source = E_monitor(
     filename="e_monitor_source.dat", 
     xwidth=0.1, 
     yheight=0.1, 
-    Emin=E_target-dE, 
-    Emax=E_target+dE, 
+    Emin=E0-dE, 
+    Emax=E0+dE, 
     nE=500,
     restore_xray=1)
 AT (0, 0, 0) RELATIVE PREVIOUS
@@ -231,8 +233,8 @@ COMPONENT e_dcm_in = E_monitor(
     filename="e_dcm_in.dat", 
     xwidth=0.01, 
     yheight=0.01, 
-    Emin=E_target-dE, 
-    Emax=E_target+dE, 
+    Emin=E0-dE, 
+    Emax=E0+dE, 
     nE=500,
     restore_xray=1)
 AT (0, 0, 0) RELATIVE PREVIOUS
@@ -297,8 +299,8 @@ COMPONENT e_dcm_out = E_monitor(
     filename="e_dcm_out.dat", 
     xwidth=0.1, 
     yheight=0.1, 
-    Emin=E_target-dE, 
-    Emax=E_target+dE, 
+    Emin=E0-dE, 
+    Emax=E0+dE, 
     nE=500,
     restore_xray=1)
 AT (0, 0, 1) RELATIVE PREVIOUS
