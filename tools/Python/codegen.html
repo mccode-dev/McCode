@@ -107,12 +107,16 @@ em { color: #57606a; }
 <td>do not embed the run-time libraries</td>
 </tr>
 <tr>
+<td><code>-p</code>, <code>--portable</code></td>
+<td>emit strictly portable ANSI C (defines <code>MC_PORTABLE</code>)</td>
+</tr>
+<tr>
 <td><code>--source</code></td>
 <td>embed the instrument source code in the executable</td>
 </tr>
 </tbody>
 </table>
-<p><em>(The component search path also defaults to whatever the <code>MCSTAS</code>/<code>MCXTRACE</code> environment variable points at, if set. The help text's usage line also shows a <code>-p</code> flag that isn't explained in the option list itself. Ordinarily invoked indirectly via <code>mcrun</code>/<code>mxrun</code> or <code>mcgui</code>/<code>mxgui</code>, rather than run by hand.)</em></p>
+<p><em>(The component search path also defaults to whatever the <code>MCSTAS</code>/<code>MCXTRACE</code> environment variable points at, if set. Ordinarily invoked indirectly via <code>mcrun</code>/<code>mxrun</code> or <code>mcgui</code>/<code>mxgui</code>, rather than run by hand.)</em></p>
 <h2 id="mcstas-pygen-mcxtrace-pygen-convert-an-instrument-to-python">mcstas-pygen / mcxtrace-pygen — convert an instrument to Python</h2>
 <p>A binary code-generator tool, sibling to <code>mcstas</code>/<code>mcxtrace</code> themselves: translates an <code>.instr</code> file into a Python module built on <strong><a href="https://panosc-vinyl.github.io/McStasScript/">McStasScript</a></strong> instead of C, so the instrument can be constructed, run, and plotted from Python instead of the <code>.instr</code>/<code>mcrun</code> route.</p>
 <table>
@@ -147,9 +151,17 @@ em { color: #57606a; }
 <td><code>--lint</code></td>
 <td>generate a <code>.py</code> script for McStasScript-style "diagnostic" linting</td>
 </tr>
+<tr>
+<td><code>--instrument-name=NAME</code></td>
+<td>name of the generated McStasScript instrument (default: instrument name + <code>_generated</code>)</td>
+</tr>
+<tr>
+<td><code>--no-tests</code></td>
+<td>do not translate <code>%Example</code> lines into McStasScript tests (<code>instr.add_test</code>)</td>
+</tr>
 </tbody>
 </table>
-<p><em>(Its usage synopsis also lists <code>-I dir1 ...</code>, <code>-t</code>, <code>-p</code>, <code>--no-main</code>, and <code>--no-runtime</code>, inherited from sharing the same usage line as <code>mcstas</code>/<code>mcxtrace</code> — but none of these are actually explained in <code>mcstas-pygen</code>/<code>mcxtrace-pygen</code>'s own <code>--help</code> text, so treat them as unconfirmed for this variant.)</em></p>
+<p><em>(Its usage synopsis also lists <code>-I dir1 ...</code>, <code>-t</code>, <code>-p</code>, <code>--no-main</code>, and <code>--no-runtime</code>, inherited from sharing the same usage line as <code>mcstas</code>/<code>mcxtrace</code>. They are C-generator options only: <code>mcstas-pygen</code>/<code>mcxtrace-pygen</code> rejects them with a usage error.)</em></p>
 <p>The generated module exposes a <code>make()</code> function returning a McStasScript instrument object, e.g.:</p>
 <pre><code class="language-python">import mcstasscript as ms
 from INSTRUMENT_generated import make

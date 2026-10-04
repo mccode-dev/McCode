@@ -459,6 +459,7 @@ def parse_header(text):
     
     # params
     par_doc = None
+    cont = False
     for l in bites[tag_P].splitlines():
         # regex is tolerant for mising ':' in  param: [unit] description
         m = re.match(r'(\w+)[: \t]*\[([ \w\/\(\)\\\~\-.,\":\%\^\|\{\};\*\&\#]*)\][ \t]*(.*)', l)
@@ -466,11 +467,19 @@ def parse_header(text):
         if m:
             par_doc = (m.group(1), m.group(2), m.group(3).strip())
             info.params_docs.append(par_doc)
+            cont = True
         else:
             m = re.match(r'(\w+):[ \t]*(.*)', l)
             if m:
                 par_doc = (m.group(1), "", m.group(2).strip())
                 info.params_docs.append(par_doc)
+                cont = True
+            elif cont and l.strip() and not re.match(r'[%/]', l):
+                # continuation line of a multi-line parameter doc string
+                n, u, d = info.params_docs[-1]
+                info.params_docs[-1] = (n, u, (d + ' ' + l.strip()).strip())
+            else:
+                cont = False
     
     # links
     for l in bites[tag_L].splitlines():
@@ -634,8 +643,7 @@ def parse_params(params_line):
         tpe = None
         dval = None
         name = None
-        if re.search(r'^ ', part):
-            part = part[1:]
+        part = part.strip()
         if re.match(r'double ', part):
             part = part.replace('double ', '').strip()
         if re.match(r'string ', part):
@@ -727,6 +735,7 @@ def get_instr_comp_files(mydir, recursive=True, instrfilter=None, withcomp=None,
     181211: added recursive, defaults to True to preserve backwards compatibility
     191114: added instrfilter and compfilter, which filters results based on filename (before the dot)
     061225: added withcomp, for filtering instruments using a certain comp
+    261004: withcomp may be a comma-separated list of comps; matched as whole words
     260828: added pruning of EXCLUDED_INSTR_DIRNAMES (e.g. generated_includes),
             which hold generated/included .instr snippets rather than standalone instruments
     '''
@@ -738,6 +747,11 @@ def get_instr_comp_files(mydir, recursive=True, instrfilter=None, withcomp=None,
     files_instr = [] 
     files_comp = []
 
+    comprx = None
+    if withcomp is not None:
+        # comma-separated list allowed; whole-word match, so Guide != Guide_gravity
+        comprx = re.compile(r'\b(%s)\b' % '|'.join(re.escape(c.strip()) for c in withcomp.split(',') if c.strip()))
+
     for (dirpath, dirnames, files) in os.walk(mydir):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDED_INSTR_DIRNAMES]
         for f in files:
@@ -748,15 +762,15 @@ def get_instr_comp_files(mydir, recursive=True, instrfilter=None, withcomp=None,
                     numfilters=len(filters)
                     for filter in filters:
                         instrreg = re.compile(filter)
-                        if instrreg.search(join(dirpath,f), re.IGNORECASE):
+                        if instrreg.search(join(dirpath,f)) and join(dirpath, f) not in files_instr:
                             if withcomp is not None:
-                                if withcomp in Path(join(dirpath, f)).read_text(encoding="utf8"):
+                                if comprx.search(Path(join(dirpath, f)).read_text(encoding="utf8")):
                                     files_instr.append(join(dirpath, f))
                             else:
                                 files_instr.append(join(dirpath, f))
                 else:
                     if withcomp is not None:
-                        if withcomp in Path(join(dirpath, f)).read_text(encoding="utf8"):
+                        if comprx.search(Path(join(dirpath, f)).read_text(encoding="utf8")):
                             files_instr.append(join(dirpath, f))
                     else:
                         files_instr.append(join(dirpath, f))

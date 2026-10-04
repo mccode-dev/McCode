@@ -45,9 +45,9 @@ Parameters in **boldface** are required; the others are optional.
 | SRC_POS_X | m | Displacement of source along X | 0 |
 | SRC_POS_Y | m | Displacement of source along Y | 0 |
 | offaxis_angle | arcmin | Angle of collimated light from source | 0 |
-| drx |  |  | 0 |
-| dry |  |  | 0 |
-| drz |  |  | 0 |
+| drx | arcsec | Rotation of the optics around the x-axis | 0 |
+| dry | arcsec | Rotation of the optics around the y-axis | 0 |
+| drz | arcsec | Rotation of the optics around the z-axis | 0 |
 | reflectivity |  | Data file containing reflectivities (such as from IMD) | "mirror_coating_unity.txt" |
 | E0 | keV | Central energy of X-rays | 5 |
 | dE | keV | Half spread of energy spectrum to be emitted from source | 0.001 |

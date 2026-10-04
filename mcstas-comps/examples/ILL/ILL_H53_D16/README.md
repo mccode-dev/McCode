@@ -33,7 +33,7 @@ Parameters in **boldface** are required; the others are optional.
 | lambda | AA | Wavelength at monochromator, computed from DM and THETA_M if left as 0. | 4.7 |
 | DM | AA | d-spacing of monochromator, computed from lambda and THETA_M if left as 0. | 3.355 |
 | dlambda | AA | wavelength half width. | 0.05 |
-| Powder | str | File name for powder description. | "Na2Ca3Al2F14.laz" |
+| Powder | str | File name for powder description. If set to NULL, use a 100 Angs particule colloid | "Na2Ca3Al2F14.laz" |
 | RV | m | Monochromator vertical curvature, 0 for flat, -1 for automatic setting | -1 |
 | L1 | m | Guide-Monochromator distance | 0.1 |
 | L2 | m | Monochromator-Sample distance | 2.8 |

@@ -84,7 +84,6 @@ Parameters in **boldface** are required; the others are optional.
 | LMD | m | monochromator-deflector distance | 1.8 |
 | mos_ana | arcmin | analyser mosaic | 2 |
 | CaF2mos | arcmin | monochromator mosaic | 10 |
-| gW |  |  | 0.030 |
 
 ## Links
 

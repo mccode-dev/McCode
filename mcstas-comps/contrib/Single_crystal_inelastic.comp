@@ -99,13 +99,14 @@
 * RX: [m]       Radius of horizontal along X lattice curvature. flat for 0.
 * RY: [m]       Radius of vertical lattice curvature. flat for 0.
 * RZ: [m]       Radius of horizontal along Z lattice curvature. flat for 0.
+* max_stored_ki: [1] Number of incoming wavevectors for which computed reflection lists are cached
 * %E
 ****************************************************************************/
 
 
 DEFINE COMPONENT Single_crystal_inelastic
 
-SETTING PARAMETERS(vector mosaic_AB={0,0, 0,0,0, 0,0,0}, string sqw=0, string geometry=0, qwidth=0.05,
+SETTING PARAMETERS(vector mosaic_AB={0,0, 0,0,0, 0,0,0}, string sqw=0, string geometry=0,
             xwidth=0, yheight=0, zdepth=0, radius=0, delta_d_d=1e-4,
             mosaic=-1, mosaic_a=-1, mosaic_b=-1, mosaic_c=-1,
             recip_cell=0, barns=0,
@@ -227,8 +228,7 @@ SHARE
   }
 
   int
-  read_hkl_data (char* SC_file, struct hkl_info_struct* info, double SC_mosaic, double SC_mosaic_a, double SC_mosaic_b, double SC_mosaic_c, double* SC_mosaic_AB,
-                 double qwidth) {
+  read_hkl_data (char* SC_file, struct hkl_info_struct* info, double SC_mosaic, double SC_mosaic_a, double SC_mosaic_b, double SC_mosaic_c, double* SC_mosaic_AB) {
     struct hkl_data* list = NULL;
     int size = 0;
     t_Table sTable; /* sample data table structure from SC_file */
@@ -692,7 +692,7 @@ INITIALIZE
   /*this is necessary to allow a numerical array to be passed through as a DEFINITION parameter*/
   double* mosaic_ABin = mosaic_AB;
   /* Read in structure factors, and do some pre-calculations. */
-  if (!read_hkl_data (sqw, &hkl_info, mosaic, mosaic_a, mosaic_b, mosaic_c, mosaic_ABin, qwidth))
+  if (!read_hkl_data (sqw, &hkl_info, mosaic, mosaic_a, mosaic_b, mosaic_c, mosaic_ABin))
     exit (-1);
 
   if (hkl_info.sigma_a < 0)

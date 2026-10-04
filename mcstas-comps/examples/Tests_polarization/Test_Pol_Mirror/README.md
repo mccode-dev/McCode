@@ -31,7 +31,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | mirrorOption | 1 | Fraction of neutrons to reflect | 0.5 |
-| polarize |  |  | 0 |
+| polarize | 1 | If non-zero, a Set_pol component randomises the beam polarisation before the mirror | 0 |
 
 ## Links
 

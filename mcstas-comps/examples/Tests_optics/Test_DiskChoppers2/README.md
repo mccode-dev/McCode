@@ -33,7 +33,7 @@ Parameters in **boldface** are required; the others are optional.
 | lambda | AA | Mean wavelength produced from the source | 10 |
 | dlambda | AA | Halfwidth of wavelenghts produced from the source | 9.9 |
 | deltay | m | Position of centre of rotation vs. beam in slit case | 0.19 |
-| dx |  |  | 0.016 |
+| dx | m | Width of the slit | 0.016 |
 | nu | Hz | Chopper frequency | 10 |
 | phase | deg | Chopper phase | 0 |
 | ABSORBER | 1 | Flag to indicate if slab is B4C(=1) or perfect(=0) | 0 |

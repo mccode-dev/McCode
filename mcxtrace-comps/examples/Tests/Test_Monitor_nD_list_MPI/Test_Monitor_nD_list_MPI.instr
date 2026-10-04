@@ -53,6 +53,7 @@ DECLARE
 %{
   int node_rank;
   int node_count;
+  #pragma acc declare create(node_rank,node_count)
 %}
 
 INITIALIZE
@@ -63,6 +64,7 @@ INITIALIZE
   node_rank  = mpi_node_rank;
   node_count = mpi_node_count;
 #endif
+  #pragma acc update device(node_rank,node_count)
 %}
 
 TRACE
@@ -79,7 +81,11 @@ COMPONENT gate = Arm()
 EXTEND
 %{
   /* decide whether this node keeps the ray (deterministic per node) */
+  #ifndef OPENACC
   static long long node_rays = 0;
+  #else
+  long long node_rays = 0;
+  #endif
   int keep = 1;
   int m = INSTRUMENT_GETPAR(mode);
   if (node_count > 1 || m == 3 || m == 5) {

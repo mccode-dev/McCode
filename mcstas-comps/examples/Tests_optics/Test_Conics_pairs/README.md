@@ -38,7 +38,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| OPTIC |  |  | 1 |
+| OPTIC |  | Flag to choose between 1: EH pair, 2: PH pair, 3: HE pair, 4: PP pair | 1 |
 | ssize | m | Source radius | 1e-6 |
 | fs | m | Distance betwee nsource and optic mid plane | 10 |
 | fi | m | Distance between optics mid plane and focal point. | 10 |
@@ -47,8 +47,8 @@ Parameters in **boldface** are required; the others are optional.
 | W | AA^-1 | Width of supermirror cut-off | 0.003 |
 | alpha | AA | Slope of reflectivity for reflectivity curve approximation | 6.07 |
 | nshells | 1 | Number of Wolter-optic shells | 4 |
-| rmin |  |  | 0.0031416 |
-| rmax |  |  | 0.05236 |
+| rmin | m | Radius of the innermost shell | 0.0031416 |
+| rmax | m | Radius of the outermost shell | 0.05236 |
 | quadratic |  | Use the quadratic shell-radius mode instead of the radii vector | 0 |
 
 ## Links

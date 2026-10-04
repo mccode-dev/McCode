@@ -31,7 +31,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| filename |  |  | "source_sct521_bu_17_1.dat" |
+| filename | str | Source spectrum file for SNS_source | "source_sct521_bu_17_1.dat" |
 | Fermi_nu | Hz | Frequency of the Fermi chopper | 420 |
 | T0_nu | Hz | Frequency of the T0 chopper | 90 |
 | nrad | m | Radius of the Fermi chopper blades | 0.58 |
@@ -39,7 +39,7 @@ Parameters in **boldface** are required; the others are optional.
 | Edes | meV | Desired/target energy | 50 |
 | Et | meV | Energy transfer of the Spot_sample | 25 |
 | ttheta | deg | Scattering angle of the Spot_sample | 25 |
-| T0_off |  |  | 0 |
+| T0_off | s | Time offset of the T0 chopper (?) - currently only used in output file names | 0 |
 | sxmin | m | Sample slit horz min value | -0.04 |
 | sxmax | m | Sample slit horz max value | 0.04 |
 | symin | m | Sample slit vert min value | -0.04 |

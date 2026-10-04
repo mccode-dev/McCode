@@ -18,9 +18,10 @@ The actual compiler step underneath `mcrun -c` / `mcgui`'s "Compile" action: tra
 | `--no-trace` | disable trace mode |
 | `--no-main` | do not create `main()` (for external embedding) |
 | `--no-runtime` | do not embed the run-time libraries |
+| `-p`, `--portable` | emit strictly portable ANSI C (defines `MC_PORTABLE`) |
 | `--source` | embed the instrument source code in the executable |
 
-*(The component search path also defaults to whatever the `MCSTAS`/`MCXTRACE` environment variable points at, if set. The help text's usage line also shows a `-p` flag that isn't explained in the option list itself. Ordinarily invoked indirectly via `mcrun`/`mxrun` or `mcgui`/`mxgui`, rather than run by hand.)*
+*(The component search path also defaults to whatever the `MCSTAS`/`MCXTRACE` environment variable points at, if set. Ordinarily invoked indirectly via `mcrun`/`mxrun` or `mcgui`/`mxgui`, rather than run by hand.)*
 
 ## mcstas-pygen / mcxtrace-pygen — convert an instrument to Python
 
@@ -34,8 +35,10 @@ A binary code-generator tool, sibling to `mcstas`/`mcxtrace` themselves: transla
 | `--version-num` | print the version number only |
 | `--verbose` | display compilation process steps |
 | `--lint` | generate a `.py` script for McStasScript-style "diagnostic" linting |
+| `--instrument-name=NAME` | name of the generated McStasScript instrument (default: instrument name + `_generated`) |
+| `--no-tests` | do not translate `%Example` lines into McStasScript tests (`instr.add_test`) |
 
-*(Its usage synopsis also lists `-I dir1 ...`, `-t`, `-p`, `--no-main`, and `--no-runtime`, inherited from sharing the same usage line as `mcstas`/`mcxtrace` — but none of these are actually explained in `mcstas-pygen`/`mcxtrace-pygen`'s own `--help` text, so treat them as unconfirmed for this variant.)*
+*(Its usage synopsis also lists `-I dir1 ...`, `-t`, `-p`, `--no-main`, and `--no-runtime`, inherited from sharing the same usage line as `mcstas`/`mcxtrace`. They are C-generator options only: `mcstas-pygen`/`mcxtrace-pygen` rejects them with a usage error.)*
 
 The generated module exposes a `make()` function returning a McStasScript instrument object, e.g.:
 ```python
