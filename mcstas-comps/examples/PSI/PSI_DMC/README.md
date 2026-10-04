@@ -39,7 +39,7 @@ Parameters in **boldface** are required; the others are optional.
 | PACK | 1 | Powder packing factor | 0.7 |
 | Dw | 1 | Powder Debye-Waller factor | 0.8 |
 | BARNS | 1 | Flag to define if powder reflection file \|F2\| is in Barns or fm | 1 |
-| SPLITS |  |  | 58 |
+| SPLITS | 1 | Number of SPLIT repetitions at the sample | 58 |
 
 ## Links
 

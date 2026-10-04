@@ -50,8 +50,8 @@ Parameters in **boldface** are required; the others are optional.
 | dE | keV | Half spread of energy spectrum to be emitted from source | 0.001 |
 | shellnumber |  | The row number for the miror module. This defines the shell. | 1 |
 | geomfile |  | File which contains the geometry of the pores (i.e. radii,lengths) | "ATHENA_rings_1_20.dat" |
-| primParab |  |  | 1 |
-| secHyper |  |  | 1 |
+| primParab | 1 | If non-zero, the primary mirror is parabolic, otherwise the alternative shape is used | 1 |
+| secHyper | 1 | If non-zero, the secondary mirror is hyperbolic, otherwise the alternative shape is used | 1 |
 
 ## Links
 

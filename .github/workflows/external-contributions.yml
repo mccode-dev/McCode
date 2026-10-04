@@ -1,0 +1,53 @@
+name: External contributions
+
+# Keeps the *.ext manifests (docs/EXTERNAL-CONTRIBUTIONS.md) current and honest,
+# using https://github.com/mccode-dev/external-registrar.
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+    inputs:
+      only:
+        description: Poll just this OWNER/REPO (blank for all)
+        default: ''
+      dry-run:
+        description: Report, but open no pull requests
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Propose each external repository's newest release as a pull request.
+  poll:
+    # Skipped, rather than failing daily, until the registrar app is set up.
+    if: vars.REGISTRAR_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.REGISTRAR_CLIENT_ID }}
+          private-key: ${{ secrets.REGISTRAR_PRIVATE_KEY }}
+
+      - uses: mccode-dev/external-registrar@v1
+        with:
+          mode: poll
+          pull-request: true
+          token: ${{ steps.app-token.outputs.token }}
+          only: ${{ inputs.only }}
+          dry-run: ${{ inputs.dry-run || false }}
+
+  # Has anything behind a pinned reference changed?
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: mccode-dev/external-registrar@v1
+        with:
+          mode: check

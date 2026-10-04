@@ -25,7 +25,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Wavelength emitted from source, 1% wl-interval around. | 1 |
+| lambda | AA | Wavelength emitted from source, 1% wl-interval around. | 1 |
 | L1 | m | Source-sample distance | 10 |
 
 ## Links

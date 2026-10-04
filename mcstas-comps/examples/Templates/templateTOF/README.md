@@ -45,7 +45,7 @@ Parameters in **boldface** are required; the others are optional.
 | environment | str | sample environment material or NULL | "Al.laz" |
 | environment_radius | m | sample environment outer radius | 0.025 |
 | environment_thickness | m | sample environment thickness | 2e-3 |
-| dt0 |  |  | 0 |
+| dt0 | s | Internal copy of dt; any input value is overwritten | 0 |
 
 ## Links
 

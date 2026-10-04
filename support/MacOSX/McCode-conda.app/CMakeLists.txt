@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.19)
 
+# Build the native launcher stub universal by default (must be set before project())
+if (NOT DEFINED CMAKE_OSX_ARCHITECTURES)
+  set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Architectures for the app launcher stub")
+endif()
+
 # This will install the McCode app bundle
 project(mcstas-app C)
 
@@ -61,11 +66,13 @@ include(CPack)
 
 set(WORK "${PROJECT_BINARY_DIR}/work")
 
-# Configure the .py launcher
-configure_file(Contents/MacOS/mccodegui.py.in ${WORK}/mccodegui @ONLY)
+# Configure the launcher script (exec'ed by the native mccodegui stub)
+configure_file(Contents/MacOS/mccodegui.py.in ${WORK}/mccodegui.sh @ONLY)
 configure_file(Contents/MacOS/micromamba-inject.command.in ${WORK}/micromamba-inject.command @ONLY)
 
-execute_process(COMMAND "chmod ARGS 755 work/mccodegui")
+# Native Mach-O CFBundleExecutable - avoids the Rosetta prompt on Apple Silicon
+add_executable(mccodegui-launcher Contents/MacOS/launcher.c)
+set_target_properties(mccodegui-launcher PROPERTIES OUTPUT_NAME mccodegui)
 
 # Include the Contents subfolder...
 install (
@@ -75,10 +82,13 @@ install (
   PATTERN "#*"        EXCLUDE  # skip backup files
   PATTERN ".*"        EXCLUDE  # skip hidden files
   PATTERN "*.out"     EXCLUDE  # skip binary files
+  PATTERN "*.c"       EXCLUDE  # skip launcher source
   )
 
+install(TARGETS mccodegui-launcher RUNTIME DESTINATION "Contents/MacOS/")
+
 install(
-    FILES "${WORK}/mccodegui" "${WORK}/micromamba-inject.command" 
+    FILES "${WORK}/mccodegui.sh" "${WORK}/micromamba-inject.command" 
     PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ 
     DESTINATION "Contents/MacOS/"
   )

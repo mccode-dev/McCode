@@ -1,0 +1,36 @@
+/*******************************************************************************
+* Instrument: Unittest_SEARCH
+*
+* %I
+* Written by: Thomas Kittelmann
+* Date: 2026
+* Origin: ESS
+* %INSTRUMENT_SITE: Tests_grammar
+*
+* SEARCH unittest
+*
+* %D
+* SEARCH unittest: the monitor component (Unittest_SEARCH_Monitor) is only
+* found via the SEARCH statement for the localcomps/ subdirectory.
+*
+* %Example: frac=1 Detector: mon_I=1.99
+* %Example: frac=0.5 Detector: mon_I=0.995
+*
+* %P
+* frac: [1] Fraction of the beam area covered by the monitor
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Unittest_SEARCH(frac=1)
+
+TRACE
+
+SEARCH "localcomps"
+
+COMPONENT source = Source_simple(xwidth=0.1, yheight=0.1, dist=1, focus_xw=0.1, focus_yh=0.1, lambda0=5, dlambda=1, flux=1)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT mon = Unittest_SEARCH_Monitor(xwidth=0.1*frac, yheight=0.1)
+AT (0, 0, 1) RELATIVE source
+
+END

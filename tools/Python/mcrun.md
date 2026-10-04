@@ -53,6 +53,7 @@ in help text, and the McStas-only `-g`/`--gravitation` flag, differ).
 | `--invcanvas` | Forward request for inverted canvas to plotter |
 | `--autoplotter AUTOPLOTTER` | Specify the plotter used with --autoplot |
 | `--mpi NB_CPU` | Spread simulation over NB_CPU machines using MPI |
+| `--no-mpi` | Do NOT compile with MPI |
 | `--machines machines` | Defines path of MPI machinefile to use in parallel mode |
 | `--openacc` | parallelize using openacc |
 | `--funnel` | funneling simulation flow, e.g. for mixed CPU/GPU |

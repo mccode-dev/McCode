@@ -40,8 +40,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| KI | Angs-1 | central wavevector for incoming neutrons | 1.55 |
-| QM | Angs-1 | wavevector transfer modulus at the sample | 1.0 |
+| KI | AA^-1 | central wavevector for incoming neutrons | 1.55 |
+| QM | AA^-1 | wavevector transfer modulus at the sample | 1.0 |
 | EN | meV | energy transfer at the sample | 0.0 |
 | verbose |  | toggle verbose mode | 1 |
 | WM | m | Width of monochromator | 0.15 |
@@ -49,7 +49,7 @@ Parameters in **boldface** are required; the others are optional.
 | NHM | 1 | Number of vertical slabs composing the monochromator | 1 |
 | NVM | 1 | Number of horizontal slabs composing the monochromator | 9 |
 | RMV | m | Monochromator vertical curvature, 0 for flat, -1 for automatic setting | -1 |
-| DM |  |  | 3.355 |
+| DM | AA | Monochromator lattice spacing | 3.355 |
 | WA | m | Width of analyzer | 0.20 |
 | HA | m | Height of analyzer | 0.10 |
 | NHA | 1 | Number of horizontal slabs composing the analyzer | 11 |

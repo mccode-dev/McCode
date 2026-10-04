@@ -38,7 +38,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Wavelength at monochromator, computed from DM and THETA_M if left as 0. | 5 |
+| lambda | AA | Wavelength at monochromator, computed from DM and THETA_M if left as 0. | 5 |
 | L1 | m | Source-sample distance | 10 |
 | bins |  | Number of bins on monitors | 100 |
 | omega | deg | Focusing angle wrt. sample | 90 |
@@ -48,8 +48,8 @@ Parameters in **boldface** are required; the others are optional.
 | focus_ah | deg | Angular height of focusing from sample | 2 |
 | focus_xw | m | Width of focusing from sample | 0 |
 | focus_yh | m | Height of focusing from sample | 0 |
-| tx |  |  | 0 |
-| tz |  |  | 0 |
+| tx | m | x-position of the monitors relative to the cradle | 0 |
+| tz | m | z-position of the monitors relative to the cradle | 0 |
 
 ## Links
 

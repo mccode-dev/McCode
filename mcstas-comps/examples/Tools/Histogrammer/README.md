@@ -42,7 +42,7 @@ Parameters in **boldface** are required; the others are optional.
 |------|------|-------------|---------|
 | filename | string | Specifies input event file | 0 |
 | MODE | int | Input file mode/format - 0 for help on usage 1=McStas,2=Vitess,3=MCNP,4=Tripoli4,5=MCPL | 0 |
-| options | string | Specifies the histogramming rules used by Monitor_nD. | "sphere theta phi outgoing previous" |
+| options | string | Specifies the histogramming rules used by Monitor_nD. It <b>MUST</b> contain the 'previous' word - see mcdoc Monitor_nD | "sphere theta phi outgoing previous" |
 | bufsize | int | Vitess_input 'buffersize' parameter - see mcdoc Vitess_input | 10000 |
 | xwidth | m | Horizontal width of detector, or diameter for banana,cylinder and shpere geometry | 0.1 |
 | yheight | m | Vertical height of detector, for plate, cylinder, banana shape | 0.1 |

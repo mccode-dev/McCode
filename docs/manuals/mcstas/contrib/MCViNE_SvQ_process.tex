@@ -1,0 +1,44 @@
+\section{The \texttt{MCViNE\_SvQ\_process} McStas Component}
+Union process: Elastic scatterer with a vector structure factor S(Qx,Qy,Qz) (expression or 3D grid).
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE SvQkernel; MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/SvQkernel.cc (+ GridSvQ))
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+Elastic scattering into a uniformly random direction, weighted by S(Q) with Q = ki - kf in the sample frame. S is either an expression in Qx,Qy,Qz or a 3D grid file: three rows 'min max n' for Qx, Qy, Qz followed by nx*ny*nz values (Qx slowest, Qz fastest), trilinearly interpolated (0 outside).
+
+Functions are given as strings evaluated at run time (MCViNE uses fparser): + - * / \textasciicircum{} (or **), \% , comparisons, \&\& ||, if(c,a,b), sin cos tan asin acos atan sinh cosh tanh exp log log10 log2 sqrt abs floor ceil int sign cbrt, pow atan2 min max hypot fmod, constants pi and e.
+
+\textbf{Union process.} Part of the Union components: define this process, collect it into a material with Union\_make\_material (absorption is set there with my\_absorption, the absorption inverse penetration depth at 2200 m/s), assign the material to Union\_box/Union\_cylinder/Union\_sphere/Union\_mesh geometries, and add a Union\_master after them. Geometry, attenuation and multiple scattering are handled by Union\_master; this component provides the MCViNE kernel: the scattering coefficient and the final-state sampling (weight). Orientation: this process is anisotropic; its frame (Q vectors, reciprocal vectors, atom positions) follows the ROTATED placement of this component. The kernel code is shared with the standalone component MCViNE\_SvQ (mcvine-lib.c). Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type MCViNE is declared in share/union-lib.h and registered with Union\_master in share/mcvine-union-lib.h.
+
+Example: MCViNE\_SvQ\_process(SvQ="exp(-((Qx-1)\textasciicircum{}2+Qy\textasciicircum{}2+Qz\textasciicircum{}2)/0.01)", scattering\_coefficient=10)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+SvQ & str & S(Qx,Qy,Qz) expression (ignored if SvQ\_file given) & "1" \\
+SvQ\_file & str & 3D grid file (see description) & 0 \\
+scattering\_coefficient & m$^{-1}$ & Scattering coefficient (inverse penetration depth for scattering) & 0 \\
+sigma\_scat & barn & Alternative: scattering cross section per unit cell (used when Vc\textgreater{}0) & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume; when \textgreater{}0 the coefficient is sigma\_scat/Vc & 0 \\
+packing\_factor & 1 & Packing factor (scales the scattering coefficient) & 1 \\
+interact\_fraction & 1 & Union: fraction of interactions forced to this process (-1: by cross section) & -1 \\
+init & string & Deprecated and unused, accepted like on the other Union components (see Union\_init). & "" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_SvQ\_process.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_SvQ_process_static.tex}{\input{contrib/MCViNE_SvQ_process_static.tex}}{}

@@ -1,0 +1,142 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_Phonon_IncoherentInelastic
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE phonon IncoherentInelastic / IncoherentInelastic_EnergyFocusing kernels; MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/phonon/IncoherentInelastic.cc, IncoherentInelastic_EnergyFocusing.cc)
+*
+* One-phonon incoherent inelastic scattering from a phonon DOS (incoherent approximation), optional Ef focusing.
+*
+* %D
+* S_inc(Q,E) = exp(-2W) hbar^2Q^2/(2M) g(|E|)/|E| [n(E)+1 or n(E)] with the DOS
+* g(E) normalised to 1, Debye-Waller factor computed from the DOS (MCViNE
+* DWFromDOS), and the DOS preprocessed like MCViNE (resampled to >=500 points,
+* parabolic low-energy fit, normalised). The final direction is uniform over 4pi;
+* Ef is uniform in [Ei-Emax_dos, Ei+Emax_dos]. With dEf>0, Ef is restricted to
+* Ef +/- dEf/2 (MCViNE IncoherentInelastic_EnergyFocusing).
+* DOS file: 2 columns E [meV] g(E) (a '#...THz' comment switches the unit to THz)
+* or an MCViNE IDF binary 'DOS' file. Multiphonon terms are not included (see
+* Union IncoherentPhonon_process or NCrystal for those).
+*
+* <b>Transport</b> (same as MCViNE HomogeneousNeutronScatterer): on the first
+* passage the neutron is forced to scatter at a uniformly chosen depth, weighted
+* by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient;
+* on exit it is attenuated by exp(-(mu+sigma)L_out). With order>1 further
+* scatterings are sampled analogically (truncated exponential). With
+* p_transmit>0 that fraction of events is kept as the attenuated direct beam.
+* mu(v) = absorption_coefficient*2200/v. Events for which the kernel cannot
+* scatter (kinematically forbidden) are absorbed.
+*
+* Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow
+* cylinder (+thickness) or sphere (radius only). All vectors (Q, targets,
+* reciprocal vectors, atom positions) are in the component's local frame.
+*
+* Uses the shared runtime share/mcvine-lib.h/.c.
+*
+* Example: MCViNE_Phonon_IncoherentInelastic(dos="MCViNE/Debye_dos.dat", T=300, average_mass=50.94, sigma_inc=10.1, sigma_abs=10.1, Vc=27.6, radius=0.01, yheight=0.05)
+*
+* %P
+* INPUT PARAMETERS:
+* dos: [str] Phonon DOS file
+* T: [K] Temperature
+* average_mass: [amu] Average atomic mass
+* Ef: [meV] Final energy for energy focusing (used when dEf>0)
+* dEf: [meV] Full width of the final-energy window; 0 disables focusing
+* sigma_inc: [barn] Incoherent scattering cross section per unit cell
+* sigma_abs: [barn] Absorption cross section per unit cell at 2200 m/s
+* Vc: [AA^3] Unit cell volume
+* radius: [m] Outer radius of a cylinder (with yheight) or of a sphere (yheight=0)
+* xwidth: [m] Width of a box sample
+* yheight: [m] Height of a box or cylinder sample
+* zdepth: [m] Depth of a box sample
+* thickness: [m] Wall thickness of a hollow cylinder (0: filled)
+* pack: [1] Packing factor (scales absorption and scattering coefficients)
+* p_transmit: [1] Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter)
+* order: [1] Maximum number of scattering events per neutron (1: single scattering)
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_Phonon_IncoherentInelastic
+
+SETTING PARAMETERS (string dos=0, T=300, average_mass=0, Ef=0, dEf=0, sigma_inc=0, sigma_abs=0, Vc=0, radius=0, xwidth=0, yheight=0, zdepth=0, thickness=0, pack=1, p_transmit=0, int order=1)
+
+NOACC
+
+SHARE
+%{
+%include "read_table-lib"
+%include "mcvine-lib"
+%}
+
+DECLARE
+%{
+  mcvine_kernel_Phonon_IncoherentInelastic kernel;
+  mcvine_scatterer scatterer;
+%}
+
+INITIALIZE
+%{
+  mcvine_shape shape;
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  if (!(average_mass > 0)) {
+    fprintf (stderr, "%s: average_mass must be > 0\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (!(T > 0)) {
+    fprintf (stderr, "%s: T must be > 0\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (mcvine_dos_load (&kernel.m_dos, dos, 0, NAME_CURRENT_COMP))
+    exit (-1);
+  kernel.m_T = T;
+  kernel.m_mass = average_mass;
+  kernel.m_max_omega = kernel.m_dos.emax;
+  kernel.m_dw_core = mcvine_dw_core_from_dos (&kernel.m_dos, average_mass, T, 100);
+  kernel.m_focusing = dEf > 0;
+  kernel.m_Ef = Ef;
+  kernel.m_dEf = dEf;
+  printf ("%s: DOS Emax=%g meV, Debye-Waller core=%g AA^2\n", NAME_CURRENT_COMP, kernel.m_dos.emax, kernel.m_dw_core);
+
+  if (!(Vc > 0) || !(sigma_inc > 0)) {
+    fprintf (stderr, "%s: need sigma_inc>0 and Vc>0\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  mu = mcvine_xs2coeff (sigma_abs, Vc);
+  sig = mcvine_xs2coeff (sigma_inc, Vc);
+  if (mcvine_shape_init (&shape, radius, xwidth, yheight, zdepth, thickness, NAME_CURRENT_COMP))
+    exit (-1);
+  mcvine_scatterer_init (&scatterer, &shape, mu, sig, pack, p_transmit, order);
+%}
+
+TRACE
+%{
+  int ret = mcvine_scatterer_interact (&scatterer, &kernel, mcvine_S_Phonon_IncoherentInelastic, _particle);
+  if (ret < 0)
+    ABSORB;
+  if (ret > 0)
+    SCATTER;
+%}
+
+MCDISPLAY
+%{
+  if (scatterer.shape.type == MCVINE_SHAPE_BOX) {
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
+  } else if (scatterer.shape.type == MCVINE_SHAPE_CYLINDER) {
+    cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
+    if (thickness > 0)
+      cylinder (0, 0, 0, radius - thickness, yheight, 0, 0, 1, 0);
+  } else {
+    sphere (0, 0, 0, radius);
+  }
+%}
+
+END

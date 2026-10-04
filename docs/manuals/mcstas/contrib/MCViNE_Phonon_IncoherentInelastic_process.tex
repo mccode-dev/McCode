@@ -1,0 +1,44 @@
+\section{The \texttt{MCViNE\_Phonon\_IncoherentInelastic\_process} McStas Component}
+Union process: One-phonon incoherent inelastic scattering from a phonon DOS (incoherent approximation), optional Ef focusing.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE phonon IncoherentInelastic / IncoherentInelastic\_EnergyFocusing kernels; MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/phonon/IncoherentInelastic.cc, IncoherentInelastic\_EnergyFocusing.cc)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+S\_inc(Q,E) = exp(-2W) hbar\textasciicircum{}2Q\textasciicircum{}2/(2M) g(|E|)/|E| [n(E)+1 or n(E)] with the DOS g(E) normalised to 1, Debye-Waller factor computed from the DOS (MCViNE DWFromDOS), and the DOS preprocessed like MCViNE (resampled to \textgreater{}=500 points, parabolic low-energy fit, normalised). The final direction is uniform over 4pi; Ef is uniform in [Ei-Emax\_dos, Ei+Emax\_dos]. With dEf\textgreater{}0, Ef is restricted to Ef +/- dEf/2 (MCViNE IncoherentInelastic\_EnergyFocusing). DOS file: 2 columns E [meV] g(E) (a '\#...THz' comment switches the unit to THz) or an MCViNE IDF binary 'DOS' file. Multiphonon terms are not included (see Union IncoherentPhonon\_process or NCrystal for those).
+
+\textbf{Union process.} Part of the Union components: define this process, collect it into a material with Union\_make\_material (absorption is set there with my\_absorption, the absorption inverse penetration depth at 2200 m/s), assign the material to Union\_box/Union\_cylinder/Union\_sphere/Union\_mesh geometries, and add a Union\_master after them. Geometry, attenuation and multiple scattering are handled by Union\_master; this component provides the MCViNE kernel: the scattering coefficient and the final-state sampling (weight). Isotropic process (powder/liquid-like); rotation is irrelevant. The kernel code is shared with the standalone component MCViNE\_Phonon\_IncoherentInelastic (mcvine-lib.c). Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type MCViNE is declared in share/union-lib.h and registered with Union\_master in share/mcvine-union-lib.h.
+
+Example: MCViNE\_Phonon\_IncoherentInelastic\_process(dos="MCViNE/Debye\_dos.dat", T=300, average\_mass=50.94, sigma\_inc=10.1, Vc=27.6)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+dos & str & Phonon DOS file & 0 \\
+T & K & Temperature & 300 \\
+average\_mass & amu & Average atomic mass & 0 \\
+Ef & meV & Final energy for energy focusing (used when dEf\textgreater{}0) & 0 \\
+dEf & meV & Full width of the final-energy window; 0 disables focusing & 0 \\
+sigma\_inc & barn & Incoherent scattering cross section per unit cell & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume & 0 \\
+packing\_factor & 1 & Packing factor (scales the scattering coefficient) & 1 \\
+interact\_fraction & 1 & Union: fraction of interactions forced to this process (-1: by cross section) & -1 \\
+init & string & Deprecated and unused, accepted like on the other Union components (see Union\_init). & "" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_Phonon\_IncoherentInelastic\_process.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_Phonon_IncoherentInelastic_process_static.tex}{\input{contrib/MCViNE_Phonon_IncoherentInelastic_process_static.tex}}{}

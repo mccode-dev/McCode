@@ -46,8 +46,8 @@
 * transverse:        [0/1]    Simulate transverse branches
 * packing_factor:    [1]      How dense is the material compared to optimal 0-1
 * interact_fraction: [1]      How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
-* init:              [string] Name of Union_init component (typically "init", default)
 * DW:                [1]      Debye-Waller factor
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 * CALCULATED PARAMETERS:
 * PhononSimple_storage      // Important to update this output paramter
 * effective_my_scattering   // Variable used in initialize
@@ -59,16 +59,14 @@
 
 DEFINE COMPONENT PhononSimple_process
 
-SETTING PARAMETERS(packing_factor=1,unit_cell_volume=13.8,interact_fraction=-1,a=4.95,c=10,M=207.2,b=9.4,T=290,DW=1,longitudinal=1,transverse=1, string init="init")
+SETTING PARAMETERS(packing_factor=1,unit_cell_volume=13.8,interact_fraction=-1,a=4.95,c=10,M=207.2,b=9.4,T=290,DW=1,longitudinal=1,transverse=1, string init="")
 
 
 SHARE
 %{
-  #ifndef Union
-  #error "The Union_init component must be included before this PhononSimple_process component"
-  #endif
+  %include "union-lib"
 
-  // Very important to add a pointer to this struct in the union-lib.c file
+  // Very important to add a pointer to this struct in the union-lib.h file
   struct PhononSimple_physics_storage_struct {
     // Variables that needs to be transfered between any of the following places:
     // The initialize in this component
@@ -390,7 +388,7 @@ SHARE
     // my_constant = V_rho*DW*K2V*K2V*VS2E*2*VS2E*K2V*b*b/M // done in initialize
 
     //*my = (double)
-    //nf*k_final/k_length*kappa2/fabs(omega)*nbose_union(omega,T)*k_final/J_factor*data_transfer.pointer_to_a_PhononSimple_storage_struct->my_constant;
+    // nf*k_final/k_length*kappa2/fabs(omega)*nbose_union(omega,T)*k_final/J_factor*data_transfer.pointer_to_a_PhononSimple_storage_struct->my_constant;
 
     *my = (double)nf * k_final / k_length * pol_weight_factor / fabs (omega) * nbose_union (omega, T) * k_final / J_factor
           * data_transfer.pointer_to_a_PhononSimple_storage_struct->my_constant;
@@ -443,6 +441,12 @@ SHARE
   #ifndef PROCESS_PHONONSIMPLE_DETECTOR
   #define PROCESS_PHONONSIMPLE_DETECTOR dummy
   #endif
+
+  // Register this process with the Union_master dispatch (see union-lib.h)
+  #undef UNION_CASE_PHYSICS_MY_PHONONSIMPLE
+  #define UNION_CASE_PHYSICS_MY_PHONONSIMPLE(out, ...) case PhononSimple: out = PhononSimple_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_PHONONSIMPLE
+  #define UNION_CASE_PHYSICS_SCATTERING_PHONONSIMPLE(out, ...) case PhononSimple: out = PhononSimple_physics_scattering(__VA_ARGS__); break;
 %}
 
 DECLARE
@@ -461,6 +465,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
 
   // Initialize done in the component
   // PhononSimple_storage.my_scattering = effective_my_scattering;
@@ -530,18 +535,18 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "PhononSimple_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 
 TRACE
 %{
   // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

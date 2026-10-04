@@ -65,10 +65,14 @@
 	\ RESTORE_NEUTRON 
 	\ PROP_GRAV_DT 
 	\ PROP_DT 
+	\ PROP_NO_G_DT
         \ PROP_DL
 	\ PROP_Z0 
 	\ PROP_X0 
 	\ PROP_Y0 
+	\ PROP_NO_G_Z0
+	\ PROP_NO_G_X0
+	\ PROP_NO_G_Y0
 	\ vec_prod 
 	\ scalar_prod 
 	\ NORM 

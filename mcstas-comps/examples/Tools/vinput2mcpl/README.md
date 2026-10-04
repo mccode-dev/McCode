@@ -27,8 +27,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| inputfile |  |  | "input" |
-| outputfile |  |  | "output" |
+| inputfile | str | Filename for Virtual_input read | "input" |
+| outputfile | str | Filename for MCPL_output write | "output" |
 
 ## Links
 

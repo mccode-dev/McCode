@@ -41,8 +41,8 @@ Parameters in **boldface** are required; the others are optional.
 | d_SF | m | distance from Source to FC center | 3 |
 | d_FD | m | distance from FC center to Detector | 3 |
 | phase | deg | FC phase. Use -0 for automatic | 271.92 |
-| time_to_arrival |  |  | 0 |
-| time_window_width |  |  | 0 |
+| time_to_arrival | s | Arrival time at the Fermi chopper; computed in INITIALIZE, the input value is ignored | 0 |
+| time_window_width | s | Width of the chopper time window; computed in INITIALIZE, the input value is ignored | 0 |
 
 ## Links
 

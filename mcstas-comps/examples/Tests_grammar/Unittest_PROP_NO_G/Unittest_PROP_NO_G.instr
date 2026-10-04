@@ -1,0 +1,51 @@
+/*******************************************************************************
+*         McStas, neutron ray-tracing package
+*
+* Instrument: Unittest_PROP_NO_G
+*
+* %Identification
+* Written by: Mads Bertelsen
+* Date: September 2026
+* Origin: ESS
+* %INSTRUMENT_SITE: Tests_grammar
+*
+* Test for the PROP_NO_G_DT propagation macro.
+*
+* %Description
+* A long-wavelength beam is focused onto a small detector 10 m away. The
+* intermediate Arm uses PROP_NO_G_DT, so the beam should remain focused even
+* when gravity is enabled.
+*
+* %Example: -g Detector: PropNoGMonitor_I=7.95774e-8
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Unittest_PROP_NO_G()
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Source = Source_simple(
+    radius = 0.01,
+    dist = 10,
+    focus_xw = 0.01,
+    focus_yh = 0.01,
+    lambda0 = 30,
+    dlambda = 0,
+    flux = 0)
+  AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT PropNoG = Arm()
+  AT (0, 0, 0) RELATIVE Source
+EXTEND %{
+  PROP_NO_G_DT(10/vz);
+%}
+
+COMPONENT PropNoGMonitor = Monitor(
+    xwidth = 0.01,
+    yheight = 0.01)
+  AT (0, 0, 10) RELATIVE PropNoG
+
+END

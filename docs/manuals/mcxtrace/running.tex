@@ -198,6 +198,16 @@ At the time of the \MCX~3.6 release, \texttt{mcxtrace-antlr} is close to
 feature-complete for CPU simulations with a few more issues for GPU/OpenACC
 simulations.
 
+\subsubsection*{Alternative code generator: \texttt{mcxtrace-pygen}}
+\indexMCTOOL{mcxtrace-pygen}{}
+
+A third code generator, \texttt{mcxtrace-pygen}, targets McStasScript (a
+Python package for building and running \MCX instruments) rather than C:
+given an \texttt{.instr} file, it generates an equivalent McStasScript
+Python model instead of a C program. It is normally invoked indirectly,
+via \texttt{mcxtrace-jupylab} (section~\ref{s:jupylab}), rather than run
+directly by the user.
+
 
 %-------------------------------------------------------------------------------
 \subsection{Specifying the location of files}
@@ -749,7 +759,9 @@ run any tool with \verb+-h+ for its specific help):
 \begin{lstlisting}
     McXtrace Tools
        mcxtrace          Main instrument compiler
+       mcxtrace-pygen  Alternative code generator: McStasScript Python model
        mxrun           Instrument build and execution utility
+       mcxtrace-jupylab Opens a generated instrument model in JupyterLab
        mxgui           Graphical User Interface instrument builder
        mxdoc           Component library documentation generator/viewer
        mxplot          Simulation result viewer (default: pyqtgraph backend)
@@ -1105,6 +1117,32 @@ any of the \verb+mxplot+ backends, see section~\ref{s:mxplot}.
 
 The \verb+-h+ option will list valid options; see also Table~\ref{f:mcrunoptions}
 for the complete, current option list.
+
+\subsection{Interactive notebooks (mcxtrace-jupylab)}
+\label{s:jupylab}
+\indexMCTOOL{mcxtrace-jupylab}{textbf}
+
+The \texttt{mcxtrace-jupylab} front-end offers an interactive,
+notebook-based alternative to editing an \texttt{.instr} file directly
+and running it via \texttt{mxgui}/\texttt{mxrun}. Given an instrument
+file:
+\begin{lstlisting}
+mcxtrace-jupylab name.instr
+\end{lstlisting}
+it first runs \texttt{mcxtrace-pygen} (see above) to translate the
+instrument into an equivalent McStasScript Python model, writes that
+model into a notebook (\texttt{\textit{name}\_generated.ipynb}) built
+from a template, and opens it in JupyterLab\footnote{A working
+\texttt{jupyter lab} installation is required; it is not currently
+bundled with the standard conda-forge \MCX package.}. From there the
+instrument can be inspected, modified and run cell by cell using
+McStasScript's own Python API, which is useful for exploratory work and
+for combining a simulation with other Python-based analysis in the same
+notebook.
+
+Note that this generates a McStasScript model \emph{once}, as a
+starting point; it is not kept in sync with later edits to the original
+\texttt{.instr} file, nor vice versa.
 
 \subsection{GPU acceleration via OpenACC}
 \label{s:gpu}

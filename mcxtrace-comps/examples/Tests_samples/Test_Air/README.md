@@ -30,7 +30,7 @@ Parameters in **boldface** are required; the others are optional.
 | E0 | keV | Central energy to be emitted from the source. | 12.3984 |
 | dE_E |  | Relative full bandwidth of the source. | 0.1 |
 | Lair | m | The length of air to be traversed by the beam. | 1 |
-| MXDIV |  | Maximal divergence to allow in divergence monitors. | 1 |
+| MXDIV | rad | Maximal divergence to allow in divergence monitors. | 1 |
 | AIR |  | Flag to enable (nonzero) / disable (0) the block of Air. | 0 |
 
 ## Links

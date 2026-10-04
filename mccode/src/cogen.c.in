@@ -1042,8 +1042,12 @@ int cogen_comp_setpos(
     }
     if (par->type==instr_type_string) { // value and defval "come with quotes" or are symbolic
       coutf("        mccomp_param_nexus(nxhandle,\"%s%d_%s\", \"%s\", %s, %s, \"%s\");", pref, comp->index-1, comp->name, par->id, defval, val, instr_formal_type_names_real[par->type]);
-    } else {                            // both need quoting
-      coutf("        mccomp_param_nexus(nxhandle,\"%s%d_%s\", \"%s\", \"%s\", \"%s\",\"%s\");", pref, comp->index-1, comp->name, par->id, defval,val, instr_formal_type_names_real[par->type]);
+    } else {                            // both need quoting (and escaping, e.g. strcmp(mcformat,"NeXus"))
+      char *quoted_defval = str_quote(defval);
+      char *quoted_val = str_quote(val);
+      coutf("        mccomp_param_nexus(nxhandle,\"%s%d_%s\", \"%s\", \"%s\", \"%s\",\"%s\");", pref, comp->index-1, comp->name, par->id, quoted_defval, quoted_val, instr_formal_type_names_real[par->type]);
+      memfree(quoted_defval);
+      memfree(quoted_val);
     }
   }
   list_iterate_end(piter);

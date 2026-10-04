@@ -43,7 +43,7 @@ Parameters in **boldface** are required; the others are optional.
 | L1 | m | Source-sample distance. | 10 |
 | material | str | Material structure/composition as formula or LAU/CIF format. | "LaB6.cif" |
 | index | 1 | Index of the sample component to use. 1=PowderN, 2=Single_crystal (much slower), 3=FluoPowder, 4=Fluorescence, 5=Fluorescence+PowderN in a GROUP (slower) | 3 |
-| delta_d_d |  |  | 3e-4 |
+| delta_d_d | 1 | Lattice spacing variance, gaussian RMS | 3e-4 |
 
 ## Links
 

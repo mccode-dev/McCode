@@ -1,0 +1,159 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_Phonon_CoherentInelastic_SingleXtal_process
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE phonon CoherentInelastic_SingleXtal kernel; MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/phonon/CoherentInelastic_SingleXtal.cc)
+*
+* Union process: Coherent one-phonon scattering from a single crystal, using a full phonon dispersion on a grid.
+*
+* %D
+* Single-crystal coherent one-phonon scattering with dispersion and polarization
+* vectors from MCViNE IDF files (periodic over the reciprocal cell b1,b2,b3 given
+* in Qgridinfo; orient the crystal by rotating the component). For a final
+* direction (4pi, or a cone towards a target when focus_r>0) and a random
+* branch among those with Emin < 1.5 Ei, all final speeds solving
+* omega(Q) = |Ei-Ef| are found (Ridders' method on nsteps sub-intervals of
+* [0,2vi]); one is chosen and weighted by the delta-function Jacobian,
+* |sum_d b_d/sqrt(M_d) exp(iQ.d)(Q.e_d)|^2, Bose and Debye-Waller factors.
+*
+* <b>Union process.</b> Part of the Union components: define this process, collect it
+* into a material with Union_make_material (absorption is set there with
+* my_absorption, the absorption inverse penetration depth at 2200 m/s), assign
+* the material to Union_box/Union_cylinder/Union_sphere/Union_mesh geometries,
+* and add a Union_master after them. Geometry, attenuation and multiple
+* scattering are handled by Union_master; this component provides the MCViNE
+* kernel: the scattering coefficient and the final-state sampling (weight).
+* Orientation: this process is anisotropic; its frame (Q vectors, reciprocal
+* vectors, atom positions) follows the ROTATED placement of this component.
+* The kernel code is shared with the standalone component MCViNE_Phonon_CoherentInelastic_SingleXtal (mcvine-lib.c).
+* Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type
+* MCViNE is declared in share/union-lib.h and registered with Union_master in
+* share/mcvine-union-lib.h.
+*
+* Example: MCViNE_Phonon_CoherentInelastic_SingleXtal_process(idf_dir="MCViNE/fcc_toy_phonons", atoms="MCViNE/fcc_toy_atoms.dat", T=300)
+*
+* %P
+* INPUT PARAMETERS:
+* idf_dir: [str] Directory with MCViNE IDF phonon files: Qgridinfo, Omega2, Polarizations[, DOS]
+* atoms: [str] Atoms file: one row per atom 'x y z mass b_coh sigma_inc sigma_abs' ([AA] cartesian, [amu], [fm], [barn], [barn]), same order as in the IDF files
+* T: [K] Temperature
+* dw_core: [AA^2] Debye-Waller core; <0: computed from the DOS (idf_dir/DOS or dos)
+* dos: [str] Optional DOS file for the Debye-Waller factor (default: idf_dir/DOS)
+* Vc: [AA^3] Unit cell volume; 0: (2pi)^3/|b1.(b2 x b3)| from Qgridinfo
+* deltaV_Jacobi: [1] Relative velocity step for the numerical Jacobian
+* nsteps: [1] Sub-intervals for the root search in vf
+* xacc: [m/s] Root accuracy in vf
+* unbiased: [1] 0: MCViNE sampling (retries up to 100 direction/branch draws until omega(Q)=|Ei-Ef| has a solution, without correcting the weight: over-estimates when many directions have no solution). 1: single attempt, unbiased
+* packing_factor: [1] Packing factor (scales the scattering coefficient)
+* interact_fraction: [1] Union: fraction of interactions forced to this process (-1: by cross section)
+* init: [string] Deprecated and unused, accepted like on the other Union components (see Union_init).
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_Phonon_CoherentInelastic_SingleXtal_process
+
+SETTING PARAMETERS (string idf_dir=0, string atoms=0, T=300, dw_core=-1, string dos=0, Vc=0, deltaV_Jacobi=0.001, int nsteps=100, xacc=10, int unbiased=0, packing_factor=1, interact_fraction=-1, string init="")
+
+NOACC
+
+SHARE
+%{
+  %include "union-lib"
+  %include "read_table-lib"
+  %include "mcvine-lib"
+  %include "mcvine-union-lib"
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  mcvine_kernel_Phonon_CoherentInelastic_SingleXtal kernel;
+  struct MCViNE_physics_storage_struct storage;
+  struct scattering_process_struct This_process;
+  struct global_process_element_struct global_process_element;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct* union_state_p = union_acquire ();
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  {
+    int i;
+    double mass = 0, xs_abs = 0, V;
+    mcvine_dispersion* dp = (mcvine_dispersion*)calloc (1, sizeof (mcvine_dispersion));
+    if (mcvine_dispersion_load_idf (dp, idf_dir, NAME_CURRENT_COMP))
+      exit (-1);
+    kernel.m_natoms = mcvine_atoms_load (&kernel.m_atoms, atoms, NAME_CURRENT_COMP);
+    if (kernel.m_natoms < 0)
+      exit (-1);
+    if (kernel.m_natoms != dp->natoms) {
+      fprintf (stderr, "%s: atoms file has %d atoms but the dispersion has %d\n", NAME_CURRENT_COMP, kernel.m_natoms, dp->natoms);
+      exit (-1);
+    }
+    kernel.m_disp = dp;
+    kernel.m_T = T;
+    kernel.m_xs_coh_tot = 0;
+    for (i = 0; i < kernel.m_natoms; i++) {
+      mass += kernel.m_atoms[i].mass;
+      kernel.m_xs_coh_tot += kernel.m_atoms[i].xs_coh;
+      xs_abs += kernel.m_atoms[i].xs_abs;
+    }
+    mass /= kernel.m_natoms;
+    if (dw_core >= 0)
+      kernel.m_dw_core = dw_core;
+    else {
+      mcvine_dos d;
+      if (dos && dos[0]) {
+        if (mcvine_dos_load (&d, dos, 0, NAME_CURRENT_COMP))
+          exit (-1);
+      } else if (dp->has_dos)
+        d = dp->m_dos;
+      else {
+        fprintf (stderr, "%s: no DOS for the Debye-Waller factor (give dw_core, dos, or idf_dir/DOS)\n", NAME_CURRENT_COMP);
+        exit (-1);
+      }
+      kernel.m_dw_core = mcvine_dw_core_from_dos (&d, mass, T, 100);
+    }
+    V = Vc > 0 ? Vc : dp->ucvol;
+    mu = mcvine_xs2coeff (xs_abs, V);
+    sig = mcvine_xs2coeff (kernel.m_xs_coh_tot, V);
+    printf ("%s: %d atoms, %d branches, grid %dx%dx%d, Vc=%g AA^3, sigma_coh=%g barn, DW core=%g AA^2\n", NAME_CURRENT_COMP, kernel.m_natoms, dp->nbranches,
+            dp->n[0], dp->n[1], dp->n[2], V, kernel.m_xs_coh_tot, kernel.m_dw_core);
+  }
+
+  kernel.m_deltaV_Jacobi = deltaV_Jacobi;
+  kernel.m_nsteps = nsteps > 0 ? nsteps : 100;
+  kernel.m_xacc = xacc;
+  kernel.m_unbiased = unbiased;
+  kernel.m_target_radius = 0; /* Union version: 4pi, as MCViNE's default */
+  printf ("%s: absorption is not part of the process; set Union_make_material(my_absorption=%g) for this material\n", NAME_CURRENT_COMP, mu);
+  storage.m_kernel = &kernel;
+  storage.m_S = mcvine_S_Phonon_CoherentInelastic_SingleXtal;
+  storage.m_my_scattering = sig * packing_factor;
+  storage.m_kind = MCVINE_UNION_GENERIC;
+  mcvine_union_register (&union_state_p->u_process_list, &This_process, &global_process_element, &storage, NAME_CURRENT_COMP, INDEX_CURRENT_COMP, interact_fraction, 1, ROT_A_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  // the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
+%}
+
+END

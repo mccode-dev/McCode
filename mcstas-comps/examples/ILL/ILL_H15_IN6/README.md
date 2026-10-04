@@ -54,8 +54,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | wavelength within 4.14\|4.6\|5.12\|5.92 | 4.14 |
-| dlambda | Angs | wavelength HALF spread. default is 0.075 | 0.075 |
+| lambda | AA | wavelength within 4.14\|4.6\|5.12\|5.92 | 4.14 |
+| dlambda | AA | wavelength HALF spread. default is 0.075 | 0.075 |
 
 ## Links
 
