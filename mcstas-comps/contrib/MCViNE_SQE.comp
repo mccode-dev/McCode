@@ -1,0 +1,157 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_SQE
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE SQEkernel / SQE_EnergyFocusing_Kernel (+ SQE_fromexpression); MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/SQEkernel.cc, SQE_EnergyFocusing_Kernel.cc)
+*
+* Isotropic S(Q,E) scatterer from an analytic expression or grid, with optional final-energy focusing.
+*
+* %D
+* Isotropic (powder / liquid) S(|Q|,E). E is sampled uniformly in [Emin, min(Ei,Emax)]
+* and |Q| uniformly in the kinematically allowed part of [Qmin,Qmax]. S(Q,E) is an
+* expression in Q [AA^-1] and E [meV], or a grid file in the Isotropic_Sqw format
+* (first numeric row: q values; second: energy values; then nq rows of nw values),
+* bilinearly interpolated. For grid data McStas' Isotropic_Sqw already exists; the
+* new parts are the analytic S(Q,E) and the energy focusing: when dEf>0, E is
+* restricted so that Ef lies in [Ef-dEf, Ef+dEf] (MCViNE SQE_EnergyFocusing_Kernel).
+* 
+* Functions are given as strings evaluated at run time (MCViNE uses fparser):
+* + - * / ^ (or **), % , comparisons, && ||, if(c,a,b), sin cos tan asin acos
+* atan sinh cosh tanh exp log log10 log2 sqrt abs floor ceil int sign cbrt,
+* pow atan2 min max hypot fmod, constants pi and e.
+*
+* <b>Transport</b> (same as MCViNE HomogeneousNeutronScatterer): on the first
+* passage the neutron is forced to scatter at a uniformly chosen depth, weighted
+* by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient;
+* on exit it is attenuated by exp(-(mu+sigma)L_out). With order>1 further
+* scatterings are sampled analogically (truncated exponential). With
+* p_transmit>0 that fraction of events is kept as the attenuated direct beam.
+* mu(v) = absorption_coefficient*2200/v. Events for which the kernel cannot
+* scatter (kinematically forbidden) are absorbed.
+*
+* Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow
+* cylinder (+thickness) or sphere (radius only). All vectors (Q, targets,
+* reciprocal vectors, atom positions) are in the component's local frame.
+*
+* Uses the shared runtime share/mcvine-lib.h/.c.
+*
+* Example: MCViNE_SQE(SQE="exp(-(E-10)^2/2)*Q^2*exp(-Q^2/4)", Qmin=0, Qmax=10, Emin=-5, Emax=30, sigma_scat=5, sigma_abs=0.5, Vc=50, radius=0.01, yheight=0.05)
+*
+* %P
+* INPUT PARAMETERS:
+* SQE: [str] S(Q,E) expression (ignored if SQE_file given)
+* SQE_file: [str] S(q,w) grid file (Isotropic_Sqw layout)
+* Qmin: [AA^-1] Lower Q bound
+* Qmax: [AA^-1] Upper Q bound
+* Emin: [meV] Lower energy transfer bound
+* Emax: [meV] Upper energy transfer bound
+* Ef: [meV] Final-energy focusing centre (used when dEf>0)
+* dEf: [meV] Final-energy focusing half range; 0 disables focusing
+* absorption_coefficient: [m^-1] Absorption coefficient at 2200 m/s (MCViNE convention; scales as 1/v)
+* scattering_coefficient: [m^-1] Scattering coefficient
+* sigma_abs: [barn] Alternative: absorption cross section per unit cell at 2200 m/s (used when Vc>0)
+* sigma_scat: [barn] Alternative: scattering cross section per unit cell (used when Vc>0)
+* Vc: [AA^3] Unit cell volume; when >0, coefficients are computed from sigma_abs, sigma_scat
+* radius: [m] Outer radius of a cylinder (with yheight) or of a sphere (yheight=0)
+* xwidth: [m] Width of a box sample
+* yheight: [m] Height of a box or cylinder sample
+* zdepth: [m] Depth of a box sample
+* thickness: [m] Wall thickness of a hollow cylinder (0: filled)
+* pack: [1] Packing factor (scales absorption and scattering coefficients)
+* p_transmit: [1] Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter)
+* order: [1] Maximum number of scattering events per neutron (1: single scattering)
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_SQE
+
+SETTING PARAMETERS (string SQE="1", string SQE_file=0, Qmin=0, Qmax=10, Emin=-10, Emax=10, Ef=0, dEf=0, absorption_coefficient=0, scattering_coefficient=0, sigma_abs=0, sigma_scat=0, Vc=0, radius=0, xwidth=0, yheight=0, zdepth=0, thickness=0, pack=1, p_transmit=0, int order=1)
+
+NOACC
+
+SHARE
+%{
+%include "read_table-lib"
+%include "mcvine-lib"
+%}
+
+DECLARE
+%{
+  mcvine_kernel_SQE kernel;
+  mcvine_scatterer scatterer;
+%}
+
+INITIALIZE
+%{
+  mcvine_shape shape;
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  const char* vars[] = { "Q", "E" };
+  if (mcvine_func_setup (&kernel.m_S, SQE, SQE_file, 3, 2, vars, NAME_CURRENT_COMP))
+    exit (-1);
+  if (SQE_file && SQE_file[0]) {
+    if (Qmin < kernel.m_S.g2.x[0])
+      Qmin = kernel.m_S.g2.x[0];
+    if (Qmax > kernel.m_S.g2.x[kernel.m_S.g2.nx - 1])
+      Qmax = kernel.m_S.g2.x[kernel.m_S.g2.nx - 1];
+    if (Emin < kernel.m_S.g2.y[0])
+      Emin = kernel.m_S.g2.y[0];
+    if (Emax > kernel.m_S.g2.y[kernel.m_S.g2.ny - 1])
+      Emax = kernel.m_S.g2.y[kernel.m_S.g2.ny - 1];
+  }
+  kernel.m_Qmin = Qmin;
+  kernel.m_Qmax = Qmax;
+  kernel.m_Emin = Emin;
+  kernel.m_Emax = Emax;
+  kernel.m_Ef = Ef;
+  kernel.m_dEf = dEf;
+  kernel.m_focusing = dEf > 0;
+
+  if (Vc > 0) {
+    mu = mcvine_xs2coeff (sigma_abs, Vc);
+    sig = mcvine_xs2coeff (sigma_scat, Vc);
+  } else {
+    mu = absorption_coefficient;
+    sig = scattering_coefficient;
+  }
+  if (!(sig > 0)) {
+    fprintf (stderr, "%s: give scattering_coefficient>0 (or sigma_scat>0 and Vc>0)\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (mcvine_shape_init (&shape, radius, xwidth, yheight, zdepth, thickness, NAME_CURRENT_COMP))
+    exit (-1);
+  mcvine_scatterer_init (&scatterer, &shape, mu, sig, pack, p_transmit, order);
+%}
+
+TRACE
+%{
+  int ret = mcvine_scatterer_interact (&scatterer, &kernel, mcvine_S_SQE, _particle);
+  if (ret < 0)
+    ABSORB;
+  if (ret > 0)
+    SCATTER;
+%}
+
+MCDISPLAY
+%{
+  if (scatterer.shape.type == MCVINE_SHAPE_BOX) {
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
+  } else if (scatterer.shape.type == MCVINE_SHAPE_CYLINDER) {
+    cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
+    if (thickness > 0)
+      cylinder (0, 0, 0, radius - thickness, yheight, 0, 0, 1, 0);
+  } else {
+    sphere (0, 0, 0, radius);
+  }
+%}
+
+END

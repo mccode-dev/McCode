@@ -33,34 +33,19 @@ TRACE
 COMPONENT init = Union_init()
 AT (0,0,0) ABSOLUTE
 
-// NOTE: Next four components are generated with the following two commands, so do NOT edit them manually (but rerun if absorption in NCrystal changes).
+// A complete NCrystal-backed Union material can be declared directly from its
+// configuration string. Absorption is read from the same configuration.
 //
-// ncrystal_mcstasunion NCrystal_mono_material 'Ge_sg227.ncmat;mos=0.3deg;comp=bragg;dir1=@crys_hkl:5,1,1@lab:0,0,1;dir2=@crys_hkl:0,1,-1@lab:0,1,0'
-// ncrystal_mcstasunion NCrystal_sample_material 'Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x'
-//
-COMPONENT NCrystal_mono_material_ncrystal_proc = NCrystal_process(
+COMPONENT NCrystal_mono_material = Union_NCrystal_material(
     cfg = "Ge_sg227.ncmat;dir1=@crys_hkl:5,1,1@lab:0,0,1;dir2=@crys_hkl:0,1,-1@lab:0,1,0;incoh_elas=0;inelas=0;mos=0.3deg;sans=0"
 )
 AT (0,0,0) ABSOLUTE
 
-COMPONENT NCrystal_mono_material = Union_make_material(
-    process_string = "NCrystal_mono_material_ncrystal_proc",
-    my_absorption = 9.72016247573315
+COMPONENT NCrystal_sample_material = Union_NCrystal_material(
+    cfg = "Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x",
+    include_SLD = 1
 )
 AT (0,0,0) ABSOLUTE
-
-COMPONENT NCrystal_sample_material_ncrystal_proc = NCrystal_process(
-    cfg = "Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x"
-)
-AT (0,0,0) ABSOLUTE
-
-COMPONENT NCrystal_sample_material = Union_make_material(
-    process_string = "NCrystal_sample_material_ncrystal_proc",
-    my_absorption = 2.03893536113881
-)
-AT (0,0,0) ABSOLUTE
-
-// END OF GENERATED CODE!!!
 
 COMPONENT origin = Progress_bar()
   AT (0, 0, 0) RELATIVE ABSOLUTE

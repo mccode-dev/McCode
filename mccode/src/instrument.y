@@ -1795,9 +1795,11 @@ shell:
 search: "SEARCH" TOK_STRING
     {
       add_search_dir($2);
+      record_search($2, 0);
     }
   | "SEARCH" "SHELL" TOK_STRING
     {
+      record_search($3, 1);
       FILE *sfp;
       char svalue[1025];
       sfp = popen($3, "r");
@@ -2111,6 +2113,13 @@ char verbose = 0;
 /* Are we generating code for the "lint" mode? (only for Python mode) */
 char lint = 0;
 
+/* Python mode: name of generated McStasScript instrument (NULL means
+   default, i.e. the instrument name with a "_generated" suffix) */
+char *pygen_instrument_name = NULL;
+
+/* Python mode: do not translate %Example lines into McStasScript tests */
+char pygen_no_tests = 0;
+
 /* include instrument source code in executable ? */
 char embed_instrument_file = 0;
 
@@ -2142,7 +2151,11 @@ print_usage(void)
   fprintf(stderr, "      --source                   Embed the instrument source code in executable.\n");
 #elif defined(GENERATE_PY)
   fprintf(stderr, "      --lint                     Generate a .py script for McStasScript\n");
-  fprintf(stderr, "                                 style \"diagnostic\" linting.\n\n");
+  fprintf(stderr, "                                 style \"diagnostic\" linting.\n");
+  fprintf(stderr, "      --instrument-name=NAME     Name of the McStasScript instrument\n");
+  fprintf(stderr, "                                 (default: instrument name + \"_generated\").\n");
+  fprintf(stderr, "      --no-tests                 Do not translate %%Example lines into\n");
+  fprintf(stderr, "                                 McStasScript tests (instr.add_test).\n\n");
 #endif
   fprintf(stderr, "  The instrument description file will be processed and translated into " GENERATE_LANG ".\n");
 #if defined(GENERATE_C)
@@ -2276,6 +2289,12 @@ parse_command_line(int argc, char *argv[])
 #elif defined(GENERATE_PY)
     else if(!strcmp("--lint", argv[i]))
       lint = 1;
+    else if(!strcmp("--instrument-name", argv[i]) && (i + 1) < argc)
+      pygen_instrument_name = str_dup(argv[++i]);
+    else if(!strncmp("--instrument-name=", argv[i], 18))
+      pygen_instrument_name = str_dup(&argv[i][18]);
+    else if(!strcmp("--no-tests", argv[i]))
+      pygen_no_tests = 1;
 #endif
     else if(!strcmp("-v", argv[i]))
       print_version(0);

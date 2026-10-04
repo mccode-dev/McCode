@@ -42,6 +42,7 @@
 * unit_cell_volume:  [AA^3]   Unit cell volume
 * packing_factor:    [1]      Material packing factor
 * interact_fraction: [1]      How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 * OUTPUT PARAMETERS:
 * Template_storage          // Important to update this output paramter
 * effective_my_scattering   // Variable used in initialize
@@ -53,15 +54,12 @@
 
 DEFINE COMPONENT Template_process // Remember to change the name of process here
 DEFINITION PARAMETERS ()
-SETTING PARAMETERS(sigma=5.08,packing_factor=1,unit_cell_volume=13.8,interact_fraction=-1)
+SETTING PARAMETERS(sigma=5.08,packing_factor=1,unit_cell_volume=13.8,interact_fraction=-1, string init="")
 OUTPUT PARAMETERS (This_process,Template_storage,effective_my_scattering)
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Template_process requires the Union library. Add a Union_master component to load the libraries."
-
-  #endif
+  %include "union-lib"
 
   // Very important to add a pointer to this struct in the Union_functions.c file
   struct Template_physics_storage_struct {
@@ -115,6 +113,15 @@ SHARE
     // One can assume that if the scattering function is running, the my fuction was
     //  executed just before and for the same k_initial.
   };
+
+  // Register this process with the Union_master dispatch (see union-lib.h).
+  // A new process also needs its entry in the process enum and an empty
+  // default for each of these two macros, listed in UNION_CASES_PHYSICS_MY and
+  // UNION_CASES_PHYSICS_SCATTERING, all in union-lib.h.
+  #undef UNION_CASE_PHYSICS_MY_TEMPLATE
+  #define UNION_CASE_PHYSICS_MY_TEMPLATE(out, ...) case Template: out = Template_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_TEMPLATE
+  #define UNION_CASE_PHYSICS_SCATTERING_TEMPLATE(out, ...) case Template: out = Template_physics_scattering(__VA_ARGS__); break;
 %}
 
 DECLARE
@@ -140,6 +147,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   // Initialize done in the component
   effective_my_scattering = ((packing_factor / unit_cell_volume) * 100 * sigma);
   Template_storage.my_scattering = effective_my_scattering;
@@ -147,6 +155,9 @@ INITIALIZE
   // Need to specify if this process is isotropic
   This_process.non_isotropic_rot_index = -1; // Yes (powder)
   // This_process.non_isotropic_rot_index =  1;  // No (single crystal)
+
+  // The type of the process must be saved in the global enum process located in union-lib.h
+  This_process.eProcess = Template;
 
   // Packing the data into a structure that is transported to the main component
   This_process.data_transfer.pointer_to_a_Template_physics_storage_struct = &Template_storage;
@@ -160,12 +171,17 @@ INITIALIZE
   sprintf (global_process_element.name, NAME_CURRENT_COMP);
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
-  add_element_to_process_list (&g_process_list, global_process_element);
+  add_element_to_process_list (&union_state_p->u_process_list, global_process_element);
  %}
 
 TRACE
 %{
   // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

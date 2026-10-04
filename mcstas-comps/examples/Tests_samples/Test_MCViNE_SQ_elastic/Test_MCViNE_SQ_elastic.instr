@@ -1,0 +1,75 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Instrument: Test_MCViNE_SQ_elastic
+*
+* %Identification
+* Written by: Fahima Islam
+* Date: 2026-09-29
+* Origin: MCViNE (https://github.com/mcvine/mcvine) kernels ported to McStas
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Test of the MCViNE SQ kernel (elastic S(|Q|)), as a Union process and as a standalone sample
+*
+* %Description
+* Monochromatic beam on a small sample described by the MCViNE SQ kernel.
+* comp_select=1 uses the Union process MCViNE_SQ_process (geometry, absorption
+* and multiple scattering by Union_master); comp_select=2 uses the standalone
+* component MCViNE_SQ with the same geometry, absorption and up to 20 orders of
+* scattering. The two should give the same scattered intensity (see the two
+* example lines below).
+*
+* %Example: comp_select=1 Detector: detector_I=6.36634e-07
+* %Example: comp_select=2 Detector: detector_I=6.3797e-07
+*
+* %Parameters
+* comp_select: [1] 1: Union process MCViNE_SQ_process in Union_master, 2: standalone MCViNE_SQ
+* Ei: [meV] Incident energy
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_MCViNE_SQ_elastic(comp_select=1, Ei=60)
+
+DECLARE
+%{
+  double Ttgt;
+%}
+
+INITIALIZE
+%{
+  /* arrival time at a target 3 m from the sample for Ef = 40 meV (used by DGSSXRes) */
+  Ttgt = 5.0 / (SE2V * sqrt (Ei)) + 3.0 / (SE2V * sqrt (40.0));
+%}
+
+TRACE
+
+COMPONENT sample_process = MCViNE_SQ_process(SQ="1+sin(Q*3)/(Q*3+1e-9)", Qmin=0, Qmax=20, scattering_coefficient=10)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT sample_material = Union_make_material(my_absorption=2, process_string="sample_process")
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.005, dist=5, focus_xw=0.01, focus_yh=0.01, E0=Ei, dE=0.01*Ei)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT sample_union = Union_cylinder(radius=0.01, yheight=0.02, priority=1, material_string="sample_material", p_interact=0.9)
+  WHEN (comp_select == 1)
+  AT (0, 0, 5) ABSOLUTE
+
+COMPONENT master = Union_master()
+  WHEN (comp_select == 1)
+  AT (0, 0, 5) ABSOLUTE
+
+COMPONENT sample_standalone = MCViNE_SQ(SQ="1+sin(Q*3)/(Q*3+1e-9)", Qmin=0, Qmax=20, scattering_coefficient=10, absorption_coefficient=2, order=20, radius=0.01, yheight=0.02)
+  WHEN (comp_select == 2)
+  AT (0, 0, 5) ABSOLUTE
+
+
+COMPONENT detector = Monitor_nD(options="sphere, abs angle limits=[5 175] bins=85, energy limits=[0 100] bins=100", radius=1.5, restore_neutron=1, filename="angle_E")
+  AT (0, 0, 5) ABSOLUTE
+
+END

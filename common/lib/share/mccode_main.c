@@ -20,7 +20,9 @@ int mccode_main(int argc, char *argv[])
   MPI_Init(&argc,&argv);
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_node_count); /* get number of nodes */
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_node_rank);
-  MPI_Comm_set_name(MPI_COMM_WORLD, instrument_name);
+  /* PW 2026100 - workaround for issue on macOS arm64 with openmpi=5:
+    https://github.com/open-mpi/ompi/issues/14558
+    MPI_Comm_set_name(MPI_COMM_WORLD, instrument_name); */
   MPI_Get_processor_name(mpi_node_name, &mpi_node_name_len);
 #endif /* USE_MPI */
 
@@ -133,6 +135,14 @@ int mccode_main(int argc, char *argv[])
   SIG_MESSAGE("[" __FILE__ "] main INITIALISE");
   init();
 
+#ifdef USE_NEXUS
+  /* store component SETTING parameter values as present at end of INITIALISE */
+  MPI_MASTER(
+    if (nxhandle && !mcdotrace && mcformat && strcasestr(mcformat, "NeXus"))
+      mccomp_param_runtime_nexus_all(nxhandle);
+  );
+#endif
+
 
 #ifndef NOSIGNALS
 #ifdef SIGINT
@@ -179,6 +189,9 @@ int mccode_main(int argc, char *argv[])
 
 
   // save/finally executed by master node/thread/host
+  // All MPI nodes reach this final save together: collective output (e.g.
+  // gathering event lists on the master) is only allowed from here on.
+  mcsave_final = 1;
   finally();
 
 

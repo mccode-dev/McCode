@@ -9,656 +9,48 @@
 * Version: $Revision: 0.1 $
 * Origin: University of Copenhagen
 *
- * Functions and structure definitons for Union components.
+ * Function definitions for the Union component library, declared in
+ * union-lib.h. Components load both with %include "union-lib".
  *
  ******************************************************************************/
 
-// Include guard: this file is auto-injected by the code generator and must
-// expand exactly once even if referenced more than once.
 #ifndef UNION_LIB_C
 #define UNION_LIB_C
 
-// -------------    Definition of data structures   ---------------------------------------------
-// GPU
-enum shape {
-  surroundings,
-  box,
-  sphere,
-  cylinder,
-  cone,
-  mesh
-};
-
-enum process {
-  Incoherent,
-  Compton_xrl,
-  KN_xrl,
-  Rayleigh_xrl,
-  Powder,
-  Single_crystal,
-  NCrystal,
-  Template
-};
-
-struct intersection_time_table_struct {
-int num_volumes;
-int *calculated;
-int *n_elements;
-double **intersection_times;
-};
-
-struct line_segment{
-//struct position point1;
-//struct position point2;
-Coords point1;
-Coords point2;
-int number_of_dashes;
-};
-
-struct pointer_to_1d_int_list {
-int num_elements;
-int *elements;
-#pragma acc shape(elements[0:num_elements]) init_needed(num_elements)
-};
-
-struct pointer_to_1d_double_list {
-int num_elements;
-double *elements;
-#pragma acc shape(elements[0:num_elements]) init_needed(num_elements)
-};
-
-struct pointer_to_1d_coords_list {
-int num_elements;
-Coords *elements;
-#pragma acc shape(elements[0:num_elements]) init_needed(num_elements)
-};
-
-struct lines_to_draw{
-int number_of_lines;
-struct line_segment *lines;
-#pragma acc shape(lines[0:number_of_lines]) init_needed(number_of_lines)
-};
-
-// Todo: see if the union geometry_parameter_union and other geometry structs can be here
-union geometry_parameter_union{
-    struct sphere_storage   *p_sphere_storage;
-    struct cylinder_storage *p_cylinder_storage;
-    struct box_storage      *p_box_storage;
-    struct cone_storage     *p_cone_storage;
-    struct mesh_storage     *p_mesh_storage;
-    // add as many pointers to structs as wanted, without increasing memory footprint.
-};
-
-
-struct rotation_struct{
-double x;
-double y;
-double z;
-};
-
-struct focus_data_struct {
-Coords Aim;
-double angular_focus_width;
-double angular_focus_height;
-double spatial_focus_width;
-double spatial_focus_height;
-double spatial_focus_radius;
-Rotation absolute_rotation;
-// focusing_function creates a vector per selected criteria of focus_data_struct / selected focus function and returns solid angle
-void (*focusing_function)(Coords*, double*, struct focus_data_struct*);
-//                        v_out  , solid_a,
-};
-
-struct focus_data_array_struct
-{
-struct focus_data_struct *elements;
-int num_elements;
-#pragma acc shape(elements[0:num_elements]) init_needed(num_elements)
-};
-
-struct Detector_3D_struct {
-  char title_string[256];
-  char string_axis_1[256];
-  char string_axis_2[256];
-  char string_axis_3[256];
-  char Filename[256];
-  double D1min;
-  double D1max;
-  double D2min;
-  double D2max;
-  double D3min;
-  double D3max;
-  double bins_1; // McXtrace uses doubles for bin numbers for some reason
-  double bins_2;
-  double bins_3;
-  double ***Array_N; // McXtrace uses doubles for number of rays in each bin for some reason
-  double ***Array_p;
-  double ***Array_p2;
-};
-
-struct Detector_2D_struct {
-  char title_string[256];
-  char string_axis_1[256];
-  char string_axis_2[256];
-  char Filename[256];
-  double D1min;
-  double D1max;
-  double D2min;
-  double D2max;
-  double bins_1; // McXtrace uses doubles for bin numbers for some reason
-  double bins_2;
-  double **Array_N; // McXtrace uses doubles for number of rays in each bin for some reason
-  double **Array_p;
-  double **Array_p2;
-};
-
-struct Detector_1D_struct {
-  char title_string[256];
-  char string_axis[256];
-  char string_axis_short[64];
-  char string_axis_value[256];
-  char Filename[256];
-  double min;
-  double max;
-  double bins; // McXtrace uses doubles for bin numbers for some reason
-  double *Array_N; // McXtrace uses doubles for number of rays in each bin for some reason
-  double *Array_p;
-  double *Array_p2;
-};
-
-
-union logger_data_union{
-  struct a_2DQ_storage_struct *p_2DQ_storage;
-  struct a_2DS_storage_struct *p_2DS_storage;
-  struct a_3DS_storage_struct *p_3DS_storage;
-  struct a_1D_storage_struct *p_1D_storage;
-  struct a_2DS_t_storage_struct *p_2DS_t_storage;
-  struct a_2D_kf_storage_struct *p_2D_kf_storage;
-  struct a_2D_kf_t_storage_struct *p_2D_kf_t_storage;
-  // Additional logger storage structs to be addedd
-};
-
-struct logger_with_data_struct {
-  int used_elements;
-  int allocated_elements;
-  struct logger_struct **logger_pointers;
-};
-
-// logger_pointer_struct
-// contains pointers to the different logger functions and it's data union
-struct logger_pointer_set_struct {
-  // The logger has two record functions, an active and an inactive. Normally the active one will be to permanent storage,
-  //  but if a conditional has been defined, it can switch the two, making the active one recording to temporary, which
-  //  can then be filtered based on the future path of the ray
-
-  // function input Coords position, k[3], k_old[3], p, p_old, NV, NPV, N, logger_data_union, logger_with_data_struct
-  void (*active_record_function)(Coords*, double*, double*, double, double, double, int, int, int, struct logger_struct*, struct logger_with_data_struct*);
-  void (*inactive_record_function)(Coords*, double*, double*, double, double, double, int, int, int, struct logger_struct*, struct logger_with_data_struct*);
-
-  // A clear temporary data function (for new ray)
-  void (*clear_temp)(union logger_data_union*);
-
-  // Write temporary to permanent is used when the record to temp function is active, and the condition is met.
-  void (*temp_to_perm)(union logger_data_union*);
-
-  // Write temporary final_p to permanent is used when the record to temp function is active, and the condition is met
-  //  and the final weight is given to be used for all stored events in the logger.
-  void (*temp_to_perm_final_p)(union logger_data_union*, double);
-
-  // Select which temp_to_perm function to use
-  int select_t_to_p; // 1: temp_to_perm, 2: temp_to_perm_final_p
-
-};
-
-union abs_logger_data_union{
-  struct a_2D_abs_storage_struct *p_2D_abs_storage;
-  struct a_1D_abs_storage_struct *p_1D_abs_storage;
-  struct a_1D_time_abs_storage_struct *p_1D_time_abs_storage;
-  struct a_1D_time_to_lambda_abs_storage_struct *p_1D_time_to_lambda_abs_storage;
-  struct a_event_abs_storage_struct *p_event_abs_storage;
-  struct a_1D_event_abs_storage_struct *p_1D_event_abs_storage;
-  // Additional logger storage structs to be addedd
-};
-
-struct abs_logger_with_data_struct {
-  int used_elements;
-  int allocated_elements;
-  struct abs_logger_struct **abs_logger_pointers;
-};
-
-struct abs_logger_pointer_set_struct {
-  // The logger has two record functions, an active and an inactive. Normally the active one will be to permanent storage,
-  //  but if a conditional has been defined, it can switch the two, making the active one recording to temporary, which
-  //  can then be filtered based on the future path of the ray
-
-  // function input Coords position, k[3], p, NV, N, logger_data_union, logger_with_data_struct
-  void (*active_record_function)(Coords*, double*, double,  double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*);
-  void (*inactive_record_function)(Coords*, double*, double,  double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*);
-
-  // A clear temporary data function (for new ray)
-  void (*clear_temp)(union abs_logger_data_union*);
-
-  // Write temporary to permanent is used when the record to temp function is active, and the condition is met.
-  void (*temp_to_perm)(union abs_logger_data_union*);
-
-  // Write temporary final_p to permanent is used when the record to temp function is active, and the condition is met
-  //  and the final weight is given to be used for all stored events in the logger.
-  void (*temp_to_perm_final_p)(union abs_logger_data_union*, double);
-
-  // Select which temp_to_perm function to use
-  //int select_t_to_p; // 1: temp_to_perm, 2: temp_to_perm_final_p
-
-};
-
-
-struct conditional_standard_struct{
-  // Data to be transfered to the conditional function
-  double Emax;
-  double Emin;
-  int E_limit;
-
-  double Tmin;
-  double Tmax;
-  int T_limit;
-
-  int volume_index;
-
-  double Total_scat_max;
-  double Total_scat_min;
-  int Total_scat_limit;
-
-  double exit_volume_index;
-
-  // Test
-  Coords test_position;
-  Rotation test_rotation;
-  Rotation test_t_rotation;
-};
-
-struct conditional_PSD_struct{
-  double PSD_half_xwidth;
-  double PSD_half_yheight;
-
-  double Tmin;
-  double Tmax;
-  int T_limit;
-
-  // Position of the PSD
-  Coords PSD_position;
-  Rotation PSD_rotation;
-  Rotation PSD_t_rotation;
-};
-
-union conditional_data_union {
-  struct conditional_standard_struct *p_standard;
-  struct conditional_PSD_struct *p_PSD;
-  // Add more as conditional components are made
-};
-
-// General input for conditional functions: Position, Velocity/Wavevector, weight, time, total_scat, scattered_flag, scattered_flag_VP,
-// Optional extras: data_union? tree base(s)? tree base for current ray?
-typedef int (*conditional_function_pointer)(union conditional_data_union*,Coords*, Coords*, double*, double*, int*, int*, int*, int**);
-//typedef int (**conditional_function_pointer_array)(union *conditional_data_union,Coords*, Coords*, double*, double*, int*, int*, int**);
-
-struct conditional_list_struct{
-  int num_elements;
-
-  union conditional_data_union **p_data_unions;
-  conditional_function_pointer *conditional_functions;
-  //int (**conditional_functions)(Coords*, Coords*, double*, double*, int*, int*, int**);
-};
-
-struct logger_struct {
-  char name[256];
-  // Contains ponters to all the functions assosiated with this logger
-  struct logger_pointer_set_struct function_pointers;
-  // Contains hard copy of logger_data_union since the size is the same as a pointer.
-  union logger_data_union data_union;
-
-  int logger_extend_index; // Contain index conditional_extend_array defined in master that can be acsessed from extend section.
-
-  struct conditional_list_struct conditional_list;
-};
-
-
-// To be stored in volume, a list of pointers to the relevant loggers corresponding to each process
-struct logger_for_each_process_list {
-  int num_elements;
-  struct logger_struct **p_logger_process;
-};
-
-// List of logger_for_each_process_list
-struct loggers_struct {
-  int num_elements;
-  struct logger_for_each_process_list *p_logger_volume;
-  #pragma acc shape(p_logger_volume[0:num_elements]) init_needed(num_elements)
-};
-
-
-struct abs_logger_struct {
-  char name[256];
-  // Contains pointers to all the functions assosiated with this logger
-  struct abs_logger_pointer_set_struct function_pointers;
-  // Contains hard copy of logger_data_union since the size is the same as a pointer.
-  union abs_logger_data_union data_union;
-
-  // Position and rotation of the abs_logger
-  Coords position;
-  Rotation rotation;
-  Rotation t_rotation;
-
-  int abs_logger_extend_index; // Contain index conditional_extend_array defined in master that can be acsessed from extend section.
-
-  struct conditional_list_struct conditional_list;
-};
-
-// To be stored in volume, a list of pointers to the relevant abs loggers corresponding to each process
-/*
-struct abs_logger_for_each_process_list {
-  int num_elements;
-  struct abs_logger_struct **p_abs_logger_process;
-};
-*/
-
-// List of abs logger_for_each_process_list
-struct abs_loggers_struct {
-  int num_elements;
-  //struct abs_logger_for_each_process_list *p_abs_logger_volume;
-  struct abs_logger_struct **p_abs_logger;
-};
-
-
-
-struct geometry_struct
-{
-char shape[64];     // name of shape used (sphere, cylinder, box, off, ...)
-enum shape eShape;  // enum with shape for flexible functions GPU
-double priority_value;    // priority of the geometry
-Coords center;      // Center position of volume, reported by components in global frame, updated to main frame in initialize
-// Rotation of this volume
-Rotation rotation_matrix; // rotation matrix of volume, reported by component in global frame, updated to main frame in initialize
-Rotation transpose_rotation_matrix; // As above
-// Array of prrotation matrixes for processes assigned to this volume (indexed by non_isotropic_rot_index in the processes)
-Rotation *process_rot_matrix_array;             // matrix that transforms from main coordinate system to local process in this specific volume
-Rotation *transpose_process_rot_matrix_array;   // matrix that transforms from local process in this specific volume to main coordinate system
-int process_rot_allocated;  // Keeps track of allocation status of rot_matrix_array
-
-struct rotation_struct rotation; // Not used, is the x y and z rotation angles.
-int visualization_on; // If visualization_on is true, the volume will be drawn in mcdisplay, otherwise not
-int is_exit_volume; // If is exit volume = 1, the ray will exit the component when it enters this volume.
-int is_mask_volume; // 1 if volume itself is a mask (masking the ones in it's mask list), otherwise 0
-int mask_index;
-int is_masked_volume; // 1 if this volume is being masked by another volume, the volumes that mask it is in masked_by_list
-int mask_mode; // ALL/ANY 1/2. In ALL mode, only parts covered by all masks is simulated, in ANY mode, area covered by just one mask is simulated
-double geometry_p_interact; // fraction of rays that interact with this volume for each scattering (between 0 and 1, 0 for disable)
-union geometry_parameter_union geometry_parameters; // relevant parameters for this shape
-union geometry_parameter_union (*copy_geometry_parameters)(union geometry_parameter_union*);
-struct focus_data_struct focus_data; // Used for focusing from this geometry
-
-// New focus data implementation to remove the focusing bug for non-isotripic processes
-struct focus_data_array_struct focus_data_array;
-struct pointer_to_1d_int_list focus_array_indices; // Add 1D integer array with indecies for correct focus_data for each process
-
-
-// intersect_function takes position/velocity of ray and parameters, returns time list
-int (*intersect_function)(double*,int*,double*,double*,struct geometry_struct*);
-//                        t_array,n_ar,r      ,v
-
-// within_function that checks if the ray origin is within this volume
-int (*within_function)(Coords,struct geometry_struct*);
-//                     r,      parameters
-
-// mcdisplay function, draws the geometry
-//void (*mcdisplay_function)(struct lines_to_draw*,int,struct Volume_struct**,int);
-void (*mcdisplay_function)(struct lines_to_draw*,int,struct geometry_struct**,int);
-//                                lines          index             Geometries   N
-
-void (*initialize_from_main_function)(struct geometry_struct*);
-
-struct pointer_to_1d_coords_list (*shell_points)(struct geometry_struct*, int maximum_number_of_points);
-
-// List of other volumes to be check when ray starts within this volume.
-struct pointer_to_1d_int_list intersect_check_list;
-// List of other volumes the ray may enter, if the ray intersects the volume itself.
-struct pointer_to_1d_int_list destinations_list;
-// The destinations list stored as a logic list which makes some tasks quicker. OBSOLETE
-//struct pointer_to_1d_int_list destinations_logic_list;
-// Reduced list of other volumes the ray may enter, if the ray intersects the volume itself.
-struct pointer_to_1d_int_list reduced_destinations_list;
-// List of other volumes that are within this volume
-struct pointer_to_1d_int_list children;
-// List of other volumes that are within this volume, but does not have any parents that are children of this volume
-struct pointer_to_1d_int_list direct_children;
-// List of next possible volumes (only used in tagging)
-struct pointer_to_1d_int_list next_volume_list;
-// List of volumes masked by this volume (usually empty)
-struct pointer_to_1d_int_list mask_list;
-// List of volumes masking this volume
-struct pointer_to_1d_int_list masked_by_list;
-// List of masks masking this volume (global mask indices)
-struct pointer_to_1d_int_list masked_by_mask_index_list;
-// Additional intersect lists dependent on mask status
-//struct indexed_mask_lists_struct mask_intersect_lists;
-// Simpler way of storing the mask_intersect_lists
-struct pointer_to_1d_int_list mask_intersect_list;
-};
-
-struct physics_struct
-{
-  char name[256]; // User defined material name
-  int interact_control;
-  int is_vacuum;
-  double my_a;
-  int number_of_elements;
-  // pointer to element data structures
-  struct element_data_struct *p_element_array;
-  int number_of_processes;
-  // pointer to array of pointers to physics_sub structures that each describe a scattering process
-  struct scattering_process_struct *p_scattering_array;
-};
-
-union data_transfer_union{
-    // List of pointers to storage structs for all supported physical processes
-    struct Incoherent_physics_storage_struct  *pointer_to_a_Incoherent_physics_storage_struct;
-    struct Powder_physics_storage_struct *pointer_to_a_Powder_physics_storage_struct;
-    struct Single_crystal_physics_storage_struct *pointer_to_a_Single_crystal_physics_storage_struct;
-    struct Template_physics_storage_struct *pointer_to_a_Template_physics_storage_struct;
-    struct Compton_xrl_physics_storage_struct *pointer_to_a_Compton_xrl_physics_storage_struct;
-    struct KN_xrl_physics_storage_struct *pointer_to_a_KN_xrl_physics_storage_struct;
-    struct Rayleigh_xrl_physics_storage_struct *pointer_to_a_Rayleigh_xrl_physics_storage_struct;
-    // possible to add as many structs as wanted, without increasing memory footprint.
-};
-
-
-struct scattering_process_struct
-{
-char name[256];                // User defined process name
-enum process eProcess;         // enum value corresponding to this process GPU
-double process_p_interact;     // double between 0 and 1 that describes the fraction of events forced to undergo this process. -1 for disable
-int non_isotropic_rot_index;   // -1 if process is isotrpic, otherwise is the index of the process rotation matrix in the volume
-Rotation rotation_matrix;      // rotation matrix of process, reported by component in local frame, transformed and moved to volume struct in main
-
-union data_transfer_union data_transfer; // The way to reach the storage space allocated for this process (see examples in process.comp files)
-
-// probability_for_scattering_functions calculates this probability given k_i and parameters
-int (*probability_for_scattering_function)(double*,double*,union data_transfer_union,struct focus_data_struct*, _class_particle *_particle);
-//                                         prop,   k_i,   ,parameters               , focus data / function
-
-// A scattering_function takes k_i and parameters, returns k_f
-int (*scattering_function)(double*,double*,double*,union data_transfer_union,struct focus_data_struct*, _class_particle *_particle);
-//                         k_f,    k_i,    weight, parameters               , focus data / function
-};
-
-//this object stores data relevant for absorption
-struct element_data_struct
-{
-  char name[12];  //element name (leave room for ion things as well
-  int multiplicity; // how many atoms are present per unit of the element
-  double rho,Ar,Z; //mass density, Atomic weight, and atomic number
-  t_Table element_table; // material constants table taken from database
-};
-
-struct Volume_struct
-{
-char name[256]; // User defined volume name
-struct geometry_struct geometry;        // Geometry properties (including intersect functions, generated lists)
-struct physics_struct *p_physics;       // Physical properties (list of scattering processes, absorption)
-struct loggers_struct loggers;          // Loggers assosiated with this volume
-struct abs_loggers_struct abs_loggers;  // Loggers assosiated with this volume
-};
-
-// example of calling a scattering process
-// volume_pointer_list[3]->physics.scattering_process[5].probability_for_scattering_function(input,volume_pointer_list[3]->physics.scattering_process[5])
-
-struct starting_lists_struct
-{
-struct pointer_to_1d_int_list allowed_starting_volume_logic_list;
-struct pointer_to_1d_int_list reduced_start_list;
-struct pointer_to_1d_int_list start_logic_list;
-struct pointer_to_1d_int_list starting_destinations_list;
-};
-
-struct global_positions_to_transform_list_struct {
-int num_elements;
-Coords **positions;
-};
-
-struct global_rotations_to_transform_list_struct {
-int num_elements;
-Rotation **rotations;
-};
-
-struct global_process_element_struct
-{
-char name[256]; // Name of the process
-int component_index;
-struct scattering_process_struct *p_scattering_process;
-};
-
-struct pointer_to_global_process_list {
-int num_elements;
-struct global_process_element_struct *elements;
-};
-
-struct global_material_element_struct
-{
-char name[128];
-int component_index;
-struct physics_struct *physics;
-};
-
-struct pointer_to_global_material_list {
-int num_elements;
-struct global_material_element_struct *elements;
-};
-
-struct global_geometry_element_struct
-{
-char name[128];
-int component_index;
-int activation_counter;
-int stored_copies;
-int active;
-struct Volume_struct *Volume;
-};
-
-struct pointer_to_global_geometry_list {
-int num_elements;
-struct global_geometry_element_struct *elements;
-};
-
-struct global_logger_element_struct {
-char name[128];
-int component_index;
-struct logger_struct *logger;
-};
-
-struct pointer_to_global_logger_list {
-int num_elements;
-struct global_logger_element_struct *elements;
-};
-
-struct global_abs_logger_element_struct {
-char name[128];
-int component_index;
-struct abs_logger_struct *abs_logger;
-};
-
-struct pointer_to_global_abs_logger_list {
-int num_elements;
-struct global_abs_logger_element_struct *elements;
-};
-
-struct global_tagging_conditional_element_struct {
-struct conditional_list_struct conditional_list;
-int extend_index;
-char name[1024];
-int use_status;
-};
-
-struct global_tagging_conditional_list_struct {
-int num_elements;
-int current_index;
-struct global_tagging_conditional_element_struct *elements;
-};
-
-
-struct global_master_element_struct {
-char name[128];
-int component_index;
-int stored_number_of_scattering_events; // TEST
-struct conditional_list_struct *tagging_conditional_list_pointer;
-};
-
-struct pointer_to_global_master_list {
-int num_elements;
-struct global_master_element_struct *elements;
-};
-
-
-// -------------    Physics functions   ---------------------------------------------------------
-
-//#include "Test_physics.c"
-//#include "Incoherent_test.c"
-
-// -------------    General functions   ---------------------------------------------------------
 double distance_between(Coords position1,Coords position2) {
     return sqrt((position1.x-position2.x)*(position1.x-position2.x) +
                 (position1.y-position2.y)*(position1.y-position2.y) +
                 (position1.z-position2.z)*(position1.z-position2.z));
-};
-
-
+}
 
 double length_of_3vector(double *r) {
         return sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
-    };
+    }
 
 double length_of_position_vector(Coords point) {
         return sqrt(point.x*point.x+point.y*point.y+point.z*point.z);
-    };
+    }
 
 Coords make_position(double *r) {
     Coords temp;
 
     temp.x = r[0];temp.y = r[1];temp.z = r[2];
     return temp;
-};
+}
 
 Coords coords_scalar_mult(Coords input,double scalar) {
     return coords_set(scalar*input.x,scalar*input.y,scalar*input.z);
-};
+}
 
 double union_coords_dot(Coords vector1,Coords vector2) {
     return vector1.x*vector2.x + vector1.y*vector2.y + vector1.z*vector2.z;
 }
 
-
 int sum_int_list(struct pointer_to_1d_int_list list) {
     int iterate,sum = 0;
     for (iterate = 0;iterate < list.num_elements;iterate++) sum += list.elements[iterate];
     return sum;
-    };
+    }
 
 int on_int_list(struct pointer_to_1d_int_list list,int target) {
     int iterate,output=0;
@@ -666,7 +58,7 @@ int on_int_list(struct pointer_to_1d_int_list list,int target) {
         if (list.elements[iterate] == target) output = 1;
     }
     return output;
-    };
+    }
 
 int find_on_int_list(struct pointer_to_1d_int_list list,int target) {
     int iterate;
@@ -674,7 +66,7 @@ int find_on_int_list(struct pointer_to_1d_int_list list,int target) {
         if (list.elements[iterate] == target) return iterate;
     }
     return -1;
-    };
+    }
 
 void on_both_int_lists(struct pointer_to_1d_int_list *list1, struct pointer_to_1d_int_list *list2, struct pointer_to_1d_int_list *common) {
     // Assume common.elements is allocated to a number of int's large enough to hold the resulting list
@@ -683,7 +75,7 @@ void on_both_int_lists(struct pointer_to_1d_int_list *list1, struct pointer_to_1
         if (on_int_list(*list2,list1->elements[iterate])) common->elements[used_elements++] = list1->elements[iterate];
     }
     common->num_elements = used_elements;
-    };
+    }
 
 void remove_element_in_list_by_index(struct pointer_to_1d_int_list *list,int index) {
     if (index >= list->num_elements) {
@@ -714,14 +106,14 @@ void remove_element_in_list_by_index(struct pointer_to_1d_int_list *list,int ind
         free(temp);
 
     }
-    };
+    }
 
 void remove_element_in_list_by_value(struct pointer_to_1d_int_list *list,int value) {
     int iterate;
     for (iterate = 0;iterate < list->num_elements;iterate++) {
         if (list->elements[iterate] == value) remove_element_in_list_by_index(list,iterate);
     }
-    };
+    }
 
 void merge_lists(struct pointer_to_1d_int_list *result,struct pointer_to_1d_int_list *list1,struct pointer_to_1d_int_list *list2) {
     if (result->num_elements > 0) free(result->elements);
@@ -738,7 +130,7 @@ void merge_lists(struct pointer_to_1d_int_list *result,struct pointer_to_1d_int_
       for (iterate = 0;iterate < list2->num_elements;iterate++)
           result->elements[list1->num_elements+iterate] = list2->elements[iterate];
     }
-    };
+    }
 
 void add_element_to_double_list(struct pointer_to_1d_double_list *list,double value) {
     if (list->num_elements == 0) {
@@ -768,7 +160,7 @@ void add_element_to_double_list(struct pointer_to_1d_double_list *list,double va
       free(temp);
       list->elements[list->num_elements-1] = value;
     }
-    };
+    }
 
 void add_element_to_int_list(struct pointer_to_1d_int_list *list,int value) {
     if (list->num_elements == 0) {
@@ -798,9 +190,8 @@ void add_element_to_int_list(struct pointer_to_1d_int_list *list,int value) {
       free(temp);
       list->elements[list->num_elements-1] = value;
     }
-    };
+    }
 
-// Need to check if absolute_rotation is preserved correctly.
 void add_element_to_focus_data_array(struct focus_data_array_struct *focus_data_array,struct focus_data_struct focus_data) {
     if (focus_data_array->num_elements == 0) {
       focus_data_array->num_elements++;
@@ -829,8 +220,7 @@ void add_element_to_focus_data_array(struct focus_data_array_struct *focus_data_
       free(temp);
       focus_data_array->elements[focus_data_array->num_elements-1] = focus_data;
     }
-    };
-
+    }
 
 void add_to_logger_with_data(struct logger_with_data_struct *logger_with_data, struct logger_struct *logger) {
     // May reorder the order of the if conditions to avoid checking the == 0 for every single ray
@@ -874,7 +264,7 @@ void add_to_logger_with_data(struct logger_with_data_struct *logger_with_data, s
         logger_with_data->logger_pointers[logger_with_data->used_elements++] = logger;
     }
 
-};
+}
 
 void add_to_abs_logger_with_data(struct abs_logger_with_data_struct *abs_logger_with_data, struct abs_logger_struct *abs_logger) {
     // May reorder the order of the if conditions to avoid checking the == 0 for every single ray
@@ -918,10 +308,8 @@ void add_to_abs_logger_with_data(struct abs_logger_with_data_struct *abs_logger_
         abs_logger_with_data->abs_logger_pointers[abs_logger_with_data->used_elements++] = abs_logger;
     }
 
-};
+}
 
-
-// Used typedef to avoid having to change this function later. May update others to use same phillosphy.
 void add_function_to_conditional_list(struct conditional_list_struct *list,conditional_function_pointer new, union conditional_data_union *data_union) {
     if (list->num_elements == 0) {
       list->num_elements++;
@@ -976,10 +364,7 @@ void add_function_to_conditional_list(struct conditional_list_struct *list,condi
     list->conditional_functions[list->num_elements-1] = new;
     list->p_data_unions[list->num_elements-1] = data_union;
     }
-};
-
-
-// could make function that removes a element from a 1d_int_list, and have each list generation as a function that takes a copy of an overlap list
+}
 
 void print_1d_int_list(struct pointer_to_1d_int_list list,char *name) {
         int iterate;
@@ -989,7 +374,7 @@ void print_1d_int_list(struct pointer_to_1d_int_list list,char *name) {
             if (iterate < list.num_elements - 1) printf(",");
         }
         printf("]\n");
-    };
+    }
 
 void print_1d_double_list(struct pointer_to_1d_double_list list,char *name) {
         int iterate;
@@ -999,18 +384,18 @@ void print_1d_double_list(struct pointer_to_1d_double_list list,char *name) {
             if (iterate < list.num_elements - 1) printf(",");
         }
         printf("]\n");
-    };
+    }
 
 void print_position(Coords pos,char *name) {
     printf("POSITION: ");printf("%s",name);printf(" = (%f,%f,%f)\n",pos.x,pos.y,pos.z);
-    };
+    }
 
 void print_rotation(Rotation rot, char *name) {
     printf("ROT MATRIX: %s \n",name);
     printf("[%f %f %f]\n",rot[0][0],rot[0][1],rot[0][2]);
     printf("[%f %f %f]\n",rot[1][0],rot[1][1],rot[1][2]);
     printf("[%f %f %f]\n\n",rot[2][0],rot[2][1],rot[2][2]);
-};
+}
 
 void allocate_list_from_temp(int num_elements,struct pointer_to_1d_int_list original,struct pointer_to_1d_int_list *new) {
         int iterate;
@@ -1025,7 +410,7 @@ void allocate_list_from_temp(int num_elements,struct pointer_to_1d_int_list orig
             for (iterate = 0;iterate < num_elements; iterate++) new->elements[iterate] = original.elements[iterate];
         } else new->elements = NULL;
 
-    };
+    }
 
 void allocate_logic_list_from_temp(int num_elements,struct pointer_to_1d_int_list original, struct pointer_to_1d_int_list *new) {
         // A logic list shares the same structure of a normal list, but instead of listing numbers, it is a list of yes / no (1/0)
@@ -1046,19 +431,7 @@ void allocate_logic_list_from_temp(int num_elements,struct pointer_to_1d_int_lis
                 else printf("Trying to allocate logical list without enough memory\n");
             }
         } else new->elements = NULL;
-    };
-
-/*
-struct global_positions_to_transform_list_struct {
-int num_elements;
-Coords **positions;
-}
-
-struct global_rotations_to_transform_list_struct {
-int num_elements;
-Rotation **rotations;
-}
-*/
+    }
 
 void add_position_pointer_to_list(struct global_positions_to_transform_list_struct *list, Coords *new_position_pointer) {
     if (list->num_elements == 0) {
@@ -1092,7 +465,7 @@ void add_position_pointer_to_list(struct global_positions_to_transform_list_stru
       free(temp);
       list->positions[list->num_elements-1] = new_position_pointer;
     }
-};
+}
 
 void add_rotation_pointer_to_list(struct global_rotations_to_transform_list_struct *list, Rotation *new_rotation_pointer) {
     if (list->num_elements == 0) {
@@ -1125,7 +498,7 @@ void add_rotation_pointer_to_list(struct global_rotations_to_transform_list_stru
       free(temp);
       list->rotations[list->num_elements-1] = new_rotation_pointer;
     }
-};
+}
 
 void add_element_to_process_list(struct pointer_to_global_process_list *list,struct global_process_element_struct new_element) {
     if (list->num_elements == 0) {
@@ -1156,7 +529,7 @@ void add_element_to_process_list(struct pointer_to_global_process_list *list,str
       free(temp);
     list->elements[list->num_elements-1] = new_element;
     }
-};
+}
 
 void add_element_to_material_list(struct pointer_to_global_material_list *list,struct global_material_element_struct new_element) {
     if (list->num_elements == 0) {
@@ -1187,7 +560,7 @@ void add_element_to_material_list(struct pointer_to_global_material_list *list,s
       free(temp);
       list->elements[list->num_elements-1] = new_element;
     }
-};
+}
 
 void add_element_to_geometry_list(struct pointer_to_global_geometry_list *list,struct global_geometry_element_struct new_element) {
     if (list->num_elements == 0) {
@@ -1218,7 +591,7 @@ void add_element_to_geometry_list(struct pointer_to_global_geometry_list *list,s
       free(temp);
     list->elements[list->num_elements-1] = new_element;
     }
-};
+}
 
 void add_element_to_logger_list(struct pointer_to_global_logger_list *list,struct global_logger_element_struct new_element) {
     if (list->num_elements == 0) {
@@ -1249,7 +622,7 @@ void add_element_to_logger_list(struct pointer_to_global_logger_list *list,struc
     free(temp);
     list->elements[list->num_elements-1] = new_element;
     }
-};
+}
 
 void add_element_to_abs_logger_list(struct pointer_to_global_abs_logger_list *list, struct global_abs_logger_element_struct new_element) {
     if (list->num_elements == 0) {
@@ -1280,7 +653,7 @@ void add_element_to_abs_logger_list(struct pointer_to_global_abs_logger_list *li
       free(temp);
       list->elements[list->num_elements-1] = new_element;
     }
-};
+}
 
 void add_element_to_tagging_conditional_list(struct global_tagging_conditional_list_struct *list,struct global_tagging_conditional_element_struct new_element) {
     if (list->num_elements == 0) {
@@ -1311,7 +684,7 @@ void add_element_to_tagging_conditional_list(struct global_tagging_conditional_l
       free(temp);
     list->elements[list->num_elements-1] = new_element;
     }
-};
+}
 
 void add_element_to_master_list(struct pointer_to_global_master_list *list,struct global_master_element_struct new_element) {
     if (list->num_elements == 0) {
@@ -1342,7 +715,7 @@ void add_element_to_master_list(struct pointer_to_global_master_list *list,struc
       free(temp);
     list->elements[list->num_elements-1] = new_element;
     }
-};
+}
 
 void add_initialized_logger_in_volume(struct loggers_struct *loggers,int number_of_processes) {
   int iterate;
@@ -1388,8 +761,7 @@ void add_initialized_logger_in_volume(struct loggers_struct *loggers,int number_
       loggers->p_logger_volume[loggers->num_elements-1].p_logger_process[iterate] = NULL;
     }
   }
-};
-
+}
 
 void add_initialized_abs_logger_in_volume(struct abs_loggers_struct *abs_loggers) {
   int iterate;
@@ -1420,11 +792,7 @@ void add_initialized_abs_logger_in_volume(struct abs_loggers_struct *abs_loggers
     free(temp);
     abs_loggers->p_abs_logger[abs_loggers->num_elements-1] = NULL;
   }
-};
-
-
-// -------------    Functions used to shorten master trace    ---------------------------------------------
-
+}
 
 void update_current_mask_intersect_status(struct pointer_to_1d_int_list *current_mask_intersect_list_status, struct pointer_to_1d_int_list *mask_status_list, struct Volume_struct **Volumes, int *current_volume) {
   // This function is to be executed whenever the current volume changes, or the mask status changes
@@ -1467,27 +835,9 @@ void update_current_mask_intersect_status(struct pointer_to_1d_int_list *current
 
 }
 
-// -------------    Tagging functions    ------------------------------------------------------------------
-
-struct tagging_tree_node_struct {
-  // Statistics:
-  double intensity;
-  int number_of_rays;
-  // tree pointers
-  struct tagging_tree_node_struct *above;   // Pointer to node above
-  struct tagging_tree_node_struct **volume_branches;
-  struct tagging_tree_node_struct **process_branches;
-};
-
-struct list_of_tagging_tree_node_pointers {
-  struct tagging_tree_node_struct **elements;
-  int num_elements;
-};
-
 struct tagging_tree_node_struct *make_tagging_tree_node(void) {
     return (struct tagging_tree_node_struct *) malloc(sizeof(struct tagging_tree_node_struct));
 }
-
 
 struct tagging_tree_node_struct  *simple_initialize_tagging_tree_node(struct tagging_tree_node_struct *new_node) {
     new_node = make_tagging_tree_node();
@@ -1498,8 +848,7 @@ struct tagging_tree_node_struct  *simple_initialize_tagging_tree_node(struct tag
 
     printf("new_node->intensity = %f, new_node->number_of_rays = %d \n",new_node->intensity,new_node->number_of_rays);
     return new_node;
-};
-
+}
 
 struct tagging_tree_node_struct *initialize_tagging_tree_node(struct tagging_tree_node_struct *new_node, struct tagging_tree_node_struct *above_node, struct Volume_struct *this_volume) {
     new_node = make_tagging_tree_node();
@@ -1531,7 +880,7 @@ struct tagging_tree_node_struct *initialize_tagging_tree_node(struct tagging_tre
     for (iterate=0;iterate<number_of_processes;iterate++) new_node->process_branches[iterate] = NULL;
 
     return new_node;
-};
+}
 
 struct tagging_tree_node_struct *goto_process_node(struct tagging_tree_node_struct *current_node, int process_index, struct Volume_struct *this_volume, int *stop_tagging_ray, int stop_creating_nodes) {
     // Either create a new node if it has not been created yet, or travel down the tree
@@ -1551,7 +900,7 @@ struct tagging_tree_node_struct *goto_process_node(struct tagging_tree_node_stru
     }
 
     //return current_node;
-};
+}
 
 struct tagging_tree_node_struct *goto_volume_node(struct tagging_tree_node_struct *current_node,int current_volume, int next_volume, struct Volume_struct **Volumes, int *stop_tagging_ray, int stop_creating_nodes) {
     // I have only allocated the number of node branches that corresponds to the current_volumes next_volume_list
@@ -1600,38 +949,13 @@ struct tagging_tree_node_struct *goto_volume_node(struct tagging_tree_node_struc
         //printf("used allocated node \n");
         return current_node;
     }
-};
+}
 
 void add_statistics_to_node(struct tagging_tree_node_struct *current_node, Coords *r, Coords *v, double *weight, int *counter) {
     if (current_node->number_of_rays == 0) (*counter)++;
     current_node->number_of_rays = current_node->number_of_rays + 1;
     current_node->intensity = current_node->intensity + *weight;
-};
-
-struct history_node_struct {
-    int volume_index;
-    int process_index;
-};
-
-struct dynamic_history_list {
-  struct history_node_struct *elements;
-  int used_elements;
-  int allocated_elements;
-};
-
-struct saved_history_struct {
-    struct history_node_struct *elements;
-    int used_elements;
-    double intensity;
-    int number_of_rays;
-};
-
-struct total_history_struct {
-    struct saved_history_struct *saved_histories;
-    int used_elements;
-    int allocated_elements;
-};
-
+}
 
 void add_to_history(struct dynamic_history_list *history, int volume_index, int process_index) {
     //printf("Adding to history[%d]: volume_index = %d, process_index = %d \n",history->used_elements,volume_index,process_index);
@@ -1683,7 +1007,7 @@ void add_to_history(struct dynamic_history_list *history, int volume_index, int 
         history->used_elements++;
     }
 
-};
+}
 
 void printf_history(struct dynamic_history_list *history) {
     int history_iterate;
@@ -1868,9 +1192,10 @@ void write_tagging_tree(struct list_of_tagging_tree_node_pointers *master_list, 
     printf_history((struct dynamic_history_list *)(&total_history.saved_histories[history_iterate]));
   }
 
+  int exists=0;
   FILE *fp;
   
-  fp = fopen("union_history.dat","w");
+  fp = mcnew_file("union_history", "dat", &exists);
   if(!fp) {
     fprintf(stderr,"WARNING: Could not write to logging output file union_history.dat\n");
   } else {
@@ -1902,10 +1227,8 @@ void write_tagging_tree(struct list_of_tagging_tree_node_pointers *master_list, 
   if (total_history.allocated_elements > 0) free(total_history.saved_histories);
 
 
-};
+}
 
-
-// -------------    Intersection table functions   --------------------------------------------------------
 int clear_intersection_table(struct intersection_time_table_struct *intersection_time_table) {
     // Resets the intersection table when a scattering have occured.
     int iterate_volumes,iterate_solutions;
@@ -1920,7 +1243,7 @@ int clear_intersection_table(struct intersection_time_table_struct *intersection
     }
 
     return 1;
-};
+}
 
 void print_intersection_table(struct intersection_time_table_struct *intersection_time_table) {
     int num_volumes,iterate,solutions;
@@ -1967,9 +1290,8 @@ void print_intersection_table(struct intersection_time_table_struct *intersectio
     printf("\n");
 
 
-    };
+    }
 
-// -------------    Drawing functions   --------------------------------------------------------
 void merge_lines_to_draw(struct lines_to_draw *lines_master,struct lines_to_draw *lines_new) {
     if (lines_master->number_of_lines == 0) {
     lines_master->number_of_lines = lines_new->number_of_lines;
@@ -2004,7 +1326,7 @@ void merge_lines_to_draw(struct lines_to_draw *lines_master,struct lines_to_draw
     lines_master->number_of_lines = lines_master->number_of_lines + lines_new->number_of_lines;
     free(temp_lines);
     }
-    };
+    }
 
 int r_has_highest_priority(Coords point,int N,struct geometry_struct **Geometries,int number_of_volumes) {
     // Function that test if a point in Volume N has the highest priority.
@@ -2297,91 +1619,6 @@ struct lines_to_draw draw_circle_with_highest_priority(Coords center,Coords vect
     return return_draw_order;
     }
 
-// -------------    Geometry functions   -----------------------------------------------------------------------
-/*
- * This file section contains functions used for geometry.
- *
- * For each geometry A type there are:
- *  intersection function: determines intersection between straight line and the geometry type
- *  within function: determines wether a point is within the geometry, or outside
- *  geometryA_overlaps_geometryB: determines if geometry A overlaps with geometry B
- *  geometryA_inside_geometryB: determines if geometry A is completely inside geometry B
- *
- * At the end of the file, there is functions describing the logic for determining if one geometry
- *  is inside/overlaps another. It is placed here, so that all code to be expanded by adding a new
- *  geometry is within the same file.
- *
- * To add a new geometry one needs to:
- *  Write a geometry_storage_struct that contains the paramters needed to describe the geometry
- *  Add a pointer to this storage type in the geometry_parameter_union
- *  Write a function for intersection with line, using the same input scheme as for the others
- *  Write a function checking if a point is within the geometry
- *  Write a function checking if one instance of the geometry overlaps with another
- *  Write a function checking if one instance of the geometry is inside another
- *  For each exsisting geometry: 
- *      Write a function checking if an instance of this geometry overlaps with an instance of the exsisting
- *      Write a function checking if an instance of this geometry is inside an instance of the exsisting
- *      Write a function checking if an instance of an existing geometry is inside an instance of this geometry
- *
- *  Add these functions to geometry to the logic at the end of this file
- *  Write a component file similar to the exsisting ones, taking the input from the instrument file, and sending
- *   it on to the master component.
-*/
-
-struct sphere_storage{
-double sph_radius;
-};
-
-struct cylinder_storage{
-double cyl_radius;
-double height;
-Coords direction_vector;
-};
-
-struct box_storage{
-double x_width1;
-double y_height1;
-double z_depth;
-double x_width2;
-double y_height2;
-int is_rectangle; // Is rectangle = 1 if x_width1 = x_width2 / h1 = h2
-Coords x_vector; // In main component frame
-Coords y_vector;
-Coords z_vector;
-Coords normal_vectors[6]; // In local frame
-};
-
-struct cone_storage{
-double cone_radius_top;
-double cone_radius_bottom;
-double height;
-Coords direction_vector;
-};
-
-struct mesh_storage{
-int n_facets;
-int counter;
-double *v1_x;
-double *v1_y;
-double *v1_z;
-double *v2_x;
-double *v2_y;
-double *v2_z;
-double *v3_x;
-double *v3_y;
-double *v3_z;
-double *normal_x;
-double *normal_y;
-double *normal_z;
-Coords direction_vector;
-Coords Bounding_Box_Center;
-double Bounding_Box_Radius;
-};
-
-// A number of functions below use Dot() as scalar product, replace by coords_sp define
-#define Dot(a, b) coords_sp(a, b)
-
-// Function for transforming a ray position / velocity to a local frame
 Coords transform_position(Coords ray_position, Coords component_position, Rotation component_t_rotation) {
 
     Coords non_rotated_position = coords_sub(ray_position,component_position);
@@ -2391,7 +1628,6 @@ Coords transform_position(Coords ray_position, Coords component_position, Rotati
     
     return rotated_coordinates;
 }
-
 
 union geometry_parameter_union allocate_box_storage_copy(union geometry_parameter_union *union_input) {
   union geometry_parameter_union union_output;
@@ -2406,7 +1642,6 @@ union geometry_parameter_union allocate_box_storage_copy(union geometry_paramete
   
   return union_output;
 }
-
 
 union geometry_parameter_union allocate_cylinder_storage_copy(union geometry_parameter_union *union_input) {
   union geometry_parameter_union union_output;
@@ -2464,13 +1699,10 @@ union geometry_parameter_union allocate_mesh_storage_copy(union geometry_paramet
   return union_output;
 }
 
-// -------------    Surroundings  ---------------------------------------------------------------
 int r_within_surroundings(Coords pos,struct geometry_struct *geometry) {
     // The surroundings are EVERYWHERE
         return 1;
     }
-
-// -------------    General geometry ------------------------------------------------------------
 
 Coords point_on_circle(Coords center, Coords direction, double radius, int point_nr, int number_of_points) {
 
@@ -2496,7 +1728,7 @@ Coords point_on_circle(Coords center, Coords direction, double radius, int point
     output = coords_add(output,center);
     
     return output;
-};
+}
 
 void points_on_circle(Coords *output, Coords center, Coords direction, double radius, int number_of_points) {
 
@@ -2520,9 +1752,7 @@ void points_on_circle(Coords *output, Coords center, Coords direction, double ra
         rotate(output[point_nr].x,output[point_nr].y,output[point_nr].z,cross_product.x,cross_product.y,cross_product.z,rotate_angle,direction.x,direction.y,direction.z);
         output[point_nr] = coords_add(output[point_nr],center);
     }
-};
-
-// -------- Brute force last resorts for within / overlap -------------------------------------
+}
 
 int A_within_B(struct geometry_struct *child, struct geometry_struct *parent, int resolution) {
   // This function assumes the parent (B) is a convex geoemtry
@@ -2581,43 +1811,6 @@ int mesh_A_within_B(struct geometry_struct *child, struct geometry_struct *paren
   return 1;
 }
 
-/*
-// Turned out to be harder to generalize the overlap functions, but at least within was doable.
-int A_overlaps_B(struct geometry_struct *child, struct geometry_struct *parent) {
-  // This function assumes the parent (B) is a convex geoemtry
-  // Does not work, need to check lines between points
-  
-  // Starting this system with a simple constant 64 point generation.
-  struct pointer_to_1d_coords_list shell_points;
-  shell_points = child.shell_points(child,64);
-  
-  int iterate;
-  
-  for (iterate=0;iterate<shell_points.num_elements;iterate++) {
-    if (parent.within_function(shell_points.elements[iterate],parent) == 1) return 1;
-  }
-  
-  
-  // This requires that the points on the shell are saved pair wise in such a way that
-  //  the lines between them would cover the entire surface when the resolution goes to
-  //  infinity. NOT GOING TO WORK FOR BOX
-  
-  
-  for (iterate=0;iterate<floor(shell_points.num_elements/2);iterate = iterate + 2) {
-    // check intersections with parent between the two child points
-    if (existence_of_intersection(shell_points.elements[iterate],shell_points.elements[iterate+1],parent) == 1) return 1;
-  }
-  
-  
-  // If no points were inside, the geometries are assumed not to overlap as parent should be convex
-  return 0;
-}
-*/
-
-
-
-// -------------    Functions for box ray tracing used in trace ---------------------------------
-// These functions needs to be fast, as they may be used many times for each ray
 int sample_box_intersect_advanced(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry) {
     // possible approaches
     // rotate to a simple coordinate system by rotating the ray (easier to switch to McXtrace standard)
@@ -2756,7 +1949,7 @@ int sample_box_intersect_advanced(double *t,int *num_solutions,double *r,double 
     
     // Above switch will catch all solutions, but the return 0 here silences a compiler warning.
     return 0;
-};
+}
 
 void box_corners_global_frame(Coords *corner_points, struct geometry_struct *geometry) {
     // Returns a pointer to an array containing the 8 positions of the corners of the box.
@@ -2783,7 +1976,7 @@ void box_corners_global_frame(Coords *corner_points, struct geometry_struct *geo
     corner_points[5] = coords_add(corner_points[4],coords_scalar_mult(x_vector,width2));
     corner_points[6] = coords_add(corner_points[5],coords_scalar_mult(y_vector,height2));
     corner_points[7] = coords_add(corner_points[4],coords_scalar_mult(y_vector,height2));
-};
+}
 
 void box_corners_local_frame(Coords *corner_points, struct geometry_struct *geometry) {
     double depth = geometry->geometry_parameters.p_box_storage->z_depth;
@@ -2810,7 +2003,7 @@ void box_corners_local_frame(Coords *corner_points, struct geometry_struct *geom
     corner_points[5] = coords_add(corner_points[4],coords_scalar_mult(x_vector,width2));
     corner_points[6] = coords_add(corner_points[5],coords_scalar_mult(y_vector,height2));
     corner_points[7] = coords_add(corner_points[4],coords_scalar_mult(y_vector,height2));
-};
+}
 
 int sample_box_intersect_simple(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry) {
     double width = geometry->geometry_parameters.p_box_storage->x_width1;
@@ -2846,7 +2039,7 @@ int sample_box_intersect_simple(double *t,int *num_solutions,double *r,double *v
     else {*num_solutions = 1;t[1]=-1;} // t[2] is a memory error!
     
     return output;
-};
+}
 
 int r_within_box_simple(Coords pos,struct geometry_struct *geometry) {
     // Unpack parameters
@@ -2865,7 +2058,7 @@ int r_within_box_simple(Coords pos,struct geometry_struct *geometry) {
     
     // May be faster to check for one at a time to get an early return 0
     return (rotated_coordinates.x > -0.5*width && rotated_coordinates.x < 0.5*width && rotated_coordinates.y > -0.5*height && rotated_coordinates.y < 0.5*height && rotated_coordinates.z > -0.5*depth && rotated_coordinates.z < 0.5*depth);
-};
+}
 
 int r_within_cone(Coords pos,struct geometry_struct *geometry) {
     // Is point inside cone?
@@ -2929,7 +2122,7 @@ int r_within_cone(Coords pos,struct geometry_struct *geometry) {
 
     if (inside == 0) return 0;
     else return 1;
-    };
+    }
 
 int sample_cone_intersect(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry) {
 
@@ -3126,7 +2319,7 @@ switch(*num_solutions) {
 
  // FIXME should we ever reach / return here?
  return -2;
-};
+}
 
 int cone_intersect(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry){
 /*
@@ -3171,7 +2364,7 @@ This function was created by Martin Olsen at NBI on september 20, 2018.
 */
     // FIXME Is it meaningful that this function is of int type? Anyone requesting output?
     return 0;
-};
+}
 
 int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
 // Unpack parameters
@@ -3386,8 +2579,7 @@ int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
     }
     
     return 0;
-    };
-
+    }
 
 int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry) {
 
@@ -3513,7 +2705,7 @@ int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struc
     } else {
       return 0;
     }
-};
+}
 
 int r_within_box_advanced(Coords pos,struct geometry_struct *geometry) {
     // Unpack parameters
@@ -3541,10 +2733,8 @@ int r_within_box_advanced(Coords pos,struct geometry_struct *geometry) {
     if (rotated_coordinates.y < -0.5*height_at_depth || rotated_coordinates.y > 0.5*height_at_depth) return 0;
     
     return 1;
-};
+}
 
-// -------------    Functions for box ray tracing used in initialize ----------------------------
-// These functions does not need to be fast, as they are only used once
 int box_within_box(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Is geometry child inside geometry parent?
     // For box child to be inside of box parent, all corners of box child must be inside of box parent.
@@ -3561,7 +2751,7 @@ int box_within_box(struct geometry_struct *geometry_child,struct geometry_struct
         }
     }
     return 1; // If no corner was outside, box 2 is inside box 1
-};
+}
 
 int existence_of_intersection(Coords point1, Coords point2, struct geometry_struct *geometry) {
     Coords vector_between = coords_sub(point2,point1);
@@ -3579,7 +2769,7 @@ int existence_of_intersection(Coords point1, Coords point2, struct geometry_stru
         }
     }
     return 0;
-};
+}
 
 int box_overlaps_box(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
     // Algorithm for checking if two boxes overlap
@@ -3636,11 +2826,8 @@ int box_overlaps_box(struct geometry_struct *geometry1,struct geometry_struct *g
     
     // If none of the boxes corners are inside the other box, and none of the sides of the boxes intersect the other box, they do not overlap.
     return 0;
-};
+}
 
-
-// -------------    Functions for sphere ray tracing used in trace ------------------------------
-// These functions needs to be fast, as they may be used many times for each ray
 int sample_sphere_intersect(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry) {
     double radius = geometry->geometry_parameters.p_sphere_storage->sph_radius;
     
@@ -3660,7 +2847,7 @@ int sample_sphere_intersect(double *t,int *num_solutions,double *r,double *v,str
     else {*num_solutions = 1;t[1]=-1;}
     
     return output;
-};
+}
 
 int r_within_sphere(Coords pos,struct geometry_struct *geometry)
     {
@@ -3677,10 +2864,8 @@ int r_within_sphere(Coords pos,struct geometry_struct *geometry)
     //printf("return   = %d\n",(distance <= radius));
     
     return (distance < radius);
-    };
+    }
 
-// -------------    Functions for sphere ray tracing used in initialize -------------------------
-// These functions does not need to be fast, as they are only used once
 int sphere_overlaps_sphere(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
     // Unpack parameters
     double radius1 = geometry1->geometry_parameters.p_sphere_storage->sph_radius;
@@ -3692,7 +2877,7 @@ int sphere_overlaps_sphere(struct geometry_struct *geometry1,struct geometry_str
     // Return 0 if the spheres does not overlap, 1 if they do.
     // printf("Output from sphere_overlaps_sphere = %d \n",(distance <= (radius1 + radius2)));
     return (distance <= (radius1 + radius2));
-};
+}
 
 int sphere_within_sphere(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Unpack parameters
@@ -3704,10 +2889,8 @@ int sphere_within_sphere(struct geometry_struct *geometry_child,struct geometry_
     
     // Return 1 if sphere child is within sphere parent, 0 if they do not.
     return (distance + radius_child <= radius_parent);
-};
+}
 
-// -------------    Functions for cylinder ray tracing used in trace ------------------------------
-// These functions needs to be fast, as they may be used many times for each ray
 int sample_cylinder_intersect(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry) {
     double radius = geometry->geometry_parameters.p_cylinder_storage->cyl_radius;
     double height = geometry->geometry_parameters.p_cylinder_storage->height;
@@ -3754,7 +2937,7 @@ int sample_cylinder_intersect(double *t,int *num_solutions,double *r,double *v,s
     else {*num_solutions = 1;t[1]=-1;}
     
     return output;
-};
+}
 
 int r_within_cylinder(Coords pos,struct geometry_struct *geometry) {
     // Unpack parameters
@@ -3815,10 +2998,8 @@ int r_within_cylinder(Coords pos,struct geometry_struct *geometry) {
     
     if (inside == 0) return 0;
     else return 1;
-    };
+    }
 
-// -------------    Functions for cylinder ray tracing used in initialize -------------------------
-// These functions does not need to be fast, as they are only used once
 int cylinder_overlaps_cylinder(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
     // Unpack parameters
     double radius1 = geometry1->geometry_parameters.p_cylinder_storage->cyl_radius;
@@ -4023,7 +3204,7 @@ int cylinder_overlaps_cylinder(struct geometry_struct *geometry1,struct geometry
         return 0;
     }
 
-};
+}
 
 int cylinder_within_cylinder(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Unpack parameters
@@ -4306,7 +3487,7 @@ int cylinder_within_cylinder(struct geometry_struct *geometry_child,struct geome
     
     }
 
-};
+}
 
 int cylinder_within_cylinder_backup(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
 //int cylinder_within_cylinder(struct geometry_struct *geometry_parent,struct geometry_struct *geometry_child) {
@@ -4516,7 +3697,7 @@ int cylinder_within_cylinder_backup(struct geometry_struct *geometry_child,struc
     
     }
 
-};
+}
 
 int cone_overlaps_cone(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
   // Overlap function should return 1 if the to geometries both cover some volume
@@ -4709,13 +3890,13 @@ int cone_overlaps_cone(struct geometry_struct *geometry1,struct geometry_struct 
 
     return 0;
 
-};
+}
 
 int cone_within_cone(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
     // Brute force place holder
     return A_within_B(geometry_child,geometry_parent,(int) 300); // 150 points on each end cap
-};
+}
 
 int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct *geometry2) {
   // Overlap function should return 1 if the to geometries both cover some volume
@@ -4752,15 +3933,13 @@ int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct 
 
     return 0;
 
-};
+}
 
 int mesh_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
     // Brute force place holder
     return mesh_A_within_B(geometry_child,geometry_parent); // 30 points on each end cap
-};
-
-// -------------    Overlap functions for two different geometries --------------------------------
+}
 
 int box_overlaps_cylinder(struct geometry_struct *geometry_box,struct geometry_struct *geometry_cyl) {
     // Checking if the box and cylinder described by geometry_box and geometry_cyl overlaps.
@@ -4838,12 +4017,12 @@ int box_overlaps_cylinder(struct geometry_struct *geometry_box,struct geometry_s
     
     // If all the tests change, the volumes do not overlap
     return 0;
-};
+}
 
 int cylinder_overlaps_box(struct geometry_struct *geometry_cyl,struct geometry_struct *geometry_box) {
     // overlap functions are symetrical, but it is convinient to have both defined
     return box_overlaps_cylinder(geometry_box,geometry_cyl);
-};
+}
 
 int cylinder_overlaps_sphere(struct geometry_struct *geometry_cyl,struct geometry_struct *geometry_sph) {
  
@@ -4960,7 +4139,7 @@ int cylinder_overlaps_sphere(struct geometry_struct *geometry_cyl,struct geometr
     free(shell_points.elements);
     return 0;
     */
-};
+}
 
 int box_overlaps_sphere(struct geometry_struct *geometry_box,struct geometry_struct *geometry_sph) {
     
@@ -5040,17 +4219,15 @@ int box_overlaps_sphere(struct geometry_struct *geometry_box,struct geometry_str
     free(shell_points.elements);
     return 0;
     
-};
+}
 
-
-// sym sphere
 int sphere_overlaps_cylinder(struct geometry_struct *geometry_sph,struct geometry_struct *geometry_cyl) {
   return cylinder_overlaps_sphere(geometry_cyl,geometry_sph);
-};
+}
 
 int sphere_overlaps_box(struct geometry_struct *geometry_sph,struct geometry_struct *geometry_box) {
   return box_overlaps_sphere(geometry_box,geometry_sph);
-};
+}
 
 int cone_overlaps_sphere(struct geometry_struct *geometry_cone,struct geometry_struct *geometry_sph) {
   // Overlap function should return 1 if the to geometries both cover some volume
@@ -5131,12 +4308,12 @@ int cone_overlaps_sphere(struct geometry_struct *geometry_cone,struct geometry_s
       // If just one points is inside, the entire geometry is assumed inside as parent should be convex
       return 0;
 
-};
+}
 
 int sphere_overlaps_cone(struct geometry_struct *geometry_sph,struct geometry_struct *geometry_cone) {
   // This problem is symetrical.
   return cone_overlaps_sphere(geometry_cone,geometry_sph);
-};
+}
 
 int cone_overlaps_cylinder(struct geometry_struct *geometry_cone,struct geometry_struct *geometry_cylinder) {
   // Overlap function should return 1 if the to geometries both cover some volume
@@ -5309,12 +4486,12 @@ int cone_overlaps_cylinder(struct geometry_struct *geometry_cone,struct geometry
 
     return 0;
 
-};
+}
 
 int cylinder_overlaps_cone(struct geometry_struct *geometry_cylinder,struct geometry_struct *geometry_cone) {
   // This problem is symetrical.
   return cone_overlaps_cylinder(geometry_cone,geometry_cylinder);
-};
+}
 
 int cone_overlaps_box(struct geometry_struct *geometry_cone,struct geometry_struct *geometry_box) {
   // Overlap function should return 1 if the to geometries both cover some volume
@@ -5532,14 +4709,12 @@ int cone_overlaps_box(struct geometry_struct *geometry_cone,struct geometry_stru
     
     return 0;
 
-};
+}
 
 int box_overlaps_cone(struct geometry_struct *geometry_box,struct geometry_struct *geometry_cone) {
   // This problem is symetrical.
   return cone_overlaps_box(geometry_cone,geometry_box);
 }
-
-// -------------    Within functions for two different geometries ---------------------------------
 
 double dist_from_point_to_plane(Coords point,Coords plane_p1, Coords plane_p2, Coords plane_p3) {
 
@@ -5567,7 +4742,7 @@ double dist_from_point_to_plane(Coords point,Coords plane_p1, Coords plane_p2, C
   Coords diff = coords_sub(point,plane_p1);
   
   return fabs(scalar_prod(normal_vector.x,normal_vector.y,normal_vector.z,diff.x,diff.y,diff.z));
-};
+}
 
 int box_within_cylinder(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Is geometry child inside geometry parent?
@@ -5585,7 +4760,7 @@ int box_within_cylinder(struct geometry_struct *geometry_child,struct geometry_s
         }
     }
     return 1; // If no corner was outside, the box is inside the cylinder
-};
+}
 
 int cylinder_within_box(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Is geometry child inside geometry parent?
@@ -5632,7 +4807,7 @@ int cylinder_within_box(struct geometry_struct *geometry_child,struct geometry_s
     free(circle_point_array);
     
     return 1; // If no part of the cylinders end caps was outside, the cylinder is inside box 1
-};
+}
 
 int cylinder_within_sphere(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Is a cylinder within a sphere?
@@ -5660,7 +4835,7 @@ int cylinder_within_sphere(struct geometry_struct *geometry_child,struct geometr
     
     // Reasonable to brute force solution here
     return A_within_B(geometry_child,geometry_parent,(int) 400); // 200 points on each end cap
-};
+}
 
 int sphere_within_cylinder(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Is a sphere (child) within a cylinder (parent)?
@@ -5690,13 +4865,13 @@ int sphere_within_cylinder(struct geometry_struct *geometry_child,struct geometr
     geometry_parent->geometry_parameters.p_cylinder_storage->height = original_height;
     
     return return_value;
-};
+}
 
 int box_within_sphere(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // If all 8 corners of the box are inside the sphere, the entire box is inside
     
     return A_within_B(geometry_child,geometry_parent,8);
-};
+}
 
 int sphere_within_box(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Distance from any of the box sides must be greater than radius, and the center inside.
@@ -5755,13 +4930,13 @@ int sphere_within_box(struct geometry_struct *geometry_child,struct geometry_str
     }
     
     return 1; // If the cylinder center is inside, and more than radius away from all walls, it is inside
-};
+}
 
 int cone_within_sphere(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Function returns 1 if the cone is completely within the sphere, 0 otherwise
     // Brute force place holder
     return A_within_B(geometry_child,geometry_parent,(int) 300); // 150 points on each end cap
-};
+}
 
 int cone_within_cylinder(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Function returns 1 if the cone is completely within the cylinder, 0 otherwise
@@ -5850,34 +5025,32 @@ int cone_within_cylinder(struct geometry_struct *geometry_child,struct geometry_
 
     }
 
-};
+}
 
 int cone_within_box(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Function returns 1 if the cone is completely within the box, 0 otherwise
     // Brute force place holder
     return A_within_B(geometry_child,geometry_parent,(int) 300); // 150 points on each end cap
-};
+}
 
 int sphere_within_cone(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Function returns 1 if the sphere is completely within the cone, 0 otherwise
     // Brute force place holder
     return A_within_B(geometry_child,geometry_parent,(int) 300); // 150 points on each end cap
-};
+}
 
 int cylinder_within_cone(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Function returns 1 if the cylinder is completely within the cone, 0 otherwise
     // Brute force place holder
     return A_within_B(geometry_child,geometry_parent,(int) 300); // 150 points on each end cap
-};
+}
 
 int box_within_cone(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent) {
     // Function returns 1 if the box is completely within the cone, 0 otherwise
     // Brute force place holder
     return A_within_B(geometry_child,geometry_parent,(int) 300); // 150 points on each end cap
-};
+}
 
-
-// Flexible intersection function
 int intersect_function(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry) {
     int output = 0;
     switch(geometry->eShape) {
@@ -5907,9 +5080,8 @@ int intersect_function(double *t,int *num_solutions,double *r,double *v,struct g
     }
     
     return output;
-};
+}
 
-// Flexible within function
 int r_within_function(Coords pos,struct geometry_struct *geometry) {
     int output = 0;
     switch(geometry->eShape) {
@@ -5942,11 +5114,7 @@ int r_within_function(Coords pos,struct geometry_struct *geometry) {
     }
     
     return output;
-};
-
-
-// -------------    List generator functions   --------------------------------------------------
-
+}
 
 int within_which_volume(Coords pos, struct pointer_to_1d_int_list input_list, struct pointer_to_1d_int_list destinations_list, struct Volume_struct **Volumes, struct pointer_to_1d_int_list *mask_status_list, int number_of_volumes, int *volume_logic_copy, int *ListA, int *ListB) {
     // This function identifies in which of the volumes of the input list the position pos lies in.
@@ -6092,7 +5260,7 @@ int within_which_volume(Coords pos, struct pointer_to_1d_int_list input_list, st
     }
     //printf("residing volume returned %d\n",residing_volume);
     return residing_volume;
-};
+}
 
 int within_which_volume_GPU(Coords pos, struct pointer_to_1d_int_list input_list, struct pointer_to_1d_int_list destinations_list, struct Volume_struct **Volumes, struct pointer_to_1d_int_list *mask_status_list, int number_of_volumes, int *volume_logic_copy, int *ListA, int *ListB) {
     // This function identifies in which of the volumes of the input list the position pos lies in.
@@ -6235,10 +5403,7 @@ int within_which_volume_GPU(Coords pos, struct pointer_to_1d_int_list input_list
     }
     //printf("residing volume returned %d\n",residing_volume);
     return residing_volume;
-};
-
-
-
+}
 
 int within_which_volume_debug(Coords pos, struct pointer_to_1d_int_list input_list, struct pointer_to_1d_int_list volume_logic, struct Volume_struct **Volumes, int *volume_logic_copy, int *ListA, int *ListB) {
     // This function identifies in which of the volumes of the input list the position pos lies in.
@@ -6324,7 +5489,7 @@ int within_which_volume_debug(Coords pos, struct pointer_to_1d_int_list input_li
     }
     printf("Volume number %d had the highest priority of checked volumes\n",residing_volume);
     return residing_volume;
-};
+}
 
 int inside_function(struct Volume_struct *parent_volume, struct Volume_struct *child_volume) {
     // Function that calls the correct within function depending on the shapes of the two volumes
@@ -6392,7 +5557,7 @@ int inside_function(struct Volume_struct *parent_volume, struct Volume_struct *c
     }
 
     return 0;
-};
+}
 
 void generate_children_lists(struct Volume_struct **Volumes, struct pointer_to_1d_int_list **true_children_lists, int number_of_volumes, int verbal) {
   // This function generates a list of children for each volume.
@@ -6631,7 +5796,7 @@ void generate_children_lists(struct Volume_struct **Volumes, struct pointer_to_1
   free(temporary_children_lists);
   free(true_temp_list_local.elements);
   free(temp_list_local.elements);
-};
+}
 
 void generate_overlap_lists(struct pointer_to_1d_int_list **true_overlap_lists, struct pointer_to_1d_int_list **raw_overlap_lists, struct Volume_struct **Volumes, int number_of_volumes, int verbal) {
   // This function generates overlap lists for each volume
@@ -6909,14 +6074,13 @@ void generate_overlap_lists(struct pointer_to_1d_int_list **true_overlap_lists, 
   free(temporary_overlap_lists);
   free(temp_list_local.elements);
 
-};
+}
 
 void add_to_mask_intersect_list(struct pointer_to_1d_int_list *mask_intersect_list, int given_volume_index) {
     // A bit simpler than before
     if (on_int_list(*mask_intersect_list,given_volume_index) == 0)
       add_element_to_int_list(mask_intersect_list,given_volume_index);
 }
-
 
 void generate_intersect_check_lists(struct pointer_to_1d_int_list **overlap_lists,struct Volume_struct **Volumes, int number_of_volumes, int verbal) {
   // Generate intersection list for each volume
@@ -7138,7 +6302,7 @@ void generate_intersect_check_lists(struct pointer_to_1d_int_list **overlap_list
       if (verbal) print_1d_int_list(Volumes[volume_index]->geometry.mask_intersect_list,string_output)
       );
   }
-};
+}
 
 void generate_parents_lists(struct pointer_to_1d_int_list **parents_lists, struct Volume_struct **Volumes, int number_of_volumes, int verbal, int mask_mode) {
   // Function for generating parent lists for all volumes
@@ -7193,7 +6357,7 @@ void generate_parents_lists(struct pointer_to_1d_int_list **parents_lists, struc
   }
   free(temp_list_local.elements);
 
-};
+}
 
 void generate_true_parents_lists(struct pointer_to_1d_int_list **parents_lists, struct pointer_to_1d_int_list **true_children_lists, struct Volume_struct **Volumes, int number_of_volumes, int verbal, int mask_mode) {
   // Function for generating parent lists for all volumes
@@ -7250,7 +6414,7 @@ void generate_true_parents_lists(struct pointer_to_1d_int_list **parents_lists, 
   }
   free(temp_list_local.elements);
 
-};
+}
 
 void generate_intersect_check_lists_experimental(struct pointer_to_1d_int_list **true_overlap_lists, struct pointer_to_1d_int_list **raw_overlap_lists, struct pointer_to_1d_int_list **parents_lists, struct pointer_to_1d_int_list **true_parents_lists , struct Volume_struct **Volumes, int number_of_volumes, int verbal) {
   // Generates the intersect_check_list and mask_intersect_list for each Volume.
@@ -7467,8 +6631,7 @@ void generate_grandparents_lists(struct pointer_to_1d_int_list **grandparents_li
   }
   free(temp_list_local.elements);
   free(common.elements);
-};
-
+}
 
 void generate_destinations_lists_experimental(struct pointer_to_1d_int_list **true_overlap_lists, struct pointer_to_1d_int_list **true_children_lists, struct pointer_to_1d_int_list **true_parents_lists, struct pointer_to_1d_int_list **true_grandparents_lists, struct Volume_struct **Volumes, int number_of_volumes, int verbal) {
   // Generates destinations list for for all volumes
@@ -7580,7 +6743,7 @@ void generate_destinations_lists_experimental(struct pointer_to_1d_int_list **tr
 
   }
 
-};
+}
 
 void generate_destinations_list(int N_volume,struct Volume_struct **Volumes,struct pointer_to_1d_int_list original_overlap_list,struct pointer_to_1d_int_list *parent_list, struct pointer_to_1d_int_list *grandparent_list) {
     // This function generates the destinations_list for a single volume index, N_volume
@@ -7728,7 +6891,7 @@ void generate_destinations_list(int N_volume,struct Volume_struct **Volumes,stru
     // Clean up memory
     free(removed_under_2.elements);
 
-    };
+    }
 
 void generate_destinations_lists(struct pointer_to_1d_int_list **grandparents_lists, struct pointer_to_1d_int_list **parents_lists, struct pointer_to_1d_int_list **overlap_lists,struct Volume_struct **Volumes, int number_of_volumes, int verbal) {
     // Because of the complexity of the algortithm for generating the destinations list, the function is made for a single volume at the time to keep the notation simpler
@@ -7747,8 +6910,7 @@ void generate_destinations_lists(struct pointer_to_1d_int_list **grandparents_li
       if (verbal) print_1d_int_list(Volumes[volume_index]->geometry.destinations_list,string_output);
       )
     }
-};
-
+}
 
 void generate_reduced_destinations_lists(struct pointer_to_1d_int_list **parents_lists, struct Volume_struct **Volumes,int number_of_volumes,int verbal) {
     // The reduced destination list is the destination list of a volume, where each element that has a parent on the same destination list is removed
@@ -7814,7 +6976,7 @@ void generate_reduced_destinations_lists(struct pointer_to_1d_int_list **parents
       if (verbal) print_1d_int_list(Volumes[volume_index]->geometry.reduced_destinations_list,string_output);
       )
     }
-};
+}
 
 void generate_direct_children_lists(struct pointer_to_1d_int_list **parents_lists, struct Volume_struct **Volumes,int number_of_volumes,int verbal) {
 
@@ -7872,7 +7034,7 @@ void generate_direct_children_lists(struct pointer_to_1d_int_list **parents_list
 
   }
 
-};
+}
 
 void generate_starting_logic_list(struct starting_lists_struct *starting_lists, struct Volume_struct **Volumes, int number_of_volumes, int verbal) {
     // Function for generating logic list of volumes the ray can start in without an error.
@@ -7916,7 +7078,7 @@ void generate_starting_logic_list(struct starting_lists_struct *starting_lists, 
     )
 
 
-};
+}
 
 void generate_reduced_starting_destinations_list(struct starting_lists_struct *starting_lists, struct pointer_to_1d_int_list **parents_lists, struct Volume_struct **Volumes,int number_of_volumes,int verbal) {
     // The starting_destinations_list is trivial, as it contains all volumes that are not masks.
@@ -8013,8 +7175,7 @@ void generate_reduced_starting_destinations_list(struct starting_lists_struct *s
   MPI_MASTER(
   if (verbal) print_1d_int_list(starting_lists->start_logic_list,"Start logic list");
   )
-};
-
+}
 
 void generate_next_volume_list(struct Volume_struct **Volumes, int number_of_volumes, int verbal) {
     // Generate list of volumes that can be the next volume which the ray enters. It is used for tagging, not the simulation / propagation
@@ -8066,7 +7227,7 @@ void generate_next_volume_list(struct Volume_struct **Volumes, int number_of_vol
         if (verbal) print_1d_int_list(Volumes[volume_index]->geometry.next_volume_list,string_output);
         )
     }
-};
+}
 
 void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct *starting_lists, int number_of_volumes, int verbal) {
     // Function to control the generation of lists
@@ -8246,51 +7407,19 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
     free(parents_lists_no_masks);free(true_grandparents_lists);free(grandparents_lists);free(grandparents_lists_no_masks);free(true_grandparents_lists_no_masks);
     free(true_children_lists);
     //printf("generate lists free completed\n");
-};
-
-// -------------    Focusing functions   --------------------------------------------------------
-
-// The focusing_data structure is set up by the geometry component, and a pointer to the appropriate
-//  focusing function is added to the Volume structure (for this reason the input of all the functions
-//  need to be identical, at least in terms of types). In this way there are no if statements to check
-//  which of these to be used in the trace, but the focus_data_struct will carry some redundant
-//  information, as only the appropriate parameters are set:
-// Angular focus on a rectangle (angular_focus_height / angular_focus_width)
-// Spatial focus on a rectangle (spatial_focus_height / spatial_focus_width)
-// Spatial focus on a disk (sptial_focus_radius)
-// No focus (randvec in 4pi) (all set to zero, will select randvec circle as it is slightly faster
-//
-// When adding a new physical process focusing becomes very easy, as one just calls the master focusing
-//  function assosiated with the volume (placed in the geometry struct), using the focus_data_struct
-//  also found in the geometry struct, and the process then supports all the focusing modes. It is even
-//  possible to add new focusing modes in the future by updating just the geometry components, and this
-//  section.
-
-// focus_data_struct definitioon shown here, defined at the start of this file
-//struct focus_data_struct {
-//Coords Aim;
-//double angular_focus_width;
-//double angular_focus_height;
-//double spatial_focus_width;
-//double spatial_focus_height;
-//double spatial_focus_radius;
-//Rotation absolute_rotation;
-//// focusing_function creates a vector per selected criteria of focus_data_struct / selected focus function and returns solid angle
-//void (*focusing_function)(Coords*, double*, struct focus_data_struct*);
-////                        v_out  , solid_a,
-//};
+}
 
 void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
     // Calls the standard McXtrace randvec_target_rect_angular focusing function, but is with the new data input format.
     randvec_target_rect_angular(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->Aim.x,focus_data->Aim.y, focus_data->Aim.z, focus_data->angular_focus_width, focus_data->angular_focus_height,focus_data->absolute_rotation);
     //randvec_target_rect_angular(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.aw, VarsInc.ah, ROT_A_CURRENT_COMP);
-};
+}
 
 void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
 // Calls the standard McXtrace randvec_target_rect focusing function, but is with the new data input format.
     randvec_target_rect(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->Aim.x,focus_data->Aim.y, focus_data->Aim.z, focus_data->spatial_focus_width, focus_data->spatial_focus_height,focus_data->absolute_rotation);
     // randvec_target_rect(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.xw, VarsInc.yh, ROT_A_CURRENT_COMP);
-};
+}
 
 void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
 // Calls the standard McXtrace randvec_target_circle focusing function, but is with the new data input format.
@@ -8301,9 +7430,7 @@ void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct f
 
     randvec_target_circle(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->Aim.x,focus_data->Aim.y, focus_data->Aim.z, focus_data->spatial_focus_radius);
     //randvec_target_circle(&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
-};
-
-
+}
 
 void focus_initialize(struct geometry_struct *geometry, Coords POS_A_TARGET, Coords POS_A_CURRENT, Rotation ROT_A_CURRENT, int target_index, double target_x, double target_y, double target_z, double angular_focus_width, double angular_focus_height, double spatial_focus_width, double spatial_focus_height, double spatial_focus_radius, char *component_name) {
     // Initialize focusing system
@@ -8399,20 +7526,8 @@ void focus_initialize(struct geometry_struct *geometry, Coords POS_A_TARGET, Coo
   // Allocate the isotropic focus_data struct
   geometry->focus_data_array.num_elements = 0;
   add_element_to_focus_data_array(&geometry->focus_data_array,focus_data);
-};
+}
 
-
-struct abs_event{
-    double time1;
-    double position1[3];
-    double time2;
-    double position2[3];
-    double weight_change;
-    int volume_index;
-    int neutron_id;
-};
-
-// Functions for recording absorption
 void initialize_absorption_file() {
   FILE *fp;
   fp = fopen("Union_absorption.dat","w");
@@ -8477,6 +7592,87 @@ void record_abs_to_file(double *r, double t1, double *r_old, double t2, double w
 
   }
 
-};
+}
+
+struct union_state_struct *union_acquire_state(int master_present) {
+  (void)master_present;
+  union_state.refcount++;
+  return &union_state;
+}
+
+void union_report_unconsumed(const char *name, int component_index, int last_master_index) {
+  if (component_index > last_master_index)
+    MPI_MASTER(fprintf(stderr, "WARNING: Union component %s had no effect: it is placed after the last Union_master.\n", name););
+}
+
+void union_check_unconsumed(void) {
+  struct union_state_struct *u = &union_state;
+  int last_master_index = -1, i;
+  for (i = 0; i < u->u_master_list.num_elements; i++)
+    if (u->u_master_list.elements[i].component_index > last_master_index)
+      last_master_index = u->u_master_list.elements[i].component_index;
+
+  for (i = 0; i < u->u_process_list.num_elements; i++)
+    union_report_unconsumed(u->u_process_list.elements[i].name, u->u_process_list.elements[i].component_index, last_master_index);
+  for (i = 0; i < u->u_material_list.num_elements; i++)
+    union_report_unconsumed(u->u_material_list.elements[i].name, u->u_material_list.elements[i].component_index, last_master_index);
+  for (i = 0; i < u->u_geometry_list.num_elements; i++)
+    union_report_unconsumed(u->u_geometry_list.elements[i].name, u->u_geometry_list.elements[i].component_index, last_master_index);
+  for (i = 0; i < u->u_all_volume_logger_list.num_elements; i++)
+    union_report_unconsumed(u->u_all_volume_logger_list.elements[i].name, u->u_all_volume_logger_list.elements[i].component_index, last_master_index);
+  for (i = 0; i < u->u_specific_volumes_logger_list.num_elements; i++)
+    union_report_unconsumed(u->u_specific_volumes_logger_list.elements[i].name, u->u_specific_volumes_logger_list.elements[i].component_index, last_master_index);
+  for (i = 0; i < u->u_all_volume_abs_logger_list.num_elements; i++)
+    union_report_unconsumed(u->u_all_volume_abs_logger_list.elements[i].name, u->u_all_volume_abs_logger_list.elements[i].component_index, last_master_index);
+  for (i = 0; i < u->u_specific_volumes_abs_logger_list.num_elements; i++)
+    union_report_unconsumed(u->u_specific_volumes_abs_logger_list.elements[i].name, u->u_specific_volumes_abs_logger_list.elements[i].component_index, last_master_index);
+}
+
+void union_free_conditional_list(struct conditional_list_struct *list) {
+  if (list->num_elements > 0) {
+    free(list->conditional_functions);
+    free(list->p_data_unions);
+  }
+}
+
+void union_free_state(void) {
+  struct union_state_struct *u = &union_state;
+  int i;
+  if (u->u_process_list.num_elements > 0) free(u->u_process_list.elements);
+  if (u->u_material_list.num_elements > 0) free(u->u_material_list.elements);
+  if (u->u_geometry_list.num_elements > 0) free(u->u_geometry_list.elements);
+  if (u->u_master_list.num_elements > 0) free(u->u_master_list.elements);
+
+  for (i = 0; i < u->u_all_volume_logger_list.num_elements; i++)
+    union_free_conditional_list(&u->u_all_volume_logger_list.elements[i].logger->conditional_list);
+  if (u->u_all_volume_logger_list.num_elements > 0) free(u->u_all_volume_logger_list.elements);
+  for (i = 0; i < u->u_specific_volumes_logger_list.num_elements; i++)
+    union_free_conditional_list(&u->u_specific_volumes_logger_list.elements[i].logger->conditional_list);
+  if (u->u_specific_volumes_logger_list.num_elements > 0) free(u->u_specific_volumes_logger_list.elements);
+
+  for (i = 0; i < u->u_all_volume_abs_logger_list.num_elements; i++)
+    union_free_conditional_list(&u->u_all_volume_abs_logger_list.elements[i].abs_logger->conditional_list);
+  if (u->u_all_volume_abs_logger_list.num_elements > 0) free(u->u_all_volume_abs_logger_list.elements);
+  for (i = 0; i < u->u_specific_volumes_abs_logger_list.num_elements; i++)
+    union_free_conditional_list(&u->u_specific_volumes_abs_logger_list.elements[i].abs_logger->conditional_list);
+  if (u->u_specific_volumes_abs_logger_list.num_elements > 0) free(u->u_specific_volumes_abs_logger_list.elements);
+
+  for (i = 0; i < u->u_tagging_conditional_list.num_elements; i++)
+    union_free_conditional_list(&u->u_tagging_conditional_list.elements[i].conditional_list);
+  if (u->u_tagging_conditional_list.num_elements > 0) free(u->u_tagging_conditional_list.elements);
+
+  // Leave nothing dangling: a later acquire starts from empty lists.
+  memset(u, 0, sizeof(struct union_state_struct));
+}
+
+void union_release(const char *comp_name) {
+  if (union_state.refcount <= 0) {
+    fprintf(stderr, "WARNING: Union component %s released the Union state without acquiring it; ignored.\n", comp_name);
+    return;
+  }
+  if (--union_state.refcount > 0) return;
+  union_check_unconsumed();
+  union_free_state();
+}
 
 #endif /* UNION_LIB_C */

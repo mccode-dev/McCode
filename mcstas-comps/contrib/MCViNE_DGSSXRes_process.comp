@@ -1,0 +1,114 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_DGSSXRes_process
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE DGSSXResKernel; MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/DGSSXResKernel.cc)
+*
+* Union process: Resolution kernel for direct-geometry single-crystal spectrometers (aims at a pixel and TOF window).
+*
+* %D
+* Scatters towards a target disk (position target_x/y/z or target_index, radius
+* focus_r) and picks the arrival time at the target uniformly in
+* tof_at_target +/- dtof/2 (absolute neutron time, s). The final speed follows
+* from the flight distance. Weight: solid_angle/4pi * dtof * dE/dt * vf/vi, as in
+* MCViNE. Record ki/kf with monitors to build the resolution ellipsoid (similar
+* in purpose to McStas' TOFRes_sample, with MCViNE's weighting).
+*
+* <b>Union process.</b> Part of the Union components: define this process, collect it
+* into a material with Union_make_material (absorption is set there with
+* my_absorption, the absorption inverse penetration depth at 2200 m/s), assign
+* the material to Union_box/Union_cylinder/Union_sphere/Union_mesh geometries,
+* and add a Union_master after them. Geometry, attenuation and multiple
+* scattering are handled by Union_master; this component provides the MCViNE
+* kernel: the scattering coefficient and the final-state sampling (weight).
+* Isotropic process (powder/liquid-like); rotation is irrelevant.
+* The target is the Union focusing of the geometry (target_index / target_x.. and
+* focus_r / focus_xw,focus_xh / focus_aw,focus_ah on Union_box etc.).
+* The kernel code is shared with the standalone component MCViNE_DGSSXRes (mcvine-lib.c).
+* Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type
+* MCViNE is declared in share/union-lib.h and registered with Union_master in
+* share/mcvine-union-lib.h.
+*
+* Example: MCViNE_DGSSXRes_process(focus_r=0.0125, tof_at_target=0.0052, dtof=1e-5, scattering_coefficient=10)
+*
+* %P
+* INPUT PARAMETERS:
+* tof_at_target: [s] Desired absolute time of arrival at the target
+* dtof: [s] Width of the time window
+* scattering_coefficient: [m^-1] Scattering coefficient (inverse penetration depth for scattering)
+* sigma_scat: [barn] Alternative: scattering cross section per unit cell (used when Vc>0)
+* Vc: [AA^3] Unit cell volume; when >0 the coefficient is sigma_scat/Vc
+* packing_factor: [1] Packing factor (scales the scattering coefficient)
+* interact_fraction: [1] Union: fraction of interactions forced to this process (-1: by cross section)
+* init: [string] Deprecated and unused, accepted like on the other Union components (see Union_init).
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_DGSSXRes_process
+
+SETTING PARAMETERS (tof_at_target=0.001, dtof=1e-5, scattering_coefficient=0, sigma_scat=0, Vc=0, packing_factor=1, interact_fraction=-1, string init="")
+
+NOACC
+
+SHARE
+%{
+  %include "union-lib"
+  %include "read_table-lib"
+  %include "mcvine-lib"
+  %include "mcvine-union-lib"
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  mcvine_kernel_DGSSXRes kernel;
+  struct MCViNE_physics_storage_struct storage;
+  struct scattering_process_struct This_process;
+  struct global_process_element_struct global_process_element;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct* union_state_p = union_acquire ();
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  kernel.m_tof_at_target = tof_at_target;
+  kernel.m_dtof = dtof;
+
+  if (Vc > 0)
+    sig = mcvine_xs2coeff (sigma_scat, Vc);
+  else
+    sig = scattering_coefficient;
+  if (!(sig > 0)) {
+    fprintf (stderr, "%s: give scattering_coefficient>0 (or sigma_scat>0 and Vc>0)\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  storage.m_kernel = &kernel;
+  storage.m_S = mcvine_S_DGSSXRes;
+  storage.m_my_scattering = sig * packing_factor;
+  storage.m_kind = MCVINE_UNION_DGSSXRES;
+  mcvine_union_register (&union_state_p->u_process_list, &This_process, &global_process_element, &storage, NAME_CURRENT_COMP, INDEX_CURRENT_COMP, interact_fraction, 0, ROT_A_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  // the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
+%}
+
+END

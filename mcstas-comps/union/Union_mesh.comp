@@ -52,9 +52,9 @@
 * mask_string: [string]      Comma seperated list of geometry names which this geometry should mask
 * mask_setting: [string]     "All" or "Any", should the masked volume be simulated when the ray is in just one mask, or all.
 * target_index:  [1]    Focuses on component a component this many steps further in the component sequence
-* target_x:      [m]
+* target_x:      [m] position of target to focus at
 * target_y:      [m] Position of target to focus at
-* target_z:      [m]
+* target_z:      [m] position of target to focus at
 * focus_aw:      [deg] horiz. angular dimension of a rectangular area
 * focus_ah:      [deg] vert. angular dimension of a rectangular area
 * focus_xw:      [m]   horiz. dimension of a rectangular area
@@ -64,6 +64,7 @@
 * coordinate_scale [1e-3] Multiplier that the vertex positions are multiplied by. Set to 1 for input coordinates in meters. Set to 1e-3 for input coordinates in mm.
 * all_surfaces:       [string] Comma seperated string of Union surface definitions defined prior to this component
 * cut_surface:   [string] Comma seperated string of Union surface definitions defined prior to this component, applied to all internal cuts
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * CALCULATED PARAMETERS:
 *
@@ -94,7 +95,7 @@ SETTING PARAMETERS(string filename = 0,
    string mask_setting=0,
    number_of_activations=1,
    int skip_convex_check = 0,
-    coordinate_scale = 1e-3
+    coordinate_scale = 1e-3, string init=""
    )
 
 
@@ -108,9 +109,7 @@ SHARE
   %include "read_table-lib"
   %include "interoff-lib"
 
-  #ifndef Union
-  #error "ERROR: Union_mesh requires the Union library. Add a Union_master component to load the libraries."
-  #endif
+  %include "union-lib"
 
   #ifndef ANY_GEOMETRY_DETECTOR_DECLARE
   #define ANY_GEOMETRY_DETECTOR_DECLARE dummy
@@ -653,13 +652,14 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   geometry_struct_init (&(mesh_vol.geometry));
   mesh_vol.geometry.skip_hierarchy_optimization = skip_convex_check;
   // Initializes the focusing system for this volume including input sanitation.
   focus_initialize (&mesh_vol.geometry, POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, target_index, target_x,
                     target_y, target_z, focus_aw, focus_ah, focus_xw, focus_xh, focus_r, NAME_CURRENT_COMP);
 
-  struct pointer_to_global_material_list* global_material_list = &g_material_list;
+  struct pointer_to_global_material_list* global_material_list = &union_state_p->u_material_list;
 
   // Use sanitation
   #ifdef MATERIAL_DETECTOR
@@ -682,7 +682,7 @@ INITIALIZE
   mesh_vol.geometry.is_exit_volume = 0;
   mesh_vol.geometry.is_mask_volume = 0;
 
-  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
+  struct pointer_to_global_geometry_list* global_geometry_list = &union_state_p->u_geometry_list;
   //==============================================================================
   //                         Find out what this component masks
   //==============================================================================
@@ -949,7 +949,7 @@ INITIALIZE
   mesh_vol.geometry.surface_stack_for_each_face[0] = &surface_stack;
   mesh_vol.geometry.internal_cut_surface_stack = &cut_surface_stack;
 
-  struct pointer_to_global_surface_list* global_surface_list = &g_surface_list;
+  struct pointer_to_global_surface_list* global_surface_list = &union_state_p->u_surface_list;
   fill_surface_stack (all_surfaces, global_surface_list, NAME_CURRENT_COMP, &surface_stack);
   fill_surface_stack (cut_surface, global_surface_list, NAME_CURRENT_COMP, &cut_surface_stack);
 
@@ -992,5 +992,6 @@ TRACE
 FINALLY 
 %{
 
+  union_release (NAME_CURRENT_COMP);
 %}
 END

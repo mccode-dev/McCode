@@ -150,6 +150,8 @@
 * nowritefile: [1]       If set, logger will skip writing to disk
 * nexus_bins: [1]        NeXus mode only: store component BIN information <br>(-1 disable, 0 enable for list mode monitor, 1 enable for any montor)
 * is_high_resolution: [0|1]    Selects the MAPMT pixel size (0: low resolution, 6 mm pixels; 1: high resolution, 3 mm pixels), and correspondingly which set of pixel-hit-efficiency table files is read.
+* table_dir: [str]       Directory of the table files (default: none)
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * OUTPUT PARAMETERS:
 *
@@ -173,18 +175,26 @@ SETTING PARAMETERS(string target_geometry="NULL",
 				   string options="NULL", string filename="NULL",string geometry="NULL", int nowritefile=0, int nexus_bins=0,
 				   string username0="NULL", string username1="NULL", string username2="NULL", string username3="NULL", string username4="NULL",
 				   string username5="NULL", string username6="NULL", string username7="NULL", string username8="NULL", string username9="NULL",
-                   int is_high_resolution=0)
+                   int is_high_resolution=0, string table_dir="", string init="")
 OUTPUT PARAMETERS ()
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Union_abs_logger_nD_scintillator requires the Union library. Add a Union_master component to load the libraries."
-  #endif
+  %include "union-lib"
 
   %include "monitor_nd-lib"
+
+  // The file name, in the directory dir (if not empty):
+  char*
+  scintillator_table_file (char* buffer, size_t size, char* dir, char* file) {
+    if (dir && dir[0])
+      snprintf (buffer, size, "%s/%s", dir, file);
+    else
+      snprintf (buffer, size, "%s", file);
+    return buffer;
+  }
   %include "read_table-lib"
   %include "interoff-lib"
 
@@ -712,25 +722,28 @@ DECLARE
 
 INITIALIZE INHERIT Monitor_nD EXTEND
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
+  char table_file[1024];
+  #define TABLE_FILE(file) scintillator_table_file (table_file, sizeof (table_file), table_dir, file)
   if (is_high_resolution) {
     if (high_resolution_efficiency_tables_already_read == 0) {
-      if (Table_Read (&high_resolution_true_pixel_detection_efficiency_table, "true_pixel_hit_efficiency_high_resolution.txt", 0) <= 0) {
+      if (Table_Read (&high_resolution_true_pixel_detection_efficiency_table, TABLE_FILE ("true_pixel_hit_efficiency_high_resolution.txt"), 0) <= 0) {
         exit (fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file true_pixel_hit_efficiency_high_resolution.txt\n",
                        NAME_CURRENT_COMP));
       }
-      if (Table_Read (&high_resolution_up_pixel_detection_efficiency_table, "up_pixel_hit_efficiency_high_resolution.txt", 0) <= 0) {
+      if (Table_Read (&high_resolution_up_pixel_detection_efficiency_table, TABLE_FILE ("up_pixel_hit_efficiency_high_resolution.txt"), 0) <= 0) {
         exit (fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file up_pixel_hit_efficiency_high_resolution.txt\n",
                        NAME_CURRENT_COMP));
       }
-      if (Table_Read (&high_resolution_down_pixel_detection_efficiency_table, "down_pixel_hit_efficiency_high_resolution.txt", 0) <= 0) {
+      if (Table_Read (&high_resolution_down_pixel_detection_efficiency_table, TABLE_FILE ("down_pixel_hit_efficiency_high_resolution.txt"), 0) <= 0) {
         exit (fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file down_pixel_hit_efficiency_high_resolution.txt\n",
                        NAME_CURRENT_COMP));
       }
-      if (Table_Read (&high_resolution_left_pixel_detection_efficiency_table, "left_pixel_hit_efficiency_high_resolution.txt", 0) <= 0) {
+      if (Table_Read (&high_resolution_left_pixel_detection_efficiency_table, TABLE_FILE ("left_pixel_hit_efficiency_high_resolution.txt"), 0) <= 0) {
         exit (fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file left_pixel_hit_efficiency_high_resolution.txt\n",
                        NAME_CURRENT_COMP));
       }
-      if (Table_Read (&high_resolution_right_pixel_detection_efficiency_table, "right_pixel_hit_efficiency_high_resolution.txt", 0) <= 0) {
+      if (Table_Read (&high_resolution_right_pixel_detection_efficiency_table, TABLE_FILE ("right_pixel_hit_efficiency_high_resolution.txt"), 0) <= 0) {
         exit (fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file right_pixel_hit_efficiency_high_resolution.txt\n",
                        NAME_CURRENT_COMP));
       }
@@ -738,22 +751,22 @@ INITIALIZE INHERIT Monitor_nD EXTEND
     }
   } else {
     if (low_resolution_efficiency_tables_already_read == 0) {
-      if (Table_Read (&low_resolution_true_pixel_detection_efficiency_table, "true_pixel_hit_efficiency.txt", 0) <= 0) {
+      if (Table_Read (&low_resolution_true_pixel_detection_efficiency_table, TABLE_FILE ("true_pixel_hit_efficiency.txt"), 0) <= 0) {
         exit (
             fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file true_pixel_hit_efficiency.txt\n", NAME_CURRENT_COMP));
       }
-      if (Table_Read (&low_resolution_up_pixel_detection_efficiency_table, "up_pixel_hit_efficiency.txt", 0) <= 0) {
+      if (Table_Read (&low_resolution_up_pixel_detection_efficiency_table, TABLE_FILE ("up_pixel_hit_efficiency.txt"), 0) <= 0) {
         exit (fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file up_pixel_hit_efficiency.txt\n", NAME_CURRENT_COMP));
       }
-      if (Table_Read (&low_resolution_down_pixel_detection_efficiency_table, "down_pixel_hit_efficiency.txt", 0) <= 0) {
+      if (Table_Read (&low_resolution_down_pixel_detection_efficiency_table, TABLE_FILE ("down_pixel_hit_efficiency.txt"), 0) <= 0) {
         exit (
             fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file down_pixel_hit_efficiency.txt\n", NAME_CURRENT_COMP));
       }
-      if (Table_Read (&low_resolution_left_pixel_detection_efficiency_table, "left_pixel_hit_efficiency.txt", 0) <= 0) {
+      if (Table_Read (&low_resolution_left_pixel_detection_efficiency_table, TABLE_FILE ("left_pixel_hit_efficiency.txt"), 0) <= 0) {
         exit (
             fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file left_pixel_hit_efficiency.txt\n", NAME_CURRENT_COMP));
       }
-      if (Table_Read (&low_resolution_right_pixel_detection_efficiency_table, "right_pixel_hit_efficiency.txt", 0) <= 0) {
+      if (Table_Read (&low_resolution_right_pixel_detection_efficiency_table, TABLE_FILE ("right_pixel_hit_efficiency.txt"), 0) <= 0) {
         exit (
             fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: can not read pixel hit efficiency file right_pixel_hit_efficiency.txt\n", NAME_CURRENT_COMP));
       }
@@ -782,6 +795,8 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   if (!this_abs_storage.temp_abs_nD_scintillator_data.elements)
     exit (fprintf (stderr, "Union_abs_logger_nD_scintillator: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
+  #undef TABLE_FILE
+
   this_abs_storage.pixel_size = is_high_resolution ? 0.003 : 0.006; // 3 mm for high resolution, 6 mm for low resolution
 
   if (is_high_resolution) {
@@ -798,8 +813,8 @@ INITIALIZE INHERIT Monitor_nD EXTEND
     this_abs_storage.right_pixel_detection_efficiency_table = &low_resolution_right_pixel_detection_efficiency_table;
   }
 
-  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = &g_positions_to_transform_list;
-  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = &g_rotations_to_transform_list;
+  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = &union_state_p->u_positions_to_transform_list;
+  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = &union_state_p->u_rotations_to_transform_list;
   // Test position and rotation stored in a data storage, and pointers assigned to transform lists
   this_abs_storage.position = POS_A_CURRENT_COMP;
   add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_storage.position);
@@ -826,8 +841,8 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   abs_logger_list_element.component_index = INDEX_CURRENT_COMP;
   abs_logger_list_element.abs_logger = &this_abs_logger;
 
-  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
-  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = &g_specific_volumes_abs_logger_list;
+  struct pointer_to_global_geometry_list* global_geometry_list = &union_state_p->u_geometry_list;
+  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = &union_state_p->u_specific_volumes_abs_logger_list;
   // In order to run the logger at the right times, pointers to this logger is stored in each volume it logs,
   //  and additionally for each avaiable process. If a process is not logged, the pointer is simply not stored.
   int process_index;
@@ -848,7 +863,7 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   } else {
     // Send to global_all_volumes_logger_list
     // Here there is no system for selecting processes as well
-    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = &g_all_volume_abs_logger_list;
+    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = &union_state_p->u_all_volume_abs_logger_list;
     add_element_to_abs_logger_list (global_all_volume_abs_logger_list, abs_logger_list_element);
   }
  %}
@@ -886,6 +901,7 @@ FINALLY INHERIT Monitor_nD EXTEND
     Table_Free (&high_resolution_right_pixel_detection_efficiency_table);
     high_resolution_efficiency_tables_already_read = 0;
   }
+  union_release (NAME_CURRENT_COMP);
 %}
 
 MCDISPLAY INHERIT Monitor_nD

@@ -1,0 +1,145 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_DGSSXRes
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE DGSSXResKernel; MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/DGSSXResKernel.cc)
+*
+* Resolution kernel for direct-geometry single-crystal spectrometers (aims at a pixel and TOF window).
+*
+* %D
+* Scatters towards a target disk (position target_x/y/z or target_index, radius
+* focus_r) and picks the arrival time at the target uniformly in
+* tof_at_target +/- dtof/2 (absolute neutron time, s). The final speed follows
+* from the flight distance. Weight: solid_angle/4pi * dtof * dE/dt * vf/vi, as in
+* MCViNE. Record ki/kf with monitors to build the resolution ellipsoid (similar
+* in purpose to McStas' TOFRes_sample, with MCViNE's weighting).
+*
+* <b>Transport</b> (same as MCViNE HomogeneousNeutronScatterer): on the first
+* passage the neutron is forced to scatter at a uniformly chosen depth, weighted
+* by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient;
+* on exit it is attenuated by exp(-(mu+sigma)L_out). With order>1 further
+* scatterings are sampled analogically (truncated exponential). With
+* p_transmit>0 that fraction of events is kept as the attenuated direct beam.
+* mu(v) = absorption_coefficient*2200/v. Events for which the kernel cannot
+* scatter (kinematically forbidden) are absorbed.
+*
+* Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow
+* cylinder (+thickness) or sphere (radius only). All vectors (Q, targets,
+* reciprocal vectors, atom positions) are in the component's local frame.
+*
+* Uses the shared runtime share/mcvine-lib.h/.c.
+*
+* Example: MCViNE_DGSSXRes(target_index=2, focus_r=0.0125, tof_at_target=0.0052, dtof=1e-5, scattering_coefficient=10, xwidth=0.01, yheight=0.01, zdepth=0.01)
+*
+* %P
+* INPUT PARAMETERS:
+* target_x: [m] Target position (component frame) x
+* target_y: [m] Target position y
+* target_z: [m] Target position z
+* target_index: [1] Relative index of a component to aim at (overrides target_x/y/z when non-zero)
+* focus_r: [m] Radius of the target disk
+* tof_at_target: [s] Desired absolute time of arrival at the target
+* dtof: [s] Width of the time window
+* absorption_coefficient: [m^-1] Absorption coefficient at 2200 m/s (MCViNE convention; scales as 1/v)
+* scattering_coefficient: [m^-1] Scattering coefficient
+* sigma_abs: [barn] Alternative: absorption cross section per unit cell at 2200 m/s (used when Vc>0)
+* sigma_scat: [barn] Alternative: scattering cross section per unit cell (used when Vc>0)
+* Vc: [AA^3] Unit cell volume; when >0, coefficients are computed from sigma_abs, sigma_scat
+* radius: [m] Outer radius of a cylinder (with yheight) or of a sphere (yheight=0)
+* xwidth: [m] Width of a box sample
+* yheight: [m] Height of a box or cylinder sample
+* zdepth: [m] Depth of a box sample
+* thickness: [m] Wall thickness of a hollow cylinder (0: filled)
+* pack: [1] Packing factor (scales absorption and scattering coefficients)
+* p_transmit: [1] Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter)
+* order: [1] Maximum number of scattering events per neutron (1: single scattering)
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_DGSSXRes
+
+SETTING PARAMETERS (target_x=0, target_y=0, target_z=0, int target_index=0, focus_r=0.01, tof_at_target=0.001, dtof=1e-5, absorption_coefficient=0, scattering_coefficient=0, sigma_abs=0, sigma_scat=0, Vc=0, radius=0, xwidth=0, yheight=0, zdepth=0, thickness=0, pack=1, p_transmit=0, int order=1)
+
+NOACC
+
+SHARE
+%{
+%include "read_table-lib"
+%include "mcvine-lib"
+%}
+
+DECLARE
+%{
+  mcvine_kernel_DGSSXRes kernel;
+  mcvine_scatterer scatterer;
+%}
+
+INITIALIZE
+%{
+  mcvine_shape shape;
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  {
+    double tx = target_x, ty = target_y, tz = target_z;
+    if (target_index) {
+      Coords ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+      ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+      coords_get (ToTarget, &tx, &ty, &tz);
+    }
+    kernel.m_target[0] = tx;
+    kernel.m_target[1] = ty;
+    kernel.m_target[2] = tz;
+  }
+
+  kernel.m_target_radius = focus_r;
+  kernel.m_tof_at_target = tof_at_target;
+  kernel.m_dtof = dtof;
+
+  if (Vc > 0) {
+    mu = mcvine_xs2coeff (sigma_abs, Vc);
+    sig = mcvine_xs2coeff (sigma_scat, Vc);
+  } else {
+    mu = absorption_coefficient;
+    sig = scattering_coefficient;
+  }
+  if (!(sig > 0)) {
+    fprintf (stderr, "%s: give scattering_coefficient>0 (or sigma_scat>0 and Vc>0)\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (mcvine_shape_init (&shape, radius, xwidth, yheight, zdepth, thickness, NAME_CURRENT_COMP))
+    exit (-1);
+  mcvine_scatterer_init (&scatterer, &shape, mu, sig, pack, p_transmit, order);
+%}
+
+TRACE
+%{
+  int ret = mcvine_scatterer_interact (&scatterer, &kernel, mcvine_S_DGSSXRes, _particle);
+  if (ret < 0)
+    ABSORB;
+  if (ret > 0)
+    SCATTER;
+%}
+
+MCDISPLAY
+%{
+  if (scatterer.shape.type == MCVINE_SHAPE_BOX) {
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
+  } else if (scatterer.shape.type == MCVINE_SHAPE_CYLINDER) {
+    cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
+    if (thickness > 0)
+      cylinder (0, 0, 0, radius - thickness, yheight, 0, 0, 1, 0);
+  } else {
+    sphere (0, 0, 0, radius);
+  }
+%}
+
+END

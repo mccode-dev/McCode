@@ -36,20 +36,20 @@ Parameters in **boldface** are required; the others are optional.
 | sigma_abs_vanadium | barns | Absorption cross-section | 5.08 |
 | Vc_vanadium | AA^3 | Unit cell volume | 13.827 |
 | geometry_interact |  | p_interact for the Union sample | 0.5 |
-| nphe_exact |  |  | 1 |
-| nphe_approx |  |  | 0 |
-| approx |  |  | 0 |
-| mph_resum |  |  | 0 |
-| T |  |  | 294 |
-| density |  |  | 6.0 |
-| M |  |  | 50.94 |
-| sigmaCoh |  |  | 0.0184 |
-| sigmaInc |  |  | 5.08 |
-| dosfn |  |  | "dos_meV.txt" |
-| nxs |  |  | 1000 |
-| kabsmin |  |  | 0.1 |
-| kabsmax |  |  | 25 |
-| interact_fraction |  |  | -1 |
+| nphe_exact | 1 | Number of terms in the phonon expansion taken exact. Has to be between 1 and 3 | 1 |
+| nphe_approx | 1 | Number of terms in the phonon expansion taken approximate | 0 |
+| approx | 1 | Approximation type: 0 gaussian, 1 saddle point | 0 |
+| mph_resum | 0/1 | Resumate the remaining terms of the phonon expansion via a saddle point: 0 No, 1 Yes | 0 |
+| T | K | Temperature | 294 |
+| density | g/cm^3 | Material density | 6.0 |
+| M | amu | Ion mass | 50.94 |
+| sigmaCoh | barns | Coherent scattering cross section | 0.0184 |
+| sigmaInc | barns | Incoherent scattering cross section | 5.08 |
+| dosfn | string | Path to the file that contains the DoS | "dos_meV.txt" |
+| nxs | 1 | Number of energy points at which the total cross sections are precomputed | 1000 |
+| kabsmin | AA^-1 | Lower cut-off for the neutron wave-vector k | 0.1 |
+| kabsmax | AA^-1 | Higher cut-off for the neutron wave-vector k | 25 |
+| interact_fraction | 1 | How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1) | -1 |
 
 ## Links
 

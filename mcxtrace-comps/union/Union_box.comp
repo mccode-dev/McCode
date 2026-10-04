@@ -58,6 +58,7 @@
 * focus_xh:   [m]   vert. dimension of a rectangular area
 * focus_r:    [m]   focusing on circle with this radius
 * target_index:          [1]      Focuses on component a component this many steps further in the component sequence
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * OUTPUT PARAMETERS:
 *
@@ -68,17 +69,14 @@
 
 DEFINE COMPONENT Union_box
 DEFINITION PARAMETERS ()
-SETTING PARAMETERS(string material_string=0, priority, xwidth, yheight, zdepth, xwidth2=-1, yheight2=-1, visualize=1, int target_index=0, target_x=0, target_y=0, target_z=0, focus_aw=0, focus_ah=0, focus_xw=0, focus_xh=0, focus_r=0, p_interact = 0, string mask_string=0, string mask_setting=0,number_of_activations=1)
+SETTING PARAMETERS(string material_string=0, priority, xwidth, yheight, zdepth, xwidth2=-1, yheight2=-1, visualize=1, int target_index=0, target_x=0, target_y=0, target_z=0, focus_aw=0, focus_ah=0, focus_xw=0, focus_xh=0, focus_r=0, p_interact = 0, string mask_string=0, string mask_setting=0,number_of_activations=1, string init="")
 OUTPUT PARAMETERS ()
 
 /* X-ray parameters: (x,y,z,kx,ky,kz ,phi, t, Ex,Ey,Ez,p) */
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Union_box requires the Union library. Add a Union_master component to load the libraries."
-
-  #endif
+  %include "union-lib"
 
   void
   mcdisplay_box_function (struct lines_to_draw* lines_to_draw_output, int index, struct geometry_struct** Geometries, int number_of_volumes) {
@@ -224,6 +222,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   // Initializes the focusing system for this volume including input sanitation.
   focus_initialize (&this_box_volume.geometry, POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, target_index,
                     target_x, target_y, target_z, focus_aw, focus_ah, focus_xw, focus_xh, focus_r, NAME_CURRENT_COMP);
@@ -250,8 +249,8 @@ INITIALIZE
     exit (1);
   }
 
-  // Get global variable from the auto-injected Union state
-  struct pointer_to_global_material_list* global_material_list = &g_material_list;
+  // Get global variable from the shared Union state
+  struct pointer_to_global_material_list* global_material_list = &union_state_p->u_material_list;
   // Use sanitation
   if (global_material_list->num_elements == 0) {
     printf ("\nERROR: Need to define a material using Union_make_material before using a Union geometry component. \n");
@@ -262,7 +261,7 @@ INITIALIZE
   this_box_volume.geometry.is_masked_volume = 0;
   this_box_volume.geometry.is_exit_volume = 0;
   this_box_volume.geometry.is_mask_volume = 0;
-  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
+  struct pointer_to_global_geometry_list* global_geometry_list = &union_state_p->u_geometry_list;
   // check if the volume is a mask, if it is the material string is irelevant.
   if (mask_string && strlen (mask_string) && strcmp (mask_string, "NULL") && strcmp (mask_string, "0")) {
     // A mask volume is used to limit the extend of other volumes, called the masked volumes. These are specified in the mask_string.
@@ -449,6 +448,11 @@ INITIALIZE
 
 TRACE
 %{
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

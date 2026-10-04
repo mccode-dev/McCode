@@ -158,6 +158,10 @@ void *Table_File_List_store(t_Table *tab){
 /*******************************************************************************
 * FILE *Open_File(char *name, char *Mode, char *path)
 *   ACTION: search for a file and open it. Optionally return the opened path.
+*           Searched: as given, then in the directories of the instrument file
+*           and executable, and in data/ and contrib/ of the McStas/McXtrace
+*           installation. Keep in sync with mccode_setup_ncrystal_search_paths()
+*           in mcstas-comps/share/mccode-ncrystal-lib.c.
 *   input   name:  file name from which table should be extracted
 *           mode: "r", "w", "a" or any valid fopen mode
 *           path:  NULL or a pointer to at least 1024 allocated chars
@@ -208,12 +212,6 @@ void *Table_File_List_store(t_Table *tab){
             hfile = fopen(path, Mode);
           }
         }
-      }
-      if (!hfile) /* search in HOME or . */
-      {
-        strcpy(dir, getenv("HOME") ? getenv("HOME") : ".");
-        snprintf(path, 1024, "%s%c%s", dir, MC_PATHSEP_C, File);
-        hfile = fopen(path, Mode);
       }
       if (!hfile) /* search in MCSTAS/data */
       {

@@ -259,6 +259,16 @@ At the time of the \MCS~3.6 release, \texttt{mcstas-antlr} is close to
 feature-complete for CPU simulations with a few more issues for GPU/OpenACC
 simulations.
 
+\subsubsection*{Alternative code generator: \texttt{mcstas-pygen}}
+\indexMCTOOL{mcstas-pygen}{}
+
+A third code generator, \texttt{mcstas-pygen}, targets McStasScript (a
+Python package for building and running \MCS instruments) rather than C:
+given an \texttt{.instr} file, it generates an equivalent McStasScript
+Python model instead of a C program. It is normally invoked indirectly,
+via \texttt{mcstas-jupylab} (section~\ref{s:jupylab}), rather than run
+directly by the user.
+
 
 %-------------------------------------------------------------------------------
 \subsection{Specifying the location of files}
@@ -811,7 +821,9 @@ run any tool with \verb+-h+ for its specific help):
 \begin{lstlisting}
     McStas Tools
        mcstas          Main instrument compiler
+       mcstas-pygen    Alternative code generator: McStasScript Python model
        mcrun           Instrument build and execution utility
+       mcstas-jupylab  Opens a generated instrument model in JupyterLab
        mcgui           Graphical User Interface instrument builder
        mcdoc           Component library documentation generator/viewer
        mcplot          Simulation result viewer (default: pyqtgraph backend)
@@ -1169,6 +1181,34 @@ any of the \verb+mcplot+ backends, see section~\ref{s:mcplot}.
 
 The \verb+-h+ option will list valid options; see also Table~\ref{f:mcrunoptions}
 for the complete, current option list.
+
+\subsection{Interactive notebooks (mcstas-jupylab)}
+\label{s:jupylab}
+\indexMCTOOL{mcstas-jupylab}{textbf}
+
+The \texttt{mcstas-jupylab} front-end offers an interactive,
+notebook-based alternative to editing an \texttt{.instr} file directly
+and running it via \texttt{mcgui}/\texttt{mcrun}. Given an instrument
+file:
+\begin{lstlisting}
+mcstas-jupylab name.instr
+\end{lstlisting}
+it first runs \texttt{mcstas-pygen} (see above) to translate the
+instrument into an equivalent McStasScript Python model, writes that
+model into a notebook (\texttt{\textit{name}\_generated.ipynb}) built
+from a template, and opens it in JupyterLab\footnote{A working
+\texttt{jupyter lab} installation is required; it is not currently
+bundled with the standard conda-forge \MCS package.}. From there the
+instrument can be inspected, modified and run cell by cell using
+McStasScript's own Python API, which is useful for exploratory work and
+for combining a simulation with other Python-based analysis in the same
+notebook.
+
+Note that this generates a McStasScript model \emph{once}, as a
+starting point; it is not kept in sync with later edits to the original
+\texttt{.instr} file, nor vice versa. See the McStasScript
+documentation~\cite{mcstasscript_union_tutorial} for the Python API
+itself.
 
 \subsection{GPU acceleration via OpenACC}
 \label{s:gpu}

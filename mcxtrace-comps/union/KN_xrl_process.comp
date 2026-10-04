@@ -36,6 +36,7 @@
 * %P
 * INPUT PARAMETERS:
 * density: [g/cm^3]       Nominal density of material.
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 * OUTPUT PARAMETERS:
 *
 * %L
@@ -46,17 +47,14 @@
 
 DEFINE COMPONENT KN_xrl_process
 DEFINITION PARAMETERS ()
-SETTING PARAMETERS (density=0)
+SETTING PARAMETERS (density=0, string init="")
 OUTPUT PARAMETERS (This_process,KN_xrl_storage)
 DEPENDENCY " @XRLFLAGS@ "
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: KN_xrl_process requires the Union library. Add a Union_master component to load the libraries."
-
-  #endif
+  %include "union-lib"
 
   #include <xraylib/xraylib.h>
 
@@ -125,6 +123,12 @@ SHARE
   #ifndef PROCESS_KN_XRL_DETECTOR
   #define PROCESS_KN_XRL_DETECTOR dummy
   #endif
+
+  // Register this process with the Union_master dispatch (see union-lib.h)
+  #undef UNION_CASE_PHYSICS_MY_KN_XRL
+  #define UNION_CASE_PHYSICS_MY_KN_XRL(out, ...) case KN_xrl: out = KN_xrl_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_KN_XRL
+  #define UNION_CASE_PHYSICS_SCATTERING_KN_XRL(out, ...) case KN_xrl: out = KN_xrl_physics_scattering(__VA_ARGS__); break;
 %}
 
 DECLARE
@@ -139,6 +143,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   // Initialize done in the component
   xrl_error* xe;
   KN_xrl_storage.rho = density;
@@ -163,7 +168,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  struct pointer_to_global_process_list* global_process_list = &g_process_list;
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 
@@ -174,6 +179,7 @@ TRACE
 FINALLY
 %{
   // Since the process and it's storage is a static allocation, there is nothing to deallocate
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

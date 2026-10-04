@@ -70,9 +70,9 @@ Parameters in **boldface** are required; the others are optional.
 | EI | meV | Incoming neutron energy. Also used to set range of energy monitors | 0 |
 | EF | meV | Outgoing neutron energy. Also used to set range of energy monitors | 0 |
 | EN | meV | Energy transferred in crystal | 0 |
-| SM | 1 |  | 1 |
+| SM | 1 | Scattering sense of beam from Monochromator | 1 |
 | SS | 1 | Scattering configuration signs. 'W' is SM=1,SS=-1,SA=1 | -1 |
-| SA | 1 |  | 1 |
+| SA | 1 | Scattering sense of beam from Analyzer | 1 |
 | QH | rlu | Measurement QH position in crystal | 0 |
 | QK | rlu | Measurement QK position in crystal | 0 |
 | QL | rlu | Measurement QL position in crystal | 0 |
@@ -100,19 +100,19 @@ Parameters in **boldface** are required; the others are optional.
 | PERSPEX | 1 | Flag to indicate if perspex attenuator is in or out | 0 |
 | SAMPLE | 1 | 1 is incoherent scatterer, 2 is powder, 3 is single crystal. | 1 |
 | SAMPLEFILE | string | Name of samplefile (with reflectionlist etc) | "default" |
-| MOS |  | Isotropic 'mosaicity' of single crystal | 100 |
+| MOS | arcmin | Isotropic 'mosaicity' of single crystal | 100 |
 | DD_D |  | spead of lattice parameter | 1e-3 |
 | SAMPLESIZE | m | Length, height and width of single crystal sample, or radius and height of phonon sample | 0.01 |
 | BARNS | 1 | If set the flag indicates that reflection list structure factors are in units of barns, otherwise fm^2 | 1 |
-| AAX |  |  | -4.95 |
-| AAY |  | Orientation vector of unit cell, single_crystal | 0 |
-| AAZ |  |  | 0 |
-| BBX |  |  | 0 |
-| BBY |  | Orientation vector of unit cell, single_crystal | 0 |
-| BBZ |  |  | 4.95 |
-| CCX |  |  | 0 |
-| CCY |  | Orientation vector of unit cell, single_crystal | 4.95 |
-| CCZ |  |  | 0 |
+| AAX | AA | x-coordinate of unit cell vector a, single_crystal | -4.95 |
+| AAY | AA | y-coordinate of unit cell vector a, single_crystal | 0 |
+| AAZ | AA | z-coordinate of unit cell vector a, single_crystal | 0 |
+| BBX | AA | x-coordinate of unit cell vector b, single_crystal | 0 |
+| BBY | AA | y-coordinate of unit cell vector b, single_crystal | 0 |
+| BBZ | AA | z-coordinate of unit cell vector b, single_crystal | 4.95 |
+| CCX | AA | x-coordinate of unit cell vector c, single_crystal | 0 |
+| CCY | AA | y-coordinate of unit cell vector c, single_crystal | 4.95 |
+| CCZ | AA | z-coordinate of unit cell vector c, single_crystal | 0 |
 | A1 | deg | Monohromator rotation angle | 0 |
 | A2 | deg | Monohromator take-off angle | 0 |
 | A3 | deg | Sample rotation angle | 0 |

@@ -52,6 +52,7 @@
 * focus_xw:   [m]   horiz. dimension of a rectangular area
 * focus_xh:   [m]   vert. dimension of a rectangular area
 * focus_r:   [m]   focusing on circle with this radius
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * OUTPUT PARAMETERS:
 *
@@ -62,17 +63,14 @@
 
 DEFINE COMPONENT Union_cylinder
 DEFINITION PARAMETERS ()
-SETTING PARAMETERS(string material_string=0, priority, radius, yheight, visualize=1, int target_index=0, target_x=0, target_y=0, target_z=0, focus_aw=0, focus_ah=0, focus_xw=0, focus_xh=0, focus_r=0, p_interact=0, string mask_string=0, string mask_setting=0,number_of_activations=1)
+SETTING PARAMETERS(string material_string=0, priority, radius, yheight, visualize=1, int target_index=0, target_x=0, target_y=0, target_z=0, focus_aw=0, focus_ah=0, focus_xw=0, focus_xh=0, focus_r=0, p_interact=0, string mask_string=0, string mask_setting=0,number_of_activations=1, string init="")
 OUTPUT PARAMETERS ()
 
 /* X-ray parameters: (x,y,z,kx,ky,kz ,phi, t, Ex,Ey,Ez,p) */
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Union_cylinder requires the Union library. Add a Union_master component to load the libraries."
-
-  #endif
+  %include "union-lib"
 
   void
   mcdisplay_cylinder_function (struct lines_to_draw* lines_to_draw_output, int index, struct geometry_struct** Geometries, int number_of_volumes) {
@@ -178,6 +176,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   // Initializes the focusing system for this volume including input sanitation.
   focus_initialize (&this_cylinder_volume.geometry, POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, target_index,
                     target_x, target_y, target_z, focus_aw, focus_ah, focus_xw, focus_xh, focus_r, NAME_CURRENT_COMP);
@@ -193,7 +192,7 @@ INITIALIZE
     exit (1);
   }
 
-  struct pointer_to_global_material_list* global_material_list = &g_material_list;
+  struct pointer_to_global_material_list* global_material_list = &union_state_p->u_material_list;
   // Use sanitation
   #ifdef MATERIAL_DETECTOR
   if (global_material_list->num_elements == 0) {
@@ -211,7 +210,7 @@ INITIALIZE
   this_cylinder_volume.geometry.is_masked_volume = 0;
   this_cylinder_volume.geometry.is_exit_volume = 0;
   this_cylinder_volume.geometry.is_mask_volume = 0;
-  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
+  struct pointer_to_global_geometry_list* global_geometry_list = &union_state_p->u_geometry_list;
 
   // Read the material input, or if it lacks, use automatic linking.
   if (mask_string && strlen (mask_string) && strcmp (mask_string, "NULL") && strcmp (mask_string, "0")) {
@@ -345,6 +344,11 @@ INITIALIZE
 
 TRACE
 %{
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

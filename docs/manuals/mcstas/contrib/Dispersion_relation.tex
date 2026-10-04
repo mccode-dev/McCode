@@ -1,0 +1,82 @@
+\section{The \texttt{Dispersion\_relation} McStas Component}
+A sample for magnon or phonon scattering based on numerical cross sections
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Daniel Lomholt Christensen and Kim Lefmann
+  \item \textbf{Origin:} NBI
+  \item \textbf{Date:} 22.06.23
+\end{itemize}
+
+\subsection*{Description}
+Single-cylinder shape. Absorption included. No multiple scattering. No incoherent scattering emitted. No attenuation from coherent scattering. No Bragg scattering. Any crystal system: the unit cell is given either by its lengths and angles (a, b, c, aa, bb, cc) or by its real-space lattice vectors (ax ... cz).
+
+Algorithm: 0. Always perform the scattering if possible (otherwise ABSORB) 1. Choose a dispersion mode, a scattering point and a direction within a focusing solid angle 2. Calculate the zeros of (E\_i-E\_f-hbar omega(kappa)) as a function of k\_f 3. Choose one value of k\_f (always at least one is possible!) 4. Perform the correct weight transformation
+
+Dispersion files: folder\_path holds one file per dispersion mode. Each file has the columns
+
+\begin{verbatim}
+h  k  l  E  I
+\end{verbatim}
+
+on a regular grid covering one unit cell in reciprocal lattice units: h, k, l are the coordinates of q along the reciprocal lattice vectors a*, b*, c*, h = a.q/(2 pi) and so on. For a cell with 90 degree angles and no vectors given, a*, b*, c* lie along the sample x, y, z axes, as a, b, c do in SpinWave\_BCO and Phonon\_simple. E [meV] is the mode energy and I [barn/sr per unit cell of the given lattice] is the partial differential scattering cross section of the mode, as the factor in front of the delta function: d2sigma/dOmega dE\_f = (k\_f/k\_i) * DW * I(q) * n\_B * delta(hbar omega - E(q)). The component adds k\_f/k\_i, the Debye-Waller factor DW and the Bose factor n\_B = n(omega) + 1 for neutron energy loss and n(omega) for energy gain, so I should not include them. I is looked up at the scattering vector folded into the unit cell.
+
+Weight: p *= exp(-mu l) * dOmega * l\_full * m * n\_modes * rho\_cell
+
+\begin{verbatim}
+* (k_f/k_i) * DW * I(q) * n_B * |dE_f/d(E(q) - |E_i - E_f|)|
+\end{verbatim}
+
+with l the path length in the sample, dOmega the focusing solid angle, l\_full the path length without scattering, m the number of final velocities found, n\_modes the number of dispersion files and rho\_cell the density of unit cells.
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+\textbf{radius} & m & Outer radius of sample in (x,z) plane. &  \\
+\textbf{yheight} & m & Height of sample in y direction. &  \\
+\textbf{sigma\_abs} & barns & Absorption cross section at 2200 m/s per unit cell. &  \\
+\textbf{sigma\_inc} & barns & Incoherent scattering cross section per unit cell. &  \\
+a & \AA{} & Lattice constant, length of the a vector. & 0 \\
+b & \AA{} & Lattice constant, length of the b vector. & 0 \\
+c & \AA{} & Lattice constant, length of the c vector. & 0 \\
+\textbf{DW} & 1 & Debye-Waller factor. &  \\
+\textbf{T} & K & Temperature. &  \\
+aa & deg & Angle alpha between b and c. & 90 \\
+bb & deg & Angle beta between a and c. & 90 \\
+cc & deg & Angle gamma between a and b with lengths and angles, a lies along x, b in the x-y plane and c completes a right handed set. With 90 degree angles, a, b, c lie along x, y, z. & 90 \\
+ax & \AA{} & x component of the real-space lattice vector a. If any of ax ... cz is non-zero, the vectors are used as given in the component frame and a, b, c, aa, bb, cc are ignored. & 0 \\
+ay & \AA{} & y component of a. & 0 \\
+az & \AA{} & z component of a. & 0 \\
+bx & \AA{} & x component of b. & 0 \\
+by & \AA{} & y component of b. & 0 \\
+bz & \AA{} & z component of b. & 0 \\
+cx & \AA{} & x component of c. & 0 \\
+cy & \AA{} & y component of c. & 0 \\
+cz & \AA{} & z component of c. & 0 \\
+\textbf{folder\_path} &  & Folder with one dispersion file per mode, see above. &  \\
+target\_x & m & position of target to focus at . Transverse coordinate. & 0 \\
+target\_y & m & position of target to focus at. Vertical coordinate. & 0 \\
+target\_z & m & position of target to focus at. Straight ahead. & 0 \\
+target\_index & 1 & relative index of component to focus at, e.g. next is +1. & 0 \\
+focus\_r & m & Radius of sphere containing target. & 0 \\
+focus\_xw & m & horiz. dimension of a rectangular area. & 0 \\
+focus\_yh & m & vert.  dimension of a rectangular area. & 0 \\
+focus\_aw & deg & horiz. angular dimension of a rectangular area. & 0 \\
+focus\_ah & deg & vert.  angular dimension of a rectangular area. & 0 \\
+e\_steps\_low & 1 & Number of intervals the final velocity is searched in for roots on the energy loss side of the elastic line. & 100 \\
+e\_steps\_high & 1 & Number of intervals on the energy gain side. Each interval holds at most one root, so two roots closer than an interval are missed: increase these for steep or crossing modes. & 100 \\
+verbose & 1 & Prints information about the component if set to 1. & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Dispersion\_relation.comp}.
+  \item The test instrument \htmladdnormallink{Test\_Dispersion\_relation\_TAS.instr}{../examples/Tests\_samples/Test\_Dispersion\_relation\_TAS/Test\_Dispersion\_relation\_TAS.instr}.
+\end{itemize}
+\IfFileExists{contrib/Dispersion_relation_static.tex}{\input{contrib/Dispersion_relation_static.tex}}{}

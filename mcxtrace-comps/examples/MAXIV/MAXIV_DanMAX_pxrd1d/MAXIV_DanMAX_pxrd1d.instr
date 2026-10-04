@@ -55,7 +55,7 @@ DEFINE INSTRUMENT MAXIV_DanMAX_pxrd1d(E0=35,DE=0.05,undK=0,undDetune=4,
         PXRDsampleap_h=300e-6, PXRDsampleap_w=300e-6,
         DMM_angle=0, DCM_angle=0,
         DCM=1, DMM=0,
-        OH_2DCRL_N=11, EH_2DCRL_N=0, D_EH_2DCRL=0,
+        OH_2DCRL_N=11,
         PXRD_SIMPLE=1, sample_radius=100e-6,
         pxrd_strip_tth0=0, 
         debugMon=1, beamStop=0, int SPLITS=1410)
@@ -88,10 +88,6 @@ DECLARE
     const double oh_2dcrl_r=200e-6;
     int oh_2dcrl_N;
 
-    double eh_2dcrl_ap=0.2e-3;
-    const double eh_2dcrl_r=50e-6;
-    int eh_2dcrl_N;
-    double d_eh_2dcrl;
 
     double pxrd_sampleap_h;
     double pxrd_sampleap_w;
@@ -215,8 +211,6 @@ INITIALIZE
     printf("z ml mono offset is: %g, z si mono offset is: %g\n",DMM_d,DCM_d);
 
     oh_2dcrl_N=OH_2DCRL_N;
-    eh_2dcrl_N=EH_2DCRL_N;
-    d_eh_2dcrl=D_EH_2DCRL;
 
     dm_strip_deth=1280*50e-6;
     dm_strip_detw=8e-3;
@@ -459,20 +453,6 @@ AT(0,0,0) RELATIVE Imaging
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 /*XXX                                PXRD                                  XXX*/
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-/*XXX                        CRL FOCUS AT PXRD 2D                          XXX*/
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-/*COMPONENT eh_pre_crl_mon = COPY(src_mon)(filename="eh_pre_crl_mon")*/
-/*AT(0,0,d_eh_2dcrl-0.02) RELATIVE Imaging*/
-/**/
-/*COMPONENT eh_2dcrl_guard=Slit(radius=eh_2dcrl_ap)*/
-/*WHEN(EH_2DCRL_N) AT(0,0,d_eh_2dcrl-0.01) RELATIVE Imaging*/
-/**/
-/*COMPONENT eh_2dcrl= Lens_parab(*/
-/*        r=eh_2dcrl_r, r_ap=eh_2dcrl_ap, material_datafile="Be.txt", N=eh_2dcrl_N, d=30e-6)*/
-/*WHEN (EH_2DCRL_N) AT(0,0,d_eh_2dcrl) RELATIVE Imaging*/
 
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 /*XXX                               PXRD_1D                                XXX*/

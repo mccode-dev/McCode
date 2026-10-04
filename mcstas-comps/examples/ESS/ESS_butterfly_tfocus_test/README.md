@@ -40,9 +40,9 @@ Parameters in **boldface** are required; the others are optional.
 | cold | 1 | Defines the statistical fraction of events emitted from the cold part of the moderator | 0.5 |
 | Yheight | m | Defines the moderator height. Valid values are 0.03 m and 0.06 m | 0.03 |
 | delta | m | Parameter that allows to scan "collimator" position | 0 |
-| tfocus_dist |  |  | 10 |
-| tfocus_time |  |  | 0.01 |
-| tfocus_width |  |  | 0.001 |
+| tfocus_dist | m | Position of time focusing window along z axis | 10 |
+| tfocus_time | s | Time position of time focusing window | 0.01 |
+| tfocus_width | s | Time width of time focusing window | 0.001 |
 
 ## Links
 

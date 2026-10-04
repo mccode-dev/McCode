@@ -1,0 +1,129 @@
+/*****************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+*
+* Component: NCrystal_filter
+*
+* %I
+* Written by: Thomas Kittelmann
+* Date: 2026
+* Origin: ESS
+*
+* Filter or window (box or cylinder) of a material from NCrystal, which only
+* attenuates the beam. Simple, fast and GPU friendly.
+*
+* %D
+* A filter or window of an isotropic material, which attenuates the beam
+* according to the total cross section (scattering plus absorption) of the
+* material, as provided by the NCrystal library. Neutrons are not scattered:
+* the weight of a neutron travelling a distance L through the material is
+* multiplied by exp(-sigma*L), where sigma is the macroscopic cross section
+* at its wavelength. This is suitable for e.g. Be filters or Al windows, where
+* the scattered neutrons are not of interest. For the full NCrystal physics,
+* use NCrystal_sample or the Union components instead.
+*
+* The cross sections are tabulated during initialisation, so the component can
+* also be used on GPUs. The table is provided by NCrystal itself, unless the C
+* API function ncrystal_filtertable is not available, in which case the
+* component will create the table itself as a fallback workaround.
+*
+* The material is given by an NCrystal cfg-string, e.g.
+* "stdlib::Be_sg194.ncmat;temp=80K" for a cooled Be filter, or "mycrystal.ncmat"
+* for a local file. Oriented materials such as single crystals are not
+* supported, but a fast sapphire filter can be emulated with an assumption that
+* no reflections satisfy the Bragg condition:
+* "stdlib::Al2O3_sg167_Corundum.ncmat;bragg=0;temp=200K". Multiphase materials
+* are also supported:
+* "phases<0.98*stdlib::Al_sg225.ncmat&0.01*stdlib::Fe_sg229_Iron-alpha.ncmat&0.01*stdlib::Si_sg227.ncmat>;temp=180K".
+*
+* The geometry is a box (xwidth, yheight, zdepth) or a cylinder (radius,
+* yheight) along the y axis.
+*
+* %P
+* cfg:     [str] NCrystal material configuration string (details <a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">on this page</a>).
+* xwidth:  [m]   x-dimension (width) of the filter, for a box
+* yheight: [m]   y-dimension (height) of the filter, for a box or cylinder
+* zdepth:  [m]   z-dimension (depth) of the filter, for a box
+* radius:  [m]   radius of the filter, for a cylinder
+*
+* %L
+* The NCrystal wiki at <a href="https://github.com/mctools/ncrystal/wiki">https://github.com/mctools/ncrystal/wiki</a>.
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT NCrystal_filter
+SETTING PARAMETERS (string cfg="void", xwidth=0, yheight=0, zdepth=0, radius=0)
+DEPENDENCY "@NCRYSTALFLAGS@"
+
+SHARE
+%{
+  %include "mccode-ncrystal-lib"
+%}
+
+DECLARE
+%{
+  int isbox;
+  mccode_ncrystal_xstable_t xstable;
+%}
+
+INITIALIZE
+%{
+  isbox = (xwidth > 0 && yheight > 0 && zdepth > 0);
+  if (!isbox && !(radius > 0 && yheight > 0)) {
+    fprintf (stderr, "%s: ERROR: specify xwidth, yheight and zdepth for a box, or radius and yheight for a cylinder\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (isbox && radius > 0) {
+    fprintf (stderr, "%s: ERROR: specify either a box or a cylinder, not both\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  mccode_init_ncrystal_xstable (&xstable, cfg, NAME_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  double t0, t1, v, L, wavelength;
+  int hit;
+  if (isbox)
+    hit = box_intersect (&t0, &t1, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
+  else
+    hit = cylinder_intersect (&t0, &t1, x, y, z, vx, vy, vz, radius, yheight);
+  if (hit && t1 > 0) {
+    if (t0 < 0)
+      t0 = 0;
+    v = sqrt (vx * vx + vy * vy + vz * vz);
+    L = v * (t1 - t0);
+    wavelength = 2 * PI / (V2K * v);
+    p *= exp (-L * mccode_eval_ncrystal_xstable (&xstable, wavelength));
+    PROP_DT (t1);
+    SCATTER;
+  }
+%}
+
+FINALLY
+%{
+  mccode_free_ncrystal_xstable (&xstable);
+%}
+
+MCDISPLAY
+%{
+  if (isbox)
+    mcdis_box (0., 0., 0., xwidth, yheight, zdepth, 0, 0, 1, 0);
+  else
+    mcdis_cylinder (0., 0., 0., radius, yheight, 0, 0.0, 1.0, 0.0);
+%}
+
+END

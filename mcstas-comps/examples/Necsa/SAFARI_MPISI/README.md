@@ -44,7 +44,7 @@ Parameters in **boldface** are required; the others are optional.
 | inc_slit_to_cor | m | Incident slit to sample stage center of rotation | 0.005 |
 | inc_slit_width | m | Incident slit width 0.00013m to 0.005m | 0.005 |
 | inc_slit_height | m | Incident slit height 0m to 0.02m | 0.02 |
-| inc_slit_sep |  | Incident slit separation between width and height. <0:use emperical calc, >=0:distance in m | -1 |
+| inc_slit_sep | m | Incident slit separation between width and height. <0:use emperical calc, >=0:distance in m | -1 |
 | mono_to_cor | m | Distance between monochromator and center of rotation | 2.5 |
 | sample_dx | m | Sample delta x - positive to left of incident beam if sample_dom=0 | 0 |
 | sample_dy | m | Sample delta y - positive upword of incident beam | 0 |

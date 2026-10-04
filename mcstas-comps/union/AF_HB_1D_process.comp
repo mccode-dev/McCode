@@ -42,6 +42,7 @@
 * atom_distance:     [AA]       Distance between atom's in chain
 * packing_factor:    [1]        How dense is the material compared to optimal 0-1
 * interact_fraction: [1]        How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * CALCULATED PARAMETERS:
 * Template_storage          // Important to update this output paramter
@@ -56,14 +57,12 @@
 
 DEFINE COMPONENT AF_HB_1D_process // Remember to change the name of process here
 
-SETTING PARAMETERS(atom_distance=1, number_density=0, unit_cell_volume=0, A_constant=1, J_interaction=1, packing_factor=1, interact_fraction=-1)
+SETTING PARAMETERS(atom_distance=1, number_density=0, unit_cell_volume=0, A_constant=1, J_interaction=1, packing_factor=1, interact_fraction=-1, string init="")
 
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: AF_HB_1D_process requires the Union library. Add a Union_master component to load the libraries."
-  #endif
+  %include "union-lib"
 
   struct physical_constants_AF_HB_1D {
     // List of constants to be passed between functions
@@ -76,7 +75,7 @@ SHARE
     // double weight_factor;
   };
 
-  // Very important to add a pointer to this struct in the union-lib.c file
+  // Very important to add a pointer to this struct in the union-lib.h file
   struct AF_HB_1D_physics_storage_struct {
     // Variables that needs to be transfered between any of the following places:
     // The initialize in this component
@@ -256,6 +255,12 @@ SHARE
   #ifndef PROCESS_AF_HB_1D_DETECTOR
   #define PROCESS_AF_HB_1D_DETECTOR dummy
   #endif
+
+  // Register this process with the Union_master dispatch (see union-lib.h)
+  #undef UNION_CASE_PHYSICS_MY_AF_HB_1D
+  #define UNION_CASE_PHYSICS_MY_AF_HB_1D(out, ...) case AF_HB_1D: out = AF_HB_1D_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_AF_HB_1D
+  #define UNION_CASE_PHYSICS_SCATTERING_AF_HB_1D(out, ...) case AF_HB_1D: out = AF_HB_1D_physics_scattering(__VA_ARGS__); break;
 %}
 
 DECLARE
@@ -273,6 +278,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
 
   if ((unit_cell_volume == 0) && (number_density == 0)) {
     printf ("ERROR in Union process AF_HB_1D named %s, set either unit_cell_volume or number_density.\n", NAME_CURRENT_COMP);
@@ -348,13 +354,18 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  struct pointer_to_global_process_list* global_process_list = &g_process_list;
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 
 TRACE
 %{
   // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

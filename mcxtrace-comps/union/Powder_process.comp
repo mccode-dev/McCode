@@ -51,6 +51,7 @@
 * target_index:      [1]         Relative index of component to focus at, e.g. next is +1
 * material:          [str]       Reflection list for power
 * mat_format:        [vector]    List order in reflection list file
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * OUTPUT PARAMETERS:
 *
@@ -60,16 +61,13 @@
 
 DEFINE COMPONENT Powder_process
 DEFINITION PARAMETERS ()
-SETTING PARAMETERS(string reflections="NULL", string material="NULL",packing_factor=1, Vc=0, delta_d_d=0, DW=0, nb_atoms=1, density=0, weight=0, barns=1, Strain=0, interact_fraction=-1, vector format={0, 0, 0, 0, 0, 0, 0, 0, 0}, vector mat_format={0,0,0,0,0})
+SETTING PARAMETERS(string reflections="NULL", string material="NULL",packing_factor=1, Vc=0, delta_d_d=0, DW=0, nb_atoms=1, density=0, weight=0, barns=1, Strain=0, interact_fraction=-1, vector format={0, 0, 0, 0, 0, 0, 0, 0, 0}, vector mat_format={0,0,0,0,0}, string init="")
 OUTPUT PARAMETERS ()
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Powder_process requires the Union library. Add a Union_master component to load the libraries."
-
-  #endif
+  %include "union-lib"
 
   // Share section of PowderN
 
@@ -712,6 +710,12 @@ SHARE
   #ifndef PROCESS_POWDER_DETECTOR
   #define PROCESS_POWDER_DETECTOR dummy
   #endif
+
+  // Register this process with the Union_master dispatch (see union-lib.h)
+  #undef UNION_CASE_PHYSICS_MY_POWDER
+  #define UNION_CASE_PHYSICS_MY_POWDER(out, ...) case Powder: out = Powder_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_POWDER
+  #define UNION_CASE_PHYSICS_SCATTERING_POWDER(out, ...) case Powder: out = Powder_physics_scattering(__VA_ARGS__); break;
 %}
 
 DECLARE
@@ -731,6 +735,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   // Initialize done in the component
   Powder_storage.my_scattering = effective_my_scattering;
   columns = format;
@@ -860,7 +865,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  struct pointer_to_global_process_list* global_process_list = &g_process_list;
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
 %}
 
@@ -874,6 +879,7 @@ FINALLY
   free (line_info.q);
   free (line_info.w);
   free (line_info.my_s_k2);
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

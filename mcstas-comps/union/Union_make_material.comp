@@ -38,6 +38,7 @@
 * refraction_density:   [g/cm^3]  Density of the refracting material. density < 0 means the material is outside/before the shape.
 * refraction_weight:    [g/mol]  Molar mass of the refracting material
 * refraction_SLD:       [AA^-2]  Scattering length density of material (overwrites sigma_coh, density and weight)
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * CALCULATED PARAMETERS:
 * this_material:            Structure that contains information on this material
@@ -54,15 +55,13 @@
 DEFINE COMPONENT Union_make_material
 
 SETTING PARAMETERS(string process_string="NULL", my_absorption,absorber=0, 
-                    refraction_density=0, refraction_sigma_coh=0, refraction_weight=0,  refraction_SLD=-1500
+                    refraction_density=0, refraction_sigma_coh=0, refraction_weight=0,  refraction_SLD=-1500, string init=""
 			   )
 
 SHARE
 %{
 
-  #ifndef Union
-  #error "ERROR: Union_make_material requires the Union library. Add a Union_master component to load the libraries."
-  #endif
+  %include "union-lib"
 
   // This function checks if global_process_element should be included in this material when using automatic linking, returns 1 if yes, 0 if no.
   int
@@ -130,8 +129,10 @@ SHARE
     }
   }
 
-  // This function is needed in initialize of all geometry components
-  // Possible to insert these functions in make material, as they are only compiled once instead of many times
+  // This function is needed in initialize of all geometry components.
+  // Possible to insert these functions in make material, as they are only compiled once instead of many times.
+  #ifndef UNION_MANUAL_LINKING_FUNCTION
+  #define UNION_MANUAL_LINKING_FUNCTION
   int
   manual_linking_function (char* name, char* input_string) {
     // Need to check a input_string of text for an occurance of name. If it is in the inputstring, yes return 1, otherwise 0.
@@ -153,6 +154,7 @@ SHARE
 
     return return_integer;
   }
+  #endif
 
   #ifndef MATERIAL_DETECTOR
   #define MATERIAL_DETECTOR dummy
@@ -180,6 +182,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
 
   accepted_processes.num_elements = 0;
   accepted_processes.elements = NULL;
@@ -197,8 +200,8 @@ INITIALIZE
     exit (1);
   }
 
-  struct pointer_to_global_process_list* global_process_list = &g_process_list;
-  struct pointer_to_global_material_list* global_material_list = &g_material_list;
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
+  struct pointer_to_global_material_list* global_material_list = &union_state_p->u_material_list;
 
   if (absorber == 0) {
     if (process_string && strlen (process_string) && strcmp (process_string, "NULL") && strcmp (process_string, "0")) {
@@ -287,42 +290,7 @@ FINALLY
     free (this_material.p_scattering_array);
   if (accepted_processes.num_elements > 0)
     free (accepted_processes.elements);
-
-  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
-  struct pointer_to_global_master_list* global_master_list = &g_master_list;
-
-  // Checking if any Union volumes are defined after the master component
-  #ifdef MASTER_DETECTOR
-  #ifdef ANY_GEOMETRY_DETECTOR_DECLARE
-  #ifndef MASTER_DETECTOR_WARNING
-
-  for (loop_index = 0; loop_index < global_geometry_list->num_elements; loop_index++) {
-    if (global_geometry_list->elements[loop_index].component_index > global_master_list->elements[global_master_list->num_elements - 1].component_index) {
-      printf ("WARNING: No Union_master component defined after Union volume named %s, this components did not affect the simulation in any way.\n",
-              global_geometry_list->elements[loop_index].name);
-    }
-  }
-  // Decided to have this as a warning without exiting the simulation
-  // In order to only show this warning once, the MASTER_DETECTOR_WARNING is defined
-  #define MASTER_DETECTOR_WARNING dummy
-  #endif
-  #endif
-  #endif
-
-  // Checking if the user remembered to put in a Union_master
-  #ifndef MASTER_DETECTOR
-  #ifdef ANY_GEOMETRY_DETECTOR_DECLARE
-  #ifndef MASTER_DETECTOR_WARNING
-  printf ("\nWARNING: No Union_master component used, these components did not affect the simulation in any way:\n");
-  for (loop_index = 0; loop_index < global_geometry_list->num_elements; loop_index++)
-    printf ("  %s\n", global_geometry_list->elements[loop_index].name);
-  printf ("\n");
-  // Decided to have this as a warning without exiting the simulation
-  // In order to only show this warning once, the MASTER_DETECTOR_WARNING is defined
-  #define MASTER_DETECTOR_WARNING dummy
-  #endif
-  #endif
-  #endif
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END
