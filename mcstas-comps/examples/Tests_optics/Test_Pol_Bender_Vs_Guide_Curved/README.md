@@ -18,6 +18,10 @@ The intensity on the monitor should be roughly 0.000228
 with mean 8.65+-0.62 AA.
 ```
 
+## Examples
+
+- **Test: guideLength=10 Detector: psdGuide_I=0.0022**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

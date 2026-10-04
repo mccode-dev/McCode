@@ -129,6 +129,15 @@
 * if 'cif2hkl' is installed. The CIF2HKL env variable can be used to point to a
 * proper executable, else the McCode, then the system installed versions are used.
 *
+* <b>NCrystal materials</b>
+* The 'reflections' parameter can also be an NCrystal cfg-string (containing
+* ".ncmat" or "::"), e.g. "stdlib::Al_sg225.ncmat" or "mycrystal.ncmat". The
+* reflections, lattice parameters and cross sections are then taken from
+* NCrystal. The material must have exactly one crystalline phase (but may also
+* have non-crystalline phases), and must not specify an orientation, as that
+* is defined by the component. Only Bragg diffraction, absorption and
+* incoherent scattering are modelled. For the full NCrystal physics, use the
+* NCrystal_sample component, or the NCrystal_process component with Union.
 * See the Component Manual for more defails.
 *
 * Example: Single_crystal(xwidth=0.01, yheight=0.01, zdepth=0.01, mosaic = 5, reflections="YBaCuO.lau")
@@ -173,15 +182,15 @@
 *
 * recip_cell: [1]                                         Choice of direct/reciprocal (0/1) unit cell definition
 * ax: [AA or AA^-1]                                       Coordinates of first (direct/recip) unit cell vector 
-* ay: []                                                  a on y axis
-* az: []                                                  a on z axis
+* ay: [AA or AA^-1]                                       a on y axis
+* az: [AA or AA^-1]                                       a on z axis
 * bx: [AA or AA^-1]                                       Coordinates of second (direct/recip) unit cell vector
-* bz: []                                                  b on z axis
-* by: []                                                  b on y axis
+* bz: [AA or AA^-1]                                       b on z axis
+* by: [AA or AA^-1]                                       b on y axis
 * cx: [AA or AA^-1]                                       Coordinates of third (direct/recip) unit cell vector
-* cy: []                                                  c on y axis
-* cz: []                                                  c on z axis
-* reflections: [string]                                   File name containing structure factors of reflections (LAZ LAU CIF, FullProf, ShelX). Use empty ("") or NULL for incoherent scattering only
+* cy: [AA or AA^-1]                                       c on y axis
+* cz: [AA or AA^-1]                                       c on z axis
+* reflections: [string]                                   File name containing structure factors of reflections (LAZ LAU CIF, FullProf, ShelX, NCrystal). Use empty ("") or NULL for incoherent scattering only
 * order: [1]                                              Limit multiple scattering up to given order (0: all, 1: first, 2: second, ...)
 * extra_order: [1]                                        When using order, allow additional multiple scattering without coherent scattering, sensible with very large unit cells (0: disable, 1: one extra, 2: two extra, ...)
 *
@@ -198,14 +207,14 @@
 * RY: [m]                                                 Radius of vertical along Y lattice curvature. flat for 0
 * powder: [1]                                             Flag to indicate powder mode, for simulation of Debye-Scherrer cones via random crystallite orientation. A powder texture can be approximated with 0<powder<1
 * PG: [1]                                                 Flag to indicate "Pyrolytic Graphite" mode, only meaningful with choice of Graphite.lau, models PG crystal. A powder texture can be approximated with 0<PG<1 with main axis on 'c'
-* deltak: [AA-1]                                          Equality-threshold for use in SPLIT settings. If difference between all ki_{x,y,z} are less than deltak from previous particle, the two are considered alike enough to jump directly to the MC choice between 'active' reflections 
+* deltak: [AA^-1]                                          Equality-threshold for use in SPLIT settings. If difference between all ki_{x,y,z} are less than deltak from previous particle, the two are considered alike enough to jump directly to the MC choice between 'active' reflections 
 *
 * CALCULATED PARAMETERS:
 *
 * hkl_info: [structure]                                   Internal
 * hkl_info.type: interaction type of event 't'=Transmit, 'i'=Incoherent, 'c'=Coherent [char]
 * hkl_info.h:
-* hkl_info.k: wavevector indices of last coherent scattering event [Angs-1]
+* hkl_info.k: wavevector indices of last coherent scattering event [AA^-1]
 * hkl_info.l:
 *
 * %L
@@ -293,6 +302,7 @@ cx = 0, cy = 0, cz = 0,
 p_transmit = 0.001, sigma_abs = 0, sigma_inc = 0,
 aa=0, bb=0, cc=0, order=0, extra_order=0, RX=0, RY=0, powder=0, PG=0,
 deltak=1e-6)
+DEPENDENCY "@NCRYSTALFLAGS@"
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 SHARE
@@ -501,6 +511,153 @@ SHARE
   #endif
 
   /* ------------------------------------------------------------------------ */
+  /* Support for reflections given as NCrystal cfg-strings */
+
+  %include "mccode-ncrystal-lib"
+
+  // The incoherent cross section per atom of an NCrystal material.
+  double
+  ncrystalsx_determine_sigma_inc (ncrystal_info_t ncobj) {
+    unsigned ncomps = ncrystal_info_ncomponents (ncobj);
+    double sum = 0.0;
+    for (unsigned icomp = 0; icomp < ncomps; ++icomp) {
+      double fraction;
+      unsigned atomdataidx; // unused
+      ncrystal_info_getcomponent (ncobj, icomp, &atomdataidx, &fraction);
+      ncrystal_atomdata_t atomdata = ncrystal_create_component_atomdata (ncobj, icomp);
+      const char* displaylabel;
+      const char* description;
+      double mass, incxs, cohsl_fm, absxs;
+      unsigned nsubcomponents, zval, aval;
+      ncrystal_atomdata_getfields (atomdata, &displaylabel, &description, &mass, &incxs, &cohsl_fm, &absxs, &nsubcomponents, &zval, &aval);
+      ncrystal_unref (&atomdata);
+      sum += incxs * fraction;
+    }
+    return sum;
+  }
+
+  // Find the crystalline phases (with reflections) of an NCrystal material,
+  // recursively for multiphase materials. The first one found is returned in
+  // *found (with an extra reference) and its volume fraction in *found_fraction.
+  void
+  ncrystalsx_find_crystalline_phases (ncrystal_info_t ncobj, double fraction, ncrystal_info_t* found, double* found_fraction, int* nfound) {
+    int nphases = ncrystal_info_nphases (ncobj);
+    if (nphases > 0) {
+      for (int iphase = 0; iphase < nphases; ++iphase) {
+        double phase_fraction;
+        ncrystal_info_t phase = ncrystal_info_getphase (ncobj, iphase, &phase_fraction);
+        ncrystalsx_find_crystalline_phases (phase, fraction * phase_fraction, found, found_fraction, nfound);
+        ncrystal_unref (&phase);
+      }
+    } else if (ncrystal_info_nhkl (ncobj) > 0) {
+      if (++(*nfound) == 1) {
+        *found = ncobj;
+        ncrystal_ref (found);
+        *found_fraction = fraction;
+      }
+    }
+  }
+
+  // Fill the table with the reflections of the NCrystal material, like the
+  // one read from a reflection file (columns h, k, l, |F|^2 and header).
+  void
+  read_hkl_table_ncrystal (const char* cfgstr, t_Table* table) {
+    mccode_setup_ncrystal_search_paths ();
+    ncrystal_scatter_t scat = ncrystal_create_scatter (cfgstr);
+    const int nonoriented = ncrystal_isnonoriented (ncrystal_cast_scat2proc (scat));
+    ncrystal_unref (&scat);
+    if (!nonoriented) {
+      fprintf (stderr,
+               "Single_crystal: Error: The NCrystal cfg-string \"%s\" must not specify a"
+               " crystal orientation (the orientation is defined by the placement of the component)\n",
+               cfgstr);
+      exit (-1);
+    }
+
+    ncrystal_info_t ncobj = ncrystal_create_info (cfgstr);
+    ncrystal_info_t crystal;
+    double fraction = 0.0;
+    int nfound = 0;
+    ncrystalsx_find_crystalline_phases (ncobj, 1.0, &crystal, &fraction, &nfound);
+    if (nfound != 1) {
+      fprintf (stderr, "Single_crystal: Error: The NCrystal material \"%s\" must have exactly one crystalline phase (found %d)\n", cfgstr, nfound);
+      exit (-1);
+    }
+
+    unsigned spacegroup, n_atoms;
+    double lattice_a, lattice_b, lattice_c, alpha, beta, gamma, cell_volume;
+    if (!ncrystal_info_getstructure (crystal, &spacegroup, &lattice_a, &lattice_b, &lattice_c, &alpha, &beta, &gamma, &cell_volume, &n_atoms)) {
+      fprintf (stderr, "Single_crystal: Error: The NCrystal material \"%s\" does not contain crystal structure\n", cfgstr);
+      exit (-1);
+    }
+    // Single_crystal assumes the density implied by the unit cell, so scale
+    // the cross sections to the actual densities:
+    const double F2_scale = fraction * ncrystal_info_getnumberdensity (crystal) * cell_volume / n_atoms;
+    const double sigma_scale = ncrystal_info_getnumberdensity (ncobj) * cell_volume / n_atoms;
+    const double sigma_abs = ncrystal_info_getxsectabsorption (ncobj) * sigma_scale;
+    const double sigma_inc = ncrystalsx_determine_sigma_inc (ncobj) * sigma_scale;
+
+    // All reflections, i.e. both (h,k,l) and (-h,-k,-l) for all indices of
+    // each group of symmetry equivalent reflections:
+    const int ngroups = ncrystal_info_nhkl (crystal);
+    long nrows = 0;
+    for (int idx = 0; idx < ngroups; ++idx) {
+      int h, k, l, mult;
+      double dsp, fsq;
+      ncrystal_info_gethkl (crystal, idx, &h, &k, &l, &mult, &dsp, &fsq);
+      nrows += mult;
+    }
+    if (!Table_Init (table, nrows, 4)) {
+      fprintf (stderr, "Single_crystal: Error: Could not allocate reflection table for \"%s\"\n", cfgstr);
+      exit (-1);
+    }
+    long row = 0;
+    for (int idx = 0; idx < ngroups; ++idx) {
+      int h, k, l, mult;
+      double dsp, fsq;
+      ncrystal_info_gethkl (crystal, idx, &h, &k, &l, &mult, &dsp, &fsq);
+      int* hh = (int*)malloc (3 * (mult / 2) * sizeof (int));
+      if (!hh) {
+        fprintf (stderr, "Single_crystal: Error: Could not allocate memory\n");
+        exit (-1);
+      }
+      int* kk = hh + mult / 2;
+      int* ll = kk + mult / 2;
+      ncrystal_info_gethkl_allindices (crystal, idx, hh, kk, ll);
+      if (hh[0] == 0 && kk[0] == 0 && ll[0] == 0) {
+        fprintf (stderr, "Single_crystal: Error: The NCrystal material \"%s\" does not provide the individual reflections\n", cfgstr);
+        exit (-1);
+      }
+      for (int i = 0; i < mult / 2; ++i) {
+        for (int sign = 1; sign >= -1; sign -= 2) {
+          Table_SetElement (table, row, 0, sign * hh[i]);
+          Table_SetElement (table, row, 1, sign * kk[i]);
+          Table_SetElement (table, row, 2, sign * ll[i]);
+          Table_SetElement (table, row, 3, fsq * F2_scale);
+          ++row;
+        }
+      }
+      free (hh);
+    }
+
+    table->header = (char*)malloc (1024);
+    if (!table->header) {
+      fprintf (stderr, "Single_crystal: Error: Could not allocate memory\n");
+      exit (-1);
+    }
+    snprintf (table->header, 1024,
+              "# lattice_a %.17g\n# lattice_b %.17g\n# lattice_c %.17g\n"
+              "# lattice_aa %.17g\n# lattice_bb %.17g\n# lattice_cc %.17g\n"
+              "# sigma_abs %.17g\n# sigma_inc %.17g\n# multiplicity %u\n"
+              "# column_h 1\n# column_k 2\n# column_l 3\n# column_F2 4\n",
+              lattice_a, lattice_b, lattice_c, alpha, beta, gamma, sigma_abs, sigma_inc, n_atoms);
+
+    MPI_MASTER (printf ("Single_crystal: Loading %ld reflections from NCrystal material \"%s\"\n", nrows, cfgstr););
+    ncrystal_unref (&crystal);
+    ncrystal_unref (&ncobj);
+  }
+
+  /* ------------------------------------------------------------------------ */
   int
   read_hkl_data (char* SC_file, struct hkl_info_struct* info, struct hkl_data** hkl_list, double SC_mosaic, double SC_mosaic_a, double SC_mosaic_b,
                  double SC_mosaic_c, double* SC_mosaic_AB) {
@@ -519,10 +676,17 @@ SHARE
       flag = 1;
     }
     if (!flag) {
-      filename = cif2hkl (SC_file, "--xtal --mode NUC");
-      if (filename != SC_file)
-        info->flag_barns = 1;            // cif2hkl returns barns
-      Table_Read (&sTable, filename, 1); /* read 1st block data from SC_file into sTable*/
+      if (strstr (SC_file, ".ncmat") != NULL || strstr (SC_file, "::") != NULL) {
+        MPI_MASTER (printf ("Single_crystal: NCrystal cfg-string detected (\"%s\").\n", SC_file););
+        read_hkl_table_ncrystal (SC_file, &sTable);
+        filename = SC_file;
+        info->flag_barns = 1; // NCrystal provides |F|^2 in barns
+      } else {
+        filename = cif2hkl (SC_file, "--xtal --mode NUC");
+        if (filename != SC_file)
+          info->flag_barns = 1;            // cif2hkl returns barns
+        Table_Read (&sTable, filename, 1); /* read 1st block data from SC_file into sTable*/
+      }
       if (sTable.columns < 4) {
         fprintf (stderr, "Single_crystal: Error: The number of columns in %s should be at least %d for [h,k,l,F2]\n", SC_file, 4);
         return (0);
@@ -657,14 +821,20 @@ SHARE
       else
         cs = sqrt (info->m_cx * info->m_cx + info->m_cy * info->m_cy + info->m_cz * info->m_cz);
 
-      info->m_bz = as;
-      info->m_by = 0;
+      /* Real-space vectors with b along z and a in the yz-plane at the angle
+         gamma to b; c then has cos(alpha) along b, cos(beta) against a, and a
+         positive x component, which makes (a, b, c) right-handed.  Each vector
+         carries its own length: a = as, b = bs, c = cs.  (Before, a was given
+         the length bs and b the length as, and alpha/beta were exchanged in c,
+         so for a != b every |F(h,k,l)|^2 ended up at the position of (k,h,l).) */
       info->m_bx = 0;
-      info->m_az = bs * cos (info->m_cc * DEG2RAD);
-      info->m_ay = bs * sin (info->m_cc * DEG2RAD);
+      info->m_by = 0;
+      info->m_bz = bs;
       info->m_ax = 0;
-      info->m_cz = cs * cos (info->m_bb * DEG2RAD);
-      info->m_cy = cs * (cos (info->m_aa * DEG2RAD) - cos (info->m_cc * DEG2RAD) * cos (info->m_bb * DEG2RAD)) / sin (info->m_cc * DEG2RAD);
+      info->m_ay = as * sin (info->m_cc * DEG2RAD);
+      info->m_az = as * cos (info->m_cc * DEG2RAD);
+      info->m_cz = cs * cos (info->m_aa * DEG2RAD);
+      info->m_cy = cs * (cos (info->m_bb * DEG2RAD) - cos (info->m_cc * DEG2RAD) * cos (info->m_aa * DEG2RAD)) / sin (info->m_cc * DEG2RAD);
       info->m_cx = sqrt (cs * cs - info->m_cz * info->m_cz - info->m_cy * info->m_cy);
 
       MPI_MASTER (

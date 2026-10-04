@@ -16,6 +16,11 @@ A simple description of the V4 instrument in Berlin as explained in:
 NIM A 451 (2000) 474-479
 ```
 
+## Examples
+
+- **Test: polariserIn=1 Detector: psdPolGuide_I=3.95407e+12**
+- **Test: polariserIn=2 Detector: psdPolGuide_I=4.29664e+12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

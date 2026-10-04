@@ -17,6 +17,10 @@ Powder in Al can
 Example: Detector: Banana_monitor_I=9.84391e-09
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

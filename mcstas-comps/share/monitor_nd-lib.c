@@ -1494,13 +1494,20 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         if (i >= 0 && i < Vars->Coord_Bin[1] && j >= 0 && j < Vars->Coord_Bin[2])
         {
           if (Vars->Mon2D_N) {
+	    /* Temporary workaround for the NVC OpenACC ICE (NVIDIA TPR#39009):
+	       use local pointer aliases for atomic writes through struct members.
+	       Once fixed upstream, remove these aliases and restore the original
+	       Vars->... atomic expressions. */
+	    double *Mon2D_N = Vars->Mon2D_N[i];
+	    double *Mon2D_p = Vars->Mon2D_p[i];
+	    double *Mon2D_p2 = Vars->Mon2D_p2[i];
 	    double p2 = pp*pp;
             #pragma acc atomic
-	    Vars->Mon2D_N[i][j] = Vars->Mon2D_N[i][j]+1;
+	    Mon2D_N[j] = Mon2D_N[j]+1;
             #pragma acc atomic
-	    Vars->Mon2D_p[i][j] = Vars->Mon2D_p[i][j]+pp;
+	    Mon2D_p[j] = Mon2D_p[j]+pp;
             #pragma acc atomic
-	    Vars->Mon2D_p2[i][j] = Vars->Mon2D_p2[i][j] + p2;
+	    Mon2D_p2[j] = Mon2D_p2[j] + p2;
 	  }
         } else {
           outsidebounds=1; 
@@ -1514,13 +1521,16 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
           if (j >= 0 && j < Vars->Coord_Bin[i]) {
             if  (Vars->Flag_Multiple && Vars->Mon2D_N) {
 	      if (Vars->Mon2D_N) {
+		double *Mon2D_N = Vars->Mon2D_N[i-1];
+		double *Mon2D_p = Vars->Mon2D_p[i-1];
+		double *Mon2D_p2 = Vars->Mon2D_p2[i-1];
 		double p2 = pp*pp;
                 #pragma acc atomic
-		Vars->Mon2D_N[i-1][j] = Vars->Mon2D_N[i-1][j]+1;
+		Mon2D_N[j] = Mon2D_N[j]+1;
                 #pragma acc atomic
-		Vars->Mon2D_p[i-1][j] = Vars->Mon2D_p[i-1][j]+pp;
+		Mon2D_p[j] = Mon2D_p[j]+pp;
 		#pragma acc atomic
-		Vars->Mon2D_p2[i-1][j] = Vars->Mon2D_p2[i-1][j] + p2;
+		Mon2D_p2[j] = Mon2D_p2[j] + p2;
 	      }
 	    }
           } else { 
@@ -1533,18 +1543,28 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
     
     if (Vars->Flag_Auto_Limits != 2 && !outsidebounds) /* not when reading auto limits Buffer */
     { /* now store Coord into Buffer (no index needed) if necessary (list or auto limits) */
-      if ((Vars->Buffer_Counter < Vars->Buffer_Block) && ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1)))
+      if ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1))
       {
-        for (i = 0; i <= Vars->Coord_Number; i++)
-        {
-	  // This is is where the list is appended. How to make this "atomic"?
-          #pragma acc atomic write 
-          Vars->Mon2D_Buffer[i + Vars->Buffer_Counter*(Vars->Coord_Number+1)] = Coord[i];
+        /* Reserve a unique row in the list buffer. The atomic capture makes
+           the read-and-increment of Buffer_Counter indivisible, so concurrent
+           GPU threads can never be handed the same row. The non-atomic
+           pre-check only avoids growing the counter once the buffer is full;
+           a few threads may still overshoot Buffer_Block, which is why the
+           counter is clamped again in Monitor_nD_Save. */
+        unsigned long buffer_slot = Vars->Buffer_Block;
+        if (Vars->Buffer_Counter < Vars->Buffer_Block) {
+          #pragma acc atomic capture
+          buffer_slot = Vars->Buffer_Counter++;
         }
-	    #pragma acc atomic update
-        Vars->Buffer_Counter = Vars->Buffer_Counter + 1;
-        if (Vars->Flag_Verbose && (Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List == 1)) 
-          printf("Monitor_nD: %s %li neutrons stored in List.\n", Vars->compcurname, Vars->Buffer_Counter);
+        if (buffer_slot < Vars->Buffer_Block)
+        {
+          /* The row is owned by this thread only: plain stores suffice */
+          double *Mon2D_Buffer = Vars->Mon2D_Buffer + buffer_slot*(Vars->Coord_Number+1);
+          for (i = 0; i <= Vars->Coord_Number; i++)
+            Mon2D_Buffer[i] = Coord[i];
+          if (Vars->Flag_Verbose && (buffer_slot + 1 == Vars->Buffer_Block) && (Vars->Flag_List == 1))
+            printf("Monitor_nD: %s %li neutrons stored in List.\n", Vars->compcurname, (long)Vars->Buffer_Block);
+        }
       }
     } /* end (Vars->Flag_Auto_Limits != 2) */
     
@@ -1595,6 +1615,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
     char    label[CHAR_BUF_LENGTH];
 
     MCDETECTOR detector;
+    memset(&detector, 0, sizeof(detector));
     strcpy(detector.options,Vars->option);
     if (Vars->Flag_Verbose && Vars->Flag_per_cm2) {
       printf("Monitor_nD: %s: active flat detector area is %g [cm^2], total area is %g [cm^2]\n",
@@ -1607,6 +1628,12 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         atan2(Vars->mean_dx,Vars->mean_p)*RAD2DEG,
         atan2(Vars->mean_dy,Vars->mean_p)*RAD2DEG);
     }
+
+    /* On GPU (OpenACC) several threads may have incremented Buffer_Counter
+       past Buffer_Block while racing for the last free rows; only
+       Buffer_Block rows hold data. No-op for serial CPU runs. */
+    if (Vars->Buffer_Counter > Vars->Buffer_Block)
+      Vars->Buffer_Counter = Vars->Buffer_Block;
 
     /* check Buffer flush when end of simulation reached */
     if ((Vars->Buffer_Counter <= Vars->Buffer_Block) && Vars->Flag_Auto_Limits && Vars->Mon2D_Buffer && Vars->Buffer_Counter)
@@ -1756,6 +1783,17 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         if (Vars->Flag_List >= 2) Vars->Buffer_Size = Vars->Neutron_Counter;
         if (Vars->Buffer_Size >= Vars->Neutron_Counter)
           Vars->Buffer_Size = Vars->Neutron_Counter;
+#ifdef OPENACC
+        /* On GPU the list buffer is never flushed during TRACE, so it holds
+           at most Buffer_Counter rows even when more events were counted.
+           Never write rows beyond what was actually stored. */
+        if (Vars->Buffer_Size > Vars->Buffer_Counter) {
+          printf("Monitor_nD: %s: WARNING list truncated to %lu of %lld events "
+                 "(buffer full). Increase --bufsiz or use Monitor_nD_noacc.\n",
+                 Vars->compcurname, Vars->Buffer_Counter, (long long)Vars->Neutron_Counter);
+          Vars->Buffer_Size = Vars->Buffer_Counter;
+        }
+#endif
         strcpy(fname,Vars->Mon_File);
         if (strchr(Vars->Mon_File,'.') == NULL) strcat(fname, "_list");
 
@@ -1795,7 +1833,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
             if (min1d == max1d) max1d = min1d+1e-6;
             p1m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
             p2m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
-            if (p2m == NULL) /* use Raw Buffer line output */
+            if (p1m == NULL || p2m == NULL) /* use Raw Buffer line output */
             {
               if (Vars->Flag_Verbose) printf("Monitor_nD: %s cannot allocate memory for output. Using raw data.\n", Vars->compcurname);
               if (p1m != NULL) free(p1m);
@@ -1873,14 +1911,11 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         p0m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
         p1m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
         p2m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
-        if (p2m == NULL)
+        if (p0m == NULL || p1m == NULL || p2m == NULL)
         {
           if (Vars->Flag_Verbose) printf("Monitor_nD: %s cannot allocate memory for 2D array (%zi). Skipping.\n", Vars->compcurname, 3*Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
-          /* comment out 'free memory' lines to avoid loosing arrays if
-               'detector' structure is used by other instrument parts
           if (p0m != NULL) free(p0m);
           if (p1m != NULL) free(p1m);
-          */
         }
         else
         {

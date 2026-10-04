@@ -17,6 +17,10 @@ All arms are 30 cm below the actual center point in order to avoid arms
 in the mcdisplay picture. Uses all Union loggers.
 ```
 
+## Examples
+
+- **Test: Detector: test_logger_1D_I=31.7195**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

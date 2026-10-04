@@ -1,26 +1,10 @@
 /*******************************************************************************
 *
-* Used NCrystal_sample as basis for creating a Union process that can use the  
-* NCrystal library.                                                            
-* Changes by Mads Bertelsen, 13/8 2020.                                        
+* Used NCrystal_sample as basis for creating a Union process that can use the
+* NCrystal library.
+* Changes by Mads Bertelsen, 13/8 2020.
 *
-*  This file is part of NCrystal (see https://mctools.github.io/ncrystal/)
-*
-*  Copyright 2015-2022 NCrystal developers
-*
-*  Licensed under the Apache License, Version 2.0 (the "License");
-*  you may not use this file except in compliance with the License.
-*  You may obtain a copy of the License at
-*
-*      http://www.apache.org/licenses/LICENSE-2.0
-*
-*  Unless required by applicable law or agreed to in writing, software
-*  distributed under the License is distributed on an "AS IS" BASIS,
-*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*  See the License for the specific language governing permissions and
-*  limitations under the License.
-*  McStas, neutron ray-tracing package
-*  Copyright(C) 2007 Risoe National Laboratory.
+* NCrystal process component for the Union framework.
 *
 * %I
 * Written by: NCrystal developers, converted to a Union component by Mads Bertelsen
@@ -28,30 +12,23 @@
 * Version: $Revision: 0.1 $
 * Origin: NCrystal Developers (European Spallation Source ERIC and DTU Nutech)
 *
-* NCrystal_process component for the Union framework.
+* This file is part of NCrystal (see https://mctools.github.io/ncrystal/).
 *
-* %D
+* Copyright 2015-2022 NCrystal developers
 *
-* This process uses the NCrystal library as a Union process, see user documentation
-*  for the NCrystal_sample.comp component for more information. The process only
-*  uses the physics, as the Union components has a separate geometry system.
-*  Absorption is also handled by Union, so any absorption output from NCrystal
-*  is ignored.
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
 *
-* Part of the Union components, a set of components that work together and thus
-*  sperates geometry and physics within McStas.
-* The use of this component requires other components to be used.
+*     http://www.apache.org/licenses/LICENSE-2.0
 *
-* 1) One specifies a number of processes using process components like this one
-* 2) These are gathered into material definitions using Union_make_material
-* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
-* 4) A Union_master component placed after all of the above
-*
-* Only in step 4 will any simulation happen, and per default all geometries
-*  defined before the master, but after the previous will be simulated here.
-*
-* There is a dedicated manual available for the Union_components
-*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+* McStas, neutron ray-tracing package
+* Copyright(C) 2007 Risoe National Laboratory.
 *
 * Original header text for NCrystal_sample.comp:
 * McStas sample component for the NCrystal scattering library. Find more
@@ -59,13 +36,36 @@
 * wiki</a>. In particular, browse the available datafiles at <a
 * href="https://github.com/mctools/ncrystal/wiki/Data-library">Data-library</a>
 * and read about format of the configuration string expected in the "cfg"
-* parameter at <a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">Using-NCrystal</a>.
+* parameter at <a
+* href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">Using-NCrystal</a>.
 *
-* <p/>NCrystal is available under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 license</a>. Depending
-* on the configuration choices, optional NCrystal modules under different
-* licenses might be enabled - see <a
+* NCrystal is available under the <a
+* href="http://www.apache.org/licenses/LICENSE-2.0">Apache 2.0 license</a>.
+* Depending on the configuration choices, optional NCrystal modules under
+* different licenses might be enabled - see <a
 * href="https://github.com/mctools/ncrystal/wiki/About">About</a> for more
 * details.
+*
+* %D
+* This process uses the NCrystal library as a Union scattering process. It only
+* provides physics; geometry and absorption are handled by the other Union
+* components. Use Union_make_material to provide the absorption coefficient.
+* Use Union_NCrystal_material for a complete material backed by one
+* NCrystal configuration.
+*
+* Part of the Union components, a set of components that work together and thus
+* separates geometry and physics within McStas. The use of this component
+* requires other components to be used:
+*
+* 1) One specifies a number of processes using process components like this one
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box / Union_cylinder, assigned a material
+* 4) A Union_master component placed after all of the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+* defined before the master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union_components.
 *
 * Algorithm:
 * Described elsewhere
@@ -74,7 +74,12 @@
 * INPUT PARAMETERS:
 * cfg:               [str]    NCrystal material configuration string (details <a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">on this page</a>).
 * interact_fraction: [1]      How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
-* init:              [string] Name of Union_init component (typically "init", default)
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
+*
+* CALCULATED PARAMETERS:
+* NCrystal_storage          // Storage used to communicate with the probability and scattering function
+*
+* %L
 *
 * CALCULATED PARAMETERS:
 * NCrystal_storage          // Storage used to communicate with the probability and scattering function
@@ -82,14 +87,13 @@
 * %L
 *
 * %E
-******************************************************************************/
+ *******************************************************************************/
 
 /*******************************************************************************
 * Used NCrystal_sample as basis for creating a Union process that can use the  *
 * NCrystal library.                                                            *
 * Changes by Mads Bertelsen, 13/8 2020.                                        *
 *******************************************************************************/
-
 /******************************************************************************/
 /* The original code contained the following license/copyright statement:     */
 /******************************************************************************/
@@ -114,319 +118,90 @@
 
 DEFINE COMPONENT NCrystal_process // Remember to change the name of process here
 
-SETTING PARAMETERS(string cfg = "", interact_fraction=-1, string init="init")
+SETTING PARAMETERS(string cfg = "", interact_fraction=-1, string init="")
 DEPENDENCY "@NCRYSTALFLAGS@"
 
 SHARE
 %{
-  #ifndef Union
-  #error "The Union_init component must be included before this NCrystal_process component"
-  #endif
+  %include "union-lib"
 
-  #if defined(WIN32) || defined(_WIN32)
-  #include "NCrystal\\ncrystal.h"
-  #else
-  #include "NCrystal/ncrystal.h"
-  #endif
-  #include "stdio.h"
-  #include "stdlib.h"
-  #ifndef NCMCERR2
-  /* consistent/convenient error reporting */
-  #  define NCMCERR2(compname,msg) do { fprintf(stderr, "\nNCrystal: %s: ERROR: %s\n\n", compname, msg); exit(1); } while (0)
-  #endif
-
-  static int ncsample_reported_version_union = 0;
-
-  // Keep all instance-specific parameters on a few structs:
-  typedef struct {
-    double density_factor;
-    double inv_density_factor;
-    ncrystal_scatter_t scat;
-    ncrystal_process_t proc_scat, proc_abs;
-    int proc_scat_isoriented;
-    int absmode;
-  } ncrystalsample_t_union;
-
-  #ifndef NCMCERR
-  /* more convenient form (only works in TRACE section, not in SHARE functions) */
-  #  define NCMCERR(msg) NCMCERR2(NAME_CURRENT_COMP,msg)
-  #endif
-
-  // Very important to add a pointer to this struct in the union-lib.c file
-  struct NCrystal_physics_storage_struct {
-    // Variables that needs to be transfered between any of the following places:
-    // The initialize in this component
-    // The function for calculating my
-    // The function for calculating scattering
-
-    // Avoid duplicates of output parameters and setting parameters in naming
-    ncrystalsample_t_union stored_params;
-    double ncrystal_convfact_vsq2ekin;
-    double ncrystal_convfact_ekin2vsq;
-  };
-
-  // Function for calculating my, the inverse penetration depth (for only this scattering process).
-  // The input for this function and its order may not be changed, but the names may be updated.
-  int
-  NCrystal_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
-    // *k_initial is a pointer to a simple vector with 3 doubles, k[0], k[1], k[2] which describes the wavevector
-    double k_mag = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
-
-    // Normalized direction dir[3]
-    double dir[3];
-    dir[0] = k_initial[0] / k_mag;
-    dir[1] = k_initial[1] / k_mag;
-    dir[2] = k_initial[2] / k_mag;
-
-    // Kinetic energy
-    double vsq2ekin = data_transfer.pointer_to_a_NCrystal_physics_storage_struct->ncrystal_convfact_vsq2ekin;
-
-    double ekin = vsq2ekin * K2V * k_mag * K2V * k_mag;
-
-    double xsect_scat = 0.0;
-    // Call NCrystal library, xsect_scat is updated
-    ncrystal_crosssection (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.proc_scat, ekin, (const double (*)[3]) & dir, &xsect_scat);
-
-    double density_factor = data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.density_factor;
-    // Convert xsect_scat to inverse penetration depth
-    *my = xsect_scat / density_factor;
-
-    return 1;
-  };
-
-  // Function that provides description of a basic scattering event.
-  // Do not change the function signature
-  int
-  NCrystal_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                               _class_particle* _particle) {
-
-    // Magnitude of given wavevector
-    double k_mag = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
-
-    // Normalized direction dir[3]
-    double dir[3], dirout[3];
-    dir[0] = k_initial[0] / k_mag;
-    dir[1] = k_initial[1] / k_mag;
-    dir[2] = k_initial[2] / k_mag;
-
-    double vsq2ekin = data_transfer.pointer_to_a_NCrystal_physics_storage_struct->ncrystal_convfact_vsq2ekin;
-    double ekin, ekin_final, v2, absv;
-
-    ekin = vsq2ekin * K2V * k_mag * K2V * k_mag;
-    ekin_final = 0.0;
-    // Call NCrystal library, dirout and delta_ekin is updated
-    ncrystal_samplescatter (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin, (const double (*)[3]) & dir, &ekin_final, &dirout);
-	
-    if (ekin_final <= 0) {
-      // not expected to happen much, but an interaction could in principle bring the neutron to rest.
-      return 0; // Eqivalent to ABSORB
-    }
-
-    v2 = data_transfer.pointer_to_a_NCrystal_physics_storage_struct->ncrystal_convfact_ekin2vsq * ekin_final;
-    absv = sqrt (v2);
-    k_mag = absv * V2K;
-
-    k_final[0] = dirout[0] * k_mag;
-    k_final[1] = dirout[1] * k_mag;
-    k_final[2] = dirout[2] * k_mag;
-
-    // A pointer to k_final is returned, and the wavevector will be set to k_final after a scattering event
-    return 1; // return 1 is sucess, return 0 is failure, and the ray will be absorbed.
-              // failure should not happen, as this function will only be called when
-              // the cross section for the current k_initial is above zero.
-
-    // There is access to the data_transfer from within the scattering function
-    // In this case the only variable is my, but it could be read by:
-    // double my = data_transfer.pointer_to_a_NCrystal_physics_storage_struct->my_scattering;
-    // One can assume that if the scattering function is running, the my fuction was
-    //  executed just before and for the same k_initial.
-    #ifndef PROCESS_DETECTOR
-    #define PROCESS_DETECTOR dummy
-    #endif
-
-    #ifndef PROCESS_NCRYSTAL_DETECTOR
-    #define PROCESS_NCRYSTAL_DETECTOR dummy
-    #endif
-  };
+  %include "mccode-ncrystal-lib"
+  %include "union_ncrystal.c"
 %}
 
 DECLARE
 %{
-  // Declare for this component, to do calculations on the input / store in the transported data
-  struct NCrystal_physics_storage_struct NCrystal_storage; // Replace NCrystal with your own name here
-
+  // Declare for this component, to do calculations on the input / store in the transported data.
+  struct NCrystal_physics_storage_struct NCrystal_storage;
   // Variables needed in initialize of this function.
-
-  // Needed for transport to the main component, will be the same for all processes
   struct global_process_element_struct global_process_element;
   struct scattering_process_struct This_process;
-
   double NCrystal_convfact_ekin2vsq;
   double NCrystal_convfact_vsq2ekin;
-
   ncrystalsample_t_union params;
 
-  // These lines help with future error correction, and tell other Union components
-  //  that at least one process have been defined.
+  // These lines help with future error correction, and tell other Union
+  // components that at least one process has been defined.
   #ifndef PROCESS_DETECTOR
-  // Obsolete
-  // struct pointer_to_global_process_list global_process_list = {0,NULL};
   #define PROCESS_DETECTOR dummy
   #endif
 %}
 
 INITIALIZE
 %{
-  // Initialize done in the component
-  // Print NCrystal version + sanity check setup.
-  if (NCRYSTAL_VERSION != ncrystal_version ()) {
-    NCMCERR ("Inconsistency detected between included ncrystal.h and linked NCrystal library!");
-  }
-  if (ncsample_reported_version_union != ncrystal_version ()) {
-    if (ncsample_reported_version_union) {
-      NCMCERR ("Inconsistent NCrystal library versions detected - this should normally not be possible!");
-    }
-    ncsample_reported_version_union = ncrystal_version ();
-    MPI_MASTER (printf ("NCrystal: McStas Union process component(s) are using version %s of the NCrystal library.\n", ncrystal_version_str ()););
-  }
-
-  // The following conversion factors might look slightly odd. They reflect the
-  // fact that the various conversion factors used in McStas and NCrystal are not
-  // completely consistent among each other (TODO: Follow up on this with McStas
-  // developers!). Also McStas's V2K*K2V is not exactly 1. All in all, this can
-  // give issues when a McStas user is trying to set up a narrow beam very
-  // precisely in an instrument file, attempting to carefully hit a certain
-  // narrow Bragg reflection in this NCrystal component. We can not completely
-  // work around all issues here, but for now, we assume that the user is
-  // carefully setting up things by specifying the wavelength to some source
-  // component. That wavelength is then converted to the McStas state pars
-  //(vx,vy,vz) via K2V. We thus here first use 1/K2V (and *not* V2K) to convert
-  // back to a wavelength, and then we use NCrystal's conversion constants to
-  // convert the resulting wavelength to kinetic energy needed for NCrystal's
-  // interfaces.
-
-  // 0.0253302959105844428609698658024319097260896937 is 1/(4*pi^2)
-  NCrystal_convfact_vsq2ekin = ncrystal_wl2ekin (1.0) * 0.0253302959105844428609698658024319097260896937 / (K2V * K2V);
-  NCrystal_convfact_ekin2vsq = 1.0 / NCrystal_convfact_vsq2ekin;
-
-  // for our sanity, zero-initialise all instance-specific data:
+  struct union_state_struct* union_state_p = union_acquire ();
+  // Initialize is done in the component.
+  ncrystal_union_check_version (NAME_CURRENT_COMP);
+  ncrystal_union_setup_conversion (&NCrystal_convfact_vsq2ekin, &NCrystal_convfact_ekin2vsq);
+  // For our sanity, zero-initialise all instance-specific data.
   memset (&params, 0, sizeof (params));
+  ncrystal_union_setup_rng ();
+  mccode_setup_ncrystal_search_paths ();
 
-  /* Make sure NCrystal use the McStas RNG (ok if more than one component instance does this): */
-  #ifndef rand01
-  /* Tell NCrystal to use the rand01 function provided by McStas: */
-  ncrystal_setrandgen (rand01);
-  #else
-  /* rand01 is actually a macro not an actual C-function (most likely defined as */
-  /* _rand01(_particle->randstate) for OPENACC purposes), which we can not       */
-  /* register with NCrystal. As a workaround we tell NCrystal to use its own RNG */
-  /* algorithm, with merely the seed provided by McStas:                         */
-  ncrystal_setbuiltinrandgen_withseed (mcseed);
-  #endif
-
-  /* access crystal structure to get number density (natoms/volume): */
+  // Access crystal structure to get number density (natoms/volume).
   ncrystal_info_t info = ncrystal_create_info (cfg);
-
-  // Depending on the version of NCrystal, the number density is retrieved in
-  // two different ways. The preprocessor is used to switch between the two
-  // methods depending on the NCRYSTAL_VERSION
-  #if NCRYSTAL_VERSION  >= 1099001
-  double numberdensity = ncrystal_info_getnumberdensity (info);
-  if (numberdensity <= 0.0)
-    NCMCERR ("Number density information is unavailable in the loaded NCrystal Info");
+  double numberdensity = ncrystal_union_get_numberdensity (info, NAME_CURRENT_COMP);
   ncrystal_unref (&info);
 
-  // numberdensity is the atomic number density in units of Aa^-3=1e30m^3, and
-  // given that we have cross-sections in barn (1e-28m^2) and want to generate
-  // distances in meters with -log(R)/(numberdensity*xsect), we get the unit
-  // conversion factor of 0.01.
-
-  // Union change: In NCrystal_sample density factor is negative for easier sampling,
-  //  but as the sampling is performed in the master we use a positive sign for the
-  //  density factor as this is more intuitive.
+  // In NCrystal_sample the density factor is negative for easier sampling, but
+  // as sampling is performed in the Union master we use a positive value.
   params.density_factor = 0.01 / numberdensity;
   params.inv_density_factor = 1.0 / params.density_factor;
-
-  #else
-  unsigned cell_sg, cell_atnum;
-  double cell_a, cell_b, cell_c, cell_alpha, cell_beta, cell_gamma, cell_volume;
-  if (!ncrystal_info_getstructure (info, &cell_sg, &cell_a, &cell_b, &cell_c, &cell_alpha, &cell_beta, &cell_gamma, &cell_volume, &cell_atnum))
-    NCMCERR ("Structure information is unavailable in the loaded NCrystal Info");
-  ncrystal_unref (&info);
-
-  // cell_atnum/cell_volume is the atomic number density in units of
-  // Aa^-3=1e30m^3, and given that we have cross-sections in barn (1e-28m^2) and
-  // want to generate distances in meters with -log(R)/(numberdensity*xsect), we
-  // get the unit conversion factor of 0.01. We also apply the powder packing
-  // factor here (it is guaranteed to be non-zero):
-
-  // Union change: In NCrystal_sample density factor is negative for easier sampling,
-  //  but as the sampling is performed in the master we use a positive sign for the
-  //  density factor as this is more intuitive.
-  params.density_factor = 0.01 * cell_volume / cell_atnum;
-  params.inv_density_factor = 1.0 / params.density_factor;
-  #endif
-
-  // TODO for NC2: The density used here is in principle different from the one
-  // used in the Geant4 interface, which is possibly inconsistent when not using
-  //.ncmat files (more info at https://github.com/mctools/ncrystal/issues/9).
-
-  // Setup scattering:
   params.scat = ncrystal_create_scatter (cfg);
   params.proc_scat = ncrystal_cast_scat2proc (params.scat);
   params.proc_scat_isoriented = !ncrystal_isnonoriented (params.proc_scat);
-  // It may be possible to get whether or not the physics is isotropic or not from the above
-
-  // Setup absorption:
-  if (params.absmode) {
-    params.proc_abs = ncrystal_cast_abs2proc (ncrystal_create_absorption (cfg));
-    if (!ncrystal_isnonoriented (params.proc_abs))
-      NCMCERR ("Encountered oriented NCAbsorption process which is not currently supported by this component.");
-  }
 
   NCrystal_storage.stored_params = params;
   NCrystal_storage.ncrystal_convfact_vsq2ekin = NCrystal_convfact_vsq2ekin;
   NCrystal_storage.ncrystal_convfact_ekin2vsq = NCrystal_convfact_ekin2vsq;
 
-  // First initialise This_process with default values:
+  // First initialise This_process with default values.
   scattering_process_struct_init (&This_process);
-
-  // Need to specify if this process is isotropic
-  // This_process.non_isotropic_rot_index = -1; // Yes (powder)
-  This_process.non_isotropic_rot_index = 1; // No (single crystal)
-
-  // Need to specify if this process need to use focusing in calculation of inverse penetration depth (physics_my)
-  // This_process.needs_cross_section_focus = 1; // Yes
-  This_process.needs_cross_section_focus = -1; // No
-
-  // The type of the process must be saved in the global enum process
+  // This process is non-isotropic when using a single crystal.
+  This_process.non_isotropic_rot_index = 1;
+  // This process does not need focusing in the inverse penetration-depth calculation.
+  This_process.needs_cross_section_focus = -1;
+  // Save the process type in the global enum.
   This_process.eProcess = NCrystal;
-
-  // Packing the data into a structure that is transported to the main component
+  // Pack the data into a structure transported to the Union master.
   This_process.data_transfer.pointer_to_a_NCrystal_physics_storage_struct = &NCrystal_storage;
   This_process.probability_for_scattering_function = &NCrystal_physics_my;
   This_process.scattering_function = &NCrystal_physics_scattering;
-
-  // This will be the same for all process's, and can thus be moved to an include.
   sprintf (This_process.name, "%s", NAME_CURRENT_COMP);
   This_process.process_p_interact = interact_fraction;
   rot_copy (This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+
   sprintf (global_process_element.name, "%s", NAME_CURRENT_COMP);
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "NCrystal_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
- %}
+%}
 
 TRACE
 %{
-  // Trace should be empty, the simulation is done in Union_master
+  // Trace should be empty, the simulation is done in Union_master.
 %}
 
 FINALLY
@@ -435,6 +210,7 @@ FINALLY
   ncrystal_invalidate (&params.proc_scat); // a cast of params.scat, so just invalidate handle don't unref
   if (params.absmode)
     ncrystal_unref (&params.proc_abs);
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

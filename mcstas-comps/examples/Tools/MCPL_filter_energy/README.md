@@ -16,6 +16,10 @@ Example: Split an MCPL file at an energy of 0.5 meV
 mcrun MCPL_filter_energy MCPLfile=my.mcpl.gz energy=0.5
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

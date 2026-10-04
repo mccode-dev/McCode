@@ -1,0 +1,710 @@
+/*******************************************************************************
+*         McStas instrument definition URL=https://www.mcstas.org
+*
+* Instrument: ILL_H521_NeXT
+*
+* %Identification
+* Written by: DRAFT, Peter Willendrup with Claude from public ILL web information
+*             (source and H52/H521 guide taken from ILL_H5_new by E. Farhi)
+* Date: September 2026
+* Origin: ILL
+* %INSTRUMENT_SITE: ILL
+*
+* NeXT - Neutron and X-ray Tomography - cold neutron imaging at the end of H521
+*
+* %Description
+* DRAFT model of the NeXT cold-neutron imaging instrument at the ILL, located
+* at the end of the H521 guide, downstream of D16 and SuperADAM.
+*
+* Source term and guide: the H5 horizontal cold source (HCS) and the H52 /
+* H521 guide geometry are copied from the ILL_H5_new example (proposed H5
+* layout from the 2011-2013 H5 upgrade design; the as-built geometry may differ).
+* The D16 and SuperADAM PG002 monochromators are kept IN TRANSMISSION: their
+* Bragg-reflected neutrons are removed from the beam (use upstream_monos=0 to
+* switch that off).
+*
+* NeXT itself (public ILL data, 2026):
+*   - pinhole diameters D = 5, 10, 15, 23, 30, 40 mm
+*   - pinhole-sample distance L = 5.5 - 10.5 m (L/D up to ~2000)
+*   - reference flux: 3e8 n/cm2/s at L/D = 333
+*   - white beam, or wavelength selection by
+*       mode=1: velocity selector, 2-20 AA, dl/l ~ 16 %
+*       mode=2: double-crystal monochromator (DCM), 2-6 AA, dl/l ~ 5 %
+*   - detector FoV up to 170x170 mm2 (scintillator + sCMOS, 2048x2048)
+* The sample is a simple cylinder (PowderN, e.g. Fe.laz) so that attenuation and
+* Bragg edges show up in the transmission spectra. Detector resolution/blur of
+* the scintillator/camera is NOT modelled (ideal position-sensitive monitor).
+*
+* ASSUMPTIONS (to be checked against ILL drawings):
+*   - L_guide_end: length of H521 guide after the SuperADAM monochromator
+*   - selector (alpha, length, radius) chosen to give dl/l ~ 16 %, not the
+*     actual NeXT selector specification
+*   - DCM modelled as two parallel flat PG002 crystals, mosaic 30', r0=0.9,
+*     first order only by default (no lambda/2 filter modelled)
+*   - pinhole placed 0.8 m after the guide exit / selection optics
+*
+* %Example: lambda=5.5 dlambda=4.5 mode=0 D=0.03 L_coll=10 Detector: NeXT_flux_sample_I=3e8
+*
+* %Parameters
+* lambda:          [AA]  Centre of the simulated source wavelength band
+* dlambda:         [AA]  Half width of the simulated wavelength band
+* mode:            [1]   0=white beam, 1=velocity selector, 2=double crystal monochromator
+* sel_lambda:      [AA]  Velocity selector wavelength (mode=1)
+* dcm_lambda:      [AA]  DCM wavelength (mode=2), 2-6 AA
+* D:               [m]   Pinhole diameter: 0.005, 0.010, 0.015, 0.023, 0.030, 0.040
+* L_coll:          [m]   Pinhole - sample distance, 5.5-10.5
+* sample:          [1]   1: put the cylinder sample in the beam, 0: open beam
+* sample_file:     [str] PowderN reflection list of the sample (e.g. Fe.laz, Al.laz)
+* sample_radius:   [m]   Radius of the cylindrical sample
+* sample_height:   [m]   Height of the cylindrical sample
+* det_dist:        [m]   Sample - detector (scintillator) distance
+* det_size:        [m]   Detector field of view (square), up to 0.17
+* det_bins:        [1]   Number of detector pixels along x and y
+* upstream_monos:  [1]   1: remove the D16 and SuperADAM monochromator reflections
+* D16_lambda:      [AA]  D16 monochromator wavelength
+* SADAM_lambda:    [AA]  SuperADAM monochromator wavelength
+* L_guide_end:     [m]   Length of H521 guide after the SuperADAM monochromator (assumed)
+* dcm_order:       [1]   DCM Bragg orders: 1 = first order only, 0 = all orders (lambda/2, lambda/3
+*                        contamination, all with the same r0 -> overestimated)
+* sel_alpha:       [deg] Velocity selector twist angle (sets dl/l; assumed value)
+* dcm_mosaic:      [arcmin] DCM crystal mosaic (sets dl/l; assumed value)
+* direct_focus:    [1]   1: source illuminates the H52 entrance directly (efficient),
+*                        0: full H5 window as in ILL_H5_new (includes H5 wall reflections)
+*
+* %Link
+* https://www.ill.eu/en/for-ill-users/instruments/instruments-list/next/
+* %Link
+* https://www.ill.eu/en/for-ill-users/instruments/instruments-list/next/characteristics/
+* %Link
+* ILL_H5_new.instr (McStas examples/ILL) for the source and H52/H521 guide
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT ILL_H521_NeXT(lambda=5.5, dlambda=4.5,
+  int mode=0, sel_lambda=4, dcm_lambda=4,
+  D=0.03, L_coll=10,
+  int sample=1, string sample_file="Fe.laz", sample_radius=0.005, sample_height=0.05,
+  det_dist=0.03, det_size=0.17, int det_bins=200,
+  int upstream_monos=1, D16_lambda=5.6, SADAM_lambda=4.4,
+  L_guide_end=1.0, int dcm_order=1, sel_alpha=26, dcm_mosaic=60,
+  int direct_focus=1)
+
+DECLARE %{
+  /* HCS (H5) source 'Measured' parameters (from ILL_H5_new) */
+  double sT3=413.5,sI3=10.22e12;
+  double sT2=145.8,sI2=3.44e13;
+  double sT1=40.1 ,sI1=2.78e13;
+
+  /* guide coating parameters */
+  double gR0          = 1;
+  double gQc          = 0.0216;
+  double gAlpha       = 4.07;
+  double gW           = 1.0/300.0;
+
+  double Al_Thickness = 0.001;
+  double gGap         = 0.001;
+
+  /* upstream monochromators on H521 (in transmission for NeXT) */
+  double D16_DM   = 3.355; /* PG002 */
+  double D16_A1   = 0;
+  double D16_RMV  = 0;
+  double SADAM_DM = 3.355; /* PG002 */
+  double SADAM_A1 = 0;
+  double SADAM_RMV= 0;
+
+  /* NeXT velocity selector (assumed geometry giving dl/l ~ 16 %) */
+  double sel_length = 0.40;  /* rotor length [m] */
+  double sel_nu     = 0;     /* [Hz] */
+
+  /* NeXT double crystal monochromator */
+  double dcm_DM  = 3.355;    /* PG002 */
+  double dcm_A1  = 0;
+  double dcm_gap = 0.15;     /* crystal1 - crystal2 distance along reflected beam [m] */
+  double dcm_dx  = 0;        /* resulting lateral beam offset [m] */
+  double dcm_dz  = 0;
+
+  double LD = 0;
+
+  /* H52 in-pile entrance: lateral position and width in the H5 frame */
+  double H52_x = 0.17/2-0.06/2-0.004-0.062;
+  double H52_w = 0.062;
+%}
+
+INITIALIZE %{
+  double L;
+  /* D16 monochromator (same focusing rule as ILL_H5_new) */
+  D16_A1   = asin(D16_lambda/2/D16_DM)*RAD2DEG;
+  L        = 1/(1/2.8+1/( (0.12/2)/(2*0.1*D16_lambda*PI/180) ));
+  D16_RMV  = 2*L*sin(DEG2RAD*fabs(D16_A1));
+  /* SuperADAM monochromator */
+  SADAM_A1 = asin(SADAM_lambda/2/SADAM_DM)*RAD2DEG;
+  L        = 1/(1/3.36+1/( (0.12/2)/(2*0.1*SADAM_lambda*PI/180) ));
+  SADAM_RMV= 2*L*sin(DEG2RAD*fabs(SADAM_A1));
+
+  if (mode == 1) {
+    if (sel_lambda < 2 || sel_lambda > 20)
+      fprintf(stderr, "%s: WARNING: sel_lambda=%g outside the 2-20 AA range\n", NAME_INSTRUMENT, sel_lambda);
+    sel_nu = 3956*sel_alpha*DEG2RAD/(2*PI*sel_lambda*sel_length);
+    printf("%s: velocity selector at %g AA: nu=%g Hz (%g rpm)\n", NAME_INSTRUMENT, sel_lambda, sel_nu, sel_nu*60);
+  }
+  if (mode == 2) {
+    if (dcm_lambda < 2 || dcm_lambda > 6)
+      fprintf(stderr, "%s: WARNING: dcm_lambda=%g outside the 2-6 AA range\n", NAME_INSTRUMENT, dcm_lambda);
+    dcm_A1 = asin(dcm_lambda/2/dcm_DM)*RAD2DEG;
+    dcm_dx = dcm_gap*sin(2*dcm_A1*DEG2RAD);
+    dcm_dz = dcm_gap*cos(2*dcm_A1*DEG2RAD);
+    printf("%s: DCM at %g AA: A1=%g deg, beam offset %g m\n", NAME_INSTRUMENT, dcm_lambda, dcm_A1, dcm_dx);
+  }
+  LD = L_coll/D;
+  printf("%s: D=%g mm, L=%g m, L/D=%g\n", NAME_INSTRUMENT, D*1e3, L_coll, LD);
+%}
+
+TRACE
+/* ======================= H5 common (from ILL_H5_new) ====================== */
+
+COMPONENT Origin = Progress_bar()
+AT(0,0,0) ABSOLUTE
+
+COMPONENT HCS = Source_gen(
+  radius   = 0.21/2,
+  zdepth   = 0.15,
+  /* direct_focus=1: illuminate the H52 in-pile entrance directly (it is in
+     direct line of sight through the H5 common guide). target_index=10 ->
+     H52_inpile, which sets 'dist'. Source_gen centres its focusing window on
+     its own z-axis, so the window must span the off-axis aperture:
+     xw = 2*(|H52_x| + H52_w/2) = 84 mm.
+     direct_focus=0: original ILL_H5_new illumination of the full H5 window. */
+  target_index = (direct_focus ? 10 : 0),
+  dist     = (direct_focus ? 0 : 2.155),
+  focus_xw = (direct_focus ? 2*(fabs(H52_x)+H52_w/2) : 0.170),
+  focus_yh = 0.120,
+  lambda0  = lambda,
+  dlambda  = dlambda,
+  T1       = sT1,
+  I1       = sI1,
+  T2       = sT2,
+  I2       = sI2,
+  T3       = sT3,
+  I3       = sI3,
+  verbose  = 1)
+  AT (0, 0, 0) RELATIVE Origin
+  
+COMPONENT HCS_Al  = PowderN(
+  reflections="Al.laz", xwidth=0.17, yheight=0.12, zdepth=Al_Thickness, p_interact=0.00001, p_inc=0.00001, p_transmit=0.99998, d_phi=10)
+AT (0,0,0.21) RELATIVE HCS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)
+AT (0,0,0.61) RELATIVE HCS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)
+AT (0,0,0.78) RELATIVE HCS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)
+AT (0,0,0.92) RELATIVE HCS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)
+AT (0,0,2.15) RELATIVE HCS
+
+/* m=2 common rectangular large guide. MAY USE left/right as m=0.65 (glass, cheaper) */ 
+COMPONENT H5 = Monitor_nD(xwidth=0.17, yheight=0.12,
+  options="x y, slit", bins=50)
+AT(0,0,2.155) RELATIVE HCS
+
+COMPONENT H5_rect = Guide_gravity(w1=0.170, h1=0.12, l=1.0,
+  R0=gR0, Qc=gQc, alpha=gAlpha, m = 2, W=gW)
+AT(0,0,2.155) RELATIVE HCS
+
+
+/* only the H52 channel is simulated: neutrons missing its entrance are absorbed */
+COMPONENT H52_origin = Arm()
+AT (H52_x,0,1+gGap) RELATIVE H5 ROTATED (0,0,0) RELATIVE H5
+
+/* ================================ H52 ===================================== */
+/* feeds: H523:CryoEDM, H521: D16, Super-Adam, H522: Wasp */
+
+COMPONENT H52_start = Arm()
+AT (0,0,0) RELATIVE H52_origin
+
+COMPONENT H52_inpile = COPY(H5_rect)(w1=0.062, m=3, l=4.930-3.155, w2=0.068, h2=0.132)
+AT (0,0,0) RELATIVE PREVIOUS
+
+/* divergent section 60x120 -> w120 x h240 length = 20998-4930=16.068 m R=4000 m */
+COMPONENT H52_Common = COPY(H52_inpile)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16, l=16.068/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+/* in the copy, the parameters are passed as is, 
+   and the PREVIOUS in the cexp is not updated */
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H52_Common_3 = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(xwidth=COMP_GETPAR(H52_Common_3, w2))
+AT (0,0,COMP_GETPAR(H52_Common_3, l)+0.01) RELATIVE PREVIOUS
+
+/* Gap 75 mm after BOG (barillet obturateur general): VS */
+
+COMPONENT H52_Obt_Out = COPY(H5)(xwidth=COMP_GETPAR(H52_Common_3, w2), restore_neutron=1)
+AT (0,0,0.04) RELATIVE PREVIOUS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(xwidth=COMP_GETPAR(H52_Common_3, w2))
+AT (0,0,0.01) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(H52_Common_3)(
+  w1=COMP_GETPAR(H52_Common_3, w2),          h1=COMP_GETPAR(H52_Common_3, h2), 
+  w2=COMP_GETPAR(H52_Common_3, w2)+0.052/16, h2=COMP_GETPAR(H52_Common_3, h2)+0.108/16, 
+  l=16.068/16)
+AT (0,0,COMP_GETPAR(H52_Common_3, l)+gGap+0.075) RELATIVE H52_Common_3
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H52_Common) = COPY(PREVIOUS)(
+  w1=COMP_GETPAR(PREVIOUS, w2),          h1=COMP_GETPAR(PREVIOUS, h2), 
+  w2=COMP_GETPAR(PREVIOUS, w2)+0.052/16, h2=COMP_GETPAR(PREVIOUS, h2)+0.108/16)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,16.068/16/4000*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(xwidth=0.12,yheight=0.24)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+
+COMPONENT H52_Common_Out = Monitor_nD(xwidth=0.120, yheight=0.240)
+AT (0,0,0.01+gGap) RELATIVE PREVIOUS
+
+
+/* only H521 (bottom, closer to H5 axis) is simulated; misses are absorbed */
+COMPONENT H521_origin = Arm()
+AT (-0.03,-.06,0) RELATIVE H52_Common_Out
+
+/* ================================ H521 ==================================== */
+/* bottom right (closer to H5 axis)                                           */
+/* feeds: D16 and Super-ADAM                                                  */
+/* rotated downwards by 0.05 deg for 17 m to get 15 mm separation and avoid   */
+/* collision with H522                                                        */
+COMPONENT H521_start = Arm()
+AT (0,0,0) RELATIVE H521_origin
+
+/* curved m=2/2.5 R=1500 m l=56000-20998=35 m 60x120->60x150 */
+COMPONENT H521_Curved = COPY(H5_rect)(w1=0.06, h1=0.12, w2=0.06, h2=0.12+0.03/35, 
+  l=35.0/35.0, m=2, mright=2.5)
+AT (0,0,gGap) RELATIVE PREVIOUS
+ROTATED (0.05,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS /* downwards */
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35, l=35.0/35.0)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT H521_Curved_preVTE = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(xwidth=0.06,yheight=0.15)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap+0.001) RELATIVE PREVIOUS
+
+/* VTE space+OT H53: 108 mm + 2 mm Al window */
+
+COMPONENT H521_VTE = COPY(H5)(xwidth=0.06, yheight=0.15, restore_neutron=1)
+AT (0,0,0.108/2-0.001) RELATIVE PREVIOUS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(zdepth=0.002,xwidth=0.06,yheight=0.15)
+AT (0,0,0.108/2-0.05) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(H521_Curved_preVTE)(
+  h1=COMP_GETPAR(H521_Curved_preVTE, h2), h2=COMP_GETPAR(H521_Curved_preVTE, h2)+0.03/35, l=35.0/35.0)
+AT (0,0,0.003+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)  /* back to horizontal */
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (-0.05,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0.05,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(H521_Curved) = COPY(PREVIOUS)(
+  h1=COMP_GETPAR(PREVIOUS, h2), h2=COMP_GETPAR(PREVIOUS, h2)+0.03/35)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+ROTATED (0,35.0/35.0/1500*RAD2DEG,0) RELATIVE PREVIOUS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(xwidth=0.06,yheight=0.15)
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+
+COMPONENT H521_Curved_Out = Monitor_nD(xwidth=0.06,yheight=0.15,options="x y")
+AT (0,0,0.01+gGap) RELATIVE PREVIOUS
+
+/* straight m=2 l=4 m 60x150 */
+
+COMPONENT H521_Straight = Guide_gravity(w1=0.06, h1=0.15,m=2, l=4,nelements=4)
+AT (0,0,gGap) RELATIVE PREVIOUS
+
+COMPONENT H521_Straight_Out = Monitor_nD(xwidth=0.06,yheight=0.15,options="x y")
+AT (0,0,COMP_GETPAR(PREVIOUS, l)+gGap) RELATIVE PREVIOUS
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(xwidth=0.06,yheight=0.15)
+AT (0,0,gGap+0.001) RELATIVE PREVIOUS
+
+
+/* ------------------------- D16 monochromator (transmission) --------------- */
+COMPONENT H521_D16_Monochromator_Cradle = Arm()
+AT (0,0,0.200/2-0.001) RELATIVE PREVIOUS
+
+/* PG002 w6*h12 7 blades; neutrons it reflects go to D16 and are lost for NeXT */
+COMPONENT H521_D16_Monochromator = Monochromator_curved(
+  width = 0.06, height = 0.12, NH=1, NV=7,
+  RV=D16_RMV, RH=0, DM=D16_DM, mosaich = 40, mosaicv = 40,
+  r0 = 1, t0 = 1, reflect="HOPG.rfl")
+WHEN (upstream_monos)
+AT      (0,0,0)      RELATIVE H521_D16_Monochromator_Cradle
+ROTATED (0,D16_A1,0) RELATIVE H521_D16_Monochromator_Cradle
+EXTEND %{
+  if (SCATTERED) ABSORB;
+%}
+
+COMPONENT H521_D16_Transmit = Arm()
+AT (0,0,0) RELATIVE H521_D16_Monochromator_Cradle
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(xwidth=0.06,yheight=0.15)
+AT (0,0,0.200/2-0.01) RELATIVE H521_D16_Transmit
+
+COMPONENT H521_P6_Start = Arm()
+AT (0,0,0.200/2)      RELATIVE H521_D16_Transmit
+
+/* Carter Poutre 6 */
+COMPONENT H521_P6 = COPY(H5_rect)(l=19.321, m=3, w1=0.06, h1=0.15, w2=0.06, h2=0.12)
+AT (0,0,0)            RELATIVE H521_P6_Start
+
+COMPONENT COPY(HCS_Al) = COPY(HCS_Al)(xwidth=0.06,yheight=0.12)
+AT (0,0,19.321+0.001) RELATIVE PREVIOUS
+
+/* ---------------------- SuperADAM monochromator (transmission) ------------ */
+COMPONENT H521_SADAM_Monochromator_Cradle = Arm()
+AT (0,0,0.524/2-0.001) RELATIVE PREVIOUS
+
+COMPONENT H521_SADAM_Monochromator = Monochromator_curved(
+  width = 0.06, height = 0.12, NH=1, NV=7,
+  RV=SADAM_RMV, RH=0, DM=SADAM_DM, mosaich = 40, mosaicv = 40,
+  r0 = 1, t0 = 1, reflect="HOPG.rfl")
+WHEN (upstream_monos)
+AT      (0,0,0)        RELATIVE H521_SADAM_Monochromator_Cradle
+ROTATED (0,SADAM_A1,0) RELATIVE H521_SADAM_Monochromator_Cradle
+EXTEND %{
+  if (SCATTERED) ABSORB;
+%}
+
+/* ================================ NeXT ==================================== */
+
+COMPONENT NeXT_start = Arm()
+AT (0,0,0) RELATIVE H521_SADAM_Monochromator_Cradle
+
+/* last H521 guide section up to the NeXT casemate (ASSUMED length) */
+COMPONENT H521_End = COPY(H5_rect)(w1=0.06, h1=0.12, l=L_guide_end, m=2)
+WHEN (L_guide_end > 0)
+AT (0,0,0.524/2) RELATIVE NeXT_start
+
+COMPONENT NeXT_guide_exit = Arm()
+AT (0,0,0.524/2+L_guide_end+gGap) RELATIVE NeXT_start
+
+COMPONENT NeXT_guide_exit_mon = Monitor_nD(xwidth=0.08, yheight=0.14,
+  options="lambda limits=[0.5 20]", bins=200, restore_neutron=1)
+AT (0,0,0.001) RELATIVE NeXT_guide_exit
+
+/* ---- wavelength selection option 1: velocity selector ------------------- */
+COMPONENT NeXT_selector = V_selector(xwidth=0.06, yheight=0.12, zdepth=0.40,
+  radius=0.20, alpha=sel_alpha, length=sel_length, d=0.0004, nu=sel_nu, nslit=72)
+WHEN (mode == 1)
+AT (0,0,0.25) RELATIVE NeXT_guide_exit
+
+/* ---- wavelength selection option 2: double crystal monochromator -------- */
+COMPONENT NeXT_DCM_cradle = Arm()
+AT (0,0,0.60) RELATIVE NeXT_guide_exit
+
+COMPONENT NeXT_DCM_1 = Monochromator_curved(width=0.20, height=0.14, NH=1, NV=1,
+  RV=0, RH=0, mosaich=dcm_mosaic, mosaicv=dcm_mosaic, r0=0.9, DM=dcm_DM, order=dcm_order)
+WHEN (mode == 2)
+AT      (0,0,0)        RELATIVE NeXT_DCM_cradle
+ROTATED (0,dcm_A1,0)   RELATIVE NeXT_DCM_cradle
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+/* second crystal parallel to the first: beam leaves parallel to the guide axis */
+COMPONENT NeXT_DCM_2 = COPY(NeXT_DCM_1)
+WHEN (mode == 2)
+AT      (dcm_dx,0,dcm_dz) RELATIVE NeXT_DCM_cradle
+ROTATED (0,dcm_A1,0)      RELATIVE NeXT_DCM_cradle
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+/* NeXT beam axis (laterally displaced by the DCM when mode=2) */
+COMPONENT NeXT_axis = Arm()
+AT (dcm_dx,0,0) RELATIVE NeXT_DCM_cradle
+
+/* ---- pinhole: primary 'source' of the imaging geometry ------------------ */
+COMPONENT NeXT_pinhole_mon = Monitor_nD(xwidth=0.08, yheight=0.14,
+  options="x y", bins=60, restore_neutron=1)
+AT (0,0,0.80-0.001) RELATIVE NeXT_axis
+
+COMPONENT NeXT_pinhole = Slit(radius=D/2)
+AT (0,0,0.80) RELATIVE NeXT_axis
+
+/* evacuated flight tube assumed: no air scattering */
+
+/* ---- sample position ----------------------------------------------------- */
+COMPONENT NeXT_sample_pos = Arm()
+AT (0,0,L_coll) RELATIVE NeXT_pinhole
+
+/* flux density at sample centre [n/cm2/s] over a 3x3 cm2 area:
+   compare with 3e8 n/cm2/s @ L/D=333 (ILL) */
+COMPONENT NeXT_flux_sample = Monitor_nD(xwidth=0.03, yheight=0.03,
+  options="lambda limits=[0.5 20] per cm2", bins=390, restore_neutron=1)
+AT (0,0,-0.002) RELATIVE NeXT_sample_pos
+
+COMPONENT NeXT_beam_sample = Monitor_nD(xwidth=0.20, yheight=0.20,
+  options="x y", bins=100, restore_neutron=1)
+AT (0,0,-0.001) RELATIVE NeXT_sample_pos
+
+COMPONENT NeXT_div_sample = Monitor_nD(xwidth=0.03, yheight=0.03,
+  options="dx limits=[-0.5 0.5], dy limits=[-0.5 0.5]", bins=50, restore_neutron=1)
+AT (0,0,-0.001) RELATIVE NeXT_sample_pos
+
+/* SPLIT: each neutron reaching the sample is re-used 100 times (weights are
+   divided accordingly) to boost statistics in the sample and detector */
+SPLIT 100 COMPONENT NeXT_sample = PowderN(reflections=sample_file,
+  radius=sample_radius, yheight=sample_height, p_transmit=0.9, d_phi=0)
+WHEN (sample)
+AT (0,0,0) RELATIVE NeXT_sample_pos
+
+/* ---- imaging detector (ideal, no scintillator blur) ---------------------- */
+COMPONENT NeXT_detector = Monitor_nD(xwidth=det_size, yheight=det_size,
+  options="x y", bins=det_bins, restore_neutron=1)
+AT (0,0,det_dist) RELATIVE NeXT_sample_pos
+
+/* transmission spectra: through the sample centre and in the open beam */
+COMPONENT NeXT_spec_sample = Monitor_nD(xwidth=sample_radius, yheight=0.8*sample_height,
+  options="lambda limits=[0.5 10]", bins=190, restore_neutron=1)
+AT (0,0,det_dist) RELATIVE NeXT_sample_pos
+
+COMPONENT NeXT_spec_open = Monitor_nD(xwidth=sample_radius, yheight=0.8*sample_height,
+  options="lambda limits=[0.5 10]", bins=190, restore_neutron=1)
+AT (3*sample_radius,0,det_dist) RELATIVE NeXT_sample_pos
+
+END

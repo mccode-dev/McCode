@@ -21,6 +21,10 @@ perform high intensity, high resolution experiments to study the structure of
 disordered materials and crystalline powders.
 ```
 
+## Examples
+
+- **Test: sample="Y2O3.laz" Detector: monzns_I=52.689**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

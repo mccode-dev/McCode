@@ -1,0 +1,42 @@
+\section{The \texttt{MCViNE\_DGSSXRes\_process} McStas Component}
+Union process: Resolution kernel for direct-geometry single-crystal spectrometers (aims at a pixel and TOF window).
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE DGSSXResKernel; MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/DGSSXResKernel.cc)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+Scatters towards a target disk (position target\_x/y/z or target\_index, radius focus\_r) and picks the arrival time at the target uniformly in tof\_at\_target +/- dtof/2 (absolute neutron time, s). The final speed follows from the flight distance. Weight: solid\_angle/4pi * dtof * dE/dt * vf/vi, as in MCViNE. Record ki/kf with monitors to build the resolution ellipsoid (similar in purpose to McStas' TOFRes\_sample, with MCViNE's weighting).
+
+\textbf{Union process.} Part of the Union components: define this process, collect it into a material with Union\_make\_material (absorption is set there with my\_absorption, the absorption inverse penetration depth at 2200 m/s), assign the material to Union\_box/Union\_cylinder/Union\_sphere/Union\_mesh geometries, and add a Union\_master after them. Geometry, attenuation and multiple scattering are handled by Union\_master; this component provides the MCViNE kernel: the scattering coefficient and the final-state sampling (weight). Isotropic process (powder/liquid-like); rotation is irrelevant. The target is the Union focusing of the geometry (target\_index / target\_x.. and focus\_r / focus\_xw,focus\_xh / focus\_aw,focus\_ah on Union\_box etc.). The kernel code is shared with the standalone component MCViNE\_DGSSXRes (mcvine-lib.c). Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type MCViNE is declared in share/union-lib.h and registered with Union\_master in share/mcvine-union-lib.h.
+
+Example: MCViNE\_DGSSXRes\_process(focus\_r=0.0125, tof\_at\_target=0.0052, dtof=1e-5, scattering\_coefficient=10)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+tof\_at\_target & s & Desired absolute time of arrival at the target & 0.001 \\
+dtof & s & Width of the time window & 1e-5 \\
+scattering\_coefficient & m$^{-1}$ & Scattering coefficient (inverse penetration depth for scattering) & 0 \\
+sigma\_scat & barn & Alternative: scattering cross section per unit cell (used when Vc\textgreater{}0) & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume; when \textgreater{}0 the coefficient is sigma\_scat/Vc & 0 \\
+packing\_factor & 1 & Packing factor (scales the scattering coefficient) & 1 \\
+interact\_fraction & 1 & Union: fraction of interactions forced to this process (-1: by cross section) & -1 \\
+init & string & Deprecated and unused, accepted like on the other Union components (see Union\_init). & "" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_DGSSXRes\_process.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_DGSSXRes_process_static.tex}{\input{contrib/MCViNE_DGSSXRes_process_static.tex}}{}

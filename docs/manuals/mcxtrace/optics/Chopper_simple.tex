@@ -1,19 +1,45 @@
-\section{Chopper\_simple: An ideal chopper}
-\index{Optics!lens}
-\mcdoccomp{optics/Chopper_simple.parms}
-\texttt{Chopper\_simple} is an idelized version of a chopper with a rectangular chopper opening which may open
-instantly and has no side-scattering etc.
+\section{The \texttt{Chopper\_simple} McXtrace Component}
+Ideal chopper
 
-It models the chopper with a blocking infinitely thin aperture which becomes transparent
-in the time interval $t\in\left[\mathit{t0},\mathit{t0}+\tau\right]$.
-This is an idelized version of a chopper where the chopper opening is rectangular which may open
-instantly (if \textit{t\_rise}$=0$, the default). For nonzero rise time the aperture simply becomes gradually less opaque
-for $t\in\left[\mathit{t0}-\textit{t\_rise},\mathit{t0}\right]$.
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} 
+  \item \textbf{Origin:} Risoe
+  \item \textbf{Date:} August 2011
+\end{itemize}
 
-For correct normalization of intesity a chopper period, \textit{T}, must also be set.
+\subsection*{Description}
+Ideal model of a chopper situated at Z=0. If a photon arrives at the chopper plane at a time of t = [t0 +-n*T: t0 +-n*T +tau], where T is the period of the chopper, t0 the initial delay and tau the opening time of the chopper, it is left untouched - otherwise it is ABSORBed. If on a continous source the isfirst parameter may be used. In this case the photon time is \_defined\_ by the chopper. In other words no photons are absorbed, the photon time is merely sampled within the chopper window. t\_rise is the rise-time of the chopper opening giving a trapezoidal shape. Limitations: this component does not take chopper geometry into account. If isfirst only samples in the first chopper opening window.
 
-\textit{is\_first} is useful when using \textbf{Chopper\_simple} with continous sources who inherently have no time-dependence. Thus the emission time of the photon
-ray is arbitrary, and the chopper defines the temporal signature of the beam,
-i.e. it simply sets the time-parameter of the photon ray randomly in the
-opening window of the chopper. Naturally this should only be used for the \emph{first} chopper
-element in a simulation.
+Example: Chopper\_simple(
+
+\begin{verbatim}
+t0 = -0.5/M_C, T = 20e-6, tau = 100e-12, xwidth = 1e-4,
+\end{verbatim}
+
+yheight = 1e-4, isfirst = 1)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+t0 & s & Initial delay of the opening time & 0 \\
+T & s & Period of the chopper & 1 \\
+tau & s & Opening time of the chopper & 0.1 \\
+xwidth & m & Height of the chopper opening & 0.1 \\
+yheight & m & Width of the chopeper opening & 0.1 \\
+isfirst & 0/1 & Is the chopper the first chopper on a continous source. & 0 \\
+t\_rise & s & Rise time of the chopper pulse. & 0 \\
+tjit & 1 & Timing jitter in terms of the opening time tau. For each ray the opening window will be shifted by a random amount within t=[-tjit*.5*tau,tjit*.5*tau] & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Chopper\_simple.comp}.
+\end{itemize}
+\IfFileExists{optics/Chopper_simple_static.tex}{\input{optics/Chopper_simple_static.tex}}{}

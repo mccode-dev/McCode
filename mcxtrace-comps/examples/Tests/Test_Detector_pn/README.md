@@ -21,6 +21,10 @@ A restore_flag parameter may be passed to Detector_pn which negates the absorpti
 effect for subsequent components.
 ```
 
+## Examples
+
+- **Test: Test_Detector_pn restore_flag=1 Detector: detap2_I=1.02182e-06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

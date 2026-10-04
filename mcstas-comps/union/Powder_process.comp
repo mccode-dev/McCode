@@ -49,6 +49,7 @@
 * nb_atoms:          [1]         Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell
 * target_index:      [1]         Relative index of component to focus at, e.g. next is +1
 * d_phi: [deg]         Angle corresponding to the vertical angular range to focus to, e.g. detector height. 0 for no focusing.
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * CALCULATED PARAMETERS:
 * V_rho:  [AA^-3] Atomic density
@@ -59,16 +60,14 @@
 
 DEFINE COMPONENT Powder_process
 
-SETTING PARAMETERS(string reflections="NULL",packing_factor=1, Vc=0, delta_d_d=0, DW=0, nb_atoms=1, d_phi=0, density=0, weight=0, barns=1, Strain=0, interact_fraction=-1, vector format={0, 0, 0, 0, 0, 0, 0, 0, 0}, string init="init")
+SETTING PARAMETERS(string reflections="NULL",packing_factor=1, Vc=0, delta_d_d=0, DW=0, nb_atoms=1, d_phi=0, density=0, weight=0, barns=1, Strain=0, interact_fraction=-1, vector format={0, 0, 0, 0, 0, 0, 0, 0, 0}, string init="")
 
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
 SHARE
 %{
-  #ifndef Union
-  #error "The Union_init component must be included before this Powder_process component"
-  #endif
+  %include "union-lib"
 
   // Share section of PowderN 8/3 2016 from McStas.org
 
@@ -683,6 +682,12 @@ SHARE
   #ifndef PROCESS_POWDER_DETECTOR
   #define PROCESS_POWDER_DETECTOR dummy
   #endif
+
+  // Register this process with the Union_master dispatch (see union-lib.h)
+  #undef UNION_CASE_PHYSICS_MY_POWDER
+  #define UNION_CASE_PHYSICS_MY_POWDER(out, ...) case Powder: out = Powder_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_POWDER
+  #define UNION_CASE_PHYSICS_SCATTERING_POWDER(out, ...) case Powder: out = Powder_physics_scattering(__VA_ARGS__); break;
 %}
 
 DECLARE
@@ -833,13 +838,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  if (_getcomp_index (init) < 0) {
-    fprintf (stderr, "Powder_process:%s: Error identifying Union_init component, %s is not a known component name.\n", NAME_CURRENT_COMP, init);
-    exit (-1);
-  }
-
-  struct pointer_to_global_process_list* global_process_list = COMP_GETPAR3 (Union_init, init, global_process_list);
-  add_element_to_process_list (global_process_list, global_process_element);
+  add_element_to_process_list (&union_acquire ()->u_process_list, global_process_element);
  %}
 
 TRACE
@@ -852,6 +851,7 @@ FINALLY
   free (line_info.q_v);
   free (line_info.w_v);
   free (line_info.my_s_v2);
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

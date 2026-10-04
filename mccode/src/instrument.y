@@ -1284,15 +1284,16 @@ instref: "COPY" '(' compref ')' actuallist /* make a copy of a previous instance
         comp_src = $3;
         palloc(comp);
         comp->def    = comp_src->def;
-        comp->extend = comp_src->extend;
-        comp->group  = comp_src->group;
-        comp->jump   = comp_src->jump;
-        comp->when   = comp_src->when;
         /* now catenate src and actual parameters */
         comp->actuals= symtab_create();
         symtab_cat(comp->actuals, $5);
         symtab_cat(comp->actuals, comp_src->actuals);
-        comp->metadata = metadata_list_copy(comp_src->metadata);
+        /* All other properties are initialized from fresh */
+        comp->extend = codeblock_new();
+        comp->group  = NULL;
+        comp->jump   = list_create();
+        comp->when   = NULL;
+        comp->metadata = list_create();
         $$ = comp;
       }
     | "COPY" '(' compref ')'
@@ -1304,12 +1305,13 @@ instref: "COPY" '(' compref ')' actuallist /* make a copy of a previous instance
         comp->defpar = comp_src->defpar;
         comp->setpar = comp_src->setpar;
         comp->def    = comp_src->def;
-        comp->extend = comp_src->extend;
-        comp->group  = comp_src->group;
-        comp->jump   = comp_src->jump;
-        comp->when   = comp_src->when;
         comp->actuals= comp_src->actuals;
-        comp->metadata = metadata_list_copy(comp_src->metadata);
+        /* All other properties are initialized from fresh */
+        comp->extend = codeblock_new();
+        comp->group  = NULL;
+        comp->jump   = list_create();
+        comp->when   = NULL;
+        comp->metadata = list_create();
         $$ = comp;
       }
     | TOK_ID actuallist /* define new instance with def+set parameters */
@@ -1325,7 +1327,7 @@ instref: "COPY" '(' compref ')' actuallist /* make a copy of a previous instance
         comp->jump   = list_create();
         comp->when   = NULL;
         comp->actuals= $2;
-        comp->metadata = metadata_list_copy(def->metadata);
+        comp->metadata = list_create();
         $$ = comp;
       }
 ;
@@ -1417,28 +1419,6 @@ component: removable cpuonly split "COMPONENT" instname '=' instref
 	  }
         }
         if ($13->linenum) {
-#ifdef GENERATE_C
-	  if (comp->extend->linenum>0) {
-	    fprintf(stderr, "\n-----------------------------------------------------------\n");
-	    fprintf(stderr, "WARNING: Existing (COPY) EXTEND block in COMPONENT %s:\n", comp->name);
-	    List_handle liter = list_iterate(comp->extend->lines);
-	    List_handle liter2 = list_iterate($13->lines);
-	    char *line, *line2;
-	    fprintf(stderr, "  EXTEND %%{\n");
-	    while((line = list_next(liter))) {
-	      fprintf(stderr, "  %s",line);
-	    }
-	    list_iterate_end(liter);
-	    fprintf(stderr, "  %%}\n");
-	    fprintf(stderr, "\nis overwritten by:\n");
-	    fprintf(stderr, "  EXTEND %%{\n");
-	    while((line2 = list_next(liter2))) {
-	      fprintf(stderr, "  %s",line2);
-	    }
-	    list_iterate_end(liter2);
-	    fprintf(stderr, "  %%}\n-----------------------------------------------------------\n");
-	  }
-#endif
 	  comp->extend= $13;  /* EXTEND block*/
 	}
         if (list_len($14))  comp->jump  = $14;
@@ -1815,9 +1795,11 @@ shell:
 search: "SEARCH" TOK_STRING
     {
       add_search_dir($2);
+      record_search($2, 0);
     }
   | "SEARCH" "SHELL" TOK_STRING
     {
+      record_search($3, 1);
       FILE *sfp;
       char svalue[1025];
       sfp = popen($3, "r");
@@ -2131,6 +2113,13 @@ char verbose = 0;
 /* Are we generating code for the "lint" mode? (only for Python mode) */
 char lint = 0;
 
+/* Python mode: name of generated McStasScript instrument (NULL means
+   default, i.e. the instrument name with a "_generated" suffix) */
+char *pygen_instrument_name = NULL;
+
+/* Python mode: do not translate %Example lines into McStasScript tests */
+char pygen_no_tests = 0;
+
 /* include instrument source code in executable ? */
 char embed_instrument_file = 0;
 
@@ -2162,7 +2151,11 @@ print_usage(void)
   fprintf(stderr, "      --source                   Embed the instrument source code in executable.\n");
 #elif defined(GENERATE_PY)
   fprintf(stderr, "      --lint                     Generate a .py script for McStasScript\n");
-  fprintf(stderr, "                                 style \"diagnostic\" linting.\n\n");
+  fprintf(stderr, "                                 style \"diagnostic\" linting.\n");
+  fprintf(stderr, "      --instrument-name=NAME     Name of the McStasScript instrument\n");
+  fprintf(stderr, "                                 (default: instrument name + \"_generated\").\n");
+  fprintf(stderr, "      --no-tests                 Do not translate %%Example lines into\n");
+  fprintf(stderr, "                                 McStasScript tests (instr.add_test).\n\n");
 #endif
   fprintf(stderr, "  The instrument description file will be processed and translated into " GENERATE_LANG ".\n");
 #if defined(GENERATE_C)
@@ -2296,6 +2289,12 @@ parse_command_line(int argc, char *argv[])
 #elif defined(GENERATE_PY)
     else if(!strcmp("--lint", argv[i]))
       lint = 1;
+    else if(!strcmp("--instrument-name", argv[i]) && (i + 1) < argc)
+      pygen_instrument_name = str_dup(argv[++i]);
+    else if(!strncmp("--instrument-name=", argv[i], 18))
+      pygen_instrument_name = str_dup(&argv[i][18]);
+    else if(!strcmp("--no-tests", argv[i]))
+      pygen_no_tests = 1;
 #endif
     else if(!strcmp("-v", argv[i]))
       print_version(0);

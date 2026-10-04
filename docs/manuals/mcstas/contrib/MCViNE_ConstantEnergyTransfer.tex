@@ -1,0 +1,52 @@
+\section{The \texttt{MCViNE\_ConstantEnergyTransfer} McStas Component}
+Isotropic scatterer with a fixed energy transfer.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE ConstantEnergyTransferKernel; MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/ConstantEnergyTransferKernel.cc)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+Every scattered neutron loses exactly the energy E (E\textless{}0: gains) and leaves in a uniformly random direction over 4pi. Useful for testing and resolution studies.
+
+\textbf{Transport} (same as MCViNE HomogeneousNeutronScatterer): on the first passage the neutron is forced to scatter at a uniformly chosen depth, weighted by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient; on exit it is attenuated by exp(-(mu+sigma)L\_out). With order\textgreater{}1 further scatterings are sampled analogically (truncated exponential). With p\_transmit\textgreater{}0 that fraction of events is kept as the attenuated direct beam. mu(v) = absorption\_coefficient*2200/v. Events for which the kernel cannot scatter (kinematically forbidden) are absorbed.
+
+Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow cylinder (+thickness) or sphere (radius only). All vectors (Q, targets, reciprocal vectors, atom positions) are in the component's local frame.
+
+Uses the shared runtime share/mcvine-lib.h/.c.
+
+Example: MCViNE\_ConstantEnergyTransfer(E=10, scattering\_coefficient=10, radius=0.01, yheight=0.05)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+E & meV & Energy transfer Ei-Ef & 0 \\
+absorption\_coefficient & m$^{-1}$ & Absorption coefficient at 2200 m/s (MCViNE convention; scales as 1/v) & 0 \\
+scattering\_coefficient & m$^{-1}$ & Scattering coefficient & 0 \\
+sigma\_abs & barn & Alternative: absorption cross section per unit cell at 2200 m/s (used when Vc\textgreater{}0) & 0 \\
+sigma\_scat & barn & Alternative: scattering cross section per unit cell (used when Vc\textgreater{}0) & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume; when \textgreater{}0, coefficients are computed from sigma\_abs, sigma\_scat & 0 \\
+radius & m & Outer radius of a cylinder (with yheight) or of a sphere (yheight=0) & 0 \\
+xwidth & m & Width of a box sample & 0 \\
+yheight & m & Height of a box or cylinder sample & 0 \\
+zdepth & m & Depth of a box sample & 0 \\
+thickness & m & Wall thickness of a hollow cylinder (0: filled) & 0 \\
+pack & 1 & Packing factor (scales absorption and scattering coefficients) & 1 \\
+p\_transmit & 1 & Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter) & 0 \\
+order & 1 & Maximum number of scattering events per neutron (1: single scattering) & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_ConstantEnergyTransfer.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_ConstantEnergyTransfer_static.tex}{\input{contrib/MCViNE_ConstantEnergyTransfer_static.tex}}{}

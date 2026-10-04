@@ -17,6 +17,11 @@ A single crystal sample is illuminated with a white cold beam.
 Based on a Laue tutorial written by K. Nielsen, Feb 7, 2000.
 ```
 
+## Examples
+
+- **Test: templateNMX reflections=Rubredoxin.lau Detector: det_I=7.8e4**
+- Example: templateNMX reflections=PPase_D_P1.lau Detector: det_I=29.6512
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

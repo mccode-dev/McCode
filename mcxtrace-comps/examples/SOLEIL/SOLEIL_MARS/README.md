@@ -26,6 +26,10 @@ HERFD-XANES) and microbeam techniques (microXRF, XAS, XRD).
 This model implements the XRD station for powders.
 ```
 
+## Examples
+
+- **Test: E0=16.99 Detector: detector_diffraction_I=2.56e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

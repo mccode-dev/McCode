@@ -17,6 +17,11 @@ with normal incidence on a parabolic mirror, is reflected to the focal point, an
 back to flat detector some distance, D, away.
 ```
 
+## Examples
+
+- **Test: D=0.0025 MM=1 Detector: detBB_I=1**
+- **Test: D=1 MM=1 Detector: detBB_I=0.104959**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -27,6 +27,10 @@ output.
 Example: ISIS_TOSCA_preupgrade.instr inc=Benzene_inc_CASTEP_MDANSE2018.sqw -n1e7
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

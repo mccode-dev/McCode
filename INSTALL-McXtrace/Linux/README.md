@@ -1,6 +1,7 @@
-# Install McXtrace 3.7.9 on Linux and Unix.
+# Install McXtrace 3.8.4 on Linux and Unix.
 
-* We provide Debian packages, RedHat packages, and tar.gz's of "preconfigured" source code.
+* We provide Debian packages for `x86_64` an `arm64` and recommend our
+	[conda-forge](../conda/README.md) install mechanism for any other platform.
 
 ## Official Debian packages
 We are currently in transition to provide McXtrace via the official Debian repository, see [packages.debian.org](https://packages.debian.org/search?keywords=mcxtrace&searchon=names&suite=all&section=all)

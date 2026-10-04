@@ -1,267 +1,158 @@
-\section{PowderN: A general powder sample}
-\index{Samples!Powder, multiple diffraction line}
-\index{Diffraction}
-\index{Sample environments}
-\index{Concentric components}
-\label{powder}
+\section{The \texttt{PowderN} McXtrace Component}
+General powder sample (N lines, single scattering, incoherent scattering)
 
-\input{samples/PowderN.parms}
-%\component{Powder\_N}{System}{$radius$, $thickness$, $h$, $xwidth$, $yheight$, $zdepth$, $\sigma_\mathrm{abs}$,
-%  $\sigma_\mathrm{inc}$, $Vc$, $f_\mathrm{pack}$, reflections, format, DW, concentic, and more}{}{}
-
-The powder diffraction component \textbf{PowderN} models a powder sample
-with background coming only from incoherent scattering and no
-multiple scattering. At the users choice, a given percentage of the incoming
-events may be transmitted (attenuated) to model the direct beam. The component can also
-assume \emph{concentric} shape, i.e. be used for describing sample environment (cryostat,
-sample container etc.). 
-
-The description of the powder comes from a file in one of the standard output formats LAZY, FULLPROF, or CRYSTALLOGRAPHICA.
-
-%A usage example of this component can be found in the \\
-%\verb+x-ray site/Tutorial/templateDIFF+ instrument from the \verb+mcgui+.
-
-\subsection{Files formats: powder structures}
-
-Data files of type \verb'lau' and \verb'laz' in the \MCX distribution data directory are self-documented in their header. 
-%A list of common powder definition files is available in Table \ref{t:powders-data} (page \pageref{t:powders-data}). They do not need any additional parameters to be used, as in the example:
-\begin{verbatim}
-  PowderN(<geometry parameters>, filename="Al.laz")
-\end{verbatim}
-Other column-based file formats may also be imported e.g. with parameters such as:
-\begin{verbatim}
-  format=Crystallographica
-  format=Fullprof
-  format={1,2,3,4,0,0,0,0}
-\end{verbatim}
-In the latter case, the indices define order of columns parameters
-multiplicity, lattice spacing, $F^2$, Debye-Waller factor and intrinsic line width.
-
-The column signification may as well explicitely be set in the data file header using any of the lines:
-\begin{verbatim}
-  #column_j     <index of the multiplicity 'j' column>
-  #column_d     <index of the d-spacing 'd' column>
-  #column_F2    <index of the squared str. factor '|F|^2' column [b]>
-  #column_F     <index of the structure factor norm '|F|' column>
-  #column_DW    <index of the Debye-Waller factor 'DW' column>
-  #column_Dd    <index of the relative line width Delta_d/d 'Dd' column>
-  #column_inv2d <index of the 1/2d=sin(theta)/lambda 'inv2d' column>
-  #column_q     <index of the scattering wavevector 'q' column>
-\end{verbatim}
-
-Other component parameters may as well be specified in the data file
-header with lines e.g.:
-\begin{verbatim}
-  #V_rho        <value of atom number density [at/Angs^3]>
-  #Vc           <value of unit cell volume Vc [Angs^3]>
-  #sigma_abs    <value of Absorption cross section [barns]>
-  #sigma_inc    <value of Incoherent cross section [barns]>
-  #Debye_Waller <value of Debye-Waller factor DW>
-  #Delta_d/d    <value of Delta_d/d width for all lines>
-  #density      <value of material density [g/cm^3]>
-  #weight       <value of material molar weight [g/mol]>
-  #nb_atoms     <value of number of atoms per unit cell>
-\end{verbatim}
-
-Further details on file formats are available in the \texttt{mxdoc} page
-of the component.
-
-\subsection{Geometry, physical properties, concentricity}
-The sample has the shape of a solid cylinder, radius $r$ and height $h$ or a box-shaped
-sample of size $xwidth$ x $yheight$ x $zdepth$. At the users choice, an inner 'hollow' can be
-specified using the parameter $thickness$. 
-
-
-%As the Isotropic\_Sqw component~\ref{s:isotropic-sqw}, 
-PowderN can assume a \emph{concentric} shape, i.e.
-can contain other components inside the inner hollow. To allow this, two almost identical copies
-of the PowderN components must be set up \emph{around} the internal component(s), for example:
-
-
-\begin{verbatim}
-COMPONENT Cryo = PowderN(reflections="Al.laz", radius = 0.01, thickness = 0.001,
-                          concentric = 1)
-AT (0,0,0) RELATIVE Somewhere
-
-COMPONENT Sample = some_other_component(with geometry FULLY enclosed in the hollow)
-AT (0,0,0) RELATIVE Somewhere
-
-COMPONENT Cryo2 = COPY(Cryo)(concentric = 0)
-AT (0,0,0) RELATIVE Somewhere
-\end{verbatim}
-
-As outlined, the first instance of PowderN \emph{must} have \texttt{concentric = 1} and the second instance \emph{must}
-have \texttt{concentric = 0}. Furthermore, the component(s) inside the hollow \emph{must} have a geometry which can
-be fully contained inside the hollow.
-
-
-In addition to the coherent scattering specified in the \verb+reflections+ file, absorption- and incoherent 
-cross sections can be given using the input parameters $\sigma_c^a$ and $\sigma_i^s$.
-
-
-The Bragg scattering from the powder,
-$\sigma_c^s$ is calculated from the input file, with the parameters
-$Q$, $|F(Q)|^2$, and $j$ for the scattering vector, structure factor, and
-multiplicity, respectively. The volume of the unit cell is denoted $Vc$,
-while the sample packing factor is $f_\mathrm{pack}$.
-
-
-%Further, the incoherent scattering is only taken into account
-%by the attenuation of the beam, given by (\ref{e:attenu})
-%and $\sigma_c^a$.
-%The incoherently scattered x-rays are not
-%propagated through to the detector, but rather not generated at all.
-
-Focusing is performed by only scattering into one angular
-interval, $d\phi$ of the Debye-Scherrer circle. The center of this
-interval is located at the point where the Debye-Scherrer circle
-intersects the half-plane defined by the initial velocity, $\boldsymbol{v}_\mathrm{i}$,
-and a user-specified vector, $\boldsymbol{f}$.
-
-%The input parameters for this component are
-%
-%\begin{quote}\begin{tabular}{ccl}
-%$r$ & m & Radius of cylinder \\
-%$h$ & m & Height of cylinder \\
-%$\sigma_c^a$ & fm$^2$ & Absorption cross section per unit cell (at 2200 m/s) \\
-%$\sigma_{i,c}^s$ & (fm)$^2$ & Incoherent scattering cross section per unit cell \\
-%$\rho'/\rho$ & 1 & Packing factor \\
-%$V_c$ & \AA$^3$ & Volume of unit cell \\
-%$\boldsymbol{Q}$ & \AA$^{-1}$ & The reciprocal lattice vector under consideration \\
-%$|F(\textbf{Q}_j)|^2$ & (fm)$^2$ &
-% Structure factor \\
-%$j$ & 1 & Multiplicity of reflection \\
-%$\exp(-2W)$ & 1 & Debye-Waller factor \\
-%$d\phi$ & deg & Angular interval of focusing \\
-%$f_x$ & m & \\
-%$f_y$ & m & Focusing vector\\
-%$f_z$ & m & \\
-%\end{tabular}\end{quote}
-
-\subsection{Powder scattering}
-An ideal powder sample consists of many small
-crystallites, although each crystallite is sufficiently
-large not to cause measurable size broadening.
-The orientation of the crystallites is evenly distributed,
-and there is thus always a large number of
-crystallites oriented to fulfill the Bragg condition
-\begin{equation}   \label{Bragg}
-n \lambda = 2 d \sin \theta ,
-\end{equation}
-where $n$ is the order of the scattering (an integer), $\lambda$
-is the x-ray wavelength, $d$ is the lattice spacing of the sample,
-and $2 \theta$ is the scattering angle, see figure \ref{coneFig}.
-As all crystal orientations
-are realised in a powder sample, the x-rays are scattered within a
-{\em Debye-Scherrer cone} of opening angle $4 \theta$ \cite{bacon}.
-
-\begin{figure}
-  \begin{center}
-    \psfrag{2theta}[c][c]{$2\theta$}
-    \includegraphics[width=0.6\textwidth]{figures/powder.eps}
-  \end{center}
-\caption{The scattering geometry of a powder sample showing part of the
-Debye-Scherrer cone (solid lines) and the Debye-Scherrer circle (grey).}
-\label{coneFig}
-\end{figure}
-
-Equation (\ref{Bragg}) may be cast into the form
-\begin{equation}
-|\boldsymbol{Q}| = 2 |\boldsymbol{k}| \sin \theta ,
-\end{equation}
-where \textbf{Q} is a vector of the reciprocal lattice, and \textbf{k} is
-the wave vector of the x-ray. It is seen that only
-reciprocal vectors fulfilling $|\boldsymbol{Q}| < 2 |\boldsymbol{k}|$
-contribute to the scattering.
-For a complete treatment of the powder sample, one needs to take
-into account all these \textbf{Q}-values, since each of them contribute
-to the attenuation.
-
-The strength of the Bragg reflections is given by their structure factors
-\begin{equation}
- \left| \sum_j b_j \exp(\boldsymbol{R}_j \cdot \boldsymbol{Q}) \right|^2 ,
-\end{equation}
-where the sum runs over all atoms in one unit cell. This structure factor is
-non-zero only when $Q$ equals a reciprocal lattice vector.
-
-The textbook expression for the scattering cross section
-corresponding to one Debye-Scherrer cone reads \cite[ch.3.6]{squires}, with $V=N V_0$ being the total sample volume:
-\begin{equation}
-\sigma_\mathrm{cone}
-  = \frac{V}{V_0^2} \frac{\lambda^3}{4 \sin \theta} \sum_Q |F(Q)|^2 .
-\end{equation}
-For our purpose, this expression should be changed slightly.
-Firstly, the sum over structure factors for a particular $Q$ is replaced
-by the sum over essentially different reflections multiplied by their
-multiplicity, $j$. Then, a finite packing factor, $f$, is defined for the powder,
-and finally, the Debye-Waller factor is multiplied on the elastic cross section
-to take lattice vibrations into account (no inelastic background is simulated,
-however). We then reach
-\begin{eqnarray}
-\sigma_\mathrm{cone, Q}
- & = & j_Q f \exp(-2W) \frac{V}{V_0^2} \frac{\lambda^3}{4 \sin \theta} |F(Q)|^2 \\
- & = & f \exp(-2W) \frac{N}{V_0} \frac{4\pi^3}{k^2} \frac{j_Q |F(Q)|^2}{Q}
-\end{eqnarray}
-in the thin sample approximation. For samples of finite thickness, the
-beam is being attenuated by the attenuation coefficient
-\begin{equation}
-\label{e:attenu}
-\mu_\mathrm{Q} = \sigma_\mathrm{cone,Q} / V .
-\end{equation}
-For calibration it may be useful to consider the total intensity
-scattered into a detector of effective height $h$, covering only
-one reflection \cite[ch.3.6]{squires}.
-A cut though the Debye-Scherrer cone perpendicular to its axis
-is a circle. At the distance $r$ from the sample, the radius of this
-circle is $r \sin(2\theta)$. Thus, the detector (in a small angle
-approximation) counts a fraction $h / (2 \pi r \sin(2 \theta))$
-of the scattered x-rays, giving a resulting count intensity:
-\begin{equation}
-I = \Psi \sigma_\mathrm{cone,Q} \frac{h}{2 \pi r \sin(2\theta)} ,
-\end{equation}
-where $\Psi$ is the flux at the sample position.
-
-For clarity we repeat the meaning and unit of the symbols:
-%
-\begin{quote}\begin{tabular}{ccl}
-$\Psi$ & s$^{-1}$m$^{-2}$ & Incoming intensity of x-rays \\
-$I$    & s$^{-1}$ & Detected intensity of x-rays \\
-$h$    & m        & Height of detector \\
-$r$    & m        & Distance from sample to detector \\
-$f$    & 1        & Packing factor of the powder \\
-$j$    & 1        & Multiplicity of the reflection \\
-$V_0$  & m$^{3}$  & Volume of unit cell\\
-$|F(\boldsymbol{Q})|^2$ & m$^2$  & Structure factor \\
-$\exp(-2W)$ & 1  & Debye-Waller factor \\
-$\mu_\mathrm{Q}$ & m$^{-1}$ & Linear attenuation factor due to scattering from
-one powder line. \\
-\end{tabular}\end{quote}
-%
-%Often, one defines the {\em scattering power} as
-%\begin{equation}
-%Q \equiv N^2 \frac{|F(\boldsymbol{Q})|^2 \lambda^3}{V \sin(2\theta)}
-% = N_c^2 V \frac{\rho'}{\rho} \frac{|F(\boldsymbol{Q})|^2 \lambda^3}{\sin(2\theta)} ,
-%\end{equation}
-%where $N$ is the number of unit cells.
-
-A powder sample will in general have several allowed reflections
-$\boldsymbol{Q}_j$, which will all contribute to the attenuation.
-These reflections will have different values of
-$|F(\boldsymbol{Q}_j)|^2$ (and hence of $Q_j$), $j_j$, $\exp(-2W_j)$,
-and $\theta_j$.
-The total attenuation through the sample due to scattering is given by
-$\mu^s = \mu_\mathrm{inc}^s + \sum_j \mu^s_j $,
-where $\mu_\mathrm{inc}^s$ represents the incoherent scattering.
-
-\subsection{Algorithm}
-The algorithm of \textbf{PowderN} can be summarized as
+\subsection*{Identification}
 \begin{itemize}
-\item Check if the x-ray intersects the sample (otherwise ignore
-the following).
-\item Calculate the attenuation coefficients for scattering and absorption.
-\item Perform Monte Carlo choices to determine the scattering position,
-scattering type (coherent/incoherent), and the outgoing direction.
-\item Perform the necessary weight factor transformation.
+  \item \textbf{Author:} P. Willendrup, L. Chapon, K. Lefmann, A.B.Abrahamsen, N.B.Christensen, E.M.Lauridsen.
+  \item \textbf{Origin:} McXtrace release 1.2
+  \item \textbf{Date:} 4.2.98
 \end{itemize}
 
-%\subsection{Calculating the weight factor}
+\subsection*{Description}
+General powder sample with many scattering vectors possibility for intrinsic line broadening incoherent background ratio is computed from material datafile. No multiple scattering. No secondary extinction.
+
+Based on Powder1/Powder2/Single\_crystal. Geometry is a powder filled cylinder, sphere, box or any shape from an OFF file. Incoherent scattering is only provided here to account for a background. The efficient is highly improved when restricting the vertical scattering range on the Debye-Scherrer cone (with 'd\_phi' and 'focus\_flip'). The unit cell volume Vc may also be computed when giving the density, the atomic/molecular weight and the number of atoms per unit cell.
+
+\textbf{Sample shape:} Sample shape may be a cylinder, a sphere, a box or any other shape.
+
+\begin{verbatim}
+box/plate:       xwidth x yheight x zdepth (thickness=0)
+\end{verbatim}
+
+hollow box/plate:xwidth x yheight x zdepth and thickness\textgreater{}0
+
+\begin{verbatim}
+cylinder:        radius x yheight (thickness=0)
+\end{verbatim}
+
+hollow cylinder: radius x yheight and thickness\textgreater{}0
+
+\begin{verbatim}
+sphere:          radius (yheight=0 thickness=0)
+hollow sphere:   radius and thickness>0 (yheight=0)
+any shape:       geometry=OFF_file
+\end{verbatim}
+
+The complex geometry option handles any closed non-convex polyhedra. It computes the intersection points of the xray with the object transparently, so that it can be used like a regular sample object. It supports the PLY, OFF and NOFF file format but not COFF (colored faces). Such files may be generated from XYZ data using: qhull \textless{} coordinates.xyz Qx Qv Tv o \textgreater{} geomview.off or powercrust coordinates.xyz and viewed with geomview or java -jar jroff.jar (see below). The default size of the object depends of the OFF file data, but its bounding box may be resized using xwidth,yheight and zdepth.
+
+If you use this component and produce valuable scientific results, please cite authors with references bellow (in \htmladdnormallink{Links}{\#links}).
+
+Example: PowderN(reflections = "c60.lau", d\_phi = 15 , radius = 0.01,
+
+\begin{verbatim}
+yheight = 0.05, Vc = 1076.89, delta_d_d=0, DW=1)
+\end{verbatim}
+
+\textbf{Powder definition file format} Powder structure is specified with an ascii data file 'reflections'. The powder data are free-text column based files. The reflection list should be ordered by decreasing d-spacing values.
+
+\begin{verbatim}
+... d ... F2
+\end{verbatim}
+
+Lines begining by '\#' are read as comments (ignored) but they may contain the following keywords (in the header):
+
+\begin{verbatim}
+#Vc           <value of unit cell volume Vc [Angs^3]>
+\end{verbatim}
+
+\#Debye\_Waller \textless{}value of Debye-Waller factor DW\textgreater{}
+
+\begin{verbatim}
+#delta_d_d/d    <value of delta_d_d/d width for all lines>
+\end{verbatim}
+
+These values are not read if entered as component parameters (Vc=...)
+
+The signification of the columns in the numerical block may be set using the 'format' parameter, by defining signification of the columns as a vector of indexes in the order format=\{j,d,F2,DW,delta\_d\_d/d,1/2d,q,F\} Signification of the symbols is given below. Indices start at 1. Indices with zero means that the column are not present, so that: Crystallographica=\{ 4,5,7,0,0,0,0,0 \}
+
+\begin{verbatim}
+Fullprof         ={ 4,0,8,0,0,5,0,0 }
+Lazy             ={17,6,0,0,0,0,0,13}
+\end{verbatim}
+
+At last, the format may be overridden by direct definition of the column indexes in the file itself by using the following keywords in the header (e.g. '\#column\_j 4'):
+
+\begin{verbatim}
+#column_j     <index of the multiplicity 'j' column>
+#column_d     <index of the d-spacing 'd' column [Angs]>
+#column_F2    <index of the squared str. factor '|F|^2' column [b]>
+#column_F     <index of the structure factor norm '|F|' column>
+#column_DW    <index of the Debye-Waller factor 'DW' column>
+#column_Dd    <index of the relative line width delta_d_d/d broadening 'Dd' column>
+\end{verbatim}
+
+\#column\_inv2d \textless{}index of the 1/2d=sin(theta)/lambda 'inv2d' column\textgreater{}
+
+\begin{verbatim}
+#column_q     <index of the scattering wavevector 'q' column [Angs-1]>
+\end{verbatim}
+
+Last, CIF, FullProf and ShelX files can be read, and converted to F2(hkl) lists if 'cif2hkl' is installed. The CIF2HKL env variable can be used to point to a proper executable, else the McCode, then the system installed versions are used.
+
+\textbf{Concentricity}
+
+PowderN assumes 'concentric' shape, i.e. can contain other components inside its optional inner hollow. Example, Sample in Al cryostat:
+
+COMPONENT Cryo = PowderN(reflections="Al.laz", radius = 0.01, thickness = 0.001, concentric = 1, p\_interact=0.1) AT (0,0,0) RELATIVE Somewhere
+
+COMPONENT Sample = some\_other\_component(with geometry FULLY enclosed in the hollow) AT (0,0,0) RELATIVE Somewhere
+
+COMPONENT Cryo2 = COPY(Cryo)(concentric = 0) AT (0,0,0) RELATIVE Somewhere
+
+(The second instance of the cryostat component can also be written out completely using PowderN(...). In both cases, this second instance needs concentric = 0.) The concentric arrangment can not be used with OFF geometry specification.
+
+This sample component can advantageously benefit from the SPLIT feature, e.g. SPLIT COMPONENT pow = PowderN(...)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+reflections & str & Input file for reflections (LAZ LAU CIF, FullProf, ShelX). Use only incoherent scattering if NULL or "". & "NULL" \\
+material & Be.txt & File where the material parameters for the absorption may be found. Format is similar to what may be found off the NIST website. & "NULL" \\
+geometry & str & Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust. & "NULL" \\
+format & \{\} & Name of the format, or list of column indexes (see Description). N.b. no quotes! & \{0,0,0,0,0,0,0,0\} \\
+mat\_format & \{\} & Format of the asorption parameter file. & \{0,0,0,0,0\} \\
+radius & m & Outer radius of sample in (x,z) plane. & 0 \\
+yheight & m & Height of sample y direction. & 0 \\
+xwidth & m & Horiz. dimension of sample, as a width. & 0 \\
+zdepth & m & Depth of box sample. & 0 \\
+thickness & m & Thickness of hollow sample. Negative value extends the hollow volume outside of the box/cylinder. & 0 \\
+pack & 1 & Packing factor & 1 \\
+Vc & \AA{}$^{3}$ & Volume of unit cell=nb atoms per cell/density of atoms. & 0 \\
+delta\_d\_d & 1 & Global relative Delta\_d/d spreading when the 'w' column is not available. Use 0 if ideal. & 0 \\
+p\_inc & 1 & Fraction of incoherently scattered rays. & 0.1 \\
+p\_transmit & 1 & Fraction of transmitted (only attenuated) rays. & 0.1 \\
+DW & 1 & Global Debye-Waller factor when the 'DW' column is not available. Use 1 if included in F2. & 0 \\
+nb\_atoms & 1 & Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell. & 1 \\
+d\_omega & deg & Horizontal focus range (only for incoherent scattering), 0 for no focusing. & 0 \\
+d\_phi & deg & Angle corresponding to the vertical angular range to focus to, e.g. detector height. 0 for no focusing. & 0 \\
+tth\_sign & 1 & Sign of the scattering angle. If 0, the sign is chosen randomly (left and right). ONLY functional in combination with d\_phi and ONLY applies to bragg lines. & 0 \\
+p\_interact & 1 & Fraction of events interacting with sample, e.g. 1-p\_transmit-p\_inc. & 0 \\
+concentric & 1 & Indicate that this component has a hollow geometry and may contain other components. It should then be duplicated after the inside part (only for box, cylinder, sphere). & 0 \\
+density & g/cm$^{3}$ & Density of material. rho=density/weight/1e24*N\_A. & 0 \\
+weight & g/mol & Atomic/molecular weight of material. & 0 \\
+barns & 1 & Flag to indicate if |F|\textasciicircum{}2 from 'reflections' is in barns or fm\textasciicircum{}2, (barns=1 for laz/cif, barns=0 for lau type files). & 1 \\
+focus\_flip & 1 & Controls the sense of d\_phi. If 0 d\_phi is measured against the xz-plane. If !=0 d\_phi is measured against zy-plane. & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{PowderN.comp}.
+  \item See also: Single\_crystal
+  \item See \htmladdnormallink{ICSD}{http://icsd.ill.fr} Inorganic Crystal Structure Database
+  \item \htmladdnormallink{Web Elements}{http://www.webelements.com/}
+  \item \htmladdnormallink{Fullprof}{http://www.ill.eu/sites/fullprof/index.html} powder refinement
+  \item \htmladdnormallink{Crystallographica}{http://www.crystallographica.com/} software (free license)
+  \item \htmladdnormallink{Geomview and Object File Format (OFF)}{http://www.geomview.org}
+  \item Java version of Geomview (display only) \htmladdnormallink{jroff.jar}{http://www.holmes3d.net/graphics/roffview/}
+  \item \htmladdnormallink{qhull}{http://qhull.org}
+  \item \htmladdnormallink{powercrust}{http://www.cs.ucdavis.edu/\textasciitilde{}amenta/powercrust.html}
+  \item cif2hkl https://gitlab.com/soleil-data-treatment/soleil-software-projects/cif2hkl
+  \item material datafile obtained from http://physics.nist.gov/cgi-bin/ffast/ffast.pl
+\end{itemize}
+\IfFileExists{samples/PowderN_static.tex}{\input{samples/PowderN_static.tex}}{}

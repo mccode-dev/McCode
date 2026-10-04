@@ -18,6 +18,10 @@ off/ply-files a scene is put together which may be used for tomography style
 simulations. The default input file contains a single object: a mechanical socket.
 ```
 
+## Examples
+
+- **Test: Airport_scannerII.instr -n1e5 Ncount=1e4 posX=-0.25 posY=-0.3 Detector: psd2_I=0.000629398**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -25,7 +29,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | SFILE |  | Name of file that contains the off/ply parameters for the scene | "input_abs_objects_template.dat" |
-| ANGLE |  | Rotation around y-axis | 0 |
+| ANGLE | deg | Rotation around y-axis | 0 |
 | posX | m | Displacement of scene along x-axis | 0 |
 | posY | m | Displacement of scene along y-axis | 0 |
 | posZ | m | Displacement of scene along z-axis | 0 |

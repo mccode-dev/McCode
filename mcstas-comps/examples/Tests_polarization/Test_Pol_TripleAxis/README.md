@@ -24,6 +24,10 @@ Three cases can be done:
 The Vanadium sample should give I(0)=2*(I(-1)+I(1)) and I(-1)=2*I(1).
 ```
 
+## Examples
+
+- **Test: OPTION=-1 Detector: pollambdaMonitorDet_I=5.63101e-12**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -31,7 +35,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | OPTION | 1 | See above | 0 |
-| LAMBDA | Angs | Source wavelength | 2.0 |
+| LAMBDA | AA | Source wavelength | 2.0 |
 | MOZ | Arc minutes | Mosaicity | 40 |
 
 ## Links

@@ -1,33 +1,21 @@
 \section{The \texttt{Union\_init} McStas Component}
-Initialize component that needs to be place before any Union component
+Deprecated no-op placeholder, kept for backward compatibility.
 
 \subsection*{Identification}
 \begin{itemize}
-  \item \textbf{Site:} 
   \item \textbf{Author:} Mads Bertelsen
   \item \textbf{Origin:} ESS DMSC
   \item \textbf{Date:} 20.08.15
 \end{itemize}
 
 \subsection*{Description}
-\begin{lstlisting}
-Part of the Union components, a set of components that work together and thus
-sperates geometry and physics within McStas.
-The use of this component requires other components to be used.
+Part of the Union components, a set of components that work together and thus sperates geometry and physics within McStas.
 
-1) One specifies a number of processes using process components
-2) These are gathered into material definitions using this component
-3) Geometries are placed using Union_box/cylinder/sphere, assigned a material
-4) A Union_master component placed after all of the above
+This component used to be required as the FIRST Union component. It defined the shared library (union-lib.c) and owned the shared global lists, which the other Union components reached via COMP\_GETPAR3.
 
-Only in step 4 will any simulation happen, and per default all geometries
-defined before the master, but after the previous will be simulated here.
+That is no longer needed: every Union component loads the Union library (union-lib) itself, and the library owns the shared lists. The Union\_init and Union\_stop components are therefore optional.
 
-There is a dedicated manual available for the Union_components
-
-Algorithm:
-Described elsewhere
-\end{lstlisting}
+This definition is kept only so that existing instruments that still place a Union\_init component continue to compile. It emits a deprecation warning and has no effect.
 
 \subsection*{Input parameters}
 Parameters in \textbf{boldface} are required; the others are optional.
@@ -42,6 +30,7 @@ Parameters in \textbf{boldface} are required; the others are optional.
 
 \subsection*{Links}
 \begin{itemize}
-  \item \href{run:/home/willend/willend-McCode/mcstas-comps/union/Union_init.comp}{Source code} for \texttt{Union\_init.comp}.
+  \item Component source code found in file \texttt{Union\_init.comp}.
+  \item ******************************************************************************/
 \end{itemize}
-\IfFileExists{Union_init_static.tex}{\input{Union_init_static.tex}}{}
+\IfFileExists{union/Union_init_static.tex}{\input{union/Union_init_static.tex}}{}

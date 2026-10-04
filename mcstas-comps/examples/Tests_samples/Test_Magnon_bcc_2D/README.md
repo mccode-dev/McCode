@@ -15,6 +15,10 @@
 
 ```
 
+## Examples
+
+- **Test: inelastic=1 Detector: det_I=4.98e11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -29,7 +33,7 @@ Parameters in **boldface** are required; the others are optional.
 | sample_J | meV | Magnitude of sample nearest-neighbour interaction | 2 |
 | TT | K | Sample temperature | 300 |
 | FerroMagnet | boolean | Flag to choose if sample is FM or AFM | 0 |
-| Verbose |  |  | 0 |
+| Verbose | boolean | Flag to allow verbose information from Magnon comp | 0 |
 | imultiplier | 1 | Parameter to rescale intensity-output from Magnon comp | 1 |
 
 ## Links

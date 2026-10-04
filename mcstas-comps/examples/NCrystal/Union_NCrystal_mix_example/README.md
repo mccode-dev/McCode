@@ -19,6 +19,10 @@ the monochromator is described via a Union components, but the sample is still
 an NCrystal_sample component.
 ```
 
+## Examples
+
+- **Test: Detector: powder_pattern_detc_I=1.53e-10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

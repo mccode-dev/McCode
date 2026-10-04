@@ -15,6 +15,11 @@
 Simple test instrument that compares the use of 2 DiskChoppers with one MultiDiskChopper
 ```
 
+## Examples
+
+- **Test: Test_DiskChoppers.instr chopper=0 Detector: Tofl_I=0.00277**
+- **Test: Test_DiskChoppers.instr chopper=1 Detector: Tofl_I=0.00277**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

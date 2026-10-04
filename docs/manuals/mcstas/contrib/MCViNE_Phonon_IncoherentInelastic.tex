@@ -1,0 +1,54 @@
+\section{The \texttt{MCViNE\_Phonon\_IncoherentInelastic} McStas Component}
+One-phonon incoherent inelastic scattering from a phonon DOS (incoherent approximation), optional Ef focusing.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE phonon IncoherentInelastic / IncoherentInelastic\_EnergyFocusing kernels; MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/phonon/IncoherentInelastic.cc, IncoherentInelastic\_EnergyFocusing.cc)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+S\_inc(Q,E) = exp(-2W) hbar\textasciicircum{}2Q\textasciicircum{}2/(2M) g(|E|)/|E| [n(E)+1 or n(E)] with the DOS g(E) normalised to 1, Debye-Waller factor computed from the DOS (MCViNE DWFromDOS), and the DOS preprocessed like MCViNE (resampled to \textgreater{}=500 points, parabolic low-energy fit, normalised). The final direction is uniform over 4pi; Ef is uniform in [Ei-Emax\_dos, Ei+Emax\_dos]. With dEf\textgreater{}0, Ef is restricted to Ef +/- dEf/2 (MCViNE IncoherentInelastic\_EnergyFocusing). DOS file: 2 columns E [meV] g(E) (a '\#...THz' comment switches the unit to THz) or an MCViNE IDF binary 'DOS' file. Multiphonon terms are not included (see Union IncoherentPhonon\_process or NCrystal for those).
+
+\textbf{Transport} (same as MCViNE HomogeneousNeutronScatterer): on the first passage the neutron is forced to scatter at a uniformly chosen depth, weighted by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient; on exit it is attenuated by exp(-(mu+sigma)L\_out). With order\textgreater{}1 further scatterings are sampled analogically (truncated exponential). With p\_transmit\textgreater{}0 that fraction of events is kept as the attenuated direct beam. mu(v) = absorption\_coefficient*2200/v. Events for which the kernel cannot scatter (kinematically forbidden) are absorbed.
+
+Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow cylinder (+thickness) or sphere (radius only). All vectors (Q, targets, reciprocal vectors, atom positions) are in the component's local frame.
+
+Uses the shared runtime share/mcvine-lib.h/.c.
+
+Example: MCViNE\_Phonon\_IncoherentInelastic(dos="MCViNE/Debye\_dos.dat", T=300, average\_mass=50.94, sigma\_inc=10.1, sigma\_abs=10.1, Vc=27.6, radius=0.01, yheight=0.05)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+dos & str & Phonon DOS file & 0 \\
+T & K & Temperature & 300 \\
+average\_mass & amu & Average atomic mass & 0 \\
+Ef & meV & Final energy for energy focusing (used when dEf\textgreater{}0) & 0 \\
+dEf & meV & Full width of the final-energy window; 0 disables focusing & 0 \\
+sigma\_inc & barn & Incoherent scattering cross section per unit cell & 0 \\
+sigma\_abs & barn & Absorption cross section per unit cell at 2200 m/s & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume & 0 \\
+radius & m & Outer radius of a cylinder (with yheight) or of a sphere (yheight=0) & 0 \\
+xwidth & m & Width of a box sample & 0 \\
+yheight & m & Height of a box or cylinder sample & 0 \\
+zdepth & m & Depth of a box sample & 0 \\
+thickness & m & Wall thickness of a hollow cylinder (0: filled) & 0 \\
+pack & 1 & Packing factor (scales absorption and scattering coefficients) & 1 \\
+p\_transmit & 1 & Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter) & 0 \\
+order & 1 & Maximum number of scattering events per neutron (1: single scattering) & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_Phonon\_IncoherentInelastic.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_Phonon_IncoherentInelastic_static.tex}{\input{contrib/MCViNE_Phonon_IncoherentInelastic_static.tex}}{}

@@ -19,6 +19,11 @@ P Parameters are the ones used in the general simulation, i.e when the FOI is in
 P2 parameters are used when the strain of the beamline is the FOI, i.e what happens when the distances change.
 ```
 
+## Examples
+
+- **Test: E0=0.03 dE=0 undK=0 Nper=187 zm_mirror1=14 theta_mirror1=3 R0_M1=1 zm_mirror2=2 R0_M2=1  grating_mode=0 zm_mirror3=1 theta_mirror3=3 R0_M3=1 zm_ExitSlit=9 xwidth_ExSlit=0.005 yheight_ExSlit=0.005 zm_mirror4=19 theta_mirror4=3 R0_M4=1 SourceChoice=0 cff=2.25 m=3 Exitslit_yshift=2 Detector: M4Before_e_monitor_I=5.64942e-20**
+- **Test: E0=0.6 Detector: M4Before_e_monitor_I=1.80435e-21**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -49,12 +54,12 @@ Parameters in **boldface** are required; the others are optional.
 | zm_ExitSlit | m | distance from Mirror4 to exit slit. | 9 |
 | xwidth_ExSlit | m | xwidth of exit slit. | 1e-2 |
 | yheight_ExSlit | m | yheight of exit slit. | 1e-2 |
-| Exitslit_yshift |  | y-shift of the exit slit. | 0.005 |
+| Exitslit_yshift | m | y-shift of the exit slit. | 0.005 |
 | verbose |  | Flag to print more information | 0 |
 | perfectMirrors |  | When 0, a toroidal mirros is used, otherwise a plane mirror is used. | 0 |
 | Error |  | When 1, alignment errors are applied randomly on the optics (from  R. Sankari) | 0 |
 | angle_grating | deg | Additional tilt on the grating angle. | 6 |
-| mirror2_angle |  | M2 angle used when grating_mode is 0, otherwise it is computed. | 6 |
+| mirror2_angle | deg | M2 angle used when grating_mode is 0, otherwise it is computed. | 6 |
 
 ## Links
 

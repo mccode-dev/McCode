@@ -70,11 +70,7 @@ NOACC /* Notice: you must remove this line if using the legacy McStas 2.x branch
 SHARE
 %{
   /* common includes, defines, functions, etc. shared by all instances of this component */
-  #ifndef WIN32
-  #include "NCrystal/ncrystal.h"
-  #else
-  #include "NCrystal\\ncrystal.h"
-  #endif
+  %include "mccode-ncrystal-lib"
   #include "stdio.h"
   #include "stdlib.h"
   #ifndef NCMCERR2
@@ -204,6 +200,8 @@ INITIALIZE
   if (!(absorptionmode == 0 || absorptionmode == 1 || absorptionmode == 2))
     NCMCERR ("Invalid value of absorptionmode");
   params.absmode = absorptionmode;
+
+  mccode_setup_ncrystal_search_paths ();
 
   /* access material info to get number density (natoms/volume): */
   ncrystal_info_t info = ncrystal_create_info (cfg);

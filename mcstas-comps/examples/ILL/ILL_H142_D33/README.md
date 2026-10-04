@@ -25,19 +25,23 @@ quantitative analysis of spin incoherent samples. The high flux allows for
 kinetic experiments with time resolution of the order of few milliseconds.
 ```
 
+## Examples
+
+- **Test: ILL_H142_D33.instr lambda=14 dlambda=1.4 Detector: PSD_I=2e-07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda |  | central wavelength band for guide illumination [Angs] | 14 |
-| dlambda |  | half width of guide wavelength band [Angs] | 1.4 |
+| lambda | AA | central wavelength band for guide illumination | 14 |
+| dlambda | AA | half width of guide wavelength band | 1.4 |
 | m1 |  | m-coating for 1st guide section | 1 |
 | m2 |  | m-coating for 2nd guide section | 1 |
 | m3 |  | m-coating for 3th guide section | 1 |
 | m4 |  | m-coating for 4th guide section | 1 |
-| diaphragm |  | diaphragm diameter between section 3 and 4; use 0 to remove [cm] | 0 |
+| diaphragm | cm | diaphragm diameter between section 3 and 4; use 0 to remove | 0 |
 
 ## Links
 

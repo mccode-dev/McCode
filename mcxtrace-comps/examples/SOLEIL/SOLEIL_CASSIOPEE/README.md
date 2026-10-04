@@ -31,6 +31,10 @@ Position | Element
 30.83    | Slit
 ```
 
+## Examples
+
+- **Test: E0=0 Detector: PSD_M1out_I=2.74309e+15**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

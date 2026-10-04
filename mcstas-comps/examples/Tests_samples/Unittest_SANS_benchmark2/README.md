@@ -15,6 +15,24 @@
 Very simple test instrument for the SANS_benchmark2 component from H. Frielinghaus.
 ```
 
+## Examples
+
+- **Test: modnum=1  Detector: detectorSANS_I=0.0123201**
+- **Test: modnum=2  Detector: detectorSANS_I=0.00635726**
+- **Test: modnum=3  Detector: detectorSANS_I=18.8412**
+- **Test: modnum=4  Detector: detectorSANS_I=0.00600315**
+- **Test: modnum=5  Detector: detectorSANS_I=0.0310337**
+- **Test: modnum=6  Detector: detectorSANS_I=0.660282**
+- **Test: modnum=7  Detector: detectorSANS_I=0.776435**
+- **Test: modnum=8  Detector: detectorSANS_I=3.89201**
+- **Test: modnum=9  Detector: detectorSANS_I=0.0427871**
+- **Test: modnum=10 Detector: detectorSANS_I=0.0234776**
+- **Test: modnum=11 Detector: detectorSANS_I=0.229431**
+- **Test: modnum=12 Detector: detectorSANS_I=0.0026947**
+- **Test: modnum=13 Detector: detectorSANS_I=0.00269978**
+- **Test: modnum=14 Detector: detectorSANS_I=0.002694**
+- **Test: modnum=15 Detector: detectorSANS_I=0.200408**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

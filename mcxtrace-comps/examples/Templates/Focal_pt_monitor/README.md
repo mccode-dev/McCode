@@ -26,6 +26,10 @@ is placed elsewhere an implicit offset will be the result.
 The
 ```
 
+## Examples
+
+- **Test: Focal_pt_monitor Rcurve=100e-6 Detector: fpt_I=1.9805e-16**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

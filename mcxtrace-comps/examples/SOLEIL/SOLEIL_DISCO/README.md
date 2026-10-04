@@ -17,6 +17,10 @@ You may scan the grating monochromator with e.g.:
 mxrun -n 1e5 SOLEIL_DISCO.instr -N84 x_screw=20,103 scan=1
 ```
 
+## Examples
+
+- **Test: grazing_angle_one=22.5 -n 1e5 Detector: second_HFP_I=2.08292e+11**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

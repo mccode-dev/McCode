@@ -29,6 +29,7 @@ template_1d_coplot.html.
 import argparse
 import logging
 import os
+import re
 import sys
 import json
 import subprocess
@@ -130,7 +131,13 @@ def _legend_rows_html(letters, colours, dat_links):
 def get_html(params_list_json, legend_rows_html):
     text = open(os.path.join(os.path.dirname(__file__), 'template_1d_coplot.html')).read()
     text = text.replace("@PARAMS_LIST@", params_list_json)
-    text = text.replace("@LEGEND_ROWS@", legend_rows_html)
+    if legend_rows_html:
+        text = text.replace("@LEGEND_ROWS@", legend_rows_html)
+    else:
+        # --no-legends: drop the whole legend <div> (not just its rows) -
+        # otherwise its background/border styling would still render as
+        # an empty box in the corner of the plot.
+        text = re.sub(r'<div class="coplot-legend">\s*@LEGEND_ROWS@\s*</div>\n?', '', text)
     logscalestr = "true" if logscale else "false"
     text = text.replace("@LOGSCALE@", logscalestr)
     text = text.replace("@LIBPATH@", libpath)
@@ -181,7 +188,8 @@ def browse(html_filepath):
 # per-monitor plot writer
 # ---------------------------------------------------------------------------
 
-def coplot_single(key, datas, outdir, use_logscale, colours, dat_links, identities):
+def coplot_single(key, datas, outdir, use_logscale, colours, dat_links, identities,
+                   no_legends=False, no_titles=False):
     """ Writes one co-plot (overlaid N-dataset) monitor page to outdir.
         Returns the file path written. """
     global logscale
@@ -195,14 +203,21 @@ def coplot_single(key, datas, outdir, use_logscale, colours, dat_links, identiti
         os.remove(f)
 
     letters = _legend_letters(len(datas))
-    title_0 = _title_for(datas, identities)
+    # Empty string, not just omitted: _draw_labels() in plotfuncs.js
+    # measures the title text's own actual rendered height (getBBox()) to
+    # size the plot area, so an empty title genuinely gives the plot more
+    # vertical room rather than just leaving blank space where the title
+    # used to be - useful with many co-plotted datasets, where the
+    # verbose title (one "letter=label: I=... Err=... N=..." line per
+    # dataset) can end up taller than the plot itself.
+    title_0 = '' if no_titles else _title_for(datas, identities)
 
     params_list = [get_params_json(datas[0], colours[0], title_0)]
     for data, colour in zip(datas[1:], colours[1:]):
         params_list.append(get_params_json(data, colour, ""))  # only dataset 0's title is used (see template)
     params_list_json = '[\n' + ',\n'.join(params_list) + '\n]'
 
-    legend_rows_html = _legend_rows_html(letters, colours, dat_links)
+    legend_rows_html = '' if no_legends else _legend_rows_html(letters, colours, dat_links)
 
     text = get_html(params_list_json, legend_rows_html)
 
@@ -435,15 +450,18 @@ def main(args):
             lin, log = find_original_plot(d, data.filename)
             dat_links.append(_relhref(lin, outdir))
 
-        f = coplot_single(key, datas, outdir, False, colours, dat_links, identities)
+        f = coplot_single(key, datas, outdir, False, colours, dat_links, identities,
+                           no_legends=args.no_legends, no_titles=args.no_titles)
         f_log = None
         if single_input:
             if args.log:
-                f_log = coplot_single(key, datas, outdir, True, colours, dat_links, identities)
+                f_log = coplot_single(key, datas, outdir, True, colours, dat_links, identities,
+                                       no_legends=args.no_legends, no_titles=args.no_titles)
         else:
             # folder mode: always produce both linear and log variants,
             # exactly like mcplotdiff.py does for multi-monitor overviews
-            f_log = coplot_single(key, datas, outdir, True, colours, dat_links, identities)
+            f_log = coplot_single(key, datas, outdir, True, colours, dat_links, identities,
+                                   no_legends=args.no_legends, no_titles=args.no_titles)
 
         entries.append({'coplot': f, 'coplot_log': f_log})
         print("Generated: %s" % f)
@@ -484,6 +502,15 @@ if __name__ == '__main__':
                               'default: %s' % ', '.join(DEFAULT_PALETTE))
     parser.add_argument('-W', '--width', nargs=1, help='width of iframes')
     parser.add_argument('-H', '--height', nargs=1, help='height of iframes')
+    parser.add_argument('--no-legends', action='store_true', default=False,
+                         help='do not draw the on-plot legend box (the compact A/B/C/... letters, '
+                              'plus "view original plot" links) - useful with many co-plotted '
+                              'datasets, where the legend box itself can grow tall enough to cover '
+                              'a large part of the plot')
+    parser.add_argument('--no-titles', action='store_true', default=False,
+                         help='do not draw the in-plot title or the "A=.../B=..." dataset identity '
+                              'block - useful with many co-plotted datasets, where the verbose title '
+                              '(one line per dataset) can end up taller than the plot itself')
     args = parser.parse_args()
 
     main(args)
