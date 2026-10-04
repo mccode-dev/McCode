@@ -1,0 +1,59 @@
+\section{The \texttt{MCViNE\_LorentzianBroadened\_E\_Q} McStas Component}
+Isotropic dispersion E(Q) broadened by a Lorentzian of Q-dependent width.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE LorentzianBroadened\_E\_Q\_Kernel; MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/LorentzianBroadened\_E\_Q\_Kernel.icc)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+S(Q,E) = S(Q) L(E - E(Q); gamma(Q)) with L a Lorentzian of half width at half maximum gamma(Q). Q is sampled uniformly in [Qmin,Qmax]; the energy offset is sampled from the line shape (up to 100 attempts). Neutrons with Ei below min(E(Q)-3w(Q)) do not scatter.
+
+Functions are given as strings evaluated at run time (MCViNE uses fparser): + - * / \textasciicircum{} (or **), \% , comparisons, \&\& ||, if(c,a,b), sin cos tan asin acos atan sinh cosh tanh exp log log10 log2 sqrt abs floor ceil int sign cbrt, pow atan2 min max hypot fmod, constants pi and e.
+
+\textbf{Transport} (same as MCViNE HomogeneousNeutronScatterer): on the first passage the neutron is forced to scatter at a uniformly chosen depth, weighted by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient; on exit it is attenuated by exp(-(mu+sigma)L\_out). With order\textgreater{}1 further scatterings are sampled analogically (truncated exponential). With p\_transmit\textgreater{}0 that fraction of events is kept as the attenuated direct beam. mu(v) = absorption\_coefficient*2200/v. Events for which the kernel cannot scatter (kinematically forbidden) are absorbed.
+
+Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow cylinder (+thickness) or sphere (radius only). All vectors (Q, targets, reciprocal vectors, atom positions) are in the component's local frame.
+
+Uses the shared runtime share/mcvine-lib.h/.c.
+
+Example: MCViNE\_LorentzianBroadened\_E\_Q(E\_Q="20*sin(Q*1.5)\textasciicircum{}2", S\_Q="1", gamma\_Q="0.5", Qmin=0, Qmax=10, scattering\_coefficient=10, radius=0.01, yheight=0.05)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+E\_Q & str & E(Q) expression [meV], variable Q [\AA{}\textasciicircum{}-1] & "10" \\
+S\_Q & str & S(Q) expression & "1" \\
+gamma\_Q & str & Lorentzian HWHM gamma(Q) [meV] & "1" \\
+Qmin & \AA{}$^{-1}$ & Lower Q bound & 0 \\
+Qmax & \AA{}$^{-1}$ & Upper Q bound & 10 \\
+unbiased & 1 & 0: MCViNE sampling (retries without acceptance correction: over-weights when part of the Q range is forbidden). 1: single attempt, unbiased & 0 \\
+absorption\_coefficient & m$^{-1}$ & Absorption coefficient at 2200 m/s (MCViNE convention; scales as 1/v) & 0 \\
+scattering\_coefficient & m$^{-1}$ & Scattering coefficient & 0 \\
+sigma\_abs & barn & Alternative: absorption cross section per unit cell at 2200 m/s (used when Vc\textgreater{}0) & 0 \\
+sigma\_scat & barn & Alternative: scattering cross section per unit cell (used when Vc\textgreater{}0) & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume; when \textgreater{}0, coefficients are computed from sigma\_abs, sigma\_scat & 0 \\
+radius & m & Outer radius of a cylinder (with yheight) or of a sphere (yheight=0) & 0 \\
+xwidth & m & Width of a box sample & 0 \\
+yheight & m & Height of a box or cylinder sample & 0 \\
+zdepth & m & Depth of a box sample & 0 \\
+thickness & m & Wall thickness of a hollow cylinder (0: filled) & 0 \\
+pack & 1 & Packing factor (scales absorption and scattering coefficients) & 1 \\
+p\_transmit & 1 & Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter) & 0 \\
+order & 1 & Maximum number of scattering events per neutron (1: single scattering) & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_LorentzianBroadened\_E\_Q.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_LorentzianBroadened_E_Q_static.tex}{\input{contrib/MCViNE_LorentzianBroadened_E_Q_static.tex}}{}

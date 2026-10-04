@@ -1,0 +1,130 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_Phonon_IncoherentInelastic_process
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE phonon IncoherentInelastic / IncoherentInelastic_EnergyFocusing kernels; MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/phonon/IncoherentInelastic.cc, IncoherentInelastic_EnergyFocusing.cc)
+*
+* Union process: One-phonon incoherent inelastic scattering from a phonon DOS (incoherent approximation), optional Ef focusing.
+*
+* %D
+* S_inc(Q,E) = exp(-2W) hbar^2Q^2/(2M) g(|E|)/|E| [n(E)+1 or n(E)] with the DOS
+* g(E) normalised to 1, Debye-Waller factor computed from the DOS (MCViNE
+* DWFromDOS), and the DOS preprocessed like MCViNE (resampled to >=500 points,
+* parabolic low-energy fit, normalised). The final direction is uniform over 4pi;
+* Ef is uniform in [Ei-Emax_dos, Ei+Emax_dos]. With dEf>0, Ef is restricted to
+* Ef +/- dEf/2 (MCViNE IncoherentInelastic_EnergyFocusing).
+* DOS file: 2 columns E [meV] g(E) (a '#...THz' comment switches the unit to THz)
+* or an MCViNE IDF binary 'DOS' file. Multiphonon terms are not included (see
+* Union IncoherentPhonon_process or NCrystal for those).
+*
+* <b>Union process.</b> Part of the Union components: define this process, collect it
+* into a material with Union_make_material (absorption is set there with
+* my_absorption, the absorption inverse penetration depth at 2200 m/s), assign
+* the material to Union_box/Union_cylinder/Union_sphere/Union_mesh geometries,
+* and add a Union_master after them. Geometry, attenuation and multiple
+* scattering are handled by Union_master; this component provides the MCViNE
+* kernel: the scattering coefficient and the final-state sampling (weight).
+* Isotropic process (powder/liquid-like); rotation is irrelevant.
+* The kernel code is shared with the standalone component MCViNE_Phonon_IncoherentInelastic (mcvine-lib.c).
+* Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type
+* MCViNE is declared in share/union-lib.h and registered with Union_master in
+* share/mcvine-union-lib.h.
+*
+* Example: MCViNE_Phonon_IncoherentInelastic_process(dos="MCViNE/Debye_dos.dat", T=300, average_mass=50.94, sigma_inc=10.1, Vc=27.6)
+*
+* %P
+* INPUT PARAMETERS:
+* dos: [str] Phonon DOS file
+* T: [K] Temperature
+* average_mass: [amu] Average atomic mass
+* Ef: [meV] Final energy for energy focusing (used when dEf>0)
+* dEf: [meV] Full width of the final-energy window; 0 disables focusing
+* sigma_inc: [barn] Incoherent scattering cross section per unit cell
+* Vc: [AA^3] Unit cell volume
+* packing_factor: [1] Packing factor (scales the scattering coefficient)
+* interact_fraction: [1] Union: fraction of interactions forced to this process (-1: by cross section)
+* init: [string] Deprecated and unused, accepted like on the other Union components (see Union_init).
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_Phonon_IncoherentInelastic_process
+
+SETTING PARAMETERS (string dos=0, T=300, average_mass=0, Ef=0, dEf=0, sigma_inc=0, Vc=0, packing_factor=1, interact_fraction=-1, string init="")
+
+NOACC
+
+SHARE
+%{
+  %include "union-lib"
+  %include "read_table-lib"
+  %include "mcvine-lib"
+  %include "mcvine-union-lib"
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  mcvine_kernel_Phonon_IncoherentInelastic kernel;
+  struct MCViNE_physics_storage_struct storage;
+  struct scattering_process_struct This_process;
+  struct global_process_element_struct global_process_element;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct* union_state_p = union_acquire ();
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  if (!(average_mass > 0)) {
+    fprintf (stderr, "%s: average_mass must be > 0\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (!(T > 0)) {
+    fprintf (stderr, "%s: T must be > 0\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (mcvine_dos_load (&kernel.m_dos, dos, 0, NAME_CURRENT_COMP))
+    exit (-1);
+  kernel.m_T = T;
+  kernel.m_mass = average_mass;
+  kernel.m_max_omega = kernel.m_dos.emax;
+  kernel.m_dw_core = mcvine_dw_core_from_dos (&kernel.m_dos, average_mass, T, 100);
+  kernel.m_focusing = dEf > 0;
+  kernel.m_Ef = Ef;
+  kernel.m_dEf = dEf;
+  printf ("%s: DOS Emax=%g meV, Debye-Waller core=%g AA^2\n", NAME_CURRENT_COMP, kernel.m_dos.emax, kernel.m_dw_core);
+
+  if (!(Vc > 0) || !(sigma_inc > 0)) {
+    fprintf (stderr, "%s: need sigma_inc>0 and Vc>0\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  sig = mcvine_xs2coeff (sigma_inc, Vc);
+  storage.m_kernel = &kernel;
+  storage.m_S = mcvine_S_Phonon_IncoherentInelastic;
+  storage.m_my_scattering = sig * packing_factor;
+  storage.m_kind = MCVINE_UNION_GENERIC;
+  mcvine_union_register (&union_state_p->u_process_list, &This_process, &global_process_element, &storage, NAME_CURRENT_COMP, INDEX_CURRENT_COMP, interact_fraction, 0, ROT_A_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  // the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
+%}
+
+END

@@ -29,7 +29,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | SFILE |  | Name of file that contains the off/ply parameters for the scene | "input_abs_objects_template.dat" |
-| ANGLE |  | Rotation around y-axis | 0 |
+| ANGLE | deg | Rotation around y-axis | 0 |
 | posX | m | Displacement of scene along x-axis | 0 |
 | posY | m | Displacement of scene along y-axis | 0 |
 | posZ | m | Displacement of scene along z-axis | 0 |

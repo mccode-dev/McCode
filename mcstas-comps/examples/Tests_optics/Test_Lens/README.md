@@ -31,7 +31,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Source wavelength | 10 |
+| lambda | AA | Source wavelength | 10 |
 | position_PSD | m | Distance from last lens to first monitor | 8.2 |
 
 ## Links

@@ -26,7 +26,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | source energy | 3.4 |
+| lambda | AA | source energy | 3.4 |
 | chopp_ratio | 1 | Chopper radio Fermi Chopper to Disk Chopper | 1 |
 | DET | deg | Detector angle | -69.9 |
 

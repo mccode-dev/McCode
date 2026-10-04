@@ -79,7 +79,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| DM | Angs | Monochromator d-spacing. Use 3.355 for PG002, 1.677 for PG004 and 2.087 for Cu111. | 3.355 |
+| DM | AA | Monochromator d-spacing. Use 3.355 for PG002, 1.677 for PG004 and 2.087 for Cu111. | 3.355 |
 | coh | str | Sample coherent specification (use laz, lau or Sqw file, or NULL to disable). Sample is a 5x5 cm plate, e=4 mm. | "V.lau" |
 | inc | str | Sample incoherent specification (use laz, lau or Sqw file, or NULL to scatter isotropically, using cross sections read from the coherent file) | "NULL" |
 | container | str | sample container material. Thickness is .2 mm. Use NULL, Al or Nb. | "NULL" |

@@ -311,8 +311,12 @@ SHARE
     B = aVars->nz[5] * cvz;
     C = aVars->nz[5] * (cz - aVars->wz[5]);
     ret = solve_2nd_order (&dt0, NULL, aVars->A[5], B, C);
-    if (ret && dt0 > 1e-10) {
-      dt_min = dt0;
+    /* The 1e-10 cut below (for the side walls) avoids re-hitting the wall the
+       neutron was just reflected from. It must NOT apply to the exit plane: a
+       reflection within ~1e-10 s of z=l would otherwise skip the exit and
+       send the neutron to the (infinite) extension of the opposite wall. */
+    if (ret && dt0 > -1e-10) {
+      dt_min = (dt0 > 0 ? dt0 : 0); /* also covers z marginally beyond l by rounding */
       side = 5;
     }
 
@@ -339,7 +343,7 @@ SHARE
         C = aVars->ny[i] * (cy - aVars->wy[i]) + aVars->nz[i] * cz;
       }
       ret = solve_2nd_order (&dt0, NULL, aVars->A[i], B, C);
-      if (ret && dt0 > 1e-10 && (dt0 < dt_min || !dt_min)) {
+      if (ret && dt0 > 1e-10 && (dt0 < dt_min || (side != 5 && !dt_min))) {
         dt_min = dt0;
         side = i;
         if (aVars->nzC[i] != 0) {
@@ -560,7 +564,7 @@ TRACE
         side = Gravity_guide_Trace (&dt, &GVars, x, y, z, vx, vy, vz, w_chnum, nslit, h_chnum, nhslit, &nx, &ny, &nz, _particle);
         /* only positive dt are valid */
         /* exit reflection loops if no intersection (neutron is after box) */
-        if (side == 0 || dt <= 0) {
+        if (side == 0 || (dt <= 0 && side != 5)) {
           if (GVars.warnings < 100)
             fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVars.compcurname);
           GVars.warnings++;

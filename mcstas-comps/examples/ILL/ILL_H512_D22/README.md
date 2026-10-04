@@ -34,9 +34,9 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | central wavelength band for guide illumination and D22 velocity selector setting wavelength | 4.5 |
-| dlambda | Angs | half width of guide wavelength band | .45 |
-| D22_collimation |  |  | 2 |
+| lambda | AA | central wavelength band for guide illumination and D22 velocity selector setting wavelength | 4.5 |
+| dlambda | AA | half width of guide wavelength band | .45 |
+| D22_collimation | m | D22 collimation length and sample-detector distance | 2 |
 | D22_sample | string | D22 liquid/powder/amorphous sample | "H2O_liq.qSq" |
 
 ## Links

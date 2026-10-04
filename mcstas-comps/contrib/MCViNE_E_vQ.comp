@@ -1,0 +1,140 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_E_vQ
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE E_vQ_Kernel; MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/E_vQ_Kernel.icc)
+*
+* Single-crystal dispersion: S(Q,E) = S(Q) delta(E - E(Q)) with analytic E(Qx,Qy,Qz).
+*
+* %D
+* Excitation with dispersion E(Qx,Qy,Qz) [meV] and intensity S(Qx,Qy,Qz), given as
+* expressions of the Q vector in the sample (component) frame [AA^-1]. For a
+* random final direction, all solutions kf of Ei - Ef(kf) = E(ki - kf) with
+* Ef in [Ei-Emax, Ei] are found (nsteps sub-intervals + Ridders' method) and one
+* is picked; the weight contains the Jacobian of the delta function.
+* 
+* Functions are given as strings evaluated at run time (MCViNE uses fparser):
+* + - * / ^ (or **), % , comparisons, && ||, if(c,a,b), sin cos tan asin acos
+* atan sinh cosh tanh exp log log10 log2 sqrt abs floor ceil int sign cbrt,
+* pow atan2 min max hypot fmod, constants pi and e.
+*
+* <b>Transport</b> (same as MCViNE HomogeneousNeutronScatterer): on the first
+* passage the neutron is forced to scatter at a uniformly chosen depth, weighted
+* by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient;
+* on exit it is attenuated by exp(-(mu+sigma)L_out). With order>1 further
+* scatterings are sampled analogically (truncated exponential). With
+* p_transmit>0 that fraction of events is kept as the attenuated direct beam.
+* mu(v) = absorption_coefficient*2200/v. Events for which the kernel cannot
+* scatter (kinematically forbidden) are absorbed.
+*
+* Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow
+* cylinder (+thickness) or sphere (radius only). All vectors (Q, targets,
+* reciprocal vectors, atom positions) are in the component's local frame.
+*
+* Uses the shared runtime share/mcvine-lib.h/.c.
+*
+* Example: MCViNE_E_vQ(E_Q="20*(sin(Qx*1.57)^2+sin(Qy*1.57)^2+sin(Qz*1.57)^2)", S_Q="1", Emax=60, scattering_coefficient=10, xwidth=0.02, yheight=0.02, zdepth=0.02)
+*
+* %P
+* INPUT PARAMETERS:
+* E_Q: [str] E(Qx,Qy,Qz) expression [meV]
+* S_Q: [str] S(Qx,Qy,Qz) expression
+* Emax: [meV] Maximum energy transfer considered
+* nsteps: [1] Number of sub-intervals for the kf root search (MCViNE: 1000)
+* xacc: [AA^-1] Root accuracy in kf (MCViNE: 1e-3)
+* absorption_coefficient: [m^-1] Absorption coefficient at 2200 m/s (MCViNE convention; scales as 1/v)
+* scattering_coefficient: [m^-1] Scattering coefficient
+* sigma_abs: [barn] Alternative: absorption cross section per unit cell at 2200 m/s (used when Vc>0)
+* sigma_scat: [barn] Alternative: scattering cross section per unit cell (used when Vc>0)
+* Vc: [AA^3] Unit cell volume; when >0, coefficients are computed from sigma_abs, sigma_scat
+* radius: [m] Outer radius of a cylinder (with yheight) or of a sphere (yheight=0)
+* xwidth: [m] Width of a box sample
+* yheight: [m] Height of a box or cylinder sample
+* zdepth: [m] Depth of a box sample
+* thickness: [m] Wall thickness of a hollow cylinder (0: filled)
+* pack: [1] Packing factor (scales absorption and scattering coefficients)
+* p_transmit: [1] Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter)
+* order: [1] Maximum number of scattering events per neutron (1: single scattering)
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_E_vQ
+
+SETTING PARAMETERS (string E_Q="10", string S_Q="1", Emax=10, int nsteps=1000, xacc=1e-3, absorption_coefficient=0, scattering_coefficient=0, sigma_abs=0, sigma_scat=0, Vc=0, radius=0, xwidth=0, yheight=0, zdepth=0, thickness=0, pack=1, p_transmit=0, int order=1)
+
+NOACC
+
+SHARE
+%{
+%include "read_table-lib"
+%include "mcvine-lib"
+%}
+
+DECLARE
+%{
+  mcvine_kernel_E_vQ kernel;
+  mcvine_scatterer scatterer;
+%}
+
+INITIALIZE
+%{
+  mcvine_shape shape;
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  const char* vars[] = { "Qx", "Qy", "Qz" };
+  if (mcvine_func_setup (&kernel.m_E_Q, E_Q, NULL, 0, 3, vars, NAME_CURRENT_COMP))
+    exit (-1);
+  if (mcvine_func_setup (&kernel.m_S_Q, S_Q, NULL, 0, 3, vars, NAME_CURRENT_COMP))
+    exit (-1);
+  kernel.m_Emax = Emax;
+  kernel.m_nsteps = nsteps > 0 ? nsteps : 1000;
+  kernel.m_xacc = xacc;
+
+  if (Vc > 0) {
+    mu = mcvine_xs2coeff (sigma_abs, Vc);
+    sig = mcvine_xs2coeff (sigma_scat, Vc);
+  } else {
+    mu = absorption_coefficient;
+    sig = scattering_coefficient;
+  }
+  if (!(sig > 0)) {
+    fprintf (stderr, "%s: give scattering_coefficient>0 (or sigma_scat>0 and Vc>0)\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (mcvine_shape_init (&shape, radius, xwidth, yheight, zdepth, thickness, NAME_CURRENT_COMP))
+    exit (-1);
+  mcvine_scatterer_init (&scatterer, &shape, mu, sig, pack, p_transmit, order);
+%}
+
+TRACE
+%{
+  int ret = mcvine_scatterer_interact (&scatterer, &kernel, mcvine_S_E_vQ, _particle);
+  if (ret < 0)
+    ABSORB;
+  if (ret > 0)
+    SCATTER;
+%}
+
+MCDISPLAY
+%{
+  if (scatterer.shape.type == MCVINE_SHAPE_BOX) {
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
+  } else if (scatterer.shape.type == MCVINE_SHAPE_CYLINDER) {
+    cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
+    if (thickness > 0)
+      cylinder (0, 0, 0, radius - thickness, yheight, 0, 0, 1, 0);
+  } else {
+    sphere (0, 0, 0, radius);
+  }
+%}
+
+END

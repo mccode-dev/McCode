@@ -103,6 +103,7 @@
 * geometry: [str]        Name of an OFF file to specify a complex geometry detector
 * nowritefile: [1]       If set, logger will skip writing to disk
 * nexus_bins: [1]        NeXus mode only: store component BIN information <br>(-1 disable, 0 enable for list mode monitor, 1 enable for any montor)
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * OUTPUT PARAMETERS:
 *
@@ -125,16 +126,14 @@ SETTING PARAMETERS(string target_geometry="NULL",
 				   int bins=0, min=-1e40, max=1e40, int restore_neutron=0, radius=0,
 				   string options="NULL", string filename="NULL",string geometry="NULL", int nowritefile=0, int nexus_bins=0,
 				   string username0="NULL", string username1="NULL", string username2="NULL", string username3="NULL", string username4="NULL",
-				   string username5="NULL", string username6="NULL", string username7="NULL", string username8="NULL", string username9="NULL")
+				   string username5="NULL", string username6="NULL", string username7="NULL", string username8="NULL", string username9="NULL", string init="")
 OUTPUT PARAMETERS ()
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Union_abs_logger_nD requires the Union library. Add a Union_master component to load the libraries."
-  #endif
+  %include "union-lib"
 
   %include "monitor_nd-lib"
   %include "read_table-lib"
@@ -513,6 +512,7 @@ DECLARE
 
 INITIALIZE INHERIT Monitor_nD EXTEND
 %{	
+  struct union_state_struct* union_state_p = union_acquire ();
   // input sanitation, provide error if commands used in options that are not supported in Union context
   // capture, 3He_pressure, slit, absorb
   if (strstr (Vars.option, "capture") || strstr (Vars.option, "3He_pressure") || strstr (Vars.option, "slit") || strstr (Vars.option, "absorb"))
@@ -533,8 +533,8 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   if (!this_abs_storage.temp_abs_nD_data.elements)
     exit (fprintf (stderr, "Union_abs_logger_nD: %s: ERROR allocating memory (init)\n", NAME_CURRENT_COMP));
 
-  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = &g_positions_to_transform_list;
-  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = &g_rotations_to_transform_list;
+  struct global_positions_to_transform_list_struct* global_positions_to_transform_list = &union_state_p->u_positions_to_transform_list;
+  struct global_rotations_to_transform_list_struct* global_rotations_to_transform_list = &union_state_p->u_rotations_to_transform_list;
   // Test position and rotation stored in a data storage, and pointers assigned to transform lists
   this_abs_storage.position = POS_A_CURRENT_COMP;
   add_position_pointer_to_list (global_positions_to_transform_list, &this_abs_storage.position);
@@ -561,8 +561,8 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   abs_logger_list_element.component_index = INDEX_CURRENT_COMP;
   abs_logger_list_element.abs_logger = &this_abs_logger;
 
-  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
-  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = &g_specific_volumes_abs_logger_list;
+  struct pointer_to_global_geometry_list* global_geometry_list = &union_state_p->u_geometry_list;
+  struct pointer_to_global_abs_logger_list* global_specific_volumes_abs_logger_list = &union_state_p->u_specific_volumes_abs_logger_list;
   // In order to run the logger at the right times, pointers to this logger is stored in each volume it logs,
   //  and additionally for each avaiable process. If a process is not logged, the pointer is simply not stored.
   int process_index;
@@ -583,7 +583,7 @@ INITIALIZE INHERIT Monitor_nD EXTEND
   } else {
     // Send to global_all_volumes_logger_list
     // Here there is no system for selecting processes as well
-    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = &g_all_volume_abs_logger_list;
+    struct pointer_to_global_abs_logger_list* global_all_volume_abs_logger_list = &union_state_p->u_all_volume_abs_logger_list;
     add_element_to_abs_logger_list (global_all_volume_abs_logger_list, abs_logger_list_element);
   }
  %}
@@ -604,6 +604,7 @@ FINALLY INHERIT Monitor_nD EXTEND
     free (accepted_processes.elements);
   if (accepted_volumes.num_elements > 0)
     free (accepted_volumes.elements);
+  union_release (NAME_CURRENT_COMP);
 %}
 
 MCDISPLAY INHERIT Monitor_nD

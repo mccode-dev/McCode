@@ -36,7 +36,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| Lambda | Angs | source energy | 2.36 |
+| Lambda | AA | source energy | 2.36 |
 
 ## Links
 

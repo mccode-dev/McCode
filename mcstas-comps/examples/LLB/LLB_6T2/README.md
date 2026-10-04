@@ -32,7 +32,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | wavelength | 1.0 |
+| lambda | AA | wavelength | 1.0 |
 | phi | Deg | sample rotation along the vertical axis | 0 |
 | gamma | Deg | in plane detector position | 0 |
 | nu | Deg | out of plane detector position | 0 |

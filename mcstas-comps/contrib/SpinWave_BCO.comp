@@ -83,7 +83,7 @@ SHARE
 
   #pragma acc routine
   double
-  nbose (double omega, double T) /* Other name ?? */
+  disp_SBCO_nbose (double omega, double T) /* Other name ?? */
   {
     double nb;
 
@@ -96,22 +96,22 @@ SHARE
   #define MAXRIDD 60
 
   void
-  fatalerror_cpu (char* s) {
+  disp_SBCO_fatalerror_cpu (char* s) {
     fprintf (stderr, "%s \n", s);
     exit (1);
   }
 
   #pragma acc routine
   void
-  fatalerror (char* s) {
+  disp_SBCO_fatalerror (char* s) {
     #ifndef OPENACC
-    fatalerror_cpu (s);
+    disp_SBCO_fatalerror_cpu (s);
     #endif
   }
 
   #pragma acc routine
   double
-  omega_q (double* parms) {
+  disp_SBCO_omega_q (double* parms) {
     /* dispersion in units of meV */
     double vi, vf, vv_x, vv_y, vv_z, vi_x, vi_y, vi_z;
     double qx, qy, qz, Jq, J1q, J0, J10, omega_magnon, omega_neutron;
@@ -162,12 +162,12 @@ SHARE
       omega_magnon = sqrt ((S * (J0 - J10 + J1q) - 2 * D * (S - 0.5)) * (S * (J0 - J10 + J1q) - 2 * D * (S - 0.5)) - S * S * (Jq) * (Jq))
                      - (2 * branch - 1) * (B * B2E + 2 * S * (j_110 - j_110_prime) * sin (qx * a1) * sin (qy * a2)); /*AM dispersion*/
       if ((omega_magnon < 0) || ((S * (J0 - J10 + J1q) - 2 * D * (S - 0.5)) * (S * (J0 - J10 + J1q) - 2 * D * (S - 0.5)) - S * S * (Jq) * (Jq) < 0)) {
-        fatalerror ("Unphysical dispersion: Check parameters");
+        disp_SBCO_fatalerror ("Unphysical dispersion: Check parameters");
       }
     } else {
       omega_magnon = S * (J1q + Jq - (J10 + J0)) - D * (S - 0.5) + B2E * abs (B); /*FM dispersion*/
       if (omega_magnon < 0) {
-        fatalerror ("Unphysical dispersion: Check parameters");
+        disp_SBCO_fatalerror ("Unphysical dispersion: Check parameters");
       }
     }
     omega_neutron = fabs (VS2E * (vi * vi - vf * vf)); /*Magnitude of energy transfer*/
@@ -182,21 +182,21 @@ SHARE
       if (FM_TAG == 0) {
         coherence_factor = 2 * S * ((S * (J0 - Jq) - S * (J10 - J1q) - 2 * D * (S - 0.5)))
                            / (omega_magnon + (2 * branch - 1) * (B * B2E + 2 * S * (j_110 - j_110_prime) * sin (qx * a1) * sin (qy * a2)));
-        if (verbose = 3) {
+        if (verbose == 3) {
           printf ("Coherence factor = %g\n", coherence_factor);
         }
       } else {
         coherence_factor = 2 * S;
       }
       if (coherence_factor < 0) {
-        fatalerror ("Negative coherence factor: Check parameters"); /*Stop at negative coherence factor from unphysical parms*/
+        disp_SBCO_fatalerror ("Negative coherence factor: Check parameters"); /*Stop at negative coherence factor from unphysical parms*/
       }
       return coherence_factor;
     }
   }
 
   double
-  zridd (double (*func) (double*), double x1, double x2, double* parms, double xacc) {
+  disp_SBCO_zridd (double (*func) (double*), double x1, double x2, double* parms, double xacc) {
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
@@ -241,25 +241,25 @@ SHARE
           xl = ans;
           fl = fnew;
         } else
-          fatalerror ("never get here in zridd");
+          disp_SBCO_fatalerror ("never get here in zridd");
         if (fabs (xh - xl) <= xacc)
           return ans;
       }
-      fatalerror ("zridd exceeded maximum iterations");
+      disp_SBCO_fatalerror ("zridd exceeded maximum iterations");
     }
     return 0.0; /* Never get here */
   }
 
   #pragma acc routine
   double
-  zridd_gpu (double x1, double x2, double* parms, double xacc) {
+  disp_SBCO_zridd_gpu (double x1, double x2, double* parms, double xacc) {
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
     parms[0] = x1;
-    fl = omega_q (parms);
+    fl = disp_SBCO_omega_q (parms);
     parms[0] = x2;
-    fh = omega_q (parms);
+    fh = disp_SBCO_omega_q (parms);
     if (fl * fh >= 0) {
       if (fl == 0)
         return x1;
@@ -273,7 +273,7 @@ SHARE
       for (j = 1; j < MAXRIDD; j++) {
         xm = 0.5 * (xl + xh);
         parms[0] = xm;
-        fm = omega_q (parms);
+        fm = disp_SBCO_omega_q (parms);
         s = sqrt (fm * fm - fl * fh);
         if (s == 0.0)
           return ans;
@@ -282,7 +282,7 @@ SHARE
           return ans;
         ans = xnew;
         parms[0] = ans;
-        fnew = omega_q (parms);
+        fnew = disp_SBCO_omega_q (parms);
         if (fnew == 0.0)
           return ans;
         if (fabs (fm) * SIGN (fnew) != fm) {
@@ -297,11 +297,11 @@ SHARE
           xl = ans;
           fl = fnew;
         } else
-          fatalerror ("never get here in zridd");
+          disp_SBCO_fatalerror ("never get here in zridd");
         if (fabs (xh - xl) <= xacc)
           return ans;
       }
-      fatalerror ("zridd exceeded maximum iterations");
+      disp_SBCO_fatalerror ("zridd exceeded maximum iterations");
     }
     return 0.0; /* Never get here */
   }
@@ -309,14 +309,14 @@ SHARE
   #define ROOTACC 1e-8
 
   int
-  findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (double*), double* parms, int steps_low,
-             int steps_high) {
+  disp_SBCO_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (double*), double* parms, int steps_low,
+                       int steps_high) {
     double root, range;
     int i;
     range = brack_mid - brack_low;
     for (i = 0; i <= (steps_low - 1); i++) {
 
-      root = zridd (f, brack_low + range * i / (int)steps_low, brack_low + range * (i + 1) / (int)steps_low, (double*)parms, ROOTACC);
+      root = disp_SBCO_zridd (f, brack_low + range * i / (int)steps_low, brack_low + range * (i + 1) / (int)steps_low, (double*)parms, ROOTACC);
       if (root != UNUSED) {
         list[(*index)++] = root;
       }
@@ -325,7 +325,7 @@ SHARE
     range = brack_high - brack_mid;
 
     for (i = 0; i <= (steps_high - 1); i++) {
-      root = zridd (f, brack_mid + range * i / (int)steps_high, brack_mid + range * (i + 1) / (int)steps_high, (double*)parms, ROOTACC);
+      root = disp_SBCO_zridd (f, brack_mid + range * i / (int)steps_high, brack_mid + range * (i + 1) / (int)steps_high, (double*)parms, ROOTACC);
       if (root != UNUSED) {
         list[(*index)++] = root;
       }
@@ -334,14 +334,14 @@ SHARE
 
   #pragma acc routine
   int
-  findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, int steps_low, int steps_high) {
+  disp_SBCO_findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, int steps_low, int steps_high) {
     double root, range;
     int i;
 
     range = brack_mid - brack_low;
 
     for (i = 0; i <= (steps_low - 1); i++) {
-      root = zridd_gpu (brack_low + range * i / (int)steps_low, brack_low + range * (i + 1) / (int)steps_low, (double*)parms, ROOTACC);
+      root = disp_SBCO_zridd_gpu (brack_low + range * i / (int)steps_low, brack_low + range * (i + 1) / (int)steps_low, (double*)parms, ROOTACC);
       if (root != UNUSED) {
         list[(*index)++] = root;
       }
@@ -350,7 +350,7 @@ SHARE
     range = brack_high - brack_mid;
 
     for (i = 0; i <= (steps_high - 1); i++) {
-      root = zridd_gpu (brack_mid + range * i / (int)steps_high, brack_mid + range * (i + 1) / (int)steps_high, (double*)parms, ROOTACC);
+      root = disp_SBCO_zridd_gpu (brack_mid + range * i / (int)steps_high, brack_mid + range * (i + 1) / (int)steps_high, (double*)parms, ROOTACC);
       if (root != UNUSED) {
         list[(*index)++] = root;
       }
@@ -465,7 +465,7 @@ TRACE
       }
     } else {
       if (B < 0) {
-        fatalerror ("Field direction flippes spins: Using abs(B)");
+        disp_SBCO_fatalerror ("Field direction flippes spins: Using abs(B)");
       }
     }
 
@@ -477,7 +477,7 @@ TRACE
         mode = mode_input;
       if ((mode < 0) || (mode > 1)) {
         printf ("mode = %d ", mode);
-        fatalerror ("illegal value of mode");
+        disp_SBCO_fatalerror ("illegal value of mode");
       }
     }
 
@@ -513,9 +513,10 @@ TRACE
     }
 
     #ifndef OPENACC
-    findroots (0, v_i, sqrt (v_i * v_i + 1 / VS2E * E_max) + 20, vf_list, &nf, omega_q, parms, e_steps_low, e_steps_high);
+    disp_SBCO_findroots (0, v_i, sqrt (v_i * v_i + 1 / VS2E * E_max) + 20, vf_list, &nf, disp_SBCO_omega_q, parms, e_steps_low, e_steps_high);
     #else
-    findroots_gpu (0, v_i, sqrt (v_i * v_i + 1 / VS2E * E_max) + 20, vf_list, &nf, parms, e_steps_low, e_steps_high); /*+10 to make sure final point is included*/
+    disp_SBCO_findroots_gpu (0, v_i, sqrt (v_i * v_i + 1 / VS2E * E_max) + 20, vf_list, &nf, parms, e_steps_low,
+                             e_steps_high); /*+10 to make sure final point is included*/
     #endif
 
     index = (int)floor (rand01 () * nf);
@@ -524,12 +525,12 @@ TRACE
       parms[0] = v_f;
 
       parms[19] = 1; /*coherence flag*/
-      coherence_factor = omega_q (parms);
+      coherence_factor = disp_SBCO_omega_q (parms);
       parms[19] = 0;
       parms[0] = v_f - DV;
-      f1 = omega_q (parms);
+      f1 = disp_SBCO_omega_q (parms);
       parms[0] = v_f + DV;
-      f2 = omega_q (parms);
+      f2 = disp_SBCO_omega_q (parms);
       J_factor = fabs (f2 - f1) / (2 * DV);
       omega = VS2E * (v_i * v_i - v_f * v_f);
       vx *= v_f;
@@ -553,7 +554,7 @@ TRACE
 
       my_a_i = V_my_a_v / v_i;
       my_a_f = V_my_a_v / v_f;
-      bose_factor = nbose (omega, T);
+      bose_factor = disp_SBCO_nbose (omega, T);
       w_atten = exp (-(V_my_s * (l_i + l_o) + my_a_i * l_i + my_a_f * l_o)); /* Absorption factor */
       w_MC = nf * solid_angle * (l_full * 1e10) / V_0;                       /* Focusing factors; assume random choice of n_f possibilities. Units = AA^-2 */
 

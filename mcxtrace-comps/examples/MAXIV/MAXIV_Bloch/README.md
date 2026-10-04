@@ -54,12 +54,12 @@ Parameters in **boldface** are required; the others are optional.
 | zm_ExitSlit | m | distance from Mirror4 to exit slit. | 9 |
 | xwidth_ExSlit | m | xwidth of exit slit. | 1e-2 |
 | yheight_ExSlit | m | yheight of exit slit. | 1e-2 |
-| Exitslit_yshift |  | y-shift of the exit slit. | 0.005 |
+| Exitslit_yshift | m | y-shift of the exit slit. | 0.005 |
 | verbose |  | Flag to print more information | 0 |
 | perfectMirrors |  | When 0, a toroidal mirros is used, otherwise a plane mirror is used. | 0 |
 | Error |  | When 1, alignment errors are applied randomly on the optics (from  R. Sankari) | 0 |
 | angle_grating | deg | Additional tilt on the grating angle. | 6 |
-| mirror2_angle |  | M2 angle used when grating_mode is 0, otherwise it is computed. | 6 |
+| mirror2_angle | deg | M2 angle used when grating_mode is 0, otherwise it is computed. | 6 |
 
 ## Links
 

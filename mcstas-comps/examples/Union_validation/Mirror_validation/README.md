@@ -39,9 +39,9 @@ Parameters in **boldface** are required; the others are optional.
 | ref_component | 1 | 0 to use Union components, 1 for reference Mirror component | 0 |
 | R0_value | 1 | Low-angle reflectivity | 0.99 |
 | m_value | 1 | m-value of material | 3 |
-| Qc_value | AA-1 | Critical scattering vector | 0.0219 |
+| Qc_value | AA^-1 | Critical scattering vector | 0.0219 |
 | alpha_value | AA | Slope of reflectivity | 6.07 |
-| W_value | AA-1 | Width of supermirror cut-off | 0.003 |
+| W_value | AA^-1 | Width of supermirror cut-off | 0.003 |
 
 ## Links
 

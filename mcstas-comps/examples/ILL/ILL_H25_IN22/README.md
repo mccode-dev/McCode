@@ -27,8 +27,8 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | m | 1 | m-value of guide coating (H14/H142) | 2 |
-| KI | Angs-1 | central wavevector for incoming neutrons | 3.84 |
-| QM | Angs-1 | wavevector transfer modulus at the sample | 1.0 |
+| KI | AA^-1 | central wavevector for incoming neutrons | 3.84 |
+| QM | AA^-1 | wavevector transfer modulus at the sample | 1.0 |
 | EN | meV | energy transfer at the sample | 0.0 |
 | verbose |  | toggle verbose mode | 1 |
 | WM | m | Width of monochromator | 0.15 |

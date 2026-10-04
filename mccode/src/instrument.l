@@ -217,6 +217,14 @@ METADATA      return TOK_METADATA;
       }
     } /* end ccode */
 
+ /* C character literals, e.g. 'a' or '\n', kept verbatim as a single token in
+    expressions (otherwise ' would be scanned as a token of its own, and 'a'
+    would become ' a ' in the generated code). */
+\'([^\'\\\n]|\\[^\n])+\'  {
+        yylval.string = str_dup(yytext);
+        return TOK_CTOK;
+      }
+
  /* Quoted strings. Simple version: no escape sequences. */
 \"[^\"\n\\]*\"    {
         yylval.string =

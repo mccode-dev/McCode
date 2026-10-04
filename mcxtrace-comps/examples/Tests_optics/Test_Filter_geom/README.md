@@ -31,8 +31,8 @@ Parameters in **boldface** are required; the others are optional.
 | L0 | AA | centre wavlength of the source | 1 |
 | DL | AA | half width of the (uniform) wavelength distribution | 0.1 |
 | F2 | 1 | add a 2nd filter component further away | 0 |
-| shape |  |  | 0 |
-| refraction |  |  | 0 |
+| shape | 1 | Filter geometry, 0: box, 1: cylinder | 0 |
+| refraction | 1 | Passed to the refraction parameter of the filter component | 0 |
 
 ## Links
 

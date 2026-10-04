@@ -36,8 +36,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Wavelength at monochromator | 0.7 |
-| DM | Angs | d-spacing of monochromator | 1.807 |
+| lambda | AA | Wavelength at monochromator | 0.7 |
+| DM | AA | d-spacing of monochromator | 1.807 |
 | sample | str | File name for powder/liquid description LAU/LAZ/qSq/Sqw | "SiO2_liq.qSq" |
 | RV | m | Monochromator vertical curvature, 0 for flat, -1 for automatic setting | -1 |
 | L1 | m | Source-Monochromator distance | 6.4 |

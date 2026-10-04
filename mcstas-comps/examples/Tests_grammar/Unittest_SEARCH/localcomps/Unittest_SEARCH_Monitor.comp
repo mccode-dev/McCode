@@ -1,0 +1,115 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Unittest_SEARCH_Monitor
+*
+* %I
+* Written by: Kim Lefmann
+* Date: October 4, 1997
+* Origin: Risoe
+*
+* Simple single detector/monitor.
+*
+* Copy of the Monitor component, used by the Unittest_SEARCH instrument to test
+* that components are found via a SEARCH statement.
+*
+* %D
+* Sums neutrons (0th, 1st, and 2nd moment of p) flying through
+* the rectangular monitor opening. May also be used as detector.
+*
+* Example: Unittest_SEARCH_Monitor(xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1)
+*
+* %P
+* INPUT PARAMETERS:
+*
+* xmin: [m]             Lower x bound of opening 
+* xmax: [m]             Upper x bound of opening 
+* ymin: [m]             Lower y bound of opening 
+* ymax: [m]             Upper y bound of opening 
+* xwidth: [m]           Width of detector. Overrides xmin,xmax. 
+* yheight: [m]          Height of detector. Overrides ymin,ymax. 
+* restore_neutron: [1]  If set, the monitor does not influence the neutron state 
+*
+* CALCULATED PARAMETERS:
+*
+* Nsum: []              Number of neutron hits
+* psum: []              Sum of neutron weights
+* p2sum: []             2nd moment of neutron weights
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT Unittest_SEARCH_Monitor
+
+SETTING PARAMETERS (xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05,
+xwidth=0, yheight=0, int restore_neutron=0)
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+DECLARE
+%{
+  double Nsum;
+  double psum;
+  double p2sum;
+%}
+
+INITIALIZE
+%{
+  psum = 0;
+  p2sum = 0;
+  Nsum = 0;
+
+  if (xwidth > 0) {
+    xmax = xwidth / 2;
+    xmin = -xmax;
+  }
+  if (yheight > 0) {
+    ymax = yheight / 2;
+    ymin = -ymax;
+  }
+
+  if ((xmin >= xmax) || (ymin >= ymax)) {
+    printf ("Monitor: %s: Null detection area !\n"
+            "ERROR    (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+            NAME_CURRENT_COMP);
+    exit (0);
+  }
+  %}
+
+TRACE
+  %{
+  PROP_Z0;
+  if (x > xmin && x < xmax && y > ymin && y < ymax) {
+    double p2 = p * p;
+    #pragma acc atomic
+    Nsum = Nsum + 1;
+    #pragma acc atomic
+    psum = psum + p;
+    #pragma acc atomic
+    p2sum = p2sum + p2;
+    SCATTER;
+  }
+  if (restore_neutron) {
+    RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+  }
+  %}
+
+SAVE
+  %{
+  char title[1024];
+  sprintf (title, "Single monitor %s", NAME_CURRENT_COMP);
+  DETECTOR_OUT_0D (title, Nsum, psum, p2sum);
+  %}
+
+MCDISPLAY
+%{
+
+  multiline (5, (double)xmin, (double)ymin, 0.0, (double)xmax, (double)ymin, 0.0, (double)xmax, (double)ymax, 0.0, (double)xmin, (double)ymax, 0.0, (double)xmin,
+             (double)ymin, 0.0);
+%}
+
+END

@@ -27,8 +27,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| selector | 1 | Choice of the velocity selector to test, with | 1 |
-| lambda | Angs | neutron wavelength selected by the velocity selector | 4 |
+| selector | 1 | Choice of the velocity selector to test, with 1=V_selector 2=Selector | 1 |
+| lambda | AA | neutron wavelength selected by the velocity selector | 4 |
 | phi | deg | velocity selector twist angle | 48.3 |
 | d_vs | m | velocity selector rotating drum length | 0.25 |
 

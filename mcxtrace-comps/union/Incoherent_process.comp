@@ -43,6 +43,7 @@
 * packing_factor: [1]      How dense is the material compared to optimal 0-1
 * unit_cell_volume: [AA^3] Unit_cell_volume
 * interact_fraction: [1]   How large a part of the scattering events should use this process 0-1 (sum of all processes in material = 1)
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * CALCULATED PARAMETERS:
 *
@@ -53,14 +54,11 @@
 ******************************************************************************/
 
 DEFINE COMPONENT Incoherent_process
-SETTING PARAMETERS(sigma=5.08, f_QE=0, gamma=0, packing_factor=1, unit_cell_volume=13.8, interact_fraction=-1)
+SETTING PARAMETERS(sigma=5.08, f_QE=0, gamma=0, packing_factor=1, unit_cell_volume=13.8, interact_fraction=-1, string init="")
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Incoherent_process requires the Union library. Add a Union_master component to load the libraries."
-
-  #endif
+  %include "union-lib"
 
   struct Incoherent_physics_storage_struct {
     // Variables that needs to be transfered between any of the following places:
@@ -120,6 +118,12 @@ SHARE
   #ifndef PROCESS_INCOHERENT_DETECTOR
   #define PROCESS_INCOHERENT_DETECTOR dummy
   #endif
+
+  // Register this process with the Union_master dispatch (see union-lib.h)
+  #undef UNION_CASE_PHYSICS_MY_INCOHERENT
+  #define UNION_CASE_PHYSICS_MY_INCOHERENT(out, ...) case Incoherent: out = Incoherent_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_INCOHERENT
+  #define UNION_CASE_PHYSICS_SCATTERING_INCOHERENT(out, ...) case Incoherent: out = Incoherent_physics_scattering(__VA_ARGS__); break;
 %}
 
 DECLARE
@@ -135,6 +139,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   // Initialize done in the component
   effective_my_scattering = ((packing_factor / unit_cell_volume) * 100 * sigma);
   Incoherent_storage.my_scattering = effective_my_scattering;
@@ -162,7 +167,7 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  struct pointer_to_global_process_list* global_process_list = &g_process_list;
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 
@@ -173,6 +178,7 @@ TRACE
 FINALLY
 %{
   // Since the process and it's storage is a static allocation, there is nothing to deallocate
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

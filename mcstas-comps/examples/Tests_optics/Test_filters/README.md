@@ -30,8 +30,8 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| Lmin | Angs | Lowest wavelength from source | 0.5 |
-| Lmax | Angs | Highest wavelength from source | 10 |
+| Lmin | AA | Lowest wavelength from source | 0.5 |
+| Lmax | AA | Highest wavelength from source | 10 |
 | Filter | 1 | Choice of filter 0: Filter_gen, 1: NCrystal, 2: PowderN, 3: Isotropic_Sqw | 0 |
 | nL | 1 | Number of wavelength bins in [Lmin Lmax] interval | 101 |
 | zdepth | m | Depth of Be-filter | 0.15 |
