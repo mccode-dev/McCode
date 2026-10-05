@@ -19,6 +19,10 @@ other wavelengths present in the beam will not be focussed prefectly and may be
 by the slit.
 ```
 
+## Examples
+
+- **Test: L1=10 Detector: psd2_I=21256.7**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

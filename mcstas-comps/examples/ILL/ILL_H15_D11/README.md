@@ -36,13 +36,17 @@ Chamfers [mm] | 0.2            0.2             0.8             0.2
 Wavyness [rad]| 2.5e-5         1e-4            8e-4            2e-4
 ```
 
+## Examples
+
+- **Test: Lambda=4.51 Detector: SampleC_I=2.1e7**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| Lambda | Angs | neutron wavelength reaching D11 sample | 4.51 |
+| Lambda | AA | neutron wavelength reaching D11 sample | 4.51 |
 | Config | string | guide configuration. Must be one of Borkron_1972 Borkron_2003 Borofloat_2001 Borofloat_2003 | "Borkron_1972" |
 | Lc | m | guide collimation, i.e. free path between end of guide and sample location. Must be one of 40.5, 34, 28, 20.5, 16.5 13.5 10.5, 8, 5.5, 4, 2.5, 1.5 | 0 |
 | iLc | index | guide collimation predefined length | 5 |

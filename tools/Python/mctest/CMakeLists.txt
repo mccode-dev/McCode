@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17.0)
+cmake_minimum_required(VERSION 3.19)
 cmake_policy(VERSION 3.17.0)
 
 # This will install McStas or McXtrace mc/mxtest
@@ -78,9 +78,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mctest.in" "${WORK}/${P}test" @ONLY)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcviewtest.in" "${WORK}/${P}viewtest" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mctest.md.in" "${WORK}/${P}test.md" @ONLY)
-
 
 # Main script, including rename mctest/mxtest
 install(
@@ -101,11 +98,6 @@ install(
   OWNER_READ OWNER_WRITE OWNER_EXECUTE
   GROUP_READ GROUP_EXECUTE
   WORLD_READ WORLD_EXECUTE
-  )
-
-install(
-  DIRECTORY "${PROJECT_SOURCE_DIR}/${FLAVOR}-test"
-  DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
   )
 
 install(
@@ -142,9 +134,4 @@ if(NOT WINDOWS)
     DESTINATION ${DEST_BINDIR}
   )
   
-  install(
-    FILES "${WORK}/${P}test.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-
 endif()

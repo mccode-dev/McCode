@@ -52,22 +52,27 @@ WA=0.16, HA=0.08, RAH=-1, RAV=-1, DA=2.087, NHA=15, NVA=15,
 L1=2.33
 ```
 
+## Examples
+
+- **Test: QM=1 Sqw_coh=V.lau Detector: D7_SC3_1D_I=3.0e+08**
+- **Test: QM=1 Sqw_coh=V.lau Detector: He3H_I=260**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| KI | Angs-1 | Incoming neutron wavevector | 2.662 |
-| KF | Angs-1 | Outgoing neutron wavevector | 0 |
+| KI | AA^-1 | Incoming neutron wavevector | 2.662 |
+| KF | AA^-1 | Outgoing neutron wavevector | 0 |
 | EI | meV | Incoming neutron energy | 0 |
 | EF | meV | Outgoing neutron energy | 0 |
 | QH | rlu | Measurement QH position in crystal | 0 |
 | QK | rlu | Measurement QK position in crystal | 0 |
 | QL | rlu | Measurement QL position in crystal | 0 |
 | EN | meV | Energy transfer in crystal | 0 |
-| QM | Angs-1 | Wavevector transfer in crystal | 0 |
-| KFIX | Angs-1 | Fixed KI or KF value for Rescal compatibility | 0 |
+| QM | AA^-1 | Wavevector transfer in crystal | 0 |
+| KFIX | AA^-1 | Fixed KI or KF value for Rescal compatibility | 0 |
 | FX | 1:KI,2:KF | Fixed KI or KF type for Rescal compatibility | 0 |
 | L1 | m | Source-Monochromator distance. Contains 1st Collimator of length 5.34 | 9 |
 | L2 | m | Monochromator-Sample distance. Contains 2nd Collimator of length 0.35 | 2.1 |
@@ -76,8 +81,8 @@ Parameters in **boldface** are required; the others are optional.
 | SM | 1:left, -1:right | Scattering sense of beam from Monochromator | 1 |
 | SS | 1:left, -1:right | Scattering sense of beam from Sample | -1 |
 | SA | 1:left, -1:right | Scattering sense of beam from Analyzer | 1 |
-| DM | Angs | Monochromator d-spacing | 3.3539 |
-| DA | Angs | Analyzer d-spacing | 3.3539 |
+| DM | AA | Monochromator d-spacing | 3.3539 |
+| DA | AA | Analyzer d-spacing | 3.3539 |
 | RMV | m | Monochromator vertical curvature, 0 for flat, -1 for automatic setting | -1 |
 | RMH | m | Monochromator horizontal curvature, 0 for flat, -1 for automatic setting | 0 |
 | RAV | m | Analyzer vertical curvature, 0 for flat, -1 for automatic setting | 0 |
@@ -92,9 +97,9 @@ Parameters in **boldface** are required; the others are optional.
 | BET2 | arc min | Vertical collimation from Monochromator to Sample A | 120 |
 | BET3 | arc min | Vertical collimation from Sample to Analyzer | 120 |
 | BET4 | arc min | Vertical collimation from Analyzer to Detector | 120 |
-| AS | Angs | Sample lattice parameter A | 6.28 |
-| BS | Angs | Sample lattice parameter B | 6.28 |
-| CS | Angs | Sample lattice parameter C | 6.28 |
+| AS | AA | Sample lattice parameter A | 6.28 |
+| BS | AA | Sample lattice parameter B | 6.28 |
+| CS | AA | Sample lattice parameter C | 6.28 |
 | AA | deg | Angle between lattice vectors B,C | 90 |
 | BB | deg | Angle between lattice vectors C,A | 90 |
 | CC | deg | Angle between lattice vectors A,B | 90 |

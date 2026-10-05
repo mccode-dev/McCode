@@ -23,6 +23,10 @@ beam. The scattering is in the horizontal plane.
 Example: mcrun reflectometer.instr <parameters=values>
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -19,6 +19,10 @@ http://vnt.nmi3.org/moodle/mod/quiz/view.php?id=56
 Example: mcrun  Radiography_absorbing_edge.instr -n5e8 l=0.2 -d EdgeImaging
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -30,7 +34,7 @@ Parameters in **boldface** are required; the others are optional.
 | l | m | Distance between sample and detector | 0.10 |
 | sigma_abs | barns | Absorption cross-section of the sample | 5.08 |
 | Vc | AA^3 | Unit cell volume in the sample | 13.827 |
-| sample_z |  |  | 0.01 |
+| sample_z | m | Sample depth along the beam direction | 0.01 |
 
 ## Links
 

@@ -20,6 +20,10 @@ The intensity on the first monitor should be the same as the sum
 of the two polarization monitors.
 ```
 
+## Examples
+
+- **Test: mirrorOption=0.99 Detector: lamReflec_I=3.27108e-05**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -27,7 +31,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | mirrorOption | 1 | Fraction of neutrons to reflect | 0.5 |
-| polarize |  |  | 0 |
+| polarize | 1 | If non-zero, a Set_pol component randomises the beam polarisation before the mirror | 0 |
 
 ## Links
 

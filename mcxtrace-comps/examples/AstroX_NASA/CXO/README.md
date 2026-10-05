@@ -17,6 +17,10 @@ in the Chandra Observers' Guide. Fully collimated X-ray light impinges on the
 optic consisting of 4 mirrors in the true Wolter I configuration.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

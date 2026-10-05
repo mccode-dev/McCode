@@ -1,0 +1,273 @@
+/*******************************************************************************
+* Instrument: Test_NeXus_comp_par_runtime
+*
+* %I
+* Written by: Peter Willendrup
+* Date: October 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* Test of NeXus output of component parameter values at end of INITIALIZE.
+*
+* %D
+* Unit test for the 'runtime_value' / 'runtime_value_status' attributes written
+* to entry1/instrument/components/NNNN_<comp>/parameters/<par> when running in
+* NeXus mode (compile with -DUSE_NEXUS, run with --format=NeXus).
+*
+* The 'value' attribute holds the literal from this file, 'runtime_value' the
+* value present in the component instance after all INITIALIZE sections.
+* Each component is chosen to exercise one case; expected results with the
+* default instrument parameters (status 'ok' unless stated):
+*
+*   source   (Source_simple)  instrument-parameter expressions + INIT-computed:
+*     lambda0 = lambda          -> 4
+*     dlambda = 0.1*lambda      -> 0.4
+*     dist    = 0 (target_index=1, i.e. distance to slit) -> 1.5
+*   slit     (Slit)           UNSET defaults computed in INIT:
+*     xmin/xmax UNSET -> -0.01/0.01,  ymin/ymax UNSET -> -0.02/0.02
+*     radius    UNSET -> UNSET
+*   psd      (PSD_monitor)    int and string parameters + INIT-computed limits:
+*     nx = npix -> 50,  ny = 2*npix -> 100,  filename = monfile -> psd.dat
+*     xmin/xmax -0.05/0.05 -> -0.02/0.02,  ymin/ymax -> -0.03/0.03
+*   psd_copy (COPY(psd))      second instance of the same type:
+*     nx -> 10, ny -> 100, filename -> psd_copy.dat
+*   lmon     (L_monitor)      expressions of instrument parameters:
+*     Lmin = lambda-1 -> 3,  Lmax = lambda+1 -> 5
+*   banana   (Monitor_nD)     long string, radius-derived size:
+*     radius = L1/3 -> 0.5,  xwidth 0 -> 1,  options -> unchanged string
+*   bender_default (Vertical_Bender) static {..} vectors from the defaults:
+*     rTopPar, rBottomPar, rSidesPar -> {0.99, 0.219, 6.07, 0, 0.003}
+*   bender_custom  (Vertical_Bender) static {..} vector literal per instance:
+*     rTopPar -> {0.95, 0.0218, 4.38, 2, 0.003},  rBottomPar/rSidesPar default
+*   conics   (Conics_PH)      pointer vector from DECLARE:
+*     radii -> no runtime_value, status 'unsupported:pointer'
+*     nshells -> 4, focal_length -> 10 (members after the pointer still 'ok')
+*
+* No component may report 'layout-mismatch' (a warning is also printed on stderr).
+*
+* Self-check: in NeXus mode, FINALLY closes the NeXus file and runs
+* dump_runtime.py (next to this file, needs python3 + h5py) with the expected
+* values, computed from the actual instrument parameters. The simulation exits
+* with value 1 if any check fails, 0 on success. Outside NeXus mode the check is
+* skipped. The python interpreter can be set with the MCCODE_PYTHON variable.
+*
+* %Example: -y --format=NeXus Detector: psd_I=0.000568
+*
+* %P
+* L1:      [m]  Source-slit distance (Source_simple computes dist from it)
+* lambda:  [AA] Mean wavelength
+* wslit:   [m]  Slit width (slit height is 2*wslit)
+* npix:    [1]  Number of horizontal PSD pixels (vertical is 2*npix)
+* monfile: [str] Output filename of the psd monitor
+*
+* %L
+* <reference/HTML link>
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_NeXus_comp_par_runtime(double L1=1.5, double lambda=4,
+  double wslit=0.02, int npix=50, string monfile="psd.dat")
+DEPENDENCY "@NEXUSFLAGS@"
+  
+DECLARE
+%{
+  double shell_radii[4] = {0.30, 0.25, 0.20, 0.15};
+  int    nxcheck_status = 0;
+
+  #if !defined(_WIN32)
+  #include <sys/wait.h>
+  #endif
+
+  /* append ' "arg"' to the command line, returns 0 on overflow */
+  int nxcheck_append(char *cmd, size_t len, const char *arg) {
+    size_t n = strlen(cmd);
+    int    r = snprintf(cmd + n, len - n, " \"%s\"", arg);
+    return (r > 0 && (size_t)r < len - n);
+  }
+
+  /* append one 'comp.par=value' expectation, value formatted from a double */
+  int nxcheck_expect_num(char *cmd, size_t len, const char *key, double v) {
+    char arg[256];
+    snprintf(arg, sizeof(arg), "%s=%.17g", key, v);
+    return nxcheck_append(cmd, len, arg);
+  }
+
+  /* Check the post-INIT component parameter values in the NeXus file with
+     dump_runtime.py (next to this instrument). Returns 0 on success/skip. */
+  int nxcheck_run(void) {
+  #ifndef USE_NEXUS
+    printf("Test_NeXus_comp_par_runtime: compiled without NeXus support, check skipped\n");
+    return 0;
+  #else
+    char  cmd[8192] = "";
+    char  script[4096];
+    char *h5;
+    char *py;
+    char *sep;
+    FILE *f;
+    int   ok = 1, ret, code;
+    const char *bender_def = "{0.99, 0.219, 6.07, 0, 0.003}";
+    const char *checks_str[] = {
+      "slit.radius=UNSET",
+      "bender_default.rTopPar={0.99, 0.219, 6.07, 0, 0.003}",
+      "bender_default.rBottomPar={0.99, 0.219, 6.07, 0, 0.003}",
+      "bender_default.rSidesPar={0.99, 0.219, 6.07, 0, 0.003}",
+      "bender_custom.rTopPar={0.95, 0.0218, 4.38, 2, 0.003}",
+      "psd_copy.filename=psd_copy.dat",
+      "psd_copy.nx=10",
+      "psd.xmin=-0.02", "psd.xmax=0.02", "psd.ymin=-0.03", "psd.ymax=0.03",
+      "conics.radii=status:unsupported:pointer",
+      "conics.nshells=4", "conics.focal_length=10",
+      NULL };
+    int i;
+
+    if (!mcformat || !strcasestr(mcformat, "NeXus")) {
+      printf("Test_NeXus_comp_par_runtime: not in NeXus mode (--format=NeXus), check skipped\n");
+      return 0;
+    }
+    /* complete the NeXus file before reading it. siminfo_close() is idempotent:
+       the call generated at the end of finally() then does nothing. */
+    siminfo_close();
+
+    /* the script lives next to the instrument (also in mctest copies and
+       installed examples); fall back to the working directory */
+    strncpy(script, instrument_source, sizeof(script) - 64);
+    script[sizeof(script) - 64] = '\0';
+    sep = strrchr(script, '/');
+    if (!sep) sep = strrchr(script, '\\');
+    if (sep) strcpy(sep + 1, "dump_runtime.py");
+    else     strcpy(script, "dump_runtime.py");
+    if (!(f = fopen(script, "r"))) {
+      strcpy(script, "dump_runtime.py");
+      f = fopen(script, "r");
+    }
+    if (!f) {
+      fprintf(stderr, "Test_NeXus_comp_par_runtime: dump_runtime.py not found next to %s\n",
+              instrument_source);
+      return 1;
+    }
+    fclose(f);
+
+    /* python interpreter, override with MCCODE_PYTHON */
+    py = getenv("MCCODE_PYTHON");
+  #if defined(_WIN32)
+    if (!py) py = "python";
+  #else
+    if (!py) py = "python3";
+  #endif
+
+    h5 = mcfull_file(siminfo_name, "h5");
+    snprintf(cmd, sizeof(cmd), "\"%s\"", py);
+    ok = ok && nxcheck_append(cmd, sizeof(cmd), script);
+    ok = ok && nxcheck_append(cmd, sizeof(cmd), h5);
+    strncat(cmd, " --quiet --expect", sizeof(cmd) - strlen(cmd) - 1);
+    free(h5);
+
+    /* expectations that follow from the instrument parameters */
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "source.lambda0", INSTRUMENT_GETPAR(lambda));
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "source.dlambda", 0.1*INSTRUMENT_GETPAR(lambda));
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "source.dist",    INSTRUMENT_GETPAR(L1));
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "slit.xmin", -INSTRUMENT_GETPAR(wslit)/2);
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "slit.xmax",  INSTRUMENT_GETPAR(wslit)/2);
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "slit.ymin", -INSTRUMENT_GETPAR(wslit));
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "slit.ymax",  INSTRUMENT_GETPAR(wslit));
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "psd.nx",       INSTRUMENT_GETPAR(npix));
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "psd.ny",     2*INSTRUMENT_GETPAR(npix));
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "psd_copy.ny",2*INSTRUMENT_GETPAR(npix));
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "lmon.Lmin", INSTRUMENT_GETPAR(lambda)-1);
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "lmon.Lmax", INSTRUMENT_GETPAR(lambda)+1);
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "banana.radius",   INSTRUMENT_GETPAR(L1)/3);
+    ok = ok && nxcheck_expect_num(cmd, sizeof(cmd), "banana.xwidth", 2*INSTRUMENT_GETPAR(L1)/3);
+    {
+      char arg[512];
+      snprintf(arg, sizeof(arg), "psd.filename=%s", INSTRUMENT_GETPAR(monfile));
+      ok = ok && nxcheck_append(cmd, sizeof(cmd), arg);
+      snprintf(arg, sizeof(arg), "bender_custom.rBottomPar=%s", bender_def);
+      ok = ok && nxcheck_append(cmd, sizeof(cmd), arg);
+    }
+    for (i = 0; checks_str[i]; i++)
+      ok = ok && nxcheck_append(cmd, sizeof(cmd), checks_str[i]);
+    if (!ok) {
+      fprintf(stderr, "Test_NeXus_comp_par_runtime: check command line too long\n");
+      return 1;
+    }
+
+  #if defined(_WIN32)
+    /* cmd.exe strips the outer pair of quotes when a command has several */
+    {
+      char wrapped[8200];
+      snprintf(wrapped, sizeof(wrapped), "\"%s\"", cmd);
+      strcpy(cmd, wrapped);
+    }
+  #endif
+
+    printf("Test_NeXus_comp_par_runtime: running %s\n", cmd);
+    fflush(stdout); fflush(stderr);
+    ret = system(cmd);
+  #if defined(_WIN32)
+    code = ret;
+  #else
+    code = (ret != -1 && WIFEXITED(ret)) ? WEXITSTATUS(ret) : -1;
+  #endif
+    if (code == 0)
+      printf("Test_NeXus_comp_par_runtime: NeXus runtime parameter check PASSED\n");
+    else
+      fprintf(stderr, "Test_NeXus_comp_par_runtime: NeXus runtime parameter check FAILED (exit %d)%s\n",
+              code, (code == 127 || code == 9009) ? " - python not found, set MCCODE_PYTHON" :
+                    (code == 2) ? " - file could not be checked (h5py installed?)" : "");
+    return code == 0 ? 0 : 1;
+  #endif
+  }
+%}
+
+INITIALIZE
+%{
+%}
+
+TRACE
+
+COMPONENT origin = Arm()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(
+  xwidth=0.02, yheight=0.02, focus_xw=wslit, focus_yh=wslit,
+  lambda0=lambda, dlambda=0.1*lambda, flux=1, target_index=1)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT slit = Slit(xwidth=wslit, yheight=2*wslit)
+AT (0, 0, L1) RELATIVE origin
+
+COMPONENT psd = PSD_monitor(nx=npix, ny=2*npix, filename=monfile,
+  xwidth=0.04, yheight=0.06, restore_neutron=1)
+AT (0, 0, 0.01) RELATIVE slit
+
+COMPONENT psd_copy = COPY(psd)(nx=10, filename="psd_copy.dat")
+AT (0, 0, 0.01) RELATIVE psd
+
+COMPONENT lmon = L_monitor(nL=100, filename="lambda.dat",
+  xwidth=0.04, yheight=0.06, Lmin=lambda-1, Lmax=lambda+1, restore_neutron=1)
+AT (0, 0, 0.01) RELATIVE psd_copy
+
+COMPONENT banana = Monitor_nD(radius=L1/3, yheight=0.1,
+  options="banana, theta limits=[-10 10] bins=20", restore_neutron=1)
+AT (0, 0, 0) RELATIVE slit
+
+COMPONENT bender_default = Vertical_Bender(xwidth=0.03, yheight=0.03,
+  length=0.2, radius=1000)
+AT (0, 0, 0.05) RELATIVE lmon
+
+COMPONENT bender_custom = Vertical_Bender(rTopPar={0.95, 0.0218, 4.38, 2, 0.003},
+  xwidth=0.03, yheight=0.03, length=0.2, radius=1000)
+AT (0, 0, 0.3) RELATIVE bender_default
+
+COMPONENT conics = Conics_PH(nshells=4, radii=shell_radii, focal_length=10,
+  lp=0.2, lh=0.2, disk=0)
+AT (0, 0, 0.5) RELATIVE bender_custom
+
+FINALLY
+%{
+  MPI_MASTER( nxcheck_status = nxcheck_run(); );
+  if (nxcheck_status) exit(1); /* non-zero exit value signals test failure */
+%}
+
+END

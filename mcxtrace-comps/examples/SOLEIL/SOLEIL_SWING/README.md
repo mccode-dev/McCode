@@ -35,6 +35,10 @@ Position | Element
 Example: E0=13 Detector: Eiger4M_I=7.5752e+06
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

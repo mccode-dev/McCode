@@ -1,0 +1,740 @@
+/*******************************************************************************
+*
+*  McStas, neutron ray-tracing package
+*  Copyright(C) 2000 Risoe National Laboratory.
+*
+* %I
+* Written by: Daniel Lomholt Christensen and Kim Lefmann
+* Based on the Phonon_simple component
+* Date: 22.06.23
+* Origin: NBI
+*
+* A sample for magnon or phonon scattering based on numerical cross sections
+*
+*
+* %D
+* Single-cylinder shape.
+* Absorption included.
+* No multiple scattering.
+* No incoherent scattering emitted.
+* No attenuation from coherent scattering. No Bragg scattering.
+* Any crystal system: the unit cell is given either by its lengths and angles
+* (a, b, c, aa, bb, cc) or by its real-space lattice vectors (ax ... cz).
+*
+* 
+*
+* Algorithm:
+* 0. Always perform the scattering if possible (otherwise ABSORB)
+* 1. Choose a dispersion mode, a scattering point and a direction within a
+*    focusing solid angle
+* 2. Calculate the zeros of (E_i-E_f-hbar omega(kappa)) as a function of k_f
+* 3. Choose one value of k_f (always at least one is possible!)
+* 4. Perform the correct weight transformation
+*
+* Dispersion files:
+* folder_path holds one file per dispersion mode. Each file has the columns
+*   h  k  l  E  I
+* on a regular grid covering one unit cell in reciprocal lattice units: h, k, l
+* are the coordinates of q along the reciprocal lattice vectors a*, b*, c*,
+* h = a.q/(2 pi) and so on. For a cell with 90 degree angles and no vectors
+* given, a*, b*, c* lie along the sample x, y, z axes, as a, b, c do in
+* SpinWave_BCO and Phonon_simple. E [meV] is the mode energy and
+* I [barn/sr per unit cell of the given lattice] is the partial differential
+* scattering cross section of the mode, as the factor in front of the delta
+* function:
+*   d2sigma/dOmega dE_f = (k_f/k_i) * DW * I(q) * n_B * delta(hbar omega - E(q)).
+* The component adds k_f/k_i, the Debye-Waller factor DW and the Bose factor
+* n_B = n(omega) + 1 for neutron energy loss and n(omega) for energy gain, so
+* I should not include them. I is looked up at the scattering vector folded
+* into the unit cell.
+*
+* Weight:
+*   p *= exp(-mu l) * dOmega * l_full * m * n_modes * rho_cell
+*        * (k_f/k_i) * DW * I(q) * n_B * |dE_f/d(E(q) - |E_i - E_f|)|
+* with l the path length in the sample, dOmega the focusing solid angle,
+* l_full the path length without scattering, m the number of final
+* velocities found, n_modes the number of dispersion files and rho_cell the
+* density of unit cells.
+*
+* %P
+* INPUT PARAMETERS:
+*
+* radius: [m]         Outer radius of sample in (x,z) plane.
+* yheight: [m]        Height of sample in y direction.
+* sigma_abs: [barns]  Absorption cross section at 2200 m/s per unit cell.
+* sigma_inc: [barns]  Incoherent scattering cross section per unit cell.
+* a: [AA]             Lattice constant, length of the a vector.
+* b: [AA]             Lattice constant, length of the b vector.
+* c: [AA]             Lattice constant, length of the c vector.
+* aa: [deg]           Angle alpha between b and c.
+* bb: [deg]           Angle beta between a and c.
+* cc: [deg]           Angle gamma between a and b with lengths and angles, a lies along x, b in the x-y plane and c completes a right handed set. With 90 degree angles, a, b, c lie along x, y, z.
+* ax: [AA]            x component of the real-space lattice vector a. If any of ax ... cz is non-zero, the vectors are used as given in the component frame and a, b, c, aa, bb, cc are ignored.
+* ay: [AA]            y component of a.
+* az: [AA]            z component of a.
+* bx: [AA]            x component of b.
+* by: [AA]            y component of b.
+* bz: [AA]            z component of b.
+* cx: [AA]            x component of c.
+* cy: [AA]            y component of c.
+* cz: [AA]            z component of c.
+* DW: [1]             Debye-Waller factor.
+* T: [K]              Temperature.
+* focus_r: [m]        Radius of sphere containing target.
+* focus_xw: [m]       horiz. dimension of a rectangular area.
+* focus_yh: [m]       vert.  dimension of a rectangular area.
+* focus_aw: [deg]     horiz. angular dimension of a rectangular area.
+* focus_ah: [deg]     vert.  angular dimension of a rectangular area.
+* folder_path:        Folder with one dispersion file per mode, see above.
+* target_x: [m]       position of target to focus at . Transverse coordinate.
+* target_y: [m]       position of target to focus at. Vertical coordinate.
+* target_z: [m]       position of target to focus at. Straight ahead.
+* target_index: [1]   relative index of component to focus at, e.g. next is +1.
+* e_steps_low: [1]    Number of intervals the final velocity is searched in for roots on the energy loss side of the elastic line.
+* e_steps_high: [1]   Number of intervals on the energy gain side. Each interval holds at most one root, so two roots closer than an interval are missed: increase these for steep or crossing modes.
+* verbose: [1]        Prints information about the component if set to 1.
+*
+* OUTPUT PARAMETERS:
+* V_rho: [AA^-3]      Density of unit cells.
+* V_my_s: [m^-1]      Attenuation factor due to incoherent scattering.
+* V_my_a_v: [m^-1]    Attenuation factor due to absorption.
+*
+* %L
+* The test instrument <a href="../examples/Tests_samples/Test_Dispersion_relation_TAS/Test_Dispersion_relation_TAS.instr">Test_Dispersion_relation_TAS.instr</a>.
+*
+* %E
+******************************************************************************/
+DEFINE COMPONENT Dispersion_relation
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS (radius,yheight,sigma_abs,sigma_inc,a=0,b=0,c=0,DW,T,
+                    aa=90, bb=90, cc=90,
+                    ax=0, ay=0, az=0, bx=0, by=0, bz=0, cx=0, cy=0, cz=0,
+                    string folder_path,
+                    target_x=0, target_y=0, target_z=0,
+                    int target_index=0,
+                    focus_r=0,
+                    focus_xw=0,focus_yh=0,
+                    focus_aw=0,focus_ah=0,
+                    int e_steps_low=100, int e_steps_high=100,
+                    verbose=0)
+OUTPUT PARAMETERS()
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+
+SHARE
+%{
+  %include "read_table-lib"
+  %include "interpolation-lib"
+  #include <stdio.h>
+  #include <stdlib.h>
+  #ifndef _MSC_EXTENSIONS
+  #include <dirent.h> /* With MSVC the McCode runtime includes its own windirent.h */
+  #endif
+  #include <string.h>
+  #define UNUSED (-1.11e30) /* Flag for when no roots are found in Ridders_method */
+  #define MAXRIDD 100     /* Maximum iterations for Ridders_method */
+  #define ROOTACC 1e-8    /* Acceptance factor for Ridders_method */
+  #define T2E (1/11.605)   /* Kelvin to meV */
+  /* Define functions for breaking out of the simulation if something is terribly wrong */
+  void
+  dispersion_relation_fatalerror_cpu (char* s) {
+    fprintf (stderr, "%s \n", s);
+    exit (1);
+  }
+  void
+  dispersion_relation_fatalerror (char* s) {
+    #ifndef OPENACC
+    dispersion_relation_fatalerror_cpu (s);
+    #endif
+  }
+  /* Define a speed struct */
+  struct neutron_values {
+    double initial_size;
+    double final_size;
+    double direction_vx;
+    double direction_vy;
+    double direction_vz;
+    double initial_vx;
+    double initial_vy;
+    double initial_vz;
+  };
+  /* Debugging function for the speed struct */
+  void
+  print_neutron_values (struct neutron_values* neutron) {
+    printf ("Initial size %g\nInitial speed vector %g, %g, %g\nDirection %g, %g, %g\n\n", neutron->initial_size, neutron->initial_vx, neutron->initial_vy,
+            neutron->initial_vz, neutron->direction_vx, neutron->direction_vy, neutron->direction_vz);
+  };
+  /* Define a struct for the crystal. */
+  struct crystal {
+    double vectors[3][3]; // Real-space lattice vectors a, b, c in the component frame [AA]
+    double cell_size;
+  };
+  /* Simple function that squares a number */
+  double
+  square (double x) {
+    return x * x;
+  };
+
+  /* Find the two grid indices bracketing x along one axis of a regular grid,
+      and the fractional distance from the lower one. If the grid stops one
+      step short of the end of the unit cell, the upper neighbour wraps to 0. */
+  void
+  get_bracketing_indices (double x, double min, double max, double step, long bins, double cell_size, long* lower, long* upper, double* fraction) {
+    int periodic = fabs ((max + step) - (min + cell_size)) < 1e-3 * step;
+    double position = (x - min) / step;
+    long lower_index = (long)floor (position);
+    if (lower_index < 0)
+      lower_index = 0;
+    if (lower_index > bins - 1)
+      lower_index = bins - 1;
+    long upper_index = lower_index + 1;
+    if (upper_index > bins - 1) {
+      if (periodic) {
+        upper_index = 0;
+      } else {
+        upper_index = bins - 1;
+        lower_index = bins - 2;
+      }
+    }
+    double t = position - lower_index;
+    if (t < 0)
+      t = 0;
+    if (t > 1)
+      t = 1;
+    *lower = lower_index;
+    *upper = upper_index;
+    *fraction = t;
+  }
+  /* Trilinear interpolation of the dispersion relation on its regular grid.
+      The interpolation-lib only returns the nearest grid point, which gives
+      a step function in omega(q). The steps produce spurious roots and a
+      wrong numerical derivative, so the values are interpolated here instead. */
+  void
+  interpolate_dispersion (struct interpolator_struct* dispersion_relation, double* crystal_vect, double cell_size, double* returns) {
+    long lower[3], upper[3];
+    double t[3];
+    for (int axis = 0; axis < 3; axis++) {
+      get_bracketing_indices (crystal_vect[axis], dispersion_relation->min[axis], dispersion_relation->max[axis], dispersion_relation->step[axis],
+                              dispersion_relation->bin[axis], cell_size, &lower[axis], &upper[axis], &t[axis]);
+    }
+    double* grids[2] = { dispersion_relation->gridx, dispersion_relation->gridy };
+    int n_fields = dispersion_relation->field_dimensionality < 2 ? dispersion_relation->field_dimensionality : 2;
+    for (int field = 0; field < n_fields; field++) {
+      double value = 0;
+      for (int corner = 0; corner < 8; corner++) {
+        long indices[3];
+        double weight = 1;
+        for (int axis = 0; axis < 3; axis++) {
+          int use_upper = (corner >> axis) & 1;
+          indices[axis] = use_upper ? upper[axis] : lower[axis];
+          weight *= use_upper ? t[axis] : 1 - t[axis];
+        }
+        if (weight == 0)
+          continue;
+        // Row-major offset, as interpolation-lib stores the regular grid
+        long offset = (indices[0] * dispersion_relation->bin[1] + indices[1]) * dispersion_relation->bin[2] + indices[2];
+        value += weight * grids[field][offset];
+      }
+      returns[field] = value;
+    }
+  }
+
+  /* Sets values for the neutrons speed */
+  void
+  set_init_speeds (double vx, double vy, double vz, struct neutron_values* neutron) {
+    neutron->initial_size = sqrt (square (vx) + square (vy) + square (vz));
+    neutron->initial_vx = vx;
+    neutron->initial_vy = vy;
+    neutron->initial_vz = vz;
+    neutron->direction_vx = vx;
+    neutron->direction_vy = vy;
+    neutron->direction_vz = vz;
+  }
+  /* Set the aiming vector, that will be focusing toward the next component*/
+  void
+  set_aiming_vector (double target_x, double target_y, double target_z, double x, double y, double z, double* aiming_vector) {
+    aiming_vector[0] = target_x - x;
+    aiming_vector[1] = target_y - y;
+    aiming_vector[2] = target_z - z;
+  };
+  /* Choose the direction of the neutron in accordance with the next component */
+  #pragma acc routine
+  double
+  focus_neutron (double* direction_vx, double* direction_vy, double* direction_vz, double* aiming_vector, double focus_ah, double focus_aw, double focus_xw,
+                 double focus_yh, double focus_r, double (*rotation)[3], _class_particle* _particle) {
+    double solid_angle;
+    if (focus_aw && focus_ah) {
+      randvec_target_rect_angular (direction_vx, direction_vy, direction_vz, &solid_angle, aiming_vector[0], aiming_vector[1], aiming_vector[2], focus_aw,
+                                   focus_ah, rotation);
+    } else if (focus_xw && focus_yh) {
+      randvec_target_rect (direction_vx, direction_vy, direction_vz, &solid_angle, aiming_vector[0], aiming_vector[1], aiming_vector[2], focus_xw, focus_yh,
+                           rotation);
+    } else {
+      randvec_target_sphere (direction_vx, direction_vy, direction_vz, &solid_angle, aiming_vector[0], aiming_vector[1], aiming_vector[2], focus_r);
+    }
+    // Normalize direction vector
+    double vector_size = sqrt (square (*direction_vx) + square (*direction_vy) + square (*direction_vz));
+    *direction_vx /= vector_size;
+    *direction_vy /= vector_size;
+    *direction_vz /= vector_size;
+    return solid_angle;
+  }
+  /* (h, k, l) of the scattering vector Q in the component frame: h = a.Q/(2 pi),
+      k = b.Q/(2 pi), l = c.Q/(2 pi), which holds for any unit cell. reduced
+      gets (h, k, l) and folded the same folded into the unit cell [0, 1). */
+  void
+  get_reduced_coordinates (struct crystal* crystal, double* scat_vect, double* reduced, double* folded) {
+    for (int i = 0; i < 3; i++) {
+      reduced[i] = (crystal->vectors[i][0] * scat_vect[0] + crystal->vectors[i][1] * scat_vect[1] + crystal->vectors[i][2] * scat_vect[2]) / (2 * PI);
+      folded[i] = fmod (reduced[i], crystal->cell_size);
+      if (folded[i] < 0)
+        folded[i] += crystal->cell_size;
+    }
+  }
+  /* Interpolate the dispersion relation at the scattering vector given by the
+      neutron's initial velocity and its final velocity neutron->final_size.
+      returns[0] is the mode energy [meV] and returns[1] the cross section
+      [barn/sr per unit cell]. */
+  void
+  get_dispersion_values (struct crystal* crystal, struct neutron_values* neutron, struct interpolator_struct* dispersion_relation, double* returns) {
+    // Scattering vector in the component frame
+    double scat_vect[3]
+        = { V2K * (neutron->initial_vx - neutron->final_size * neutron->direction_vx), V2K * (neutron->initial_vy - neutron->final_size * neutron->direction_vy),
+            V2K * (neutron->initial_vz - neutron->final_size * neutron->direction_vz) };
+    double reduced[3], crystal_vect[3];
+    get_reduced_coordinates (crystal, scat_vect, reduced, crystal_vect);
+    returns[0] = 0;
+    returns[1] = 0;
+    interpolate_dispersion (dispersion_relation, crystal_vect, crystal->cell_size, returns);
+  }
+  /* Calculate the difference between the loss of energy from the magnon dispersion,
+      and the loss of energy for the neutron with the given final velocity. */
+  double
+  get_difference_neutron_dE_and_dispersion_dE (struct crystal* crystal, struct neutron_values* neutron, struct interpolator_struct* dispersion_relation) {
+    double returns[2];
+    get_dispersion_values (crystal, neutron, dispersion_relation, returns);
+    double delta_E_magnon = returns[0];
+    double delta_E_neutron = fabs (VS2E * (square (neutron->initial_size) - square (neutron->final_size)));
+    return delta_E_magnon - delta_E_neutron;
+  }
+  /* Bose factor for energy transfer omega [meV] to the sample at temperature T [K]:
+      n(omega) + 1 for neutron energy loss (omega > 0) and n(|omega|) for gain. */
+  double
+  bose_factor (double omega, double T) {
+    if (T <= 0)
+      return omega > 0 ? 1 : 0;
+    double n = 1 / (exp (fabs (omega) / (T * T2E)) - 1);
+    return omega > 0 ? n + 1 : n;
+  }
+  ///////////////////////////////////////////////////////////////////////////
+  /////////////// General function for finding the root of a real valued
+  /////////////// function. Based off of Ridders method for finding the root.
+  ///////////////////////////////////////////////////////////////////////////
+  double
+  Ridders_method_for_root_finding (double x1, double x2, double xacc, struct crystal* crystal, struct neutron_values* neutron,
+                                   struct interpolator_struct* dispersion_relation) {
+    // dEmn stands for delta E magnon minus delta E neutron
+    double dEmn_root, dEmn_low, dEmn_mid, dEmn_high, dEmn_new_guess;
+    double s;
+    double velocity_high, velocity_low, velocity_mid, velocity_new_guess;
+
+    // Initialize the endpoints of the interval
+    neutron->final_size = x1;
+    dEmn_low = get_difference_neutron_dE_and_dispersion_dE (crystal, neutron, dispersion_relation);
+    neutron->final_size = x2;
+    dEmn_high = get_difference_neutron_dE_and_dispersion_dE (crystal, neutron, dispersion_relation);
+
+    // Check if the function values at the endpoints have the same sign
+    if (dEmn_low * dEmn_high >= 0) {
+      if (dEmn_low == 0)
+        return x1; // Return x1 if it is a root
+      if (dEmn_high == 0)
+        return x2;   // Return x2 if it is a root
+      return UNUSED; // Return UNUSED if no root found in the interval
+    } else {
+      // Initialize variables for the iteration
+      velocity_low = x1;
+      velocity_high = x2;
+      dEmn_root = UNUSED;
+
+      // Iterative loop
+      for (int j = 1; j < MAXRIDD; j++) {
+        // Compute the midpoint and the function value at the midpoint
+        velocity_mid = 0.5 * (velocity_low + velocity_high);
+        neutron->final_size = velocity_mid;
+        dEmn_mid = get_difference_neutron_dE_and_dispersion_dE (crystal, neutron, dispersion_relation);
+
+        // Compute the correction term and the new estimate for the root
+        s = sqrt (dEmn_mid * dEmn_mid - dEmn_low * dEmn_high);
+        if (s == 0.0)
+          return dEmn_root;
+        velocity_new_guess = velocity_mid + (velocity_mid - velocity_low) * ((dEmn_low >= dEmn_high ? 1.0 : -1.0) * dEmn_mid / s);
+
+        // Check for convergence
+        if (fabs (velocity_new_guess - dEmn_root) <= xacc)
+          return dEmn_root;
+
+        // Update variables for the next iteration
+        dEmn_root = velocity_new_guess;
+        neutron->final_size = dEmn_root;
+        dEmn_new_guess = get_difference_neutron_dE_and_dispersion_dE (crystal, neutron, dispersion_relation);
+
+        // Check if the new estimate is a root
+        if (dEmn_new_guess == 0.0)
+          return dEmn_root;
+
+        // Update interval based on the signs of function values
+        if (fabs (dEmn_mid) * SIGN (dEmn_new_guess) != dEmn_mid) {
+          velocity_low = velocity_mid;
+          dEmn_low = dEmn_mid;
+          velocity_high = dEmn_root;
+          dEmn_high = dEmn_new_guess;
+        } else if (fabs (dEmn_low) * SIGN (dEmn_new_guess) != dEmn_low) {
+          velocity_high = dEmn_root;
+          dEmn_high = dEmn_new_guess;
+        } else if (fabs (dEmn_high) * SIGN (dEmn_new_guess) != dEmn_high) {
+          velocity_low = dEmn_root;
+          dEmn_low = dEmn_new_guess;
+        } else
+          dispersion_relation_fatalerror ("never get here in zridd");
+
+        // Check for convergence based on the interval size
+        if (fabs (velocity_high - velocity_low) <= xacc)
+          return dEmn_root;
+      }
+
+      // Maximum iterations reached without convergence
+      dispersion_relation_fatalerror ("Ridders method exceeded maximum iterations");
+    }
+
+    return 0.0; // Never get here
+  }
+
+  /* Scan the final velocity in steps_low intervals on the energy loss side and
+      steps_high intervals on the energy gain side. Each interval gives at most
+      one root, so possible_final_velocities must hold steps_low + steps_high
+      values. */
+  void
+  find_possible_final_velocities (double* possible_final_velocities, int* number_of_solutions, struct crystal* crystal, int steps_low, int steps_high, double max_mode_energy,
+              struct neutron_values* neutron, struct interpolator_struct* dispersion_relation) {
+    double possible_final_velocity;
+    // The neutron can at most lose or gain the largest energy in the dispersion relation
+    double initial_speed_squared = square (neutron->initial_size);
+    double lower_final_velocity_limit = sqrt (fmax (0, initial_speed_squared - max_mode_energy / VS2E));
+    double mid_final_velocity_limit = neutron->initial_size;
+    double upper_final_velocity_limit = sqrt (initial_speed_squared + max_mode_energy / VS2E);
+    double range_low = mid_final_velocity_limit - lower_final_velocity_limit;
+    double range_high = upper_final_velocity_limit - mid_final_velocity_limit;
+    // First in energy loss for the neutron
+    for (int i = 0; i < steps_low; i++) {
+      possible_final_velocity
+          = Ridders_method_for_root_finding (lower_final_velocity_limit + range_low * i / steps_low, lower_final_velocity_limit + range_low * (i + 1) / steps_low,
+                                             ROOTACC, crystal, neutron, dispersion_relation);
+      if (possible_final_velocity != UNUSED) {
+        possible_final_velocities[(*number_of_solutions)++] = possible_final_velocity;
+      }
+    }
+    // Then in energy gain for the neutron
+    for (int i = 0; i < steps_high; i++) {
+      possible_final_velocity
+          = Ridders_method_for_root_finding (mid_final_velocity_limit + range_high * i / steps_high, mid_final_velocity_limit + range_high * (i + 1) / steps_high,
+                                             ROOTACC, crystal, neutron, dispersion_relation);
+      if (possible_final_velocity != UNUSED) {
+        possible_final_velocities[(*number_of_solutions)++] = possible_final_velocity;
+      }
+    }
+    return;
+  }
+  #undef UNUSED
+  #undef MAXRIDD
+
+  // Function to count the given dispersion relations, and assign them
+  // to a dispersion relation struct
+  int
+  count_modes (const char* folder_path) {
+    struct dirent* entry;
+    DIR* dp = opendir (folder_path);
+    int file_count = 0;
+    if (dp == NULL) {
+      perror ("opendir");
+      return -1; // Error opening the directory
+    }
+    // Loop through all files and print their names
+    while ((entry = readdir (dp)) != NULL) {
+      // Skip "." and ".." entries (current and parent directories)
+      if (entry->d_name[0] != '.') {
+        printf ("Found file: %s\n", entry->d_name);
+        file_count++;
+      }
+    }
+    closedir (dp);
+    return file_count;
+  }
+%}
+
+DECLARE
+%{
+  // Dynamically allocate memory for an array of `interpolator_struct` pointers
+  struct interpolator_struct** dispersion_relations;
+  struct interpolator_struct* dispersion_relation;
+  struct neutron_values neutron;
+  struct crystal crystal;
+
+  double q_cryst[3];
+  double* possible_final_velocities; // Roots of the search, e_steps_low + e_steps_high at most
+  double aiming_vector[3];
+  double numerical_derivative_resolution;
+
+  double max_mode_energy; // Largest energy found in any of the dispersion relations
+  double V_rho;           // Density of unit cells [AA^-3]
+  double V_my_s;          // Attenuation from incoherent scattering [m^-1]
+  double V_my_a_v;        // Attenuation from absorption times velocity [m^-1 m/s]
+  int n_modes;            // The number of dispersion modes, equal to the number of files
+                          // in the given folder
+  int neutrons_diffracted;
+%}
+
+INITIALIZE
+%{
+  //==========================================================================
+  //=============== Importing the numerical dispersion relation ==============
+  int file_count = count_modes (folder_path);
+  if (file_count == -1) {
+    printf ("ERROR: No files in directory");
+  }
+  n_modes = 0;
+  struct dirent* entry;
+  DIR* dp = opendir (folder_path);
+  if (dp == NULL) {
+    perror ("opendir");
+    printf ("Error opening the directory");
+  }
+  dispersion_relations = (struct interpolator_struct**)malloc (file_count * sizeof (struct interpolator_struct*));
+  // Check if the dispersion relation is NULL
+  if (dispersion_relations == NULL) {
+    printf ("Error allocating dispersion relation\n");
+  }
+  // Loop through all files and assigne a dispersion relation to them
+  while ((entry = readdir (dp)) != NULL) {
+    // Skip "." and ".." entries (current and parent directories)
+    if (entry->d_name[0] == '.') {
+      continue;
+    }
+    char full_path[4096]; // Make full path to specific file
+    snprintf (full_path, sizeof (full_path), "%s/%s", folder_path, entry->d_name);
+    dispersion_relations[n_modes] = interpolator_load (full_path, 3, 2, "regular");
+    if (dispersion_relations[n_modes] == NULL || dispersion_relations[n_modes]->gridx == NULL) {
+      fprintf (stderr, "Dispersion_relation: %s: Could not load '%s' as a regular grid.\n", NAME_CURRENT_COMP, full_path);
+      exit (1);
+    }
+    interpolator_info (dispersion_relations[n_modes]);
+    n_modes++;
+  }
+  closedir (dp);
+  // Find the largest energy of all modes, which bounds the root search
+  max_mode_energy = 0;
+  for (int mode = 0; mode < n_modes; mode++) {
+    for (long index = 0; index < dispersion_relations[mode]->prod; index++) {
+      max_mode_energy = fmax (max_mode_energy, fabs (dispersion_relations[mode]->gridx[index]));
+    }
+  }
+  //=============== Importing the numerical dispersion relation ==============
+  //==========================================================================
+
+  /* Buffer for the roots of the final velocity search, one per search interval */
+  if (e_steps_low < 1 || e_steps_high < 1) {
+    fprintf (stderr, "Dispersion_relation: %s: e_steps_low and e_steps_high must be at least 1.\n", NAME_CURRENT_COMP);
+    exit (1);
+  }
+  possible_final_velocities = (double*)malloc ((e_steps_low + e_steps_high) * sizeof (double));
+  if (possible_final_velocities == NULL) {
+    fprintf (stderr, "Dispersion_relation: %s: Could not allocate the root buffer.\n", NAME_CURRENT_COMP);
+    exit (1);
+  }
+
+  /* Targetting stuff */
+  /* If a target is not defined, choose the following component as target */
+  if (!target_index && !target_x && !target_y && !target_z)
+    target_index = 1;
+  /* If a target is defined, find the vector pointing towards the target center */
+  if (target_index) {
+    Coords ToTarget;
+    ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+    ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+    coords_get (ToTarget, &target_x, &target_y, &target_z);
+  }
+
+  if (!(target_x || target_y || target_z)) {
+    printf ("Dispersion_relation: %s: The target is not defined. Using direct beam (Z axis).\n", NAME_CURRENT_COMP);
+    target_z = 1;
+  }
+
+  /* Real-space lattice vectors, from ax ... cz or from the lengths and angles */
+  if (ax || ay || az || bx || by || bz || cx || cy || cz) {
+    double given[3][3] = { { ax, ay, az }, { bx, by, bz }, { cx, cy, cz } };
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        crystal.vectors[i][j] = given[i][j];
+    if (verbose)
+      printf ("Dispersion_relation: %s: Using the lattice vectors ax ... cz; "
+              "a, b, c, aa, bb, cc are ignored.\n",
+              NAME_CURRENT_COMP);
+  } else {
+    if (a <= 0 || b <= 0 || c <= 0) {
+      fprintf (stderr,
+               "Dispersion_relation: %s: Give the lattice as a, b, c > 0 (with aa, bb, cc) "
+               "or as the vectors ax ... cz.\n",
+               NAME_CURRENT_COMP);
+      exit (1);
+    }
+    double cos_alpha = cos (aa * DEG2RAD), cos_beta = cos (bb * DEG2RAD);
+    double cos_gamma = cos (cc * DEG2RAD), sin_gamma = sin (cc * DEG2RAD);
+    double shape = 1 - cos_alpha * cos_alpha - cos_beta * cos_beta - cos_gamma * cos_gamma + 2 * cos_alpha * cos_beta * cos_gamma;
+    if (shape <= 0 || fabs (sin_gamma) < 1e-12) {
+      fprintf (stderr, "Dispersion_relation: %s: The angles aa=%g, bb=%g, cc=%g do not form a unit cell.\n", NAME_CURRENT_COMP, aa, bb, cc);
+      exit (1);
+    }
+    // a along x, b in the x-y plane, c completing a right handed set
+    double c_x = c * cos_beta;
+    double c_y = c * (cos_alpha - cos_beta * cos_gamma) / sin_gamma;
+    double placed[3][3] = { { a, 0, 0 }, { b * cos_gamma, b * sin_gamma, 0 }, { c_x, c_y, sqrt (c * c - c_x * c_x - c_y * c_y) } };
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        crystal.vectors[i][j] = placed[i][j];
+  }
+  crystal.cell_size = 1.0;
+  double (*lattice)[3] = crystal.vectors;
+  double cell_volume = lattice[0][0] * (lattice[1][1] * lattice[2][2] - lattice[1][2] * lattice[2][1])
+                       - lattice[0][1] * (lattice[1][0] * lattice[2][2] - lattice[1][2] * lattice[2][0])
+                       + lattice[0][2] * (lattice[1][0] * lattice[2][1] - lattice[1][1] * lattice[2][0]);
+  if (fabs (cell_volume) < 1e-9) {
+    fprintf (stderr, "Dispersion_relation: %s: The lattice vectors span no volume.\n", NAME_CURRENT_COMP);
+    exit (1);
+  }
+  if (verbose) {
+    printf ("Dispersion_relation: %s: a = (%g, %g, %g), b = (%g, %g, %g), c = (%g, %g, %g) AA, "
+            "cell volume %g AA^3\n",
+            NAME_CURRENT_COMP, lattice[0][0], lattice[0][1], lattice[0][2], lattice[1][0], lattice[1][1], lattice[1][2], lattice[2][0], lattice[2][1],
+            lattice[2][2], fabs (cell_volume));
+  }
+
+  /* Numerical derivative resolution used in jacobian function */
+  numerical_derivative_resolution = 0.001;
+
+  /* Unit cell density and attenuation. The factor 100 converts
+      AA^-3 * barn into m^-1 */
+  V_rho = 1 / fabs (cell_volume);
+  V_my_s = V_rho * 100 * sigma_inc;
+  V_my_a_v = V_rho * 100 * sigma_abs * 2200;
+
+  /* The angular focusing routine takes radians */
+  if (focus_aw)
+    focus_aw *= DEG2RAD;
+  if (focus_ah)
+    focus_ah *= DEG2RAD;
+%}
+
+TRACE
+%{
+  double t0, t1;
+  double time_in_sample;
+  double time_of_reflection;
+  double distance_to_reflection, distance_to_exit;
+  double solid_angle;
+  int number_of_solutions = 0;
+  int index_of_final_velocity;
+  double final_velocity;
+  double jacobian_factor;
+  // Check that the neutron hits the sample, and calculate geometric values related to it
+  if (!cylinder_intersect (&t0, &t1, x, y, z, vx, vy, vz, radius, yheight)) {
+    ABSORB;
+  }
+  // Choose the dispersion relation this neutron will simulate
+  int dispersion_mode = (int)(rand01 () * n_modes);
+  time_in_sample = t1 - t0;
+  time_of_reflection = rand01 () * time_in_sample;
+  // Propagate neutron to point of reflection
+  PROP_DT (time_of_reflection + t0);
+  SCATTER;
+  set_aiming_vector (target_x, target_y, target_z, x, y, z, aiming_vector);
+  set_init_speeds (vx, vy, vz, &neutron);
+  distance_to_reflection = time_of_reflection * neutron.initial_size;
+  // Focus the neutrons artificially, forward in the system.
+  solid_angle = focus_neutron (&neutron.direction_vx, &neutron.direction_vy, &neutron.direction_vz, aiming_vector, focus_ah, focus_aw, focus_xw, focus_yh,
+                               focus_r, ROT_A_CURRENT_COMP, _particle);
+  // Find the different possible final velocities the neutron can have
+  find_possible_final_velocities (possible_final_velocities, &number_of_solutions, &crystal, e_steps_low, e_steps_high, max_mode_energy, &neutron,
+              dispersion_relations[dispersion_mode]);
+  if (number_of_solutions == 0) {
+    ABSORB; // No final velocity satisfies energy and momentum conservation
+  }
+  // Choose one of these possible velocities
+  index_of_final_velocity = (int)floor (rand01 () * (number_of_solutions));
+  // Set the outgoing speed vector //
+  final_velocity = possible_final_velocities[index_of_final_velocity];
+  vx = neutron.direction_vx * final_velocity;
+  vy = neutron.direction_vy * final_velocity;
+  vz = neutron.direction_vz * final_velocity;
+
+  // Mode energy and cross section at the chosen final velocity
+  double dispersion_values[2];
+  neutron.final_size = final_velocity;
+  get_dispersion_values (&crystal, &neutron, dispersion_relations[dispersion_mode], dispersion_values);
+  double cross_section = dispersion_values[1]; // [barn/sr per unit cell]
+  // Energy transfer to the sample, positive for neutron energy loss
+  double omega = VS2E * (square (neutron.initial_size) - square (final_velocity));
+
+  // Jacobian of the delta function: |dE_f / d(omega(q) - |E_i - E_f|)|
+  neutron.final_size = final_velocity - numerical_derivative_resolution;
+  double f1 = get_difference_neutron_dE_and_dispersion_dE (&crystal, &neutron, dispersion_relations[dispersion_mode]);
+  neutron.final_size = final_velocity + numerical_derivative_resolution;
+  double f2 = get_difference_neutron_dE_and_dispersion_dE (&crystal, &neutron, dispersion_relations[dispersion_mode]);
+  neutron.final_size = final_velocity;
+  jacobian_factor = 2 * VS2E * final_velocity / (fabs (f2 - f1) / (2 * numerical_derivative_resolution));
+
+  // Find time of exit //
+  cylinder_intersect (&t0, &t1, x, y, z, vx, vy, vz, radius, yheight);
+  distance_to_exit = t1 * final_velocity;
+
+  // Weight: attenuation in and out of the sample, Monte Carlo choices of
+  // scattering point (1/l), direction (1/solid_angle), final velocity
+  // (1/number_of_solutions) and mode (1/n_modes), and the cross section
+  // (k_f/k_i) * DW * cross_section * Bose factor, integrated over E_f.
+  double attenuation = exp (-(V_my_s * (distance_to_reflection + distance_to_exit) + V_my_a_v / neutron.initial_size * distance_to_reflection
+                              + V_my_a_v / final_velocity * distance_to_exit));
+  double monte_carlo_factor = solid_angle * time_in_sample * neutron.initial_size * number_of_solutions * n_modes;
+  p *= attenuation * monte_carlo_factor * V_rho * 100 * (final_velocity / neutron.initial_size) * DW * cross_section * bose_factor (omega, T) * jacobian_factor;
+
+  // The following is only for testing purposes.
+
+  double scat_vect[3] = { V2K * (neutron.initial_vx - final_velocity * neutron.direction_vx), V2K*(neutron.initial_vy - final_velocity * neutron.direction_vy),
+                          V2K*(neutron.initial_vz - final_velocity * neutron.direction_vz) };
+  double q_cryst_vect[3], crystal_vect[3];
+  get_reduced_coordinates (&crystal, scat_vect, q_cryst_vect, crystal_vect);
+
+  if (verbose) {
+    printf ("Scat vect %g, %g, %g\nq_cryst vect %g, %g, %g\nCrystal vect %g, %g, %g\nChange in energy of neutron %g\nkf size %g\n", scat_vect[0], scat_vect[1],
+            scat_vect[2], q_cryst_vect[0], q_cryst_vect[1], q_cryst_vect[2], crystal_vect[0], crystal_vect[1], crystal_vect[2],
+            final_velocity * final_velocity * VS2E - neutron.initial_size * neutron.initial_size * VS2E, final_velocity * V2K);
+  }
+  q_cryst[0] = crystal_vect[0];
+  q_cryst[1] = crystal_vect[1];
+  q_cryst[2] = crystal_vect[2];
+%}
+
+FINALLY
+%{
+  free (possible_final_velocities);
+%}
+
+MCDISPLAY
+%{
+  circle ("xz", 0, yheight / 2.0, 0, radius);
+  circle ("xz", 0, -yheight / 2.0, 0, radius);
+  line (-radius, -yheight / 2.0, 0, -radius, +yheight / 2.0, 0);
+  line (+radius, -yheight / 2.0, 0, +radius, +yheight / 2.0, 0);
+  line (0, -yheight / 2.0, -radius, 0, +yheight / 2.0, -radius);
+  line (0, -yheight / 2.0, +radius, 0, +yheight / 2.0, +radius);
+%}
+
+END

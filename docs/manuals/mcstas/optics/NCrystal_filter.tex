@@ -1,0 +1,42 @@
+\section{The \texttt{NCrystal\_filter} McStas Component}
+Filter or window (box or cylinder) of a material from NCrystal, which only
+attenuates the beam. Simple, fast and GPU friendly.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Thomas Kittelmann
+  \item \textbf{Origin:} ESS
+  \item \textbf{Date:} 2026
+\end{itemize}
+
+\subsection*{Description}
+A filter or window of an isotropic material, which attenuates the beam according to the total cross section (scattering plus absorption) of the material, as provided by the NCrystal library. Neutrons are not scattered: the weight of a neutron travelling a distance L through the material is multiplied by exp(-sigma*L), where sigma is the macroscopic cross section at its wavelength. This is suitable for e.g. Be filters or Al windows, where the scattered neutrons are not of interest. For the full NCrystal physics, use NCrystal\_sample or the Union components instead.
+
+The cross sections are tabulated during initialisation, so the component can also be used on GPUs. The table is provided by NCrystal itself, unless the C API function ncrystal\_filtertable is not available, in which case the component will create the table itself as a fallback workaround.
+
+The material is given by an NCrystal cfg-string, e.g. "stdlib::Be\_sg194.ncmat;temp=80K" for a cooled Be filter, or "mycrystal.ncmat" for a local file. Oriented materials such as single crystals are not supported, but a fast sapphire filter can be emulated with an assumption that no reflections satisfy the Bragg condition: "stdlib::Al2O3\_sg167\_Corundum.ncmat;bragg=0;temp=200K". Multiphase materials are also supported: "phases\textless{}0.98*stdlib::Al\_sg225.ncmat\&0.01*stdlib::Fe\_sg229\_Iron-alpha.ncmat\&0.01*stdlib::Si\_sg227.ncmat\textgreater{};temp=180K".
+
+The geometry is a box (xwidth, yheight, zdepth) or a cylinder (radius, yheight) along the y axis.
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+cfg & str & NCrystal material configuration string (details \textless{}a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal"\textgreater{}on this page\textless{}/a\textgreater{}). & "void" \\
+xwidth & m & x-dimension (width) of the filter, for a box & 0 \\
+yheight & m & y-dimension (height) of the filter, for a box or cylinder & 0 \\
+zdepth & m & z-dimension (depth) of the filter, for a box & 0 \\
+radius & m & radius of the filter, for a cylinder & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{NCrystal\_filter.comp}.
+  \item The NCrystal wiki at \htmladdnormallink{https://github.com/mctools/ncrystal/wiki}{https://github.com/mctools/ncrystal/wiki}.
+\end{itemize}
+\IfFileExists{optics/NCrystal_filter_static.tex}{\input{optics/NCrystal_filter_static.tex}}{}

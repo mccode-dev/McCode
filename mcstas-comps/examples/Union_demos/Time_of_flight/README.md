@@ -17,6 +17,10 @@ simple test instrument for sample component.
 Example: stick_displacement=0 Detector: banana_detector_tof_I=566.295
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

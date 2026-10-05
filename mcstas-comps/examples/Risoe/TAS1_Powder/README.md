@@ -21,6 +21,10 @@ first detailed work performed with the McStas package.
 The sample is a powder and the analyzer is a single plate.
 ```
 
+## Examples
+
+- **Test: PHM=-37.077 Detector: sng_I=2.26723e-07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

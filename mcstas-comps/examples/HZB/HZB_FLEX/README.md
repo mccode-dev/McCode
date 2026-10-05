@@ -15,6 +15,10 @@
 
 ```
 
+## Examples
+
+- **Test: kI=1.55 Detector: dpsd1_I=4.3e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -28,8 +32,8 @@ Parameters in **boldface** are required; the others are optional.
 | SA | 1 | Analyzer scattering sense | -1 |
 | A3 | deg | Sample omega angle | 0 |
 | A4 | deg | Sample 2-theta angle | 70 |
-| L3 | m |  | 1.00 |
-| L4 | m |  | 1.00 |
+| L3 | m | Sample-analyzer distance | 1.00 |
+| L4 | m | Analyzer-detector distance | 1.00 |
 | Mono_flatswitch | 1 | Flag for flat or curved monochromator | 0 |
 
 ## Links

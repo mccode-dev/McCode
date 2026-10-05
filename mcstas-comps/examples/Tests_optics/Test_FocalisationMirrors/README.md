@@ -19,6 +19,10 @@ images the focal point onto the detector.*
 Test instrument for the MirrorElli and MirrorPara components
 ```
 
+## Examples
+
+- **Test: G=1 Detector: monPSD_I=2.50457e-16**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

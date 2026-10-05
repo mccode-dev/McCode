@@ -18,6 +18,10 @@ a BIFROST guide guide simulation and adds the secondary spectrometer from
 the proposed KVASIR instrument.
 ```
 
+## Examples
+
+- **Test: t=50 Detector: det_He3_0_ToF_I=0.0302392**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

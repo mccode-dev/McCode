@@ -34,7 +34,8 @@ TRACE
 COMPONENT init = Union_init()
 AT (0,0,0) ABSOLUTE
 
-// NOTE: Next two components are generated with the following command, so do NOT edit them manually (but rerun if absorption in NCrystal changes).
+// Keep the explicit process-plus-material form when combining NCrystal with
+// other Union processes. The sample below uses the convenience material API.
 //
 // ncrystal_mcstasunion NCrystal_mono_material 'Ge_sg227.ncmat;mos=0.3deg;comp=bragg;dir1=@crys_hkl:5,1,1@lab:0,0,1;dir2=@crys_hkl:0,1,-1@lab:0,1,0'
 //
@@ -49,8 +50,6 @@ COMPONENT NCrystal_mono_material = Union_make_material(
 )
 AT (0,0,0) ABSOLUTE
 
-// END OF GENERATED CODE!!!
-
 COMPONENT origin = Progress_bar()
   AT (0, 0, 0) RELATIVE ABSOLUTE
 
@@ -63,16 +62,23 @@ COMPONENT mono_arm = Arm()
 COMPONENT monochromator = Union_box(xwidth=0.05,yheight=0.05,zdepth=0.003, priority=1, material_string="NCrystal_mono_material")
   AT (0, 0, 0) RELATIVE mono_arm
 
-COMPONENT master = Union_master()
+COMPONENT master1 = Union_master()
 AT (0,0,0) RELATIVE mono_arm
 
 COMPONENT mono_out = Arm()
   AT (0, 0, 0) RELATIVE mono_arm ROTATED (0, -90, 0) RELATIVE source
 
-/* Make a cylindrical sample of loosely packed Y2O3 powder */
-COMPONENT powder_sample = NCrystal_sample(yheight=0.01, radius=0.01,
-                                          cfg="Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x")
+COMPONENT NCrystal_sample_material = Union_NCrystal_material(
+    cfg="Y2O3_sg206_Yttrium_Oxide.ncmat;density=0.6x")
+AT (0,0,0) ABSOLUTE
+
+/* Make a cylindrical sample of loosely packed Y2O3 powder. */
+COMPONENT powder_sample = Union_cylinder(yheight=0.01, radius=0.01,
+                                         priority=1, material_string="NCrystal_sample_material")
   AT (0, 0, 0.4) RELATIVE mono_out
+
+COMPONENT master2 = Union_master()
+AT (0,0,0) RELATIVE powder_sample
 
 COMPONENT powder_pattern_detc = Monitor_nD(
     options = "banana, angle limits=[10 170], bins=500",

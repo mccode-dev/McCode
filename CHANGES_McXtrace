@@ -15,6 +15,230 @@
 *
 * Documentation: CHANGES_McXtrace
 *************************************************************************/
+Changes in McStas/McXtrace 3.9.0
+
+*Covers everything since the previous "announced" release, 3.8.4.*
+
+## Highlights
+
+* **MPI is now enabled by default** when compiling instruments. Multi-core runs work out of the box, and a long-standing hang in MPI runs with empty event lists is fixed. By @willend.
+* **NCrystal everywhere**: NCrystal materials can now be used in Union, and `PowderN` / `Single_crystal` accept multiphase and single-crystal NCrystal materials. New components: `Union_NCrystal_material` and `NCrystal_filter`. By @tkittel and @mads-bertelsen-agentic.
+* **Union framework simplified**: `Union_init` and `Union_stop` are no longer needed in your instruments, the framework is now self-contained  (@mads-bertelsen-agentic and @g5t). Also new: `Union_abs_logger_nD_scintillator` (@MilanKlausz, with @tkittel).
+* **MCViNE sample kernels in McStas**: 16 sample kernels from MCViNE (S(Q), S(Q,E), phonon, SANS and more), each available both as a standalone sample component and as a Union process. Contributed by @Fahima-Islam.
+* **New `Dispersion_relation` sample component** for phonon or magnon scattering from tabulated (numerical) dispersion relations, tested against `Phonon_simple` and `SpinWave_BCO`. By Daniel Lomholt Christensen (@lomholy-agentic) and Kim Lefmann.
+* **Full component settings in NeXus output**: in NeXus output mode, every component variable is now embedded in the output file with its actual runtime setting, so each simulation fully documents how its components were configured. By @willend, with related fixes by @tkittel.
+* **Much faster `mcdisplay-webgl`**: the 3D instrument viewer no longer depends on Vite/npm and now starts up much faster. By @willend.
+* **Models of NeXT, the ILL neutron + X-ray imaging instrument, in both packages**: `ILL_H521_NeXT` (neutron branch) in McStas and `ILL_NeXT_Xray` (X-ray branch) in McXtrace. Both were "vibe-coded" by @willend with Claude, starting from the instrument's webpage and the existing ILL information in McStas.
+* **New SOLEIL beamlines for McXtrace**: SIRIUS, SAMBA and PUMA, plus fixes to CRISTAL. By @farhi, with PUMA written by Uxue Saez Fernandez.
+* **Another big documentation round**: refreshed manuals, new Union chapters, web versions of the manuals, and updated documentation for every component and instrument. By @willend, AI-assisted.
+
+## What's Changed
+
+### Common to McStas and McXtrace
+
+#### Documentation
+* Full manual refresh against the current component code and tool documentation, plus installation instructions updated for 3.9.0, by @willend (branch `manual-refresh-before-release`, PR pending)
+* Further manual refreshes and AI-assisted corrections by @willend in #2661, #2735, #2736
+* New web (HTML) versions of the manuals by @willend in #2670
+* New Union chapters in both the McStas and McXtrace manuals by @willend in #2675
+* Component and instrument headers reviewed: missing parameter descriptions and units filled in by @willend in #2747
+* Updated instrument README files by @willend in #2702, #2733
+* Elliptic guide component header fixed by @ebknudsen in #2719
+* As in 3.8, this documentation work was **AI-assisted** and reviewed by @willend. Please report any errors you spot via a GitHub issue.
+
+#### Running simulations (`mcrun`/`mxrun`, `mcgui`/`mxgui`)
+* Instruments are now **compiled with MPI enabled by default** by @willend in #2669, with follow-up fixes in #2671 and #2672 (conda installations)
+* Fixed MPI runs hanging when a process ended up with no events by @willend in #2726
+* Only values made of numbers are treated as scan ranges, so text parameters containing `:` are no longer mistaken for scans, by @tkittel in #2722
+* `--yes` now keeps parameter values given on the command line by @willend in #2723
+* `mcgui`/`mxgui` now warns clearly if the code editor component (qscintilla2) is missing by @willend in #2699
+
+#### Visualisation and plotting
+* `mcdisplay-webgl` no longer needs Vite/npm to run, so it now starts up much faster, by @willend in #2676
+* Display fixes: field boxes by @ebknudsen in #2667, Conics components and particle-trace reading by @mads-bertelsen-agentic in #2677
+* `mccoplot`: option to hide legend and title by @willend in #2660
+
+#### `mcdoc`/`mxdoc`
+* `mcdoc PowderN.comp` (and other unique matches) now opens the component directly by @willend in #2663
+* Search-result output now appears in the right place by @willend in #2659
+* Parameter descriptions spanning several lines are now supported by @willend in #2746
+* Cleaner generated component headers by @willend in #2662
+
+#### Testing (`mctest`)
+* New `--noplots` option by @tkittel in #2734
+* Instruments with `%Example` lines without parameters are now supported by @tkittel in #2708
+* More reliable detection of compilation, runtime and plotting failures by @tkittel in #2706
+
+#### Python instruments (`mcstas-pygen`)
+* New `--instrument-name` option, and `%Example` lines are turned into tests, by @tkittel in #2707
+* Search functionality by @tkittel in #2718
+* Fixed handling of expressions in generated Python code by @tkittel in #2730
+
+#### Simulation output and code generation
+* In NeXus output mode, all component variables are now embedded in the output file together with their actual runtime setting (the value after initialisation), so you can always see exactly how each component was configured, by @willend in #2724
+* Parameter expressions are now stored correctly in NeXus files by @tkittel in #2729
+* C character literals in parameter expressions are handled correctly by @tkittel in #2732
+
+#### GPU / OpenACC
+* OpenACC fixes after many component and instrument edits by @willend in #2693, #2737
+* Workaround for `Monitor_nD` with NVIDIA compiler 26.5 and newer by @mads-bertelsen in #2690
+
+#### Installation, platforms and packaging
+* macOS: no more unnecessary Rosetta prompts on Apple Silicon by @willend in #2700, #2704, #2705
+* macOS: workaround for OpenMPI 5 issues by @willend in #2728
+* macOS: `${SDKROOT}` is respected if set by @willend in #2656
+* Minimum CMake version raised from 3.17 to 3.19 by @g5t in #2668
+* External contributions (such as `mcstas-chopper-lib`) reorganised by @g5t in #2666, with chopper-lib updates v4.2.1 and v4.2.2 in #2695, #2710
+* Removed obsolete files and the separate test-config packages by @willend in #2673, #2674
+* Code style and minor fixes by @ebknudsen in #2681 and @willend in #2731
+* For contributors: new `AGENTS.md` guide for AI coding agents by @willend in #2738, and smarter CI that only runs tests when component code actually changes, in #2747
+
+### McStas only
+
+#### NCrystal
+* New `Union_NCrystal_material` component: NCrystal materials for Union, by @mads-bertelsen-agentic in #2698
+* `PowderN` and `Single_crystal` support multiphase and single-crystal NCrystal materials by @tkittel in #2715
+* NCrystal data files are also found next to your instrument file (`localdata/`) by @tkittel in #2714
+* New `NCrystal_filter` component: a fast, GPU-friendly filter or window (box or cylinder) of any NCrystal material that only attenuates the beam, by @tkittel in #2727
+
+#### Union
+* `Union_init` and `Union_stop` are no longer required by @mads-bertelsen-agentic in #2655
+* Union is now self-contained by @g5t in #2712
+* MCViNE sample kernels as Union processes by @Fahima-Islam in #2716 (standalone versions listed under *MCViNE samples* below):
+  * `MCViNE_SQ_process`, `MCViNE_SvQ_process`, `MCViNE_SQE_process`
+  * `MCViNE_E_Q_process`, `MCViNE_E_vQ_process`, `MCViNE_Broadened_E_Q_process`, `MCViNE_LorentzianBroadened_E_Q_process`
+  * `MCViNE_ConstantQE_process`, `MCViNE_ConstantvQE_process`, `MCViNE_ConstantEnergyTransfer_process`
+  * `MCViNE_Phonon_CoherentInelastic_PolyXtal_process`, `MCViNE_Phonon_CoherentInelastic_SingleXtal_process`, `MCViNE_Phonon_IncoherentElastic_process`, `MCViNE_Phonon_IncoherentInelastic_process`
+  * `MCViNE_DGSSXRes_process`, `MCViNE_SANS2D_ongrid_process`
+* New `Union_abs_logger_nD_scintillator` component with test instrument by @MilanKlausz in #2687, with a flexible data location option (`table_dir`) by @tkittel in #2720
+* `union_history.dat` is now saved in the output directory by @NoeB in #2697
+
+#### MCViNE samples
+* 16 sample kernels from MCViNE, now available as standalone McStas sample components, by @Fahima-Islam in #2716:
+  * `MCViNE_SQ`, `MCViNE_SvQ`, `MCViNE_SQE`
+  * `MCViNE_E_Q`, `MCViNE_E_vQ`, `MCViNE_Broadened_E_Q`, `MCViNE_LorentzianBroadened_E_Q`
+  * `MCViNE_ConstantQE`, `MCViNE_ConstantvQE`, `MCViNE_ConstantEnergyTransfer`
+  * `MCViNE_Phonon_CoherentInelastic_PolyXtal`, `MCViNE_Phonon_CoherentInelastic_SingleXtal`, `MCViNE_Phonon_IncoherentElastic`, `MCViNE_Phonon_IncoherentInelastic`
+  * `MCViNE_DGSSXRes`, `MCViNE_SANS2D_ongrid`
+
+#### Components and instruments
+* New `Dispersion_relation` sample component, tested against `Phonon_simple` and `SpinWave_BCO`, by @lomholy-agentic in #2694
+* New `ILL_H521_NeXT` model of the neutron branch of the NeXT imaging instrument at the ILL, AI-assisted (Claude), by @willend in #2703, #2711, #2713
+* `Single_crystal` fix for an issue found by Iurii Kibalin by @willend in #2709
+* `Guide_gravity` warning output fixed by @willend in #2701
+* `NMO` alias component now works by @willend in #2725
+* KDSource visualisation fixed by @jorobledo in #2692
+* New gravity-free propagation functions for component developers by @mads-bertelsen-agentic in #2642
+
+### McXtrace only
+* New `ILL_NeXT_Xray` model of the X-ray branch of the NeXT imaging instrument at the ILL, AI-assisted (Claude), by @willend in #2703, #2711
+* New instruments: SOLEIL SIRIUS by @farhi in #2685, #2744 and SOLEIL SAMBA in #2743
+* New `SOLEIL_PUMA` instrument: the PUMA hard X-ray beamline for heritage science (XRF, XANES, XRD and XEOL, 4–22 keV), written by Uxue Saez Fernandez and added by @farhi in #2741
+* SOLEIL CRISTAL compiles again (corrected undulator parameters) by @farhi in #2688
+* SOLEIL instruments prepared for inclusion in a full storage-ring model by @farhi in #2739
+
+## New Contributors
+* @NoeB made their first contribution in #2697
+* @lomholy-agentic made their first contribution in #2694
+* @mccode-registrar[bot] made its first contribution in #2695
+
+**Full Changelog**: https://github.com/mccode-dev/McCode/compare/v3.8.4...v3.9.0
+
+
+Changes in McStas/McXtrace 3.8.4
+
+*Covers everything since the last full release, 3.7.9 (July 2, 2026), including all changes already shipped quietly via the intermediate conda-forge releases 3.7.10–3.8.3, and a ground-up rewrite of the McStas/McXtrace manuals.*
+
+*Sorry for any incovenience caused if you installed any of 3.8.1-3... Some doc-details were still not in place!*
+
+## What's Changed
+
+### Common to McStas and McXtrace
+
+#### Manuals
+* **First full manual makeover since the McStas 2.x / McXtrace 1.x series.** Tool-usage chapters (`mcrun`/`mxrun`, `mcplot`, `mcdisplay`, `mcgui`, `mcdoc`, ...) rewritten against the actual CLI code; component reference/parameter tables now generated directly from the current `.comp` sources (closing a long-standing manual/code drift); `mcdoc` itself reworked to support it. By @willend in #2592
+* Numerous long-standing inaccuracies fixed along the way: RNG engine description (KISS default / MT optional), obsolete components now explicitly labelled as such, stale legacy sections removed, http->https, and a batch of LaTeX build-pipeline fixes; McXtrace manual also had McStas copy-paste leftovers removed and its "running"/RNG sections aligned with McStas's — all by @willend in #2592
+* **AI-assisted**: reference material and source code (usage articles, grammar/`cogen.c`, example instruments, component sources, tool CLIs) were given to an AI coding agent to draft the updated text, reviewed and merged by @willend. Given the scale of the rewrite, minor errors/omissions in the manuals are expected — please flag anything you spot via a GitHub issue
+* `mcdoc`'s browser-based overview page now also links to per-tool cheat-sheets (`mcrun`, `mcgui`, `mcplot`, `mcdisplay`, `mctest`, `mcdoc`, code generators) and to new standalone Instrument/Component grammar reference pages, all a click away from the component browser by @willend
+
+#### New tooling
+* New tools `mcplotdiff-html`/`mcplotdiff-pyqtgraph`/`mcplotdiff-matplotlib`: plot the *difference* between two simulation results, monitor by monitor (`diff.monN = a.monN - b.monN`), with a diverging blue/white/red colour scale for 2D monitors and diff datasets written out as normal, reopenable McCode `.dat` files by @willend in #2560, #2562, #2564 — later reworked to show %-difference in #2599 and to always write diff datasets in #2585
+  * `mcviewtest` now spawns `mcplotdiff-html` automatically by @willend in #2568
+* New tools `mccoplot-html`/`mccoplot-pyqtgraph`/`mccoplot-matplotlib`: companion to `mcplotdiff`, overlaying two (or more) datasets' 1D monitors on the same axes for direct curve comparison by @willend in #2587, with n-way overlay support in #2594 and a McXtrace-side fix in #2589
+  * `mcviewtest` also spawns `mccoplot` generation by @willend in #2588, #2595
+* `mctest`: added `-s`/`--seed` option and an option to emulate McCode's classic "Unix epoch" default seed, for reproducible test runs by @willend in #2575, #2576
+* `mctest`: new `--strict` mode fails a test if an instrument is missing its `%Example:` header line(s) by @willend in #2602 (spillover-bug fix in #2604), plus general robustness improvements in #2603 and a GPU-box-specific fix in #2613
+* `mctest`: fixed `TypeError` on re-runs caused by `displaytime` never being restored from the saved JSON state by @mads-bertelsen-agentic in #2624
+* `mcplot-html`: added a slider to control plot iframe size, and geometry/scaling adjustments, by @willend in #2547, #2548, #2549, #2550
+* Fix issue #2561 — make 2D-plot colourbars visible in more cases by @willend in #2563
+* Speed up execution of `mcplot-matplotlib` (especially for large 2D matrices) by @willend in #2570
+* Matplotlib-plotters: fix for non-draggable legends by @willend in #2614
+* `mcrun`/`mxrun`: allow multiscan `-M` with list-scan `-L` and new scan/list syntax `par=a:delta:b` for both -N and L modes by @willend in #2618
+* Plottable `mccode.dat` in the NeXus-scan case by @willend in #2619
+* `mcgui`/`mxgui`: non-numeric entries in nsteps are now deferred to `mcrun` for interpretation instead of rejected up front by @willend in #2625
+* `mcdoc`: list `%Example:` lines in bold by @willend in #2636
+* Minor tweak on `mcviewtest` — tolerate a trailing `/` in ref path by @willend in #2593
+
+#### Code generator & grammar
+* **RNG correctness fix**: the KISS generator's 7-word per-particle random state was only partially backed up/restored across a `SPLIT` loop (silently corrupting RNG state), and the Mersenne-Twister seed was never actually applied at start-up due to a stale `RNG_ALG` check — both fixed by @mads-bertelsen-agentic in #2620
+* Cogen: simplify `COPY(instance)` to no longer transfer `EXTEND` et al. by @willend in #2627 (two affected instruments updated in #2640)
+* Enable `mcstas-antlr` in McCode GitHub CI by @willend in #2610
+* Edits for increased compatibility with `mcstas-antlr` by @willend in #2612
+* Consequence-edits from antlr-compatibility: add missing pragmas by @willend in #2616
+* Add input parameters to base `.py` instrument generated by `mccode-pygen` by @willend in #2601
+* Implement pygen-suggestion from @MilanKlausz (#2554) by @willend in #2555
+* Fix for collision between `stdlib::` syntax and `mcrun` `min:delta:max` scan syntax by @willend in #2626
+* Fix issue #2606 + other unneeded use of `GETPATH()` by @willend in #2609
+* [Ref] move static comparison out of the hot TRACE path by @g5t in #2591 — a good general reminder that a `WHEN(...)` clause runs once per particle, so precomputing a flag in `INITIALIZE` beats a `strcmp()` in TRACE
+
+#### Infrastructure / build system / CI
+* New CMake `FetchContent` integration for Greg Tucker's `mcstas-chopper-lib` by @willend in #2631, with a test instrument added in #2632
+* Consolidate conda/non-conda 'basictest' workflows and use with new `mcviewtest` by @willend in #2577
+* Minor bugfixes for testsuite-workflows/nightlies by @willend in #2578, #2581
+* Back to 1e6, testsuite workers are killed by time-limit by @willend in #2582
+* Let testsuite run with 2 cores on macOS, auto elsewhere by @willend in #2583
+* Use `mpi=2` on macOS also in basictests by @willend in #2586
+* Include GitHub worker id as unique identifier for datasets by @willend in #2598
+* Trigger 'RUNALL' if > 4 comps were changed by @willend in #2641
+* Suppress use of `cif2hkl` in `Test_Powders` by @willend in #2634
+* Repair 'autobuild' download of 'innosetup' installer by @willend in #2573
+* Release doc updates 3.7.9 by @willend in #2545
+* Update pull_request_template.md by @willend in #2559
+* Update notebook template to reflect McStasScript 0.0.89 properties by @willend in #2580
+* CI: various workflow fixes by @willend in #2615
+* Minor instrument header fixes + plug missing README.md's by @willend in #2639
+* Rectification of Windows batch-wrappers by @willend in #2566, #2567
+
+### McStas only
+* New instrument: import of `FRMII_SPODI` / `FRMII_SPODI_MULTI`, a powder diffractometer at MLZ Garching (contributed by V. Kochetov, C. Hauf, M. Hoelzel and A. Senyshyn) by @kinetik161 in #2608 — enabled to run on GPU/OpenACC by @willend in #2623
+* New instruments: import of 3 x imaging instruments from various sources (`PSI_ICON`, `Radiography_Lithium_Battery`, `Radiography_Sword`) by @willend in #2569
+* New components (via `mcstas-chopper-lib`, see FetchContent integration above): `Masked_ESS_butterfly` and `NXdisk_chopper`, with their test/example instruments `Masked_ESS_butterfly_image`, `NXdisk_chopper_display` and `NXdisk_chopper_image`, courtesy of @g5t's `mcstas-chopper-lib` — installed directly into the normal `mcstas-comps/contrib` and `examples/Tests_optics` locations, so they appear in `mcdoc`/`mcgui` like any other McStas component
+* PowderN: remove erroneous `order` parameter by @Lomholy in #2622
+* Sans spheres intensity fix by @Lomholy in #2600
+* ILL_SALSA: fix linter and add n reflections to parameters by @Lomholy in #2572
+* Patch issue #2637 — `Vertical_Bender` gravity always disabled by @MilanKlausz in #2638
+* Union: add `nowritefile` parameter to all Union loggers and abs_loggers by @mads-bertelsen-agentic in #2607
+* Work on ESS source description / comparison with MCPL inputs by @willend in #2596
+* Fix for compilation failure of ESS/MCPL instrument under openacc by @willend in #2597
+* Use filenames in MCPL instrument `Monitor_nD` instances to get rid of timestamps by @willend in #2574
+* Add another `MCPL_output` -> producing neutrons in instrument coordinate frame by @willend in #2629
+* MCPL file was moved - update instrument file by @willend in #2630
+
+### McXtrace only
+* McXtrace: work toward fixing #2514 (GPU) by @willend in #2556
+* Likely fix for McXtrace / `Abs_objects` test on GPU by @willend in #2557
+* WORKAROUNDS: disable key tests in McXtrace (#2514) by @willend in #2558
+* `Filter.comp`: better handling of non-standard input files by @willend in #2552
+* Fix for `mxcoplot-html` McXtrace by @willend in #2589
+
+## New Contributors
+* @kinetik161 made their first contribution in #2608
+* @mads-bertelsen-agentic made their first contribution in #2624
+* @MilanKlausz made their first contribution in #2638
+
+**Full Changelog**: https://github.com/mccode-dev/McCode/compare/v3.7.9...v3.8.4
+
+
 Changes in McStas/McXtrace 3.7.9, July 2nd, 2026
 
 ## What's Changed

@@ -22,6 +22,10 @@ Here it is used as a diffractometer for a collimator tilt alignment. The
 detector is at the sample position and there is no analyzer.
 ```
 
+## Examples
+
+- **Test: TTM=-74 Detector: sng_I=0.000405056**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -113,7 +113,7 @@ int main() {
     double i;
     for (i = 0; i < NUM_NEUTRON; i++) {
         _class_particle p = generate_class_particleFromSource(0.005, 0.02422, 4, NUM_NEUTRON);
-        traceSingleNeutron(&p,s);
+        traceSingleNeutron(&p,&s);
     }
 
     //Finish Simulation of the Scene
@@ -172,16 +172,24 @@ int main() {
     @{
 */
 //! Max number of ConicSurf allowed in a Scene
+#ifndef MAX_FLATSURF
 #define MAX_FLATSURF 200
+#endif
 
 //! Max number of ConicSurf allowed in a Scene
+#ifndef MAX_CONICSURF
 #define MAX_CONICSURF 100
+#endif
 
 //! Max number of Disks allowed in a Scene
+#ifndef MAX_DISK
 #define MAX_DISK 100
+#endif
 
 //! Max number of Detectors allowed in a Scene
+#ifndef MAX_DETECTOR
 #define MAX_DETECTOR 10
+#endif
 
 //! If "1" simulator will record z location where neutron with greatest grazing angle reflected for each ConicSurf
 /*! The information is stored in the max_ga and max_ga_z0 members of each ConicSurf, which are only present if
@@ -1779,9 +1787,10 @@ void initSimulation(Scene* s) {
 /*! \brief Function to raytrace single neutron through geometries specified by d, di and c.
 
 @param p Pointer of particle to trace
-@param s Scene to trace
+@param s Pointer to Scene to trace (passed by pointer to avoid
+         a ~42 KB per-call stack copy, which exhausts GPU local memory)
 */
-void traceSingleNeutron(_class_particle* _particle, Scene s) {
+void traceSingleNeutron(_class_particle* _particle, Scene* s) {
    
     int contact = 1;
     do {
@@ -1790,8 +1799,8 @@ void traceSingleNeutron(_class_particle* _particle, Scene s) {
         int index = -1;
         int i;
 
-        for (i = 0; i < s.num_c; i++) {
-            double t2 = getTimeOfFirstCollisionConic(*_particle,s.c[i]);
+        for (i = 0; i < s->num_c; i++) {
+            double t2 = getTimeOfFirstCollisionConic(*_particle,s->c[i]);
 
             if (t2 <= 0)
                 continue;
@@ -1802,8 +1811,8 @@ void traceSingleNeutron(_class_particle* _particle, Scene s) {
             }
         }
 
-        for (i = 0; i < s.num_f; i++) {
-            double t2 = getTimeOfFirstCollisionFlat(*_particle,s.f[i]);
+        for (i = 0; i < s->num_f; i++) {
+            double t2 = getTimeOfFirstCollisionFlat(*_particle,s->f[i]);
 
             if (t2 <= 0)
                 continue;
@@ -1814,8 +1823,8 @@ void traceSingleNeutron(_class_particle* _particle, Scene s) {
             }
         }
 
-        for (i = 0; i < s.num_di; i++)  {
-            double t2 = getTimeOfFirstCollisionDisk(*_particle,s.di[i]);
+        for (i = 0; i < s->num_di; i++)  {
+            double t2 = getTimeOfFirstCollisionDisk(*_particle,s->di[i]);
 
             if (t2 <= 0)
                 continue;
@@ -1826,8 +1835,8 @@ void traceSingleNeutron(_class_particle* _particle, Scene s) {
             }
         }
 
-        for (i = 0; i < s.num_d; i++) {
-            double t2 = getTimeOfFirstCollisionDetector(*_particle,s.d[i]);
+        for (i = 0; i < s->num_d; i++) {
+            double t2 = getTimeOfFirstCollisionDetector(*_particle,s->d[i]);
 
             if (t2 <= 0)
                 continue;
@@ -1840,16 +1849,16 @@ void traceSingleNeutron(_class_particle* _particle, Scene s) {
 
         switch (type) {
             case DETECTOR:
-                traceNeutronDetector(_particle, s.d[index]);
+                traceNeutronDetector(_particle, s->d[index]);
                 break;
             case FLAT:
-	        traceNeutronFlat(_particle, s.f[index]);
+	        traceNeutronFlat(_particle, s->f[index]);
                 break;
             case DISK:
-                traceNeutronDisk(_particle, s.di[index]);
+                traceNeutronDisk(_particle, s->di[index]);
                 break;
             case CONIC:
-                traceNeutronConic(_particle, s.c[index]);
+                traceNeutronConic(_particle, s->c[index]);
                 break;
             default:
                 contact = 0;

@@ -112,6 +112,27 @@ def _legend_letters(n):
     return ['S%d' % i for i in range(n)]
 
 
+def _build_verbose_title_lines(datas, labels):
+    ''' The per-line breakdown of a single-monitor co-plot's identity/
+        statistics: component/filename, the monitor's own title, then one
+        "letter=label: I=... Err=... N=...; statistics" line per
+        co-plotted dataset - the same level of detail the matplotlib
+        co-plot variant's own _build_verbose_title_lines() shows, used
+        here for the title side-window (see McCoplotPlotter._render() and
+        plotfuncs.show_text_window()) when --no-titles is set for a
+        single-monitor view. '''
+    d0 = datas[0]
+    try:
+        letters = _legend_letters(len(datas))
+        lines = ['%s [%s]' % (d0.component, d0.filename), d0.title]
+        for data, letter, label in zip(datas, letters, labels):
+            lines.append('%s=%s: I=%s Err=%s N=%s; %s' % (
+                letter, label, data.values[0], data.values[1], data.values[2], data.statistics))
+        return lines
+    except Exception:
+        return ['%s [%s]' % (d0.component, d0.filename)]
+
+
 def _legend_fontsize(n_datasets, base_fontsize):
     """ Legend text size, shrinking as the number of co-plotted datasets
         (not the number of panels/monitors in the grid - a separate
@@ -132,7 +153,7 @@ def _legend_fontsize(n_datasets, base_fontsize):
         return max(6, base_fontsize - 4)
 
 
-def plot_coplot_1D(datas, plt, labels, colours, log=False, legend=True, fontsize=10, verbose=False):
+def plot_coplot_1D(datas, plt, labels, colours, log=False, legend=True, fontsize=10, verbose=False, show_title=True):
     ''' overlay N Data1D objects (datas) into the pyqtgraph PlotItem plt '''
     d0 = datas[0]
     series = []  # (x, y, e) per dataset
@@ -161,13 +182,21 @@ def plot_coplot_1D(datas, plt, labels, colours, log=False, legend=True, fontsize
     xmax = max(np.max(x) for x, y, e in series)
     plt.setXRange(xmin, xmax, padding=0)
 
-    try:
-        header = '%s [%s]' % (d0.component, d0.filename)
-        if verbose:
-            header = '%s [%s]<br>%s' % (d0.component, d0.filename, d0.title)
-    except Exception:
-        header = '%s' % d0.component
-    plt.setTitle(header)
+    # Title skipped entirely (not just set to an empty string) when
+    # show_title is False - for a long list of co-plotted datasets the
+    # verbose header in particular grows with the number of datasets, and
+    # PlotItem's title row doesn't reliably auto-grow to fit it (see
+    # McCoplotPlotter._render()'s own note on this same limitation for the
+    # identity_note header), so at high N it can end up clipping into or
+    # crowding out the actual plot area.
+    if show_title:
+        try:
+            header = '%s [%s]' % (d0.component, d0.filename)
+            if verbose:
+                header = '%s [%s]<br>%s' % (d0.component, d0.filename, d0.title)
+        except Exception:
+            header = '%s' % d0.component
+        plt.setTitle(header)
     plt.getAxis('bottom').setLabel(d0.xlabel)
     plt.getAxis('left').setLabel(d0.ylabel)
 
@@ -214,14 +243,25 @@ class McCoplotPlotter():
         is live there. '''
 
     def __init__(self, pairs, labels, colours, invcanvas=False, title=None,
-                 identity_note=None, filenamebase=None):
+                 identity_note=None, filenamebase=None, no_legends=False, no_titles=False):
         self.pairs = pairs  # [(key, [data_0, ..., data_N-1]), ...]
         self.labels = labels
         self.colours = colours
         self.log = False
         self.identity_note = identity_note
+        self.no_legends = no_legends
+        self.no_titles = no_titles
         self.current = None  # None = overview grid; else index into self.pairs
         self.viewbox_list = []
+        # Separate side windows (see _render()) shown only for the
+        # single-monitor drill-down (n==1) view, when --no-titles/
+        # --no-legends have freed up the main plot but the information
+        # itself shouldn't just disappear. Unlike the matplotlib variant,
+        # Qt windows are independent objects with no "current window"
+        # concept to worry about disturbing - closing/replacing these by
+        # direct reference is all that's needed.
+        self.title_window = None
+        self.legend_window = None
         self.title = title if title is not None else ('coplot: %s' % ' vs '.join(labels))
         # deliberately NOT derived from labels here: those may legitimately
         # collapse to bare letters when their basenames collide (see
@@ -292,7 +332,23 @@ class McCoplotPlotter():
         self.current = idx
         self._replot()
 
+    def _close_side_windows(self):
+        ''' Closes any previously-open title/legend side windows by direct
+            reference - called at the start of every _render(), so a stale
+            side window from a previous single-monitor view never lingers
+            after navigating to a different monitor or back to the
+            overview grid. '''
+        for attr in ('title_window', 'legend_window'):
+            window = getattr(self, attr)
+            if window is not None:
+                try:
+                    window.close()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+
     def _render(self):
+        self._close_side_windows()
         # Rebuilt from scratch each time, rather than clear()-ing and
         # reusing the same GraphicsLayout: pg.GraphicsLayout.clear() proved
         # unreliable specifically when the grid shape changes between
@@ -315,7 +371,7 @@ class McCoplotPlotter():
         rowlen = max(1, int(math.sqrt(n * 1.61803398875)))
 
         row_offset = 0
-        if self.identity_note:
+        if self.identity_note and not self.no_titles:
             # The legend now always uses compact positional letters
             # (_legend_letters()), never the real labels directly - this
             # header row is what maps each letter back to its actual
@@ -359,9 +415,25 @@ class McCoplotPlotter():
         for i, (key, datas) in enumerate(visible):
             plt = pg.PlotItem()
             vb = plot_coplot_1D(datas, plt, self.labels, self.colours,
-                                 log=self.log, fontsize=fontsize, verbose=verbose)
+                                 log=self.log, fontsize=fontsize, verbose=verbose,
+                                 legend=not self.no_legends, show_title=not self.no_titles)
             self.viewbox_list.append(vb)
             self.plot_layout.addItem(plt, row_offset + i // rowlen, i % rowlen)
+
+        # Single-monitor view only ("not an overview-plot"): when
+        # --no-titles/--no-legends have freed up the main plot, open a
+        # separate, full-screen-height, narrow side window for each piece
+        # of information that was removed, rather than losing it outright.
+        if n == 1:
+            datas = visible[0][1]
+            if self.no_titles:
+                lines = [(line, None) for line in _build_verbose_title_lines(datas, self.labels)]
+                self.title_window = plotfuncs.show_text_window(lines, 'mccoplot: title')
+            if self.no_legends:
+                letters = _legend_letters(len(datas))
+                legend_lines = [('%s = %s' % (letter, label), colour)
+                                 for letter, label, colour in zip(letters, self.labels, self.colours)]
+                self.legend_window = plotfuncs.show_text_window(legend_lines, 'mccoplot: legend')
 
     def _get_plot_index(self, pos):
         ''' Index of the viewbox containing scene-position pos, or -1.
@@ -497,7 +569,8 @@ def main(args):
 
         plotter = McCoplotPlotter(pairs, labels, colours,
                                    invcanvas=args.invcanvas, title=title, identity_note=identity_note,
-                                   filenamebase="coplot_" + "_vs_".join(diffloader.dirsafe_name(p) for p in paths))
+                                   filenamebase="coplot_" + "_vs_".join(diffloader.dirsafe_name(p) for p in paths),
+                                   no_legends=args.no_legends, no_titles=args.no_titles)
         print(get_help_string())
         plotter.run()
 
@@ -521,6 +594,14 @@ if __name__ == '__main__':
                               'default: %s' % ', '.join(diffloader.DEFAULT_PALETTE))
     parser.add_argument('-t', '--test', action='store_true', default=False, help='print the matched monitor groups before plotting')
     parser.add_argument('--invcanvas', action='store_true', help='invert canvas background from black to white')
+    parser.add_argument('--no-legends', action='store_true', default=False,
+                         help='do not draw the per-panel legend (the compact A/B/C/... letters) - '
+                              'useful with many co-plotted datasets, where the legend box itself can '
+                              'grow tall enough to cover a large part of the panel')
+    parser.add_argument('--no-titles', action='store_true', default=False,
+                         help='do not draw panel titles or the on-canvas dataset identity header - '
+                              'useful with many co-plotted datasets, where the verbose single-panel '
+                              'title (one line per dataset) can end up taller than the plot itself')
     args = parser.parse_args()
 
     mccode_config.load_config("user")

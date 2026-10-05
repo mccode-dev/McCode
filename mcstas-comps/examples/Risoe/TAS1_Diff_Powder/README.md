@@ -23,6 +23,10 @@ Here it is used as a diffractometer for an alignment study. The
 sample is a powder and there is no analyzer.
 ```
 
+## Examples
+
+- **Test: PHM=-37.077 Detector: sng_I=4.50892e-07**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

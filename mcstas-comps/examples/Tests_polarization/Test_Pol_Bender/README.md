@@ -16,6 +16,10 @@ Test that Pol_bender polarizes an unpolarized beam, and allows one
 to test the different options.
 ```
 
+## Examples
+
+- **Test: GUIDELENGTH=1 Detector: psdBender_I=0.703658**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

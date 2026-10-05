@@ -18,6 +18,13 @@ shows that all implementations are equivalent. However, approximating rotating
 guide are 30% faster than McStas Fermi chopper.
 ```
 
+## Examples
+
+- **Test: Fermi=1 Detector: Monitor2_xt_I=0.00051256**
+- **Test: Fermi=3 Detector: Monitor2_xt_I=0.00051377**
+- **Test: Fermi=4 Detector: Monitor2_xt_I=0.000572427**
+- **Test: Fermi=5 Detector: Monitor2_xt_I=0.00058003**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -34,8 +41,8 @@ Parameters in **boldface** are required; the others are optional.
 | d_SF | m | distance from Source to FC center | 3 |
 | d_FD | m | distance from FC center to Detector | 3 |
 | phase | deg | FC phase. Use -0 for automatic | 271.92 |
-| time_to_arrival |  |  | 0 |
-| time_window_width |  |  | 0 |
+| time_to_arrival | s | Arrival time at the Fermi chopper; computed in INITIALIZE, the input value is ignored | 0 |
+| time_window_width | s | Width of the chopper time window; computed in INITIALIZE, the input value is ignored | 0 |
 
 ## Links
 

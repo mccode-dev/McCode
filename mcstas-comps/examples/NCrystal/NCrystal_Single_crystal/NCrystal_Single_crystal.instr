@@ -1,0 +1,92 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: NCrystal_Single_crystal
+*
+* %Identification
+* Written by: T. Kittelmann
+* Date: 2026
+* Origin: ESS
+* %INSTRUMENT_SITE: NCrystal
+*
+* Example instrument for Single_crystal with an NCrystal material
+*
+* %Description
+* A white beam hits a Single_crystal sample, whose crystal structure is taken
+* from an NCrystal material, and the scattered neutrons are recorded on a
+* spherical detector (Laue pattern) and on a banana detector. Optionally, a
+* non-crystalline phase is added with the parameters extra_phase and
+* extra_frac, e.g. giving the NCrystal cfg-string
+*
+*   "phases<0.9*stdlib::Al_sg225.ncmat&0.1*stdlib::Epoxy_Araldite506_C18H20O3.ncmat>"
+*
+* for extra_frac=0.1.
+*
+* %Example: omega=0 Detector: laue_I=1.12
+* %Example: crystal="stdlib::Al_sg225.ncmat;density=0.5x" Detector: laue_I=0.653
+* %Example: crystal="stdlib::Ge_sg227.ncmat" omega=10 Detector: laue_I=4.87
+* %Example: extra_frac=0.1 Detector: laue_I=9.46
+*
+* %Parameters
+* crystal: [string]      NCrystal cfg-string of the crystal.
+* extra_phase: [string]  NCrystal cfg-string of an additional non-crystalline phase (only used if extra_frac>0).
+* extra_frac: [1]        Volume fraction of the additional phase.
+* omega: [deg]           Rotation of the crystal around the vertical axis.
+* mosaic: [arcmin]       Isotropic mosaic of the crystal.
+*
+* %Link
+* https://github.com/mctools/ncrystal/wiki/
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT NCrystal_Single_crystal(string crystal="stdlib::Al_sg225.ncmat", string extra_phase="stdlib::Epoxy_Araldite506_C18H20O3.ncmat", extra_frac=0, omega=0, mosaic=30)
+
+DECLARE
+%{
+  char sample_cfg[1024];
+%}
+
+INITIALIZE
+%{
+  /* Build the cfg-string here, as the characters '<', '&' and '>' of the
+     multiphase syntax are problematic in instrument parameters. */
+  if (extra_frac < 0 || extra_frac >= 1) {
+    fprintf (stderr, "Error: extra_frac must be in the range [0,1)\n");
+    exit (-1);
+  }
+  if (extra_frac > 0)
+    snprintf (sample_cfg, sizeof (sample_cfg), "phases<%.15g*%s&%.15g*%s>", 1.0 - extra_frac, crystal, extra_frac, extra_phase);
+  else
+    snprintf (sample_cfg, sizeof (sample_cfg), "%s", crystal);
+  MPI_MASTER (printf ("Sample material: \"%s\"\n", sample_cfg););
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.0005, dist=2, focus_xw=0.001, focus_yh=0.001,
+                                 lambda0=2.5, dlambda=1.5, flux=1e10)
+  AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_arm = Arm()
+  AT (0, 0, 2) RELATIVE source
+  ROTATED (0, omega, 0) RELATIVE source
+
+/* A small cylindrical crystal, with transmitted neutrons removed. */
+SPLIT COMPONENT sample = Single_crystal(reflections=sample_cfg, radius=0.002, yheight=0.004,
+                                        mosaic=mosaic, p_transmit=0)
+  AT (0, 0, 0) RELATIVE sample_arm
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT laue = PSD_monitor_4PI(radius=1, nx=180, ny=90, filename="laue", restore_neutron=1)
+  AT (0, 0, 2) RELATIVE source
+
+COMPONENT banana = Monitor_nD(options="banana, theta limits=[5 175] bins=340",
+                              radius=0.9, yheight=1.8, filename="banana")
+  AT (0, 0, 2) RELATIVE source
+
+END

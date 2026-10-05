@@ -31,6 +31,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see http://www.gnu.org/licenses/.
 ```
 
+## Examples
+
+- **Test: src_lam=4.5 Detector: emon_I=887.137**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

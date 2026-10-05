@@ -251,3 +251,24 @@ add_search_dir(char *name)
     search_list = list_create();
   list_add(search_list, name);
 }
+
+/* Record a SEARCH statement (once) in the instrument definition. */
+void
+record_search(char *path, int shell)
+{
+  List_handle liter;
+  struct search_def *sd;
+  if(instrument_definition->searches == NULL)
+    instrument_definition->searches = list_create();
+  liter = list_iterate(instrument_definition->searches);
+  while((sd = list_next(liter)))
+    if(sd->shell == shell && !strcmp(sd->path, path))
+      break;
+  list_iterate_end(liter);
+  if(sd)
+    return;
+  palloc(sd);
+  sd->path = str_dup(path);
+  sd->shell = shell;
+  list_add(instrument_definition->searches, sd);
+}

@@ -16,6 +16,10 @@ Demonstration of the use of "number_of_activations" and exit volumes to
 include a regular McStas component in an ensemble of Union components.
 ```
 
+## Examples
+
+- **Test: Detector: detector_I=213.109**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

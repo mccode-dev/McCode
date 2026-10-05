@@ -19,6 +19,10 @@ The KB should satisfy f_m=R.sin(theta/2) and f_s=R/2.sin(theta)
 Example: Test_KB L=12
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

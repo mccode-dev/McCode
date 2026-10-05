@@ -16,6 +16,13 @@ Simple test instrument that compares DiskChoppers with a simple, rotating Slit.
 When ABSORBER is set, a slab of B4C is acts as absorbing medium.
 ```
 
+## Examples
+
+- **Test: Test_DiskChoppers.instr chopper=0 Detector: Tofl_I=0.0005**
+- **Test: Test_DiskChoppers.instr chopper=1 Detector: Tofl_I=0.0005**
+- **Test: Test_DiskChoppers.instr chopper=0 ABSORBER=1 Detector: Tofl_I=0.0007**
+- **Test: Test_DiskChoppers.instr chopper=1 ABSORBER=1 Detector: Tofl_I=0.0007**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -26,7 +33,7 @@ Parameters in **boldface** are required; the others are optional.
 | lambda | AA | Mean wavelength produced from the source | 10 |
 | dlambda | AA | Halfwidth of wavelenghts produced from the source | 9.9 |
 | deltay | m | Position of centre of rotation vs. beam in slit case | 0.19 |
-| dx |  |  | 0.016 |
+| dx | m | Width of the slit | 0.016 |
 | nu | Hz | Chopper frequency | 10 |
 | phase | deg | Chopper phase | 0 |
 | ABSORBER | 1 | Flag to indicate if slab is B4C(=1) or perfect(=0) | 0 |

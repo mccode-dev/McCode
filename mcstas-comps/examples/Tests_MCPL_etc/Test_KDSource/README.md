@@ -19,6 +19,13 @@ Uses an KDSource XML description of bandwidths to apply when resampling the
 base MCPL input from samples.mcpl.gz
 ```
 
+## Examples
+
+- **Test: nloop=1 Detector: PSDMon2_I=4056**
+- **Test: nloop=10 Detector: PSDMon2_I=4056**
+- **Test: nloop=100 Detector: PSDMon2_I=4056**
+- **Test: nloop=1000 Detector: PSDMon2_I=4056**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

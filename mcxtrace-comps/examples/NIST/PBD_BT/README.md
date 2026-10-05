@@ -15,6 +15,10 @@
 This is a preliminary setup of the PBD, using single-bounce crystals instead of 3-bounce crystals
 ```
 
+## Examples
+
+- **Test: beam_vert=0.005 beam_hor=0.001 slit_1_vert=0.001 slit_1_hor=0.002 omega=53.35 theta=160.05 Detector: mirror_psd_I=1.11886e+16**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -30,7 +34,7 @@ Parameters in **boldface** are required; the others are optional.
 | mirror_center_distance | m | Distance from | 0.1 |
 | mirror_focal_error | m | Additional shift on the mirror focal distance | 0.0 |
 | mirror_rotation_angle | deg | Mirror tilt angle | -2.32 |
-| mirror_y_offset | m |  | 0.0 |
+| mirror_y_offset | m | Vertical offset of the mirror (currently not used by the instrument) | 0.0 |
 | use_mirror |  | Flag to set whether to use the mirror or no. | 1 |
 | mono_rotation | deg | Rotation angle of the monochromator crystal. | 0.0 |
 | use_mono |  | Flag enabling/disabling the monochromator. | 1 |

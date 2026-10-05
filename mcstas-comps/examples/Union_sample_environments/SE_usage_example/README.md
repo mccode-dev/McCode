@@ -18,6 +18,10 @@ See the cryostat_example.instr file for details on the used sample
 environment.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

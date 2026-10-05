@@ -12,6 +12,7 @@ from optparse import OptionParser, OptionGroup, OptionValueError
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
 import multiprocessing
+import re
 from mccode import McStas, Process
 from optimisation import Scanner, Scanner_split, LinearInterval, MultiInterval, Optimizer
 
@@ -131,7 +132,8 @@ def add_mcrun_adv_options(parser):
              ' 3) Any parameter given as "min:delta:max" is expanded into its '
              '   own explicit list of equidistant points and may be freely mixed '
              '   with other, explicitly-listed parameters '
-             '   (e.g. a list of filenames) under -L.')
+             '   (e.g. a list of filenames) under -L.'
+             ' Commas within a list entry must be escaped as "\\,".')
 
     add('-M', '--multi',
         action='store_true',
@@ -248,8 +250,12 @@ def add_mcrun_adv_options(parser):
 
     # Multiprocessing
     add('--mpi',
-        metavar='NB_CPU',
-        help='Spread simulation over NB_CPU machines using MPI')
+        metavar='NB_CPU', default=1,
+        help='Spread simulation over NB_CPU machines using MPI. Compilation with MPI is enabled by default, disable by setting --no-mpi')
+
+    add('--no-mpi',
+        action='store_true', default=False,
+        help='Do NOT Compile with MPI')
 
     add('--machines',
         metavar='machines',
@@ -428,8 +434,28 @@ def expand_options(options):
     options.mccode_lib = mccode_config.configuration['MCCODE_LIB_DIR']
 
     # MPI
+    # if --no-mpi, completely disable MPI:
+    if options.no_mpi:
+        options.mpi=None
+
     if options.mpi is not None:
-        options.use_mpi = True
+        # String-based --mpi input, anything but "None" means enable mpi
+        if isinstance(options.mpi,str):
+            if not (options.mpi.upper()=="NONE"):
+                # Enable
+                options.use_mpi = True
+            else:
+                # Disable
+                options.mpi=None
+                options.use_mpi = False
+        # Numeric --mpi input any value >0 means enable mpi
+        elif not (options.mpi<1):
+            # Enable
+            options.use_mpi = True
+        else:
+            # Disable
+            options.mpi=None
+            options.use_mpi = False
         if options.openacc is True:
             options.cc = mccode_config.compilation['OACC']
         else:
@@ -512,18 +538,29 @@ def get_parameters(options):
         if '=' in param:
             key, value = param.split('=', 1)
 
+            # Only values made of numbers separated by ":" or "," are scan
+            # syntax. Other values, like NCrystal cfg-strings (e.g.
+            # "Ge_sg227.ncmat;dir1=@crys_hkl:5,1,1@lab:0,0,1"), are used as
+            # they are, except with -L, where they are lists separated by
+            # commas (commas within an entry must be escaped as "\,"):
+            numeric = all(is_decimal(p) for p in re.split('[:,]', value) if p)
+            if not numeric and not options.list:
+                # Earlier versions of mcrun ignored trailing commas (with a
+                # warning), so keep doing that to not break existing commands:
+                if value.endswith(','):
+                    LOG.warning('Ignoring trailing comma(s) in parameter "%s"', key)
+                    value = value.rstrip(',')
+                fixed_params[key] = value
+                continue
+
             # "par=a:delta:b" - an equidistant scan specified by its bin
             # width (delta) rather than an explicit point count: mcrun
             # computes how many points are needed to cover [a, b] in steps
             # of (approximately - see rounding below) delta, rather than
             # the user needing to work out -N by hand. Checked before the
             # comma-based interval parsing below, since a colon can never
-            # appear in a numeric value/list, so a colon anywhere in the
-            # value would otherwise unambiguously mean this syntax was
-            # intended - EXCEPT double-colon syntax from NCrystal-backed
-            # reflections="stdlib::ZnO_sg186_ZincOxide.ncmat;temp=300K"
-            # used in context of PowderN. Filter out from the start:
-            if ':' in value and '::' not in value:
+            # appear in a numeric value/list:
+            if ':' in value and numeric:
                 parts = value.split(':')
                 if len(parts) != 3:
                     raise OptionValueError(
@@ -574,7 +611,7 @@ def get_parameters(options):
                               key, intervals[key], delta, n_points)
                 continue
 
-            interval = value.split(',')
+            interval = [v.replace('\\,', ',') for v in re.split(r'(?<!\\),', value)]
             # Protect against trailing (or doubled) commas (empty-string entries
             n_before = len(interval)
             interval = [v for v in interval if v != '']

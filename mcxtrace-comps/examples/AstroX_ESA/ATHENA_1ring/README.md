@@ -30,6 +30,10 @@ width: pore width ?
 Example: ATHENA_1ring.instr shellnumber=3
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -46,7 +50,7 @@ Parameters in **boldface** are required; the others are optional.
 | dE | keV | Half spread of energy spectrum to be emitted from source | 0.001 |
 | shellnumber |  | Actually the ring number. | 1 |
 | ringfile |  | File which contains details for the meta shells. | "ref_design_breaks.txt" |
-| geomfile |  |  | "ATHENA_rings_1_20.dat" |
+| geomfile |  | File which contains the geometry of the pores (i.e. radii,lengths) | "ATHENA_rings_1_20.dat" |
 
 ## Links
 

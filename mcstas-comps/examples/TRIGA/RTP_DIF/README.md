@@ -15,14 +15,18 @@
 
 ```
 
+## Examples
+
+- **Test: mcrun RTP_DIF.instr lambda=2.36 Detector: det_big_I=123752**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Monochromator selected wavelength | 2.36 |
-| DM | Angs | d-spacing for the monochromator reflection | 3.355 |
+| lambda | AA | Monochromator selected wavelength | 2.36 |
+| DM | AA | d-spacing for the monochromator reflection | 3.355 |
 | Mono_tilt | deg | Tilt angle magnitude for the inner/outer mono slabs | 0 |
 | powder | str | Filename of the powder sample | "Na2Ca3Al2F14.laz" |
 | det_rotation | deg | Rotation of the portable detector | 45 |

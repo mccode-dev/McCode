@@ -16,6 +16,11 @@ This instrument serves as a unit test for the Source_lab component.
 The emon1-monitor catches the Kalpha-peaks, and emon2 the Kbeta peaks.
 ```
 
+## Examples
+
+- **Test: Test_source_lab.instr Emax=40 Detector: emon1_I=7.16e+15**
+- **Test: Test_source_lab.instr Emax=40 Detector: emon2_I=1.17e+15**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -36,30 +36,34 @@ with monitoring of the scattering in angular (diffraction) and energy modes
 (for spectroscopy).
 ```
 
+## Examples
+
+- **Test: lambda=5 Detector: H5_I=1.03234e+14**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda |  | central wavelength band for guide illumination [Angs] | 5 |
-| dlambda |  | half width of guide wavelength band [Angs] | 4.5 |
-| ThALES_lambda |  | ThALES monochromator setting wavelength. Usual 2.4 and 4.2 [Angs] | 4.2 |
-| WASP_lambda |  | IN16 monochromator setting wavelength. Usual 3.3 and 6.3 [Angs] | 6.3 |
-| D16_lambda |  | D16  monochromator setting wavelength. Usual 4.7 and 5.6 [Angs] | 5.6 |
-| SADAM_lambda |  | SuperADAM monochromator setting wavelength. Usual 4.4 [Angs] | 4.4 |
-| IN15_lambda |  | IN15 velocity selector setting wavelength [Angs] | 6.5 |
-| D22_lambda |  | D22  velocity selector setting wavelength [Angs] | 4.5 |
-| D22_collimation |  | D22 collimation length and sample-detector distance [m] | 2 |
-| ThALES_sample |  | ThALES liquid/powder/amorphous sample [string] | "Rb_liq_coh.sqw" |
-| WASP_sample |  |  | "Rb_liq_coh.sqw" |
-| D16_sample |  | D16  liquid/powder/amorphous sample [string] | "H2O_liq.qSq" |
-| SADAM_sample |  | SuperADAM liquid/powder/amorphous sample [string] | "SiO2_quartza.laz" |
-| D22_sample |  | D22  liquid/powder/amorphous sample [string] | "H2O_liq.qSq" |
-| ThALES_RMV |  |  | -1 |
-| D16_RMV |  |  | -1 |
-| SADAM_RMV |  |  | -1 |
-| ThALES_RMH |  |  | -1 |
+| lambda | AA | central wavelength band for guide illumination | 5 |
+| dlambda | AA | half width of guide wavelength band | 4.5 |
+| ThALES_lambda | AA | ThALES monochromator setting wavelength. Usual 2.4 and 4.2 | 4.2 |
+| WASP_lambda | AA | IN16 monochromator setting wavelength. Usual 3.3 and 6.3 | 6.3 |
+| D16_lambda | AA | D16  monochromator setting wavelength. Usual 4.7 and 5.6 | 5.6 |
+| SADAM_lambda | AA | SuperADAM monochromator setting wavelength. Usual 4.4 | 4.4 |
+| IN15_lambda | AA | IN15 velocity selector setting wavelength | 6.5 |
+| D22_lambda | AA | D22  velocity selector setting wavelength | 4.5 |
+| D22_collimation | m | D22 collimation length and sample-detector distance | 2 |
+| ThALES_sample | string | ThALES liquid/powder/amorphous sample | "Rb_liq_coh.sqw" |
+| WASP_sample | string | WASP liquid/powder/amorphous sample | "Rb_liq_coh.sqw" |
+| D16_sample | string | D16  liquid/powder/amorphous sample | "H2O_liq.qSq" |
+| SADAM_sample | string | SuperADAM liquid/powder/amorphous sample | "SiO2_quartza.laz" |
+| D22_sample | string | D22  liquid/powder/amorphous sample | "H2O_liq.qSq" |
+| ThALES_RMV | m | ThALES monochromator vertical curvature radius, -1 for automatic setting | -1 |
+| D16_RMV | m | D16 monochromator vertical curvature radius, -1 for automatic setting | -1 |
+| SADAM_RMV | m | SuperADAM monochromator vertical curvature radius, -1 for automatic setting | -1 |
+| ThALES_RMH | m | ThALES monochromator horizontal curvature radius, -1 for automatic setting | -1 |
 
 ## Links
 

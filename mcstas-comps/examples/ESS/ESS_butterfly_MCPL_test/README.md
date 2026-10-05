@@ -22,6 +22,13 @@ and a 'preconditioned' version of this the file from https://public.esss.dk/user
 Example: sector=S beamline=2 filter=1 Detector: Monitor2_xy1_I=1.59e+11
 ```
 
+## Examples
+
+- **Test: sector=S beamline=2 filter=1 thres=0 Detector: Monitor2_xy1_I=1.59e+11**
+- **Test: sector=S beamline=2 filter=1 thres=4e8 Detector: Monitor2_xy1_I=1.59e+11**
+- 
+- Assumes access to binary MCPL datasets in . named [sector][beamline].mcpl.gz, i.e. W8.mcpl.gz.
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

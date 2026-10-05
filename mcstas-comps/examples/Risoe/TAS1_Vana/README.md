@@ -21,6 +21,10 @@ first detailed work performed with the McStas package.
 The sample is a vanadium and the analyzer is a single plate.
 ```
 
+## Examples
+
+- **Test: PHM=-37.077 Detector: sng_I=1.11099e-09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

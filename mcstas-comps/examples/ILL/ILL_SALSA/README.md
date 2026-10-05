@@ -32,6 +32,10 @@ Furthermore the sample environment is of course variable depending on the sample
 in question.
 ```
 
+## Examples
+
+- **Test: ILL_SALSA.instr lambda_mean=1.66795 Detector: Beam_entrance_monitor_psd_I=1.80888e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -52,7 +56,7 @@ Parameters in **boldface** are required; the others are optional.
 | horizontal_focus | mm | Choice of collimator focus in mm. Choose either 0.6, 2, or 4. | 0.6 |
 | outgoing_focus | mm | Choice of collimator focus in mm. Choose either 0.6, 2, or 4. | 0.6 |
 | measuring_angle | deg | Angle between the outgoing collimator and sample. Rotates in the negative direction of revolution. I.E with the clock. | 50 |
-| Debug |  |  | 0 |
+| Debug | 1 | Debug flag (currently not used by the instrument) | 0 |
 
 ## Links
 

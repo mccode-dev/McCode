@@ -15,6 +15,10 @@
 Simply a bending magnet illuminating a reflection grating.
 ```
 
+## Examples
+
+- **Test: E0=1 Detector: psd_monitor_I=3.79378e+06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -24,7 +28,7 @@ Parameters in **boldface** are required; the others are optional.
 | E0 | keV | Source's center of emitted energy spectrum | 1 |
 | dE | keV | Source's half-width of emitted energy spectrum | 0.1 |
 | angle_grating_norm | deg. | Angle between the norm of the grating and the incident ray | 88 |
-| number_lines_per_mm |  | Number of lines pr mm of the grating | 100 |
+| number_lines_per_mm | 1/mm | Number of lines pr mm of the grating | 100 |
 | order |  | The target order of the grating | 0 |
 | dphi | deg. | Range of diffraction angle that is to be simulated -d_phi/2 ; d_phi/2 | 1 |
 

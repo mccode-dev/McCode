@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17.0)
+cmake_minimum_required(VERSION 3.19)
 cmake_policy(VERSION 3.17.0)
 
 # This will install McStas or McXtrace mc/display-webgl
@@ -52,7 +52,7 @@ set(CPACK_NSIS_DISPLAY_NAME "${NSIS_NAME}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${NSIS_NAME}")
 
 # Debian
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, python3, python3-ply, python3-numpy, nodejs, npm, rsync")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, python3, python3-ply, python3-numpy")
 set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-tools-python-${P}display-webgl-3.5.1")
 
 # RPM
@@ -77,15 +77,8 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 # Configure fallback script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdisplay.in" "${WORK}/${P}display" @ONLY)
 
-# Put package.json in $WORK
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/package.json" "${WORK}/package.json" @ONLY)
-
 # Configure index.html template
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/index.html.in" "${WORK}/index.html" @ONLY)
-
-# Create folder for node_modules later installed by npm
-execute_process(COMMAND "mkdir" "node_modules"
-  WORKING_DIRECTORY "${WORK}")
 
 # dist
 install(
@@ -105,6 +98,12 @@ install(
   DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
 )
 
+# model (imported by several Contexts/ and components/ files)
+install(
+  DIRECTORY "${PROJECT_SOURCE_DIR}/model"
+  DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
+)
+
 # data-utils
 install(
   DIRECTORY "${PROJECT_SOURCE_DIR}/data-utils"
@@ -115,12 +114,6 @@ install(
 install(
   DIRECTORY "${PROJECT_SOURCE_DIR}/utils"
   DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
-)
-
-# Node modules
-install(
-    DIRECTORY "${WORK}/node_modules"
-    DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
 )
 
 # Main script, including rename mc/mxdisplay
@@ -137,7 +130,7 @@ install(
 )
 
 # Other .py infrastructure
-foreach(NAME start-vite.js package.json mcdisplay.js Lut.js OrbitControls.js dat.gui.min.js jquery.min.js three.min.js template.html __init__.py common.css main.tsx App.tsx)
+foreach(NAME package.json vite.config.mts tsconfig.json tsconfig.node.json custom.d.ts mcdisplay.js Lut.js OrbitControls.js dat.gui.min.js jquery.min.js three.min.js template.html __init__.py common.css main.tsx App.tsx)
   install(
     FILES "${PROJECT_SOURCE_DIR}/${NAME}"
     DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"

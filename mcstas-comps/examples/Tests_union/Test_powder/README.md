@@ -15,6 +15,10 @@
 Simple test instrument for powder sample simulated using Union components.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -18,6 +18,10 @@ optical plates covering the full circle. Reflectivity is 1 for all energies.
 Example: Test_shells.instr shell_type=1
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -1,0 +1,206 @@
+/*******************************************************************************
+* Instrument: Test_FlatEllipse_finite_mirror
+*
+* %I
+* Written by: Christoph Herb, TUM
+* Date: 2022-2023
+* Origin: TUM
+* %INSTRUMENT_SITE: Tests_optics
+*
+* Implements a test instrument for the component FlatEllipse_finite_mirror.
+*
+* %D
+* Implements a test instrument for the component FlatEllipse_finite_mirror,
+* implementing Nested Mirror Optic (NMO) as suggested by B&ouml;ni et al.
+*
+* %P
+* det_width: [m] Detector width
+* source_width: [m] Source width
+* source_height: [m] Source height
+* lam_source:        [AA]             Central source wavelength
+* dL:                [AA]             Source wavelength spread
+* v_divergence:      [deg]            Source vertical divergence
+* h_divergence:      [deg]            Source horizontal divergence
+* b0:                [m]              Parameter r0 of mirrors (distance to the mirror at lStart)
+* mf:                [1]              M-value of the inner side of the coating
+* mb:                [1]              M-value of the outer side of the coating
+* mirror_width:      [m]              Width of mirrors
+* focal_length:      [m]              Mirror focal-length
+* mirrors:           [1]              Number of NMO mirrors
+* mirror_sidelength: [m]              Side-length of mirrors
+* lStart:            [m]              Parameter lStart of the mirrors
+* lEnd:              [m]              Parameter lEnd of the mirrors
+* pixels:            [1]              Number of detector pixels
+* flux:              [n/s/cm^2/st/AA] Source flux
+* det_width_focus:   [m]              Detector width at focusing pt.
+* rs_at_zero_str:    [str]            Filename to specify mirror rfront_inner_file (e.g. "rs_at_lstart.txt")
+* activate_mirror:    [1]              Flag to activate mirror
+*
+* %L
+* P B&ouml;ni <a href="https://indico.psi.ch/event/13583/contributions/42618/attachments/24446/44119/Presentation_NFO-Workshop-PSI_final%20-%20Boeni.pdf">presentation at PSI NFO workshop</a>
+* Christoph Herb et al., Nucl. Instrum. Meth. A 1040, 1671564 (1-18) 2022.
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_FlatEllipse_finite_mirror(
+    det_width=0.218,
+    source_width=0.03,
+    source_height=0.00000001,
+    lam_source=5,
+    dL=0.5,
+    v_divergence=2.5,
+    h_divergence=0.000001,
+    b0=0.2076,
+    mf=100,
+    mb=0,
+    mirror_width= 0,
+    focal_length=6,
+    int mirrors=29,
+    mirror_sidelength=0.1,
+    lStart=-0.6,
+    lEnd=0.6,
+    pixels=100,
+    flux=1,
+    det_width_focus=0.03,
+    string rs_at_zero_str="NULL",
+    activate_mirror=1)
+
+DECLARE
+%{
+%}
+
+INITIALIZE
+%{
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+// insert components here (e.g. Insert -> Source -> ...)
+COMPONENT source = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT source_div = Source_div(
+    yheight=source_height,
+    xwidth= source_width,
+    //dist=3,
+    focus_aw=h_divergence,//source_divergence,//maximum divergence horizontal0.000000001,//
+    focus_ah=v_divergence*1.5,//guide_width,0.000000001,//should be double the value calculated because in Source_div a nasty factor 1/2 is hidden
+    lambda0=lam_source,
+    flux=flux,
+    dlambda=dL)
+AT (0, 0, 0) RELATIVE source
+
+
+
+COMPONENT psd_monitor_source = PSD_monitor(
+    filename="source_psd.dat",
+    xwidth=source_width*1.5,
+    yheight=source_height*2,  // this is new
+    nx=pixels,
+    ny=pixels,
+    restore_neutron=1)
+AT (0, 0, 0) RELATIVE source
+
+COMPONENT psd_monitor_source_before_optic = PSD_monitor(
+    filename="source_psd_beforeoptic.dat",
+    xwidth=det_width,
+    yheight=b0*2,
+    nx=pixels,
+    ny=pixels,
+    restore_neutron=1)
+AT (0, 0, focal_length+lStart) RELATIVE source
+
+//------------------------------------ Before the guide 2 d defocusing
+
+
+//------------------------------------ Maximum point of the ellipse -------------------------------
+COMPONENT center_point = Arm()
+AT (0, 0, focal_length) RELATIVE source
+ROTATED (0, 0, 0) RELATIVE source
+
+
+//----------------------------------- Now add the elliptical mirror ------------------------------------------------------
+COMPONENT flat_ellipse_horizontal = FlatEllipse_finite_mirror(
+    sourceDist=-(focal_length),
+    LStart=-(focal_length),
+    LEnd=focal_length,
+    lStart=lStart,
+    lEnd=lEnd,
+    r_0 = b0,
+    mirror_width = mirror_width,//0.15 mm
+    mirror_sidelength = mirror_sidelength,
+    nummirror = mirrors,
+    doubleReflections=1,
+    mf = mf,
+    mb = mb,
+    rfront_inner_file = rs_at_zero_str
+)
+WHEN (activate_mirror>0)
+AT (0, 0, 0) RELATIVE center_point
+ROTATED (0, 0, 90) RELATIVE center_point
+
+
+
+//and now i finally understood git compare in vs code i thoought
+COMPONENT monitor_2 = Arm()
+AT (0, 0, focal_length) RELATIVE center_point
+ROTATED (0, 0, 0) RELATIVE center_point
+
+
+
+//---------------------------------------- Monitor set in the focal point ----------------------------------
+
+
+COMPONENT psd_monitor_f2 = PSD_monitor(
+    filename="f_psd_f2.dat",
+    xwidth=source_width*1.5,
+    yheight=det_width_focus,
+    nx=pixels,
+    ny=pixels,
+    restore_neutron=1)
+AT (0, 0, 0) RELATIVE monitor_2
+ROTATED (0, 0, 0) RELATIVE monitor_2
+
+COMPONENT psd_monitor_f2_zoom = PSD_monitor(
+    filename="f_psd_f2_zoom.dat",
+    xwidth=source_width*1.5,
+    yheight=source_height*2,
+    nx=1000,
+    ny=1000,
+    restore_neutron=1)
+AT (0, 0, 0) RELATIVE monitor_2
+ROTATED (0, 0, 0) RELATIVE monitor_2
+
+COMPONENT f_divpos = DivPos_monitor(//this should be a monitor vertical position vs. vertical direction
+    nb=100,
+    ndiv=100,
+    filename="f_divpos.dat",
+    xwidth=det_width_focus,//det_width,
+    yheight=det_width_focus,//det_width,
+    maxdiv=2*2,
+    restore_neutron=1)
+AT (0, 0, 0) RELATIVE monitor_2
+ROTATED (0, 0, 90) RELATIVE monitor_2
+
+COMPONENT divhlambda_monitor_f = DivLambda_monitor(
+    nL=100,
+    nh=100,
+    filename="f_divv_lambda.dat",
+    xwidth=source_width,
+    yheight=det_width_focus,
+    maxdiv_h=2*2,
+    Lmin=lam_source-2*dL,
+    Lmax=lam_source+2*dL,
+    restore_neutron=1)
+AT (0, 0, 0) RELATIVE monitor_2
+ROTATED (0, 0, 90) RELATIVE monitor_2
+
+
+FINALLY
+%{
+%}
+
+END
