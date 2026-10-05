@@ -17,7 +17,9 @@
 * %D
 * A cylindrical detector which converts time-of-flight data (x,y,z,time) to a 1D diffractogram in dhkl. 
 * The detector model includes finite detection depth, spatial and time resolution. Optionally, the component
-* exports position and time coordinates of detection events in an ASCII file.   
+* exports detection events through the public event-list output API. The six event columns are
+* x_mm, y_mm, z_mm, t_ms, sin_theta, and p.
+* Position is in mm, time is in ms, sin_theta is dimensionless, and p is the neutron weight.
 *
 * The component can also handle setups employing a modulation chopper for peak multiplexing at a long pulse source,
 * as proposed for the diffractometer BEER@ESS. In this case, the component requires chopper parameters 
@@ -61,7 +63,7 @@
 * nd:	Number of bins for dhkl in the 1D diffractograms.
 * na:	Number of bins for scattering angles in the 2D maps.
 * nt:	Number of bins for time of flight in the 2D maps.
-* nev:  Number of detection events to export in "events.dat" (only modulation mode, set 1 for no export) 
+* nev:  Maximum number of detection events to export per MPI rank in "events.dat" (set nev <= 1 for no event-list output)
 *
 * %E
 * Example 1, simple ToF regime
@@ -90,43 +92,6 @@ SHARE
 %{
   /* used for reading data table from file */
   %include "read_table-lib"
-
-  /*
-  Save up to nmax events stored by the detector in a text file, one per row.
-  Each row contains detection coordinates: x, y, t, sin(theta), p.
-  */
-
-  void
-  saveEvents (double** EVENTS, char* file_name, long int nmax, long int iev) {
-    long int i, j, n;
-    double sumP;
-    FILE* hfile;
-    hfile = fopen (file_name, "w");
-    if (!hfile) {
-      fprintf (stderr, "saveEvents: can't open file for output (%s)\n", file_name);
-      exit (-1);
-    } else {
-      n = nmax;
-      if (n > iev) {
-        n = iev;
-      }
-      sumP = 0.0;
-      for (i = 0; i < n; i++) {
-        sumP += EVENTS[i][5];
-      }
-      fprintf (hfile, "# Detection events\n");
-      fprintf (hfile, "# sum(p) = %g\n", sumP);
-      fprintf (hfile, "# sum(n) = %ld\n", n);
-      fprintf (hfile, "# Columns: x [mm], y[mm], z[mm], t[ms], sin(theta), p\n");
-      for (i = 0; i < n; i++) {
-        for (j = 0; j < 6; j++) {
-          fprintf (hfile, "%g ", EVENTS[i][j]);
-        }
-        fprintf (hfile, "\n");
-      }
-      fclose (hfile);
-    }
-  }
 
   /*
   Used in the modulation mode:
@@ -246,7 +211,8 @@ INITIALIZE
   /* h/m_n in [Ang*m/s]  */
   double hm = 2 * PI * K2V;
   dbgn = 0;
-  iev = -1;
+  iev = 0;
+  dhkl = NULL;
 
   D_N = create_darr1d (nd);
   D_p = create_darr1d (nd);
@@ -254,7 +220,7 @@ INITIALIZE
   TOF_N = create_darr2d (na, nt);
   TOF_p = create_darr2d (na, nt);
   TOF_p2 = create_darr2d (na, nt);
-  EVENTS = create_darr2d (nev, 6);
+  EVENTS = nev > 0 ? create_darr2d (nev, 6) : NULL;
 
   // read dhkl table
   n_dhkl = 0;
@@ -326,6 +292,7 @@ INITIALIZE
 TRACE
   %{
   int i, j, io, iline, iref, valid_region;
+  long event_index;
   double t0, t1, lam, theta2, d, cos2;
   double sinth, dt, p0, tau, v0, x0, y0, z0, dx, dy, sig, tof, dd;
   double tref, tc;
@@ -441,32 +408,35 @@ TRACE
           // subtract reference chopper time from tof and calculate wavelength
           lam = hm * (tof - dt) / (L0 - radius + L1);
           d = lam / 2 / sinth;
-          #pragma acc atomic
-          iev = iev + 1;
-          if (iev < nev) {
+          /* Reserve a zero-based slot; overflow reservations are not stored. */
+          #pragma acc atomic capture
+          {
+            event_index = iev++;
+          }
+          if (event_index >= 0 && event_index < nev) {
             double tmp;
 
             tmp = x0 * 1e3;
             #pragma acc atomic write
-            EVENTS[iev][0] = tmp;
+            EVENTS[event_index][0] = tmp;
 
             tmp = y0 * 1e3;
             #pragma acc atomic write
-            EVENTS[iev][1] = tmp;
+            EVENTS[event_index][1] = tmp;
 
             tmp = z0 * 1e3;
             #pragma acc atomic write
-            EVENTS[iev][2] = tmp;
+            EVENTS[event_index][2] = tmp;
 
             tmp = tof * 1e3;
             #pragma acc atomic write
-            EVENTS[iev][3] = tmp;
+            EVENTS[event_index][3] = tmp;
 
             #pragma acc atomic write
-            EVENTS[iev][4] = sinth;
+            EVENTS[event_index][4] = sinth;
 
             #pragma acc atomic write
-            EVENTS[iev][5] = p;
+            EVENTS[event_index][5] = p;
           }
           i = (int)floor ((d - d_min) / dd + 0.5);
           if (i >= 0 && i < nd) {
@@ -488,9 +458,15 @@ TRACE
 %}
 SAVE
 %{
-
   if (nev > 1) {
-    saveEvents (EVENTS, "events.dat", nev, iev);
+    long event_count = iev;
+    if (event_count > nev) {
+      event_count = nev;
+    }
+    /* MPI ranks with no accepted rows must still enter the collective save. */
+    DETECTOR_OUT_LIST ("Detection events", "x_mm y_mm z_mm t_ms sin_theta p",
+                       event_count, 6,
+                       event_count > 0 ? EVENTS[0] : NULL, "events.dat");
   }
   DETECTOR_OUT_1D ("ToF to dhkl detector", "dhkl [AA]", "Intensity", "d", d_min, d_max, nd, &D_N[0], &D_p[0], &D_p2[0], filename);
   if (modulation) {
@@ -507,7 +483,9 @@ FINALLY
   destroy_darr2d (TOF_N);
   destroy_darr2d (TOF_p);
   destroy_darr2d (TOF_p2);
-  destroy_darr2d (EVENTS);
+  if (EVENTS) {
+    destroy_darr2d (EVENTS);
+  }
 %}
 MCDISPLAY
 %{
