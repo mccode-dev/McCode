@@ -10,7 +10,7 @@
  * Date: 28 September 2026
  * Origin: DTU
  *
- * Deterministic fixture for the bounded generic event writer. Save-time rows
+ * Deterministic fixture for the generic event writer. Save-time rows
  * are independent of the source; use_trace additionally exercises appends
  * during ray tracing with the same deterministic row values.
  *
@@ -19,9 +19,9 @@
  * chunk:       [1] maximum rows held before a local spool flush
  * filename:    [string] output file name
  * use_write:   [1] use mc_event_writer_write instead of append
- * use_direct:  [1] stream directly when nrows is the known final count
+ * use_direct:  [1] stream known-count rows directly to serial output
  * use_trace:   [1] append rows during ray tracing and finish in SAVE
- * use_stream:  [1] stream unknown-count rows to the final serial output
+ * use_stream:  [1] stream unknown-count rows to serial or MPI output
  * expect_begin_failure: [1] treat a rejected begin as an expected case
  * expect_end_failure: [1] treat an output serialization failure as expected
  * expect_failure_in_nexus: [1] also expect end failure in NeXus mode
@@ -61,6 +61,9 @@ INITIALIZE
           ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
     if (trace_status && !expect_begin_failure)
       fprintf(stderr, "EventWriter[%s]: TEST-FAIL begin\n", NAME_CURRENT_COMP);
+    if (!trace_status && expect_begin_failure)
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL expected begin rejection\n",
+              NAME_CURRENT_COMP);
   }
 %}
 
@@ -85,6 +88,8 @@ SAVE
   double *rows = NULL;
   MCDETECTOR detector;
   long i, c;
+  long long diagnostic_rows;
+  long long diagnostic_chunks;
   int status;
   int output_failure_expected;
 
@@ -92,12 +97,20 @@ SAVE
     if (trace_status && expect_begin_failure)
       fprintf(stderr, "EventWriter[%s]: expected begin rejection\n",
               NAME_CURRENT_COMP);
-    if (!trace_status)
-      fprintf(stderr, "EventWriter[%s]: trace rows=%ld chunks=%lld%s\n",
-              NAME_CURRENT_COMP, trace_count,
-              trace_writer.chunks + (trace_writer.buffer.count > 0 ? 1 : 0),
+    if (!trace_status) {
+      diagnostic_rows = use_stream
+        ? trace_writer.rows + trace_writer.buffer.count : trace_count;
+      diagnostic_chunks = trace_writer.chunks
+        + (trace_writer.buffer.count > 0 ? 1 : 0);
+      fprintf(stderr, "EventWriter[%s]: trace rows=%lld chunks=%lld%s\n",
+              NAME_CURRENT_COMP, diagnostic_rows, diagnostic_chunks,
               use_stream ? " (stream)" : "");
+    }
     detector = mc_event_writer_end(&trace_writer);
+    if (expect_begin_failure
+        && (!trace_status || detector.m != 0 || trace_writer.active))
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL rejected begin/end cleanup\n",
+              NAME_CURRENT_COMP);
   } else {
     output_failure_expected = expect_end_failure
       && !mcdisable_output_files
@@ -120,6 +133,9 @@ SAVE
       else
         fprintf(stderr, "EventWriter[%s]: expected begin rejection\n",
                 NAME_CURRENT_COMP);
+    } else if (expect_begin_failure) {
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL expected begin rejection\n",
+              NAME_CURRENT_COMP);
     } else if (use_write) {
       if (nrows > 0)
         rows = (double*)malloc((size_t)nrows * 3 * sizeof(double));
@@ -141,11 +157,15 @@ SAVE
       }
     }
 
-    if (!status)
+    if (!status && !expect_begin_failure)
       fprintf(stderr, "EventWriter[%s]: rows=%lld chunks=%lld\n",
               NAME_CURRENT_COMP, writer.rows + writer.buffer.count,
               writer.chunks + (writer.buffer.count > 0 ? 1 : 0));
     detector = mc_event_writer_end(&writer);
+    if (expect_begin_failure
+        && (!status || detector.m != 0 || writer.active))
+      fprintf(stderr, "EventWriter[%s]: TEST-FAIL rejected begin/end cleanup\n",
+              NAME_CURRENT_COMP);
     if (output_failure_expected && detector.m != 0)
       fprintf(stderr, "EventWriter[%s]: TEST-FAIL expected end failure\n",
               NAME_CURRENT_COMP);

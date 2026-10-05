@@ -7,18 +7,22 @@
  *
  * OpenACC fixture for the host-serviced generic event writer. TRACE only
  * appends to the writer's device-safe bounded buffer; generated GPU batch
- * boundaries transfer and spool the completed chunk on the host.
+ * boundaries transfer and service the completed chunk on the host.
+ * `use_stream` selects the unknown-count stream sink; bounded spooling remains
+ * the default.
  *
  * %P
  * chunk:    [1] rows retained for one GPU batch
  * filename: [string] output file name
+ * use_stream: [0] write unknown-count chunks through the stream sink
  *
  * %E
  *******************************************************************************/
 
 DEFINE COMPONENT EventWriterOpenACC
 
-SETTING PARAMETERS (int chunk=4, string filename="WriterOpenACC")
+SETTING PARAMETERS (int chunk=4, string filename="WriterOpenACC",
+                    int use_stream=0)
 
 DECLARE
 %{
@@ -28,10 +32,16 @@ DECLARE
 
 INITIALIZE
 %{
-  status = mc_event_writer_begin(
-      &writer, "OpenACC event writer", "uid x p", 3, chunk,
-      filename, NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
-      ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
+  if (use_stream)
+    status = mc_event_writer_begin_stream(
+        &writer, "OpenACC event writer", "uid x p", 3, chunk,
+        filename, NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+        ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
+  else
+    status = mc_event_writer_begin(
+        &writer, "OpenACC event writer", "uid x p", 3, chunk,
+        filename, NAME_CURRENT_COMP, POS_A_CURRENT_COMP,
+        ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP);
   if (status)
     fprintf(stderr, "EventWriterOpenACC[%s]: begin failed\n", NAME_CURRENT_COMP);
 %}

@@ -8,7 +8,8 @@
  * %INSTRUMENT_SITE: Tests_other
  *
  * %Description
- * Exercise host-serviced bounded event chunks from OpenACC TRACE kernels.
+ * Exercise host-serviced bounded and unknown-count event chunks from OpenACC
+ * TRACE kernels.
  * Choose NCount divisible by Chunk and use --gpu_innerloop=Chunk to force
  * multiple device batches without padded histories.
  *
@@ -32,6 +33,10 @@ COMPONENT src = Source_simple(radius=0.1, lambda0=1)
   AT (0, 0, 0) ABSOLUTE
 
 COMPONENT events = EventWriterOpenACC(chunk=Chunk, filename="WriterOpenACC")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT stream = EventWriterOpenACC(
+    chunk=Chunk, filename="WriterOpenACCStream", use_stream=1)
   AT (0, 0, 0.1) RELATIVE PREVIOUS
 
 END
