@@ -44,10 +44,12 @@ boundaries into a root-owned stream.
 then gives the ranks different positive row/chunk counts (`Rows=7` produces
 seven rows on rank 0 and ten on rank 1 for the unequal writer). Those three writers
 append and flush during `TRACE`; `WriterAllEmpty` checks that every rank can
-enter an empty session. With `--mpi=2`, all regular writers complete even when a
-rank has no local chunks. `WriterStreamMPI` is root-owned and, for `Rows=7`,
-contains 17 rows in rank order: 7 from rank 0 followed by 10 from rank 1. Its
-NeXus event dataset has shape `(16, 3)`.
+enter an empty unknown-count stream. With `--mpi=2`, all regular writers
+complete even when a rank has no local chunks. `WriterStreamMPI` is root-owned
+and, for `Rows=7`,
+contains 17 rows. Rows retain their sequence order within each rank, but the
+two rank-local blocks may arrive in either cross-rank order. Its NeXus event
+dataset has shape `(17, 3)`.
 NeXus event datasets for the serial fixture have shapes `(11, 3)`, `(8, 3)`,
 `(11, 3)`, `(11, 3)`, and `(11, 3)` for the append, bulk-write, direct,
 staged-trace, and unknown-count stream writers. `WriterDirectMPIRejected` uses
@@ -74,12 +76,21 @@ the component focused on the ASCII open-failure path.
 rejected-begin/end contract for the serial known-count and unknown-count
 constructors. Neither case creates an output file.
 
+The MPI fixture's final `WriterStreamFailure` uses a missing directory. The
+root sink fails after local or remote chunks become available, but all ranks
+still drain their in-flight chunks and complete the service acknowledgement
+protocol. ASCII runs assert the propagated end failure; NeXus treats the path
+as a dataset name and is not asserted for this case.
+
 Run from this directory with:
 
 ```sh
 mcrun -n 1000 -I . Test_EventWriter.instr
 mcrun -n 20 --mpi=2 -I . Test_EventWriter_mpi.instr Rows=7
 mcrun -n 20 --mpi=2 --format=NeXus -I . Test_EventWriter_mpi.instr Rows=7
+# Asymmetric large-payload and many-rank any-source coverage:
+mcrun -n 10000 --mpi=4 -I . Test_EventWriter_mpi.instr Rows=10000
+mcrun -n 10000 --mpi=4 --format=NeXus -I . Test_EventWriter_mpi.instr Rows=10000
 ```
 
 The McXtrace companion is

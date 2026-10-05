@@ -4047,6 +4047,8 @@ static int mcevent_write_local_source(MC_EVENT_OUTPUT *output,
 #define MC_EVENT_MPI_TAG_SERVICE_CHUNK  2007
 #define MC_EVENT_MPI_TAG_SERVICE_DATA   2008
 #define MC_EVENT_MPI_TAG_SERVICE_ACK    2009
+#define MC_EVENT_MPI_TAG_SERVICE_COMPLETE 2010
+#define MC_EVENT_MPI_TAG_SERVICE_CREDIT   2011
 #define MC_EVENT_MPI_BLOCK_BYTES 65536
 
 typedef struct {
@@ -4082,10 +4084,29 @@ typedef struct {
   long long magic;
   long long service;
   long long writer;
+  long long sequence;
   long long chunks;
   long long rows;
   int valid;
 } MC_EVENT_MPI_SERVICE_HEADER;
+
+typedef struct {
+  long long magic;
+  long long service;
+  long long writer;
+  long long sequence;
+  long long chunks;
+  long long rows;
+  int valid;
+} MC_EVENT_MPI_SERVICE_COMPLETE;
+
+typedef struct {
+  long long magic;
+  long long service;
+  long long writer;
+  long long sequence;
+  int valid;
+} MC_EVENT_MPI_SERVICE_CREDIT;
 
 typedef struct {
   long long magic;
@@ -4172,6 +4193,34 @@ static int mcevent_mpi_recv_service_header(
 {
   return(mcevent_mpi_recv_bytes(header, sizeof(*header), source,
                                 MC_EVENT_MPI_TAG_SERVICE_HEADER));
+}
+
+static int mcevent_mpi_send_service_complete(
+    MC_EVENT_MPI_SERVICE_COMPLETE *complete, int destination)
+{
+  return(mcevent_mpi_send_bytes(complete, sizeof(*complete), destination,
+                                MC_EVENT_MPI_TAG_SERVICE_COMPLETE));
+}
+
+static int mcevent_mpi_recv_service_complete(
+    MC_EVENT_MPI_SERVICE_COMPLETE *complete, int source)
+{
+  return(mcevent_mpi_recv_bytes(complete, sizeof(*complete), source,
+                                MC_EVENT_MPI_TAG_SERVICE_COMPLETE));
+}
+
+static int mcevent_mpi_send_service_credit(
+    MC_EVENT_MPI_SERVICE_CREDIT *credit, int destination)
+{
+  return(mcevent_mpi_send_bytes(credit, sizeof(*credit), destination,
+                                MC_EVENT_MPI_TAG_SERVICE_CREDIT));
+}
+
+static int mcevent_mpi_recv_service_credit(
+    MC_EVENT_MPI_SERVICE_CREDIT *credit, int source)
+{
+  return(mcevent_mpi_recv_bytes(credit, sizeof(*credit), source,
+                                MC_EVENT_MPI_TAG_SERVICE_CREDIT));
 }
 
 static int mcevent_mpi_send_service_ack(
@@ -4340,7 +4389,7 @@ static int mcevent_mpi_send_source(MC_EVENT_SOURCE *source, long width,
     }
 
     chunk_header.magic = MC_EVENT_MPI_MAGIC;
-    chunk_header.sequence = sequence;
+       chunk_header.sequence = sequence;
     chunk_header.rows = valid ? stored_rows : 0;
     if (!valid) result = MPI_ERR_COUNT;
     if (mcevent_mpi_send_bytes(&chunk_header, sizeof(chunk_header),
@@ -4516,9 +4565,12 @@ static int mcevent_writer_mpi_send_pending(MC_EVENT_WRITER *writer,
                                            int destination)
 {
   MC_EVENT_MPI_SERVICE_HEADER header;
+  MC_EVENT_MPI_SERVICE_COMPLETE complete;
+  MC_EVENT_MPI_SERVICE_CREDIT credit;
   MC_EVENT_MPI_CHUNK_HEADER chunk_header;
   long long pending_chunks = 0;
   long long pending_rows = 0;
+  long long first_sequence = 0;
   long long sequence;
   int file_valid = 1;
   int result = 1;
@@ -4527,12 +4579,16 @@ static int mcevent_writer_mpi_send_pending(MC_EVENT_WRITER *writer,
   header.magic = MC_EVENT_MPI_MAGIC;
   header.service = service;
   header.writer = writer ? writer->mpi_service_index : -1;
+  header.sequence = 0;
   if (writer && !writer->failed && writer->spool
       && writer->chunks >= writer->service_chunks
       && writer->rows >= writer->service_rows) {
+    first_sequence = writer->service_chunks;
     pending_chunks = writer->chunks - writer->service_chunks;
     pending_rows = writer->rows - writer->service_rows;
-    if (pending_chunks >= 0 && pending_rows >= 0) {
+    if (first_sequence >= 0 && pending_chunks >= 0 && pending_rows >= 0
+        && first_sequence <= LLONG_MAX - pending_chunks) {
+      header.sequence = first_sequence;
       header.chunks = pending_chunks;
       header.rows = pending_rows;
       header.valid = 1;
@@ -4550,6 +4606,21 @@ static int mcevent_writer_mpi_send_pending(MC_EVENT_WRITER *writer,
       double *data = NULL;
       int chunk_valid = file_valid;
 
+      /* One credit per chunk bounds the amount of payload that can be in
+         flight from each rank. A negative credit still means "send and let
+         the root drain it"; it propagates a sink/protocol failure without
+         stranding this rank before the completion record. */
+      memset(&credit, 0, sizeof(credit));
+      if (mcevent_mpi_recv_service_credit(&credit, destination)
+          != MPI_SUCCESS)
+        return(0);
+      if (credit.magic != MC_EVENT_MPI_MAGIC
+          || credit.service != service
+          || credit.writer != header.writer
+          || credit.sequence != header.sequence + sequence
+          || !credit.valid)
+        result = 0;
+
       /* Read the complete bounded chunk before advertising it. A short spool
          read must be visible to the root instead of becoming zero-padded
          payload that looks like a valid event chunk. */
@@ -4561,7 +4632,7 @@ static int mcevent_writer_mpi_send_pending(MC_EVENT_WRITER *writer,
 
       memset(&chunk_header, 0, sizeof(chunk_header));
       chunk_header.magic = MC_EVENT_MPI_MAGIC;
-      chunk_header.sequence = sequence;
+       chunk_header.sequence = header.sequence + sequence;
       chunk_header.rows = chunk_valid ? rows : 0;
       if (!chunk_valid) result = 0;
       if (mcevent_mpi_send_bytes(&chunk_header, sizeof(chunk_header),
@@ -4579,6 +4650,20 @@ static int mcevent_writer_mpi_send_pending(MC_EVENT_WRITER *writer,
     }
   }
 
+  memset(&complete, 0, sizeof(complete));
+  complete.magic = MC_EVENT_MPI_MAGIC;
+  complete.service = service;
+  complete.writer = header.writer;
+  complete.sequence = header.sequence;
+  if (header.chunks >= 0 && header.sequence <= LLONG_MAX - header.chunks)
+    complete.sequence = header.sequence + header.chunks;
+  complete.chunks = header.chunks;
+  complete.rows = header.rows;
+  complete.valid = header.valid && result && file_valid;
+  if (mcevent_mpi_send_service_complete(&complete, destination)
+      != MPI_SUCCESS)
+    return(0);
+
   if (writer) {
     writer->service_chunks = writer->chunks;
     writer->service_rows = writer->rows;
@@ -4595,17 +4680,33 @@ static int mcevent_writer_mpi_receive_pending(
     int source)
 {
   MC_EVENT_MPI_SERVICE_ACK ack;
+  MC_EVENT_MPI_SERVICE_COMPLETE complete;
+  MC_EVENT_MPI_SERVICE_CREDIT credit;
   MC_EVENT_MPI_CHUNK_HEADER chunk_header;
   MC_EVENT_OUTPUT *output;
   long long sequence;
+  long long expected_sequence;
   long long received_rows = 0;
   int valid = 1;
 
   if (!writer || !header) return(0);
   if (header->magic != MC_EVENT_MPI_MAGIC
-      || header->chunks < 0 || header->rows < 0)
+      || header->chunks < 0 || header->rows < 0
+      || header->sequence < 0
+      || header->sequence > LLONG_MAX - header->chunks)
     valid = 0;
   output = (MC_EVENT_OUTPUT *)writer->stream_output;
+
+  if (header->chunks > 0) {
+    memset(&credit, 0, sizeof(credit));
+    credit.magic = MC_EVENT_MPI_MAGIC;
+    credit.service = header->service;
+    credit.writer = header->writer;
+    credit.sequence = header->sequence;
+    credit.valid = valid && !writer->failed;
+    if (mcevent_mpi_send_service_credit(&credit, source) != MPI_SUCCESS)
+      return(0);
+  }
 
   for (sequence = 0; sequence < (header->chunks >= 0 ? header->chunks : 0);
        sequence++) {
@@ -4618,11 +4719,13 @@ static int mcevent_writer_mpi_receive_pending(
                                MC_EVENT_MPI_TAG_SERVICE_CHUNK)
         != MPI_SUCCESS)
       return(0);
+    expected_sequence = header->sequence <= LLONG_MAX - sequence
+      ? header->sequence + sequence : -1;
     if (chunk_header.magic != MC_EVENT_MPI_MAGIC
-        || chunk_header.sequence != sequence
+        || chunk_header.sequence != expected_sequence
         || chunk_header.rows < 0 || chunk_header.rows > LONG_MAX)
       chunk_valid = 0;
-    if (chunk_valid && chunk_header.rows > 0) {
+    if (chunk_header.rows > 0) {
       if (writer->width <= 0
           || (uintmax_t)chunk_header.rows >
              (uintmax_t)SIZE_MAX / (uintmax_t)writer->width /
@@ -4655,8 +4758,35 @@ static int mcevent_writer_mpi_receive_pending(
       writer->failed = 1;
     if (!chunk_valid) valid = 0;
     free(data);
+
+    if (sequence + 1 < header->chunks) {
+      memset(&credit, 0, sizeof(credit));
+      credit.magic = MC_EVENT_MPI_MAGIC;
+      credit.service = header->service;
+      credit.writer = header->writer;
+      credit.sequence = header->sequence >= 0
+        && header->sequence <= LLONG_MAX - sequence - 1
+        ? header->sequence + sequence + 1 : -1;
+      credit.valid = valid && !writer->failed;
+      if (mcevent_mpi_send_service_credit(&credit, source) != MPI_SUCCESS)
+        return(0);
+    }
   }
 
+  memset(&complete, 0, sizeof(complete));
+  if (mcevent_mpi_recv_service_complete(&complete, source) != MPI_SUCCESS)
+    return(0);
+  expected_sequence = header->sequence >= 0 && header->chunks >= 0
+    && header->sequence <= LLONG_MAX - header->chunks
+    ? header->sequence + header->chunks : -1;
+  if (complete.magic != MC_EVENT_MPI_MAGIC
+      || complete.service != header->service
+      || complete.writer != header->writer
+      || complete.sequence != expected_sequence
+      || complete.chunks != header->chunks
+      || complete.rows != header->rows
+      || !complete.valid)
+    valid = 0;
   if (header->rows != received_rows || !header->valid)
     valid = 0;
   if (header->rows >= 0) {
@@ -4679,10 +4809,221 @@ static int mcevent_writer_mpi_receive_pending(
   return(1);
 }
 
+typedef struct {
+  MC_EVENT_MPI_SERVICE_HEADER header;
+  MC_EVENT_MPI_SERVICE_COMPLETE complete;
+  long long chunks_received;
+  long long rows_received;
+  int header_received;
+  int complete_received;
+  int ack_ready;
+  int valid;
+  MC_EVENT_MPI_SERVICE_ACK ack;
+} MC_EVENT_MPI_SERVICE_STATE;
+
+static int mcevent_writer_mpi_accept_service_header(
+    MC_EVENT_WRITER *writer, MC_EVENT_MPI_SERVICE_STATE *state,
+    long long service, int source)
+{
+  MC_EVENT_MPI_SERVICE_CREDIT credit;
+  int duplicate_header;
+
+  if (!writer || !state) return(0);
+  duplicate_header = state->header_received;
+  if (mcevent_mpi_recv_service_header(&state->header, source) != MPI_SUCCESS)
+    return(0);
+
+  state->header_received = 1;
+  state->valid = !duplicate_header
+    && state->header.magic == MC_EVENT_MPI_MAGIC
+    && state->header.service == service
+    && state->header.writer == writer->mpi_service_index
+    && state->header.sequence >= 0
+    && state->header.chunks >= 0
+    && state->header.rows >= 0
+    && state->header.sequence <= LLONG_MAX - state->header.chunks
+    && state->header.valid;
+  if (!state->valid) writer->failed = 1;
+
+  /* The sender waits for one credit before every chunk. Send a credit even
+     after a local sink failure so the sender can transmit its payload and
+     reach the explicit completion record for safe draining. */
+  if (!duplicate_header && state->header.chunks > 0) {
+    memset(&credit, 0, sizeof(credit));
+    credit.magic = MC_EVENT_MPI_MAGIC;
+    credit.service = service;
+    credit.writer = writer->mpi_service_index;
+    credit.sequence = state->header.sequence;
+    credit.valid = state->valid && !writer->failed;
+    if (mcevent_mpi_send_service_credit(&credit, source) != MPI_SUCCESS)
+      return(0);
+  }
+  return(1);
+}
+
+static long long mcevent_writer_mpi_expected_service_chunks(
+    MC_EVENT_MPI_SERVICE_STATE *state)
+{
+  long long expected = -1;
+
+  if (!state) return(expected);
+  if (state->header_received && state->header.chunks >= 0)
+    expected = state->header.chunks;
+  if (state->complete_received && state->complete.chunks >= 0
+      && state->complete.chunks > expected)
+    expected = state->complete.chunks;
+  return(expected);
+}
+
+static int mcevent_writer_mpi_receive_service_chunk(
+    MC_EVENT_WRITER *writer, MC_EVENT_MPI_SERVICE_STATE *state, int source)
+{
+  MC_EVENT_MPI_CHUNK_HEADER chunk_header;
+  MC_EVENT_MPI_SERVICE_CREDIT credit;
+  MC_EVENT_OUTPUT *output;
+  long long expected_sequence = -1;
+  long rows = 0;
+  size_t bytes = 0;
+  double *data = NULL;
+  int chunk_valid = 1;
+
+  if (!writer || !state || !state->header_received) return(0);
+  output = (MC_EVENT_OUTPUT *)writer->stream_output;
+  if (mcevent_mpi_recv_bytes(&chunk_header, sizeof(chunk_header), source,
+                             MC_EVENT_MPI_TAG_SERVICE_CHUNK) != MPI_SUCCESS)
+    return(0);
+
+  if (state->header.sequence >= 0
+      && state->chunks_received <= LLONG_MAX - state->header.sequence)
+    expected_sequence = state->header.sequence + state->chunks_received;
+  if (chunk_header.magic != MC_EVENT_MPI_MAGIC
+      || chunk_header.sequence != expected_sequence
+      || chunk_header.rows < 0 || chunk_header.rows > LONG_MAX)
+    chunk_valid = 0;
+  if (state->header.chunks >= 0
+      && state->chunks_received >= state->header.chunks)
+    chunk_valid = 0;
+
+  if (chunk_header.rows > 0) {
+    if (writer->width <= 0
+        || (uintmax_t)chunk_header.rows
+             > (uintmax_t)SIZE_MAX / (uintmax_t)writer->width
+             / sizeof(double)) {
+      chunk_valid = 0;
+    } else {
+      rows = (long)chunk_header.rows;
+      bytes = (size_t)rows * (size_t)writer->width * sizeof(double);
+      if (!writer->failed && state->valid && chunk_valid) {
+        data = (double *)malloc(bytes);
+        if (!data) chunk_valid = 0;
+      }
+    }
+  }
+
+  /* Even after a validation or sink failure, consume the advertised payload
+     into the small receive scratch buffer so the sender can finish. */
+  if (chunk_header.rows > 0
+      && mcevent_mpi_recv_bytes(data, bytes, source,
+                                MC_EVENT_MPI_TAG_SERVICE_DATA) != MPI_SUCCESS) {
+    free(data);
+    return(0);
+  }
+  if (data && !writer->failed && state->valid && chunk_valid
+      && (!output || !mcevent_output_chunk(output, rows, data)))
+    writer->failed = 1;
+
+  if (!chunk_valid) state->valid = 0;
+  if (state->chunks_received == LLONG_MAX) {
+    state->valid = 0;
+  } else {
+    state->chunks_received++;
+  }
+  if (chunk_header.rows > 0 && chunk_header.rows <= LLONG_MAX) {
+    if (state->rows_received > LLONG_MAX - chunk_header.rows)
+      state->valid = 0;
+    else
+      state->rows_received += chunk_header.rows;
+  }
+  free(data);
+
+  if (state->header.chunks > 0
+      && state->chunks_received < state->header.chunks) {
+    memset(&credit, 0, sizeof(credit));
+    credit.magic = MC_EVENT_MPI_MAGIC;
+    credit.service = state->header.service;
+    credit.writer = state->header.writer;
+    credit.sequence = state->header.sequence >= 0
+      && state->chunks_received >= 0
+      && state->header.sequence <= LLONG_MAX - state->chunks_received
+      ? state->header.sequence + state->chunks_received : -1;
+    credit.valid = state->valid && !writer->failed;
+    if (mcevent_mpi_send_service_credit(&credit, source) != MPI_SUCCESS)
+      return(0);
+  }
+  return(1);
+}
+
+static int mcevent_writer_mpi_finish_service_state(
+    MC_EVENT_WRITER *writer, MC_EVENT_MPI_SERVICE_STATE *state,
+    long long service, int source)
+{
+  MC_EVENT_MPI_SERVICE_ACK ack;
+  long long expected_chunks;
+  long long expected_sequence;
+  int valid;
+
+  if (!writer || !state || state->ack_ready) return(1);
+  if (!state->header_received || !state->complete_received) return(1);
+  expected_chunks = mcevent_writer_mpi_expected_service_chunks(state);
+  if (expected_chunks < 0 || state->chunks_received < expected_chunks)
+    return(1);
+
+  valid = state->valid;
+  if (state->chunks_received != expected_chunks)
+    valid = 0;
+  if (state->complete.magic != MC_EVENT_MPI_MAGIC
+      || state->complete.service != service
+      || state->complete.writer != writer->mpi_service_index
+      || state->complete.chunks != state->header.chunks
+      || state->complete.rows != state->header.rows
+      || !state->complete.valid)
+    valid = 0;
+  if (state->header.sequence < 0 || state->header.chunks < 0
+      || state->header.sequence > LLONG_MAX - state->header.chunks) {
+    valid = 0;
+  } else {
+    expected_sequence = state->header.sequence + state->header.chunks;
+    if (state->complete.sequence != expected_sequence)
+      valid = 0;
+  }
+  if (state->rows_received != state->header.rows)
+    valid = 0;
+
+  if (state->header.rows >= 0) {
+    if (writer->mpi_received_rows > LLONG_MAX - state->header.rows) {
+      writer->failed = 1;
+      valid = 0;
+    } else {
+      writer->mpi_received_rows += state->header.rows;
+    }
+  }
+  if (!valid) writer->failed = 1;
+
+  memset(&ack, 0, sizeof(ack));
+  ack.magic = MC_EVENT_MPI_MAGIC;
+  ack.service = service;
+  ack.writer = writer->mpi_service_index;
+  ack.valid = valid && !writer->failed;
+  state->ack = ack;
+  state->ack_ready = 1;
+  return(1);
+}
+
 static int mcevent_writer_mpi_service(MC_EVENT_WRITER *writer,
                                       long long service)
 {
-  int node_i;
+  MC_EVENT_MPI_SERVICE_STATE *states = NULL;
+  int completed = 0;
   int result = 1;
 
   if (!writer) return(0);
@@ -4691,22 +5032,111 @@ static int mcevent_writer_mpi_service(MC_EVENT_WRITER *writer,
       writer->failed = 1;
       result = 0;
     }
-    for (node_i = 0; node_i < mpi_node_count; node_i++) {
-      MC_EVENT_MPI_SERVICE_HEADER header;
-      if (node_i == mpi_node_root) continue;
-      if (mcevent_mpi_recv_service_header(&header, node_i) != MPI_SUCCESS) {
-        writer->failed = 1;
-        result = 0;
-        continue;
+    states = (MC_EVENT_MPI_SERVICE_STATE *)calloc(
+        (size_t)mpi_node_count, sizeof(*states));
+    if (!states) {
+      /* Allocation failure is rare, but still drain every sender. The
+         fallback keeps the old rank order only for this error path; normal
+         operation uses the any-source state machine below. */
+      int node_i;
+      writer->failed = 1;
+      result = 0;
+      for (node_i = 0; node_i < mpi_node_count; node_i++) {
+        MC_EVENT_MPI_SERVICE_HEADER header;
+        if (node_i == mpi_node_root) continue;
+        if (mcevent_mpi_recv_service_header(&header, node_i) != MPI_SUCCESS
+            || !mcevent_writer_mpi_receive_pending(writer, &header, node_i))
+          result = 0;
       }
-      if (header.service != service
-          || header.writer != writer->mpi_service_index)
-        writer->failed = 1;
-      if (!mcevent_writer_mpi_receive_pending(writer, &header, node_i)) {
+      return(result && !writer->failed);
+    }
+
+    while (completed < mpi_node_count - 1) {
+      MPI_Status status;
+      MC_EVENT_MPI_SERVICE_STATE *state;
+      int source;
+      int was_ack_ready;
+
+      if (MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status)
+          != MPI_SUCCESS) {
         writer->failed = 1;
         result = 0;
+        break;
+      }
+      source = status.MPI_SOURCE;
+      if (source < 0 || source >= mpi_node_count || source == mpi_node_root) {
+        writer->failed = 1;
+        result = 0;
+        break;
+      }
+      state = &states[source];
+      was_ack_ready = state->ack_ready;
+
+      /* A sender always transmits its header first. If a later-tag message
+         wins the probe, receive that header from the same source before
+         consuming the selected chunk/completion message. */
+      if (status.MPI_TAG != MC_EVENT_MPI_TAG_SERVICE_HEADER
+          && !state->header_received
+          && !mcevent_writer_mpi_accept_service_header(
+              writer, state, service, source)) {
+        writer->failed = 1;
+        result = 0;
+        break;
+      }
+
+      if (status.MPI_TAG == MC_EVENT_MPI_TAG_SERVICE_HEADER) {
+        if (!mcevent_writer_mpi_accept_service_header(
+                writer, state, service, source)) {
+          writer->failed = 1;
+          result = 0;
+          break;
+        }
+      } else if (status.MPI_TAG == MC_EVENT_MPI_TAG_SERVICE_CHUNK
+                 || status.MPI_TAG == MC_EVENT_MPI_TAG_SERVICE_DATA) {
+        if (!mcevent_writer_mpi_receive_service_chunk(writer, state, source)) {
+          writer->failed = 1;
+          result = 0;
+          break;
+        }
+      } else if (status.MPI_TAG == MC_EVENT_MPI_TAG_SERVICE_COMPLETE) {
+        if (mcevent_mpi_recv_service_complete(&state->complete, source)
+            != MPI_SUCCESS) {
+          writer->failed = 1;
+          result = 0;
+          break;
+        }
+        if (state->complete_received) state->valid = 0;
+        state->complete_received = 1;
+      } else {
+        writer->failed = 1;
+        result = 0;
+        break;
+      }
+
+      if (!mcevent_writer_mpi_finish_service_state(
+              writer, state, service, source)) {
+        writer->failed = 1;
+        result = 0;
+        break;
+      }
+      if (!was_ack_ready && state->ack_ready) completed++;
+    }
+    /* Do not release any rank until every rank has completed this service.
+       Otherwise an early rank can send the next service header while this
+       any-source loop is still draining a slower rank. */
+    {
+      int node_i;
+      for (node_i = 0; node_i < mpi_node_count; node_i++) {
+        if (node_i == mpi_node_root) continue;
+        if (!states[node_i].ack_ready
+            || mcevent_mpi_send_service_ack(&states[node_i].ack, node_i)
+                 != MPI_SUCCESS) {
+          writer->failed = 1;
+          result = 0;
+        }
       }
     }
+    free(states);
   } else {
     MC_EVENT_MPI_SERVICE_ACK ack;
     if (!mcevent_writer_mpi_send_pending(writer, service,

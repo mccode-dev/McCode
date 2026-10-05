@@ -1148,8 +1148,9 @@ int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
 /* Begin an unknown-count stream. Serial callers write through the output sink
  * directly. MPI callers keep rank-local chunks in the bounded temporary spool;
  * the generated host service drains completed chunks to the persistent root
- * sink in rank/writer order, while end services the final partial chunk and
- * patches ASCII or finalizes NeXus metadata. append/flush remain MPI-free. */
+ * sink in per-rank sequence order, while cross-rank arrival order may vary.
+ * End services the final partial chunk and patches ASCII or finalizes NeXus
+ * metadata. append/flush remain MPI-free. */
 int mc_event_writer_begin_stream(MC_EVENT_WRITER *writer, char *title,
                                  char *columns, long width,
                                  long chunk_capacity, char *filename,
