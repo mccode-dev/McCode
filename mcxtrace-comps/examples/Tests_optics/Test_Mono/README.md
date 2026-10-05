@@ -24,6 +24,14 @@ The input parameter 'Mono' chooses which model to use:
 5: Bragg_crystal_simple - a simple mono with a static (flat) Darwin width.
 ```
 
+## Examples
+
+- **Test: Test_Mono.instr Mono=1 Detector: emon_I=5.39036e-17**
+- **Test: Test_Mono.instr Mono=2 Detector: emon_I=5.41029e-17**
+- **Test: Test_Mono.instr Mono=3 Detector: emon_I=5.33687e-17**
+- **Test: Test_Mono.instr Mono=4 Detector: emon_I=5.33687e-17**
+- **Test: Test_Mono.instr Mono=5 Detector: emon_I=5.33687e-17**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

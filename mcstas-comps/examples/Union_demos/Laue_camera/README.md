@@ -15,6 +15,12 @@
 Laue camera using Union components for the sample
 ```
 
+## Examples
+
+- **Test: mosaic=5 Detector: det_I=2.08262e+07**
+- **Test: mosaic=5 Detector: PSDlin_transmission_scattered_I=1.0346e+06**
+- **Test: mosaic=5 Detector: PSDlin_transmission_transmitted_I=2.30318e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

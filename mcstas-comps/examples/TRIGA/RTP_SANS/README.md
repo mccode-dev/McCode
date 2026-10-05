@@ -27,15 +27,19 @@ and SANS set-up. The Be filter is in the monochromator block.
 Example: mcrun RTP_SANS.instr lambda=5
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | monochromator selected wavelength | 5 |
-| DM | Angs | d-spacing for the monochromator reflection | 3.355 |
-| dlambda | Angs | monochromator wavelength spread | .2 |
+| lambda | AA | monochromator selected wavelength | 5 |
+| DM | AA | d-spacing for the monochromator reflection | 3.355 |
+| dlambda | AA | monochromator wavelength spread | .2 |
 | Be_Filter_depth | m | Depth of Be filter | .15 |
 | Mono_tilt | deg | angle tilt between the 3 monochromator layers | -1 |
 | mono_rotation | deg | additional monochromator offset rotation for e.g rocking curves | 0 |

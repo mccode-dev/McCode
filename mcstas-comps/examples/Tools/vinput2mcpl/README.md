@@ -17,14 +17,18 @@ Instrument for conversion of Virtual input files to MCPL.
 Example: vinput2mcpl inputfile=C8_L214.dat outputfile=C8_L214.mcpl,gz
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| inputfile |  |  | "input" |
-| outputfile |  |  | "output" |
+| inputfile | str | Filename for Virtual_input read | "input" |
+| outputfile | str | Filename for MCPL_output write | "output" |
 
 ## Links
 

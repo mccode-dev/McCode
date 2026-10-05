@@ -19,6 +19,10 @@ Andrew Garret which comes with no guarantees as to its accuracy in modelling the
 Fermi Chopper.
 ```
 
+## Examples
+
+- **Test: Emin=443 Detector: cyl_I=235837**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

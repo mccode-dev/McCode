@@ -270,6 +270,10 @@ extern Symtab read_components;
 extern char verbose;
 /* Lint mode */
 extern char lint;
+/* Python generator: instrument name to use (NULL means default) */
+extern char *pygen_instrument_name;
+/* Python generator: do not translate %Example lines into tests */
+extern char pygen_no_tests;
 /* Will store component instance for PREVIOUS reference */
 extern char embed_instrument_file;
 /* Will store component instance for PREVIOUS reference */
@@ -313,6 +317,7 @@ FILE *open_component_search(char *name);
 FILE *open_file_search_sys(char *name);
 /* Add a directory to the search path. */
 void add_search_dir(char *name);
+void record_search(char *path, int shell);
 /* get default system directory (where libraries are) */
 char *get_sys_dir(void);
 
@@ -534,6 +539,14 @@ struct instr_def
     List user_vars;           /* stores custom particle user variables */
     List user_vars_types;     /* stores custom particle user variable types */
     List metadata;            /* stores all components' literal code blocks */
+    List searches;            /* SEARCH statements (struct search_def), in order */
+  };
+
+/* SEARCH statement */
+struct search_def
+  {
+    char *path;   /* directory, or command for SEARCH SHELL */
+    int shell;    /* 1 for SEARCH SHELL */
   };
 
 struct metadata_struct

@@ -111,6 +111,15 @@
 * if 'cif2hkl' is installed. The CIF2HKL env variable can be used to point to a
 * proper executable, else the McCode, then the system installed versions are used.
 *
+* <b>NCrystal materials</b>
+* The 'reflections' parameter can also be an NCrystal cfg-string (containing
+* ".ncmat" or "::"), e.g. "stdlib::Al_sg225.ncmat" or "mycrystal.ncmat". The
+* reflections, unit cell and cross sections are then taken from NCrystal.
+* Multiphase materials are supported, e.g.
+*   "phases<0.3*stdlib::Al_sg225.ncmat&0.7*stdlib::Cu_sg225.ncmat>"
+* but oriented materials are not. Only Bragg diffraction, absorption and
+* incoherent scattering are modelled. For the full NCrystal physics, use the
+* NCrystal_sample component, or the NCrystal_process component with Union.
 * <b>Concentricity</b>
 *
 * PowderN assumes 'concentric' shape, i.e. can contain other components inside its
@@ -165,12 +174,11 @@
 * density: [g/cm^3]    Density of material. rho=density/weight/1e24*N_A.
 * nb_atoms: [1]        Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell
 * target_index: [1]    Relative index of component to focus incoherent scattering at, e.g. next is +1
-* order: [1]           Flag that determines whether the intensity should (1) not (0) be dampened by weighting multiple scattering
 *
 * CALCULATED PARAMETERS:
 * line_info: [struct]  internal structure containing many members/info
 * line_info.type: interaction type of event 't'=Transmit, 'i'=Incoherent, 'c'=Coherent [char]
-* line_info.dq:   wavevector transfer of last coherent scattering event [Angs-1]
+* line_info.dq:   wavevector transfer of last coherent scattering event [AA^-1]
 *
 * %L
 * "Validation of a realistic powder sample using data from DMC at PSI" Willendrup P, Filges U, Keller L, Farhi E, Lefmann K, Physica B-Cond Matt 385 (2006) 1032.
@@ -206,7 +214,7 @@ SETTING PARAMETERS (string reflections="NULL", string geometry="NULL",
   radius=0, yheight=0, xwidth=0, zdepth=0, thickness=0,
   pack=1, Vc=0, sigma_abs=0, sigma_inc=0, delta_d_d=0, p_inc=0.1, p_transmit=0.1,
   DW=0, nb_atoms=1, d_omega=0, d_phi=0, tth_sign=0, p_interact=0.8,
-  concentric=0, density=0, weight=0, barns=1, Strain=0, focus_flip=0, int target_index=0, int order=1)
+  concentric=0, density=0, weight=0, barns=1, Strain=0, focus_flip=0, int target_index=0)
 
 DEPENDENCY "@NCRYSTALFLAGS@"
 
@@ -382,11 +390,7 @@ SHARE
   } // cif2hkl
   #endif
 
-  #ifndef WIN32
-  #include "NCrystal/ncrystal.h"
-  #else
-  #include "NCrystal\\ncrystal.h"
-  #endif
+  %include "mccode-ncrystal-lib"
 
   double
   ncrystalpowdern_determine_sigma_inc (ncrystal_info_t ncobj) {
@@ -412,71 +416,109 @@ SHARE
     return sum;
   }
 
-  int
-  read_line_data_ncrystal (const char* cfgstr, struct line_info_struct* info) {
-    ncrystal_info_t ncobj = ncrystal_create_info (cfgstr);
-    if (ncrystal_info_nphases (ncobj) != 0) {
-      exit (fprintf (stderr,
-                     "PowderN: %s: Error: Only single phase NCrystal "
-                     "materials are currently supported by PowderN\n",
-                     info->compname));
+  // Add the reflections of all crystalline phases of an NCrystal material to
+  // the list of lines, with |F|^2 scaled to the reference volume V_ref.
+  void
+  ncrystalpowdern_add_lines (ncrystal_info_t ncobj, double fraction, double V_ref, struct line_info_struct* info, struct line_data** list, int* count,
+                             int* capacity) {
+    int nphases = ncrystal_info_nphases (ncobj);
+    if (nphases > 0) {
+      for (int iphase = 0; iphase < nphases; ++iphase) {
+        double phase_fraction;
+        ncrystal_info_t phase = ncrystal_info_getphase (ncobj, iphase, &phase_fraction);
+        ncrystalpowdern_add_lines (phase, fraction * phase_fraction, V_ref, info, list, count, capacity);
+        ncrystal_unref (&phase);
+      }
+      return;
     }
-    const double numberdensity = ncrystal_info_getnumberdensity (ncobj);
     const int nhkl = ncrystal_info_nhkl (ncobj);
-    if (nhkl == 0) {
-      printf ("PowderN: %s: WARNING: NCrystal material "
-              "does not contain reflections\n",
-              info->compname);
-    } else {
-      MPI_MASTER (printf ("PowderN: %s: Loading %d reflections from %s\n", info->compname, nhkl, cfgstr););
-    }
+    if (nhkl <= 0)
+      return; // non-crystalline phase
     unsigned spacegroup, n_atoms;
     double lattice_a, lattice_b, lattice_c, alpha, beta, gamma, cell_volume;
-    int has_structure = ncrystal_info_getstructure (ncobj, &spacegroup, &lattice_a, &lattice_b, &lattice_c, &alpha, &beta, &gamma, &cell_volume, &n_atoms);
-    if (!has_structure) {
+    if (!ncrystal_info_getstructure (ncobj, &spacegroup, &lattice_a, &lattice_b, &lattice_c, &alpha, &beta, &gamma, &cell_volume, &n_atoms)) {
       exit (fprintf (stderr,
                      "PowderN: %s: Error: NCrystal material "
                      "does not contain crystal structure\n",
                      info->compname));
     }
-
-    // Note we use V_0=n_atoms/numdens and not V_0 = cell_volume. This way, it
-    // supports density scaling that the user might have performed with the
-    // NCrystal cfg-string parameters (e.g. "...;density=0.6x").
-
-    info->V_0 = n_atoms / numberdensity;
-    info->at_nb = n_atoms;
-    info->flag_barns = 1;
-
-    /* allocate line_data array */
-    struct line_data* list = NULL;
-    list = (struct line_data*)malloc (nhkl * sizeof (struct line_data));
-    if (!list) {
-      exit (fprintf (stderr,
-                     "PowderN: %s: Error: Could not allocate line array\n",
-                     info->compname));
+    // The density of unit cells follows the actual density (1/V_eff), but the
+    // density of reciprocal lattice points does not (1/cell_volume):
+    const double V_eff = n_atoms / ncrystal_info_getnumberdensity (ncobj);
+    const double F2_scale = fraction * V_ref * V_ref / (V_eff * cell_volume);
+    if (*count + nhkl > *capacity) {
+      *capacity = 2 * (*count + nhkl);
+      *list = (struct line_data*)realloc (*list, (*capacity) * sizeof (struct line_data));
+      if (!*list) {
+        exit (fprintf (stderr, "PowderN: %s: Error: Could not allocate line array\n", info->compname));
+      }
     }
-    info->sigma_a = ncrystal_info_getxsectabsorption (ncobj);
-    info->sigma_i = ncrystalpowdern_determine_sigma_inc (ncobj);
     const double w = (info->Dd >= 0.0 ? info->Dd : 0.0);
     const double Epsilon = ((info->Epsilon && fabs (info->Epsilon) < 1e6) ? info->Epsilon * 1e-6 : 0.0);
     for (int idx = 0; idx < nhkl; ++idx) {
       int h, k, l, mult;
       double dsp, fsq;
       ncrystal_info_gethkl (ncobj, idx, &h, &k, &l, &mult, &dsp, &fsq);
-      list[idx].j = mult;
+      struct line_data* line = &((*list)[(*count)++]);
+      line->j = mult;
       double q = (2.0 * PI) / dsp;
       if (Epsilon)
         q -= Epsilon * q;
-      list[idx].q = q;
-      list[idx].DWfactor = 1.0;
-      list[idx].w = w;
-      list[idx].F2 = fsq;
+      line->q = q;
+      line->DWfactor = 1.0;
+      line->w = w;
+      line->F2 = fsq * F2_scale;
     }
+  }
+
+  int
+  read_line_data_ncrystal (const char* cfgstr, struct line_info_struct* info) {
+    mccode_setup_ncrystal_search_paths ();
+    ncrystal_scatter_t scat = ncrystal_create_scatter (cfgstr);
+    const int nonoriented = ncrystal_isnonoriented (ncrystal_cast_scat2proc (scat));
+    ncrystal_unref (&scat);
+    if (!nonoriented) {
+      exit (fprintf (stderr,
+                     "PowderN: %s: Error: Only isotropic NCrystal materials are supported"
+                     " by PowderN (the cfg-string must not specify a crystal orientation)\n",
+                     info->compname));
+    }
+
+    ncrystal_info_t ncobj = ncrystal_create_info (cfgstr);
+    const double numberdensity = ncrystal_info_getnumberdensity (ncobj);
+
+    // V_0 is the volume per unit cell for single-phase crystalline materials,
+    // and the volume per atom otherwise:
+    unsigned spacegroup, n_atoms = 1;
+    double lattice_a, lattice_b, lattice_c, alpha, beta, gamma, cell_volume;
+    if (ncrystal_info_nphases (ncobj) == 0 && ncrystal_info_nhkl (ncobj) > 0
+        && !ncrystal_info_getstructure (ncobj, &spacegroup, &lattice_a, &lattice_b, &lattice_c, &alpha, &beta, &gamma, &cell_volume, &n_atoms)) {
+      exit (fprintf (stderr,
+                     "PowderN: %s: Error: NCrystal material "
+                     "does not contain crystal structure\n",
+                     info->compname));
+    }
+    info->V_0 = n_atoms / numberdensity;
+    info->at_nb = n_atoms;
+    info->flag_barns = 1;
+    info->sigma_a = ncrystal_info_getxsectabsorption (ncobj);
+    info->sigma_i = ncrystalpowdern_determine_sigma_inc (ncobj);
+
+    struct line_data* list = NULL;
+    int count = 0, capacity = 0;
+    ncrystalpowdern_add_lines (ncobj, 1.0, info->V_0, info, &list, &count, &capacity);
     ncrystal_unref (&ncobj);
+    if (count == 0) {
+      printf ("PowderN: %s: WARNING: NCrystal material "
+              "does not contain reflections\n",
+              info->compname);
+    } else {
+      qsort (list, count, sizeof (struct line_data), PN_list_compare);
+      MPI_MASTER (printf ("PowderN: %s: Loading %d reflections from %s\n", info->compname, count, cfgstr););
+    }
     info->list = list;
-    info->count = nhkl;
-    return nhkl;
+    info->count = count;
+    return count;
   }
 
   int
@@ -608,9 +650,7 @@ SHARE
     /* allocate line_data array */
     list = (struct line_data*)malloc (size * sizeof (struct line_data));
     if (!list) {
-      exit (fprintf (stderr,
-                     "PowderN: %s: Error: Could not allocate line array\n",
-                     info->compname));
+      exit (fprintf (stderr, "PowderN: %s: Error: Could not allocate line array\n", info->compname));
     }
 
     for (i = 0; i < size; i++) {
@@ -1142,11 +1182,7 @@ TRACE
       } else {
         dt = dt * (t3 - t2) + (t2 - t0); /* Possibly also 'backside' part */
       }
-      if (order) {
-        my_s = line_info.my_s_v2_sum / (v * v) + line_info.my_inc;
-      } else {
-        my_s = line_info.my_inc;
-      }
+      my_s = line_info.my_s_v2_sum / (v * v) + line_info.my_inc;
       /* Total attenuation from scattering */
       lfree = 0;
       ntype = rand01 ();

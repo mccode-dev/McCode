@@ -17,6 +17,10 @@ ESCRIPTION
 Simple instrumentfile for estimating SNS brilliance, moderator is a rescaled ESS short-pulsed Mezei description.
 ```
 
+## Examples
+
+- **Test: -y Detector: Brillmon_I=1.178e+13**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

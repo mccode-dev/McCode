@@ -15,6 +15,10 @@
 Test instrument for Transmission_V_polarisator, single layer reflectivity.
 ```
 
+## Examples
+
+- **Test: Test_V_cavity_SNAG_single_side.instr Lam=7 Detector: div_lambda_hor_I=1.1e+13**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -23,7 +27,7 @@ Parameters in **boldface** are required; the others are optional.
 |------|------|-------------|---------|
 | Lam | AA | Central wavelength produced at source | 7.0 |
 | dLam | AA | Wavelength spread produced at source | 6.0 |
-| l_guide0 |  |  | 2 |
+| l_guide0 | m | Length of feeding guide | 2 |
 | m_hori | 1 | m-value of feeding guide, horizontal mirrors | 1.0 |
 | m_vert | 1 | m-value of feeding guide, vertical mirrors | 3.0 |
 | m_pol_h | 1 | m-value of guide body, horizontal (m of FeSi is defined by data files) | 1.0 |

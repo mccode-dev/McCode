@@ -17,6 +17,12 @@ SPLIT unittest.
 One unit of intensity is emitted from a 1x1 m.
 ```
 
+## Examples
+
+- **Test: SPLITS=1 Detector: PSD_I=1**
+- **Test: SPLITS=10 Detector: PSD_I=1**
+- **Test: SPLITS=100 Detector: PSD_I=1**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

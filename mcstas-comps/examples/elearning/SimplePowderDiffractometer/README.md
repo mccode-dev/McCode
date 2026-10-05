@@ -19,6 +19,10 @@ A banana detector records scattering agles [20,100]
 Example: mcrun SimplePowderDIffractometer.instr coll=40, container=1
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

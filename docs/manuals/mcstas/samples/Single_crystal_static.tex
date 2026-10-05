@@ -1,4 +1,4 @@
-\section{Single\_crystal: The single crystal component}
+\subsection*{The single crystal component}
 \label{s:Single_crystal}
 \index{Samples!Single crystal diffraction}
 \index{Diffraction}
@@ -22,18 +22,18 @@ value of $\Delta d/d$ (no unit);
 $(\textit{ax}, \textit{ay}, \textit{az})$, $(\textit{bx}, \textit{by},
 \textit{bz})$, and $(\textit{cx}, \textit{cy}, \textit{cz})$ to define
 the axes of the direct lattice of the crystal (the sides of the unit
-cell) in units of {\AA}ngstr{\o}m; and \textit{reflections}, a string
+cell) in units of Ångström; and \textit{reflections}, a string
 giving the name of the file with the list of structure factors to
 consider.
 The mosaic is specified \emph{either} isotropically as
-\textit{mosaic}, \emph{or} anisotropically as \textit{mosaic\_h}
-(rotation around the $Y$ axis), \textit{mosaic\_v} (rotation around the
-$Z$ axis), and \textit{mosaic\_n} (rotation around the $X$ axis); in all
+\textit{mosaic}, \emph{or} anisotropically as \textit{mosaic\_a}
+(rotation around lattice vector $\vec a$), \textit{mosaic\_b} (rotation around lattice vector $\vec
+b$), and \textit{mosaic\_c} (rotation around lattice vector $\vec c$); in all
 cases in units of full-width-half-maximum minutes of arc.
 
 Optionally, the absorption cross-section at 2200 m/s and the incoherent
-cross-section may be given as \textit{absorption} and
-\textit{incoherent} (in barns), with default of zero; and
+cross-section may be given as \textit{sigma\_abs} and
+\textit{sigma\_inc} (in barns), with default of zero; and
 \textit{p\_transmit} may be assigned a fixed Monte Carlo probability for
 transmission through the crystal without any interaction.
 
@@ -346,18 +346,20 @@ Now let $\boldsymbol{g} = (g_1, g_2)$ be two random numbers drawn form a
 Gaussian distribution with mean 0 and standard deviation 1, and let
 $\boldsymbol{t} = L\boldsymbol{g} + \boldsymbol{t}_0$. The probability
 of a particular $\boldsymbol{t}$ is then
-\begin{eqnarray}
+\begin{equation}
+  \label{eq:crystal-gauss-prob-1}
+  \begin{aligned}
   P(\boldsymbol{t})d\boldsymbol{t}
-    &=& \frac{1}{2\pi}
-      e^{-\frac{1}{2}\boldsymbol{g}^\textrm{T}\boldsymbol{g}} d\boldsymbol{g} \\
-    &=& \frac{1}{2\pi}\frac{1}{\det L}
+    &=  \frac{1}{2\pi}
+      e^{-\frac{1}{2}\boldsymbol{g}^\textrm{T}\boldsymbol{g}} d\boldsymbol{g}  \\
+    &=  \frac{1}{2\pi}\frac{1}{\det L}
       e^{-\frac{1}{2}(L^{-1}(\boldsymbol{t}-\boldsymbol{t}_0))^\textrm{T}
-          (L^{-1}(\boldsymbol{t}-\boldsymbol{t}_0))} d\boldsymbol{t} \\
-    &=& \frac{1}{2\pi}\frac{1}{\det L}
+          (L^{-1}(\boldsymbol{t}-\boldsymbol{t}_0))} d\boldsymbol{t}  \\
+    &=  \frac{1}{2\pi}\frac{1}{\det L}
       e^{-(\boldsymbol{t}-\boldsymbol{t}_0)^\textrm{T}
           M(\boldsymbol{t}-\boldsymbol{t}_0)} d\boldsymbol{t}
-  \label{eq:crystal-gauss-prob-1}
-\end{eqnarray}
+  \end{aligned}
+\end{equation}
 where we used that
 $\boldsymbol{g}=L^{-1}(\boldsymbol{t}-\boldsymbol{t}_0)$ so that
 $d\boldsymbol{g} = \frac{1}{\det L}d\boldsymbol{t}$. This is just the
@@ -379,30 +381,32 @@ $$
 For small mosaic we may approximate the sphere with the tangential
 plane, and we thus get from~(\ref{eq:crystal-cross-section})
 and~(\ref{eq:crystal-gauss-2}):
-\begin{eqnarray}
+\begin{equation}
   \label{eq:crystal-coh-cs}
-  \sigma_{\textrm{coh},\boldsymbol{\tau}} &=& \int N\frac{(2\pi)^3}{V_0}
+  \begin{aligned}
+  \sigma_{\textrm{coh},\boldsymbol{\tau}} &=  \int N\frac{(2\pi)^3}{V_0}
         G(\boldsymbol{\tau} - \boldsymbol{\kappa})
-         |F_{\boldsymbol{\tau}}|^2 d\Omega \\
-  &=& \frac{1}{\boldsymbol{k}_i^2} N\frac{(2\pi)^3}{V_0}
+         |F_{\boldsymbol{\tau}}|^2 d\Omega  \\
+  &=  \frac{1}{\boldsymbol{k}_i^2} N\frac{(2\pi)^3}{V_0}
          \frac{1}{(\sqrt{2\pi})^3}\frac{e^{-\alpha}}{\sigma_1\sigma_2\sigma_3}
          |F_{\boldsymbol{\tau}}|^2
          \int e^{-(\boldsymbol{t}-\boldsymbol{t}_0)^\textrm{T} M
          (\boldsymbol{t}-\boldsymbol{t}_0)}
-         d\boldsymbol{t} \\
-  &=& \det(L) \frac{1}{\boldsymbol{k}_i^2} N\frac{(2\pi)^{3/2}}{V_0}
+         d\boldsymbol{t}  \\
+  &=  \det(L) \frac{1}{\boldsymbol{k}_i^2} N\frac{(2\pi)^{3/2}}{V_0}
          \frac{e^{-\alpha}}{\sigma_1\sigma_2\sigma_3}
          |F_{\boldsymbol{\tau}}|^2
          \int e^{-\frac{1}{2}\boldsymbol{g}^\textrm{T}\boldsymbol{g}}
-         d\boldsymbol{g} \\
-  &=& 2\pi\det(L) \frac{1}{\boldsymbol{k}_i^2} N\frac{(2\pi)^{3/2}}{V_0}
+         d\boldsymbol{g}  \\
+  &=  2\pi\det(L) \frac{1}{\boldsymbol{k}_i^2} N\frac{(2\pi)^{3/2}}{V_0}
          \frac{e^{-\alpha}}{\sigma_1\sigma_2\sigma_3}
-         |F_{\boldsymbol{\tau}}|^2 \\
-  &=& \frac{\det(L)}{\boldsymbol{k}_i^2} N\frac{(2\pi)^{5/2}}{V_0}
+         |F_{\boldsymbol{\tau}}|^2  \\
+  &=  \frac{\det(L)}{\boldsymbol{k}_i^2} N\frac{(2\pi)^{5/2}}{V_0}
          \frac{e^{-\alpha}}{\sigma_1\sigma_2\sigma_3}
-         |F_{\boldsymbol{\tau}}|^2 \\
-  \sigma_\textrm{coh} &=& \sum_{\boldsymbol{\tau}} \sigma_{\textrm{coh},\boldsymbol{\tau}}
-\end{eqnarray}
+         |F_{\boldsymbol{\tau}}|^2  \\
+  \sigma_\textrm{coh} &=  \sum_{\boldsymbol{\tau}} \sigma_{\textrm{coh},\boldsymbol{\tau}}
+  \end{aligned}
+\end{equation}
 As before, we let $\boldsymbol{g} = L^{-1}(\boldsymbol{t} -
 \boldsymbol{t}_0)$ so that $d\boldsymbol{t} = \det(L) d\boldsymbol{g}$.
 

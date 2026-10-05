@@ -16,6 +16,10 @@ Simple test instrument for the SNS_source component.
 Refer to SNS <A href="http://neutrons.ornl.gov/instrument_systems/components/moderators.shtml">Source files.</A>
 ```
 
+## Examples
+
+- **Test: -y Detector: det_I=8.51297e+10**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -23,6 +23,10 @@ Here it is used as a diffractometer for an alignment study. The
 sample is a vanadium cylinder and there is no analyzer.
 ```
 
+## Examples
+
+- **Test: PHM=-37.077 Detector: sng_I=1.95173e-09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

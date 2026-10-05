@@ -24,6 +24,10 @@ and the monochromatic beam tomography.
 The sample handles absorption, with edge contrast, as well as fluorescence.
 ```
 
+## Examples
+
+- **Test: -n 1e6 E0=25 sample_material="Ag0.6In0.2Sn0.2" Detector: mon_spl_xy_I=7.61e+13**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

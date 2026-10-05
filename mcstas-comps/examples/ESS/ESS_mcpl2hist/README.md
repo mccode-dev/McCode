@@ -19,6 +19,10 @@ Generates energy, wavelength, position, veloicty and time histograms via Monitor
 Assumes access to binary MCPL datasets in . named [sector][beamline].mcpl.gz, i.e. W8.mcpl.gz.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

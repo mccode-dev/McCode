@@ -16,6 +16,10 @@ This a a skeleton version of the FemtoMAX short-pulse facility at MAXIV
 N.b. This model is out of date with the present day instrumentation of FemtoMAX.
 ```
 
+## Examples
+
+- **Test: DXUS=1e-2 Detector: EXAFS_I=2.74995e-13**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -28,8 +32,8 @@ Parameters in **boldface** are required; the others are optional.
 | MLMONO |  | Flag enabling the mulitlayer monochromator. | 1 |
 | U2SRC |  | Flag enabling wide source model. | 1 |
 | U3SRC |  | Flag enabling the narrow source model. Overrides U2SRC. | 0 |
-| RX |  | X-rotation of the sample goniometer. | 0 |
-| RY |  | Y-rotation of the sample goniometer. | 0 |
+| RX | deg | X-rotation of the sample goniometer. | 0 |
+| RY | deg | Y-rotation of the sample goniometer. | 0 |
 
 ## Links
 

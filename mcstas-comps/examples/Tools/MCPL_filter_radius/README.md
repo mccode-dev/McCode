@@ -16,6 +16,10 @@ Example: Split an MCPL file at a radius of 2.5 m from the origin
 mcrun MCPL_filter_radius MCPLfile=my.mcpl.gz radius=2.5
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

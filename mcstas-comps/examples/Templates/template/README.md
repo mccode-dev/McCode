@@ -24,13 +24,17 @@ once your instrument is written and functional:
 sensible parameter set.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| Par1 |  |  | 1 |
+| Par1 | 1 | Example parameter, replace with your own | 1 |
 
 ## Links
 

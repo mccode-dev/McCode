@@ -18,6 +18,10 @@ Second check is that when the polarisation is hardcoded to (0, 1, 0)
 after Incoherent it is (0, -1/3, 0).
 ```
 
+## Examples
+
+- **Test: Test_Pol_Set.instr Detector: polMonitor3_I=-0.333333**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

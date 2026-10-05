@@ -25,6 +25,10 @@ disk chopper, it is able to run in repetition-rate multiplication (RRM) mode, al
 simultaneously measure with several incident energies.
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

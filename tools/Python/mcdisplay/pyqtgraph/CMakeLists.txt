@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17.0)
+cmake_minimum_required(VERSION 3.19)
 cmake_policy(VERSION 3.17.0)
 
 # This will install McStas or McXtrace mc/display-pyqtgraph
@@ -76,9 +76,6 @@ set(WORK "${PROJECT_BINARY_DIR}/work")
 # Configure fallback script
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdisplay.in" "${WORK}/${P}display" @ONLY)
 
-# Configure doc
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mcdisplay-pyqtgraph.md.in" "${WORK}/${P}display-pyqtgraph.md" @ONLY)
-
 # Main script, including rename mc/mxdisplay
 install(
   PROGRAMS "${PROJECT_SOURCE_DIR}/mcdisplay.py"
@@ -112,16 +109,5 @@ if(NOT WINDOWS)
     DESTINATION ${DEST_BINDIR}
     RENAME "${P}display-pyqtgraph"
     )
-  
-  install(
-    FILES "${WORK}/${P}display-pyqtgraph.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-  )
-  
-  install(
-    FILES "${WORK}/${P}display-pyqtgraph.md"
-    DESTINATION "${DEST_DATADIR_DOC}"
-    RENAME "${P}display.md"
-  )
   
 endif()

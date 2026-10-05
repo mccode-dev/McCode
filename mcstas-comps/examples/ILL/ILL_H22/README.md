@@ -15,6 +15,10 @@
 The H22 curved thermal guide at the ILL feeding D1A/D1B, SALSA and VIVALDI
 ```
 
+## Examples
+
+- **Test: m=2 mip=0 Detector: GuideOut_Phic_I=2.75e+09**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

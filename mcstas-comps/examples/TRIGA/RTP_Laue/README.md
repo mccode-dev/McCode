@@ -16,6 +16,10 @@ This is a radiography installed on a radial beam port 3 at the Reactor TRIGA
 PUSPATI (RTP). It uses a thermal beam port.
 ```
 
+## Examples
+
+- **Test: -y Detector: image_plate_scattered_I=179284**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -15,13 +15,17 @@
 A test instrument for testing Isotropic_Sqw output on a spherical monitor.
 ```
 
+## Examples
+
+- **Test: lambda=1 Detector: Sph_mon_I=1.21087e+08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| lambda | Angs | Wavelength emitted from source, 1% wl-interval around. | 1 |
+| lambda | AA | Wavelength emitted from source, 1% wl-interval around. | 1 |
 | L1 | m | Source-sample distance | 10 |
 | directbeam | 1 | Suppress direct beam or not | 0 |
 | sqw_coh | str | Sqw material definition | "Rb_liq_tot.sqw" |

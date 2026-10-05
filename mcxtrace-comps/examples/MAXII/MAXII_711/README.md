@@ -16,6 +16,10 @@ A simple beamline setup consisting of a single focusing mirror,
 a monochromator, and a four-circle goniometer at the sample stage.
 ```
 
+## Examples
+
+- **Test: MAXII_711.instr R=-100 tth=28 dphi=30 -n1e7 Detector: mono_exit_psd_I=5.1609e-06**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

@@ -1042,8 +1042,12 @@ int cogen_comp_setpos(
     }
     if (par->type==instr_type_string) { // value and defval "come with quotes" or are symbolic
       coutf("        mccomp_param_nexus(nxhandle,\"%s%d_%s\", \"%s\", %s, %s, \"%s\");", pref, comp->index-1, comp->name, par->id, defval, val, instr_formal_type_names_real[par->type]);
-    } else {                            // both need quoting
-      coutf("        mccomp_param_nexus(nxhandle,\"%s%d_%s\", \"%s\", \"%s\", \"%s\",\"%s\");", pref, comp->index-1, comp->name, par->id, defval,val, instr_formal_type_names_real[par->type]);
+    } else {                            // both need quoting (and escaping, e.g. strcmp(mcformat,"NeXus"))
+      char *quoted_defval = str_quote(defval);
+      char *quoted_val = str_quote(val);
+      coutf("        mccomp_param_nexus(nxhandle,\"%s%d_%s\", \"%s\", \"%s\", \"%s\",\"%s\");", pref, comp->index-1, comp->name, par->id, quoted_defval, quoted_val, instr_formal_type_names_real[par->type]);
+      memfree(quoted_defval);
+      memfree(quoted_val);
     }
   }
   list_iterate_end(piter);
@@ -1863,9 +1867,14 @@ int cogen_raytrace(struct instr_def *instr)
                         "Split_%s_counter< SplitS_%s; "
                         "Split_%s_counter++) {",
       comp->name, comp->name, comp->name, comp->name);
-      coutf("      randstate_t randbackup = *_particle->randstate;");
+      coutf("      randstate_t randbackup[RANDSTATE_LEN];");
+      coutf("      for (int Split_%s_randstate_idx = 0; Split_%s_randstate_idx < RANDSTATE_LEN; Split_%s_randstate_idx++) {", comp->name, comp->name, comp->name);
+      coutf("        randbackup[Split_%s_randstate_idx] = _particle->randstate[Split_%s_randstate_idx];", comp->name, comp->name);
+      coutf("      }");
       coutf("      *_particle=Split_%s_particle;", comp->name); // restore particle for SPLIT loop
-      coutf("      *_particle->randstate = randbackup;");
+      coutf("      for (int Split_%s_randstate_idx = 0; Split_%s_randstate_idx < RANDSTATE_LEN; Split_%s_randstate_idx++) {", comp->name, comp->name, comp->name);
+      coutf("        _particle->randstate[Split_%s_randstate_idx] = randbackup[Split_%s_randstate_idx];", comp->name, comp->name);
+      coutf("      }");
       // Experimentally taking out the following line of code following discussions with Milan Klausz:
       // It seems that especially for the _uid=0 particle we get strange repetitions in the rng.
       // coutf("      srandom(_hash(_particle->_uid* %lu *(1+Split_%s_counter)));", comp->index, comp->name);
@@ -2423,8 +2432,10 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#endif");
   cout("#if RNG_ALG == _RNG_ALG_MT // MT ");
   cout("#define randstate_t uint32_t");
+  cout("#define RANDSTATE_LEN 1");
   cout("#elif RNG_ALG == _RNG_ALG_KISS  // KISS");
   cout("#define randstate_t uint64_t");
+  cout("#define RANDSTATE_LEN 7");
   cout("#endif");
   cout("");
 

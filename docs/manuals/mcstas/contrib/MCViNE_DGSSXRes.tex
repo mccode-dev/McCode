@@ -1,0 +1,58 @@
+\section{The \texttt{MCViNE\_DGSSXRes} McStas Component}
+Resolution kernel for direct-geometry single-crystal spectrometers (aims at a pixel and TOF window).
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE DGSSXResKernel; MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/DGSSXResKernel.cc)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+Scatters towards a target disk (position target\_x/y/z or target\_index, radius focus\_r) and picks the arrival time at the target uniformly in tof\_at\_target +/- dtof/2 (absolute neutron time, s). The final speed follows from the flight distance. Weight: solid\_angle/4pi * dtof * dE/dt * vf/vi, as in MCViNE. Record ki/kf with monitors to build the resolution ellipsoid (similar in purpose to McStas' TOFRes\_sample, with MCViNE's weighting).
+
+\textbf{Transport} (same as MCViNE HomogeneousNeutronScatterer): on the first passage the neutron is forced to scatter at a uniformly chosen depth, weighted by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient; on exit it is attenuated by exp(-(mu+sigma)L\_out). With order\textgreater{}1 further scatterings are sampled analogically (truncated exponential). With p\_transmit\textgreater{}0 that fraction of events is kept as the attenuated direct beam. mu(v) = absorption\_coefficient*2200/v. Events for which the kernel cannot scatter (kinematically forbidden) are absorbed.
+
+Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow cylinder (+thickness) or sphere (radius only). All vectors (Q, targets, reciprocal vectors, atom positions) are in the component's local frame.
+
+Uses the shared runtime share/mcvine-lib.h/.c.
+
+Example: MCViNE\_DGSSXRes(target\_index=2, focus\_r=0.0125, tof\_at\_target=0.0052, dtof=1e-5, scattering\_coefficient=10, xwidth=0.01, yheight=0.01, zdepth=0.01)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+target\_x & m & Target position (component frame) x & 0 \\
+target\_y & m & Target position y & 0 \\
+target\_z & m & Target position z & 0 \\
+target\_index & 1 & Relative index of a component to aim at (overrides target\_x/y/z when non-zero) & 0 \\
+focus\_r & m & Radius of the target disk & 0.01 \\
+tof\_at\_target & s & Desired absolute time of arrival at the target & 0.001 \\
+dtof & s & Width of the time window & 1e-5 \\
+absorption\_coefficient & m$^{-1}$ & Absorption coefficient at 2200 m/s (MCViNE convention; scales as 1/v) & 0 \\
+scattering\_coefficient & m$^{-1}$ & Scattering coefficient & 0 \\
+sigma\_abs & barn & Alternative: absorption cross section per unit cell at 2200 m/s (used when Vc\textgreater{}0) & 0 \\
+sigma\_scat & barn & Alternative: scattering cross section per unit cell (used when Vc\textgreater{}0) & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume; when \textgreater{}0, coefficients are computed from sigma\_abs, sigma\_scat & 0 \\
+radius & m & Outer radius of a cylinder (with yheight) or of a sphere (yheight=0) & 0 \\
+xwidth & m & Width of a box sample & 0 \\
+yheight & m & Height of a box or cylinder sample & 0 \\
+zdepth & m & Depth of a box sample & 0 \\
+thickness & m & Wall thickness of a hollow cylinder (0: filled) & 0 \\
+pack & 1 & Packing factor (scales absorption and scattering coefficients) & 1 \\
+p\_transmit & 1 & Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter) & 0 \\
+order & 1 & Maximum number of scattering events per neutron (1: single scattering) & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_DGSSXRes.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_DGSSXRes_static.tex}{\input{contrib/MCViNE_DGSSXRes_static.tex}}{}

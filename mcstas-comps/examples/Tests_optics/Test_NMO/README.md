@@ -1,6 +1,7 @@
 # The `Test_NMO` Instrument
 
-*McStas: Implements a test instrument for the component FlatEllipse_finite_mirror.*
+*McStas: Implements a test instrument for the component NMO
+(an alias of FlatEllipse_finite_mirror).*
 
 ## Identification
 
@@ -12,9 +13,13 @@
 ## Description
 
 ```text
-Implements a test instrument for the component FlatEllipse_finite_mirror,
+Implements a test instrument for the NMO component ,
 implementing Nested Mirror Optic (NMO) as suggested by B&ouml;ni et al.
 ```
+
+## Examples
+
+
 
 ## Input parameters
 

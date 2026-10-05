@@ -1,0 +1,142 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_SQE_process
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE SQEkernel / SQE_EnergyFocusing_Kernel (+ SQE_fromexpression); MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/SQEkernel.cc, SQE_EnergyFocusing_Kernel.cc)
+*
+* Union process: Isotropic S(Q,E) scatterer from an analytic expression or grid, with optional final-energy focusing.
+*
+* %D
+* Isotropic (powder / liquid) S(|Q|,E). E is sampled uniformly in [Emin, min(Ei,Emax)]
+* and |Q| uniformly in the kinematically allowed part of [Qmin,Qmax]. S(Q,E) is an
+* expression in Q [AA^-1] and E [meV], or a grid file in the Isotropic_Sqw format
+* (first numeric row: q values; second: energy values; then nq rows of nw values),
+* bilinearly interpolated. For grid data McStas' Isotropic_Sqw already exists; the
+* new parts are the analytic S(Q,E) and the energy focusing: when dEf>0, E is
+* restricted so that Ef lies in [Ef-dEf, Ef+dEf] (MCViNE SQE_EnergyFocusing_Kernel).
+* 
+* Functions are given as strings evaluated at run time (MCViNE uses fparser):
+* + - * / ^ (or **), % , comparisons, && ||, if(c,a,b), sin cos tan asin acos
+* atan sinh cosh tanh exp log log10 log2 sqrt abs floor ceil int sign cbrt,
+* pow atan2 min max hypot fmod, constants pi and e.
+*
+* <b>Union process.</b> Part of the Union components: define this process, collect it
+* into a material with Union_make_material (absorption is set there with
+* my_absorption, the absorption inverse penetration depth at 2200 m/s), assign
+* the material to Union_box/Union_cylinder/Union_sphere/Union_mesh geometries,
+* and add a Union_master after them. Geometry, attenuation and multiple
+* scattering are handled by Union_master; this component provides the MCViNE
+* kernel: the scattering coefficient and the final-state sampling (weight).
+* Isotropic process (powder/liquid-like); rotation is irrelevant.
+* The kernel code is shared with the standalone component MCViNE_SQE (mcvine-lib.c).
+* Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type
+* MCViNE is declared in share/union-lib.h and registered with Union_master in
+* share/mcvine-union-lib.h.
+*
+* Example: MCViNE_SQE_process(SQE="exp(-(E-10)^2/2)*Q^2*exp(-Q^2/4)", Qmin=0, Qmax=10, Emin=-5, Emax=30, sigma_scat=5, Vc=50)
+*
+* %P
+* INPUT PARAMETERS:
+* SQE: [str] S(Q,E) expression (ignored if SQE_file given)
+* SQE_file: [str] S(q,w) grid file (Isotropic_Sqw layout)
+* Qmin: [AA^-1] Lower Q bound
+* Qmax: [AA^-1] Upper Q bound
+* Emin: [meV] Lower energy transfer bound
+* Emax: [meV] Upper energy transfer bound
+* Ef: [meV] Final-energy focusing centre (used when dEf>0)
+* dEf: [meV] Final-energy focusing half range; 0 disables focusing
+* scattering_coefficient: [m^-1] Scattering coefficient (inverse penetration depth for scattering)
+* sigma_scat: [barn] Alternative: scattering cross section per unit cell (used when Vc>0)
+* Vc: [AA^3] Unit cell volume; when >0 the coefficient is sigma_scat/Vc
+* packing_factor: [1] Packing factor (scales the scattering coefficient)
+* interact_fraction: [1] Union: fraction of interactions forced to this process (-1: by cross section)
+* init: [string] Deprecated and unused, accepted like on the other Union components (see Union_init).
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_SQE_process
+
+SETTING PARAMETERS (string SQE="1", string SQE_file=0, Qmin=0, Qmax=10, Emin=-10, Emax=10, Ef=0, dEf=0, scattering_coefficient=0, sigma_scat=0, Vc=0, packing_factor=1, interact_fraction=-1, string init="")
+
+NOACC
+
+SHARE
+%{
+  %include "union-lib"
+  %include "read_table-lib"
+  %include "mcvine-lib"
+  %include "mcvine-union-lib"
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  mcvine_kernel_SQE kernel;
+  struct MCViNE_physics_storage_struct storage;
+  struct scattering_process_struct This_process;
+  struct global_process_element_struct global_process_element;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct* union_state_p = union_acquire ();
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  const char* vars[] = { "Q", "E" };
+  if (mcvine_func_setup (&kernel.m_S, SQE, SQE_file, 3, 2, vars, NAME_CURRENT_COMP))
+    exit (-1);
+  if (SQE_file && SQE_file[0]) {
+    if (Qmin < kernel.m_S.g2.x[0])
+      Qmin = kernel.m_S.g2.x[0];
+    if (Qmax > kernel.m_S.g2.x[kernel.m_S.g2.nx - 1])
+      Qmax = kernel.m_S.g2.x[kernel.m_S.g2.nx - 1];
+    if (Emin < kernel.m_S.g2.y[0])
+      Emin = kernel.m_S.g2.y[0];
+    if (Emax > kernel.m_S.g2.y[kernel.m_S.g2.ny - 1])
+      Emax = kernel.m_S.g2.y[kernel.m_S.g2.ny - 1];
+  }
+  kernel.m_Qmin = Qmin;
+  kernel.m_Qmax = Qmax;
+  kernel.m_Emin = Emin;
+  kernel.m_Emax = Emax;
+  kernel.m_Ef = Ef;
+  kernel.m_dEf = dEf;
+  kernel.m_focusing = dEf > 0;
+
+  if (Vc > 0)
+    sig = mcvine_xs2coeff (sigma_scat, Vc);
+  else
+    sig = scattering_coefficient;
+  if (!(sig > 0)) {
+    fprintf (stderr, "%s: give scattering_coefficient>0 (or sigma_scat>0 and Vc>0)\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  storage.m_kernel = &kernel;
+  storage.m_S = mcvine_S_SQE;
+  storage.m_my_scattering = sig * packing_factor;
+  storage.m_kind = MCVINE_UNION_GENERIC;
+  mcvine_union_register (&union_state_p->u_process_list, &This_process, &global_process_element, &storage, NAME_CURRENT_COMP, INDEX_CURRENT_COMP, interact_fraction, 0, ROT_A_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  // the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
+%}
+
+END

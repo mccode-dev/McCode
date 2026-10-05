@@ -1,0 +1,129 @@
+\section{The \texttt{FluoPowder} McXtrace Component}
+Release:    McXtrace 3.5
+
+Sample model handling absorption, fluorescence, Compton, Rayleigh scattering and powder diffraction.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Emmanuel Farhi (emmanuel.farhi.synchrotron-soleil.fr)
+  \item \textbf{Origin:} Synchrotron SOLEIL
+  \item \textbf{Date:} April 2025
+\end{itemize}
+
+\subsection*{Description}
+Sample that models multiple photon-matter interactions:
+
+\begin{verbatim}
+- absorption          (photon excites an electron and creates a hole)
+- fluorescence        (excited electrons emit light while falling into lower states)
+\end{verbatim}
+
+- Compton scattering (inelastic, incoherent)
+
+\begin{verbatim}
+- Rayleigh scattering (elastic,   coherent)
+- powder diffraction  (elastic,   coherent)
+\end{verbatim}
+
+The 'material' specification is given as a chemical formulae, e.g. "LaB6". It may also be given as a file name (CIF/LAU/LAZ/FullProf format) in which case the formulae is guessed (but may be approximative), and the powder diffraction is computed, following same options as the \textbf{PowderN} sample component. The fluorescence is handled for atoms from Z=5 to Z=90.
+
+By setting the 'order' to 1, the absorption along the scattered path is handled. A higher 'order' will handle multiple scattering events, and final absorption. For instance, a value order\textgreater{}=2 handles e.g. fluorescence iterative cascades in the material. Leaving 'order=0' handles the single scattering only.
+
+Example: FluoPowder(material="LaB6.cif", xwidth=0.001,yheight=0.001,zdepth=0.0001, p\_interact=0.99, target\_index=1, focus\_xw=0.0005, focus\_yh=0.0005)
+
+\textbf{Sample shape:} Sample shape may be a cylinder, a sphere, a box or any other shape
+
+\begin{verbatim}
+box/plate:       xwidth x yheight x zdepth (thickness=0)
+\end{verbatim}
+
+hollow box/plate:xwidth x yheight x zdepth and thickness\textgreater{}0
+
+\begin{verbatim}
+cylinder:        radius x yheight (thickness=0)
+\end{verbatim}
+
+hollow cylinder: radius x yheight and thickness\textgreater{}0
+
+\begin{verbatim}
+sphere:          radius (yheight=0 thickness=0)
+hollow sphere:   radius and thickness>0 (yheight=0)
+any shape:       geometry=OFF file
+\end{verbatim}
+
+The complex geometry option handles any closed non-convex polyhedra. It computes the intersection points of the photon ray with the object transparently, so that it can be used like a regular sample object. It supports the OFF, PLY and NOFF file format but not COFF (colored faces). Such files may be generated from XYZ data using: qhull \textless{} coordinates.xyz Qx Qv Tv o \textgreater{} geomview.off or powercrust coordinates.xyz and viewed with geomview or java -jar jroff.jar (see below). The default size of the object depends of the OFF file data, but its bounding box may be resized using xwidth,yheight and zdepth.
+
+\textbf{Concentric components:} This component has the ability to contain other components when used in hollow cylinder geometry (namely sample environment, e.g. cryostat and furnace structure). Such component 'shells' should be split into input and output side surrounding the 'inside' components. First part must then use 'concentric=1' flag to enter the inside part. The component itself must be repeated to mark the end of the concentric zone. The number of concentric shells and number of components inside is not limited.
+
+COMPONENT F\_in = FluoPowder(material="Al", concentric=1, ...) AT (0,0,0) RELATIVE sample\_position
+
+COMPONENT something\_inside ... // e.g. the sample itself or other materials
+
+COMPONENT F\_out = COPY(F\_in)(concentric=0) AT (0,0,0) RELATIVE sample\_position
+
+\textbf{Enhancing computation efficiency:} An important option to enhance statistics is to set 'p\_interact' to, say, 30 percent (0.3) in order to force a fraction of the beam to scatter. This will result on a larger number of scattered events, retaining intensity.
+
+In addition, it may be desirable to define a 'target' for the fluorescence processes via e.g. the 'target\_index' and the 'focus\_xw / focus\_yh' options. This target should e.g. be the SDD area. The powder scattering can be focused along an horizontal tore via the 'd\_phi' and 'tth\_sign' options. To get a vertical tore, rotate the sample by 90 deg around Z.
+
+This sample component can advantageously benefit from the SPLIT feature, e.g. SPLIT COMPONENT sample = FluoPowder(...)
+
+The fluorescence is computed via the XRayLib (apt install libxrl-dev) https://github.com/tschoonj/xraylib.
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+geometry & str & Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust. & 0 \\
+radius & m & Outer radius of sample in (x,z) plane. cylinder/sphere. & 0 \\
+thickness & m & Thickness of hollow sample Negative value extends the hollow volume outside of the box/cylinder. & 0 \\
+xwidth & m & Width for a box sample shape. & 0 \\
+yheight & m & Height of sample in vertical direction for box/cylinder shapes. & 0 \\
+zdepth & m & Depth for a box sample shape. & 0 \\
+concentric & 1 & Indicate that this component has a hollow geometry and may contain other components. It should then be duplicated after the inside part (only for box, cylinder, sphere). & 0 \\
+material & str & A CIF/LAZ/LAU file e.g. "LaB6.cif" to handle diffraction or chemical formulae, e.g. "Pb2SnO4" (no diffraction). & "LaB6.cif" \\
+packing\_factor & 1 & How dense is the material compared to bulk 0-1. & 0 \\
+density & g/cm$^{3}$ & Density of material. V\_rho=density/weight/1e24*N\_A at/\AA{}\textasciicircum{}3. & 0 \\
+weight & g/mol & Atomic/molecular weight of material. & 0 \\
+p\_interact & 1 & Force a given fraction of the beam to scatter, keeping intensity right, to enhance small signals (-1 inactivate). & 0 \\
+target\_x & m & Position of target to focus at, along X (for fluorescence). & 0 \\
+target\_y & m & Position of target to focus at, along Y (for fluorescence). & 0 \\
+target\_z & m & Position of target to focus at, along Z (for fluorescence). & 0 \\
+focus\_r & m & Radius of disk containing target. Use 0 for full space (for fluorescence). & 0 \\
+focus\_xw & m & Horiz. dimension of a rectangular area (for fluorescence). & 0 \\
+focus\_yh & m & Vert.  dimension of a rectangular area (for fluorescence). & 0 \\
+focus\_aw & deg & Horiz. angular dimension of a rectangular area (for fluorescence). & 0 \\
+focus\_ah & deg & Vert.  angular dimension of a rectangular area (for fluorescence). & 0 \\
+target\_index & 1 & Relative index of component to focus at, e.g. next is +1 (for fluorescence). & 0 \\
+flag\_compton & 1 & When 0, the Compton  scattering is ignored. & 1 \\
+flag\_rayleigh & 1 & When 0, the Rayleigh scattering is ignored. & 1 \\
+flag\_lorentzian & 1 & When 1, the fluorescence line shapes are assumed to be Lorentzian, else Gaussian. & 0 \\
+flag\_powder & 1 & When 0, the powder diffraction is ignored. & 1 \\
+flag\_kissel & 1 & When 1 (slower), handle M-lines XRF from Kissel for Z\textgreater{}=52 Te (else only K and L-lines). & 0 \\
+powder\_refl & str & A CIF/LAZ/LAU reflection file as for PowderN. When not given, 'material' is used. Specify it when 'material' is a chemical formula. & "" \\
+powder\_format & \{\} & List of structure file column indexes. See the PowderN component. & \{0,0,0,0,0,0,0,0\} \\
+Vc & \AA{}$^{3}$ & Volume of unit cell=nb atoms per cell/density of atoms. & 0 \\
+delta\_d\_d & \AA{} & Global relative difraction Delta\_d/d spreading when the 'w' column is not available, e.g. 1e-4 to 1e-3. Use 0 if ideal. & 0 \\
+DW & 1 & Global difraction Debye-Waller factor when the 'DW' column is not available. Use 1 if included in F2. & 0 \\
+d\_phi & deg & Angle corresponding to the difraction vertical angular range to focus to, e.g. detector height. 0 for no focusing. You may as well define focus\_ah or focus\_yh and target. & 0 \\
+nb\_atoms & 1 & Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell. & 1 \\
+barns & 1 & Flag to indicate if |F|\textasciicircum{}2 from 'material' is in barns or fm\textasciicircum{}2, (barns=1 for laz/cif, barns=0 for lau type files). & 1 \\
+tth\_sign & 1 & Sign of the diffraction angle. If 0, the sign is chosen randomly (left and right). & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{FluoPowder.comp}.
+  \item The XRayLib https://github.com/tschoonj/xraylib http://dx.doi.org/10.1016/j.sab.2011.09.011
+  \item Fluorescence https://en.wikipedia.org/wiki/Fluorescence
+  \item Rayleigh https://en.wikipedia.org/wiki/Rayleigh\_scattering
+  \item Compton https://en.wikipedia.org/wiki/Compton\_scattering
+  \item X-ray absorption edges http://skuld.bmsc.washington.edu/scatter/AS\_periodic.html
+  \item X-ray fluorescence spectra http://www.xrfresearch.com/xrf-spectra/
+  \item X-ray edges and fluo lines https://physics.nist.gov/PhysRefData/XrayTrans/Html/search.html
+\end{itemize}
+\IfFileExists{samples/FluoPowder_static.tex}{\input{samples/FluoPowder_static.tex}}{}

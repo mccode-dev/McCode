@@ -19,15 +19,15 @@ if not os.name == 'nt':
 else:
     import mslex as lexer
 
+# qtpy picks the first Qt binding it finds, trying PyQt5 before PyQt6. The
+# QScintilla editor (conda-forge qscintilla2) is only built for PyQt6, so
+# default to PyQt6 unless the user has explicitly chosen a binding via QT_API.
+os.environ.setdefault('QT_API', 'pyqt6')
+
 from qtpy import QtGui, QtWidgets, QtCore
 from qtpy.QtWidgets import QApplication, QWidget
 from qtpy.QtGui import QFont, QFontDatabase
 import qtpy as PyQt
-
-try:
-    from qtpy import Qsci
-except ImportError:
-    Qsci = None
 
 from viewclasses import McView
 from datetime import datetime
@@ -35,6 +35,16 @@ from datetime import datetime
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import mccode_config, utils
 from mccodelib.utils import ComponentParser, get_instr_site, get_instr_comp_files, save_instrfile, get_file_contents, make_executable
+
+try:
+    from qtpy import Qsci
+except ImportError as e:
+    Qsci = None
+    print("%s WARNING: QScintilla (Qsci) is not available for the %s binding "
+          "(QT_API=%s): %s\n"
+          "  The built-in code editor is disabled. Install qscintilla2 for PyQt6 "
+          "and/or set QT_API=pyqt6." % (mccode_config.configuration["MCRUN"][:2] + "gui",PyQt.API_NAME, os.environ.get('QT_API'), e),
+          file=sys.stderr)
 
 ''' Message emitter
 Status and message log and signalling.
@@ -215,7 +225,7 @@ class McGuiState(QtCore.QObject):
         return ((self.__instrFile != "") and (not self.isSimRunning()))
     
     __thread_exc_signal = QtCore.Signal(str)
-    def compile(self, mpi=False):
+    def compile(self, mpi=True):
         # using Qt in-built cross-thread signaling
         self.__thread_exc_signal.connect(handleExceptionMsg)
         

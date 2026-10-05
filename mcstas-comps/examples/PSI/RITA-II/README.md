@@ -49,6 +49,10 @@ mcrun RITA-II.instr -n1e6 L0=3.418 BPL=0.97 BPH=1.03 EI=7 EF=5 SAMPLE=4 REP=10 Q
 Example: BPL=0.97 BPH=1.03 EI=5 EN=0 COLL_MS=40 SAMPLE=1 OUTFILTER=0 REP=10 Detector: psd_detector_I=216.427
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
@@ -56,7 +60,7 @@ Parameters in **boldface** are required; the others are optional.
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
 | ITAR | mA | Relative neutron yield from the spallation target. Value relative to 2009 | 1.0 |
-| L0 | Angs | Centre of generated wavelength distribution from source | 4.045 |
+| L0 | AA | Centre of generated wavelength distribution from source | 4.045 |
 | BPL |  | Band Pass Low factor, multiplied on source wavelength L0 to allow neutrons with wavelengths with lambda {BPL*L0,BPH*L0} to be traced from the source. | 0.97 |
 | BPH |  | Band Pass High factor, multiplied on source wavelength L0 to allow neutrons with wavelengths with lambda {BPL*L0,BPH*L0} to be traced from the source. | 1.03 |
 | MONO_N | 1 | Order of reflection used on mono | 1 |
@@ -66,16 +70,16 @@ Parameters in **boldface** are required; the others are optional.
 | EI | meV | Incoming neutron energy. Also used to set range of energy monitors | 0 |
 | EF | meV | Outgoing neutron energy. Also used to set range of energy monitors | 0 |
 | EN | meV | Energy transferred in crystal | 0 |
-| SM | 1 |  | 1 |
+| SM | 1 | Scattering sense of beam from Monochromator | 1 |
 | SS | 1 | Scattering configuration signs. 'W' is SM=1,SS=-1,SA=1 | -1 |
-| SA | 1 |  | 1 |
+| SA | 1 | Scattering sense of beam from Analyzer | 1 |
 | QH | rlu | Measurement QH position in crystal | 0 |
 | QK | rlu | Measurement QK position in crystal | 0 |
 | QL | rlu | Measurement QL position in crystal | 0 |
-| QM | Angs-1 | Wavevector transferred in sample, use QM=0 if (QH,QK,QL) is specified | 1.8051 |
-| AS | Angs | Sample lattice parameter A | 4.95 |
-| BS | Angs | Sample lattice parameter B | 4.95 |
-| CS | Angs | Sample lattice parameter C | 4.95 |
+| QM | AA^-1 | Wavevector transferred in sample, use QM=0 if (QH,QK,QL) is specified | 1.8051 |
+| AS | AA | Sample lattice parameter A | 4.95 |
+| BS | AA | Sample lattice parameter B | 4.95 |
+| CS | AA | Sample lattice parameter C | 4.95 |
 | AA | deg | Angle between lattice vectors B,C | 90 |
 | BB | deg | Angle between lattice vectors C,A | 90 |
 | CC | deg | Angle between lattice vectors A,B | 90 |
@@ -96,19 +100,19 @@ Parameters in **boldface** are required; the others are optional.
 | PERSPEX | 1 | Flag to indicate if perspex attenuator is in or out | 0 |
 | SAMPLE | 1 | 1 is incoherent scatterer, 2 is powder, 3 is single crystal. | 1 |
 | SAMPLEFILE | string | Name of samplefile (with reflectionlist etc) | "default" |
-| MOS |  | Isotropic 'mosaicity' of single crystal | 100 |
+| MOS | arcmin | Isotropic 'mosaicity' of single crystal | 100 |
 | DD_D |  | spead of lattice parameter | 1e-3 |
 | SAMPLESIZE | m | Length, height and width of single crystal sample, or radius and height of phonon sample | 0.01 |
 | BARNS | 1 | If set the flag indicates that reflection list structure factors are in units of barns, otherwise fm^2 | 1 |
-| AAX |  |  | -4.95 |
-| AAY |  | Orientation vector of unit cell, single_crystal | 0 |
-| AAZ |  |  | 0 |
-| BBX |  |  | 0 |
-| BBY |  | Orientation vector of unit cell, single_crystal | 0 |
-| BBZ |  |  | 4.95 |
-| CCX |  |  | 0 |
-| CCY |  | Orientation vector of unit cell, single_crystal | 4.95 |
-| CCZ |  |  | 0 |
+| AAX | AA | x-coordinate of unit cell vector a, single_crystal | -4.95 |
+| AAY | AA | y-coordinate of unit cell vector a, single_crystal | 0 |
+| AAZ | AA | z-coordinate of unit cell vector a, single_crystal | 0 |
+| BBX | AA | x-coordinate of unit cell vector b, single_crystal | 0 |
+| BBY | AA | y-coordinate of unit cell vector b, single_crystal | 0 |
+| BBZ | AA | z-coordinate of unit cell vector b, single_crystal | 4.95 |
+| CCX | AA | x-coordinate of unit cell vector c, single_crystal | 0 |
+| CCY | AA | y-coordinate of unit cell vector c, single_crystal | 4.95 |
+| CCZ | AA | z-coordinate of unit cell vector c, single_crystal | 0 |
 | A1 | deg | Monohromator rotation angle | 0 |
 | A2 | deg | Monohromator take-off angle | 0 |
 | A3 | deg | Sample rotation angle | 0 |

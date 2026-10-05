@@ -1,0 +1,369 @@
+/*******************************************************************************
+* Instrument: PUMA beam-line at SOLEIL
+*
+* %Identification
+* Written by: Uxue Saez Fernandez
+* Date: 09/2026
+* Origin: SOLEIL
+* %INSTRUMENT_SITE: SOLEIL
+* 
+* PUMA beam-line at SOLEIL
+*
+* %Description
+* PUMA (an acronym for “Photons Used for Ancient Materials”) 
+* is a hard X-ray beamline optimized for the heritage 
+* science community, though not exclusively reserved for it.
+* Our microbeam terminal station offers a beam size of 
+* 5 (v) x 7 (h) µm², in an energy range from 4 to 22 keV.
+* Available experimental techniques include X-ray 
+* fluorescence spectroscopy (XRF), X-ray absorption 
+* spectroscopy (XANES), X-ray diffraction (XRD), and 
+* X-ray-excited optical luminescence spectroscopy (XEOL)
+*
+* %Example: E0=10 Detector: mon_sample_e_I=4.02276e+11
+*
+* %Parameters
+* E0:         [keV]  Central energy selected by the DCM. Set to 0 to derive it from DCM_theta.
+* dE:         [keV]  Half-width of the energy band emitted by the source. Reset to 3% of E0 if dE/E0 > 0.1.
+* DCM_theta:  [deg]  Bragg angle of the Si DCM. Set to 0 to derive it from E0 and (hkl).
+* HFM_angle:  [mrad] Total deflection angle of the fixed horizontally focusing mirror (HFM, Ir coating) at 21 m. The grazing incidence angle is HFM_angle/2.
+* HFM_focal:  [m]    Image distance of the HFM, used for its bending radius. The source distance is fixed at 21 m.
+* KB_angle:   [mrad] Total deflection angle of each KB mirror (VFM and HFM). The grazing incidence angle is KB_angle/2.
+* KB_coating: [str]  Reflectivity file for the KB mirror coating, e.g. "Rh.txt" (Rh or B4C).
+* h:          [1]    Miller index h of the Si DCM reflection.
+* k:          [1]    Miller index k of the Si DCM reflection.
+* l:          [1]    Miller index l of the Si DCM reflection.
+*
+* %L
+* <put here any reference/HTML link>
+*
+* %End
+*******************************************************************************/
+
+
+DEFINE INSTRUMENT SOLEIL_PUMA(E0=10, dE=0.1, DCM_theta=0,
+HFM_angle = 1.3, HFM_focal = 40, KB_angle=2.9, string KB_coating="Rh.txt",
+int h = 1, int k = 1, int l =1)
+
+DECLARE
+%{
+    double HFM_radius;
+    double DCM_gap;
+    double d_hkl;
+    double KB_VFM_radius;
+    double KB_HFM_radius;
+%}
+
+USERVARS
+%{
+    int scat_before_VFM;
+%}
+
+INITIALIZE
+%{
+    HFM_angle *= RAD2DEG/1000;
+    KB_angle *= RAD2DEG/1000;
+
+    // HFM mirror
+    double p_HFM = 21.0;
+    HFM_radius = 2*p_HFM*HFM_focal / ((p_HFM+HFM_focal) * (sin(HFM_angle*DEG2RAD)));
+
+    // DCM
+    double DM = 5.4309;
+    d_hkl = DM/sqrt((h*h) + (k*k) + (l*l));
+    DCM_gap = 0.02;
+
+    if(!DCM_theta && E0){
+        double sin_theta = 2 * PI/E2K/E0 /2 /d_hkl;
+        if(fabs(sin_theta) < 1)
+            DCM_theta = asin(sin_theta)*RAD2DEG;
+    }
+    else if (DCM_theta && !E0)
+        E0 = 2*PI/E2K / (2*d_hkl*sin(DCM_theta*DEG2RAD));
+
+    if(!DCM_theta || !E0 || dE <= 0)
+        exit(fprintf(stderr, "%s: ERROR: Monochromator can't reflect E0=%g +/- %g [Kev].\n",
+            NAME_INSTRUMENT, E0, dE));
+
+    MPI_MASTER(printf("%s: E0=%g [keV] DCM_theta=%g [deg] (hkl)=(%d %d %d) d=%g [A]\n",
+            NAME_INSTRUMENT, E0, DCM_theta, h,k,l, d_hkl));
+    
+    if (fabs(dE/E0) > 0.1)
+        dE = 3e-2*E0;
+
+    // KB VFM
+    double p_KB_VFM = 62.515, q_KB_VFM = 0.785;
+    KB_VFM_radius = 2*p_KB_VFM*q_KB_VFM / ((p_KB_VFM+q_KB_VFM) * (sin(KB_angle*DEG2RAD)));
+
+    // KB HFM
+    double p_KB_HFM = 62.975, q_KB_HFM = 0.325;
+    KB_HFM_radius = 2*p_KB_HFM*q_KB_HFM / ((p_KB_HFM+q_KB_HFM) * (sin(KB_angle*DEG2RAD)));
+
+%}
+
+TRACE
+
+REMOVABLE COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+/* -------------------------------------------------- Source */
+COMPONENT Source =Wiggler(
+    E0 = E0, dE = dE, Ee = 2.75, Ie = 0.5,
+    B = 1.8, Nper = 20, sigey = 8.5e-6/*21.5e-6*/,
+    sigex = 206.5e-6/*9.3e-6*/, length = 0.1642, K = 1.37,
+    focus_xw = 1.5e-3, focus_yh = 3e-3, dist = 19.4292
+)
+AT (0, 0, 0) RELATIVE origin
+
+/* -------------------------------------------------- Vertical slit 1 */
+COMPONENT slit1 = Slit(
+    xwidth=0.02, 
+    yheight=3e-3//0.04
+)
+AT (0, 0, 19.4292) RELATIVE PREVIOUS
+
+/* -------------------------------------------------- Horizontal slit 2 */
+COMPONENT slit2 = Slit(
+    xwidth=1.5e-3,//0.02,
+    yheight=0.01
+)
+AT (0, 0, (19.433-19.4292)) RELATIVE PREVIOUS
+
+// Monitors
+COMPONENT mon_src_e = E_monitor(
+    Emin=4, Emax=60, nE=100, restore_xray=1
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT mon_src_xy = PSD_monitor(
+    xwidth=0.02, yheight=0.01, nx=100, ny=100, restore_xray=1
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* -------------------------------------------------- Mirror HFM fixed */   
+COMPONENT HFM_location = Arm()
+AT (0, 0, (21 - 19.433)) RELATIVE PREVIOUS
+
+COMPONENT HFM_rotated = Arm()
+AT(0, 0, 0) RELATIVE HFM_location
+ROTATED (0, HFM_angle/2, 0) RELATIVE HFM_location
+
+/*
+COMPONENT mirror_HFM = Mirror_elliptic(
+    x_a = 0, y_b = 0.0377, z_c = 30.5,
+    zdepth = 1.1, xwidth = 0.01, coating = "Ir.txt"
+)
+AT(0, -0.0377, 0)RELATIVE HFM_rotated
+ROTATED (0, 0, 0) RELATIVE HFM_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+*/
+COMPONENT mirror_HFM = Mirror_curved(
+    radius = HFM_radius, length = 1.1, 
+    width = 0.01, coating = "Ir.txt"
+)
+AT(0, 0, 0)RELATIVE HFM_rotated
+ROTATED (0, 0, 0) RELATIVE HFM_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+/*
+COMPONENT mon_HFM_ellip_test_xy = COPY(mon_src_xy)
+AT (0, 0, 0.01) RELATIVE HFM_rotated
+*/
+COMPONENT HFM_out = Arm()
+AT(0, 0, 0) RELATIVE HFM_rotated
+ROTATED (0, HFM_angle/2, 0) RELATIVE HFM_rotated
+
+// Monitor
+COMPONENT mon_HFM_out_xy = PSD_monitor(
+    xwidth=0.02, yheight=0.01, 
+    nx=100, ny=100, restore_xray=1,
+    filename="Position_after_HFM_fixed_mirror"
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* -------------------------------------------------- Monochromator DCM */   
+COMPONENT DCM_location = Arm()
+AT (0, 0, 22.5 - 21) RELATIVE PREVIOUS
+ROTATED (0, 0, 90) RELATIVE PREVIOUS
+
+COMPONENT DCM_xtal1 = Bragg_crystal(
+    length=0.09, width=0.025, 
+    h=h, k=k, l=l, material="Si.txt", V=160.1826
+)
+AT(0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-DCM_theta, 0,  0) RELATIVE PREVIOUS
+/*EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}*/
+
+COMPONENT DCM_xtal1_out= Arm()
+AT(0, 0, 0)RELATIVE PREVIOUS
+ROTATED (-DCM_theta, 0, 0) RELATIVE PREVIOUS
+
+// Monitor
+COMPONENT mon_DCM_xtal1_only_xy = COPY(mon_src_xy)
+AT (0, 0, 0.01) RELATIVE DCM_xtal1_out
+
+COMPONENT DCM_xtal2 = COPY(DCM_xtal1)
+AT(0, DCM_gap, DCM_theta ? DCM_gap/tan(DCM_theta*DEG2RAD) : 0) RELATIVE DCM_xtal1
+ROTATED (DCM_theta, 0, 0)  RELATIVE PREVIOUS
+/*EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}*/
+
+COMPONENT DCM_xtal2_out= Arm()
+AT(0, 0, 0) RELATIVE PREVIOUS
+ROTATED (DCM_theta, 0, 0)  RELATIVE PREVIOUS 
+
+COMPONENT mon_DCM_out_e = COPY(mon_src_e)
+AT (0, 0, 0.5) RELATIVE PREVIOUS
+
+// Monitor
+COMPONENT mon_DCM_out_xy = PSD_monitor(
+    xwidth=0.07, yheight=0.05,
+    nx=100, ny=100, restore_xray=1, 
+    filename="Position_after_Mono_DCM"
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+/* -------------------------------------------------- Vertical slit 3 */
+COMPONENT slit3 = Slit(
+    xwidth=0.02, 
+    yheight=3e-3
+)
+AT (0, 0, (23.535 - 22.5)) RELATIVE PREVIOUS
+
+/* -------------------------------------------------- Horizontal slit 4 */
+COMPONENT slit4 = Slit(
+    xwidth=1.5e-3, 
+    yheight=0.01
+)
+AT (0, 0, (23.658 - 23.535)) RELATIVE PREVIOUS
+
+/* -------------------------------------------------- Horizontal slit  5 */
+COMPONENT slit5 = Slit(
+    xwidth=1.5e-3, 
+    yheight=3e-3
+)
+AT (0, 0, (40 - 23.658)) RELATIVE PREVIOUS
+
+/* -------------------------------------------------- Mirror KB VFM */   
+COMPONENT KB_VFM_location = Arm()
+AT (0, 0, (62.515 - 40)) RELATIVE PREVIOUS
+
+// Monitor
+COMPONENT mon_KB_in_xy = PSD_monitor(
+    xwidth=0.05, yheight=0.03,
+    nx=100, ny=100, restore_xray=1
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT KB_VFM_rotated = Arm()
+AT(0, 0, 0) RELATIVE KB_VFM_location
+ROTATED (KB_angle/2, 0, 0) RELATIVE KB_VFM_location
+
+/*
+COMPONENT mirror_KB_VFM = Mirror_elliptic(
+    x_a = 0, y_b = 0.0203, z_c = 31.65,
+    zdepth = 0.3, xwidth= 0.04,
+    coating = KB_coating // Rh or B4C
+)
+AT(0, 0.0203, 0)RELATIVE KB_VFM_rotated
+ROTATED (0, 0, 0) RELATIVE KB_VFM_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}*/
+
+
+COMPONENT mirror_KB_VFM = Mirror_curved(
+    radius = KB_VFM_radius, length = 0.3,
+    width = 0.04, coating = KB_coating // Rh or B4C
+)
+AT(0, 0, 0)RELATIVE KB_VFM_rotated
+ROTATED (0, 0, 0) RELATIVE KB_VFM_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT KB_VFM_out = Arm()
+AT(0, 0, 0) RELATIVE KB_VFM_rotated
+ROTATED (KB_angle/2, 0, 0) RELATIVE KB_VFM_rotated
+
+// Monitor
+COMPONENT mon_KB_VFM_out_xy = PSD_monitor(
+    xwidth=0.05, yheight=0.03,
+    nx=100, ny =100, restore_xray=1,
+    filename="Position_after_KB_VFM_Mirror"
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* -------------------------------------------------- Mirror KB HFM */   
+COMPONENT KB_HFM_location = Arm()
+AT (0, 0, (62.975 - 62.515)) RELATIVE PREVIOUS
+
+COMPONENT KB_HFM_rotated = Arm()
+AT(0, 0, 0) RELATIVE KB_HFM_location
+ROTATED (0, KB_angle/2, 0) RELATIVE KB_HFM_location
+
+/*
+COMPONENT mirror_KB_HFM = Mirror_elliptic(
+    x_a = 0, y_b = 0.0131, z_c = 31.65,
+    zdepth = 0.3, xwidth = 0.04,
+    coating = KB_coating // Rh or B4C
+)
+AT(0, 0, 0)RELATIVE KB_HFM_rotated
+ROTATED (0, 0, 0) RELATIVE KB_HFM_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+*/
+
+COMPONENT mirror_KB_HFM = Mirror_curved(
+    radius = KB_HFM_radius, length = 0.3,
+    width = 0.04, coating = KB_coating // Rh or B4C
+)
+AT(0, 0, 0)RELATIVE KB_HFM_rotated
+ROTATED (0, 0, 0) RELATIVE KB_HFM_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT KB_HFM_out = Arm()
+AT(0, 0, 0) RELATIVE KB_HFM_rotated
+ROTATED (0, KB_angle/2, 0) RELATIVE KB_HFM_rotated
+
+// Monitor
+COMPONENT mon_KB_HFM_out_xy = PSD_monitor(
+    xwidth=0.01, yheight=0.01,
+    nx=100, ny=100, restore_xray=1
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* -------------------------------------------------- Sample */
+COMPONENT sample_location = Arm()
+AT (-7.88e-5, 0.002366 , (63.3 - 62.975)) RELATIVE PREVIOUS
+
+// Monitors
+COMPONENT mon_sample_xy = PSD_monitor(
+    xwidth=5e-4, 
+    yheight=5e-4, 
+    nx=200, ny=200, restore_xray=1
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT mon_sample_e = E_monitor(
+    Emin=E0-dE*1.1, Emax=E0+dE*1.1, nE=200,
+    filename="Energy_before_sample"
+)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+//Sample
+
+FINALLY
+%{
+%}
+
+END

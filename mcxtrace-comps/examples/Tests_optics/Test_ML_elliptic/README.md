@@ -16,6 +16,12 @@ Tests the correct working of the mulitlyer_elliptic component both using a
 reflectivity file and the kinematical approximation.
 ```
 
+## Examples
+
+- **Test: Test_ML_elliptic.instr S1=1 S2=2 gamma=1.2 fromfile=0 Detector: emon1_I=6.91956e-21**
+- **Test: Test_ML_elliptic.instr S1=1 S2=2 gamma=1.2 fromfile=1 Detector: emon1_I=4.61321e-21**
+- **Test: Test_ML_elliptic.instr S1=1 S2=2 gamma=1.2 fromfile=1 fxw=2e-2 fyh=1e-3 Detector: emon1_I=9.22372e-08**
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.

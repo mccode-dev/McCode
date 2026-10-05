@@ -21,6 +21,10 @@ Example: mcrun Reflectometer.instr -n1e10 directbeam=1,thetasample=0.4,Qmin=0,Qm
 Example: mcrun Reflectometer.instr -n1e10 directbeam=0,thetasample=0.4,Qmin=0,Qmax=0.15 -d reflectedbeam
 ```
 
+## Examples
+
+
+
 ## Input parameters
 
 Parameters in **boldface** are required; the others are optional.
