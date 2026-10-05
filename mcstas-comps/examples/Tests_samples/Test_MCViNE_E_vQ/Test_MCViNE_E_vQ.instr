@@ -1,0 +1,76 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Instrument: Test_MCViNE_E_vQ
+*
+* %Identification
+* Written by: Fahima Islam
+* Date: 2026-09-29
+* Origin: MCViNE (https://github.com/mcvine/mcvine) kernels ported to McStas
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Test of the MCViNE E_vQ kernel (single-crystal dispersion E(Qx,Qy,Qz)), as a Union process and as a standalone sample
+*
+* %Description
+* Monochromatic beam on a small sample described by the MCViNE E_vQ kernel.
+* comp_select=1 uses the Union process MCViNE_E_vQ_process (geometry, absorption
+* and multiple scattering by Union_master); comp_select=2 uses the standalone
+* component MCViNE_E_vQ with the same geometry, absorption and up to 20 orders of
+* scattering. The two should give the same scattered intensity (see the two
+* example lines below).
+*
+* %Example: comp_select=1 Detector: detector_I=1.76977e-07
+* %Example: comp_select=2 Detector: detector_I=1.78797e-07
+*
+* %Parameters
+* comp_select: [1] 1: Union process MCViNE_E_vQ_process in Union_master, 2: standalone MCViNE_E_vQ
+* Ei: [meV] Incident energy
+* sample_rotation: [deg] Rotation of the sample frame about the vertical axis
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_MCViNE_E_vQ(comp_select=1, Ei=60, sample_rotation=0)
+
+DECLARE
+%{
+  double Ttgt;
+%}
+
+INITIALIZE
+%{
+  /* arrival time at a target 3 m from the sample for Ef = 40 meV (used by DGSSXRes) */
+  Ttgt = 5.0 / (SE2V * sqrt (Ei)) + 3.0 / (SE2V * sqrt (40.0));
+%}
+
+TRACE
+
+COMPONENT sample_process = MCViNE_E_vQ_process(E_Q="10+20*(sin(Qx*1.57)^2+sin(Qy*1.57)^2+sin(Qz*1.57)^2)", S_Q="1", Emax=80, nsteps=200, scattering_coefficient=10)
+  AT (0, 0, 0) ABSOLUTE ROTATED (0, sample_rotation, 0) ABSOLUTE
+
+COMPONENT sample_material = Union_make_material(my_absorption=2, process_string="sample_process")
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT origin = Progress_bar()
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.005, dist=5, focus_xw=0.01, focus_yh=0.01, E0=Ei, dE=0.01*Ei)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT sample_union = Union_box(xwidth=0.01, yheight=0.01, zdepth=0.01, priority=1, material_string="sample_material", p_interact=0.9)
+  WHEN (comp_select == 1)
+  AT (0, 0, 5) ABSOLUTE
+
+COMPONENT master = Union_master()
+  WHEN (comp_select == 1)
+  AT (0, 0, 5) ABSOLUTE
+
+COMPONENT sample_standalone = MCViNE_E_vQ(E_Q="10+20*(sin(Qx*1.57)^2+sin(Qy*1.57)^2+sin(Qz*1.57)^2)", S_Q="1", Emax=80, nsteps=200, scattering_coefficient=10, absorption_coefficient=2, order=20, xwidth=0.01, yheight=0.01, zdepth=0.01)
+  WHEN (comp_select == 2)
+  AT (0, 0, 5) ABSOLUTE ROTATED (0, sample_rotation, 0) ABSOLUTE
+
+
+COMPONENT detector = Monitor_nD(options="sphere, abs angle limits=[5 175] bins=85, energy limits=[0 100] bins=100", radius=1.5, restore_neutron=1, filename="angle_E")
+  AT (0, 0, 5) ABSOLUTE
+
+END

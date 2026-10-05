@@ -213,11 +213,12 @@ extensions may be disabled with the \verb+-p+ or \verb+--portable+
 option. With this option, the output is strictly ISO-C compliant, at
 the cost of some slight reduction in capabilities.
 
-The \verb+-t+ or \verb+--trace+ option puts special ``trace'' code in
-the output. This code makes it possible to get a complete trace of the
+By default (\verb+-t+ or \verb+--trace+) the generated code also contains
+special ``trace'' code, which makes it possible to get a complete trace of the
 path of every neutron ray through the instrument, as well as the position
-and orientation of every component. This option is mainly used with the
-\verb+mcdisplay+ front-end as described in section~\ref{s:mcdisplay}.
+and orientation of every component. This is mainly used by the
+\verb+mcdisplay+ front-end as described in section~\ref{s:mcdisplay}; the
+\verb+--no-trace+ option leaves it out.
 
 The code generation options can also be controlled by using preprocessor
 macros in the C compiler, without the need to re-run \mcs.
@@ -231,7 +232,10 @@ option, e.g.
     cc -DMC_TRACE_ENABLED -DMC_PORTABLE ...
 \end{bash}
 Finally, the \verb+--verbose+ option will list the components and libraries being
-included in the instrument.
+included in the instrument. The \verb+--source+ option embeds a copy of the
+instrument source code in the generated executable, and \verb+-v+/\verb+--version+
+(or \verb+--version-num+) prints the full version header (or just the version
+number).
 
 \subsubsection{Alternative code generator: \texttt{mccode-antlr}}
 \label{s:antlr}
@@ -258,6 +262,34 @@ or via the \emph{Save/Edit configuration} dialogue inside \texttt{mcgui}.
 At the time of the \MCS~3.6 release, \texttt{mcstas-antlr} is close to
 feature-complete for CPU simulations with a few more issues for GPU/OpenACC
 simulations.
+
+\subsubsection*{Alternative code generator: \texttt{mcstas-pygen}}
+\indexMCTOOL{mcstas-pygen}{}
+
+A third code generator, \texttt{mcstas-pygen}, targets
+McStasScript~\cite{mcstasscript} (a Python package for building and running
+\MCS instruments) rather than C: given an \texttt{.instr} file, it generates
+an equivalent McStasScript Python module instead of a C program. Besides
+\verb+-o FILE+ (output file) it accepts \verb+--instrument-name=NAME+ (name of
+the generated McStasScript instrument; by default the instrument name followed
+by \texttt{\_generated}), \verb+--no-tests+ (do not translate
+\texttt{\%Example} lines into McStasScript tests), \verb+--lint+ (generate a
+script for McStasScript-style diagnostic linting), \verb+--verbose+ and the
+version options described above. The C-generator-only options (\verb+-I+,
+\verb+-t+, \verb+-p+, \verb+--no-main+, \verb+--no-runtime+) are rejected.
+The generated module exposes a \texttt{make()} function returning a
+McStasScript instrument object:
+\begin{lstlisting}
+import mcstasscript as ms
+from INSTRUMENT_generated import make
+instr = make()
+instr.show_diagram()
+instr.show_instrument()
+data = instr.backengine()
+ms.make_sub_plot(data)
+\end{lstlisting}
+The generator is normally invoked indirectly, via \texttt{mcstas-jupylab}
+(section~\ref{s:jupylab}), rather than run directly by the user.
 
 
 %-------------------------------------------------------------------------------
@@ -483,12 +515,7 @@ current directory, overwriting any previous files stored there. The
 \verb+--dir=+\textit{dir} or \verb+-d+\textit{dir} option causes the files to be
 placed instead in a newly created directory \textit{dir} (to prevent overwriting
 previous results an error message is given if the directory already exists).
-Alternatively, all output may be written to a single file \textit{file} using
-the \verb+--file=+\textit{file} or \verb+-f+\textit{file} option (which should
-probably be avoided when saving in binary format, see below). If the \verb+file+
-is given as \verb+NULL+, the file name is automatically built from the
-instrument name and a time stamp. The default file name is \verb+mcstas+
-followed by appropriate extension.
+
 
 The complete list of options
 and arguments accepted by \MCS simulations appears in
@@ -498,12 +525,8 @@ Tables \ref{f:mcrunoptions} and \ref{f:simoptions}.
 \subsection{Choosing an output data file format}
 
 Data files contain header lines with information about the simulation from which
-they originate. In case the data must be analyzed with programs that cannot read
-files with such headers, they may be turned off using the \verb+--data-only+
-option (of the generated \texttt{<instr>.out} executable itself -- do not
-confuse this with \texttt{mcrun}'s own \verb+-a+/\verb+--append+ option,
-which appends a new simulation's data files to an existing output
-directory, see Table~\ref{f:mcrunoptions}).
+they originate. Use \verb+--format+ to select among the available formats
+(see below).
 
 \index{Data formats}
 The format of the output files from \MCS simulations is described in more
@@ -811,7 +834,9 @@ run any tool with \verb+-h+ for its specific help):
 \begin{lstlisting}
     McStas Tools
        mcstas          Main instrument compiler
+       mcstas-pygen    Alternative code generator: McStasScript Python model
        mcrun           Instrument build and execution utility
+       mcstas-jupylab  Opens a generated instrument model in JupyterLab
        mcgui           Graphical User Interface instrument builder
        mcdoc           Component library documentation generator/viewer
        mcplot          Simulation result viewer (default: pyqtgraph backend)
@@ -1154,10 +1179,34 @@ run giving the values of the scanned input variables along with the integrated
 intensity and estimated error in all monitors. This file can be plotted with
 any of the \verb+mcplot+ backends, see section~\ref{s:mcplot}.
 \indexMCTOOL{mcplot}{}
-\item When performing a scan, the \texttt{-f \textit{file}} and
-  \texttt{--file=\textit{file}} options make \verb+mcrun+ write the output
-  to the files \texttt{\textit{file\/}.dat} and \texttt{\textit{file\/}.sim}
-  instead of the default names.
+\item When performing a scan, the \texttt{--optimise-file \textit{file}}
+  option makes \verb+mcrun+ write the scan summary to \textit{file}
+  instead of the default \verb+mccode.dat+.
+\item Two further scan modes are available besides the default one, in which
+  all scanned parameters step together from their minimum to their maximum
+  value. With \texttt{-M} or \texttt{--multi}, the cartesian product of all
+  scanned parameters' points is run (a multi-dimensional ``grid'' scan); the
+  point count of each parameter is then given as a comma-separated list to
+  \texttt{-N}, in the order the parameters appear on the command line. For
+  example
+\begin{bash}
+mcrun sim.instr -M -N3,5 X=2,8 Y=0,1
+\end{bash}
+  runs $3\times5=15$ simulations. With \texttt{-L} or \texttt{--list}, each
+  scanned parameter is instead given as an explicit comma-separated list of
+  values (which also allows non-numerical values such as file names); lists
+  of equal length are stepped through together, and combined with \texttt{-M}
+  the cartesian product is run (the lists may then have different lengths).
+  A parameter may also be given as \texttt{\textit{min}:\textit{delta}:\textit{max}},
+  in which case the point count follows from the requested step size and the
+  parameter may be freely mixed with explicit lists. The option
+  \texttt{--seeds} scans over a range of random seeds (each non-zero).
+\item With \texttt{--autoplot}, \verb+mcrun+ opens a plotter on the generated
+  data set when done (the back-end is chosen with \texttt{--autoplotter}, and
+  \texttt{--invcanvas} requests an inverted canvas). With
+  \texttt{-C} or \texttt{--c-lint}, the generated C code is only passed
+  through a C linter (e.g. \texttt{cppcheck}, configured in
+  \texttt{mccode\_config.json}) and no simulation is run.
 \item When performing a scan, the \texttt{-d \textit{dir}} and
   \texttt{--dir=\textit{dir}} options make \verb+mcrun+ put all output in a
   newly created directory \textit{dir}. Additionally, the directory will
@@ -1169,6 +1218,36 @@ any of the \verb+mcplot+ backends, see section~\ref{s:mcplot}.
 
 The \verb+-h+ option will list valid options; see also Table~\ref{f:mcrunoptions}
 for the complete, current option list.
+
+\subsection{Interactive notebooks (mcstas-jupylab)}
+\label{s:jupylab}
+\indexMCTOOL{mcstas-jupylab}{textbf}
+
+The \texttt{mcstas-jupylab} front-end offers an interactive,
+notebook-based alternative to editing an \texttt{.instr} file directly
+and running it via \texttt{mcgui}/\texttt{mcrun}. Given an instrument
+file:
+\begin{lstlisting}
+mcstas-jupylab name.instr
+\end{lstlisting}
+it first runs \texttt{mcstas-pygen} (see above) to translate the
+instrument into an equivalent McStasScript Python model, writes that
+model into a notebook (\texttt{\textit{name}\_generated.ipynb}) built
+from a ready-made template (imports, and cells calling
+\texttt{show\_diagram()}, \texttt{show\_instrument()}, \texttt{backengine()}
+and the plotting helpers are already filled in), and opens it in
+JupyterLab\footnote{A working
+\texttt{jupyter lab} installation is required; it is not currently
+bundled with the standard conda-forge \MCS package.}. From there the
+instrument can be inspected, modified and run cell by cell using
+McStasScript's own Python API, which is useful for exploratory work and
+for combining a simulation with other Python-based analysis in the same
+notebook.
+
+Note that this generates a McStasScript model \emph{once}, as a
+starting point; it is not kept in sync with later edits to the original
+\texttt{.instr} file, nor vice versa. See the McStasScript
+documentation~\cite{mcstasscript} for the Python API itself.
 
 \subsection{GPU acceleration via OpenACC}
 \label{s:gpu}
@@ -1196,6 +1275,12 @@ Pass the \verb+--openacc+ flag to \texttt{mcrun}:
 \begin{verbatim}
   mcrun --openacc MyInstrument.instr -n 1e9
 \end{verbatim}
+The OpenACC execution can be tuned with \verb+--vecsize+ (vector length),
+\verb+--numgangs+ (number of ``gangs''), \verb+--gpu_innerloop+ (maximum number
+of particles per GPU kernel run; if smaller than the requested neutron count,
+the kernel is repeated) and \verb+--funnel+ (funnelled simulation flow, e.g.
+for mixed CPU/GPU execution), see Table~\ref{f:simoptions} and
+Table~\ref{f:mcrunoptions}.
 
 \paragraph{Combined multi-core + GPU execution.}
 It is also possible to use both CPU cores and the GPU simultaneously.
@@ -1247,12 +1332,28 @@ front-ends directly:
 \begin{itemize}
 \item \verb+mcdisplay-pyqtgraph+ (the default when running plain
   \verb+mcdisplay+): interactive PyQtGraph 3D view.
-\item \verb+mcdisplay-matplotlib+: static/interactive matplotlib 3D view.
+\item \verb+mcdisplay-matplotlib+: static/interactive matplotlib 3D view. This
+  is a thin wrapper script, so its options differ slightly from the default
+  front-end: \verb+--trace={1,2}+ selects the classic (1) or new (2, default)
+  drawing mode, \verb+--backend=NAME+ selects the matplotlib back-end (the
+  hard-copy back-ends \texttt{pdf}, \texttt{pgf}, \texttt{ps} and \texttt{svg}
+  save a file instead of opening a window), and the number of traced rays is
+  capped at 100.
 \item \verb+mcdisplay-webgl+ and \verb+mcdisplay-webgl-classic+: browser-based
   WebGL views (the former uses a small NodeJS-backed server for larger
-  instruments/particle counts).
-\item \verb+mcdisplay-cad+: exports the instrument geometry to a CAD-compatible
-  format.
+  instruments/particle counts; its first use performs a one-time
+  \texttt{npm}/\texttt{vite} module installation, which needs internet access).
+  In addition to the options listed below they accept \verb+-t+/\verb+--trace N+
+  (visualisation mode, default 2 resp.\ 1), \verb+-d+/\verb+--dirname DIR+,
+  \verb+--first COMP+ and \verb+--last COMP+ (the first and last component of
+  the zoomed range), and \verb+--nobrowse+ (do not
+  open a browser); \verb+mcdisplay-webgl+ also has \verb+--timeout SEC+ (the
+  shutdown time of its development server, default 300~s).
+\item \verb+mcdisplay-cad+: exports the instrument geometry to a CAD file and
+  requires the \texttt{cadquery} Python package. The format is selected with
+  \verb+-f+/\verb+--format+: \texttt{step} (default), \texttt{stl},
+  \texttt{xml}, \texttt{vrml}, \texttt{gltf} or \texttt{vtkjs}. As no rays
+  are needed for a geometry export, \verb+--ncount+ defaults to 0 here.
 \item \verb+mcdisplay-mantid_xml+: exports an approximate Mantid Instrument
   Definition File (IDF) describing the detector geometry.
 \end{itemize}
@@ -1276,8 +1377,20 @@ others -- run \verb+mcdisplay --help+ for the complete, current list:
   to hide neutrons absorbed upstream of the component of interest.
 \item \verb+--invcanvas+: invert the canvas background from black to white
   (useful for printing or screenshots).
-\item \verb+-n+/\verb+--ncount=N+: number of neutron rays to trace.
+\item \verb+-n+/\verb+--ncount=N+: number of neutron rays to trace (default 300).
+\item \verb+--no-mpi+: simulate without MPI (forwards \verb+--no-mpi+ to
+  \verb+mcrun+).
+\item \verb+--tof+: display in time-of-flight mode.
 \end{itemize}
+All variants run \verb+mcrun --trace+ underneath, so an instrument parameter
+may be given as \textit{name}\verb+=+\textit{value} just as for \verb+mcrun+.
+In the PyQtGraph viewer, \texttt{q} quits, \texttt{p} saves a PNG image,
+\texttt{s} saves an SVG image (not on Windows), \texttt{space} or \texttt{F5}
+shows the next ray, a click on a sub-plot zooms in on it (right-click to leave
+the zoomed view), and \texttt{h} or \texttt{F1} lists the components.
+A legacy Matlab/Octave variant, \verb+mcdisplay-matlab+, also exists under
+\texttt{tools/matlab} (it falls back to the Python \verb+mcdisplay+ when
+neither Matlab nor Octave is found).
 
 When debugging trajectories through a long or complex instrument, combining
 \verb+--inspect+ with a modest \verb+--ncount+ typically gives the clearest,
@@ -1297,10 +1410,10 @@ In the simplest case, the front-end is run simply by typing
     mcplot
 \end{bash}
 This will plot any simulation data stored in the current directory, which is
-where simulations store their results by default. If the \verb+--dir+ or
-\verb+--file+ options have been used (see section~\ref{s:run-sim}), the name of
-the file or directory should be passed to mcplot, {\em e.g.} ``\texttt{mcplot
-  \textit{dir}}'' or ``\texttt{mcplot \textit{file}}''.  It is also possible to plot
+where simulations store their results by default. If the \verb+--dir+
+option has been used (see section~\ref{s:run-sim}), the name of
+the directory should be passed to mcplot, {\em e.g.} ``\texttt{mcplot
+  \textit{dir}}''.  It is also possible to plot
 one single text (not binary) data file from a given monitor, passing its name to
 mcplot.
 
@@ -1312,6 +1425,24 @@ D3.js, see section~\ref{s:run-format}), or by setting the
 \verb+MCSTAS_FORMAT+ environment variable.
 \indexEV{MCSTAS\_FORMAT}
 
+The back-ends share the simulation file or directory argument, and have a few
+options of their own. \verb+mcplot-html+ accepts \verb+-n+/\verb+--nobrowse+ (do
+not open a browser), \verb+-l+/\verb+--log+ (log scale), \verb+--autosize+
+(expand the plots to the window size), \verb+-o+/\verb+--output FILE+ (output
+\texttt{.html} file) and \verb+-W+/\verb+-H+ (width and height of the plot
+frames). \verb+mcplot-matplotlib+ accepts \verb+--log+, \verb+--backend NAME+,
+\verb+--format FMT+ together with \verb+--output FILE+ (save as
+\texttt{pdf}, \texttt{png}, \texttt{eps}, \texttt{svg}, \ldots{} without opening
+a window) and \verb+--html+ (save as HTML via mpld3; Linux only), and
+\verb+mcplot-pyqtgraph+ accepts \verb+--invcanvas+ (white instead of black
+canvas). Both the matplotlib and PyQtGraph variants also take \verb+-t+/\verb+--test+,
+which only runs the data loader and prints the structure of the plot.
+A legacy Matlab/Octave/iFit variant, \verb+mcplot-matlab+, exists under
+\texttt{tools/matlab}; it picks whichever of Matlab, iFit and Octave is
+available (falling back to the Python \verb+mcplot+), and can export each
+monitor with \texttt{-png}, \texttt{-jpg}, \texttt{-fig}, \texttt{-eps} or
+\texttt{-pdf}.
+
 All plotters read the plain-text \MCS/McCode data format (section~\ref{s:analyze});
 NeXus files are not currently read back by the plotters.
 
@@ -1320,12 +1451,15 @@ The \verb+mcplot+ front-end can also be run from the \verb+mcgui+ front-end.
 
 The initial display shows plots for each detector in the simulation.
 
-\paragraph{Comparing two simulation results: mcplotdiff-html and mccoplot-html.}
+\paragraph{Comparing simulation results: mcplotdiff and mccoplot.}
 \indexMCTOOL{mcplotdiff}{textbf}
 \indexMCTOOL{mccoplot}{textbf}
-Two companion browser-based tools reuse \texttt{mcplot-html}'s plotting code to
-compare a pair of simulation results (two output directories, or two single
-monitor files), matching monitors by output filename:
+Two companion tools share the loading and monitor-matching code of
+\texttt{mcplot} to compare simulation results (output directories, or single
+monitor files), matching monitors by output filename. Each exists in the same
+three rendering variants as \texttt{mcplot} (\texttt{-html},
+\texttt{-matplotlib} and \texttt{-pyqtgraph}); the browser-based HTML variants
+are described here:
 \begin{itemize}
 \item \verb+mcplotdiff-html a b+ plots, for every monitor present with
   matching binning in both \texttt{a} and \texttt{b}, the difference
@@ -1335,16 +1469,28 @@ monitor files), matching monitors by output filename:
   upgrade, or MPI vs.\ non-MPI results. By default, each difference is also
   written back out as a normal \MCS/McCode-format data set (with an
   \texttt{mccode.sim} index), so the result directory can be reopened by any
-  other McCode-format-aware plotter; pass \verb+--no-dat+ to skip this.
-\item \verb+mccoplot-html a b+ instead overlays the two datasets' 1D monitors
-  on the same axes (only 1D monitors are supported), for a direct visual
-  comparison of curve shape and position.
+  other McCode-format-aware plotter; pass \verb+-D+/\verb+--no-dat+ to skip this.
+It always compares exactly two datasets.
+\item \verb+mccoplot-html a b [c ...]+ instead overlays the 1D monitors of
+  \emph{two or more} datasets on the same axes, for a direct visual comparison
+  of curve shape and position (only 1D monitors are supported; a monitor that
+  is not a matching 1D monitor in every dataset is skipped with a warning).
+  The compact legend letters \texttt{A}, \texttt{B}, \texttt{C}, \ldots{} are
+  explained in an identity line under the title. Use
+  \verb+-L+/\verb+--labels A,B,C+ to set a short label per dataset,
+  \verb+-C+/\verb+--colours c1,c2,...+ to set the overlay colours, and
+  \verb+--no-legends+ / \verb+--no-titles+ to leave out the on-plot legend
+  respectively the in-plot title and identity line.
 \end{itemize}
-Both accept \verb+-A LABEL_A+/\verb+-B LABEL_B+ to control the labels used for
-each input, and \verb+-o OUTPUT+ to control the output directory name; run
-either with \verb+--help+ for the complete option list. \texttt{mcplotdiff-html}
-is also used internally by \texttt{mcviewtest} (section~\ref{s:frontends}) to
-compare test runs against a reference.
+\texttt{mcplotdiff-html} accepts \verb+-A LABEL_A+/\verb+-B LABEL_B+ to control
+the labels used for each input, and both tools accept \verb+-o OUTPUT+ to
+control the output directory name, \verb+-n+/\verb+--nobrowse+, \verb+-l+/\verb+--log+
+and \verb+--autosize+; run either with \verb+--help+ for the complete option
+list. The matplotlib and PyQtGraph variants take the same dataset arguments and
+labelling options, plus the output options of the corresponding \texttt{mcplot}
+back-end. \texttt{mcplotdiff-html} and \texttt{mccoplot-html} are also used
+internally by \texttt{mcviewtest} (section~\ref{s:frontends}) to compare test
+runs against a reference.
 
 
 %-------------------------------------------------------------------------------
@@ -1419,6 +1565,13 @@ search within the library and open documentation for all matching entries.
 Additional options include \verb+--install+/\verb+-i+ (regenerate the local
 installation-wide index), \verb+--dir=DIR+/\verb+-d+ (add search results from
 a given directory), and \verb+--verbose+/\verb+-v+ (print a parsing log).
+HTML is always written; \verb+--md+/\verb+-M+ and \verb+--tex+/\verb+-T+ also
+emit Markdown respectively \LaTeX{} documentation files (\verb+--all-formats+/\verb+-A+
+for all three) --- the \LaTeX{} snippets of the component library that make up
+the Component Manual are produced this way. With \verb+--in-repo+ the output is
+placed next to the source files instead of in the installed documentation
+directory (and no master page is made), and \verb+--outdir=DIR+/\verb+-o+
+selects the output directory (in-repo use only).
 The options \verb+--manual+/\verb+-m+, \verb+--comps+/\verb+-c+ and
 \verb+--web+/\verb+-w+ will open the User Manual (this document), the
 Component Manual, and the \MCS web site, respectively, all requiring
@@ -1449,24 +1602,39 @@ acceleration information, and migration guides from \MCS~2.x to 3.x.
 \verb+mcrun --test+ command. \verb+mctest+ compiles and runs a selection (or
 all) of the example instruments found under the current installation(s), and
 stores each run's results (including any test-defined \texttt{\%Example}
-reference values) in a timestamped output folder. Useful options include
-\verb+--ncount+, \verb+--mpi+ and \verb+--openacc+ (forwarded to \verb+mcrun+
-for every tested instrument), \verb+--config=LABEL+ (test only a specific
+reference values) in a timestamped output folder. Each test compiles the
+instrument, displays it with a single particle, runs it, and compares the
+result with the target value recorded in the instrument header. Useful options
+include \verb+--ncount+ (default $10^6$), \verb+--seed+ (default 1000; 0
+randomizes), \verb+--mpi+, \verb+--no-mpi+, \verb+--openacc+ and \verb+--nexus+
+(forwarded to \verb+mcrun+ for every tested instrument), \verb+--lint+ (only
+run the C linter, no simulations), \verb+--config=LABEL+ (test only a specific
 McCode installation/config), \verb+--instr=REGEX+ (test only matching
-instrument names), and \verb+--limit=N+ (test only the first N instruments
-per version); run \verb+mctest --help+ for the full list.
+instrument names), \verb+--comp=COMP[,COMP...]+ (test only instruments using
+any of the given components), \verb+--local=DIR+ (test instruments from
+\texttt{DIR} instead of the installation), \verb+--limit=N+ (test only the first
+N instruments per version), \verb+--skipnontest+ (skip instruments without an
+\texttt{\%Example} line), \verb+--strict+ (fail instruments without
+\texttt{\%Example} line(s) immediately) and \verb+--permissive+ (exit with
+status 0 even if tests fail), \verb+--testdir=DIR+ and \verb+--suffix=SUFFIX+
+(where the results are written), \verb+--compilemax+, \verb+--runmax+ and
+\verb+--displaymax+ (time limits in seconds) and \verb+--noplots+ (do not
+generate the overview plots); run \verb+mctest --help+ for the full list.
 
 \verb+mcviewtest+ then generates an HTML report of one or more \verb+mctest+
 runs found in a given folder (the current directory by default). When more
 than one run is present (e.g. a reference run and a run on a different
 platform, GPU vs.\ CPU, or a different \MCS branch), it takes the oldest
-subfolder as the reference column, and additionally runs
-\texttt{mcplotdiff-html} (section~\ref{s:mcplot}) between each other column's
-monitor output and the reference's, adding a \texttt{DIFF~[vs~ref]} link next
-to each such row in the report. These comparisons are cached on disk and
-generated in parallel (\verb+--diffworkers+), so re-running \verb+mcviewtest+
-is fast; use \verb+--nodiff+ to skip generating them entirely, or
-\verb+--diff-errors-only+ to only diff rows that already show a discrepancy.
+subfolder as the reference column (override with \verb+--reflabel=LABEL+), and
+additionally runs \texttt{mcplotdiff-html} and \texttt{mccoplot-html}
+(section~\ref{s:mcplot}) between each other column's monitor output and the
+reference's, adding a \texttt{DIFF~[vs~ref]} link next to each such row in the
+report. These comparisons are cached on disk and generated in parallel
+(\verb+--diffworkers+, each limited to \verb+--diffmax+ seconds), so
+re-running \verb+mcviewtest+ is fast; use \verb+--nodiff+ to skip generating
+them entirely, or \verb+--diff-errors-only+ to only diff rows that already show
+a discrepancy (by default every valid row is diffed). \verb+--nobrowse+ keeps
+the finished report from being opened in a browser.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Data formats - Analyzing and visualizing the simulation results}
@@ -1531,8 +1699,7 @@ two-dimensional monitor output by default start with a header of comment lines,
 all beginning with the `\verb+#+' character.  This header gives such information
 as the name of the instrument used in the simulation, the values of any
 instrument parameters, the name of the monitor component for this data file,
-\textit{etc}. The headers may be disabled using the \verb+--data-only+ option in
-case the file must be read by a program that cannot handle the headers.
+\textit{etc}.
 
 In addition to the files written for each one- and two-dimensional monitor
 component, another file (by default named \verb+mccode.sim+) is also
@@ -1544,8 +1711,7 @@ section~\ref{s:mcplot}). This file stores the results from single monitors, but
 by default contains only pointers (in the form of file names) to data for one-
 and two-dimensional monitors. By storing data in separate files, reading the
 data with programs that do not know the special \MCS file format is
-simplified. The \verb+--file+ option may be used to store all data inside the
-\verb+mccode.sim+ file instead of in separate files.
+simplified.
 
 %-------------------------------------------------------------------------------
 \subsection{NeXus format}

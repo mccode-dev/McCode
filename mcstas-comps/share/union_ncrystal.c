@@ -66,12 +66,9 @@
 #ifndef UNION_NCRYSTAL_C
 #define UNION_NCRYSTAL_C
 
-/* Common includes, defines, functions, etc. shared by all Union NCrystal components. */
-#if defined(WIN32) || defined(_WIN32)
-#include "NCrystal\\ncrystal.h"
-#else
-#include "NCrystal/ncrystal.h"
-#endif
+/* Common includes, defines, functions, etc. shared by all Union NCrystal components.
+   NCrystal's C API (ncrystal.h) is included by mccode-ncrystal-lib, and the
+   Union types by union-lib; both must be included first. */
 #include "stdio.h"
 #include "stdlib.h"
 
@@ -97,7 +94,7 @@ typedef struct {
 } ncrystalsample_t_union;
 
 struct NCrystal_physics_storage_struct {
-  // Very important to add a pointer to this struct in the union_ncrystal.c file.
+  // Very important to add a pointer to this struct in data_transfer_union in union-lib.h.
   // Variables that need to be transferred between the following places:
   // the initialization in the component, the function calculating my, and the
   // function calculating scattering.
@@ -260,5 +257,13 @@ NCrystal_physics_scattering (double *k_final, double *k_initial, double *weight,
 #ifndef PROCESS_NCRYSTAL_DETECTOR
 #define PROCESS_NCRYSTAL_DETECTOR dummy
 #endif
+
+// Register the NCrystal process with the Union_master dispatch (see
+// union-lib.h). Both NCrystal_process and Union_NCrystal_material set
+// eProcess = NCrystal and include this file, so the case is defined here once.
+#undef UNION_CASE_PHYSICS_MY_NCRYSTAL
+#define UNION_CASE_PHYSICS_MY_NCRYSTAL(out, ...) case NCrystal: out = NCrystal_physics_my(__VA_ARGS__); break;
+#undef UNION_CASE_PHYSICS_SCATTERING_NCRYSTAL
+#define UNION_CASE_PHYSICS_SCATTERING_NCRYSTAL(out, ...) case NCrystal: out = NCrystal_physics_scattering(__VA_ARGS__); break;
 
 #endif

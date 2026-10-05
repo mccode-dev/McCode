@@ -1,4 +1,4 @@
-# Installation instructions for McStas 3.8.4
+# Installation instructions for McStas 3.9.0
 
 For a description of the release changes please consult the [McCode release notes](RELEASE_NOTES.md)
 

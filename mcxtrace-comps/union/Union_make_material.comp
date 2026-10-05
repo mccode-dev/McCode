@@ -35,6 +35,7 @@
 * my_absorption:  [1/m]    Inverse penetration depth from absorption at standard energy
 * absorber:       [0/1]    Control parameter, if set to 1 the material will have no scattering processes
 * material_string: [string] List of elements present in the material. Triggers a search for materials constants files.
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * CALCULATED PARAMETERS:
 * this_material:            Structure that contains information on this material
@@ -50,17 +51,14 @@
 
 DEFINE COMPONENT Union_make_material
 
-SETTING PARAMETERS(string process_string="NULL",my_absorption,absorber=0, string material_string="NULL")
+SETTING PARAMETERS(string process_string="NULL",my_absorption,absorber=0, string material_string="NULL", string init="")
 OUTPUT PARAMETERS ()
 
 SHARE
 %{
   %include "read_table-lib"
 
-  #ifndef Union
-  #error "ERROR: Union_make_material requires the Union library. Add a Union_master component to load the libraries."
-
-  #endif
+  %include "union-lib"
 
   // This function checks if global_process_element should be included in this material when using automatic linking, returns 1 if yes, 0 if no.
   int
@@ -178,6 +176,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
 
   accepted_processes.num_elements = 0;
   accepted_processes.elements = NULL;
@@ -195,8 +194,8 @@ INITIALIZE
     exit (1);
   }
 
-  struct pointer_to_global_process_list* global_process_list = &g_process_list;
-  struct pointer_to_global_material_list* global_material_list = &g_material_list;
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
+  struct pointer_to_global_material_list* global_material_list = &union_state_p->u_material_list;
 
   if (absorber == 0) {
     if (process_string && strlen (process_string) && strcmp (process_string, "NULL") && strcmp (process_string, "0")) {
@@ -250,42 +249,7 @@ FINALLY
     free (this_material.p_scattering_array);
   if (accepted_processes.num_elements > 0)
     free (accepted_processes.elements);
-
-  struct pointer_to_global_geometry_list* global_geometry_list = &g_geometry_list;
-  struct pointer_to_global_master_list* global_master_list = &g_master_list;
-
-  // Checking if any Union volumes are defined after the master component
-  #ifdef MASTER_DETECTOR
-  #ifdef ANY_GEOMETRY_DETECTOR_DECLARE
-  #ifndef MASTER_DETECTOR_WARNING
-
-  for (loop_index = 0; loop_index < global_geometry_list->num_elements; loop_index++) {
-    if (global_geometry_list->elements[loop_index].component_index > global_master_list->elements[global_master_list->num_elements - 1].component_index) {
-      printf ("WARNING: No Union_master component defined after Union volume named %s, this components did not affect the simulation in any way.\n",
-              global_geometry_list->elements[loop_index].name);
-    }
-  }
-  // Decided to have this as a warning without exiting the simulation
-  // In order to only show this warning once, the MASTER_DETECTOR_WARNING is defined
-  #define MASTER_DETECTOR_WARNING dummy
-  #endif
-  #endif
-  #endif
-
-  // Checking if the user remembered to put in a Union_master
-  #ifndef MASTER_DETECTOR
-  #ifdef ANY_GEOMETRY_DETECTOR_DECLARE
-  #ifndef MASTER_DETECTOR_WARNING
-  printf ("\nWARNING: No Union_master component used, these components did not affect the simulation in any way:\n");
-  for (loop_index = 0; loop_index < global_geometry_list->num_elements; loop_index++)
-    printf ("  %s\n", global_geometry_list->elements[loop_index].name);
-  printf ("\n");
-  // Decided to have this as a warning without exiting the simulation
-  // In order to only show this warning once, the MASTER_DETECTOR_WARNING is defined
-  #define MASTER_DETECTOR_WARNING dummy
-  #endif
-  #endif
-  #endif
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

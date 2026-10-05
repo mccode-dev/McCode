@@ -26,7 +26,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| meshfile |  |  | "torus.STL" |
+| meshfile | str | Name of the mesh (STL/OFF) geometry file | "torus.STL" |
 
 ## Links
 

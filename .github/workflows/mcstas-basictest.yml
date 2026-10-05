@@ -386,6 +386,25 @@ jobs:
              mctest${SUFFIX}  --verbose --mpi=${{ matrix.nmpi }} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource,Masked_ESS_butterfly_image --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
            fi
 
+    - name: MPI event-list output regression test
+      id: mpilisttest
+      # classic only: the antlr code generator embeds a released runtime
+      if: matrix.cogen == 'classic' && matrix.nmpi != '0'
+      run: |
+           set -e
+           set -u
+           set -x
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             export SUFFIX=".bat"
+           else
+             export SUFFIX=""
+           fi
+           PY=$(command -v python3 || command -v python)
+           # h5py is needed to check NeXus output; NeXus is skipped (and reported) without it
+           ${PY} -m pip install h5py || ${PY} -m pip install h5py --break-system-packages || true
+           ${PY} src/mcstas-comps/examples/Tests_monitors/Test_Monitor_nD_list_MPI/test_mpi_lists.py --np 2 --mcrun mcrun${SUFFIX} --workdir run_mpilists
+
     - name: Check for modified instruments
       id: instr-test
       run: |
@@ -428,54 +447,33 @@ jobs:
              export DIFFBASE=$(git merge-base origin/main HEAD)
            fi
            echo "Diffing against: $DIFFBASE"
-           export RUNALL="NO"
-           export CHANGEDCOMPS=$(git diff --name-only $DIFFBASE HEAD | grep '\.comp$' | grep mcstas-comps | xargs -n1 basename | sed 's/\.comp//g' | sort | uniq | xargs echo)
-           export NUMCHANGEDCOMPS=$(git diff --name-only $DIFFBASE HEAD | grep '\.comp$' | grep mcstas-comps | wc -l | xargs echo)
+           PY=$(command -v python3 || command -v python)
+           # Changed components and instruments, in one pass (doc-header-only and
+           # whitespace-only edits are skipped, see devel/bin/mccode-git-diff-code)
+           CHANGED=$(${PY} devel/bin/mccode-git-diff-code $DIFFBASE HEAD | grep -E '^mcstas-comps/.*\.(comp|instr)$' || true)
+           CHANGEDCOMPS=$(echo "$CHANGED" | grep '\.comp$' | sed -e 's#.*/##' -e 's#\.comp$##' | sort -u | tr '\n' ',' | sed 's/,$//' || true)
+           CHANGEDINSTR=$(echo "$CHANGED" | grep '\.instr$' | sed -e 's#.*/##' -e 's#\.instr$##' | sort -u | tr '\n' ',' | sed 's/,$//' || true)
            cd -
-           compindex=0
-           if [ "$NUMCHANGEDCOMPS" != "0" ];
-           then
-             if [ "$NUMCHANGEDCOMPS" -lt "5" ]; then
-               for comp in $CHANGEDCOMPS;
-               do
-                 echo Finding tests including component $comp
-                 NUMMATCH=`find src/mcstas-comps -name \*.instr -exec grep -H ${comp} \{\} \; | cut -f1 -d: | sort | uniq | wc -l`
-                 if [ "$NUMMATCH" -gt "0" ];
-                 then
-                   ${MCTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir run_mctest --comp=${comp} --suffix=${{ matrix.cogen }}_CHANGES${compindex}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
-                   compindex=$(( compindex+1 ))
-                 else
-                   echo No matching tests found
-                 fi
-               done
-             else
-               export RUNALL="YES"
-             fi
-           fi
-
-           cd src
-           export CHANGEDINSTR=$(git diff --name-only $DIFFBASE HEAD | grep '\.instr$' | grep mcstas-comps | xargs -n1 basename | sed 's/\.instr//g' | sort | uniq | xargs echo | sed 's/ /,/g')
-           export NUMCHANGEDINSTR=$(git diff --name-only $DIFFBASE HEAD | grep '\.instr$' | grep mcstas-comps | wc -l | xargs echo)
            echo ----
-           echo $NUMCHANGEDCOMPS components and $NUMCHANGEDINSTR instruments were changed, resulting in this list:
-           echo $CHANGEDINSTR
+           echo "Changed components:  ${CHANGEDCOMPS:-none}"
+           echo "Changed instruments: ${CHANGEDINSTR:-none}"
            echo ----
-           cd -
-           if [ "$NUMCHANGEDINSTR" -gt "20" ];
-           then
-             export RUNALL="YES"
+           # Single mctest run: --instr and --comp together select instruments
+           # matching either (changed instruments + users of changed components)
+           SCOPE=""
+           if [ -n "$CHANGEDINSTR" ]; then SCOPE="--instr=$CHANGEDINSTR"; fi
+           if [ -n "$CHANGEDCOMPS" ]; then SCOPE="$SCOPE --comp=$CHANGEDCOMPS"; fi
+           if [ "${#SCOPE}" -gt "6000" ]; then
+             # Keep within the Windows .bat command-line limit: test everything
+             echo "Very many changes - testing all instruments"
+             SCOPE=" "
            fi
-           if [ "$NUMCHANGEDINSTR" != "0" ];
-           then
-             if [ "$RUNALL" == "NO" ];
-             then
-               export SCOPE="--instr=$CHANGEDINSTR"
-             else
-               export SCOPE=" "
-             fi
+           if [ -n "$SCOPE" ]; then
              mkdir -p run_mctest && cd run_mctest
-             ${MCTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=instrCHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --verbose --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             ${MCTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
              ${MCVIEWTEST_EXECUTABLE} --nobrowse $PWD
+           else
+             echo "No component or instrument code changes - nothing to test"
            fi
 
     - name: 'Tar output files'

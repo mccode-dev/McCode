@@ -42,6 +42,7 @@
 *   enable_conditionals:                 [0/1] Use conditionals with this master
 *   inherit_number_of_scattering_events: [0/1] Inherit the number of scattering events from last master
 *   weight_ratio_limit:                  [1]   Limit on the ratio between initial weight and current, ray absorbed if ratio becomes lower than limit
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * CALCULATED PARAMETERS:
 *
@@ -62,7 +63,7 @@ SETTING PARAMETERS(int enable_refraction = 1,
                    history_limit=300000,
                    enable_conditionals=1,
                    inherit_number_of_scattering_events=0,
-                    weight_ratio_limit=1e-90
+                    weight_ratio_limit=1e-90, string init=""
                    )
 
 NOACC
@@ -72,9 +73,10 @@ NOACC
 SHARE
 %{
 
-  #ifndef Union
-  #error "ERROR: Union_master requires the Union library. Add a Union_master component to load the libraries."
-  #endif
+  %include "union-lib"
+
+  // Lets Union components compile: see union_acquire() in union-lib.h
+  #define Union_components_need_a_Union_master_in_the_instrument 1
 
   struct logger_with_data_struct loggers_with_data_array;
   struct abs_logger_with_data_struct abs_loggers_with_data_array;
@@ -301,18 +303,19 @@ DECLARE
 INITIALIZE
 %{
   // Unpack global lists
-  global_positions_to_transform_list_master = &g_positions_to_transform_list;
-  global_rotations_to_transform_list_master = &g_rotations_to_transform_list;
-  global_process_list_master = &g_process_list;
-  global_material_list_master = &g_material_list;
-  global_surface_list_master = &g_surface_list;
-  global_geometry_list_master = &g_geometry_list;
-  global_all_volume_logger_list_master = &g_all_volume_logger_list;
-  global_specific_volumes_logger_list_master = &g_specific_volumes_logger_list;
-  global_all_volume_abs_logger_list_master = &g_all_volume_abs_logger_list;
-  global_specific_volumes_abs_logger_list_master = &g_specific_volumes_abs_logger_list;
-  global_tagging_conditional_list_master = &g_tagging_conditional_list;
-  global_master_list_master = &g_master_list;
+  struct union_state_struct* union_state_p = union_acquire ();
+  global_positions_to_transform_list_master = &union_state_p->u_positions_to_transform_list;
+  global_rotations_to_transform_list_master = &union_state_p->u_rotations_to_transform_list;
+  global_process_list_master = &union_state_p->u_process_list;
+  global_material_list_master = &union_state_p->u_material_list;
+  global_surface_list_master = &union_state_p->u_surface_list;
+  global_geometry_list_master = &union_state_p->u_geometry_list;
+  global_all_volume_logger_list_master = &union_state_p->u_all_volume_logger_list;
+  global_specific_volumes_logger_list_master = &union_state_p->u_specific_volumes_logger_list;
+  global_all_volume_abs_logger_list_master = &union_state_p->u_all_volume_abs_logger_list;
+  global_specific_volumes_abs_logger_list_master = &union_state_p->u_specific_volumes_abs_logger_list;
+  global_tagging_conditional_list_master = &union_state_p->u_tagging_conditional_list;
+  global_master_list_master = &union_state_p->u_master_list;
 
   // It is possible to surpress warnings on starting volume by setting this to 1
   starting_volume_warning = 0;
@@ -1686,7 +1689,7 @@ TRACE
                 }
                 // Calculate mu and probability
                 coords_get (sampling_point_geometry, &x, &y, &z);
-                physics_my (process->eProcess, &mu, k_rotated, process->data_transfer, this_focus_data, _particle);
+                UNION_PHYSICS_MY (physics_output, process, &mu, k_rotated, this_focus_data, _particle);
                 current_p_physics->mus[p_index][i] = mu;
               }
 
@@ -1695,7 +1698,7 @@ TRACE
               for (int i = 0; i < current_p_physics->sampling_points; i++)
                 *p_my_trace += current_p_physics->mus[p_index][i] / current_p_physics->sampling_points;
             } else {
-              physics_output = physics_my (process->eProcess, p_my_trace, k_rotated, process->data_transfer, this_focus_data, _particle);
+              UNION_PHYSICS_MY (physics_output, process, p_my_trace, k_rotated, this_focus_data, _particle);
               if (current_p_physics->sampling_points != 0) {
                 current_p_physics->mus[p_index][0] = *p_my_trace;
               }
@@ -2064,7 +2067,9 @@ TRACE
 
         // I may replace a intial and final k with one instance that serves as both input and output
         process = &Volumes[current_volume]->p_physics->p_scattering_array[selected_process]; // CPU Only
-        if (0 == physics_scattering (process->eProcess, k_new, k, &p, process->data_transfer, this_focus_data, _particle)) {
+        int scattering_output;
+        UNION_PHYSICS_SCATTERING (scattering_output, process, k_new, k, &p, this_focus_data, _particle);
+        if (0 == scattering_output) {
           /*
           // PowderN and Single_crystal requires the option of absorbing the neutron, which is weird. If there is a scattering probability, there should be a new
           direction.
@@ -2578,7 +2583,8 @@ TRACE
               #ifdef Union_trace_verbal_setting
               printf (" Running physics_surface with transverse_index = %d \n", surface_transverse_index);
               #endif
-              physics_surface (surface_pointer, &p, surface_wavevector, &continues, normal_vector, inward_or_outward, _particle);
+              int surface_output;
+              UNION_PHYSICS_SURFACE (surface_output, surface_pointer, &p, surface_wavevector, &continues, normal_vector, inward_or_outward, _particle);
               #ifdef Union_trace_verbal_setting
               printf (" physics_surface reported continues = %d \n", continues);
               #endif
@@ -3295,90 +3301,8 @@ FINALLY
   if (interface_stack.number_of_surfaces > 0)
     free (interface_stack.p_surface_array);
 
-  // Free global allocated arrays if this is the last master union component in the instrument file
-
-  if (global_master_list_master->elements[global_master_list_master->num_elements - 1].component_index == INDEX_CURRENT_COMP) {
-    if (finally_verbal)
-      printf ("Freeing global arrays because this is the last Union master component\n");
-
-    // Freeing lists allocated in Union_initialization
-
-    if (finally_verbal)
-      printf ("Freeing global process list \n");
-    if (global_process_list_master->num_elements > 0)
-      free (global_process_list_master->elements);
-
-    if (finally_verbal)
-      printf ("Freeing global material list \n");
-    if (global_material_list_master->num_elements > 0)
-      free (global_material_list_master->elements);
-
-    if (finally_verbal)
-      printf ("Freeing global surface list \n");
-    if (global_surface_list_master->num_elements > 0)
-      free (global_surface_list_master->elements);
-
-    if (finally_verbal)
-      printf ("Freeing global geometry list \n");
-    if (global_geometry_list_master->num_elements > 0)
-      free (global_geometry_list_master->elements);
-
-    if (finally_verbal)
-      printf ("Freeing global master list \n");
-    if (global_master_list_master->num_elements > 0)
-      free (global_master_list_master->elements);
-
-    if (finally_verbal)
-      printf ("Freeing global logger lists \n");
-    for (iterator = 0; iterator < global_all_volume_logger_list_master->num_elements; iterator++) {
-      if (global_all_volume_logger_list_master->elements[iterator].logger->conditional_list.num_elements > 0) {
-        free (global_all_volume_logger_list_master->elements[iterator].logger->conditional_list.conditional_functions);
-        free (global_all_volume_logger_list_master->elements[iterator].logger->conditional_list.p_data_unions);
-      }
-    }
-    if (global_all_volume_logger_list_master->num_elements > 0)
-      free (global_all_volume_logger_list_master->elements);
-
-    for (iterator = 0; iterator < global_specific_volumes_logger_list_master->num_elements; iterator++) {
-      if (global_specific_volumes_logger_list_master->elements[iterator].logger->conditional_list.num_elements > 0) {
-        free (global_specific_volumes_logger_list_master->elements[iterator].logger->conditional_list.conditional_functions);
-        free (global_specific_volumes_logger_list_master->elements[iterator].logger->conditional_list.p_data_unions);
-      }
-    }
-    if (global_specific_volumes_logger_list_master->num_elements > 0)
-      free (global_specific_volumes_logger_list_master->elements);
-
-    if (finally_verbal)
-      printf ("Freeing global abs logger lists \n");
-    for (iterator = 0; iterator < global_all_volume_abs_logger_list_master->num_elements; iterator++) {
-      if (global_all_volume_abs_logger_list_master->elements[iterator].abs_logger->conditional_list.num_elements > 0) {
-        free (global_all_volume_abs_logger_list_master->elements[iterator].abs_logger->conditional_list.conditional_functions);
-        free (global_all_volume_abs_logger_list_master->elements[iterator].abs_logger->conditional_list.p_data_unions);
-      }
-    }
-    if (global_all_volume_abs_logger_list_master->num_elements > 0)
-      free (global_all_volume_abs_logger_list_master->elements);
-
-    for (iterator = 0; iterator < global_specific_volumes_abs_logger_list_master->num_elements; iterator++) {
-      if (global_specific_volumes_abs_logger_list_master->elements[iterator].abs_logger->conditional_list.num_elements > 0) {
-        free (global_specific_volumes_abs_logger_list_master->elements[iterator].abs_logger->conditional_list.conditional_functions);
-        free (global_specific_volumes_abs_logger_list_master->elements[iterator].abs_logger->conditional_list.p_data_unions);
-      }
-    }
-    if (global_specific_volumes_abs_logger_list_master->num_elements > 0)
-      free (global_specific_volumes_abs_logger_list_master->elements);
-
-    if (finally_verbal)
-      printf ("Freeing global tagging conditional lists \n");
-    for (iterator = 0; iterator < global_tagging_conditional_list_master->num_elements; iterator++) {
-      if (global_tagging_conditional_list_master->elements[iterator].conditional_list.num_elements > 0) {
-        free (global_tagging_conditional_list_master->elements[iterator].conditional_list.conditional_functions);
-        free (global_tagging_conditional_list_master->elements[iterator].conditional_list.p_data_unions);
-      }
-    }
-    if (global_tagging_conditional_list_master->num_elements > 0)
-      free (global_tagging_conditional_list_master->elements);
-  }
+  // The shared Union lists are freed by whichever Union component releases them last
+  union_release (NAME_CURRENT_COMP);
 %}
 
 

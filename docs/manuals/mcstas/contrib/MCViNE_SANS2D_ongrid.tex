@@ -1,0 +1,52 @@
+\section{The \texttt{MCViNE\_SANS2D\_ongrid} McStas Component}
+SANS from a 2D S(Qx,Qy) map on a grid (beam along z).
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE SANS2D\_ongrid\_Kernel (mcvine.acc); MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/acc (acc/kernels/SANS2D\_ongrid.py)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+Qx, Qy are sampled uniformly over the grid range; the neutron gets v\_perp -= Q*K2V and vz = sqrt(vi\textasciicircum{}2 - vx\textasciicircum{}2 - vy\textasciicircum{}2) (elastic). The weight is the bilinearly interpolated S(Qx,Qy) (no solid-angle Jacobian, as in mcvine.acc; use scattering\_coefficient to set the absolute scale). File layout: first numeric row Qx values (nx, ascending), second row Qy values (ny), then ny rows of nx values (row index = Qy), i.e. the (y,x) image layout used by mcvine.acc.
+
+\textbf{Transport} (same as MCViNE HomogeneousNeutronScatterer): on the first passage the neutron is forced to scatter at a uniformly chosen depth, weighted by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient; on exit it is attenuated by exp(-(mu+sigma)L\_out). With order\textgreater{}1 further scatterings are sampled analogically (truncated exponential). With p\_transmit\textgreater{}0 that fraction of events is kept as the attenuated direct beam. mu(v) = absorption\_coefficient*2200/v. Events for which the kernel cannot scatter (kinematically forbidden) are absorbed.
+
+Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow cylinder (+thickness) or sphere (radius only). All vectors (Q, targets, reciprocal vectors, atom positions) are in the component's local frame.
+
+Uses the shared runtime share/mcvine-lib.h/.c.
+
+Example: MCViNE\_SANS2D\_ongrid(S\_QxQy="MCViNE/SANS2D\_example.dat", scattering\_coefficient=1, xwidth=0.01, yheight=0.01, zdepth=0.001)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+S\_QxQy & str & 2D grid file (see description) & 0 \\
+absorption\_coefficient & m$^{-1}$ & Absorption coefficient at 2200 m/s (MCViNE convention; scales as 1/v) & 0 \\
+scattering\_coefficient & m$^{-1}$ & Scattering coefficient & 0 \\
+sigma\_abs & barn & Alternative: absorption cross section per unit cell at 2200 m/s (used when Vc\textgreater{}0) & 0 \\
+sigma\_scat & barn & Alternative: scattering cross section per unit cell (used when Vc\textgreater{}0) & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume; when \textgreater{}0, coefficients are computed from sigma\_abs, sigma\_scat & 0 \\
+radius & m & Outer radius of a cylinder (with yheight) or of a sphere (yheight=0) & 0 \\
+xwidth & m & Width of a box sample & 0 \\
+yheight & m & Height of a box or cylinder sample & 0 \\
+zdepth & m & Depth of a box sample & 0 \\
+thickness & m & Wall thickness of a hollow cylinder (0: filled) & 0 \\
+pack & 1 & Packing factor (scales absorption and scattering coefficients) & 1 \\
+p\_transmit & 1 & Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter) & 0 \\
+order & 1 & Maximum number of scattering events per neutron (1: single scattering) & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_SANS2D\_ongrid.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_SANS2D_ongrid_static.tex}{\input{contrib/MCViNE_SANS2D_ongrid_static.tex}}{}

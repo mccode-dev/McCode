@@ -53,6 +53,7 @@
 * cfg:                    [str]    NCrystal material configuration string (details <a href="https://github.com/mctools/ncrystal/wiki/Using-NCrystal">on this page</a>).
 * interact_fraction:      [1]      Fraction of scattering events assigned to this process 0-1 (default -1 lets Union assign it).
 * include_SLD:            [0/1]    Include the scattering length density calculated from cfg in the material refraction information.
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
  *******************************************************************************/
 
 /******************************************************************************/
@@ -78,15 +79,14 @@
 
 DEFINE COMPONENT Union_NCrystal_material
 
-SETTING PARAMETERS(string cfg="", interact_fraction=-1, include_SLD=0)
+SETTING PARAMETERS(string cfg="", interact_fraction=-1, include_SLD=0, string init="")
 DEPENDENCY "@NCRYSTALFLAGS@"
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Union_NCrystal_material requires the Union library. Add a Union_master component to load the libraries."
-  #endif
+  %include "union-lib"
 
+  %include "mccode-ncrystal-lib"
   %include "union_ncrystal.c"
 
   #ifndef MATERIAL_DETECTOR
@@ -128,6 +128,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   memset (&params, 0, sizeof (params));
   memset (&NCrystal_storage, 0, sizeof (NCrystal_storage));
 
@@ -142,6 +143,7 @@ INITIALIZE
   ncrystal_union_check_version (NAME_CURRENT_COMP);
   ncrystal_union_setup_conversion (&NCrystal_storage.ncrystal_convfact_vsq2ekin, &NCrystal_storage.ncrystal_convfact_ekin2vsq);
   ncrystal_union_setup_rng ();
+  mccode_setup_ncrystal_search_paths ();
 
   ncrystal_info_t info = ncrystal_create_info (cfg);
   double numberdensity = ncrystal_union_get_numberdensity (info, NAME_CURRENT_COMP);
@@ -190,7 +192,7 @@ INITIALIZE
   sprintf (global_material_element.name, "%s", NAME_CURRENT_COMP);
   global_material_element.component_index = INDEX_CURRENT_COMP;
   global_material_element.physics = &this_material;
-  struct pointer_to_global_material_list* global_material_list = &g_material_list;
+  struct pointer_to_global_material_list* global_material_list = &union_state_p->u_material_list;
   add_element_to_material_list (global_material_list, global_material_element);
 %}
 
@@ -203,6 +205,7 @@ FINALLY
   ncrystal_unref (&params.scat);
   ncrystal_invalidate (&params.proc_scat);
   free (this_material.p_scattering_array);
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

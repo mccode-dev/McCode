@@ -65,6 +65,7 @@
 * RZ: [m]                                                 Radius of lattice curvature along Z. flat when 0.
 * powder: [1]                                             Flag to indicate powder mode, for simulation of Debye-Scherrer cones via random crystallite orientation. A powder texture can be approximated with 0
 * PG: [1]                                                 Flag to indicate "Pyrolytic Graphite" mode, only meaningful with choice of Graphite.lau, models PG crystal. A powder texture can be approximated with 0
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * CALCULATED PARAMETERS:
 * Template_storage          // Important to update this output paramter
@@ -84,14 +85,12 @@ SETTING PARAMETERS(string reflections=0, delta_d_d=1e-4,
             bx = 0, by = 0, bz = 0,
             cx = 0, cy = 0, cz = 0,
 	    aa=0, bb=0, cc=0, order=0, RX=0, RY=0, RZ=0, powder=0, PG=0,
-            interact_fraction=-1, packing_factor=1)
+            interact_fraction=-1, packing_factor=1, string init="")
 
 
 SHARE
 %{
-  #ifndef Union
-  #error "ERROR: Single_crystal_process requires the Union library. Add a Union_master component to load the libraries."
-  #endif
+  %include "union-lib"
 
   %include "read_table-lib"
   %include "interoff-lib"
@@ -797,7 +796,7 @@ SHARE
 
   #endif /* !SINGLE_CRYSTAL_PROCESS_DECL */
 
-  // Very important to add a pointer to this struct in the union-lib.c file
+  // Very important to add a pointer to this struct in the union-lib.h file
   struct Single_crystal_physics_storage_struct {
     // Variables that needs to be transfered between any of the following places:
     // The initialize in this component
@@ -1002,6 +1001,12 @@ SHARE
   #ifndef PROCESS_SINGLE_CRYSTAL_DETECTOR
   #define PROCESS_SINGLE_CRYSTAL_DETECTOR dummy
   #endif
+
+  // Register this process with the Union_master dispatch (see union-lib.h)
+  #undef UNION_CASE_PHYSICS_MY_SINGLE_CRYSTAL
+  #define UNION_CASE_PHYSICS_MY_SINGLE_CRYSTAL(out, ...) case Single_crystal: out = Single_crystal_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_SINGLE_CRYSTAL
+  #define UNION_CASE_PHYSICS_SCATTERING_SINGLE_CRYSTAL(out, ...) case Single_crystal: out = Single_crystal_physics_scattering(__VA_ARGS__); break;
 %}
 
 DECLARE
@@ -1019,6 +1024,7 @@ DECLARE
 
 INITIALIZE
 %{
+  struct union_state_struct* union_state_p = union_acquire ();
   // Single crystal initialize
   double as, bs, cs;
   int i = 0;
@@ -1168,13 +1174,18 @@ INITIALIZE
   global_process_element.component_index = INDEX_CURRENT_COMP;
   global_process_element.p_scattering_process = &This_process;
 
-  struct pointer_to_global_process_list* global_process_list = &g_process_list;
+  struct pointer_to_global_process_list* global_process_list = &union_state_p->u_process_list;
   add_element_to_process_list (global_process_list, global_process_element);
  %}
 
 TRACE
 %{
   // Trace should be empty, the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
 %}
 
 END

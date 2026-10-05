@@ -1593,19 +1593,21 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
           printf("Monitor_nD: %s %li neutrons stored in List.\n",
                  Vars->compcurname, Vars->List_Buffer.count);
       }
-      else if ((Vars->Buffer_Counter < Vars->Buffer_Block) && ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1)))
+      else if ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1))
       {
-        double *Mon2D_Buffer = Vars->Mon2D_Buffer;
-        for (i = 0; i <= Vars->Coord_Number; i++)
-        {
-          // This is is where the list is appended. How to make this "atomic"?
-          #pragma acc atomic write 
-          Mon2D_Buffer[i + Vars->Buffer_Counter*(Vars->Coord_Number+1)] = Coord[i];
+        unsigned long buffer_slot = Vars->Buffer_Block;
+        if (Vars->Buffer_Counter < Vars->Buffer_Block) {
+          #pragma acc atomic capture
+          buffer_slot = Vars->Buffer_Counter++;
         }
-	    #pragma acc atomic update
-        Vars->Buffer_Counter = Vars->Buffer_Counter + 1;
-        if (Vars->Flag_Verbose && (Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List == 1)) 
-          printf("Monitor_nD: %s %li neutrons stored in List.\n", Vars->compcurname, Vars->Buffer_Counter);
+        if (buffer_slot < Vars->Buffer_Block)
+        {
+          double *Mon2D_Buffer = Vars->Mon2D_Buffer + buffer_slot*(Vars->Coord_Number+1);
+          for (i = 0; i <= Vars->Coord_Number; i++)
+            Mon2D_Buffer[i] = Coord[i];
+          if (Vars->Flag_Verbose && (buffer_slot + 1 == Vars->Buffer_Block) && (Vars->Flag_List == 1))
+            printf("Monitor_nD: %s %li neutrons stored in List.\n", Vars->compcurname, (long)Vars->Buffer_Block);
+        }
       }
     } /* end (Vars->Flag_Auto_Limits != 2) */
     
@@ -1672,6 +1674,12 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         atan2(Vars->mean_dx,Vars->mean_p)*RAD2DEG,
         atan2(Vars->mean_dy,Vars->mean_p)*RAD2DEG);
     }
+
+    /* On GPU (OpenACC) several threads may have incremented Buffer_Counter
+       past Buffer_Block while racing for the last free rows; only
+       Buffer_Block rows hold data. No-op for serial CPU runs. */
+    if (Vars->Buffer_Counter > Vars->Buffer_Block)
+      Vars->Buffer_Counter = Vars->Buffer_Block;
 
     /* check Buffer flush when end of simulation reached */
     if ((Vars->Buffer_Counter <= Vars->Buffer_Block) && Vars->Flag_Auto_Limits && Vars->Mon2D_Buffer && Vars->Buffer_Counter)
@@ -1826,6 +1834,18 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         {
           List_Count = Vars->Buffer_Counter;
           List_Data = Vars->Mon2D_Buffer;
+          if (Vars->Flag_List >= 2) Vars->Buffer_Size = Vars->Neutron_Counter;
+          if (Vars->Buffer_Size >= Vars->Neutron_Counter)
+            Vars->Buffer_Size = Vars->Neutron_Counter;
+#ifdef OPENACC
+          /* The atomic reservation can reject rows after this buffer fills. */
+          if (Vars->Buffer_Size > Vars->Buffer_Counter) {
+            printf("Monitor_nD: %s: WARNING list truncated to %lu of %lld events "
+                   "(buffer full). Increase --bufsiz or use Monitor_nD_noacc.\n",
+                   Vars->compcurname, Vars->Buffer_Counter, (long long)Vars->Neutron_Counter);
+            Vars->Buffer_Size = Vars->Buffer_Counter;
+          }
+#endif
         }
         strcpy(fname,Vars->Mon_File);
         if (strchr(Vars->Mon_File,'.') == NULL) strcat(fname, "_list");

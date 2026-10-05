@@ -23,7 +23,9 @@ MCSTAS_CFLAGS = -g -O2 -lm -lgsl -lgslcblas
 
 ## Examples
 
-
+- **Test: FRAC=0.1 sampleconf=0 Detector: PSDdet1_I=117.629**
+- **Test: FRAC=0.1 sampleconf=1 Detector: PSDdet1_I=18.684**
+- **Test: FRAC=0.1 sampleconf=2 Detector: PSDdet1_I=18.684**
 
 ## Input parameters
 
@@ -31,15 +33,16 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| glen |  |  | 1.4 |
-| flen |  |  | 0.4 |
-| w1 |  |  | 0.05 |
-| vm |  |  | 3.0 |
-| FRAC |  |  | 0 |
-| sampleconf |  |  | 0 |
+| glen | m | Length of the elliptical guides | 1.4 |
+| flen | m | Focal-length of elliptical guides | 0.4 |
+| w1 | m | Entry-width of elliptical guides | 0.05 |
+| vm | 1 | m-value of material for left and right vertical guide mirrors | 3.0 |
+| FRAC | 1 | Fraction of statistics used to model incoherent scattering from sample | 0 |
+| sampleconf | 1 | Choose between three different sample configurations, see Multilayer_sample for details | 0 |
 
 ## Links
 
 - [Source code](ISIS_CRISP.instr) for `ISIS_CRISP.instr`.
+- <a href="http://www.isis.stfc.ac.uk/instruments/crisp/">Website of the CRISP instrument</a>
 
 ---

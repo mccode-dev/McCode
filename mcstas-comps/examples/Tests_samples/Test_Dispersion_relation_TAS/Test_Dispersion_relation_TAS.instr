@@ -1,0 +1,242 @@
+/*******************************************************************************
+* McStas instrument definition
+*
+* %Identification
+* Written by: Daniel Lomholt Christensen
+* Date: September 2026
+* Origin: Niels Bohr Institute
+*
+* Triple axis test instrument for the Dispersion_relation component
+*
+* %Description
+* A simple triple axis spectrometer with a flat PG(002) monochromator and
+* analyzer, operated at fixed final energy. For a given (h, 0, l) and energy
+* transfer dE the instrument calculates the monochromator, sample and analyzer
+* angles, so scans over h, l and dE map the dispersion of the sample, for
+* example a constant energy cut in (h, l) or a dispersion curve in (h, dE).
+*
+* The samples take the scattering vector as Q = k_i - k_f in the sample frame,
+* with h along the sample x axis, k along y and l along z, so the horizontal
+* scattering plane holds h and l. The sample rotation A3 turns (h, 0, l) into
+* the scattering vector set up by the scattering angle A4.
+*
+* sample_choice selects the sample. The phonon samples (0, 1) share the Pb
+* phonon of Phonon_simple, and the magnon samples (2, 3) the MnF2 magnon of
+* SpinWave_BCO:
+*   0: Dispersion_relation reading the phonon files written by
+*      generate_phonon_dispersion.py
+*   1: Phonon_simple, the phonon reference
+*   2: SpinWave_BCO, the magnon reference. Its shared functions are prefixed
+*      with disp_SBCO_ so it can be in the same instrument as Phonon_simple
+*   3: Dispersion_relation reading the magnon files written by
+*      generate_magnon_dispersion.py
+* All samples get the same geometry, absorption, incoherent scattering,
+* Debye-Waller factor and temperature.
+*
+* For the phonon, h and l are in units of 4 pi/a of Pb (a = 4.95 AA): the
+* dispersion files are written on the cube of side a/2, over which the fcc
+* dispersion repeats, and the files hold the cross section for the zone around
+* (1, 0, 1). With primitive_cell = 1, Dispersion_relation instead gets the
+* primitive fcc lattice vectors, a non-orthogonal cell with 60 degree angles,
+* and reads the files written with --cell primitive; h and l keep their units.
+* For the magnon, h, k, l are the MnF2 indices (a = b = 4.873 AA, c = 3.130 AA,
+* along x, y, z for both samples), and (h, l) = (1, 0) is the magnetic zone
+* centre MnF2 (1 0 0).
+*
+* Example: mcrun Test_Dispersion_relation_TAS.instr -M -N 21,21 -n 2e5 h=0.6,1.4 l=0.6,1.4 dE=5 sample_choice=0
+*
+* The dispersion files are written by the SHELL command below when the
+* instrument is compiled, if they do not exist yet, by
+* generate_dispersion_files.py (Python with numpy).
+*
+* %Example: h=1.2 l=1 dE=5 sample_choice=0 Detector: detector_I=1.46e-11
+* %Example: h=1.2 l=1 dE=5 sample_choice=1 Detector: detector_I=1.41e-11
+* %Example: h=1.2 l=1 dE=5 sample_choice=0 primitive_cell=1 Detector: detector_I=1.46e-11
+* %Example: h=1.15 l=0 dE=3 T=2 sample_choice=2 Detector: detector_I=8.91e-10
+* %Example: h=1.15 l=0 dE=3 T=2 sample_choice=3 Detector: detector_I=9.41e-10
+*
+* %Parameters
+* h: [r.l.u.]       Scattering vector component along a* (sample x axis)
+* l: [r.l.u.]       Scattering vector component along c* (sample z axis)
+* dE: [meV]         Energy transfer to the sample, positive for neutron energy loss
+* Ef: [meV]         Fixed final energy selected by the analyzer
+* T: [K]            Sample temperature
+* sigma_abs: [barns] Absorption cross section of the samples
+* sigma_inc: [barns] Incoherent scattering cross section of the samples
+* sample_choice: [1] 0: Dispersion_relation (phonon), 1: Phonon_simple, 2: SpinWave_BCO, 3: Dispersion_relation (magnon)
+* primitive_cell: [1] setting this to 1 gives the phonon Dispersion_relation sampling the primitive fcc lattice vectors
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Dispersion_relation_TAS(
+    h = 1,
+    l = 1,
+    dE = 5,
+    Ef = 14.7,
+    T = 300,
+    sigma_abs = 0,
+    sigma_inc = 0,
+    int sample_choice = 0,
+    int primitive_cell = 0)
+
+// Write the dispersion files the samples read, unless they already exist.
+// Delete a folder to have it written again.
+SHELL "python generate_dispersion_files.py"
+
+DECLARE
+%{
+    double Ei;
+    double DM; // d-spacing of PG(002) for monochromator and analyzer
+    double A1, A3, A4, A5; // Monochromator, sample, scattering and analyzer angles [deg]
+    double lattice_a, lattice_b, lattice_c; // Lattice constants of the samples [AA]
+    double lattice_vectors[9]; // ax ... cz for Dispersion_relation, zero unless primitive_cell
+    char folder[256]; // Folder with the dispersion files for Dispersion_relation
+%}
+
+INITIALIZE
+%{
+    for (int i = 0; i < 9; i++) lattice_vectors[i] = 0;
+    if (sample_choice == 2 || sample_choice == 3) {
+        // MnF2, as in the SpinWave_BCO example instrument
+        lattice_a = 4.873;
+        lattice_b = 4.873;
+        lattice_c = 3.130;
+        sprintf(folder, "magnon_dispersion");
+    } else if (sample_choice == 0 || sample_choice == 1) {
+        // Pb: the fcc dispersion repeats over the cube of side a/2
+        lattice_a = 4.95/2;
+        lattice_b = 4.95/2;
+        lattice_c = 4.95/2;
+        sprintf(folder, "phonon_dispersion");
+        if (primitive_cell) {
+            // Primitive fcc cell with the cubic axes along x, y, z, as in Phonon_simple
+            double half = 4.95/2;
+            double primitive[9] = {0, half, half,  half, 0, half,  half, half, 0};
+            for (int i = 0; i < 9; i++) lattice_vectors[i] = primitive[i];
+            sprintf(folder, "phonon_dispersion_primitive");
+        }
+    } else {
+        fprintf(stderr, "Test_Dispersion_relation_TAS: sample_choice must be 0 to 3, not %d.\n", sample_choice);
+        exit(1);
+    }
+
+    DM = 3.355;
+    Ei = Ef + dE;
+    double ki = sqrt(Ei)*SE2V*V2K;
+    double kf = sqrt(Ef)*SE2V*V2K;
+
+    // Bragg angles of monochromator and analyzer
+    A1 = RAD2DEG*asin(PI/(ki*DM));
+    A5 = RAD2DEG*asin(PI/(kf*DM));
+
+    // Scattering vector in the sample frame: h along x (a*), l along z (c*)
+    double Q_x_sample = h*2*PI/lattice_a;
+    double Q_z_sample = l*2*PI/lattice_c;
+    double Q = sqrt(Q_x_sample*Q_x_sample + Q_z_sample*Q_z_sample);
+
+    // Scattering angle from the scattering triangle
+    double cos_A4 = (ki*ki + kf*kf - Q*Q)/(2*ki*kf);
+    if (fabs(cos_A4) > 1) {
+        fprintf(stderr, "Test_Dispersion_relation_TAS: The scattering triangle does not close for "
+                        "h=%g, l=%g, dE=%g meV, Ef=%g meV.\n", h, l, dE, Ef);
+        exit(1);
+    }
+    A4 = RAD2DEG*acos(cos_A4);
+
+    // Q = k_i - k_f in the frame of the sample arm, with k_i along z
+    double Q_x_lab = -kf*sin(DEG2RAD*A4);
+    double Q_z_lab = ki - kf*cos(DEG2RAD*A4);
+    // Rotate the sample so that Q lies along (h, 0, l) in the sample frame
+    A3 = RAD2DEG*(atan2(Q_x_lab, Q_z_lab) - atan2(Q_x_sample, Q_z_sample));
+
+    printf("Test_Dispersion_relation_TAS: h=%g l=%g dE=%g meV: Ei=%g meV, A1=%g, A3=%g, A4=%g, A5=%g deg\n",
+           h, l, dE, Ei, A1, A3, A4, A5);
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(
+    radius = 0.01, dist = 2, focus_xw = 0.02, focus_yh = 0.02,
+    E0 = Ei, dE = 0.05*Ei)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT mono_arm = Arm()
+AT (0, 0, 2) RELATIVE source
+ROTATED (0, A1, 0) RELATIVE source
+
+COMPONENT monochromator = Monochromator_flat(
+    zwidth = 0.1, yheight = 0.1, mosaich = 30, mosaicv = 30,
+    r0 = 1, DM = DM)
+AT (0, 0, 0) RELATIVE mono_arm
+
+COMPONENT mono_out = Arm()
+AT (0, 0, 0) RELATIVE mono_arm
+ROTATED (0, A1, 0) RELATIVE mono_arm
+
+COMPONENT sample_arm = Arm()
+AT (0, 0, 1.5) RELATIVE mono_out
+
+// Dispersion_relation for both the phonon (0) and the magnon (3); the lattice
+// and folder follow sample_choice
+COMPONENT sample = Dispersion_relation(
+    radius = 0.01, yheight = 0.02,
+    sigma_abs = sigma_abs, sigma_inc = sigma_inc,
+    a = lattice_a, b = lattice_b, c = lattice_c,
+    ax = lattice_vectors[0], ay = lattice_vectors[1], az = lattice_vectors[2],
+    bx = lattice_vectors[3], by = lattice_vectors[4], bz = lattice_vectors[5],
+    cx = lattice_vectors[6], cy = lattice_vectors[7], cz = lattice_vectors[8],
+    DW = 1, T = T, folder_path = folder,
+    target_index = 4, focus_xw = 0.05, focus_yh = 0.05)
+WHEN (sample_choice == 0 || sample_choice == 3)
+AT (0, 0, 0) RELATIVE sample_arm
+ROTATED (0, A3, 0) RELATIVE sample_arm
+
+COMPONENT phonon_simple_sample = Phonon_simple(
+    radius = 0.01, yheight = 0.02,
+    sigma_abs = sigma_abs, sigma_inc = sigma_inc,
+    a = 4.95, b = 9.405, M = 207.2, c = 10,
+    DW = 1, T = T,
+    target_index = 3, focus_xw = 0.05, focus_yh = 0.05)
+WHEN (sample_choice == 1)
+AT (0, 0, 0) RELATIVE sample_arm
+ROTATED (0, A3, 0) RELATIVE sample_arm
+
+// The magnetic parameters are the defaults of generate_magnon_dispersion.py.
+// SpinWave_BCO brackets final speeds in e_steps intervals on each side of the
+// elastic line and misses roots that share an interval; with 200 steps the
+// total intensity of the h, l scan was 0.85 % low, with 1000 it converges.
+COMPONENT spinwave_sample = SpinWave_BCO(
+    radius = 0.01, yheight = 0.02,
+    sigma_abs = sigma_abs, sigma_inc = sigma_inc,
+    a1 = lattice_a, a2 = lattice_b, a3 = lattice_c,
+    j = 0.304, ja = 0.008, jb = 0.008, jc = -0.056,
+    j_110 = 0, j_110_prime = 0,
+    S = 2.5, D = -0.023, B = 0, FM = 0, Fq = 1, mode_input = 2,
+    DW = 1, T = T, e_steps_low = 1000, e_steps_high = 1000,
+    target_index = 2, focus_xw = 0.05, focus_yh = 0.05)
+WHEN (sample_choice == 2)
+AT (0, 0, 0) RELATIVE sample_arm
+ROTATED (0, A3, 0) RELATIVE sample_arm
+
+COMPONENT analyzer_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_arm
+ROTATED (0, A4, 0) RELATIVE sample_arm
+
+COMPONENT analyzer = Monochromator_flat(
+    zwidth = 0.1, yheight = 0.1, mosaich = 30, mosaicv = 30,
+    r0 = 1, DM = DM)
+AT (0, 0, 1) RELATIVE analyzer_arm
+ROTATED (0, A5, 0) RELATIVE analyzer_arm
+
+COMPONENT detector_arm = Arm()
+AT (0, 0, 0) RELATIVE analyzer
+ROTATED (0, A5, 0) RELATIVE analyzer
+
+COMPONENT detector = Monitor(
+    xwidth = 0.05, yheight = 0.05)
+AT (0, 0, 0.5) RELATIVE detector_arm
+
+END

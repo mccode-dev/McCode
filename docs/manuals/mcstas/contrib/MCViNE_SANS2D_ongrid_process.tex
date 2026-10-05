@@ -1,0 +1,41 @@
+\section{The \texttt{MCViNE\_SANS2D\_ongrid\_process} McStas Component}
+Union process: SANS from a 2D S(Qx,Qy) map on a grid (beam along z).
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE SANS2D\_ongrid\_Kernel (mcvine.acc); MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/acc (acc/kernels/SANS2D\_ongrid.py)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+Qx, Qy are sampled uniformly over the grid range; the neutron gets v\_perp -= Q*K2V and vz = sqrt(vi\textasciicircum{}2 - vx\textasciicircum{}2 - vy\textasciicircum{}2) (elastic). The weight is the bilinearly interpolated S(Qx,Qy) (no solid-angle Jacobian, as in mcvine.acc; use scattering\_coefficient to set the absolute scale). File layout: first numeric row Qx values (nx, ascending), second row Qy values (ny), then ny rows of nx values (row index = Qy), i.e. the (y,x) image layout used by mcvine.acc.
+
+\textbf{Union process.} Part of the Union components: define this process, collect it into a material with Union\_make\_material (absorption is set there with my\_absorption, the absorption inverse penetration depth at 2200 m/s), assign the material to Union\_box/Union\_cylinder/Union\_sphere/Union\_mesh geometries, and add a Union\_master after them. Geometry, attenuation and multiple scattering are handled by Union\_master; this component provides the MCViNE kernel: the scattering coefficient and the final-state sampling (weight). Orientation: this process is anisotropic; its frame (Q vectors, reciprocal vectors, atom positions) follows the ROTATED placement of this component. The kernel code is shared with the standalone component MCViNE\_SANS2D\_ongrid (mcvine-lib.c). Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type MCViNE is declared in share/union-lib.h and registered with Union\_master in share/mcvine-union-lib.h.
+
+Example: MCViNE\_SANS2D\_ongrid\_process(S\_QxQy="MCViNE/SANS2D\_example.dat", scattering\_coefficient=1)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+S\_QxQy & str & 2D grid file (see description) & 0 \\
+scattering\_coefficient & m$^{-1}$ & Scattering coefficient (inverse penetration depth for scattering) & 0 \\
+sigma\_scat & barn & Alternative: scattering cross section per unit cell (used when Vc\textgreater{}0) & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume; when \textgreater{}0 the coefficient is sigma\_scat/Vc & 0 \\
+packing\_factor & 1 & Packing factor (scales the scattering coefficient) & 1 \\
+interact\_fraction & 1 & Union: fraction of interactions forced to this process (-1: by cross section) & -1 \\
+init & string & Deprecated and unused, accepted like on the other Union components (see Union\_init). & "" \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_SANS2D\_ongrid\_process.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_SANS2D_ongrid_process_static.tex}{\input{contrib/MCViNE_SANS2D_ongrid_process_static.tex}}{}

@@ -1,0 +1,54 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: NCrystal_filter_example
+*
+* %Identification
+* Written by: Thomas Kittelmann
+* Date: 2026
+* Origin: ESS
+* %INSTRUMENT_SITE: NCrystal
+*
+* Example instrument for NCrystal_filter use
+*
+* %Description
+* A beam with wavelengths from 0.5 to 9.5 Aa passes through a filter
+* (NCrystal_filter), with wavelength monitors before and after it. With the
+* default cooled Be filter, the transmission is low below the Bragg cut-off at
+* 3.96 Aa, and high above it.
+*
+* %Example: thickness=0.1 Detector: mon_after_I=0.000105
+*
+* %Parameters
+* cfg:       [str] NCrystal cfg-string of the filter material.
+* thickness: [m]   Thickness of the filter.
+*
+* %Link
+* NCrystal_filter
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT NCrystal_filter_example(string cfg="stdlib::Be_sg194.ncmat;temp=80K", thickness=0.1)
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius = 0.005, dist = 2, focus_xw = 0.01, focus_yh = 0.01,
+                                 lambda0 = 5, dlambda = 4.5)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT mon_before = L_monitor(nL = 90, filename = "before.dat", xwidth = 0.02, yheight = 0.02,
+                                 Lmin = 0.5, Lmax = 9.5, restore_neutron = 1)
+AT (0, 0, 0.9) RELATIVE origin
+
+COMPONENT filter = NCrystal_filter(cfg = cfg, xwidth = 0.02, yheight = 0.02, zdepth = thickness)
+AT (0, 0, 1) RELATIVE origin
+
+COMPONENT mon_after = L_monitor(nL = 90, filename = "after.dat", xwidth = 0.02, yheight = 0.02,
+                                Lmin = 0.5, Lmax = 9.5, restore_neutron = 1)
+AT (0, 0, 1 + thickness / 2 + 0.1) RELATIVE origin
+
+END

@@ -33,7 +33,7 @@ Parameters in **boldface** are required; the others are optional.
 |------|------|-------------|---------|
 | dim | m | Width/height of monitors in "cubic" GROUP arrangement | 4 |
 | catchall | 1 | Flag to indicate if "catchall"-Arm is included in GROUP | 0 |
-| restore |  |  | 1 |
+| restore | 1 | Value passed to restore_neutron of the monitors | 1 |
 | src_dim | m | radius of 4PI-emitting source | 0.01 |
 
 ## Links

@@ -1,0 +1,55 @@
+\section{The \texttt{MCViNE\_Phonon\_CoherentInelastic\_PolyXtal} McStas Component}
+Coherent one-phonon scattering from a powder, using a full phonon dispersion (energies + polarizations) on a grid.
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Fahima Islam (McStas port of the MCViNE phonon CoherentInelastic\_PolyXtal kernel; MCViNE by J. Y. Y. Lin et al.)
+  \item \textbf{Origin:} MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/phonon/CoherentInelastic\_PolyXtal.cc)
+  \item \textbf{Date:} 2026-09-29
+\end{itemize}
+
+\subsection*{Description}
+Powder average of the coherent one-phonon cross section, computed from phonon energies and polarization vectors tabulated on a grid over one reciprocal cell (MCViNE IDF format, e.g. from phonopy via MCViNE tools). A random branch and a random Q vector in a cube are drawn until the event is kinematically allowed; phonon creation/annihilation, Bose factor and Debye-Waller factor included. Scattering coefficient: total coherent cross section / Vc.
+
+\textbf{Transport} (same as MCViNE HomogeneousNeutronScatterer): on the first passage the neutron is forced to scatter at a uniformly chosen depth, weighted by path length, attenuation exp(-(mu+sigma)x) and the scattering coefficient; on exit it is attenuated by exp(-(mu+sigma)L\_out). With order\textgreater{}1 further scatterings are sampled analogically (truncated exponential). With p\_transmit\textgreater{}0 that fraction of events is kept as the attenuated direct beam. mu(v) = absorption\_coefficient*2200/v. Events for which the kernel cannot scatter (kinematically forbidden) are absorbed.
+
+Geometry: box (xwidth,yheight,zdepth), cylinder (radius,yheight), hollow cylinder (+thickness) or sphere (radius only). All vectors (Q, targets, reciprocal vectors, atom positions) are in the component's local frame.
+
+Uses the shared runtime share/mcvine-lib.h/.c.
+
+Example: MCViNE\_Phonon\_CoherentInelastic\_PolyXtal(idf\_dir="MCViNE/fcc\_toy\_phonons", atoms="MCViNE/fcc\_toy\_atoms.dat", T=300, max\_omega=45, radius=0.01, yheight=0.05)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+idf\_dir & str & Directory with MCViNE IDF phonon files: Qgridinfo, Omega2, Polarizations[, DOS] & 0 \\
+atoms & str & Atoms file: one row per atom 'x y z mass b\_coh sigma\_inc sigma\_abs' ([\AA{}] cartesian, [amu], [fm], [barn], [barn]), same order as in the IDF files & 0 \\
+T & K & Temperature & 300 \\
+dw\_core & \AA{}$^{2}$ & Debye-Waller core; \textless{}0: computed from the DOS (idf\_dir/DOS or dos) & -1 \\
+dos & str & Optional DOS file for the Debye-Waller factor (default: idf\_dir/DOS) & 0 \\
+Vc & \AA{}$^{3}$ & Unit cell volume; 0: (2pi)\textasciicircum{}3/|b1.(b2 x b3)| from Qgridinfo & 0 \\
+max\_omega & meV & Maximum phonon energy & 50 \\
+min\_omega & meV & Phonons below this energy are skipped & 0.01 \\
+unbiased & 1 & 0: MCViNE sampling (rejection + empirical accessible reciprocal volume, a few \% high in tests). 1: single Q sample in the cube with its exact volume, unbiased & 0 \\
+radius & m & Outer radius of a cylinder (with yheight) or of a sphere (yheight=0) & 0 \\
+xwidth & m & Width of a box sample & 0 \\
+yheight & m & Height of a box or cylinder sample & 0 \\
+zdepth & m & Depth of a box sample & 0 \\
+thickness & m & Wall thickness of a hollow cylinder (0: filled) & 0 \\
+pack & 1 & Packing factor (scales absorption and scattering coefficients) & 1 \\
+p\_transmit & 1 & Monte Carlo fraction of events kept as unscattered transmitted beam (0: always scatter) & 0 \\
+order & 1 & Maximum number of scattering events per neutron (1: single scattering) & 1 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{MCViNE\_Phonon\_CoherentInelastic\_PolyXtal.comp}.
+  \item MCViNE documentation: https://mcvine.github.io
+\end{itemize}
+\IfFileExists{contrib/MCViNE_Phonon_CoherentInelastic_PolyXtal_static.tex}{\input{contrib/MCViNE_Phonon_CoherentInelastic_PolyXtal_static.tex}}{}

@@ -120,7 +120,6 @@
 * but oriented materials are not. Only Bragg diffraction, absorption and
 * incoherent scattering are modelled. For the full NCrystal physics, use the
 * NCrystal_sample component, or the NCrystal_process component with Union.
-*
 * <b>Concentricity</b>
 *
 * PowderN assumes 'concentric' shape, i.e. can contain other components inside its
@@ -391,11 +390,7 @@ SHARE
   } // cif2hkl
   #endif
 
-  #ifndef WIN32
-  #include "NCrystal/ncrystal.h"
-  #else
-  #include "NCrystal\\ncrystal.h"
-  #endif
+  %include "mccode-ncrystal-lib"
 
   double
   ncrystalpowdern_determine_sigma_inc (ncrystal_info_t ncobj) {
@@ -478,6 +473,7 @@ SHARE
 
   int
   read_line_data_ncrystal (const char* cfgstr, struct line_info_struct* info) {
+    mccode_setup_ncrystal_search_paths ();
     ncrystal_scatter_t scat = ncrystal_create_scatter (cfgstr);
     const int nonoriented = ncrystal_isnonoriented (ncrystal_cast_scat2proc (scat));
     ncrystal_unref (&scat);

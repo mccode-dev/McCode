@@ -1,0 +1,134 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*
+* Component: MCViNE_LorentzianBroadened_E_Q_process
+*
+* %I
+* Written by: Fahima Islam (McStas port of the MCViNE LorentzianBroadened_E_Q_Kernel; MCViNE by J. Y. Y. Lin et al.)
+* Date: 2026-09-29
+* Origin: MCViNE, https://github.com/mcvine/mcvine (mccomponents/lib/kernels/sample/LorentzianBroadened_E_Q_Kernel.icc)
+*
+* Union process: Isotropic dispersion E(Q) broadened by a Lorentzian of Q-dependent width.
+*
+* %D
+* S(Q,E) = S(Q) L(E - E(Q); gamma(Q)) with L a Lorentzian of half width at half
+* maximum gamma(Q).
+* Q is sampled uniformly in [Qmin,Qmax]; the energy offset is sampled from the
+* line shape (up to 100 attempts). Neutrons with Ei below min(E(Q)-3w(Q)) do not
+* scatter.
+* 
+* Functions are given as strings evaluated at run time (MCViNE uses fparser):
+* + - * / ^ (or **), % , comparisons, && ||, if(c,a,b), sin cos tan asin acos
+* atan sinh cosh tanh exp log log10 log2 sqrt abs floor ceil int sign cbrt,
+* pow atan2 min max hypot fmod, constants pi and e.
+*
+* <b>Union process.</b> Part of the Union components: define this process, collect it
+* into a material with Union_make_material (absorption is set there with
+* my_absorption, the absorption inverse penetration depth at 2200 m/s), assign
+* the material to Union_box/Union_cylinder/Union_sphere/Union_mesh geometries,
+* and add a Union_master after them. Geometry, attenuation and multiple
+* scattering are handled by Union_master; this component provides the MCViNE
+* kernel: the scattering coefficient and the final-state sampling (weight).
+* Isotropic process (powder/liquid-like); rotation is irrelevant.
+* The kernel code is shared with the standalone component MCViNE_LorentzianBroadened_E_Q (mcvine-lib.c).
+* Uses share/mcvine-lib.h/.c and share/mcvine-union-lib.h/.c; the process type
+* MCViNE is declared in share/union-lib.h and registered with Union_master in
+* share/mcvine-union-lib.h.
+*
+* Example: MCViNE_LorentzianBroadened_E_Q_process(E_Q="20*sin(Q*1.5)^2", S_Q="1", gamma_Q="0.5", Qmin=0, Qmax=10, scattering_coefficient=10)
+*
+* %P
+* INPUT PARAMETERS:
+* E_Q: [str] E(Q) expression [meV], variable Q [AA^-1]
+* S_Q: [str] S(Q) expression
+* gamma_Q: [str] Lorentzian HWHM gamma(Q) [meV]
+* Qmin: [AA^-1] Lower Q bound
+* Qmax: [AA^-1] Upper Q bound
+* unbiased: [1] 0: MCViNE sampling (retries without acceptance correction: over-weights when part of the Q range is forbidden). 1: single attempt, unbiased
+* scattering_coefficient: [m^-1] Scattering coefficient (inverse penetration depth for scattering)
+* sigma_scat: [barn] Alternative: scattering cross section per unit cell (used when Vc>0)
+* Vc: [AA^3] Unit cell volume; when >0 the coefficient is sigma_scat/Vc
+* packing_factor: [1] Packing factor (scales the scattering coefficient)
+* interact_fraction: [1] Union: fraction of interactions forced to this process (-1: by cross section)
+* init: [string] Deprecated and unused, accepted like on the other Union components (see Union_init).
+*
+* %L
+* MCViNE documentation: https://mcvine.github.io
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCViNE_LorentzianBroadened_E_Q_process
+
+SETTING PARAMETERS (string E_Q="10", string S_Q="1", string gamma_Q="1", Qmin=0, Qmax=10, int unbiased=0, scattering_coefficient=0, sigma_scat=0, Vc=0, packing_factor=1, interact_fraction=-1, string init="")
+
+NOACC
+
+SHARE
+%{
+  %include "union-lib"
+  %include "read_table-lib"
+  %include "mcvine-lib"
+  %include "mcvine-union-lib"
+  #ifndef PROCESS_DETECTOR
+  #define PROCESS_DETECTOR dummy
+  #endif
+%}
+
+DECLARE
+%{
+  mcvine_kernel_Broadened_E_Q kernel;
+  struct MCViNE_physics_storage_struct storage;
+  struct scattering_process_struct This_process;
+  struct global_process_element_struct global_process_element;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct* union_state_p = union_acquire ();
+  double mu = 0, sig = 0;
+  memset (&kernel, 0, sizeof (kernel));
+  const char* vars[] = { "Q" };
+  if (mcvine_func_setup (&kernel.m_E_Q, E_Q, NULL, 0, 1, vars, NAME_CURRENT_COMP))
+    exit (-1);
+  if (mcvine_func_setup (&kernel.m_S_Q, S_Q, NULL, 0, 1, vars, NAME_CURRENT_COMP))
+    exit (-1);
+  if (mcvine_func_setup (&kernel.m_W_Q, gamma_Q, NULL, 0, 1, vars, NAME_CURRENT_COMP))
+    exit (-1);
+  if (Qmin < 0 || Qmin >= Qmax) {
+    fprintf (stderr, "%s: need 0 <= Qmin < Qmax\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  kernel.m_Qmin = Qmin;
+  kernel.m_Qmax = Qmax;
+  kernel.m_lorentzian = 1;
+  kernel.m_unbiased = unbiased;
+  mcvine_Broadened_E_Q_init (&kernel);
+
+  if (Vc > 0)
+    sig = mcvine_xs2coeff (sigma_scat, Vc);
+  else
+    sig = scattering_coefficient;
+  if (!(sig > 0)) {
+    fprintf (stderr, "%s: give scattering_coefficient>0 (or sigma_scat>0 and Vc>0)\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  storage.m_kernel = &kernel;
+  storage.m_S = mcvine_S_Broadened_E_Q;
+  storage.m_my_scattering = sig * packing_factor;
+  storage.m_kind = MCVINE_UNION_GENERIC;
+  mcvine_union_register (&union_state_p->u_process_list, &This_process, &global_process_element, &storage, NAME_CURRENT_COMP, INDEX_CURRENT_COMP, interact_fraction, 0, ROT_A_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  // the simulation is done in Union_master
+%}
+
+FINALLY
+%{
+  union_release (NAME_CURRENT_COMP);
+%}
+
+END

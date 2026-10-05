@@ -1795,9 +1795,11 @@ shell:
 search: "SEARCH" TOK_STRING
     {
       add_search_dir($2);
+      record_search($2, 0);
     }
   | "SEARCH" "SHELL" TOK_STRING
     {
+      record_search($3, 1);
       FILE *sfp;
       char svalue[1025];
       sfp = popen($3, "r");

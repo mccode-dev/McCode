@@ -58,7 +58,7 @@ reused across different shapes.
 
 It is entirely possible, and common, to mix ordinary \MCS components with
 Union components in the same instrument file -- the Union machinery only
-takes over between its own \texttt{Union\_init} and \texttt{Union\_master}
+takes over at its \texttt{Union\_master}
 components (section~\ref{sec:union-components}).
 
 \subsection{Volumes, priority and overlap}
@@ -88,8 +88,6 @@ A Union simulation is assembled from components of several distinct
 classes, always used in the same overall order:
 
 \begin{enumerate}
-\item \textbf{\texttt{Union\_init}} -- exactly one instance, placed first
-  among all Union components (section~\ref{sec:union-init}).
 \item \textbf{Process components} -- define a scattering process
   (section~\ref{sec:union-processes}).
 \item \textbf{\texttt{Union\_make\_material}} -- collect processes and an
@@ -100,9 +98,6 @@ classes, always used in the same overall order:
 \item \textbf{\texttt{Union\_master}} -- performs the actual ray tracing for
   all volumes defined since the previous master
   (section~\ref{sec:union-master}).
-\item \textbf{\texttt{Union\_stop}} -- exactly one instance, placed last
-  among all Union components, needed for correct cleanup
-  (section~\ref{sec:union-init}).
 \end{enumerate}
 
 In addition, optional \textbf{logger} (section~\ref{sec:union-loggers}) and
@@ -112,34 +107,28 @@ component, and \textbf{surface} components (section~\ref{sec:union-surfaces})
 can be attached to geometries to add reflection/refraction effects at their
 boundaries.
 
-\subsection{Union\_init and Union\_stop}
-\label{sec:union-init}
+\subsection{Loading the Union library}
+\label{sec:union-library}
 \index{Union!Union\_init}
 \index{Union!Union\_stop}
 
-\texttt{Union\_init} takes no parameters and must be the very first Union
-component in the instrument file -- it sets up the internal bookkeeping
-lists (of processes, materials, geometries, loggers, \ldots) that every
-other Union component communicates through. \texttt{Union\_stop} likewise
-takes no parameters and must be the last Union component in the file; it
-performs cleanup and its presence is required for the instrument to compile
-correctly. Between these two, any number of \texttt{Union\_master}
-components (and everything that feeds them) may appear.
+Union components need no setup or cleanup components. Each one loads the
+Union library itself, and the library keeps the internal bookkeeping lists
+(of processes, materials, geometries, loggers, \ldots) that the components communicate through, freeing them once
+the last Union component has finished.
 
-\begin{lstlisting}
-COMPONENT init = Union_init()
-AT (0,0,0) ABSOLUTE
+An instrument that uses Union components must contain at least one
+\texttt{Union\_master}; without one it fails to compile, with an error
+naming \texttt{Union\_components\_need\_a\_Union\_master\_in\_the\_instrument}.
+Union components placed after the last \texttt{Union\_master} have no
+effect, and the simulation warns about each of them when it finishes.
 
-/* ... all other Union components ... */
-
-COMPONENT stop = Union_stop()
-AT (0,0,0) ABSOLUTE
-\end{lstlisting}
-
-Most Union components take an \texttt{init} setting parameter (default
-\texttt{"init"}) identifying which \texttt{Union\_init} instance they belong
-to; this only matters if you deliberately use more than one independent
-Union initialization in a single instrument, which is unusual.
+\texttt{Union\_init} and \texttt{Union\_stop}, which older instruments
+place first and last among their Union components, are no longer needed.
+They are kept without effect, apart from a deprecation warning, so that such
+instruments still compile. For the same reason every Union component still
+accepts the string parameter \texttt{init}, which older instruments set to the
+name of their \texttt{Union\_init} component; its value is ignored.
 
 \subsection{Scattering processes}
 \label{sec:union-processes}
@@ -202,6 +191,49 @@ A process component's position in the instrument file is irrelevant to the
 physics (it has no shape); its \emph{name} is what matters, since materials
 refer to processes by name.
 
+\subsubsection*{Contributed processes: MCViNE kernels}
+\index{Union!MCViNE}
+
+A substantial set of further processes, ported from the
+\href{https://github.com/mcvine/mcvine}{MCViNE} sample-scattering kernels,
+is contributed in the \texttt{contrib} component category rather than
+\texttt{union} (table~\ref{t:union-processes-mcvine}); they follow the
+same Union process interface as the ones above and are used the same way.
+Each is paired with a standalone, non-Union component of the same name
+(without the \texttt{\_process} suffix) sharing the same underlying
+kernel code.
+
+\begin{table}[htb!]
+  \begin{center}
+    {\let\my=\\
+    \begin{tabular}{|l|p{0.55\textwidth}|}
+      \hline
+      \textbf{Component} & \textbf{Description} \\
+      \hline
+      \texttt{MCViNE\_SQ\_process} & Elastic isotropic scatterer with structure factor $S(|Q|)$ (expression or table). \\
+      \texttt{MCViNE\_SQE\_process} & Isotropic $S(Q,E)$ scatterer from an analytic expression or grid, with optional final-energy focusing. \\
+      \texttt{MCViNE\_SvQ\_process} & Elastic scatterer with a vector structure factor $S(Q_x,Q_y,Q_z)$ (expression or 3D grid). \\
+      \texttt{MCViNE\_E\_Q\_process} & Isotropic dispersion: $S(Q,E)=S(Q)\delta(E-E(Q))$ with analytic $E(Q)$, $S(Q)$. \\
+      \texttt{MCViNE\_E\_vQ\_process} & Single-crystal dispersion: $S(Q,E)=S(Q)\delta(E-E(Q))$ with analytic $E(Q_x,Q_y,Q_z)$. \\
+      \texttt{MCViNE\_Broadened\_E\_Q\_process} & Isotropic dispersion $E(Q)$ broadened by a Gaussian of $Q$-dependent width. \\
+      \texttt{MCViNE\_LorentzianBroadened\_E\_Q\_process} & Isotropic dispersion $E(Q)$ broadened by a Lorentzian of $Q$-dependent width. \\
+      \texttt{MCViNE\_ConstantEnergyTransfer\_process} & Isotropic scatterer with a fixed energy transfer. \\
+      \texttt{MCViNE\_ConstantQE\_process} & Scatterer with fixed momentum transfer $|Q|$ and energy transfer $E$. \\
+      \texttt{MCViNE\_ConstantvQE\_process} & Scatterer with a fixed momentum-transfer vector $Q$, weighted by a Gaussian in $E$. \\
+      \texttt{MCViNE\_Phonon\_CoherentInelastic\_PolyXtal\_process} & Coherent one-phonon scattering from a powder, using a full phonon dispersion (energies and polarizations) on a grid. \\
+      \texttt{MCViNE\_Phonon\_CoherentInelastic\_SingleXtal\_process} & Coherent one-phonon scattering from a single crystal, using a full phonon dispersion on a grid. \\
+      \texttt{MCViNE\_Phonon\_IncoherentElastic\_process} & Incoherent elastic scattering with a Debye-Waller factor. \\
+      \texttt{MCViNE\_Phonon\_IncoherentInelastic\_process} & One-phonon incoherent inelastic scattering from a phonon density of states, optional final-energy focusing. \\
+      \texttt{MCViNE\_DGSSXRes\_process} & Resolution kernel for direct-geometry single-crystal spectrometers (aims at a pixel and time-of-flight window). \\
+      \texttt{MCViNE\_SANS2D\_ongrid\_process} & SANS from a 2D $S(Q_x,Q_y)$ map on a grid (beam along $z$). \\
+      \hline
+    \end{tabular}
+    \caption{Processes contributed from MCViNE, in the \texttt{contrib} component category.}
+    \label{t:union-processes-mcvine}
+    }
+  \end{center}
+\end{table}
+
 A process does, however, use its rotation relative to ABSOLUTE to rotate
 its local frame. This can be used to create a small offset between two
 \texttt{Single\_crystal\_process} instances to describe a simple version
@@ -232,6 +264,20 @@ absorption) and \texttt{"Exit"} (behaves like vacuum, but see
 section~\ref{sec:union-exit} below). Setting \texttt{absorber=1} instead of
 giving a \texttt{process\_string} creates a purely absorbing material with
 no scattering processes at all.
+
+For the common case of a material that is purely NCrystal, with no other
+processes to combine it with, \texttt{Union\_NCrystal\_material} is a
+shortcut that creates the underlying NCrystal process and the material in
+a single component:
+\begin{lstlisting}
+COMPONENT Cu = Union_NCrystal_material(cfg="Cu_sg225.ncmat")
+AT (0,0,0) ABSOLUTE
+\end{lstlisting}
+Its absorption is derived automatically from the same NCrystal
+configuration string, so, unlike \texttt{Union\_make\_material}, it takes
+no \texttt{my\_absorption} parameter. Use \texttt{NCrystal\_process}
+together with \texttt{Union\_make\_material} instead whenever NCrystal
+scattering needs to be combined with other processes in the same material.
 
 \subsection{Geometry components}
 \label{sec:union-geometry}
@@ -342,10 +388,9 @@ it.
 \texttt{Union\_master} is where the actual ray tracing happens -- it is the
 component that is placed into the ordinary linear \MCS component sequence,
 and by default it simulates every volume defined since the previous master
-(or, for the first master, since \texttt{Union\_init}). If a volume is
+(or, for the first master, since the start of the instrument). If a volume is
 defined after the last \texttt{Union\_master} in the file, it will never be
-simulated -- remember to place a master (and eventually
-\texttt{Union\_stop}) after your geometry.
+simulated -- remember to place a master after your geometry.
 \begin{lstlisting}
 COMPONENT sample = Union_master()
 AT (0,0,0) RELATIVE sample_position
@@ -583,9 +628,6 @@ working instrument fragment: an aluminium sample can holding an iron
 sample, both with incoherent and powder scattering.
 
 \begin{lstlisting}
-COMPONENT init = Union_init()
-AT (0,0,0) ABSOLUTE
-
 COMPONENT Al_inc = Incoherent_process(sigma=4*0.0082, unit_cell_volume=66.4)
 AT (0,0,0) ABSOLUTE
 
@@ -629,9 +671,6 @@ AT (0,0,0) RELATIVE sample_position
 COMPONENT Banana_monitor = Monitor_nD(radius=1, yheight=0.1,
     options="banana, theta limits=[20,170], bins=200", filename="banana.dat")
 AT (0,0,0) RELATIVE sample_position
-
-COMPONENT stop = Union_stop()
-AT (0,0,0) ABSOLUTE
 \end{lstlisting}
 
 \section{Further examples and worked tutorials}
