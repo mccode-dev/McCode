@@ -2635,6 +2635,9 @@ int mcdetector_out_array_nexus(NXhandle f, char *part, double *data, MCDETECTOR 
     NXclosedata(f);
   }
   NXMEnableErrorReporting();  /* re-enable NeXus error messages */
+  /* A failed create is the normal append path when the dataset already
+     exists. The write result below must still be preserved independently. */
+  ret = NX_OK;
 
   /* open the data set */
   if (NXopendata(f, part) == NX_ERROR) {
@@ -2644,7 +2647,8 @@ int mcdetector_out_array_nexus(NXhandle f, char *part, double *data, MCDETECTOR 
   }
   if (strcasestr(detector.format, "list")) {
     current_dims[1] = current_dims[2] = 0; /* set starting location for writing slab */
-    NXputslab64(f, data, current_dims, dims);
+    if (NXputslab64(f, data, current_dims, dims) != NX_OK)
+      ret = NX_ERROR;
     if (!exists)
       printf("Events:   \"%s\"\n",
         strlen(detector.filename) ? detector.filename : detector.component);
@@ -2663,7 +2667,7 @@ int mcdetector_out_array_nexus(NXhandle f, char *part, double *data, MCDETECTOR 
   nxprintattr(f, "long_name", "%s '%s'", part, detector.title);
   NXclosedata(f);
 
-  return(NX_OK);
+  return(ret);
 } /* mcdetector_out_array_nexus */
 
 /*******************************************************************************
@@ -3939,7 +3943,8 @@ static int mcevent_output_chunk(MC_EVENT_OUTPUT *output, long rows,
     mcdetector_out_array_ascii(output->detector.m, rows, data,
                                output->ascii_file,
                                output->detector.istransposed);
-    if (!output->ascii_file || ferror(output->ascii_file))
+    if (!output->ascii_file || ferror(output->ascii_file)
+        || fflush(output->ascii_file) != 0)
       output->failed = 1;
   }
   return(!output->failed);
