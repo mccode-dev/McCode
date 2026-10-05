@@ -1040,10 +1040,10 @@ int mc_event_chunk_append(MC_EVENT_CHUNK **head, MC_EVENT_CHUNK **tail,
 void mc_event_chunk_free(MC_EVENT_CHUNK **head);
 
 /* Host-side chunk writer. Rows are accumulated in a bounded current buffer;
- * flush spools that buffer and end performs one collective serialization.
+ * flush spools that buffer and end performs the remaining serialization.
  * The writer never calls MPI or writes event output from append/flush, so a
  * caller may use it while preparing chunks at different rates on different
- * ranks. The temporary spool keeps memory bounded until end. */
+ * ranks. The temporary spool keeps memory bounded between host services. */
 typedef struct {
   MC_EVENT_BUFFER buffer;
   FILE *spool;
@@ -1067,6 +1067,12 @@ typedef struct {
   int direct;
   void *stream_output;
   int stream;
+  int mpi_stream;       /* MPI stream uses the live root service */
+  long service_offset;  /* next unread byte in the local spool */
+  long long service_chunks; /* chunks already handed to the host service */
+  long long service_rows;   /* rows already handed to the host service */
+  long long mpi_received_rows; /* rows received by the MPI root */
+  long long mpi_service_index; /* stable order among MPI stream writers */
 } MC_EVENT_WRITER;
 
 /* Internal-facing list entry point used by Monitor_nD and the writer. It
@@ -1139,11 +1145,11 @@ int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
                                   long chunk_capacity, char *filename,
                                   char *component, Coords position,
                                   Rotation rotation, int index);
-/* Begin a serial unknown-count stream. The output sink reserves the normal
- * ASCII metadata count fields and patches them at end; NeXus uses its
- * unlimited event dimension and rewrites the final detector metadata. MPI
- * callers should use mc_event_writer_begin() until the host service protocol
- * is available. */
+/* Begin an unknown-count stream. Serial callers write through the output sink
+ * directly. MPI callers keep rank-local chunks in the bounded temporary spool;
+ * the generated host service drains completed chunks to the persistent root
+ * sink in rank/writer order, while end services the final partial chunk and
+ * patches ASCII or finalizes NeXus metadata. append/flush remain MPI-free. */
 int mc_event_writer_begin_stream(MC_EVENT_WRITER *writer, char *title,
                                  char *columns, long width,
                                  long chunk_capacity, char *filename,
@@ -1158,9 +1164,10 @@ int mc_event_writer_append_openacc(MC_EVENT_WRITER *writer,
 int mc_event_writer_write(MC_EVENT_WRITER *writer, long count, double *data);
 int mc_event_writer_flush(MC_EVENT_WRITER *writer);
 MCDETECTOR mc_event_writer_end(MC_EVENT_WRITER *writer);
-/* Host-side OpenACC batch service. It synchronizes registered writer buffers,
- * spools or writes one bounded chunk, resets the device buffer, and leaves
- * final ASCII/NeXus/MPI serialization to mc_event_writer_end. */
+/* Host-side batch service. In OpenACC builds it synchronizes registered writer
+ * buffers and preserves their device mappings. MPI stream writers exchange
+ * pending chunks in registration order; all final ASCII/NeXus metadata work is
+ * completed by mc_event_writer_end. */
 void mc_event_writer_openacc_service(void);
 /* Discard a writer without entering MPI or serializing output. This is for
  * host-side error/unwind cleanup when the matching collective end is skipped. */

@@ -2113,7 +2113,9 @@ int cogen_raytrace(struct instr_def *instr)
       coutf("    #pragma acc update host(_%s_var)", comp->name);
   }
   list_iterate_end(sync_liter);
+  coutf("    #endif");
   coutf("    mc_event_writer_openacc_service();");
+  coutf("    #ifdef OPENACC");
   sync_liter = list_iterate(instr->complist);
   while((comp = list_next(sync_liter)) != NULL) {
     if (component_uses_event_writer(comp))
@@ -2371,7 +2373,9 @@ int cogen_rt_funnel(struct instr_def *instr)
       coutf("    #pragma acc update host(_%s_var)", comp->name);
   }
   list_iterate_end(sync_liter);
+  coutf("    #endif");
   coutf("    mc_event_writer_openacc_service();");
+  coutf("    #ifdef OPENACC");
   sync_liter = list_iterate(instr->complist);
   while((comp = list_next(sync_liter)) != NULL) {
     if (component_uses_event_writer(comp))
