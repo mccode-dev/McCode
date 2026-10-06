@@ -5166,8 +5166,8 @@ static int mcevent_writer_mpi_metadata(MC_EVENT_WRITER *writer)
 
   if (!writer) return(0);
   mcevent_mpi_header(&local_header, writer->width, 0, 0,
-                     writer->title, "List of events", writer->columns,
-                     writer->filename, writer->component, "None",
+                     writer->title, writer->xlabel, writer->columns,
+                     writer->filename, writer->component, writer->options,
                      writer->position, writer->rotation, writer->index, 1);
   if (mpi_node_rank != mpi_node_root) {
     if (mcevent_mpi_send_header(&local_header, mpi_node_root) != MPI_SUCCESS)
@@ -5811,7 +5811,9 @@ int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,
   rot_copy(writer->rotation, rotation);
   writer->index = index;
   mcevent_copy_string(writer->title, title);
+  mcevent_copy_string(writer->xlabel, "List of events");
   mcevent_copy_string(writer->columns, columns);
+  mcevent_copy_string(writer->options, "None");
   mcevent_copy_string(writer->filename, filename);
   mcevent_copy_string(writer->component, component);
 
@@ -5837,6 +5839,16 @@ int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,
   return(0);
 }
 
+void mc_event_writer_set_metadata(MC_EVENT_WRITER *writer, char *xlabel,
+                                  char *options)
+{
+  if (!writer) return;
+  mcevent_copy_string(writer->xlabel,
+                      xlabel && strlen(xlabel) ? xlabel : "List of events");
+  mcevent_copy_string(writer->options,
+                      options && strlen(options) ? options : "None");
+}
+
 int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
                                  char *columns, long count, long width,
                                  long chunk_capacity, char *filename,
@@ -5859,7 +5871,9 @@ int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
   rot_copy(writer->rotation, rotation);
   writer->index = index;
   mcevent_copy_string(writer->title, title);
+  mcevent_copy_string(writer->xlabel, "List of events");
   mcevent_copy_string(writer->columns, columns);
+  mcevent_copy_string(writer->options, "None");
   mcevent_copy_string(writer->filename, filename);
   mcevent_copy_string(writer->component, component);
 
@@ -5878,8 +5892,8 @@ int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
      backend initializes its state. Keep the rejected-begin cleanup safe. */
   memset(output, 0, sizeof(*output));
   writer->direct_detector = mcevent_session_detector(
-      title, "List of events", columns ? columns : "", count, width,
-      filename, component, position, rotation, "None", index);
+      title, writer->xlabel, columns ? columns : "", count, width,
+      filename, component, position, rotation, writer->options, index);
   if (!writer->direct_detector.m
       || !mcevent_output_begin(output, writer->direct_detector)) {
     if (output->ready) mcevent_output_end(output);
@@ -5915,9 +5929,9 @@ static int mcevent_writer_mpi_begin_output(MC_EVENT_WRITER *writer)
   if (!output) return(0);
   memset(output, 0, sizeof(*output));
   detector = mcevent_session_detector(
-      writer->title, "List of events", writer->columns, 1, writer->width,
+      writer->title, writer->xlabel, writer->columns, 1, writer->width,
       writer->filename, writer->component, writer->position, writer->rotation,
-      "None", writer->index);
+      writer->options, writer->index);
   if (!detector.m
       || !mcevent_output_begin_stream(output, detector,
                                       writer->position, writer->rotation,
@@ -5991,7 +6005,9 @@ int mc_event_writer_begin_stream(MC_EVENT_WRITER *writer, char *title,
   rot_copy(writer->rotation, rotation);
   writer->index = index;
   mcevent_copy_string(writer->title, title);
+  mcevent_copy_string(writer->xlabel, "List of events");
   mcevent_copy_string(writer->columns, columns);
+  mcevent_copy_string(writer->options, "None");
   mcevent_copy_string(writer->filename, filename);
   mcevent_copy_string(writer->component, component);
 
@@ -6009,10 +6025,10 @@ int mc_event_writer_begin_stream(MC_EVENT_WRITER *writer, char *title,
   memset(output, 0, sizeof(*output));
   /* A positive placeholder lets both existing metadata writers initialize;
      the final detector descriptor is rebuilt from the actual row count. */
-  detector = mcevent_session_detector(title, "List of events",
+  detector = mcevent_session_detector(title, writer->xlabel,
                                       columns ? columns : "", 1, width,
                                       filename, component, position, rotation,
-                                      "None", index);
+                                      writer->options, index);
   if (!detector.m || !mcevent_output_begin_stream(output, detector,
                                                   position, rotation, index)) {
     free(output);
@@ -6089,12 +6105,10 @@ int mc_event_writer_flush(MC_EVENT_WRITER *writer)
     return(1);
   }
 
-  mc_event_buffer_free(&writer->buffer);
-  if (mc_event_buffer_init(&writer->buffer, writer->chunk_capacity,
-                           writer->width)) {
-    writer->failed = 1;
-    return(1);
-  }
+  /* Reuse the bounded chunk after the completed rows have been written. */
+  writer->buffer.count = 0;
+  writer->buffer.next = 0;
+  writer->buffer.dropped = 0;
   return(0);
 }
 
@@ -6309,9 +6323,9 @@ MCDETECTOR mc_event_writer_end(MC_EVENT_WRITER *writer)
   source.chunk_count = writer->chunks;
   source.valid = !writer->failed && writer->spool != NULL;
   detector = mcevent_write_session_source(
-      writer->title, "List of events", writer->columns, writer->width,
+      writer->title, writer->xlabel, writer->columns, writer->width,
       &source, writer->filename, writer->component,
-      writer->position, writer->rotation, "None", writer->index, 0);
+      writer->position, writer->rotation, writer->options, writer->index, 0);
   if (writer->spool) fclose(writer->spool);
   mc_event_buffer_free(&writer->buffer);
   memset(writer, 0, sizeof(*writer));
