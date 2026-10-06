@@ -403,17 +403,28 @@ int cogen_decls(struct instr_def *instr)
 	  pyid=i_formal->id;
 	}
 
+	/* The value= argument, for the default value (none for parameters
+	   without a default value): */
+	char *value;
+	if (!i_formal->isoptional || !i_formal->default_value) {
+	  value = str_dup("");
+	} else if (i_formal->type == instr_type_string) {
+	  char *q = pygen_pyexp(i_formal->default_value);
+	  value = str_cat(", value=", q, NULL);
+	  memfree(q);
+	} else {
+	  value = str_cat(", value=", exp_tostring(i_formal->default_value), NULL);
+	}
+
 	if (i_formal->type == instr_type_string) {
 	  type="string";
-	  char *q = pygen_pyexp(i_formal->default_value);
-	  coutf("    %s = instr.add_parameter('%s', '%s', value=%s, comment='Parameter type (string) added by McCode py-generator')", pyid, type, i_formal->id, q);
-	  memfree(q);
+	  coutf("    %s = instr.add_parameter('%s', '%s'%s, comment='Parameter type (string) added by McCode py-generator')", pyid, type, i_formal->id, value);
 	} else if (i_formal->type == instr_type_int) {
 	  type="int";
-	  coutf("    %s = instr.add_parameter('%s', '%s', value=%s, comment='Parameter type (int) added by McCode py-generator')", pyid, type, i_formal->id, exp_tostring(i_formal->default_value));
+	  coutf("    %s = instr.add_parameter('%s', '%s'%s, comment='Parameter type (int) added by McCode py-generator')", pyid, type, i_formal->id, value);
 	} else if (i_formal->type == instr_type_double) {
 	  type="double";
-	  coutf("    %s = instr.add_parameter('%s', '%s', value=%s, comment='Parameter type (double) added by McCode py-generator')", pyid, type, i_formal->id, exp_tostring(i_formal->default_value));
+	  coutf("    %s = instr.add_parameter('%s', '%s'%s, comment='Parameter type (double) added by McCode py-generator')", pyid, type, i_formal->id, value);
 	} else {
 	  type="";
 	  fprintf(stderr,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
@@ -421,8 +432,9 @@ int cogen_decls(struct instr_def *instr)
 	  fprintf(stderr,"!!! an undefined type (i.e. not string, int or double).         !!!\n");
 	  fprintf(stderr,"!!! Compilation will likely fail...                             !!!\n");
 	  fprintf(stderr,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-	  coutf("    %s = instr.add_parameter('%s', '%s', value=%s, comment='Parameter of undefined type added by McCode py-generator')", pyid, type, i_formal->id, exp_tostring(i_formal->default_value));
+	  coutf("    %s = instr.add_parameter('%s', '%s'%s, comment='Parameter of undefined type added by McCode py-generator')", pyid, type, i_formal->id, value);
 	}
+	memfree(value);
 
         numipar++;
       }

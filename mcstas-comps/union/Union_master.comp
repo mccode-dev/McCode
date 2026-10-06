@@ -2743,9 +2743,9 @@ TRACE
             // Skipping roughness
             // if (RMS>0) Surface_wavyness(&nx, &ny, &nz, atan(2*RMS/lambda), _particle);
 
-            Coords N = coords_set (nx, ny, nz);        // normal vector to surface
-            Coords V = coords_set (vx, vy, vz);        // incoming velocity
-            Coords I = coords_scale (V, 1 / v_length); // normalised ray = v/|v|
+            Coords N = coords_set (nx, ny, nz);           // normal vector to surface
+            Coords V = coords_set (vx, vy, vz);           // incoming velocity
+            Coords I_in = coords_scale (V, 1 / v_length); // normalised ray = v/|v|
 
             // compute reflectivity
             double qc;
@@ -2784,7 +2784,7 @@ TRACE
 
             double theta1, theta2;
             // theta1: incident angle to the surface normal
-            double cos_theta1 = -coords_sp (N, I); // cos(theta1) = -N.I
+            double cos_theta1 = -coords_sp (N, I_in); // cos(theta1) = -N.I_in
 
             if (fabs (cos_theta1) > 1) {
               printf ("cos_theta1 > 1, Refraction error! Asborbed ray.\n");
@@ -2793,8 +2793,8 @@ TRACE
             theta1 = acos (cos_theta1) * RAD2DEG;
 
             // reflected ray: probability R
-            // reflected beam:     I + 2cos(theta1).N
-            Coords I_reflect = coords_add (I, coords_scale (N, 2.0 * cos_theta1));
+            // reflected beam:     I_in + 2cos(theta1).N
+            Coords I_reflect = coords_add (I_in, coords_scale (N, 2.0 * cos_theta1));
             // reflected velocity: I_reflect.v
             Coords V_reflect = coords_scale (I_reflect, v_length);
 
@@ -2852,7 +2852,8 @@ TRACE
                 // compute refracted ray
                 theta2 = acos (cos_theta2) * RAD2DEG;
 
-                Coords I_refract = coords_add (coords_scale (I, n1 / n2), coords_scale (N, n1 / n2 * cos_theta1 + (cos_theta1 < 0 ? cos_theta2 : -cos_theta2)));
+                Coords I_refract
+                    = coords_add (coords_scale (I_in, n1 / n2), coords_scale (N, n1 / n2 * cos_theta1 + (cos_theta1 < 0 ? cos_theta2 : -cos_theta2)));
                 Coords V_refract = coords_scale (I_refract, v_length);
 
                 coords_get (V_refract, &vx, &vy, &vz);

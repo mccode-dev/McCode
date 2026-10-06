@@ -47,13 +47,14 @@ jobs:
     - name: Setup build-deps-linux-intel
       id: setup-build-deps-linux-intel
       if: matrix.os == 'ubuntu-latest'
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
            if [ "$RUNNER_OS" == "Linux" ]; then sudo apt-get update && sudo apt-get -y install equivs ; fi
            if [ "$RUNNER_OS" == "Linux" ]; then sudo apt-get -y install xvfb mingw-w64 gfortran-mingw-w64 mingw-w64-x86-64-dev libz-mingw-w64-dev dos2unix nsis wine64; fi
            if [ "$RUNNER_OS" == "Linux" ]; then sudo dpkg --add-architecture i386 && sudo apt-get update && sudo apt-get install wine32; fi
-           ( if [ "$RUNNER_OS" == "Linux" ]; then Xvfb :0 -screen 0 1024x768x16 ; fi ) &
-           if [ "$RUNNER_OS" == "Linux" ]; then mkdir /tmp/innosetup && cd /tmp/innosetup && wget https://github.com/jrsoftware/issrc/releases/download/is-7_0_2/innosetup-7.0.2-x64.exe -O is.exe && DISPLAY=:0 wine ./is.exe /SP- /VERYSILENT /ALLUSERS /SUPPRESSMSGBOXES /DOWNLOADISCRYPT=1 ; fi
-           if [ "$RUNNER_OS" == "Linux" ]; then killall -9 Xvfb ; fi
+           # Latest Inno Setup release, auto-detected; pin with INNOSETUP_VERSION=x.y.z if needed
+           if [ "$RUNNER_OS" == "Linux" ]; then ./McCode/meta-pkgs/windows/install-innosetup ; fi
 
     - name: Setup build-deps-linux-arm
       id: setup-build-deps-linux-arm
@@ -89,7 +90,7 @@ jobs:
            if [ "$RUNNER_OS" == "Linux" ]; then ./buildscripts/build_debs_mcxtrace ${REV} meta && mv dist mcxtrace-debian-x86_64 && tar cfz mcxtrace-debian-x86_64.tgz  mcxtrace-debian-x86_64/; fi
 
     - name: Build McXtrace arm Linux
-      id: mcstas-build-arm
+      id: mcxtrace-build-arm
       if: matrix.os == 'ubuntu-24.04-arm'
       run: |
            set -e
@@ -118,7 +119,7 @@ jobs:
            echo Cross-compiling for MinGW Windows on $RUNNER_OS with version set to $REV
            if [ "$RUNNER_OS" == "Linux" ]; then rm -rf dist; fi
            if [ "$RUNNER_OS" == "Linux" ]; then ./buildscripts/build_windows_mcxtrace ${REV} meta && mv dist mcxtrace-mingw64-Windows-x86_64; fi
-           if [ "$RUNNER_OS" == "Linux" ]; then tar cfz mcxtrace-MinGW-Windows-x86_64.tgz mcxtrace-mingw64-Windows-x86_64/; fi
+           if [ "$RUNNER_OS" == "Linux" ]; then tar cfz mcxtrace-Windows-MinGW-x86_64.tgz mcxtrace-mingw64-Windows-x86_64/; fi
            echo Building MSVC Windows installer on $RUNNER_OS with version set to $REV
            if [ "$RUNNER_OS" == "Linux" ]; then rm -rf dist; fi
            if [ "$RUNNER_OS" == "Linux" ]; then ./buildscripts/build_windows_mcxtrace_conda ${REV} meta && mv dist mcxtrace-MSVC-Windows-x86_64; fi
@@ -137,3 +138,62 @@ jobs:
       if: always() && (inputs.manual-debugging)
       with:
         limit-access-to-actor: true
+
+  # Combine the per-platform artefacts into one tree laid out like
+  # https://download.mcxtrace.org/mcxtrace-<version>/ (skeleton: INSTALL-McXtrace).
+  # Only done for release tags and manual runs, to spare artefact storage
+  # on the nightlies.
+  assemble-release:
+    needs: build
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        path: McCode
+
+    - name: Determine version
+      id: version
+      run: |
+           set -e
+           cd McCode
+           # Same logic as in the build job
+           export REV=`git tag --points-at HEAD | cut -b2-`
+           if [ "$REV" == "" ]; then export REV=`git -c 'versionsort.suffix=-' ls-remote --exit-code --refs --sort='version:refname' --tags origin 'v*.*.*' | tail -1 | cut -f3 -d/ | cut -f2 -dv`_nightly; fi
+           echo "Assembling release tree for version $REV"
+           echo "rev=$REV" >> "$GITHUB_OUTPUT"
+
+    - name: Download per-platform artefacts
+      uses: actions/download-artifact@v7
+      with:
+        pattern: mcxtrace-artefacts-*
+        merge-multiple: true
+        path: artefacts
+
+    - name: Assemble release tree
+      id: assemble
+      run: |
+           ls -l artefacts
+           cd McCode
+           ./buildscripts/assemble_release_tree mcxtrace ${{ steps.version.outputs.rev }} ../artefacts ../release \
+             || echo "incomplete=true" >> "$GITHUB_OUTPUT"
+
+    # release/ holds only mcxtrace-<version>/, so that directory becomes the
+    # top level inside the downloaded zip
+    - name: Upload release tree
+      uses: actions/upload-artifact@v6
+      with:
+        name: mcxtrace-${{ steps.version.outputs.rev }}
+        path: release/
+        if-no-files-found: error
+
+    - name: Fail if release tree is incomplete
+      if: steps.assemble.outputs.incomplete == 'true'
+      run: |
+           echo "::error::Release tree is missing platform artefacts - see the 'Assemble release tree' step"
+           exit 1

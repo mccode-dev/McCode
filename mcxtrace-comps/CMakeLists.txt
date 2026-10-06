@@ -22,6 +22,16 @@ set(CPACK_PACKAGE_VERSION_MAJOR "${MCCODE_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${MCCODE_MINOR}")
 set(CPACK_PACKAGE_VERSION_PATCH "${MCCODE_PATCH}")
 
+# Debian - must be set before include(CPack) below, otherwise ignored
+# (as in mcstas-comps). ENABLE_CIF2HKL is only declared further down, so
+# read it as a cache variable here (default ON, as in its option()).
+if ( NOT DEFINED ENABLE_CIF2HKL OR ENABLE_CIF2HKL )
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0)")
+else()
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0), cif2hkl")
+endif()
+set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-comps-3.5.1")
+
 
 # NSIS
 set(CPACK_NSIS_PACKAGE_NAME "${MCCODE_STRING} Components")
@@ -43,13 +53,6 @@ if ( ENABLE_CIF2HKL )
     )
 endif()
 
-# Debian
-if ( ENABLE_CIF2HKL )
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev")
-else()
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev, cif2hkl")
-endif()
-set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-comps-3.5.1")
 
 # System c-code
 install( DIRECTORY "share/" DESTINATION "${DEST_DATADIR_CODEFILES}")

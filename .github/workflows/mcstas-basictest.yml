@@ -11,6 +11,15 @@ on:
         type: boolean
         description: Launch manual debugging tmate for inspection (automatic in case of errors)
         default: false
+      plots:
+        type: boolean
+        description: Generate test plots (mctest without --noplots) and run mcviewtest comparison tables
+        default: false
+
+# Plots and mcviewtest are off by default (push/PR/schedule); request them via
+# the "plots" tickbox when running the workflow manually
+env:
+  NOPLOTS: ${{ inputs.plots && '' || '--noplots' }}
 
 jobs:
   build:
@@ -21,6 +30,9 @@ jobs:
           # --- built from source via cmake ---
           - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          # --- mccode.org-style .deb packages (buildscripts/build_debs_mcstas), apt-installed
+          #     in /usr, no $MCSTAS set - as for users of the mccode.org apt repo ---
+          - { method: debian, os: ubuntu-24.04,   CC: gcc,      CXX: g++,        python: '3.12', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # --- built via conda ---
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
@@ -314,6 +326,40 @@ jobs:
                sed -i.bak 's+mpirun+mpirun\ -mca\ regx\ naive\ --verbose\ --mca\ btl_tcp_if_include\ lo0+g' ${CONDA_PREFIX}/share/mcstas/tools/Python/mccodelib/mccode_config.json
            fi
 
+    - name: Build and install mccode.org-style .deb packages (debian)
+      id: mcstas-install-debian
+      if: matrix.method == 'debian'
+      run: |
+           set -e
+           set -u
+           set -x
+           sudo apt-get update
+           # Build dependencies, as in dependency-scripts/getdeps_debian (minus LaTeX/equivs:
+           # the manuals package and the suite metapackage are not needed for testing)
+           sudo apt-get -y install git cmake gcc g++ gfortran flex bison build-essential rsync libopenmpi-dev openmpi-bin python3-venv
+           cd src
+           ./buildscripts/build_debs_mcstas 3.99.99
+           ls -l dist
+           # Install everything that was built, except the manuals package. apt resolves the
+           # runtime dependencies declared by the packages themselves (python3-*, libxrl-dev, ...)
+           sudo apt-get -y install $(ls $PWD/dist/*.deb | grep -v -- '-manuals')
+           # KDSource is not packaged for Debian, pip is the only route (as for Debian users).
+           # Install it into its own venv, so its pip dependencies (numpy, scipy, mcpl-core, ...)
+           # do not shadow the apt-installed ones, and expose only kdsource-config (used for
+           # KDSOURCEFLAGS) on PATH. libkdsource then resolves libmcpl from the mcpl .deb.
+           sudo python3 -m venv /opt/kdsource
+           sudo /opt/kdsource/bin/python -m pip install kdsource
+           sudo ln -sf /opt/kdsource/bin/kdsource-config /usr/local/bin/kdsource-config
+           kdsource-config --show buildflags
+           which -a mcpl-config
+           # Same openmpi transport settings as for the source builds
+           sudo sed -i.bak 's/"mpirun/"mpirun --mca btl self,vader,tcp/g' /usr/share/mcstas/tools/Python/mccodelib/mccode_config.json
+           test -x /usr/bin/mcstas
+           test -x /usr/bin/mctest
+           test -d /usr/share/mcstas/resources/data
+           # The point of this leg: resources must be found without the environment variable
+           test -z "${MCSTAS:-}"
+
     - name: Normalize PATH to installed McStas tools
       id: normalize-path
       run: |
@@ -353,7 +399,7 @@ jobs:
            fi
            test -n "$(command -v mcstas${EXESUFFIX})"
            mcstas${EXESUFFIX} --version
-           mctest${SUFFIX} --verbose --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
+           mctest${SUFFIX} --verbose ${NOPLOTS} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
            export SUM=`find run_rngtest -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
            export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
            if [ "${EXPECTED}" == "${SUM}" ];
@@ -383,8 +429,39 @@ jobs:
            mcstas${EXESUFFIX} --version
            if [ "${{ matrix.nmpi }}" != "0" ];
            then
-             mctest${SUFFIX}  --verbose --mpi=${{ matrix.nmpi }} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource,Masked_ESS_butterfly_image --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
+             mctest${SUFFIX}  --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource,Masked_ESS_butterfly_image --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
            fi
+
+    - name: Direct binary run without $MCSTAS (compiled-in resource dir, issue #2759)
+      id: direct-binary-resourcedir
+      # Re-uses the ISIS_CRISP binary built by the basic tests above. Running it
+      # directly (not via mcrun, which always exports $MCSTAS), with $MCSTAS
+      # removed and from an unrelated folder, so its ISIS moderator table (data/ISIS_tables/...) can only be
+      # found via the resource dir baked into the binary by the code generator -
+      # the situation on mccode.org-style .deb installs, where $MCSTAS is unset.
+      # classic only: the antlr code generator embeds a released runtime
+      if: matrix.cogen == 'classic' && matrix.nmpi != '0'
+      run: |
+           set -e
+           set -u
+           set -x
+           EXE=$(ls run_basictests/*/ISIS_CRISP/ISIS_CRISP.out run_basictests/*/ISIS_CRISP/ISIS_CRISP.exe 2>/dev/null | head -1 || true)
+           test -n "$EXE" || { echo "No ISIS_CRISP binary found below run_basictests"; exit 1; }
+           EXE="$(cd "$(dirname "$EXE")" && pwd)/$(basename "$EXE")"
+           # Unrelated folder in the workspace (mktemp -d is not usable on the Windows
+           # runners: the conda/Git-bash /tmp mappings disagree)
+           mkdir -p direct_binary_run
+           cd direct_binary_run
+           RC=0
+           env -u MCSTAS "$EXE" --yes -n 1000 -d direct_run > direct_run.log 2>&1 || RC=$?
+           cat direct_run.log
+           test "$RC" == "0" || { echo "ISIS_CRISP binary failed (exit code $RC) without \$MCSTAS"; exit 1; }
+           if grep -qi "could not" direct_run.log; then
+             echo "ISIS_CRISP binary could not locate installed resources without \$MCSTAS"
+             exit 1
+           fi
+           # Positive check: the file was really picked up from the installed resources
+           grep -E "Opening -- .*resources.*ISIS_tables" direct_run.log
 
     - name: MPI event-list output regression test
       id: mpilisttest
@@ -470,8 +547,8 @@ jobs:
            fi
            if [ -n "$SCOPE" ]; then
              mkdir -p run_mctest && cd run_mctest
-             ${MCTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
-             ${MCVIEWTEST_EXECUTABLE} --nobrowse $PWD
+             ${MCTEST_EXECUTABLE} --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             if [ -z "${NOPLOTS}" ]; then ${MCVIEWTEST_EXECUTABLE} --nobrowse $PWD; fi
            else
              echo "No component or instrument code changes - nothing to test"
            fi
@@ -485,15 +562,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcstas-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
+           tar cvfz mcstas-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcstas-artefacts-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
-        path: "mcstas-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
+        name: mcstas-artefacts-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
+        path: "mcstas-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3
@@ -504,7 +581,8 @@ jobs:
   compare:
     name: mcstas-basictest-comparison
     needs: build
-    if: always()
+    # Only when plots are requested (manual runs with the "plots" tickbox)
+    if: always() && inputs.plots
     runs-on: ubuntu-latest
     defaults:
       run:

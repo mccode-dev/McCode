@@ -69,7 +69,7 @@ INITIALIZE
 %{
   int status = 0;
 
-  if (coating && strlen (coating) && strcmp (coating, "NULL")) {
+  if (coating && strlen (coating) && strcmp (coating, "NULL") && strcmp (coating, "0")) {
     status = reflec_Init (&re, COATING_UNDEFINED, coating, NULL);
   } else {
     /*assume a constant reflectivity*/
@@ -95,21 +95,29 @@ INITIALIZE
 TRACE
 %{
   int intersect = 1;
-  double nx, ny, nz;
+  double nx = 0, ny = 1, nz = 0;
 
   if (shape == ANY) { // off/ply
-    double l0, l1;
+    double l0 = 0, l1 = 0, nn;
     Coords n0, n1;
     intersect = off_x_intersect (&l0, &l1, &n0, &n1, x, y, z, kx, ky, kz, offdata);
-    if (intersect) {
-      if (l0 > 0) {
-        PROP_DL (l0);
-        coords_get (n0, &nx, &ny, &nz);
-      } else if (l1 > 0) {
-        PROP_DL (l1);
-        coords_get (n1, &nx, &ny, &nz);
-      }
+    if (intersect && l0 > 0) {
+      PROP_DL (l0);
+      coords_get (n0, &nx, &ny, &nz);
+    } else if (intersect > 1 && l1 > 0) {
+      PROP_DL (l1);
+      coords_get (n1, &nx, &ny, &nz);
+    } else {
+      intersect = 0; /* no surface ahead of the x-ray */
     }
+    /* the reflection below requires a unit normal */
+    nn = sqrt (nx * nx + ny * ny + nz * nz);
+    if (intersect && nn > 0) {
+      nx /= nn;
+      ny /= nn;
+      nz /= nn;
+    } else
+      intersect = 0;
   } else if (yheight) { // YZ plane
     PROP_X0;
     if (y < -yheight / 2.0 || y > yheight / 2.0 || z < -zdepth / 2.0 || z > zdepth / 2.0) {
@@ -138,7 +146,7 @@ TRACE
     ky = ky - 2 * s * ny;
     kz = kz - 2 * s * nz;
     SCATTER;
-    q = 2.0 * s;
+    q = 2.0 * fabs (s);
     R = reflecq (re, q, 0.0, k, fabs (90 - acos (s / k) * RAD2DEG));
     p *= R;
     /*update phase - as an approximation turn by 180 deg.*/;

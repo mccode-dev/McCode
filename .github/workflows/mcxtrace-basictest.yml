@@ -11,6 +11,15 @@ on:
         type: boolean
         description: Launch manual debugging tmate for inspection (automatic in case of errors)
         default: false
+      plots:
+        type: boolean
+        description: Generate test plots (mctest without --noplots) and run mxviewtest comparison tables
+        default: false
+
+# Plots and mxviewtest are off by default (push/PR/schedule); request them via
+# the "plots" tickbox when running the workflow manually
+env:
+  NOPLOTS: ${{ inputs.plots && '' || '--noplots' }}
 
 jobs:
   build:
@@ -21,6 +30,9 @@ jobs:
           # --- built from source via cmake ---
           - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          # --- mccode.org-style .deb packages (buildscripts/build_debs_mcxtrace), apt-installed
+          #     in /usr, no $MCXTRACE set - as for users of the mccode.org apt repo ---
+          - { method: debian, os: ubuntu-24.04,   CC: gcc,      CXX: g++,        python: '3.12', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # --- built via conda ---
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
@@ -321,6 +333,31 @@ jobs:
                sed -i.bak 's+mpirun+mpirun\ -mca\ regx\ naive\ --verbose\ --mca\ btl_tcp_if_include\ lo0+g' ${CONDA_PREFIX}/share/mcxtrace/tools/Python/mccodelib/mccode_config.json
            fi
 
+    - name: Build and install mccode.org-style .deb packages (debian)
+      id: mcxtrace-install-debian
+      if: matrix.method == 'debian'
+      run: |
+           set -e
+           set -u
+           set -x
+           sudo apt-get update
+           # Build dependencies, as in dependency-scripts/getdeps_debian (minus LaTeX/equivs:
+           # the manuals package and the suite metapackage are not needed for testing)
+           sudo apt-get -y install git cmake gcc g++ gfortran flex bison build-essential rsync libopenmpi-dev openmpi-bin
+           cd src
+           ./buildscripts/build_debs_mcxtrace 3.99.99
+           ls -l dist
+           # Install everything that was built, except the manuals package. apt resolves the
+           # runtime dependencies declared by the packages themselves (python3-*, libxrl-dev, ...)
+           sudo apt-get -y install $(ls $PWD/dist/*.deb | grep -v -- '-manuals')
+           # Same openmpi transport settings as for the source builds
+           sudo sed -i.bak 's/"mpirun/"mpirun --mca btl self,vader,tcp/g' /usr/share/mcxtrace/tools/Python/mccodelib/mccode_config.json
+           test -x /usr/bin/mcxtrace
+           test -x /usr/bin/mxtest
+           test -d /usr/share/mcxtrace/resources/data
+           # The point of this leg: resources must be found without the environment variable
+           test -z "${MCXTRACE:-}"
+
     - name: Normalize PATH to installed McXtrace tools
       id: normalize-path
       run: |
@@ -360,7 +397,7 @@ jobs:
            fi
            test -n "$(command -v mcxtrace${EXESUFFIX})"
            mcxtrace${EXESUFFIX} --version
-           mxtest${SUFFIX} --verbose --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
+           mxtest${SUFFIX} --verbose ${NOPLOTS} --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
            export SUM=`find run_rngtest -name rngout.dat | xargs -n1 grep -v \# | ${MD5SUM} | cut -f1 -d\ `
            export EXPECTED="f192ce4609e2225bf9d42ce9c5fa5a86"
            if [ "${EXPECTED}" == "${SUM}" ];
@@ -390,8 +427,39 @@ jobs:
            mcxtrace${EXESUFFIX} --version
            if [ "${{ matrix.nmpi }}" != "0" ];
            then
-             mxtest${SUFFIX} --verbose --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
+             mxtest${SUFFIX} --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
            fi
+
+    - name: Direct binary run without $MCXTRACE (compiled-in resource dir, issue #2759)
+      id: direct-binary-resourcedir
+      # Re-uses the Test_Absorption binary built by the basic tests above. Running it
+      # directly (not via mxrun, which always exports $MCXTRACE), with $MCXTRACE
+      # removed and from an unrelated folder, so its material file (data/Mn.txt) can only be
+      # found via the resource dir baked into the binary by the code generator -
+      # the situation on mccode.org-style .deb installs, where $MCXTRACE is unset.
+      # classic only: the antlr code generator embeds a released runtime
+      if: matrix.cogen == 'classic' && matrix.nmpi != '0'
+      run: |
+           set -e
+           set -u
+           set -x
+           EXE=$(ls run_basictests/*/Test_Absorption/Test_Absorption.out run_basictests/*/Test_Absorption/Test_Absorption.exe 2>/dev/null | head -1 || true)
+           test -n "$EXE" || { echo "No Test_Absorption binary found below run_basictests"; exit 1; }
+           EXE="$(cd "$(dirname "$EXE")" && pwd)/$(basename "$EXE")"
+           # Unrelated folder in the workspace (mktemp -d is not usable on the Windows
+           # runners: the conda/Git-bash /tmp mappings disagree)
+           mkdir -p direct_binary_run
+           cd direct_binary_run
+           RC=0
+           env -u MCXTRACE "$EXE" --yes -n 1000 -d direct_run > direct_run.log 2>&1 || RC=$?
+           cat direct_run.log
+           test "$RC" == "0" || { echo "Test_Absorption binary failed (exit code $RC) without \$MCXTRACE"; exit 1; }
+           if grep -qi "could not" direct_run.log; then
+             echo "Test_Absorption binary could not locate installed resources without \$MCXTRACE"
+             exit 1
+           fi
+           # Positive check: the file was really picked up from the installed resources
+           grep -E "Opening input file '.*resources.*Mn\.txt'" direct_run.log
 
     - name: MPI event-list output regression test
       id: mpilisttest
@@ -477,8 +545,8 @@ jobs:
            fi
            if [ -n "$SCOPE" ]; then
              mkdir -p run_mxtest && cd run_mxtest
-             ${MXTEST_EXECUTABLE} --verbose --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --uid=${MYWORKERID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
-             ${MXVIEWTEST_EXECUTABLE} --nobrowse $PWD
+             ${MXTEST_EXECUTABLE} --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --uid=${MYWORKERID} || { echo "${MXTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             if [ -z "${NOPLOTS}" ]; then ${MXVIEWTEST_EXECUTABLE} --nobrowse $PWD; fi
            else
              echo "No component or instrument code changes - nothing to test"
            fi
@@ -492,15 +560,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcxtrace-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
+           tar cvfz mcxtrace-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz run_*
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcxtrace-artefacts-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
-        path: "mcxtrace-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
+        name: mcxtrace-artefacts-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
+        path: "mcxtrace-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3
@@ -511,7 +579,8 @@ jobs:
   compare:
     name: mcxtrace-basictest-comparison
     needs: build
-    if: always()
+    # Only when plots are requested (manual runs with the "plots" tickbox)
+    if: always() && inputs.plots
     runs-on: ubuntu-latest
     defaults:
       run:

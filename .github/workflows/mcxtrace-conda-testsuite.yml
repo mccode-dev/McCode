@@ -16,11 +16,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto' }
-          - { os: macos-latest, mpi: 'openmpi', nmpi: '2' }
-          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto' }
+          - { os: ubuntu-latest, mpi: 'openmpi', nmpi: 'auto', method: 'conda' }
+          - { os: macos-latest, mpi: 'openmpi', nmpi: '2', method: 'conda' }
+          - { os: windows-latest, mpi: 'msmpi', nmpi: 'auto', method: 'conda' }
+          # mccode.org-style .deb packages from buildscripts/build_debs_mcxtrace, installed
+          # in /usr with no $MCXTRACE set (as for users of the mccode.org apt repo)
+          - { os: ubuntu-24.04, mpi: 'openmpi', nmpi: 'auto', method: 'debian' }
 
-    name: ${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
+    name: ${{ matrix.os }}.${{ matrix.mpi }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -38,11 +41,13 @@ jobs:
 
     - name: Get conda dependency list
       id: conda-deps
+      if: matrix.method == 'conda'
       run: |
            ./src/devel/bin/mccode-create-conda-yml -m mcxtrace -n mcxtrace -o dependencies.yml
            cat dependencies.yml
 
     - uses: mamba-org/setup-micromamba@v3
+      if: matrix.method == 'conda'
       with:
         environment-file: dependencies.yml 
         environment-name: mcxtrace
@@ -59,12 +64,36 @@ jobs:
 
     - name: Configure build and install mcxtrace
       id: mcxtrace-install
+      if: matrix.method == 'conda'
       run: |
            ./src/devel/bin/mccode-build-conda -m mcxtrace -s $PWD/src -b $PWD/build_mcxtrace
 
+    - name: Build and install mccode.org-style .deb packages (debian)
+      id: mcxtrace-install-debian
+      if: matrix.method == 'debian'
+      run: |
+           set -e
+           set -u
+           set -x
+           sudo apt-get update
+           # Build dependencies, as in dependency-scripts/getdeps_debian (minus LaTeX/equivs:
+           # the manuals package and the suite metapackage are not needed for testing)
+           sudo apt-get -y install git cmake gcc g++ gfortran flex bison build-essential rsync libopenmpi-dev openmpi-bin
+           cd src
+           ./buildscripts/build_debs_mcxtrace 3.99.99
+           ls -l dist
+           # Install everything that was built, except the manuals package. apt resolves the
+           # runtime dependencies declared by the packages themselves (python3-*, libxrl-dev, ...)
+           sudo apt-get -y install $(ls $PWD/dist/*.deb | grep -v -- '-manuals')
+           # Same openmpi transport settings as in the basictest source builds
+           sudo sed -i.bak 's/"mpirun/"mpirun --mca btl self,vader,tcp/g' /usr/share/mcxtrace/tools/Python/mccodelib/mccode_config.json
+           test -x /usr/bin/mcxtrace
+           test -x /usr/bin/mxtest
+           test -d /usr/share/mcxtrace/resources/data
+
     - name: Validate build output
       id: build-validation
-      if: always()
+      if: always() && matrix.method == 'conda'
       run: |
            set -e
            set -u
@@ -108,8 +137,16 @@ jobs:
              mkdir ${HOME}/tmp
              export TMPDIR=${HOME}/tmp
            fi
+           if [ "${{ matrix.method }}" == "debian" ];
+           then
+             # Use the system python3 the .deb tools are installed for, and make
+             # sure the resource dir is NOT given via the environment
+             export PATH=/usr/bin:$PATH
+             unset MCXTRACE
+             test "$(command -v mxtest)" == "/usr/bin/mxtest"
+           fi
            # Run the test with 2 core mpi
-           ${MXTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
+           ${MXTEST_EXECUTABLE} --verbose --testdir $PWD --suffix ${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
 
     - name: 'Tar output files'
       id: tar-package
@@ -120,15 +157,15 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
-           tar cvfz mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz run_test-suite
+           tar cvfz mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite_output.tgz run_test-suite
 
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
       if: always()
       with:
-        name: mcxtrace-artefacts-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite
-        path: "mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}.conda-testsuite_output.tgz"
+        name: mcxtrace-artefacts-${{ matrix.os }}.${{ matrix.mpi }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite
+        path: "mcxtrace-${{ matrix.os }}.${{ matrix.mpi }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite_output.tgz"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3

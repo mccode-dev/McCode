@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Download and silently install Inno Setup under wine, for cross-building
+# the Windows metapackage installers from Linux (see ./iscc).
+#
+# By default the latest stable Inno Setup release from
+# https://github.com/jrsoftware/issrc/releases is installed, so CI picks up
+# new versions without workflow edits.
+#
+# Environment overrides:
+#   INNOSETUP_VERSION   "latest" (default) or an explicit version, e.g. 7.0.2
+#   INNOSETUP_FALLBACK  version used if "latest" cannot be resolved (7.0.2)
+#   INNOSETUP_ARCH      preferred installer edition, x64 (default) or x86
+#   GH_TOKEN / GITHUB_TOKEN   optional, used for the GitHub API lookup
+set -euo pipefail
+
+REPO=jrsoftware/issrc
+VERSION=${INNOSETUP_VERSION:-latest}
+FALLBACK=${INNOSETUP_FALLBACK:-7.0.2}
+ARCH=${INNOSETUP_ARCH:-x64}
+HERE=$(cd "$(dirname "$0")" && pwd)
+
+log() { echo "install-innosetup: $*" >&2; }
+
+# Release tags look like is-7_0_2; print 7.0.2
+tag_to_version() { sed -n 's/^is-\([0-9][0-9_]*\)$/\1/p' | tr _ .; }
+
+resolve_latest() {
+    local tag="" token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
+    # 1) GitHub API (excludes drafts and pre-releases)
+    tag=$(curl -fsSL ${token:+-H "Authorization: Bearer $token"} \
+            "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+          | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null) || tag=""
+    # 2) No-API fallback: the releases/latest redirect ends in /tag/<tag>
+    if [ -z "$tag" ]; then
+        tag=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+                "https://github.com/$REPO/releases/latest" 2>/dev/null | sed 's#.*/tag/##') || tag=""
+    fi
+    echo "$tag" | tag_to_version
+}
+
+if [ "$VERSION" = "latest" ]; then
+    VERSION=$(resolve_latest || true)
+    if [ -z "$VERSION" ]; then
+        log "could not resolve latest release, falling back to $FALLBACK"
+        VERSION=$FALLBACK
+    fi
+fi
+TAG="is-${VERSION//./_}"
+log "installing Inno Setup $VERSION ($TAG)"
+
+WORKDIR=$(mktemp -d)
+trap 'rm -rf "$WORKDIR"' EXIT
+INSTALLER="$WORKDIR/innosetup.exe"
+
+# Asset naming: 7.x ships innosetup-<v>-x64.exe / -x86.exe, 6.x innosetup-<v>.exe
+other_arch=x86; [ "$ARCH" = x86 ] && other_arch=x64
+downloaded=""
+for asset in "innosetup-$VERSION-$ARCH.exe" "innosetup-$VERSION-$other_arch.exe" "innosetup-$VERSION.exe"; do
+    url="https://github.com/$REPO/releases/download/$TAG/$asset"
+    if curl -fsSL --retry 3 -o "$INSTALLER" "$url"; then
+        log "downloaded $url"
+        downloaded=$asset
+        break
+    fi
+done
+if [ -z "$downloaded" ]; then
+    log "no installer asset found for release $TAG"
+    exit 1
+fi
+
+# The installer needs an X display, even when run with /VERYSILENT
+run_wine() {
+    if [ -n "${DISPLAY:-}" ]; then
+        wine "$@"
+    elif command -v xvfb-run >/dev/null; then
+        xvfb-run -a wine "$@"
+    else
+        log "no DISPLAY and no xvfb-run available"; return 1
+    fi
+}
+
+run_wine "$INSTALLER" /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS
+wineserver -w || true   # wait for the installer's child processes to finish
+
+ISCC_EXE=$("$HERE/iscc" --locate)
+log "ISCC.exe installed at: $ISCC_EXE"
