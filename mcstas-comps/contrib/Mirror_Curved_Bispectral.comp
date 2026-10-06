@@ -84,7 +84,7 @@ TRACE
   double c1;
 
   // solving the time the neutron hits the sample
-  double A, B, C, D, E, P, Q, R, U, V, I, J, K;
+  double A, B, C, D, E, P, Q, R, U, V, I_root, J, K;
 
   // finding rotation of mirror
   double alpha1, beta1, gamma1;
@@ -176,10 +176,10 @@ TRACE
       U = cbrt (-Q / 2.0 + sqrt (E));
       V = cbrt (-Q / 2.0 - sqrt (E));
 
-      I = U + V - B / (3.0 * A);
-      dt = I;
-      dt_2 = I;
-      dt_3 = I;
+      I_root = U + V - B / (3.0 * A);
+      dt = I_root;
+      dt_2 = I_root;
+      dt_3 = I_root;
       // printf("I=%f\n",I);
 
       // J=-(U+V)/2+1i*(U-V)*sqrt(3)/2-B/(3*A) //complex solution
@@ -189,7 +189,7 @@ TRACE
 
       // printf("R=%f\n",R);
 
-      I = 2.0 * sqrt (fabs (P) / 3.0) * cos (R / 3.0) - B / A / 3.0;
+      I_root = 2.0 * sqrt (fabs (P) / 3.0) * cos (R / 3.0) - B / A / 3.0;
       J = -2.0 * sqrt (fabs (P) / 3.0) * cos (R / 3.0 + 3.1415926535 / 3.0) - B / A / 3.0;
       K = -2.0 * sqrt (fabs (P) / 3.0) * cos (R / 3.0 - 3.1415926535 / 3.0) - B / A / 3.0;
 
@@ -202,7 +202,7 @@ TRACE
 
       // Three solutions. Find the smallest positive of these.
       // there are problems with the solutions....
-      if (I <= 0) {
+      if (I_root <= 0) {
         if (J <= 0 && K <= 0) {
           dt = -1.0;
         } // if all three are negative, dt<0 and nothing happens
@@ -220,43 +220,43 @@ TRACE
             dt_2 = J;
           } else {
             dt = J;
-            dt_2 = I;
+            dt_2 = I_root;
             prop_case = 2;
           }
-        }      // dt is the smallest value
+        } // dt is the smallest value
       } else { // end if (I<=0)
         if (J <= 0 && K <= 0) {
-          dt = I;
+          dt = I_root;
         } // if only I>0, dt=I;
 
         if (J <= 0 && K > 0) { // if both I>0 and K>0, compare
-          if (K >= I) {
-            dt = I;
+          if (K >= I_root) {
+            dt = I_root;
             dt_2 = K;
             prop_case = 3;
           } else {
             dt = K;
-            dt_2 = I;
+            dt_2 = I_root;
             prop_case = 4;
           }
         } // dt is the smallest value
 
         if (J > 0 && K <= 0) { // if both I>0 and J>0, compare
-          if (J >= I) {
-            dt = I;
+          if (J >= I_root) {
+            dt = I_root;
             dt_2 = J;
             prop_case = 5;
           } else {
             dt = J;
-            dt_2 = I;
+            dt_2 = I_root;
             prop_case = 6;
           }
         } // dt is the smallest value
 
         if (J > 0 && K > 0) { // if all three>0, compare
           if (J >= K) {       // either K or I is smallest
-            if (K >= I) {
-              dt = I;
+            if (K >= I_root) {
+              dt = I_root;
               if (J >= K) {
                 dt_2 = K;
                 dt_3 = J;
@@ -268,19 +268,19 @@ TRACE
               }
             } else {
               dt = K;
-              if (J >= I) {
-                dt_2 = I;
+              if (J >= I_root) {
+                dt_2 = I_root;
                 dt_3 = J;
                 prop_case = 10;
               } else {
                 dt_2 = J;
-                dt_3 = I;
+                dt_3 = I_root;
                 prop_case = 11;
               }
             } // if K is smallest, compare it to I
           } else {
-            if (J >= I) {
-              dt = I;
+            if (J >= I_root) {
+              dt = I_root;
               if (K > J) {
                 dt_2 = J;
                 dt_3 = K;
@@ -292,14 +292,14 @@ TRACE
               }
             } else {
               dt = J;
-              if (K > I) {
-                dt_2 = I;
+              if (K > I_root) {
+                dt_2 = I_root;
                 dt_3 = K;
                 prop_case = 13;
               } else {
                 {
                   dt_2 = K;
-                  dt_3 = I;
+                  dt_3 = I_root;
                   prop_case = 14;
                 }
               }
@@ -319,25 +319,25 @@ TRACE
       if (discriminant < 0) {
         dt = -1.0;
       } else { // only complex solutions: set dt<0 to avoid interaction
-        I = (-C - sqrt (discriminant)) / (2.0 * B);
+        I_root = (-C - sqrt (discriminant)) / (2.0 * B);
         J = (-C + sqrt (discriminant)) / (2.0 * B);
 
-        if (I <= 0 && J <= 0) {
+        if (I_root <= 0 && J <= 0) {
           dt = -1.0;
         } // both times are negative.
-        if (I <= 0 && J > 0) {
+        if (I_root <= 0 && J > 0) {
           dt = J;
         } // set dt to only positive value.
-        if (I > 0 && J <= 0) {
-          dt = I;
+        if (I_root > 0 && J <= 0) {
+          dt = I_root;
         } // set dt to only positive value.
-        if (I > 0 && J > 0) {
-          if (I > J) {
+        if (I_root > 0 && J > 0) {
+          if (I_root > J) {
             dt = J;
-            dt_2 = I;
+            dt_2 = I_root;
             prop_case = 7;
           } else {
-            dt = I;
+            dt = I_root;
             dt_2 = J;
             prop_case = 8;
           }

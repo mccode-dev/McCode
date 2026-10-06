@@ -16,6 +16,15 @@
 * ESS butterfly moderator, 2016 revision
 *
 * %D
+* <b>Test Beamline (TBL), sector="W", beamline=11</b>
+* TBL sits at 90 degrees to the proton beam and views both cold wings of the
+* moderator. For exactly this beamport the component switches automatically to
+* a "TBL mode" (adapted from a TBL-specific local version, 2025): the emission
+* geometry is centred between the cold wings, cold neutrons are sampled 50/50
+* from the two wings, the horizontal brilliance profiles are mirror-symmetric
+* about the moderator centre, and no thermal dx offset is applied.
+* All other sector/beamline combinations are unaffected.
+*
 * ESS butterfly moderator with automatic choice of coordinate system, with origin
 * placed at relevant "Moderator Focus Coordinate System" depending on sector location.
 *
@@ -169,6 +178,10 @@ DECLARE
   double C2_z;
   double C3_x;
   double C3_z;
+  double C4_x; /* TBL mode only: second cold wing */
+  double C4_z;
+  double C5_x;
+  double C5_z;
   double T1_x;
   double T1_z;
   double T2_x;
@@ -182,6 +195,10 @@ DECLARE
   double rC2_z;
   double rC3_x;
   double rC3_z;
+  double rC4_x;
+  double rC4_z;
+  double rC5_x;
+  double rC5_z;
   double rT1_x;
   double rT1_z;
   double rT2_x;
@@ -218,6 +235,7 @@ DECLARE
   int jmax;
   double dxC;
   double dxT;
+  int tbl_mode; /* 1 for the Test Beamline, sector W / beamline 11 */
 %}
 
 INITIALIZE
@@ -233,6 +251,9 @@ INITIALIZE
   /* variables needed to correct for the emission surface angle */
   double internal_angle;
   double cos_beamport_angle, sin_beamport_angle;
+
+  tbl_mode = 0;
+  C4_x = C4_z = C5_x = C5_z = 0;
 
   if (beamline < 4) {
     wfrac_cold = 1.0;
@@ -313,6 +334,22 @@ INITIALIZE
     C3_x = (1 - wfrac_cold) * oversampC * ColdWidths[beamline - 1] / cos_thermal;
     C3_z = 0;
     isleft = -1;
+    if (beamline == 11) {
+      /* TBL mode: views both cold wings, origin centred on the thermal face */
+      tbl_mode = 1;
+      double hwT = 0.5 * wfrac_thermal * oversampT * ThermalWidths[beamline - 1] / cos_thermal;
+      double lC = wfrac_cold * oversampC * ColdWidths[beamline - 1] / cos_cold;
+      cx = 0.5 * wfrac_thermal * oversampT * ThermalWidths[beamline - 1];
+      T1_x = -hwT;
+      T2_x = hwT;
+      C1_x = -hwT;
+      C2_x = -hwT - lC * cos (24.24 * DEG2RAD);
+      C4_x = hwT;
+      C4_z = 0;
+      C5_x = hwT + lC * cos (24.24 * DEG2RAD);
+      C5_z = -lC * sin (24.24 * DEG2RAD);
+      MPI_MASTER (printf ("%s: sector W, beamline 11 -> Test Beamline (TBL) mode, viewing both cold wings\n", NAME_CURRENT_COMP););
+    }
   } else if (strcasestr (sector, "S")) {
     cx = 0.0;
     cz = -0.185;
@@ -451,6 +488,10 @@ INITIALIZE
   rT2_z = r21 * T2_z + r22 * T2_x;
   rT3_x = r11 * T3_z + r12 * T3_x;
   rT3_z = r21 * T3_z + r22 * T3_x;
+  rC4_x = r11 * C4_z + r12 * C4_x;
+  rC4_z = r21 * C4_z + r22 * C4_x;
+  rC5_x = r11 * C5_z + r12 * C5_x;
+  rC5_z = r21 * C5_z + r22 * C5_x;
   /* Moderator half-height */
   delta_y = yheight / 2.0;
   /* Other moderator parms */
@@ -485,6 +526,8 @@ INITIALIZE
 
   dxC = dxCold[beamline - 1];
   dxT = dxThermal[beamline - 1];
+  if (tbl_mode)
+    dxT = 0;
 %}
 
 TRACE
@@ -511,7 +554,14 @@ TRACE
   modY = y;
   if (rand01 () < cold_frac) {
     iscold = 1;
-    if (rand01 () < wfrac_cold) { // "Broad face"
+    if (tbl_mode && rand01 () < 0.5) { // TBL: second cold wing
+      x = rC4_x + (rC5_x - rC4_x) * xtmp;
+      z = rC4_z + (rC5_z - rC4_z) * xtmp;
+      x0 = C4_x + (C5_x - C4_x) * xtmp;
+      z0 = C4_z + (C5_z - C4_z) * xtmp;
+      surf_sign = -1;
+      cos_factor = cos_cold;
+    } else if (rand01 () < wfrac_cold) { // "Broad face"
       x = rC1_x + (rC2_x - rC1_x) * xtmp;
       z = rC1_z + (rC2_z - rC1_z) * xtmp;
       x0 = C1_x + (C2_x - C1_x) * xtmp;
@@ -527,6 +577,8 @@ TRACE
       cos_factor = cos_thermal;
     }
     modX = ((-1.0 * isleft * x0) - dxC);
+    if (tbl_mode)
+      modX = cx - fabs (modX); /* TBL: mirror-symmetric profile about moderator centre */
     w_geom = w_geom_c;
   } else {
     iscold = 0;
@@ -546,6 +598,8 @@ TRACE
       cos_factor = cos_thermal;
     }
     modX = ((-1.0 * isleft * x0) + dxT);
+    if (tbl_mode)
+      modX = cx - fabs (modX); /* TBL: mirror-symmetric profile about moderator centre */
     w_geom = w_geom_t;
   }
 
@@ -614,6 +668,11 @@ MCDISPLAY
   magnify ("");
   butterfly_geometry (delta_y, jmax, cx, cz, orientation_angle, Beamlines, tx, ty, tz, rC1_x, rC1_z, rC2_x, rC2_z, rC3_x, rC3_z, rT1_x, rT1_z, rT2_x, rT2_z,
                       rT3_x, rT3_z, r11, r12, r21, r22, focus_xw, focus_yh);
+  if (tbl_mode) { /* second cold wing emission plane */
+    mcdis_dashed_line (rC4_x, -delta_y, rC4_z, rC5_x, -delta_y, rC5_z, 11);
+    mcdis_dashed_line (rC4_x, delta_y, rC4_z, rC5_x, delta_y, rC5_z, 11);
+    mcdis_dashed_line (rC5_x, -delta_y, rC5_z, rC5_x, delta_y, rC5_z, 11);
+  }
   #endif
 %}
 

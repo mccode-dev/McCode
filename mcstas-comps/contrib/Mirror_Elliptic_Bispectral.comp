@@ -90,7 +90,7 @@ TRACE
   double c1;
 
   // solving the time the neutron hits the sample
-  double A, B, C, D, E, P, Q, R, U, V, I, J, K;
+  double A, B, C, D, E, P, Q, R, U, V, I_root, J, K;
 
   // finding rotation of mirror
   double alpha1, beta1, gamma1;
@@ -177,25 +177,25 @@ TRACE
   if (A_w != 0) {
     determinant_w = B_w * B_w - 4.0 * A_w * C_w;
     if (determinant_w >= 0) {
-      I = (-B_w - sqrt (determinant_w)) / (2.0 * A_w);
+      I_root = (-B_w - sqrt (determinant_w)) / (2.0 * A_w);
       J = (-B_w + sqrt (determinant_w)) / (2.0 * A_w);
 
-      if (I <= 0 && J <= 0) {
+      if (I_root <= 0 && J <= 0) {
         dt = -1.0;
       } // both times are negative.
-      if (I <= 0 && J > 0) {
+      if (I_root <= 0 && J > 0) {
         dt = J;
       } // set dt to only positive value.
-      if (I > 0 && J <= 0) {
-        dt = I;
+      if (I_root > 0 && J <= 0) {
+        dt = I_root;
       } // set dt to only positive value.
 
-      if (I > 0 && J > 0) {
+      if (I_root > 0 && J > 0) {
         prop_case = 1;
-        if (I > J) {
+        if (I_root > J) {
           dt = J;
         } else {
-          dt = I;
+          dt = I_root;
         }
       } // set dt to smallest positive value
 
@@ -223,10 +223,10 @@ TRACE
 
     if (prop_case > 0) // also check if neutron can hit mirror at second solution - it might not be in y-range for first solution
     {
-      x_2 = x + vx * fabs (J - I);
-      y_2 = y + vy * fabs (J - I);
-      z_2 = z + vz * fabs (J - I);
-      t_2 = t + fabs (J - I);
+      x_2 = x + vx * fabs (J - I_root);
+      y_2 = y + vy * fabs (J - I_root);
+      z_2 = z + vz * fabs (J - I_root);
+      t_2 = t + fabs (J - I_root);
 
     } else {
       x_2 = x;
@@ -259,7 +259,7 @@ TRACE
 
       intersect = (y >= -ymirror && y <= ymirror && x >= 0 && x <= length && zprime_start_w + vz * dt >= 0);
 
-      intersect_2 = (y_2 >= -ymirror_2 && y_2 <= ymirror_2 && x_2 >= 0 && x_2 <= length && zprime_start_w + vz * (dt + fabs (J - I)) >= 0);
+      intersect_2 = (y_2 >= -ymirror_2 && y_2 <= ymirror_2 && x_2 >= 0 && x_2 <= length && zprime_start_w + vz * (dt + fabs (J - I_root)) >= 0);
 
       if (!intersect && intersect_2) { // if neutron doesn't hit mirror with smallest t, but hits with largest t, propagte to largest t
         intersect = intersect_2;

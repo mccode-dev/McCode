@@ -44,6 +44,16 @@
 #endif /* !WIN32 */
 #endif /* !MC_PATHSEP_C */
 
+/* Compiled-in resource directory used by Open_File() when $MCSTAS/$MCXTRACE
+   is not set. The code generator bakes the install location into a macro
+   named after the flavour (MCSTAS or MCXTRACE, see MCCODE_LIBENV in cogen),
+   so pick up MCXTRACE for McXtrace rather than the McStas default below.
+   (issue #2759: direct runs of McXtrace binaries from mccode.org .deb
+   packages, where $MCXTRACE is not set, could not find data/ files). */
+#if !defined(MCSTAS) && defined(MCXTRACE)
+#define MCSTAS MCXTRACE
+#endif
+
 #ifndef MCSTAS
 #ifdef WIN32
 #define MCSTAS "C:\\mcstas\\lib"

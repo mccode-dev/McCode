@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+#
+# Assemble the download.mcstas.org / download.mcxtrace.org directory tree
+# for one release from the per-platform autobuild artefacts.
+#
+# Usage:
+#   ./buildscripts/assemble_release_tree <flavor> <version> <artefact-dir> [<out-dir>]
+#
+#   flavor        mcstas | mcxtrace
+#   version       e.g. 3.9.0 (or 3.9.0_nightly)
+#   artefact-dir  directory holding the per-platform tarballs from the
+#                 autobuild matrix, e.g.
+#                   <flavor>-debian-x86_64.tgz
+#                   <flavor>-debian-arm64.tgz
+#                   <flavor>-macOS-conda.tgz
+#                   <flavor>-Windows-MinGW-x86_64.tgz
+#                   <flavor>-Windows-MSVC-x86_64.tgz
+#   out-dir       where to create <flavor>-<version>/  (default: release)
+#
+# Must be run from the top of a McCode checkout (INSTALL-McStas /
+# INSTALL-McXtrace are used as the skeleton of the tree).
+#
+# Resulting layout (mirrors the download server):
+#
+#   <flavor>-<version>/
+#     README.md  RELEASE_NOTES.md  Docker/  conda/        <- from INSTALL-*
+#     Linux/README.md
+#     Linux/debian/README.md
+#     Linux/debian/<flavor>-debian-x86_64.tgz  + unpacked <flavor>-debian-x86_64/
+#     Linux/debian/<flavor>-debian-arm64.tgz   + unpacked <flavor>-debian-arm64/
+#     macOS/README.md  macOS/screenshots/
+#     macOS/<flavor>-<version>-macOS-conda.tar.gz
+#     Windows/README.md  Windows/*.bat  Windows/WSL/  Windows/VScode_manual_install/
+#     Windows/MSVC/   <- metapackage .exe + README.md
+#     Windows/MinGW/  <- metapackage .exe + README.md + single-packages/
+#
+# Missing platform artefacts are reported (and counted in the exit
+# status) but do not stop the rest of the tree from being assembled.
+
+set -euo pipefail
+
+if [ $# -lt 3 ]; then
+    sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1
+fi
+
+FLAVOR=$1
+VERSION=$2
+ARTEFACTS=$(cd "$3" && pwd)
+OUTDIR=${4:-release}
+
+case "$FLAVOR" in
+    mcstas)   INSTALLDIR=INSTALL-McStas ;;
+    mcxtrace) INSTALLDIR=INSTALL-McXtrace ;;
+    *) echo "Unknown flavor '$FLAVOR' (expected mcstas or mcxtrace)" >&2; exit 1 ;;
+esac
+
+if [ ! -d "$INSTALLDIR" ]; then
+    echo "$INSTALLDIR not found - run this from the top of a McCode checkout" >&2
+    exit 1
+fi
+
+TOP=${FLAVOR}-${VERSION}
+DEST=${OUTDIR}/${TOP}
+MISSING=0
+
+missing() {
+    echo "::warning::assemble_release_tree: $*"
+    MISSING=$((MISSING+1))
+}
+
+# Find the first artefact matching one of the given name patterns
+find_artefact() {
+    local p f
+    for p in "$@"; do
+        for f in "$ARTEFACTS"/$p; do
+            [ -f "$f" ] && { echo "$f"; return 0; }
+        done
+    done
+    return 1
+}
+
+# Unpack a tarball that holds a single top-level directory and move that
+# directory's *contents* into the given destination.
+unpack_contents_into() {
+    local tarball=$1 dest=$2 tmp
+    tmp=$(mktemp -d)
+    tar -xzf "$tarball" -C "$tmp"
+    mkdir -p "$dest"
+    # exactly one top-level dir expected
+    shopt -s dotglob
+    mv "$tmp"/*/* "$dest"/
+    shopt -u dotglob
+    rm -rf "$tmp"
+}
+
+echo "Assembling ${DEST} from ${ARTEFACTS}"
+rm -rf "$DEST"
+mkdir -p "$DEST"
+
+# 1) Skeleton: README's, release notes, screenshots, Windows helper scripts ...
+#    (.gitignore files only exist to keep the empty MinGW / MSVC dirs in git)
+cp -R "${INSTALLDIR}/." "${DEST}/"
+find "${DEST}" -name .gitignore -delete
+
+# 2) Linux / Debian: keep the tarball and the unpacked directory side by side
+for ARCH in x86_64 arm64; do
+    if TGZ=$(find_artefact "${FLAVOR}-debian-${ARCH}.tgz"); then
+        cp "$TGZ" "${DEST}/Linux/debian/"
+        tar -xzf "$TGZ" -C "${DEST}/Linux/debian/"
+    else
+        missing "no Debian ${ARCH} artefact (${FLAVOR}-debian-${ARCH}.tgz)"
+    fi
+done
+
+# 3) macOS: one tarball with both the arm64 and x86_64 app bundles, renamed
+#    to the name the macOS README links to
+if TGZ=$(find_artefact "${FLAVOR}-macOS-conda.tgz"); then
+    cp "$TGZ" "${DEST}/macOS/${FLAVOR}-${VERSION}-macOS-conda.tar.gz"
+else
+    missing "no macOS artefact (${FLAVOR}-macOS-conda.tgz)"
+fi
+
+# 4) Windows: unpack the dist/ folders into Windows/MinGW and Windows/MSVC
+if TGZ=$(find_artefact "${FLAVOR}-Windows-MinGW-x86_64.tgz" "${FLAVOR}-MinGW-Windows-x86_64.tgz"); then
+    unpack_contents_into "$TGZ" "${DEST}/Windows/MinGW"
+else
+    missing "no Windows MinGW artefact (${FLAVOR}-Windows-MinGW-x86_64.tgz)"
+fi
+
+if TGZ=$(find_artefact "${FLAVOR}-Windows-MSVC-x86_64.tgz"); then
+    unpack_contents_into "$TGZ" "${DEST}/Windows/MSVC"
+else
+    missing "no Windows MSVC artefact (${FLAVOR}-Windows-MSVC-x86_64.tgz)"
+fi
+
+# Sanity check: the Windows metapackages are what the README links point at
+for KIND in MinGW MSVC; do
+    if ! ls "${DEST}/Windows/${KIND}/"*-Metapackage-"${VERSION}"-"${KIND}"-win64.exe >/dev/null 2>&1; then
+        missing "Windows/${KIND} has no *-Metapackage-${VERSION}-${KIND}-win64.exe"
+    fi
+done
+
+echo
+echo "Release tree ${DEST}:"
+( cd "$OUTDIR" && find "$TOP" -maxdepth 3 -not -path '*/single-packages/*' -not -path '*/screenshots/*' | sort )
+echo
+du -sh "$DEST"
+
+if [ "$MISSING" -ne 0 ]; then
+    echo "assemble_release_tree: ${MISSING} problem(s) - tree is incomplete" >&2
+    exit 2
+fi
