@@ -1,4 +1,46 @@
-#!/bin/sh  
-unset DISPLAY  
-scriptname=$1  
-wine "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "$scriptname"
+#!/bin/sh
+# Run the Inno Setup command-line compiler (ISCC.exe) under wine.
+#
+# ISCC.exe is located automatically: the newest "Inno Setup <N>" installation
+# found under "Program Files" or "Program Files (x86)" in the wine prefix
+# is used, so this keeps working when Inno Setup is upgraded (6 -> 7 -> ...)
+# or switches between its 32- and 64-bit editions.
+#
+# Usage:
+#   iscc script.iss [more ISCC options]   compile an .iss script
+#   iscc --locate                          print the ISCC.exe path and exit
+#
+# Set ISCC=/path/to/ISCC.exe to bypass the search.
+
+locate_iscc() {
+    if [ -n "${ISCC:-}" ]; then
+        [ -f "$ISCC" ] && { echo "$ISCC"; return 0; }
+        echo "iscc: ISCC=$ISCC does not exist" >&2
+        return 1
+    fi
+    drive_c="${WINEPREFIX:-$HOME/.wine}/drive_c"
+    # List candidates as "<version-dir-name><TAB><path>", pick highest version
+    found=$(
+        for exe in "$drive_c"/Program\ Files*/Inno\ Setup*/ISCC.exe; do
+            [ -f "$exe" ] || continue
+            dir=$(basename "$(dirname "$exe")")
+            printf '%s\t%s\n' "$dir" "$exe"
+        done | sort -t "$(printf '\t')" -k1,1V | tail -n 1 | cut -f2-
+    )
+    if [ -z "$found" ]; then
+        echo "iscc: no ISCC.exe found under '$drive_c/Program Files*/Inno Setup*/'" >&2
+        echo "iscc: install it with meta-pkgs/windows/install-innosetup" >&2
+        return 1
+    fi
+    echo "$found"
+}
+
+exe=$(locate_iscc) || exit 1
+
+if [ "${1:-}" = "--locate" ]; then
+    echo "$exe"
+    exit 0
+fi
+
+unset DISPLAY
+exec wine "$exe" "$@"

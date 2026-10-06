@@ -52,7 +52,7 @@ set(CPACK_NSIS_DISPLAY_NAME "${NSIS_NAME}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${NSIS_NAME}")
 
 # Debian
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, python3-matplotlib, python3-pyqt6, python3-mplexporter, python3-tornado")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, ${FLAVOR}-tools-python-mccodelib, python3-matplotlib, python3-pyqt6, python3-mplexporter, python3-tornado")
 set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-tools-python-${P}plot-matplotlib-3.5.1")
 
 # RPM

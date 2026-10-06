@@ -27,7 +27,7 @@
 * %Example: Guide=9 Detector: Monitor2_xy_I=0.00724912
 *
 * %Parameters
-* Guide: [1]  Choice of Guide component to test, with 1=Guide, 2=Guide_channeled, 3=Guide_gravity, 4=Guide_wavy, 5=Guide_curved 6=Elliptic_guide_gravity 7=Guide_honeycomb
+* Guide: [1]  Choice of Guide component to test, with 1=Guide, 2=Guide_channeled, 3=Guide_gravity, 4=Guide_wavy, 5=Guide_curved, 6=Elliptic_guide_gravity, 7=Guide_anyshape, 8=Guide_honeycomb, 9=Guide_anyshape with per-face coatings read from the OFF file (file_coatings=1)
 *
 * %End
 *******************************************************************************/
@@ -55,7 +55,7 @@ INITIALIZE
   if(Guide==6) printf("Using Elliptic_guide_gravity\n"); 
   if(Guide==7) printf("Using Guide_anyshape\n");
   if(Guide==8) printf("Using Guide_honeycomb\n");
-  if(Guide==9) printf("Using Guide_r_anyshape\n");
+  if(Guide==9) printf("Using Guide_anyshape with per-face coatings (file_coatings=1)\n");
 
   _Guide=Guide;
   #pragma acc update device(_Guide)
@@ -169,7 +169,7 @@ EXTEND %{
   if (SCATTERED) Flag_anyshape_r_scatter++;
 %}
 
-COMPONENT GuideAr = Guide_anyshape_r(geometry="Guide_r.off", R0=0.99, m=0)
+COMPONENT GuideAr = Guide_anyshape(geometry="Guide_r.off", R0=0.99, file_coatings=1)
   WHEN (Guide == 9)
   AT (0, 0, 0) RELATIVE Guide_Position
 EXTEND %{

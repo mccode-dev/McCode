@@ -52,7 +52,7 @@ set(CPACK_NSIS_DISPLAY_NAME "${NSIS_NAME}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${NSIS_NAME}")
 
 # Debian
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, ${FLAVOR}-comps")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, ${FLAVOR}-tools-python-mccodelib, ${FLAVOR}-comps")
 
 # mcdoc now installs the flat tool-doc pages (mcrun.md, mcgui.md, mctest.md,
 # mcplot.md, mcdisplay.md, ...) that used to be shipped by those tools' own
