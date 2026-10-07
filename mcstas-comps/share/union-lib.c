@@ -8464,7 +8464,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
         break;
     }
     *abs_weight_factor
-        *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed * current_p_physics->dist) / current_p_physics->total_mus[*selected_sampling];
+        *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed  / current_p_physics->total_mus[*selected_sampling];
 
     // printf("\nSelected_sampling = %d\n", selected_sampling);
 
