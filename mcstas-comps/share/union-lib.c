@@ -8297,12 +8297,12 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
 
   void
-  transform_wavevector_into_local_coord_system (struct Volume_struct* Volume, Coords* wavevector_rotated, double (*k_rotated)[3], int p_index,
+  transform_wavevector_into_local_coord_system (struct Volume_struct* Volume, Coords* wavevector_rotated, double* k_rotated, int p_index,
                                                 Coords* wavevector, Coords* ray_position_geometry) {
 
     int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
     *wavevector_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *wavevector);
-    coords_get (*wavevector_rotated, &(*k_rotated)[0], &(*k_rotated)[1], &(*k_rotated)[2]);
+    coords_get (*wavevector_rotated, &k_rotated[0], &k_rotated[1], &k_rotated[2]);
 
     if (Volume->p_physics->p_scattering_array[p_index].needs_cross_section_focus == 1) {
       // Prepare focus data using ray_position_geometry of forced scattering point which will be prepared if any process needs cross_section time

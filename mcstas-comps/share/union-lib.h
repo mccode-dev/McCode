@@ -1478,7 +1478,7 @@ void adjust_abs_weight_factor (struct Volume_struct *Volume, double *my_sum_plus
                                double *abs_weight_factor, int *abs_weight_factor_set);
 
 void transform_wavevector_into_local_coord_system (struct Volume_struct *Volume, Coords *wavevector_rotated,
-                                                   double (*k_rotated)[3], int p_index, Coords *wavevector,
+                                                   double *k_rotated, int p_index, Coords *wavevector,
                                                    Coords *ray_position_geometry);
 
 void move_and_aim_neutron (struct physics_struct *current_p_physics, int i,
