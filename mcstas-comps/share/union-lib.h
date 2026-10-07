@@ -1517,10 +1517,10 @@ void inhomogenous_choose_process (struct physics_struct *current_p_physics, stru
 
 int p_interact_is_set (struct Volume_struct *Volume);
 
-void p_interact_check_scattering_event (struct Volume_struct *Volume, int *scattering_event,
+void p_interact_check_scattering_event (struct Volume_struct *Volume, _class_particle* _particle, int *scattering_event,
                                         double *weight, double real_transmission_prob);
 
-void p_interact_select_process (struct Volume_struct *Volume, double *my_trace_fraction_control,
+void p_interact_select_process (struct Volume_struct *Volume, _class_particle* _particle, double *my_trace_fraction_control,
                                 double *my_trace, double *total_process_interact,
                                 double *culmative_probability, double *mc_prop, double *weight,
                                 double my_sum, int *selected_process);

@@ -8464,7 +8464,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
         break;
     }
     *abs_weight_factor
-        *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed  / current_p_physics->total_mus[*selected_sampling];
+        *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed ) / current_p_physics->total_mus[*selected_sampling];
 
     // printf("\nSelected_sampling = %d\n", selected_sampling);
 
@@ -8498,7 +8498,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   }
 
   void
-  p_interact_check_scattering_event (struct Volume_struct* Volume, int* scattering_event, double* weight, double real_transmission_prob) {
+  p_interact_check_scattering_event (struct Volume_struct* Volume, _class_particle* _particle, int* scattering_event, double* weight, double real_transmission_prob) {
     double mc_transmission_prob = 1 - Volume->geometry.geometry_p_interact;
     *scattering_event = rand01 () > mc_transmission_prob;
     if (*scattering_event) {
@@ -8511,7 +8511,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   }
 
   void
-  p_interact_select_process (struct Volume_struct* Volume, double* my_trace_fraction_control, double* my_trace, double* total_process_interact,
+  p_interact_select_process (struct Volume_struct* Volume, _class_particle* _particle, double* my_trace_fraction_control, double* my_trace, double* total_process_interact,
                              double* culmative_probability, double* mc_prop, double* weight, double my_sum, int* selected_process) {
     // Interact_fraction is used to influence the choice of process in this material
     *mc_prop = rand01 ();
