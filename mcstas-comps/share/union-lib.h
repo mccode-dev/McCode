@@ -1507,6 +1507,7 @@ void inhomogenous_sample_transmission_probability (struct physics_struct *curren
 
 double inhomogenous_sample_scattering_point (struct Volume_struct *Volume,
                                               struct physics_struct *current_p_physics,
+                                              _class_particle* _particle,
                                               double *abs_weight_factor, double v_length,
                                               double safety_distance, int *selected_sampling);
 

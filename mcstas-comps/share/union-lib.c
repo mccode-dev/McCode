@@ -8363,7 +8363,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   void
   focus_in_cross_section_set_forced_point_and_dir (double* forced_length_to_scattering, double safety_distance, double safety_distance2, double length_to_boundary,
                                              _class_particle* _particle, Coords* ray_velocity, Coords* ray_position_geometry, Coords* ray_position,
-                                             struct Volume_struct* Volume, struct focus_data_struct* this_focus_data, ) {
+                                             struct Volume_struct* Volume, struct focus_data_struct* this_focus_data) {
     // Sample length_to_scattering in linear manner
     *forced_length_to_scattering = safety_distance + rand01 () * (length_to_boundary - safety_distance2);
 
@@ -8448,7 +8448,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   }
 
   double
-  inhomogenous_sample_scattering_point (struct Volume_struct* Volume, struct physics_struct* current_p_physics, double* abs_weight_factor, double v_length,
+  inhomogenous_sample_scattering_point (struct Volume_struct* Volume, struct physics_struct* current_p_physics,  _class_particle* _particle, double* abs_weight_factor, double v_length,
                                         double safety_distance, int* selected_sampling) {
 
     // Numerical integration happens, and therefore we must choose between the different samples
