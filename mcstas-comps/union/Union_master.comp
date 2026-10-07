@@ -853,10 +853,9 @@ INITIALIZE
 
   for (int mat_idx = 0; mat_idx < global_material_list_master->num_elements; mat_idx++) {
     struct physics_struct* physics = global_material_list_master->elements[mat_idx].physics;
+    physics->sampling_points = -1; // Initialize n points to avoid undefined behaviour
     for (int proc_idx = 0; proc_idx < physics->number_of_processes; proc_idx++) {
       struct scattering_process_struct spec_process = physics->p_scattering_array[proc_idx];
-      if (spec_process.needs_numerical_integration != 1)
-        continue;
       if (physics->sampling_points < spec_process.sampling_points)
         physics->sampling_points = spec_process.sampling_points;
     }
@@ -1611,7 +1610,7 @@ TRACE
             }
             if (!process_needs_inhomogenous_sampling (current_p_physics, process)) {
               UNION_PHYSICS_MY (physics_output, process, p_my_trace, k_rotated, this_focus_data, _particle);
-              if (current_p_physics->sampling_points != 0) {
+              if (current_p_physics->sampling_points != -1) {
                 current_p_physics->mus[p_index][0] = *p_my_trace;
               }
             }
@@ -1638,11 +1637,11 @@ TRACE
           // Calculate if scattering happens based on my_sub_plus_abs
           if (mu_and_intersect_dist_safeguard (my_sum, length_to_boundary, safety_distance2, &scattering_event)) {
             // First calculate the transmission probability
-            if (current_p_physics->sampling_points == 0) {
+            if (current_p_physics->sampling_points == -1) {
               real_transmission_probability = exp (-length_to_boundary * my_sum_plus_abs);
             }
 
-            if (current_p_physics->sampling_points != 0) {
+            if (current_p_physics->sampling_points != -1) {
               inhomogenous_sample_transmission_probability (current_p_physics, Volumes[current_volume], &real_transmission_probability, v_length);
             }
 
@@ -1666,7 +1665,7 @@ TRACE
             if (my_sum / my_sum_plus_abs > 1.0)
               printf ("WARNING: Absorption weight factor above 1! Should not happen! \n");
             // Select distance to scattering position
-            if (current_p_physics->sampling_points != 0) {
+            if (current_p_physics->sampling_points != -1) {
               length_to_scattering = inhomogenous_sample_scattering_point (Volumes[current_volume], current_p_physics, &abs_weight_factor, v_length,
                                                                            safety_distance, &selected_sampling);
             }
@@ -1679,7 +1678,7 @@ TRACE
                 // Select a process based on their relative attenuations factors
                 mc_prop = rand01 ();
                 culmative_probability = 0;
-                if (current_p_physics->sampling_points == 0) {
+                if (current_p_physics->sampling_points == -1) {
                   for (iterator = 0; iterator < Volumes[current_volume]->p_physics->number_of_processes; iterator++) {
                     culmative_probability += my_trace[iterator] / my_sum;
                     if (culmative_probability > mc_prop) {
@@ -1698,7 +1697,7 @@ TRACE
             }
 
             process = &Volumes[current_volume]->p_physics->p_scattering_array[selected_process];
-            if (current_p_physics->sampling_points == 0) {
+            if (current_p_physics->sampling_points == -1) {
               // No numerical integration is necessary.
               if (process->needs_cross_section_focus == 1) {
                 focus_in_cross_section_set_scat_length (&length_to_scattering, forced_length_to_scattering, &p, length_to_boundary, my_sum_plus_abs);

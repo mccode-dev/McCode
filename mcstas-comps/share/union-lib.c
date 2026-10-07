@@ -25,7 +25,6 @@ void scattering_process_struct_init(struct scattering_process_struct *sps)
   sps->scattering_function = NULL;
   sps->non_isotropic_rot_index = -1;
   sps->needs_cross_section_focus = -1;
-  sps->needs_numerical_integration = -1;
   sps->sampling_points = -1;
 }
 
@@ -8271,7 +8270,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
   int
   process_needs_inhomogenous_sampling (struct physics_struct* current_p_physics, struct scattering_process_struct* process) {
-    if (current_p_physics->sampling_points != 0) {
+    if (current_p_physics->sampling_points != -1) {
       if (process->needs_cross_section_focus || process->sampling_points != -1)
         return 1;
     }
@@ -8420,7 +8419,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
     for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
       struct scattering_process_struct* process_i = &Volume->p_physics->p_scattering_array[i];
-      if (process_i->needs_numerical_integration != 1)
+      if (process_i->sampling_points != -1)
         for (int j = 0; j < current_p_physics->sampling_points; j++) {
           current_p_physics->total_mus[j] += current_p_physics->mus[i][0] * current_p_physics->dist;
         }
