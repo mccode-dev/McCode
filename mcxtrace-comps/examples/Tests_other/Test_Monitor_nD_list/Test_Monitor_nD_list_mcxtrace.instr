@@ -1,0 +1,42 @@
+/*******************************************************************************
+*         McXtrace instrument definition
+*
+* Instrument: Test Monitor_nD's final list save (generic event API) in McXtrace
+*
+* %Identification
+* Written by: McCode event-output work (Step 6)
+* Date: 18 September 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* %Description
+* McXtrace companion for the McStas Test_Monitor_nD_list.instr. It exercises
+* Monitor_nD's migrated final list save (mcevent_out_list_nd) for photons: a
+* two-column list (x y list), a fixed-capacity overflow list (x y list=5), and
+* list all (x y list all). Every list file must carry the McXtrace flavor
+* header label "List of photon events" and the correct columns.
+*
+* %Example: NCount=1000
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Monitor_nD_list_mcxtrace()
+
+TRACE
+
+COMPONENT src = Source_pt(focus_xw=0.1, focus_yh=0.1, dist=1, lambda0=1)
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT ND_xy = Monitor_nD(xwidth=0.4, yheight=0.4,
+  filename="ND_xy", options="x y list")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT ND_ovf = Monitor_nD(xwidth=0.4, yheight=0.4,
+  filename="ND_ovf", options="x y list=5")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+COMPONENT ND_all = Monitor_nD(xwidth=0.4, yheight=0.4,
+  filename="ND_all", options="x y list all")
+  AT (0, 0, 0.1) RELATIVE PREVIOUS
+
+END

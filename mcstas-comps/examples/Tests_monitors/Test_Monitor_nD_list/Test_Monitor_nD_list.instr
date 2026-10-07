@@ -1,0 +1,86 @@
+/*******************************************************************************
+* Instrument: Test_Monitor_nD_list
+*
+* %I
+* Written by: McCode event-output work (Step 6)
+* Date: September 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_monitors
+*
+* %D
+* Exercise Monitor_nD's final list save (migrated to the generic
+* mcevent_out_list_nd event API) across the list options matrix:
+*   - a two-column custom list (x y list)
+*   - a list containing a pixel ID column (x y pixel)
+*   - a fixed-capacity list with overflow (x y list=5)
+*   - list all (x y list all)
+*   - auto limits combined with list output (auto x y list)
+*
+* %Example: NCount=1000 Detector: FlexRef_I=1000
+*
+* %P
+* NCount: [1] Statistic to run with
+*
+* %L
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Monitor_nD_list(NCount=1000)
+
+DECLARE
+%{
+%}
+
+USERVARS
+%{
+  double One;
+%}
+
+INITIALIZE
+%{
+  mcset_ncount((unsigned long long)NCount);
+%}
+
+TRACE
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT src = Source_simple(
+    lambda0=2,
+    dlambda=0.02, dist=1, focus_xw=0.1, focus_yh=0.1)
+AT (0, 0, 0) RELATIVE PREVIOUS
+EXTEND %{
+  One=1;
+%}
+
+/* (1) two-column custom list: columns p x y, full capacity (all events) */
+COMPONENT ND_xy = Monitor_nD(xwidth=0.4, yheight=0.4, restore_neutron=1,
+    filename="ND_xy", options="x y list")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* (2) list containing a pixel ID column: x/y binned, pixel computed */
+COMPONENT ND_pix = Monitor_nD(xwidth=0.4, yheight=0.4, restore_neutron=1,
+    filename="ND_pix", options="x bins=10 y bins=10 pixel list")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* (3) fixed-capacity list with overflow: buffer holds only 5 rows */
+COMPONENT ND_ovf = Monitor_nD(xwidth=0.4, yheight=0.4, restore_neutron=1,
+    filename="ND_ovf", options="x y list=5")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* (4) list all: every event */
+COMPONENT ND_all = Monitor_nD(xwidth=0.4, yheight=0.4, restore_neutron=1,
+    filename="ND_all", options="x y list all")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* (5) auto limits combined with list output */
+COMPONENT ND_auto = Monitor_nD(xwidth=0.4, yheight=0.4, restore_neutron=1,
+    filename="ND_auto", options="auto x bins=10 y bins=10 list")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+/* reference 2D monitor to confirm the same neutrons reach the monitors */
+COMPONENT FlexRef = Flex_monitor_2D(nU1=3, nU2=3, Umin1=-1, Umax1=1,
+    Umin2=-1, Umax2=1, ustring1="x", ustring2="y", signal="One")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+END

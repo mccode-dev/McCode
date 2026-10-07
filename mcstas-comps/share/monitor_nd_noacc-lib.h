@@ -204,6 +204,8 @@
     double **Mon2D_p;
     double **Mon2D_p2;
     double *Mon2D_Buffer;
+    MC_EVENT_BUFFER List_Buffer;
+    MC_EVENT_WRITER List_Writer;
     unsigned long PixelID;
 
     double mxmin,mxmax,mymin,mymax,mzmin,mzmax;
@@ -219,6 +221,7 @@
 /* ========================================================================= */
 
 void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, MCNUM, int, int);
+void Monitor_nd_noaccBegin_Event_Writer(Monitornd_noaccVariables_type *);
 int Monitor_nd_noaccTrace(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *, _class_particle* _particle);
 MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *);
 void Monitor_nd_noaccFinally(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *);

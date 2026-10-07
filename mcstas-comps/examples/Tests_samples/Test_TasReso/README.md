@@ -58,4 +58,34 @@ Parameters in **boldface** are required; the others are optional.
 
 - [Source code](Test_TasReso.instr) for `Test_TasReso.instr`.
 
+## Resolution events
+
+The `Res_monitor` instance writes `reso.dat` through the generic event-list
+output path. Its fixed column order is:
+
+```text
+ki_x ki_y ki_z kf_x kf_y kf_z x y z p_i p_f
+```
+
+The monitor's `bufsize` parameter controls the fixed event-buffer capacity;
+`bufsize=0` stores up to the instrument ray count. Overflow is reported as a
+warning and the accepted rows are still saved.
+
+## MPI zero-row regression
+
+This fixed-seed run intentionally gives rank 0 no accepted resolution events
+while rank 1 accepts one event. Both ranks must complete the collective matrix
+save:
+
+```sh
+mcrun -c -y --mpi=2 -n 1478 -s 170 \
+  -I mcstas-comps/monitors \
+  -d /tmp/test_tasreso_mpi_zero \
+  mcstas-comps/examples/Tests_samples/Test_TasReso/Test_TasReso.instr
+```
+
+The McCode run writes one-row `reso.dat`, `resmon_covar.dat`, and
+`resmon_resol.dat` matrix outputs. Add `--format=NeXus` to check the matching
+`(1, 11)` event and `(4, 4)` matrix datasets.
+
 ---

@@ -689,10 +689,17 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
     { Vars->Flag_Multiple = 1; /* default is n1D */
       if (Vars->Coord_Number != Vars->Coord_NumberNoPixel) Vars->Flag_List = 1; }
 
-    /* list and auto limits case : Vars->Flag_List or Vars->Flag_Auto_Limits
-     * -> Buffer to flush and suppress after Vars->Flag_Auto_Limits
-     */
-    if ((Vars->Flag_Auto_Limits || Vars->Flag_List) && Vars->Coord_Number)
+    /* The generic event buffer owns ordinary fixed-size lists. Keep the
+     * legacy buffer for auto-limit replay; unbounded lists use the writer. */
+    Vars->Mon2D_Buffer = NULL;
+    Vars->List_Buffer.data = NULL;
+    Vars->List_Buffer.width = 0;
+    Vars->List_Buffer.capacity = 0;
+    Vars->List_Buffer.count = 0;
+    Vars->List_Buffer.next = 0;
+    Vars->List_Buffer.dropped = 0;
+    memset(&Vars->List_Writer, 0, sizeof(Vars->List_Writer));
+    if (Vars->Flag_Auto_Limits && Vars->Coord_Number)
     { /* Dim : (Vars->Coord_Number+1)*Vars->Buffer_Block matrix (for p, dp) */
       Vars->Mon2D_Buffer = (double *)malloc((Vars->Coord_Number+1)*Vars->Buffer_Block*sizeof(double));
       if (Vars->Mon2D_Buffer == NULL)
@@ -702,6 +709,16 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
         for (i=0; i < (Vars->Coord_Number+1)*Vars->Buffer_Block; Vars->Mon2D_Buffer[i++] = (double)0);
       }
       Vars->Buffer_Size = Vars->Buffer_Block;
+    }
+    else if (Vars->Flag_List == 1 && Vars->Coord_Number)
+    {
+      if (mc_event_buffer_init(&Vars->List_Buffer, (long)Vars->Buffer_Block,
+                               (long)(Vars->Coord_Number+1)))
+      {
+        printf("Monitor_nD: %s cannot allocate list event buffer (%li events). No list.\n",
+               Vars->compcurname, (long)Vars->Buffer_Block);
+        Vars->Flag_List = 0;
+      }
     }
 
     /* 1D and n1D case : Vars->Flag_Multiple */
@@ -876,6 +893,48 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
     #endif // USE_NEXUS
     } /* end Monitor_nD_Init */
 
+/* Begin the unbounded list writer after the component has applied its final
+ * filename override. This is host-only because the constructor may allocate
+ * and register an OpenACC writer. */
+void Monitor_nD_Begin_Event_Writer(MonitornD_Variables_type *Vars)
+{
+  char fname[CHAR_BUF_LENGTH];
+  char columns[CHAR_BUF_LENGTH];
+  int i;
+
+  if (!Vars || Vars->Flag_List < 2 || Vars->Flag_Auto_Limits
+      || Vars->Coord_Number == 0 || !strlen(Vars->Mon_File))
+    return;
+
+  strcpy(fname, Vars->Mon_File);
+  if (strchr(Vars->Mon_File, '.') == NULL) strcat(fname, "_list");
+  strcpy(columns, "");
+  for (i = 0; i <= (int)Vars->Coord_Number; i++)
+  {
+    strcat(columns, Vars->Coord_Var[i]);
+    strcat(columns, " ");
+    if (strchr(Vars->Mon_File, '.') == NULL)
+    {
+      strcat(fname, ".");
+      strcat(fname, Vars->Coord_Var[i]);
+    }
+  }
+
+  if (mc_event_writer_begin(&Vars->List_Writer, Vars->Monitor_Label, columns,
+                            (long)(Vars->Coord_Number + 1),
+                            (long)Vars->Buffer_Block, fname,
+                            Vars->compcurname, Vars->compcurpos,
+                            Vars->compcurrot, Vars->compcurindex))
+  {
+    printf("Monitor_nD: %s cannot allocate list event writer. No list.\n",
+           Vars->compcurname);
+    Vars->Flag_List = 0;
+    return;
+  }
+  mc_event_writer_set_metadata(&Vars->List_Writer,
+                               "List of photon events", Vars->option);
+}
+
 /* ========================================================================= */
 /* Monitor_nD_Trace: this routine is used to monitor one propagating particle */
 /* return values: 0=photon was absorbed, -1=photon was outside bounds, 1=photon was measured*/
@@ -923,12 +982,14 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
   } /* end if Flag_Auto_Limits == 1 */
 
 #ifndef OPENACC
-  /* manage realloc for 'list all' if Buffer size exceeded: flush Buffer to file */
-  if ((Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List >= 2))
+  /* Keep the legacy realloc/replay path only for automatic limits. Unbounded
+     list output is flushed by MC_EVENT_WRITER as rows are appended below. */
+  if ((Vars->Buffer_Counter >= Vars->Buffer_Block)
+      && (Vars->Flag_List >= 2) && Vars->Flag_Auto_Limits)
   {
     if (Vars->Buffer_Size >= 1000000 || Vars->Flag_List == 3)
-    { /* save current (possibly append) and re-use Buffer */
-
+    {
+      /* Auto-limit replay still owns this scratch buffer until SAVE. */
       Monitor_nD_Save(DEFS, Vars);
       Vars->Flag_List = 3;
       Vars->Buffer_Block = Vars->Buffer_Size;
@@ -1260,8 +1321,26 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
     } /* end (Vars->Flag_Auto_Limits != 1) */
     
     if (Vars->Flag_Auto_Limits != 2 && !outsidebounds) /* not when reading auto limits Buffer */
-    { /* now store Coord into Buffer (no index needed) if necessary (list or auto limits) */
-      if ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1))
+    { /* store ordinary lists in the generic buffer; retain the legacy path
+         for auto limits and list-all mode */
+      if (Vars->List_Buffer.data)
+      {
+        if (mc_event_buffer_append(&Vars->List_Buffer, Coord)
+            && Vars->Flag_Verbose && Vars->Flag_List == 1
+            && Vars->List_Buffer.capacity > 0
+            && Vars->List_Buffer.count >= Vars->List_Buffer.capacity)
+          printf("Monitor_nD: %s %li photons stored in List.\n",
+                 Vars->compcurname, Vars->List_Buffer.count);
+      }
+      else if (Vars->List_Writer.active)
+      {
+#ifdef OPENACC
+        mc_event_writer_append_openacc(&Vars->List_Writer, Coord);
+#else
+        mc_event_writer_append(&Vars->List_Writer, Coord);
+#endif
+      }
+      else if ((Vars->Flag_List) || (Vars->Flag_Auto_Limits == 1))
       {
         /* Reserve a unique row in the list buffer. The atomic capture makes
            the read-and-increment of Buffer_Counter indivisible, so concurrent
@@ -1276,7 +1355,7 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         }
         if (buffer_slot < Vars->Buffer_Block)
         {
-          /* The row is owned by this thread only: plain stores suffice */
+          /* The row is owned by this thread only: plain stores suffice. */
           double *Mon2D_Buffer = Vars->Mon2D_Buffer + buffer_slot*(Vars->Coord_Number+1);
           for (i = 0; i <= Vars->Coord_Number; i++)
             Mon2D_Buffer[i] = Coord[i];
@@ -1330,6 +1409,8 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
     double  XY=0, pp=0;
     double  Coord[MONnD_COORD_NMAX];
     long    Coord_Index[MONnD_COORD_NMAX];
+    long    List_Count;
+    double *List_Data;
     char    label[CHAR_BUF_LENGTH];
     double  ratio;
 
@@ -1497,23 +1578,35 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
     if (strlen(Vars->Mon_File) > 0)
     {
       fname = (char*)malloc(strlen(Vars->Mon_File)+10*Vars->Coord_Number);
-      if (Vars->Flag_List && Vars->Mon2D_Buffer) /* List: DETECTOR_OUT_2D */
+      if (Vars->Flag_List) /* List */
       {
-       
-        if (Vars->Flag_List >= 2) Vars->Buffer_Size = Vars->Photon_Counter;
-        if (Vars->Buffer_Size >= Vars->Photon_Counter)
-          Vars->Buffer_Size = Vars->Photon_Counter;
-#ifdef OPENACC
-        /* On GPU the list buffer is never flushed during TRACE, so it holds
-           at most Buffer_Counter rows even when more events were counted.
-           Never write rows beyond what was actually stored. */
-        if (Vars->Buffer_Size > Vars->Buffer_Counter) {
-          printf("Monitor_nD: %s: WARNING list truncated to %lu of %lld events "
-                 "(buffer full). Increase --bufsiz or use Monitor_nD_noacc.\n",
-                 Vars->compcurname, Vars->Buffer_Counter, (long long)Vars->Photon_Counter);
-          Vars->Buffer_Size = Vars->Buffer_Counter;
+        if (Vars->List_Writer.active)
+        {
+          List_Count = 0;
+          List_Data = NULL;
         }
+        else if (Vars->List_Buffer.data)
+        {
+          List_Count = Vars->List_Buffer.count;
+          List_Data = Vars->List_Buffer.data;
+        }
+        else
+        {
+          List_Count = Vars->Buffer_Counter;
+          List_Data = Vars->Mon2D_Buffer;
+          if (Vars->Flag_List >= 2) Vars->Buffer_Size = Vars->Photon_Counter;
+          if (Vars->Buffer_Size >= Vars->Photon_Counter)
+            Vars->Buffer_Size = Vars->Photon_Counter;
+#ifdef OPENACC
+          /* The atomic reservation can reject rows after this buffer fills. */
+          if (Vars->Buffer_Size > Vars->Buffer_Counter) {
+            printf("Monitor_nD: %s: WARNING list truncated to %lu of %lld events "
+                   "(buffer full). Increase --bufsiz or use Monitor_nD_noacc.\n",
+                   Vars->compcurname, Vars->Buffer_Counter, (long long)Vars->Photon_Counter);
+            Vars->Buffer_Size = Vars->Buffer_Counter;
+          }
 #endif
+        }
         strcpy(fname,Vars->Mon_File);
         if (strchr(Vars->Mon_File,'.') == NULL) strcat(fname, "_list");
 
@@ -1530,11 +1623,15 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         /* handle the type of list output */
         strcpy(label, Vars->Monitor_Label);
         
-        detector = mcdetector_out_list(
-              label, "List of photon events", Coord_X_Label,
-              -Vars->Buffer_Size, Vars->Coord_Number+1,
-              Vars->Mon2D_Buffer,
-              fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot, Vars->option,Vars->compcurindex);
+        if (Vars->List_Writer.active) {
+          detector = mc_event_writer_end(&Vars->List_Writer);
+        } else {
+          detector = mcevent_out_list_nd(
+                label, "List of photon events", Coord_X_Label,
+                List_Count, Vars->Coord_Number+1, List_Data,
+                fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,
+                Vars->option, Vars->compcurindex);
+        }
       }
       if (Vars->Flag_Multiple) /* n1D: DETECTOR_OUT_1D */
       {
@@ -1744,6 +1841,8 @@ void Monitor_nD_Finally(MonitornD_Defines_type *DEFS,
     { /* Dim : (Vars->Coord_Number+1)*Vars->Buffer_Block matrix (for p, dp) */
       if (Vars->Mon2D_Buffer != NULL) free(Vars->Mon2D_Buffer);
     }
+    mc_event_buffer_free(&Vars->List_Buffer);
+    mc_event_writer_discard(&Vars->List_Writer);
 
     /* 1D and n1D case : Vars->Flag_Multiple */
     if (Vars->Flag_Multiple && Vars->Coord_Number)

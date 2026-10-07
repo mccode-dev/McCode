@@ -227,6 +227,42 @@ codeblock_out_brace(struct code_block *code)
   code_reset_source();
 }
 
+/* The OpenACC writer service needs the mapped component object on the host;
+   avoid synchronizing every component for instruments that do not use it. */
+static int
+codeblock_contains_text(struct code_block *code, const char *text)
+{
+  List_handle liter;
+  char *line;
+
+  if (!code || !text) return(0);
+  liter = list_iterate(code->lines);
+  while((line = list_next(liter)) != NULL) {
+    if (strstr(line, text)) {
+      list_iterate_end(liter);
+      return(1);
+    }
+  }
+  list_iterate_end(liter);
+  return(0);
+}
+
+static int
+component_uses_event_writer(struct comp_inst *comp)
+{
+  struct comp_def *def;
+
+  if (!comp || !comp->def) return(0);
+  def = comp->def;
+  return(codeblock_contains_text(def->share_code, "MC_EVENT_WRITER")
+      || codeblock_contains_text(def->share_code, "mc_event_writer_")
+      || codeblock_contains_text(def->decl_code, "MC_EVENT_WRITER")
+      || codeblock_contains_text(def->init_code, "mc_event_writer_")
+      || codeblock_contains_text(def->trace_code, "mc_event_writer_")
+      || codeblock_contains_text(def->save_code, "mc_event_writer_")
+      || codeblock_contains_text(def->finally_code, "mc_event_writer_"));
+}
+
 /** Output the lines of a literal block, encased in double quotes, and with any contained double quotes escaped.
  *
  * This form allows for automatic line-breaking string concatenation
@@ -1768,6 +1804,7 @@ int cogen_trace_functions(struct instr_def *instr)
 int cogen_raytrace(struct instr_def *instr)
 {
   List_handle liter;
+  List_handle sync_liter;
   struct comp_inst *comp = NULL;
   int warnings = 0;
   int i = 0;
@@ -2062,7 +2099,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
   coutf("      _class_particle particleN = mcgenstate(); // initial particle");
   coutf("      _class_particle* _particle = &particleN;");
-  coutf("      particleN._uid = pidx;");
+  coutf("      particleN._uid = cloop * gpu_innerloop + pidx;");
   coutf("      #ifdef USE_MPI");
   coutf("      particleN._uid += mpi_node_rank * ncount; ");
   coutf("      #endif");
@@ -2071,6 +2108,23 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("");
   coutf("      raytrace(_particle);");
   coutf("    } /* inner for */");
+  coutf("    #ifdef OPENACC");
+  sync_liter = list_iterate(instr->complist);
+  while((comp = list_next(sync_liter)) != NULL) {
+    if (component_uses_event_writer(comp))
+      coutf("    #pragma acc update host(_%s_var)", comp->name);
+  }
+  list_iterate_end(sync_liter);
+  coutf("    #endif");
+  coutf("    mc_event_writer_openacc_service();");
+  coutf("    #ifdef OPENACC");
+  sync_liter = list_iterate(instr->complist);
+  while((comp = list_next(sync_liter)) != NULL) {
+    if (component_uses_event_writer(comp))
+      coutf("    #pragma acc update device(_%s_var)", comp->name);
+  }
+  list_iterate_end(sync_liter);
+  coutf("    #endif");
   coutf("    seed = seed+gpu_innerloop;");
   coutf("  } /* CPU for */");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
@@ -2106,6 +2160,7 @@ int cogen_raytrace(struct instr_def *instr)
 int cogen_rt_funnel(struct instr_def *instr)
 {
   List_handle liter;
+  List_handle sync_liter;
   struct comp_inst *comp = NULL;
   int warnings = 0;
   int i = 0;
@@ -2201,7 +2256,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("      // generate particle state, set loop index and seed");
   coutf("      particles[pidx] = mcgenstate();");
   coutf("      _class_particle* _particle = particles + pidx;");
-  coutf("      _particle->_uid = pidx;");
+  coutf("      _particle->_uid = cloop * gpu_innerloop + pidx;");
   coutf("      #ifdef USE_MPI");
   coutf("      _particle->_uid += mpi_node_rank * ncount; ");
   coutf("      #endif");
@@ -2313,6 +2368,23 @@ int cogen_rt_funnel(struct instr_def *instr)
   } /* end while comp list (case) */
   coutf("");
   coutf("    }");
+  coutf("    #ifdef OPENACC");
+  sync_liter = list_iterate(instr->complist);
+  while((comp = list_next(sync_liter)) != NULL) {
+    if (component_uses_event_writer(comp))
+      coutf("    #pragma acc update host(_%s_var)", comp->name);
+  }
+  list_iterate_end(sync_liter);
+  coutf("    #endif");
+  coutf("    mc_event_writer_openacc_service();");
+  coutf("    #ifdef OPENACC");
+  sync_liter = list_iterate(instr->complist);
+  while((comp = list_next(sync_liter)) != NULL) {
+    if (component_uses_event_writer(comp))
+      coutf("    #pragma acc update device(_%s_var)", comp->name);
+  }
+  list_iterate_end(sync_liter);
+  coutf("    #endif");
   cout( "");
   list_iterate_end(liter);
 

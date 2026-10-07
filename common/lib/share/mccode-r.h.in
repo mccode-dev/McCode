@@ -974,10 +974,210 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
                   double x1, double x2, double y1, double y2, long m,
                   long n, double *p0, double *p1, double *p2, char *f,
                   char *c, Coords pos, Rotation rot, int index);
+/* Host-only wrapper for averaging rank-local 2D matrices. Every MPI rank must
+ * call this function with the same positive dimensions and detector metadata.
+ * A rank contributes only when local_valid is nonzero and matrix is non-NULL.
+ * MPI ranks must provide matching positive dimensions; a mismatch is rejected
+ * collectively before any detector reduction.
+ * The wrapper normalizes each valid matrix by the global contributor count,
+ * delegates ASCII/NeXus output to mcdetector_out_2D, and frees its temporary
+ * detector arrays before returning. It returns the global contributor count,
+ * or zero when there are no valid contributors or setup fails. */
+long mcdetector_out_2D_average(char *title, char *xl, char *yl,
+                   double x1, double x2, double y1, double y2, long m,
+                   long n, const double *matrix, int local_valid,
+                   char *filename, char *component, Coords position,
+                   Rotation rotation, int index);
 MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
                   long m, long n,
                   double *p1, char *f,
 	          char *c, Coords posa, Rotation rot,char* options, int index);
+
+/* generic event-list output wrapper: positive count/width dimensions (see mcevent_out_list) */
+MCDETECTOR mcevent_out_list(char *title, char *columns,
+                  long count, long width,
+                  double *data, char *filename,
+                  char *component, Coords position, Rotation rotation, int index);
+
+/* Monitor_nD-specific event-list output entry point (see mcevent_out_list_nd).
+ * Same validated, positive-dimension contract as mcevent_out_list, but preserves
+ * the flavor-specific x-label (xl) and the Monitor_nD options string (options,
+ * forwarded to the NeXus 'options' attribute) that the generic public API omits. */
+MCDETECTOR mcevent_out_list_nd(char *title, char *xl, char *columns,
+                   long count, long width,
+                   double *data, char *filename,
+                   char *component, Coords position, Rotation rotation,
+                   char *options, int index);
+
+/* generic fixed-capacity event buffer (see mc_event_buffer_init/free/append).
+ * Row-major flat storage: data[r*width+c]. `next` is a reservation counter,
+ * kept separate from `count` because OpenACC threads may reserve slots
+ * concurrently and reservations may overflow the configured capacity (those
+ * are counted in `dropped` and never written). `data` is one flat allocation
+ * so it can be passed directly to DETECTOR_OUT_LIST. No hidden global state.
+ */
+typedef struct {
+  double *data;      /* flat row-major storage, NULL when uninitialized/freed */
+  long    width;     /* columns per row (>= 0) */
+  long    capacity;  /* maximum number of rows that fit (>= 0) */
+  long    count;     /* number of accepted (stored) rows (<= capacity) */
+  long    next;      /* next row slot to reserve (may exceed capacity) */
+  long    dropped;   /* appends rejected because the buffer was full */
+} MC_EVENT_BUFFER;
+
+/* A linked list of row-major event chunks. The list is consumed by the
+ * collective writer but the nodes and data remain owned by the caller. */
+typedef struct mc_event_chunk_struct {
+  double *data;
+  long count;
+  struct mc_event_chunk_struct *next;
+} MC_EVENT_CHUNK;
+
+/* Host-side ownership helpers for components that detach and queue filled
+ * buffers. append transfers ownership of `data` to the new node. */
+int mc_event_chunk_append(MC_EVENT_CHUNK **head, MC_EVENT_CHUNK **tail,
+                          double *data, long count);
+void mc_event_chunk_free(MC_EVENT_CHUNK **head);
+
+/* Host-side chunk writer. Rows are accumulated in a bounded current buffer;
+ * flush spools that buffer and end performs the remaining serialization.
+ * The writer never calls MPI or writes event output from append/flush, so a
+ * caller may use it while preparing chunks at different rates on different
+ * ranks. The temporary spool keeps memory bounded between host services. */
+typedef struct {
+  MC_EVENT_BUFFER buffer;
+  FILE *spool;
+  long width;
+  long chunk_capacity;
+  long long rows;
+  long long chunks;
+  char title[CHAR_BUF_LENGTH];
+  char xlabel[CHAR_BUF_LENGTH];
+  char columns[CHAR_BUF_LENGTH];
+  char options[CHAR_BUF_LENGTH];
+  char filename[CHAR_BUF_LENGTH];
+  char component[CHAR_BUF_LENGTH];
+  Coords position;
+  Rotation rotation;
+  int index;
+  int failed;
+  int active;
+  long long dropped;
+  void *direct_output;
+  MCDETECTOR direct_detector;
+  long long expected_rows;
+  int direct;
+  void *stream_output;
+  int stream;
+  int mpi_stream;       /* MPI stream uses the live root service */
+  long service_offset;  /* next unread byte in the local spool */
+  long long service_chunks; /* chunks already handed to the host service */
+  long long service_rows;   /* rows already handed to the host service */
+  long long mpi_received_rows; /* rows received by the MPI root */
+  long long mpi_service_index; /* stable order among MPI stream writers */
+} MC_EVENT_WRITER;
+
+/* Internal-facing list entry point used by Monitor_nD and the writer. It
+ * preserves Monitor_nD's x-label/options metadata and writes all chunks in
+ * local list order through one collective event session. */
+MCDETECTOR mcevent_out_list_nd_chunks(char *title, char *xl, char *columns,
+                   long width, MC_EVENT_CHUNK *chunks,
+                   char *filename, char *component, Coords position,
+                   Rotation rotation, char *options, int index);
+
+/* Canonical particle-state event row. The row contains position, propagation
+ * state, polarisation/field state, time, and weight in the flavor-specific
+ * order named by MC_EVENT_PARTICLE_COLUMNS. */
+#define MC_EVENT_PARTICLE_WIDTH 11
+#if MCCODE_PARTICLE_CODE == 2112
+# define MC_EVENT_PARTICLE_COLUMNS "x y z vx vy vz t sx sy sz p"
+#elif MCCODE_PARTICLE_CODE == 22
+# define MC_EVENT_PARTICLE_COLUMNS "x y z kx ky kz t Ex Ey Ez p"
+#endif
+
+#pragma acc routine
+void mc_event_particle_row(double *row, _class_particle *particle);
+
+/* Fixed-capacity event-buffer lifecycle.
+ *   mc_event_buffer_init: owns the allocation (host only); call it on an
+ *     uninitialized or already-freed buffer. It returns 0 on success,
+ *     nonzero on error (null buffer, negative capacity/width, overflow, or
+ *     allocation failure; on error the buffer is left zeroed).
+ *   mc_event_buffer_free: host only; safe after init or for a zero-initialized
+ *     empty buffer, and idempotent (a second call is a no-op, never a
+ *     double-free).
+ *   mc_event_buffer_append: callable from OpenACC device code; performs no
+ *     allocation, I/O or printf; returns nonzero only when the row was
+ *     stored, overflow increments `dropped` and returns 0.
+ */
+int  mc_event_buffer_init(MC_EVENT_BUFFER *buffer, long capacity, long width);
+void mc_event_buffer_free(MC_EVENT_BUFFER *buffer);
+#pragma acc routine
+int  mc_event_buffer_append(MC_EVENT_BUFFER *buffer, const double *row);
+
+/* Host-only save path for a fixed-capacity event buffer. Saves exactly
+ * `count` accepted rows through mcevent_out_list (never `capacity`), reports
+ * `dropped` once through a non-fatal WARNING, and leaves the buffer
+ * unmodified. A NULL buffer is a documented no-op. See mc_event_buffer_save.
+ */
+MCDETECTOR mc_event_buffer_save(MC_EVENT_BUFFER *buffer, char *title,
+                                 char *columns, char *filename,
+                                 char *component, Coords position,
+                                 Rotation rotation, int index);
+
+/* Host-side generic chunked event writer. begin clears the writer and, on
+ * success, allocates one bounded chunk buffer, append adds one row, flush
+ * spools the current chunk, and end serializes every spooled chunk through the
+ * common ASCII/NeXus/MPI backend. The begin_direct variant streams serial
+ * output when the final row count is known; it is not valid for MPI. A
+ * rejected begin leaves the writer safely inactive, so end is still safe.
+ * `chunk_capacity` must be positive. The spool is temporary and is removed by
+ * the platform when closed; it bounds event-data memory independently of the
+ * total number of rows. */
+int mc_event_writer_begin(MC_EVENT_WRITER *writer, char *title, char *columns,
+                           long width, long chunk_capacity, char *filename,
+                           char *component, Coords position, Rotation rotation,
+                           int index);
+/* Set output metadata after a generic begin and before appending rows. */
+void mc_event_writer_set_metadata(MC_EVENT_WRITER *writer, char *xlabel,
+                                  char *options);
+/* Begin a serial writer with a known final row count. Chunks are sent directly
+ * to the normal ASCII/NeXus backend at flush time instead of being spooled.
+ * The known count is required because both backends publish it in metadata
+ * before the first payload. MPI callers must use mc_event_writer_begin(). */
+int mc_event_writer_begin_direct(MC_EVENT_WRITER *writer, char *title,
+                                  char *columns, long count, long width,
+                                  long chunk_capacity, char *filename,
+                                  char *component, Coords position,
+                                  Rotation rotation, int index);
+/* Begin an unknown-count stream. Serial callers write through the output sink
+ * directly. MPI callers keep rank-local chunks in the bounded temporary spool;
+ * the generated host service drains completed chunks to the persistent root
+ * sink in per-rank sequence order, while cross-rank arrival order may vary.
+ * End services the final partial chunk and patches ASCII or finalizes NeXus
+ * metadata. append/flush remain MPI-free. */
+int mc_event_writer_begin_stream(MC_EVENT_WRITER *writer, char *title,
+                                 char *columns, long width,
+                                 long chunk_capacity, char *filename,
+                                 char *component, Coords position,
+                                 Rotation rotation, int index);
+int mc_event_writer_append(MC_EVENT_WRITER *writer, const double *row);
+/* OpenACC device-side append. This only reserves/copies into the writer's
+ * current buffer; the generated host batch boundary services that buffer. */
+#pragma acc routine
+int mc_event_writer_append_openacc(MC_EVENT_WRITER *writer,
+                                   const double *row);
+int mc_event_writer_write(MC_EVENT_WRITER *writer, long count, double *data);
+int mc_event_writer_flush(MC_EVENT_WRITER *writer);
+MCDETECTOR mc_event_writer_end(MC_EVENT_WRITER *writer);
+/* Host-side batch service. In OpenACC builds it synchronizes registered writer
+ * buffers and preserves their device mappings. MPI stream writers exchange
+ * pending chunks in registration order; all final ASCII/NeXus metadata work is
+ * completed by mc_event_writer_end. */
+void mc_event_writer_openacc_service(void);
+/* Discard a writer without entering MPI or serializing output. This is for
+ * host-side error/unwind cleanup when the matching collective end is skipped. */
+void mc_event_writer_discard(MC_EVENT_WRITER *writer);
 
 /* wrappers to output functions, that automatically set NAME and POSITION */
 #define DETECTOR_OUT(p0,p1,p2) mcdetector_out_0D(NAME_CURRENT_COMP,p0,p1,p2,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
@@ -986,6 +1186,10 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
      mcdetector_out_1D(t,xl,yl,xvar,x1,x2,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 #define DETECTOR_OUT_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f) \
      mcdetector_out_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
+#define DETECTOR_OUT_2D_AVERAGE(t,xl,yl,x1,x2,y1,y2,m,n,matrix,local_valid,f) \
+      mcdetector_out_2D_average(t,xl,yl,x1,x2,y1,y2,m,n,matrix,local_valid,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
+#define DETECTOR_OUT_LIST(title, columns, count, width, data, filename) \
+     mcevent_out_list(title, columns, count, width, data, filename, NAME_CURRENT_COMP, POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, INDEX_CURRENT_COMP)
 
 #ifdef USE_NEXUS
 #include "napi.h"
