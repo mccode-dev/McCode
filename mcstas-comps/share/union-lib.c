@@ -8363,7 +8363,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   void
   focus_in_cross_section_set_forced_point_and_dir (double* forced_length_to_scattering, double safety_distance, double safety_distance2, double length_to_boundary,
                                              _class_particle* _particle, Coords* ray_velocity, Coords* ray_position_geometry, Coords* ray_position,
-                                             struct Volume_struct* Volume, struct focus_data_struct* this_focus_data) {
+                                             struct Volume_struct* Volume, struct focus_data_struct* this_focus_data, ) {
     // Sample length_to_scattering in linear manner
     *forced_length_to_scattering = safety_distance + rand01 () * (length_to_boundary - safety_distance2);
 
@@ -8431,9 +8431,9 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
     // for (int i =0;i<current_p_physics->sampling_points;i++){
     //     printf("\nTotalmu=%g\tinteger=%d\n", current_p_physics->total_mus[i], i);
     // }
-    double mu_at_speed = Volume->p_physics->my_a * (2200 / v_length);
+    double mu_abs_at_speed = Volume->p_physics->my_a * (2200 / v_length);
     for (int j = 0; j < current_p_physics->sampling_points; j++) {
-      current_p_physics->total_mus[j] += mu_at_speed * current_p_physics->dist;
+      current_p_physics->total_mus[j] += mu_abs_at_speed * current_p_physics->dist;
     }
     double trans_prob;
     for (int i = 0; i < current_p_physics->sampling_points; i++) {
@@ -8455,7 +8455,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
     // We do this by drawing a random number between 0 and max cumul prob,
     // and then seeing which cumul prob is the first to include it.
     *abs_weight_factor = 1;
-    double mu_at_speed = Volume->p_physics->my_a * (2200 / v_length);
+    double mu_abs_at_speed = Volume->p_physics->my_a * (2200 / v_length);
     double pseudo_rand = rand01 () * (1 - current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1]);
     for (int i = 0; i < current_p_physics->sampling_points; i++) {
       // printf("\nCumul trans prob = %g\t pseudo rand = %g\n", current_p_physics->cumul_transmission_prob[i], pseudo_rand);
@@ -8465,7 +8465,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
       break;
     }
     *abs_weight_factor
-        *= (current_p_physics->total_mus[*selected_sampling] - mu_at_speed * current_p_physics->dist) / current_p_physics->total_mus[*selected_sampling];
+        *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed * current_p_physics->dist) / current_p_physics->total_mus[*selected_sampling];
 
     // printf("\nSelected_sampling = %d\n", selected_sampling);
 
