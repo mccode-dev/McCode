@@ -8459,10 +8459,9 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
     double pseudo_rand = rand01 () * (1 - current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1]);
     for (int i = 0; i < current_p_physics->sampling_points; i++) {
       // printf("\nCumul trans prob = %g\t pseudo rand = %g\n", current_p_physics->cumul_transmission_prob[i], pseudo_rand);
-      if (pseudo_rand >= 1 - current_p_physics->cumul_transmission_prob[i])
-        continue;
-      *selected_sampling = i;
-      break;
+      if (pseudo_rand < 1 - current_p_physics->cumul_transmission_prob[i])
+        *selected_sampling = i;
+        break;
     }
     *abs_weight_factor
         *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed * current_p_physics->dist) / current_p_physics->total_mus[*selected_sampling];
