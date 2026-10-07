@@ -1,0 +1,67 @@
+/*******************************************************************************
+* Instrument: Unittest_INHERIT_DIAPHRAGM
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Oct 7th, 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_grammar
+*
+* Whole-component INHERIT: Diaphragm (DEFINE COMPONENT Diaphragm INHERIT Slit)
+*
+* %D
+* Unit test for whole-component inheritance, see
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+*
+* Diaphragm.comp is just "DEFINE COMPONENT Diaphragm INHERIT Slit" + END,
+* so all of its code sections must come from Slit.
+*
+* One unit of intensity is emitted uniformly from a 1x1 m square:
+* - a Slit of 0.5x0.5 m passes 1/4:    AfterSlit_I = 0.25
+* - a Diaphragm of 0.25x0.25 m passes 1/16 of the source: AfterDiaphragm_I = 0.0625
+*
+* Before the fix, a component inheriting all of its code got none of it, so
+* the Diaphragm let everything through (AfterDiaphragm_I = 0.25).
+*
+* %Example: Detector: AfterSlit_I=0.25
+* %Example: Detector: AfterDiaphragm_I=0.0625
+*
+* %P
+* Pp0: [1] Dummy input parameter used internally
+*
+* %L
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Unittest_INHERIT_DIAPHRAGM(Pp0=0)
+
+INITIALIZE
+%{
+  Pp0=1.0/mcget_ncount();
+%}
+
+TRACE
+
+COMPONENT Src = Arm()
+  AT (0,0,0) ABSOLUTE
+EXTEND %{
+  x = rand01()-0.5;
+  y = rand01()-0.5;
+  p = INSTRUMENT_GETPAR(Pp0);
+  kz=1;
+%}
+
+COMPONENT Slit = Slit(xwidth=0.5, yheight=0.5)
+  AT (0,0,0.1) ABSOLUTE
+
+COMPONENT AfterSlit = PSD_monitor(xwidth=2.0, yheight=2.0, filename="AfterSlit", nx=10, ny=10)
+  AT (0,0,0.2) ABSOLUTE
+
+COMPONENT Diaphragm = Diaphragm(xwidth=0.25, yheight=0.25)
+  AT (0,0,0.3) ABSOLUTE
+
+COMPONENT AfterDiaphragm = PSD_monitor(xwidth=2.0, yheight=2.0, filename="AfterDiaphragm", nx=10, ny=10)
+  AT (0,0,0.4) ABSOLUTE
+
+END

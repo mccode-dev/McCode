@@ -1,0 +1,81 @@
+/*******************************************************************************
+* Instrument: Unittest_JUMP_RELATIVE
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Oct 7th, 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_grammar
+*
+* Relative JUMP targets: JUMP PREVIOUS(n) and JUMP NEXT(n)
+*
+* %D
+* Unit test for relative JUMP targets, see
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+*
+* One unit of intensity is emitted from a 1x1 m square.
+* - Back jumps to PREVIOUS(2), i.e. to Target, 'iter' times in total
+*   (JUMP ... ITERATE), so the Mon monitor in between is passed 'iter' times
+*   and reads Mon_I = iter.
+* - Skip jumps to NEXT(2), i.e. over Skipped and onto Landed, so
+*   Skipped_I = 0 and Landed_I = 1.
+*
+* Before the fix, relative targets were used as absolute component indices:
+* JUMP PREVIOUS(n) crashed the code generator and JUMP NEXT(n) went to
+* component n. JUMP PREVIOUS is PREVIOUS(1) and JUMP NEXT is NEXT(1).
+*
+* %Example: iter=3 Detector: Mon_I=3
+* %Example: iter=3 Detector: Landed_I=1
+* %Example: iter=3 Detector: Skipped_I=0
+*
+* %P
+* iter: [1] Number of passes through Mon (JUMP ITERATE count)
+* Pp0:  [1] Dummy input parameter used internally
+*
+* %L
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Unittest_JUMP_RELATIVE(int iter=3, Pp0=0)
+
+INITIALIZE
+%{
+  Pp0=1.0/mcget_ncount();
+%}
+
+TRACE
+
+COMPONENT Src = Arm()
+  AT (0,0,0) ABSOLUTE
+EXTEND %{
+  x = rand01()-0.5;
+  y = rand01()-0.5;
+  p = INSTRUMENT_GETPAR(Pp0);
+  kz=1;
+%}
+
+/* JUMP PREVIOUS(2) from Back lands here */
+COMPONENT Target = Arm()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT Mon = PSD_monitor(xwidth=2.0, yheight=2.0, filename="Mon", nx=10, ny=10)
+  AT (0,0,0.1) ABSOLUTE
+
+COMPONENT Back = Arm()
+  AT (0,0,0.1) ABSOLUTE
+JUMP PREVIOUS(2) ITERATE iter
+
+COMPONENT Skip = Arm()
+  AT (0,0,0.2) ABSOLUTE
+JUMP NEXT(2) WHEN (1)
+
+/* jumped over */
+COMPONENT Skipped = PSD_monitor(xwidth=2.0, yheight=2.0, filename="Skipped", nx=10, ny=10)
+  AT (0,0,0.3) ABSOLUTE
+
+/* JUMP NEXT(2) from Skip lands here */
+COMPONENT Landed = PSD_monitor(xwidth=2.0, yheight=2.0, filename="Landed", nx=10, ny=10)
+  AT (0,0,0.4) ABSOLUTE
+
+END

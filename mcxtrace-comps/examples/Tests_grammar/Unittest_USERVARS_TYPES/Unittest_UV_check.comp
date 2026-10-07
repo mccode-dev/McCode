@@ -1,0 +1,73 @@
+/*******************************************************************************
+*
+* McXtrace, X-ray tracing package
+*         Copyright (C) 1997-2026, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*
+* Component: Unittest_UV_check
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Oct 7th, 2026
+* Origin: DTU
+*
+* Grammar unit test helper for Unittest_USERVARS_TYPES
+*
+* %D
+* Exercises code-generator fixes from
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md:
+* - %include "unittest_uv.hpp" (multi-character extension) in SHARE,
+* - USERVARS followed by EXTEND: uv_b is declared in the EXTEND block and
+*   was silently dropped before the fix,
+* - two DECLARE variables on one line: only the first was found before.
+*
+* In TRACE the component writes this instance's uv_b USERVAR (by name,
+* "uv_b_<index>") and reads it back. If that fails, the particle is
+* absorbed, so a monitor after it reads 0 instead of the full intensity.
+*
+* %P
+* (none)
+*
+* %E
+*******************************************************************************/
+DEFINE COMPONENT Unittest_UV_check
+SETTING PARAMETERS ()
+
+SHARE
+%{
+%include "unittest_uv.hpp"
+%}
+
+USERVARS
+%{
+  double uv_a;
+%}
+EXTEND
+%{
+  double uv_b;
+%}
+
+DECLARE
+%{
+  double uvc_value; int uvc_count;
+%}
+
+INITIALIZE
+%{
+  uvc_value = UNITTEST_UV_VALUE;
+  uvc_count = 0;
+%}
+
+TRACE
+%{
+  char uvc_name[64];
+  double uvc_back;
+  int uvc_fail;
+  sprintf(uvc_name, "uv_b_%li", _comp->_index);
+  if (particle_setvar_void(_particle, uvc_name, &uvc_value)) ABSORB;
+  uvc_back = particle_getvar(_particle, uvc_name, &uvc_fail);
+  if (uvc_fail || uvc_back != uvc_value) ABSORB;
+  uvc_count++;
+%}
+
+END
