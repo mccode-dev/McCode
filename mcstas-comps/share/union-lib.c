@@ -8458,17 +8458,14 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
     double mu_abs_at_speed = Volume->p_physics->my_a * (2200 / v_length);
     double pseudo_rand = rand01 () * (1 - current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1]);
     for (int i = 0; i < current_p_physics->sampling_points; i++) {
-      // printf("\nCumul trans prob = %g\t pseudo rand = %g\n", current_p_physics->cumul_transmission_prob[i], pseudo_rand);
-      if (pseudo_rand < 1 - current_p_physics->cumul_transmission_prob[i])
+      if (pseudo_rand < 1 - current_p_physics->cumul_transmission_prob[i]){
         *selected_sampling = i;
         break;
+      }
     }
     *abs_weight_factor
         *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed ) / current_p_physics->total_mus[*selected_sampling];
-
-    // printf("\nSelected_sampling = %d\n", selected_sampling);
-
-    // printf("dist i = %g\tdist=%g\n", dist_i, dist);
+  
     double sampled_dist = safety_distance
                           - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[*selected_sampling])))
                                 / current_p_physics->total_mus[*selected_sampling] * current_p_physics->dist;
