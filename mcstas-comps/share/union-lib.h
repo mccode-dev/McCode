@@ -637,7 +637,6 @@ struct scattering_process_struct
   double process_p_interact;               // double between 0 and 1 that describes the fraction of events forced to undergo this process. -1 for disable
   int non_isotropic_rot_index;             // -1 if process is isotrpic, otherwise is the index of the process rotation matrix in the volume
   int needs_cross_section_focus;           // 1 if physics_my needs to call focus functions, otherwise -1
-  int needs_numerical_integration;         // 1 if the process is inhomogenous and therefore needs numerical integration, otherwise -1.
   Rotation rotation_matrix;                // rotation matrix of process, reported by component in local frame, transformed and moved to volume struct in main
   double *inhomogenous_cumul_prob;         // The cumulative probability of a process in case of inhomogenous processes
   double *inhomogenous_distances;          // The distance of each step in which the cumulative probabilities will be calculated.
