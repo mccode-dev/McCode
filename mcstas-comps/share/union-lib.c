@@ -8269,8 +8269,8 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   }
 
   int
-  process_needs_inhomogenous_sampling (struct physics_struct* current_p_physics, struct scattering_process_struct* process) {
-    if (current_p_physics->sampling_points != -1) {
+  process_needs_inhomogenous_sampling (struct physics_struct* physics, struct scattering_process_struct* process) {
+    if (physics->sampling_points != -1) {
       if (process->needs_cross_section_focus || process->sampling_points != -1)
         return 1;
     }
@@ -8325,13 +8325,13 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
 
   void
-  move_and_aim_neutron (struct physics_struct* current_p_physics, int i, struct scattering_process_struct* process, _class_particle* _particle,
+  move_and_aim_neutron (struct physics_struct* physics, int i, struct scattering_process_struct* process, _class_particle* _particle,
                         struct Volume_struct* Volume, int p_index, Coords* ray_velocity, Coords* ray_position, struct focus_data_struct* this_focus_data) {
     // Transport neutron to place inside geometry
     *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz);
     // Find location of scattering point in master coordinate system without changing main position / velocity variables
     Coords direction = coords_scalar_mult (*ray_velocity, 1.0 / length_of_position_vector (*ray_velocity));
-    Coords sampling_displacement = coords_scalar_mult (direction, current_p_physics->cumul_dists[i]);
+    Coords sampling_displacement = coords_scalar_mult (direction, physics->cumul_dists[i]);
     Coords sampling_point = coords_add (*ray_position, sampling_displacement);
     Coords sampling_point_geometry = coords_sub (sampling_point, Volume->geometry.center);
     // Also focus the ray at this point, if the component needs focusing
@@ -8407,45 +8407,45 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
 
   void
-  inhomogenous_set_cumul_dist_array (struct physics_struct* current_p_physics, int i) {
-    current_p_physics->cumul_dists[i] = (i > 0) ? current_p_physics->cumul_dists[i - 1] + current_p_physics->dist : current_p_physics->dist / 2;
+  inhomogenous_set_cumul_dist_array (struct physics_struct* physics, int i) {
+    physics->cumul_dists[i] = (i > 0) ? physics->cumul_dists[i - 1] + physics->dist : physics->dist / 2;
   }
 
   void
-  inhomogenous_sample_transmission_probability (struct physics_struct* current_p_physics, struct Volume_struct* Volume, double* real_transmission_probability,
+  inhomogenous_sample_transmission_probability (struct physics_struct* physics, struct Volume_struct* Volume, double* real_transmission_probability,
                                                 double v_length) {
     // Calculate the probabilities and then add them cumulatively
-    memset (current_p_physics->total_mus, 0, sizeof (double) * current_p_physics->sampling_points);
+    memset (physics->total_mus, 0, sizeof (double) * physics->sampling_points);
 
     for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
       struct scattering_process_struct* process_i = &Volume->p_physics->p_scattering_array[i];
       if (process_i->sampling_points != -1)
-        for (int j = 0; j < current_p_physics->sampling_points; j++) {
-          current_p_physics->total_mus[j] += current_p_physics->mus[i][0];
+        for (int j = 0; j < physics->sampling_points; j++) {
+          physics->total_mus[j] += physics->mus[i][0];
         }
       else
-        for (int j = 0; j < current_p_physics->sampling_points; j++) {
-          current_p_physics->total_mus[j] += current_p_physics->mus[i][j];
+        for (int j = 0; j < physics->sampling_points; j++) {
+          physics->total_mus[j] += physics->mus[i][j];
         }
     }
     double mu_abs_at_speed = Volume->p_physics->my_a * (2200 / v_length);
-    for (int j = 0; j < current_p_physics->sampling_points; j++) {
-      current_p_physics->total_mus[j] += mu_abs_at_speed;
+    for (int j = 0; j < physics->sampling_points; j++) {
+      physics->total_mus[j] += mu_abs_at_speed;
     }
     double trans_prob;
-    for (int i = 0; i < current_p_physics->sampling_points; i++) {
-      trans_prob = exp (-current_p_physics->total_mus[i] * current_p_physics->dist);
+    for (int i = 0; i < physics->sampling_points; i++) {
+      trans_prob = exp (-physics->total_mus[i] * physics->dist);
       if (i == 0)
-        current_p_physics->cumul_transmission_prob[i] = trans_prob;
+        physics->cumul_transmission_prob[i] = trans_prob;
       else
-        current_p_physics->cumul_transmission_prob[i] = current_p_physics->cumul_transmission_prob[i - 1] * trans_prob;
+        physics->cumul_transmission_prob[i] = physics->cumul_transmission_prob[i - 1] * trans_prob;
     }
 
-    *real_transmission_probability = current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1];
+    *real_transmission_probability = physics->cumul_transmission_prob[physics->sampling_points - 1];
   }
 
   double
-  inhomogenous_sample_scattering_point (struct Volume_struct* Volume, struct physics_struct* current_p_physics,  _class_particle* _particle, double* abs_weight_factor, double v_length,
+  inhomogenous_sample_scattering_point (struct Volume_struct* Volume, struct physics_struct* physics,  _class_particle* _particle, double* abs_weight_factor, double v_length,
                                         double safety_distance, int* selected_sampling) {
 
     // Numerical integration happens, and therefore we must choose between the different samples
@@ -8453,28 +8453,28 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
     // and then seeing which cumul prob is the first to include it.
     *abs_weight_factor = 1;
     double mu_abs_at_speed = Volume->p_physics->my_a * (2200 / v_length);
-    double pseudo_rand = rand01 () * (1 - current_p_physics->cumul_transmission_prob[current_p_physics->sampling_points - 1]);
-    for (int i = 0; i < current_p_physics->sampling_points; i++) {
-      if (pseudo_rand < 1 - current_p_physics->cumul_transmission_prob[i]){
+    double pseudo_rand = rand01 () * (1 - physics->cumul_transmission_prob[physics->sampling_points - 1]);
+    for (int i = 0; i < physics->sampling_points; i++) {
+      if (pseudo_rand < 1 - physics->cumul_transmission_prob[i]){
         *selected_sampling = i;
         break;
       }
     }
     *abs_weight_factor
-        *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed ) / current_p_physics->total_mus[*selected_sampling];
+        *= (physics->total_mus[*selected_sampling] - mu_abs_at_speed ) / physics->total_mus[*selected_sampling];
   
     double sampled_dist = safety_distance
-                          - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[*selected_sampling] * current_p_physics->dist)))
-                                / current_p_physics->total_mus[*selected_sampling];
-    return current_p_physics->cumul_dists[*selected_sampling] - current_p_physics->dist / 2 + sampled_dist;
+                          - log (1.0 - rand01 () * (1.0 - exp (-physics->total_mus[*selected_sampling] * physics->dist)))
+                                / physics->total_mus[*selected_sampling];
+    return physics->cumul_dists[*selected_sampling] - physics->dist / 2 + sampled_dist;
   }
 
 
   void
-  inhomogenous_choose_process (struct physics_struct* current_p_physics, struct Volume_struct* Volume, double* culmative_probability, double mc_prop,
+  inhomogenous_choose_process (struct physics_struct* physics, struct Volume_struct* Volume, double* culmative_probability, double mc_prop,
                                double my_sum, int selected_sampling, int* selected_process) {
     for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
-      *culmative_probability += current_p_physics->mus[i][selected_sampling] / my_sum;
+      *culmative_probability += physics->mus[i][selected_sampling] / my_sum;
       if (*culmative_probability > mc_prop) {
         *selected_process = i;
         break;
