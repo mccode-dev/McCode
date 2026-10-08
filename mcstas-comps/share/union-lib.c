@@ -8421,23 +8421,20 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
       struct scattering_process_struct* process_i = &Volume->p_physics->p_scattering_array[i];
       if (process_i->sampling_points != -1)
         for (int j = 0; j < current_p_physics->sampling_points; j++) {
-          current_p_physics->total_mus[j] += current_p_physics->mus[i][0] * current_p_physics->dist;
+          current_p_physics->total_mus[j] += current_p_physics->mus[i][0];
         }
       else
         for (int j = 0; j < current_p_physics->sampling_points; j++) {
-          current_p_physics->total_mus[j] += current_p_physics->mus[i][j] * current_p_physics->dist;
+          current_p_physics->total_mus[j] += current_p_physics->mus[i][j];
         }
     }
-    // for (int i =0;i<current_p_physics->sampling_points;i++){
-    //     printf("\nTotalmu=%g\tinteger=%d\n", current_p_physics->total_mus[i], i);
-    // }
     double mu_abs_at_speed = Volume->p_physics->my_a * (2200 / v_length);
     for (int j = 0; j < current_p_physics->sampling_points; j++) {
-      current_p_physics->total_mus[j] += mu_abs_at_speed * current_p_physics->dist;
+      current_p_physics->total_mus[j] += mu_abs_at_speed;
     }
     double trans_prob;
     for (int i = 0; i < current_p_physics->sampling_points; i++) {
-      trans_prob = exp (-current_p_physics->total_mus[i]);
+      trans_prob = exp (-current_p_physics->total_mus[i] * current_p_physics->dist);
       if (i == 0)
         current_p_physics->cumul_transmission_prob[i] = trans_prob;
       else
@@ -8467,8 +8464,8 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
         *= (current_p_physics->total_mus[*selected_sampling] - mu_abs_at_speed ) / current_p_physics->total_mus[*selected_sampling];
   
     double sampled_dist = safety_distance
-                          - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[*selected_sampling])))
-                                / current_p_physics->total_mus[*selected_sampling] * current_p_physics->dist;
+                          - log (1.0 - rand01 () * (1.0 - exp (-current_p_physics->total_mus[*selected_sampling] * current_p_physics->dist)))
+                                / current_p_physics->total_mus[*selected_sampling];
     return current_p_physics->cumul_dists[*selected_sampling] - current_p_physics->dist / 2 + sampled_dist;
   }
 
