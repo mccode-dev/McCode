@@ -59,10 +59,10 @@ def parse_args( argv ):
     from argparse import ArgumentParser as AP
     parser = AP( prog = os.path.basename(argv[0]),
                  description=('Create conda environment (.yml) file for'
-                              ' McStas or McXtrace.') )
-    parser.add_argument('-m','--mode', choices=['mcstas', 'mcxtrace'],
+                              ' McStas, McXtrace or both.') )
+    parser.add_argument('-m','--mode', choices=['mcstas', 'mcxtrace','both'],
                         default='mcstas',
-                        help='Choose McStas or McXtrace mode (default: mcstas)')
+                        help='Choose McStas, McXtrace or both (default: mcstas)')
     parser.add_argument('-p','--platform', choices=['win', 'linux', 'mac'],
                         default=None,
                         help=('Generate dependencies for specific platform'
@@ -124,8 +124,8 @@ def autodetect_platform():
 
 def create_cfg( args ):
     class Cfg:
-        is_mcstas = ( args.mode=='mcstas' )
-        is_mcxtrace = not is_mcstas
+        is_mcstas = ( args.mode=='mcstas' or args.mode=='both')
+        is_mcxtrace = (args.mode=='mcxtrace' or args.mode=='both')
         is_win   = ( args.platform=='win' )
         is_linux = ( args.platform=='linux' )
         is_mac   = ( args.platform=='mac' )

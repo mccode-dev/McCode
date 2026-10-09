@@ -1,0 +1,50 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2026, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*
+* Component: Unittest_IO_parent
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Oct 7th, 2026
+* Origin: DTU
+*
+* Grammar unit test helper for Unittest_INHERIT_OVERRIDE
+*
+* %D
+* Parent: absorbs particles with x>0, and declares a USERVAR. Its DECLARE/
+* INITIALIZE set io_val=1; TRACE halves the weight if io_val is not set.
+* See docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+*
+* %P
+* (none)
+*
+* %E
+*******************************************************************************/
+DEFINE COMPONENT Unittest_IO_parent
+SETTING PARAMETERS ()
+
+USERVARS
+%{
+  double io_tag;
+%}
+
+DECLARE
+%{
+  double io_val;
+%}
+
+INITIALIZE
+%{
+  io_val = 1;
+%}
+
+TRACE
+%{
+  if (x > 0) ABSORB;
+  if (!io_val) p *= 0.5;
+%}
+
+END

@@ -373,9 +373,9 @@ struct abs_logger_pointer_set_struct {
   //  but if a conditional has been defined, it can switch the two, making the active one recording to temporary, which
   //  can then be filtered based on the future path of the ray
 
-  // function input Coords position, k[3], p, NV, N, logger_data_union, logger_with_data_struct
-  void (*active_record_function)(Coords*, double*, double,  double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*);
-  void (*inactive_record_function)(Coords*, double*, double,  double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*);
+  // function input Coords position, k[3], p, t, NV, N, abs_logger, abs_logger_with_data_struct, and the particle (for its ID and user variables)
+  void (*active_record_function)(Coords*, double*, double,  double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*, _class_particle*);
+  void (*inactive_record_function)(Coords*, double*, double,  double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*, _class_particle*);
 
   // A clear temporary data function (for new ray)
   void (*clear_temp)(union abs_logger_data_union*);

@@ -182,7 +182,7 @@ int reflec_Init_File(t_Reflec *R, char *filename){
           } else {
             stracpy(R->rc.matrl,header_parsed[0],255);
             R->rc.T = table;
-            R->rc.d = strtod(header_parsed[4], NULL);
+            R->rc.d = header_parsed[4] ? strtod(header_parsed[4], NULL) : 0; /* d is optional */
             R->rc.rho=strtod(header_parsed[3],NULL);
             R->rc.Z=strtod(header_parsed[1],NULL);
             R->rc.At=strtod(header_parsed[2],NULL);
@@ -221,16 +221,16 @@ int reflec_Init_File(t_Reflec *R, char *filename){
       case KINEMATIC:
         {
           char **header_parsed = Table_ParseHeader(table->header, "#N=", "#gamma=", "#lambda=", "#rho_ab=", NULL);
-          if (! (header_parsed[0] && header_parsed[1] && header_parsed[2] && header_parsed[3] && header_parsed[4])){
+          if (! (header_parsed[0] && header_parsed[1] && header_parsed[2] && header_parsed[3])){
             fprintf(stderr,"Error: %s: Could not parse file \"%s\".\n",
                     REFLIBNAME,filename);
             exit(-1);
           }
 
           R->rk.N = strtol(header_parsed[0], NULL, 10);
-          R->rk.Gamma = strtod(header_parsed[2], NULL);
-          R->rk.Lambda = strtod(header_parsed[3], NULL);
-          R->rk.rho_AB = strtod(header_parsed[4], NULL);
+          R->rk.Gamma = strtod(header_parsed[1], NULL);
+          R->rk.Lambda = strtod(header_parsed[2], NULL);
+          R->rk.rho_AB = strtod(header_parsed[3], NULL);
           break;
         }
 
@@ -291,7 +291,7 @@ enum reflec_Type get_table_reflec_type(t_Table *t){
     if(!type){
       /*type of reflectivity file is not specified - try to guess instead*/
       header_parsed = Table_ParseHeader(t->header,"Z",NULL);
-      long Z = strtol(header_parsed[0],NULL,0);
+      long Z = header_parsed[0] ? strtol(header_parsed[0],NULL,0) : 0;
       if(Z >0 && Z<116){
         /*this appears to be a coating file similar to Pt.txt and Be.txt (in the mcxtrace data library*/
         printf("INFO: %s: Datafile type not explicit in reflectivity file %s.\n"

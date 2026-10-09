@@ -326,7 +326,7 @@ TRACE
     double R, Q;
     Coords vVec, xVec;
     double vel_yz;
-    int ibend, ibendnew;         // 1 bottom, 2 top, 3 left, 4 right, 5 exit, 6 entrance, 0 no collision
+    int ibend, ibendnew = 0;     // 1 bottom, 2 top, 3 left, 4 right, 5 exit, 6 entrance, 0 no collision
     double tStep1, tStep2, tMax; // long & short time step (calc from diststep1 & diststep2); longest time to track until in top/bottom of bender channel
     tMax = 0;
 
@@ -394,13 +394,20 @@ TRACE
       double AA = (vy * vy + vz * vz);
       double BB = 2.0 * (z * vz + yshift * vy);
       double CC = z * z + yshift * yshift;
-      solve_2nd_order (&t11, NULL, AA, BB, (CC - Rtop * Rtop));
+      // Both roots are needed: right after a reflection, the neutron is on the
+      // wall, and the smallest positive root is then a tiny rounding error
+      // (below tThreshold), while the other one is the next intersection.
+      double tA = 0, tB = 0;
+      solve_2nd_order (&tA, &tB, AA, BB, (CC - Rtop * Rtop));
+      t11 = (tA > tThreshold) ? tA : tB;
       if ((t11 > tThreshold) && (t11 < tMax || ibend == 0)) {
         tMax = t11;
         ibend = idown + 1;
       }
 
-      solve_2nd_order (&t11, NULL, AA, BB, (CC - Rbottom * Rbottom));
+      tA = tB = 0;
+      solve_2nd_order (&tA, &tB, AA, BB, (CC - Rbottom * Rbottom));
+      t11 = (tA > tThreshold) ? tA : tB;
       if ((t11 > tThreshold) && (t11 < tMax || ibend == 0)) {
         tMax = t11;
         ibend = 2 - idown;

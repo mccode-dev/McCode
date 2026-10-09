@@ -1,4 +1,4 @@
-# Installation instructions for McXtrace 3.9.0
+# Installation instructions for McXtrace 3.9.2
 
 For a description of the release changes please consult the [McCode release notes](RELEASE_NOTES.md)
 
@@ -8,6 +8,5 @@ Please consult the individual platform instructions:
 * [macOS 64bit](macOS/README.md)
 * [Linux 64bit via repo](Linux/README.md)
 * [mcxtrace via conda-forge](conda/README.md)
-* [Docker image](Docker/README.md)
 
 **If you can not find documentation for your specific OS above, chances are we can help you anyway - write us an email at [mcxtrace-users](mailto:"mcxtrace-users@mcxtrace.org")**

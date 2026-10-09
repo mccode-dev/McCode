@@ -101,30 +101,6 @@ int get_codeblock_vars_allcustom(struct code_block *code, List custom_vars,
 int get_codeblock_vars(struct code_block *code, List vars, List types,
          char* block_name, char* movetoblock_name);
 
-int parse_curlybrackets_vector(char* string, double* values) {
-  char* s = string;
-  int vidx = 0;
-  char* r;
-  while(*s != '\0') {
-    // jump to a non-trivial position
-    if (*s == ' ' || *s == ',' || *s == '{') {
-      ++s;
-      continue;
-    }
-    if (*s == '}') return vidx;
-
-    // extract a value
-    double val = strtod(s, &r);
-    if (values!=NULL) values[vidx] = val;
-    ++vidx;
-
-    // iterate
-    if (*r == '\0') return vidx;
-    s = r + 1;
-  }
-  return vidx;
-}
-
 /* Functions for outputting code. */
 
 /* Handle for output file. */
@@ -403,17 +379,28 @@ int cogen_decls(struct instr_def *instr)
 	  pyid=i_formal->id;
 	}
 
+	/* The value= argument, for the default value (none for parameters
+	   without a default value): */
+	char *value;
+	if (!i_formal->isoptional || !i_formal->default_value) {
+	  value = str_dup("");
+	} else if (i_formal->type == instr_type_string) {
+	  char *q = pygen_pyexp(i_formal->default_value);
+	  value = str_cat(", value=", q, NULL);
+	  memfree(q);
+	} else {
+	  value = str_cat(", value=", exp_tostring(i_formal->default_value), NULL);
+	}
+
 	if (i_formal->type == instr_type_string) {
 	  type="string";
-	  char *q = pygen_pyexp(i_formal->default_value);
-	  coutf("    %s = instr.add_parameter('%s', '%s', value=%s, comment='Parameter type (string) added by McCode py-generator')", pyid, type, i_formal->id, q);
-	  memfree(q);
+	  coutf("    %s = instr.add_parameter('%s', '%s'%s, comment='Parameter type (string) added by McCode py-generator')", pyid, type, i_formal->id, value);
 	} else if (i_formal->type == instr_type_int) {
 	  type="int";
-	  coutf("    %s = instr.add_parameter('%s', '%s', value=%s, comment='Parameter type (int) added by McCode py-generator')", pyid, type, i_formal->id, exp_tostring(i_formal->default_value));
+	  coutf("    %s = instr.add_parameter('%s', '%s'%s, comment='Parameter type (int) added by McCode py-generator')", pyid, type, i_formal->id, value);
 	} else if (i_formal->type == instr_type_double) {
 	  type="double";
-	  coutf("    %s = instr.add_parameter('%s', '%s', value=%s, comment='Parameter type (double) added by McCode py-generator')", pyid, type, i_formal->id, exp_tostring(i_formal->default_value));
+	  coutf("    %s = instr.add_parameter('%s', '%s'%s, comment='Parameter type (double) added by McCode py-generator')", pyid, type, i_formal->id, value);
 	} else {
 	  type="";
 	  fprintf(stderr,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
@@ -421,8 +408,9 @@ int cogen_decls(struct instr_def *instr)
 	  fprintf(stderr,"!!! an undefined type (i.e. not string, int or double).         !!!\n");
 	  fprintf(stderr,"!!! Compilation will likely fail...                             !!!\n");
 	  fprintf(stderr,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-	  coutf("    %s = instr.add_parameter('%s', '%s', value=%s, comment='Parameter of undefined type added by McCode py-generator')", pyid, type, i_formal->id, exp_tostring(i_formal->default_value));
+	  coutf("    %s = instr.add_parameter('%s', '%s'%s, comment='Parameter of undefined type added by McCode py-generator')", pyid, type, i_formal->id, value);
 	}
+	memfree(value);
 
         numipar++;
       }

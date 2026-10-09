@@ -1,0 +1,77 @@
+/*******************************************************************************
+* Instrument: Unittest_USERVARS_TYPES
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Oct 7th, 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_grammar
+*
+* USERVARS of non-double type, several declarations per line, USERVARS+EXTEND
+*
+* %D
+* Unit test for USERVARS/DECLARE handling in the code generator, see
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+*
+* One unit of intensity is emitted from a 1x1 m square.
+* - USERVARS declares "int flag; double wsum;" on ONE line. Before the fix
+*   only the first declaration on a line was found, so wsum was missing.
+* - flag (an int) is set to 1 for x>0 and read by Monitor_nD (user1="flag")
+*   through particle_getvar(). Before the fix its memory was read as a
+*   double (garbage); now it is converted, and the [0.5 1.5] range holds
+*   half of the beam: Flag_I = 0.5. (2 bins: a 1-bin Monitor_nD is 0-D and
+*   ignores the limits.)
+*   Note: USERVARS used with Monitor_nD should still be declared double;
+*   int is used here only to test the conversion.
+* - Unittest_UV_check (local component) tests %include "x.hpp", component
+*   USERVARS followed by EXTEND, and two DECLARE variables on one line. It
+*   absorbs the particle if its EXTEND-declared USERVAR is missing, so
+*   AfterCheck_I = 1.
+*
+* %Example: Detector: AfterCheck_I=1
+* %Example: Detector: Flag_I=0.5
+*
+* %P
+* Pp0: [1] Dummy input parameter used internally
+*
+* %L
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Unittest_USERVARS_TYPES(Pp0=0)
+
+USERVARS
+%{
+  int flag; double wsum;
+%}
+
+INITIALIZE
+%{
+  Pp0=1.0/mcget_ncount();
+%}
+
+TRACE
+
+COMPONENT Src = Arm()
+  AT (0,0,0) ABSOLUTE
+EXTEND %{
+  x = rand01()-0.5;
+  y = rand01()-0.5;
+  p = INSTRUMENT_GETPAR(Pp0);
+  kz=1;
+  flag = (x > 0);
+  wsum = p;
+%}
+
+COMPONENT Check = Unittest_UV_check()
+  AT (0,0,0.1) ABSOLUTE
+
+COMPONENT AfterCheck = PSD_monitor(xwidth=2.0, yheight=2.0, filename="AfterCheck", nx=10, ny=10)
+  AT (0,0,0.2) ABSOLUTE
+
+COMPONENT Flag = Monitor_nD(xwidth=2.0, yheight=2.0, user1="flag", username1="flag",
+                            options="user1 limits=[0.5 1.5] bins=2", filename="Flag")
+  AT (0,0,0.3) ABSOLUTE
+
+END

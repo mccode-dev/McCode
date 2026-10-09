@@ -213,6 +213,9 @@ SHARE
 
     double time;
     double weight;
+
+    // The particle when the event was recorded, for its ID and user variables
+    _class_particle particle;
   };
 
   struct temp_abs_nD_scintillator_data_struct {
@@ -318,7 +321,7 @@ SHARE
   void
   add_element_to_temp_abs_nD_scintillator (struct a_nD_scintillator_abs_storage_struct* storage, double x_pos, double y_pos, double z_pos, double x_vel,
                                            double y_vel, double z_vel, double time, double weight, struct abs_logger_struct* abs_logger,
-                                           struct abs_logger_with_data_struct* abs_logger_with_data_array) {
+                                           struct abs_logger_with_data_struct* abs_logger_with_data_array, _class_particle* _particle) {
 
     if (storage->temp_abs_nD_scintillator_data.num_elements < storage->temp_abs_nD_scintillator_data.allocated_elements) {
 
@@ -332,6 +335,7 @@ SHARE
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].y_pol = 0.0;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].z_pol = 1.0;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].time = time;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].particle = *_particle;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements++].weight = weight;
     } else {
       // No more space, need to allocate a larger buffer for this logger. Wish I had generics.
@@ -356,6 +360,7 @@ SHARE
         temporary_storage.elements[index].z_pol = storage->temp_abs_nD_scintillator_data.elements[index].z_pol;
         temporary_storage.elements[index].time = storage->temp_abs_nD_scintillator_data.elements[index].time;
         temporary_storage.elements[index].weight = storage->temp_abs_nD_scintillator_data.elements[index].weight;
+        temporary_storage.elements[index].particle = storage->temp_abs_nD_scintillator_data.elements[index].particle;
       }
 
       // free current data
@@ -381,6 +386,7 @@ SHARE
         storage->temp_abs_nD_scintillator_data.elements[index].z_pol = temporary_storage.elements[index].z_pol;
         storage->temp_abs_nD_scintillator_data.elements[index].time = temporary_storage.elements[index].time;
         storage->temp_abs_nD_scintillator_data.elements[index].weight = temporary_storage.elements[index].weight;
+        storage->temp_abs_nD_scintillator_data.elements[index].particle = temporary_storage.elements[index].particle;
       }
 
       // free temporary data
@@ -397,6 +403,7 @@ SHARE
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].y_pol = 0.0;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].z_pol = 1.0;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].time = time;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].particle = *_particle;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements++].weight = weight;
     }
 
@@ -415,7 +422,8 @@ SHARE
   // to this logger and the outcome isn't known yet.
   void
   record_to_temp_abs_nD_scintillator (Coords* position, double* k, double p, double time, int scattered_in_this_volume, int total_number_of_scattering_events,
-                                      struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array) {
+                                      struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array,
+                                      _class_particle* _particle) {
 
     struct a_nD_scintillator_abs_storage_struct* storage;
     storage = abs_logger->data_union.p_nD_scintillator_abs_storage;
@@ -455,19 +463,19 @@ SHARE
 
       if (hit.true_pixel_p > 0.0)
         add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time, p * hit.true_pixel_p,
-                                                 abs_logger, abs_logger_with_data_array);
+                                                 abs_logger, abs_logger_with_data_array, _particle);
       if (hit.up_pixel_p > 0.0)
         add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y + hit.pixel_size, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time,
-                                                 p * hit.up_pixel_p, abs_logger, abs_logger_with_data_array);
+                                                 p * hit.up_pixel_p, abs_logger, abs_logger_with_data_array, _particle);
       if (hit.down_pixel_p > 0.0)
         add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y - hit.pixel_size, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time,
-                                                 p * hit.down_pixel_p, abs_logger, abs_logger_with_data_array);
+                                                 p * hit.down_pixel_p, abs_logger, abs_logger_with_data_array, _particle);
       if (hit.left_pixel_p > 0.0)
         add_element_to_temp_abs_nD_scintillator (storage, hit.x - hit.pixel_size, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time,
-                                                 p * hit.left_pixel_p, abs_logger, abs_logger_with_data_array);
+                                                 p * hit.left_pixel_p, abs_logger, abs_logger_with_data_array, _particle);
       if (hit.right_pixel_p > 0.0)
         add_element_to_temp_abs_nD_scintillator (storage, hit.x + hit.pixel_size, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time,
-                                                 p * hit.right_pixel_p, abs_logger, abs_logger_with_data_array);
+                                                 p * hit.right_pixel_p, abs_logger, abs_logger_with_data_array, _particle);
     }
   }
 
@@ -480,7 +488,8 @@ SHARE
   // record_to_perm
   void
   record_to_perm_abs_nD_scintillator (Coords* position, double* k, double p, double time, int scattered_in_this_volume, int total_number_of_scattering_events,
-                                      struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array) {
+                                      struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array,
+                                      _class_particle* _particle) {
 
     struct a_nD_scintillator_abs_storage_struct* storage;
     storage = abs_logger->data_union.p_nD_scintillator_abs_storage;
@@ -517,7 +526,8 @@ SHARE
       double given_x_vel, given_y_vel, given_z_vel;
       coords_get (coords_scalar_mult (transformed_k_coords, K2V), &given_x_vel, &given_y_vel, &given_z_vel);
 
-      _class_particle _localparticle;
+      // Start from the real particle, for its ID and user variables
+      _class_particle _localparticle = *_particle;
 
       _localparticle.z = given_z_pos;
 
@@ -577,7 +587,8 @@ SHARE
     // Add all data points to the historgram, they are saved as index / weight combinations
     for (index = 0; index < storage->temp_abs_nD_scintillator_data.num_elements; index++) {
 
-      _class_particle _localparticle;
+      // Start from the particle as recorded, for its ID and user variables
+      _class_particle _localparticle = storage->temp_abs_nD_scintillator_data.elements[index].particle;
 
       _localparticle.x = storage->temp_abs_nD_scintillator_data.elements[index].x_pos;
       _localparticle.y = storage->temp_abs_nD_scintillator_data.elements[index].y_pos;
@@ -610,7 +621,8 @@ SHARE
     // Add all data points to the historgram, they are saved as index / weight combinations
     for (index = 0; index < storage->temp_abs_nD_scintillator_data.num_elements; index++) {
 
-      _class_particle _localparticle;
+      // Start from the particle as recorded, for its ID and user variables
+      _class_particle _localparticle = storage->temp_abs_nD_scintillator_data.elements[index].particle;
 
       _localparticle.x = storage->temp_abs_nD_scintillator_data.elements[index].x_pos;
       _localparticle.y = storage->temp_abs_nD_scintillator_data.elements[index].y_pos;

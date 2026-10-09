@@ -11,8 +11,11 @@
 * Written by: Emmanuel Farhi
 * Date: August 4th 2010
 * Origin: ILL
+* Modified by: Peter Link / Gaetano Mangiapia (MLZ/Hereon), 2017/2022: per-face m, alpha, W (as Guide_anyshape_r)
+* Modified by: Peter Willendrup (DTU), 2026: merged Guide_anyshape_r into Guide_anyshape (file_coatings)
 *
-* Reflecting surface (guide and mirror) with any shape, defined from an OFF file.
+* Reflecting surface (guide and mirror) with any shape, defined from an OFF file,
+* optionally with m, alpha, W (R0, Qc) given per face in the file.
 *
 * %D
 *
@@ -24,10 +27,22 @@
 *
 * The reflectivity is specified either from the usual parametric description
 * R0,Qc,alpha,W,m, or from a reflectivity file 'reflect' with a 2 column
-* format [q(Angs-1) R(0-1)].
+* format [q(Angs-1) R(0-1)], or per face from the geometry file (file_coatings=1).
 *
-* The complex OFF/PLY geometry option handles any closed non-convex polyhedra.
-*   It supports the OFF and NOFF file format but not COFF (colored faces).
+* Per-face coatings (file_coatings=1, replaces the former Guide_anyshape_r):
+*   the numbers following the vertex indices of each face in the OFF/PLY file
+*   are read as m, alpha, W (IN THIS ORDER), optionally followed by R0 and Qc:
+*     nv  i1 i2 ... inv   m alpha W [R0 [Qc]]
+*   e.g.  4 0 5 6 4   3.0 6.07 0.003
+*   Values that are not given in the file are taken from the component
+*   parameters. See the example file Guide_r.off.
+*   Former Guide_anyshape_r(m=0, alpha=0, W=0, ...) corresponds to
+*   Guide_anyshape(file_coatings=1, ...).
+*
+* The complex OFF/PLY geometry option handles any closed non-convex polyhedra,
+*   with polygons of any number of vertices.
+*   It supports the OFF, NOFF and COFF file formats (colours are ignored, but
+*   face colours would be interpreted as coatings when file_coatings=1).
 *   Such files may be generated from XYZ data using:
 *     qhull < coordinates.xyz Qx Qv Tv o > geomview.off
 *   or
@@ -52,6 +67,7 @@
 * W: [AA^-1]                    Width of supermirror cut-off
 * reflect: [q(AA^-1) R(0-1)]  (str)  Reflectivity file name. Format 
 * transmit: [1]                When true, non reflected neutrons are transmitted through the surfaces, instead of being absorbed. No material absorption is taken into account though
+* file_coatings: [1]           When 1, use m, alpha, W [R0, Qc] given per face in the geometry file instead of the parameters (which then serve as defaults for values missing in the file).
 *
 * CALCULATED PARAMETERS:
 * SCATTERED: []                number of reflected events
@@ -74,7 +90,8 @@
 DEFINE COMPONENT Guide_anyshape
 
 SETTING PARAMETERS (xwidth=0, yheight=0, zdepth=0, center=0, transmit=0,
-  R0=0.99, Qc=0.0219, alpha=3, m=2, W=0.003, string reflect=0, string geometry=0)
+  R0=0.99, Qc=0.0219, alpha=3, m=2, W=0.003, string reflect=0, string geometry=0,
+  int file_coatings=0)
 
 DEPENDENCY " -DUSE_OFF "
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -90,6 +107,7 @@ DECLARE
 %{
   off_struct offdata;
   t_Table pTable;
+  int use_table;
 %}
 
 INITIALIZE
@@ -99,11 +117,25 @@ INITIALIZE
     exit (-1);
 
   /* optionally initialize reflectivity curves */
-  if (reflect && strlen (reflect) && strcmp (reflect, "NULL") && strcmp (reflect, "0")) {
+  use_table = (reflect && strlen (reflect) && strcmp (reflect, "NULL") && strcmp (reflect, "0"));
+  if (use_table) {
     if (Table_Read (&pTable, reflect, 1) <= 0) /* read 1st block data from file into pTable */
       exit (fprintf (stderr, "Guide_anyshape: %s: can not read file %s. Aborting.\n", NAME_CURRENT_COMP, reflect));
     else
       Table_Rebin (&pTable); /* rebin as evenly, increasing array */
+  }
+
+  /* optionally use per-face coatings from the geometry file */
+  if (file_coatings) {
+    if (use_table)
+      exit (fprintf (stderr, "Guide_anyshape: %s: file_coatings=1 and reflect=%s can not be used together. Aborting.\n", NAME_CURRENT_COMP, reflect));
+    if (offdata.nfaceprops < 3)
+      exit (fprintf (stderr,
+                     "Guide_anyshape: %s: file_coatings=1 but %s does not give m, alpha, W for each face\n"
+                     "  (expected lines 'nv i1 ... inv m alpha W [R0 [Qc]]'). Aborting.\n",
+                     NAME_CURRENT_COMP, geometry));
+    MPI_MASTER (printf ("Guide_anyshape: %s: using per-face m, alpha, W%s%s from %s\n", NAME_CURRENT_COMP, offdata.nfaceprops > OFF_FACEPROP_R0 ? ", R0" : "",
+                        offdata.nfaceprops > OFF_FACEPROP_QC ? ", Qc" : "", geometry););
   }
 %}
 
@@ -119,6 +151,7 @@ TRACE
   #endif
   do {
     double t0 = 0, t3 = 0, dt = 0;
+    unsigned long fi0 = 0, fi3 = 0, fi = 0;
     Coords n0, n3, n = { 0, 0, 0 };
     /* determine intersections with object */
 
@@ -129,16 +162,18 @@ TRACE
       coords_get (locgrav, &mc_gx, &mc_gy, &mc_gz);
     }
 
-    intersect = off_intersect (&t0, &t3, &n0, &n3, x, y, z, vx, vy, vz, mc_gx, mc_gy, mc_gz, thread_offdata);
+    intersect = off_intersect_idx (&t0, &t3, &n0, &n3, &fi0, &fi3, x, y, z, vx, vy, vz, mc_gx, mc_gy, mc_gz, thread_offdata);
 
     /* get the smallest positive */
     if (t0 > 0) {
       dt = t0;
       n = n0;
+      fi = fi0;
     }
     if (intersect > 1 && dt <= 0 && t3 > dt) {
       dt = t3;
       n = n3;
+      fi = fi3;
     }
 
     /* exit loop when no intersection forward */
@@ -159,10 +194,17 @@ TRACE
     /* handle surface intersection */
     double R = 0;
     /* Reflectivity (see component Guide). */
-    if (reflect && strlen (reflect) && strcmp (reflect, "NULL") && strcmp (reflect, "0"))
+    if (use_table)
       TableReflecFunc (q, &pTable, &R);
     else {
       double par[] = { R0, Qc, alpha, m, W };
+      if (file_coatings) { /* per-face values, parameters as defaults */
+        par[0] = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_R0, R0);
+        par[1] = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_QC, Qc);
+        par[2] = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_ALPHA, alpha);
+        par[3] = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_M, m);
+        par[4] = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_W, W);
+      }
       StdReflecFunc (q, par, &R);
     }
 

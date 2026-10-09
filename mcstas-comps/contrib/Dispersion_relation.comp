@@ -411,12 +411,12 @@ SHARE
   }
 
   /* Scan the final velocity in steps_low intervals on the energy loss side and
-      steps_high intervals on the energy gain side. Each interval gives at most
-      one root, so possible_final_velocities must hold steps_low + steps_high
-      values. */
+      steps_high intervals on the energy gain side, each giving at most one root.
+      Counts the roots and picks one uniformly as they are found (reservoir
+      sampling), so no per-neutron buffer is needed. */
   void
-  find_possible_final_velocities (double* possible_final_velocities, int* number_of_solutions, struct crystal* crystal, int steps_low, int steps_high, double max_mode_energy,
-              struct neutron_values* neutron, struct interpolator_struct* dispersion_relation) {
+  find_possible_final_velocities (double* chosen_final_velocity, int* number_of_solutions, struct crystal* crystal, int steps_low, int steps_high, double max_mode_energy,
+              struct neutron_values* neutron, struct interpolator_struct* dispersion_relation, _class_particle* _particle) {
     double possible_final_velocity;
     // The neutron can at most lose or gain the largest energy in the dispersion relation
     double initial_speed_squared = square (neutron->initial_size);
@@ -430,18 +430,16 @@ SHARE
       possible_final_velocity
           = Ridders_method_for_root_finding (lower_final_velocity_limit + range_low * i / steps_low, lower_final_velocity_limit + range_low * (i + 1) / steps_low,
                                              ROOTACC, crystal, neutron, dispersion_relation);
-      if (possible_final_velocity != UNUSED) {
-        possible_final_velocities[(*number_of_solutions)++] = possible_final_velocity;
-      }
+      if (possible_final_velocity != UNUSED && rand01 () * ++(*number_of_solutions) < 1)
+        *chosen_final_velocity = possible_final_velocity;
     }
     // Then in energy gain for the neutron
     for (int i = 0; i < steps_high; i++) {
       possible_final_velocity
           = Ridders_method_for_root_finding (mid_final_velocity_limit + range_high * i / steps_high, mid_final_velocity_limit + range_high * (i + 1) / steps_high,
                                              ROOTACC, crystal, neutron, dispersion_relation);
-      if (possible_final_velocity != UNUSED) {
-        possible_final_velocities[(*number_of_solutions)++] = possible_final_velocity;
-      }
+      if (possible_final_velocity != UNUSED && rand01 () * ++(*number_of_solutions) < 1)
+        *chosen_final_velocity = possible_final_velocity;
     }
     return;
   }
@@ -477,12 +475,8 @@ DECLARE
   // Dynamically allocate memory for an array of `interpolator_struct` pointers
   struct interpolator_struct** dispersion_relations;
   struct interpolator_struct* dispersion_relation;
-  struct neutron_values neutron;
   struct crystal crystal;
 
-  double q_cryst[3];
-  double* possible_final_velocities; // Roots of the search, e_steps_low + e_steps_high at most
-  double aiming_vector[3];
   double numerical_derivative_resolution;
 
   double max_mode_energy; // Largest energy found in any of the dispersion relations
@@ -541,14 +535,8 @@ INITIALIZE
   //=============== Importing the numerical dispersion relation ==============
   //==========================================================================
 
-  /* Buffer for the roots of the final velocity search, one per search interval */
   if (e_steps_low < 1 || e_steps_high < 1) {
     fprintf (stderr, "Dispersion_relation: %s: e_steps_low and e_steps_high must be at least 1.\n", NAME_CURRENT_COMP);
-    exit (1);
-  }
-  possible_final_velocities = (double*)malloc ((e_steps_low + e_steps_high) * sizeof (double));
-  if (possible_final_velocities == NULL) {
-    fprintf (stderr, "Dispersion_relation: %s: Could not allocate the root buffer.\n", NAME_CURRENT_COMP);
     exit (1);
   }
 
@@ -642,8 +630,10 @@ TRACE
   double distance_to_reflection, distance_to_exit;
   double solid_angle;
   int number_of_solutions = 0;
-  int index_of_final_velocity;
   double final_velocity;
+  // Per neutron, so GPU threads do not share them
+  struct neutron_values neutron;
+  double aiming_vector[3];
   double jacobian_factor;
   // Check that the neutron hits the sample, and calculate geometric values related to it
   if (!cylinder_intersect (&t0, &t1, x, y, z, vx, vy, vz, radius, yheight)) {
@@ -663,15 +653,13 @@ TRACE
   solid_angle = focus_neutron (&neutron.direction_vx, &neutron.direction_vy, &neutron.direction_vz, aiming_vector, focus_ah, focus_aw, focus_xw, focus_yh,
                                focus_r, ROT_A_CURRENT_COMP, _particle);
   // Find the different possible final velocities the neutron can have
-  find_possible_final_velocities (possible_final_velocities, &number_of_solutions, &crystal, e_steps_low, e_steps_high, max_mode_energy, &neutron,
-              dispersion_relations[dispersion_mode]);
+  // and choose one of them
+  find_possible_final_velocities (&final_velocity, &number_of_solutions, &crystal, e_steps_low, e_steps_high, max_mode_energy, &neutron,
+              dispersion_relations[dispersion_mode], _particle);
   if (number_of_solutions == 0) {
     ABSORB; // No final velocity satisfies energy and momentum conservation
   }
-  // Choose one of these possible velocities
-  index_of_final_velocity = (int)floor (rand01 () * (number_of_solutions));
   // Set the outgoing speed vector //
-  final_velocity = possible_final_velocities[index_of_final_velocity];
   vx = neutron.direction_vx * final_velocity;
   vy = neutron.direction_vy * final_velocity;
   vz = neutron.direction_vz * final_velocity;
@@ -717,14 +705,6 @@ TRACE
             scat_vect[2], q_cryst_vect[0], q_cryst_vect[1], q_cryst_vect[2], crystal_vect[0], crystal_vect[1], crystal_vect[2],
             final_velocity * final_velocity * VS2E - neutron.initial_size * neutron.initial_size * VS2E, final_velocity * V2K);
   }
-  q_cryst[0] = crystal_vect[0];
-  q_cryst[1] = crystal_vect[1];
-  q_cryst[2] = crystal_vect[2];
-%}
-
-FINALLY
-%{
-  free (possible_final_velocities);
 %}
 
 MCDISPLAY

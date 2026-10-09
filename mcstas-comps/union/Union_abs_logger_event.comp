@@ -163,7 +163,7 @@ SHARE
   // Would be nice if x y z, k_new and k_old were all coords
   void
   record_to_temp_abs_event (Coords* position, double* k, double p, double time, int scattered_in_this_volume, int total_number_of_scattering_events,
-                            struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array) {
+                            struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array, _class_particle* _particle) {
 
     struct a_event_abs_storage_struct* storage;
     storage = abs_logger->data_union.p_event_abs_storage;
@@ -333,7 +333,7 @@ SHARE
   // record_to_perm
   void
   record_to_perm_abs_event (Coords* position, double* k, double p, double time, int scattered_in_this_volume, int total_number_of_scattering_events,
-                            struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array) {
+                            struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array, _class_particle* _particle) {
 
     // printf("In record to permanent \n");
     struct a_event_abs_storage_struct* storage;
@@ -410,7 +410,9 @@ SHARE
       given_y_vel = k[1] * K2V;
       given_z_vel = k[2] * K2V;
 
-      _class_particle _localparticle;
+      // Start from the real particle (the output of this logger only uses the
+      // variables set below)
+      _class_particle _localparticle = *_particle;
 
       _localparticle.x = used_x_pos;
       _localparticle.y = used_y_pos;
@@ -443,7 +445,9 @@ SHARE
     // Add all data points to the historgram, they are saved as index / weight combinations
     for (index = 0; index < storage->temp_abs_event_data.num_elements; index++) {
 
+      // (The output of this logger only uses the variables set below.)
       _class_particle _localparticle;
+      memset (&_localparticle, 0, sizeof (_localparticle));
 
       _localparticle.x = storage->temp_abs_event_data.elements[index].x_pos;
       _localparticle.y = storage->temp_abs_event_data.elements[index].y_pos;
@@ -476,7 +480,9 @@ SHARE
     // Add all data points to the historgram, they are saved as index / weight combinations
     for (index = 0; index < storage->temp_abs_event_data.num_elements; index++) {
 
+      // (The output of this logger only uses the variables set below.)
       _class_particle _localparticle;
+      memset (&_localparticle, 0, sizeof (_localparticle));
 
       _localparticle.x = storage->temp_abs_event_data.elements[index].x_pos;
       _localparticle.y = storage->temp_abs_event_data.elements[index].y_pos;

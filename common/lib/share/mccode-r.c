@@ -4149,9 +4149,8 @@ mcstatic void norm_func(double *x, double *y, double *z) {
 #ifdef FUNNEL
 long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long len, long buffer_len, long flag_split, long* multiplier) {
   #define SAL_THREADS 1024 // num parallel sections
-  if (len<SAL_THREADS) return sort_absorb_last_serial(particles, len);
-
   if (multiplier != NULL) *multiplier = -1; // set default out value for multiplier
+  if (len<SAL_THREADS) return sort_absorb_last_serial(particles, len);
   long newlen = 0;
   long los[SAL_THREADS]; // target array startidxs
   long lens[SAL_THREADS]; // target array sublens
@@ -4219,8 +4218,8 @@ long sort_absorb_last(_class_particle* particles, _class_particle* pbuffer, long
   }
   //for (int ii=0;ii<accumlen;ii++) printf("%ld ", (psorted[ii]->_absorbed));
 
-  // return (no SPLIT)
-  if (flag_split != 1)
+  // return (no SPLIT, or nothing left to split)
+  if (flag_split != 1 || accumlen == 0)
     return accumlen;
 
   // SPLIT - repeat the non-absorbed block N-1 times, where len % accumlen = N + R

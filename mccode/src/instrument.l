@@ -18,6 +18,25 @@
 *
 * Flex scanner for instrument definition files.
 *
+* Overview (how the pieces fit together):
+*   - instrument.y (the bison parser) pulls tokens from yylex() defined here.
+*     Keywords, identifiers, numbers, strings and "any other C token"
+*     (TOK_CTOK) are returned one by one; the parser glues C tokens back
+*     together into expressions (CExp, see cexp.c).
+*   - %{ ... %} blocks are NOT tokenised: the scanner switches to the <ccode>
+*     start condition and hands every source line verbatim to the parser as a
+*     TOK_CODE_LINE (newline included). The parser collects them into a
+*     struct code_block, which cogen.c later prints unchanged.
+*   - Files can nest: %include (in instrument/component text or inside a C
+*     block) and component autoloading (read_component() in instrument.y)
+*     both push the current flex buffer on file_stack and continue scanning
+*     the new file. <<EOF>> pops back to the including file.
+*   - The very first token of every parse is synthetic: TOK_GENERAL for an
+*     instrument file, TOK_RESTRICTED for an autoloaded .comp file. This lets
+*     one grammar serve both cases (see rule `main' in instrument.y).
+*   - instr_current_line/instr_current_filename track the position for error
+*     messages; every rule that consumes an end-of-line increments the line.
+*
 *******************************************************************************/
 
 
@@ -48,12 +67,13 @@
 #define yylval (*yylvalp)
 
 
-/* Structure to hold the state of a file being parsed. */
+/* Structure to hold the state of a file being parsed. One entry is pushed on
+   file_stack for every %include / autoloaded component, and popped at EOF. */
 struct file_state
   {
     YY_BUFFER_STATE buffer;
     char *filename;
-    char *switch_line;
+    char *switch_line; /* pending "lib.c" to include after "lib.h" (see cinclname) */
     int line;
     int oldstate;   /* Saved lexer start condition. */
     int visible_eof;    /* If true, tell parser about end-of-file. */
@@ -62,6 +82,10 @@ struct file_state
 #define MAX_INCLUDE 256
 static struct file_state file_stack[MAX_INCLUDE + 1];
 static int file_stack_ptr = 0;
+/* When %include "lib" (no extension) is used inside a C block, lib.h is
+   embedded first and, with the runtime embedded, lib.c must follow it. The
+   .c name is parked here, saved with the .h file's stack entry, and picked up
+   by the <<EOF>> rule when lib.h ends. */
 static char *switch_line = NULL;
 
 static void push_include(char *name);
@@ -84,7 +108,9 @@ static void push_include(char *name);
 /* Get file name in %include. */
 %x inclname
 
-/* Get full %include line within C code blocks. */
+/* Get full %include line within C code blocks.
+   The line is re-scanned from its start (yyless(0)), so leading blanks are
+   skipped there first. */
 %x cfullincl
 
 /* Get file name in %include within C code blocks. */
@@ -104,7 +130,8 @@ INCLUDE "%include"
 %%
 
  /* Initially, output a single token to the parser to tell it whether to parse
-    general instrument definitions or autoloaded component definitions. */
+    general instrument definitions or autoloaded component definitions.
+    yyless(0) gives back the character just matched, so nothing is consumed. */
 <initial_token>.|\n |
 <initial_token><<EOF>> {
       yyless(0);
@@ -171,6 +198,9 @@ METADATA      return TOK_METADATA;
  * IMPORTANT!: Whenever a token is removed from here to make an independent
  * separate token, the new token must be added to the parser rules for
  * genatexp/topatexp.
+ * Flex picks the longest match, and the earliest rule on a tie. So "*" is
+ * returned as '*' by the operator rule above, and "sizeof" as TOK_ID by {ID};
+ * those alternatives (and the duplicate "+"/"-") never fire here.
  */
 "->"|"."|"!"|"~"|"++"|"--"|"+"|"-"|"&"|"sizeof"|"*"|"%"|"+"|"-"|"<<"|">>"|"<"|"<="|">"|">="|"=="|"!="|"^"|"|"|"&&"|"||"|"?"|":"|"+="|"-="|"*="|"/="|"%="|"&="|"^="|"|="|"<<="|">>="|"'" {
       yylval.string = str_dup(yytext);
@@ -178,7 +208,9 @@ METADATA      return TOK_METADATA;
 \
     }
 
-  /* Scanning embedded C code. */
+  /* Scanning embedded C code.
+     %{ must be alone on its line. The token carries the line number of the
+     %{ so the code block can be traced back to its source (#line). */
 
 "%""{"[\t ]*{EOL} {
       yylval.linenum = instr_current_line;
@@ -197,7 +229,9 @@ METADATA      return TOK_METADATA;
 <ccode>{
     /* normal %} symbol to end C code block */
     [\t ]*"%""}"[\t ]*{EOL} instr_current_line++; BEGIN(INITIAL); return TOK_CODE_END;
-    /* %} symbol surrounded by some unrelevant stuff */
+    /* %} symbol surrounded by some unrelevant stuff: the whole line is
+       dropped with a warning and the scanner STAYS in <ccode>, i.e. this
+       does not close the block. */
     [^\n]*"%""}"[^\n]*{EOL} {
         instr_current_line++;
         print_warn(NULL, "%%} terminator not on a line by itself "
@@ -242,7 +276,9 @@ METADATA      return TOK_METADATA;
               instr_current_line, instr_current_filename, yytext);
       }
 
- /* %-style comments - ignore everything to end of line. */
+ /* %-style comments - ignore everything to end of line.
+    Only "%" followed by a blank or end-of-line is a comment; e.g. "%foo"
+    falls through to the invalid-character rule. */
 "%"{EOL}    instr_current_line++; /* Ignore comment. */
 "% "[^\n]*{EOL} instr_current_line++; /* Ignore comment. */
 
@@ -267,10 +303,13 @@ METADATA      return TOK_METADATA;
   } /* end inclname */
  /* Include files within C code blocks (ccode state)*/
  /* next token is full line, regenerated by yyless(0) */
+<cfullincl>[ \t]+  /* skip indentation (else flex would echo it) */
 <cfullincl>{INCLUDE}[ \t]+\"  BEGIN(cinclname);
 <cinclname>{
-  /* name ends with a quote char, with extension -> include as ccode state */
-  [^\"\n]+\.+.\"  {
+  /* name ends with a quote char, with extension ("x.h", "x.hpp", "dir/x.c")
+     -> include as ccode state. Both rules match the same text, so this one
+     wins by being first. */
+  [^\"\n]+\.[A-Za-z0-9]+\"  {
         yytext[yyleng - 1] = '\0';
         BEGIN(ccode);
         if (verbose) fprintf(stderr, "Embedding file      %s\n", yytext);
@@ -279,6 +318,7 @@ METADATA      return TOK_METADATA;
   /* name ends with a quote char, but no ext -> include as ccode state
    * this occurs when importing a library .h/.c The .c is only included
    * when instr->runtime option is true
+   * Each library is embedded once per run (tracked in lib_instances).
    */
   [^\"\n]+\"  {
         char *tmp0, *tmp1;
@@ -303,8 +343,7 @@ METADATA      return TOK_METADATA;
         }
         else
         {
-          BEGIN(ccode);
-          instr_current_line++;  /* library was previously embedded */
+          BEGIN(ccode);  /* library was previously embedded */
         }
         str_free(tmp0);
       }
@@ -333,6 +372,12 @@ METADATA      return TOK_METADATA;
 [ \t]+      /* Ignore whitespace. */
 [ \t]*{EOL}   instr_current_line++; /* Ignore whitespace. */
 
+ /* End of a file: either the end of everything, or pop back to the file that
+    included it. Three cases on pop:
+    - a "lib.c" is pending after "lib.h" (switch_line): include it right away;
+    - an autoloaded component ended (visible_eof): end this nested yyparse()
+      call, so read_component() regains control;
+    - a plain %include ended: resume scanning the includer silently. */
 <INITIAL,ccode><<EOF>> {
       if(file_stack_ptr <= 0)
       {
@@ -418,7 +463,8 @@ push_file(FILE *file, int restricted, int visible_eof)
   parse_restricted = restricted;
 }
 
-/* Handle a new %include file. */
+/* Handle a new %include file. The include is transparent to the parser: it
+   just sees more tokens. */
 void
 push_include(char *name)
 {
@@ -430,11 +476,16 @@ push_include(char *name)
                 "on line %d of file '%s'.\n",
               name, instr_current_line, instr_current_filename);
   push_file(file, FALSE, FALSE);
-  instr_current_filename = name;
+  /* copy: callers pass yytext or temporaries, but the name is kept in
+     code blocks and error messages long after */
+  instr_current_filename = str_dup(name);
   instr_current_line = 1;
 }
 
-/* Handle a new autoincluded file (uses recursive parser call). */
+/* Handle a new autoincluded file (uses recursive parser call).
+   Restricted mode + initial_token makes the nested parse start with
+   TOK_RESTRICTED (component grammar only); visible_eof makes the EOF of the
+   .comp file end that nested parse. */
 void
 push_autoload(FILE *file)
 {

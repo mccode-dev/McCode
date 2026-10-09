@@ -1,0 +1,89 @@
+/*******************************************************************************
+* Instrument: Unittest_INHERIT_OVERRIDE
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Oct 7th, 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_grammar
+*
+* DEFINE COMPONENT X INHERIT Y: written sections (even empty) replace Y's
+*
+* %D
+* Unit test for whole-component inheritance, see
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+* (same rule as mccode-antlr, mccode-dev/mccode-antlr#321).
+*
+* Local components: Unittest_IO_parent absorbs particles with x>0. Its
+* children, DEFINE COMPONENT ... INHERIT Unittest_IO_parent:
+* - Unittest_IO_cancel writes an empty TRACE %{ %}: replaces the parent's
+*   TRACE, absorbs nothing. Before, an empty block counted as "not written"
+*   and the parent's TRACE was used.
+* - Unittest_IO_keep writes no sections: inherits the parent's TRACE.
+* - Unittest_IO_extend writes TRACE INHERIT Unittest_IO_parent EXTEND %{..%}:
+*   the parent's TRACE followed by more code (absorbs x>0 and y>0). It also
+*   uses INHERIT within USERVARS.
+* - Unittest_IO_noinit writes an empty INITIALIZE EXTEND %{ %}: keeps the
+*   parent's DECLARE and TRACE but not its INITIALIZE (io_val stays 0, so
+*   its TRACE halves the weight). "Inherit everything but one section".
+*
+* One unit of intensity is emitted uniformly from a 1x1 m square:
+* AfterCancel_I = 1, AfterKeep_I = 0.5, AfterExtend_I = 0.25,
+* AfterNoInit_I = 0.125.
+*
+* %Example: Detector: AfterCancel_I=1
+* %Example: Detector: AfterKeep_I=0.5
+* %Example: Detector: AfterExtend_I=0.25
+* %Example: Detector: AfterNoInit_I=0.125
+*
+* %P
+* Pp0: [1] Dummy input parameter used internally
+*
+* %L
+* docs/GRAMMAR/ADR-records/ADR_20261007_GRAMMAR_FIXES.md
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Unittest_INHERIT_OVERRIDE(Pp0=0)
+
+INITIALIZE
+%{
+  Pp0=1.0/mcget_ncount();
+%}
+
+TRACE
+
+COMPONENT Src = Arm()
+  AT (0,0,0) ABSOLUTE
+EXTEND %{
+  x = rand01()-0.5;
+  y = rand01()-0.5;
+  p = INSTRUMENT_GETPAR(Pp0);
+  kz=1;
+%}
+
+COMPONENT Canceller = Unittest_IO_cancel()
+  AT (0,0,0.1) ABSOLUTE
+
+COMPONENT AfterCancel = PSD_monitor(xwidth=2.0, yheight=2.0, filename="AfterCancel", nx=10, ny=10)
+  AT (0,0,0.2) ABSOLUTE
+
+COMPONENT Keeper = Unittest_IO_keep()
+  AT (0,0,0.3) ABSOLUTE
+
+COMPONENT AfterKeep = PSD_monitor(xwidth=2.0, yheight=2.0, filename="AfterKeep", nx=10, ny=10)
+  AT (0,0,0.4) ABSOLUTE
+
+COMPONENT Extender = Unittest_IO_extend()
+  AT (0,0,0.5) ABSOLUTE
+
+COMPONENT AfterExtend = PSD_monitor(xwidth=2.0, yheight=2.0, filename="AfterExtend", nx=10, ny=10)
+  AT (0,0,0.6) ABSOLUTE
+
+COMPONENT NoIniter = Unittest_IO_noinit()
+  AT (0,0,0.7) ABSOLUTE
+
+COMPONENT AfterNoInit = PSD_monitor(xwidth=2.0, yheight=2.0, filename="AfterNoInit", nx=10, ny=10)
+  AT (0,0,0.8) ABSOLUTE
+
+END

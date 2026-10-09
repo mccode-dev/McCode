@@ -1323,6 +1323,29 @@ MCDETECTOR Table_Write(t_Table Table, char *file, char *xl, char *yl,
 #define MyNL_ARGMAX 50
 #endif
 
+static int Table_ParseHeader_wordchar(char c) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/* Find symbol in header as a whole word (like regex \b...\b), not case
+   sensitive. Word boundaries are only required where the symbol itself starts
+   or ends with a word character, so "sigma_a " or "e_min=" match as given.
+   E.g. "Vc" must not match inside a file name such as /tmp/tmp.0.aVcX9q,
+   which cif2hkl writes into the header before the real "Vc" line. */
+static char *Table_ParseHeader_find(char *header, char *symbol) {
+  size_t len = strlen(symbol);
+  char *pos = header;
+  while ((pos = (char*)strcasestr(pos, symbol))) {
+    int start_ok = !Table_ParseHeader_wordchar(symbol[0])
+                || pos == header || !Table_ParseHeader_wordchar(pos[-1]);
+    int end_ok   = !Table_ParseHeader_wordchar(symbol[len-1])
+                || !Table_ParseHeader_wordchar(pos[len]);
+    if (start_ok && end_ok) return pos;
+    pos++;
+  }
+  return NULL;
+}
+
 char **Table_ParseHeader_backend(char *header, ...){
   va_list ap;
   char exit_flag=0;
@@ -1350,7 +1373,7 @@ char **Table_ParseHeader_backend(char *header, ...){
       exit_flag = 1; break;
     }
     /* search for the symbol in the header */
-    pos = (char*)strcasestr(header, arg_char);
+    pos = Table_ParseHeader_find(header, arg_char);
     if (pos) {
       char *eol_pos;
       eol_pos = strchr(pos+strlen(arg_char), '\n');

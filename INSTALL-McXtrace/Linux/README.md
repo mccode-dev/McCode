@@ -1,4 +1,4 @@
-# Install McXtrace 3.9.0 on Linux and Unix.
+# Install McXtrace 3.9.2 on Linux and Unix.
 
 * We provide Debian packages for `x86_64` an `arm64` and recommend our
 	[conda-forge](../conda/README.md) install mechanism for any other platform.

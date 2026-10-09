@@ -108,10 +108,10 @@ def mccode_build_conda ( cfg ):
 def parse_args( argv ):
     from argparse import ArgumentParser as AP
     parser = AP( prog = os.path.basename(argv[0]),
-                 description=('Build and install McStas or McXtrace trace within conda environment'))
-    parser.add_argument('-m','--mode', choices=['mcstas', 'mcxtrace'],
+                 description=('Build and install McStas, McXtrace or both within conda environment'))
+    parser.add_argument('-m','--mode', choices=['mcstas', 'mcxtrace', 'both'],
                         default='mcstas',
-                        help='Choose McStas or McXtrace mode (default: mcstas)')
+                        help='Choose build-mode: McStas, McXtrace or both (default: mcstas)')
     parser.add_argument('-v','--version',
                         default='3.99.99',
                         help='Set build version (default: 3.99.99)')
@@ -147,8 +147,8 @@ def autodetect_platform():
 def create_cfg( args ):
     class Cfg:
         mode = args.mode
-        is_mcstas = ( args.mode=='mcstas' )
-        is_mcxtrace = not is_mcstas
+        is_mcstas = ( args.mode=='mcstas' or args.mode=='both')
+        is_mcxtrace = (args.mode=='mcxtrace' or args.mode=='both')
         platform = args.platform
         is_win   = ( args.platform=='win' )
         is_linux = ( args.platform=='linux' )
@@ -162,7 +162,16 @@ def create_cfg( args ):
 def main():
     args = parse_args( sys.argv )
     cfg = create_cfg( args )
-    mccode_build_conda( cfg )
+    # Build both?
+    if cfg.is_mcstas and cfg.is_mcxtrace:
+        cfgN = cfg
+        cfgN.is_mcxtrace=False
+        mccode_build_conda( cfgN )
+        cfgX = cfg
+        cfgX.is_mcstas=False
+        mccode_build_conda( cfgX )
+    else:
+        mccode_build_conda( cfg )
 
 if __name__=='__main__':
     main()

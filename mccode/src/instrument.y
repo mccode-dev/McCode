@@ -16,6 +16,26 @@
 *
 * Bison parser for instrument definition files.
 *
+* Overview:
+*   main() (at the end of this file) parses the command line, opens the .instr
+*   file and calls yyparse() once. The grammar actions build an in-memory
+*   model (see mccode.h): one struct instr_def (instrument_definition) holding
+*   the instrument parameters, code blocks and the ordered list of
+*   struct comp_inst (component instances). Each instance points to a shared
+*   struct comp_def (component class) read from its .comp file. Finally
+*   cogen() (cogen.c) writes the whole model out as one C file.
+*
+*   Component definitions are loaded on demand: when an instance names a
+*   component class not yet known, read_component() pushes the .comp file on
+*   the lexer and calls yyparse() RECURSIVELY from inside the grammar action.
+*   This is why the parser must be pure (api.pure) and why every parse starts
+*   with a synthetic token, TOK_GENERAL (instrument) or TOK_RESTRICTED
+*   (component file), see rule `main'.
+*
+*   Global parse state lives in file-scope variables declared after the
+*   grammar (comp_instances, previous_comp, myself_comp, ...). Positions for
+*   messages come from the lexer (instr_current_filename/_line).
+*
 * $Id$
 *
 *******************************************************************************/
@@ -76,6 +96,8 @@ void run_command_to_add_search_dir(char * input);
 int metadata_construct_table(instr_ptr_t);
 void metadata_assign_from_definition(List metadata);
 void metadata_assign_from_instance(List metadata);
+static void dependency_add(char *s);
+static struct code_block *codeblock_present(struct code_block *cb, struct code_block *own);
 
 %}
 
@@ -208,6 +230,10 @@ void metadata_assign_from_instance(List metadata);
 
 %%
 
+/* Entry point. The first token is injected by the lexer (instrument.l):
+   - TOK_GENERAL:    a .instr file, optionally preceded by inline component
+                     definitions, then the DEFINE INSTRUMENT block;
+   - TOK_RESTRICTED: an autoloaded .comp file with exactly one definition. */
 main:     TOK_GENERAL compdefs instrument
     | TOK_RESTRICTED compdef
 ;
@@ -262,6 +288,10 @@ compdef:    "DEFINE" "COMPONENT" TOK_ID parameters metadata shell dependency noa
       {
         /* inherit from another comp, and initiate it with given blocks */
         /* all redefined blocks override */
+        /* Parameter lists are parent + child, concatenated. A code section
+           the child does not write is taken from the parent; a section the
+           child writes, even an empty one, replaces the parent's (as in
+           mccode-antlr). codeblock_present() marks written sections. */
         struct comp_def *def;
         def = read_component($5);
         if (def) {
@@ -284,14 +314,14 @@ compdef:    "DEFINE" "COMPONENT" TOK_ID parameters metadata shell dependency noa
 
           c->flag_noacc = $10;
 	  
-          c->share_code   = ($11->linenum ? $11 : def->share_code);
-          c->uservar_code = ($12->linenum ? $12 : def->uservar_code);
-          c->decl_code    = ($13->linenum ? $13 : def->decl_code);
-          c->init_code    = ($14->linenum ? $14 : def->init_code);
-          c->trace_code   = ($15->linenum ? $15 : def->trace_code);
-          c->save_code    = ($16->linenum ? $16 : def->save_code);
-          c->finally_code = ($17->linenum ? $17 : def->finally_code);
-          c->display_code = ($18->linenum ? $18 : def->display_code);
+          c->share_code   = ($11->linenum > 0 ? $11 : def->share_code);
+          c->uservar_code = ($12->linenum > 0 ? $12 : def->uservar_code);
+          c->decl_code    = ($13->linenum > 0 ? $13 : def->decl_code);
+          c->init_code    = ($14->linenum > 0 ? $14 : def->init_code);
+          c->trace_code   = ($15->linenum > 0 ? $15 : def->trace_code);
+          c->save_code    = ($16->linenum > 0 ? $16 : def->save_code);
+          c->finally_code = ($17->linenum > 0 ? $17 : def->finally_code);
+          c->display_code = ($18->linenum > 0 ? $18 : def->display_code);
 
           /* Check definition and setting params for uniqueness */
           check_comp_formals(c->def_par, c->set_par, c->name);
@@ -302,6 +332,20 @@ compdef:    "DEFINE" "COMPONENT" TOK_ID parameters metadata shell dependency noa
 
       }
 ;
+
+/* Component code sections all follow the same pattern:
+
+     <SECTION> [codeblock] { INHERIT <comp> | EXTEND codeblock }*
+
+   - INHERIT <comp> appends that component's same section,
+   - EXTEND %{...%} appends one more code block,
+   - the result is one merged struct code_block, in source order.
+   - there is no implicit parent: EXTEND only appends to what the section
+     lists itself; use INHERIT <comp> to include another component's code.
+   A section that is written at all, even as an empty %{ %} block, is marked
+   present (linenum > 0, see codeblock_present); an absent section keeps
+   linenum -1. DEFINE COMPONENT X INHERIT Y relies on that distinction.
+   The *_inherit_extend rules are right-recursive: $3 is "the rest of the chain". */
 
 /* SHARE component block included once. */
 comp_share: /* empty */
@@ -314,11 +358,11 @@ comp_share: /* empty */
         cb = codeblock_new();
         list_cat(cb->lines, $2->lines);
         list_cat(cb->lines, $3->lines);
-        $$ = cb;
+        $$ = codeblock_present(cb, $2);
       }
     | "SHARE" comp_share_inherit_extend
       {
-        $$ = $2;
+        $$ = codeblock_present($2, NULL);
       }
 ;
 
@@ -362,11 +406,11 @@ comp_trace: /* empty */
         cb  = codeblock_new();
         list_cat(cb->lines, $2->lines);
         list_cat(cb->lines, $3->lines);
-        $$ = cb;
+        $$ = codeblock_present(cb, $2);
       }
     | "TRACE" comp_trace_inherit_extend
       {
-        $$ = $2;
+        $$ = codeblock_present($2, NULL);
       }
 ;
 
@@ -400,6 +444,10 @@ comp_trace_inherit_extend: /* empty */
       }
 ;
 
+/* Component parameter lists. DEFINITION parameters are compile-time
+   (#define'd), SETTING parameters become fields of the instance struct,
+   OUTPUT/PRIVATE are accepted but nowadays replaced by DECLARE variables
+   (see cogen_comp_declare). STATE/POLARISATION are obsolete -> error. */
 parameters:   def_par set_par out_par state_par pol_par
       {
         $$.def = $1;
@@ -494,6 +542,10 @@ comp_iformals1:   comp_iformal
       }
 ;
 
+/* One component formal parameter: [type ['*']] name ['=' default].
+   No type means double. "vector"/"double *" are pointers that default to
+   NULL; "string"/"char *" become fixed char arrays in the generated struct.
+   "symbol" is a particle user-variable reference (see USERVARS). */
 comp_iformal:  TOK_ID TOK_ID
       {
         struct comp_iformal *formal;
@@ -610,11 +662,11 @@ comp_declare:    /* empty */
         cb  = codeblock_new();
         list_cat(cb->lines, $2->lines);
         list_cat(cb->lines, $3->lines);
-        $$ = cb;
+        $$ = codeblock_present(cb, $2);
       }
     | "DECLARE" comp_decl_inherit_extend
       {
-        $$ = $2;
+        $$ = codeblock_present($2, NULL);
       }
 ;
 
@@ -654,7 +706,15 @@ comp_uservars:    /* empty */
       }
     | "USERVARS" codeblock comp_uservars_inherit_extend
       {
-        $$ = $2;
+        struct code_block *cb;
+        cb  = codeblock_new();
+        list_cat(cb->lines, $2->lines);
+        list_cat(cb->lines, $3->lines);
+        $$ = codeblock_present(cb, $2);
+      }
+    | "USERVARS" comp_uservars_inherit_extend
+      {
+        $$ = codeblock_present($2, NULL);
       }
 ;
 
@@ -662,11 +722,19 @@ comp_uservars_inherit_extend: /* empty */
       {
         $$ = codeblock_new();
       }
-    | "USERVARS" codeblock comp_uservars_inherit_extend
+    | "INHERIT" TOK_ID comp_uservars_inherit_extend
       {
         struct code_block *cb;
+        struct comp_def *def;
         cb  = codeblock_new();
-        list_cat(cb->lines, $2->lines);
+        def = read_component($2);
+        if (def) {
+          struct code_block    *cb1 = def->uservar_code;
+          cb->filename        = cb1->filename;
+          cb->quoted_filename = cb1->quoted_filename;
+          cb->linenum         = cb1->linenum;
+          list_cat(cb->lines,   cb1->lines);
+        }
         list_cat(cb->lines, $3->lines);
         $$ = cb;
       }
@@ -690,11 +758,11 @@ comp_initialize:   /* empty */
         cb  = codeblock_new();
         list_cat(cb->lines, $2->lines);
         list_cat(cb->lines, $3->lines);
-        $$ = cb;
+        $$ = codeblock_present(cb, $2);
       }
     | "INITIALISE" comp_init_inherit_extend
       {
-        $$ = $2;
+        $$ = codeblock_present($2, NULL);
       }
 ;
 
@@ -734,7 +802,7 @@ comp_save:   /* empty */
       }
     | "SAVE" comp_save_inherit_extend
       {
-        $$ = $2;
+        $$ = codeblock_present($2, NULL);
       }
     | "SAVE" codeblock comp_save_inherit_extend
       {
@@ -742,7 +810,7 @@ comp_save:   /* empty */
         cb  = codeblock_new();
         list_cat(cb->lines, $2->lines);
         list_cat(cb->lines, $3->lines);
-        $$ = cb;
+        $$ = codeblock_present(cb, $2);
       }
 ;
 
@@ -782,7 +850,7 @@ comp_finally:    /* empty */
       }
     | "FINALLY" comp_finally_inherit_extend
       {
-        $$ = $2;
+        $$ = codeblock_present($2, NULL);
       }
     | "FINALLY" codeblock comp_finally_inherit_extend
       {
@@ -790,7 +858,7 @@ comp_finally:    /* empty */
         cb  = codeblock_new();
         list_cat(cb->lines, $2->lines);
         list_cat(cb->lines, $3->lines);
-        $$ = cb;
+        $$ = codeblock_present(cb, $2);
       }
 ;
 
@@ -830,7 +898,7 @@ comp_display:    /* empty */
       }
     | "DISPLAY" comp_display_inherit_extend
       {
-        $$ = $2;
+        $$ = codeblock_present($2, NULL);
       }
     | "DISPLAY" codeblock comp_display_inherit_extend
       {
@@ -838,7 +906,7 @@ comp_display:    /* empty */
         cb  = codeblock_new();
         list_cat(cb->lines, $2->lines);
         list_cat(cb->lines, $3->lines);
-        $$ = cb;
+        $$ = codeblock_present(cb, $2);
       }
 ;
 
@@ -877,6 +945,13 @@ comp_display_inherit_extend:/* empty */
 /* INSTRUMENT grammar ************************************************************* */
 
 /* read instrument definition and catenate if this not the first instance */
+/* An instrument may %include another .instr inside its TRACE (see
+   `complist: complist instrument'). The included instrument's parameters
+   and code blocks are appended to the master instrument_definition, and
+   has_included_instr > 0 tells REMOVABLE components to drop out.
+   The {...} after instrpar_list is a mid-rule action: it runs before the
+   body is parsed, so the instrument name/parameters are known while
+   component actual parameters are parsed (see topatexp: TOK_ID). */
 //             $1       $2          $3     $4
 instrument:   "DEFINE" "INSTRUMENT" TOK_ID instrpar_list
 //    $5
@@ -995,7 +1070,7 @@ instr_formal:   TOK_ID TOK_ID
         } else if(!strcmp($1, "double")) {
           formal->type = instr_type_vector;
         } else {
-          print_error("ERROR: Illegal type $s* for instrument "
+          print_error("ERROR: Illegal type %s* for instrument "
           "parameter %s at line %s:%d.\n", $1, $3, instr_current_filename, instr_current_line);
           formal->type = instr_type_double;
         }
@@ -1093,7 +1168,7 @@ instr_formal:   TOK_ID TOK_ID
         } else if(!strcmp($1, "double")) {
           formal->type = instr_type_vector;
         } else {
-          print_error("ERROR: Illegal type $s* for instrument "
+          print_error("ERROR: Illegal type %s* for instrument "
           "parameter %s at line %s:%d.\n", $1, $3, instr_current_filename, instr_current_line);
           formal->type = instr_type_double;
         }
@@ -1170,6 +1245,10 @@ instr_formal:   TOK_ID TOK_ID
 ;
 
 /* INSTRUMENT TRACE grammar ******************************************************* */
+
+/* TRACE is a list of component instances, in beam order. Each accepted
+   instance is added both to the comp_instances symbol table (lookup by name,
+   for RELATIVE/PREVIOUS(n)) and to comp_instances_list (order, for cogen). */
 
 instr_trace:    "TRACE" complist
 ;
@@ -1253,6 +1332,8 @@ complist:   /* empty */
     }
 ;
 
+/* Instance name. COPY/MYSELF without a name generate "Comp_<index>";
+   COPY(name) generates "name_<index>". */
 instname: "COPY" '(' TOK_ID ')'
       {
         char str_index[64];
@@ -1277,11 +1358,21 @@ instname: "COPY" '(' TOK_ID ')'
       }
 ;
 
+/* Right-hand side of "COMPONENT name = ...": a component class with actual
+   parameters, or a COPY of an earlier instance (optionally overriding some
+   parameters; symtab_cat keeps the first entry, so $5 wins over the source).
+   read_component() may recursively parse the .comp file here, and returns
+   NULL (after printing an error) if it cannot. */
 instref: "COPY" '(' compref ')' actuallist /* make a copy of a previous instance, with def+set */
       {
         struct comp_inst *comp_src;
         struct comp_inst *comp;
         comp_src = $3;
+        if (!comp_src) {
+          print_error("ERROR: COPY of an undefined component instance at line %s:%d.\n",
+            instr_current_filename, instr_current_line);
+          YYABORT;
+        }
         palloc(comp);
         comp->def    = comp_src->def;
         /* now catenate src and actual parameters */
@@ -1301,6 +1392,11 @@ instref: "COPY" '(' compref ')' actuallist /* make a copy of a previous instance
         struct comp_inst *comp_src;
         struct comp_inst *comp;
         comp_src = $3;
+        if (!comp_src) {
+          print_error("ERROR: COPY of an undefined component instance at line %s:%d.\n",
+            instr_current_filename, instr_current_line);
+          YYABORT;
+        }
         palloc(comp);
         comp->defpar = comp_src->defpar;
         comp->setpar = comp_src->setpar;
@@ -1350,25 +1446,33 @@ cpuonly:    /* empty */
     | "CPU"
       {
         $$ = 1;
-	if (strstr(instrument_definition->dependency," -DFUNNEL ") == NULL) {
-	  strncat(instrument_definition->dependency, " -DFUNNEL ", 1024);
-	}
+	if (strstr(instrument_definition->dependency," -DFUNNEL ") == NULL)
+	  dependency_add(" -DFUNNEL ");
       }
 ;
 
+/* A full component instance:
+     [REMOVABLE] [CPU] [SPLIT [n]] COMPONENT name = class(params)
+     [WHEN cond] AT (...) ref [ROTATED (...) ref] [GROUP g] [EXTEND %{..%}]
+     [JUMP ...]* [METADATA ...]*
+   Split in two actions: the mid-rule action (after instref) names and
+   numbers the instance and checks its parameters, so that MYSELF in
+   WHEN/AT/ROTATED/JUMP expressions resolves. MYSELF inside the actual
+   parameters (instref) is parsed before that and is an error (myself_comp is
+   reset to NULL after each instance). The final action stores the placement and
+   GROUP/EXTEND/JUMP/METADATA. Positional values: $8 is the mid-rule action
+   itself, so $9 = when ... $15 = metadata. */
 component: removable cpuonly split "COMPONENT" instname '=' instref
       {
         struct comp_inst *comp;
         myself_comp = comp = $7;
 
-        // Trying to check or assign metadata before the previous line is accessing a null pointer!
         if (comp->metadata == NULL || list_undef(comp->metadata)) comp->metadata = list_create();
-        if (myself_comp->metadata == NULL || list_undef(myself_comp->metadata)) myself_comp->metadata = list_create();
 
         comp->name  = $5;
         comp->split = $3;
         comp->cpuonly = $2;
-        if (!comp->cpuonly) {
+        if (!comp->cpuonly && comp->def) { /* def is NULL if class not found */
           comp->cpuonly = comp->def->flag_noacc;
         }
         comp->removable = $1;
@@ -1391,6 +1495,7 @@ component: removable cpuonly split "COMPONENT" instname '=' instref
         comp->pos->place           = $10.place;
         comp->pos->place_rel       = $10.place_rel;
         comp->pos->orientation     = $11.orientation;
+        /* no ROTATED: orientation is taken relative to the AT reference */
         comp->pos->orientation_rel =
             $11.isdefault ? $10.place_rel : $11.orientation_rel;
 
@@ -1433,6 +1538,7 @@ component: removable cpuonly split "COMPONENT" instname '=' instref
         debugn((DEBUG_HIGH, "Component[%i]: %s = %s().\n", comp_current_index, $5, $7->def->name));
         /* this comp will be 'previous' for the next, except if removed at include */
         if (!comp->removable) previous_comp = comp;
+        myself_comp = NULL; /* MYSELF is only valid inside an instance */
         $$ = comp;
 
       }
@@ -1745,6 +1851,8 @@ jumpcondition: "WHEN" exp
     }
 ;
 
+/* JUMP target. index is relative (PREVIOUS=-1, NEXT=+1, MYSELF=0) or 0 for
+   a named target. cogen.c (detect_skipable_transforms) makes it absolute. */
 jumpname: "PREVIOUS"
     {
       $$.name  = str_dup("PREVIOUS");
@@ -1777,6 +1885,7 @@ jumpname: "PREVIOUS"
 ;
 
 
+/* SHELL "cmd": run cmd at parse time (code generation aborts if it fails). */
 shell:
     {
     }
@@ -1792,6 +1901,8 @@ shell:
       }
     }
 
+/* SEARCH "dir" / SEARCH SHELL "cmd": add component search directories,
+   either literally or one per output line of cmd. */
 search: "SEARCH" TOK_STRING
     {
       add_search_dir($2);
@@ -1809,14 +1920,14 @@ search: "SEARCH" TOK_STRING
       }
       while (fgets(svalue, sizeof(svalue), sfp) != NULL){
         // Make a copy of the char array -- We can't free this memory until the program is done, so we're going to leak it :/
-        char * path = calloc(strlen(svalue)+1, sizeof(char));
+        char * path = calloc(strlen(svalue)+2, sizeof(char)); // +1 for a PATHSEP
         strcpy(path, svalue);
         // Remove the trailing newline (and/or carriage return) which is almost-certainly present
         path[strcspn(path, "\r\n")] = 0;
+        size_t len = strlen(path);
+        if (!len) { free(path); continue; } // skip empty lines
         // Ensure the path specification *ends* in a PATHSEP character
-        char * last = strrchr(path, MC_PATHSEP_S[0]);
-        unsigned int last_sep = last - path + 1;
-        if ((last - path) < strlen(path)) strcat(path, MC_PATHSEP_S);
+        if (path[len-1] != MC_PATHSEP_C) strcat(path, MC_PATHSEP_S);
         // Add the specified path to the search list
         add_search_dir(path);
       }
@@ -1824,14 +1935,17 @@ search: "SEARCH" TOK_STRING
     }
 ;
 
+/* DEPENDENCY "flags": extra compiler flags, collected (de-duplicated) in
+   instrument_definition->dependency and printed as "CFLAGS=..." at the end
+   of the run, plus in the generated file header, for mcrun to pick up. */
 dependency:
     {
     }
   | "DEPENDENCY" TOK_STRING
     {
       if (strstr(instrument_definition->dependency,$2) == NULL) {
-	strncat(instrument_definition->dependency, " ", 1024);
-	strncat(instrument_definition->dependency, $2, 1023); // 1023 because we already appended a space
+	dependency_add(" ");
+	dependency_add($2);
       }
     }
 ;
@@ -1845,14 +1959,19 @@ noacc:
     {
       /* Comp class is CPU only */
       $$ = 1;
-      if (strstr(instrument_definition->dependency," -DFUNNEL ") == NULL) {
-	strncat(instrument_definition->dependency, " -DFUNNEL ", 1024);
-      }
+      if (strstr(instrument_definition->dependency," -DFUNNEL ") == NULL)
+	dependency_add(" -DFUNNEL ");
     }
 ;
 
 /* C expressions used to give component actual parameters **********************
-   Top-level comma (',') operator NOT allowed. */
+   Top-level comma (',') operator NOT allowed.
+   The parser does not understand C: an expression is just a sequence of
+   tokens with balanced (), [] and {}, glued back into a string (CExp).
+   The comma restriction is what lets "a=1, b=2" split into separate
+   actual parameters, while "f(x, y)" stays one expression (genexp allows
+   commas inside brackets). The empty mid-rule action records the start
+   line of the expression. */
 exp:      { $<linenum>$ = instr_current_line; } topexp
       {
         CExp e = $2;
@@ -1880,16 +1999,26 @@ topatexp:   "PREVIOUS"
         if (previous_comp) {
           $$ = exp_ctoken(previous_comp->name);
         } else {
+          $$ = exp_number("0");
           print_error("ERROR: Found invalid PREVIOUS reference at line %s:%d. Please fix (add a component instance before).\n", instr_current_filename, instr_current_line);
         }
       }
     | "MYSELF"
       {
-        $$ = exp_ctoken(myself_comp->name);
+        if (myself_comp) {
+          $$ = exp_ctoken(myself_comp->name);
+        } else {
+          $$ = exp_number("0");
+          print_error("ERROR: MYSELF can not be used here at line %s:%d. It is only available "
+            "after the component parameters (WHEN, AT, ROTATED, JUMP, ...).\n",
+            instr_current_filename, instr_current_line);
+        }
       }
 
     | TOK_ID
       {
+        /* Identifiers are tagged as instrument parameter (exp_id) or anything
+           else (exp_extern_id), so cogen can tell the two apart. */
         List_handle liter=NULL;
         struct instr_formal *formal;
         /* Check if this is an instrument parameter or not. */
@@ -2019,6 +2148,8 @@ genatexp:   topatexp
 
 
 /* C code blocks ************************************************************ */
+/* %{ ... %}: the lexer sends each line verbatim (TOK_CODE_LINE); they are
+   collected unchanged, with the file name and %{ line for diagnostics. */
 codeblock:    TOK_CODE_START code TOK_CODE_END
       {
         $2->filename = instr_current_filename;
@@ -2044,32 +2175,6 @@ code:     /* empty */
 
 /* end of grammar *********************************************************** */
 
-
-static Pool parser_pool = NULL; /* Pool of parser allocations. */
-
-static int mc_yyparse(void)
-{
-  int ret;
-  Pool oldpool;
-  oldpool = parser_pool;
-  parser_pool = pool_create();
-  ret = yyparse();
-  pool_free(parser_pool);
-  parser_pool = oldpool;
-  return ret;
-}
-
-// Separate identical parser to make debugging a bit easier
-static int mc_yyparse_component(void){
-  int ret;
-  Pool old;
-  old = parser_pool;
-  parser_pool = pool_create();
-  ret = yyparse();
-  pool_free(parser_pool);
-  parser_pool = old;
-  return ret;
-}
 
 /* Name of the file currently being parsed. */
 char *instr_current_filename = NULL;
@@ -2128,6 +2233,31 @@ Symtab read_components = NULL;
 
 /* name of executable, e.g. mcstas or mcxtrace */
 char *executable_name=NULL;
+
+/* Mark a component code section as written (present), even when empty.
+   Its line number comes from the section's own %{ block when there is one,
+   else from the current line. Absent sections keep linenum -1. */
+static struct code_block *
+codeblock_present(struct code_block *cb, struct code_block *own)
+{
+  if (own) {
+    cb->linenum         = own->linenum;
+    cb->filename        = own->filename;
+    cb->quoted_filename = own->quoted_filename;
+  }
+  if (cb->linenum <= 0)
+    cb->linenum = instr_current_line > 0 ? instr_current_line : 1;
+  return cb;
+}
+
+/* Append s to the instrument CFLAGS without overflowing the fixed buffer. */
+static void
+dependency_add(char *s)
+{
+  char  *d = instrument_definition->dependency;
+  size_t n = strlen(d);
+  snprintf(d + n, sizeof(instrument_definition->dependency) - n, "%s", s);
+}
 
 /* Print a summary of the command usage. */
 static void
@@ -2249,7 +2379,6 @@ parse_command_line(int argc, char *argv[])
   instrument_definition->include_runtime = 1;
   instrument_definition->enable_trace    = 1;
   instrument_definition->portable        = 0;
-  strcmp(instrument_definition->dependency, "-lm");
   executable_name                        = argv[0];
   for(i = 1; i < argc; i++)
   {
@@ -2381,7 +2510,7 @@ main(int argc, char *argv[])
   lex_new_file(file);
   read_components = symtab_create(); /* Create table of components. */
   lib_instances   = symtab_create(); /* Create table of libraries. */
-  err = mc_yyparse();
+  err = yyparse();
   fclose(file);
   if (err != 0 && !error_encountered) error_encountered++;
   if(error_encountered != 0)
@@ -2640,9 +2769,11 @@ comp_formals_actuals(struct comp_inst *comp, Symtab actuals)
 * This is the main entry point for reading a component. When a component
 * definition is needed, this function is called with the name of the
 * component. A map of previously read components is maintained. If a
-* component definition (struct comp)def) is found, it is returned. Otherwise
+* component definition (struct comp_def) is found, it is returned. Otherwise
 * an attempt is made to read the component definition from a file with the
-* same name as the component with added file extension ".com".
+* same name as the component with added file extension ".comp".
+* Reading is a nested yyparse() on the .comp file (see push_autoload in
+* instrument.l), called from inside a grammar action of the outer parse.
 * If for some reasons the component cannot be read, NULL is returned; else a
 * pointer to a struct comp_def is returned. Since components definitions can
 * be used multiple times, the returned structure is shared and should not be
@@ -2679,7 +2810,7 @@ read_component(char *name)
        must not be freed. */
     instr_current_filename = component_pathname;
     instr_current_line = 1;
-    err = mc_yyparse_component();   /* Read definition from file. */
+    err = yyparse();   /* Read definition from file. */
     if(err != 0)
       fatal_error("Errors encountered during autoload of component %s. The component definition has syntax errors.\n",
         name);

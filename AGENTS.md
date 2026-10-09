@@ -109,6 +109,11 @@ MSVC does not implement C99 `_Complex` arithmetic. Use the McCode complex wrappe
   typed variants.
 - Bundled libraries that take complex pointers (e.g. eigen-solver helpers) need the
   same treatment.
+- Do not use `I` as an identifier (variable, parameter, macro). The system header
+  `<complex.h>` (also included by `<tgmath.h>`, e.g. in the SasView components)
+  defines `I` as a macro for the imaginary unit, so such code breaks when an
+  instrument combines it with those components. This clash with a system header
+  can not be avoided by McCode in general.
 
 ### Fortran
 - Windows has a ~1 MB default stack: avoid large runtime-sized automatic arrays —
