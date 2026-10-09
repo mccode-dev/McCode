@@ -8419,14 +8419,15 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
     for (int i = 0; i < Volume->p_physics->number_of_processes; i++) {
       struct scattering_process_struct* process_i = &Volume->p_physics->p_scattering_array[i];
-      if (process_i->sampling_points != -1)
+      if (process_i->sampling_points == -1){
         for (int j = 0; j < physics->sampling_points; j++) {
           physics->total_mus[j] += physics->mus[i][0];
         }
-      else
+      } else {
         for (int j = 0; j < physics->sampling_points; j++) {
           physics->total_mus[j] += physics->mus[i][j];
         }
+      }
     }
     double mu_abs_at_speed = Volume->p_physics->my_a * (2200 / v_length);
     for (int j = 0; j < physics->sampling_points; j++) {
