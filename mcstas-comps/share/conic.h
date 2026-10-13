@@ -1321,8 +1321,8 @@ MAKE SURE p IS ON SURFACE
 Vec getNormConic(Point p, ConicSurf s) {
     double det = s.k2*s.k2+4*s.k3*(p.x*p.x+p.y*p.y-s.k1);
     if (det <= 0.){
-
-        return makeVec(-p.x/sqrt(p.x*p.x + p.y*p.y),-p.y/(p.x*p.x + p.y*p.y),0);
+        double r = sqrt(p.x*p.x + p.y*p.y);
+        return makeVec(-p.x/r,-p.y/r,0);
     }
     double den = sqrt(det);
     double nx = -2*p.x/den;
