@@ -1646,11 +1646,7 @@ double reflectNeutronFlat(_class_particle* _particle, FlatSurf s) {
     double par[5] = {s.R0, s.Qc, s.alpha, s.m, s.W};
     StdReflecFunc(q, par, &ref);
 
-    if (ref < 0) {
-        printf("this happens?");
-        absorb_class_particle(_particle);
-        return -1;
-    } else {//here we need to implement the refraction
+    {//here we need to implement the refraction
         if (rand01() <= ref){//to be updated to use the mcstas random function or quasoi deterministic model
             //printf("oh a reflections\n");
             //printf("this total reflection?");
