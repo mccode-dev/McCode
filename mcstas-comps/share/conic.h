@@ -1518,7 +1518,7 @@ double calcSupermirrorReflectivity(double q, double m, double R_0, double Q_c){
 
 /*! \brief Function to handle reflection of neutron for a ConicSurf.
 
-@note Uses step function for reflectivity
+@note Uses StdReflecFunc for reflectivity, applied as a weight factor
 
 @warning Make sure particle has been moved to surface of mirror
 before computing reflection
@@ -1558,21 +1558,18 @@ double reflectNeutronConic(_class_particle* _particle, ConicSurf s) {
     }
 
     double ga = fabs(acos(vn/v)) - M_PI/2;
-    double gc = 6.84459399932*s.m/v;
     double ref=1.0;
-    if (ga > gc) {
+    double q = V2Q*(-2)*vn;
+    double par[5] = {s.R0, s.Qc, s.alpha, s.m, s.W};
+    StdReflecFunc(q, par, &ref);
+    if (ref <= 0) {
         absorb_class_particle(_particle);
         return -1;
     }
-    else {
-        _particle->vx = _particle->vx-2*vn*n.x;
-        _particle->vy = _particle->vy-2*vn*n.y; 
-        _particle->vz = _particle->vz-2*vn*n.z; 
-        double q = V2Q*(-2)*vn;
-        double par[5] = {s.R0, s.Qc, s.alpha, s.m, s.W};
-        StdReflecFunc(q, par, &ref);
-	_particle->p = _particle->p * ref;
-	}
+    _particle->vx = _particle->vx-2*vn*n.x;
+    _particle->vy = _particle->vy-2*vn*n.y; 
+    _particle->vz = _particle->vz-2*vn*n.z; 
+    _particle->p = _particle->p * ref;
     return ga;
 }
 
@@ -1621,7 +1618,7 @@ void refractNeutronFlat(_class_particle* p, Vec n, double m1, double m2) {
 
 /*! \brief Function to handle reflection of neutron for a FlatSurf.
 
-@note Uses step function for reflectivity
+@note Uses StdReflecFunc for reflectivity, applied as the probability for reflection
 
 @warning Make sure particle has been moved to surface of mirror
 before computing reflection
@@ -1643,7 +1640,6 @@ double reflectNeutronFlat(_class_particle* _particle, FlatSurf s) {
     //Hitting shell from outside For FlatSurface this has to be checked
     // make it able to reflect from the outside
     double ga = fabs(acos(vn/v)) - M_PI/2;
-    double gc = 6.84459399932*s.m/v;
     double ref=1.0;
 
     double q = V2Q*(-2)*vn;
