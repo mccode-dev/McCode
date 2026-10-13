@@ -177,6 +177,14 @@ int main() {
 #endif
 
 //! Max number of ConicSurf allowed in a Scene
+/* Default RMS figure (slope) errors of ConicSurf mirrors, see reflectNeutronConic() */
+#ifndef CONIC_SIGMA_M
+#define CONIC_SIGMA_M 1e-6
+#endif
+#ifndef CONIC_SIGMA_S
+#define CONIC_SIGMA_S 250e-6
+#endif
+
 #ifndef MAX_CONICSURF
 #define MAX_CONICSURF 100
 #endif
@@ -544,6 +552,8 @@ typedef struct {
     double R0; //!< R0 reflectivity for mirror (0.99 for Nickel substrate)
     double alpha; //!< alpha, slope of reflectivity (6.07 AA for m=2 mirror)
     double W;     //!< Width of supermirror cut-off, 0.003 AA-1 for m=2 mirror
+    double figerr_m; //!< RMS meridional slope error [rad] (figure error), default CONIC_SIGMA_M
+    double figerr_s; //!< RMS sagittal slope error [rad] (figure error), default CONIC_SIGMA_S
   
     //Only for reference
     double f1; //!< z-axis position of first focus
@@ -945,6 +955,8 @@ ConicSurf makeHyperboloid(double f1, double f2, Point p,
     s.Qc = Qc;
     s.alpha = alpha;
     s.W = W;
+    s.figerr_m = CONIC_SIGMA_M;
+    s.figerr_s = CONIC_SIGMA_S;
     s.f1 = f1;
     s.f2 = f2;
     s.a = a;
@@ -992,6 +1004,8 @@ ConicSurf makeEllipsoid(double f1, double f2, Point p,
     s.Qc = Qc;
     s.alpha = alpha;
     s.W = W;
+    s.figerr_m = CONIC_SIGMA_M;
+    s.figerr_s = CONIC_SIGMA_S;
     s.f1 = f1;
     s.f2 = f2;
     s.a = a;
@@ -1091,6 +1105,8 @@ ConicSurf makeParaboloid(double f, Point p, double zstart,
     s.Qc = Qc;
     s.alpha = alpha;
     s.W = W;
+    s.figerr_m = CONIC_SIGMA_M;
+    s.figerr_s = CONIC_SIGMA_S;
     s.f1 = f;
     s.a = a;
 
@@ -1517,44 +1533,20 @@ before computing reflection
 double reflectNeutronConic(_class_particle* _particle, ConicSurf s) {
     Vec n = getNormConic(get_class_particlePos(*_particle),s);
     Vec pv = get_class_particleVel(*_particle);
-	
-	int disp = 0;
-	if (disp>0) {
-	printf("\n n = %f, %f, %f",n.x,n.y,n.z);
-	printf("\n pv = %f, %f, %f",pv.x,pv.y,pv.z);
-	}
-	//add figure error by D. Liu
-	Vec n_p = makeVec(-n.y/sqrt(n.x*n.x+n.y*n.y),n.x/sqrt(n.x*n.x+n.y*n.y),0); //define a vector perpendicular to norm
-	//Vec n_p = makeVec(0,-n.z/sqrt(n.z*n.z+n.y*n.y),n.y/sqrt(n.z*n.z+n.y*n.y)); //define a vector perpendicular to norm
-	//Vec n_p = makeVec(-n.z/sqrt(n.z*n.z+n.x*n.x),0,n.x/sqrt(n.z*n.z+n.x*n.x)); //define a vector perpendicular to norm
-	if (disp>0) {
-	printf("\n n_p %f, %f, %f", n_p.x, n_p.y, n_p.z);
-	}
-	double len_p2 = sqrt((n.x*n.x+n.y*n.y)*(n.x*n.x+n.y*n.y+n.z*n.z));
-	Vec n_p2 = makeVec(-n.x*n.z/len_p2, -n.y*n.z/len_p2, (n.x*n.x+n.y*n.y)/len_p2); //define a vector perpendicular to both n and n_p
-	
-	//double phi, theta = rand01()*2*M_PI;
-	double phi1, theta1, sigma1;
-	//sigma = 37.7e-6;
-	sigma1 = 1e-6; // sigma1 is half-sigma (unit in rad): sigma1=5e-6 means the FWHM is 23.6 urad
-	phi1 = sigma1*randnorm();//randgaussian(0.0,sigma1);
-	theta1 = 250*sigma1*randnorm();//randgaussian(0.0,sigma1);
-	if (disp>0) {
-	printf("\n phi and theta %f, %f", phi1, theta1);
-	}
-	
-	Vec R1 = rotateM(n,phi1,n_p);	//rotate n by phi according to n_p
-	if (disp>0) {
-	printf("\n R1 %f, %f, %f", R1.x, R1.y, R1.z);
-	}
-	Vec R2 = rotateM(R1,theta1,n_p2);	//rotate R1 by theta according to n_p2
-	//Vec R2 = rotateM(R1,theta1,n);	//rotate R1 by theta according to n_p2
-	n = R2;
-	//
-	//n.y = n.y+theta1;
-	//n.z = n.z;
-	
-	// end of adding figure error
+
+    //add figure error by D. Liu: Gaussian slope errors with RMS s.figerr_m (meridional)
+    //and s.figerr_s (sagittal), i.e. reflected rays deviate by twice these values
+    double nr = sqrt(n.x*n.x+n.y*n.y);
+    if ((s.figerr_m > 0 || s.figerr_s > 0) && nr > 0) {
+        Vec n_p = makeVec(-n.y/nr,n.x/nr,0); //define a vector perpendicular to norm
+        double len_p2 = sqrt((n.x*n.x+n.y*n.y)*(n.x*n.x+n.y*n.y+n.z*n.z));
+        Vec n_p2 = makeVec(-n.x*n.z/len_p2, -n.y*n.z/len_p2, (n.x*n.x+n.y*n.y)/len_p2); //define a vector perpendicular to both n and n_p
+        double phi1 = s.figerr_m*randnorm();
+        double theta1 = s.figerr_s*randnorm();
+        Vec R1 = rotateM(n,phi1,n_p);	//rotate n by phi according to n_p
+        n = rotateM(R1,theta1,n_p2);	//rotate R1 by theta according to n_p2
+    }
+    // end of adding figure error
 
     double v = getMagVec(pv);
     double vn = dotVec(pv,n);
@@ -1580,9 +1572,6 @@ double reflectNeutronConic(_class_particle* _particle, ConicSurf s) {
         double par[5] = {s.R0, s.Qc, s.alpha, s.m, s.W};
         StdReflecFunc(q, par, &ref);
 	_particle->p = _particle->p * ref;
-    if (disp>0) {
-		printf("\n pv final = %f, %f, %f",pv.x,pv.y,pv.z);
-	}
 	}
     return ga;
 }

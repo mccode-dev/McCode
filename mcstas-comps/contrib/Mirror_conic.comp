@@ -29,9 +29,9 @@
 *          unaffected. Compare with Mirror(transmit=1).
 * conic=1: the mirror is a conic.h ConicSurf cylinder of (very large) radius 1 km,
 *          handled by reflectNeutronConic(), which always reflects and weights by R.
-*          Compare with Mirror(transmit=0). Note that reflectNeutronConic() absorbs
-*          neutrons beyond m times the critical angle of Ni (hard cut-off) and
-*          applies a small hard-coded figure error to the surface normal.
+*          Compare with Mirror(transmit=0). A Gaussian figure (slope) error can be
+*          applied via sigma_m and sigma_s; the default is 0 here, whereas the
+*          Conics_* components default to the conic.h values of 1 and 250 urad.
 *
 * Example: Mirror_conic(length=1, yheight=0.1, m=2)
 *
@@ -44,13 +44,15 @@
 * m: [1]           m-value of material
 * W: [AA^-1]       Width of supermirror cut-off
 * conic: [1]       0: use FlatSurf/reflectNeutronFlat(), 1: use ConicSurf/reflectNeutronConic()
+* sigma_m: [rad]   RMS meridional slope (figure) error, conic=1 only
+* sigma_s: [rad]   RMS sagittal slope (figure) error, conic=1 only
 *
 * %E
 *******************************************************************************/
 
 DEFINE COMPONENT Mirror_conic
 
-SETTING PARAMETERS (length=1, yheight=0.1, R0=0.99, Qc=0.021, alpha=6.07, m=2, W=0.003, int conic=0)
+SETTING PARAMETERS (length=1, yheight=0.1, R0=0.99, Qc=0.021, alpha=6.07, m=2, W=0.003, int conic=0, sigma_m=0, sigma_s=0)
 
 SHARE
 %{
@@ -78,6 +80,8 @@ SHARE
     c->alpha = par[2];
     c->m = par[3];
     c->W = par[4];
+    c->figerr_m = par[5];
+    c->figerr_s = par[6];
     c->type = PARA;
   }
 %}
@@ -95,7 +99,7 @@ INITIALIZE
      coordinates; the local mirror plane x=0 is mapped to x=xshift. */
   xshift = 1e3;
 
-  double par[5] = { R0, Qc, alpha, m, W };
+  double par[7] = { R0, Qc, alpha, m, W, sigma_m, sigma_s };
   mirror_conic_init (&fs, &cs, xshift, length, yheight, par);
 %}
 

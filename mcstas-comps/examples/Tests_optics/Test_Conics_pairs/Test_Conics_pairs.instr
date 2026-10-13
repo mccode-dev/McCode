@@ -38,13 +38,15 @@
 * rmin: [m] Radius of the innermost shell
 * rmax: [m] Radius of the outermost shell
 * quadratic: [ ] Use the quadratic shell-radius mode instead of the radii vector
+* sigma_m: [rad] RMS meridional slope (figure) error of the mirrors
+* sigma_s: [rad] RMS sagittal slope (figure) error of the mirrors
 *
 * %L
 * <reference/HTML link>
 *
 * %E
 *******************************************************************************/
-DEFINE INSTRUMENT Test_Conics_pairs(int OPTIC=1, ssize=1e-6, fs=10, fi=10, R0=0.99, m=3, W=0.003, alpha=6.07, int nshells=4, rmin=0.0031416, rmax=0.05236, int quadratic=0)
+DEFINE INSTRUMENT Test_Conics_pairs(int OPTIC=1, ssize=1e-6, fs=10, fi=10, R0=0.99, m=3, W=0.003, alpha=6.07, int nshells=4, rmin=0.0031416, rmax=0.05236, int quadratic=0, sigma_m=1e-6, sigma_s=250e-6)
 
 DECLARE
 %{
@@ -102,7 +104,7 @@ COMPONENT psd_o0 = PSD_monitor(xwidth=0.12, yheight=0.12, restore_neutron=1,
 	filename="psd_o0")
 AT(0,0,fs) RELATIVE PREVIOUS
 
-COMPONENT cEH = Conics_EH(R0=R0,alpha=alpha,W=W,m=m,
+COMPONENT cEH = Conics_EH(R0=R0,alpha=alpha,W=W,m=m, sigma_m=sigma_m, sigma_s=sigma_s,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, radii=radii, le=0.25, lh=0.25, disk=1
 )
 WHEN(OPTIC==1 && !quadratic) AT(0,0,fs) RELATIVE ss
@@ -111,7 +113,7 @@ EXTEND
   number_of_reflections = SCATTERED - 1;
 %}
 
-COMPONENT cEH_quadratic = Conics_EH(R0=R0,alpha=alpha,W=W,m=m,
+COMPONENT cEH_quadratic = Conics_EH(R0=R0,alpha=alpha,W=W,m=m, sigma_m=sigma_m, sigma_s=sigma_s,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, rmin=rmin, rmax=rmax, le=0.25, lh=0.25, disk=1
 )
 WHEN(OPTIC==1 && quadratic) AT(0,0,fs) RELATIVE ss
@@ -120,7 +122,7 @@ EXTEND
   number_of_reflections = SCATTERED - 1;
 %}
 
-COMPONENT cPH = Conics_PH(R0=R0,alpha=alpha,W=W,m=m,
+COMPONENT cPH = Conics_PH(R0=R0,alpha=alpha,W=W,m=m, sigma_m=sigma_m, sigma_s=sigma_s,
     nshells=nshells, focal_length=fi, radii=radii, lp=0.25, lh=0.25, disk=0
 )
 WHEN(OPTIC==2 && !quadratic) AT(0,0,fs) RELATIVE ss
@@ -129,7 +131,7 @@ EXTEND
   number_of_reflections = SCATTERED - 1;
 %}
 
-COMPONENT cPH_quadratic = Conics_PH(R0=R0,alpha=alpha,W=W,m=m,
+COMPONENT cPH_quadratic = Conics_PH(R0=R0,alpha=alpha,W=W,m=m, sigma_m=sigma_m, sigma_s=sigma_s,
     nshells=nshells, focal_length=fi, rmin=rmin, rmax=rmax, lp=0.25, lh=0.25, disk=0
 )
 WHEN(OPTIC==2 && quadratic) AT(0,0,fs) RELATIVE ss
@@ -138,7 +140,7 @@ EXTEND
   number_of_reflections = SCATTERED - 1;
 %}
 
-COMPONENT cHE = Conics_HE(R0=R0,alpha=alpha,W=W,m=m,
+COMPONENT cHE = Conics_HE(R0=R0,alpha=alpha,W=W,m=m, sigma_m=sigma_m, sigma_s=sigma_s,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, radii=radii, le=0.25, lh=0.25, disk=1
 )
 WHEN(OPTIC==3 && !quadratic) AT(0,0,fs) RELATIVE ss
@@ -147,7 +149,7 @@ EXTEND
   number_of_reflections = SCATTERED - 1;
 %}
 
-COMPONENT cHE_quadratic = Conics_HE(R0=R0,alpha=alpha,W=W,m=m,
+COMPONENT cHE_quadratic = Conics_HE(R0=R0,alpha=alpha,W=W,m=m, sigma_m=sigma_m, sigma_s=sigma_s,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, rmin=rmin, rmax=rmax, le=0.25, lh=0.25, disk=1
 )
 WHEN(OPTIC==3 && quadratic) AT(0,0,fs) RELATIVE ss
@@ -156,7 +158,7 @@ EXTEND
   number_of_reflections = SCATTERED - 1;
 %}
 
-COMPONENT cPP = Conics_PP(R0=R0,alpha=alpha,W=W,m=m,
+COMPONENT cPP = Conics_PP(R0=R0,alpha=alpha,W=W,m=m, sigma_m=sigma_m, sigma_s=sigma_s,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, radii=radii, lp1=0.25, lp2=0.25, disk=0
 )
 WHEN(OPTIC==4 && !quadratic) AT(0,0,fs) RELATIVE ss
@@ -165,7 +167,7 @@ EXTEND
   number_of_reflections = SCATTERED - 1;
 %}
 
-COMPONENT cPP_quadratic = Conics_PP(R0=R0,alpha=alpha,W=W,m=m,
+COMPONENT cPP_quadratic = Conics_PP(R0=R0,alpha=alpha,W=W,m=m, sigma_m=sigma_m, sigma_s=sigma_s,
     nshells=nshells, focal_length_u=fs, focal_length_d=fi, rmin=rmin, rmax=rmax, lp1=0.25, lp2=0.25, disk=0
 )
 WHEN(OPTIC==4 && quadratic) AT(0,0,fs) RELATIVE ss
