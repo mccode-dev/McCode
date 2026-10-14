@@ -1,0 +1,473 @@
+/*******************************************************************************
+* Instrument: SOLEIL_GALAXIES_RIXS
+*
+* %Identification
+* Written by: E. Farhi (Vibe model), from SOLEIL technical notes by T. Moreno
+* Date: 2026
+* Origin: Synchrotron SOLEIL
+* Version: 0.1
+* %INSTRUMENT_SITE: SOLEIL
+*
+* The GALAXIES beam-line at Synchrotron SOLEIL - RIXS branch.
+*
+* %Description
+* GALAXIES is dedicated to inelastic X-ray scattering (IXS/RIXS) and hard
+* X-ray photoemission (HAXPES), in the 2.3-12 keV range, with high resolution
+* and micro-beam. This model implements the RIXS station (35.5 m diffractometer
+* with a 1-2 m radius IXS spectrometer, multi-analyzer 4x1 or 2x2 setup).
+* The HAXPES branch ends at the secondary slits (28.2 m).
+*
+* Optical layout (distances from the undulator center, EXP-OPT-CDC-1029):
+*
+* Position | Element
+* ---------|--------------------------------------------------------------------
+* 0        | U20 undulator, 98 periods, lambda_u=20 mm, short section
+* 10       | Absorber 2.5 x 2.5 mm^2
+* 11.7     | Diaphragm 1.8 x 0.6 mm^2 (H x V): beamline acceptance
+* 17       | Primary slits 2.0 x 0.7 mm^2 (H x V)
+* 19       | Si(111) DCM, fixed exit, crystals 10x50 mm^2 (T x L)
+* 22       | M1 spherical mirror R=8.81 km, 5 mrad, face up, 200 mm, B4C/Pd
+* 23.5     | 2 channel-cuts (anti-symmetric) Si311 (1st order) / Si220 (2nd order)
+* 24.89    | M2A toroid (microfocus): focus at secondary slits 28.2 m [HAXPES]
+* 28.2     | Secondary slits 30x30 um^2 min (M2A focal plane, HAXPES sample)
+* 32.20    | M2B toroid (intermediate focus): focus at RIXS sample 35.5 m
+* 34.1     | VFM elliptical KB mirror, p=5.9 m, q=1.4 m, 320 mm, Pd
+* 34.5     | HFM elliptical KB mirror, p=6.3 m, q=1.0 m, 320 mm, Pd
+* 35.5     | RIXS sample / diffractometer
+* +R       | IXS spectrometer: spherical Si analyzers (Rowland R=0.5-2 m)
+*
+* Toroid radii and M2 positions are the post-metrology (SESO measured) values
+* from EXP-OPT-CDC-1936: Rt=1.335 km, Rs=30.47 mm, M2A at 24.89 m and M2B at
+* 32.20 m, grazing angle 4.95 mrad, so that the foci stay at 28.2 m (HAXPES)
+* and 35.5 m (RIXS).
+*
+* The electron beam in the short section (EXP-OPT-CDC-0771):
+*   sigma_x=388 um, sigma_z=8.1 um, sigma'_x=14.5 urad, sigma'_z=4.6 urad.
+*
+* Expected performance (ray tracing, EXP-OPT-CDC-1029):
+*   - M2B focus:  75 x 35 um^2 FWHM (H x V), ~6e13 ph/s @ 8 keV
+*   - KB focus:   14 x  9 um^2 FWHM (open sec. slits), 5x7 um^2 (30x30 um^2 slits)
+*
+* Example: E0=10 focus_mode=1 Detector: IXS_det_I=...
+* Example: E0=10 focus_mode=0
+*
+* %Parameters
+* E0:          [keV]  Nominal energy (2.3 - 12).
+* dE:          [keV]  Energy half-bandwidth at the source.
+* focus_mode:  [1]    1 = microfocus (M2A + KB, default); 0 = M2B focus.
+* hrm:         [1]    1 = insert the high resolution channel-cuts.
+* hrm_ref:     [str]  "Si311" (1st order, >=5 keV) or "Si220" (2nd order, >=8 keV).
+* sec_slits:   [m]    Secondary slits opening (H and V) at the M2A focus (28.2 m).
+* ana_R:       [m]    Analyzer Rowland radius (0.5 - 2 m).
+* ana_deg:     [deg]  Spectrometer scattering angle (2-theta at the sample).
+* n_ana:       [1]    Number of analyzers to place along the spectrometer.
+* sample_coating: [str] Sample LAU/CIF structure file for the RIXS sample.
+*
+* %Link
+* https://www.synchrotron-soleil.fr/en/beamlines/galaxies
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT SOLEIL_GALAXIES_RIXS(
+  E0=10, dE=0.1,
+  int focus_mode=1,
+  hrm=0, string hrm_ref="Si311",
+  sec_slits=0.1,
+  ana_R=1.0, ana_deg=10, n_ana=1,
+  string sample_coating="Si.lau")
+
+DECLARE
+%{
+  // Source: U20, 98 periods, short section (EXP-OPT-CDC-0771)
+  double lu = 20e-3;      // [m] undulator period
+  int    Nper = 98;       // number of periods
+  double K = 1.575;       // undulator deflection parameter (tune with E0)
+  double sigex  = 388e-6; // [m] e-beam H size   (short section)
+  double sigey  = 8.1e-6; // [m] e-beam V size
+  double sigepx = 14.5e-6; // [rad] e-beam H divergence
+  double sigepy = 4.61e-6; // [rad] e-beam V divergence
+
+  // Front end / slits
+  double DistanceToAbsorber    = 10.0;
+  double AbsorberWidth = 2.5e-3, AbsorberHeight = 2.5e-3;
+  double DistanceToDiaphragm    = 11.7;
+  double DiaphragmWidth = 1.8e-3, DiaphragmHeight = 0.6e-3;
+  double DistanceToPrimarySlit  = 17.0;
+  double PrimarySlitWidth = 2.0e-3, PrimarySlitHeight = 0.7e-3;
+
+  // DCM Si(111) at 19 m
+  double DistanceToDCM = 19.0;
+  double DcmGap = 0.01;   // vertical offset between the 2 crystals [m]
+  double dcm_theta;        // computed in INITIALIZE
+
+  // M1 spherical mirror at 22 m
+  double DistanceToM1 = 22.0;
+  double M1_angle = 5.0;   // [mrad] grazing angle
+  double M1_R = -8810.0;   // [m] spherical radius (collimating, face up)
+  double M1_length = 0.200, M1_width = 0.02;
+
+  // Channel-cuts (HRM) at 23.5 m
+  double DistanceToHRM = 23.5;
+
+  // Toroids M2A/M2B: post-metrology values (EXP-OPT-CDC-1936)
+  double M2_Rt = 1335.0;   // [m] tangential radius (SESO measured)
+  double M2_Rs = 0.03047;  // [m] sagittal radius  (SESO measured)
+  double M2_angle = 4.95;  // [mrad] grazing angle after metrology
+  double DistanceToM2A = 24.89; // focus at 28.2 m (HAXPES/secondary slits)
+  double DistanceToM2B = 32.20; // focus at 35.5 m (RIXS)
+  double M2_length = 0.220, M2_width = 0.02;
+
+  // Secondary slits at the M2A focal plane
+  double DistanceToSecSlits = 28.2;
+
+  // KB pair
+  double DistanceToVFM = 34.1, DistanceToHFM = 34.5;
+  double KB_angle = 5.0;   // [mrad]
+  double VFM_p = 5.9, VFM_q = 1.4; // from secondary slits / to sample
+  double HFM_p = 6.3, HFM_q = 1.0;
+  double KB_length = 0.320, KB_width = 0.02;
+  double vfm_radius, hfm_radius; // computed in INITIALIZE (spherical approx)
+
+  // Sample / spectrometer
+  double DistanceToSample = 35.5;
+  int focus_mode1=0;
+%}
+
+USERVARS
+%{
+  int flag_scatt;
+%}
+
+INITIALIZE
+%{
+  // --- DCM Si(111) Bragg angle from E0
+  double DM = 5.4909;      // Si d-spacing
+  double d111 = DM/sqrt(3);
+  double sin_theta = 2*PI/E2K/E0 / 2 / d111;
+  if (fabs(sin_theta) >= 1)
+    exit(fprintf(stderr, "%s: ERROR: DCM Si(111) can not reflect E0=%g keV. Aborting.\n", NAME_INSTRUMENT, E0));
+  dcm_theta = asin(sin_theta)*RAD2DEG;
+
+  // --- KB mirrors: spherical approximation of the ellipse, R = 2 p q / (p+q)
+  vfm_radius = 2*VFM_p*VFM_q/(VFM_p+VFM_q);
+  hfm_radius = 2*HFM_p*HFM_q/(HFM_p+HFM_q);
+
+  if (fabs(dE/E0) > 0.1) dE = 0.1*E0;
+  MPI_MASTER(
+    printf("%s: E0=%g [keV] DCM Si(111) theta=%g [deg]\n", NAME_INSTRUMENT, E0, dcm_theta);
+    printf("%s: focus_mode=%d hrm=%d (%s) ana_R=%g m 2theta=%g deg\n",
+      NAME_INSTRUMENT, focus_mode, hrm, hrm_ref, ana_R, ana_deg);
+  );
+  focus_mode1 = focus_mode;
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+// the photon source ------------------------------------------------------------
+// U20 undulator, 98 periods, short section. Full undulator ray tracing.
+// K should be tuned with E0 (EXP-OPT-CDC-1029 tab.2: K=1.517 @5 keV 3rd
+// harmonic, K=1.575 @8 keV 5th, K=1.478 @12 keV 7th).
+COMPONENT Source_U20 = Undulator(
+    E0 = E0, dE = dE,
+    Ee = 2.75, Ie = 0.5,
+    K = K, Nper = Nper, lu = lu,
+    sigex = sigex, sigey = sigey,
+    sigepx = sigepx, sigepy = sigepy,
+    dist = DistanceToPrimarySlit)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT mon_src_xy = Monitor_nD(
+  options="x y", xwidth=5e-3, yheight=2e-3, bins=128,
+  filename="mon_src_xy", restore_xray=1)
+AT (0, 0, DistanceToPrimarySlit-0.1) RELATIVE Source_U20
+
+COMPONENT mon_src_e = Monitor_nD(
+  options="energy", xwidth=5e-3, yheight=2e-3, bins=256,
+  min=E0-dE*1.2, max=E0+dE*1.2, filename="mon_src_e", restore_xray=1)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+// front end --------------------------------------------------------------------
+// Absorber 2.5 x 2.5 mm^2 at 10 m
+COMPONENT absorber = Slit(xwidth=AbsorberWidth, yheight=AbsorberHeight)
+AT (0, 0, DistanceToAbsorber) RELATIVE Source_U20
+
+// Diaphragm 1.8 x 0.6 mm^2 at 11.7 m: defines the beamline acceptance
+COMPONENT diaphragme = Slit(xwidth=DiaphragmWidth, yheight=DiaphragmHeight)
+AT (0, 0, DistanceToDiaphragm) RELATIVE Source_U20
+
+// Primary slits 2.0 x 0.7 mm^2 at 17 m
+COMPONENT fentes_primaires = Slit(xwidth=PrimarySlitWidth, yheight=PrimarySlitHeight)
+AT (0, 0, DistanceToPrimarySlit) RELATIVE Source_U20
+
+COMPONENT mon_prim_xy = COPY(mon_src_xy)(filename="mon_prim_xy")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+// The double crystal monochromator (Si111, fixed exit) --------------------------
+COMPONENT DCM_location = Arm()
+AT (0, 0, DistanceToDCM) RELATIVE Source_U20
+
+COMPONENT dcm_xtal0 = Bragg_crystal(
+    length=0.05, width=0.01,
+    h=1, k=1, l=1, material="Si.txt", V=160.1826, crystal_type=2)
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-dcm_theta, 0, 0) RELATIVE PREVIOUS
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT dcm0 = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-dcm_theta, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT dcm_xtal1 = COPY(dcm_xtal0)
+AT (0, DcmGap, dcm_theta ? DcmGap/tan(dcm_theta*DEG2RAD) : 0) RELATIVE dcm_xtal0
+ROTATED (dcm_theta, 0, 0) RELATIVE dcm0
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT dcm1 = Arm()
+AT (0, 0, 0) RELATIVE dcm_xtal1
+ROTATED (dcm_theta, 0, 0) RELATIVE dcm_xtal1
+
+COMPONENT mon_dcm_e = COPY(mon_src_e)(filename="mon_dcm_e")
+AT (0, 0, 0.2) RELATIVE PREVIOUS
+
+COMPONENT mon_dcm_xy = COPY(mon_src_xy)(filename="mon_dcm_xy")
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+// M1 spherical mirror at 22 m --------------------------------------------------
+// 5 mrad, face up, Si/B4C/Pd stripes (harmonic rejection + vertical collimation
+// for the channel-cuts). Use the Si stripe below 5 keV, Pd above.
+COMPONENT M1_location = Arm()
+AT (0, 0, DistanceToM1-DistanceToDCM) RELATIVE dcm1
+
+COMPONENT M1_rotated = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-M1_angle*RAD2DEG/1000, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT M1 = Mirror_curved( // vertical deflection (YZ plane)
+    length=M1_length, width=M1_width,
+    coating="Pd.txt", radius=M1_R)
+AT (0, 0, 0) RELATIVE M1_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT M1_out = Arm() // restore beam direction (exit parallel, offset up)
+AT (0, 0, 0) RELATIVE M1_rotated
+ROTATED (M1_angle*RAD2DEG/1000, 0, 0) RELATIVE M1_rotated
+
+// Channel-cut high resolution monochromator (HRM) -------------------------------
+// Two channel-cuts in anti-symmetric configuration at 23.5 m.
+// Si311 1st order (>=5 keV) or Si220 2nd order (>=8 keV).
+// Full Bragg_crystal implementation left as a TODO (see NOTES 1); here we only
+// gate the beam so that the hrm flag can be used to compare flux budgets.
+COMPONENT HRM_gate_in = Slit( // blocks the beam when hrm=0
+    xwidth=(hrm ? 0.010 : 0), yheight=(hrm ? 0.005 : 0))
+AT (0, 0, DistanceToHRM-DistanceToM1) RELATIVE M1_out
+
+// M2A microfocus toroid: focus at the secondary slits (28.2 m) ------------------
+// focus_mode=1: M2A in the beam. Otherwise M2A is translated out of the beam
+// (in the real line by a TZ translation normal to the surface) and M2B focuses
+// on the RIXS sample.
+COMPONENT M2A_location = Arm()
+AT (0, 0, DistanceToM2A-DistanceToHRM) RELATIVE HRM_gate_in
+EXTEND %{
+  if (!focus_mode1) ABSORB; // M2A out of the beam in M2B mode
+%}
+
+COMPONENT M2A_rotated = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-M2_angle*RAD2DEG/1000, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT M2A = Mirror_toroid(
+    zdepth=M2_length, xwidth=M2_width,
+    radius=M2_Rt, radius_o=M2_Rs,
+    coating="Pd.txt")
+AT (0, 0, 0) RELATIVE M2A_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT M2A_out = Arm()
+AT (0, 0, 0) RELATIVE M2A_rotated
+ROTATED (M2_angle*RAD2DEG/1000, 0, 0) RELATIVE M2A_rotated
+
+// Secondary slits at the M2A focal plane (HAXPES sample position, 28.2 m).
+// Closing them reduces the KB spot down to ~5x7 um^2 FWHM with 30x30 um^2.
+COMPONENT fentes_secondaires = Slit(
+    xwidth=sec_slits, yheight=sec_slits)
+AT (0, 0, DistanceToSecSlits-DistanceToM2A) RELATIVE M2A_out
+
+COMPONENT mon_sec_xy = Monitor_nD(
+  options="x y", xwidth=2e-3, yheight=2e-3, bins=128,
+  filename="mon_sec_xy", restore_xray=1)
+AT (0, 0, 0.01) RELATIVE PREVIOUS
+
+// M2B intermediate focus toroid: focus on the RIXS sample (35.5 m) -------------
+COMPONENT M2B_location = Arm()
+AT (0, 0, DistanceToM2B-DistanceToSecSlits) RELATIVE fentes_secondaires
+EXTEND %{
+  if (focus_mode1) ABSORB; // M2B branch off in microfocus mode
+%}
+
+COMPONENT M2B_rotated = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-M2_angle*RAD2DEG/1000, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT M2B = Mirror_toroid(
+    zdepth=M2_length, xwidth=M2_width,
+    radius=M2_Rt, radius_o=M2_Rs,
+    coating="Pd.txt")
+AT (0, 0, 0) RELATIVE M2B_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT M2B_out = Arm()
+AT (0, 0, 0) RELATIVE M2B_rotated
+ROTATED (M2_angle*RAD2DEG/1000, 0, 0) RELATIVE M2B_rotated
+
+// KB pair (microfocus) ----------------------------------------------------------
+// VFM (vertical deflection) at 34.1 m: images the secondary slits (28.2 m)
+// onto the sample. HFM (horizontal deflection) at 34.5 m, modelled as in SIXS
+// M2 with a 90 deg rotation to work in the XZ plane.
+COMPONENT VFM_location = Arm()
+AT (0, 0, DistanceToVFM-DistanceToM2B) RELATIVE M2B_out
+EXTEND %{
+  if (!focus_mode1) ABSORB; // KB off in M2B mode
+%}
+
+COMPONENT VFM_rotated = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (-KB_angle*RAD2DEG/1000, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT VFM = Mirror_curved(
+    length=KB_length, width=KB_width,
+    coating="Pd.txt", radius=vfm_radius)
+AT (0, 0, 0) RELATIVE VFM_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT VFM_out = Arm()
+AT (0, 0, 0) RELATIVE VFM_rotated
+ROTATED (KB_angle*RAD2DEG/1000, 0, 0) RELATIVE VFM_rotated
+
+COMPONENT HFM_rotated = Arm() // horizontal deflection: YZ -> XZ plane
+AT (0, 0, DistanceToHFM-DistanceToVFM) RELATIVE VFM_out
+ROTATED (-KB_angle*RAD2DEG/1000, 0, 90) RELATIVE VFM_out
+
+COMPONENT HFM = Mirror_curved(
+    length=KB_length, width=KB_width,
+    coating="Pd.txt", radius=hfm_radius)
+AT (0, 0, 0) RELATIVE HFM_rotated
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT HFM_out = Arm()
+AT (0, 0, 0) RELATIVE HFM_rotated
+ROTATED (KB_angle*RAD2DEG/1000, 0, -90) RELATIVE HFM_rotated
+
+// The RIXS sample at 35.5 m -----------------------------------------------------
+// Spot monitors placed on both branch paths (they share the sample position).
+COMPONENT mon_sample_xy_kb = Monitor_nD(
+  options="x y", xwidth=1e-3, yheight=1e-3, bins=256,
+  filename="mon_sample_xy", restore_xray=1)
+AT (0, 0, DistanceToSample-DistanceToHFM) RELATIVE HFM_out
+
+COMPONENT mon_sample_e = COPY(mon_src_e)(filename="mon_sample_e")
+AT (0, 0, 0.001) RELATIVE PREVIOUS
+
+COMPONENT sample_stage = Arm()
+AT (0, 0, DistanceToSample-DistanceToM2B) RELATIVE M2B_out
+EXTEND %{
+  flag_scatt = 0;
+%}
+
+// Elastic scattering of the sample towards the analyzer arm.
+// For RIXS, an inelastic energy shift may be applied by the user in an EXTEND
+// block after scattering (modify the photon wavelength), to study the
+// spectrometer energy resolution and analyzer acceptance.
+SPLIT 10 COMPONENT sample = Single_crystal(
+    reflections=sample_coating,
+    xwidth=1e-3, yheight=1e-3, zdepth=1e-3,
+    mosaic=1e-4, sigma_inc=0, p_transmit=0)
+AT (0, 0, 0) RELATIVE sample_stage
+EXTEND %{
+  if (SCATTERED) flag_scatt++;
+  else ABSORB;
+%}
+
+COMPONENT sample_out = Arm()
+AT (0, 0, 0) RELATIVE sample_stage
+EXTEND %{
+  if (!flag_scatt) ABSORB;
+%}
+
+// IXS spectrometer ---------------------------------------------------------------
+// Spherical Si analyzer on a Rowland circle of radius ana_R, symmetric
+// geometry: analyzer at 2theta=ana_deg from the sample, detector at 2*ana_deg.
+// Duplicate this block with a ROTATED (0, -i*10, 0) arm per analyzer for the
+// 4x1 multi-analyzer setup (n_ana analyzers spread by 10 deg).
+COMPONENT ana_arm = Arm()
+AT (0, 0, 0) RELATIVE sample_out
+ROTATED (0, -ana_deg, 0) RELATIVE sample_out
+
+// Si(620) analyzer, d=1.01741 AA
+COMPONENT analyzer = Bragg_crystal(
+    length=0.1, width=0.05,
+    h=6, k=2, l=0, material="Si.txt", V=160.1826, crystal_type=2)
+AT (0, 0, ana_R) RELATIVE ana_arm
+ROTATED (-asin(2*PI/E2K/E0/(2*(5.4909/sqrt(40))))*RAD2DEG, 0, 0) RELATIVE ana_arm
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT ana_out = Arm()
+AT (0, 0, 0) RELATIVE analyzer
+ROTATED (asin(2*PI/E2K/E0/(2*(5.4909/sqrt(40))))*RAD2DEG, 0, 0) RELATIVE analyzer
+
+// detector at the Rowland focus, symmetric position
+COMPONENT IXS_det = Monitor_nD(
+    options="x y", xwidth=0.02, yheight=0.02, bins=128,
+    filename="IXS_det", restore_xray=0)
+AT (0, 0, ana_R) RELATIVE ana_out
+
+END
+
+/*******************************************************************************
+* NOTES
+*
+* 1. HRM: the channel-cut pair is currently gated by the 'hrm' flag only
+*    (blocking the beam when hrm=0). To fully model it, insert two Bragg_crystal
+*    components (Si311, d=1.63747 AA, 1st order; or Si220, d=1.92016 AA, 2nd
+*    order) between HRM_gate_in and M2A_location, following the DCM pattern
+*    above (anti-symmetric (+,-) configuration for a fixed exit).
+*
+* 2. Slope errors and roughness (M1/M2: 1.5 urad RMS, KB: 1 urad RMS, roughness
+*    3 AA RMS) are not yet applied. Add them to the mirror components to
+*    reproduce the documented spot sizes: 75x35 um^2 (M2B), 14x9 um^2 (KB, open
+*    slits), 5x7 um^2 (KB, 30x30 um^2 secondary slits).
+*
+* 3. The M2B branch is 22 mm below the microfocus branch at 27.2 m and 42 mm
+*    at 29.2 m (EXP-OPT-CDC-1029). Here the branches are selected with ABSORB
+*    in EXTEND blocks; for a simultaneous model, offset one branch in Y.
+*
+* 4. The analyzer uses Si(620) (d=1.01741 AA) as in standard IXS spectrometers.
+*    Adjust h,k,l and the Rowland geometry (Johann vs Johansson) as needed.
+*
+* 5. Undulator harmonics: set K so that the n-th harmonic matches E0
+*    (EXP-OPT-CDC-1029, tab.2). A proper undulator source file (e.g. generated
+*    with SRW/Shadow) may replace the Undulator component for flux accuracy.
+*
+* 6. K parameters vs energy (EXP-OPT-CDC-1029 tab.2):
+*      2.3 keV: n=1, K=1.051 ; 3 keV: n=1, K=0.615 ; 5 keV: n=3, K=1.517
+*      8 keV: n=5, K=1.575   ; 12 keV: n=7, K=1.478
+*******************************************************************************/
