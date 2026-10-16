@@ -1,0 +1,58 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright (C) 1997-2026, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*
+* Component: MCPL_input_once
+*
+* %I
+* Written by: Gregory S Tucker
+* Date: Sep 2024, reduced to an INHERIT of MCPL_input Oct 2026
+* Origin: European Spallation Source ERIC
+*
+* Source-like component that reads neutron state parameters from a MCPL-file one time.
+* %D
+* Source-like component that reads neutron state parameters from a MCPL-file one time.
+*
+* Since Oct 2026 MCPL_input_once is MCPL_input with repeat_count=1 (and the default
+* replicate_across_processes=0) forced: the file is shared between MPI processes and
+* every event in the file is used exactly once. The parameters are inherited from
+* MCPL_input; repeat_count and replicate_across_processes are ignored.
+* See MCPL_input for the full documentation.
+*
+* MCPL is short for Monte Carlo Particle List, and is a format for sharing events
+* between e.g. MCNP(X), Geant4 and McStas.
+*
+* When used with MPI, the file contents are shared between workers with each accessing
+* approximately (#events in the file) / (#MPI nodes)
+*
+* Example: MCPL_input_once(filename=voutput,v_smear=0.1,pos_smear=0.001,dir_smear=0.01)
+*
+* %P
+* INPUT PARAMETERS
+*
+* filename: [str]       Name of neutron mcpl file to read.
+* preload: [ ]          Load particles during INITIALIZE. On GPU preload is forced.
+* polarisationuse: [ ]  If !=0 read polarisation vectors from file.
+* Emin: [meV]           Lower energy bound. Particles found in the MCPL-file below the limit are skipped.
+* Emax: [meV]           Upper energy bound. Particles found in the MCPL-file above the limit are skipped.
+* v_smear: [1]          Relative fraction for randomness in replayed particle velocity v *= (1 + v_smear * randpm1())
+* pos_smear: [m]        Maximum extent of random position for replayed particles
+* dir_smear: [deg]      Maximum deviation of random direction for replayed particles
+* always_smear: [ ]     Finite values force particle property smearing for all particles
+* verbose: [ ]          Print debugging information for the first 10 neutrons read
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT MCPL_input_once INHERIT MCPL_input
+
+INITIALIZE
+%{
+  repeat_count = 1;
+  replicate_across_processes = 0;
+%}
+INHERIT MCPL_input
+
+END

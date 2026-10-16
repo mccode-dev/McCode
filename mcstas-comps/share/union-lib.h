@@ -637,7 +637,6 @@ struct scattering_process_struct
   double process_p_interact;               // double between 0 and 1 that describes the fraction of events forced to undergo this process. -1 for disable
   int non_isotropic_rot_index;             // -1 if process is isotrpic, otherwise is the index of the process rotation matrix in the volume
   int needs_cross_section_focus;           // 1 if physics_my needs to call focus functions, otherwise -1
-  int needs_numerical_integration;         // 1 if the process is inhomogenous and therefore needs numerical integration, otherwise -1.
   Rotation rotation_matrix;                // rotation matrix of process, reported by component in local frame, transformed and moved to volume struct in main
   double *inhomogenous_cumul_prob;         // The cumulative probability of a process in case of inhomogenous processes
   double *inhomogenous_distances;          // The distance of each step in which the cumulative probabilities will be calculated.
@@ -1467,6 +1466,64 @@ void fill_surface_stack(char *input_string, struct pointer_to_global_surface_lis
 
 void overwrite_if_empty(char *input_string, char *overwrite);
 
+// -------------    Union_master scattering helpers   -------------------------------------------
+int volume_is_only_absorber (struct Volume_struct *Volume);
+
+int process_needs_inhomogenous_sampling (struct physics_struct *current_p_physics,
+                                         struct scattering_process_struct *process);
+
+void adjust_abs_weight_factor (struct Volume_struct *Volume, double *my_sum_plus_abs,
+                               double *length_to_boundary, double v_length, double time_to_boundary,
+                               double *abs_weight_factor, int *abs_weight_factor_set);
+
+void transform_wavevector_into_local_coord_system (struct Volume_struct *Volume, Coords *wavevector_rotated,
+                                                   double *k_rotated, int p_index, Coords *wavevector,
+                                                   Coords *ray_position_geometry);
+
+void move_and_aim_neutron (struct physics_struct *current_p_physics, int i,
+                           struct scattering_process_struct *process, _class_particle *_particle,
+                           struct Volume_struct *Volume, int p_index, Coords *ray_velocity,
+                           Coords *ray_position, struct focus_data_struct *this_focus_data);
+
+int mu_and_intersect_dist_safeguard (double mu_sum, double length_to_boundary, double safety_distance2,
+                                     int *scattering_event);
+
+void focus_in_cross_section_set_forced_point_and_dir (double *forced_length_to_scattering,
+                                                      double safety_distance, double safety_distance2,
+                                                      double length_to_boundary, _class_particle *_particle,
+                                                      Coords *ray_velocity, Coords *ray_position_geometry,
+                                                      Coords *ray_position, struct Volume_struct *Volume,
+                                                      struct focus_data_struct *this_focus_data);
+
+void focus_in_cross_section_set_scat_length (double *length_to_scattering, double forced_length_to_scattering,
+                                             double *weight, double length_to_boundary, double my_sum_plus_abs);
+
+void inhomogenous_set_cumul_dist_array (struct physics_struct *current_p_physics, int i);
+
+void inhomogenous_sample_transmission_probability (struct physics_struct *current_p_physics,
+                                                   struct Volume_struct *Volume,
+                                                   double *real_transmission_probability, double v_length);
+
+double inhomogenous_sample_scattering_point (struct Volume_struct *Volume,
+                                              struct physics_struct *current_p_physics,
+                                              _class_particle* _particle,
+                                              double *abs_weight_factor, double v_length,
+                                              double safety_distance, int *selected_sampling);
+
+void inhomogenous_choose_process (struct physics_struct *current_p_physics, struct Volume_struct *Volume,
+                                  double *culmative_probability, double mc_prop, double my_sum,
+                                  int selected_sampling, int *selected_process);
+
+int p_interact_is_set (struct Volume_struct *Volume);
+
+void p_interact_check_scattering_event (struct Volume_struct *Volume, _class_particle* _particle, int *scattering_event,
+                                        double *weight, double real_transmission_prob);
+
+void p_interact_select_process (struct Volume_struct *Volume, _class_particle* _particle, double *my_trace_fraction_control,
+                                double *my_trace, double *total_process_interact,
+                                double *culmative_probability, double *mc_prop, double *weight,
+                                double my_sum, int *selected_process);
+
 // -------------    Shared Union state   ----------------------------------------------------------
 // Union components communicate through lists that every component appends to
 // in INITIALIZE and each Union_master consumes. The lists live in one instance
@@ -1521,4 +1578,3 @@ void union_free_state(void);
 void union_release(const char *comp_name);
 
 #endif /* UNION_LIB_H */
-

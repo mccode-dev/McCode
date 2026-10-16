@@ -3648,12 +3648,12 @@ void mcdis_disc( double x, double y, double z,
      x, y, z, r, nx, ny, nz);
 }
 
-/* Draws a annulus with center at (x,y,z) with extent (outer_radius) and remove inner_radius.
+/* Draws a annulus with center at (x,y,z) with extent (outer radius) and remove inner thickness.
  * The annulus axis is along the vector nx,ny,nz.*/
 void mcdis_annulus( double x, double y, double z,
-        double outer_radius, double inner_radius, double nx, double ny, double nz){
+        double outer_radius, double thickness, double nx, double ny, double nz){
   printf("MCDISPLAY: mcdisannulus(%g, %g, %g, %g, %g, %g, %g, %g)\n",
-     x, y, z, outer_radius, inner_radius, nx, ny, nz);
+     x, y, z, outer_radius, thickness, nx, ny, nz);
 }
 
 /* draws a sphere with center at (x,y,z) with extent (r)*/

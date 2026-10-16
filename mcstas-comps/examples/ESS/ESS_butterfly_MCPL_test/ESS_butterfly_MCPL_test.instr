@@ -36,7 +36,7 @@
 * Yheight:       [m]    Defines the moderator height. Valid values are 0.03 m and 0.06 m
 * delta:         [m]    Parameter that allows to scan "collimator" position
 * thres:         [ ]    Weight-threshold, neutrons with higher weight are absorbed
-* repeat:        [ ]    Number of MCPL file repetitions (only valid with use of MCPL_input, not with MCPL_input_once
+* repeat:        [ ]    Number of MCPL file repetitions, requires at least one *_smear parameter
 * v_smear:       [1]    When repeating events, make a Gaussian MC choice within v_smear*V around particle velocity V
 * pos_smear:     [m]    When repeating events, make a flat MC choice of position within pos_smear around particle starting position 
 * dir_smear:     [deg]  When repeating events, make a Gaussian MC choice of direction within dir_smear around particle direction
@@ -179,12 +179,8 @@ COMPONENT vinROT1 = Arm()
 AT(0,0,0) RELATIVE PREVIOUS
   ROTATED (-90,0,0) RELATIVE PREVIOUS
 
-/* Uncomment this component to allow 'repeating' the MCPL input file */
-/* COMPONENT vin = MCPL_input(filename=MCPLfile,verbose=1,repeat_count=repeat,v_smear=v_smear,pos_smear=pos_smear,dir_smear=dir_smear) */
-/* AT(0,0,-0.137) RELATIVE PREVIOUS */
-
-/* Comment this component to allow 'repeating' the MCPL input file */
-COMPONENT vin = MCPL_input_once(filename=MCPLfile,verbose=1)
+/* With the default repeat=1, every event in the MCPL file is used once (also with MPI) */
+COMPONENT vin = MCPL_input(filename=MCPLfile,verbose=1,repeat_count=repeat,v_smear=v_smear,pos_smear=pos_smear,dir_smear=dir_smear)
 AT(0,0,-0.137) RELATIVE PREVIOUS
 
 COMPONENT Sphere1 = PSD_monitor_4PI(filename="nonrotated", radius=2.2,restore_neutron=1, nowritefile=!allmons)

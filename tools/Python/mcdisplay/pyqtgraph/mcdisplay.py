@@ -612,7 +612,7 @@ def main(instr=None, dirname=None, invcanvas=None, tof=None, **kwds):
         sys.exit(gui.run_ui(instrument, rays))
       else:
         sys.exit(gui.run_ui_tof(instrument, rays))
-    except:
+    except Exception:
       sys.exit(gui.run_ui(instrument, rays))
 
 
