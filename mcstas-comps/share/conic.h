@@ -1449,6 +1449,47 @@ double getTimeOfFirstCollisionFlat(_class_particle p, FlatSurf s) {
         return -1;
     return t+tz;
 }
+
+/*! \brief Function to compute time of next collision for a ConicSurf the particle is on
+
+Used right after an interaction with s: the particle is then on the surface, i.e.
+C = 0 in the quadratic equation and the roots are t = 0 and t = -B/A. Using -B/A
+directly avoids spurious near-zero roots caused by round-off.
+
+@param p _class_particle to consider, located on s
+@param s ConicSurf to consider
+@return Time until the next collision or -1 if particle will not hit s again
+*/
+double getTimeOfNextCollisionConic(_class_particle p, ConicSurf s) {
+    double A = p.vx*p.vx+p.vy*p.vy-s.k3*p.vz*p.vz;
+    double B = 2*(p.vx*p.x+p.vy*p.y-s.k3*p.vz*p.z)-s.k2*p.vz;
+    if (A == 0)
+        return -1;
+    double t = -B/A;
+    if (t <= 0 || p.vz*t+p.z > s.ze || p.vz*t+p.z < s.zs)
+        return -1;
+    return t;
+}
+
+/*! \brief Function to compute time of next collision for a FlatSurf the particle is on
+
+@see getTimeOfNextCollisionConic()
+
+@param p _class_particle to consider, located on s
+@param s FlatSurf to consider
+@return Time until the next collision or -1 if particle will not hit s again
+*/
+double getTimeOfNextCollisionFlat(_class_particle p, FlatSurf s) {
+    double A = p.vx*p.vx-s.k3*p.vz*p.vz;
+    double B = 2*(p.vx*p.x-s.k3*p.vz*p.z)-s.k2*p.vz;
+    if (A == 0)
+        return -1;
+    double t = -B/A;
+    if (t <= 0 || p.vz*t+p.z > s.ze || p.vz*t+p.z < s.zs || p.vy*t+p.y < s.ll || p.vy*t+p.y > s.rl)
+        return -1;
+    return t;
+}
+
 /*! \brief Function to rotate a vector (by D. Liu)
 
 @param v vector to rotate
@@ -1684,10 +1725,10 @@ double reflectNeutronFlat(_class_particle* _particle, FlatSurf s) {
 
 @param p Pointer of particle to reflect
 @param c ConicSurf to use
+@param t Time until the collision, from traceSingleNeutron()
 
 */
-void traceNeutronConic(_class_particle* _particle, ConicSurf c) {
-    double t = getTimeOfFirstCollisionConic(*_particle, c);
+void traceNeutronConic(_class_particle* _particle, ConicSurf c, double t) {
     if (t < 0)
         return;
     else {
@@ -1707,10 +1748,10 @@ void traceNeutronConic(_class_particle* _particle, ConicSurf c) {
 
 @param p Pointer of particle to reflect
 @param f FlatSurf to use
+@param t Time until the collision, from traceSingleNeutron()
 
 */
-void traceNeutronFlat(_class_particle* _particle, FlatSurf f) {
-    double t = getTimeOfFirstCollisionFlat(*_particle, f);
+void traceNeutronFlat(_class_particle* _particle, FlatSurf f, double t) {
     if (t < 0)
         return;
     else {
@@ -1772,6 +1813,8 @@ void initSimulation(Scene* s) {
 void traceSingleNeutron(_class_particle* _particle, Scene* s) {
    
     int contact = 1;
+    enum GEO last_type = NONE; // surface the particle is on after the previous step
+    int last_index = -1;
     do {
         double t;
         enum  GEO type = NONE;
@@ -1779,7 +1822,9 @@ void traceSingleNeutron(_class_particle* _particle, Scene* s) {
         int i;
 
         for (i = 0; i < s->num_c; i++) {
-            double t2 = getTimeOfFirstCollisionConic(*_particle,s->c[i]);
+            double t2 = (last_type == CONIC && last_index == i) ?
+                getTimeOfNextCollisionConic(*_particle,s->c[i]) :
+                getTimeOfFirstCollisionConic(*_particle,s->c[i]);
 
             if (t2 <= 0)
                 continue;
@@ -1791,7 +1836,9 @@ void traceSingleNeutron(_class_particle* _particle, Scene* s) {
         }
 
         for (i = 0; i < s->num_f; i++) {
-            double t2 = getTimeOfFirstCollisionFlat(*_particle,s->f[i]);
+            double t2 = (last_type == FLAT && last_index == i) ?
+                getTimeOfNextCollisionFlat(*_particle,s->f[i]) :
+                getTimeOfFirstCollisionFlat(*_particle,s->f[i]);
 
             if (t2 <= 0)
                 continue;
@@ -1831,18 +1878,20 @@ void traceSingleNeutron(_class_particle* _particle, Scene* s) {
                 traceNeutronDetector(_particle, s->d[index]);
                 break;
             case FLAT:
-	        traceNeutronFlat(_particle, s->f[index]);
+	        traceNeutronFlat(_particle, s->f[index], t);
                 break;
             case DISK:
                 traceNeutronDisk(_particle, s->di[index]);
                 break;
             case CONIC:
-                traceNeutronConic(_particle, s->c[index]);
+                traceNeutronConic(_particle, s->c[index], t);
                 break;
             default:
                 contact = 0;
                 break;
         }
+        last_type = type;
+        last_index = index;
     } while (contact && !_particle->_absorbed);
 
 }
