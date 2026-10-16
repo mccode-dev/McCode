@@ -3,17 +3,23 @@ Source-like component that reads photon state parameters from an mcpl-file.
 
 \subsection*{Identification}
 \begin{itemize}
-  \item \textbf{Author:} Erik B Knudsen
-  \item \textbf{Origin:} DTU Physics
-  \item \textbf{Date:} Aug 2016
+  \item \textbf{Author:} Erik B Knudsen, Gregory S Tucker and Peter Willendrup
+  \item \textbf{Origin:} DTU Physics / European Spallation Source ERIC
+  \item \textbf{Date:} Aug 2016, consolidated with McStas MCPL\_input\_once Oct 2026
 \end{itemize}
 
 \subsection*{Description}
 Source-like component that reads photon state parameters from a binary mcpl-file.
 
-MCPL is short for Monte Carlo Particle List, and is a new format for sharing events between e.g. MCNP(X), Geant4 and McXtrace .
+MCPL is short for Monte Carlo Particle List, and is a format for sharing events between e.g. MCNP(X), Geant4 and McXtrace.
 
-When used with MPI, the --ncount given on the commandline is overwritten by \#MPI nodes x \#events in the file.
+The --ncount given on the commandline is overwritten by (\#particles in the file) x repeat\_count. Particles that are not photons, or are outside [Emin, Emax], are counted but ABSORBed.
+
+The rays form a stream that runs through the file repeat\_count times. As in McStas' KDSource, this stream is split into one contiguous chunk per MPI process: each process seeks once to its start and reads on, wrapping around to the start of the file (with preload=1 it loads only the part of the file its chunk covers). Every event is thus used repeat\_count times across the whole run, and its weight is divided by repeat\_count. All passes after the first are smeared using E\_smear, pos\_smear and dir\_smear (the first pass is too if always\_smear is set), so repeat\_count \textgreater{} 1 MUST be combined with at least one *\_smear option; if all are 0, repeat\_count is reset to 1.
+
+With replicate\_across\_processes=0 (the default) the file is shared between the MPI processes and --mpi=N does not change the number of rays. replicate\_across\_processes=1 restores the pre-Oct 2026 MPI behaviour: repeat\_count is rounded up to a multiple of the number of MPI processes, so that every process runs through the whole file at least once, and all but the first pass on the master are smeared (or, with all *\_smear=0, are identical copies).
+
+This is the same implementation as McStas' MCPL\_input, adapted to photons.
 
 Example: MCPL\_input(filename=voutput,verbose=1,repeat\_count=1,E\_smear=0.1,pos\_smear=0.001,dir\_smear=0.01)
 
@@ -27,14 +33,16 @@ Parameters in \textbf{boldface} are required; the others are optional.
 \endhead
 filename & str & Name of photon mcpl file to read & 0 \\
 polarisationuse &   & If !=0 read polarisation vectors from file & 1 \\
-verbose &   & Print debugging information for first 10 particles read & 1 \\
+verbose &   & Print debugging information for the first 10 photons read (on the master process) & 0 \\
 Emin & keV & Lower energy bound. Particles found in the MCPL-file below the limit are skipped & 0 \\
 Emax & keV & Upper energy bound. Particles found in the MCPL-file above the limit are skipped & FLT\_MAX \\
-repeat\_count & 1 & Repeat contents of the MCPL file this number of times. NB: When running MPI, repeating is implicit and is taken into account by integer division. MUST be combined sith the \_smear options! & 1 \\
-E\_smear & 1 & When repeating events, make a Gaussian MC choice within E\_smear*E around particle energy E & 0 \\
-pos\_smear & m & When repeating events, make a flat MC choice of position within pos\_smear around particle starting position & 0 \\
-dir\_smear & deg & When repeating events, make a Gaussian MC choice of direction within dir\_smear around particle direction & 0 \\
+repeat\_count & 1 & Replay the contents of the MCPL file this number of times, dividing the event weights by the same number. MUST be combined with \_smear options! & 1 \\
+E\_smear & 1 & When replaying events, make a flat MC choice within E\_smear*E around particle energy E & 0 \\
+pos\_smear & m & When replaying events, make a flat MC choice of position within pos\_smear around particle starting position & 0 \\
+dir\_smear & deg & When replaying events, make an MC choice of direction within dir\_smear around particle direction & 0 \\
 preload &   & Load particles during INITIALIZE. On GPU preload is forced & 0 \\
+always\_smear &   & If !=0, also smear the events on their first pass through the file & 0 \\
+replicate\_across\_processes &   & If !=0, with MPI round repeat\_count up to a multiple of the number of processes, so that each process runs through the whole file & 0 \\
 \bottomrule
 \end{longtable}
 

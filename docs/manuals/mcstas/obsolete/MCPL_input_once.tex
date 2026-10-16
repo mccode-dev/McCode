@@ -5,17 +5,19 @@ Source-like component that reads neutron state parameters from a MCPL-file one t
 \begin{itemize}
   \item \textbf{Author:} Gregory S Tucker
   \item \textbf{Origin:} European Spallation Source ERIC
-  \item \textbf{Date:} Sep 2024
+  \item \textbf{Date:} Sep 2024, reduced to an INHERIT of MCPL\_input Oct 2026
 \end{itemize}
 
 \subsection*{Description}
 Source-like component that reads neutron state parameters from a MCPL-file one time.
 
+Since Oct 2026 MCPL\_input\_once is MCPL\_input with repeat\_count=1 (and the default replicate\_across\_processes=0) forced: the file is shared between MPI processes and every event in the file is used exactly once. The parameters are inherited from MCPL\_input; repeat\_count and replicate\_across\_processes are ignored. See MCPL\_input for the full documentation.
+
 MCPL is short for Monte Carlo Particle List, and is a format for sharing events between e.g. MCNP(X), Geant4 and McStas.
 
 When used with MPI, the file contents are shared between workers with each accessing approximately (\#events in the file) / (\#MPI nodes)
 
-\%BUGS
+Example: MCPL\_input\_once(filename=voutput,v\_smear=0.1,pos\_smear=0.001,dir\_smear=0.01)
 
 \subsection*{Input parameters}
 Parameters in \textbf{boldface} are required; the others are optional.
@@ -25,16 +27,6 @@ Parameters in \textbf{boldface} are required; the others are optional.
 \textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
 \midrule
 \endhead
-filename & str & Name of neutron mcpl file to read. & 0 \\
-polarisationuse &   & If !=0 read polarisation vectors from file. & 1 \\
-Emin & meV & Lower energy bound. Particles found in the MCPL-file below the limit are skipped. & 0 \\
-Emax & meV & Upper energy bound. Particles found in the MCPL-file above the limit are skipped. & FLT\_MAX \\
-v\_smear & 1 & Relative fraction for randomness in replayed particle velocity v *= (1 + v\_smear * randpm1()) & 0 \\
-pos\_smear & m & Maximum extent of random position for replayed particles & 0 \\
-dir\_smear & deg & Maximum deviation of random direction for replayed particles & 0 \\
-always\_smear &   & Finite values force particle property smearing for all particles & 0 \\
-preload &   & Load particles during INITIALIZE. On GPU preload is forced. & 0 \\
-verbose &   & Finite values may cause extra output (at some point in the future) & 0 \\
 \bottomrule
 \end{longtable}
 
@@ -42,4 +34,4 @@ verbose &   & Finite values may cause extra output (at some point in the future)
 \begin{itemize}
   \item Component source code found in file \texttt{MCPL\_input\_once.comp}.
 \end{itemize}
-\IfFileExists{misc/MCPL_input_once_static.tex}{\input{misc/MCPL_input_once_static.tex}}{}
+\IfFileExists{obsolete/MCPL_input_once_static.tex}{\input{obsolete/MCPL_input_once_static.tex}}{}
