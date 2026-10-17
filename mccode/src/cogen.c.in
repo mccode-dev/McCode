@@ -2140,16 +2140,15 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("    for (unsigned long pidx=0 ; pidx < gpu_innerloop ; pidx++) {");
   coutf("      _class_particle particleN = mcgenstate(); // initial particle");
   coutf("      _class_particle* _particle = &particleN;");
-  coutf("      particleN._uid = pidx;");
+  coutf("      particleN._uid = cloop*gpu_innerloop + pidx;");
   coutf("      #ifdef USE_MPI");
-  coutf("      particleN._uid += mpi_node_rank * ncount; ");
+  coutf("      particleN._uid += mpi_node_rank * loops*gpu_innerloop;");
   coutf("      #endif");
   coutf("");
-  coutf("      srandom(_hash((pidx+1)*(seed+1)));");
+  coutf("      srandom(_hash(_hash(seed) + cloop*gpu_innerloop + pidx));");
   coutf("");
   coutf("      raytrace(_particle);");
   coutf("    } /* inner for */");
-  coutf("    seed = seed+gpu_innerloop;");
   coutf("  } /* CPU for */");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
   cout("     #ifdef OPENACC");
@@ -2279,11 +2278,11 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("      // generate particle state, set loop index and seed");
   coutf("      particles[pidx] = mcgenstate();");
   coutf("      _class_particle* _particle = particles + pidx;");
-  coutf("      _particle->_uid = pidx;");
+  coutf("      _particle->_uid = cloop*gpu_innerloop + pidx;");
   coutf("      #ifdef USE_MPI");
-  coutf("      _particle->_uid += mpi_node_rank * ncount; ");
+  coutf("      _particle->_uid += mpi_node_rank * loops*gpu_innerloop;");
   coutf("      #endif");
-  coutf("      srandom(_hash((pidx+1)*(seed+1))); // _particle->state usage built into srandom macro");
+  coutf("      srandom(_hash(_hash(seed) + cloop*gpu_innerloop + pidx)); // _particle->state usage built into srandom macro");
   coutf("    }");
   cout( "");
 
@@ -2394,8 +2393,6 @@ int cogen_rt_funnel(struct instr_def *instr)
   cout( "");
   list_iterate_end(liter);
 
-  coutf("    // jump to next viable seed");
-  coutf("    seed = seed + gpu_innerloop;");
   coutf("  } // outer loop / particle batches");
   cout( "");
   coutf("  free(particles);");
