@@ -37,7 +37,7 @@
 * sigma_inc: [barns]  Incoherent scattering cross section per atom
 * a: [AA]             fcc Lattice constant
 * b: [fm]             Scattering length
-* M: [a.u.]           Atomic mass
+* M: [amu]            Atomic mass
 * c: [meV/AA^(-1)]    Velocity of sound
 * DW: [1]             Debye-Waller factor
 * T: [K]              Temperature
@@ -484,10 +484,10 @@ TRACE
     my_a_f = V_my_a_v / v_f;
     bose_factor = nbose (omega, T);
     p1 = exp (-(V_my_s * (l_i + l_o) + my_a_i * l_i + my_a_f * l_o));                 /* Absorption factor */
-    p2 = nf * solid_angle * l_full * V_rho / (4 * PI);                                /* Focusing factors; assume random choice of n_f possibilities */
+    p2 = nf * solid_angle * l_full * V_rho;                                           /* Focusing factors; assume random choice of n_f possibilities */
     p3 = (v_f / v_i) * DW * (kappa2 * K2V * K2V * VS2E) / fabs (omega) * bose_factor; /* Cross section factor 1 */
     p4 = 2 * VS2E * v_f / J_factor;                                                   /* Jacobian of delta functions in cross section */
-    p5 = b * b / M;                                                                   /* Cross section factor 2 */
+    p5 = b * b * 1.00866 / M;                                                         /* Cross section factor 2; 1.00866 = m_n/u, M in amu */
     p *= p1 * p2 * p3 * p4 * p5;
   } /* else transmit: Neutron did not hit the sample */
   free (vf_list);

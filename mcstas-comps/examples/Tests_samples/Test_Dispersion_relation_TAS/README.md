@@ -55,9 +55,9 @@ generate_dispersion_files.py (Python with numpy).
 
 ## Examples
 
-- **Test: h=1.2 l=1 dE=5 sample_choice=0 Detector: detector_I=1.46e-11**
-- **Test: h=1.2 l=1 dE=5 sample_choice=1 Detector: detector_I=1.41e-11**
-- **Test: h=1.2 l=1 dE=5 sample_choice=0 primitive_cell=1 Detector: detector_I=1.46e-11**
+- **Test: h=1.2 l=1 dE=5 sample_choice=0 Detector: detector_I=1.85e-10**
+- **Test: h=1.2 l=1 dE=5 sample_choice=1 Detector: detector_I=1.79e-10**
+- **Test: h=1.2 l=1 dE=5 sample_choice=0 primitive_cell=1 Detector: detector_I=1.85e-10**
 - **Test: h=1.15 l=0 dE=3 T=2 sample_choice=2 Detector: detector_I=8.91e-10**
 - **Test: h=1.15 l=0 dE=3 T=2 sample_choice=3 Detector: detector_I=9.41e-10**
 
