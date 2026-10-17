@@ -17,7 +17,7 @@
 * The component relies on an updated version of conic.h from MIT.
 *
 * %P
-* sourceDist: [m]   Distance used for calculating the spacing of the mirrors
+* sourceDist: [m]   Distance used for calculating the spacing of the mirrors, 0: use LStart
 * LStart:     [m]   Left focal point
 * LEnd:       [m]   Right focal point
 * lStart:     [m]   z-Value of the mirror start
@@ -86,7 +86,7 @@ SHARE
   double*
   get_r_at_z0 (int number, double z_0, double r_0, double z_extract, double LStart, double LEnd, double lStart, double lEnd) {
     int n = number;
-    double* r_zExtracts = malloc (n * sizeof (double_t)); /* n is an array of 10 integers */
+    double* r_zExtracts = malloc (n * sizeof (double)); /* n is an array of 10 integers */
     if (!r_zExtracts) {
       fprintf (stderr, "NMO comp function get_r_at_z0: malloc() failed. Exit! \n");
       exit (-1);
@@ -143,6 +143,9 @@ DECLARE
 
 INITIALIZE
 %{
+  if (sourceDist == 0) { // default: mirror spacing is calculated for a source at the left focal point
+    sourceDist = LStart;
+  }
   if (rfront_inner_file && strlen (rfront_inner_file) && strcmp (rfront_inner_file, "NULL") && strcmp (rfront_inner_file, "0")) {
     if (Table_Read (&rsTable, rfront_inner_file, 1) <= 0) { /* read 1st block data from file into pTable */
       exit (fprintf (stderr, "FlatEllipse_finite_mirror: %s: can not read file %s\n", NAME_CURRENT_COMP, rfront_inner_file));
@@ -162,9 +165,6 @@ INITIALIZE
     printf ("automatic calulation\n");
     rfront_inner = get_r_at_z0 (nummirror, 0, r_0, lStart, sourceDist, LEnd, lStart, lEnd);
     // calculate the r-distances of all mirrors at the entry of the NMO, we will need this later
-  }
-  if (sourceDist == 0) { // obsolete?
-    sourceDist = LStart;
   }
   silicon = (mirror_width == 0) ? 0 : -1; // neutron starts in air by default
 
