@@ -17,9 +17,9 @@ Only in step 4 will any simulation happen, and per default all geometries define
 
 There is a dedicated manual available for the Union\_components
 
-The mesh component loads a 3D off or stl files as the geometry. The mesh geometry that is loaded must be a watertight mesh. In order to check this, the component implements a simple Euler Pointcare value, To check if the given geometry is watertight. This check is sometimes too rigid, so a user can set the skip\_convex\_check parameter in order to not have this check performed.
+The mesh component loads a 3D OFF, STL or PLY file as the geometry, using geometry-mesh-lib (polygons are triangulated, duplicated vertices welded). Faces given more than once are removed, so a volumetric mesh (cells sharing faces) gives its outer surface. The mesh geometry that is loaded must be a watertight mesh: every edge must be shared by exactly two triangles.
 
-If you load an off file, we currently only support rank 3 polygons, i.e triangular meshes.
+Number of intersections per ray: for each mesh, Union\_master stores the GMESH\_MAX\_HITS (default 50) nearest crossings of the ray with the mesh surface. A concave mesh, or one made of several parts, can be crossed more often. Then the farther crossings are lost, the ray can not find the surface where it leaves the mesh, and Union\_master reports trace errors. geometry-mesh-lib warns once when this happens: Warning: \textless{}file\textgreater{}: a ray crossed the mesh N times, but only the 4 nearest hits are kept To fix it, add this line after the DEFINE INSTRUMENT line of the instrument, with N at least the number given in the warning: DEPENDENCY " -DGMESH\_MAX\_HITS=N "
 
 It is allowed to overlap components, but it is not allowed to have two parallel planes that coincides. This will crash the code on run time.
 
@@ -31,7 +31,7 @@ Parameters in \textbf{boldface} are required; the others are optional.
 \textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
 \midrule
 \endhead
-filename & str & Name of file that contains the 3D geometry. Can be either .OFF, .off, .STL, or .stl & 0 \\
+filename & str & Name of file that contains the 3D geometry: OFF, STL (ascii or binary) or PLY & 0 \\
 material\_string & string & material name of this volume, defined using Union\_make\_material & 0 \\
 \textbf{priority} & 1 & priotiry of the volume (can not be the same as another volume) A high priority is on top of low. &  \\
 visualize & 1 & set to 0 if you wish to hide this geometry in mcdisplay & 1 \\
@@ -50,7 +50,6 @@ p\_interact & 1 & probability to interact with this geometry [0-1] & 0 \\
 mask\_string & string & Comma seperated list of geometry names which this geometry should mask & 0 \\
 mask\_setting & string & "All" or "Any", should the masked volume be simulated when the ray is in just one mask, or all. & 0 \\
 number\_of\_activations & 1 & Number of subsequent Union\_master components that will simulate this geometry & 1 \\
-skip\_convex\_check & 1 & when set to 1, skips the check for whether input .off file is convex. & 0 \\
 coordinate\_scale & 1e-3 & Multiplier that the vertex positions are multiplied by. Set to 1 for input coordinates in meters. Set to 1e-3 for input coordinates in mm. & 1e-3 \\
 init & string & Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union\_init component here, still compile. & "" \\
 \bottomrule

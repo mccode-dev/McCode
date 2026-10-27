@@ -31,7 +31,7 @@ SANSPDBFast               SAMPLE=11
 
 ## Examples
 
-- **Test: SAMPLE=0 Detector: PSDMonitor_I=2.529e-09**
+- **Test: SAMPLE=0 Detector: PSDMonitor_I=2.9e-09**
 - **Test: SAMPLE=1 Detector: PSDMonitor_I=2.486e-10**
 - **Test: SAMPLE=2 Detector: PSDMonitor_I=2.297e-10**
 - **Test: SAMPLE=3 Detector: PSDMonitor_I=8.720e-11**

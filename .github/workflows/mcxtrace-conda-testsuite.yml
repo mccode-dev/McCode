@@ -82,6 +82,8 @@ jobs:
            set -e
            set -u
            set -x
+           # mccode.org apt repo, as for users: provides mcpl, ncrystal and cif2hkl (>= 1.5.1)
+           sudo curl -fsSLo /etc/apt/sources.list.d/mccode.sources https://packages.mccode.org/debian/mccode.sources
            sudo apt-get update
            # Build dependencies, as in dependency-scripts/getdeps_debian (minus LaTeX/equivs:
            # the manuals package and the suite metapackage are not needed for testing)
@@ -113,8 +115,10 @@ jobs:
           grep -H COGEN ${MCCODE_CONFIG}
           MCCODEANTLR_FLAGS__NEXUS=`grep NEXUSFLAGS ${MCCODE_CONFIG} |cut -f4 -d\"`
           echo "MCCODEANTLR_FLAGS__NEXUS=${MCCODEANTLR_FLAGS__NEXUS}" >> "$GITHUB_ENV"
-          # Pre-poulate mccode-antlr cache
-          mccode-antlr cache populate --from-path src/ --flavor mcxtrace --no-strict --check-hashes
+          # Pre-populate mccode-antlr cache from registries minted from this checkout (mccode-antlr#118)
+          mccode-antlr cache register src common/lib/share mccode/nlib/share mccode/xlib/share -o regs/libc-registry.txt
+          mccode-antlr cache register src mcxtrace-comps -o regs/mcxtrace-registry.txt
+          mccode-antlr cache populate --from-path src --flavor mcxtrace --registry-dir regs
         fi
 
     - name: Validate build output

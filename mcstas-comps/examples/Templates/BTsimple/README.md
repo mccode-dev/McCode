@@ -17,7 +17,7 @@ Example instrument showing how to calculate brilliance transfer using L_monitor'
 
 ## Examples
 
-- **Test: -n1e7 BTsimple.instr lambda=10 Detector: BTransfer_I=75.4758**
+- **Test: BTsimple.instr lambda=10 Detector: BTransfer_I=75.4758**
 
 ## Input parameters
 

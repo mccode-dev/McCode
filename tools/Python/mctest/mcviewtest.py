@@ -6,7 +6,7 @@ import json
 import math
 import sys
 import os
-from os.path import join, dirname, isdir
+from os.path import join, dirname
 from os import walk
 import shutil
 import concurrent.futures
@@ -18,6 +18,10 @@ ERROR_PERCENT_THRESSHOLD_ACCEPT = 20
 # PSD (~100 MB .dat) needs ~5 GB RAM per mcplotdiff-html job, and N parallel
 # jobs OOM-kill a 16 GB CI runner (the resulting html is unviewable anyway).
 DIFF_MAX_FILESIZE = 50 * 1024 * 1024
+
+def has_output(d):
+    ''' simulation output the plot loader reads: McCode format, NeXus, or a scan's mccode.dat '''
+    return any(os.path.isfile(os.path.join(d, f)) for f in ("mccode.sim", "mccode.h5", "mccode.dat"))
 
 def has_huge_file(*dirs):
     return any(e.is_file() and e.stat().st_size > DIFF_MAX_FILESIZE
@@ -50,19 +54,14 @@ def accepted(testval, testerr, targetval, targeterr=None, nsigma=None, statfacto
     return insigma if targeterr is not None else (within20 or insigma)
 
 def scantree(path):
-    """Recursively yield DirEntry objects for given directory."""
+    """Yield DirEntry objects for complete test label dirs, i.e. holding testresults_<label>.json."""
     for entry in os.scandir(path):
-        if entry.is_dir(follow_symlinks=True):
+        if entry.is_dir() and os.path.isfile(join(entry.path, "testresults_%s.json" % entry.name)):
             yield entry
 
 def get_oldest_dir(directory_name):
-    files = []
-
-    for file in scantree(directory_name):
-        files.append((file.stat().st_mtime, file.path))
-
-    files.sort(key=lambda x:x[0])
-    return files[0][1]
+    files = [(e.stat().st_mtime, e.path) for e in scantree(directory_name)]
+    return min(files)[1] if files else None
 
 def get_default_diffworkers():
     ''' Number of mcplotdiff-html comparisons to run in parallel by default:
@@ -154,8 +153,8 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
         ref_url = get_data_url(refcellobj)
         test_abs = join(testdir, url)
         ref_abs = join(testdir, ref_url)
-        if not (os.path.isfile(join(test_abs, "mccode.sim")) and os.path.isfile(join(ref_abs, "mccode.sim"))):
-            # NeXus-only output (mccode.h5) or otherwise nothing mcplotdiff-html can compare
+        if not (has_output(test_abs) and has_output(ref_abs)):
+            # nothing mcplotdiff-html can compare
             return None
         if has_huge_file(test_abs, ref_abs):
             logging.info("Skipping mcplotdiff-html for %s: data file > %d MB" % (url, DIFF_MAX_FILESIZE // 2**20))
@@ -198,8 +197,8 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
         ref_url = get_data_url(refcellobj)
         test_abs = join(testdir, url)
         ref_abs = join(testdir, ref_url)
-        if not (os.path.isfile(join(test_abs, "mccode.sim")) and os.path.isfile(join(ref_abs, "mccode.sim"))):
-            # NeXus-only output (mccode.h5) or otherwise nothing mcplot-coplot-html can compare
+        if not (has_output(test_abs) and has_output(ref_abs)):
+            # nothing mcplot-coplot-html can compare
             return None
         if has_huge_file(test_abs, ref_abs):
             logging.info("Skipping mcplot-coplot-html for %s: data file > %d MB" % (url, DIFF_MAX_FILESIZE // 2**20))
@@ -359,8 +358,10 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
         for key in list(iterobj.keys()): 
             row = []
             rows.append(row)
-            # instr
-            row.append(key)
+            # instr, with the lead column's output type
+            d = join(testdir, get_data_url(iterobj[key]))
+            fmt = " (NeXus)" if os.path.isfile(join(d, "mccode.h5")) else " (McCode)" if has_output(d) else ""
+            row.append(key + fmt)
 
             # prepare row list to have the requested amount of cells (cols)
             for i in range(ncols - len(otherobjs) - 1):
@@ -397,16 +398,7 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
                     row.append(get_empty_cell_tuple("not on branch"))
 
     # load test data
-    alllabels = list()
-    for root, labels, files in walk(testdir):
-        for lab in labels:
-            if isdir(lab):
-                try:
-                    obj = json.loads(open(join(testdir, lab, "testresults_%s.json" % lab)).read())
-                    alllabels.append(lab)
-                except:
-                    pass
-    alllabels.sort()
+    alllabels = sorted(e.name for e in scantree(testdir))
     # get number of data columns
     numcols= len(alllabels)
 

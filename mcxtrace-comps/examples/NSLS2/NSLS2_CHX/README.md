@@ -22,7 +22,7 @@ high emittance (e=0.99nm).
 
 ## Examples
 
-- **Test: NSLS2_CHX -n1e6 L=33.5 L2=35.3 L3=44 Energy=10 Detector: Det_ff_I=2.82787e+16**
+- **Test: NSLS2_CHX L=33.5 L2=35.3 L3=44 Energy=10 Detector: Det_ff_I=2.82787e+16**
 
 ## Input parameters
 

@@ -78,9 +78,36 @@ Requires the `cadquery` Python package.
 | `name=value ...` | simulation parameters |
 | `--default` | automatically use instrument default parameter values |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
-| `-n`, `--ncount N` | number of particles to trace (default: 0 — geometry export doesn't need rays) |
+| `-n`, `--ncount N` | number of particle rays to include (default: 0 — geometry only) |
 | `--dirname DIR` | override output directory name |
-| `-f`, `--format FMT` | output format: `step` (default), `stl`, `xml`, `vrml`, `gltf`, `vtkjs` |
+| `-t`, `--trace N` | `mcrun --trace` level: 1 (default) legacy wireframe, 2 solid primitives |
+| `-s`, `--segments N` | tessellation resolution (circle segments, default: 16) |
+| `--tubes` | draw lines as solid cylinders (rays too, when `-n > 0`) |
+| `-f`, `--format FMT` | output format: `glb` (default), `gltf`, `step`, `stl`, `vrml`, `obj`, `ply`, `off`, `xml`/`x3d`, `vtk`, `vtkjs` |
+
+## mcdisplay-plopp / mxdisplay-plopp
+
+Requires `scipp` and `plopp` (plus `ipympl` and `jupyterlab` for the interactive UI). Without `-o`, opens a 3D JupyterLab UI.
+
+| Option | Description |
+|---|---|
+| `INSTR` | instrument file (`.instr` or compiled binary) |
+| `name=value ...` | simulation parameters |
+| `-n N` | number of rays to trace (default: 100) |
+| `-o`, `--output FILE` | write static png/pdf/svg 2D projections instead of opening the UI |
+| `-y`, `--yes` | forwarded to `mcrun`: use defaults for unset parameters (always on in the UI) |
+
+## mcdisplay-mantid / mxdisplay-mantid *(export Mantid instrument definition)*
+
+Writes `INSTR.xml`, a Mantid IDF built from the instrument geometry and its Mantid-flagged detector monitors.
+
+| Option | Description |
+|---|---|
+| `INSTR` | instrument file |
+| `name=value ...` | simulation parameters |
+| `--default` | automatically use instrument default parameter values |
+| `--dirname DIR` | override output directory name |
+| `-n`, `--ncount N` / `--mpi N` | accepted, but always forced to 1 |
 
 ## mcdisplay-matlab / mxdisplay-matlab *(legacy Matlab/Octave/iFit variant)*
 

@@ -38,13 +38,13 @@ Position | Element
 ---------|--------------------------------------------------------------------
 0        | the U20 undulator
 15       | Slit S1 2x0.7 mm^2
-16.5     | a Si(111) DCM, 40x40x10 mm^3 E0=5-20 keV
+16.5     | a Si(111) DCM, 40x40x10 mm^3 SIXS_E0=5-20 keV
 26       | Mirror M1 Si coated with Pd, elliptically vertical focusing 20x350x20 mm^3 Incident angle 0.175 deg (3 mrad)
 28       | Mirror M2 at 20x550x20mm^3. (tilted 45 deg exchange horz/vert components for UHV)
 33       | multipurpose diffractometer
 42       | UHV diffractometer (not modelled here)
 
-Example: E0=10 Detector: mon_spl_fluo_I=3.66859e+14
+Example: SIXS_E0=13 Detector: SIXS_detector_bulk_I=3.37342e+09
 ```
 
 ## Examples
@@ -57,16 +57,17 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Nominal energy at the Wiggler. | 13 |
-| dE | keV | Energy half-bandwidth at the Wiggler | 0.1 |
-| dcm_theta | deg | Rotation angle of the DCM. 0=set from energy E0 | 0 |
-| M1_angle | mrad | Rotation angle of M1/M2 mirrors. When left as 0, it is set automatically from E0. | 3 |
-| M1_radius | m | Curvature radius of M1 mirror (Rh, 1300x100) longitudinal. Positive=mirror is focusing. 0=flat. | 1400 |
-| M2_radius | m | Curvature radius of M2 mirror (Rh, 1300x100) sagittal. Positive=mirror is focusing. 0=flat. | 1400 |
-| sample_coating | str | Reflection/structure data file for the single crystal thin layer coating | "Mo.lau" |
-| sample_bulk | str | Reflection/structure data file for the single crystal bulk | "Si.lau" |
-| sample_thickness | m | The single crystal thin layer coating thickness | 50e-10 |
-| sample_angle | deg | The sample tilt angle (around X axis) | 0.175 |
+| SIXS_E0 | keV | Nominal energy at the Wiggler. | 13 |
+| SIXS_dE | keV | Energy half-bandwidth at the Wiggler | 0.1 |
+| SIXS_dcm_theta | deg | Rotation angle of the DCM. 0=set from energy SIXS_E0 | 0 |
+| SIXS_M1_angle | mrad | Rotation angle of M1/M2 mirrors. When left as 0, it is set automatically from SIXS_E0. | 3 |
+| SIXS_M1_radius | m | Curvature radius of M1 mirror (Rh, 1300x100) longitudinal. Positive=mirror is focusing. 0=flat. | 1400 |
+| SIXS_M2_radius | m | Curvature radius of M2 mirror (Rh, 1300x100) sagittal. Positive=mirror is focusing. 0=flat. | 1400 |
+| SIXS_sample_coating | str | Reflection/structure data file for the single crystal thin layer coating | "Mo.lau" |
+| SIXS_sample_bulk | str | Reflection/structure data file for the single crystal bulk | "Si.lau" |
+| SIXS_sample_thickness | m | The single crystal thin layer coating thickness | 50e-10 |
+| SIXS_sample_angle | deg | The sample tilt angle (around X axis) | 0.175 |
+| splits |  |  | 10 |
 
 ## Links
 

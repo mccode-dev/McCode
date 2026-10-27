@@ -83,13 +83,16 @@ TRACE
   int i, j;
   double dt, radpos;
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
 
   radpos = sqrt (x * x + y * y);
   i = floor ((t - tt_0) * nt / (tt_1 - tt_0)); /* Bin number */
   j = floor (nr * radpos / rmax);
 
-  if (radpos < rmax && i >= 0 && i < nt) {
+  if ((backprop || t >= t0) && z == 0.0 && radpos < rmax && i >= 0 && i < nt) {
     double p2 = p * p;
     #pragma acc atomic
     TOFPSDr_N[i][j] = TOFPSDr_N[i][j] + 1;
@@ -100,7 +103,7 @@ TRACE
     SCATTER;
   }
 
-  if (restore_neutron) {
+  if (restore_neutron || !SCATTERED) {
     RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}

@@ -557,13 +557,22 @@ Here is some data to go into a file.
 </ul>
 <h2 id="14-include-and-instrument-concatenation">14. <code>%include</code> and instrument concatenation</h2>
 <pre><code class="language-c">%include &quot;monitor_nd-lib&quot;          // C library, from within a %{ %} block
-%include &quot;ILL_H16.instr&quot;           // whole instrument or component file
+%include &quot;Mantid/ILL_H16_Mantid/ILL_H16_Mantid.instr&quot;  // whole instrument or component file
 </code></pre>
 <ul>
 <li>Outside a <code>%{ %}</code> C block, <code>%include "file"</code> reads another <code>.instr</code>/<code>.comp</code> file as
   meta-language (component definitions, or — inside <code>TRACE</code> — whole instruments to
   concatenate; see below). It's resolved at translation time by <code>mcstas</code>/<code>mcxtrace</code>, not by
   the C compiler — don't confuse it with C's <code>#include</code>.</li>
+<li><strong>Where the file is looked for</strong> (both forms, first hit wins): the name as given,
+  relative to the current directory; then each <code>-I</code>/<code>SEARCH</code> directory (§3); then the
+  installed resource directory itself; then its fixed top-level subdirectories
+  (<code>samples</code>, <code>monitors</code>, <code>sources</code>, <code>optics</code>, <code>misc</code>, <code>obsolete</code>, <code>contrib</code>, …,
+  <code>share</code>, <code>examples</code>). <strong>None of these is searched recursively.</strong> An instrument sitting
+  in <code>examples/&lt;Institute&gt;/&lt;Name&gt;/</code> is <em>not</em> found by its bare file name — give its path
+  relative to one of those directories, e.g.
+  <code>%include "Mantid/ILL_H16_Mantid/ILL_H16_Mantid.instr"</code> (relative to <code>examples</code>), or add
+  its folder with <code>-I</code>/<code>SEARCH</code>.</li>
 <li>Inside a <code>%{ ... %}</code> C code block, <code>%include "name"</code> instead pulls in a runtime C
   library from the component search path (<code>.h</code>/<code>.c</code> pair, included once no matter how many
   components ask for it) — e.g. <code>%include "read_table-lib"</code>. The runtime library is
@@ -582,7 +591,8 @@ Here is some data to go into a file.
   file is <code>%include</code>'d into another instrument (but present as normal when run standalone).
   Real examples: <code>templateTAS.instr</code> (<code>REMOVABLE COMPONENT Origin</code>, <code>REMOVABLE COMPONENT
   Source</code>), <code>ILL_IN5_Mantid.instr</code>; concatenation itself: <code>ILL_H16_IN5_Mantid.instr</code>
-  (<code>%include "ILL_H16_Mantid.instr"</code> + <code>%include "ILL_IN5_Mantid.instr"</code>).</li>
+  (<code>%include "Mantid/ILL_H16_Mantid/ILL_H16_Mantid.instr"</code> +
+  <code>%include "Mantid/ILL_IN5_Mantid/ILL_IN5_Mantid.instr"</code>).</li>
 </ul>
 <h2 id="15-save-finally-end-instrument-level">15. <code>SAVE</code> / <code>FINALLY</code> / <code>END</code> (instrument level)</h2>
 <pre><code class="language-c">SAVE

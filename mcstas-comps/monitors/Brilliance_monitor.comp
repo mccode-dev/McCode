@@ -148,9 +148,12 @@ TRACE
   double lambda;
   double Pnorm;
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
   lambda = (2 * PI / V2K) / sqrt (vx * vx + vy * vy + vz * vz);
-  if (x > xmin && x < xmax && y > ymin && y < ymax && lambda > lambda_0 && lambda < lambda_1) {
+  if ((backprop || t >= t0) && z == 0.0 && x > xmin && x < xmax && y > ymin && y < ymax && lambda > lambda_0 && lambda < lambda_1) {
     if (t < tt_1 && t > tt_0) {
       i = floor ((lambda - lambda_0) * nlam / (lambda_1 - lambda_0));
       j = floor ((t - tt_0) * nt / (tt_1 - tt_0));
@@ -173,7 +176,7 @@ TRACE
       BRIL_p2[j][i] = BRIL_p2[j][i] + Pnorm2;
     }
   }
-  if (restore_neutron) {
+  if (restore_neutron || !SCATTERED) {
     RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}

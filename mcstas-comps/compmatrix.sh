@@ -16,7 +16,10 @@ echo --------------------------------------- > ${COMPDIR}/comps_no_examples.txt
 echo Comps with no examples \(disregarding   >> ${COMPDIR}/comps_no_examples.txt
 echo  sasmodels and obsolete categories\)    >> ${COMPDIR}/comps_no_examples.txt
 echo --------------------------------------- >> ${COMPDIR}/comps_no_examples.txt
-for category in $(find . -name \*.comp | cut -d / -f2 | sort | uniq | grep -v parked)
+# "instr-path comp" for every "= comp(" outside C comments, at any depth below examples/
+INDEX=$(find ${COMPDIR}/examples -name '*.instr' -print0 | xargs -0 perl -0777 -ne \
+  's{/\*.*?\*/}{}gs; s{//[^\n]*}{}g; print "$ARGV $1\n" while /=\s*(\w+)\s*\(/g')
+for category in $(find . -name \*.comp | cut -d / -f2 | sort | uniq | grep -v -x -e parked -e examples)
 do
     echo Missing examples from ${category} >> ${COMPDIR}/comps_no_examples.txt
     cd ${COMPDIR}/${category}
@@ -24,9 +27,10 @@ do
     echo List of $category comps and the         >> ${category}_examples.txt
     echo example instruments that include them   >> ${category}_examples.txt
     echo --------------------------------------- >> ${category}_examples.txt
-    for comp in $(ls *.comp | sed s/.comp//g)
+    for compfile in *.comp
     do
-	examples=$(grep -H ${comp} ${COMPDIR}/examples/*/*/*instr | cut -f1 -d: | sort | uniq | xargs -n1 basename)
+	comp=${compfile%.comp}
+	examples=$(echo "$INDEX" | awk -v c="$comp" '$2 == c {print $1}' | sort -u | sed 's|.*/||')
 	num_examples=$(echo $examples | wc -w)
 	echo $comp is used in $num_examples example\(s\): >> ${category}_examples.txt
 	echo $examples | xargs -n1 echo - >> ${category}_examples.txt

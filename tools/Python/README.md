@@ -19,8 +19,8 @@ a dash, e.g. `mcplot-html` / `mxplot-html`.
 | [Code generators](codegen.md) | `mcstas`/`mcxtrace`, `mcstas-pygen`/`mcxtrace-pygen`, `mcstas-jupylab`/`mcxtrace-jupylab` |
 | [mcgui](mcgui.md) | `mcgui` / `mxgui` |
 | [mcrun](mcrun.md) | `mcrun` / `mxrun` |
-| [mcplot family](mcplot.md) | `mcplot` / `mxplot`, `mcplotdiff` / `mxplotdiff`, `mccoplot` / `mxcoplot` — html / matplotlib / pyqtgraph / matlab variants |
-| [mcdisplay family](mcdisplay.md) | `mcdisplay` / `mxdisplay` — pyqtgraph (default) / matplotlib / webgl / webgl-classic / cad / matlab variants |
+| [mcplot family](mcplot.md) | `mcplot` / `mxplot`, `mcplotdiff` / `mxplotdiff`, `mccoplot` / `mxcoplot` — html / matplotlib / pyqtgraph / plopp / matlab variants |
+| [mcdisplay family](mcdisplay.md) | `mcdisplay` / `mxdisplay` — pyqtgraph (default) / matplotlib / webgl / webgl-classic / plopp / cad / mantid / matlab variants |
 | [mctest family](mctest.md) | `mctest` / `mxtest`, `mcviewtest` / `mxviewtest`; [statistical acceptance](mctest-statistics.md) of test values |
 | [mcdoc](mcdoc.md) | `mcdoc` / `mxdoc` |
 
@@ -33,12 +33,14 @@ a dash, e.g. `mcplot-html` / `mxplot-html`.
 | Explore an instrument interactively in Jupyter via McStasScript | [`mcstas-jupylab` / `mcxtrace-jupylab`](codegen.md#mcstas-jupylab-mcxtrace-jupylab-explore-an-instrument-in-jupyter) |
 | Edit/compile/run instruments interactively | [`mcgui` / `mxgui`](mcgui.md) |
 | Run a simulation from the command line, or a parameter scan/optimisation | [`mcrun` / `mxrun`](mcrun.md) |
-| Plot one simulation's results | [`mcplot-{html,matplotlib,pyqtgraph}` <br> `mxplot-{html,matplotlib,pyqtgraph}`](mcplot.md#mcplot-mxplot) |
+| Plot one simulation's results | [`mcplot-{html,matplotlib,pyqtgraph,plopp}` <br> `mxplot-{html,matplotlib,pyqtgraph,plopp}`](mcplot.md#mcplot-mxplot) |
 | Compare exactly two simulations (`a - b`) | [`mcplotdiff-{html,matplotlib,pyqtgraph}` <br> `mxplotdiff-{html,matplotlib,pyqtgraph}`](mcplot.md#mcplotdiff-mxplotdiff) |
 | Overlay 2+ simulations for direct comparison | [`mccoplot-{html,matplotlib,pyqtgraph}` <br> `mxcoplot-{html,matplotlib,pyqtgraph}`](mcplot.md#mccoplot-mxcoplot) |
-| Visualise instrument geometry + particle trajectories | [`mcdisplay-{pyqtgraph,matplotlib,webgl,webgl-classic}` <br> `mxdisplay-{pyqtgraph,matplotlib,webgl,webgl-classic}`](mcdisplay.md) |
+| Visualise instrument geometry + particle trajectories | [`mcdisplay-{pyqtgraph,matplotlib,webgl,webgl-classic,plopp}` <br> `mxdisplay-{pyqtgraph,matplotlib,webgl,webgl-classic,plopp}`](mcdisplay.md) |
 | Export instrument geometry to a CAD file | [`mcdisplay-cad` <br> `mxdisplay-cad`](mcdisplay.md#mcdisplay-cad-mxdisplay-cad-bonus-export-instrument-geometry-to-cad) |
+| Export instrument geometry to a Mantid IDF (`.xml`) | [`mcdisplay-mantid` <br> `mxdisplay-mantid`](mcdisplay.md#mcdisplay-mantid-mxdisplay-mantid-export-mantid-instrument-definition) |
 | Plot/display results in Matlab, Octave, or iFit instead | [`mcplot-matlab` / `mxplot-matlab`](mcplot.md#mcplot-matlab-mxplot-matlab-legacy-matlaboctaveifit-variant) <br> [`mcdisplay-matlab` / `mxdisplay-matlab`](mcdisplay.md#mcdisplay-matlab-mxdisplay-matlab-legacy-matlaboctaveifit-variant) |
 | Test/benchmark the whole instrument library against a McCode installation | [`mctest` / `mxtest`](mctest.md#mctest-mxtest) |
 | Build a browsable pass/fail + diff report from `mctest` results | [`mcviewtest` / `mxviewtest`](mctest.md#mcviewtest-mxviewtest) |
 | Generate/browse instrument & component documentation | [`mcdoc` / `mxdoc`](mcdoc.md) |
+| Plot the resolution ellipsoid from `Res_monitor` output *(McStas only)* | `mcresplot` (no page: see `mcresplot --help`) |

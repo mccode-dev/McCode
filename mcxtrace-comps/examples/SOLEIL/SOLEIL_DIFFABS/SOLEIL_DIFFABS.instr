@@ -41,16 +41,16 @@
 * 31.45    | sample stage with e.g. Fluorescence and/or PowderN components. At 13.99 from DCM.
 * 32.09    | a set of detectors (transmission, XRD and XRF), radius 654 mm
 *
-* %Example: E0=13 Detector: sample_stage_I=2.20096e+10
+* Example: DIFFABS_E0=13 Detector: DIFFABS_sample_stage_I=2.20096e+10
 *
 * %Parameters
-* E0:       [keV]  Central energy of the interval to be looked at
-* dE:       [keV]  Half-width     of the energy interval
-* M1_angle: [mrad] Rotation angle of M1/M2 mirrors. When left as 0, it is set automatically from E0.
-* M1_radius:[m]    Curvature radius of M1 mirror (Rh, 1300x100) longitudinal. Positive=mirror is focusing. 0=flat.
-* M2_radius:[m]    Curvature radius of M2 mirror (Rh, 1300x100) sagittal. Positive=mirror is focusing. 0=flat.
-* DCM_theta:[deg]  Rotation angle of DCM crystals. When left as 0, it is set automatically from E0.
-* sample:   [str]  Sample structure file, LAU/CIF format.
+* DIFFABS_E0:       [keV]  Central energy of the interval to be looked at
+* DIFFABS_dE:       [keV]  Half-width     of the energy interval
+* DIFFABS_M1_angle: [mrad] Rotation angle of M1/M2 mirrors. When left as 0, it is set automatically from DIFFABS_E0.
+* DIFFABS_M1_radius:[m]    Curvature radius of M1 mirror (Rh, 1300x100) longitudinal. Positive=mirror is focusing. 0=flat.
+* DIFFABS_M2_radius:[m]    Curvature radius of M2 mirror (Rh, 1300x100) sagittal. Positive=mirror is focusing. 0=flat.
+* DIFFABS_DCM_theta:[deg]  Rotation angle of DCM crystals. When left as 0, it is set automatically from DIFFABS_E0.
+* DIFFABS_sample:   [str]  Sample structure file, LAU/CIF format.
 *
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/diffabs
@@ -60,48 +60,50 @@
 * %End
 *******************************************************************************/
 
-DEFINE INSTRUMENT SOLEIL_DIFFABS(E0=13,dE=1, 
-  M1_angle=0, M1_radius=1400, M2_radius=1400,
-  DCM_theta=0,
-  string sample="LaB6_660b_AVID2.hkl")
+DEFINE INSTRUMENT SOLEIL_DIFFABS(DIFFABS_E0=13,DIFFABS_dE=1, 
+  DIFFABS_M1_angle=0, DIFFABS_M1_radius=1400, DIFFABS_M2_radius=1400,
+  DIFFABS_DCM_theta=0,
+  string DIFFABS_sample="LaB6_660b_AVID2.hkl", int splits=10)
 
 DECLARE
 %{
-  double dcm_gap;
+  double DIFFABS_dcm_gap;
 %}
 
 INITIALIZE
 %{
   
   // DCM
-  double DM= 5.4909;     // Si d-spacing
-  double d = DM/sqrt(3); // <111> reflection |<111>|=3
-  dcm_gap  = 0.01;       // gap between the 2 monochromator crystals
+  {
+    double DM= 5.4909;     // Si d-spacing
+    double d = DM/sqrt(3); // <111> reflection |<111>|=3
+    DIFFABS_dcm_gap  = 0.01;       // gap between the 2 monochromator crystals
 
-  if (!DCM_theta && E0) {
-  // n.lambda = 2 d sin(theta) = 2*PI/E2K / E0 with n=ORDER=1
-  double sin_theta = 2*PI/E2K/E0 / 2 / d;
-  if (fabs(sin_theta) < 1)
-    DCM_theta = asin(sin_theta)*RAD2DEG;
-  } else if (DCM_theta && !E0)
-    E0 = 2*PI/E2K / (2*d*sin(DCM_theta*DEG2RAD));
-    
-  // M1 mirror
-  if (!M1_angle) {
-    if (19   <= E0)               M1_angle=2.4;
-    if (12.5 <= E0 && E0 < 19)    M1_angle=3;
-    if (6.5  <= E0 && E0 < 12.5)  M1_angle=5;
-    if (E0   < 6.5)               M1_angle=6;
+    if (!DIFFABS_DCM_theta && DIFFABS_E0) {
+    // n.lambda = 2 d sin(theta) = 2*PI/E2K / DIFFABS_E0 with n=ORDER=1
+    double sin_theta = 2*PI/E2K/DIFFABS_E0 / 2 / d;
+    if (fabs(sin_theta) < 1)
+      DIFFABS_DCM_theta = asin(sin_theta)*RAD2DEG;
+    } else if (DIFFABS_DCM_theta && !DIFFABS_E0)
+      DIFFABS_E0 = 2*PI/E2K / (2*d*sin(DIFFABS_DCM_theta*DEG2RAD));
+      
+    // M1 mirror
+    if (!DIFFABS_M1_angle) {
+      if (19   <= DIFFABS_E0)               DIFFABS_M1_angle=2.4;
+      if (12.5 <= DIFFABS_E0 && DIFFABS_E0 < 19)    DIFFABS_M1_angle=3;
+      if (6.5  <= DIFFABS_E0 && DIFFABS_E0 < 12.5)  DIFFABS_M1_angle=5;
+      if (DIFFABS_E0   < 6.5)               DIFFABS_M1_angle=6;
+    }
   }
   
-  if (!DCM_theta || !E0 || dE <=0)
-     exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, E0, dE));
+  if (!DIFFABS_DCM_theta || !DIFFABS_E0 || DIFFABS_dE <=0)
+     exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect DIFFABS_E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, DIFFABS_E0, DIFFABS_dE));
   MPI_MASTER(
-  printf("%s: E0=%g [keV] M1_angle=%g [mrad] %g [deg]\n", NAME_INSTRUMENT, E0, M1_angle, M1_angle*RAD2DEG/1000);
-  printf("%s: Monochromator theta=%g [deg]\n",            NAME_INSTRUMENT, DCM_theta);
+  printf("%s: DIFFABS_E0=%g [keV] DIFFABS_M1_angle=%g [mrad] %g [deg]\n", NAME_INSTRUMENT, DIFFABS_E0, DIFFABS_M1_angle, DIFFABS_M1_angle*RAD2DEG/1000);
+  printf("%s: Monochromator theta=%g [deg]\n",            NAME_INSTRUMENT, DIFFABS_DCM_theta);
   );
   
-  M1_angle *= RAD2DEG/1000;
+  DIFFABS_M1_angle *= RAD2DEG/1000;
 %}
 
 // -----------------------------------------------------------------------------
@@ -112,181 +114,173 @@ TRACE
 // BeamLineName| Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // -------|-------|----|----|-----|--
 // DIFFABS|280,441|55,1|20,6|123,7|1,6
-REMOVABLE COMPONENT origin = Progress_bar()
+REMOVABLE COMPONENT DIFFABS_origin = Progress_bar()
   AT (0,0,0) ABSOLUTE
 
 // the BM D13-1 Bender B=1.71 T in range 3-23 keV
 // e-beam cross-section 60.1x24.9 µm and 134.8x2.1 µrad. Critical energy 8.6 keV.
-COMPONENT BM_D13_1 = Bending_magnet(
-    E0 = E0, dE = dE, Ee = 2.75,
+COMPONENT DIFFABS_BM_D13_1 = Bending_magnet(
+    E0 = DIFFABS_E0, dE = DIFFABS_dE, Ee = 2.75,
     Ie = 0.5, B = 1.71, sigex=60.1e-6, sigey=24.9e-6)
 AT (0, 0, 0) RELATIVE PREVIOUS
 
 // 11.85    | primary slit
-COMPONENT primary_slit = Slit(
+COMPONENT DIFFABS_primary_slit = Slit(
     xwidth = 0.03, yheight = 0.01)
-AT (0, 0, 11.85) RELATIVE BM_D13_1
+AT (0, 0, 11.85) RELATIVE DIFFABS_BM_D13_1
 
 // -----------------------------------------------------------------------------
 // 14.92    | M1 bent mirror with Rh/Si coating. Reduces the vertical divergence. 
 // length 1300 mm, width 100 mm. 
 // 2.4 mrad incidence above 19 keV, 3 mrad in 12.5-19 keV, and 5 mrad in 6.5-12.5 keV, and 6 mrad below.
-COMPONENT M1_location = Arm()
-AT(0,0,14.92) RELATIVE BM_D13_1
+COMPONENT DIFFABS_M1_location = Arm()
+AT(0,0,14.92) RELATIVE DIFFABS_BM_D13_1
 
-COMPONENT M1_rotated = Arm()  // rotation of the mirror
-AT(0,0,0)               RELATIVE M1_location
-ROTATED (-M1_angle,0,0) RELATIVE M1_location
+COMPONENT DIFFABS_M1_rotated = Arm()  // rotation of the mirror
+AT(0,0,0)               RELATIVE DIFFABS_M1_location
+ROTATED (-DIFFABS_M1_angle,0,0) RELATIVE DIFFABS_M1_location
 
 // should image the slit to get a parallel beam.
-COMPONENT M1 = Mirror_curved( // 90 deg brings it from YZ (vert) to XZ (horiz)
+COMPONENT DIFFABS_M1 = Mirror_curved( // 90 deg brings it from YZ (vert) to XZ (horiz)
     length=1.3, width=0.1,
-    coating="Rh.txt", radius=M1_radius)
-AT(0,0,0)           RELATIVE M1_rotated
-ROTATED (0, 0, 90) RELATIVE M1_rotated
+    coating="Rh.txt", radius=DIFFABS_M1_radius)
+AT(0,0,0)           RELATIVE DIFFABS_M1_rotated
+ROTATED (0, 0, 90) RELATIVE DIFFABS_M1_rotated
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M1_out = Arm()      // 2-theta direction
-AT(0,0,0)               RELATIVE M1_rotated
-ROTATED (-M1_angle,0,0) RELATIVE M1_rotated
+COMPONENT DIFFABS_M1_out = Arm()      // 2-theta direction
+AT(0,0,0)               RELATIVE DIFFABS_M1_rotated
+ROTATED (-DIFFABS_M1_angle,0,0) RELATIVE DIFFABS_M1_rotated
 
 // -----------------------------------------------------------------------------
 // 17.462   | a Si(111) DCM. First crystal is 200x100 mm flat at 2.54 m from M1
 // 2nd is bent 70x100 mm to reduce the horizontal divergence (perp. to beam).
 
 // restrict the DCM input to avoid parasitic reflections
-COMPONENT DCM_slit_in = COPY(primary_slit)
+COMPONENT DIFFABS_DCM_slit_in = COPY(DIFFABS_primary_slit)
 AT (0,0,2.3) RELATIVE PREVIOUS
 
-COMPONENT DCM_in = Monitor_nD(
+COMPONENT DIFFABS_DCM_in = Monitor_nD(
   xwidth = 5e-2, yheight=5e-2, restore_xray=1,
   options="x y", bins=128)
 AT (0,0,0.001) RELATIVE PREVIOUS
 
-COMPONENT DCM_in_div = COPY(DCM_in)(
+COMPONENT DIFFABS_DCM_in_div = COPY(DIFFABS_DCM_in)(
   options="dx limits=[-0.05 0.05], dy limits=[-0.5 0.5]")
 AT (0, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT DCM_location = Arm()
-AT (0,0,2.54) RELATIVE M1_out
+COMPONENT DIFFABS_DCM_location = Arm()
+AT (0,0,2.54) RELATIVE DIFFABS_M1_out
 
 // the M1 mirror should reduce the divergence so that the beam is parallel
 // when hitting the monochromators, to reduce the energy spread
 
 
-COMPONENT bragg_crystal = Bragg_crystal(
+COMPONENT DIFFABS_bragg_crystal = Bragg_crystal(
     length=0.2, 
     width=0.1,
     material = "Si.txt",
     h = 1, k = 1, l = 1,
     crystal_type = 2
 )
-AT (0, 0, 0)               RELATIVE DCM_location
-ROTATED (-DCM_theta, 0, 0) RELATIVE DCM_location
+AT (0, 0, 0)               RELATIVE DIFFABS_DCM_location
+ROTATED (-DIFFABS_DCM_theta, 0, 0) RELATIVE DIFFABS_DCM_location
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT arm_crystal1 = Arm()
+COMPONENT DIFFABS_arm_crystal1 = Arm()
 AT (0, 0, 0)               RELATIVE PREVIOUS
-ROTATED (-DCM_theta, 0, 0) RELATIVE PREVIOUS
+ROTATED (-DIFFABS_DCM_theta, 0, 0) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- CC crystal 2 */
-COMPONENT bragg_crystal_two = COPY(bragg_crystal)(
+COMPONENT DIFFABS_bragg_crystal_two = COPY(DIFFABS_bragg_crystal)(
     length=0.2) 
-AT (0, dcm_gap, DCM_theta ? dcm_gap/tan(DCM_theta*DEG2RAD) : 0) RELATIVE bragg_crystal
-ROTATED (DCM_theta, 0, 0) RELATIVE arm_crystal1
+AT (0, DIFFABS_dcm_gap, DIFFABS_DCM_theta ? DIFFABS_dcm_gap/tan(DIFFABS_DCM_theta*DEG2RAD) : 0) RELATIVE DIFFABS_bragg_crystal
+ROTATED (DIFFABS_DCM_theta, 0, 0) RELATIVE DIFFABS_arm_crystal1
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT arm_crystal2 = Arm()
+COMPONENT DIFFABS_arm_crystal2 = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (DCM_theta, 0, 0) RELATIVE PREVIOUS
+ROTATED (DIFFABS_DCM_theta, 0, 0) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- Horizontal slit 5 */
-// the beam is positioned at Y=+dy*sin(2*DCM_theta*DEG2RAD)/sin(DCM_theta*DEG2RAD) 
+// the beam is positioned at Y=+dy*sin(2*DIFFABS_DCM_theta*DEG2RAD)/sin(DIFFABS_DCM_theta*DEG2RAD) 
 // with dy=0.01 (CC gap) wrt the CC entry
-COMPONENT DCM_out = COPY(DCM_in)(yheight=0.02)
-AT (0, 0, 0.2) RELATIVE arm_crystal2
-ROTATED (0,0,0) RELATIVE arm_crystal2          // TODO: small rotation to move beam at 0 divergence
+COMPONENT DIFFABS_DCM_out = COPY(DIFFABS_DCM_in)(yheight=0.02)
+AT (0, 0, 0.2) RELATIVE DIFFABS_arm_crystal2
+ROTATED (0,0,0) RELATIVE DIFFABS_arm_crystal2          // TODO: small rotation to move beam at 0 divergence
 
-COMPONENT DCM_out_div = COPY(DCM_in)(options="dx limits=[-0.5 0.5], dy limits=[-0.5 0.5]", yheight=0.2)
-AT (0, 0,0) RELATIVE DCM_out
+COMPONENT DIFFABS_DCM_out_div = COPY(DIFFABS_DCM_in)(options="dx limits=[-0.5 0.5], dy limits=[-0.5 0.5]", yheight=0.2)
+AT (0, 0,0) RELATIVE DIFFABS_DCM_out
 
-COMPONENT DCM_out_e = Monitor_nD(
-   options="energy", xwidth=0.1, yheight=0.2, bins=512, min=E0-dE, max=E0+dE)
-AT (0, 0,0) RELATIVE DCM_out
+COMPONENT DIFFABS_DCM_out_e = Monitor_nD(
+   options="energy", xwidth=0.1, yheight=0.2, bins=512, min=DIFFABS_E0-DIFFABS_dE, max=DIFFABS_E0+DIFFABS_dE)
+AT (0, 0,0) RELATIVE DIFFABS_DCM_out
 
-COMPONENT DCM_slit_out = Slit(xwidth=0.1, yheight=0.2*sin(DCM_theta*DEG2RAD))
+COMPONENT DIFFABS_DCM_slit_out = Slit(xwidth=0.1, yheight=0.2*sin(DIFFABS_DCM_theta*DEG2RAD))
 AT (0, 0, 0) RELATIVE PREVIOUS
 
 
 // -----------------------------------------------------------------------------
 // 19.28    | M2 bent mirror with Rh coating, 1300x100 mm. Focuses horizontally the beam, and increases the divergence. At 1.817 from DCM.
-COMPONENT M2_location = Arm()
-AT (0,0,1.818) RELATIVE arm_crystal2
+COMPONENT DIFFABS_M2_location = Arm()
+AT (0,0,1.818) RELATIVE DIFFABS_arm_crystal2
 
-COMPONENT M2_rotated = Arm()  // rotation of the mirror
-AT(0,0,0)                      RELATIVE M2_location
-ROTATED (M1_angle,0,0) RELATIVE M2_location
+COMPONENT DIFFABS_M2_rotated = Arm()  // rotation of the mirror
+AT(0,0,0)                      RELATIVE DIFFABS_M2_location
+ROTATED (DIFFABS_M1_angle,0,0) RELATIVE DIFFABS_M2_location
 
-COMPONENT M2 = Mirror_curved( // bring it from YZ to XZ (horiz)
+COMPONENT DIFFABS_M2 = Mirror_curved( // bring it from YZ to XZ (horiz)
     length=1.3, width=.1,
-    coating="Rh.txt", radius=M2_radius)
-AT(0,0,0)         RELATIVE M2_rotated
-ROTATED (0, 0, -90) RELATIVE M2_rotated
+    coating="Rh.txt", radius=DIFFABS_M2_radius)
+AT(0,0,0)         RELATIVE DIFFABS_M2_rotated
+ROTATED (0, 0, -90) RELATIVE DIFFABS_M2_rotated
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M2_out = Arm()      // 2-theta direction
-AT(0,0,0) RELATIVE M2_rotated
-ROTATED (M1_angle,0,0) RELATIVE M2_rotated
+COMPONENT DIFFABS_M2_out = Arm()      // 2-theta direction
+AT(0,0,0) RELATIVE DIFFABS_M2_rotated
+ROTATED (DIFFABS_M1_angle,0,0) RELATIVE DIFFABS_M2_rotated
 
 // -----------------------------------------------------------------------------
 // 31.45    | sample stage with e.g. Fluorescence and/or PowderN components. At 13.99 from DCM, 12.17 from M2
-COMPONENT sample_stage = COPY(DCM_in)
-AT (0,0,12.17)   RELATIVE M2_out
-ROTATED (0,0,90) RELATIVE M2_out
+COMPONENT DIFFABS_sample_stage = COPY(DIFFABS_DCM_in)
+AT (0,0,12.17)   RELATIVE DIFFABS_M2_out
+ROTATED (0,0,90) RELATIVE DIFFABS_M2_out
 
-SPLIT COMPONENT powder = PowderN(reflections=sample, 
-  xwidth = 0.001, yheight=0.01, zdepth=5e-6,
-  p_interact=0.5,
-  d_phi=5)
-AT (0,0,0) RELATIVE sample_stage
-GROUP samples
-
-// The Rayleigh scattering at E0 is large, and creates massive background.
+// The Rayleigh scattering at DIFFABS_E0 is large, and creates massive background.
 // We ignore it here.
-COMPONENT fluo = Fluorescence(
-  material=sample,
+SPLIT splits COMPONENT DIFFABS_fluo = FluoPowder(
+  material=DIFFABS_sample,
   xwidth = 0.001, yheight=0.01, zdepth=5e-6,
-  p_interact=1, target_z=1, focus_aw=180, focus_ah=5)
-AT (0,0,0) RELATIVE sample_stage
-GROUP samples
+  p_interact=1, target_z=1, focus_aw=180, focus_ah=5, d_phi=5)
+AT (0,0,0) RELATIVE DIFFABS_sample_stage
 
 // 4pi energy monitor
-COMPONENT fluo_monitor = Monitor_nD(
-  radius=0.2, options="energy", bins=1024, min=0, max=E0*1.2)
-// WHEN (K2E*sqrt(kx*kx+ky*ky+kz*kz) < 0.95*E0)
+COMPONENT DIFFABS_fluo_monitor = Monitor_nD(
+  radius=0.2, options="energy", bins=1024, min=0, max=DIFFABS_E0*1.2)
+// WHEN (K2E*sqrt(kx*kx+ky*ky+kz*kz) < 0.95*DIFFABS_E0)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // ideal "banana" detector
-COMPONENT det_angle = Monitor_nD(options="abs theta limits=[2 90]",
+COMPONENT DIFFABS_det_angle = Monitor_nD(options="abs theta limits=[2 90]",
   radius=0.6, yheight=1e-2, bins=10000)
-WHEN (0.75 * E0 < K2E*sqrt(kx*kx+ky*ky+kz*kz)) // model detector energy discrimination
-AT (0,0,0) RELATIVE sample_stage
+WHEN (0.75 * DIFFABS_E0 < K2E*sqrt(kx*kx+ky*ky+kz*kz)) // model detector energy discrimination
+AT (0,0,0) RELATIVE DIFFABS_sample_stage
 
 // -----------------------------------------------------------------------------
 // 32.09    | a set of detectors (transmission, XRD and XRF), radius 654 mm
-COMPONENT xpad = Monitor_nD(radius=.645, yheight = 0.05,
+COMPONENT DIFFABS_xpad = Monitor_nD(radius=.645, yheight = 0.05,
   options="theta bins=512 limits=[-8 120], y bins=128")
-WHEN (0.75 * E0 < K2E*sqrt(kx*kx+ky*ky+kz*kz)) // model detector energy discrimination
-AT (0,0,0) RELATIVE sample_stage
+WHEN (0.75 * DIFFABS_E0 < K2E*sqrt(kx*kx+ky*ky+kz*kz)) // model detector energy discrimination
+AT (0,0,0) RELATIVE DIFFABS_sample_stage
 
 END

@@ -17,7 +17,7 @@ This is a preliminary setup of the DBD with the Ge111 Johansson IBM
 
 ## Examples
 
-- **Test: use_flat_source=0 -n1e7 Detector: focus_monitor_I=2.38803e+10**
+- **Test: use_flat_source=0 Detector: focus_monitor_I=2.38803e+10**
 
 ## Input parameters
 

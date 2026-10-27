@@ -18,16 +18,19 @@
 * %Description
 * Use of all basic geometries, mesh(as a torus), sphere, cylinder, cone and box
 *
-* %Example: meshfile="torus.off" Detector: detector_scat_I=47.5
-* %Example: meshfile="torus.STL" Detector: detector_scat_I=47.5
+* %Test: meshfile="torus.off" Detector: detector_I=2.479E+6
+* %Test: meshfile="torus.STL" Detector: detector_I=2.479E+6
+* %Test: meshfile="torus.ply" Detector: detector_I=2.479E+6
 *
 * %Parameters
-* meshfile: [str] Name of the mesh (STL/OFF) geometry file
+* meshfile: [str] Name of the mesh geometry file: torus.STL (binary STL), torus.off or torus.ply
 *
 * %End
 *******************************************************************************/
 
 DEFINE INSTRUMENT Geometry_test(string meshfile="torus.STL")
+/* some rays cross the faceted torus more often than the default GMESH_MAX_HITS of 4 */
+DEPENDENCY " -DGMESH_MAX_HITS=8 "
 
 DECLARE
 %{
@@ -107,8 +110,7 @@ COMPONENT sample_torus  = Union_mesh(
    filename = meshfile,
    material_string="Al",
    coordinate_scale =0.025,
-   priority=346,
-   skip_convex_check=1
+   priority=346
 ) AT (0,0,0.02) RELATIVE sample_pos
 ROTATED (0,45,0) RELATIVE sample_pos
 

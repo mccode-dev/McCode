@@ -18,7 +18,7 @@ It shows that implementations are equivalent.
 
 ## Examples
 
-- **Test: Test_capillary -n 1e6 TL=3 TR=0.001 L1=0.4 Detector: psd14_I=7.34669e-08**
+- **Test: Test_capillary TL=3 TR=0.001 L1=0.4 Detector: psd14_I=7.34669e-08**
 
 ## Input parameters
 

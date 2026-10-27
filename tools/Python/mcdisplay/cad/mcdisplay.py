@@ -4,14 +4,16 @@
 Converts MCDISPLAY geometry information, read from an instrument binary,
 to common CAD / 3D formats.
 
-Supported output formats: glTF (.gltf), GLB, OBJ (+MTL), STL, PLY, VRML97 (.wrl),
+Supported output formats: glTF (.gltf), GLB, OBJ (+MTL), STL, PLY, OFF, VRML97 (.wrl),
 X3D (also as legacy 'xml'), VTK legacy (.vtk), STEP (AP214 faceted BREP, pure
 Python), and VTKJS (.vtkjs zip of the vtk.js JSON scene format).
 
 Each instrument component is assigned a color from a cycling palette, so
 adjacent components are visually distinguishable in the output.
 Color-capable formats: glTF, GLB, OBJ (via companion .mtl), PLY (vertex colors),
-VRML97, X3D. STL and legacy VTK carry no color information.
+VRML97, X3D. STL, OFF and legacy VTK carry no color information.
+STL, PLY and OFF hold surfaces only (no lines); PLY and OFF can be read back by
+the McStas OFF components (interoff-lib).
 
 Only dependency: numpy (already required by mccodelib.instrgeom).
 
@@ -469,48 +471,55 @@ def export_stl(parts, path):
             for v in t:
                 f.write(struct.pack('<3f', *v))
             f.write(struct.pack('<H', 0))
-    if not len(tris):
-        print("WARNING: STL has no triangles (only lines were drawn); wireframe is not representable in STL")
+    _warn_surfaces_only(parts, 'STL')
+
+
+def _warn_surfaces_only(parts, fmt):
+    ''' surface-only formats (STL, PLY, OFF) drop lines: say what was lost '''
     nmeshed = sum(1 for p in parts if p.mesh is not None and not p.mesh.empty())
-    if nmeshed < len(parts):
+    if not nmeshed:
+        print(f"WARNING: {fmt} has no triangles (only lines were drawn); use -t 2 and/or --tubes")
+    elif nmeshed < len(parts):
         print(f"NOTE: {len(parts) - nmeshed} of {len(parts)} components are wireframe-only "
-              f"and cannot be represented in STL (surfaces only: {nmeshed})")
+              f"and cannot be represented in {fmt} (surfaces only: {nmeshed})")
 
 
 def export_ply(parts, path):
-    ''' ASCII PLY with per-vertex colors (each vertex carries its component color) '''
-    verts, colors, edges, faces = [], [], [], []
+    ''' ASCII PLY, surfaces only, per-vertex colors. Readable by McStas interoff-lib (OFF components):
+    no edge element (interoff reads the faces right after the vertices) and no face colors
+    (trailing numbers on a face line are per-face properties there, e.g. m/alpha/W in Guide_anyshape) '''
+    verts, colors, faces = [], [], []
     for p in parts:
-        r, g, b = (int(round(c * 255)) for c in p.color)
-        for pl in p.polylines:
-            if len(pl) == 2:
-                edges.append([len(verts), len(verts) + 1])
-                verts.extend(map(tuple, pl))
-                colors.extend([(r, g, b)] * 2)
-            else:
-                for i in range(len(pl) - 1):
-                    edges.append([len(verts) + i, len(verts) + i + 1])
-                verts.extend(map(tuple, pl))
-                colors.extend([(r, g, b)] * len(pl))
         if p.mesh is not None and not p.mesh.empty():
-            base = len(verts)
-            verts.extend(map(tuple, p.mesh.verts))
-            colors.extend([(r, g, b)] * len(p.mesh.verts))
-            faces.extend([tuple(base + int(i) for i in t) for t in p.mesh.tris])
+            faces.append(p.mesh.tris + len(verts))
+            verts += list(p.mesh.verts)
+            colors += [tuple(int(round(c * 255)) for c in p.color)] * len(p.mesh.verts)
     with open(path, 'w') as f:
         f.write('ply\nformat ascii 1.0\ncomment McCode mcdisplay export\n')
-        f.write('element vertex ' + str(len(verts)) + '\nproperty float x\nproperty float y\nproperty float z\n'
+        f.write(f'element vertex {len(verts)}\nproperty float x\nproperty float y\nproperty float z\n'
                 'property uchar red\nproperty uchar green\nproperty uchar blue\n')
-        f.write(f'element edge {len(edges)}\nproperty int vertex1\nproperty int vertex2\n')
-        f.write('element face ' + str(len(faces)) + '\nproperty list uchar int vertex_indices\n'
-                'property uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n')
+        f.write(f'element face {sum(len(t) for t in faces)}\nproperty list uchar int vertex_indices\nend_header\n')
         for v, c in zip(verts, colors):
-            f.write(f'{_fmt(v[0])} {_fmt(v[1])} {_fmt(v[2])} {c[0]} {c[1]} {c[2]}\n')
-        for a, b in edges:
-            f.write(f'{a} {b}\n')
-        for fi, fc in enumerate(faces):
-            c = colors[fc[0]]  # face color = color of its first vertex
-            f.write('3 ' + ' '.join(map(str, fc)) + f' {c[0]} {c[1]} {c[2]}\n')
+            f.write(f'{v[0]:.12g} {v[1]:.12g} {v[2]:.12g} {c[0]} {c[1]} {c[2]}\n')
+        for t in faces:
+            for a, b, c in t:
+                f.write(f'3 {a} {b} {c}\n')
+    _warn_surfaces_only(parts, 'PLY')
+
+
+def export_off(parts, path):
+    ''' plain OFF, surfaces only, all components merged; readable by McStas interoff-lib (OFF components).
+    No colors: trailing numbers on a face line are per-face properties there (e.g. m/alpha/W in Guide_anyshape) '''
+    m = Mesh(np.zeros((0, 3)), np.zeros((0, 3)))
+    for p in parts:
+        m = m.merge(p.mesh)
+    with open(path, 'w') as f:
+        f.write(f'OFF\n# McCode mcdisplay export, metres\n{len(m.verts)} {len(m.tris)} 0\n')
+        for v in m.verts:
+            f.write(f'{v[0]:.12g} {v[1]:.12g} {v[2]:.12g}\n')
+        for a, b, c in m.tris:
+            f.write(f'3 {a} {b} {c}\n')
+    _warn_surfaces_only(parts, 'OFF')
 
 
 def export_vrml(parts, path):
@@ -1001,6 +1010,7 @@ EXPORTERS = {
     'obj': (export_obj, '.obj'),
     'stl': (export_stl, '.stl'),
     'ply': (export_ply, '.ply'),
+    'off': (export_off, '.off'),
     'vrml': (export_vrml, '.wrl'),
     'x3d': (export_x3d, '.x3d'),
     'xml': (export_x3d, '.x3d'),
@@ -1057,10 +1067,10 @@ def main(instr=None, dirname=None, **kwds):
 
 def output_format(astring):
     f = astring.lower()
-    if f in ('step', 'stl', 'xml', 'vrml', 'gltf', 'vtkjs', 'obj', 'ply', 'glb', 'x3d', 'vtk'):
+    if f in EXPORTERS:
         return f
     print(f"Unknown file format {astring}. Choose between STEP, STL, VRML, GLTF, GLB, "
-          f"OBJ, PLY, XML/X3D, VTK, VTKJS")
+          f"OBJ, PLY, OFF, XML/X3D, VTK, VTKJS")
     return 'stl'
 
 
@@ -1074,7 +1084,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--segments', dest='segments', type=int, default=16, help='Tessellation resolution (circle segments); lower = smaller/lighter files, e.g. 32 or 16. Default: 16')
     parser.add_argument('-t', '--trace', dest='trace', type=int, default=1, help='mcrun --trace level: 1 (default, fastest) gives the legacy wireframe drawing, 2 solid primitives. NB: with 1, surface-only formats (STL) may come out empty and many viewers ignore lines in OBJ/PLY; add --tubes to get solids')
     parser.add_argument('--tubes', action='store_true', help='Draw lines (multiline etc.) as solid cylinders with spheres at the corners, as in mcdisplay-plopp. NB: with -n > 0 the particle rays are tubed too, which can make files very large (e.g. ~150 MB STEP for 100 rays in PSI_DMC)')
-    parser.add_argument('-f', '--format', dest='format', type=output_format, default='glb', help='Output CAD file format (STEP, STL, VRML, GLTF, GLB, OBJ, PLY, XML/X3D, VTK and VTKJS). Default: GLB')
+    parser.add_argument('-f', '--format', dest='format', type=output_format, default='glb', help='Output CAD file format (STEP, STL, VRML, GLTF, GLB, OBJ, PLY, OFF, XML/X3D, VTK and VTKJS). Default: GLB')
 
     args, unknown = parser.parse_known_args()
     # if --inspect --first or --last are given after instr, the remaining args become "unknown",

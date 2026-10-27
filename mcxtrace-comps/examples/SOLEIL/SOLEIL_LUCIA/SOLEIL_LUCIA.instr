@@ -18,51 +18,53 @@
 * Position | Element
 * ---------|--------------------------------------------------------------------
 * 0        | HU52 undulator "Apple II" type, 32 periods, gap 15-150mm
-* 20       | Si(111) DCM, 40x40x10 mm^3 E0=5-16 keV
+* 20       | Si(111) DCM, 40x40x10 mm^3 LUCIA_E0=5-16 keV
 * 29       | Sample location
 * 29.1     | Fluorescence Detector at 90 deg
 *
-* %Example: E0=3.09 Detector: mon_spl_SDD_I=9.69081e+09
+* %Example: -n 1e7 LUCIA_E0=3.09 Detector: LUCIA_mon_spl_SDD_I=9.69081e+09
 *
 * %Parameters
-* E0: [keV] Nominal energy at the source, in 0.6-8 keV.
-* dE: [keV] Energy half-bandwidth at the source.
-* sample_material: [str] Absorption data file for the sample.
-* sample_geometry: [str] OFF/PLY file name for sample 3D geometry, or NULL for a box.
-* dcm_theta: [deg] Rotation angle of the DCM. 0=set from energy E0.
+* LUCIA_E0: [keV] Nominal energy at the source, in 0.6-8 keV.
+* LUCIA_dE: [keV] Energy half-bandwidth at the source.
+* LUCIA_sample_material: [str] Absorption data file for the sample.
+* LUCIA_sample_geometry: [str] OFF/PLY file name for sample 3D geometry, or NULL for a box.
+* LUCIA_dcm_theta: [deg] Rotation angle of the DCM. 0=set from energy LUCIA_E0.
 *
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/lucia
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT SOLEIL_LUCIA(E0=3.09, dE=0.02, dcm_theta=38.9, 
-  string sample_material="CaCO3AlP", string sample_geometry="plant_cell.ply")
+DEFINE INSTRUMENT SOLEIL_LUCIA(LUCIA_E0=3.09, LUCIA_dE=0.02, LUCIA_dcm_theta=38.9, 
+  string LUCIA_sample_material="CaCO3AlP", string LUCIA_sample_geometry="plant_cell.ply", int splits=10)
 
 DECLARE
 %{
-  double dcm_gap;
+  double LUCIA_dcm_gap;
 %}
 
 INITIALIZE
 %{
-  double DM= 5.4909;     // Si d-spacing
-  double d = DM/sqrt(3); // <111> reflection |<111>|=3
-  dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
-   
-  if (!dcm_theta && E0) {
-    // n.lambda = 2 d sin(dcm_theta) = 2*PI/E2K / E0 with n=ORDER=1
-    double sin_theta = 2*PI/E2K/E0 / 2 / d;
-    if (fabs(sin_theta) < 1)
-      dcm_theta = asin(sin_theta)*RAD2DEG;
-  } else if (dcm_theta && !E0)
-    E0 = 2*PI/E2K / (2*d*sin(dcm_theta*DEG2RAD));
-  if (!dcm_theta || !E0 || dE <=0)
-    exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, E0, dE));
+  {
+    double DM= 5.4909;     // Si d-spacing
+    double d = DM/sqrt(3); // <111> reflection |<111>|=3
+    LUCIA_dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
+     
+    if (!LUCIA_dcm_theta && LUCIA_E0) {
+      // n.lambda = 2 d sin(LUCIA_dcm_theta) = 2*PI/E2K / LUCIA_E0 with n=ORDER=1
+      double sin_theta = 2*PI/E2K/LUCIA_E0 / 2 / d;
+      if (fabs(sin_theta) < 1)
+        LUCIA_dcm_theta = asin(sin_theta)*RAD2DEG;
+    } else if (LUCIA_dcm_theta && !LUCIA_E0)
+      LUCIA_E0 = 2*PI/E2K / (2*d*sin(LUCIA_dcm_theta*DEG2RAD));
+  }
+  if (!LUCIA_dcm_theta || !LUCIA_E0 || LUCIA_dE <=0)
+    exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect LUCIA_E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, LUCIA_E0, LUCIA_dE));
   MPI_MASTER(
-    printf("%s: E0=%g [keV] Monochromator dcm_theta=%g [deg] \n", NAME_INSTRUMENT, E0, dcm_theta);
+    printf("%s: LUCIA_E0=%g [keV] Monochromator LUCIA_dcm_theta=%g [deg] \n", NAME_INSTRUMENT, LUCIA_E0, LUCIA_dcm_theta);
   );
-  if (fabs(dE/E0)>0.1) dE = 3e-2*E0;
+  if (fabs(LUCIA_dE/LUCIA_E0)>0.1) LUCIA_dE = 3e-2*LUCIA_E0;
 %}
 
 TRACE
@@ -71,13 +73,13 @@ TRACE
 // BeamLineName| Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // -----|-------|-----|-|--|--
 // LUCIA|332,067|218,2|8|30|3,7
-REMOVABLE COMPONENT origin = Progress_bar()
+REMOVABLE COMPONENT LUCIA_origin = Progress_bar()
 AT (0, 0, 0) RELATIVE ABSOLUTE
 
 // the photon source -----------------------------------------------------------
-COMPONENT source = Undulator(
-  E0     = E0,
-  dE     = dE,
+COMPONENT LUCIA_source = Undulator(
+  E0     = LUCIA_E0,
+  dE     = LUCIA_dE,
   Ee     = 2.75,
   dEe    = 0.001,
   Ie     = 0.5,
@@ -90,88 +92,88 @@ COMPONENT source = Undulator(
   sigepy = 3.7e-6) 
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT mon_src_xy = Monitor_nD(
+COMPONENT LUCIA_mon_src_xy = Monitor_nD(
   options="x y", xwidth=2e-3, yheight=2e-3, bins=128)
-AT (0,0,13.3) RELATIVE source
+AT (0,0,13.3) RELATIVE LUCIA_source
 
-COMPONENT mon_src_e = Monitor_nD(options="energy", xwidth=2e-3, yheight=2e-3, bins=128,
-  min=E0-dE*1.1, max=E0+dE*1.1)
+COMPONENT LUCIA_mon_src_e = Monitor_nD(options="energy", xwidth=2e-3, yheight=2e-3, bins=128,
+  min=LUCIA_E0-LUCIA_dE*1.1, max=LUCIA_E0+LUCIA_dE*1.1)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT slit = Slit(xwidth=0.5e-3, yheight=0.5e-3)
+COMPONENT LUCIA_slit = Slit(xwidth=0.5e-3, yheight=0.5e-3)
 AT (0,0,0.1) RELATIVE PREVIOUS
 
-COMPONENT slit_mon_xy = COPY(mon_src_xy)
+COMPONENT LUCIA_slit_mon_xy = COPY(LUCIA_mon_src_xy)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // The double monochromator ----------------------------------------------------
-COMPONENT DCM_location = Arm()
-AT (0,0,20.5) RELATIVE source
+COMPONENT LUCIA_DCM_location = Arm()
+AT (0,0,20.5) RELATIVE LUCIA_source
 
-COMPONENT dcm_xtal0 = Bragg_crystal(
+COMPONENT LUCIA_dcm_xtal0 = Bragg_crystal(
     length=0.04, width=0.04, 
     h=1, k=1, l=1, material="Si.txt", V=160.1826)
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+ROTATED (-LUCIA_dcm_theta,0,0) RELATIVE PREVIOUS
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT dcm0      = Arm()
+COMPONENT LUCIA_dcm0      = Arm()
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+ROTATED (-LUCIA_dcm_theta,0,0) RELATIVE PREVIOUS
 
-COMPONENT dcm_xtal1 = COPY(dcm_xtal0)
-AT(0,dcm_gap, dcm_theta ? dcm_gap/tan(dcm_theta*DEG2RAD) : 0)    RELATIVE dcm_xtal0
-ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS
+COMPONENT LUCIA_dcm_xtal1 = COPY(LUCIA_dcm_xtal0)
+AT(0,LUCIA_dcm_gap, LUCIA_dcm_theta ? LUCIA_dcm_gap/tan(LUCIA_dcm_theta*DEG2RAD) : 0)    RELATIVE LUCIA_dcm_xtal0
+ROTATED (LUCIA_dcm_theta,0,0)  RELATIVE PREVIOUS
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT dcm1      = Arm()
+COMPONENT LUCIA_dcm1      = Arm()
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS 
+ROTATED (LUCIA_dcm_theta,0,0)  RELATIVE PREVIOUS 
 
-COMPONENT mon_dcm_e = COPY(mon_src_e)
+COMPONENT LUCIA_mon_dcm_e = COPY(LUCIA_mon_src_e)
 AT (0,0,0.5) RELATIVE PREVIOUS
 
-COMPONENT mon_dcm_xy = COPY(mon_src_xy)
+COMPONENT LUCIA_mon_dcm_xy = COPY(LUCIA_mon_src_xy)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // The sample area -------------------------------------------------------------
 
 // a diaphragm before the sample
-COMPONENT diaphragm = Slit(
+COMPONENT LUCIA_diaphragm = Slit(
   xwidth=100e-6, yheight=100e-6)
-AT (0,0,8) RELATIVE mon_dcm_e
+AT (0,0,8) RELATIVE LUCIA_mon_dcm_e
 
-COMPONENT sample_stage = COPY(mon_src_xy)(
+COMPONENT LUCIA_sample_stage = COPY(LUCIA_mon_src_xy)(
   restore_xray=1, xwidth=100e-6, yheight=100e-6)
-AT (0,0,8.13) RELATIVE mon_dcm_e
+AT (0,0,8.13) RELATIVE LUCIA_mon_dcm_e
 
-COMPONENT fluo_rotated = Arm()
+COMPONENT LUCIA_fluo_rotated = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0,90,0) RELATIVE PREVIOUS
 
-COMPONENT sample = Fluorescence(
+SPLIT splits COMPONENT LUCIA_sample = Fluorescence(
   xwidth=100e-6, yheight=100e-6, zdepth=50e-6,
-  material=sample_material, geometry=sample_geometry,
+  material=LUCIA_sample_material, geometry=LUCIA_sample_geometry,
   p_interact=0.9)
-AT (0,0,0) RELATIVE sample_stage
+AT (0,0,0) RELATIVE LUCIA_sample_stage
 
-COMPONENT transmission = COPY(mon_src_xy)(
+COMPONENT LUCIA_transmission = COPY(LUCIA_mon_src_xy)(
   restore_xray=1, xwidth=100e-6, yheight=100e-6)
-AT (0,0,0.1) RELATIVE sample_stage
+AT (0,0,0.1) RELATIVE LUCIA_sample_stage
 
-COMPONENT mon_spl_SDD = Fluo_detector(
+COMPONENT LUCIA_mon_spl_SDD = Fluo_detector(
   radius=0.1, nE=512,
-  Emin=0, Emax=E0+dE*1.5, restore_xray=1)
-AT (0,0,0) RELATIVE sample
+  Emin=0, Emax=LUCIA_E0+LUCIA_dE*1.5, restore_xray=1)
+AT (0,0,0) RELATIVE LUCIA_sample
 
-COMPONENT mon_spl_fluo = Monitor_nD(options="energy", 
+COMPONENT LUCIA_mon_spl_fluo = Monitor_nD(options="energy", 
   xwidth=0.1, yheight=0.1, bins=1000,
-  min=0, max=E0+dE*1.1, restore_xray=1)
-AT (0,0,0.1) RELATIVE fluo_rotated
+  min=0, max=LUCIA_E0+LUCIA_dE*1.1, restore_xray=1)
+AT (0,0,0.1) RELATIVE LUCIA_fluo_rotated
 
 
 

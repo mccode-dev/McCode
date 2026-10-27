@@ -17,8 +17,8 @@ Generic TAS instrument for test of samples with dispersions. Modeled over the RI
 
 ## Examples
 
-- **Test: Test_Magnon_bcc_TAS.instr hw=0.5 Detector: e_monitor1_I=460000**
-- Example: Test_Magnon_bcc_TAS.instr hw=0,1 -N21
+- **Test: Test_Magnon_bcc_TAS.instr hw=0.5 Detector: e_monitor1_I=4.97e5**
+- **TestScan: mcrun Test_Magnon_bcc_TAS.instr hw=0,1 -N21 -n1e6 Detector: e_monitor_I={21 values}**
 
 ## Input parameters
 

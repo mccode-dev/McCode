@@ -26,6 +26,7 @@ sample is a slit and there is no analyzer.
 ## Examples
 
 - **Test: C1=30 TT=0 Detector: sng_I=2e-5**
+- **TestScan: mcrun TAS1_Diff_Slit.instr C1=30 TT=-0.6,0.6 -N13 -n1e6 Detector: sng_I={13 values}**
 
 ## Input parameters
 
@@ -37,7 +38,7 @@ Parameters in **boldface** are required; the others are optional.
 | TTM | deg | Monochromator take-off angle, aka A2 | -74 |
 | TT | deg | Take-off angle at the sample position, aka A4 | 33.52 |
 | C1 | min | Collimator 1 aperture (mono-sample arm) | 30 |
-| OMC1 | deg | Tilt angle of the Collimator 1 | 5.5 |
+| OMC1 | arcmin | Tilt angle of the Collimator 1 | 5.5 |
 | C2 | min | Collimator 2 aperture (sample-ana arm) | 28 |
 | C3 | min | Collimator 3 aperture (ana-detector arm) | 67 |
 

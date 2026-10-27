@@ -366,7 +366,9 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
           { Set_Vars_Coord_Type = DEFS->COORD_T; strcpy(Set_Vars_Coord_Label,"TOF [s]"); strcpy(Set_Vars_Coord_Var,"t"); lmin = 0; lmax = .1; }
         if (!strcmp(token, "phase"))
         { Set_Vars_Coord_Type = DEFS->COORD_PHASE; strcpy(Set_Vars_Coord_Label,"phase [rad]"); strcpy(Set_Vars_Coord_Var,"pha"); lmin = 0; lmax = 2*M_PI; }
-        if ((!strcmp(token, "p") || !strcmp(token, "i") || !strcmp(token, "intensity") || !strcmp(token, "flux")))
+        /* "intensity"/"flux" only name the default signal: a variable after "signal=", else a no-op word (#2445) */
+        if (!strcmp(token, "p") || !strcmp(token, "i")
+         || ((!strcmp(token, "intensity") || !strcmp(token, "flux")) && Set_Coord_Mode == DEFS->COORD_SIGNAL))
           { Set_Vars_Coord_Type = DEFS->COORD_P;
             strcpy(Set_Vars_Coord_Label,"Intensity");
             strncat(Set_Vars_Coord_Label, " [p/s", 30);
@@ -378,6 +380,7 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
             lmin = 0; lmax = FLT_MAX;
             if (Flag_auto>0) Flag_auto=0;
           }
+        else if (!strcmp(token, "intensity") || !strcmp(token, "flux")) iskeyword=1;
 
         if (!strcmp(token, "vx"))
           { Set_Vars_Coord_Type = DEFS->COORD_VX; strcpy(Set_Vars_Coord_Label,"vx [m/s]"); strcpy(Set_Vars_Coord_Var,"vx"); lmin = -1000; lmax = 1000; }
@@ -821,37 +824,32 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 		if (NXopengroup(nxhandle, "Geometry", "NXdata") == NX_OK) {
 		  char tmp[CHAR_BUF_LENGTH];
 		  sprintf(tmp,"%g",Vars->Sphere_Radius);
-		  nxprintattr(nxhandle, "radius", tmp);
+		  nxprintattr(nxhandle, "radius", "%s", tmp);
 
 		  sprintf(tmp,"%g",Vars->Cylinder_Height);
-		  nxprintattr(nxhandle, "height", tmp);
+		  nxprintattr(nxhandle, "height", "%s", tmp);
 
 		  sprintf(tmp,"%g",Vars->mxmin);
-		  nxprintattr(nxhandle, "xmin",  tmp);
+		  nxprintattr(nxhandle, "xmin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mxmax);
-		  nxprintattr(nxhandle, "xmax",  tmp);
+		  nxprintattr(nxhandle, "xmax", "%s",  tmp);
 
 		  sprintf(tmp,"%g",Vars->mymin);
-		  nxprintattr(nxhandle, "ymin",  tmp);
+		  nxprintattr(nxhandle, "ymin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mymax);
-		  nxprintattr(nxhandle, "ymax",  tmp);
+		  nxprintattr(nxhandle, "ymax", "%s",  tmp);
 
 		  sprintf(tmp,"%g",Vars->mzmin);
-		  nxprintattr(nxhandle, "zmin",  tmp);
+		  nxprintattr(nxhandle, "zmin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mzmax);
-		  nxprintattr(nxhandle, "zmax",  tmp);
-
-		  sprintf(tmp,"%g",Vars->mzmin);
-		  nxprintattr(nxhandle, "zmin",  tmp);
-		  sprintf(tmp,"%g",Vars->mzmax);
-		  nxprintattr(nxhandle, "zmax",  tmp);
+		  nxprintattr(nxhandle, "zmax", "%s",  tmp);
 
 		  sprintf(tmp,"%i",Vars->Flag_Shape);
-		  nxprintattr(nxhandle, "Shape identifier",  tmp);
+		  nxprintattr(nxhandle, "Shape identifier", "%s",  tmp);
 		  sprintf(tmp,"%s",Vars->Monitor_Label);
-		  nxprintattr(nxhandle, "Shape string",  tmp);
+		  nxprintattr(nxhandle, "Shape string", "%s",  tmp);
 		  sprintf(tmp,"%s",Vars->option);
-		  nxprintattr(nxhandle, "Option string",  tmp);
+		  nxprintattr(nxhandle, "Option string", "%s",  tmp);
 
 		  NXclosegroup(nxhandle); // Geometry
 		} else {

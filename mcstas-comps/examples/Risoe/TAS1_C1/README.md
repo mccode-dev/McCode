@@ -25,6 +25,7 @@ detector is at the sample position.
 ## Examples
 
 - **Test: PHM=-37.077 Detector: sng_I=0.000429426**
+- **TestScan: mcrun TAS1_C1.instr PHM=-38.077,-36.077 -N11 -n1e6 Detector: sng_I={11 values}**
 
 ## Input parameters
 

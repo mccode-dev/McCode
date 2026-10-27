@@ -1,0 +1,47 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Test_Radial_div
+*
+* %Identification
+* Written by: P. Willendrup
+* Date: 20. October 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_monitors
+*
+* Test of the contributed Radial_div monitor
+*
+* %Description
+* A small, weakly divergent beam is recorded by a PSD_monitor and by a Radial_div
+* monitor of the same size. With the beam divergence well within maxdiv_r and
+* all wavelengths within [Lmin, Lmax], both monitors record the same intensity.
+* Narrowing [Lmin, Lmax] makes Radial_div count only part of the beam.
+*
+* %Example: Test_Radial_div.instr Lmin=0.5 Lmax=10 Detector: PSD_I=0.000100531
+* %Example: Test_Radial_div.instr Lmin=0.5 Lmax=10 Detector: RadDiv_I=0.000100531
+* %Example: Test_Radial_div.instr Lmin=4 Lmax=6 Detector: RadDiv_I=2.51059e-05
+*
+* %Parameters
+* Lmin:     [AA] Minimum wavelength counted by Radial_div
+* Lmax:     [AA] Maximum wavelength counted by Radial_div
+* maxdiv_r: [deg] Maximal radial divergence counted by Radial_div
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Radial_div(Lmin=0.5, Lmax=10, maxdiv_r=2)
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Source = Source_simple(radius=0.01, dist=10, focus_xw=0.02, focus_yh=0.02, lambda0=5, dlambda=4)
+AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT PSD = PSD_monitor(xwidth=0.04, yheight=0.04, nx=40, ny=40, filename="psd.dat", restore_neutron=1)
+AT (0, 0, 10) RELATIVE Source
+
+COMPONENT RadDiv = Radial_div(xwidth=0.04, yheight=0.04, ndiv=20, maxdiv_r=maxdiv_r, Lmin=Lmin, Lmax=Lmax, filename="raddiv.dat", restore_neutron=1)
+AT (0, 0, 10) RELATIVE Source
+
+END

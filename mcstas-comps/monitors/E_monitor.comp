@@ -99,8 +99,11 @@ TRACE
   int i;
   double E;
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
-  if (x > xmin && x < xmax && y > ymin && y < ymax) {
+  if ((backprop || t >= t0) && z == 0.0 && x > xmin && x < xmax && y > ymin && y < ymax) {
     E = VS2E * (vx * vx + vy * vy + vz * vz);
 
     S_p += p;
@@ -119,7 +122,7 @@ TRACE
       SCATTER;
     }
   }
-  if (restore_neutron) {
+  if (restore_neutron || !SCATTERED) {
     RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}

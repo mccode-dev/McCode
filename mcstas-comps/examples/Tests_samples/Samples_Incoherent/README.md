@@ -62,6 +62,9 @@ cube.off: 6=PowderN,
 - **Test: SAMPLE=8 STOP=1 -n 1e5 Detector: PSD_Sphere_4pi_I=1.3233e+06**
 - **Test: SAMPLE=9 STOP=1 -n 1e5 Detector: PSD_Sphere_4pi_I=1.3239e+06**
 - **Test: SAMPLE=10 STOP=1 -n 1e5 Detector: PSD_Sphere_4pi_I=1.28905e+06**
+- **TestScan: mcrun Samples_Incoherent.instr SAMPLE=1,5 -N5 STOP=1 Detector: PSD_Sphere_4pi_I={5 values}**
+- **TestScan: mcrun Samples_Incoherent.instr SAMPLE=2,5 -N4 STOP=0 Detector: PSD_Sphere_4pi_I={4 values}**
+- **TestScan: mcrun Samples_Incoherent.instr SAMPLE=2,5 -N4 STOP=0 DB=1 Detector: Dirbeam_I={4 values}**
 
 ## Input parameters
 
