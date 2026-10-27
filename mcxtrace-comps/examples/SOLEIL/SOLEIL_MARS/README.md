@@ -28,7 +28,7 @@ This model implements the XRD station for powders.
 
 ## Examples
 
-- **Test: E0=16.99 Detector: detector_diffraction_I=2.56e+09**
+- **Test: MARS_E0=16.99 Detector: MARS_detector_diffraction_I=2.56e+09**
 
 ## Input parameters
 
@@ -36,11 +36,12 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Central energy to be emitted by the source | 16.99 |
-| reflec_material_M12 | str | reflecting coating on curved mirrors, e.g. Pt | "Pt.dat" |
-| reflections | str | Sample structure file, LAU/CIF format. | "LaB6_660b_AVID2.hkl" |
-| dEr | 1 | Relative half width to emitted by the source, e.g. 1e-4 | 1e-4 |
-| alpha | deg | Asymmetry angle for the crystals. | 0 |
+| MARS_E0 | keV | Central energy to be emitted by the source | 16.99 |
+| MARS_reflec_material_M12 | str | reflecting coating on curved mirrors, e.g. Pt | "Pt.dat" |
+| MARS_reflections | str | Sample structure file, LAU/CIF format. | "LaB6_660b_AVID2.hkl" |
+| MARS_dEr | 1 | Relative half width to emitted by the source, e.g. 1e-4 | 1e-4 |
+| MARS_alpha | deg | Asymmetry angle for the crystals. | 0 |
+| splits |  |  | 10 |
 
 ## Links
 

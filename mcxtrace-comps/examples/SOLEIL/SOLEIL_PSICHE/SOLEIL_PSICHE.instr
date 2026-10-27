@@ -22,16 +22,16 @@
 *
 * The sample handles absorption, with edge contrast, as well as fluorescence.
 *
-* %Example: E0=25 sample_material="Ag0.6In0.2Sn0.2" Detector: mon_spl_xy_I=7.61e+13
+* %Example: -n 1e6 PSICHE_E0=25 PSICHE_sample_material="Ag0.6In0.2Sn0.2" Detector: PSICHE_mon_spl_xy_I=7.61e+13
 *
 * %Parameters
-* E0: [keV] Nominal energy at the Wiggler. Sets the monochromator angle when DCM_present
-* dE: [keV] Energy half-bandwidth at the Wiggler
-* DCM_present: [1] Allow the monochromator in place (1) or removed (0, white beam)
-* sample_theta: [deg] Rotation of the sample stage
-* sample_material: [str] Absorption data file for the sample
-* sample_geometry: [str] OFF/PLY file name for sample 3D geometry, or emty for a box
-* dcm_theta: [deg] Rotation angle of the DCM. 0=set from energy E0
+* PSICHE_E0: [keV] Nominal energy at the Wiggler. Sets the monochromator angle when PSICHE_DCM_present
+* PSICHE_dE: [keV] Energy half-bandwidth at the Wiggler
+* PSICHE_DCM_present: [1] Allow the monochromator in place (1) or removed (0, white beam)
+* PSICHE_sample_theta: [deg] Rotation of the sample stage
+* PSICHE_sample_material: [str] Absorption data file for the sample
+* PSICHE_sample_geometry: [str] OFF/PLY file name for sample 3D geometry, or emty for a box
+* PSICHE_dcm_theta: [deg] Rotation angle of the DCM. 0=set from energy PSICHE_E0
 *
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/psiche
@@ -40,39 +40,41 @@
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT SOLEIL_PSICHE(E0=31, dE=1, DCM_present=0, sample_theta=0, 
-  string sample_material="Ag", string sample_geometry="wire.ply", dcm_theta=0)
+DEFINE INSTRUMENT SOLEIL_PSICHE(PSICHE_E0=31, PSICHE_dE=1, PSICHE_DCM_present=0, PSICHE_sample_theta=0, 
+  string PSICHE_sample_material="Ag", string PSICHE_sample_geometry="wire.ply", PSICHE_dcm_theta=0)
 
 DECLARE
 %{
-  double dcm_gap;
-  double dcm_scatter;
-  #pragma acc declare create(dcm_scatter)
+  double PSICHE_dcm_gap;
+  double PSICHE_dcm_scatter;
+  #pragma acc declare create(PSICHE_dcm_scatter)
 %}
 
 INITIALIZE
 %{
-   double DM= 5.4909;     // Si d-spacing
-   double d = DM/sqrt(3); // <111> reflection |<111>|=3
-   dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
-   dcm_scatter = DCM_present;
-   #pragma acc update device(dcm_scatter)
-   
-   if (DCM_present) {
-     if (!dcm_theta && E0) {
-       // n.lambda = 2 d sin(dcm_theta) = 2*PI/E2K / E0 with n=ORDER=1
-       double sin_theta = 2*PI/E2K/E0 / 2 / d;
-       if (fabs(sin_theta) < 1)
-         dcm_theta = asin(sin_theta)*RAD2DEG;
-     } else if (dcm_theta && !E0)
-       E0 = 2*PI/E2K / (2*d*sin(dcm_theta*DEG2RAD));
-     if (!dcm_theta || !E0 || dE <=0)
-       exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, E0, dE));
-     printf("%s: E0=%g [keV] Monochromator dcm_theta=%g [deg] \n", NAME_INSTRUMENT, E0, dcm_theta);
-     if (fabs(dE/E0)>0.1) dE = 3e-2*E0;
-   } else {
-     dcm_gap=dcm_theta=0;
-     printf("%s: E0=%g [keV] Monochromator OFF\n", NAME_INSTRUMENT, E0);
+   {
+     double DM= 5.4909;     // Si d-spacing
+     double d = DM/sqrt(3); // <111> reflection |<111>|=3
+     PSICHE_dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
+     PSICHE_dcm_scatter = PSICHE_DCM_present;
+     #pragma acc update device(PSICHE_dcm_scatter)
+     
+     if (PSICHE_DCM_present) {
+       if (!PSICHE_dcm_theta && PSICHE_E0) {
+         // n.lambda = 2 d sin(PSICHE_dcm_theta) = 2*PI/E2K / PSICHE_E0 with n=ORDER=1
+         double sin_theta = 2*PI/E2K/PSICHE_E0 / 2 / d;
+         if (fabs(sin_theta) < 1)
+           PSICHE_dcm_theta = asin(sin_theta)*RAD2DEG;
+       } else if (PSICHE_dcm_theta && !PSICHE_E0)
+         PSICHE_E0 = 2*PI/E2K / (2*d*sin(PSICHE_dcm_theta*DEG2RAD));
+       if (!PSICHE_dcm_theta || !PSICHE_E0 || PSICHE_dE <=0)
+         exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect PSICHE_E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, PSICHE_E0, PSICHE_dE));
+       printf("%s: PSICHE_E0=%g [keV] Monochromator PSICHE_dcm_theta=%g [deg] \n", NAME_INSTRUMENT, PSICHE_E0, PSICHE_dcm_theta);
+       if (fabs(PSICHE_dE/PSICHE_E0)>0.1) PSICHE_dE = 3e-2*PSICHE_E0;
+     } else {
+       PSICHE_dcm_gap=PSICHE_dcm_theta=0;
+       printf("%s: PSICHE_E0=%g [keV] Monochromator OFF\n", NAME_INSTRUMENT, PSICHE_E0);
+     }
    }
 %}
 
@@ -82,95 +84,96 @@ TRACE
 // BeamLineName| Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // ------|-------|-----|---|--|--
 // PSICHE|55,4572|333,3|5,9|17|5,3
-REMOVABLE COMPONENT origin = Progress_bar()
+REMOVABLE COMPONENT PSICHE_origin = Progress_bar()
 AT (0, 0, 0) RELATIVE ABSOLUTE
 
 // The photon source -----------------------------------------------------------
 
-COMPONENT source = Wiggler(E0 = E0, dE = dE, phase = 0, randomphase = 1, Ee = 2.4,
+COMPONENT PSICHE_source = Wiggler(E0 = PSICHE_E0, dE = PSICHE_dE, phase = 0, randomphase = 1, Ee = 2.4,
    Ie = 0.5, B = 2.1, Nper=41, sigey=9.3e-6, sigex=215.7e-6, length=38*50e-3, verbose=1,
    K=10)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT mon_src_e = Monitor_nD(xwidth=1e-2, yheight=1e-2, 
-  bins=512, options="energy", min=E0-1.1*dE, max=E0+1.1*dE)
-AT (0,0,17.5) RELATIVE source
+COMPONENT PSICHE_mon_src_e = Monitor_nD(xwidth=1e-2, yheight=1e-2, 
+  bins=512, options="energy", min=PSICHE_E0-1.1*PSICHE_dE, max=PSICHE_E0+1.1*PSICHE_dE)
+AT (0,0,17.5) RELATIVE PSICHE_source
 
-COMPONENT mon_src_xy = Monitor_nD(xwidth=1e-2, yheight=1e-2,options="x y", bins=128)
+COMPONENT PSICHE_mon_src_xy = Monitor_nD(xwidth=1e-2, yheight=1e-2,options="x y", bins=128)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // The double monochromator ----------------------------------------------------
-COMPONENT DCM_location = Arm()
-AT (0,0,20.5) RELATIVE source
+COMPONENT PSICHE_DCM_location = Arm()
+AT (0,0,20.5) RELATIVE PSICHE_source
 
-COMPONENT dcm_xtal0 = Bragg_crystal(
+COMPONENT PSICHE_dcm_xtal0 = Bragg_crystal(
     length=0.04, width=0.04, 
     h=1, k=1, l=1, material="Si.txt", V=160.1826)
-WHEN (DCM_present)
+WHEN (PSICHE_DCM_present)
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+ROTATED (-PSICHE_dcm_theta,0,0) RELATIVE PREVIOUS
 EXTEND %{
-  if (dcm_scatter && !SCATTERED) ABSORB;
+  if (PSICHE_dcm_scatter && !SCATTERED) ABSORB;
 %}
 
-COMPONENT dcm0      = Arm()
+COMPONENT PSICHE_dcm0      = Arm()
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+ROTATED (-PSICHE_dcm_theta,0,0) RELATIVE PREVIOUS
 
-COMPONENT dcm_xtal1 = COPY(dcm_xtal0)
-WHEN (DCM_present)
-AT(0,dcm_gap, dcm_theta ? dcm_gap/tan(dcm_theta*DEG2RAD) : 0)    RELATIVE dcm_xtal0
-ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS
+COMPONENT PSICHE_dcm_xtal1 = COPY(PSICHE_dcm_xtal0)
+WHEN (PSICHE_DCM_present)
+AT(0,PSICHE_dcm_gap, PSICHE_dcm_theta ? PSICHE_dcm_gap/tan(PSICHE_dcm_theta*DEG2RAD) : 0)    RELATIVE PSICHE_dcm_xtal0
+ROTATED (PSICHE_dcm_theta,0,0)  RELATIVE PREVIOUS
 EXTEND %{
-  if (dcm_scatter && !SCATTERED) ABSORB;
+  if (PSICHE_dcm_scatter && !SCATTERED) ABSORB;
 %}
 
-COMPONENT dcm1      = Arm()
+COMPONENT PSICHE_dcm1      = Arm()
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS 
+ROTATED (PSICHE_dcm_theta,0,0)  RELATIVE PREVIOUS 
 
-COMPONENT mon_dcm_e = COPY(mon_src_e)
+COMPONENT PSICHE_mon_dcm_e = COPY(PSICHE_mon_src_e)
 AT (0,0,0.5) RELATIVE PREVIOUS
 
-COMPONENT mon_dcm_xy = COPY(mon_src_xy)
+COMPONENT PSICHE_mon_dcm_xy = COPY(PSICHE_mon_src_xy)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // The sample area -------------------------------------------------------------
 
-COMPONENT slit = Slit(xwidth=17e-3, yheight=6e-3)
+COMPONENT PSICHE_slit = Slit(xwidth=17e-3, yheight=6e-3)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT sample_stage = Arm()
+COMPONENT PSICHE_sample_stage = Arm()
 AT (0,0,0.5) RELATIVE PREVIOUS
 
-// the legacy Filter component for absorption. 
-// The sample_material should then e.g. be "Ag.txt"
+// the legacy Filter COMPONENT PSICHE_for absorption. 
+// The PSICHE_sample_material should then e.g. be "Ag.txt"
 /*
-COMPONENT sample = Filter(xwidth=20e-3, yheight=10e-3, zdepth=1e-3,
-  material_datafile=sample_material, geometry=sample_geometry)
-AT (0,0,0)                 RELATIVE sample_stage
-ROTATED (0,sample_theta,0) RELATIVE sample_stage
+COMPONENT PSICHE_sample = Filter(xwidth=20e-3, yheight=10e-3, zdepth=1e-3,
+  material_datafile=PSICHE_sample_material, geometry=PSICHE_sample_geometry)
+AT (0,0,0)                 RELATIVE PSICHE_sample_stage
+ROTATED (0,PSICHE_sample_theta,0) RELATIVE PSICHE_sample_stage
 */
 
 // the Fluorescence sample also with absorption/fluo/Compton/Rayleigh
-// The sample_material should then e.g. be "Ag"
-COMPONENT sample = Fluorescence(xwidth=20e-3, yheight=10e-3, zdepth=1e-3,
-  material=sample_material, geometry=sample_geometry,
+// The PSICHE_sample_material should then e.g. be "Ag"
+COMPONENT PSICHE_sample = FluoPowder(xwidth=20e-3, yheight=10e-3, zdepth=1e-3,
+  material=PSICHE_sample_material, geometry=PSICHE_sample_geometry,
+  d_phi=asin(0.01/0.1)*RAD2DEG,
   target_index=3, focus_aw=90, focus_ah=5, p_interact=0.8)
-AT (0,0,0)                 RELATIVE sample_stage
-ROTATED (0,sample_theta,0) RELATIVE sample_stage
+AT (0,0,0)                 RELATIVE PSICHE_sample_stage
+ROTATED (0,PSICHE_sample_theta,0) RELATIVE PSICHE_sample_stage
 
-COMPONENT fluo_holder = Arm()
-AT       (0,0,0) RELATIVE sample_stage
-ROTATED (0,30,0) RELATIVE sample_stage
+COMPONENT PSICHE_fluo_holder = Arm()
+AT       (0,0,0) RELATIVE PSICHE_sample_stage
+ROTATED (0,30,0) RELATIVE PSICHE_sample_stage
 
-COMPONENT mon_spl_fluo = Monitor_nD(xwidth=0.01, yheight=0.01,
-  options="energy", min=0, max=E0+dE*1.05, bins=1000)
-AT (0,0,0.1) RELATIVE fluo_holder
+COMPONENT PSICHE_mon_spl_fluo = Monitor_nD(xwidth=0.01, yheight=0.01,
+  options="energy", min=0, max=PSICHE_E0+PSICHE_dE*1.05, bins=1000)
+AT (0,0,0.1) RELATIVE PSICHE_fluo_holder
 
-COMPONENT mon_spl_e = COPY(mon_src_e)
-AT (0,0,0.2) RELATIVE sample_stage
+COMPONENT PSICHE_mon_spl_e = COPY(PSICHE_mon_src_e)
+AT (0,0,0.2) RELATIVE PSICHE_sample_stage
 
-COMPONENT mon_spl_xy = COPY(mon_src_xy)
+COMPONENT PSICHE_mon_spl_xy = COPY(PSICHE_mon_src_xy)
 AT (0,0,0) RELATIVE PREVIOUS
 END

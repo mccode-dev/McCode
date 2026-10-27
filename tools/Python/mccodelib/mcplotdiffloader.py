@@ -16,6 +16,7 @@ import os
 import re
 import string
 import datetime
+import hashlib
 
 import numpy as np
 
@@ -180,6 +181,11 @@ def dirsafe_name(path):
     p = re.sub(r'[^\w\-.]', '_', p)
     # tidy up repeated/leading/trailing underscores left by the above
     p = re.sub(r'_+', '_', p).strip('_')
+    if len(p) > 40:
+        # long (e.g. absolute) paths: keep the distinguishing tail, plus a hash of the
+        # whole for uniqueness, so joined "A_vs_B" names stay under the 255-char limit
+        # ponytail: per-path cap only; a many-way coplot can still get long, cap the join if hit
+        p = p[-31:].lstrip('_') + '_' + hashlib.sha1(p.encode()).hexdigest()[:8]
     return p or 'unnamed'
 
 
@@ -198,6 +204,8 @@ def resolve_simfile(path):
     elif os.path.isdir(path):
         simdir = path
         simfile = os.path.join(simdir, 'mccode.sim')
+        if not os.path.isfile(simfile):
+            simfile = simdir  # e.g. NeXus output, mccode.h5 without mccode.sim
     else:
         raise Exception(path + " is neither a file or a directory")
     return simfile, simdir

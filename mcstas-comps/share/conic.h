@@ -171,7 +171,7 @@ int main() {
     Contains items general to the simulation
     @{
 */
-//! Max number of ConicSurf allowed in a Scene
+//! Max number of FlatSurf allowed in a Scene
 #ifndef MAX_FLATSURF
 #define MAX_FLATSURF 200
 #endif
@@ -179,6 +179,14 @@ int main() {
 //! Max number of ConicSurf allowed in a Scene
 #ifndef MAX_CONICSURF
 #define MAX_CONICSURF 100
+#endif
+
+//! Default RMS figure (slope) errors of ConicSurf mirrors, see reflectNeutronConic()
+#ifndef CONIC_SIGMA_M
+#define CONIC_SIGMA_M 1e-6
+#endif
+#ifndef CONIC_SIGMA_S
+#define CONIC_SIGMA_S 250e-6
 #endif
 
 //! Max number of Disks allowed in a Scene
@@ -544,6 +552,8 @@ typedef struct {
     double R0; //!< R0 reflectivity for mirror (0.99 for Nickel substrate)
     double alpha; //!< alpha, slope of reflectivity (6.07 AA for m=2 mirror)
     double W;     //!< Width of supermirror cut-off, 0.003 AA-1 for m=2 mirror
+    double figerr_m; //!< RMS meridional slope error [rad] (figure error), default CONIC_SIGMA_M
+    double figerr_s; //!< RMS sagittal slope error [rad] (figure error), default CONIC_SIGMA_S
   
     //Only for reference
     double f1; //!< z-axis position of first focus
@@ -945,6 +955,8 @@ ConicSurf makeHyperboloid(double f1, double f2, Point p,
     s.Qc = Qc;
     s.alpha = alpha;
     s.W = W;
+    s.figerr_m = CONIC_SIGMA_M;
+    s.figerr_s = CONIC_SIGMA_S;
     s.f1 = f1;
     s.f2 = f2;
     s.a = a;
@@ -992,6 +1004,8 @@ ConicSurf makeEllipsoid(double f1, double f2, Point p,
     s.Qc = Qc;
     s.alpha = alpha;
     s.W = W;
+    s.figerr_m = CONIC_SIGMA_M;
+    s.figerr_s = CONIC_SIGMA_S;
     s.f1 = f1;
     s.f2 = f2;
     s.a = a;
@@ -1091,6 +1105,8 @@ ConicSurf makeParaboloid(double f, Point p, double zstart,
     s.Qc = Qc;
     s.alpha = alpha;
     s.W = W;
+    s.figerr_m = CONIC_SIGMA_M;
+    s.figerr_s = CONIC_SIGMA_S;
     s.f1 = f;
     s.a = a;
 
@@ -1321,8 +1337,8 @@ MAKE SURE p IS ON SURFACE
 Vec getNormConic(Point p, ConicSurf s) {
     double det = s.k2*s.k2+4*s.k3*(p.x*p.x+p.y*p.y-s.k1);
     if (det <= 0.){
-
-        return makeVec(-p.x/sqrt(p.x*p.x + p.y*p.y),-p.y/(p.x*p.x + p.y*p.y),0);
+        double r = sqrt(p.x*p.x + p.y*p.y);
+        return makeVec(-p.x/r,-p.y/r,0);
     }
     double den = sqrt(det);
     double nx = -2*p.x/den;
@@ -1433,6 +1449,47 @@ double getTimeOfFirstCollisionFlat(_class_particle p, FlatSurf s) {
         return -1;
     return t+tz;
 }
+
+/*! \brief Function to compute time of next collision for a ConicSurf the particle is on
+
+Used right after an interaction with s: the particle is then on the surface, i.e.
+C = 0 in the quadratic equation and the roots are t = 0 and t = -B/A. Using -B/A
+directly avoids spurious near-zero roots caused by round-off.
+
+@param p _class_particle to consider, located on s
+@param s ConicSurf to consider
+@return Time until the next collision or -1 if particle will not hit s again
+*/
+double getTimeOfNextCollisionConic(_class_particle p, ConicSurf s) {
+    double A = p.vx*p.vx+p.vy*p.vy-s.k3*p.vz*p.vz;
+    double B = 2*(p.vx*p.x+p.vy*p.y-s.k3*p.vz*p.z)-s.k2*p.vz;
+    if (A == 0)
+        return -1;
+    double t = -B/A;
+    if (t <= 0 || p.vz*t+p.z > s.ze || p.vz*t+p.z < s.zs)
+        return -1;
+    return t;
+}
+
+/*! \brief Function to compute time of next collision for a FlatSurf the particle is on
+
+@see getTimeOfNextCollisionConic()
+
+@param p _class_particle to consider, located on s
+@param s FlatSurf to consider
+@return Time until the next collision or -1 if particle will not hit s again
+*/
+double getTimeOfNextCollisionFlat(_class_particle p, FlatSurf s) {
+    double A = p.vx*p.vx-s.k3*p.vz*p.vz;
+    double B = 2*(p.vx*p.x-s.k3*p.vz*p.z)-s.k2*p.vz;
+    if (A == 0)
+        return -1;
+    double t = -B/A;
+    if (t <= 0 || p.vz*t+p.z > s.ze || p.vz*t+p.z < s.zs || p.vy*t+p.y < s.ll || p.vy*t+p.y > s.rl)
+        return -1;
+    return t;
+}
+
 /*! \brief Function to rotate a vector (by D. Liu)
 
 @param v vector to rotate
@@ -1500,9 +1557,50 @@ double calcSupermirrorReflectivity(double q, double m, double R_0, double Q_c){
     return weight;
 }
 
+/*! \brief Function to sample the outgoing angle from a wavy surface
+
+Implements the effective waviness model of
+U. B. Hansen, M. Bertelsen, E. B. Knudsen and K. Lefmann,
+"Simulation of waviness in neutron guides", arXiv:1612.03763 (2016).
+There, the distribution of the final angle theta_f (relative to the mean surface)
+for a ray with incidence angle theta_i on a surface with RMS slope w, including
+illumination, shading and multiple reflections, is approximated by eq. (22),
+  f3(y) = alpha3 exp(-(y - kappa3 x)^2/8) tanh(beta3 y/x),  x = theta_i/w, y = theta_f/w,
+with beta3(x) and kappa3(x) given by eq. (23) and Table 1. As f3 is used for sampling
+only, the normalisation alpha3 is not needed.
+
+Note: kappa3 = k1 x^(-k2) + 1, i.e. with a negative exponent as shown in Fig. 11 of
+the paper; the minus sign is missing in the printed eq. (23).
+The model was fitted for 0.22 <= x <= 10; smaller values of x are extrapolated.
+
+@param x theta_i/w, > 0
+@param _particle Pointer to particle (for the random number generator)
+
+@return theta_f/w, or -1 if sampling failed
+*/
+double sampleWavyThetaf(double x, _class_particle* _particle) {
+    double beta3 = x < 1.38 ? 0.395*pow(x,2.5)+0.076 : (x < 4.5 ? 0.541*pow(x,1.9)+0.007 : 11);
+    double kx = (0.61*pow(x,-1.39)+1)*x;  // kappa3*x, centre of the Gaussian factor
+    double ymax = kx+12;                  // exp(-12^2/8) ~ 1.5e-8
+    int i;
+    for (i = 0; i < 1000; i++) {          // hit-and-miss sampling, f3/alpha3 <= 1
+        double y = ymax*rand01();
+        if (rand01() < exp(-(y-kx)*(y-kx)/8)*tanh(beta3*y/x))
+            return y;
+    }
+    return -1;
+}
+
 /*! \brief Function to handle reflection of neutron for a ConicSurf.
 
-@note Uses step function for reflectivity
+@note Uses StdReflecFunc for reflectivity, applied as a weight factor
+
+@note Figure error: if the grazing angle theta_i on the mean surface is at most
+10 times the RMS meridional slope error s.figerr_m, the outgoing angle is sampled
+from the waviness model of Hansen et al. (arXiv:1612.03763), see sampleWavyThetaf(),
+which accounts for illumination, shading and multiple reflections. Otherwise
+Gaussian slope errors are applied to the surface normal, for which these effects
+are negligible.
 
 @warning Make sure particle has been moved to surface of mirror
 before computing reflection
@@ -1517,44 +1615,36 @@ before computing reflection
 double reflectNeutronConic(_class_particle* _particle, ConicSurf s) {
     Vec n = getNormConic(get_class_particlePos(*_particle),s);
     Vec pv = get_class_particleVel(*_particle);
-	
-	int disp = 0;
-	if (disp>0) {
-	printf("\n n = %f, %f, %f",n.x,n.y,n.z);
-	printf("\n pv = %f, %f, %f",pv.x,pv.y,pv.z);
-	}
-	//add figure error by D. Liu
-	Vec n_p = makeVec(-n.y/sqrt(n.x*n.x+n.y*n.y),n.x/sqrt(n.x*n.x+n.y*n.y),0); //define a vector perpendicular to norm
-	//Vec n_p = makeVec(0,-n.z/sqrt(n.z*n.z+n.y*n.y),n.y/sqrt(n.z*n.z+n.y*n.y)); //define a vector perpendicular to norm
-	//Vec n_p = makeVec(-n.z/sqrt(n.z*n.z+n.x*n.x),0,n.x/sqrt(n.z*n.z+n.x*n.x)); //define a vector perpendicular to norm
-	if (disp>0) {
-	printf("\n n_p %f, %f, %f", n_p.x, n_p.y, n_p.z);
-	}
-	double len_p2 = sqrt((n.x*n.x+n.y*n.y)*(n.x*n.x+n.y*n.y+n.z*n.z));
-	Vec n_p2 = makeVec(-n.x*n.z/len_p2, -n.y*n.z/len_p2, (n.x*n.x+n.y*n.y)/len_p2); //define a vector perpendicular to both n and n_p
-	
-	//double phi, theta = rand01()*2*M_PI;
-	double phi1, theta1, sigma1;
-	//sigma = 37.7e-6;
-	sigma1 = 1e-6; // sigma1 is half-sigma (unit in rad): sigma1=5e-6 means the FWHM is 23.6 urad
-	phi1 = sigma1*randnorm();//randgaussian(0.0,sigma1);
-	theta1 = 250*sigma1*randnorm();//randgaussian(0.0,sigma1);
-	if (disp>0) {
-	printf("\n phi and theta %f, %f", phi1, theta1);
-	}
-	
-	Vec R1 = rotateM(n,phi1,n_p);	//rotate n by phi according to n_p
-	if (disp>0) {
-	printf("\n R1 %f, %f, %f", R1.x, R1.y, R1.z);
-	}
-	Vec R2 = rotateM(R1,theta1,n_p2);	//rotate R1 by theta according to n_p2
-	//Vec R2 = rotateM(R1,theta1,n);	//rotate R1 by theta according to n_p2
-	n = R2;
-	//
-	//n.y = n.y+theta1;
-	//n.z = n.z;
-	
-	// end of adding figure error
+
+    //add figure error by D. Liu: Gaussian slope errors with RMS s.figerr_m (meridional)
+    //and s.figerr_s (sagittal), i.e. reflected rays deviate by twice these values
+    double nr = sqrt(n.x*n.x+n.y*n.y);
+    if ((s.figerr_m > 0 || s.figerr_s > 0) && nr > 0) {
+        Vec n_p = makeVec(-n.y/nr,n.x/nr,0); //define a vector perpendicular to norm
+        double len_p2 = sqrt((n.x*n.x+n.y*n.y)*(n.x*n.x+n.y*n.y+n.z*n.z));
+        Vec n_p2 = makeVec(-n.x*n.z/len_p2, -n.y*n.z/len_p2, (n.x*n.x+n.y*n.y)/len_p2); //define a vector perpendicular to both n and n_p
+        // grazing angle on the mean surface; for small values relative to the meridional
+        // slope error use the waviness model of Hansen et al., arXiv:1612.03763
+        double vn0 = dotVec(pv,n);
+        double thi = vn0 < 0 ? asin(-vn0/getMagVec(pv)) : 0;
+        double yf = (thi > 0 && thi <= 10*s.figerr_m) ? sampleWavyThetaf(thi/s.figerr_m, _particle) : -1;
+        if (yf >= 0) {
+            // tilt n by delta towards the incoming ray, in the plane of n and the ray, giving
+            // a local grazing angle theta_i+delta and theta_f = theta_i+2*delta on the mean surface
+            double delta = (yf*s.figerr_m - thi)/2;
+            Vec tv = difVec(pv, skalarVec(n, vn0));
+            tv = skalarVec(tv, 1/getMagVec(tv));
+            Vec R1 = sumVec(skalarVec(n, cos(delta)), skalarVec(tv, -sin(delta)));
+            double theta1 = s.figerr_s*randnorm();
+            n = rotateM(R1,theta1,n_p2);	//rotate R1 by theta according to n_p2
+        } else {
+            double phi1 = s.figerr_m*randnorm();
+            double theta1 = s.figerr_s*randnorm();
+            Vec R1 = rotateM(n,phi1,n_p);	//rotate n by phi according to n_p
+            n = rotateM(R1,theta1,n_p2);	//rotate R1 by theta according to n_p2
+        }
+    }
+    // end of adding figure error
 
     double v = getMagVec(pv);
     double vn = dotVec(pv,n);
@@ -1566,24 +1656,18 @@ double reflectNeutronConic(_class_particle* _particle, ConicSurf s) {
     }
 
     double ga = fabs(acos(vn/v)) - M_PI/2;
-    double gc = 6.84459399932*s.m/v;
     double ref=1.0;
-    if (ga > gc) {
+    double q = V2Q*(-2)*vn;
+    double par[5] = {s.R0, s.Qc, s.alpha, s.m, s.W};
+    StdReflecFunc(q, par, &ref);
+    if (ref <= 0) {
         absorb_class_particle(_particle);
         return -1;
     }
-    else {
-        _particle->vx = _particle->vx-2*vn*n.x;
-        _particle->vy = _particle->vy-2*vn*n.y; 
-        _particle->vz = _particle->vz-2*vn*n.z; 
-        double q = V2Q*(-2)*vn;
-        double par[5] = {s.R0, s.Qc, s.alpha, s.m, s.W};
-        StdReflecFunc(q, par, &ref);
-	_particle->p = _particle->p * ref;
-    if (disp>0) {
-		printf("\n pv final = %f, %f, %f",pv.x,pv.y,pv.z);
-	}
-	}
+    _particle->vx = _particle->vx-2*vn*n.x;
+    _particle->vy = _particle->vy-2*vn*n.y; 
+    _particle->vz = _particle->vz-2*vn*n.z; 
+    _particle->p = _particle->p * ref;
     return ga;
 }
 
@@ -1632,7 +1716,7 @@ void refractNeutronFlat(_class_particle* p, Vec n, double m1, double m2) {
 
 /*! \brief Function to handle reflection of neutron for a FlatSurf.
 
-@note Uses step function for reflectivity
+@note Uses StdReflecFunc for reflectivity, applied as the probability for reflection
 
 @warning Make sure particle has been moved to surface of mirror
 before computing reflection
@@ -1647,54 +1731,41 @@ before computing reflection
 double reflectNeutronFlat(_class_particle* _particle, FlatSurf s) {
     Vec n = getNormFlat(get_class_particlePos(*_particle),s);
     Vec pv = get_class_particleVel(*_particle);
-    //printf("nothing");
     double v = getMagVec(pv);
     double vn = dotVec(pv,n);
-    //printf("before %f \n", p->w);
-    //Hitting shell from outside For FlatSurface this has to be checked
-    // make it able to reflect from the outside
+    // FlatSurf mirrors reflect from both sides, hence no check of which side is hit
     double ga = fabs(acos(vn/v)) - M_PI/2;
-    double gc = 6.84459399932*s.m/v;
     double ref=1.0;
 
     double q = V2Q*(-2)*vn;
     double par[5] = {s.R0, s.Qc, s.alpha, s.m, s.W};
     StdReflecFunc(q, par, &ref);
 
-    if (ref < 0) {
-        printf("this happens?");
-        absorb_class_particle(_particle);
-        return -1;
-    } else {//here we need to implement the refraction
-        if (rand01() <= ref){//to be updated to use the mcstas random function or quasoi deterministic model
-            //printf("oh a reflections\n");
-            //printf("this total reflection?");
-            _particle->vx = _particle->vx-2*vn*n.x;
-            _particle->vy = _particle->vy-2*vn*n.y;
-            _particle->vz = _particle->vz-2*vn*n.z;
-            return ga;
-        }
-        else{//
-            //printf("enter the refraction process");
-            double m1 = 0;
-            double m2 = 0;
-            //if no mirrorwidth is specified no refraction has to be calc
-            if (_particle->_mctmp_a == 0){
-                return ga;
-            }
-            if (_particle->_mctmp_a == 1){
-                m1 = m_Si;
-                m2 = 0;
-            }
-            if (_particle->_mctmp_a == -1){
-                m1 = 0;
-                m2 = m_Si;                
-            }
-            //printf("k1 %f k2 %f k3 %f x %f y %f z %f\n", s.k1, s.k2, s.k3, p->_x, p->_y, p->_z);
-            refractNeutronFlat(_particle, n, m1, m2);// this can still lead to total reflection, we miss the supermirror, but are still reflected by the silicon takes care of change of material for refraction
-            return ga;
-        }
+    // Reflect with probability ref, otherwise the neutron is transmitted through the coating
+    if (rand01() <= ref){
+        _particle->vx = _particle->vx-2*vn*n.x;
+        _particle->vy = _particle->vy-2*vn*n.y;
+        _particle->vz = _particle->vz-2*vn*n.z;
+        return ga;
     }
+
+    // Transmitted: without a substrate (_mctmp_a == 0) the neutron continues unaffected.
+    // Otherwise it is refracted at the air/silicon interface (_mctmp_a = -1: coming from
+    // air, +1: coming from silicon), which can still lead to total reflection by the silicon.
+    double m1 = 0;
+    double m2 = 0;
+    if (_particle->_mctmp_a == 0){
+        return ga;
+    }
+    if (_particle->_mctmp_a == 1){
+        m1 = m_Si;
+        m2 = 0;
+    }
+    if (_particle->_mctmp_a == -1){
+        m1 = 0;
+        m2 = m_Si;
+    }
+    refractNeutronFlat(_particle, n, m1, m2); // also updates _mctmp_a on a change of material
     return ga;
 }
 
@@ -1703,10 +1774,10 @@ double reflectNeutronFlat(_class_particle* _particle, FlatSurf s) {
 
 @param p Pointer of particle to reflect
 @param c ConicSurf to use
+@param t Time until the collision, from traceSingleNeutron()
 
 */
-void traceNeutronConic(_class_particle* _particle, ConicSurf c) {
-    double t = getTimeOfFirstCollisionConic(*_particle, c);
+void traceNeutronConic(_class_particle* _particle, ConicSurf c, double t) {
     if (t < 0)
         return;
     else {
@@ -1726,10 +1797,10 @@ void traceNeutronConic(_class_particle* _particle, ConicSurf c) {
 
 @param p Pointer of particle to reflect
 @param f FlatSurf to use
+@param t Time until the collision, from traceSingleNeutron()
 
 */
-void traceNeutronFlat(_class_particle* _particle, FlatSurf f) {
-    double t = getTimeOfFirstCollisionFlat(*_particle, f);
+void traceNeutronFlat(_class_particle* _particle, FlatSurf f, double t) {
     if (t < 0)
         return;
     else {
@@ -1791,6 +1862,8 @@ void initSimulation(Scene* s) {
 void traceSingleNeutron(_class_particle* _particle, Scene* s) {
    
     int contact = 1;
+    enum GEO last_type = NONE; // surface the particle is on after the previous step
+    int last_index = -1;
     do {
         double t;
         enum  GEO type = NONE;
@@ -1798,7 +1871,9 @@ void traceSingleNeutron(_class_particle* _particle, Scene* s) {
         int i;
 
         for (i = 0; i < s->num_c; i++) {
-            double t2 = getTimeOfFirstCollisionConic(*_particle,s->c[i]);
+            double t2 = (last_type == CONIC && last_index == i) ?
+                getTimeOfNextCollisionConic(*_particle,s->c[i]) :
+                getTimeOfFirstCollisionConic(*_particle,s->c[i]);
 
             if (t2 <= 0)
                 continue;
@@ -1810,7 +1885,9 @@ void traceSingleNeutron(_class_particle* _particle, Scene* s) {
         }
 
         for (i = 0; i < s->num_f; i++) {
-            double t2 = getTimeOfFirstCollisionFlat(*_particle,s->f[i]);
+            double t2 = (last_type == FLAT && last_index == i) ?
+                getTimeOfNextCollisionFlat(*_particle,s->f[i]) :
+                getTimeOfFirstCollisionFlat(*_particle,s->f[i]);
 
             if (t2 <= 0)
                 continue;
@@ -1850,18 +1927,20 @@ void traceSingleNeutron(_class_particle* _particle, Scene* s) {
                 traceNeutronDetector(_particle, s->d[index]);
                 break;
             case FLAT:
-	        traceNeutronFlat(_particle, s->f[index]);
+	        traceNeutronFlat(_particle, s->f[index], t);
                 break;
             case DISK:
                 traceNeutronDisk(_particle, s->di[index]);
                 break;
             case CONIC:
-                traceNeutronConic(_particle, s->c[index]);
+                traceNeutronConic(_particle, s->c[index], t);
                 break;
             default:
                 contact = 0;
                 break;
         }
+        last_type = type;
+        last_index = index;
     } while (contact && !_particle->_absorbed);
 
 }

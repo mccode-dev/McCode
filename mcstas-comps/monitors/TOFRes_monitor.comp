@@ -203,6 +203,7 @@ INITIALIZE %{
 TRACE %{
   double t0 = 0;
   double t1 = 0;
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
   int intersect = 0;
   unsigned long event_idx = 0;
   double event_ki[3], event_kf[3];
@@ -211,13 +212,17 @@ TRACE %{
 
   if (abs(Vars.Flag_Shape) == DEFS.SHAPE_SQUARE) /* square xy */
   {
+    t0 = t;
+    ALLOW_BACKPROP;
     PROP_Z0;
-    intersect = (x>=Vars.mxmin && x<=Vars.mxmax && y>=Vars.mymin && y<=Vars.mymax);
+    intersect = ((backprop || t >= t0) && z == 0.0 && x>=Vars.mxmin && x<=Vars.mxmax && y>=Vars.mymin && y<=Vars.mymax);
   }
   else if (abs(Vars.Flag_Shape) == DEFS.SHAPE_DISK)   /* disk xy */
   {
+    t0 = t;
+    ALLOW_BACKPROP;
     PROP_Z0;
-    intersect = ((x*x + y*y) <= Vars.Sphere_Radius*Vars.Sphere_Radius);
+    intersect = ((backprop || t >= t0) && z == 0.0 && (x*x + y*y) <= Vars.Sphere_Radius*Vars.Sphere_Radius);
   }
   else if (abs(Vars.Flag_Shape) == DEFS.SHAPE_SPHERE) /* sphere */
   {
@@ -317,7 +322,7 @@ TRACE %{
     } /* if p */
   } /* end if intersection */
 
-  if (restore_neutron) {
+  if (restore_neutron || !SCATTERED) {
       RESTORE_NEUTRON(INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
     }
 %}

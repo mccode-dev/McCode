@@ -1,0 +1,52 @@
+/*******************************************************************************
+* Instrument: Text2OFF
+*
+* %I
+* Written by: Peter Willendrup (pkwi@fysik.dtu.dk)
+* Date: October 2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Templates
+*
+* Render a text string as 3D geometry, e.g. for export to an OFF file
+*
+* %D
+* Draws the string given in "letters" with the Text component and nothing else -
+* no particles are traced. Use it with mxdisplay-cad to turn a text into CAD
+* geometry, for instance an OFF file that can be fed back into components that
+* read OFF geometry (labels, logos, test shapes):
+*
+*   mxdisplay-cad Text2OFF.instr -t 2 -f off letters="McXtrace" size=0.5
+*
+* Notes:
+* - Use --trace 2 (-t 2): with the default trace level 1 Text draws thin lines,
+*   which carry no surfaces and give an empty OFF/STL file.
+* - Each stroke is a cylinder and each stroke end/joint a sphere, so the
+*   resulting surfaces overlap - fine for display, not a closed single solid.
+* - Letters are drawn upper-case; characters without a glyph are left blank.
+*
+* Example: letters="McXtrace" size=0.5 plane="XY"
+*
+* %P
+* letters:   [str] Text to draw
+* size:      [m]   Letter height
+* plane:     [str] Plane of the text: "XY", "YZ" or "XZ"
+* thickness: [1]   Stroke diameter as fraction of size
+* rx:        [deg] Rotation of the text around the x axis
+* ry:        [deg] Rotation of the text around the y axis
+* rz:        [deg] Rotation of the text around the z axis
+*
+* %L
+* Text.comp, mxdisplay-cad --help
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Text2OFF(string letters="McXtrace", size=0.5, string plane="XY",
+                           thickness=0.1, rx=0, ry=0, rz=0)
+
+TRACE
+
+COMPONENT label = Text(text=letters, size=size, plane=plane, pen_thickness=thickness)
+AT (0, 0, 0) ABSOLUTE
+ROTATED (rx, ry, rz) ABSOLUTE
+
+END

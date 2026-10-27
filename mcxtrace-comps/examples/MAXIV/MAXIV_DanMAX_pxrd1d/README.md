@@ -19,7 +19,7 @@ as the multilayer.
 
 ## Examples
 
-- **Test: MAXIV_DanMAX_pxrd1d.instr -c -n1e6 E0=15 PXRD_SIMPLE=1 Detector: dm_strip_banana_I=0.00081782**
+- **Test: MAXIV_DanMAX_pxrd1d.instr -c E0=15 PXRD_SIMPLE=1 Detector: dm_strip_banana_I=0.00081782**
 
 ## Input parameters
 

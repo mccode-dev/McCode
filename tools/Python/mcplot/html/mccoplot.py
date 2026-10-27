@@ -37,7 +37,7 @@ from shutil import copyfile
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from mccodelib.mcplotloader import Data1D, Data2D
+from mccodelib.mcplotloader import Data1D, Data2D, nexus_suffix
 from mccodelib import mccode_config
 from mccodelib.mcplotdiffloader import (
     path_base_name, resolve_labels, resolve_colours, dirsafe_name,
@@ -374,13 +374,13 @@ def main(args):
     colours = resolve_colours(len(paths), given_colours)
 
     # identities is what _title_for() shows in each per-monitor figure's
-    # "A=.../B=.../..." block: simply the resolved labels themselves -
-    # resolve_labels() already falls back to each dataset's full input
-    # path when the auto-derived labels would otherwise collide (e.g.
-    # several runs all ending in a plain ".../<instrument>/1/" folder), so
-    # there's nothing further to add here. The compact on-plot legend
-    # keeps just the letters regardless (see _legend_letters()).
-    identities = labels
+    # "A=.../B=.../..." block and the index page: the resolved labels,
+    # marked " (NeXus)" for NeXus datasets - resolve_labels() already falls
+    # back to each dataset's full input path when the auto-derived labels
+    # would otherwise collide (e.g. several runs all ending in a plain
+    # ".../<instrument>/1/" folder). The compact on-plot legend keeps just
+    # the letters regardless (see _legend_letters()).
+    identities = [l + nexus_suffix(p) for l, p in zip(labels, paths)]
 
     # determine output directory - deliberately built from the actual
     # input paths (dirsafe_name), not the display labels: labels may
@@ -474,7 +474,7 @@ def main(args):
             browse(target)
         return
 
-    index_file = write_index(outdir, entries, labels)
+    index_file = write_index(outdir, entries, identities)
     print("Generated: %s" % index_file)
 
     if not args.nobrowse:

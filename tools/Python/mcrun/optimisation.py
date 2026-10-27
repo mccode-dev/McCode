@@ -1,5 +1,5 @@
 from os.path import basename
-from log import McRunException, getLogger
+from log import McRunException, getLogger, setupLogger
 from datetime import datetime
 from decimal import Decimal
 from os.path import join 
@@ -410,8 +410,16 @@ def scan_base_seed(mcstas, intervals):
         LOG.info('Scan base seed: %d' % mcstas.options.seed)
     return mcstas.options.seed
 
+def _init_worker():
+    """ mcrun's logging in a --scan_split worker process: needed with the spawn
+        start method (macOS, Windows), inherited already with fork (Linux) """
+    import logging
+    if not logging.getLogger().handlers:
+        setupLogger()
+
+
 def _simulate_point(args):
-    i, point, intervals, mcstas_config, mcstas_dir, base_seed = args
+    i, npoints, point, intervals, mcstas_config, mcstas_dir, base_seed = args
 
     from shutil import copyfile
     from os.path import join
@@ -455,8 +463,8 @@ def _simulate_point(args):
             # whose stdout didn't contain any "Detector: ..." lines at
             # all) - treated the same as a runtime failure below: skip
             # this point rather than writing an empty/malformed row.
-            LOG.warning('Scan step %d produced no detector data - skipping this point. Parameters were: %s',
-                        i, ', '.join(f'{k}={v}' for k, v in point.items()))
+            LOG.warning('Scan step %d/%d produced no detector data - skipping this point. Parameters were: %s',
+                        i + 1, npoints, ', '.join(f'{k}={v}' for k, v in point.items()))
             detectors = None
     except Exception as e:
         # A single failed scan point (simulation crash, non-zero exit,
@@ -465,8 +473,8 @@ def _simulate_point(args):
         # already skips any result with detectors=None rather than writing
         # a row for it, so the scan carries on to the remaining points and
         # mccode.dat simply omits this one.
-        LOG.warning('Scan step %d failed (%s: %s) - skipping this point and continuing with the rest of the scan. '
-                    'Parameters were: %s', i, type(e).__name__, e, ', '.join(f'{k}={v}' for k, v in point.items()))
+        LOG.warning('Scan step %d/%d failed (%s: %s) - skipping this point and continuing with the rest of the scan. '
+                    'Parameters were: %s', i + 1, npoints, type(e).__name__, e, ', '.join(f'{k}={v}' for k, v in point.items()))
         detectors = None
 
     result = {
@@ -633,6 +641,56 @@ class Scanner:
             LOG.info('Scan complete: all %d point(s) succeeded.', len(points))
 
 
+def merge_nexus_steps(mcstas_dir, indices, keep_steps=False):
+    """ Merges the mccode.h5 of each (successful) --scan_split step dir
+        mcstas_dir/i into mcstas_dir/mccode.h5 as entry1..N, as a serial NeXus
+        scan writes it, and removes the step dirs unless keep_steps (e.g. when
+        a step failed, to leave its output for inspection). Each step wrote its
+        data as its own entry1 in its own dir, so the copied entries refer to
+        those: the 'target' attribute of each linked monitor (e.g.
+        /entry1/instrument/... in entry2, which NeXus readers such as
+        nexusformat/NeXpy follow, showing entry1's data), and the step dir in the
+        simulation metadata. Both are rewritten here. """
+    import shutil
+    import h5py
+    import numpy as np
+    # step dirs as passed to the step runs, see _simulate_point()
+    stepdirs = [f'{mcstas_dir}/{i}' for i in indices]
+    with h5py.File(join(mcstas_dir, 'mccode.h5'), 'w') as merged:
+        for n, stepdir in enumerate(stepdirs, 1):
+
+            def fix(v, entry=True):
+                s = v.decode() if isinstance(v, bytes) else v
+                if entry:
+                    s = re.sub(r'/entry1\b', f'/entry{n}', s)
+                s = s.replace(stepdir, mcstas_dir)
+                return np.bytes_(s.encode()) if isinstance(v, bytes) else s  # fixed-length, as written by the runtime
+
+            def fix_all(name, obj):
+                for k, v in obj.attrs.items():
+                    if isinstance(v, (bytes, str)):
+                        obj.attrs[k] = fix(v)
+                if isinstance(obj, h5py.Dataset) and obj.dtype.kind == 'S' and obj.size == 1:
+                    # fixed-length, null-terminated string (e.g. title): rewritten only
+                    # when it changes, by the step dir fix, which shortens it so it fits
+                    v = obj[()] if not obj.shape else obj[0]
+                    if fix(v, False) != v:
+                        obj[...] = fix(v, False)
+
+            with h5py.File(f'{stepdir}/mccode.h5', 'r') as f:
+                if n == 1:
+                    merged.attrs.update({k: fix(v) if isinstance(v, (bytes, str)) else v for k, v in f.attrs.items()})
+                f.copy('entry1', merged, name=f'entry{n}')
+            fix_all(f'entry{n}', merged[f'entry{n}'])
+            merged[f'entry{n}'].visititems(fix_all)
+    if keep_steps:
+        LOG.info('NeXus scan steps merged into %s; step dirs kept since not all steps succeeded',
+                 join(mcstas_dir, 'mccode.h5'))
+        return
+    for stepdir in stepdirs:
+        shutil.rmtree(stepdir)
+
+
 class Scanner_split:
     """ Perform a series of simulation steps along a given set of points,
         Where each simulation is controlled by its own thread. """
@@ -661,12 +719,13 @@ class Scanner_split:
         base_seed = scan_base_seed(self.mcstas, self.intervals)
 
         # Prepare data to pass into processes
+        points = list(self.points)
         args_list = [
-            (i, point, self.intervals, self.mcstas, mcstas_dir, base_seed)
-            for i, point in enumerate(self.points)
+            (i, len(points), point, self.intervals, self.mcstas, mcstas_dir, base_seed)
+            for i, point in enumerate(points)
         ]
 
-        with Pool(processes=self.nb_cpu) as pool:
+        with Pool(processes=self.nb_cpu, initializer=_init_worker) as pool:
             results = pool.map(_simulate_point, args_list)
 
         # Sort results to preserve order
@@ -675,16 +734,10 @@ class Scanner_split:
         if self.mcstas.options.format.lower() == 'nexus':
             # Parallel steps can't safely append to one HDF5 file, so each wrote
             # its own dir/i/mccode.h5 - merge them as entry1..N like a serial scan.
-            import os, shutil, subprocess
-            merged = join(mcstas_dir, 'mccode.h5')
-            steps = [join(mcstas_dir, str(r['index']), 'mccode.h5') for r in results]
-            steps = [s for s in steps if os.path.exists(s)]
-            for n, step in enumerate(steps):
-                if n == 0:
-                    shutil.copy(step, merged)
-                else:
-                    subprocess.run(['h5copy', '-i', step, '-o', merged,
-                                    '-s', '/entry1', '-d', f'/entry{n+1}'], check=True)
+            # A failed step can leave a partial, unreadable mccode.h5: merge only the
+            # steps that gave detector values (the rows of mccode.dat)
+            ok = [r['index'] for r in results if r['detectors']]
+            merge_nexus_steps(mcstas_dir, ok, keep_steps=len(ok) < len(results))
 
         skipped = [r['index'] for r in results if not r['detectors']]
 

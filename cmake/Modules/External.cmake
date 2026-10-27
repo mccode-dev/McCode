@@ -89,7 +89,8 @@
 #
 #   mccode_install_externals(
 #       DIRECTORY   <dir>          # absolute, or relative to CMAKE_CURRENT_SOURCE_DIR
-#       DESTINATION <dir>          # install destination, as for install( FILES )
+#       [ DESTINATION <dir> ]      # install destination, as for install( FILES );
+#                                  # omit to only stage, e.g. sources to compile
 #       [ STAGE <dir> ]            # where fetched files are assembled; default
 #                                  # ${CMAKE_CURRENT_BINARY_DIR}/externals/<dir>
 #       [ COMPONENT <name> ]       # passed through to install()
@@ -423,8 +424,8 @@ function( mccode_install_externals )
   if ( EXT_UNPARSED_ARGUMENTS )
     message( FATAL_ERROR "mccode_install_externals: unexpected argument(s): ${EXT_UNPARSED_ARGUMENTS}" )
   endif()
-  if ( NOT EXT_DIRECTORY OR NOT EXT_DESTINATION )
-    message( FATAL_ERROR "mccode_install_externals: DIRECTORY and DESTINATION are both required." )
+  if ( NOT EXT_DIRECTORY )
+    message( FATAL_ERROR "mccode_install_externals: DIRECTORY is required." )
   endif()
   if ( EXT_OUTPUT_VARIABLE )
     set( ${EXT_OUTPUT_VARIABLE} "" PARENT_SCOPE )
@@ -499,6 +500,9 @@ function( mccode_install_externals )
   set( component_args "" )
   if ( EXT_COMPONENT )
     set( component_args COMPONENT "${EXT_COMPONENT}" )
+  endif()
+  if ( NOT EXT_DESTINATION )
+    set( subdirs "" )
   endif()
   foreach( key ${subdirs} )
     set( destination "${EXT_DESTINATION}" )

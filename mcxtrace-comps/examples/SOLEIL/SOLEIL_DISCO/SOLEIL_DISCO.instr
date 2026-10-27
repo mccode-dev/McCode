@@ -12,21 +12,21 @@
 *
 * %Description
 * DISCO beamline description here: https://hal.archives-ouvertes.fr/hal-01479318/document
-* You may scan the grating monochromator with e.g.:
-* %Scan: mxrun SOLEIL_DISCO.instr -N21 x_screw=20,103 scan=1 Detector: Wavelength_I={
+* You may DISCO_scan the grating monochromator with e.g.:
+* %Scan: mxrun SOLEIL_DISCO.instr -N21 DISCO_x_screw=20,103 DISCO_scan=1 Detector: Wavelength_I={
 *   2019.39,2365.97,2837.41,3242.59,3655.92,4070.23,4487.58,4921.15,
 *   5306.77,5738.39,6151.91,6565.99,6979.47,7395.13,7786.17,8199.52,
 *   8631.53,9051.46,9483.21,9913.98,10299.5 }
 *
-* %Example: grazing_angle_one=22.5 -n 1e5 Detector: second_HFP_I=2.08292e+11
+* %Example: DISCO_grazing_angle_one=22.5 -n 1e5 Detector: DISCO_second_HFP_I=2.08292e+11
 *
 * %Parameters
-* grazing_angle_one: [deg] Mirrors M1/M2 rotation angle
-* HFP_shift: [m] z translation from the HFP position (horizontal focal point detector)
-* VFP_shift: [m] z translation from the VFP position (vertical focal point detector)
-* second_HFP_shift: [m] z translation second HFP position
-* x_screw: [mm] length of the screw
-* scan: [] if there is an x_screw scan [1], calculate the Wavelength(Angstroms) as a function of x_screw(mm)
+* DISCO_grazing_angle_one: [deg] Mirrors M1/M2 rotation angle
+* DISCO_HFP_shift: [m] z translation from the HFP position (horizontal focal point detector)
+* DISCO_VFP_shift: [m] z translation from the VFP position (vertical focal point detector)
+* DISCO_second_HFP_shift: [m] z translation second HFP position
+* DISCO_x_screw: [mm] length of the screw
+* DISCO_scan: [] if there is an DISCO_x_screw DISCO_scan [1], calculate the Wavelength(Angstroms) as a function of DISCO_x_screw(mm)
 *
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/disco
@@ -39,41 +39,40 @@
 //Check that M53 and M54 should face each other in that fashion. Not sure.
 //Add trapezoidal diaphragm.
 //webgl viewer works but takes a bit of time to load.
-DEFINE INSTRUMENT SOLEIL_DISCO(grazing_angle_one=22.5, HFP_shift=0, VFP_shift=0, second_HFP_shift=0, x_screw=50, scan=0)
+DEFINE INSTRUMENT SOLEIL_DISCO(DISCO_grazing_angle_one=22.5, DISCO_HFP_shift=0, DISCO_VFP_shift=0, DISCO_second_HFP_shift=0, DISCO_x_screw=50, DISCO_scan=0, int splits=10)
 
 DECLARE
 %{
-    char filename[255];
-    double E0;
-    double dE;
-    double grazing_angle_reflect_grating;
+    double DISCO_E0;
+    double DISCO_dE;
+    double DISCO_grazing_angle_reflect_grating;
     //For more information on the following see the Czerny_turner instrument
     //At a later date, the Czerny-turner used in this instrument should be changed to the one used on DISCO(blazed grating, toroidal mirrors ...)
-    double number_lines_per_mm; 
-    double grazing_angle_order_grating;
-    double order;
-    double period;
-    double x_screw;
-    double theta_calculated;
-    double w_monitor_value;
-    double x_screw_var;
-    double w_monitor_error;
-    double number_events_w_monitor;  
+    double DISCO_number_lines_per_mm; 
+    double DISCO_grazing_angle_order_grating;
+    double DISCO_order;
+    double DISCO_period;
+    double DISCO_x_screw;
+    double DISCO_theta_calculated;
+    double DISCO_w_monitor_value;
+    double DISCO_x_screw_var;
+    double DISCO_w_monitor_error;
+    double DISCO_number_events_w_monitor;  
 %}
 
 INITIALIZE
 %{
     //Our source ranges from 1.2 to 6.2 eV (imaging branch, other branches to come at a later date)
-    E0 = 0.0037;
-    dE = 0.0025;
+    DISCO_E0 = 0.0037;
+    DISCO_dE = 0.0025;
     //For more information on the following see the Czerny_turner instrument
-    number_lines_per_mm = 1200;
-    theta_calculated = RAD2DEG*asin(x_screw/164.61);
-    order=1;
-    if (theta_calculated<9){
-    order=-1;
+    DISCO_number_lines_per_mm = 1200;
+    DISCO_theta_calculated = RAD2DEG*asin(DISCO_x_screw/164.61);
+    DISCO_order=1;
+    if (DISCO_theta_calculated<9){
+      DISCO_order=-1;
     }
-    period = 1/(1e3*number_lines_per_mm);    
+    DISCO_period = 1/(1e3*DISCO_number_lines_per_mm);    
 %}
 
 TRACE
@@ -82,12 +81,12 @@ TRACE
 // BeamLineName| Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // -----|-------|----|----|-----|--
 // DISCO|78,4205|45,5|18,4|113,1|2
-REMOVABLE COMPONENT Origin = Progress_bar() 
+REMOVABLE COMPONENT DISCO_Origin = Progress_bar() 
 AT (0, 0, 0) ABSOLUTE
 
 /* -------------------------------------------------- Source */
-COMPONENT Source = Bending_magnet(
-    E0=E0, dE = dE,
+COMPONENT DISCO_Source = Bending_magnet(
+    E0=DISCO_E0, dE = DISCO_dE,
     Ee = 2.75, Ie = 0.5, B = 1.72, sigex=45.5e-6, sigey=18.4e-6
     )
 AT (0, 0, 0) RELATIVE PREVIOUS
@@ -99,11 +98,11 @@ AT (0, 0, 0) RELATIVE PREVIOUS
 //glidcop material,
 //to set the tooth-like cold fingerfront-edge facing the beam.
 
-/*COMPONENT placeholder_ColdFinger = Arm()
-AT (0,0,4.975) RELATIVE Source*/
+/*COMPONENT DISCO_placeholder_ColdFinger = Arm()
+AT (0,0,4.975) RELATIVE DISCO_Source*/
 
-COMPONENT ColdFinger = Mask(xwidth=0.3, yheight=7.5e-3,mask="coldfinger.mask") //need to input the proper shape in the mask file
-AT (0,0,4.975) RELATIVE Source
+COMPONENT DISCO_ColdFinger = Mask(xwidth=0.3, yheight=7.5e-3,mask="coldfinger.mask") //need to input the proper shape in the mask file
+AT (0,0,4.975) RELATIVE DISCO_Source
 /*EXTEND
 %{ 
 	if (SCATTERED) ABSORB;
@@ -111,55 +110,55 @@ AT (0,0,4.975) RELATIVE Source
 
 //____________________________________________________________  5.800 m : M1 cylindrical convex mirror (vertical deviation) / beam goes up / 22.5° / Si / r = -75 m
 
-COMPONENT M1_location = Arm()
-AT (0,0,5.800) RELATIVE Source
+COMPONENT DISCO_M1_location = Arm()
+AT (0,0,5.800) RELATIVE DISCO_Source
 
-COMPONENT M1_rotated = Arm()
+COMPONENT DISCO_M1_rotated = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0,0,90) RELATIVE PREVIOUS
 
-COMPONENT M1_x = Arm()
+COMPONENT DISCO_M1_x = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (90, 0, 0) RELATIVE PREVIOUS
 
 // Mirror_curved is initially in the YZ plane
-COMPONENT M1 = Mirror_curved(
+COMPONENT DISCO_M1 = Mirror_curved(
   coating="Si_disco.dat", radius=-75, length=0.26, width=0.19)//radius=-0.1 to see the curve for testing purposes. length and width reversed.
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (0, 0, -grazing_angle_one) RELATIVE PREVIOUS
+ROTATED (0, 0, -DISCO_grazing_angle_one) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M1_takeoff = Arm()
+COMPONENT DISCO_M1_takeoff = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (0, 0, -grazing_angle_one) RELATIVE PREVIOUS
+ROTATED (0, 0, -DISCO_grazing_angle_one) RELATIVE PREVIOUS
 
 
-COMPONENT M1_x_takeoff = Arm()
+COMPONENT DISCO_M1_x_takeoff = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (-90, 0, 0) RELATIVE PREVIOUS
 
 
 //____________________________________________________________  6.000 m : M2 toroidal mirror (vertical deviation) : beam is sent back horizontally / 22.5° / Si / R = 21.04 m, r = 2.56 m
 
-COMPONENT M2_location = Arm()
-AT (0,0,0.2) RELATIVE M1_x_takeoff
+COMPONENT DISCO_M2_location = Arm()
+AT (0,0,0.2) RELATIVE DISCO_M1_x_takeoff
 
-COMPONENT M2_rotated_x = Arm()
+COMPONENT DISCO_M2_rotated_x = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (-90,0,0) RELATIVE M1
+ROTATED (-90,0,0) RELATIVE DISCO_M1
 
-COMPONENT M2_rotated = Arm()
+COMPONENT DISCO_M2_rotated = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0,0,-90) RELATIVE PREVIOUS
 
-COMPONENT M2_other_side = Arm()
+COMPONENT DISCO_M2_other_side = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0,0,180) RELATIVE PREVIOUS
 
-COMPONENT M2 = Mirror_toroid_pothole( 
+COMPONENT DISCO_M2 = Mirror_toroid_pothole( 
     xwidth = 0.26,
     zdepth = 0.19,
     radius = 2.56, 
@@ -172,90 +171,90 @@ EXTEND
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M2_other_side_back = Arm()
+COMPONENT DISCO_M2_other_side_back = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0,0,-180) RELATIVE PREVIOUS
 
-COMPONENT M2_takeoff = Arm()
+COMPONENT DISCO_M2_takeoff = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED (DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 
 //____________________________________________________________  14.000 m : HFP : Horizontal Focal Point ==>  PSD
 
-COMPONENT HFP_location = Arm()
-AT (0,0,8) RELATIVE M2_takeoff
+COMPONENT DISCO_HFP_location = Arm()
+AT (0,0,8) RELATIVE DISCO_M2_takeoff
 
-COMPONENT HFP = PSD_monitor(
-  nx=100, ny=100, filename="HFP_image.dat",xwidth=0.08,yheight=0.04)
-AT (0,0, HFP_shift) RELATIVE PREVIOUS //HFP_shift should be less than 2.6m
+COMPONENT DISCO_HFP = PSD_monitor(
+  nx=100, ny=100, filename="DISCO_HFP_image.dat",xwidth=0.08,yheight=0.04)
+AT (0,0, DISCO_HFP_shift) RELATIVE PREVIOUS //DISCO_HFP_shift should be less than 2.6m
 
 //____________________________________________________________  16.600 M3 elliptic cylindrical mirror (horizontal deviation) / 22.5 ° / Si / R = 9.93 m
 //use a cylindrical mirror for now because I do not know what elliptic cylindrical means
 
-COMPONENT M3_arm = Arm()
-AT (0,0,2.6) RELATIVE HFP_location
-ROTATED (0, 0, 0) RELATIVE HFP_location
+COMPONENT DISCO_M3_arm = Arm()
+AT (0,0,2.6) RELATIVE DISCO_HFP_location
+ROTATED (0, 0, 0) RELATIVE DISCO_HFP_location
 
 // Mirror_curved is initially in YZ plane
-COMPONENT M3 = Mirror_curved(
+COMPONENT DISCO_M3 = Mirror_curved(
   coating="Si_disco.dat", radius=9.93, length=240e-3, width=30e-3)
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (0, grazing_angle_one, 0) RELATIVE PREVIOUS
+ROTATED (0, DISCO_grazing_angle_one, 0) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M3_takeoff = Arm()
+COMPONENT DISCO_M3_takeoff = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
-ROTATED (0, grazing_angle_one, 0) RELATIVE PREVIOUS
+ROTATED (0, DISCO_grazing_angle_one, 0) RELATIVE PREVIOUS
 
-COMPONENT M3_yz = Arm()
+COMPONENT DISCO_M3_yz = Arm()
 AT (0,0,0) RELATIVE PREVIOUS //to do like before
 ROTATED (0, 0, 90) RELATIVE PREVIOUS
 
 //____________________________________________________________  16.800 M4 plane mirror (horizontal deviation)  / 22.5° / Si
-COMPONENT M4_yz = Arm()
+COMPONENT DISCO_M4_yz = Arm()
 AT (0,0,0.2) RELATIVE PREVIOUS
 
-COMPONENT M4 = Mirror(
+COMPONENT DISCO_M4 = Mirror(
     xwidth=30e-3,
     zdepth=240e-3,
     coating="Si_disco.dat")
 AT (0, 0, 0) RELATIVE PREVIOUS	
-ROTATED ( -grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED ( -DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M4_takeoff = Arm()
+COMPONENT DISCO_M4_takeoff = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
-ROTATED ( -grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED ( -DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 
 //rotate 90 back so our repere is normal again
-COMPONENT M4_arm_back = Arm()
+COMPONENT DISCO_M4_arm_back = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0, 0, -90) RELATIVE PREVIOUS
 
 //____________________________________________________________  18.470 m : VFP : Vertical Focal Point 
 
-COMPONENT VFP_location = Arm()
-AT (0,0,1.67) RELATIVE M4_arm_back
+COMPONENT DISCO_VFP_location = Arm()
+AT (0,0,1.67) RELATIVE DISCO_M4_arm_back
 
-COMPONENT VFP = PSD_monitor(
-  nx=100, ny=100, filename="VFP_image.dat",xwidth=0.02,yheight=0.04)
-AT (0,0,VFP_shift) RELATIVE PREVIOUS //VFP_shift should be less than 1.48m
+COMPONENT DISCO_VFP = PSD_monitor(
+  nx=100, ny=100, filename="DISCO_VFP_image.dat",xwidth=0.02,yheight=0.04)
+AT (0,0,DISCO_VFP_shift) RELATIVE PREVIOUS //DISCO_VFP_shift should be less than 1.48m
 
 //____________________________________________________________  19.950 m : M51 Convex spherical mirror (horizontal deviation)  / 22.5° Si / R = -35 //Aluminium or Si?
-COMPONENT M51_position = Arm()
-AT (0, 0, 1.48) RELATIVE VFP_location	
+COMPONENT DISCO_M51_position = Arm()
+AT (0, 0, 1.48) RELATIVE DISCO_VFP_location	
 
-COMPONENT M51_rotation = Arm()
+COMPONENT DISCO_M51_rotation = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
 ROTATED (0, 0, -90) RELATIVE PREVIOUS	
 
-COMPONENT M51 = Mirror_elliptic(
+COMPONENT DISCO_M51 = Mirror_elliptic(
     length=40e-3, 
     width=20e-3,
     x_a=35, //0.04 for testing purposes
@@ -263,30 +262,30 @@ COMPONENT M51 = Mirror_elliptic(
     z_c=35,
     coating="Si_disco.dat")
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED (DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT arm = Arm()
+COMPONENT DISCO_arm = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED (DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 
 //rotate 90 back so our frame is normal again
-COMPONENT M51_arm_back = Arm()
+COMPONENT DISCO_M51_arm_back = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0, 0, 90) RELATIVE PREVIOUS
 
 //____________________________________________________________  20.750 m : M52 cylindrical mirror (horizontal deviation)   / 20.65° / AlMgF2 / r = 2 m
-COMPONENT M52_position = Arm()
+COMPONENT DISCO_M52_position = Arm()
 AT (0,0,0.8) RELATIVE PREVIOUS
 
-COMPONENT M52_x = Arm()
+COMPONENT DISCO_M52_x = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (90, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT M52 = Mirror_curved(
+COMPONENT DISCO_M52 = Mirror_curved(
     radius=2, //0.04 for testing purposes
     length=20e-3,//length and width reversed
     width=40e-3,      
@@ -298,89 +297,89 @@ EXTEND
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M52_takeoff = Arm()
+COMPONENT DISCO_M52_takeoff = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
 ROTATED ( 0, 0, -20.65) RELATIVE PREVIOUS
 
 
-COMPONENT M52_x_takeoff = Arm()
+COMPONENT DISCO_M52_x_takeoff = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (-90, 0, 0) RELATIVE PREVIOUS
 
 //____________________________________________________________  25.71 m : HFP : Horizontal Focal Point ==>  PSD
 
-COMPONENT second_HFP_location = Arm()
-AT (0,0,4.96) RELATIVE M52_x_takeoff
+COMPONENT DISCO_second_HFP_location = Arm()
+AT (0,0,4.96) RELATIVE DISCO_M52_x_takeoff
 
-COMPONENT second_HFP = PSD_monitor(
-  nx=100, ny=100, filename="second_HFP_image.dat",xwidth=0.8,yheight=0.08)
-AT (0,0, second_HFP_shift) RELATIVE PREVIOUS 
+COMPONENT DISCO_second_HFP = PSD_monitor(
+  nx=100, ny=100, filename="DISCO_second_HFP_image.dat",xwidth=0.8,yheight=0.08)
+AT (0,0, DISCO_second_HFP_shift) RELATIVE PREVIOUS 
 
 //____________________________________________________________  44.500 m : M53 toroidal mirror (horizontal deviation) / 22.5° / AlMgF2 / R = 4.75 m, r = 0.714 m     
-COMPONENT M53_location = Arm()
-AT (0,0,23.75) RELATIVE M52_x_takeoff
+COMPONENT DISCO_M53_location = Arm()
+AT (0,0,23.75) RELATIVE DISCO_M52_x_takeoff
 
-COMPONENT M53_rotated = Arm()
+COMPONENT DISCO_M53_rotated = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0,0,90) RELATIVE PREVIOUS
 
-COMPONENT M53 = Mirror_toroid_pothole(
+COMPONENT DISCO_M53 = Mirror_toroid_pothole(
     xwidth = 50e-3,
     zdepth = 130e-3,
     radius = 0.714,
     radius_o=4.75,
     coating="AlMgF2_disco.dat")
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (-grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED (-DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M53_takeoff = Arm()
+COMPONENT DISCO_M53_takeoff = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (-grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED (-DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 
 //____________________________________________________________  44.750 m : M54 toroidal mirror (horizontal deviation) / 22.5° /  AlMgF2 / R = 7.80 m, r = 1.12 m  
 
-COMPONENT M54_location = Arm()
+COMPONENT DISCO_M54_location = Arm()
 AT (0,0,0.25) RELATIVE PREVIOUS
 
-COMPONENT M54_rotated = Arm()
+COMPONENT DISCO_M54_rotated = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0,0,180) RELATIVE PREVIOUS
 
-COMPONENT M54 = Mirror_toroid_pothole(
+COMPONENT DISCO_M54 = Mirror_toroid_pothole(
     xwidth = 50e-3,
     zdepth = 110e-3,
     radius = 1.12,
     radius_o=7.8,
     coating="AlMgF2_disco.dat")    
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (-grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED (-DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M54_takeoff = Arm()
+COMPONENT DISCO_M54_takeoff = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (-grazing_angle_one, 0, 0) RELATIVE PREVIOUS
+ROTATED (-DISCO_grazing_angle_one, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT Mtoroids_arm_back = Arm()
+COMPONENT DISCO_Mtoroids_arm_back = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0, 0, -180-90) RELATIVE PREVIOUS
 
 //____________________________________________________________  45.050 m : CX3, Czerny-turner monochromator
 
-COMPONENT M1_position = Arm()
+COMPONENT DISCO_M1_position = Arm()
 AT (0, 0, 0.3) RELATIVE PREVIOUS
 
-COMPONENT M1_rotation = Arm()
+COMPONENT DISCO_M1_rotation = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
 ROTATED (0, 0, 90) RELATIVE PREVIOUS	
 
-COMPONENT mirror_m1 = Mirror_elliptic(
+COMPONENT DISCO_mirror_m1 = Mirror_elliptic(
     length=150e-3, 
     width=150e-3,
     x_a=1.025, 
@@ -393,63 +392,63 @@ EXTEND
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT armm = Arm()
+COMPONENT DISCO_armm = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
 ROTATED (-(90-4.5), 0, 0) RELATIVE PREVIOUS
 
 //rotate 90 back so our frame is normal again
-COMPONENT M1_arm_back = Arm()
+COMPONENT DISCO_M1_arm_back = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0, 0, -90) RELATIVE PREVIOUS
 
-COMPONENT Grating_position = Arm()
+COMPONENT DISCO_Grating_position = Arm()
 AT (0, 0, 834.35e-3) RELATIVE PREVIOUS
 
-COMPONENT Grating_rotation = Arm()
+COMPONENT DISCO_Grating_rotation = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
 ROTATED (-90, 0, 0) RELATIVE PREVIOUS	
 
-COMPONENT Grating_rotation_lines_grating = Arm()
+COMPONENT DISCO_Grating_rotation_lines_grating = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
 ROTATED (0, -90, 0) RELATIVE PREVIOUS	
 
-COMPONENT Grating_rotation_nine_degrees = Arm()
+COMPONENT DISCO_Grating_rotation_nine_degrees = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
 ROTATED (-9, 0, 0) RELATIVE PREVIOUS	
 
-//COMPONENT reflective_grating = Grating_reflect(
-SPLIT 100 COMPONENT reflective_grating = Grating_reflect(//SPLIT 100 can be taken off
-    d_phi=1,order=order,
-    rho_l=number_lines_per_mm,
+//COMPONENT DISCO_reflective_grating = Grating_reflect(
+SPLIT splits COMPONENT DISCO_reflective_grating = Grating_reflect(//SPLIT 100 can be taken off
+    d_phi=1,order=DISCO_order,
+    rho_l=DISCO_number_lines_per_mm,
     zdepth=102e-3,xwidth=102e-3)    
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (theta_calculated, 0, 0) RELATIVE PREVIOUS //theta_calculated will change, angle between the bisector of phi and the grating's norm
+ROTATED (DISCO_theta_calculated, 0, 0) RELATIVE PREVIOUS //DISCO_theta_calculated will change, angle between the bisector of phi and the grating's norm
 
-COMPONENT Grating_rotation_lines_grating_back = Arm()
+COMPONENT DISCO_Grating_rotation_lines_grating_back = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS	
 ROTATED (0, 90, 0) RELATIVE PREVIOUS
 
 //rotate 90 back so our frame is normal again
-COMPONENT Grating_arm_back = Arm()
+COMPONENT DISCO_Grating_arm_back = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (90, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT Grating_arm_back_2 = Arm()
+COMPONENT DISCO_Grating_arm_back_2 = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0, 180, 0) RELATIVE PREVIOUS
 
-COMPONENT Grating_arm_back_3 = Arm()
+COMPONENT DISCO_Grating_arm_back_3 = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (0, -theta_calculated-9, 0) RELATIVE PREVIOUS
+ROTATED (0, -DISCO_theta_calculated-9, 0) RELATIVE PREVIOUS
 
-COMPONENT M22_location = Arm()
+COMPONENT DISCO_M22_location = Arm()
 AT (0,0,749.1e-3) RELATIVE PREVIOUS
 
-COMPONENT M22_rotated = Arm()
+COMPONENT DISCO_M22_rotated = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0,0,90) RELATIVE PREVIOUS
 
-COMPONENT mirror_m2 = Mirror_elliptic(
+COMPONENT DISCO_mirror_m2 = Mirror_elliptic(
     length=150e-3, 
     width=150e-3,
     x_a=0.925, 
@@ -462,31 +461,31 @@ EXTEND
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT arm2 = Arm()
+COMPONENT DISCO_arm2 = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
 ROTATED (-(90-5), 0, 0) RELATIVE PREVIOUS
 
 //rotate 90 back so our frame is normal again
-COMPONENT M44_arm_back = Arm()
+COMPONENT DISCO_M44_arm_back = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
 ROTATED (0, 0, -90) RELATIVE PREVIOUS
 
-COMPONENT arm3 = Arm()
+COMPONENT DISCO_arm3 = Arm()
 AT (0, 0, 760.33e-3) RELATIVE PREVIOUS
 ROTATED (0, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT psd_before_slit = PSD_monitor(
-  nx=100, ny=100, filename="psd_before_slit.dat",xwidth=130e-3,yheight=130e-3)
+COMPONENT DISCO_psd_before_slit = PSD_monitor(
+  nx=100, ny=100, filename="DISCO_psd_before_slit.dat",xwidth=130e-3,yheight=130e-3)
 AT (0,0,0) RELATIVE PREVIOUS 
 
-COMPONENT slit = Slit(
+COMPONENT DISCO_slit = Slit(
     //xwidth=13.5e-4, 
     xwidth=13.5e-6, 
     yheight=0.01)
 AT (0, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT psd_monitor = PSD_monitor(
-    filename="psd", 
+COMPONENT DISCO_psd_monitor = PSD_monitor(
+    filename="DISCO_psd", 
     xwidth=0.002, 
     yheight=0.02,             
     nx=100,
@@ -495,42 +494,42 @@ COMPONENT psd_monitor = PSD_monitor(
     )
 AT (0, 0, 10e-3) RELATIVE PREVIOUS
 
-COMPONENT psd_giant_after_grating = PSD_monitor(xwidth=2e-3, yheight=1e-2, filename="psd_giant_after_grating",nx=2001,ny=1)
+COMPONENT DISCO_psd_giant_after_grating = PSD_monitor(xwidth=2e-3, yheight=1e-2, filename="DISCO_psd_giant_after_grating",nx=2001,ny=1)
 AT(0,0,0) RELATIVE PREVIOUS
 
-COMPONENT e_monitor = Monitor_nD(
-  xwidth=2e-3, yheight=1e-2, options="energy  bins=500 limits=[0 0.007],  x  bins=500", filename="e_monitor",restore_xray = 1) 
+COMPONENT DISCO_e_monitor = Monitor_nD(
+  xwidth=2e-3, yheight=1e-2, options="energy  bins=500 limits=[0 0.007],  x  bins=500", filename="DISCO_e_monitor",restore_xray = 1) 
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT w_monitor = Monitor_nD(
-  xwidth=2e-3, yheight=1e-2, options="wavelength  bins=500 limits=[1980 11000],  x  bins=500", filename="w_monitor",restore_xray = 1) 
+COMPONENT DISCO_w_monitor = Monitor_nD(
+  xwidth=2e-3, yheight=1e-2, options="wavelength  bins=500 limits=[1980 11000],  x  bins=500", filename="DISCO_w_monitor",restore_xray = 1) 
 AT (0,0,0) RELATIVE PREVIOUS
 
 
 FINALLY
 %{
 
-    // If there is a scan, calculate the Wavelength(Angstroms) as a function of x_screw(mm).
-    if(scan>=1){ 
+    // If there is a DISCO_scan, calculate the Wavelength(Angstroms) as a function of DISCO_x_screw(mm).
+    if(DISCO_scan>=1){ 
 #ifdef USE_MPI
       if (mpi_node_rank==0) {
 #endif
-	    MCDETECTOR w_monitor_var = COMP_GETPAR(w_monitor,detector); // We have to think in terms of wavelength, the sine drive mechanism was built to linearize the wavelength.
-        w_monitor_value = w_monitor_var.centerX;
-        x_screw_var = x_screw;
-        w_monitor_error = 0; //Forgot how to get rid of the error bar.  
-        //For the error we could have dlambda = lambda*2*period*cos(phi)/L*dx_screw/x_screw, but we need to have dx_screw. Does it make sense for dx_screw to exist in an exact simulation?
-        number_events_w_monitor = w_monitor_var.events;   
+	    MCDETECTOR DISCO_w_monitor_var = COMP_GETPAR(DISCO_w_monitor,detector); // We have to think in terms of wavelength, the sine drive mechanism was built to linearize the wavelength.
+        DISCO_w_monitor_value = DISCO_w_monitor_var.centerX;
+        DISCO_x_screw_var = DISCO_x_screw;
+        DISCO_w_monitor_error = 0; //Forgot how to get rid of the error bar.  
+        //For the error we could have dlambda = lambda*2*DISCO_period*cos(phi)/L*dx_screw/DISCO_x_screw, but we need to have dx_screw. Does it make sense for dx_screw to exist in an exact simulation?
+        DISCO_number_events_w_monitor = DISCO_w_monitor_var.events;   
                                                  
 #ifdef USE_MPI                  
       }
         //MPI_Barrier(MPI_COMM_WORLD);
 #endif  
         //Adding a legend to the graph would be good, need to find out how to do that at a later date. todo            
-        // This set of defines is to avoid getting a '.' in the component name
+        // This set of defines is to avoid getting a '.' in the COMPONENT DISCO_name
 	    Rotation Rot;
 	    rot_set_rotation(Rot,0,0,0);
-	mcdetector_out_0D("Wavelength(Ang) as a function of x_screw(mm)", number_events_w_monitor, w_monitor_value, w_monitor_error, "Wavelength", coords_set(0,0,0),Rot,9999);
+	mcdetector_out_0D("Wavelength(Ang) as a function of DISCO_x_screw(mm)", DISCO_number_events_w_monitor, DISCO_w_monitor_value, DISCO_w_monitor_error, "Wavelength", coords_set(0,0,0),Rot,9999);
 
     }
 

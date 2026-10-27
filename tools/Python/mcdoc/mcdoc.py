@@ -51,6 +51,15 @@ def get_doc_filepath(filepath, ext='html', outdir=None):
     return h
 
 
+def _mathjax_src(html_path):
+    ''' path from html_path to the MathJax copy installed in docdir '''
+    mj = os.path.join(mccode_config.directories['docdir'], 'mathjax', 'tex-svg.js')
+    try:
+        return pathlib.Path(os.path.relpath(mj, os.path.dirname(os.path.abspath(html_path)))).as_posix()
+    except ValueError:  # e.g. different drives on Windows
+        return pathlib.Path(mj).as_uri()
+
+
 def get_html_filepath(filepath):
     ''' transform from .anything to .html (kept for backwards compatibility) '''
     return get_doc_filepath(filepath, 'html')
@@ -1107,13 +1116,11 @@ class InstrDocWriter:
 
 <BODY>
 
-<script src="https://tex.mccode.org/jquery/latest/jquery.min.js"></script>
-<script src="https://tex.mccode.org/jquery/latex/jquery.jslatex.packed.js"></script>
 <script>
-$(function () {
-    $(".latex").latex();
-});
+window.MathJax = { tex: { inlineMath: [['$', '$']] },
+  startup: { elements: ['.latex'] }, options: { enableMenu: false } };
 </script>
+<script src="%MATHJAX%"></script>
 
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
@@ -1400,13 +1407,11 @@ function comp() {
 }
 </script>
 
-<script src="https://tex.mccode.org/jquery/latest/jquery.min.js"></script>
-<script src="https://tex.mccode.org/jquery/latex/jquery.jslatex.packed.js"></script>
 <script>
-$(function () {
-    $(".latex").latex();
-});
+window.MathJax = { tex: { inlineMath: [['$', '$']] },
+  startup: { elements: ['.latex'] }, options: { enableMenu: false } };
 </script>
+<script src="%MATHJAX%"></script>
 
 <BODY>
 
@@ -1875,6 +1880,8 @@ def write_doc_files_or_continue(comp_infos, instr_infos, comp_files, instr_files
                 doc = CompW(p)
                 text = doc.create()
                 h = get_doc_filepath(f, ext, outdir=outdir)
+                if fmt == 'html':
+                    text = text.replace('%MATHJAX%', _mathjax_src(h))
                 if printlog:
                     print("writing doc file... %s" % h)
                 write_file(h, text, failsilent=True)
@@ -1897,6 +1904,8 @@ def write_doc_files_or_continue(comp_infos, instr_infos, comp_files, instr_files
                 if fmt == 'md':
                     f = pathlib.Path(f).parent / "README.md"
                 h = get_doc_filepath(f, ext, outdir=outdir)
+                if fmt == 'html':
+                    text = text.replace('%MATHJAX%', _mathjax_src(h))
                 if printlog:
                     print("writing doc file... %s" % h)
                 write_file(h, text, failsilent=True)

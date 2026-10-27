@@ -29,13 +29,13 @@ def main(args):
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     
     try:
+        title = None
         if len(args.simulation) == 0:
             simfile = ''
         else:
             simfile = args.simulation[0]
             h5file = None
             # Check if we are prompted with a h5 file or a directory with mccode.h5 index
-            # -> try spawning nexpy
             if ('mccode.h5' in args.simulation[0]):
                 h5file = args.simulation[0]
             if (os.path.isdir(args.simulation[0]) and
@@ -45,27 +45,16 @@ def main(args):
             if (h5file):
                 if not os.path.isabs(h5file):
                     h5file = os.path.join(os.getcwd(),h5file)
-                # A NeXus-format scan (as opposed to a single simulation)
-                # also writes a scan-summary mccode.dat alongside
-                # mccode.h5. If it's there, also spawn a separate,
-                # independent instance of this same mcplot variant pointed
-                # directly at mccode.dat, running in the background
-                # alongside the HDFVIEW.
-                datfile = os.path.join(os.path.dirname(h5file), 'mccode.dat')
-                if os.path.isfile(datfile):
+                # Open the dedicated HDF5 viewer alongside, and plot the NeXus data here too
+                # (not when only writing a file, e.g. from mctest)
+                if not (args.format or args.output or args.html):
                     try:
-                        print('Also spawning %s on %s' % (os.path.basename(__file__), datfile))
-                        subprocess.Popen([sys.executable, os.path.abspath(__file__), datfile])
-                    except Exception as e:
-                        print('Could not launch a second mcplot instance on ' + datfile + ': ' + e.__str__())
-                try:
-                    cmd = mccode_config.configuration['HDFVIEW'] + ' ' + h5file
-                    print('Spawning ' + mccode_config.configuration['HDFVIEW'])
-                    sub=subprocess.Popen(cmd, shell=True)
-                    sub.wait()
-                except:
-                    print("Could not launch " + mccode_config.configuration['HDFVIEW'] + " on " + h5file)
-                quit()
+                        print('Spawning ' + mccode_config.configuration['HDFVIEW'])
+                        subprocess.Popen(mccode_config.configuration['HDFVIEW'] + ' ' + h5file, shell=True)
+                    except:
+                        print("Could not launch " + mccode_config.configuration['HDFVIEW'] + " on " + h5file)
+                simfile = h5file
+                title = '%s (NeXus)' % h5file
 
         if args.test:
             test_decfuncs(simfile)
@@ -97,7 +86,7 @@ def main(args):
             PlotGraphPrint(rootnode)
 
         # start the plotter
-        plotter = plotfuncs.McMatplotlibPlotter(sourcedir=loader.directory, log=args.log)
+        plotter = plotfuncs.McMatplotlibPlotter(sourcedir=loader.directory, log=args.log, title=title)
 
         if (sys.platform == "linux" or sys.platform == "linux2") & args.html:
             # save to html and exit

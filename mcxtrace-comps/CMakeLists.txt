@@ -9,6 +9,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 # Set McCode values (from mkdist or defaults)
 include(MCUtil)
 setupMCCODE("mcxtrace")
+include(External)
 
 set(WORK "${PROJECT_BINARY_DIR}/work")
 
@@ -28,7 +29,7 @@ set(CPACK_PACKAGE_VERSION_PATCH "${MCCODE_PATCH}")
 if ( NOT DEFINED ENABLE_CIF2HKL OR ENABLE_CIF2HKL )
   set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0)")
 else()
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0), cif2hkl")
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0), cif2hkl (>= 1.5.1)")
 endif()
 set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-comps-3.5.1")
 
@@ -42,15 +43,11 @@ include(CPack)
 option( ENABLE_CIF2HKL "Build Third Party code cif2hkl (fortran)" ON )#TODO: Only enable Fortran if this is on
 if ( ENABLE_CIF2HKL )
   enable_language( Fortran )
-  add_executable(
-    cif2hkl
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/cif2hkl/cif2hkl.F90
-    )
-  target_compile_options(cif2hkl PUBLIC "-ffree-line-length-512")
-  install (
-    TARGETS cif2hkl
-    DESTINATION "${DEST_BINDIR}"
-    )
+  # Upstream SOLEIL cif2hkl sources, pinned in libs/cif2hkl/cif2hkl.ext
+  mccode_install_externals( DIRECTORY "libs/cif2hkl" OUTPUT_VARIABLE cif2hkl_src )
+  add_executable( cif2hkl ${cif2hkl_src} )
+  target_compile_options( cif2hkl PUBLIC "-ffree-line-length-512" )
+  install( TARGETS cif2hkl DESTINATION "${DEST_BINDIR}" )
 endif()
 
 

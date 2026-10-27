@@ -1,0 +1,48 @@
+/*******************************************************************************
+* Instrument: Test_mcplot_loader
+*
+* %I
+* Written by: Peter Willendrup
+* Date: October 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* Regression test of the mcplot data loader (mccodelib) for ASCII and NeXus output.
+*
+* %D
+* A 0D, a 1D and a non-square 2D monitor for test_mcplot_loader.py, which
+* scans 'w' with and without --format=NeXus and checks that mcplot's data
+* loader reads the same scan curves, per-step monitors and single-run
+* monitors from both formats.
+*
+* %P
+* w: [m] Width of the source focusing window
+*
+* %L
+* test_mcplot_loader.py next to this instrument.
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_mcplot_loader(w=0.05)
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_flat(radius=0.001, dist=1, focus_xw=w, focus_yh=0.05,
+  E0=12, dE=1)
+AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT m0 = Monitor(xwidth=0.1, yheight=0.1, restore_xray=1)
+AT (0, 0, 1) RELATIVE Origin
+
+COMPONENT emon = E_monitor(nE=10, filename="emon", xwidth=0.1, yheight=0.1,
+  Emin=10, Emax=14, restore_xray=1)
+AT (0, 0, 1.001) RELATIVE Origin
+
+COMPONENT psd = PSD_monitor(nx=8, ny=6, filename="psd", xwidth=0.1, yheight=0.1,
+  restore_xray=1)
+AT (0, 0, 1.002) RELATIVE Origin
+
+END

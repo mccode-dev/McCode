@@ -19,7 +19,7 @@ The below test uses defaults of the instrument (SANS_benchmark2 modnum=11)*
 
 ## Examples
 
-- **Test: -y Detector: PSDnear_I=7400**
+- **Test: -y Detector: PSDnear_I=8.5e3**
 - 
 - Many sample-modes are available, from the SANS_benchmark2 component:
 - The component includes 19 sample-model-settings:

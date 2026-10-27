@@ -1,0 +1,72 @@
+/*******************************************************************************
+* Instrument: Test_NeXus_output
+*
+* %I
+* Written by: Peter Willendrup
+* Date: October 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* Regression test of the NeXus writer of the McCode runtime.
+*
+* %D
+* Monitors of every NeXus output kind (0D, 1D, 2D, Monitor_nD histogram,
+* Monitor_nD BINS maps of rank 2 and 3, and an event list) for
+* test_nexus_output.py, which runs this instrument with --format=NeXus,
+* serial and with MPI, and checks mccode.h5 with h5py:
+*
+*   - string values containing '%' are stored as given (instrument parameter
+*     'tag', component parameter literal 'filename="f%%1"')
+*   - all string attributes and data sets are printable text
+*     (no uninitialised memory, e.g. in the Monitor_nD BINS output)
+*   - no debug output on stdout
+*   - a monitor with a very long file name ('longname', about 1000
+*     characters) does not crash the simulation or lose other monitors
+*   - a second run with --append adds entry2 to mccode.h5
+*
+* The instrument also runs in the default (McCode) format.
+*
+* %P
+* tag:      [str] String stored in the NeXus file, containing '%'
+* longname: [str] File name of the 'lmon' monitor
+*
+* %L
+* test_nexus_output.py next to this instrument.
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_NeXus_output(string tag="50%% done", string longname="lmon")
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.02, dist=1, focus_xw=0.05, focus_yh=0.05,
+  lambda0=5, dlambda=1)
+AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT m0 = Monitor(xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05)
+AT (0, 0, 1) RELATIVE Origin
+
+COMPONENT lmon = L_monitor(nL=10, filename=longname, xwidth=0.1, yheight=0.1,
+  Lmin=3, Lmax=7, restore_neutron=1)
+AT (0, 0, 1.001) RELATIVE Origin
+
+COMPONENT psd = PSD_monitor(nx=8, ny=6, filename="f%%1", xwidth=0.1, yheight=0.1,
+  restore_neutron=1)
+AT (0, 0, 1.002) RELATIVE Origin
+
+COMPONENT nd2 = Monitor_nD(options="x bins=5 y bins=4", xwidth=0.1, yheight=0.1,
+  filename="nd2", restore_neutron=1, nexus_bins=1)
+AT (0, 0, 1.003) RELATIVE Origin
+
+COMPONENT nd3 = Monitor_nD(options="box x bins=2 y bins=3 z bins=4", xwidth=0.1,
+  yheight=0.1, zdepth=0.01, filename="nd3", restore_neutron=1, nexus_bins=1)
+AT (0, 0, 1.01) RELATIVE Origin
+
+COMPONENT ndl = Monitor_nD(options="list all x y lambda", xwidth=0.1, yheight=0.1,
+  filename="ndl", restore_neutron=1)
+AT (0, 0, 1.02) RELATIVE Origin
+
+END

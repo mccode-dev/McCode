@@ -1,0 +1,57 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Test_Monitor_nD_BINS
+*
+* %Identification
+* Written by: Mads Bertelsen and P. Willendrup
+* Date: October 2026
+* Origin: ESS and DTU
+* %INSTRUMENT_SITE: Tests_monitors
+*
+* Regression test for the NeXus "BINS" pixel map of a list-mode Monitor_nD
+* with many non-spatial bins (issue #2484).
+*
+* %Description
+* With --format=NeXus, a list-mode Monitor_nD writes a "BINS" pixel map that
+* relates the event pixel ids to the detector geometry. The map spans the
+* spatial axes only (x, y, z, angle, divergence, theta, phi, or OFF faces).
+*
+* The "events" monitor bins wavelength (100 bins), time (500000 bins) and
+* y (150 bins). Its BINS map holds the 150 y pixels. Before the fix it was
+* sized over all axes, 100 x 500000 x 150 = 7.5e9 pixels (about 180 GB), and
+* the simulation crashed during INITIALIZE without a message.
+*
+* The "count" monitor is a plain y histogram used for the test value.
+*
+* Run with --format=NeXus to exercise the BINS output; the default McCode
+* format writes no BINS map.
+*
+* %Example: Test_Monitor_nD_BINS.instr Detector: count_I=0.0939253
+* %Example: Test_Monitor_nD_BINS.instr --format=NeXus Detector: count_I=0.0939253
+*
+* %Parameters
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Monitor_nD_BINS()
+DEPENDENCY "@NEXUSFLAGS@"
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(radius=0.01, dist=1, focus_xw=0.1, focus_yh=0.1,
+  lambda0=5.5, dlambda=1.5)
+  AT (0, 0, 0) RELATIVE origin
+
+COMPONENT events = Monitor_nD(xwidth=0.4, yheight=0.4, restore_neutron=1,
+  options="square, lambda limits=[4 7] bins=100, time limits=[0 5] bins=500000, y limits=[-0.075 0.075] bins=150, incoming, list all")
+  AT (0, 0, 1) RELATIVE source
+
+COMPONENT count = Monitor_nD(xwidth=0.4, yheight=0.4,
+  options="square, y limits=[-0.075 0.075] bins=150")
+  AT (0, 0, 1) RELATIVE source
+
+END

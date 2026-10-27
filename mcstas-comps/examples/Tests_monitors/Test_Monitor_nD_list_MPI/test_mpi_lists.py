@@ -14,6 +14,8 @@ timeout, and checks that
     their concatenation in rank order, no mccode_node*.h5 file holds events
     that mccode.h5 does not reference, and 'h5repack -l CONTI' (when found on
     PATH) turns it into a self-contained file with the same events,
+  * NeXus scan (-N2): each step's events are kept in their own NXentry, none
+    overwritten by a later step,
   * NeXus, POSIX with pkill/pgrep: a run whose ranks get SIGTERM twice (as
     when mpirun forwards a 'pkill -TERM') saves once per rank, with no
     duplicate events in mccode_node*.h5, warns that the lists are not linked
@@ -94,36 +96,41 @@ def check_nexus(outdir, h5repack=None):
     rows = 0
     problems = []
     referenced = set()
+    sources = {}  # (node file, data set) -> events data set in mccode.h5 linking it
     events = {}
     with h5py.File(path, "r") as f:
-        comps = f["entry1/instrument/components"]
-        for comp in comps.values():
-            output = comp.get("output")
-            if output is None:
-                continue
-            for name, grp in output.items():
-                if not (name.startswith("events_list") and "events" in grp):
+        for entry in (g for g in f.values() if g.attrs.get("NX_class") in (b"NXentry", "NXentry")):
+            comps = entry["instrument/components"]
+            for comp in comps.values():
+                output = comp.get("output")
+                if output is None:
                     continue
-                ds = grp["events"]
-                data = ds[()]  # full read, through the virtual data set
-                rows += data.shape[0]
-                events[grp.name] = data
-                if not ds.is_virtual:
-                    continue
-                parts, ranks = [], []
-                for src in ds.virtual_sources():
-                    referenced.add(src.file_name)
-                    m = re.fullmatch(r"mccode_node(\d+)\.h5", src.file_name)
-                    if not m:
-                        problems.append(f"{name}: unexpected VDS source file '{src.file_name}'")
+                for name, grp in output.items():
+                    if not (name.startswith("events_list") and "events" in grp):
                         continue
-                    ranks.append(int(m.group(1)))
-                    with h5py.File(outdir / src.file_name, "r") as sf:
-                        parts.append(sf[src.dset_name][()])
-                if ranks != sorted(set(ranks)):
-                    problems.append(f"{name}: VDS sources not in rank order {ranks}")
-                if parts and not np.array_equal(np.vstack(parts), data):
-                    problems.append(f"{name}: VDS differs from the concatenated mccode_node*.h5 data")
+                    ds = grp["events"]
+                    data = ds[()]  # full read, through the virtual data set
+                    rows += data.shape[0]
+                    events[grp.name] = data
+                    if not ds.is_virtual:
+                        continue
+                    parts, ranks = [], []
+                    for src in ds.virtual_sources():
+                        referenced.add(src.file_name)
+                        other = sources.setdefault((src.file_name, src.dset_name), grp.name)
+                        if other != grp.name:  # e.g. NeXus scan steps sharing (overwriting) a node data set
+                            problems.append(f"{grp.name} and {other} both link {src.file_name}:{src.dset_name}")
+                        m = re.fullmatch(r"mccode_node(\d+)\.h5", src.file_name)
+                        if not m:
+                            problems.append(f"{name}: unexpected VDS source file '{src.file_name}'")
+                            continue
+                        ranks.append(int(m.group(1)))
+                        with h5py.File(outdir / src.file_name, "r") as sf:
+                            parts.append(sf[src.dset_name][()])
+                    if ranks != sorted(set(ranks)):
+                        problems.append(f"{name}: VDS sources not in rank order {ranks}")
+                    if parts and not np.array_equal(np.vstack(parts), data):
+                        problems.append(f"{name}: VDS differs from the concatenated mccode_node*.h5 data")
     for node in sorted(outdir.glob("mccode_node*.h5")):
         if node.name in referenced:
             continue
@@ -324,6 +331,20 @@ def main():
     elif "NeXus" in formats and args.sigterm_ncount > 0:
         print("SKIP: NeXus SIGTERM check (needs POSIX, pkill and pgrep)")
 
+    if "NeXus" in formats:  # two scan steps append NXentries to one mccode.h5, sharing mccode_node*.h5
+        label = f"NeXus  scan N=2 mode=2 np={args.np}"
+        outdir = workdir / "NeXus_scan"
+        rc, out, dt, timed_out = run([mcrun, INSTR.name, f"--mpi={args.np}", f"--ncount={int(args.ncount)}",
+                                      f"--dir={outdir.name}", "--format=NeXus", f"--bufsiz={BUFSIZ}", "-N2", "mode=2,2"],
+                                     workdir, args.timeout)
+        expected = 2 * expected_events(2, args.np, math.floor(args.ncount / args.np))
+        got, problems = check_nexus(outdir) if rc == 0 and not timed_out else (None, [f"mcrun exit status {rc}"])
+        if got != expected or problems:
+            failures.append(f"{label}: expected {expected} events, got {got} " + "; ".join(problems))
+            print(f"FAIL {label}: expected {expected} events, got {got} " + "; ".join(problems) + f"\n{out[-2000:]}")
+        else:
+            print(f"ok   {label}: {got} events in {dt:.1f} s")
+
     if failures:
         print(f"\n{len(failures)} failure(s), output kept in {workdir}:")
         for f in failures:
@@ -338,6 +359,7 @@ def main():
                 for mode, _ in cases:
                     shutil.rmtree(workdir / f"{fmt}_mode{mode}", ignore_errors=True)
             shutil.rmtree(workdir / "NeXus_sigterm", ignore_errors=True)
+            shutil.rmtree(workdir / "NeXus_scan", ignore_errors=True)
         else:
             shutil.rmtree(workdir, ignore_errors=True)
     print("\nAll MPI list-output checks passed.")

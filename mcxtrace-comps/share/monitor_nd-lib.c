@@ -824,37 +824,32 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 		if (NXopengroup(nxhandle, "Geometry", "NXdata") == NX_OK) {
 		  char tmp[CHAR_BUF_LENGTH];
 		  sprintf(tmp,"%g",Vars->Sphere_Radius);
-		  nxprintattr(nxhandle, "radius", tmp);
+		  nxprintattr(nxhandle, "radius", "%s", tmp);
 
 		  sprintf(tmp,"%g",Vars->Cylinder_Height);
-		  nxprintattr(nxhandle, "height", tmp);
+		  nxprintattr(nxhandle, "height", "%s", tmp);
 
 		  sprintf(tmp,"%g",Vars->mxmin);
-		  nxprintattr(nxhandle, "xmin",  tmp);
+		  nxprintattr(nxhandle, "xmin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mxmax);
-		  nxprintattr(nxhandle, "xmax",  tmp);
+		  nxprintattr(nxhandle, "xmax", "%s",  tmp);
 
 		  sprintf(tmp,"%g",Vars->mymin);
-		  nxprintattr(nxhandle, "ymin",  tmp);
+		  nxprintattr(nxhandle, "ymin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mymax);
-		  nxprintattr(nxhandle, "ymax",  tmp);
+		  nxprintattr(nxhandle, "ymax", "%s",  tmp);
 
 		  sprintf(tmp,"%g",Vars->mzmin);
-		  nxprintattr(nxhandle, "zmin",  tmp);
+		  nxprintattr(nxhandle, "zmin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mzmax);
-		  nxprintattr(nxhandle, "zmax",  tmp);
-
-		  sprintf(tmp,"%g",Vars->mzmin);
-		  nxprintattr(nxhandle, "zmin",  tmp);
-		  sprintf(tmp,"%g",Vars->mzmax);
-		  nxprintattr(nxhandle, "zmax",  tmp);
+		  nxprintattr(nxhandle, "zmax", "%s",  tmp);
 
 		  sprintf(tmp,"%i",Vars->Flag_Shape);
-		  nxprintattr(nxhandle, "Shape identifier",  tmp);
+		  nxprintattr(nxhandle, "Shape identifier", "%s",  tmp);
 		  sprintf(tmp,"%s",Vars->Monitor_Label);
-		  nxprintattr(nxhandle, "Shape string",  tmp);
+		  nxprintattr(nxhandle, "Shape string", "%s",  tmp);
 		  sprintf(tmp,"%s",Vars->option);
-		  nxprintattr(nxhandle, "Option string",  tmp);
+		  nxprintattr(nxhandle, "Option string", "%s",  tmp);
 
 		  NXclosegroup(nxhandle); // Geometry
 		} else {

@@ -60,7 +60,7 @@ EH4             | 197.2-208.5 | Guard slits; microtomography sample stage; detec
 
 ## Examples
 
-- **Test: -n 1e5 E0=17 Detector: psd_monitor_after_cc_I=1e18**
+- **Test: -n 1e5 ANATOMIX_E0=17 Detector: ANATOMIX_psd_monitor_after_cc_I=1e18**
 
 ## Input parameters
 
@@ -68,11 +68,11 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Energy selected at the Undulator. | 11 |
-| Emono | keV | Energy selected at the monochromator. When 0, it is set to E0. | 0 |
-| dE | keV | Energy spread at the Undulator. | 1 |
-| ANGLE | deg | Rotation angle of the sample stage. | 0 |
-| sample | str | Sample geometry file, OFF/PLY format. | "wire.ply" |
+| ANATOMIX_E0 | keV | Energy selected at the Undulator. | 11 |
+| ANATOMIX_Emono | keV | Energy selected at the monochromator. When 0, it is set to E0. | 0 |
+| ANATOMIX_dE | keV | Energy spread at the Undulator. | 1 |
+| ANATOMIX_ANGLE | deg | Rotation angle of the sample stage. | 0 |
+| ANATOMIX_sample |  |  | "wire.ply" |
 
 ## Links
 

@@ -108,10 +108,13 @@ TRACE
   double pol_proj;
   double lambda;
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
   lambda = (2 * PI / V2K) / sqrt (vx * vx + vy * vy + vz * vz);
 
-  if (inside_rectangle (x, y, xwidth, yheight) && lambda > Lmin && lambda < Lmax) {
+  if ((backprop || t >= t0) && z == 0.0 && inside_rectangle (x, y, xwidth, yheight) && lambda > Lmin && lambda < Lmax) {
 
     pol_proj = scalar_prod (mx, my, mz, sx, sy, sz);
 
@@ -132,7 +135,7 @@ TRACE
 
     SCATTER;
   }
-  if (restore_neutron) {
+  if (restore_neutron || !SCATTERED) {
     RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}

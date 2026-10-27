@@ -5,6 +5,7 @@ A completed MPI run with --format=NeXus does this itself. After an
 interrupted run (e.g. SIGTERM) the event lists are only in the per-node
 files; this creates the missing 'events' virtual data sets in mccode.h5,
 concatenating the nodes in rank order, as the final save would have.
+For a NeXus scan, each step's events go to their own NXentry.
 
 Usage: python3 nexus_vds.py DIR
 """
@@ -17,7 +18,7 @@ import h5py
 
 def main(outdir):
     outdir = Path(outdir)
-    sources = {}  # mccode_path -> [(rank, file name, data set name, shape)]
+    sources = {}  # (entry or None, mccode_path) -> [(rank, file name, data set name, shape)]
     for node in outdir.glob("mccode_node*.h5"):
         m = re.fullmatch(r"mccode_node(\d+)\.h5", node.name)
         if not m:
@@ -25,13 +26,13 @@ def main(outdir):
         with h5py.File(node, "r") as f:
             for name, ds in f.items():
                 if isinstance(ds, h5py.Dataset) and "mccode_path" in ds.attrs and ds.shape[0]:
-                    path = ds.attrs["mccode_path"]
-                    path = path.decode() if isinstance(path, bytes) else path
-                    sources.setdefault(path, []).append((int(m.group(1)), node.name, name, ds.shape))
+                    path, entry = (ds.attrs.get(k) for k in ("mccode_path", "mccode_entry"))
+                    path, entry = (v.decode() if isinstance(v, bytes) else v for v in (path, entry))
+                    sources.setdefault((entry, path), []).append((int(m.group(1)), node.name, name, ds.shape))
     with h5py.File(outdir / "mccode.h5", "r+") as f:
-        entry = next(k for k, g in f.items() if g.attrs.get("NX_class") in (b"NXentry", "NXentry"))
-        for path, srcs in sorted(sources.items()):
-            target = f"{entry}/{path}"
+        first = next(k for k, g in f.items() if g.attrs.get("NX_class") in (b"NXentry", "NXentry"))
+        for (entry, path), srcs in sorted(sources.items(), key=lambda kv: (kv[0][0] or "", kv[0][1])):
+            target = f"{entry or first}/{path}"
             if target in f:
                 print(f"exists:  {target}")
                 continue

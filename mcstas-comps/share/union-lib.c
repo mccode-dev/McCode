@@ -1803,16 +1803,16 @@ union geometry_parameter_union allocate_cone_storage_copy(union geometry_paramet
   return union_output;
 }
 
-union geometry_parameter_union allocate_mesh_storage_copy(union geometry_parameter_union *union_input) {
+union geometry_parameter_union allocate_mesh_copy(union geometry_parameter_union *union_input) {
   union geometry_parameter_union union_output;
-  // Allocate the space for a mesh_storage structe in the new union_output (union as the c structre)
-  union_output.p_mesh_storage = malloc(sizeof(struct mesh_storage));
-  if (!union_output.p_mesh_storage) {
-    fprintf(stderr,"Failure allocating list in Union function allocate_mesh_storage_copy - Exit!\n");
+  // Allocate the space for a gmesh_struct in the new union_output (union as the c structre)
+  union_output.p_mesh = malloc(sizeof(gmesh_struct));
+  if (!union_output.p_mesh) {
+    fprintf(stderr,"Failure allocating list in Union function allocate_mesh_copy - Exit!\n");
     exit(EXIT_FAILURE);
   }
   // Copy the input storage to the output
-  *union_output.p_mesh_storage = *union_input->p_mesh_storage;
+  *union_output.p_mesh = *union_input->p_mesh;
   
   return union_output;
 }
@@ -2757,102 +2757,10 @@ This function was created by Martin Olsen at NBI on september 20, 2018.
     return 0;
 }
 
-double Moeller_Trumbore_intersection(struct Moeller_Trumbore* intersect) {
-  // Function to perform a Moeller Trumbore intersection between a mesh facet
-  // and an arbitrary vector
-  intersect->edge1 = coords_sub(intersect->v2, intersect->v1);
-  intersect->edge2 = coords_sub(intersect->v3, intersect->v1);
-
-  intersect->h = coords_xp(intersect->rotated_velocity, intersect->edge2); 
-  intersect->a = Dot(intersect->edge1, intersect->h);
-
-  intersect->f = 1.0/intersect->a;
-  intersect->s = coords_sub(intersect->rotated_coordinates, intersect->v1);
-  intersect->u = intersect->f * (Dot(intersect->s,intersect->h));
-  if (intersect->u < 0.0 || intersect->u > 1.0){
-    return -1;
-  } else {
-    intersect->q = coords_xp(intersect->s, intersect->edge1);
-    intersect->V = intersect->f * Dot(intersect->rotated_velocity,intersect->q);
-
-    if (intersect->V < 0.0 || intersect->u + intersect->V > 1.0){
-      return -1;
-    } else {
-      // At this stage we can compute t to find out where the intersection point is on the line.    
-      return intersect->f * Dot(intersect->q,intersect->edge2);
-
-    }
-  }
-
-  return 0;
-}
-
 int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
-  // r_within_mesh uses a ray casting technique to determine whether or not
-  // a position is within the mesh. 
-  // It chooses a random velocity, and if the number of intersections
-  // is uneven, the position is inside the mesh.
-  // Since this can be numerically unstable, it performs this ray casting 3 times
-  // and then allows the majority of results to decide whether inside or outside
-  // Coordinate transformation
-  Coords coordinates = coords_sub(pos, geometry->center);
-  Coords rotated_coordinates;
-
-  rotated_coordinates = rot_apply(geometry->transpose_rotation_matrix,coordinates);
-  // Check intersections with every single facet:
-  // First do allocations:
-  int n_facets = geometry->geometry_parameters.p_mesh_storage->n_facets;
-  double possible_t;
-  int iter =0;
-  int n_intersections;
-  struct Moeller_Trumbore intersect_transport;
-  double *t_intersect=malloc(n_facets*sizeof(double));
-  int *facet_index = malloc(n_facets*sizeof(int));
-  if (!t_intersect || !facet_index) {
-    fprintf(stderr,"Failure allocating list in Union function sample_mesh_intersect - Exit!\n");
-    exit(EXIT_FAILURE);
-  }
-  Coords *verts = geometry->geometry_parameters.p_mesh_storage->vertices;
-  int **facets = geometry->geometry_parameters.p_mesh_storage->facets;
-  // Then loop over every facet
-  intersect_transport.rotated_coordinates = rotated_coordinates;
-  int inside_vote = 0, outside_vote = 0;
-
-  for (int j = 0; j <3; j++){
-    n_intersections = 0;
-    Coords test_vector = coords_set(rand01(),rand01(),rand01());
-    intersect_transport.rotated_velocity = test_vector;
-    for (iter = 0 ; iter < n_facets ; iter++){
-      intersect_transport.v1 = verts[facets[iter][0]];
-      intersect_transport.v2 = verts[facets[iter][1]];
-      intersect_transport.v3 = verts[facets[iter][2]];
-      possible_t = Moeller_Trumbore_intersection(&intersect_transport);
-      if (possible_t > 0){
-        n_intersections++;
-      }
-    }
-    if (n_intersections%2==1){
-      inside_vote++;
-    } else {
-      outside_vote++;
-    }
-    if (inside_vote == 2 || outside_vote == 2){
-      break;
-    }
-  }
-  if (inside_vote == 2){
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
-int compare_intersections(const void *a, const void *b) {
-	const Intersection *ia = a;
-	const Intersection *ib = b;
-	if (ia->t < ib->t) return -1;
-	if (ia->t > ib->t) return 1;
-	return 0;
+  // Point in mesh test (parity of ray crossings) in the frame of the mesh component
+  Coords local_position = rot_apply(geometry->transpose_rotation_matrix, coords_sub(pos, geometry->center));
+  return gmesh_inside(geometry->geometry_parameters.p_mesh, local_position);
 }
 
 int sample_mesh_intersect(double *t,
@@ -2860,134 +2768,26 @@ int sample_mesh_intersect(double *t,
                           int *surface_index,
                           int *num_solutions,double *r,double *v,
                           struct geometry_struct *geometry) {
-  // Algorithm for finding the times of intersection with a mesh component.
-  // First, check if the neutron intersects the bounding sphere of the mesh.
-  // Then, if yes, loop over every single facet, and see if the neutron
-  // intersects with it.
-  Coords Bounding_Box_Center = geometry->geometry_parameters.p_mesh_storage->Bounding_Box_Center;
-  double Bounding_Box_Radius = geometry->geometry_parameters.p_mesh_storage->Bounding_Box_Radius;
+  // Times of intersection with a mesh component, nearest first, with the unit
+  // outward normals rotated back to the frame of the master component.
+  // Hits slightly before r are kept, so that the surface the ray leaves is found.
+  gmesh_struct *triangle_mesh = geometry->geometry_parameters.p_mesh;
+  gmesh_hit hits[GMESH_MAX_HITS];
+  Coords position = rot_apply(geometry->transpose_rotation_matrix, coords_sub(coords_set(r[0], r[1], r[2]), geometry->center));
+  Coords velocity = rot_apply(geometry->transpose_rotation_matrix, coords_set(v[0], v[1], v[2]));
+  double t_min = -1e-9*triangle_mesh->length_scale/coords_len(velocity);
   int i;
 
-  double x_new,y_new,z_new;
-  // Coordinate transformation
-  x_new = r[0] - geometry->center.x;
-  y_new = r[1] - geometry->center.y;
-  z_new = r[2] - geometry->center.z;
-  
-  double x_bb,y_bb,z_bb;
-  x_bb = r[0] - Bounding_Box_Center.x - geometry->center.x;
-  y_bb = r[1] - Bounding_Box_Center.y - geometry->center.y;
-  z_bb = r[2] - Bounding_Box_Center.z - geometry->center.z;
-  
-  Coords coordinates = coords_set(x_new,y_new,z_new);
-  Coords rotated_coordinates;
-
-  // Rotate the position of the neutron around the center of the mesh
-  rotated_coordinates = rot_apply(geometry->transpose_rotation_matrix,coordinates);
-  
-  Coords bounding_box_coordinates = coords_set(x_bb, y_bb, z_bb);
-  Coords bounding_box_rotated_coordinates;
-  
-  bounding_box_rotated_coordinates = rot_apply(geometry->transpose_rotation_matrix,bounding_box_coordinates);
-  
-  Coords velocity = coords_set(v[0],v[1],v[2]);
-  Coords rotated_velocity;
-  
-  // Rotate the position of the neutron around the center of the mesh
-  rotated_velocity = rot_apply(geometry->transpose_rotation_matrix,velocity);
-  
-  int output = 0;
-  double tmpres[2];
-  // Test intersection with bounding sphere 
-  if ((output = sphere_intersect(&tmpres[0],&tmpres[1],
-                                 bounding_box_rotated_coordinates.x,
-                                 bounding_box_rotated_coordinates.y,
-                                 bounding_box_rotated_coordinates.z,
-                                 rotated_velocity.x,
-                                 rotated_velocity.y,
-                                 rotated_velocity.z,
-                                 Bounding_Box_Radius)) == 0) {
-    t[0] = -1;
-    t[1] = -1;
-    *num_solutions = 0;
-    return 0;
+  *num_solutions = gmesh_intersect(triangle_mesh, position, velocity, t_min, hits);
+  for (i = 0; i < *num_solutions; i++) {
+    Coords normal = rot_apply(geometry->rotation_matrix, hits[i].normal);
+    t[i] = hits[i].t;
+    nx[i] = normal.x;
+    ny[i] = normal.y;
+    nz[i] = normal.z;
+    surface_index[i] = hits[i].tri;
   }
-  // Check intersections with every single facet:
-  // First do allocations:
-  int n_facets = geometry->geometry_parameters.p_mesh_storage->n_facets;
-  double possible_t;
-  int iter =0;
-  int counter=0;
-  struct Moeller_Trumbore intersect_transport;
-  // TODO: Allocating T_intersect and facet index might get large with large 
-  // meshes
-  double *t_intersect=malloc(n_facets*sizeof(double));
-  int *facet_index = malloc(n_facets*sizeof(int));
-  if (!t_intersect || !facet_index) {
-    fprintf(stderr,"Failure allocating list in Union function sample_mesh_intersect - Exit!\n");
-    exit(EXIT_FAILURE);
-  }
-  Coords *verts = geometry->geometry_parameters.p_mesh_storage->vertices;
-  int **facets = geometry->geometry_parameters.p_mesh_storage->facets;
-  // Then loop over every facet
-  intersect_transport.rotated_velocity = rotated_velocity;
-  intersect_transport.rotated_coordinates = rotated_coordinates;
-  *num_solutions = 0;
-  for (iter = 0 ; iter < n_facets ; iter++){
-    intersect_transport.v1 = verts[facets[iter][0]];
-    intersect_transport.v2 = verts[facets[iter][1]];
-    intersect_transport.v3 = verts[facets[iter][2]];
-    possible_t = Moeller_Trumbore_intersection(&intersect_transport);
-    if (possible_t != -1){
-      t_intersect[counter] = possible_t;
-      facet_index[counter] = iter;
-      counter++;
-    }
-  }
-	
-	*num_solutions = counter;
-	
-	// Early exit if there are not solutions
-    if (*num_solutions == 0){
-        free(t_intersect);
-        free(facet_index);
-        return 0;
-    }
-	
-	// Move times and normal's into structs to be sorted
-  Intersection *hits = malloc(*num_solutions * sizeof(Intersection));
-  if (!hits) {
-    fprintf(stderr,"Failure allocating Intersection list struct in Union function sample_mesh_intersect - Exit!\n");
-    exit(EXIT_FAILURE);
-  }
-
-	double *normal_x = geometry->geometry_parameters.p_mesh_storage->normal_x;
-  double *normal_y = geometry->geometry_parameters.p_mesh_storage->normal_y;
-  double *normal_z = geometry->geometry_parameters.p_mesh_storage->normal_z;
-  for (iter=0; iter < *num_solutions; iter++){
-	  hits[iter].t  = t_intersect[iter];;
-	  hits[iter].nx = normal_x[facet_index[iter]];
-	  hits[iter].ny = normal_y[facet_index[iter]];
-	  hits[iter].nz = normal_z[facet_index[iter]];				
-	  hits[iter].surface_index = 0;
-  }
-
-  // Sort structs according to time
-  qsort(hits, *num_solutions, sizeof(Intersection), compare_intersections);
-	
-	// Place the solutions into the pointers given in the function parameters for return
-	for (int i = 0; i < *num_solutions; i++) {
-	  t[i]  = hits[i].t;
-	  nx[i] = hits[i].nx;
-	  ny[i] = hits[i].ny;
-	  nz[i] = hits[i].nz;
-	  surface_index[i] = hits[i].surface_index;
-	}
-	
-  free(facet_index);
-  free(t_intersect);
-	free(hits);
-  return 1;
+  return *num_solutions > 0;
 }
 
 int r_within_box_advanced(Coords pos,struct geometry_struct *geometry) {
@@ -3039,24 +2839,49 @@ int box_within_box(struct geometry_struct *geometry_child,struct geometry_struct
 int existence_of_intersection(Coords point1, Coords point2, struct geometry_struct *geometry) {
     Coords vector_between = coords_sub(point2,point1);
     double start_point[3],vector_between_v[3];
-    double temp_solution[2];
-    int number_of_solutions;
+    // room for every crossing of a mesh, at most GMESH_MAX_HITS
+    double* temp_solution;
+	  double* dummy_double;
+	  int* dummy_int;
+
+    if (geometry->eShape != mesh){
+      temp_solution = malloc( 2* sizeof(double));
+      dummy_double  = malloc( 2* sizeof(double));
+      dummy_int     = malloc( 2* sizeof(int)); 
+    } else{
+      temp_solution = malloc(GMESH_MAX_HITS * sizeof(double));
+      dummy_double  = malloc(GMESH_MAX_HITS * sizeof(double));
+      dummy_int     = malloc(GMESH_MAX_HITS * sizeof(int));
+    }
+
+    if (!temp_solution || !dummy_double || !dummy_int) {
+      fprintf(stderr, "Union existence_of_intersection: memory allocation failed\n");
+      free(temp_solution);    
+      free(dummy_double);
+      free(dummy_int);
+      exit(EXIT_FAILURE);
+    }
+
+    int number_of_solutions = 0;
 
     start_point[0] = point1.x;start_point[1] = point1.y;start_point[2] = point1.z;
     vector_between_v[0] = vector_between.x;vector_between_v[1] = vector_between.y;vector_between_v[2] = vector_between.z;
 	
-	// todo: Switch to nicer intersect call
-	double dummy_double[2];
-	int dummy_int[2];
+
 	
     //printf("\nChecking the existence of intersections");	
     geometry->intersect_function(temp_solution, dummy_double, dummy_double, dummy_double, dummy_int, &number_of_solutions, start_point, vector_between_v, geometry);
-    if (number_of_solutions > 0) {
-        if (temp_solution[0] > 0 && temp_solution[0] < 1) return 1;
-        if (number_of_solutions == 2) {
-            if (temp_solution[1] > 0 && temp_solution[1] < 1) return 1;
+    for (int i = 0; i < number_of_solutions; i++){
+      if (temp_solution[i] > 0 && temp_solution[i] < 1) {
+          free(temp_solution);
+          free(dummy_double);
+          free(dummy_int);
+          return 1;
         }
     }
+    free(temp_solution);
+    free(dummy_double);
+    free(dummy_int);
     return 0;
 }
 
@@ -4338,13 +4163,12 @@ int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct 
     }
     // Secondary check with edges intersecting on faces
     if (geometry1->eShape==mesh){
-      int **facets = geometry1->geometry_parameters.p_mesh_storage->facets;
-      Coords *verts = geometry1->geometry_parameters.p_mesh_storage->vertices;
+      gmesh_struct *mesh1 = geometry1->geometry_parameters.p_mesh;
       Coords vert1, vert2, vert3;
-      for (i = 0; i < geometry1->geometry_parameters.p_mesh_storage->n_facets; i++){
-        vert1 = shell_points1.elements[facets[i][0]];
-        vert2 = shell_points1.elements[facets[i][1]];
-        vert3 = shell_points1.elements[facets[i][2]];
+      for (i = 0; i < mesh1->ntris; i++){
+        vert1 = shell_points1.elements[mesh1->tri[3*i]];
+        vert2 = shell_points1.elements[mesh1->tri[3*i+1]];
+        vert3 = shell_points1.elements[mesh1->tri[3*i+2]];
         if (existence_of_intersection(vert1, vert2, geometry2) == 1) {
           free(shell_points1.elements);
           free(shell_points2.elements);
@@ -4363,13 +4187,12 @@ int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct 
       }
     }
     if (geometry2->eShape==mesh){
-      int **facets = geometry2->geometry_parameters.p_mesh_storage->facets;
-      Coords *verts = geometry2->geometry_parameters.p_mesh_storage->vertices;
+      gmesh_struct *mesh2 = geometry2->geometry_parameters.p_mesh;
       Coords vert1, vert2, vert3;
-      for (i = 0; i < geometry2->geometry_parameters.p_mesh_storage->n_facets; i++){
-        vert1 = shell_points2.elements[facets[i][0]];
-        vert2 = shell_points2.elements[facets[i][1]];
-        vert3 = shell_points2.elements[facets[i][2]];
+      for (i = 0; i < mesh2->ntris; i++){
+        vert1 = shell_points2.elements[mesh2->tri[3*i]];
+        vert2 = shell_points2.elements[mesh2->tri[3*i+1]];
+        vert3 = shell_points2.elements[mesh2->tri[3*i+2]];
         if (existence_of_intersection(vert1, vert2, geometry1) == 1) {
           free(shell_points1.elements);
           free(shell_points2.elements);

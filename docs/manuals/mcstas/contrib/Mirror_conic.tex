@@ -1,0 +1,45 @@
+\section{The \texttt{Mirror\_conic} McStas Component}
+Single flat mirror plate using the conic.h reflection routines (test component)
+
+\subsection*{Identification}
+\begin{itemize}
+  \item \textbf{Author:} Peter Willendrup
+  \item \textbf{Origin:} DTU
+  \item \textbf{Date:} October 2026
+\end{itemize}
+
+\subsection*{Description}
+Test component for the reflection routines in conic.h (ConicTracer), which are used by e.g. Conics\_*, FlatEllipse\_finite\_mirror and NMO. It models a single flat mirror so that the results can be compared directly with Mirror.comp.
+
+The mirror lies in the local y-z plane at x=0, extending from z=0 to z=length and from y=-yheight/2 to y=yheight/2. Only neutrons arriving from the x\textless{}0 side (vx\textgreater{}0) interact; everything else passes unaffected. Each neutron interacts at most once.
+
+conic=0: the mirror is a conic.h FlatSurf and is handled by reflectNeutronFlat(), which reflects with probability R and otherwise transmits the neutron unaffected. Compare with Mirror(transmit=1). conic=1: the mirror is a conic.h ConicSurf cylinder of (very large) radius 1 km, handled by reflectNeutronConic(), which always reflects and weights by R. Compare with Mirror(transmit=0). A Gaussian figure (slope) error can be applied via sigma\_m and sigma\_s; the default is 0 here, whereas the Conics\_* components default to the conic.h values of 1 and 250 urad.
+
+Example: Mirror\_conic(length=1, yheight=0.1, m=2)
+
+\subsection*{Input parameters}
+Parameters in \textbf{boldface} are required; the others are optional.
+
+\begin{longtable}{p{0.22\textwidth}p{0.12\textwidth}p{0.46\textwidth}p{0.14\textwidth}}
+\toprule
+\textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
+\midrule
+\endhead
+length & m & Length of the mirror along z & 1 \\
+yheight & m & Height of the mirror along y & 0.1 \\
+R0 & 1 & Low-angle reflectivity & 0.99 \\
+Qc & \AA{}$^{-1}$ & Critical scattering vector & 0.021 \\
+alpha & \AA{} & Slope of reflectivity & 6.07 \\
+m & 1 & m-value of material & 2 \\
+W & \AA{}$^{-1}$ & Width of supermirror cut-off & 0.003 \\
+conic & 1 & 0: use FlatSurf/reflectNeutronFlat(), 1: use ConicSurf/reflectNeutronConic() & 0 \\
+sigma\_m & rad & RMS meridional slope (figure) error, conic=1 only; for grazing angles below 10*sigma\_m the waviness model of Hansen et al., arXiv:1612.03763 is used & 0 \\
+sigma\_s & rad & RMS sagittal slope (figure) error, conic=1 only & 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Links}
+\begin{itemize}
+  \item Component source code found in file \texttt{Mirror\_conic.comp}.
+\end{itemize}
+\IfFileExists{contrib/Mirror_conic_static.tex}{\input{contrib/Mirror_conic_static.tex}}{}

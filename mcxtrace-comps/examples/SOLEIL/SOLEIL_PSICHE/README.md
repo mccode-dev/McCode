@@ -26,7 +26,7 @@ The sample handles absorption, with edge contrast, as well as fluorescence.
 
 ## Examples
 
-- **Test: -n 1e6 E0=25 sample_material="Ag0.6In0.2Sn0.2" Detector: mon_spl_xy_I=7.61e+13**
+- **Test: -n 1e6 PSICHE_E0=25 PSICHE_sample_material="Ag0.6In0.2Sn0.2" Detector: PSICHE_mon_spl_xy_I=7.61e+13**
 
 ## Input parameters
 
@@ -34,13 +34,13 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Nominal energy at the Wiggler. Sets the monochromator angle when DCM_present | 31 |
-| dE | keV | Energy half-bandwidth at the Wiggler | 1 |
-| DCM_present | 1 | Allow the monochromator in place (1) or removed (0, white beam) | 0 |
-| sample_theta | deg | Rotation of the sample stage | 0 |
-| sample_material | str | Absorption data file for the sample | "Ag" |
-| sample_geometry | str | OFF/PLY file name for sample 3D geometry, or emty for a box | "wire.ply" |
-| dcm_theta | deg | Rotation angle of the DCM. 0=set from energy E0 | 0 |
+| PSICHE_E0 | keV | Nominal energy at the Wiggler. Sets the monochromator angle when PSICHE_DCM_present | 31 |
+| PSICHE_dE | keV | Energy half-bandwidth at the Wiggler | 1 |
+| PSICHE_DCM_present | 1 | Allow the monochromator in place (1) or removed (0, white beam) | 0 |
+| PSICHE_sample_theta | deg | Rotation of the sample stage | 0 |
+| PSICHE_sample_material | str | Absorption data file for the sample | "Ag" |
+| PSICHE_sample_geometry | str | OFF/PLY file name for sample 3D geometry, or emty for a box | "wire.ply" |
+| PSICHE_dcm_theta | deg | Rotation angle of the DCM. 0=set from energy PSICHE_E0 | 0 |
 
 ## Links
 

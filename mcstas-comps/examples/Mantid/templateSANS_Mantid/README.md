@@ -25,8 +25,8 @@ Needed steps:
 
 ## Examples
 
-- **Test: lambda=6 Detector: PSDrad_I=105000000**
-- **Test: lambda=6 --format=NeXus Detector: PSDrad_I=105000000**
+- **Test: lambda=6 Detector: PSDrad_I=9.6e7**
+- **Test: lambda=6 --format=NeXus Detector: PSDrad_I=9.6e7**
 
 ## Input parameters
 

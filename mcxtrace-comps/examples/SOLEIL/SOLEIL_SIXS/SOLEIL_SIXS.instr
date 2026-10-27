@@ -38,66 +38,72 @@
 * ---------|--------------------------------------------------------------------
 * 0        | the U20 undulator
 * 15       | Slit S1 2x0.7 mm^2
-* 16.5     | a Si(111) DCM, 40x40x10 mm^3 E0=5-20 keV
+* 16.5     | a Si(111) DCM, 40x40x10 mm^3 SIXS_E0=5-20 keV
 * 26       | Mirror M1 Si coated with Pd, elliptically vertical focusing 20x350x20 mm^3 Incident angle 0.175 deg (3 mrad)
 * 28       | Mirror M2 at 20x550x20mm^3. (tilted 45 deg exchange horz/vert components for UHV)
 * 33       | multipurpose diffractometer
 * 42       | UHV diffractometer (not modelled here)
 *
-* Example: E0=10 Detector: mon_spl_fluo_I=3.66859e+14
+* Example: SIXS_E0=13 Detector: SIXS_detector_bulk_I=3.37342e+09
 *
 * %Parameters
-* E0:             [keV]  Nominal energy at the Wiggler.
-* dE:             [keV]  Energy half-bandwidth at the Wiggler
-* dcm_theta:      [deg]  Rotation angle of the DCM. 0=set from energy E0
-* M1_angle:       [mrad] Rotation angle of M1/M2 mirrors. When left as 0, it is set automatically from E0.
-* M1_radius:      [m]    Curvature radius of M1 mirror (Rh, 1300x100) longitudinal. Positive=mirror is focusing. 0=flat.
-* M2_radius:      [m]    Curvature radius of M2 mirror (Rh, 1300x100) sagittal. Positive=mirror is focusing. 0=flat.
-* sample_coating: [str]  Reflection/structure data file for the single crystal thin layer coating
-* sample_bulk:    [str]  Reflection/structure data file for the single crystal bulk
-* sample_thickness: [m]  The single crystal thin layer coating thickness
-* sample_angle:   [deg]  The sample tilt angle (around X axis)
+* SIXS_E0:             [keV]  Nominal energy at the Wiggler.
+* SIXS_dE:             [keV]  Energy half-bandwidth at the Wiggler
+* SIXS_dcm_theta:      [deg]  Rotation angle of the DCM. 0=set from energy SIXS_E0
+* SIXS_M1_angle:       [mrad] Rotation angle of M1/M2 mirrors. When left as 0, it is set automatically from SIXS_E0.
+* SIXS_M1_radius:      [m]    Curvature radius of M1 mirror (Rh, 1300x100) longitudinal. Positive=mirror is focusing. 0=flat.
+* SIXS_M2_radius:      [m]    Curvature radius of M2 mirror (Rh, 1300x100) sagittal. Positive=mirror is focusing. 0=flat.
+* SIXS_sample_coating: [str]  Reflection/structure data file for the single crystal thin layer coating
+* SIXS_sample_bulk:    [str]  Reflection/structure data file for the single crystal bulk
+* SIXS_sample_thickness: [m]  The single crystal thin layer coating thickness
+* SIXS_sample_angle:   [deg]  The sample tilt angle (around X axis)
 *
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/sixs
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT SOLEIL_SIXS(E0=13, dE=0.1, dcm_theta=0, 
-  M1_angle=3, M1_radius=1400, M2_radius=1400,
-  string sample_coating="Mo.lau", string sample_bulk="Si.lau", 
-  sample_thickness=50e-10, sample_angle=0.175)
+DEFINE INSTRUMENT SOLEIL_SIXS(SIXS_E0=13, SIXS_dE=0.1, SIXS_dcm_theta=0, 
+  SIXS_M1_angle=3, SIXS_M1_radius=1400, SIXS_M2_radius=1400,
+  string SIXS_sample_coating="Mo.lau", string SIXS_sample_bulk="Si.lau", 
+  SIXS_sample_thickness=50e-10, SIXS_sample_angle=0.175, int splits=10)
 
 DECLARE
 %{
-  double dcm_gap;
+  double SIXS_dcm_gap;
 %}
 
 USERVARS
 %{
-  int    flag_scatt;
+  int    SIXS_flag_scatt;
 %}
 
 INITIALIZE
 %{
-  double DM= 5.4909;     // Si d-spacing for the Monochromator
-  double d = DM/sqrt(3); // <111> reflection |<111>|=3
-  dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
-   
-  if (!dcm_theta && E0) {
-    // n.lambda = 2 d sin(dcm_theta) = 2*PI/E2K / E0 with n=ORDER=1
-    double sin_theta = 2*PI/E2K/E0 / 2 / d;
-    if (fabs(sin_theta) < 1)
-      dcm_theta = asin(sin_theta)*RAD2DEG;
-  } else if (dcm_theta && !E0)
-    E0 = 2*PI/E2K / (2*d*sin(dcm_theta*DEG2RAD));
-  if (!dcm_theta || !E0 || dE <=0)
-    exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, E0, dE));
-  MPI_MASTER(
-  printf("%s: E0=%g [keV] Monochromator dcm_theta=%g [deg] \n", NAME_INSTRUMENT, E0, dcm_theta);
-  );
-  if (fabs(dE/E0)>0.1) dE = 3e-2*E0;
-  M1_angle *= RAD2DEG/1000;
+  {
+    double DM= 5.4909;     // Si d-spacing for the Monochromator
+    double d = DM/sqrt(3); // <111> reflection |<111>|=3
+    SIXS_dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
+     
+    if (!SIXS_dcm_theta && SIXS_E0) {
+      // n.lambda = 2 d sin(SIXS_dcm_theta) = 2*PI/E2K / SIXS_E0 with n=ORDER=1
+      double sin_theta = 2*PI/E2K/SIXS_E0 / 2 / d;
+      if (fabs(sin_theta) < 1)
+        SIXS_dcm_theta = asin(sin_theta)*RAD2DEG;
+    } else if (SIXS_dcm_theta && !SIXS_E0)
+      SIXS_E0 = 2*PI/E2K / (2*d*sin(SIXS_dcm_theta*DEG2RAD));
+    if (!SIXS_dcm_theta || !SIXS_E0 || SIXS_dE <=0)
+      exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect SIXS_E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, SIXS_E0, SIXS_dE));
+    MPI_MASTER(
+    printf("%s: SIXS_E0=%g [keV] Monochromator SIXS_dcm_theta=%g [deg] \n", NAME_INSTRUMENT, SIXS_E0, SIXS_dcm_theta);
+    );
+    if (fabs(SIXS_dE/SIXS_E0)>0.1) SIXS_dE = 3e-2*SIXS_E0;
+    SIXS_M1_angle *= RAD2DEG/1000;
+    
+    if (!strlen(SIXS_sample_coating) || strcmp(SIXS_sample_coating,"0") || strcmp(SIXS_sample_coating,"NULL")) {
+      SIXS_sample_thickness=0;
+    }
+  }
 %}
 
 TRACE
@@ -106,13 +112,13 @@ TRACE
 // BeamLineName| Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // ----|--------|-----|---|----|--
 // SIXS|298,7982|325,5|9,5|17,2|3,3
-REMOVABLE COMPONENT origin = Progress_bar()
+REMOVABLE COMPONENT SIXS_origin = Progress_bar()
 AT (0, 0, 0) RELATIVE ABSOLUTE
 
 // the photon source -----------------------------------------------------------
-COMPONENT Source_U20 = Undulator(
-    E0 = E0,
-    dE = dE,
+COMPONENT SIXS_Source_U20 = Undulator(
+    E0 = SIXS_E0,
+    dE = SIXS_dE,
     Ee = 2.75,
     Ie = 0.5,
     K = 5,
@@ -122,141 +128,142 @@ COMPONENT Source_U20 = Undulator(
     sigepy = 4.61e-6)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT mon_src_xy = Monitor_nD(
+COMPONENT SIXS_mon_src_xy = Monitor_nD(
   options="x y", xwidth=2e-3, yheight=2e-3, bins=128)
-AT (0,0,14.9) RELATIVE Source_U20
+AT (0,0,14.9) RELATIVE SIXS_Source_U20
 
-COMPONENT mon_src_e = Monitor_nD(options="energy", xwidth=2e-3, yheight=2e-3, bins=128,
-  min=E0-dE*1.1, max=E0+dE*1.1)
+COMPONENT SIXS_mon_src_e = Monitor_nD(options="energy", xwidth=2e-3, yheight=2e-3, bins=128,
+  min=SIXS_E0-SIXS_dE*1.1, max=SIXS_E0+SIXS_dE*1.1)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT slit = Slit(xwidth=2e-3, yheight=0.7e-3)
+COMPONENT SIXS_slit = Slit(xwidth=2e-3, yheight=0.7e-3)
 AT (0,0,0.1) RELATIVE PREVIOUS
 
-COMPONENT slit_mon_xy = COPY(mon_src_xy)
+COMPONENT SIXS_slit_mon_xy = COPY(SIXS_mon_src_xy)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // The double monochromator ----------------------------------------------------
-COMPONENT DCM_location = Arm()
-AT (0,0,16.5) RELATIVE Source_U20
+COMPONENT SIXS_DCM_location = Arm()
+AT (0,0,16.5) RELATIVE SIXS_Source_U20
 
-COMPONENT dcm_xtal0 = Bragg_crystal(
+COMPONENT SIXS_dcm_xtal0 = Bragg_crystal(
     length=0.04, width=0.04, 
     h=1, k=1, l=1, material="Si.txt", V=160.1826)
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+ROTATED (-SIXS_dcm_theta,0,0) RELATIVE PREVIOUS
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT dcm0      = Arm()
+COMPONENT SIXS_dcm0      = Arm()
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+ROTATED (-SIXS_dcm_theta,0,0) RELATIVE PREVIOUS
 
-COMPONENT dcm_xtal1 = COPY(dcm_xtal0)
-AT(0,dcm_gap, dcm_theta ? dcm_gap/tan(dcm_theta*DEG2RAD) : 0)    RELATIVE dcm_xtal0
-ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS
+COMPONENT SIXS_dcm_xtal1 = COPY(SIXS_dcm_xtal0)
+AT(0,SIXS_dcm_gap, SIXS_dcm_theta ? SIXS_dcm_gap/tan(SIXS_dcm_theta*DEG2RAD) : 0)    RELATIVE SIXS_dcm_xtal0
+ROTATED (SIXS_dcm_theta,0,0)  RELATIVE PREVIOUS
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT dcm1      = Arm()
+COMPONENT SIXS_dcm1      = Arm()
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS 
+ROTATED (SIXS_dcm_theta,0,0)  RELATIVE PREVIOUS 
 
-COMPONENT mon_dcm_e = COPY(mon_src_e)
+COMPONENT SIXS_mon_dcm_e = COPY(SIXS_mon_src_e)
 AT (0,0,0.5) RELATIVE PREVIOUS
 
-COMPONENT mon_dcm_xy = COPY(mon_src_xy)
+COMPONENT SIXS_mon_dcm_xy = COPY(SIXS_mon_src_xy)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // M1 location -----------------------------------------------------------------
-COMPONENT M1_location = Arm()
-AT(0,0,26-16.5-0.5) RELATIVE mon_dcm_e
+COMPONENT SIXS_M1_location = Arm()
+AT(0,0,26-16.5-0.5) RELATIVE SIXS_mon_dcm_e
 
-COMPONENT M1_rotated = Arm()  // rotation of the mirror
-AT(0,0,0)               RELATIVE M1_location
-ROTATED (-M1_angle,0,0) RELATIVE M1_location
+COMPONENT SIXS_M1_rotated = Arm()  // rotation of the mirror
+AT(0,0,0)               RELATIVE SIXS_M1_location
+ROTATED (-SIXS_M1_angle,0,0) RELATIVE SIXS_M1_location
 
 // should image the slit to get a parallel beam.
-COMPONENT M1 = Mirror_curved( // 90 deg brings it from YZ (vert) to XZ (horiz)
+COMPONENT SIXS_M1 = Mirror_curved( // 90 deg brings it from YZ (vert) to XZ (horiz)
     length=.350, width=0.2,
-    coating="Pd.txt", radius=M1_radius)
-AT(0,0,0)           RELATIVE M1_rotated
-ROTATED (0, 0, 90) RELATIVE M1_rotated
+    coating="Pd.txt", radius=SIXS_M1_radius)
+AT(0,0,0)           RELATIVE SIXS_M1_rotated
+ROTATED (0, 0, 90) RELATIVE SIXS_M1_rotated
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M1_out = Arm()      // 2-theta direction
-AT(0,0,0)               RELATIVE M1_rotated
-ROTATED (-M1_angle,0,0) RELATIVE M1_rotated
+COMPONENT SIXS_M1_out = Arm()      // 2-theta direction
+AT(0,0,0)               RELATIVE SIXS_M1_rotated
+ROTATED (-SIXS_M1_angle,0,0) RELATIVE SIXS_M1_rotated
 
 // M2 mirror -------------------------------------------------------------------
 
-COMPONENT M2_location = Arm()
-AT (0,0,28-26) RELATIVE M1_out
+COMPONENT SIXS_M2_location = Arm()
+AT (0,0,28-26) RELATIVE SIXS_M1_out
 
-COMPONENT M2_rotated = Arm()  // rotation of the mirror
-AT(0,0,0)                      RELATIVE M2_location
-ROTATED (M1_angle,0,0) RELATIVE M2_location
+COMPONENT SIXS_M2_rotated = Arm()  // rotation of the mirror
+AT(0,0,0)                      RELATIVE SIXS_M2_location
+ROTATED (SIXS_M1_angle,0,0) RELATIVE SIXS_M2_location
 
-COMPONENT M2 = Mirror_curved( // bring it from YZ to XZ (horiz)
+COMPONENT SIXS_M2 = Mirror_curved( // bring it from YZ to XZ (horiz)
     length=0.550, width=.2,
-    coating="Pd.txt", radius=M2_radius)
-AT(0,0,0)         RELATIVE M2_rotated
-ROTATED (0, 0, -90) RELATIVE M2_rotated
+    coating="Pd.txt", radius=SIXS_M2_radius)
+AT(0,0,0)         RELATIVE SIXS_M2_rotated
+ROTATED (0, 0, -90) RELATIVE SIXS_M2_rotated
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT M2_out = Arm()      // 2-theta direction
-AT(0,0,0) RELATIVE M2_rotated
-ROTATED (M1_angle,0,0) RELATIVE M2_rotated
+COMPONENT SIXS_M2_out = Arm()      // 2-theta direction
+AT(0,0,0) RELATIVE SIXS_M2_rotated
+ROTATED (SIXS_M1_angle,0,0) RELATIVE SIXS_M2_rotated
 
 
 
 // The sample area -------------------------------------------------------------
 // align surface so that the beam hits its centre (shift along Y axis)
-SPLIT 10 COMPONENT sample_stage = COPY(mon_src_xy)
+SPLIT splits COMPONENT SIXS_sample_stage = COPY(SIXS_mon_src_xy)
 AT (0,0,33-28) RELATIVE PREVIOUS
 EXTEND %{
-  flag_scatt = 0;
+  SIXS_flag_scatt = 0;
 %}
 
-COMPONENT sx_layer = Single_crystal(
-  reflections=sample_coating, xwidth=2e-3, yheight=sample_thickness, zdepth=0.01,
+COMPONENT SIXS_sx_layer = Single_crystal(
+  reflections=SIXS_sample_coating, xwidth=2e-3, yheight=SIXS_sample_thickness, zdepth=0.01,
   surf_size=-1, mosaic=1e-4, sigma_inc=0, p_transmit = 0.1)
-AT (0,-sample_thickness/2,0) RELATIVE sample_stage
-ROTATED (sample_angle,0,0)   RELATIVE sample_stage
+WHEN SIXS_sample_thickness>0
+AT (0,-SIXS_sample_thickness/2,0) RELATIVE SIXS_sample_stage
+ROTATED (SIXS_sample_angle,0,0)   RELATIVE SIXS_sample_stage
 EXTEND %{
-  if (SCATTERED) flag_scatt++;
+  if (SCATTERED) SIXS_flag_scatt++;
 %}
 
-COMPONENT sx_bulk  = Single_crystal(
-  reflections=sample_bulk, xwidth=2e-3, yheight=1e-3, zdepth=0.01, 
+COMPONENT SIXS_sx_bulk  = Single_crystal(
+  reflections=SIXS_sample_bulk, xwidth=2e-3, yheight=1e-3, zdepth=0.01, 
   surf_size=-1, mosaic=1e-4, sigma_inc=0)
 AT (0,-1e-3/2,0) RELATIVE PREVIOUS /* just below the thin layer */
 EXTEND %{
-  if (SCATTERED) flag_scatt += 2;
+  if (SCATTERED) SIXS_flag_scatt += 2;
 %}
 
-COMPONENT sample_out = Arm()
-AT (0,0,0)       RELATIVE sample_stage
+COMPONENT SIXS_sample_out = Arm()
+AT (0,0,0)       RELATIVE SIXS_sample_stage
 EXTEND %{
-  if (!flag_scatt) ABSORB;
+  if (!SIXS_flag_scatt) ABSORB;
 %}
 
-COMPONENT det4pi = Monitor_nD(radius=1, options="theta phi", bins=2048)
-AT (0,0,0) RELATIVE sample_stage
+COMPONENT SIXS_det4pi = Monitor_nD(radius=1, options="theta phi", bins=2048)
+AT (0,0,0) RELATIVE SIXS_sample_stage
 
-COMPONENT detector_layer = COPY(det4pi)
-WHEN (flag_scatt == 1 || flag_scatt == 3)
-AT (0,0,0) RELATIVE sample_stage
+COMPONENT SIXS_detector_layer = COPY(SIXS_det4pi)
+WHEN (SIXS_flag_scatt == 1 || SIXS_flag_scatt == 3)
+AT (0,0,0) RELATIVE SIXS_sample_stage
 
-COMPONENT detector_bulk  = COPY(det4pi)
-WHEN (flag_scatt > 1)
-AT (0,0,0) RELATIVE sample_stage
+COMPONENT SIXS_detector_bulk  = COPY(SIXS_det4pi)
+WHEN (SIXS_flag_scatt > 1)
+AT (0,0,0) RELATIVE SIXS_sample_stage
 
 
 END

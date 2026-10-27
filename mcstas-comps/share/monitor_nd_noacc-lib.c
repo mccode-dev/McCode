@@ -69,7 +69,6 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
     long i=0, j=0;
     double lmin, lmax, XY=0;
     long t;
-    int N_spatial_dims=0;
 
     t = (long)time(NULL);
 
@@ -225,7 +224,6 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
       Vars->Flag_Shape        = DEFS->SHAPE_BOX;
 
     if (Vars->Flag_OFF) {
-      N_spatial_dims++;
       Vars->Flag_Shape        = DEFS->SHAPE_OFF;
     }
     
@@ -380,17 +378,14 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
           { Set_Vars_Coord_Type = DEFS->COORD_X; strcpy(Set_Vars_Coord_Label,"x [m]"); strcpy(Set_Vars_Coord_Var,"x");
           lmin = Vars->mxmin; lmax = Vars->mxmax;
           Vars->Coord_Min[Vars->Coord_Number+1] = Vars->mxmin;
-          Vars->Coord_Max[Vars->Coord_Number+1] = Vars->mxmax;
-	  N_spatial_dims++;}
+          Vars->Coord_Max[Vars->Coord_Number+1] = Vars->mxmax;}
         if (!strcmp(token, "y"))
           { Set_Vars_Coord_Type = DEFS->COORD_Y; strcpy(Set_Vars_Coord_Label,"y [m]"); strcpy(Set_Vars_Coord_Var,"y");
           lmin = Vars->mymin; lmax = Vars->mymax;
           Vars->Coord_Min[Vars->Coord_Number+1] = Vars->mymin;
-          Vars->Coord_Max[Vars->Coord_Number+1] = Vars->mymax;
-	  N_spatial_dims++;}
+          Vars->Coord_Max[Vars->Coord_Number+1] = Vars->mymax;}
         if (!strcmp(token, "z"))
-          { Set_Vars_Coord_Type = DEFS->COORD_Z; strcpy(Set_Vars_Coord_Label,"z [m]"); strcpy(Set_Vars_Coord_Var,"z"); lmin = Vars->mzmin; lmax = Vars->mzmax;
-	    N_spatial_dims++;}
+          { Set_Vars_Coord_Type = DEFS->COORD_Z; strcpy(Set_Vars_Coord_Label,"z [m]"); strcpy(Set_Vars_Coord_Var,"z"); lmin = Vars->mzmin; lmax = Vars->mzmax;}
         if (!strcmp(token, "k") || !strcmp(token, "wavevector"))
           { Set_Vars_Coord_Type = DEFS->COORD_K; strcpy(Set_Vars_Coord_Label,"|k| [Angs-1]"); strcpy(Set_Vars_Coord_Var,"k"); lmin = 0; lmax = 10; }
         if (!strcmp(token, "v"))
@@ -439,11 +434,11 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
         if (!strcmp(token, "radius") || !strcmp(token, "r"))
           { Set_Vars_Coord_Type = DEFS->COORD_RADIUS; strcpy(Set_Vars_Coord_Label,"Radius [m]"); strcpy(Set_Vars_Coord_Var,"xy"); lmin = 0; lmax = xmax; }
         if (!strcmp(token, "xy"))
-          { Set_Vars_Coord_Type = DEFS->COORD_XY; strcpy(Set_Vars_Coord_Label,"Radius (xy) [m]"); strcpy(Set_Vars_Coord_Var,"xy"); lmin = 0; lmax = xmax; N_spatial_dims+=1;}
+          { Set_Vars_Coord_Type = DEFS->COORD_XY; strcpy(Set_Vars_Coord_Label,"Radius (xy) [m]"); strcpy(Set_Vars_Coord_Var,"xy"); lmin = 0; lmax = xmax;}
         if (!strcmp(token, "yz"))
-          { Set_Vars_Coord_Type = DEFS->COORD_YZ; strcpy(Set_Vars_Coord_Label,"Radius (yz) [m]"); strcpy(Set_Vars_Coord_Var,"yz"); lmin = 0; lmax = xmax; N_spatial_dims+=1;}
+          { Set_Vars_Coord_Type = DEFS->COORD_YZ; strcpy(Set_Vars_Coord_Label,"Radius (yz) [m]"); strcpy(Set_Vars_Coord_Var,"yz"); lmin = 0; lmax = xmax;}
         if (!strcmp(token, "xz"))
-          { Set_Vars_Coord_Type = DEFS->COORD_XZ; strcpy(Set_Vars_Coord_Label,"Radius (xz) [m]"); strcpy(Set_Vars_Coord_Var,"xz"); lmin = 0; lmax = xmax; N_spatial_dims+=1;}
+          { Set_Vars_Coord_Type = DEFS->COORD_XZ; strcpy(Set_Vars_Coord_Label,"Radius (xz) [m]"); strcpy(Set_Vars_Coord_Var,"xz"); lmin = 0; lmax = xmax;}
         if (!strcmp(token, "vxy"))
           { Set_Vars_Coord_Type = DEFS->COORD_VXY; strcpy(Set_Vars_Coord_Label,"Radial Velocity (xy) [m]"); strcpy(Set_Vars_Coord_Var,"Vxy"); lmin = 0; lmax = 2000; }
         if (!strcmp(token, "kxy"))
@@ -457,15 +452,15 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
         if (!strcmp(token, "kxz"))
           { Set_Vars_Coord_Type = DEFS->COORD_KXZ; strcpy(Set_Vars_Coord_Label,"Radial Wavevector (xz) [Angs-1]"); strcpy(Set_Vars_Coord_Var,"Kxz"); lmin = 0; lmax = 2; }
         if (!strcmp(token, "angle") || !strcmp(token, "a"))
-          { Set_Vars_Coord_Type = DEFS->COORD_ANGLE; strcpy(Set_Vars_Coord_Label,"Angle [deg]"); strcpy(Set_Vars_Coord_Var,"A"); lmin = -50; lmax = 50; N_spatial_dims++;}
+          { Set_Vars_Coord_Type = DEFS->COORD_ANGLE; strcpy(Set_Vars_Coord_Label,"Angle [deg]"); strcpy(Set_Vars_Coord_Var,"A"); lmin = -50; lmax = 50;}
         if (!strcmp(token, "hdiv")|| !strcmp(token, "divergence") || !strcmp(token, "xdiv") || !strcmp(token, "hd") || !strcmp(token, "dx"))
-          { Set_Vars_Coord_Type = DEFS->COORD_HDIV; strcpy(Set_Vars_Coord_Label,"Hor. Divergence [deg]"); strcpy(Set_Vars_Coord_Var,"hd"); lmin = -5; lmax = 5; N_spatial_dims++;}
+          { Set_Vars_Coord_Type = DEFS->COORD_HDIV; strcpy(Set_Vars_Coord_Label,"Hor. Divergence [deg]"); strcpy(Set_Vars_Coord_Var,"hd"); lmin = -5; lmax = 5;}
         if (!strcmp(token, "vdiv") || !strcmp(token, "ydiv") || !strcmp(token, "vd") || !strcmp(token, "dy"))
-          { Set_Vars_Coord_Type = DEFS->COORD_VDIV; strcpy(Set_Vars_Coord_Label,"Vert. Divergence [deg]"); strcpy(Set_Vars_Coord_Var,"vd"); lmin = -5; lmax = 5; N_spatial_dims++;}
+          { Set_Vars_Coord_Type = DEFS->COORD_VDIV; strcpy(Set_Vars_Coord_Label,"Vert. Divergence [deg]"); strcpy(Set_Vars_Coord_Var,"vd"); lmin = -5; lmax = 5;}
         if (!strcmp(token, "theta") || !strcmp(token, "longitude") || !strcmp(token, "th"))
-          { Set_Vars_Coord_Type = DEFS->COORD_THETA; strcpy(Set_Vars_Coord_Label,"Longitude [deg]"); strcpy(Set_Vars_Coord_Var,"th"); lmin = -180; lmax = 180; N_spatial_dims++;}
+          { Set_Vars_Coord_Type = DEFS->COORD_THETA; strcpy(Set_Vars_Coord_Label,"Longitude [deg]"); strcpy(Set_Vars_Coord_Var,"th"); lmin = -180; lmax = 180;}
         if (!strcmp(token, "phi") || !strcmp(token, "latitude") || !strcmp(token, "ph"))
-          { Set_Vars_Coord_Type = DEFS->COORD_PHI; strcpy(Set_Vars_Coord_Label,"Latitude [deg]"); strcpy(Set_Vars_Coord_Var,"ph"); lmin = -90; lmax = 90; N_spatial_dims++;}
+          { Set_Vars_Coord_Type = DEFS->COORD_PHI; strcpy(Set_Vars_Coord_Label,"Latitude [deg]"); strcpy(Set_Vars_Coord_Var,"ph"); lmin = -90; lmax = 90;}
         if (!strcmp(token, "ncounts") || !strcmp(token, "n") || !strcmp(token, "neutron"))
           { Set_Vars_Coord_Type = DEFS->COORD_NCOUNT; strcpy(Set_Vars_Coord_Label,"Neutron ID [1]"); strcpy(Set_Vars_Coord_Var,"n"); lmin = 0; lmax = mcget_ncount(); if (Flag_auto>0) Flag_auto=0; }
         if (!strcmp(token, "id") || !strcmp(token, "pixel"))
@@ -585,6 +580,36 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
     if (!Vars->Flag_List && nexusbins==1) Vars->Flag_nexusbins=1;
 
     free(option_copy);
+
+    /* Mantid LoadMcStas needs both x and y event columns (p x y n id t):
+       add the missing one with a single bin for 1D x or y banks (#2178) */
+    if (Vars->Flag_mantid && abs(Vars->Flag_Shape) == DEFS->SHAPE_SQUARE && Vars->Coord_Number < MONnD_COORD_NMAX-1) {
+      long ix=0, iy=0, k;
+      for (i=1; i<=Vars->Coord_Number; i++) {
+        int ct = Vars->Coord_Type[i] & (DEFS->COORD_LOG-1);
+        if (ct==DEFS->COORD_X && !ix) ix=i;
+        if (ct==DEFS->COORD_Y && !iy) iy=i;
+      }
+      if (!ix != !iy) {
+        k = ix ? ix+1 : iy; /* keep x before y */
+        for (i=Vars->Coord_Number; i>=k; i--) {
+          Vars->Coord_Type[i+1]=Vars->Coord_Type[i];
+          memcpy(Vars->Coord_Label[i+1],Vars->Coord_Label[i],30);
+          memcpy(Vars->Coord_Var[i+1],Vars->Coord_Var[i],30);
+          Vars->Coord_Bin[i+1]=Vars->Coord_Bin[i];
+          Vars->Coord_Min[i+1]=Vars->Coord_Min[i];
+          Vars->Coord_Max[i+1]=Vars->Coord_Max[i];
+        }
+        Vars->Coord_Type[k] = ix ? DEFS->COORD_Y : DEFS->COORD_X;
+        strcpy(Vars->Coord_Label[k], ix ? "y [m]" : "x [m]");
+        strcpy(Vars->Coord_Var[k], ix ? "y" : "x");
+        Vars->Coord_Bin[k] = 1;
+        Vars->Coord_Min[k] = ix ? Vars->mymin : Vars->mxmin;
+        Vars->Coord_Max[k] = ix ? Vars->mymax : Vars->mxmax;
+        Vars->Coord_Number++;
+        Vars->Coord_NumberNoPixel++;
+      }
+    }
     if (carg == 128) printf("Monitor_nD: %s reached max number of tokens (%i). Skipping.\n", Vars->compcurname, 128);
 
     if ((Vars->Flag_Shape == DEFS->SHAPE_BOX) && (fabs(Vars->mzmax - Vars->mzmin) == 0)) Vars->Flag_Shape = DEFS->SHAPE_SQUARE;
@@ -941,16 +966,8 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
 
 	if (Vars->Flag_nexusbins) {
 	  /* Below code communicates geometry-oriented "BINS" for the detector. */
-	  char metadata[CHAR_BUF_LENGTH];
-	  char metadatatmp[CHAR_BUF_LENGTH];
 	  // Vars for 1D, >3D, OFF
 	  long numbins;
-	  long minbins = 0;
-	  long maxbins = 0;
-	  char binlabel[CHAR_BUF_LENGTH];
-	  char binvar[CHAR_BUF_LENGTH];
-	  sprintf(binlabel,"none");
-	  sprintf(binvar,"none");
 	  
 	  // Find index of pixel column
 	  int id_index;
@@ -1003,123 +1020,80 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
 	  sprintf(detector.nexuscomp,"%s%d_%s",pref,Vars->compcurindex-1,detector.component);
 	  sprintf(detector.format,"pixels");
 	  
-	  if(!Vars->Flag_OFF) {
-	    
-	    sprintf(metadata,"id=%ld + %ld pixels: ",(long)Vars->Coord_Min[id_index],(long)Vars->Coord_BinProd[Vars->Coord_Number]);
-	    for (i=1; i<N_spatial_dims; i++) {
-	      sprintf(metadatatmp,"%s %s (%ld bins) x ",metadata,Vars->Coord_Label[i],Vars->Coord_Bin[i]);
-	      sprintf(metadata,"%s",metadatatmp);
+	  /* Map spatial coordinates only: non-spatial axes (lambda, t, ...) would
+	     multiply the map size without adding geometry (#2484) */
+	  int sp[MONnD_COORD_NMAX+1];
+	  int ns=0;
+	  numbins=1;
+	  for (i=1; i<=Vars->Coord_Number; i++) {
+	    int ct = Vars->Coord_Type[i] & (DEFS->COORD_LOG-1);
+	    if (ct==DEFS->COORD_X || ct==DEFS->COORD_Y || ct==DEFS->COORD_Z
+	     || ct==DEFS->COORD_XY || ct==DEFS->COORD_YZ || ct==DEFS->COORD_XZ
+	     || ct==DEFS->COORD_ANGLE || ct==DEFS->COORD_HDIV || ct==DEFS->COORD_VDIV
+	     || ct==DEFS->COORD_THETA || ct==DEFS->COORD_PHI) {
+	      sp[ns++]=i;
+	      numbins*=Vars->Coord_Bin[i];
 	    }
-	    sprintf(metadatatmp,"%s %s (%ld bins)",metadata,Vars->Coord_Label[i],Vars->Coord_Bin[i]);
-	    sprintf(metadata,"%s",metadatatmp);
-	    numbins = Vars->Coord_BinProd[Vars->Coord_Number];
-	    if (N_spatial_dims==1) {
-	      minbins=Vars->Coord_Min[1];
-	      maxbins=Vars->Coord_Max[1];
-	      sprintf(binlabel,"%s",Vars->Coord_Label[1]);
-	      sprintf(binvar,"%s",Vars->Coord_Var[1]);
-	    } else if (N_spatial_dims>3) {
-	      minbins=1;
-	      maxbins=Vars->Coord_BinProd[Vars->Coord_Number];
-	      sprintf(binlabel,"More than 3 dimensions");
-	      sprintf(binvar,"wrapped_variables_4plus_dims");
-	      N_spatial_dims=1;
-	    }
-	    sprintf(detector.xlabel,"%s",binlabel);
-	    sprintf(detector.xvar,"%s",binvar);
-	    detector.xmin=minbins;
-	    detector.xmax=maxbins;
-	  } else {
-	    numbins = Vars->Flag_OFF;
-	    minbins=1;
-	    maxbins=Vars->Flag_OFF;
-	    sprintf(binlabel,"OFF pixel index");
-	    sprintf(binvar,"OFF");
-	    N_spatial_dims=1;
-	    sprintf(detector.xlabel,"%s",binlabel);
-	    sprintf(detector.xvar,"%s",binvar);
-	    detector.xmin=minbins;
-	    detector.xmax=maxbins;
 	  }
-	  
-	  long k,l,m;
-	  if (N_spatial_dims==1) { // 1D case or ND
-	    detector.m=numbins;
-	    detector.n=1;
-	    detector.p=1;
-	    detector.rank=1;
+	  if (Vars->Flag_OFF) {
+	    numbins = Vars->Flag_OFF;
+	    ns = 1;
+	    sprintf(detector.xlabel,"OFF pixel index");
+	    sprintf(detector.xvar,"OFF");
+	    detector.xmin=1;
+	    detector.xmax=numbins;
+	  } else if (ns==1 || ns>3) {
+	    sprintf(detector.xlabel,"%s",ns==1 ? Vars->Coord_Label[sp[0]] : "More than 3 dimensions");
+	    sprintf(detector.xvar,"%s",ns==1 ? Vars->Coord_Var[sp[0]] : "wrapped_variables_4plus_dims");
+	    detector.xmin = ns==1 ? Vars->Coord_Min[sp[0]] : 1;
+	    detector.xmax = ns==1 ? Vars->Coord_Max[sp[0]] : numbins;
+	  } else if (ns>1) {
+	    sprintf(detector.xlabel,"%s",Vars->Coord_Label[sp[0]]);
+	    sprintf(detector.xvar,"%s",Vars->Coord_Var[sp[0]]);
+	    detector.xmin=Vars->Coord_Min[sp[0]];
+	    detector.xmax=Vars->Coord_Max[sp[0]];
+	    sprintf(detector.ylabel,"%s",Vars->Coord_Label[sp[1]]);
+	    sprintf(detector.yvar,"%s",Vars->Coord_Var[sp[1]]);
+	    detector.ymin=Vars->Coord_Min[sp[1]];
+	    detector.ymax=Vars->Coord_Max[sp[1]];
+	  }
+	  if (ns==3 && !Vars->Flag_OFF) {
+	    sprintf(detector.zlabel,"%s",Vars->Coord_Label[sp[2]]);
+	    sprintf(detector.zvar,"%s",Vars->Coord_Var[sp[2]]);
+	    detector.zmin=Vars->Coord_Min[sp[2]];
+	    detector.zmax=Vars->Coord_Max[sp[2]];
+	  }
+	  int rank = (ns==2 || ns==3) && !Vars->Flag_OFF ? ns : 1;
+	  detector.rank=rank;
+	  detector.m = rank==1 ? numbins : Vars->Coord_Bin[sp[0]];
+	  detector.n = rank==1 ? 1 : Vars->Coord_Bin[sp[1]];
+	  detector.p = rank==3 ? Vars->Coord_Bin[sp[2]] : 1;
+
+	  if (ns>0) {
 	    detector.p0=(double *)calloc(numbins, sizeof(double));
 	    detector.p1=(double *)calloc(numbins, sizeof(double));
 	    detector.p2=(double *)calloc(numbins, sizeof(double));
-	    if (Vars->Flag_Verbose) printf("1D case %ld \n",Vars->Coord_Bin[1]);
-	    for (k=0; k<numbins; k++) {
-	      if (Vars->Flag_Verbose) printf("Assigning pixel no [%ld] = %ld\n",k,pix);
-	      detector.p1[k]=pix;
-	      pix++;
-	    }
-	    mcdetector_out_1D_nexus(detector);
-	    free(detector.p0);
-	    free(detector.p1);
-	    free(detector.p2);
-	  } else if (N_spatial_dims==2) { // 2D case
-	    detector.m=Vars->Coord_Bin[1];
-	    detector.n=Vars->Coord_Bin[2];
-	    detector.p=1;
-	    detector.rank=2;
-	    sprintf(detector.xlabel,"%s",Vars->Coord_Label[1]);
-	    sprintf(detector.xvar,"%s",Vars->Coord_Var[1]);
-	    detector.xmin=Vars->Coord_Min[1];
-	    detector.xmax=Vars->Coord_Max[1];
-	    sprintf(detector.ylabel,"%s",Vars->Coord_Label[2]);
-	    sprintf(detector.yvar,"%s",Vars->Coord_Var[2]);
-	    detector.ymin=Vars->Coord_Min[2];
-	    detector.ymax=Vars->Coord_Max[2];
-	    detector.p0=(double *)calloc(Vars->Coord_BinProd[Vars->Coord_Number], sizeof(double));
-	    detector.p1=(double *)calloc(Vars->Coord_BinProd[Vars->Coord_Number], sizeof(double));
-	    detector.p2=(double *)calloc(Vars->Coord_BinProd[Vars->Coord_Number], sizeof(double));
-	    if (Vars->Flag_Verbose) printf("2D case %ld x %ld \n",Vars->Coord_Bin[1],Vars->Coord_Bin[2]);
-	    for (k=0; k<Vars->Coord_Bin[1]; k++) {
-	      for (l=0; l<Vars->Coord_Bin[2]; l++) {
-		if (Vars->Flag_Verbose) printf("Assigning pixel no [%ld,%ld] = %ld\n",l,k,pix);
-		detector.p1[k*Vars->Coord_Bin[2]+l]=pix;
-		pix++;
+	    if (!detector.p0 || !detector.p1 || !detector.p2) {
+	      fprintf(stderr,"Monitor_nD: %s cannot allocate NeXus BINS map (%ld pixels). Skipping BINS output.\n", Vars->compcurname, numbins);
+	    } else {
+	      long k,l;
+	      if (Vars->Flag_Verbose) printf("Monitor_nD: %s BINS map, rank %d, %ld pixels\n", Vars->compcurname, rank, numbins);
+	      for (k=0; k<numbins; k++) {
+	        long rem=k, id=pix;
+	        if (Vars->Flag_OFF) id += k;
+	        else for (l=0; l<ns; l++) {
+	          /* same pixel id as the events; 2D/3D maps are stored last-dimension-fastest */
+	          int s = sp[rank>1 ? ns-1-l : l];
+	          id += (rem % Vars->Coord_Bin[s])*Vars->Coord_BinProd[s-1];
+	          rem /= Vars->Coord_Bin[s];
+	        }
+	        if (Vars->Flag_Verbose) printf("Assigning pixel no [%ld] = %ld\n",k,id);
+	        detector.p1[k]=id;
 	      }
+	      if (rank==1) mcdetector_out_1D_nexus(detector);
+	      else if (rank==2) mcdetector_out_2D_nexus(detector);
+	      else mcdetector_out_3D_nexus(detector);
 	    }
-	    mcdetector_out_2D_nexus(detector);
-	    free(detector.p0);
-	    free(detector.p1);
-	    free(detector.p2);
-	  } else if (N_spatial_dims==3) { // 3D case
-	    detector.m=Vars->Coord_Bin[1];
-	    detector.n=Vars->Coord_Bin[2];
-	    detector.p=Vars->Coord_Bin[3];;
-	    detector.rank=3;
-	    sprintf(detector.xlabel,"%s",Vars->Coord_Label[1]);
-	    sprintf(detector.xvar,"%s",Vars->Coord_Var[1]);
-	    detector.xmin=Vars->Coord_Min[1];
-	    detector.xmax=Vars->Coord_Max[1];
-	    sprintf(detector.ylabel,"%s",Vars->Coord_Label[2]);
-	    sprintf(detector.yvar,"%s",Vars->Coord_Var[2]);
-	    detector.ymin=Vars->Coord_Min[2];
-	    detector.ymax=Vars->Coord_Max[2];
-	    sprintf(detector.zlabel,"%s",Vars->Coord_Label[3]);
-	    sprintf(detector.zvar,"%s",Vars->Coord_Var[3]);
-	    detector.zmin=Vars->Coord_Min[3];
-	    detector.zmax=Vars->Coord_Max[3];
-	    detector.p0=(double *)calloc(Vars->Coord_BinProd[Vars->Coord_Number], sizeof(double));
-	    detector.p1=(double *)calloc(Vars->Coord_BinProd[Vars->Coord_Number], sizeof(double));
-	    detector.p2=(double *)calloc(Vars->Coord_BinProd[Vars->Coord_Number], sizeof(double));
-	    if (Vars->Flag_Verbose) printf("3D case %ld x %ld x %ld \n",Vars->Coord_Bin[1],Vars->Coord_Bin[2],Vars->Coord_Bin[3]);
-	    for (k=0; k<Vars->Coord_Bin[1]; k++) {
-	      for (l=0; l<Vars->Coord_Bin[2]; l++) {
-		for (m=0; m<Vars->Coord_Bin[3]; m++) {
-		  if (Vars->Flag_Verbose) printf("Assigning pixel no [%ld,%ld,%ld] = %ld\n",m,l,k,pix);
-		  detector.p1[k*Vars->Coord_Bin[2]*Vars->Coord_Bin[3] + l*Vars->Coord_Bin[3] + m]=pix;
-		  pix++;
-		}
-	      }
-	    }
-	    mcdetector_out_3D_nexus(detector);
 	    free(detector.p0);
 	    free(detector.p1);
 	    free(detector.p2);
@@ -2181,12 +2155,16 @@ void Monitor_nd_noaccMcDisplay(Monitornd_noaccDefines_type *DEFS,
              (double)xmin, (double)ymin, 0.0);
       
       if (Vars->Flag_mantid) {
-	/* First define the base pixel type */
-	double dx, dy;
-	dx = (Vars->Coord_Max[1]-Vars->Coord_Min[1])/Vars->Coord_Bin[1];
-	dy = (Vars->Coord_Max[2]-Vars->Coord_Min[2])/Vars->Coord_Bin[2];
+	/* x, y and pixel coordinates may come in any order (#2178) */
+	int ix=1, iy=2, ip=4;
+	for (i=1; i<=Vars->Coord_Number; i++) {
+	  int ct = Vars->Coord_Type[i] & (DEFS->COORD_LOG-1);
+	  if (ct==DEFS->COORD_X) ix=i;
+	  if (ct==DEFS->COORD_Y) iy=i;
+	  if (ct==DEFS->COORD_PIXELID) ip=i;
+	}
 	printf("MANTID_RECTANGULAR_DET:  %g, %g, %g, %g, %li, %li, %llu\n", 
-	       Vars->Coord_Min[1],Vars->Coord_Max[1], Vars->Coord_Min[2],Vars->Coord_Max[2], Vars->Coord_Bin[1], Vars->Coord_Bin[2], (long long unsigned)Vars->Coord_Min[4]);
+	       Vars->Coord_Min[ix],Vars->Coord_Max[ix], Vars->Coord_Min[iy],Vars->Coord_Max[iy], Vars->Coord_Bin[ix], Vars->Coord_Bin[iy], (long long unsigned)Vars->Coord_Min[ip]);
       }
     }
     /* full cylinder/banana */

@@ -128,7 +128,7 @@ void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER f
 /*adapted from PROP_DT(dt)*/
 #define PROP_DL(dl) \
   do{ \
-    if(dl < 0) { RESTORE=1; ABSORB; }; \
+    if(dl < 0 && allow_backprop == 0) { RESTORE=1; ABSORB; }; \
     mcPROP_DL(dl); \
     DISALLOW_BACKPROP;\
   } while (0)
@@ -158,6 +158,7 @@ void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER f
     mc_dl= -x * mc_k / kx; \
     if(mc_dl<0 && allow_backprop==0) { ABSORB; };\
     PROP_DL(mc_dl); \
+    x = 0; \
   } while(0)
 
 #define PROP_Y0 \
@@ -174,6 +175,7 @@ void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER f
     mc_dl= -y * mc_k / ky; \
     if(mc_dl<0 && allow_backprop==0) { ABSORB; };\
     PROP_DL(mc_dl); \
+    y = 0; \
   } while(0)
 
 #define PROP_Z0 \
@@ -190,6 +192,7 @@ void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER f
     mc_dl= -z * mc_k / kz; \
     if(mc_dl<0 && allow_backprop==0) { ABSORB; };\
     PROP_DL(mc_dl); \
+    z = 0; \
   } while(0)
 
 #ifdef DEBUG

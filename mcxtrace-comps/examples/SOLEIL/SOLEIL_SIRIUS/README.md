@@ -30,7 +30,7 @@ Position | Element
 
 ## Examples
 
-- **Test: E0=8 Detector: def_loc_I=2.14522e+10**
+- **Test: SIRIUS_E0=8 Detector: SIRIUS_def_loc_I=2.14522e+10**
 
 ## Input parameters
 
@@ -38,13 +38,14 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Central energy (1.4 - 13 keV) | 8 |
-| dE | keV | Energy spread | 0.1 |
-| M1_angle | mrad | Incidence angle of M1 | 3 |
-| M2_angle | mrad | Incidence angle of M2 | 3 |
-| def_angle | mrad | Deflection mirror tilt (for grazing incidence) | 2.0 |
-| sample_pos | m | Distance to sample (30 for XAS, 35 for SEXAFS) | 30 |
-| sample | str | Sample structure file | "LaB6.cif" |
+| SIRIUS_E0 | keV | Central energy (1.4 - 13 keV) | 8 |
+| SIRIUS_dE | keV | Energy spread | 0.1 |
+| SIRIUS_M1_angle | mrad | Incidence angle of M1 | 3 |
+| SIRIUS_M2_angle | mrad | Incidence angle of M2 | 3 |
+| SIRIUS_def_angle | mrad | Deflection mirror tilt (for grazing incidence) | 2.0 |
+| SIRIUS_sample_pos | m | Distance to sample (30 for XAS, 35 for SEXAFS) | 30 |
+| SIRIUS_sample | str | Sample structure file | "LaB6.cif" |
+| splits |  |  | 10 |
 
 ## Links
 

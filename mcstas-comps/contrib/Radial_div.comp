@@ -52,12 +52,6 @@ DEFINE COMPONENT Radial_div
 
 SETTING PARAMETERS (ndiv=20, restore_neutron=0, string filename, xmin=0, xmax=0, ymin=0, ymax=0, xwidth=0, yheight=0, maxdiv_r=2, Lmin, Lmax)
 
-
-
-STATE PARAMETERS (x,y,z,vx,vy,vz,t,s1,s2,p)
-
-POLARISATION PARAMETERS (sx,sy,sz)
-
 DECLARE
 %{
   DArray1d Div_N;
@@ -104,20 +98,27 @@ TRACE
   double h_div, v_div, lambda, r_div;
   lambda = (2 * PI / V2K) / sqrt (vx * vx + vy * vy + vz * vz);
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
-  if (x > xmin && x < xmax && y > ymin && y < ymax && lambda > Lmin && lambda < Lmax) {
+  if ((backprop || t >= t0) && z == 0.0 && x > xmin && x < xmax && y > ymin && y < ymax && lambda > Lmin && lambda < Lmax) {
     h_div = RAD2DEG * atan2 (vx, vz);
     v_div = RAD2DEG * atan2 (vy, vz);
     r_div = sqrt (h_div * h_div + v_div * v_div);
     if (r_div < maxdiv_r) {
       i = floor ((r_div)*ndiv / (maxdiv_r));
-      Div_N[i]++;
-      Div_p[i] += p;
-      Div_p2[i] += p * p;
+      double p2 = p * p;
+      #pragma acc atomic
+      Div_N[i] = Div_N[i] + 1;
+      #pragma acc atomic
+      Div_p[i] = Div_p[i] + p;
+      #pragma acc atomic
+      Div_p2[i] = Div_p2[i] + p2;
       SCATTER;
     }
   }
-  if (restore_neutron) {
+  if (restore_neutron || !SCATTERED) {
     RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}

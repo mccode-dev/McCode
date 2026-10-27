@@ -144,15 +144,19 @@ TRACE %{
   int    intersect=0;       /* flag to continue/stop */
   double l0,  l1;           /* times for intersections */
   int    type=-1;
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
 
   if (shape==0)       // disk
     {
+      ALLOW_BACKPROP;
       PROP_Z0;
-      intersect=(x*x + y*y < radius*radius);
+      intersect=((backprop || t >= t0) && x*x + y*y < radius*radius);
     }
   else if (shape==1)  // rectangle
-    { PROP_Z0;
-      intersect=(-xwidth/2  < x && x < xwidth/2
+    { ALLOW_BACKPROP;
+      PROP_Z0;
+      intersect=((backprop || t >= t0) && -xwidth/2  < x && x < xwidth/2
               && -yheight/2 < y && y < yheight/2);
     }
   else if (shape==2)  // sphere
@@ -240,6 +244,8 @@ TRACE %{
     if (restore_xray) {
         RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
     }
+  } else {
+    RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
   }
 
 %}

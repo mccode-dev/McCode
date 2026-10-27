@@ -92,11 +92,14 @@ TRACE
   int i, j;
   double E, v;
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
   v = vx * vx + vy * vy + vz * vz;
   E = VS2E * (vx * vx + vy * vy + vz * vz);
 
-  if (x > xmin && x < xmax && y > ymin && y < ymax && E > Emin && E < Emax) {
+  if ((backprop || t >= t0) && z == 0.0 && x > xmin && x < xmax && y > ymin && y < ymax && E > Emin && E < Emax) {
     i = floor ((x - xmin) * nx / (xmax - xmin));
     j = floor ((E - Emin) * nE / (Emax - Emin));
 
@@ -110,7 +113,7 @@ TRACE
     #pragma acc atomic
     PSD_p2[i][j] = PSD_p2[i][j] + p2;
   }
-  if (restore_neutron) {
+  if (restore_neutron || !SCATTERED) {
     RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}
