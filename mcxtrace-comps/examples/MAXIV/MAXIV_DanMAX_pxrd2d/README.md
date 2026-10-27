@@ -19,7 +19,7 @@ as the multilayer.
 
 ## Examples
 
-- **Test: MAXIV_DanMAX_pxrd2d.instr -c -n1e6 E0=15 Detector: Pilatus_2M_I=8.10837e-05**
+- **Test: MAXIV_DanMAX_pxrd2d.instr -c E0=15 Detector: Pilatus_2M_I=8.10837e-05**
 
 ## Input parameters
 

@@ -302,8 +302,10 @@ jobs:
           grep -H COGEN ${MCCODE_CONFIG}
           MCCODEANTLR_FLAGS__NEXUS=`grep NEXUSFLAGS ${MCCODE_CONFIG} |cut -f4 -d\"`
           echo "MCCODEANTLR_FLAGS__NEXUS=${MCCODEANTLR_FLAGS__NEXUS}" >> "$GITHUB_ENV"
-          # Pre-poulate mccode-antlr cache
-          mccode-antlr cache populate --from-path src/ --flavor mcxtrace --no-strict --check-hashes
+          # Pre-populate mccode-antlr cache from registries minted from this checkout (mccode-antlr#118)
+          mccode-antlr cache register src common/lib/share mccode/nlib/share mccode/xlib/share -o regs/libc-registry.txt
+          mccode-antlr cache register src mcxtrace-comps -o regs/mcxtrace-registry.txt
+          mccode-antlr cache populate --from-path src --flavor mcxtrace --registry-dir regs
         fi
 
     - name: Validate build output (conda)
@@ -342,6 +344,8 @@ jobs:
            set -e
            set -u
            set -x
+           # mccode.org apt repo, as for users: provides mcpl, ncrystal and cif2hkl (>= 1.5.1)
+           sudo curl -fsSLo /etc/apt/sources.list.d/mccode.sources https://packages.mccode.org/debian/mccode.sources
            sudo apt-get update
            # Build dependencies, as in dependency-scripts/getdeps_debian (minus LaTeX/equivs:
            # the manuals package and the suite metapackage are not needed for testing)
@@ -481,6 +485,25 @@ jobs:
            # h5py is needed to check NeXus output; NeXus is skipped (and reported) without it
            ${PY} -m pip install h5py || ${PY} -m pip install h5py --break-system-packages || true
            ${PY} src/mcxtrace-comps/examples/Tests/Test_Monitor_nD_list_MPI/test_mpi_lists.py --np 2 --mcrun mxrun${SUFFIX} --workdir run_mpilists
+
+    - name: NeXus output regression test
+      id: nexusoutputtest
+      # classic only: the antlr code generator embeds a released runtime
+      if: matrix.cogen == 'classic' && matrix.nmpi != '0'
+      run: |
+           set -e
+           set -u
+           set -x
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             export SUFFIX=".bat"
+           else
+             export SUFFIX=""
+           fi
+           PY=$(command -v python3 || command -v python)
+           ${PY} -m pip install h5py || ${PY} -m pip install h5py --break-system-packages
+           ${PY} src/mcxtrace-comps/examples/Tests_other/Test_NeXus_output/test_nexus_output.py --np 2 --mcrun mxrun${SUFFIX} --workdir run_nexusoutput
+           ${PY} src/mcxtrace-comps/examples/Tests_other/Test_mcplot_loader/test_mcplot_loader.py --mcrun mxrun${SUFFIX} --workdir run_mcplotloader
 
     - name: Check for modified instruments
       id: instr-test

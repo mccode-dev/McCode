@@ -320,9 +320,9 @@ class MantidPixelWriter:
                 s = s.replace('ROT_X', str(rot_vector.x))
                 s = s.replace('ROT_Y', str(rot_vector.y))
                 s = s.replace('ROT_Z', str(rot_vector.z))
-                s_type = s_type.replace('X_MIN', rec.xmin)
+                s_type = s_type.replace('X_MIN', str(float(rec.xmin) + x_step_half))  # Mantid xstart is the first pixel centre
                 s_type = s_type.replace('X_STEP', str(x_step))
-                s_type = s_type.replace('Y_MIN', rec.ymin)
+                s_type = s_type.replace('Y_MIN', str(float(rec.ymin) + y_step_half))
                 s_type = s_type.replace('Y_STEP', str(y_step))
                 s_type = s_type.replace('X_NUM', rec.nx)
                 s_type = s_type.replace('Y_NUM', rec.ny)

@@ -19,6 +19,8 @@
 // which each McCode code generator emits once per instrument: this header
 // ahead of all component SHARE sections, and union-lib.c either straight
 // after it or after the SHARE sections.
+%include "geometry-mesh-lib"
+
 #ifndef UNION_LIB_H
 #define UNION_LIB_H
 
@@ -223,7 +225,7 @@ union geometry_parameter_union{
     struct cylinder_storage *p_cylinder_storage;
     struct box_storage      *p_box_storage;
     struct cone_storage     *p_cone_storage;
-    struct mesh_storage     *p_mesh_storage;
+    gmesh_struct            *p_mesh;
     // add as many pointers to structs as wanted, without increasing memory footprint.
 };
 
@@ -1072,19 +1074,6 @@ double height;
 Coords direction_vector;
 };
 
-struct mesh_storage{
-int n_facets;
-int n_verts;
-double *normal_x;
-double *normal_y;
-double *normal_z;
-Coords direction_vector;
-Coords Bounding_Box_Center;
-Coords *vertices;
-int **facets;
-double Bounding_Box_Extremes[6];
-double Bounding_Box_Radius;
-};
 
 // A number of functions below use Dot() as scalar product, replace by coords_sp define
 #define Dot(a, b) coords_sp(a, b)
@@ -1102,7 +1091,7 @@ union geometry_parameter_union allocate_sphere_storage_copy(union geometry_param
 
 union geometry_parameter_union allocate_cone_storage_copy(union geometry_parameter_union *union_input);
 
-union geometry_parameter_union allocate_mesh_storage_copy(union geometry_parameter_union *union_input);
+union geometry_parameter_union allocate_mesh_copy(union geometry_parameter_union *union_input);
 
 // -------------    Surroundings  ---------------------------------------------------------------
 int r_within_surroundings(Coords pos,struct geometry_struct *geometry);
@@ -1173,39 +1162,7 @@ int sample_cone_intersect(double *t, double *nx, double *ny, double *nz, int *su
 int cone_intersect(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry);
 
 
-struct Moeller_Trumbore{
-  Coords v1;
-  Coords v2;
-  Coords v3;
-  Coords edge1;
-  Coords edge2;
-  Coords h;
-  Coords s;
-  Coords q;
-  Coords rotated_coordinates;
-  Coords rotated_velocity;
-  double a;
-  double f;
-  double V;
-  double u;
-};
-
-
-double Moeller_Trumbore_intersection(struct Moeller_Trumbore* intersect);
-
-
 int r_within_mesh(Coords pos,struct geometry_struct *geometry);
-
-
-// Type for holding intersection and normal	
-typedef struct {
-    double t;
-    double nx, ny, nz;
-    int surface_index;
-} Intersection;
-
-// Function to sort intersection structs according to time
-int compare_intersections(const void *a, const void *b);
 
 
 int sample_mesh_intersect(double *t,

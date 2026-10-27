@@ -26,18 +26,16 @@ Position | Element
 ---------|--------------------------------------------------------------------
 0        | U20 undulator
 11.7     | Diaphragm providing HxV=1x0.5 mm beam
-20       | Si(111) DCM, 40x40x10 mm^3 E0=5-16 keV
+20       | Si(111) DCM, 40x40x10 mm^3 SWING_E0=5-16 keV
 22.5     | Focusing KB (HFM + VFM)
 31       | Linear H-CRL (f=81 cm): 31 m
 32       | Sample location
 32.5-39  | Detector 162.5 x 155.2 mm
-
-Example: E0=13 Detector: Eiger4M_I=7.5752e+06
 ```
 
 ## Examples
 
-
+- **Test: SWING_E0=13 Detector: SWING_Eiger4M_I=128310**
 
 ## Input parameters
 
@@ -45,14 +43,15 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Nominal energy at the Wiggler. | 13 |
-| dE | keV | Energy half-bandwidth at the Wiggler | 0.1 |
-| dcm_theta | deg | Rotation angle of the DCM. 0=set from energy E0 | 0 |
-| hfm_radius | m | Horizontally focusing mirror radius. | 495 |
-| vfm_radius | m | Vertically focusing mirror radius. | 859 |
-| mirror_grazing_angle | deg | Tilt angle of the mirrors. | 4e-3 |
-| sample | str | Sample given as a PDB file, or NULL for a 100A dilute Sphere model. | "6lyz.pdb" |
-| sample_det | m | Sample to detector distance in m. | 2 |
+| SWING_E0 | keV | Nominal energy at the Wiggler. | 13 |
+| SWING_dE | keV | Energy half-bandwidth at the Wiggler | 0.1 |
+| SWING_dcm_theta | deg | Rotation angle of the DCM. 0=set from energy SWING_E0 | 0 |
+| SWING_hfm_radius | m | Horizontally focusing mirror radius. | 495 |
+| SWING_vfm_radius | m | Vertically focusing mirror radius. | 859 |
+| SWING_mirror_grazing_angle | deg | Tilt angle of the mirrors. | 4e-3 |
+| SWING_sample | str | Sample given as a PDB file, or NULL for a 100A dilute Sphere model. | "6lyz.pdb" |
+| SWING_sample_det | m | Sample to detector distance in m. | 2 |
+| splits |  |  | 10 |
 
 ## Links
 

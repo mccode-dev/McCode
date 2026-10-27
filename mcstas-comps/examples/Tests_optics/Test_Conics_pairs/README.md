@@ -19,18 +19,18 @@
 
 ## Examples
 
-- **Test: Test_Conics_pairs OPTIC=1 Detector: psd_i_I=6.91402e-13**
-- * %Example: Test_Conics_pairs OPTIC=1 Detector: psd_i_reflections_2_I=6.91402e-13
-- * %Example: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_I=2.85546e-21
-- * %Example: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_reflections_2_I=2.85515e-21
-- * %Example: Test_Conics_pairs OPTIC=3 Detector: psd_i_I=6.91402e-13
-- * %Example: Test_Conics_pairs OPTIC=4 ssize=1e-4 Detector: psd_i_I=8.66267e-09
-- * %Example: Test_Conics_pairs quadratic=1 Detector: psd_i_I=5.03026e-13
-- * %Example: Test_Conics_pairs quadratic=1 fs=8 fi=6 Detector: psd_i_I=1.26085e-12
-- * %Example: Test_Conics_pairs OPTIC=2 quadratic=1 fs=100000 Detector: psd_i_I=2.09716e-21
-- * %Example: Test_Conics_pairs OPTIC=3 quadratic=1 Detector: psd_i_I=5.03026e-13
-- * %Example: Test_Conics_pairs OPTIC=3 quadratic=1 fs=8 fi=6 Detector: psd_i_I=9.00287e-13
-- * %Example: Test_Conics_pairs OPTIC=4 quadratic=1 ssize=1e-4 Detector: psd_i_I=6.56678e-09
+- **Test: Test_Conics_pairs OPTIC=1 Detector: psd_i_I=7.13655e-13**
+- * %Example: Test_Conics_pairs OPTIC=1 Detector: psd_i_reflections_2_I=7.13655e-13
+- * %Example: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_I=3.65133e-21
+- * %Example: Test_Conics_pairs OPTIC=2 fs=100000 Detector: psd_i_reflections_2_I=3.65072e-21
+- * %Example: Test_Conics_pairs OPTIC=3 Detector: psd_i_I=7.13655e-13
+- * %Example: Test_Conics_pairs OPTIC=4 ssize=1e-4 Detector: psd_i_I=8.44676e-09
+- * %Example: Test_Conics_pairs quadratic=1 Detector: psd_i_I=5.23944e-13
+- * %Example: Test_Conics_pairs quadratic=1 fs=8 fi=6 Detector: psd_i_I=1.2236e-12
+- * %Example: Test_Conics_pairs OPTIC=2 quadratic=1 fs=100000 Detector: psd_i_I=2.71421e-21
+- * %Example: Test_Conics_pairs OPTIC=3 quadratic=1 Detector: psd_i_I=5.23944e-13
+- * %Example: Test_Conics_pairs OPTIC=3 quadratic=1 fs=8 fi=6 Detector: psd_i_I=8.80918e-13
+- * %Example: Test_Conics_pairs OPTIC=4 quadratic=1 ssize=1e-4 Detector: psd_i_I=6.42631e-09
 
 ## Input parameters
 
@@ -50,6 +50,8 @@ Parameters in **boldface** are required; the others are optional.
 | rmin | m | Radius of the innermost shell | 0.0031416 |
 | rmax | m | Radius of the outermost shell | 0.05236 |
 | quadratic |  | Use the quadratic shell-radius mode instead of the radii vector | 0 |
+| sigma_m | rad | RMS meridional slope (figure) error of the mirrors | 1e-6 |
+| sigma_s | rad | RMS sagittal slope (figure) error of the mirrors | 250e-6 |
 
 ## Links
 

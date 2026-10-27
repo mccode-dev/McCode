@@ -333,10 +333,11 @@ def plot_single_data(node, i, n, log):
 
 class McMatplotlibPlotter():
     ''' matplotlib plotting frontend '''
-    def __init__(self, sourcedir, log):
+    def __init__(self, sourcedir, log, title=None):
         self.sourcedir = sourcedir
         self.event_dc_cid = None
         self.log = log
+        self.title = title
 
 
     def _flip_log(self):
@@ -373,6 +374,8 @@ class McMatplotlibPlotter():
         # either way the window actually uses available screen real estate.
         fig_w, fig_h = _figure_size(n)
         fig = pylab.figure(figsize=(fig_w, fig_h))
+        if self.title:
+            fig.canvas.manager.set_window_title(self.title)
 
         self.subplts = [plot_single_data(node, i, n, self.log) for i in range(n)]
 

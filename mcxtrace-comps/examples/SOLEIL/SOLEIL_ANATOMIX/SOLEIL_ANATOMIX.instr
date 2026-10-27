@@ -55,13 +55,13 @@
 * EH3             | 165.7-174.1 | Guard slits; TXM sample stage and zone-plate table;  microtomography sample stage; detector table | EH3
 * EH4             | 197.2-208.5 | Guard slits; microtomography sample stage; detector table; X-ray grating interferometer | EH4
 *
-* %Example: -n 1e5 E0=17 Detector: psd_monitor_after_cc_I=1e18
+* %Example: -n 1e6 ANATOMIX_E0=17 Detector: ANATOMIX_psd_monitor_after_cc_I=1e18
 *
 * %Parameters
-* E0:    [keV] Energy selected at the Undulator.
-* Emono: [keV] Energy selected at the monochromator. When 0, it is set to E0.
-* dE:    [keV] Energy spread at the Undulator.
-* ANGLE: [deg] Rotation angle of the sample stage.
+* ANATOMIX_E0:    [keV] Energy selected at the Undulator.
+* ANATOMIX_Emono: [keV] Energy selected at the monochromator. When 0, it is set to E0.
+* ANATOMIX_dE:    [keV] Energy spread at the Undulator.
+* ANATOMIX_ANGLE: [deg] Rotation angle of the sample stage.
 * sample:[str] Sample geometry file, OFF/PLY format.
 * 
 * %Link
@@ -71,28 +71,28 @@
 *
 * %E
 *******************************************************************************/
-DEFINE INSTRUMENT SOLEIL_ANATOMIX(E0=11, Emono=0, dE=1, ANGLE=0, string sample="wire.ply")
+DEFINE INSTRUMENT SOLEIL_ANATOMIX(ANATOMIX_E0=11, ANATOMIX_Emono=0, ANATOMIX_dE=1, ANATOMIX_ANGLE=0, string ANATOMIX_sample="wire.ply")
 
 DECLARE
 %{
-    double calculated_angle;
-    char emonopts[128];
+    double ANATOMIX_calculated_angle;
+    char   ANATOMIX_emonopts[128];
 %}
 
 INITIALIZE
 %{
-    if (Emono==0) Emono=E0;
+    if (ANATOMIX_Emono==0) ANATOMIX_Emono=ANATOMIX_E0;
     
-    if (E0-dE < Emono && Emono < E0+dE) {
+    if (ANATOMIX_E0-ANATOMIX_dE < ANATOMIX_Emono && ANATOMIX_Emono < ANATOMIX_E0+ANATOMIX_dE) {
     
-      double arg=12398.42*sqrt(3)/(2*5.4309*Emono*1e3);
+      double arg=12398.42*sqrt(3)/(2*5.4309*ANATOMIX_Emono*1e3);
       if (fabs(arg) > 1)
         exit(printf("%s: ERROR: Monochromator can not reach this energy.\n", NAME_INSTRUMENT));
-      calculated_angle = RAD2DEG*asin(arg);
+      ANATOMIX_calculated_angle = RAD2DEG*asin(arg);
     } else {
       exit(printf("%s: ERROR: Monochromator energy is outside the Undulator bandwidth.\n", NAME_INSTRUMENT));
     }
-    sprintf(emonopts,"energy limits=[%g %g], y",E0-dE,E0+dE);
+    sprintf(ANATOMIX_emonopts,"energy limits=[%g %g], y",ANATOMIX_E0-ANATOMIX_dE,ANATOMIX_E0+ANATOMIX_dE);
 %}
 
 TRACE
@@ -101,92 +101,92 @@ TRACE
 // BeamLineName | Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // -------------|----------|-------|-----|------|-----
 // NANOSCOPIUM  | 268,9467 | 258,6 | 8,8 | 31,2 | 3,5
-REMOVABLE COMPONENT origin = Progress_bar()
+REMOVABLE COMPONENT ANATOMIX_origin = Progress_bar()
 AT (0, 0, 0) RELATIVE ABSOLUTE
 
 // Undulator U18
-COMPONENT source=Undulator(
- E0=E0, dE=dE, Ee=2.75, dEe=0.001, Ie=0.5, 
+COMPONENT ANATOMIX_source=Undulator(
+ E0=ANATOMIX_E0, dE=ANATOMIX_dE, Ee=2.75, dEe=0.001, Ie=0.5, 
  K=1.03118, Nper=140, lu=3.2e-2, 
  sigex=267.9e-6, sigey=8.4e-6, sigepx=30.1e-6, sigepy=3.9e-6, 
  dist=50, E1st=12.400)
 AT (0, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT e_repartition_before_cc = Monitor_nD(
+COMPONENT ANATOMIX_e_repartition_before_cc = Monitor_nD(
     xwidth=0.01, 
     yheight=0.01, 
     restore_xray=1, 
-    options=emonopts, bins=100,
-    filename="e_repartition_before_cc")
+    options=ANATOMIX_emonopts, bins=100,
+    filename="ANATOMIX_e_repartition_before_cc")
 AT (0, 0, 50) RELATIVE PREVIOUS
 
-COMPONENT psd_monitor_before_cc = PSD_monitor(
-    filename="psd_monitor_before_cc.dat", 
+COMPONENT ANATOMIX_psd_monitor_before_cc = PSD_monitor(
+    filename="ANATOMIX_psd_monitor_before_cc.dat", 
     xwidth=0.01, 
     yheight=0.01)
 AT (0, 0, 0) RELATIVE PREVIOUS
 
 // double channel-cut monochromator at about 50 m from undulator
-COMPONENT bragg_crystal = Bragg_crystal(
+COMPONENT ANATOMIX_bragg_crystal = Bragg_crystal(
     crystal_type=2)
 AT (0, 0, 0.1) RELATIVE PREVIOUS
-ROTATED (-calculated_angle, 0, 0) RELATIVE PREVIOUS
+ROTATED (-ANATOMIX_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT arm = Arm()
+COMPONENT ANATOMIX_arm = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (-calculated_angle, 0, 0) RELATIVE PREVIOUS
+ROTATED (-ANATOMIX_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT bragg_crystal_two = Bragg_crystal(
+COMPONENT ANATOMIX_bragg_crystal_two = Bragg_crystal(
     crystal_type=2)
-AT (0, 0.01, calculated_angle ? 0.01/tan(calculated_angle*DEG2RAD) : 0) RELATIVE bragg_crystal
-ROTATED (calculated_angle, 0, 0) RELATIVE PREVIOUS
+AT (0, 0.01, ANATOMIX_calculated_angle ? 0.01/tan(ANATOMIX_calculated_angle*DEG2RAD) : 0) RELATIVE ANATOMIX_bragg_crystal
+ROTATED (ANATOMIX_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT arm_two = Arm()
+COMPONENT ANATOMIX_arm_two = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (calculated_angle, 0, 0) RELATIVE PREVIOUS
+ROTATED (ANATOMIX_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
 
-COMPONENT psd_after_cc = PSD_monitor(
+COMPONENT ANATOMIX_psd_after_cc = PSD_monitor(
   xwidth =0.1 , yheight=0.1 ,
-  filename="psd_after_cc2",restore_xray = 1) 
+  filename="ANATOMIX_psd_after_cc2",restore_xray = 1) 
 AT (0,0,1) RELATIVE PREVIOUS
 
-COMPONENT e_monitor_before_sample = E_monitor(
-    filename="e_monitor_before_sample.dat", 
+COMPONENT ANATOMIX_e_monitor_before_sample = E_monitor(
+    filename="ANATOMIX_e_monitor_before_sample.dat", 
     xwidth=1, 
     yheight=1, 
-    Emin=E0-dE, 
-    Emax=E0+dE, 
+    Emin=ANATOMIX_E0-ANATOMIX_dE, 
+    Emax=ANATOMIX_E0+ANATOMIX_dE, 
     nE=500,
     restore_xray=1)
 AT (0, 0, 1) RELATIVE PREVIOUS
 
-COMPONENT psd_repartition_after_cc = PSD_monitor(
+COMPONENT ANATOMIX_psd_repartition_after_cc = PSD_monitor(
   xwidth =.1 , yheight=.1 ,
-  filename="psd_repartition_after_cc",restore_xray = 1) 
+  filename="ANATOMIX_psd_repartition_after_cc",restore_xray = 1) 
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT sample_rotation_stage = Arm()
+COMPONENT ANATOMIX_sample_rotation_stage = Arm()
 AT (0, 0, 150) RELATIVE PREVIOUS
 
 // sample at about 200 m from Undulator
-COMPONENT sample = Filter(material_datafile="Ge.txt",
-    geometry=sample,xwidth=0.02,yheight=0,zdepth=0)
+COMPONENT ANATOMIX_sample = Filter(material_datafile="Ge.txt",
+    geometry=ANATOMIX_sample,xwidth=0.02,yheight=0,zdepth=0)
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (0,ANGLE,0) RELATIVE PREVIOUS
+ROTATED (0,ANATOMIX_ANGLE,0) RELATIVE PREVIOUS
 
-COMPONENT e_monitor_after_sample = E_monitor(
-    filename="e_monitor_after_sample.dat", 
+COMPONENT ANATOMIX_e_monitor_after_sample = E_monitor(
+    filename="ANATOMIX_e_monitor_after_sample.dat", 
     xwidth=1, 
     yheight=1, 
-    Emin=E0-E0*0.1, 
-    Emax=E0+E0*0.1, 
+    Emin=ANATOMIX_E0-ANATOMIX_E0*0.1, 
+    Emax=ANATOMIX_E0+ANATOMIX_E0*0.1, 
     nE=500,
     restore_xray=1)
-AT (0, 0, 0.5) RELATIVE sample_rotation_stage
+AT (0, 0, 0.5) RELATIVE ANATOMIX_sample_rotation_stage
 
-COMPONENT psd_monitor_after_cc = PSD_monitor(
-    filename="psd_monitor_after_sample.dat", nx=512, ny=512,
+COMPONENT ANATOMIX_psd_monitor_after_cc = PSD_monitor(
+    filename="ANATOMIX_psd_monitor_after_sample.dat", nx=512, ny=512,
     xwidth=.02, 
     yheight=.02)
 AT (0, 0, 0) RELATIVE PREVIOUS

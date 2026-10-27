@@ -26,6 +26,7 @@ sample is a powder and there is no analyzer.
 ## Examples
 
 - **Test: PHM=-37.077 Detector: sng_I=4.50892e-07**
+- **TestScan: mcrun TAS1_Diff_Powder.instr TT=32.92,34.32 -N15 -n1e6 Detector: sng_I={15 values}**
 
 ## Input parameters
 
@@ -38,7 +39,7 @@ Parameters in **boldface** are required; the others are optional.
 | TT | deg | Take-off angle at the sample position, aka A4 | 33.52 |
 | TTA | deg | Take-off angle at the analyzer position, aka A6 | 0 |
 | C1 | min | Collimator 1 aperture (mono-sample arm) | 30 |
-| OMC1 | deg | Tilt angle of the Collimator 1 | 5.5 |
+| OMC1 | arcmin | Tilt angle of the Collimator 1 | 5.5 |
 | C2 | min | Collimator 2 aperture (sample-ana arm) | 28 |
 | C3 | min | Collimator 3 aperture (ana-detector arm) | 67 |
 

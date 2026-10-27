@@ -23,7 +23,7 @@ Example: mcrun SE_example.instr dBz=-0.0001,0.0001 -N41 -n1e5
 
 ## Examples
 
-
+- **TestScan: mcrun SE_example.instr dBz=-0.0001,0.0001 -N41 -n1e5 Detector: detector_I={41 values}**
 
 ## Input parameters
 

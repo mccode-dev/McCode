@@ -399,13 +399,22 @@ CPU COMPONENT slow_bit = SomeLib(...) AT (...) ...
 
 ```c
 %include "monitor_nd-lib"          // C library, from within a %{ %} block
-%include "ILL_H16.instr"           // whole instrument or component file
+%include "Mantid/ILL_H16_Mantid/ILL_H16_Mantid.instr"  // whole instrument or component file
 ```
 
 * Outside a `%{ %}` C block, `%include "file"` reads another `.instr`/`.comp` file as
   meta-language (component definitions, or — inside `TRACE` — whole instruments to
   concatenate; see below). It's resolved at translation time by `mcstas`/`mcxtrace`, not by
   the C compiler — don't confuse it with C's `#include`.
+* **Where the file is looked for** (both forms, first hit wins): the name as given,
+  relative to the current directory; then each `-I`/`SEARCH` directory (§3); then the
+  installed resource directory itself; then its fixed top-level subdirectories
+  (`samples`, `monitors`, `sources`, `optics`, `misc`, `obsolete`, `contrib`, …,
+  `share`, `examples`). **None of these is searched recursively.** An instrument sitting
+  in `examples/<Institute>/<Name>/` is *not* found by its bare file name — give its path
+  relative to one of those directories, e.g.
+  `%include "Mantid/ILL_H16_Mantid/ILL_H16_Mantid.instr"` (relative to `examples`), or add
+  its folder with `-I`/`SEARCH`.
 * Inside a `%{ ... %}` C code block, `%include "name"` instead pulls in a runtime C
   library from the component search path (`.h`/`.c` pair, included once no matter how many
   components ask for it) — e.g. `%include "read_table-lib"`. The runtime library is
@@ -425,7 +434,8 @@ CPU COMPONENT slow_bit = SomeLib(...) AT (...) ...
   file is `%include`'d into another instrument (but present as normal when run standalone).
   Real examples: `templateTAS.instr` (`REMOVABLE COMPONENT Origin`, `REMOVABLE COMPONENT
   Source`), `ILL_IN5_Mantid.instr`; concatenation itself: `ILL_H16_IN5_Mantid.instr`
-  (`%include "ILL_H16_Mantid.instr"` + `%include "ILL_IN5_Mantid.instr"`).
+  (`%include "Mantid/ILL_H16_Mantid/ILL_H16_Mantid.instr"` +
+  `%include "Mantid/ILL_IN5_Mantid/ILL_IN5_Mantid.instr"`).
 
 ## 15. `SAVE` / `FINALLY` / `END` (instrument level)
 

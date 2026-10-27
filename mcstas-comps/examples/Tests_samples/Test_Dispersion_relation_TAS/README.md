@@ -46,8 +46,6 @@ For the magnon, h, k, l are the MnF2 indices (a = b = 4.873 AA, c = 3.130 AA,
 along x, y, z for both samples), and (h, l) = (1, 0) is the magnetic zone
 centre MnF2 (1 0 0).
 
-Example: mcrun Test_Dispersion_relation_TAS.instr -M -N 21,21 -n 2e5 h=0.6,1.4 l=0.6,1.4 dE=5 sample_choice=0
-
 The dispersion files are written by the SHELL command below when the
 instrument is compiled, if they do not exist yet, by
 generate_dispersion_files.py (Python with numpy).
@@ -60,6 +58,7 @@ generate_dispersion_files.py (Python with numpy).
 - **Test: h=1.2 l=1 dE=5 sample_choice=0 primitive_cell=1 Detector: detector_I=1.46e-11**
 - **Test: h=1.15 l=0 dE=3 T=2 sample_choice=2 Detector: detector_I=8.91e-10**
 - **Test: h=1.15 l=0 dE=3 T=2 sample_choice=3 Detector: detector_I=9.41e-10**
+- **TestScan: mcrun Test_Dispersion_relation_TAS.instr -M -N 5,5 -n 2e5 h=0.8,1.2 l=1.1,1.3 dE=5 sample_choice=0 Detector: detector_I={25 values}**
 
 ## Input parameters
 

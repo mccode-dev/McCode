@@ -86,8 +86,11 @@ TRACE
   int i, j;
   double W1, W2;
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
-  if (x > xmin && x < xmax && y > ymin && y < ymax) {
+  if ((backprop || t >= t0) && x > xmin && x < xmax && y > ymin && y < ymax) {
     i = floor ((x - xmin) * nx / (xmax - xmin));
     j = floor ((y - ymin) * ny / (ymax - ymin));
     double k = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
@@ -101,7 +104,7 @@ TRACE
     PSD_W2[i][j] += W2;
     SCATTER;
   }
-  if (restore_xray) {
+  if (restore_xray || !SCATTERED) {
     RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
   }
   %}

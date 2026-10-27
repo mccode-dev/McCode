@@ -19,6 +19,7 @@ The sample is incoherent with an inelastic tunneling line.
 ## Examples
 
 - **Test: Lmin=4.9 Detector: PSDfast2_I=1.18335e+10**
+- **Test: Lmin=4.9 Detector: PSDsample_I=1.8583e+07**
 
 ## Input parameters
 

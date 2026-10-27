@@ -48,7 +48,7 @@ Parameters in **boldface** are required; the others are optional.
 | delta | m | Parameter that allows to scan "collimator" position | 0 |
 | thres |  | Weight-threshold, neutrons with higher weight are absorbed | 4e8 |
 | filter | 1 | Use a 'preconditioned' MCPL file that removes non-transportable neutrons (energy, position, emmision coordinates etc.) Generate such inputs using ESS_MCPL_generate_filtered. | 1 |
-| repeat |  | Number of MCPL file repetitions (only valid with use of MCPL_input, not with MCPL_input_once | 1 |
+| repeat |  | Number of MCPL file repetitions, requires at least one *_smear parameter | 1 |
 | v_smear | 1 | When repeating events, make a Gaussian MC choice within v_smear*V around particle velocity V | 0.1 |
 | pos_smear | m | When repeating events, make a flat MC choice of position within pos_smear around particle starting position | 0.01 |
 | dir_smear | deg | When repeating events, make a Gaussian MC choice of direction within dir_smear around particle direction | 0.01 |

@@ -18,7 +18,7 @@ a monochromator, and a four-circle goniometer at the sample stage.
 
 ## Examples
 
-- **Test: MAXII_711.instr R=-100 tth=28 dphi=30 -n1e7 Detector: mono_exit_psd_I=5.1609e-06**
+- **Test: MAXII_711.instr R=-100 tth=28 dphi=30 Detector: mono_exit_psd_I=5.1609e-06**
 
 ## Input parameters
 

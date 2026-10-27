@@ -41,14 +41,14 @@ Position | Element
 32.44    | Sample
 
 Examples:
-Copper scan: mxrun SOLEIL_ROCK.instr E0=8.500,9.500 scan=1 cc=2 -N100
-Manganese and chrome scan: mxrun SOLEIL_ROCK.instr E0=5.700,6.800 scan=1 sample_file=MnCr cc=2 -N100
-Pretty energy repartition monitor result: mxrun SOLEIL_ROCK.instr E0=17.000 cc=2 -n1e8
+Copper ROCK_scan: mxrun SOLEIL_ROCK.instr ROCK_E0=8.500,9.500 ROCK_scan=1 ROCK_cc=2 -N100
+Manganese and chrome ROCK_scan: mxrun SOLEIL_ROCK.instr ROCK_E0=5.700,6.800 ROCK_scan=1 ROCK_sample_file=MnCr ROCK_cc=2 -N100
+Pretty energy repartition monitor result: mxrun SOLEIL_ROCK.instr ROCK_E0=17.000 ROCK_cc=2 -n1e8
 ```
 
 ## Examples
 
-- **Test: E0=15.918 Detector: fluo_monitor_I=2e+09**
+- **Test: ROCK_E0=15.918 Detector: ROCK_fluo_monitor_I=2e+09**
 
 ## Input parameters
 
@@ -56,15 +56,16 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Energy to hit, i.e. selected by the channel-cut monochromator | 15.918 |
-| dE | keV | Energy spread at the source | 1 |
-| scan | 0-1 | 0 no energy scan, 1 energy scan | 0 |
-| angle_m2a_m2b | rad | M2A/M2B mirror's deviation angle, can vary from 0.0035 to 0.0104 | 0.008 |
-| angle_m1 | rad | M1 mirror's deviation angle | 0.0045 |
-| sample_file | string | Sample chemical formulae | "CuMo" |
-| reflec_material_M1 | str | Material reflectivity file name for M1 mirror, e.g. "Ir.dat" | "Ir.dat" |
-| reflec_material_M2A_M2B | str | Material reflectivity file name for M2A and M2B mirror. Use NULL for automatic setting. | "NULL" |
-| cc | 0-3 | Channel-cut monochromator type. 0 for Si 220 with an energy range of  5.62883-46.2834 eV/4-35 deg (hit-table:11.752-34.055 ev/5.44-15.94 deg); 1 for Si 111 long 3.44694-28.3427 eV/4-35 deg (hit-table:7.196-20.854 ev/5.44-15.94 deg); 2 for Si 111 short 3.44694-18.914.3 eV/6-35 deg (hittable:5.323-18.914 ev/6-21.8 deg); 3 changes cc dynamically | 0 |
+| ROCK_E0 | keV | Energy to hit, i.e. selected by the channel-cut monochromator | 15.918 |
+| ROCK_dE | keV | Energy spread at the source | 1 |
+| ROCK_scan | 0-1 | 0 no energy ROCK_scan, 1 energy ROCK_scan | 0 |
+| ROCK_angle_m2a_m2b | rad | M2A/M2B mirror's deviation angle, can vary from 0.0035 to 0.0104 | 0.008 |
+| ROCK_angle_m1 | rad | M1 mirror's deviation angle | 0.0045 |
+| ROCK_sample_file | string | Sample chemical formulae | "CuMo" |
+| ROCK_reflec_material_M1 | str | Material reflectivity file name for M1 mirror, e.g. "Ir.dat" | "Ir.dat" |
+| ROCK_reflec_material_M2A_M2B | str | Material reflectivity file name for M2A and M2B mirror. Use NULL for automatic setting. | "NULL" |
+| ROCK_cc | 0-3 | Channel-cut monochromator type. 0 for Si 220 with an energy range of  5.62883-46.2834 eV/4-35 deg (hit-table:11.752-34.055 ev/5.44-15.94 deg); 1 for Si 111 long 3.44694-28.3427 eV/4-35 deg (hit-table:7.196-20.854 ev/5.44-15.94 deg); 2 for Si 111 short 3.44694-18.914.3 eV/6-35 deg (hittable:5.323-18.914 ev/6-21.8 deg); 3 changes ROCK_cc dynamically | 0 |
+| splits |  |  | 10 |
 
 ## Links
 

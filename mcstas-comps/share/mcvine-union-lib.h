@@ -5,11 +5,15 @@
  *
  * The process type "MCViNE" is declared in share/union-lib.h (the enum entry
  * MCViNE in enum process and the member pointer_to_a_MCViNE_physics_storage_struct
- * in union data_transfer_union), which must be included first. All MCViNE
+ * in union data_transfer_union), which is included first below. All MCViNE
  * kernels share this one process type; its Union_master dispatch cases are
  * registered at the end of this file.
  *
  *******************************************************************************/
+// union-lib declares the types used below; including it here lets every code
+// generator order the two libraries correctly
+%include "union-lib"
+
 #ifndef MCVINE_UNION_LIB_H
 #define MCVINE_UNION_LIB_H
 

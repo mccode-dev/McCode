@@ -35,7 +35,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| Guide | 1 | Choice of Guide component to test, with 1=Guide, 2=Guide_channeled, 3=Guide_gravity, 4=Guide_wavy, 5=Guide_curved 6=Elliptic_guide_gravity 7=Guide_honeycomb | 1 |
+| Guide | 1 | Choice of Guide component to test, with 1=Guide, 2=Guide_channeled, 3=Guide_gravity, 4=Guide_wavy, 5=Guide_curved, 6=Elliptic_guide_gravity, 7=Guide_anyshape, 8=Guide_honeycomb, 9=Guide_anyshape with per-face coatings read from the OFF file (file_coatings=1) | 1 |
 
 ## Links
 

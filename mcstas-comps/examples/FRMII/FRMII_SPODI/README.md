@@ -37,7 +37,7 @@ the 2D data that are collected on the real detectors.
 
 ## Examples
 
-- **Test: -y -n1e8 Detector: theta_full_I=31556.9**
+- **Test: -y Detector: theta_full_I=31556.9**
 
 ## Input parameters
 

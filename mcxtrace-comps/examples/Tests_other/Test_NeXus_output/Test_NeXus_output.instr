@@ -1,0 +1,66 @@
+/*******************************************************************************
+* Instrument: Test_NeXus_output
+*
+* %I
+* Written by: Peter Willendrup
+* Date: October 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_other
+*
+* Regression test of the NeXus writer of the McCode runtime.
+*
+* %D
+* Monitors of the NeXus output kinds (0D, 1D, 2D, Monitor_nD histogram and an
+* event list) for test_nexus_output.py, which runs this instrument with
+* --format=NeXus, serial and with MPI, and checks mccode.h5 with h5py:
+*
+*   - string values containing '%' are stored as given (instrument parameter
+*     'tag', component parameter literal 'filename="f%%1"')
+*   - all string attributes and data sets are printable text
+*   - no debug output on stdout
+*   - a monitor with a very long file name ('longname', about 1000
+*     characters) does not crash the simulation or lose other monitors
+*   - a second run with --append adds entry2 to mccode.h5
+*
+* The instrument also runs in the default (McCode) format.
+*
+* %P
+* tag:      [str] String stored in the NeXus file, containing '%'
+* longname: [str] File name of the 'lmon' monitor
+*
+* %L
+* test_nexus_output.py next to this instrument.
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_NeXus_output(string tag="50%% done", string longname="lmon")
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_flat(radius=0.001, dist=1, focus_xw=0.05, focus_yh=0.05,
+  E0=12, dE=1)
+AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT m0 = Monitor(xwidth=0.1, yheight=0.1, restore_xray=1)
+AT (0, 0, 1) RELATIVE Origin
+
+COMPONENT lmon = E_monitor(nE=10, filename=longname, xwidth=0.1, yheight=0.1,
+  Emin=10, Emax=14, restore_xray=1)
+AT (0, 0, 1.001) RELATIVE Origin
+
+COMPONENT psd = PSD_monitor(nx=8, ny=6, filename="f%%1", xwidth=0.1, yheight=0.1,
+  restore_xray=1)
+AT (0, 0, 1.002) RELATIVE Origin
+
+COMPONENT nd2 = Monitor_nD(options="x bins=5 y bins=4", xwidth=0.1, yheight=0.1,
+  filename="nd2", restore_xray=1)
+AT (0, 0, 1.003) RELATIVE Origin
+
+COMPONENT ndl = Monitor_nD(options="list all x y energy", xwidth=0.1, yheight=0.1,
+  filename="ndl", restore_xray=1)
+AT (0, 0, 1.02) RELATIVE Origin
+
+END

@@ -17,13 +17,11 @@ This instrument shows the use of essential McStas polarisation components, inclu
 Pol_mirror is used to polarize and analyze the incoming and scattered beams.
 Pol_FieldBox is used to define guidefields and flippers.
 MeanPolLambda_montior is used to monitor beam polarisation.
-
-Example: mcrun SE_example2.instr dBz=-0.0001,0.0001 -N41 -n1e5
 ```
 
 ## Examples
 
-
+- **TestScan: mcrun SE_example2.instr dBz=-0.0001,0.0001 -N41 -n1e5 Detector: detector_I={41 values}**
 
 ## Input parameters
 

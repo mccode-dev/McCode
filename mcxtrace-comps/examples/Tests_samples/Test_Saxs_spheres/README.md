@@ -20,7 +20,7 @@ The spheres are nominally made from Be in non-absorbing solution.*
 
 ## Examples
 
-- **Test: Test_Saxs_spheres.instr -n1e6 RR=20 Detector: detector2_I=5.0956e-16**
+- **Test: Test_Saxs_spheres.instr RR=20 Detector: detector2_I=5.0956e-16**
 
 ## Input parameters
 

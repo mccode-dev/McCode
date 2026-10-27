@@ -25,77 +25,79 @@
 * ---------|--------------------------------------------------------------------
 * 0        | U20 undulator
 * 11.7     | Diaphragm providing HxV=1x0.5 mm beam
-* 20       | Si(111) DCM, 40x40x10 mm^3 E0=5-16 keV
+* 20       | Si(111) DCM, 40x40x10 mm^3 SWING_E0=5-16 keV
 * 22.5     | Focusing KB (HFM + VFM)
 * 31       | Linear H-CRL (f=81 cm): 31 m
 * 32       | Sample location
 * 32.5-39  | Detector 162.5 x 155.2 mm
 *
-* Example: E0=13 Detector: Eiger4M_I=7.5752e+06
+* %Example: SWING_E0=13 Detector: SWING_Eiger4M_I=128310
 *
 * %Parameters
-* E0:             [keV]  Nominal energy at the Wiggler.
-* dE:             [keV]  Energy half-bandwidth at the Wiggler
-* dcm_theta:      [deg]  Rotation angle of the DCM. 0=set from energy E0
-* mirror_grazing_angle: [deg] Tilt angle of the mirrors.
-* hfm_radius:       [m]  Horizontally focusing mirror radius.
-* vfm_radius:       [m]  Vertically focusing mirror radius.
-* sample:         [str]  Sample given as a PDB file, or NULL for a 100A dilute Sphere model.
-* sample_det:       [m]  Sample to detector distance in m.
+* SWING_E0:             [keV]  Nominal energy at the Wiggler.
+* SWING_dE:             [keV]  Energy half-bandwidth at the Wiggler
+* SWING_dcm_theta:      [deg]  Rotation angle of the DCM. 0=set from energy SWING_E0
+* SWING_mirror_grazing_angle: [deg] Tilt angle of the mirrors.
+* SWING_hfm_radius:       [m]  Horizontally focusing mirror radius.
+* SWING_vfm_radius:       [m]  Vertically focusing mirror radius.
+* SWING_sample:         [str]  Sample given as a PDB file, or NULL for a 100A dilute Sphere model.
+* SWING_sample_det:       [m]  Sample to detector distance in m.
 *
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/swing
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT SOLEIL_SWING(E0=13, dE=0.1, dcm_theta=0,
-  hfm_radius=495, vfm_radius=859, mirror_grazing_angle=4e-3,
-  string sample="6lyz.pdb", sample_det=2)
+DEFINE INSTRUMENT SOLEIL_SWING(SWING_E0=13, SWING_dE=0.1, SWING_dcm_theta=0,
+  SWING_hfm_radius=495, SWING_vfm_radius=859, SWING_mirror_grazing_angle=4e-3,
+  string SWING_sample="6lyz.pdb", SWING_sample_det=2, int splits=10)
 
 DECLARE
 %{
-  double dcm_gap;
-  double Lambda;
-  double Ki;
-  int    flag_sample_sphere;
+  double SWING_dcm_gap;
+  double SWING_Lambda;
+  double SWING_Ki;
+  int    SWING_flag_sample_sphere;
 %}
 
 USERVARS
 %{
-  int    flag_hfm;
-  int    flag_vfm;
+  int    SWING_flag_hfm;
+  int    SWING_flag_vfm;
 %}
 
 INITIALIZE
 %{
+  {
   double DM= 5.4909;     // Si d-spacing for the Monochromator
   double d = DM/sqrt(3); // <111> reflection |<111>|=3
-  dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
+  SWING_dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
    
-  if (!dcm_theta && E0) {
-    // n.lambda = 2 d sin(dcm_theta) = 2*PI/E2K / E0 with n=ORDER=1
-    double sin_theta = 2*PI/E2K/E0 / 2 / d;
+  if (!SWING_dcm_theta && SWING_E0) {
+    // n.lambda = 2 d sin(SWING_dcm_theta) = 2*PI/E2K / SWING_E0 with n=ORDER=1
+    double sin_theta = 2*PI/E2K/SWING_E0 / 2 / d;
     if (fabs(sin_theta) < 1)
-      dcm_theta = asin(sin_theta)*RAD2DEG;
-  } else if (dcm_theta && !E0)
-    E0 = 2*PI/E2K / (2*d*sin(dcm_theta*DEG2RAD));
-  if (!dcm_theta || !E0 || dE <=0)
-    exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, E0, dE));
-  Ki     = E0*E2K;
-  Lambda = 2*PI/Ki;
+      SWING_dcm_theta = asin(sin_theta)*RAD2DEG;
+  } else if (SWING_dcm_theta && !SWING_E0)
+    SWING_E0 = 2*PI/E2K / (2*d*sin(SWING_dcm_theta*DEG2RAD));
+  if (!SWING_dcm_theta || !SWING_E0 || SWING_dE <=0)
+    exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect SWING_E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, SWING_E0, SWING_dE));
+  SWING_Ki     = SWING_E0*E2K;
+  SWING_Lambda = 2*PI/SWING_Ki;
   MPI_MASTER(
-    printf("%s: E0=%g [keV] Ki=%g [1/Angs] Lambda=%g [Angs] Monochromator dcm_theta=%g [deg]\n", 
-      NAME_INSTRUMENT, E0, dcm_theta, Ki, Lambda);
-    if (!strlen(sample) || !strcmp(sample,"0") || !strcmp(sample,"NULL")) {
-      flag_sample_sphere=1;
+    printf("%s: SWING_E0=%g [keV] SWING_Ki=%g [1/Angs] SWING_Lambda=%g [Angs] Monochromator SWING_dcm_theta=%g [deg]\n", 
+      NAME_INSTRUMENT, SWING_E0, SWING_dcm_theta, SWING_Ki, SWING_Lambda);
+    if (!strlen(SWING_sample) || !strcmp(SWING_sample,"0") || !strcmp(SWING_sample,"NULL")) {
+      SWING_flag_sample_sphere=1;
       printf("%s: Using ideal sample %s\n", NAME_INSTRUMENT, "Sphere colloid");
-      strcpy(sample, "6lyz.pdb"); // avoid stop at init of SAXSPDBFast
+      strcpy(SWING_sample, "6lyz.pdb"); // avoid stop at init of SAXSPDBFast
     } else {
-      flag_sample_sphere=0;
-      printf("%s: Using PDB sample %s\n", NAME_INSTRUMENT, sample);
+      SWING_flag_sample_sphere=0;
+      printf("%s: Using PDB sample %s\n", NAME_INSTRUMENT, SWING_sample);
     }
   );
-  if (fabs(dE/E0)>0.1) dE = 3e-2*E0;
+  if (fabs(SWING_dE/SWING_E0)>0.1) SWING_dE = 3e-2*SWING_E0;
+  }
 %}
 
 TRACE
@@ -104,13 +106,13 @@ TRACE
 // BeamLineName| Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // -----|--------|---|---|--|--
 // SWING|232,5058|321|9,4|17|3,5
-REMOVABLE COMPONENT origin = Progress_bar()
+REMOVABLE COMPONENT SWING_origin = Progress_bar()
 AT (0, 0, 0) RELATIVE ABSOLUTE
 
 // the photon source -----------------------------------------------------------
-COMPONENT Source_U20 = Undulator(
-    E0 = E0,
-    dE = dE,
+COMPONENT SWING_Source_U20 = Undulator(
+    E0 = SWING_E0,
+    dE = SWING_dE,
     Ee = 2.75,
     Ie = 0.5,
     K = 5,
@@ -120,53 +122,53 @@ COMPONENT Source_U20 = Undulator(
     sigepy = 4.61e-6)
 AT (0,0,0) RELATIVE PREVIOUS
 
-COMPONENT mon_src_xy = Monitor_nD(
+COMPONENT SWING_mon_src_xy = Monitor_nD(
   options="x y", xwidth=2e-3, yheight=2e-3, bins=128)
-AT (0,0,11.7) RELATIVE Source_U20
+AT (0,0,11.7) RELATIVE SWING_Source_U20
 
-COMPONENT mon_src_e = Monitor_nD(options="energy", xwidth=2e-3, yheight=2e-3, bins=128,
-  min=E0-dE*1.1, max=E0+dE*1.1)
+COMPONENT SWING_mon_src_e = Monitor_nD(options="energy", xwidth=2e-3, yheight=2e-3, bins=128,
+  min=SWING_E0-SWING_dE*1.1, max=SWING_E0+SWING_dE*1.1)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // Diaphragm
-COMPONENT slit = Slit(xwidth=1e-3, yheight=0.5e-3)
+COMPONENT SWING_slit = Slit(xwidth=1e-3, yheight=0.5e-3)
 AT (0,0,0.1) RELATIVE PREVIOUS
 
-COMPONENT slit_mon_xy = COPY(mon_src_xy)
+COMPONENT SWING_slit_mon_xy = COPY(SWING_mon_src_xy)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // The double monochromator ----------------------------------------------------
-COMPONENT DCM_location = Arm()
-AT (0,0,20) RELATIVE Source_U20
+COMPONENT SWING_DCM_location = Arm()
+AT (0,0,20) RELATIVE SWING_Source_U20
 
-COMPONENT dcm_xtal0 = Bragg_crystal(
+COMPONENT SWING_dcm_xtal0 = Bragg_crystal(
     length=0.04,      width=0.04, 
     h=1, k=1, l=1, material="Si.txt", V=160.1826)
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+ROTATED (-SWING_dcm_theta,0,0) RELATIVE PREVIOUS
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT dcm0      = Arm()
+COMPONENT SWING_dcm0      = Arm()
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+ROTATED (-SWING_dcm_theta,0,0) RELATIVE PREVIOUS
 
-COMPONENT dcm_xtal1 = COPY(dcm_xtal0)
-AT(0,dcm_gap, dcm_theta ? dcm_gap/tan(dcm_theta*DEG2RAD) : 0)    RELATIVE dcm_xtal0
-ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS
+COMPONENT SWING_dcm_xtal1 = COPY(SWING_dcm_xtal0)
+AT(0,SWING_dcm_gap, SWING_dcm_theta ? SWING_dcm_gap/tan(SWING_dcm_theta*DEG2RAD) : 0)    RELATIVE SWING_dcm_xtal0
+ROTATED (SWING_dcm_theta,0,0)  RELATIVE PREVIOUS
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT dcm1      = Arm()
+COMPONENT SWING_dcm1      = Arm()
 AT(0,0,0)          RELATIVE PREVIOUS
-ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS 
+ROTATED (SWING_dcm_theta,0,0)  RELATIVE PREVIOUS 
 
-COMPONENT mon_dcm_e = COPY(mon_src_e)
+COMPONENT SWING_mon_dcm_e = COPY(SWING_mon_src_e)
 AT (0,0,0.5) RELATIVE PREVIOUS
 
-COMPONENT mon_dcm_xy = COPY(mon_src_xy)
+COMPONENT SWING_mon_dcm_xy = COPY(SWING_mon_src_xy)
 AT (0,0,0) RELATIVE PREVIOUS
 
 // KB pair ---------------------------------------------------------------------
@@ -175,98 +177,98 @@ AT (0,0,0) RELATIVE PREVIOUS
 
 // KB 1st mirror (XZ plane) at 1.6m from sample
 // must be shifted by -2 mm  on Y else beam flies underneath the mirror.
-COMPONENT vfm_location = COPY(mon_src_xy)
-AT (0,0,22.5-20.5) RELATIVE mon_dcm_xy
+COMPONENT SWING_vfm_location = COPY(SWING_mon_src_xy)
+AT (0,0,22.5-20.5) RELATIVE SWING_mon_dcm_xy
 
-COMPONENT vfm_in_xz_plane = Arm()
-AT (0,0,0) RELATIVE vfm_location
-ROTATED(0,0,-90) RELATIVE vfm_location // YZ -> XZ
+COMPONENT SWING_vfm_in_xz_plane = Arm()
+AT (0,0,0) RELATIVE SWING_vfm_location
+ROTATED(0,0,-90) RELATIVE SWING_vfm_location // YZ -> XZ
 
-COMPONENT vfm = Mirror_curved(
+COMPONENT SWING_vfm = Mirror_curved(
   coating="Rh.txt",
   length=450e-3,
   width=0.1,
-  radius=vfm_radius)
-AT (0,0,0) RELATIVE vfm_location
-ROTATED(0,-mirror_grazing_angle,0) RELATIVE vfm_in_xz_plane
+  radius=SWING_vfm_radius)
+AT (0,0,0) RELATIVE SWING_vfm_location
+ROTATED(0,-SWING_mirror_grazing_angle,0) RELATIVE SWING_vfm_in_xz_plane
 EXTEND %{
-  flag_vfm=SCATTERED;
+  SWING_flag_vfm=SCATTERED;
 %}
 
-COMPONENT vfm_takeoff = COPY(vfm_location)
-AT (0,0,0) RELATIVE vfm_in_xz_plane
-ROTATED (-2*mirror_grazing_angle, 0, 0) RELATIVE vfm_location
+COMPONENT SWING_vfm_takeoff = COPY(SWING_vfm_location)
+AT (0,0,0) RELATIVE SWING_vfm_in_xz_plane
+ROTATED (-2*SWING_mirror_grazing_angle, 0, 0) RELATIVE SWING_vfm_location
 
 // KB 2nd mirror (YZ) at 1m from sample, shift height=4.8 mm 
-COMPONENT hfm_location = COPY(vfm_location)
-AT (0,0,34.5-33.9) RELATIVE vfm_takeoff
+COMPONENT SWING_hfm_location = COPY(SWING_vfm_location)
+AT (0,0,34.5-33.9) RELATIVE SWING_vfm_takeoff
 
 // 859 m tangential; sagital > 1 km, in YZ plane
-COMPONENT hfm = Mirror_curved(
+COMPONENT SWING_hfm = Mirror_curved(
   coating="Rh.txt",
   length=450e-3,
   width=0.1,
-  radius=hfm_radius)
-AT (0,0,0) RELATIVE hfm_location
-ROTATED (0,-mirror_grazing_angle,0) RELATIVE hfm_location
+  radius=SWING_hfm_radius)
+AT (0,0,0) RELATIVE SWING_hfm_location
+ROTATED (0,-SWING_mirror_grazing_angle,0) RELATIVE SWING_hfm_location
 EXTEND %{
-  flag_hfm=SCATTERED;
+  SWING_flag_hfm=SCATTERED;
 %}
 
-COMPONENT hfm_takeoff = COPY(vfm_location)
-AT (0,0,0) RELATIVE hfm_location
-ROTATED (0,-2*mirror_grazing_angle,0) RELATIVE hfm_location
+COMPONENT SWING_hfm_takeoff = COPY(SWING_vfm_location)
+AT (0,0,0) RELATIVE SWING_hfm_location
+ROTATED (0,-2*SWING_mirror_grazing_angle,0) RELATIVE SWING_hfm_location
 EXTEND %{
-  if (!flag_hfm || !flag_vfm) ABSORB;
+  if (!SWING_flag_hfm || !SWING_flag_vfm) ABSORB;
 %}
 
 
 // The sample area -------------------------------------------------------------
 // align surface so that the beam hits its centre (shift along Y axis)
-SPLIT 10 COMPONENT sample_stage = COPY(mon_src_xy)(xwidth=0.01, yheight=0.01,
+SPLIT splits COMPONENT SWING_sample_stage = COPY(SWING_mon_src_xy)(xwidth=0.01, yheight=0.01,
   restore_xray=1)
-AT (1e-3,-1.54e-3,32-22.5) RELATIVE hfm_takeoff
+AT (1e-3,-1.54e-3,32-22.5) RELATIVE SWING_hfm_takeoff
 
-COMPONENT sample_test = Saxs_spheres(
+COMPONENT SWING_sample_test = Saxs_spheres(
     R = 100, Phi = 0.1, Delta_rho = 1.6,
     yheight = 1e-3, radius = 0.25e-3, focus_xw = 1,
     focus_yh = 1, sphere_mtrl="Be.txt")
-WHEN( flag_sample_sphere )
-AT (0,0,0) RELATIVE sample_stage
+WHEN( SWING_flag_sample_sphere )
+AT (0,0,0) RELATIVE SWING_sample_stage
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT sample = SAXSPDBFast(
+COMPONENT SWING_sample = SAXSPDBFast(
   xwidth  = 0.01,
   yheight = 0.01,
   zdepth  = 0.01,
-  SampleToDetectorDistance = sample_det,
+  SampleToDetectorDistance = SWING_sample_det,
   DetectorRadius = 0.16*1.41, 
-  PDBFilepath = sample,
+  PDBFilepath = SWING_sample,
   NumberOfQBins=2000,
   qMax = 0.9)
-WHEN( !flag_sample_sphere )
-AT (0,0,0) RELATIVE sample_stage
+WHEN( !SWING_flag_sample_sphere )
+AT (0,0,0) RELATIVE SWING_sample_stage
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT sample_out = Arm()
-AT (0,0,0)       RELATIVE sample_stage
+COMPONENT SWING_sample_out = Arm()
+AT (0,0,0)       RELATIVE SWING_sample_stage
 
-COMPONENT Eiger4M = Monitor_nD(xwidth=0.5, yheight=0.5, bins=1024,
+COMPONENT SWING_Eiger4M = Monitor_nD(xwidth=0.5, yheight=0.5, bins=1024,
   options="x y")
-AT (0,0,sample_det) RELATIVE sample_stage
+AT (0,0,SWING_sample_det) RELATIVE SWING_sample_stage
 
-COMPONENT QMonitor = SAXSQMonitor(
+COMPONENT SWING_QMonitor = SAXSQMonitor(
   RadiusDetector     = 0.22,
-  DistanceFromSample = sample_det,
-  LambdaMin          = Lambda,
-  Lambda0            = Lambda,
+  DistanceFromSample = SWING_sample_det,
+  LambdaMin          = SWING_Lambda,
+  Lambda0            = SWING_Lambda,
   NumberOfBins       = 2000
 )
-AT (0,0,sample_det) RELATIVE sample_stage
+AT (0,0,SWING_sample_det) RELATIVE SWING_sample_stage
 
 
 END
