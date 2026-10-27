@@ -38,11 +38,13 @@ Position | Element
 31.227   | a KB mirror set M3/M4 for micro focusing. We ignore them here.
 31.45    | sample stage with e.g. Fluorescence and/or PowderN components. At 13.99 from DCM.
 32.09    | a set of detectors (transmission, XRD and XRF), radius 654 mm
+
+Example: DIFFABS_E0=13 Detector: DIFFABS_sample_stage_I=2.20096e+10
 ```
 
 ## Examples
 
-- **Test: E0=13 Detector: sample_stage_I=2.20096e+10**
+
 
 ## Input parameters
 
@@ -50,13 +52,14 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Central energy of the interval to be looked at | 13 |
-| dE | keV | Half-width     of the energy interval | 1 |
-| M1_angle | mrad | Rotation angle of M1/M2 mirrors. When left as 0, it is set automatically from E0. | 0 |
-| M1_radius | m | Curvature radius of M1 mirror (Rh, 1300x100) longitudinal. Positive=mirror is focusing. 0=flat. | 1400 |
-| M2_radius | m | Curvature radius of M2 mirror (Rh, 1300x100) sagittal. Positive=mirror is focusing. 0=flat. | 1400 |
-| DCM_theta | deg | Rotation angle of DCM crystals. When left as 0, it is set automatically from E0. | 0 |
-| sample | str | Sample structure file, LAU/CIF format. | "LaB6_660b_AVID2.hkl" |
+| DIFFABS_E0 | keV | Central energy of the interval to be looked at | 13 |
+| DIFFABS_dE | keV | Half-width     of the energy interval | 1 |
+| DIFFABS_M1_angle | mrad | Rotation angle of M1/M2 mirrors. When left as 0, it is set automatically from DIFFABS_E0. | 0 |
+| DIFFABS_M1_radius | m | Curvature radius of M1 mirror (Rh, 1300x100) longitudinal. Positive=mirror is focusing. 0=flat. | 1400 |
+| DIFFABS_M2_radius | m | Curvature radius of M2 mirror (Rh, 1300x100) sagittal. Positive=mirror is focusing. 0=flat. | 1400 |
+| DIFFABS_DCM_theta | deg | Rotation angle of DCM crystals. When left as 0, it is set automatically from DIFFABS_E0. | 0 |
+| DIFFABS_sample | str | Sample structure file, LAU/CIF format. | "LaB6_660b_AVID2.hkl" |
+| splits |  |  | 10 |
 
 ## Links
 

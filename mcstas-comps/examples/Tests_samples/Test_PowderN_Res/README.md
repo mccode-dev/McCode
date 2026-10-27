@@ -17,12 +17,11 @@ Idealized powder diffractometer, to illustrate the difference between 'banana,th
 The beam from the source is very low-divergent, to allow studying effects at the sample "only".
 
 By default, absorption in the sample is effectively suppressed.
-
-Example: Lambda0=2.5667 dLambda=0.01 radius=0.001,0.021 TT=71.8 D_PHI=6 SPLITS=117 Distance=30 sig_abs=1e-09 -N21
 ```
 
 ## Examples
 
+- **TestScan: mcrun Test_PowderN_Res.instr Lambda0=2.5667 dLambda=0.01 radius=0.001,0.021 TT=71.8 D_PHI=6 SPLITS=117 Distance=30 sig_abs=1e-09 -N21 Detector: DetectorSmall_I={21 values}**
 - **Test: Lambda0=2.5667 dLambda=0.01 radius=0.01 TT=71.8 D_PHI=6 SPLITS=117 Distance=30 sig_abs=1e-09 Detector: DetectorSmall_I=288.57**
 
 ## Input parameters

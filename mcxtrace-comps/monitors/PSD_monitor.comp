@@ -91,9 +91,12 @@ TRACE
   int i, j, k;
   double e, p2;
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
   if (!radius) {
-    if (x > xmin && x < xmax && y > ymin && y < ymax) {
+    if ((backprop || t >= t0) && x > xmin && x < xmax && y > ymin && y < ymax) {
       i = floor ((x - xmin) * nx / (xmax - xmin));
       j = floor ((y - ymin) * ny / (ymax - ymin));
       p2 = p * p;
@@ -107,7 +110,7 @@ TRACE
     }
   } else {
     double r = sqrt (x * x + y * y);
-    if (r < radius) {
+    if ((backprop || t >= t0) && r < radius) {
       i = floor (r * nr / radius);
       p2 = p * p;
       #pragma acc atomic
@@ -119,7 +122,7 @@ TRACE
       SCATTER;
     }
   }
-  if (restore_xray) {
+  if (restore_xray || !SCATTERED) {
     RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
   }
 %}

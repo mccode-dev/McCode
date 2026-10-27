@@ -27,7 +27,9 @@
 * Test with:
 * mcdisplay -y -c
 *
-* %Example: pin_rad=0.0025 Detector:det_I=4.63384e-06
+* %Test: pin_rad=0.0025 Detector:det_I=4.63384e-06
+* %Test: pin_rad=0.0025 meshfile="test.off" Detector:det_I=4.63384e-06
+* %Test: pin_rad=0.0025 meshfile="test.ply" Detector:det_I=4.63384e-06
 * 
 * %Parameters
 * pin_rad: [m] Radius of source
@@ -36,6 +38,7 @@
 * detector_y: [m] Detector Height
 * det_dist: [m] Distance between detector and sample center
 * crack_width: [m] Height masking crack should be raised from the original crack
+* meshfile: [str] Mesh file of the crack: test.stl (binary STL), test.off or test.ply
 * 
 * %Link 
 * 
@@ -48,7 +51,8 @@ double d = 10, // Distance between source and sample center
 double detector_x = 0.01, // Detector Width
 double detector_y = 0.04, // Detector Height
 double det_dist = 0.005, // Distance between detector and sample center
-double crack_width = 0.003 // Height masking crack should be raised from the original crack
+double crack_width = 0.003, // Height masking crack should be raised from the original crack
+string meshfile = "test.stl" // Mesh file of the crack: test.stl, test.off or test.ply
 )
 DEPENDENCY " @NCRYSTALFLAGS@ -DFUNNEL "
 
@@ -118,14 +122,14 @@ AT (0, 0, 0) RELATIVE arm_sample_position
 ROTATED (90, 0, 0) RELATIVE arm_sample_position
 
 COMPONENT masking_crack = Union_mesh(
- filename = "test.stl", material_string = "Sample",
- priority = 140, skip_convex_check = 1)
+ filename = meshfile, material_string = "Sample",
+ priority = 140)
 AT (0, 0, 0.0005) RELATIVE arm_crack
 ROTATED (0, 0, 0) RELATIVE arm_crack
 
 COMPONENT crack = Union_mesh(
- filename = "test.stl", material_string = "sample_gas",
- priority = 139, skip_convex_check = 1,
+ filename = meshfile, material_string = "sample_gas",
+ priority = 139,
  coordinate_scale = 0.0009811453007353597)
 AT (0, 0, 0) RELATIVE arm_crack
 ROTATED (0, 0, 0) RELATIVE arm_crack

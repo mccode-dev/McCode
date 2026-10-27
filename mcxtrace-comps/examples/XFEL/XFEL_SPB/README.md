@@ -19,7 +19,7 @@ experimental hutch.
 
 ## Examples
 
-- **Test: XFEL_SPB.instr preCRL=0 -n1e7 L0=1.3051 DL=0.01 Detector: detector_I=0.00194989**
+- **Test: XFEL_SPB.instr preCRL=0 L0=1.3051 DL=0.01 Detector: detector_I=0.00194989**
 
 ## Input parameters
 

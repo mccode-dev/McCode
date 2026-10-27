@@ -33,7 +33,7 @@ Position | Element
 
 ## Examples
 
-- **Test: E0=0 Detector: PSD_M1out_I=2.74309e+15**
+- **Test: CASSIOPEE_E0=0 Detector: CASSIOPEE_PSD_M1out_I=2.74309e+15**
 
 ## Input parameters
 
@@ -41,16 +41,16 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| mirror_material | str | Mirror M1 coating (e.g. Pt.dat) | "Pt.dat" |
-| undulator_index | 1-2 | Undulator 1=HU60; 2=HU256 | 1 |
-| M1_angle | deg | M1 mirror angle. 0=auto | 0 |
-| PG_angle | deg | Reflective grating monochromator. 0=auto | 0 |
-| PM_angle | deg | M2 mirror angle. 0=auto | 0 |
-| E0 | keV | Undulator emission energy, e.g. 40e-3 or 300e-3 keV. 0=auto | 0 |
-| dE | keV | Undulator energy bandwidth, e.g. 1e-3. | 1e-3 |
-| lambda | Ang | Undulator emission wavelength. Used when E0=0. | 0 |
-| beta_mono | deg | Monochromator angle. 0=auto | 0 |
-| r_rho | /mm | Grating number of lines/mm. 0=auto. | 0 |
+| CASSIOPEE_mirror_material | str | Mirror M1 coating (e.g. Pt.dat) | "Pt.dat" |
+| CASSIOPEE_undulator_index | 1-2 | Undulator 1=HU60; 2=HU256 | 1 |
+| CASSIOPEE_M1_angle | deg | M1 mirror angle. 0=auto | 0 |
+| CASSIOPEE_PG_angle | deg | Reflective grating monochromator. 0=auto | 0 |
+| CASSIOPEE_PM_angle | deg | M2 mirror angle. 0=auto | 0 |
+| CASSIOPEE_E0 | keV | Undulator emission energy, e.g. 40e-3 or 300e-3 keV. 0=auto | 0 |
+| CASSIOPEE_dE | keV | Undulator energy bandwidth, e.g. 1e-3. | 1e-3 |
+| CASSIOPEE_lambda | Ang | Undulator emission wavelength. Used when CASSIOPEE_E0=0. | 0 |
+| CASSIOPEE_beta_mono | deg | Monochromator angle. 0=auto | 0 |
+| CASSIOPEE_r_rho | /mm | Grating number of lines/mm. 0=auto. | 0 |
 
 ## Links
 

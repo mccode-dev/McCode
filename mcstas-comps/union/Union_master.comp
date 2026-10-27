@@ -1046,7 +1046,7 @@ INITIALIZE
 
   for (iterator = 0; iterator < intersection_time_table.num_volumes; iterator++) {
     if (strcmp (Volumes[iterator]->geometry.shape, "mesh") == 0) {
-      intersection_time_table.n_elements[iterator] = (int)100; // Meshes can have any number of intersections, here we allocate room for 100
+      intersection_time_table.n_elements[iterator] = (int)GMESH_MAX_HITS; // Meshes report up to GMESH_MAX_HITS intersections (geometry-mesh-lib)
     } else {
       intersection_time_table.n_elements[iterator] = (int)2; // number of intersection for all other geometries
     }
@@ -2397,6 +2397,8 @@ TRACE
               printf (" Running physics_surface with transverse_index = %d \n", surface_transverse_index);
               #endif
               int surface_output;
+              // a surface process that does not set continues lets the ray through
+              continues = 1;
               UNION_PHYSICS_SURFACE (surface_output, surface_pointer, &p, surface_wavevector, &continues, normal_vector, inward_or_outward, _particle);
               #ifdef Union_trace_verbal_setting
               printf (" physics_surface reported continues = %d \n", continues);

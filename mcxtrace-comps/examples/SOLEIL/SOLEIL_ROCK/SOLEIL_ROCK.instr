@@ -40,22 +40,22 @@
 * 32.44    | Sample
 *
 * Examples:
-* Copper scan: mxrun SOLEIL_ROCK.instr E0=8.500,9.500 scan=1 cc=2 -N100
-* Manganese and chrome scan: mxrun SOLEIL_ROCK.instr E0=5.700,6.800 scan=1 sample_file=MnCr cc=2 -N100
-* Pretty energy repartition monitor result: mxrun SOLEIL_ROCK.instr E0=17.000 cc=2 -n1e8
+* Copper ROCK_scan: mxrun SOLEIL_ROCK.instr ROCK_E0=8.500,9.500 ROCK_scan=1 ROCK_cc=2 -N100
+* Manganese and chrome ROCK_scan: mxrun SOLEIL_ROCK.instr ROCK_E0=5.700,6.800 ROCK_scan=1 ROCK_sample_file=MnCr ROCK_cc=2 -N100
+* Pretty energy repartition monitor result: mxrun SOLEIL_ROCK.instr ROCK_E0=17.000 ROCK_cc=2 -n1e8
 *
-* %Example: E0=15.918 Detector: fluo_monitor_I=2e+09
+* %Example: ROCK_E0=15.918 Detector: ROCK_fluo_monitor_I=2e+09
 *
 * %Parameters
-* E0:               [keV]    Energy to hit, i.e. selected by the channel-cut monochromator
-* dE:               [keV]    Energy spread at the source
-* cc:               [0-3]    Channel-cut monochromator type. 0 for Si 220 with an energy range of  5.62883-46.2834 eV/4-35 deg (hit-table:11.752-34.055 ev/5.44-15.94 deg); 1 for Si 111 long 3.44694-28.3427 eV/4-35 deg (hit-table:7.196-20.854 ev/5.44-15.94 deg); 2 for Si 111 short 3.44694-18.914.3 eV/6-35 deg (hittable:5.323-18.914 ev/6-21.8 deg); 3 changes cc dynamically
-* scan:             [0-1]    0 no energy scan, 1 energy scan
-* angle_m2a_m2b:    [rad]    M2A/M2B mirror's deviation angle, can vary from 0.0035 to 0.0104
-* angle_m1:         [rad]    M1 mirror's deviation angle
-* sample_file:      [string] Sample chemical formulae
-* reflec_material_M1:      [str] Material reflectivity file name for M1 mirror, e.g. "Ir.dat"
-* reflec_material_M2A_M2B: [str] Material reflectivity file name for M2A and M2B mirror. Use NULL for automatic setting.
+* ROCK_E0:               [keV]    Energy to hit, i.e. selected by the channel-cut monochromator
+* ROCK_dE:               [keV]    Energy spread at the source
+* ROCK_cc:               [0-3]    Channel-cut monochromator type. 0 for Si 220 with an energy range of  5.62883-46.2834 eV/4-35 deg (hit-table:11.752-34.055 ev/5.44-15.94 deg); 1 for Si 111 long 3.44694-28.3427 eV/4-35 deg (hit-table:7.196-20.854 ev/5.44-15.94 deg); 2 for Si 111 short 3.44694-18.914.3 eV/6-35 deg (hittable:5.323-18.914 ev/6-21.8 deg); 3 changes ROCK_cc dynamically
+* ROCK_scan:             [0-1]    0 no energy ROCK_scan, 1 energy ROCK_scan
+* ROCK_angle_m2a_m2b:    [rad]    M2A/M2B mirror's deviation angle, can vary from 0.0035 to 0.0104
+* ROCK_angle_m1:         [rad]    M1 mirror's deviation angle
+* ROCK_sample_file:      [string] Sample chemical formulae
+* ROCK_reflec_material_M1:      [str] Material reflectivity file name for M1 mirror, e.g. "Ir.dat"
+* ROCK_reflec_material_M2A_M2B: [str] Material reflectivity file name for M2A and M2B mirror. Use NULL for automatic setting.
 * 
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/rock
@@ -66,117 +66,117 @@
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT SOLEIL_ROCK (E0=15.918, dE=1,
-    scan=0, 
-    angle_m2a_m2b=0.008, 
-    angle_m1=0.0045,
-    string sample_file="CuMo", 
-    string reflec_material_M1="Ir.dat",
-    string reflec_material_M2A_M2B="NULL",
-    int cc=0)
+DEFINE INSTRUMENT SOLEIL_ROCK (ROCK_E0=15.918, ROCK_dE=1,
+    ROCK_scan=0, 
+    ROCK_angle_m2a_m2b=0.008, 
+    ROCK_angle_m1=0.0045,
+    string ROCK_sample_file="CuMo", 
+    string ROCK_reflec_material_M1="Ir.dat",
+    string ROCK_reflec_material_M2A_M2B="NULL",
+    int ROCK_cc=0, int splits=10)
 
 DECLARE
 %{
-    double calculated_angle;
-    double Eminkev;
-    double Emaxkev;
-    double incr;
-    int n;
-    int i_h;
-    int i_k;
-    int i_l;
-    double length_first_crystal;
-    double length_second_crystal;
-    double center_first_crystal;
-    double dist_center_to_center;
-    double center_to_c_mono_angle;
-    char e_repartition_options[512];     
-    double I_err_calc; 
-    double absorption_coefficient;
-    double absorption_coefficient_error;   
-    double number_events_after_sample;       
+    double ROCK_calculated_angle;
+    double ROCK_Eminkev;
+    double ROCK_Emaxkev;
+    double ROCK_incr;
+    int ROCK_n;
+    int ROCK_i_h;
+    int ROCK_i_k;
+    int ROCK_i_l;
+    double ROCK_length_first_crystal;
+    double ROCK_length_second_crystal;
+    double ROCK_center_first_crystal;
+    double ROCK_dist_center_to_center;
+    double ROCK_center_to_c_mono_angle;
+    char ROCK_e_repartition_options[512];     
+    double ROCK_I_err_calc; 
+    double ROCK_absorption_coefficient;
+    double ROCK_absorption_coefficient_error;   
+    double ROCK_number_events_after_sample;       
 %}
 
 INITIALIZE
 %{
-    i_h=1;
-    i_k=1;
-    i_l=1;
+    ROCK_i_h=1;
+    ROCK_i_k=1;
+    ROCK_i_l=1;
     
-    if(cc>=3){ //automatically select the right cc for the energy E0
-        if(E0<=15.516){ 
-            cc = 2;
+    if(ROCK_cc>=3){ //automatically select the right ROCK_cc for the energy ROCK_E0
+        if(ROCK_E0<=15.516){ 
+            ROCK_cc = 2;
         }
-        else if (E0<=17.439){
-            cc = 1;
+        else if (ROCK_E0<=17.439){
+            ROCK_cc = 1;
         }
-        else if (E0<=34.055){
-            cc = 0;	
+        else if (ROCK_E0<=34.055){
+            ROCK_cc = 0;	
         }
     }
 
-    if(cc<=0){ //cc 220
-        Eminkev=5.62883;
-        Emaxkev=46.2834;
-        incr=0.995/(Emaxkev-Eminkev);
-        n=8;
-        i_h=2;
-        i_k=2;
-        i_l=0;
-        length_first_crystal=70e-3;
-        length_second_crystal=70e-3;
-        center_first_crystal=20;
-        dist_center_to_center = sqrt(0.01*0.01+0.07*0.07);
-        /// center_to_c_mono_angle is arctan(e/(length_first_crystal/2 + length_second_crystal/2))
-        center_to_c_mono_angle=0.14189;
+    if(ROCK_cc<=0){ //ROCK_cc 220
+        ROCK_Eminkev=5.62883;
+        ROCK_Emaxkev=46.2834;
+        ROCK_incr=0.995/(ROCK_Emaxkev-ROCK_Eminkev);
+        ROCK_n=8;
+        ROCK_i_h=2;
+        ROCK_i_k=2;
+        ROCK_i_l=0;
+        ROCK_length_first_crystal=70e-3;
+        ROCK_length_second_crystal=70e-3;
+        ROCK_center_first_crystal=20;
+        ROCK_dist_center_to_center = sqrt(0.01*0.01+0.07*0.07);
+        /// ROCK_center_to_c_mono_angle is arctan(e/(ROCK_length_first_crystal/2 + ROCK_length_second_crystal/2))
+        ROCK_center_to_c_mono_angle=0.14189;
     }
-    else if (cc<=1){ //cc long 111
-        Eminkev=3.44694;
-        Emaxkev=28.3427;
-        incr=0.995/(Emaxkev-Eminkev);
-        n=3;
-        length_first_crystal=70e-3;
-        length_second_crystal=70e-3;
-        center_first_crystal=18.92;
-        dist_center_to_center = sqrt(0.01*0.01+0.07*0.07);
-        center_to_c_mono_angle=0.14189;
-    } else if (cc<=2){ //cc short 111
-        Eminkev=3.44694;
-        Emaxkev=18.9143;
-        incr=0.995/(Emaxkev-Eminkev);
-        n=3;
-        length_first_crystal=50e-3;
-        length_second_crystal=70e-3;
-        center_first_crystal=19.25;
-        dist_center_to_center = sqrt(0.01*0.01+0.06*0.06);
-        center_to_c_mono_angle=0.1651;
+    else if (ROCK_cc<=1){ //ROCK_cc long 111
+        ROCK_Eminkev=3.44694;
+        ROCK_Emaxkev=28.3427;
+        ROCK_incr=0.995/(ROCK_Emaxkev-ROCK_Eminkev);
+        ROCK_n=3;
+        ROCK_length_first_crystal=70e-3;
+        ROCK_length_second_crystal=70e-3;
+        ROCK_center_first_crystal=18.92;
+        ROCK_dist_center_to_center = sqrt(0.01*0.01+0.07*0.07);
+        ROCK_center_to_c_mono_angle=0.14189;
+    } else if (ROCK_cc<=2){ //ROCK_cc short 111
+        ROCK_Eminkev=3.44694;
+        ROCK_Emaxkev=18.9143;
+        ROCK_incr=0.995/(ROCK_Emaxkev-ROCK_Eminkev);
+        ROCK_n=3;
+        ROCK_length_first_crystal=50e-3;
+        ROCK_length_second_crystal=70e-3;
+        ROCK_center_first_crystal=19.25;
+        ROCK_dist_center_to_center = sqrt(0.01*0.01+0.06*0.06);
+        ROCK_center_to_c_mono_angle=0.1651;
     }
 
-    calculated_angle=RAD2DEG*asin(12.39842*sqrt(n)/(2*5.4309*E0));
+    ROCK_calculated_angle=RAD2DEG*asin(12.39842*sqrt(ROCK_n)/(2*5.4309*ROCK_E0));
     
-    if (!reflec_material_M2A_M2B || !strlen(reflec_material_M2A_M2B) 
-        || !strcmp(reflec_material_M2A_M2B, "NULL") || !strcmp(reflec_material_M2A_M2B, "0")) {
+    if (!ROCK_reflec_material_M2A_M2B || !strlen(ROCK_reflec_material_M2A_M2B) 
+        || !strcmp(ROCK_reflec_material_M2A_M2B, "NULL") || !strcmp(ROCK_reflec_material_M2A_M2B, "0")) {
 
-      if(E0<=7.98){
-          reflec_material_M2A_M2B="B4C.dat";
+      if(ROCK_E0<=7.98){
+          ROCK_reflec_material_M2A_M2B="B4C.dat";
       }
-      else if (E0<=16.46){
-          reflec_material_M2A_M2B="Pd.dat";
+      else if (ROCK_E0<=16.46){
+          ROCK_reflec_material_M2A_M2B="Pd.dat";
       }
-      else if (E0>16.46){
-          reflec_material_M2A_M2B="Pt.dat";
+      else if (ROCK_E0>16.46){
+          ROCK_reflec_material_M2A_M2B="Pt.dat";
       }
     }
     
     MPI_MASTER(
-    fprintf(stdout,"%s: Energy=%g [keV]\n"
-      "\tM2 mirror=%s\n"
+    fprintf(stdout,"%s: Energy=%g [keV]n"
+      "\tM2 mirror=%sn"
       "\tMonochromator Si<%i %i %i> angle %g [deg], config=%i\n", 
-      NAME_INSTRUMENT, E0, reflec_material_M2A_M2B, i_h,i_k,i_l, calculated_angle, cc);
+      NAME_INSTRUMENT, ROCK_E0, ROCK_reflec_material_M2A_M2B, ROCK_i_h,ROCK_i_k,ROCK_i_l, ROCK_calculated_angle, ROCK_cc);
     );
 
-    sprintf(e_repartition_options,"energy limits=[%g %g], y",
-        E0-0.02*E0, E0+0.02*E0);  
+    sprintf(ROCK_e_repartition_options,"energy limits=[%g %g], y",
+        ROCK_E0-0.02*ROCK_E0, ROCK_E0+0.02*ROCK_E0);  
 %}
 
 TRACE
@@ -185,166 +185,166 @@ TRACE
 // BeamLineName| Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // ----|--------|----|----|-----|--
 // ROCK|255,3434|54,9|20,2|126,3|1,8
-REMOVABLE COMPONENT Origin = Progress_bar() 
+REMOVABLE COMPONENT ROCK_Origin = Progress_bar() 
 AT (0, 0, 0) ABSOLUTE
 
 /* -------------------------------------------------- Source */
-COMPONENT Source = Bending_magnet(
-    E0=E0, dE = dE,
+COMPONENT ROCK_Source = Bending_magnet(
+    E0=ROCK_E0, dE = ROCK_dE,
     Ee = 2.75, Ie = 0.5, B = 1.72, sigex=54.9e-6, sigey=20.2e-6)
 AT (0, 0, 0) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- Vertical slit 1 */
-COMPONENT slit1 = Slit(
+COMPONENT ROCK_slit1 = Slit(
     xwidth=0.021, 
     yheight=0.042)
 AT (0, 0, 8.5336) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- Horizontal slit 2 */
-COMPONENT slit2 = Slit(
+COMPONENT ROCK_slit2 = Slit(
     xwidth=0.02, 
     yheight=0.01)
 AT (0, 0, 8.6486-8.5336) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- Toroidal mirror M1 */   
-COMPONENT mirror_m1 = Mirror_toroid_pothole(
+COMPONENT ROCK_mirror_m1 = Mirror_toroid_pothole(
     xwidth = 0.015,
     zdepth = 1.1,
     radius=0.0317, 
-    radius_o=9.02e3,coating=reflec_material_M1)    
+    radius_o=9.02e3,coating=ROCK_reflec_material_M1)    
 AT (0, 0, 10.15-8.6486) RELATIVE PREVIOUS	
-ROTATED (-angle_m1*RAD2DEG/2, 0, 0) RELATIVE PREVIOUS
+ROTATED (-ROCK_angle_m1*RAD2DEG/2, 0, 0) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT mirror_m1_out = Arm()
+COMPONENT ROCK_mirror_m1_out = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (-angle_m1*RAD2DEG/2, 0, 0) RELATIVE PREVIOUS
+ROTATED (-ROCK_angle_m1*RAD2DEG/2, 0, 0) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- Horizontal slit  3 */
 
-COMPONENT slit3_xy = PSD_monitor(xwidth=0.02, yheight=0.01)
+COMPONENT ROCK_slit3_xy = PSD_monitor(xwidth=0.02, yheight=0.01)
 AT (0, 0, 11.6905-10.15) RELATIVE PREVIOUS
 
-COMPONENT slit3_div = Divergence_monitor(maxdiv_h=0.05, maxdiv_v=0.05, nh=128, nv=128)
+COMPONENT ROCK_slit3_div = Divergence_monitor(maxdiv_h=0.05, maxdiv_v=0.05, nh=128, nv=128)
 AT (0, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT slit3 = Slit(
+COMPONENT ROCK_slit3 = Slit(
     xwidth=0.02, 
     yheight=0.01)
-AT (0, 0, 0) RELATIVE slit3_xy
+AT (0, 0, 0) RELATIVE ROCK_slit3_xy
 
 /* -------------------------------------------------- M2a mirror */
-COMPONENT mirror_m2a = Mirror(
+COMPONENT ROCK_mirror_m2a = Mirror(
     xwidth=47e-3,
-    zdepth=1100e-3,coating=reflec_material_M2A_M2B)
+    zdepth=1100e-3,coating=ROCK_reflec_material_M2A_M2B)
 AT (0, 0, (16.82-11.6905)) RELATIVE PREVIOUS	
-ROTATED (-angle_m2a_m2b*RAD2DEG/2, 0, 0) RELATIVE PREVIOUS
+ROTATED (-ROCK_angle_m2a_m2b*RAD2DEG/2, 0, 0) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT mirror_m2a_out = Arm()
+COMPONENT ROCK_mirror_m2a_out = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (-angle_m2a_m2b*RAD2DEG/2, 0, 0) RELATIVE PREVIOUS
+ROTATED (-ROCK_angle_m2a_m2b*RAD2DEG/2, 0, 0) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- Horizontal slit 4 */
 
-COMPONENT slit4_in = PSD_monitor(xwidth=0.5, yheight=0.5)
-AT (0, 0, 18.1512-16.82) RELATIVE mirror_m2a_out
+COMPONENT ROCK_slit4_in = PSD_monitor(xwidth=0.5, yheight=0.5)
+AT (0, 0, 18.1512-16.82) RELATIVE ROCK_mirror_m2a_out
 
-COMPONENT slit4 = Slit(
+COMPONENT ROCK_slit4 = Slit(
     xwidth=0.02, 
     yheight=0.02)
 AT (0, 0, 0) RELATIVE PREVIOUS	
 
 /* -------------------------------------------------- CC crystal 1 */
 
-COMPONENT arm_crystal0 = Arm()
-AT (0, 0, center_first_crystal-18.1512) RELATIVE slit4
+COMPONENT ROCK_arm_crystal0 = Arm()
+AT (0, 0, ROCK_center_first_crystal-18.1512) RELATIVE ROCK_slit4
 
-COMPONENT bragg_crystal = Bragg_crystal(
-    length=length_first_crystal, 
+COMPONENT ROCK_bragg_crystal = Bragg_crystal(
+    length=ROCK_length_first_crystal, 
     width=25e-3,
     material = "Si.txt",
-    h = i_h,
-    k = i_k,
-    l = i_l,
+    h = ROCK_i_h,
+    k = ROCK_i_k,
+    l = ROCK_i_l,
     crystal_type = 2
 )
-AT (0, 0, 0) RELATIVE arm_crystal0	
-ROTATED (-calculated_angle, 0, 0) RELATIVE arm_crystal0
+AT (0, 0, 0) RELATIVE ROCK_arm_crystal0	
+ROTATED (-ROCK_calculated_angle, 0, 0) RELATIVE ROCK_arm_crystal0
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT arm_crystal1 = Arm()
+COMPONENT ROCK_arm_crystal1 = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (-calculated_angle, 0, 0) RELATIVE PREVIOUS
+ROTATED (-ROCK_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- CC crystal 2 */
 // gap btw crystals is 1 cm. We shit the 2nd blade so that it is centred wrt reflection.
-COMPONENT bragg_crystal_two = COPY(bragg_crystal)(
-    length=length_second_crystal) 
-AT (0, 0.01, calculated_angle ? 0.01/tan(calculated_angle*DEG2RAD) : 0) RELATIVE bragg_crystal
-ROTATED (calculated_angle, 0, 0) RELATIVE arm_crystal1
+COMPONENT ROCK_bragg_crystal_two = COPY(ROCK_bragg_crystal)(
+    length=ROCK_length_second_crystal) 
+AT (0, 0.01, ROCK_calculated_angle ? 0.01/tan(ROCK_calculated_angle*DEG2RAD) : 0) RELATIVE ROCK_bragg_crystal
+ROTATED (ROCK_calculated_angle, 0, 0) RELATIVE ROCK_arm_crystal1
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT arm_crystal2 = Arm()
+COMPONENT ROCK_arm_crystal2 = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (calculated_angle, 0, 0) RELATIVE PREVIOUS
+ROTATED (ROCK_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT bragg_crystal_out = PSD_monitor(xwidth=0.1, yheight=0.1, nx=200, ny=200)
-AT (0,0,2*length_second_crystal)  RELATIVE arm_crystal2
+COMPONENT ROCK_bragg_crystal_out = PSD_monitor(xwidth=0.1, yheight=0.1, nx=200, ny=200)
+AT (0,0,2*ROCK_length_second_crystal)  RELATIVE ROCK_arm_crystal2
 
 /* -------------------------------------------------- Horizontal slit 5 */
-// the beam is positioned at Y=+dy*sin(2*calculated_angle*DEG2RAD)/sin(calculated_angle*DEG2RAD) 
+// the beam is positioned at Y=+dy*sin(2*ROCK_calculated_angle*DEG2RAD)/sin(ROCK_calculated_angle*DEG2RAD) 
 // with dy=0.01 (CC gap) wrt the CC entry
-COMPONENT slit5 = Slit(
+COMPONENT ROCK_slit5 = Slit(
     xwidth=0.02, 
     yheight=0.01)
-AT (0, 0, 21.135 - center_first_crystal) RELATIVE arm_crystal2
+AT (0, 0, 21.135 - ROCK_center_first_crystal) RELATIVE ROCK_arm_crystal2
 
 
 /* -------------------------------------------------- Vertical slit 6 */
-COMPONENT slit6 = Slit(
+COMPONENT ROCK_slit6 = Slit(
     xwidth=0.01, 
     yheight=0.02)
 AT (0, 0, 21.25-21.135) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- M2b mirror */    
-COMPONENT mirror_m2b = Mirror_curved(
+COMPONENT ROCK_mirror_m2b = Mirror_curved(
     radius=5e3, 
     width=47e-3,
     length=1100e-3,
-    coating=reflec_material_M2A_M2B)          
+    coating=ROCK_reflec_material_M2A_M2B)          
 AT (0, 0, 22.44-21.25) RELATIVE PREVIOUS	
-ROTATED (angle_m2a_m2b*RAD2DEG/2, 0, 90) RELATIVE PREVIOUS
+ROTATED (ROCK_angle_m2a_m2b*RAD2DEG/2, 0, 90) RELATIVE PREVIOUS
 EXTEND
 %{ 
 	if (!SCATTERED) ABSORB; 
 %}
 
-COMPONENT mirror_m2b_out = Arm()
+COMPONENT ROCK_mirror_m2b_out = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (angle_m2a_m2b*RAD2DEG, 0, 0) RELATIVE arm_crystal2 
+ROTATED (ROCK_angle_m2a_m2b*RAD2DEG, 0, 0) RELATIVE ROCK_arm_crystal2 
 
 /* -------------------------------------------------- E monitor */ 
-COMPONENT EnergyMonitor_before_sample = Monitor_nD(  
+COMPONENT ROCK_EnergyMonitor_before_sample = Monitor_nD(  
     xwidth =0.1 , 
     yheight =0.1 ,
-    min=E0-(0.005+(E0-Eminkev)*incr), 
-    max=E0+(0.005+(E0-Eminkev)*incr), 
+    min=ROCK_E0-(0.005+(ROCK_E0-ROCK_Eminkev)*ROCK_incr), 
+    max=ROCK_E0+(0.005+(ROCK_E0-ROCK_Eminkev)*ROCK_incr), 
     bins=500,
     options="energy",
-    filename="EnergyMonitor_before_sample",
+    filename="ROCK_EnergyMonitor_before_sample",
     restore_xray = 1
     ) 
 AT (0,0,10) RELATIVE PREVIOUS
@@ -353,35 +353,35 @@ AT (0,0,10) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- sample */
 // this is the sample stage
-COMPONENT e_repartition_after_m2b = Monitor_nD(
+COMPONENT ROCK_e_repartition_after_m2b = Monitor_nD(
   xwidth =0.02 , yheight =0.02, 
-  options=e_repartition_options, bins=500,
-  filename="e_repartition_after_m2b",
+  options=ROCK_e_repartition_options, bins=500,
+  filename="ROCK_e_repartition_after_m2b",
   restore_xray = 1) 
 AT (0,0,0.5) RELATIVE PREVIOUS
 
-COMPONENT sample_in = PSD_monitor(xwidth=0.01, yheight=0.01, nx=200, ny=200)
+COMPONENT ROCK_sample_in = PSD_monitor(xwidth=0.01, yheight=0.01, nx=200, ny=200)
 AT (0,0,0) RELATIVE PREVIOUS
 
-SPLIT COMPONENT absorption_sample = Fluorescence(
-  material=sample_file,
+SPLIT splits COMPONENT ROCK_absorption_sample = Fluorescence(
+  material=ROCK_sample_file,
   xwidth = 0.05,
   yheight = 0.05,
   zdepth = 0.0001)
-AT (0, 0, 0) RELATIVE e_repartition_after_m2b
+AT (0, 0, 0) RELATIVE ROCK_e_repartition_after_m2b
 
-COMPONENT fluo_monitor = Monitor_nD(
-  radius=0.2, options="energy", bins=1024, min=0, max=E0*1.2)
+COMPONENT ROCK_fluo_monitor = Monitor_nD(
+  radius=0.2, options="energy", bins=1024, min=0, max=ROCK_E0*1.2)
 AT (0,0,0) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- E monitor */
-COMPONENT EnergyMonitor_after_sample = COPY(EnergyMonitor_before_sample)(
+COMPONENT ROCK_EnergyMonitor_after_sample = COPY(ROCK_EnergyMonitor_before_sample)(
         filename     = "EnergyMonitor_after_sample"
 )  
 AT (0,0,0.5) RELATIVE PREVIOUS
 
-COMPONENT psd_monitor = PSD_monitor(
-    filename="psd", 
+COMPONENT ROCK_psd_monitor = PSD_monitor(
+    filename="ROCK_psd", 
     xwidth=0.004, 
     yheight=0.004,            
     nx=100,
@@ -393,38 +393,38 @@ AT (0, 0, 0) RELATIVE PREVIOUS
 
 FINALLY
 %{
-    // If there is a scan, calculate the absorption coefficient.
-    if(scan>=1){ 
+    // If there is a ROCK_scan, calculate the absorption coefficient.
+    if(ROCK_scan>=1){ 
 #ifdef USE_MPI
       if (mpi_node_rank==0) {
 #endif 
-        MCDETECTOR e_before_sample = COMP_GETPAR2(EnergyMonitor_before_sample,detector);
-        MCDETECTOR e_after_sample =  COMP_GETPAR2(EnergyMonitor_after_sample,detector);
-        absorption_coefficient = log(e_before_sample.intensity/e_after_sample.intensity);              
-        I_err_calc = ((e_before_sample.error/e_before_sample.intensity)+(e_after_sample.error/e_after_sample.intensity));                  
-        absorption_coefficient_error = I_err_calc;  
-        number_events_after_sample = e_after_sample.events; 
+        MCDETECTOR e_before_sample = COMP_GETPAR2(ROCK_EnergyMonitor_before_sample,detector);
+        MCDETECTOR e_after_sample =  COMP_GETPAR2(ROCK_EnergyMonitor_before_sample,detector);
+        ROCK_absorption_coefficient = log(e_before_sample.intensity/e_after_sample.intensity);              
+        ROCK_I_err_calc = ((e_before_sample.error/e_before_sample.intensity)+(e_after_sample.error/e_after_sample.intensity));                  
+        ROCK_absorption_coefficient_error = ROCK_I_err_calc;  
+        ROCK_number_events_after_sample = e_after_sample.events; 
 
         fprintf(stdout,"*** \n");    
         fprintf(stdout,"Before the sample: I %g I_error %g N %g \n", e_before_sample.intensity, e_before_sample.error, e_before_sample.events);
         fprintf(stdout,"After the sample: I %g I_error %g N %g \n", e_after_sample.intensity, e_after_sample.error, e_after_sample.events); 
-        fprintf(stdout,"I_err_calc: I %g \n", I_err_calc);
-        fprintf(stdout,"*** \n ");  
+        fprintf(stdout,"ROCK_I_err_calc: I %g \n", ROCK_I_err_calc);
+        fprintf(stdout,"*** ROCK_n ");  
                                                  
 #ifdef USE_MPI                  
        }
         //MPI_Barrier(MPI_COMM_WORLD);
 #endif  
                       
-        // This set of defines is to avoid getting a '.' in the component name
+        // This set of defines is to avoid getting a '.' in the COMPONENT ROCK_name
         #ifdef NAME_CURRENT_COMP
         #undef NAME_CURRENT_COMP
-        #define NAME_CURRENT_COMP "absorption_coefficient"
+        #define NAME_CURRENT_COMP "ROCK_absorption_coefficient"
         #endif           
 	Coords dummy;
 	Rotation Rot;
 	rot_set_rotation(Rot,0,0,0);
-	mcdetector_out_0D("XANES EXAFS",number_events_after_sample, absorption_coefficient, absorption_coefficient_error,instrument_name,dummy,Rot,9999);  
+	mcdetector_out_0D("XANES EXAFS",ROCK_number_events_after_sample, ROCK_absorption_coefficient, ROCK_absorption_coefficient_error,instrument_name,dummy,Rot,9999);  
     }
 %}
 

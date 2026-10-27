@@ -634,7 +634,7 @@ if __name__ == '__main__':
     # but we assume that they are instr_options
     args = {k: args.__getattribute__(k) for k in dir(args) if k[0] != '_'}
     if len(unknown):
-        args['options'] = unknown
+        args['options'] += unknown
 
     # enable ^C termination
     import signal

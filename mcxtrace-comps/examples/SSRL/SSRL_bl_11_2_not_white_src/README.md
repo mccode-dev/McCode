@@ -19,14 +19,13 @@ SSRL glitch database found here: https://www-ssrl.slac.stanford.edu/smbin/dataex
 Documentation and results of the .instr here: https://gitlab.synchrotron-soleil.fr/grades/beamlines/-/tree/main/glitches
 A jupyter notebook will soon be available regrouping everything.
 You may scan like so for example:
-mxrun -n 1e7 SSRL_bl_11_2_not_white_src.instr -N601 Etohit=6900,7500
-
-Example: Etohit=6900 Detector: EnergyMonitor_first_I=1.3e+10
 ```
 
 ## Examples
 
-
+- **TestScan: mxrun SSRL_bl_11_2_not_white_src.instr -N31 Etohit=6900,7500 -n1e6 Detector: EnergyMonitor_first_I={31 values}**
+- 
+- Example: Etohit=6900 Detector: EnergyMonitor_first_I=1.3e+10
 
 ## Input parameters
 

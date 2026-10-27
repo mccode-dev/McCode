@@ -9,7 +9,7 @@ loader/matching layer:
 - **mcplotdiff / mxplotdiff** — plot the *difference* `a - b` between two simulations (2 datasets only)
 - **mccoplot / mxcoplot** — *overlay* 2 or more simulations' monitors on the same axes
 
-Each has three rendering variants: **html**, **matplotlib**, **pyqtgraph**. Plain `mcplot` additionally has a fourth, legacy **matlab** variant (see bottom of this page).
+Each has three rendering variants: **html**, **matplotlib**, **pyqtgraph**. Plain `mcplot` additionally has a **plopp** variant and a legacy **matlab** variant (see bottom of this page).
 
 ## mcplot / mxplot
 
@@ -45,6 +45,18 @@ Each has three rendering variants: **html**, **matplotlib**, **pyqtgraph**. Plai
 | `simulation` | file or directory to plot |
 | `-t`, `--test` | data-loader test run |
 | `--invcanvas` | invert canvas background (black &rarr; white) |
+
+### mcplot-plopp / mxplot-plopp
+
+Requires `scipp` and `plopp` (plus `ipympl` and `jupyterlab` for the interactive UI). Without `-o`, opens a JupyterLab UI.
+
+| Option | Description |
+|---|---|
+| `simulation` | output dir, `mccode.sim`, a monitor file, or `mccode.h5` (NeXus) (default: `.`) |
+| `-o`, `--output FILE` | write a static png/pdf/svg instead of opening the UI |
+| `--log` | log intensity scale |
+| `--source COMP` | event data (NeXus, McStasToX): name of the source component |
+| `--sample COMP` | event data (NeXus, McStasToX): name of the sample component |
 
 ## mcplotdiff / mxplotdiff
 

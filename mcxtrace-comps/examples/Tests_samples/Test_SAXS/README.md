@@ -38,7 +38,7 @@ SAXSPDBFast               SAMPLE=11
 - **Test: SAMPLE=4 Detector: PSDMonitor_I=1.16433e-10**
 - **Test: SAMPLE=5 Ncount=1e4 Detector: PSDMonitor_I=1.2001e-14**
 - **Test: SAMPLE=6 Ncount=1e4 Detector: PSDMonitor_I=1.2400e-14**
-- **Test: SAMPLE=7 Ncount=1e4 Detector: PSDMonitor_I=7.07865e-14**
+- **Test: SAMPLE=7 Ncount=1e4 Detector: PSDMonitor_I=5.54e-14**
 - **Test: SAMPLE=9 Detector: PSDMonitor_I=1.11073e-14**
 - **Test: SAMPLE=10 Detector: PSDMonitor_I=1.02884e-14**
 - **Test: SAMPLE=11 Detector: PSDMonitor_I=5.47707e-15**

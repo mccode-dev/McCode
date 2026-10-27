@@ -30,7 +30,7 @@ from shutil import copyfile
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from mccodelib.mcplotloader import Data1D, Data2D
+from mccodelib.mcplotloader import Data1D, Data2D, nexus_suffix
 from mccodelib import mccode_config
 from mccodelib import mcplotdiffloader as diffloader
 from mccodelib.mcplotdiffloader import (
@@ -555,7 +555,7 @@ def main(args):
                                      instrument='diff_%s_vs_%s' % (label_a, label_b))
         print("Generated: %s" % sim_path)
 
-    index_file = write_index(outdir, entries, label_a, label_b,
+    index_file = write_index(outdir, entries, label_a + nexus_suffix(args.a), label_b + nexus_suffix(args.b),
                               path_a=args.a, path_b=args.b, used_fallback=used_fallback)
     print("Generated: %s" % index_file)
 

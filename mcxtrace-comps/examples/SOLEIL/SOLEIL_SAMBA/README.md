@@ -34,7 +34,7 @@ Position | Element
 
 ## Examples
 
-- **Test: E0=15 Detector: det_fluo_I=1.23968e+10**
+- **Test: SAMBA_E0=15 Detector: SAMBA_det_fluo_I=1.23968e+10**
 
 ## Input parameters
 
@@ -42,11 +42,12 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| E0 | keV | Central energy | 15 |
-| dE | keV | Energy spread | 0.1 |
-| M1_angle | mrad | Incidence angle of M1 (vertical collimation) | 3 |
-| M2_angle | mrad | Incidence angle of M2 (vertical focusing) | 3 |
-| sample | str | Sample structure file | "LaB6.cif" |
+| SAMBA_E0 | keV | Central energy | 15 |
+| SAMBA_dE | keV | Energy spread | 0.1 |
+| SAMBA_M1_angle | mrad | Incidence angle of M1 (vertical collimation) | 3 |
+| SAMBA_M2_angle | mrad | Incidence angle of M2 (vertical focusing) | 3 |
+| SAMBA_sample | str | Sample structure file | "LaB6.cif" |
+| splits |  |  | 10 |
 
 ## Links
 

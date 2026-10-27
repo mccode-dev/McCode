@@ -28,19 +28,18 @@
 * This is a simplified model with an Undulator, mirrors, a double crystal 
 * monochromator, a sample stage and a detector.
 *
-* %Example: E0=12.65 sample="Mo.lau" SPLITs=1500 Detector: psd4pi_I=1.75e+12
-* %Example: E0=12.65 sample="adrenaline.lau" SPLITs=4200 Detector: psd4pi_I=3.8e+15
+* %Example: PX2a_E0=12.65 sample="Mo.lau" PX2a_SPLITs=1500 PX2a_sample_monitor_I=1.53453e+20
 *
 * %Parameters
-* E0:    [keV] Energy selected at the Undulator.
-* hfm_radius: [m] horizontally focusing mirror radius
-* vfm_radius: [m] vertically focusing mirror radius
-* mirror_grazing_angle: [deg] Tilt angle of the mirrors.
-* sample:[str] Sample structure file, LAU/CIF format.
-* rotX:  [deg] Sample rotation around X
-* rotY:  [deg] Sample rotation around Y
-* rotZ:  [deg] Sample rotation around Z
-* SPLITs: [1] Number of SPLIT repetitions at the sample
+* PX2a_E0:    [keV] Energy selected at the Undulator.
+* PX2a_hfm_radius: [m] horizontally focusing mirror radius
+* PX2a_vfm_radius: [m] vertically focusing mirror radius
+* PX2a_mirror_grazing_angle: [deg] Tilt angle of the mirrors.
+* PX2a_sample:[str] Sample structure file, LAU/CIF format.
+* PX2a_rotX:  [deg] Sample rotation around X
+* PX2a_rotY:  [deg] Sample rotation around Y
+* PX2a_rotZ:  [deg] Sample rotation around Z
+* splits: [1] Number of SPLIT repetitions at the sample
 * 
 * %Link
 * https://www.synchrotron-soleil.fr/en/beamlines/proxima-2a
@@ -49,37 +48,37 @@
 *******************************************************************************/
 
 DEFINE INSTRUMENT SOLEIL_PX2a(
-  E0=12.65, hfm_radius=495, vfm_radius=859,
-  mirror_grazing_angle=4e-3,
-  string sample="adrenaline.lau",
-  rotX=0, rotY=0, rotZ=0, SPLITs=10)
+  PX2a_E0=12.65, PX2a_hfm_radius=495, PX2a_vfm_radius=859,
+  PX2a_mirror_grazing_angle=4e-3,
+  string PX2a_sample="adrenaline.lau",
+  PX2a_rotX=0, PX2a_rotY=0, PX2a_rotZ=0, int splits=10)
 DEPENDENCY " -DMCSX_REFL_SLIST_SIZE=1024 "
 DECLARE
 %{
-    double calculated_angle;
+    double PX2a_calculated_angle;
 %}
 
 USERVARS %{
-    int    flag_hfm;
-    int    flag_vfm;
+    int    PX2a_flag_hfm;
+    int    PX2a_flag_vfm;
 %}
 
 INITIALIZE
 %{
-  double arg=  12398.42*sqrt(3)/(2*5.4309*E0*1e3);
-  if (fabs(arg) > 1)
-    exit(fprintf(stderr, "ERROR: Monochromator can not reach this energy (arg=%g > 1)\n",
-      arg));
-  calculated_angle = RAD2DEG*asin(arg);
-  /* Ensure that we are running with at least 1e7 neutrons/core if not 'displaying' */
-  #ifndef USE_MPI
-  #define mpi_node_count 1
-  #endif
-  if (!mcdotrace) {
-    if (mcget_ncount()<=1e7) {
-      MPI_MASTER(printf("This instrument needs higher statistics to converge. Increasing your ncount=%llu to ",mcget_ncount()));
-      mcset_ncount(mpi_node_count*1e7);
-      MPI_MASTER(printf("%llu\n",mcget_ncount()));
+  {
+    double arg=  12398.42*sqrt(3)/(2*5.4309*PX2a_E0*1e3);
+    if (fabs(arg) > 1)
+      exit(fprintf(stderr, "ERROR: Monochromator can not reach this energy (arg=%g > 1)\n",
+        arg));
+    PX2a_calculated_angle = RAD2DEG*asin(arg);
+    /* Ensure that we are running with at least 1e7 neutrons/core if not 'displaying' */
+    #ifndef USE_MPI
+    #define mpi_node_count 1
+    #endif
+    if (!mcdotrace) {
+      if (mcget_ncount()<=1e7) {
+        MPI_MASTER(printf("WARNING: This instrument needs at least %llu statistics to converge. Currently ncount=%llu to ",mpi_node_count*1e7, mcget_ncount()));
+      }
     }
   }
 %}
@@ -90,12 +89,12 @@ TRACE
 // BeamLineName| Long_Pos(m)| RMS_H_Size(µm)| RMS_V_Size(µm)| RMS_H_div(µrad)| RMS_V_div(µrad)
 // -----|--------|-----|---|----|--
 // PX2sp|222,8306|219,1|9,8|31,6|3,7
-REMOVABLE COMPONENT Origin = Progress_bar()
+REMOVABLE COMPONENT PX2a_Origin = Progress_bar()
 AT (0,0,0) ABSOLUTE
 
 // Undulator U24
-COMPONENT undulator = Undulator(
-    E0=E0, 
+COMPONENT PX2a_undulator = Undulator(
+    E0=PX2a_E0, 
     dE=.1, 
     Ee=2.75, 
     dEe=0.001, 
@@ -115,52 +114,52 @@ AT (0, 0, 0) RELATIVE PREVIOUS
 
 // Channel_cut Si(111) ---------------------------------------------------------
 // gap 6 mm
-COMPONENT bragg_crystal_location = Arm()
+COMPONENT PX2a_bragg_crystal_location = Arm()
 AT (0,0,29.5) RELATIVE PREVIOUS
 
-COMPONENT bragg_crystal = Bragg_crystal(
+COMPONENT PX2a_bragg_crystal = Bragg_crystal(
     crystal_type=2)
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (-calculated_angle, 0, 0) RELATIVE PREVIOUS
+ROTATED (-PX2a_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT arm = Arm()
+COMPONENT PX2a_arm = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
-ROTATED (-calculated_angle, 0, 0) RELATIVE PREVIOUS
+ROTATED (-PX2a_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT bragg_crystal_two = Bragg_crystal(
+COMPONENT PX2a_bragg_crystal_two = Bragg_crystal(
     crystal_type=2)
-AT (0, 0.006, calculated_angle ? 0.006/tan(calculated_angle*DEG2RAD) : 0) RELATIVE bragg_crystal
-ROTATED (calculated_angle, 0, 0) RELATIVE PREVIOUS
+AT (0, 0.006, PX2a_calculated_angle ? 0.006/tan(PX2a_calculated_angle*DEG2RAD) : 0) RELATIVE PX2a_bragg_crystal
+ROTATED (PX2a_calculated_angle, 0, 0) RELATIVE PREVIOUS
 
-COMPONENT arm_two = Arm()
-AT (0, 0, 0) RELATIVE bragg_crystal_two
-ROTATED (calculated_angle, 0, 0) RELATIVE bragg_crystal_two
+COMPONENT PX2a_arm_two = Arm()
+AT (0, 0, 0) RELATIVE PX2a_bragg_crystal_two
+ROTATED (PX2a_calculated_angle, 0, 0) RELATIVE PX2a_bragg_crystal_two
 
-COMPONENT bragg_crystal_out = E_monitor(Emin=E0-.1, Emax=E0+.1, nE=512,
+COMPONENT PX2a_bragg_crystal_out = E_monitor(Emin=PX2a_E0-.1, Emax=PX2a_E0+.1, nE=512,
   xwidth=0.1, yheight=0.1)
 AT(0,0,0.2) RELATIVE PREVIOUS
 
 
 // horizontal pre-focusing curved mirror (XZ -> YZ plane) ----------------------
-COMPONENT hpm_location = Arm()
-AT (0,0,32.1-29.5-0.05) RELATIVE arm_two
+COMPONENT PX2a_hpm_location = Arm()
+AT (0,0,32.1-29.5-0.05) RELATIVE PX2a_arm_two
 
-COMPONENT hpm_in_yz_plane = Arm()
-AT (0,0,0) RELATIVE hpm_location
-ROTATED (0,0,90) RELATIVE hpm_location
+COMPONENT PX2a_hpm_in_yz_plane = Arm()
+AT (0,0,0) RELATIVE PX2a_hpm_location
+ROTATED (0,0,90) RELATIVE PX2a_hpm_location
 
-COMPONENT hpm = Mirror_toroid(
+COMPONENT PX2a_hpm = Mirror_toroid(
   coating   = "Ir.dat", //This needs to be Rh.dat, will need to generate the file with xraydb
   zdepth   = 150e-3,
   xwidth   = 15e-3,
   radius   = 495,
   radius_o = 1000)
-AT (0,0,0) RELATIVE hpm_in_yz_plane
-ROTATED (mirror_grazing_angle, 0, 0) RELATIVE hpm_in_yz_plane
+AT (0,0,0) RELATIVE PX2a_hpm_in_yz_plane
+ROTATED (PX2a_mirror_grazing_angle, 0, 0) RELATIVE PX2a_hpm_in_yz_plane
 
-COMPONENT hpm_takeoff = Arm()
-AT (0,0,0) RELATIVE hpm_location
-ROTATED (0, 2*mirror_grazing_angle, 0) RELATIVE hpm_location
+COMPONENT PX2a_hpm_takeoff = Arm()
+AT (0,0,0) RELATIVE PX2a_hpm_location
+ROTATED (0, 2*PX2a_mirror_grazing_angle, 0) RELATIVE PX2a_hpm_location
 
 // KB pair ---------------------------------------------------------------------
 // could use Mirror_elliptic
@@ -168,80 +167,80 @@ ROTATED (0, 2*mirror_grazing_angle, 0) RELATIVE hpm_location
 
 // KB 1st mirror (XZ plane) at 1.6m from sample
 // must be shifted by -2 mm  on Y else beam flies underneath the mirror.
-COMPONENT vfm_location = Monitor_nD(xwidth=0.01, yheight=0.01, options="x y", bins=100)
-AT (0,0,33.9-32.1) RELATIVE hpm_takeoff
+COMPONENT PX2a_vfm_location = Monitor_nD(xwidth=0.01, yheight=0.01, options="x y", bins=100)
+AT (0,0,33.9-32.1) RELATIVE PX2a_hpm_takeoff
 
-COMPONENT vfm_in_xz_plane = Arm()
-AT (0,0,0) RELATIVE vfm_location
-ROTATED(0,0,-90) RELATIVE vfm_location // YZ -> XZ
+COMPONENT PX2a_vfm_in_xz_plane = Arm()
+AT (0,0,0) RELATIVE PX2a_vfm_location
+ROTATED(0,0,-90) RELATIVE PX2a_vfm_location // YZ -> XZ
 
-COMPONENT vfm = Mirror_curved(
+COMPONENT PX2a_vfm = Mirror_curved(
   coating="Rh.txt",
   length=450e-3,
   width=0.1,
-  radius=vfm_radius)
-AT (0,0,0) RELATIVE vfm_location
-ROTATED(0,-mirror_grazing_angle,0) RELATIVE vfm_in_xz_plane
+  radius=PX2a_vfm_radius)
+AT (0,0,0) RELATIVE PX2a_vfm_location
+ROTATED(0,-PX2a_mirror_grazing_angle,0) RELATIVE PX2a_vfm_in_xz_plane
 EXTEND %{
-  flag_vfm=SCATTERED;
+  PX2a_flag_vfm=SCATTERED;
 %}
 
-COMPONENT vfm_takeoff = COPY(vfm_location)
-AT (0,0,0) RELATIVE vfm_in_xz_plane
-ROTATED (-2*mirror_grazing_angle, 0, 0) RELATIVE vfm_location
+COMPONENT PX2a_vfm_takeoff = COPY(PX2a_vfm_location)
+AT (0,0,0) RELATIVE PX2a_vfm_in_xz_plane
+ROTATED (-2*PX2a_mirror_grazing_angle, 0, 0) RELATIVE PX2a_vfm_location
 
 // KB 2nd mirror (YZ) at 1m from sample, shift height=4.8 mm 
-COMPONENT hfm_location = COPY(vfm_location)
-AT (0,0,34.5-33.9) RELATIVE vfm_takeoff
+COMPONENT PX2a_hfm_location = COPY(PX2a_vfm_location)
+AT (0,0,34.5-33.9) RELATIVE PX2a_vfm_takeoff
 
 // 859 m tangential; sagital > 1 km, in YZ plane
-COMPONENT hfm = Mirror_curved(
+COMPONENT PX2a_hfm = Mirror_curved(
   coating="Rh.txt",
   length=450e-3,
   width=0.1,
-  radius=hfm_radius)
-AT (0,0,0) RELATIVE hfm_location
-ROTATED (0,-mirror_grazing_angle,0) RELATIVE hfm_location
+  radius=PX2a_hfm_radius)
+AT (0,0,0) RELATIVE PX2a_hfm_location
+ROTATED (0,-PX2a_mirror_grazing_angle,0) RELATIVE PX2a_hfm_location
 EXTEND %{
-  flag_hfm=SCATTERED;
+  PX2a_flag_hfm=SCATTERED;
 %}
 
-COMPONENT hfm_takeoff = COPY(vfm_location)
-AT (0,0,0) RELATIVE hfm_location
-ROTATED (0,-2*mirror_grazing_angle,0) RELATIVE hfm_location
+COMPONENT PX2a_hfm_takeoff = COPY(PX2a_vfm_location)
+AT (0,0,0) RELATIVE PX2a_hfm_location
+ROTATED (0,-2*PX2a_mirror_grazing_angle,0) RELATIVE PX2a_hfm_location
 
 // Sample ----------------------------------------------------------------------
 // we centre the beam after the KB.
-COMPONENT sample_stage = Arm()
-AT (1e-3,-1.1e-3,1) RELATIVE hfm_takeoff
+COMPONENT PX2a_sample_stage = Arm()
+AT (1e-3,-1.1e-3,1) RELATIVE PX2a_hfm_takeoff
 EXTEND %{
-  if (!flag_hfm || !flag_vfm) ABSORB;
+  if (!PX2a_flag_hfm || !PX2a_flag_vfm) ABSORB;
 %}
 
-COMPONENT sample_monitor = Monitor_nD(
+COMPONENT PX2a_sample_monitor = Monitor_nD(
   xwidth = 0.01, yheight = 0.01,
   options = "x y", bins=100)
-  AT (0, 0, 0) RELATIVE sample_stage
+  AT (0, 0, 0) RELATIVE PX2a_sample_stage
 
-SPLIT SPLITs COMPONENT sample = Single_crystal(reflections=sample, material_datafile="NULL",
+SPLIT splits COMPONENT PX2a_sample = Single_crystal(reflections=PX2a_sample, material_datafile="NULL",
   radius = .5e-4, yheight = 5e-3, p_transmit = 0, mosaic=0.1, order=1)
-  AT (0, 0, 0) RELATIVE sample_stage
-  ROTATED (rotX,rotY,rotZ) RELATIVE sample_stage
+  AT (0, 0, 0) RELATIVE PX2a_sample_stage
+  ROTATED (PX2a_rotX,PX2a_rotY,PX2a_rotZ) RELATIVE PX2a_sample_stage
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
 
-COMPONENT psd4pi = PSD_monitor_4PI(
+COMPONENT PX2a_psd4pi = PSD_monitor_4PI(
     nx = 180, ny = 180, filename = "psd4pi", radius = 0.1, restore_xray = 1)
-AT (0, 0, 0) RELATIVE sample
+AT (0, 0, 0) RELATIVE PX2a_sample
 
 // Detector
-COMPONENT Eiger9M = PSD_monitor(
+COMPONENT PX2a_Eiger9M = PSD_monitor(
   nx=3108, ny=3262,
   xwidth = 233.1e-3,
   yheight= 244.7e-3,
-  filename="Eiger9M.dat"
+  filename="PX2a_Eiger9M.dat"
 )
-AT (0,0,0.12) RELATIVE sample_stage
+AT (0,0,0.12) RELATIVE PX2a_sample_stage
 
 END

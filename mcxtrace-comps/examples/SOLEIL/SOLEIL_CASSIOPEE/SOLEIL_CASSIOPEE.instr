@@ -29,19 +29,19 @@
 * 29.02    | Plane mirror M2
 * 30.83    | Slit
 *
-* %Example: E0=0 Detector: PSD_M1out_I=2.74309e+15
+* %Example: CASSIOPEE_E0=0 Detector: CASSIOPEE_PSD_M1out_I=2.74309e+15
 *
 * %Parameters
-* E0:              [keV] Undulator emission energy, e.g. 40e-3 or 300e-3 keV. 0=auto
-* lambda:          [Ang] Undulator emission wavelength. Used when E0=0.
-* dE:              [keV] Undulator energy bandwidth, e.g. 1e-3.
-* mirror_material: [str] Mirror M1 coating (e.g. Pt.dat)
-* undulator_index: [1-2] Undulator 1=HU60; 2=HU256
-* M1_angle:        [deg] M1 mirror angle. 0=auto
-* PG_angle:        [deg] Reflective grating monochromator. 0=auto
-* PM_angle:        [deg] M2 mirror angle. 0=auto
-* beta_mono:       [deg] Monochromator angle. 0=auto
-* r_rho:           [/mm] Grating number of lines/mm. 0=auto.
+* CASSIOPEE_E0:              [keV] Undulator emission energy, e.g. 40e-3 or 300e-3 keV. 0=auto
+* CASSIOPEE_lambda:          [Ang] Undulator emission wavelength. Used when CASSIOPEE_E0=0.
+* CASSIOPEE_dE:              [keV] Undulator energy bandwidth, e.g. 1e-3.
+* CASSIOPEE_mirror_material: [str] Mirror M1 coating (e.g. Pt.dat)
+* CASSIOPEE_undulator_index: [1-2] Undulator 1=HU60; 2=HU256
+* CASSIOPEE_M1_angle:        [deg] M1 mirror angle. 0=auto
+* CASSIOPEE_PG_angle:        [deg] Reflective grating monochromator. 0=auto
+* CASSIOPEE_PM_angle:        [deg] M2 mirror angle. 0=auto
+* CASSIOPEE_beta_mono:       [deg] Monochromator angle. 0=auto
+* CASSIOPEE_r_rho:           [/mm] Grating number of lines/mm. 0=auto.
 * 
 * %L
 * https://www.synchrotron-soleil.fr/en/beamlines/cassiopee
@@ -51,15 +51,15 @@
 * %E
 *******************************************************************************/
 DEFINE INSTRUMENT SOLEIL_CASSIOPEE (
-  string mirror_material = "Pt.dat", 
-  int undulator_index =1, 
-  M1_angle = 0,
-  PG_angle = 0, 
-  PM_angle = 0, 
-  E0 = 0, dE=1e-3,
-  lambda = 0, 
-  beta_mono = 0, 
-  r_rho = 0)
+  string CASSIOPEE_mirror_material = "Pt.dat", 
+  int CASSIOPEE_undulator_index =1, 
+  CASSIOPEE_M1_angle = 0,
+  CASSIOPEE_PG_angle = 0, 
+  CASSIOPEE_PM_angle = 0, 
+  CASSIOPEE_E0 = 0, CASSIOPEE_dE=1e-3,
+  CASSIOPEE_lambda = 0, 
+  CASSIOPEE_beta_mono = 0, 
+  CASSIOPEE_r_rho = 0)
 
 
 INITIALIZE
@@ -70,36 +70,38 @@ double cos_alpha= 0;
 double c        = 0.2;  // Petersen law coefficient sin(b) / sin(a) = c = 0.2 */
 double order    = 1;
 
-// source choice
-if (!E0 && !lambda) {
-  if (undulator_index == 1)      E0 = 300e-3;
-  else if (undulator_index == 2) E0 = 40e-3;
+{ // use block to protect local variables
+  // source choice
+  if (!CASSIOPEE_E0 && !CASSIOPEE_lambda) {
+    if (CASSIOPEE_undulator_index == 1)      CASSIOPEE_E0 = 300e-3;
+    else if (CASSIOPEE_undulator_index == 2) CASSIOPEE_E0 = 40e-3;
+  }
+
+  if (CASSIOPEE_lambda && !CASSIOPEE_E0) CASSIOPEE_E0     = 1.24125e-6/CASSIOPEE_lambda;
+  else if (!CASSIOPEE_lambda && CASSIOPEE_E0) CASSIOPEE_lambda = 1.24125e-6/CASSIOPEE_E0;
+
+  if (!CASSIOPEE_M1_angle) CASSIOPEE_M1_angle = (CASSIOPEE_undulator_index == 1 ? 2.44 : 5.02); // degrees
+  if (!CASSIOPEE_r_rho)    CASSIOPEE_r_rho    = (CASSIOPEE_undulator_index == 1 ? 1600 : 400 ); // lines/mm
+
+  /* grating deviation angles */
+  cos_alpha = (-CASSIOPEE_r_rho*CASSIOPEE_lambda + sqrt( sqr(c*CASSIOPEE_r_rho*CASSIOPEE_lambda) + sqr(1 - sqr(c)) ))/(1 - sqr(c) );
+
+  if (!CASSIOPEE_PG_angle)  // alpha angle = incoming, order = 0
+    CASSIOPEE_PG_angle  = RAD2DEG*acos( cos_alpha );
+    
+  if (!CASSIOPEE_beta_mono) // beta angle  = outging,  order = 1
+    CASSIOPEE_beta_mono = RAD2DEG*acos( cos_alpha + order*CASSIOPEE_r_rho*CASSIOPEE_lambda );
+
+  if (!CASSIOPEE_PM_angle) 
+    CASSIOPEE_PM_angle = (CASSIOPEE_PG_angle + CASSIOPEE_beta_mono)/2;
 }
 
-if (lambda && !E0) E0     = 1.24125e-6/lambda;
-else if (!lambda && E0) lambda = 1.24125e-6/E0;
-
-if (!M1_angle) M1_angle = (undulator_index == 1 ? 2.44 : 5.02); // degrees
-if (!r_rho)    r_rho    = (undulator_index == 1 ? 1600 : 400 ); // lines/mm
-
-/* grating deviation angles */
-cos_alpha = (-r_rho*lambda + sqrt( sqr(c*r_rho*lambda) + sqr(1 - sqr(c)) ))/(1 - sqr(c) );
-
-if (!PG_angle)  // alpha angle = incoming, order = 0
-  PG_angle  = RAD2DEG*acos( cos_alpha );
-  
-if (!beta_mono) // beta angle  = outging,  order = 1
-  beta_mono = RAD2DEG*acos( cos_alpha + order*r_rho*lambda );
-
-if (!PM_angle) 
-  PM_angle = (PG_angle + beta_mono)/2;
-
 MPI_MASTER(
-printf("%s: Undulator %s E0=%g [eV] lambda=%g [Angs] M1_angle=%g [deg] PG_angle=%g [deg] PM_angle=%g [deg]\n", 
+printf("%s: Undulator %s CASSIOPEE_E0=%g [eV] CASSIOPEE_lambda=%g [Angs] CASSIOPEE_M1_angle=%g [deg] CASSIOPEE_PG_angle=%g [deg] CASSIOPEE_PM_angle=%g [deg]\n", 
   NAME_INSTRUMENT,
-  undulator_index == 1 ? "HU60":"HU256",
-  E0, lambda, 
-  M1_angle, PG_angle, PM_angle);
+  CASSIOPEE_undulator_index == 1 ? "HU60":"HU256",
+  CASSIOPEE_E0, CASSIOPEE_lambda, 
+  CASSIOPEE_M1_angle, CASSIOPEE_PG_angle, CASSIOPEE_PM_angle);
 );
 
 %}
@@ -112,12 +114,12 @@ TRACE
 // -----------|--------|-----|----|----|--
 // CASSIOPEE_1|308,0047|217,4|10,6|31,4|4,2
 // CASSIOPEE_2|310,6492|214,7|8,2 |31,4|4,2
-REMOVABLE COMPONENT Origin = Progress_bar() 
+REMOVABLE COMPONENT CASSIOPEE_Origin = Progress_bar() 
 AT (0, 0, 0) ABSOLUTE
 
 /* -------------------------------------------------- Source HU60 */
-COMPONENT Source_HU60 = Undulator(
-    E0 = E0,
+COMPONENT CASSIOPEE_Source_HU60 = Undulator(
+    E0 = CASSIOPEE_E0,
     dE = 1e-3,
     Ee = 2.75,
     Ie = 0.5,
@@ -126,15 +128,15 @@ COMPONENT Source_HU60 = Undulator(
     sigey = 10.6e-6,
     sigepx = 31.4e-6,
     sigepy = 4.2e-6)
-WHEN undulator_index == 1
+WHEN CASSIOPEE_undulator_index == 1
 AT (0, 0, 0) RELATIVE PREVIOUS
 
 
 
 /* -------------------------------------------------- Source HU256 */
 
-COMPONENT Source_HU256 = Undulator(
-    E0 = E0,
+COMPONENT CASSIOPEE_Source_HU256 = Undulator(
+    E0 = CASSIOPEE_E0,
     dE = 1e-3,
     Ee = 2.75,
     Ie = 0.5,
@@ -143,84 +145,84 @@ COMPONENT Source_HU256 = Undulator(
     sigey = 8.2e-6,
     sigepx = 31.4e-6,
     sigepy = 4.2e-6)
-WHEN undulator_index == 2
+WHEN CASSIOPEE_undulator_index == 2
 AT (0, 0, 2.727) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- Plane mirror M1a */
 /* dimensions 130x25 mm (e=60 mm) */
 
-COMPONENT M1a_location = Arm()
-AT (0, 0, 21.83)          RELATIVE Source_HU60
+COMPONENT CASSIOPEE_M1a_location = Arm()
+AT (0, 0, 21.83)          RELATIVE CASSIOPEE_Source_HU60
 
-COMPONENT M1a = Mirror_curved( // in YZ plane
-  coating = mirror_material,
+COMPONENT CASSIOPEE_M1a = Mirror_curved( // in YZ plane
+  coating = CASSIOPEE_mirror_material,
   zdepth  = 0.130,
   yheight = 0.025,
   radius  = 0                 // flat
 )
-AT (0, 0, 0)             RELATIVE M1a_location
-ROTATED (0, M1_angle, 0) RELATIVE M1a_location
+AT (0, 0, 0)             RELATIVE CASSIOPEE_M1a_location
+ROTATED (0, CASSIOPEE_M1_angle, 0) RELATIVE CASSIOPEE_M1a_location
 
-COMPONENT M1a_out = Arm()
-AT (0,0,0)                 RELATIVE M1a_location
-ROTATED (0, 2*M1_angle, 0) RELATIVE M1a_location
+COMPONENT CASSIOPEE_M1a_out = Arm()
+AT (0,0,0)                 RELATIVE CASSIOPEE_M1a_location
+ROTATED (0, 2*CASSIOPEE_M1_angle, 0) RELATIVE CASSIOPEE_M1a_location
 
 /* -------------------------------------------------- Spherical mirror M1b */
 /* dimensions 150x25 mm (e=60 mm) radius 108.4 m */
 
-COMPONENT M1b = Mirror_curved(
-    coating = mirror_material,
+COMPONENT CASSIOPEE_M1b = Mirror_curved(
+    coating = CASSIOPEE_mirror_material,
     radius  = -108.4,
     length  = 0.150,
     width   = 0.025
 )    
-WHEN undulator_index == 2
-AT (0, 0, 0.352)         RELATIVE M1a_out
-ROTATED (0, -M1_angle, 0) RELATIVE M1a_out
+WHEN CASSIOPEE_undulator_index == 2
+AT (0, 0, 0.352)         RELATIVE CASSIOPEE_M1a_out
+ROTATED (0, -CASSIOPEE_M1_angle, 0) RELATIVE CASSIOPEE_M1a_out
 
 
 /* -------------------------------------------------- Spherical mirror M1c */
 /* dimensions 160x25 mm (e=60 mm) radius 120 m */
 
-COMPONENT M1c = Mirror_curved(
-    coating = mirror_material,
+COMPONENT CASSIOPEE_M1c = Mirror_curved(
+    coating = CASSIOPEE_mirror_material,
     radius  = -120,
     length  = 0.160,
     width   = 0.025
 )  
-WHEN undulator_index == 1  
-AT (0, 0, 0.352+0.357)   RELATIVE M1a_out
-ROTATED (0, -M1_angle, 0) RELATIVE M1a_out
+WHEN CASSIOPEE_undulator_index == 1  
+AT (0, 0, 0.352+0.357)   RELATIVE CASSIOPEE_M1a_out
+ROTATED (0, -CASSIOPEE_M1_angle, 0) RELATIVE CASSIOPEE_M1a_out
 
-COMPONENT M1bc_out = Arm()
+COMPONENT CASSIOPEE_M1bc_out = Arm()
 AT (0,0,0) RELATIVE PREVIOUS
-ROTATED (0, -M1_angle, 0) RELATIVE PREVIOUS
+ROTATED (0, -CASSIOPEE_M1_angle, 0) RELATIVE PREVIOUS
 
 /* --------------------------------------------------- Grating 1
 /* dimensions 95x40 mm, 400 lines/mm, horizontal, 6 m de M1a */
 
-COMPONENT PSD_M1out = Monitor_nD(xwidth=1e-3, yheight=1e-3, bins=512,
+COMPONENT CASSIOPEE_PSD_M1out = Monitor_nD(xwidth=1e-3, yheight=1e-3, bins=512,
   options = "x y")
 AT (0,0,3) RELATIVE PREVIOUS
 
-COMPONENT  PG_location = Arm()
-AT (0,0, 6 - 0.352 - 0.357) RELATIVE M1bc_out
+COMPONENT CASSIOPEE_PG_location = Arm()
+AT (0,0, 6 - 0.352 - 0.357) RELATIVE CASSIOPEE_M1bc_out
 
 /* Monochromator grating ---------------------------------------------------- */
-/* cos(a) - cos(b) = N.k.lambda ; N=r_rho; k=order; a=incident; b=outgoing    */
+/* cos(a) - cos(b) = N.k.CASSIOPEE_lambda ; N=CASSIOPEE_r_rho; k=order; a=incident; b=outgoing    */
 /* we use the Petersen law: sin(b) / sin(a) = 0.2                             */
 /* beam deviation is alpha+beta                                               */
 /* Grating_reflect(d_phi=1,order=0,rho_l=100,zdepth=102e-3,xwidth=102e-3)     */
 
-COMPONENT PG = Grating_reflect(
+COMPONENT CASSIOPEE_PG = Grating_reflect(
    zdepth = 0.095,
    xwidth = 0.040,
    d_phi  = 2,
    order  = 1,
-   rho_l  = r_rho
+   rho_l  = CASSIOPEE_r_rho
 )
-AT (0,0, 0) RELATIVE PG_location
-ROTATED (PG_angle, 0, 0) RELATIVE PG_location
+AT (0,0, 0) RELATIVE CASSIOPEE_PG_location
+ROTATED (CASSIOPEE_PG_angle, 0, 0) RELATIVE CASSIOPEE_PG_location
 
 
 
@@ -237,30 +239,30 @@ ROTATED (PG_angle, 0, 0) RELATIVE PG_location
  * => the beam is deflected by 20 mm upwards
  */
 
-COMPONENT M2_rotation_axis = Monitor_nD(xwidth=1e-2, yheight=1e-2,
+COMPONENT CASSIOPEE_M2_rotation_axis = Monitor_nD(xwidth=1e-2, yheight=1e-2,
   options="x y", bins=512)
-AT (0, -0.01, 0) RELATIVE PG_location
+AT (0, -0.01, 0) RELATIVE CASSIOPEE_PG_location
 
-COMPONENT M2 = Mirror(
-coating = mirror_material,
+COMPONENT CASSIOPEE_M2 = Mirror(
+coating = CASSIOPEE_mirror_material,
 zdepth = 0.320,
 xwidth = 0.030
     )
-AT (0, 0.02, .190) RELATIVE M2_rotation_axis
-ROTATED (-PM_angle, 0, 0) RELATIVE M2_rotation_axis
+AT (0, 0.02, .190) RELATIVE CASSIOPEE_M2_rotation_axis
+ROTATED (-CASSIOPEE_PM_angle, 0, 0) RELATIVE CASSIOPEE_M2_rotation_axis
 
-COMPONENT PM_takeoff = Arm()
-AT (0,0,0) RELATIVE M2
-ROTATED (0,0,0) RELATIVE Origin
+COMPONENT CASSIOPEE_PM_takeoff = Arm()
+AT (0,0,0) RELATIVE CASSIOPEE_M2
+ROTATED (0,0,0) RELATIVE CASSIOPEE_Source_HU256
 
 /* -------------------------------------------------- Horizontal slit */
 /* 2 microns aperture at 2 mm
  * located 3 m from the grating, i.e. 9 m from M1a 
  */
 
-COMPONENT slit = Slit(
+COMPONENT CASSIOPEE_slit = Slit(
     )
-AT (-0.062, 0, 30.83) RELATIVE Origin	
+AT (-0.062, 0, 30.83) RELATIVE CASSIOPEE_Source_HU256	
 
 /* Refocalisation branche 1 */
 
@@ -278,10 +280,10 @@ AT (-0.062, 0, 30.83) RELATIVE Origin
  * located à 7 m after the slit, radius = 94.88 m, deviation 5.8 deg 
  */
 
-COMPONENT M4 = Mirror_curved(
-    coating = mirror_material)    
+COMPONENT CASSIOPEE_M4 = Mirror_curved(
+    coating = CASSIOPEE_mirror_material)    
 AT (0, 0, 0) RELATIVE PREVIOUS	
-ROTATED (0, 0, 0) RELATIVE Origin
+ROTATED (0, 0, 0) RELATIVE CASSIOPEE_Source_HU256
 
 /* -------------------------------------------------- Toroidal mirror M5 */
 /* dimensions 300x35 mm (e=40 mm)
@@ -289,7 +291,7 @@ ROTATED (0, 0, 0) RELATIVE Origin
  * R = 263.65 m, r = 0.165 m, deviation 6 deg 
  */
 
-COMPONENT PSD = Monitor_nD(xwidth=1e-2, yheight=1e-2,
+COMPONENT CASSIOPEE_PSD = Monitor_nD(xwidth=1e-2, yheight=1e-2,
   options = "x y")
 AT (0,0,0.5) RELATIVE PREVIOUS
 

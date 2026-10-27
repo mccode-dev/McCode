@@ -20,14 +20,9 @@ import sys
 import os
 import re
 import subprocess
+import tempfile
 from os.path import join, basename
 import pathlib
-
-# Capture the shell's CWD *before* any downstream import can chdir. Some
-# mccodelib modules (e.g. mccode_config) may change the process CWD as a
-# side effect of loading system configuration, which would otherwise make
-# './mcdoc.html' land next to the script instead of the user's CWD.
-_INVOCATION_CWD = os.getcwd()
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
@@ -54,6 +49,15 @@ def get_doc_filepath(filepath, ext='html', outdir=None):
         h = pathlib.Path(str(h).replace(str(h.parent.parent),
                                     mccode_config.directories['docdir']))
     return h
+
+
+def _mathjax_src(html_path):
+    ''' path from html_path to the MathJax copy installed in docdir '''
+    mj = os.path.join(mccode_config.directories['docdir'], 'mathjax', 'tex-svg.js')
+    try:
+        return pathlib.Path(os.path.relpath(mj, os.path.dirname(os.path.abspath(html_path)))).as_posix()
+    except ValueError:  # e.g. different drives on Windows
+        return pathlib.Path(mj).as_uri()
 
 
 def get_html_filepath(filepath):
@@ -511,6 +515,7 @@ class OverviewDocWriter:
         else:
             text = text.replace('%HDR_ASTROX%', '')
             text = text.replace('%TABLE_ASTROX%', '')
+            text = text.replace('%TAB_LINES_ASTROX%', '')
 
         text = text.replace('%MCCODE_LIBDIR%', self.mccode_libdir)
         text = text.replace('%MCCODE_DOCDIR%', self.mccode_docdir)
@@ -754,6 +759,56 @@ class OverviewDocWriter:
 <CENTER>
 [ <A href="http://www.mcstas.org/"><I>McStas web site</I></A> ]
 </CENTER>
+
+<P><BR>
+<ADDRESS>
+Generated for %VERSION%
+</ADDRESS>
+</BODY>
+</HTML>
+'''
+
+
+class SearchDocWriter(OverviewDocWriter):
+    ''' Stand-alone search results page, written outside docdir so the main page is untouched. '''
+    def create(self):
+        self.text = super().create().replace('%MAIN_PAGE%', mccode_config.get_mccode_prefix() + 'doc.html')
+        return self.text
+
+    html = '''
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+   <META NAME="GENERATOR" CONTENT="McDoc">
+   <TITLE>McStas : search results</TITLE>
+</HEAD>
+<BODY>
+
+<P ALIGN=CENTER>
+[ <a href="file://%MCCODE_DOCDIR%/%MAIN_PAGE%">Full component/instrument library</a>
+| <a href="file://%MCCODE_DOCDIR%/README.html">Tool docs</a>
+| <a href="file://%MCCODE_LIBDIR%/">McCode lib dir</a> ]
+</P>
+
+<CENTER><H1>McStas search results</H1></CENTER>
+
+<P><B><FONT COLOR="#FF0000">Components</FONT></B>
+<TABLE BORDER COLS=5 WIDTH="100%" NOSAVE>
+%TAB_HEAD%
+%TAB_LINES_SOURCES%%TAB_LINES_OPTICS%%TAB_LINES_SAMPLES%%TAB_LINES_MONITORS%%TAB_LINES_UNION%%TAB_LINES_SASMODELS%%TAB_LINES_ASTROX%%TAB_LINES_MISC%%TAB_LINES_CONTRIB%%TAB_LINES_OBSOLETE%
+</TABLE>
+
+<P><B><FONT COLOR="#FF0000">Instruments</FONT></B>
+<TABLE BORDER COLS=5 WIDTH="100%" NOSAVE>
+%TAB_HEAD%
+%TAB_LINES_EXAMPLES%
+</TABLE>
+
+<P><B><FONT COLOR="#FF0000">Local components and instruments</FONT></B>
+<TABLE BORDER COLS=5 WIDTH="100%" NOSAVE>
+%TAB_HEAD%
+%TAB_LINES_COMPS_LOCAL%%TAB_LINES_INSTR_LOCAL%
+</TABLE>
 
 <P><BR>
 <ADDRESS>
@@ -1061,13 +1116,11 @@ class InstrDocWriter:
 
 <BODY>
 
-<script src="https://tex.mccode.org/jquery/latest/jquery.min.js"></script>
-<script src="https://tex.mccode.org/jquery/latex/jquery.jslatex.packed.js"></script>
 <script>
-$(function () {
-    $(".latex").latex();
-});
+window.MathJax = { tex: { inlineMath: [['$', '$']] },
+  startup: { elements: ['.latex'] }, options: { enableMenu: false } };
 </script>
+<script src="%MATHJAX%"></script>
 
 <P ALIGN=CENTER>
  [ <A href="#id">Identification</A>
@@ -1354,13 +1407,11 @@ function comp() {
 }
 </script>
 
-<script src="https://tex.mccode.org/jquery/latest/jquery.min.js"></script>
-<script src="https://tex.mccode.org/jquery/latex/jquery.jslatex.packed.js"></script>
 <script>
-$(function () {
-    $(".latex").latex();
-});
+window.MathJax = { tex: { inlineMath: [['$', '$']] },
+  startup: { elements: ['.latex'] }, options: { enableMenu: false } };
 </script>
+<script src="%MATHJAX%"></script>
 
 <BODY>
 
@@ -1829,6 +1880,8 @@ def write_doc_files_or_continue(comp_infos, instr_infos, comp_files, instr_files
                 doc = CompW(p)
                 text = doc.create()
                 h = get_doc_filepath(f, ext, outdir=outdir)
+                if fmt == 'html':
+                    text = text.replace('%MATHJAX%', _mathjax_src(h))
                 if printlog:
                     print("writing doc file... %s" % h)
                 write_file(h, text, failsilent=True)
@@ -1851,6 +1904,8 @@ def write_doc_files_or_continue(comp_infos, instr_infos, comp_files, instr_files
                 if fmt == 'md':
                     f = pathlib.Path(f).parent / "README.md"
                 h = get_doc_filepath(f, ext, outdir=outdir)
+                if fmt == 'html':
+                    text = text.replace('%MATHJAX%', _mathjax_src(h))
                 if printlog:
                     print("writing doc file... %s" % h)
                 write_file(h, text, failsilent=True)
@@ -1861,7 +1916,7 @@ def write_doc_files_or_continue(comp_infos, instr_infos, comp_files, instr_files
 
 
 def write_overview_docs(comp_infos, instr_infos, comp_infos_local, instr_infos_local,
-                        libdir, docdir, out_basepath, formats=('html',), printlog=False):
+                        libdir, docdir, out_basepath, formats=('html',), printlog=False, html_writer=None):
     ''' Build and write the master overview page(s) in the requested formats.
         out_basepath: path with extension that will be swapped (e.g. /.../mcdoc.html).
                       The extension is replaced per format.
@@ -1872,7 +1927,7 @@ def write_overview_docs(comp_infos, instr_infos, comp_infos_local, instr_infos_l
     # Suppres TeX
     for fmt in formats:
         if not fmt=='tuple':
-            WriterCls = _OVERVIEW_WRITERS[fmt]
+            WriterCls = html_writer if (fmt == 'html' and html_writer) else _OVERVIEW_WRITERS[fmt]
             writer = WriterCls(comp_infos, instr_infos, comp_infos_local, instr_infos_local, libdir, docdir)
             text = writer.create()
             path = '%s.%s' % (base, fmt)
@@ -2045,16 +2100,20 @@ def main(args):
             quit()
 
         if args.in_repo==False:
-            mcdoc_html_filepath = os.path.join(_INVOCATION_CWD, mccode_config.get_mccode_prefix()+'doc.html')
+            # next to the main page (sandboxed browsers only follow file:// links within the page's dir), tmp if read-only
+            searchdir = docdir if os.access(docdir, os.W_OK) else tempfile.gettempdir()
+            mcdoc_html_filepath = os.path.join(searchdir, mccode_config.get_mccode_prefix()+'doc_search.html')
         else:
             mcdoc_html_filepath = None
         write_overview_docs(comp_infos, instr_infos, comp_infos_local, instr_infos_local,
                             usedir, mccode_config.directories['docdir'],
                             mcdoc_html_filepath,
                             formats=formats,
-                            printlog=args.verbose)
+                            printlog=args.verbose,
+                            html_writer=SearchDocWriter)
 
-        mccode_config.open_in_browser(os.path.join(_INVOCATION_CWD, mccode_config.get_mccode_prefix()+'doc.html'))
+        if mcdoc_html_filepath:
+            mccode_config.open_in_browser(mcdoc_html_filepath)
 
 
 if __name__ == '__main__':

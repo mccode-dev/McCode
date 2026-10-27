@@ -70,7 +70,7 @@ def to_dataarray(d):
 
 def _nx_dataarray(g):
     ''' McCode NeXus monitor (NXdata group) -> (title, DataArray), None for 0D / event lists '''
-    a = {k: v.decode() if isinstance(v, bytes) else v for k, v in g.attrs.items()}
+    a = {k: v.decode(errors='replace') if isinstance(v, bytes) else v for k, v in g.attrs.items()}  # older runtimes wrote uninitialised 'options' for 0D/1D monitors
     typ = a.get('type', '')
     if typ.startswith('array_1d'):
         da = _curve(g['data'][()], g['errors'][()], a['xlabel'], [float(v) for v in a['xlimits'].split()])
@@ -156,11 +156,12 @@ def load_events(path, source, sample):
     return ev
 
 
-def event_figures(ev, threed=False):
-    ''' pixel intensity map (3D scatter in Jupyter, z-x top view otherwise) + time-of-flight and wavelength spectra '''
-    pix = ev.bins.sum()
+def event_figures(ev, threed=False, size=0.015):
+    ''' pixel intensity map (3D scatter in Jupyter, z-x top view otherwise) + time-of-flight and
+        wavelength spectra. size: 3D marker size in m, roughly the detector pixel pitch '''
+    pix = ev.hist()
     if threed:
-        det = pp.scatter3d(pix, pos='position', cbar=True, title='pixel intensity')
+        det = pp.scatter3d(pix, pos='position', size=size, cbar=True, title='pixel intensity')
     else:
         for ax in 'xz':
             pix.coords[ax] = pix.coords['position'].fields.__getattribute__(ax)
@@ -202,10 +203,13 @@ def scan_slicer(da, log=False):
 
 
 def ui(path):
-    ''' Jupyter (%matplotlib widget): pick a monitor; scans get the step player, log via the plot toolbar '''
+    ''' Jupyter (%matplotlib widget): pick a monitor; scans get the step player, log via the plot toolbar.
+        Displays the UI and returns the data as a scipp DataGroup keyed like the dropdown; loading event
+        data adds it under 'events' '''
     import ipywidgets as w
     from IPython.display import display
     das = load(path)
+    data = sc.DataGroup(das)
     pick = w.Dropdown(options=list(das), description='monitor', layout={'width': '40em'})
     out = w.Output()
 
@@ -231,11 +235,13 @@ def ui(path):
         def show_events(_=None):
             evout.clear_output(wait=True)
             with evout:
-                det, tof, lam = event_figures(load_events(path, src.value, smp.value), threed=True)
+                data['events'] = load_events(path, src.value, smp.value)
+                det, tof, lam = event_figures(data['events'], threed=True)
                 display(w.VBox([det, w.HBox([tof, lam])]))
         go.on_click(show_events)
         rows += [w.HTML('<b>Event data</b> (McStasToX)'), w.HBox([src, smp, go]), evout]
-    return w.VBox(rows)
+    display(w.VBox(rows))
+    return data
 
 
 def launch(call):
@@ -273,7 +279,7 @@ def main():
     p.add_argument('--sample', help='event data (NeXus, McStasToX): name of the sample component')
     args = p.parse_args()
     if not args.output:
-        return launch(f'import mcplopp; mcplopp.ui({os.path.abspath(args.simfile)!r})')
+        return launch(f'# Import and return the dataset as a scipp DataGroup object\nimport mcplopp\ndata = mcplopp.ui({os.path.abspath(args.simfile)!r})  # scipp DataGroup\ndata')
 
     figs = figures(load(args.simfile), args.log)
     if args.source and args.sample:

@@ -15,7 +15,7 @@ option( ENABLE_CIF2HKL "Build Third Party code cif2hkl (fortran)" ON )#TODO: Onl
 if ( ENABLE_CIF2HKL )
   set(DEBIDEPS "${FLAVOR}, libnexus-dev, libgsl-dev, mcpl (>= 2.2.0), ncrystal (>= 4.2.0)")
 else()
-  set(DEBIDEPS "${FLAVOR}, libnexus-dev, libgsl-dev, mcpl (>= 2.2.0), ncrystal (>= 4.2.0), cif2hkl")
+  set(DEBIDEPS "${FLAVOR}, libnexus-dev, libgsl-dev, mcpl (>= 2.2.0), ncrystal (>= 4.2.0), cif2hkl (>= 1.5.1)")
 endif()
 
 set(WORK "${PROJECT_BINARY_DIR}/work")
@@ -43,15 +43,11 @@ include(CPack)
 
 if ( ENABLE_CIF2HKL )
   enable_language( Fortran )
-  add_executable(
-    cif2hkl
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/cif2hkl/cif2hkl.F90
-    )
-  target_compile_options(cif2hkl PUBLIC "-ffree-line-length-512")
-  install (
-    TARGETS cif2hkl
-    DESTINATION "${DEST_BINDIR}"
-    )
+  # Upstream SOLEIL cif2hkl sources, pinned in libs/cif2hkl/cif2hkl.ext
+  mccode_install_externals( DIRECTORY "libs/cif2hkl" OUTPUT_VARIABLE cif2hkl_src )
+  add_executable( cif2hkl ${cif2hkl_src} )
+  target_compile_options( cif2hkl PUBLIC "-ffree-line-length-512" )
+  install( TARGETS cif2hkl DESTINATION "${DEST_BINDIR}" )
 endif()
 
 option( ENABLE_NEUTRONICS "Build Third Party code neutronics (fortran)" ON )#TODO: Only enable enable Fortran if this is on

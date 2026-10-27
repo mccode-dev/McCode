@@ -31,6 +31,17 @@ manifest in each:
 Manifests are not installed: the `install( DIRECTORY ... )` rules that cover
 those directories carry `PATTERN "*.ext" EXCLUDE`.
 
+### Sources that are compiled: cif2hkl
+
+`mcstas-comps/libs/cif2hkl/cif2hkl.ext` (McXtrace: a symlink to it) pins the
+SOLEIL [cif2hkl](https://gitlab.com/soleil-data-treatment/soleil-software-projects/cif2hkl)
+Fortran sources. Its `mccode_install_externals()` call has no `DESTINATION`,
+so the files are only staged, never installed; `OUTPUT_VARIABLE` hands them
+to `add_executable( cif2hkl ... )`. cif2hkl lives on GitLab, which the poll
+job below does not query, so move it to a new release by hand with
+`mcext update mcstas-comps/libs/cif2hkl/cif2hkl.ext -v <tag>` (and bump the
+`cif2hkl >=` conda and Debian pins to match).
+
 ## Manifest format
 
 Short form — a JSON array of fully self-describing file entries:
@@ -38,7 +49,7 @@ Short form — a JSON array of fully self-describing file entries:
 ```json
 [
   { "name": "chopper-lib.h",
-    "url": "https://raw.githubusercontent.com/mcdotstar/mcstas-chopper-lib/v4.1.0/chopper-lib.h",
+    "url": "https://raw.githubusercontent.com/<owner>/<repo>/<tag>/chopper-lib.h",
     "sha256": "0965f6660850acce12d665d7a57064389ccb570e218f21c1dbad9155ee7d8ef9" }
 ]
 ```
@@ -51,10 +62,10 @@ applies to every entry that does not override it:
 {
   "name": "mcstas-chopper-lib",
   "description": "Chopper opening/closing times and (inverse velocity, time) masks.",
-  "homepage": "https://github.com/mcdotstar/mcstas-chopper-lib",
-  "git": "https://github.com/mcdotstar/mcstas-chopper-lib.git",
-  "version": "v4.1.0",
-  "base": "https://raw.githubusercontent.com/mcdotstar/mcstas-chopper-lib/v4.1.0/",
+  "homepage": "https://github.com/<owner>/<repo>",
+  "git": "https://github.com/<owner>/<repo>.git",
+  "version": "<tag>",
+  "base": "https://raw.githubusercontent.com/<owner>/<repo>/<tag>/",
   "files": [
     { "name": "chopper-lib.h", "sha256": "0965f666..." },
     { "name": "chopper-lib.c", "sha256": "d914a307..." }
@@ -64,6 +75,9 @@ applies to every entry that does not override it:
 
 Prefer the long form: it is the one that records *what* the contribution is,
 not just where some bytes live.
+
+For a real, current manifest see
+[`mcstas-comps/share/chopper-lib.ext`](../mcstas-comps/share/chopper-lib.ext).
 
 ### File-entry keys
 
@@ -133,10 +147,10 @@ credentials.
 `mcext` needs only Python 3.9+. Without installing anything:
 
 ```sh
-pipx run --spec git+https://github.com/mccode-dev/external-registrar@v1 mcext --help
+pipx run --spec https://github.com/mccode-dev/external-registrar/archive/refs/tags/v1.tar.gz mcext --help
 ```
 
-or `pip install git+https://github.com/mccode-dev/external-registrar@v1` to
+or `pip install https://github.com/mccode-dev/external-registrar/archive/refs/tags/v1.tar.gz` to
 put `mcext` on your path. The steps below assume the latter.
 
 1. Create the directory the files belong in, if it does not exist.

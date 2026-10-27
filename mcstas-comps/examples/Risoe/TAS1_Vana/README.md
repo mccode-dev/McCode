@@ -24,6 +24,9 @@ The sample is a vanadium and the analyzer is a single plate.
 ## Examples
 
 - **Test: PHM=-37.077 Detector: sng_I=1.11099e-09**
+- With TTA=0 the detector looks straight through the analyzer, so an OMA scan shows
+- a transmission dip where the analyzer is at its Bragg angle:
+- **TestScan: mcrun TAS1_Vana.instr OMA=-19.45,-15.45 -N21 -n1e6 Detector: sng_I={21 values}**
 
 ## Input parameters
 
@@ -36,7 +39,7 @@ Parameters in **boldface** are required; the others are optional.
 | TT | deg | Take-off angle at the sample position, aka A4 | 33.52 |
 | TTA | deg | Take-off angle at the analyzer position, aka A6 | 0 |
 | C1 | min | Collimator 1 aperture (mono-sample arm) | 30 |
-| OMC1 | deg | Tilt angle of the Collimator 1 | 5.5 |
+| OMC1 | arcmin | Tilt angle of the Collimator 1 | 5.5 |
 | C2 | min | Collimator 2 aperture (sample-ana arm) | 28 |
 | C3 | min | Collimator 3 aperture (ana-detector arm) | 67 |
 | OMA | deg | Analyzer rotation angle, aka A5 | -17.45 |

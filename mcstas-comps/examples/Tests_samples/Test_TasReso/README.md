@@ -33,7 +33,7 @@ along with this program.  If not, see http://www.gnu.org/licenses/.
 
 ## Examples
 
-- **Test: src_lam=4.5 Detector: emon_I=887.137**
+- **Test: src_lam=4.5 Detector: emon_I=960**
 
 ## Input parameters
 

@@ -313,7 +313,7 @@ def main():
     p.add_argument('-o', '--output', help='write a static png/pdf/svg instead of opening the UI')
     p.add_argument('-y', '--yes', action='store_true', help='forwarded to mcrun: use defaults for unset parameters '
                    '(always on in the UI)')
-    args = p.parse_args()
+    args = p.parse_intermixed_args()
     if not args.output:
         return launch(f'import mcdisplopp; mcdisplopp.ui({os.path.abspath(args.instr)!r}, {args.n}, {" ".join(args.params)!r})')
 

@@ -13,7 +13,7 @@ import concurrent.futures
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from mccodelib.mcplotloader import McCodeDataLoader, Data1D, Data2D
+from mccodelib.mcplotloader import McCodeDataLoader, Data1D, Data2D, nexus_suffix
 from mccodelib.plotgraph import PNSingle, PNMultiple
 from mccodelib import mccode_config
 from shutil import copyfile
@@ -230,7 +230,7 @@ def browse(html_filepath):
     except Exception as e:
         raise Exception('Os-specific open browser: %s' % e.__str__())
 
-def plotfunc(node, filename=None):
+def plotfunc(node, filename=None, suffix=''):
     ''' plot a plotnode to a html file as an svg-plot using plotfuncs.js and d3.v4.min.js '''
 
     if isinstance(filename, list):
@@ -252,8 +252,16 @@ def plotfunc(node, filename=None):
         # of the previous sequential loop that flipped a shared global
         # `logscale` flag between calls (unsafe to parallelize as-is, since
         # concurrent threads would race on that flag).
+        # scans: the per-step monitors of each scan curve (the GUI frontends' ctrl-click)
+        steps = [sec.getdata_lst() if type(sec) is PNMultiple else [] for sec in node.get_secondaries()]
+        step_data = [d for lst in steps for d in lst if type(d) in (Data1D, Data2D)]
+        if libpath == "":
+            # ASCII scan step pages live in the step subdirs
+            for d in set(os.path.dirname(d.filepath) for d in step_data):
+                copy_libs(d)
+
         jobs = []
-        for dat in data_lst:
+        for dat in data_lst + step_data:
             jobs.append((dat, False))
             jobs.append((dat, True))
 
@@ -264,11 +272,10 @@ def plotfunc(node, filename=None):
         max_workers = get_default_workers()
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # executor.map preserves input order regardless of completion
-            # order, so results[0::2]/[1::2] line up with data_lst as before
+            # order, so results[0::2] starts with data_lst's pages
             results = list(executor.map(_run_job, jobs))
 
-        f     = results[0::2]
-        f_log = results[1::2]
+        f = results[0::2][:len(data_lst)]
         # now create an overview HTML (index.html with <iframe>)
         directory  = os.path.dirname(f[0])
         baseinstr = os.path.basename(os.getcwd())
@@ -276,91 +283,105 @@ def plotfunc(node, filename=None):
         print(os.getcwd())
         if filename is None:
             filename = os.path.join(directory, "index.html")
-            
-        with open(filename, 'w') as outfile:
-            outfile.write("<html><head>\n")
-            outfile.write(f"<title>Simulation results in folder {baseinstr}/{directory}</title>\n")
-            gridgap = int(round(WIDTH * 0.05))
-            initial_scale = 0.5
-            init_w = WIDTH * initial_scale
-            init_h = HEIGHT * initial_scale
-            init_pct = int(round(initial_scale * 100))
-            outfile.write("<style>\n")
-            outfile.write("  body { background-color: #e0e0e0; margin: 12px; font-family: sans-serif; }\n")
-            outfile.write(f"  .plotgrid {{ display: flex; flex-wrap: wrap; gap: {gridgap}px; }}\n")
-            outfile.write("  .plotcell { background-color: #ffffff; display: flex; flex-direction: column; align-items: flex-start; }\n")
-            outfile.write("  .plotcell iframe { border: none; }\n")
-            outfile.write("  .plotcell .links { margin-top: 4px; width: 100%; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 4px 12px; }\n")
-            outfile.write("  .iframe-wrap { overflow: hidden; border: 2px solid #b0b0b0; }\n")
-            outfile.write("  .iframe-wrap iframe { transform-origin: top left; display: block; }\n")
-            outfile.write("  #sizecontrol { margin-bottom: 16px; font-size: 14px; }\n")
-            outfile.write("  #sizecontrol input[type=range] { vertical-align: middle; margin: 0 8px; }\n")
-            outfile.write("</style>\n")
-            outfile.write("</head><body>\n")
-            outfile.write(f"<h1>Simulation results {baseinstr}/{directory}</h1>\n")
-            outfile.write("<div id='sizecontrol'>\n")
-            outfile.write("  <label for='sizeslider'>Figure size:</label>\n")
-            outfile.write(f"  <input type='range' id='sizeslider' min='20' max='200' value='{init_pct}' step='5'>\n")
-            outfile.write(f"  <span id='sizevalue'>{init_pct}%</span>\n")
-            outfile.write("</div>\n")
-            outfile.write("<div class='plotgrid'>\n")
-            for fname in f:
-                basename = os.path.basename(fname)
-                if os.path.dirname(filename) == directory:  
-                    # we are saving all in the simulation dir
-                    # we can use relative path
-                    linkname = basename
-                else:
-                    # we are saving outside simulation dir
-                    # we use full path
-                    linkname = os.path.join(directory, basename)
-                outfile.write(f"<div class='plotcell' data-base-w='{WIDTH}' style='width:{init_w}px;'>\n")
-                outfile.write(f"<div class='iframe-wrap' data-base-w='{WIDTH}' data-base-h='{HEIGHT}' style='width:{init_w}px;height:{init_h}px;'>\n")
-                outfile.write(f"<iframe src='{linkname}' title='{basename}' width={WIDTH} height={HEIGHT} style='transform:scale({initial_scale});'></iframe>\n")
-                outfile.write("</div>\n")
-                outfile.write("<div class='links'>\n")
-                outfile.write(f"<a href='{linkname}' target=_blank>[ {basename} ]</a>\n")
-                # add the LOG-scale plot, if any
-                filepart = os.path.splitext(basename)
-                basename = filepart[0]+"_log"+filepart[1]
-                if os.path.isfile(os.path.join(directory, basename)):
-                    # append log scale plot link
-                    if os.path.dirname(filename) == directory:  
-                        # we are saving all in the simulation dir
-                        # we can use relative path
-                        linkname = basename
-                    else:
-                        # we are saving outside simulation dir
-                        # we use full path
-                        linkname = os.path.join(directory, basename)
-                    outfile.write(f"<a href='{basename}' target=_blank>[ {basename} ]</a>\n")
-                outfile.write("</div>\n")
-                outfile.write("</div>\n")
-            outfile.write("</div>\n")
-            outfile.write("<script>\n")
-            outfile.write("  var slider = document.getElementById('sizeslider');\n")
-            outfile.write("  var sizevalue = document.getElementById('sizevalue');\n")
-            outfile.write("  var wraps = document.querySelectorAll('.iframe-wrap');\n")
-            outfile.write("  var cells = document.querySelectorAll('.plotcell');\n")
-            outfile.write("  slider.addEventListener('input', function() {\n")
-            outfile.write("    var scale = slider.value / 100;\n")
-            outfile.write("    sizevalue.textContent = slider.value + '%';\n")
-            outfile.write("    wraps.forEach(function(wrap) {\n")
-            outfile.write("      var bw = parseFloat(wrap.dataset.baseW);\n")
-            outfile.write("      var bh = parseFloat(wrap.dataset.baseH);\n")
-            outfile.write("      wrap.style.width = (bw * scale) + 'px';\n")
-            outfile.write("      wrap.style.height = (bh * scale) + 'px';\n")
-            outfile.write("      var fr = wrap.querySelector('iframe');\n")
-            outfile.write("      fr.style.transform = 'scale(' + scale + ')';\n")
-            outfile.write("    });\n")
-            outfile.write("    cells.forEach(function(cell) {\n")
-            outfile.write("      var bw = parseFloat(cell.dataset.baseW);\n")
-            outfile.write("      cell.style.width = (bw * scale) + 'px';\n")
-            outfile.write("    });\n")
-            outfile.write("  });\n")
-            outfile.write("</script>\n")
-            outfile.write("</body></html>\n")
+
+        cells = []
+        for i, fname in enumerate(f):
+            links = [(fname, os.path.basename(fname))]
+            log = os.path.splitext(fname)[0] + "_log" + os.path.splitext(fname)[1]
+            if os.path.isfile(log):
+                links.append((log, os.path.basename(log)))
+            mons = [d for d in (steps[i] if i < len(steps) else []) if type(d) in (Data1D, Data2D)]
+            if mons:
+                curve = data_lst[i]
+                xvals = getattr(curve, 'xvals', [])
+                for log, other in (("", "_log"), ("_log", "")):
+                    stepfile = os.path.join(directory, os.path.basename(curve.filepath) + "_steps" + log + ".html")
+                    write_grid(stepfile, f"{curve.title} per scan step{' (log)' if log else ''}, {baseinstr}/{directory}{suffix}",
+                               [(d.filepath + log + ".html",
+                                 [(d.filepath + log + ".html", f"{curve.xvar} = {xvals[j]:g}" if len(xvals) == len(mons) else f"step {j}"),
+                                  (d.filepath + other + ".html", "log" if other else "lin")])
+                                for j, d in enumerate(mons)],
+                               back=filename)
+                    links.append((stepfile, "per step" + (" (log)" if log else "")))
+            cells.append((fname, links))
+        write_grid(filename, f"Simulation results {baseinstr}/{directory}{suffix}", cells)
         return filename
+
+
+def copy_libs(d):
+    ''' local copies of the js libs the plot pages in d load '''
+    for lib in ('d3.v4.min.js', 'plotfuncs.js'):
+        copyfile(os.path.join(os.path.dirname(__file__), lib), os.path.join(d, lib))
+
+
+def write_grid(filename, title, cells, back=None):
+    ''' overview page: a grid of the given plot pages in iframes, with a figure size slider.
+        cells: [(page, [(href, link text), ...])]; back: page to link back to '''
+    d = os.path.dirname(filename) or '.'
+    rel = lambda p: os.path.relpath(p, d)
+    gridgap = int(round(WIDTH * 0.05))
+    initial_scale = 0.5
+    init_w = WIDTH * initial_scale
+    init_h = HEIGHT * initial_scale
+    init_pct = int(round(initial_scale * 100))
+    with open(filename, 'w') as outfile:
+        outfile.write("<html><head>\n")
+        outfile.write(f"<title>{title}</title>\n")
+        outfile.write("<style>\n")
+        outfile.write("  body { background-color: #e0e0e0; margin: 12px; font-family: sans-serif; }\n")
+        outfile.write(f"  .plotgrid {{ display: flex; flex-wrap: wrap; gap: {gridgap}px; }}\n")
+        outfile.write("  .plotcell { background-color: #ffffff; display: flex; flex-direction: column; align-items: flex-start; }\n")
+        outfile.write("  .plotcell iframe { border: none; }\n")
+        outfile.write("  .plotcell .links { margin-top: 4px; width: 100%; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 4px 12px; }\n")
+        outfile.write("  .iframe-wrap { overflow: hidden; border: 2px solid #b0b0b0; }\n")
+        outfile.write("  .iframe-wrap iframe { transform-origin: top left; display: block; }\n")
+        outfile.write("  #sizecontrol { margin-bottom: 16px; font-size: 14px; }\n")
+        outfile.write("  #sizecontrol input[type=range] { vertical-align: middle; margin: 0 8px; }\n")
+        outfile.write("</style>\n")
+        outfile.write("</head><body>\n")
+        if back:
+            outfile.write(f"<a href='{rel(back)}'>&larr; {os.path.basename(back)}</a>\n")
+        outfile.write(f"<h1>{title}</h1>\n")
+        outfile.write("<div id='sizecontrol'>\n")
+        outfile.write("  <label for='sizeslider'>Figure size:</label>\n")
+        outfile.write(f"  <input type='range' id='sizeslider' min='20' max='200' value='{init_pct}' step='5'>\n")
+        outfile.write(f"  <span id='sizevalue'>{init_pct}%</span>\n")
+        outfile.write("</div>\n")
+        outfile.write("<div class='plotgrid'>\n")
+        for page, links in cells:
+            outfile.write(f"<div class='plotcell' data-base-w='{WIDTH}' style='width:{init_w}px;'>\n")
+            outfile.write(f"<div class='iframe-wrap' data-base-w='{WIDTH}' data-base-h='{HEIGHT}' style='width:{init_w}px;height:{init_h}px;'>\n")
+            outfile.write(f"<iframe src='{rel(page)}' title='{os.path.basename(page)}' width={WIDTH} height={HEIGHT} style='transform:scale({initial_scale});'></iframe>\n")
+            outfile.write("</div>\n")
+            outfile.write("<div class='links'>\n")
+            for href, text in links:
+                outfile.write(f"<a href='{rel(href)}' target=_blank>[ {text} ]</a>\n")
+            outfile.write("</div>\n")
+            outfile.write("</div>\n")
+        outfile.write("</div>\n")
+        outfile.write("<script>\n")
+        outfile.write("  var slider = document.getElementById('sizeslider');\n")
+        outfile.write("  var sizevalue = document.getElementById('sizevalue');\n")
+        outfile.write("  var wraps = document.querySelectorAll('.iframe-wrap');\n")
+        outfile.write("  var cells = document.querySelectorAll('.plotcell');\n")
+        outfile.write("  slider.addEventListener('input', function() {\n")
+        outfile.write("    var scale = slider.value / 100;\n")
+        outfile.write("    sizevalue.textContent = slider.value + '%';\n")
+        outfile.write("    wraps.forEach(function(wrap) {\n")
+        outfile.write("      var bw = parseFloat(wrap.dataset.baseW);\n")
+        outfile.write("      var bh = parseFloat(wrap.dataset.baseH);\n")
+        outfile.write("      wrap.style.width = (bw * scale) + 'px';\n")
+        outfile.write("      wrap.style.height = (bh * scale) + 'px';\n")
+        outfile.write("      var fr = wrap.querySelector('iframe');\n")
+        outfile.write("      fr.style.transform = 'scale(' + scale + ')';\n")
+        outfile.write("    });\n")
+        outfile.write("    cells.forEach(function(cell) {\n")
+        outfile.write("      var bw = parseFloat(cell.dataset.baseW);\n")
+        outfile.write("      cell.style.width = (bw * scale) + 'px';\n")
+        outfile.write("    });\n")
+        outfile.write("  });\n")
+        outfile.write("</script>\n")
+        outfile.write("</body></html>\n")
     
 def plotfunc_single(data, f = None, use_logscale=False):
     """save the data node into given file"""
@@ -410,7 +431,8 @@ def main(args):
             simdir = os.path.dirname(simfile)
         elif os.path.isdir(simfile):
             simdir = simfile
-            simfile = os.path.join(simdir,'mccode.sim')
+            if os.path.isfile(os.path.join(simdir,'mccode.sim')):
+                simfile = os.path.join(simdir,'mccode.sim')
         else:
             print(simfile + " is neither a .sim file or directory, exiting")
             exit(-1)
@@ -438,11 +460,9 @@ def main(args):
     if libpath == "":
         # libdir undefined, copy js lib files to plotting dir
         if os.path.isdir(simdir):
-            copyfile(os.path.join(os.path.dirname(__file__),'d3.v4.min.js'), os.path.join(simdir, 'd3.v4.min.js'))
-            copyfile(os.path.join(os.path.dirname(__file__),'plotfuncs.js'), os.path.join(simdir, 'plotfuncs.js'))
+            copy_libs(simdir)
         elif os.path.isdir(simfile):
-            copyfile(os.path.join(os.path.dirname(__file__),'d3.v4.min.js'), os.path.join(simfile, 'd3.v4.min.js'))
-            copyfile(os.path.join(os.path.dirname(__file__),'plotfuncs.js'), os.path.join(simfile, 'plotfuncs.js'))
+            copy_libs(simfile)
 
     # load data
     loader = McCodeDataLoader(simfile=simfile)
@@ -454,7 +474,7 @@ def main(args):
     rootnode = loader.plot_graph
 
     # generate html file(s)
-    f = plotfunc(rootnode, args.output) # can be a single or multiple 'plotnode'
+    f = plotfunc(rootnode, args.output, nexus_suffix(simfile)) # can be a single or multiple 'plotnode'
     print(f"Generated: {f}")
 
     # browse if input was a specific, and therefore browsable, file

@@ -148,7 +148,7 @@ if __name__ == '__main__':
     # if --inspect --first or --last are given after instr, the remaining args become "unknown",
     # but we assume that they are instr_options
     if len(unknown):
-        args['options'] = unknown
+        args['options'] += unknown
 
     try:
         main(**args)

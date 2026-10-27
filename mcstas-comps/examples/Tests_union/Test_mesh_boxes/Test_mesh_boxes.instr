@@ -26,14 +26,19 @@
 * Instrument provided by Sam Lambrick from ISIS, that uses three meshes to 
 * make their boxes. 
 * 
-* %Example: Detector: psd_detector_I=10.7752
+* %Test: Detector: psd_detector_I=10.7752
+* %Test: box_file="box.off" blade_file="single_blade.off" Detector: psd_detector_I=10.7752
+* %Test: box_file="box.ply" blade_file="single_blade.ply" Detector: psd_detector_I=10.7752
 * 
 * %Parameters
-* 
+* box_file: [str] Mesh file of the Be envelope: box.stl (ascii STL), box.off or box.ply
+* blade_file: [str] Mesh file of the Cd blades: single_blade.stl (ascii STL), single_blade.off or single_blade.ply
 * %End 
 ********************************************************************************/
 
 DEFINE INSTRUMENT Test_mesh_boxes(
+string box_file = "box.stl",
+string blade_file = "single_blade.stl"
 )
 
 DECLARE 
@@ -80,17 +85,17 @@ COMPONENT Cd = Union_make_material(
 AT (0, 0, 0) ABSOLUTE
 
 COMPONENT Be_envelope = Union_mesh(
- filename = "./box.stl", material_string = "Be",
+ filename = box_file, material_string = "Be",
  priority = 1, coordinate_scale = 1)
 AT (0, 0, 0) RELATIVE armFilter
 
 COMPONENT Cd_blade1 = Union_mesh(
- filename = "./single_blade.stl", material_string = "Cd",
+ filename = blade_file, material_string = "Cd",
  priority = 2, coordinate_scale = 1)
 AT (0, -0.02, 0) RELATIVE armFilter
 
 COMPONENT Cd_blade2 = Union_mesh(
- filename = "./single_blade.stl", material_string = "Cd",
+ filename = blade_file, material_string = "Cd",
  priority = 2.5, coordinate_scale = 1)
 AT (0, 0.02, 0) RELATIVE armFilter
 

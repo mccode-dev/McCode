@@ -63,7 +63,7 @@ If you wish to use McStas/McXtrace in ways that contradict the conditions,
 contact us and chances are that we will be able to make a suitable
 arrangement.
 
-Installation instructions are in the doc/install_docs directory.
+Installation instructions are in [INSTALL-McStas](INSTALL-McStas/README.md) and [INSTALL-McXtrace](INSTALL-McXtrace/README.md).
 
 Changes from previous versions are in the file CHANGES. Please read that !
 

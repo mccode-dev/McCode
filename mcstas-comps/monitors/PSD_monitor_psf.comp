@@ -98,12 +98,15 @@ TRACE
   int i, j;
   double xp, yp;
 
+  int backprop = allow_backprop; /* set by caller: also count backward hits */
+  double t0 = t;
+  ALLOW_BACKPROP;
   PROP_Z0;
 
   xp = x + psf * randnorm ();
   yp = y + psf * randnorm ();
 
-  if (xp > xmin && xp < xmax && yp > ymin && yp < ymax) {
+  if ((backprop || t >= t0) && z == 0.0 && xp > xmin && xp < xmax && yp > ymin && yp < ymax) {
     i = floor ((xp - xmin) * nx / (xmax - xmin));
     j = floor ((yp - ymin) * ny / (ymax - ymin));
 
@@ -119,7 +122,7 @@ TRACE
 
     SCATTER;
   }
-  if (restore_neutron) {
+  if (restore_neutron || !SCATTERED) {
     RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   }
 %}

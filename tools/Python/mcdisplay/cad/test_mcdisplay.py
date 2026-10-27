@@ -41,4 +41,17 @@ assert len(m.tris) == 4 and closed(m)
 
 m = _tubes(np.array([(0, 0, 0), (1, 0, 0), (1, 1, 0.)]), r=0.1)  # 2 segments + 1 corner sphere
 assert len(m.tris) == 2 * 12 + 20 and m.tris.max() == len(m.verts) - 1
+import os, tempfile
+from mcdisplay import Part, export_off, export_ply
+p = Part('t', (1, 0, 0))
+p.add_mesh(m)
+p.add_polyline(np.array([(0, 0, 0), (1, 0, 0.)]))  # lines must be dropped
+for exp, ext in ((export_off, '.off'), (export_ply, '.ply')):
+    fn = os.path.join(tempfile.mkdtemp(), 'x' + ext)
+    exp([p], fn)
+    lines = open(fn).read().splitlines()
+    faces = lines[-len(m.tris):]
+    # interoff-lib reads faces right after the vertices; extra face numbers would be supermirror parameters
+    assert all(l.split() == ['3'] + [str(i) for i in t] for l, t in zip(faces, m.tris))
+    assert 'edge' not in ' '.join(lines[:20])
 print('ok')

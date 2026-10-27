@@ -1,0 +1,381 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=http://www.mcxtrace.org
+*
+* Instrument: SOLEIL
+*
+* %Identification
+* Written by: E. Farhi
+* Date: Oct 2026
+* Origin: SOLEIL
+* Release: McXtrace 3.9
+* Version: 0.2
+* %INSTRUMENT_SITE: SOLEIL
+*
+* SOLEIL model
+*
+* %Description
+*
+* This is a model of the Synchrotron SOLEIL with a set of beam-lines.
+* It has been assembled mostly for rendering purposes.
+* For any beam-line study, you are encouraged to refer to its specific model.
+*
+* %Parameters
+* splits:    [1] shared SPLIT level.
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT SOLEIL(splits=1)
+
+DECLARE
+%{
+  int BEAMLINE_MAX=18;
+  #pragma acc declare create(BEAMLINE_MAX)
+  #pragma acc update device(BEAMLINE_MAX)
+%}
+
+USERVARS %{
+  int beamline;
+%}
+
+INITIALIZE
+%{
+%}
+
+// -----------------------------------------------------------------------------
+// SOLEIL circumpherence: C = 354   m
+//           mean radius: R = C/2/pi = 56.34 m
+
+// Long_Pos = angle*180/2/pi*R
+// angle    = Long_Pos/C*360
+// X        = R*sind(angle)
+// Z        = R*cosd(angle);
+
+TRACE
+
+COMPONENT origin = Arm()
+  AT (0,0,0) ABSOLUTE
+  EXTEND %{
+    // set JUMP target: must be Arm  Direct jump in local coordinates
+    beamline = mcget_run_num() % BEAMLINE_MAX; // sends in order to all BLs
+  %}
+
+COMPONENT jumper = Arm()
+  AT (0,0,0)  RELATIVE PREVIOUS
+  JUMP MARS         WHEN beamline==0
+  JUMP PSICHE       WHEN beamline==1
+  JUMP DISCO        WHEN beamline==2
+  JUMP PUMA         WHEN beamline==3
+  JUMP CRISTAL      WHEN beamline==4
+  JUMP GALAXIES     WHEN beamline==5
+  JUMP SAMBA        WHEN beamline==6
+  JUMP PX1          WHEN beamline==7
+  JUMP PX2a         WHEN beamline==8
+  JUMP SWING        WHEN beamline==9
+  JUMP ROCK         WHEN beamline==10
+  JUMP ANATOMIX     WHEN beamline==11
+  JUMP NANOSCOPIUM  WHEN beamline==12
+  JUMP SIXS         WHEN beamline==13
+  JUMP DIFFABS      WHEN beamline==14
+  JUMP CASSIOPEE    WHEN beamline==15
+  JUMP SIRIUS       WHEN beamline==16
+  JUMP LUCIA        WHEN beamline==17
+  
+COMPONENT beamdump = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+
+// -----------------------------------------------------------------------------
+// beam-line source location
+
+COMPONENT ODE_pos     = Text(text="ODE")
+  AT (54.392,0,14.688)    RELATIVE origin    // ODE  14.87 m - 15.112°
+  ROTATED (0, -15.112, 0) RELATIVE origin
+
+COMPONENT SMIS_pos    = Text(text="SMIS")
+  AT (49.41,0,27.06)    RELATIVE origin      // SMIS 28.23 m - 28.7°
+  ROTATED (0, -28.7, 0) RELATIVE origin
+
+COMPONENT AILES_pos   = Text(text="AILES")
+  AT (35.21,0,43.97)    RELATIVE origin      // AILES 50.4638 m - 51.4°
+  ROTATED (0, -51.4, 0) RELATIVE origin
+
+COMPONENT MARS_pos    = Text(text="MARS")
+  AT (35.14,0,44.03)    RELATIVE origin      // MARS 50.5573 m - 51.5°
+  ROTATED (0, -51.5, 0) RELATIVE origin
+COMPONENT MARS        = Arm()
+  AT (0,0,0)            RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_MARS/SOLEIL_MARS.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT PSICHE_pos  = Text(text="PSICHE")
+  AT (31.19,0,46.92)    RELATIVE origin      // PSICHE 55.450 m - 56.4°
+  ROTATED (0, -56.4, 0) RELATIVE origin
+COMPONENT PSICHE      = Arm()
+  AT (0,0,0)            RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_PSICHE/SOLEIL_PSICHE.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT PLEIADES_pos= Text(text="PLEIADES")
+  AT (23.15,0,51.36)      RELATIVE origin      // PLEIADES 64.640 m - 65.736°
+  ROTATED (0, -65.736, 0) RELATIVE origin
+
+COMPONENT DISCO_pos   = Text(text="DISCO")
+  AT (10.03,0,55.44)      RELATIVE origin      // DISCO 78.420 m - 79.749°
+  ROTATED (0, -79.749, 0) RELATIVE origin
+COMPONENT DISCO       = Arm()
+  AT (0,0,0)              RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_DISCO/SOLEIL_DISCO.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT DESIRS_pos  = Text(text="DESIRS")
+  AT (-0.02,0,56.34)      RELATIVE origin      // DESIRS 88.52 m - 90.02°
+  ROTATED (0, -90.02, 0)  RELATIVE origin
+
+COMPONENT METRO_pos   = Text(text="METROLOGIE")
+  AT (-14.71,0,54.38)      RELATIVE origin     // METRO 103.390 m - 105.142°
+  ROTATED (0, -105.142, 0) RELATIVE origin
+
+COMPONENT PUMA_pos    = Text(text="PUMA")
+  AT (-21.49,0,52.08)      RELATIVE origin     // PUMA 110.550 m - 112.424°
+  ROTATED (0, -112.424, 0) RELATIVE origin
+COMPONENT PUMA        = Arm()
+  AT (0,0,0)               RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_PUMA/SOLEIL_PUMA.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT CRISTAL_pos = Text(text="CRISTAL")
+  AT (-31.353,0,46.810)    RELATIVE origin   // CRISTAL 121.750 m - 123.814°
+  ROTATED (0, -123.814, 0) RELATIVE origin
+COMPONENT CRISTAL     = Arm()
+  AT (0,0,0)               RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_CRISTAL/SOLEIL_CRISTAL.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT DEIMOS_pos  = Text(text="DEIMOS")
+  AT (-39.62,0,40.05)      RELATIVE origin     // DEIMOS 132.440 m - 134.685°
+  ROTATED (0, -134.685, 0) RELATIVE origin
+
+COMPONENT GALAXIES_pos= Text(text="GALAXIES")
+  AT (-46.94,0,31.16) RELATIVE origin     // GALAXIES 143.980 m - 146.420°
+  ROTATED (0, -146.420, 0) RELATIVE origin
+COMPONENT GALAXIES    = Arm()
+  AT (0,0,0)               RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_GALAXIES/SOLEIL_GALAXIES.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)               RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT TEMPO_pos   = Text(text="TEMPO")
+  AT (-51.94,0,21.81)      RELATIVE origin     // TEMPO 154.600 m - 157.220°
+  ROTATED (0, -157.220, 0) RELATIVE origin
+
+COMPONENT SAMBA_pos   = Text(text="SAMBA")
+  AT (-54.37,0,-14.74)     RELATIVE origin    // SAMBA 191.910 m - 195.163°
+  ROTATED (0, -195.163, 0) RELATIVE origin
+COMPONENT SAMBA       = Arm()
+  AT (0,0,0)               RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_SAMBA/SOLEIL_SAMBA.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT HERMES_pos  = Text(text="HERMES")
+  AT (-52.07,0,-21.52)     RELATIVE origin    // HERMES 199.080 m - 202.454°
+  ROTATED (0, -202.454, 0) RELATIVE origin
+
+COMPONENT PX1_pos     = Text(text="PX1")
+  AT (-46.80,0,-31.37)     RELATIVE origin    // PX1 210.270 m - 213.834°
+  ROTATED (0, -213.834, 0) RELATIVE origin
+COMPONENT PX1     = Arm()
+  AT (0,0,0)               RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_PX1/SOLEIL_PX1.instr"
+COMPONENT COPY(beamdump)   = Beamstop()
+  AT (0,0,0)               RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT PX2a_pos    = Text(text="PX2a")
+  AT (-38.706,0,-40.940)   RELATIVE origin  // PX2a 222.830 m - 226.607°
+  ROTATED (0, -226.607, 0) RELATIVE origin
+COMPONENT PX2a        = Arm()
+  AT (0,0,0)               RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_PX2a/SOLEIL_PX2a.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT SWING_pos   = Text(text="SWING")
+  AT (-31.136,0,-46.954)   RELATIVE origin  // SWING 232.510 m -  236.451°
+  ROTATED (0, -236.451, 0) RELATIVE origin
+COMPONENT SWING       = Arm()
+  AT (0,0,0)               RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_SWING/SOLEIL_SWING.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT ANTARES_pos = Text(text="ANTARES")
+AT (-23.089,0,-51.392)    RELATIVE origin  // ANTARES 241.710 m -  245.807°
+ROTATED (0, -245.807, 0)  RELATIVE origin
+
+COMPONENT ROCK_pos    = Text(text="ROCK")
+  AT (-10.105,0,-55.426)   RELATIVE origin  // ROCK 255.340 m -  259.668°
+  ROTATED (0, -259.668, 0) RELATIVE origin
+COMPONENT ROCK        = Arm()
+  AT (0,0,0)               RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_ROCK/SOLEIL_ROCK.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT ANATOMIX_pos = Text(text="ANATOMIX")
+  AT (-3.2981,0,-56.2434)   RELATIVE origin // ANATOMIX 262.2000 m -  266.6441°
+  ROTATED (0, -266.6441, 0) RELATIVE origin
+COMPONENT ANATOMIX     = Arm()
+  AT (0,0,0)                RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_ANATOMIX/SOLEIL_ANATOMIX.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT NANOSCOPIUM_pos = Text(text="NANOSCOPIUM")
+  AT (3.4478,0,-56.2344)    RELATIVE origin  // NANOSCOPIUM 268.9500 m -  273.5085°
+  ROTATED (0, -273.5085, 0) RELATIVE origin
+COMPONENT NANOSCOPIUM     = Arm()
+  AT (0,0,0)                RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_NANOSCOPIUM/SOLEIL_NANOSCOPIUM.instr"
+COMPONENT COPY(beamdump)   = Beamstop()
+  AT (0,0,0)                RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT DIFFABS_pos = Text(text="DIFFABS")
+  AT (14.765,0,-54.371)     RELATIVE origin   // DIFFABS 280.440 m -  285.193°
+  ROTATED (0, -285.193, 0)  RELATIVE origin
+COMPONENT DIFFABS     = Arm()
+  AT (0,0,0)                RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_DIFFABS/SOLEIL_DIFFABS.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT SEXTANTS    = Text(text="SEXTANTS")
+  AT (21.537,0,-52.061) RELATIVE origin       // SEXTANTS 287.600 m -  292.475°
+  ROTATED (0, -292.475, 0)  RELATIVE origin
+
+COMPONENT SIXS_pos    = Text(text="SIXS")
+  AT (31.394,0,-46.782)     RELATIVE origin   // SIXS 298.800 m -  303.864°
+  ROTATED (0, -303.864, 0)  RELATIVE origin
+COMPONENT SIXS = Arm()
+  AT (0,0,0)                RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_SIXS/SOLEIL_SIXS.instr"
+// SOLEIL_SIXS_updated.instr
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT CASSIOPEE_pos = Text(text="CASSIOPEE")
+  AT (38.582,0,-41.056)     RELATIVE origin   // CASSIOPEE 308.000 m -  313.220°
+  ROTATED (0, -313.220, 0)  RELATIVE origin
+COMPONENT CASSIOPEE     = Arm()
+  AT (0,0,0)                RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_CASSIOPEE/SOLEIL_CASSIOPEE.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT SIRIUS_pos    = Text(text="SIRIUS")
+  AT (46.921,0,-31.186)     RELATIVE origin   // SIRIUS 320.950 m -  326.390°
+  ROTATED (0, -326.390, 0)  RELATIVE origin
+COMPONENT SIRIUS        = Arm()
+  AT (0,0,0)                RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_SIRIUS/SOLEIL_SIRIUS.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+COMPONENT LUCIA_pos     = Text(text="LUCIA")
+  AT (52.126,0,-21.380)    RELATIVE origin   // LUCIA 332.070 m -  337.698°
+  ROTATED (0, -337.698, 0) RELATIVE origin
+COMPONENT LUCIA         = Arm()
+  AT (0,0,0)              RELATIVE PREVIOUS
+%include "SOLEIL/SOLEIL_LUCIA/SOLEIL_LUCIA.instr"
+COMPONENT COPY(beamdump) = Beamstop()
+  AT (0,0,0)              RELATIVE PREVIOUS
+  EXTEND %{
+    ABSORB; 
+  %}
+
+// -----------------------------------------------------------------------------
+// cosmetics
+
+// add electron beam
+COMPONENT storage     = Shape(radius=56.34, yheight=0.01, thickness=0.01)
+  AT (0,0,0)           RELATIVE origin
+
+// add synchrotron building
+COMPONENT hall0       = Shape(radius=80, yheight=0.1, thickness=0.1) // outer 
+  AT (0,0,0)           RELATIVE origin
+  
+COMPONENT hall1       = Shape(radius=40, yheight=0.1, thickness=0.1) // inner
+  AT (0,0,0)           RELATIVE origin
+
+// main entrance door (in front of PLEIADES ID)
+COMPONENT entrance_0  = Arm()
+  AT (0,0,0)              RELATIVE origin
+  ROTATED (0, -65.736, 0) RELATIVE origin
+
+COMPONENT entrance_1  = Shape(xwidth=30, yheight=3, zdepth=3)
+  AT (95,0,0)             RELATIVE entrance_0
+  
+// ANATOMIX extension
+COMPONENT ANATOMIX_building = Shape(xwidth=15, yheight=0.1, zdepth=150, thickness=0.1)
+  AT (0,0,140)        RELATIVE ANATOMIX
+
+COMPONENT soleil_label = Text(text="SOLEIL", size=10, plane="XZ")
+  AT (0,0,0)              RELATIVE origin
+
+END
+

@@ -12,9 +12,9 @@
 ## Description
 
 ```text
-This is a unit test for the MCPL_input_once component, which differs from the original MCPL_input by:
-1) Being MPI-parallelized (no implicit "repeat" of the particles in the file, file content is shared among processes
-2) No implementation of "repetition", if further stats is needed downstream, SPLIT should be applied
+This is a unit test for the MCPL_input_once component. Since Oct 2026 MCPL_input_once
+is an INHERIT of MCPL_input with repeat_count=1 and replicate_across_processes=0 forced:
+the file content is shared among MPI processes and every particle is used once.
 ```
 
 ## Examples

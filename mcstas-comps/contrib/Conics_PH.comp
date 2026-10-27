@@ -39,6 +39,9 @@
 * alpha: [AA]           Slope of reflectivity for reflectivity curve approximation
 * W: [AA^-1]             Width of supermirror cut-off
 * transmit: [1]         Fraction of statistics to assign to transmitted beam - NOT YET IMPLEMENTED
+* sigma_m: [rad]        RMS meridional slope (figure) error of the mirror surfaces; for grazing angles
+*                       below 10*sigma_m the waviness model of Hansen et al., arXiv:1612.03763 is used
+* sigma_s: [rad]        RMS sagittal slope (figure) error of the mirror surfaces
 * mirr_thick: [m]       Thickness of mirror shell surfaces - NOT YET IMPLEMENTED
 *
 * %L
@@ -52,7 +55,7 @@ DEFINE COMPONENT Conics_PH
 SETTING PARAMETERS (
     rmin=0.325,rmax=0.615, focal_length=10.070, lp=0.84, lh=0.84,
     int nshells=4, m=1, mirr_thick=0, int disk=1, vector radii=NULL,
-    R0=0.99, Qc=0.021, W=0.003, alpha=6.07, transmit=0)
+    R0=0.99, Qc=0.021, W=0.003, alpha=6.07, transmit=0, sigma_m=1e-6, sigma_s=250e-6)
 
 SHARE
 %{
@@ -98,6 +101,10 @@ INITIALIZE
 
     pm = addParaboloid (focal_length + 2.0 * cH, pi, -lp, 0, m, R0, Qc, alpha, W, &s);
     addHyperboloid (focal_length, focal_length + 2.0 * cH, pi, 0, lh, m, R0, Qc, alpha, W, &s);
+  }
+  for (i = 0; i < s.num_c; i++) {
+    s.c[i].figerr_m = sigma_m;
+    s.c[i].figerr_s = sigma_s;
   }
   if (disk) {
     addDisk (pm->zs, 0.0, rConic (pm->ze, *pm), &s);

@@ -30,7 +30,7 @@ These parameter and the sphere radius match now with the magnetic fields below t
 
 - **Test: -y Detector: det_I=2.2537e-07**
 - 
-- Scan Example: SESANS_Delft -n 1000000 -N 31 L0=2.165 DL=0.02 By=0,0.0468
+- **TestScan: mcrun SESANS_Delft.instr L0=2.165 DL=0.02 By=0,0.0468 -N31 -n1e6 Detector: det_I={31 values}**
 
 ## Input parameters
 

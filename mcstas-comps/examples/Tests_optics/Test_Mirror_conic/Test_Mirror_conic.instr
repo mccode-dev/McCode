@@ -21,16 +21,18 @@
 * COMP=2: Mirror, transmit=0           (reference for COMP=3)
 * COMP=3: Mirror_conic, conic=1        (ConicSurf, reflectNeutronConic)
 *
-* COMP=0 and COMP=1 should agree exactly. COMP=3 agrees with COMP=2 except above
-* the cut-off: reflectNeutronConic() absorbs neutrons with grazing angles beyond
-* m times the critical angle of Ni, whereas Mirror keeps the tail of width W.
+* COMP=0 and COMP=1 should agree exactly, and so should COMP=2 and COMP=3 when
+* no figure error is applied (sigma_m=sigma_s=0).
+* With sigma_m comparable to the grazing angle (e.g. theta=0.1 sigma_m=1.745e-3),
+* COMP=3 uses the waviness model of Hansen et al., arXiv:1612.03763 (see conic.h).
 *
 * %Example: COMP=0 Detector: L_refl_I=8.98208e-07
 * %Example: COMP=1 Detector: L_refl_I=8.98208e-07
 * %Example: COMP=0 Detector: L_trans_I=7.01789e-07
 * %Example: COMP=1 Detector: L_trans_I=7.01789e-07
 * %Example: COMP=2 Detector: L_refl_I=8.9763e-07
-* %Example: COMP=3 Detector: L_refl_I=8.83094e-07
+* %Example: COMP=3 Detector: L_refl_I=8.9763e-07
+* %Example: COMP=3 theta=0.1 sigma_m=1.745e-3 Detector: L_refl_I=1.35886e-06
 *
 * %P
 * COMP:   [1]     Mirror implementation, see description
@@ -43,10 +45,12 @@
 * W:      [AA^-1] Width of supermirror cut-off
 * Lmin:   [AA]    Minimum source wavelength
 * Lmax:   [AA]    Maximum source wavelength
+* sigma_m: [rad]  RMS meridional slope (figure) error, COMP=3 only
+* sigma_s: [rad]  RMS sagittal slope (figure) error, COMP=3 only
 *
 * %E
 *******************************************************************************/
-DEFINE INSTRUMENT Test_Mirror_conic(int COMP=0, theta=1, length=1, m=2, R0=0.99, Qc=0.0217, alpha=6.07, W=0.003, Lmin=1, Lmax=11)
+DEFINE INSTRUMENT Test_Mirror_conic(int COMP=0, theta=1, length=1, m=2, R0=0.99, Qc=0.0217, alpha=6.07, W=0.003, Lmin=1, Lmax=11, sigma_m=0, sigma_s=0)
 
 DECLARE
 %{
@@ -104,7 +108,7 @@ AT (0, 0, length/2) RELATIVE mirror_arm
 ROTATED (0, 90, 0) RELATIVE mirror_arm
 
 COMPONENT mirror_conic_conic = Mirror_conic(length=length, yheight=0.1, conic=1,
-    R0=R0, Qc=Qc, alpha=alpha, m=m, W=W)
+    R0=R0, Qc=Qc, alpha=alpha, m=m, W=W, sigma_m=sigma_m, sigma_s=sigma_s)
 WHEN (COMP==3)
 AT (0, 0, 0) RELATIVE mirror_arm
 

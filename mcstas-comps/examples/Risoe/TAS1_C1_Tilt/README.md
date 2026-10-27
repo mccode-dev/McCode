@@ -25,6 +25,7 @@ detector is at the sample position and there is no analyzer.
 ## Examples
 
 - **Test: TTM=-74 Detector: sng_I=0.000405056**
+- **TestScan: mcrun TAS1_C1_Tilt.instr OMC1=-44.5,55.5 -N21 -n1e6 Detector: sng_I={21 values}**
 
 ## Input parameters
 
@@ -35,7 +36,7 @@ Parameters in **boldface** are required; the others are optional.
 | PHM | deg | Monochromator arm angle, aka A1 | -37.077 |
 | TTM | deg | Monochromator take-off angle, aka A2 | -74 |
 | C1 | min | Collimator 1 aperture (mono-sample arm) | 30 |
-| OMC1 | deg | Tilt angle of the Collimator 1 | 5.5 |
+| OMC1 | arcmin | Tilt angle of the Collimator 1 | 5.5 |
 
 ## Links
 

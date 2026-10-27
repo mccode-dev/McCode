@@ -212,7 +212,7 @@ file, it generates an equivalent McStasScript Python module instead of a C
 program. Besides \verb+-o FILE+ (output file) it accepts
 \verb+--instrument-name=NAME+ (name of the generated McStasScript instrument;
 by default the instrument name followed by \texttt{\_generated}),
-\verb+--no-tests+ (do not translate \texttt{\%Example} lines into McStasScript
+\verb+--no-tests+ (do not translate \texttt{\%Test} (or \texttt{\%Example}) lines into McStasScript
 tests), \verb+--lint+ (generate a script for McStasScript-style diagnostic
 linting), \verb+--verbose+ and the version options described above. The
 C-generator-only options (\verb+-I+, \verb+-t+, \verb+-p+, \verb+--no-main+,
@@ -1136,7 +1136,9 @@ mxrun sim.instr -M -N3,5 X=2,8 Y=0,1
   A parameter may also be given as \texttt{\textit{min}:\textit{delta}:\textit{max}},
   in which case the point count follows from the requested step size and the
   parameter may be freely mixed with explicit lists. The option
-  \texttt{--seeds} scans over a range of random seeds (each non-zero).
+  \texttt{--seeds} scans over a range of random seeds (each non-zero). In a scan with
+  \texttt{--seed}, point $i$ uses the seed $\mathrm{SEED}+1024\,i$ (without \texttt{--seed} the base seed is taken from the
+  current time and logged).
 \item With \texttt{--autoplot}, \verb+mxrun+ opens a plotter on the generated
   data set when done (the back-end is chosen with \texttt{--autoplotter}, and
   \texttt{--invcanvas} requests an inverted canvas). With
@@ -1276,15 +1278,26 @@ front-ends directly:
   save a file instead of opening a window), and the number of traced rays is
   capped at 100.
 \item \verb+mxdisplay-webgl+ and \verb+mxdisplay-webgl-classic+: browser-based
-  WebGL views (the former uses a small NodeJS-backed server for larger
-  instruments/particle counts; its first use performs a one-time
-  \texttt{npm}/\texttt{vite} module installation, which needs internet access).
-  In addition to the options listed below they accept \verb+-t+/\verb+--trace N+
-  (visualisation mode, default 2 resp.\ 1), \verb+-d+/\verb+--dirname DIR+,
-  \verb+--first COMP+ and \verb+--last COMP+ (the first and last component of
-  the zoomed range), and \verb+--nobrowse+ (do not open a browser);
-  \verb+mxdisplay-webgl+ also has \verb+--timeout SEC+ (the shutdown time of
-  its development server, default 300~s).
+  WebGL views. The former ships as a prebuilt web application served by a small
+  local web server (only if its \texttt{dist/} folder is missing does the first
+  run perform a one-time \texttt{npm install \&\& npm run build}, which needs
+  internet access). Both accept \verb+-t+/\verb+--trace N+ (visualisation mode,
+  default 2: boxes, cylinders, OFF geometry etc.\ are drawn as 3D shapes; 1
+  selects the legacy line approximations), \verb+-d+/\verb+--dirname DIR+,
+  \verb+--inspect COMP+ (show only rays reaching component \texttt{COMP}) and
+  \verb+--nobrowse+ (do not open a browser). \verb+mxdisplay-webgl+ also has
+  \verb+--timeout SEC+ (the shutdown time of its local viewer web server,
+  default 300~s), while \verb+mxdisplay-webgl-classic+ additionally accepts
+  \verb+--first COMP+, \verb+--last COMP+ (the first and last component of the
+  zoomed range) and \verb+--invcanvas+.
+\item \verb+mxdisplay-plopp+: draws the instrument and the traced rays with
+  the \texttt{plopp}/\texttt{scipp} Python packages (install e.g.\ with
+  \texttt{conda install -c conda-forge plopp ipympl jupyterlab}). By default it
+  opens an interactive 3D view in JupyterLab; with \verb+-o FILE+ it instead
+  writes a static \texttt{png}, \texttt{pdf} or \texttt{svg} with 2D
+  projections. Accepts \verb+-n N+ (number of rays, default 100), \verb+-y+
+  (forwarded to \verb+mxrun+: use defaults for unset parameters) and the
+  instrument parameters as \texttt{name=value}.
 \item \verb+mxdisplay-cad+: exports the instrument geometry to a CAD file and
   requires the \texttt{cadquery} Python package. The format is selected with
   \verb+-f+/\verb+--format+: \texttt{step} (default), \texttt{stl},
@@ -1354,7 +1367,7 @@ mxplot.
 
 As with \texttt{mxdisplay} (section~\ref{s:mxdisplay}), the drawing back-end
 may be selected by invoking the dedicated front-end directly:
-\verb+mxplot-pyqtgraph+ (the default), \verb+mxplot-matplotlib+, or
+\verb+mxplot-pyqtgraph+ (the default), \verb+mxplot-matplotlib+, \verb+mxplot-plopp+ (plopp/scipp based, see below), or
 \verb+mxplot-html+ (renders an interactive, self-contained web page using
 D3.js, see section~\ref{s:run-format}), or by setting the
 \verb+MCXTRACE_FORMAT+ environment variable.
@@ -1377,6 +1390,14 @@ A legacy Matlab/Octave/iFit variant, \verb+mxplot-matlab+, exists under
 available (falling back to the Python \verb+mxplot+), and can export each
 monitor with \texttt{-png}, \texttt{-jpg}, \texttt{-fig}, \texttt{-eps} or
 \texttt{-pdf}.
+
+\verb+mxplot-plopp+ opens the monitors of a simulation directory, \texttt{mccode.sim}, a single
+monitor file or a NeXus \texttt{mccode.h5} file in an interactive JupyterLab view built on
+\texttt{plopp}/\texttt{scipp} (install with e.g.\ \texttt{conda install -c conda-forge plopp
+ipympl jupyterlab}). With \verb+-o FILE+ it writes a static \texttt{png}, \texttt{pdf} or
+\texttt{svg} instead, \verb+--log+ selects a logarithmic intensity scale, and
+\verb+--source+/\verb+--sample+ name the source and sample components when plotting
+Monitor\_nD event data from NeXus files through McStasToX.
 
 All plotters read the plain-text \MCX/McCode data format (section~\ref{s:analyze});
 NeXus files are not currently read back by the plotters.
@@ -1448,7 +1469,8 @@ it using the \verb+BROWSER+ environment variable
 \indexEV{BROWSER}
 (e.g. firefox, chromium, \ldots). Alternatively, if a search term or a
 \textit{file.comp}/\textit{file.instr} path is given, \verb+mxdoc+ will
-search within the library and open documentation for all matching entries.
+search within the library and open documentation for all matching entries. The search results are written to a
+separate page, \texttt{mxdoc\_search.html}, next to the main library page (or in the temporary directory if that is read-only), so the main page is left untouched. Mathematics in component documentation is rendered locally with the MathJax copy installed with the documentation.
 
 Additional options include \verb+--install+/\verb+-i+ (regenerate the local
 installation-wide index), \verb+--dir=DIR+/\verb+-d+ (add search results from
@@ -1489,7 +1511,7 @@ acceleration information, and migration guides from \MCX~2.x to 3.x.
 \MCX ships with a Python self-test/benchmark harness, replacing the earlier
 \verb+mxrun --test+ command. \verb+mxtest+ compiles and runs a selection (or
 all) of the example instruments found under the current installation(s), and
-stores each run's results (including any test-defined \texttt{\%Example}
+stores each run's results (including any test-defined \texttt{\%Test}
 reference values) in a timestamped output folder. Each test compiles the
 instrument, displays it with a single particle, runs it, and compares the
 result with the target value recorded in the instrument header. Useful options
@@ -1502,12 +1524,33 @@ instrument names), \verb+--comp=COMP[,COMP...]+ (test only instruments using
 any of the given components), \verb+--local=DIR+ (test instruments from
 \texttt{DIR} instead of the installation), \verb+--limit=N+ (test only the first
 N instruments per version), \verb+--skipnontest+ (skip instruments without an
-\texttt{\%Example} line), \verb+--strict+ (fail instruments without
-\texttt{\%Example} line(s) immediately) and \verb+--permissive+ (exit with
+\texttt{\%Test}/\texttt{\%TestScan} line), \verb+--strict+ (fail instruments without
+\texttt{\%Test}/\texttt{\%TestScan} line(s) immediately) and \verb+--permissive+ (exit with
 status 0 even if tests fail), \verb+--testdir=DIR+ and \verb+--suffix=SUFFIX+
 (where the results are written), \verb+--compilemax+, \verb+--runmax+ and
 \verb+--displaymax+ (time limits in seconds) and \verb+--noplots+ (do not
 generate the overview plots); run \verb+mxtest --help+ for the full list.
+generate the overview plots); run \verb+mctest --help+ for the full list.
+
+A test is defined in the instrument header by a \texttt{\%Test:} line (older name
+\texttt{\%Example:}), giving instrument parameters and the expected monitor value,
+\textit{e.g.}\ \texttt{\%Test: lambda=2.36 Detector: He3H\_I=9.84026e-10}. A
+\texttt{\%TestScan:} line (older name \texttt{\%Scan:}) defines a parameter scan
+using the \verb+mxrun+ scan syntax, followed by a \texttt{\{\}}-enclosed list with one
+target value per scan point (it may span several header lines), \textit{e.g.}\
+\texttt{\%TestScan: dBz=-0.0001,0.0001 -N41 -n1e5 Detector: detector\_I=\{\ldots\}}.
+A \texttt{\%Test:} always runs at the global \verb+--ncount+ (scaled by
+\verb+--statfactor+); a scan uses its own \texttt{-n} if given, otherwise at most
+$10^5$ per point, and runs its points in parallel (\verb+--scan_split=auto+) unless
+MPI is used. By default a value (every point of a scan) passes when it is within
+20\,\% of its target. With \verb+--nsigma N+ or \verb+--pvalue P+ it is instead
+accepted within the statistical tolerance of the combined error bars, using the
+error bar of the target when the test line gives it
+(\textit{e.g.}\ \texttt{NAME\_I=2.00752e+08 NAME\_ERR=2.28872e+06}).
+\verb+--statfactor F+ scales the particle count of every test (\textit{e.g.}\ 0.01 for
+quick runs, 100 for reference-quality ones) and \verb+--noscans+ skips the
+\texttt{\%TestScan} tests. The statistics are described in more detail in
+\texttt{tools/Python/mctest-statistics.md}.
 
 \verb+mxviewtest+ then generates an HTML report of one or more \verb+mxtest+
 runs found in a given folder (the current directory by default). When more
@@ -1519,7 +1562,7 @@ additionally runs \texttt{mxplotdiff-html} and \texttt{mxcoplot-html}
 reference's, adding a \texttt{DIFF~[vs~ref]} link next to each such row in the
 report. These comparisons are cached on disk and generated in parallel
 (\verb+--diffworkers+, each limited to \verb+--diffmax+ seconds), so
-re-running \verb+mxviewtest+ is fast; use \verb+--nodiff+ to skip generating
+re-running \verb+mxviewtest+ is fast (each test, and each scan, is one row of the report, coloured pass/fail by the rule \verb+mxtest+ used for that result set; hovering a scan cell lists every point's value, target and percentage); use \verb+--nodiff+ to skip generating
 them entirely, or \verb+--diff-errors-only+ to only diff rows that already show
 a discrepancy (by default every valid row is diffed). \verb+--nobrowse+ keeps
 the finished report from being opened in a browser.
@@ -1654,7 +1697,7 @@ computers.
   clusters (see section \ref{s:mpi}).
 \item \texttt{mxrun}'s built-in scan-splitting (\verb+--scan_split=N+, see
   Table~\ref{f:mcrunoptions}) distributes the individual steps of a parameter
-  scan across \texttt{N} local CPU cores/threads, without requiring MPI. This
+  scan across \texttt{N} local CPU cores/threads (\texttt{auto}, or 0, uses the number of cores minus one), without requiring MPI. It is ignored, with a warning, when an explicit multi-process \verb+--mpi+ is given. This
   is a lightweight alternative on a single multi-core machine.
 \end{itemize}
 

@@ -21,6 +21,8 @@ mcdisplay -y -c
 ## Examples
 
 - **Test: pin_rad=0.0025 Detector:det_I=4.63384e-06**
+- **Test: pin_rad=0.0025 meshfile="test.off" Detector:det_I=4.63384e-06**
+- **Test: pin_rad=0.0025 meshfile="test.ply" Detector:det_I=4.63384e-06**
 
 ## Input parameters
 
@@ -34,6 +36,7 @@ Parameters in **boldface** are required; the others are optional.
 | detector_y | m | Detector Height | 0.04 |
 | det_dist | m | Distance between detector and sample center | 0.005 |
 | crack_width | m | Height masking crack should be raised from the original crack | 0.003 |
+| meshfile | str | Mesh file of the crack: test.stl (binary STL), test.off or test.ply | "test.stl" |
 
 ## Links
 
