@@ -1371,6 +1371,305 @@ gmesh_read_file (char* filename, const char* extension, gmesh_raw* raw) {
   return ok;
 }
 
+#ifdef GMESH_REDUCE_TOL
+// ==========================================================================
+// Mesh reduction: edge collapse with quadric error metrics (M. Garland and
+// P. Heckbert, SIGGRAPH 1997), pass structure as in Fast-Quadric-Mesh-
+// Simplification (Sven Forstmann, MIT licence). Vertices on open boundaries,
+// non-manifold edges and seams between faces with different properties are
+// never moved.
+// ==========================================================================
+
+// symmetric 4x4 quadric of the plane n.r + d = 0, upper triangle:
+// q = [xx xy xz xd yy yz yd zz zd dd]
+static void
+gmesh_quadric_add_plane (double* q, Coords n, double d) {
+  q[0] += n.x * n.x;
+  q[1] += n.x * n.y;
+  q[2] += n.x * n.z;
+  q[3] += n.x * d;
+  q[4] += n.y * n.y;
+  q[5] += n.y * n.z;
+  q[6] += n.y * d;
+  q[7] += n.z * n.z;
+  q[8] += n.z * d;
+  q[9] += d * d;
+}
+
+// sum of squared distances of p to the planes of quadric q
+static double
+gmesh_quadric_error (const double* q, Coords p) {
+  double error = q[0] * p.x * p.x + 2 * q[1] * p.x * p.y + 2 * q[2] * p.x * p.z + 2 * q[3] * p.x + q[4] * p.y * p.y + 2 * q[5] * p.y * p.z
+                 + 2 * q[6] * p.y + q[7] * p.z * p.z + 2 * q[8] * p.z + q[9];
+  return error > 0 ? error : 0;
+}
+
+static double
+gmesh_det3 (double a, double b, double c, double d, double e, double f, double g, double h, double i) {
+  return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+}
+
+// position p for the collapse of edge a-b with quadric q, and its error: the
+// minimum of the quadric when well defined and near the edge, else the best
+// of a, b and the midpoint
+static double
+gmesh_collapse_target (const double* q, Coords a, Coords b, Coords* p) {
+  Coords mid = coords_scale (coords_add (a, b), 0.5);
+  Coords candidate[3];
+  double det = gmesh_det3 (q[0], q[1], q[2], q[1], q[4], q[5], q[2], q[5], q[7]);
+  double trace = q[0] + q[4] + q[7];
+  double best;
+  int k;
+  if (fabs (det) > 1e-9 * trace * trace * trace) {
+    Coords x;
+    x.x = gmesh_det3 (-q[3], q[1], q[2], -q[6], q[4], q[5], -q[8], q[5], q[7]) / det;
+    x.y = gmesh_det3 (q[0], -q[3], q[2], q[1], -q[6], q[5], q[2], -q[8], q[7]) / det;
+    x.z = gmesh_det3 (q[0], q[1], -q[3], q[1], q[4], -q[6], q[2], q[5], -q[8]) / det;
+    if (coords_len (coords_sub (x, mid)) <= coords_len (coords_sub (b, a))) {
+      *p = x;
+      return gmesh_quadric_error (q, x);
+    }
+  }
+  candidate[0] = a;
+  candidate[1] = b;
+  candidate[2] = mid;
+  *p = a;
+  best = gmesh_quadric_error (q, a);
+  for (k = 1; k < 3; k++) {
+    double error = gmesh_quadric_error (q, candidate[k]);
+    if (error < best) {
+      best = error;
+      *p = candidate[k];
+    }
+  }
+  return best;
+}
+
+// can edge a-b collapse to p? The edge must be shared by exactly two
+// triangles whose third vertices keep at least 3 triangles (no fold-overs,
+// no pinched tunnels), and no other triangle around a or b may flip or
+// become degenerate
+static int
+gmesh_collapse_ok (gmesh_struct* mesh, const char* deleted, const int* start, const int* refs, int* mark, int* stamp, int a, int b, Coords p) {
+  int v, r, k, ncommon = 0;
+  int ends[2];
+  ends[0] = a;
+  ends[1] = b;
+  (*stamp) += 2;
+  for (r = start[a]; r < start[a + 1]; r++) {
+    int t = refs[r];
+    if (deleted[t])
+      continue;
+    for (k = 0; k < 3; k++)
+      mark[mesh->tri[3 * t + k]] = *stamp;
+  }
+  for (r = start[b]; r < start[b + 1]; r++) {
+    int t = refs[r];
+    if (deleted[t])
+      continue;
+    for (k = 0; k < 3; k++) {
+      int w = mesh->tri[3 * t + k];
+      int s, ntri = 0;
+      if (w == a || w == b || mark[w] != *stamp)
+        continue;
+      mark[w] = *stamp + 1; // count each common neighbour once
+      ncommon++;
+      for (s = start[w]; s < start[w + 1]; s++)
+        ntri += !deleted[refs[s]];
+      if (ntri <= 3)
+        return 0;
+    }
+  }
+  if (ncommon != 2)
+    return 0;
+  for (v = 0; v < 2; v++) {
+    int moved = ends[v];
+    for (r = start[moved]; r < start[moved + 1]; r++) {
+      int t = refs[r];
+      Coords c[3], d[3], before, after;
+      if (deleted[t])
+        continue;
+      for (k = 0; k < 3; k++) {
+        int w = mesh->tri[3 * t + k];
+        if (w == ends[1 - v])
+          break; // one of the two triangles that disappear
+        c[k] = mesh->vtx[w];
+        d[k] = (w == moved) ? p : c[k];
+      }
+      if (k < 3)
+        continue;
+      before = coords_xp (coords_sub (c[1], c[0]), coords_sub (c[2], c[0]));
+      after = coords_xp (coords_sub (d[1], d[0]), coords_sub (d[2], d[0]));
+      if (coords_len (after) <= 1e-14 * mesh->length_scale * mesh->length_scale)
+        return 0;
+      if (coords_sp (before, after) < 0.2 * coords_len (before) * coords_len (after))
+        return 0;
+    }
+  }
+  return 1;
+}
+
+// reduce the triangles of mesh (welded, before the normals are computed):
+// collapse edges as long as the quadric error stays below tol^2 (tol in m);
+// tol=0 only removes exactly flat interior vertices.
+// The faceArray is replaced by the triangles. RETURN: largest collapse error (m)
+static double
+gmesh_reduce (gmesh_struct* mesh, double tol) {
+  int nv = mesh->nverts, nt = mesh->ntris;
+  int* tri = mesh->tri;
+  double* q = gmesh_xcalloc (10 * (size_t)nv, sizeof (double));
+  char* locked = gmesh_xcalloc (nv, 1);
+  char* deleted = gmesh_xcalloc (nt, 1);
+  int* dirty = gmesh_xcalloc (nv, sizeof (int));
+  int* mark = gmesh_xcalloc (nv, sizeof (int));
+  int* start = gmesh_xcalloc (nv + 1, sizeof (int));
+  int* refs = gmesh_xrealloc (NULL, 3 * (size_t)nt * sizeof (int));
+  int* remap = gmesh_xrealloc (NULL, nv * sizeof (int));
+  double floor2 = 1e-9 * mesh->length_scale; // same order as GMESH_WELD_TOL
+  double tol2 = tol * tol;
+  double max_error = 0;
+  int stamp = 0;
+  int i, k, t, pass;
+  gmesh_etab edges;
+  floor2 *= floor2;
+
+  // vertex quadrics: the planes of the triangles around each vertex
+  for (t = 0; t < nt; t++) {
+    Coords a = mesh->vtx[tri[3 * t]];
+    Coords n = coords_xp (coords_sub (mesh->vtx[tri[3 * t + 1]], a), coords_sub (mesh->vtx[tri[3 * t + 2]], a));
+    double length = coords_len (n);
+    if (length <= 0)
+      continue;
+    n = coords_scale (n, 1 / length);
+    for (k = 0; k < 3; k++)
+      gmesh_quadric_add_plane (&q[10 * tri[3 * t + k]], n, -coords_sp (n, a));
+  }
+  // ponytail: seam and boundary vertices are pinned rather than allowed to slide
+  // along the seam (Garland-Heckbert penalty planes), which reduces less there
+  gmesh_etab_build (&edges, tri, nt);
+  for (i = 0; i < edges.cap; i++) {
+    gmesh_edge* edge = &edges.e[i];
+    int seam = 0;
+    if (!edge->n)
+      continue;
+    if (edge->n == 2 && mesh->tri_face[edge->t0] != mesh->tri_face[edge->t1]) {
+      int f0 = mesh->tri_face[edge->t0], f1 = mesh->tri_face[edge->t1];
+      for (k = 0; k < mesh->nfaceprops; k++)
+        seam |= (mesh->facePropArray[k * mesh->nfaces + f0] != mesh->facePropArray[k * mesh->nfaces + f1]);
+    }
+    if (edge->n != 2 || seam)
+      locked[edge->a] = locked[edge->b] = 1;
+  }
+  free (edges.e);
+
+  // passes with a growing error threshold, cheapest collapses first; a vertex
+  // whose neighbourhood changed is left alone until the next pass
+  for (pass = 1; pass < 1000; pass++) {
+    double threshold = (pass < 20) ? ldexp (tol2, pass - 20) : tol2;
+    int ncollapsed = 0;
+    if (threshold < floor2)
+      threshold = floor2;
+    // live triangles around each vertex: refs[start[v] .. start[v+1]-1]
+    memset (start, 0, (nv + 1) * sizeof (int));
+    for (t = 0; t < nt; t++)
+      if (!deleted[t])
+        for (k = 0; k < 3; k++)
+          start[tri[3 * t + k] + 1]++;
+    for (i = 0; i < nv; i++)
+      start[i + 1] += start[i];
+    memcpy (mark, start, nv * sizeof (int));
+    for (t = 0; t < nt; t++)
+      if (!deleted[t])
+        for (k = 0; k < 3; k++)
+          refs[mark[tri[3 * t + k]]++] = t;
+    memset (mark, 0, nv * sizeof (int));
+    stamp = 0;
+
+    for (t = 0; t < nt; t++) {
+      for (k = 0; k < 3 && !deleted[t]; k++) {
+        int a = tri[3 * t + k], b = tri[3 * t + (k + 1) % 3];
+        double qsum[10], error;
+        Coords p;
+        int j, r;
+        if (locked[a] || locked[b] || dirty[a] == pass || dirty[b] == pass)
+          continue;
+        for (j = 0; j < 10; j++)
+          qsum[j] = q[10 * a + j] + q[10 * b + j];
+        error = gmesh_collapse_target (qsum, mesh->vtx[a], mesh->vtx[b], &p);
+        if (error > threshold || !gmesh_collapse_ok (mesh, deleted, start, refs, mark, &stamp, a, b, p))
+          continue;
+        // collapse b into a
+        for (r = start[a]; r < start[a + 1]; r++)
+          for (j = 0; j < 3; j++)
+            dirty[tri[3 * refs[r] + j]] = pass;
+        for (r = start[b]; r < start[b + 1]; r++) {
+          int u = refs[r];
+          if (deleted[u])
+            continue;
+          for (j = 0; j < 3; j++)
+            dirty[tri[3 * u + j]] = pass;
+          for (j = 0; j < 3; j++)
+            if (tri[3 * u + j] == a)
+              deleted[u] = 1;
+          for (j = 0; j < 3; j++)
+            if (tri[3 * u + j] == b)
+              tri[3 * u + j] = a;
+        }
+        mesh->vtx[a] = p;
+        memcpy (&q[10 * a], qsum, sizeof (qsum));
+        if (error > max_error)
+          max_error = error;
+        ncollapsed++;
+      }
+    }
+    if (!ncollapsed && threshold >= tol2)
+      break;
+  }
+
+  // compact the triangles and the vertices still in use
+  for (i = 0; i < nv; i++)
+    remap[i] = -1;
+  k = 0;
+  for (t = 0; t < nt; t++) {
+    if (deleted[t])
+      continue;
+    for (i = 0; i < 3; i++)
+      tri[3 * k + i] = tri[3 * t + i];
+    mesh->tri_face[k] = mesh->tri_face[t];
+    k++;
+  }
+  mesh->ntris = nt = k;
+  for (i = 0; i < 3 * nt; i++)
+    remap[tri[i]] = 0;
+  k = 0;
+  for (i = 0; i < nv; i++)
+    if (remap[i] == 0) {
+      mesh->vtx[k] = mesh->vtx[i]; // k <= i: in place
+      remap[i] = k++;
+    }
+  for (i = 0; i < 3 * nt; i++)
+    tri[i] = remap[tri[i]];
+  mesh->nverts = k;
+  // the polygons of the file no longer exist: faceArray holds the triangles
+  mesh->faceSize = 4 * nt;
+  mesh->faceArray = gmesh_xrealloc (mesh->faceArray, mesh->faceSize * sizeof (int));
+  for (t = 0; t < nt; t++) {
+    mesh->faceArray[4 * t] = 3;
+    for (i = 0; i < 3; i++)
+      mesh->faceArray[4 * t + 1 + i] = tri[3 * t + i];
+  }
+  free (q);
+  free (locked);
+  free (deleted);
+  free (dirty);
+  free (mark);
+  free (start);
+  free (refs);
+  free (remap);
+  return sqrt (max_error);
+}
+#endif
+
 // read an STL/OFF/PLY file into mesh, see geometry-mesh-lib.h
 int
 gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh) {
@@ -1580,6 +1879,15 @@ gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh) {
     }
   }
   gmesh_raw_free (&raw);
+
+#ifdef GMESH_REDUCE_TOL
+  {
+    int ntris = mesh->ntris;
+    double error = gmesh_reduce (mesh, GMESH_REDUCE_TOL);
+    MPI_MASTER (printf ("  %s: reduced from %d to %d triangles, largest collapse error %g m (GMESH_REDUCE_TOL=%g m)\n", filename, ntris, mesh->ntris, error,
+                        (double)GMESH_REDUCE_TOL););
+  }
+#endif
 
   // normals; drop zero-area triangles
   mesh->tri_normal = gmesh_xrealloc (NULL, mesh->ntris * sizeof (Coords));
