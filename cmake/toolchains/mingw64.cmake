@@ -41,8 +41,8 @@ set(MPILIB "msmpi")
 set(MCCODE_CFLAGS "-flto -O3 -mtune=native -fno-math-errno -ftree-vectorize -g -DNDEBUG -D_POSIX_SOURCE -std=c99 -lm")
 set(EDITOR "start")
 
-# NeXus location defaults
-set(NEXUSINCLUDE "GETPATH(../miniconda3/Library/include/nexus)")
+# HDF5 location for NeXus output
+set(NEXUSINCLUDE "GETPATH(../miniconda3/Library/include)")
 set(NEXUSLIB "GETPATH(../miniconda3/Library/lib)")
 
 # HDFviewer

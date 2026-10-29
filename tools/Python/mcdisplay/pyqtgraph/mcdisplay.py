@@ -93,7 +93,7 @@ def plot_2d_ray(coords, plt):
     return plt.plot(x, y, pen=pg.mkPen(pg.getConfigOption('foreground')))
 
 def get_2d_instrument(instr, plane='zy'):
-    ''' returns a list of (compname, coords-lst) tuples, coords-lst being a list of 2-tuple points in the plane '''
+    ''' returns a list of (compname, coords-lst) tuples, coords-lst being a list of (2-tuple points in the plane, pen colour or None) '''
     (k1, k2) = (0,1)
     if plane == 'zy': (k1, k2) = (2,1)
     if plane == 'xy': (k1, k2) = (0,1)
@@ -105,10 +105,10 @@ def get_2d_instrument(instr, plane='zy'):
         comp_coord_sets = []
         for d in c.drawcalls:
             if type(d) in [DrawLine, DrawMultiline]:
-                comp_coord_sets.append([(tp[k1], tp[k2]) for tp in [c.transform.apply(p) for p in d.points]])
+                comp_coord_sets.append(([(tp[k1], tp[k2]) for tp in [c.transform.apply(p) for p in d.points]], d.color))
             if type(d) in [DrawCircle]:
                 set = [(tp[k1], tp[k2]) for tp in [c.transform.apply(p) for p in d.get_points_on_circle()]]
-                comp_coord_sets.append(set)
+                comp_coord_sets.append((set, d.color))
         coords_sets.append((c.name, comp_coord_sets))
     
     return coords_sets
@@ -136,23 +136,27 @@ def plot_2d_instr(coords_sets, plt, xlabel, ylabel):
         comp = comp_coords_sets[0]
         comp_data = comp_coords_sets[1]
         
-        x_comp = np.array([])
-        y_comp = np.array([])
-        connect_comp = np.array([])
-        for coords in comp_data:
-            x = np.array([p[0] for p in coords])
-            y = np.array([p[1] for p in coords])
-            # all true except for the last entry, which gives a hole towards the next set
-            connect = np.array([True for x in x])
-            connect[len(x)-1] = False
+        # one plot item per pen colour (None: the component colour)
+        for pen in dict.fromkeys(c for _, c in comp_data) or [None]:
+            x_comp = np.array([])
+            y_comp = np.array([])
+            connect_comp = np.array([])
+            for coords, c in comp_data:
+                if c != pen:
+                    continue
+                x = np.array([p[0] for p in coords])
+                y = np.array([p[1] for p in coords])
+                # all true except for the last entry, which gives a hole towards the next set
+                connect = np.array([True for x in x])
+                connect[len(x)-1] = False
+                
+                x_comp = np.concatenate([x_comp, x])
+                y_comp = np.concatenate([y_comp, y])
+                            
+                connect_comp = np.concatenate([connect_comp, connect])
             
-            x_comp = np.concatenate([x_comp, x])
-            y_comp = np.concatenate([y_comp, y])
-                        
-            connect_comp = np.concatenate([connect_comp, connect])
-        
-        itm = plt.plot(x_comp, y_comp, connect=connect_comp, pen=pg.mkPen(color=colour))
-        compnames_plts.append((comp, itm))
+            itm = plt.plot(x_comp, y_comp, connect=connect_comp, pen=pg.mkPen(color=pen or colour))
+            compnames_plts.append((comp, itm))
 
     # Fix the axes to have a common x and y zooom factor
     AxisBounds=plt.getViewBox().childrenBounds()
@@ -628,6 +632,7 @@ if __name__ == '__main__':
     parser.add_argument('--inspect', help='display only particle rays reaching this component')
     parser.add_argument('--invcanvas', action='store_true', help='invert canvas background from black to white')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=300, help='Number of particles to simulate')
+    parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1], default=1, help='mcrun --trace level, only 1 is supported')
 
     args, unknown = parser.parse_known_args()
     # if --inspect --first or --last are given after instr, the remaining args become "unknown",

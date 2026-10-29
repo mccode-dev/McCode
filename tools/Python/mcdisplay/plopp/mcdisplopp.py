@@ -150,7 +150,8 @@ def _merge(parts):
 def trace(instr, n=100, params=(), yes=False):
     ''' run mcrun --trace=2; yes forwards -y (unset params take defaults), otherwise mcrun prompts for them.
         Returns ({component: (lines, solid vertices, solid triangles, hollow)}, ray xyz); lines/rays are NaN-separated
-        (N,3) polylines, all in instrument coordinates; hollow: the component draws a box/cylinder with thickness > 0 '''
+        (N,3) polylines, all in instrument coordinates; hollow: the component draws a box/cylinder with thickness > 0.
+        Draw calls after a pencolor go in their own entry, keyed '<component> #rrggbb' '''
     reader = McDisplayReader(instr=instr, n=n, options=list(params) + ['-y'] * yes, no_mpi=True, trace=2)
     instrument = reader.read_instrument()
     bundle = reader.read_particles()
@@ -160,12 +161,14 @@ def trace(instr, n=100, params=(), yes=False):
         t = c.transform
         M = np.array([[t.a11, t.a12, t.a13], [t.a21, t.a22, t.a23], [t.a31, t.a32, t.a33]])
         t0 = np.array([t.a14, t.a24, t.a34])
-        wires = [w for w in map(_wire, c.drawcalls) if w]
-        solids = [s for s in map(_solid, c.drawcalls) if s is not None]
-        if wires or solids:
-            v, f = _merge(solids)
-            hollow = any(isinstance(d, (DrawBox, DrawCylinder)) and d.thickness > 0 for d in c.drawcalls)
-            geom[c.name] = (_polylines(wires) @ M.T + t0, v @ M.T + t0, f, hollow)  # ponytail: DrawPolygon (unused at trace=2) skipped
+        for pen in dict.fromkeys(d.color for d in c.drawcalls):
+            ds = [d for d in c.drawcalls if d.color == pen]
+            wires = [w for w in map(_wire, ds) if w]
+            solids = [s for s in map(_solid, ds) if s is not None]
+            if wires or solids:
+                v, f = _merge(solids)
+                hollow = any(isinstance(d, (DrawBox, DrawCylinder)) and d.thickness > 0 for d in ds)
+                geom[c.name + (' ' + pen if pen else '')] = (_polylines(wires) @ M.T + t0, v @ M.T + t0, f, hollow)  # ponytail: DrawPolygon (unused at trace=2) skipped
 
     tf = {c.name: c.transform for c in instrument.components}
     ray_pls = [[_xyz(tf[g.compname].apply(Vector3d(*e.args[:3]))) for g in story.groups if g.compname in tf
@@ -196,7 +199,7 @@ def view(geom, rays):
         lines = {'rays': _projection(rays, 'z', v)}  # first, so components draw on top
         lines.update({name: _projection(xyz, 'z', v) for name, xyz in flat.items()})
         figs.append(pp.plot(lines, linestyle='-', marker='', legend=False,
-                            color={'rays': 'lightgrey'}, ylabel=f'{v} [m]', title=f'z-{v}',
+                            color={'rays': 'lightgrey', **{k: k.split()[1] for k in flat if ' ' in k}}, ylabel=f'{v} [m]', title=f'z-{v}',
                             xmin=np.nanmin(z) - pad, xmax=np.nanmax(z) + pad))
     return figs[0] / figs[1]
 
@@ -248,15 +251,22 @@ def view3d(geom, rays, thickness=1e-4):
         Tube radius = thickness x the instrument's bounding-box diagonal; rays get half of it.
         Components with hollow shapes go in a second, translucent mesh so their inner cavity shows '''
     from plopp.graphics import mesh3dfigure
+    from matplotlib import colormaps
+    from matplotlib.colors import ListedColormap
     allpts = np.concatenate([rays] + [np.concatenate([lines, v]) for lines, v, f, _ in geom.values()])
     r = thickness * np.linalg.norm(np.nanmax(allpts, 0) - np.nanmin(allpts, 0))
+    names = list(dict.fromkeys(k.split()[0] for k in geom))
+    pens = list(dict.fromkeys(k.split()[1] for k in geom if ' ' in k))
+    cmap = ListedColormap(list(colormaps['tab20'].colors) + pens)  # component colours, then pencolor colours
     parts, cols = {False: [], True: []}, {False: [], True: []}
-    for i, (lines, v, f, hollow) in enumerate(geom.values()):
+    for key, (lines, v, f, hollow) in geom.items():
+        name, _, pen = key.partition(' ')
+        i = 20 + pens.index(pen) if pen else names.index(name) % 20
         for part in (_tubes(lines, r), (v, f)):
-            parts[hollow].append(part), cols[hollow].append(np.full(len(part[0]), i % 20, dtype=float))
+            parts[hollow].append(part), cols[hollow].append(np.full(len(part[0]), i, dtype=float))
     parts[False].append(_tubes(rays, r / 2)), cols[False].append(np.full(len(parts[False][-1][0]), np.nan))
     nodes = {h: _mesh(parts[h], cols[h]) for h in (False, True) if parts[h]}
-    fig = mesh3dfigure(*nodes.values(), vertexcolors=True, cmap='tab20', cmin=0, cmax=19, nan_color='lightgrey',
+    fig = mesh3dfigure(*nodes.values(), vertexcolors=True, cmap=cmap, cmin=0, cmax=cmap.N - 1, nan_color='lightgrey',
                        figsize=(900, 600))
     if True in nodes:
         fig.view.artists[nodes[True].id].opacity = HOLLOW_OPACITY

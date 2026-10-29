@@ -5,15 +5,15 @@
 *         DTU Physics, Kgs. Lyngby, Denmark
 *         Synchrotron SOLEIL, Saint-Aubin, France
 *
-* Component: Source_lab
+* Component: Source_lab_xrl
 *
 * %Identification
-* Written by: Erik B. Knudsen 
-* Date: May 2012
-* Version: 1.0
+* Written by: Erik B. Knudsen (original Source_lab), xraylib port derived from it
+* Date: May 2012 (original), 2026 (xraylib version)
+* Version: 1.1
 * Origin: Kgs. Lyngby
 *
-* Laboratory x-ray source.
+* Laboratory x-ray source, using xraylib for all material data.
 *
 * %Description
 * Model of a laboratory x-ray tube, generating x-rays by bombarding a target by electrons.
@@ -22,24 +22,35 @@
 * # The electron beam hits a slab of surface material surface at a right angle illuminating an area of width by height,
 * # where width is measured along the component X-axis.
 * # The centre of the electron beam at the anode surface is the origin of the component.
-* # The Z-axis of the component points at the centre of the exit window (focus_xw by focus yh) 
+* # The Z-axis of the component points at the centre of the exit window (focus_xw by focus yh)
 * placed at a distance dist from the origin.
 * # The angle between the Z-axis and the anode surface is the take_off angle.
-* For a detailed sketch of the geometry see the componnent manual.
-* 
+* For a detailed sketch of the geometry see the component manual.
+*
 * The Bremsstrahlung emitted is modelled using the model of Kramer (1923) as restated in International
 * Tables of Crystallography C 4.1
-* Characteristic radiation is modelled by Lorentzian (default) or Gaussian energy profiles with
-* line-energies from Bearden (1967), widths from Krause (1979) and intensity from Honkimäki (1990) and x-ray data booklet.
-* Absoprtion of emitted x-rays while travelling through the target anode is included. 
-* 
-* Example: Source_lab(material_datafile="Cu.txt",Emin=1, E0=80)
+*
+* Characteristic radiation (K-lines Ka1, Ka2, Kb1, Kb3) is modelled by Lorentzian (default) or Gaussian
+* energy profiles. Line energies, level widths (FWHM = K level width + final level width) and relative
+* intensities (radiative rates, strongest line = 1) are obtained from xraylib for ANY mono-atomic anode;
+* no datafile is needed. Lines that fall outside [Emin,Emax] are dropped.
+*
+* Absorption of emitted x-rays while travelling through the target anode is included, using the xraylib
+* total mass attenuation coefficient (tabulated once in INITIALIZE on a log grid, with extra points
+* on both sides of every absorption edge, and interpolated log-log in TRACE).
+*
+* Example: Source_lab(material="Cu",Emin=1, E0=80)
+* Legacy:  Source_lab(material_datafile="Cu.txt",Emin=1, E0=80)
 *
 * %Parameters
+* material:   [string] Anode element, symbol ("Cu", "W", ...) or atomic number as a string ("29").
+* material_datafile: [string] Legacy parameter, kept for backward compatibility with Source_lab. Only the
+*             file NAME is used: the element is taken from it ("Cu.txt", "../data/Mo.txt" -> "Cu", "Mo");
+*             the file is not read. If set, it overrides 'material'.
 * width:      [m]    Width of electron beam impinging on the anode.
 * height:     [m]    Height of electron beam impinging on the anode.
-* xwidth:     [m]    Width of the anode material slab.
-* yheight:    [m]    Height of the anode material slab.
+* xwidth:     [m]    Width of the anode material slab (0: practically infinite).
+* yheight:    [m]    Height of the anode material slab (0: practically infinite).
 * thickness:  [m]    Thickness of the anode material slab.
 * take_off:   [deg]  Take off angle of beam centre.
 * dist:       [m]    Distance between centre of illuminated target and exit window.
@@ -50,7 +61,6 @@
 * focus_xw:   [m]    Width of exit window.
 * focus_yh:   [m]    Height of exit window.
 * frac:       [0-1]  Fraction of statistic to use for Bremsstrahlung.
-* material_datafile: [string] Name of datafile which describes the target material.
 * lorentzian: [0/1]  If nonzero Lorentzian (more correct) line profiles are used.
 * exit_window_refpt: [m] If set, the AT position and exit window will coincide (legacy behaviour).
 *
@@ -59,45 +69,57 @@
 
 DEFINE COMPONENT Source_lab
 
-SETTING PARAMETERS (string material_datafile="Cu.txt", width=1e-3, height=1e-3, thickness=100e-6, E0=20, Emax=0, Emin=1, focus_xw=5e-3, focus_yh=5e-3,
-    take_off=6, dist=1, tube_current=1e-3, frac=0.1, lorentzian=1, xwidth=0, yheight=0, exit_window_refpt=0 )
+SETTING PARAMETERS (string material="Cu", width=1e-3, height=1e-3, thickness=100e-6, 
+    E0=20, Emax=0, Emin=1, focus_xw=5e-3, focus_yh=5e-3,
+    take_off=6, dist=1, tube_current=1e-3, frac=0.1, lorentzian=1, 
+    xwidth=0, yheight=0, exit_window_refpt=0, string material_datafile="" )
 
-/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
+
+DEPENDENCY " @XRLFLAGS@ -DUSE_OFF "
+NOACC
 
 SHARE
 %{
-  %include "read_table-lib"
-  #ifndef MX_SOURCE_LAB
-  #define MX_SOURCE_LAB
-  /*here are some material data- currently only for Cu, Mo, W, and Ag*/
-  struct xray_em_data {
-    int _Z;     /*atom number*/
-    double Ek;  /*ionazation energy*/
-    double w_k; /*flourescence yield*/
-    int linec;
-    double e[6]; /*line energy*/
-    double w[6]; /*natural width of line FWHM*/
-    double i[6]; /*relative intensity*/
-  };
-  struct xray_em_data xray_mat_data[8] = {
-    { 24, 5.989, 0.265, 3, { 5.41472, 5.40551, 5.94671, 0, 0, 0 }, { 1.97e-3, 2.39e-3, 3.05e-3, 0, 0, 0 }, { 100, 50, 15, 0, 0, 0 } },
-    { 27, 7.709, 0.391, 3, { 6.93032, 6.9153, 7.6494, 0, 0, 0 }, { 2.26e-3, 3.08e-3, 4.36e-3, 0, 0, 0 }, { 100, 51, 17, 0, 0, 0 } },
-    { 29, 8.979, 0.407, 2, { 8.02783, 8.04778, 0, 0, 0, 0 }, { 2.11e-3, 2.17e-3, 0, 0, 0, 0 }, { 0.51, 1.0, 0, 0, 0, 0 } },
-    { 31, 10.367, 0.0, 2, { 9.22482, 9.25174, 0, 0, 0, 0 }, { 2.59e-3, 2.66e-3, 0, 0, 0, 0 }, { 0.51, 1.0, 0, 0, 0, 0 } },
-    { 42, 20.00, 0.770, 5, { 17.3743, 17.47934, 19.5903, 19.6083, 19.965, 0 }, { 6.31e-3, 6.49e-3, 12e-3, 12e-3, 12e-3, 0 }, { 0.52, 1.0, 0.08, 0.15, 0.03, 0 } },
-    { 47, 25.52, 0.8, 2, { 21.99030, 22.162917, 0, 0, 0, 0 }, { 9.32e-3, 9.16e-3, 0, 0, 0, 0 }, { 0.53, 1, 0, 0, 0, 0 } }, /* Ag fluorscence yield just guessed */
-    { 74,
-      69.525,
-      0.945,
-      5,
-      { 57.9817, 59.31824, 66.9514, 67.2443, 69.067, 0 },
-      { 44.9e-3, 45.2e-3, 51.1e-3, 50.8e-3, 50.2, 0 },
-      { 0.58, 1.0, 0.11, 0.22, 0.08, 0 } },
-    { 0, 0.0, 0.0, 0, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 } }
+  #ifndef MX_SOURCE_LAB_XRL
+  #define MX_SOURCE_LAB_XRL
+  #include <xraylib/xraylib.h>
+  #include <ctype.h>
+  #include <string.h>
 
-  };
-  #pragma acc declare create(xray_mat_data)
-  #endif
+  #define SLX_MAXLINES 8
+  #define SLX_NGRID 1000
+
+  /* returns 1 if the xraylib call succeeded; otherwise frees/resets the error and returns 0 */
+  static int slx_ok (xrl_error** err) {
+    if (*err) {
+      xrl_error_free (*err);
+      *err = NULL;
+      return 0;
+    }
+    return 1;
+  }
+
+  static int slx_cmp (const void* a, const void* b) {
+    double da = *(const double*)a, db = *(const double*)b;
+    return (da > db) - (da < db);
+  }
+
+  /* log-log interpolation of mu [m^-1] at energy E [keV] on the table (lE=log(E), lmu=log(mu)) */
+  static double slx_mu (const double* lE, const double* lmu, int n, double E) {
+    double le = log (E);
+    int lo = 0, hi = n - 1;
+    double f;
+    if (le <= lE[0]) return exp (lmu[0]);
+    if (le >= lE[n - 1]) return exp (lmu[n - 1]);
+    while (hi - lo > 1) {
+      int mid = (lo + hi) / 2;
+      if (lE[mid] > le) hi = mid; else lo = mid;
+    }
+    f = (le - lE[lo]) / (lE[hi] - lE[lo]);
+    return exp (lmu[lo] + f * (lmu[hi] - lmu[lo]));
+  }
+  #endif // def MX_SOURCE_LAB_XRL
 %}
 
 DECLARE
@@ -105,33 +127,43 @@ DECLARE
   Rotation R_xray_gen;
   Rotation R_xray_geni;
   Coords O_xray_gen;
+  char mat_name[64]; /* resolved element symbol / atomic number */
   int Z;
-  double At;
   double rho;
-  t_Table T;
-  int em_idx;
+  double Ek;
   double Icont;
   double Ichar;
-  int linemin;
-  int linemax;
   double p_continous;
   double pmul_c;
   double mu_electron;
-
   double BKRAMER;
+
+  /* characteristic lines (per instance) */
+  int nlines;
+  double l_e[SLX_MAXLINES];    /* energy [keV] */
+  double l_w[SLX_MAXLINES];    /* FWHM [keV] */
+  double l_sig[SLX_MAXLINES];  /* gaussian sigma [keV] */
+  double l_wgt[SLX_MAXLINES];  /* relative intensity x fraction of line inside [Emin,Emax] */
+  double l_umin[SLX_MAXLINES]; /* lorentzian sampling limits */
+  double l_umax[SLX_MAXLINES];
+
+  /* tabulated attenuation */
+  int nmu;
+  double* mu_lE;
+  double* mu_lmu;
 %}
 
 INITIALIZE
 %{
-  BKRAMER = 2e-6; /*photons /keV /electron*/
-                  #pragma acc update device(xray_mat_data[0:6])
+  int ii, jj, s;
+  xrl_error* err = NULL;
 
-  int status, ii;
+  BKRAMER = 2e-6; /*photons /keV /electron*/
+
   if (E0 <= 0) {
     fprintf (stderr, "Error %s: Impinging electron energy (E0) must be >0, was %g\n", NAME_CURRENT_COMP, E0);
     exit (-1);
   }
-
   if (!Emax) { /*if Emax is not set use the impinging electron energy*/
     Emax = E0;
   }
@@ -144,78 +176,162 @@ INITIALIZE
     exit (-1);
   }
 
-  if ((status = Table_Read (&(T), material_datafile, 0)) == -1) {
-    fprintf (stderr, "Error %s: Could not parse file \"%s\"\n", NAME_CURRENT_COMP, material_datafile ? material_datafile : "");
+  /* ---- select the anode element ---- */
+  mat_name[0] = '\0';
+  if (material_datafile && strlen (material_datafile)) {
+    /* backward compatibility: derive the element from a legacy datafile name,
+       e.g. "Cu.txt" or "../data/Mo.txt" -> "Cu" / "Mo". The file itself is NOT read. */
+    const char* base = material_datafile;
+    const char* sl1 = strrchr (material_datafile, '/');
+    const char* sl2 = strrchr (material_datafile, '\\');
+    int n = 0;
+    if (sl1) base = sl1 + 1;
+    if (sl2 && sl2 + 1 > base) base = sl2 + 1;
+    if (isdigit ((unsigned char)base[0])) {
+      while (isdigit ((unsigned char)base[n]) && n < (int)sizeof (mat_name) - 1) {
+        mat_name[n] = base[n];
+        n++;
+      }
+    } else {
+      while (isalpha ((unsigned char)base[n]) && n < (int)sizeof (mat_name) - 1) {
+        mat_name[n] = (n == 0) ? toupper ((unsigned char)base[n]) : tolower ((unsigned char)base[n]);
+        n++;
+      }
+    }
+    mat_name[n] = '\0';
+    if (!n) {
+      fprintf (stderr, "Error (%s): cannot derive an element from material_datafile '%s'\n", NAME_CURRENT_COMP, material_datafile);
+      exit (-1);
+    }
+    if (material && strlen (material) && strcmp (material, mat_name))
+      fprintf (stderr, "Warning (%s): material_datafile '%s' overrides material='%s' (using '%s')\n", NAME_CURRENT_COMP, material_datafile, material, mat_name);
+  } else if (material && strlen (material)) {
+    strncpy (mat_name, material, sizeof (mat_name) - 1);
+    mat_name[sizeof (mat_name) - 1] = '\0';
+  } else {
+    fprintf (stderr, "Error (%s): set 'material' (element symbol or atomic number) or 'material_datafile'\n", NAME_CURRENT_COMP);
     exit (-1);
   }
-  char** header_parsed;
-  header_parsed = Table_ParseHeader (T.header, "Z", "A[r]", "rho", "Z/A", "sigma[a]", NULL);
-  if (header_parsed[2]) {
-    rho = strtod (header_parsed[2], NULL);
-  }
-  if (header_parsed[0]) {
-    Z = strtod (header_parsed[0], NULL);
-  }
-  if (header_parsed[1]) {
-    At = strtod (header_parsed[1], NULL);
-  }
 
-  /*use the atom number to get at the right data structure*/
-  int idx = 0;
-  while (Z != xray_mat_data[idx]._Z) {
-    idx++;
-    if ((xray_mat_data[idx]._Z) == 0) {
-      fprintf (stderr, "Error: %s (Z=%d) anode not implemented yet. Please contact the McXtrace team to fix this. Aborting.\n", material_datafile, Z);
+  /* ---- material data from xraylib ---- */
+  Z = atoi (mat_name);
+  if (Z <= 0) {
+    Z = SymbolToAtomicNumber (mat_name, &err);
+    if (!slx_ok (&err) || Z <= 0) {
+      fprintf (stderr, "Error (%s): unknown element '%s'\n", NAME_CURRENT_COMP, mat_name);
       exit (-1);
     }
   }
-  em_idx = idx;
-  struct xray_em_data* em_p = &(xray_mat_data[em_idx]);
+  rho = ElementDensity (Z, &err); /* g/cm3 */
+  if (!slx_ok (&err) || rho <= 0) {
+    fprintf (stderr, "Error (%s): xraylib has no density for Z=%d (mono-atomic anodes only)\n", NAME_CURRENT_COMP, Z);
+    exit (-1);
+  }
+  Ek = EdgeEnergy (Z, K_SHELL, &err);
+  if (!slx_ok (&err) || Ek <= 0) {
+    fprintf (stderr, "Error (%s): xraylib has no K edge for Z=%d\n", NAME_CURRENT_COMP, Z);
+    exit (-1);
+  }
 
-  /*Integrate the continuous spectrum and the characteristic so as to get the relative intenisities right*/
+  /*Integrate the continuous spectrum and the characteristic so as to get the relative intensities right*/
   Icont = tube_current / CELE * BKRAMER * Z * (E0 * log (Emax) - E0 * log (Emin) - Emax + Emin);
-  /*check if E0 >Ek. If not, no characteristic emission can take place*/
-  if (E0 > em_p->Ek) {
-    double Bk = 1.2e-5 * pow (em_p->Ek, 1.67) * exp (-0.077 * Z);
-    Ichar = tube_current / CELE * 4 * M_PI * (E0 / em_p->Ek - 1) * Bk;
-    double Ichar_tot = 0;
-    int linec = 0;
-    linemin = 0;
-    linemax = em_p->linec;
-    for (ii = 0; ii < em_p->linec; ii++) {
-      /*if the interval [Emin,Emax] contains 5 sigma of the characteristic peak - use full peak.*/
-      if (Emin > em_p->e[ii] + 5 * em_p->w[ii]) {
-        /*way below of energy limit - do not use.*/
-        linemin = ii;
-      } else if (Emax < em_p->e[ii] - 5 * em_p->w[ii]) {
-        /*way above of energy limit - do not use.*/
-        linemax = linemax < ii ? linemax : ii;
-      } else {
-        linec++;
-      }
-      if (Emax > em_p->e[ii] + 5 * em_p->w[ii] && Emin < em_p->e[ii] - 5 * em_p->w[ii]) {
-        Ichar_tot += em_p->i[ii];
-      } else {
-        if (!lorentzian) {
-          /*We only partially use the peak - so update the relative intensity to reflect that*/
-          Ichar_tot += em_p->i[ii] * 0.5 * (erf (Emax - em_p->e[ii] / em_p->w[ii] / M_SQRT2) - erf (Emin - em_p->e[ii] / em_p->w[ii] / M_SQRT2));
-          em_p->i[ii] = em_p->i[ii] * 0.5 * (erf ((Emax - em_p->e[ii] / M_SQRT2) / em_p->w[ii] / M_SQRT2) - erf ((Emin - em_p->e[ii]) / em_p->w[ii] / M_SQRT2));
-        } else {
-          /* 1/pi atan(2x/w)) is integrated lorentzian of fwhm w, MHM, April 2015 */
-          Ichar_tot += em_p->i[ii] * (1.0 / M_PI) * (atan (2 * (Emax - em_p->e[ii]) / em_p->w[ii]) - atan (2 * (Emin - em_p->e[ii]) / em_p->w[ii]));
-        }
-      }
-    }
 
-    p_continous = Icont / (Ichar * Ichar_tot + Icont);
-  } else {
-    /*characteristic K-emission is not possible*/
+  nlines = 0;
+  p_continous = 1;
+  /*check if E0 > Ek. If not, no characteristic emission can take place*/
+  if (E0 > Ek) {
+    const int lines[4]  = { KL2_LINE, KL3_LINE, KM2_LINE, KM3_LINE };    /* Ka2, Ka1, Kb3, Kb1 */
+    const int fshell[4] = { L2_SHELL, L3_SHELL, M2_SHELL, M3_SHELL };    /* final-state level */
+    double Bk = 1.2e-5 * pow (Ek, 1.67) * exp (-0.077 * Z);
+    double Ichar_tot = 0;
+    double iref = RadRate (Z, KL3_LINE, &err);
+    double wK = AtomicLevelWidth (Z, K_SHELL, &err);
+    if (!slx_ok (&err) || iref <= 0) {
+      fprintf (stderr, "Error (%s): xraylib has no K-line data for Z=%d\n", NAME_CURRENT_COMP, Z);
+      exit (-1);
+    }
+    Ichar = tube_current / CELE * 4 * M_PI * (E0 / Ek - 1) * Bk;
+
+    for (ii = 0; ii < 4 && nlines < SLX_MAXLINES; ii++) {
+      double e, r, wf, w, fw, umin, umax, sig;
+      e = LineEnergy (Z, lines[ii], &err);
+      if (!slx_ok (&err) || e <= 0) continue;
+      r = RadRate (Z, lines[ii], &err);
+      if (!slx_ok (&err) || r <= 0) continue;
+      wf = AtomicLevelWidth (Z, fshell[ii], &err);
+      if (!slx_ok (&err)) wf = 0;
+      w = wK + wf; /* keV, FWHM */
+      if (w <= 0) w = 1e-3;
+      sig = w / (2 * sqrt (2 * log (2.0)));
+      umin = atan (2 * (Emin - e) / w) / M_PI;
+      umax = atan (2 * (Emax - e) / w) / M_PI;
+      if (lorentzian) {
+        fw = umax - umin;
+      } else {
+        fw = 0.5 * (erf ((Emax - e) / (sig * M_SQRT2)) - erf ((Emin - e) / (sig * M_SQRT2)));
+      }
+      if (fw < 1e-3) continue; /* line (essentially) outside the energy window - do not use */
+      l_e[nlines] = e;
+      l_w[nlines] = w;
+      l_sig[nlines] = sig;
+      l_umin[nlines] = umin;
+      l_umax[nlines] = umax;
+      l_wgt[nlines] = (r / iref) * fw;
+      Ichar_tot += l_wgt[nlines];
+      nlines++;
+    }
+    if (nlines > 0) {
+      if (frac <= 0 || frac >= 1) {
+        fprintf (stderr, "Error (%s): frac must be in ]0,1[ when characteristic lines are emitted (was %g)\n", NAME_CURRENT_COMP, frac);
+        exit (-1);
+      }
+      p_continous = Icont / (Ichar * Ichar_tot + Icont);
+    }
+  }
+  if (nlines == 0) {
+    /*characteristic K-emission is not possible (or outside window)*/
     p_continous = 1;
     frac = 1;
   }
+
+  /* ---- tabulate mass attenuation (converted to m^-1) on a log grid + both sides of every edge ---- */
+  {
+    int nmax = SLX_NGRID + 2 * 9;
+    double* Eg = (double*)malloc (nmax * sizeof (double));
+    mu_lE = (double*)malloc (nmax * sizeof (double));
+    mu_lmu = (double*)malloc (nmax * sizeof (double));
+    if (!Eg || !mu_lE || !mu_lmu) {
+      fprintf (stderr, "Error (%s): out of memory\n", NAME_CURRENT_COMP);
+      exit (-1);
+    }
+    nmu = 0;
+    for (ii = 0; ii < SLX_NGRID; ii++) {
+      Eg[nmu++] = Emin * pow (Emax / Emin, ii / (double)(SLX_NGRID - 1));
+    }
+    for (s = K_SHELL; s <= M5_SHELL; s++) {
+      double Ee = EdgeEnergy (Z, s, &err);
+      if (!slx_ok (&err) || Ee <= 0) continue;
+      if (Ee * (1 - 1e-6) > Emin && Ee * (1 + 1e-6) < Emax) {
+        Eg[nmu++] = Ee * (1 - 1e-6);
+        Eg[nmu++] = Ee * (1 + 1e-6);
+      }
+    }
+    qsort (Eg, nmu, sizeof (double), slx_cmp);
+    for (jj = 0; jj < nmu; jj++) {
+      double mu = CS_Total (Z, Eg[jj], &err) * rho * 1e2; /* cm2/g * g/cm3 -> cm^-1 -> m^-1 */
+      if (!slx_ok (&err) || mu <= 0) {
+        fprintf (stderr, "Error (%s): xraylib has no cross section for Z=%d at E=%g keV\n", NAME_CURRENT_COMP, Z, Eg[jj]);
+        exit (-1);
+      }
+      mu_lE[jj] = log (Eg[jj]);
+      mu_lmu[jj] = log (mu);
+    }
+    free (Eg);
+  }
+
   O_xray_gen = coords_set (0, 0, 0);
-  rot_set_rotation (R_xray_gen, -take_off* DEG2RAD, 0, 0);
-  rot_set_rotation (R_xray_geni, take_off* DEG2RAD, 0, 0);
+  rot_set_rotation (R_xray_gen, -take_off * DEG2RAD, 0, 0);
+  rot_set_rotation (R_xray_geni, take_off * DEG2RAD, 0, 0);
 
   pmul_c = 1.0 / (mcget_ncount ());
 
@@ -224,12 +340,12 @@ INITIALIZE
 
 TRACE
 %{
-  double x1, y1, z1, x2, y2, z2, r, e, k, pdir, pmul;
+  double x1, y1, z1, r, e, k, pdir, pmul;
   /* pick a point in the generating volume*/
   x1 = rand01 () * width - width / 2.0;
   z1 = rand01 () * height - height / 2.0;
   /* y is the absorption depth of the electron getting converted to an xray*/
-  y1 = log (rand01 ()) * mu_electron;
+  y1 = (mu_electron > 0) ? log (rand01 () + 1e-300) * mu_electron : 0;
 
   double px, py, pz;
   Coords P;
@@ -260,31 +376,26 @@ TRACE
     /*correct for monte-carlo statistics*/
     pmul *= p_continous / frac;
   } else {
-    struct xray_em_data* pt = &(xray_mat_data[em_idx]);
-    /*characteristic radiation*/
-    /*first pick a possible line*/
-    r = rand01 () * (linemax - linemin) + linemin;
-    int lineno = (int)floor (r);
-    if (lineno == pt->linec) {
-      lineno--; /*we might get overflow*/
-    }
+    /*characteristic radiation: first pick one of the active lines (uniformly)*/
+    int lineno = (int)floor (rand01 () * nlines);
+    if (lineno >= nlines) lineno = nlines - 1; /*we might get overflow*/
 
+    /* l_wgt already contains the fraction of the line inside [Emin,Emax];
+       the factor nlines compensates for the uniform line choice */
+    pmul = l_wgt[lineno] * Ichar * nlines;
     if (!lorentzian) {
-      pmul = pt->i[lineno] * Ichar;
-      e = (randnorm () * pt->w[lineno] + pt->e[lineno]);
-      /*this can be very inefficient*/
+      /*truncated gaussian by rejection*/
+      e = randnorm () * l_sig[lineno] + l_e[lineno];
       while (e < Emin || e > Emax) {
-        e = (randnorm () * pt->w[lineno] + pt->e[lineno]);
+        e = randnorm () * l_sig[lineno] + l_e[lineno];
       }
-    } else { /* tan((rand-0.5)/pi) is Lorentzian with FWHM of 2, MHM April 2015 */
-      /* compute upper and lower random range to map onto energy bounds such that a*tan(u)+b = energy. Note -0.5<u<0.5 */
-      double umin = atan (2 * (Emin - pt->e[lineno]) / pt->w[lineno]) / M_PI;
-      double umax = atan (2 * (Emax - pt->e[lineno]) / pt->w[lineno]) / M_PI;
-      pmul = pt->i[lineno] * Ichar * (umax - umin); /* weight intensity for partial line strength */
-      e = tan (((umax - umin) * rand01 () + umin) * M_PI) * pt->w[lineno] / 2 + pt->e[lineno];
+    } else { /* tan((rand-0.5)/pi) is Lorentzian; map the random range onto [Emin,Emax] */
+      e = tan (((l_umax[lineno] - l_umin[lineno]) * rand01 () + l_umin[lineno]) * M_PI) * l_w[lineno] / 2 + l_e[lineno];
+      if (e < Emin) e = Emin;
+      if (e > Emax) e = Emax;
     }
     k = E2K * e;
-    pmul *= (1 - p_continous) / frac;
+    pmul *= (1 - p_continous) / (1 - frac);
   }
 
   /*scale k accordingly*/
@@ -303,20 +414,18 @@ TRACE
   l1 = 0;
   /*if dimensions are set the anode has a limited size - otherwise use a
     practically infinite slab*/
-  if (!xwidth)
-    xw = FLT_MAX;
-  if (!yheight)
-    yh = FLT_MAX;
+  xw = xwidth ? xwidth : FLT_MAX;
+  yh = yheight ? yheight : FLT_MAX;
   coords_get (rot_apply (R_xray_geni, coords_set (x, y, z)), &lx, &ly, &lz);
   coords_get (rot_apply (R_xray_geni, coords_set (kx, ky, kz)), &klx, &kly, &klz);
   /*find path length inside anode material*/
-  ie = box_intersect (&l0, &l1, lx, ly + thickness / 2.0, lz, klz, kly, klz, xw, thickness, yh);
+  ie = box_intersect (&l0, &l1, lx, ly + thickness / 2.0, lz, klx, kly, klz, xw, thickness, yh);
   if (!ie || l0 > 0) {
     /*photon is somehow outside the anode - this should not happen*/
     ABSORB;
   }
 
-  mu_abs = Table_Value (T, k* K2E, 5) * rho * 1e2; /*mu_abs in m^-1*/
+  mu_abs = slx_mu (mu_lE, mu_lmu, nmu, k * K2E); /* m^-1 */
   p *= exp (-l1 * mu_abs);
   /*set a random phase*/
   phi = rand01 () * 2 * M_PI;
@@ -330,111 +439,60 @@ TRACE
   SCATTER;
 %}
 
+FINALLY
+%{
+  if (mu_lE) free (mu_lE);
+  if (mu_lmu) free (mu_lmu);
+%}
+
 MCDISPLAY
 %{
-  _class_particle p1, p2;
+  int i, a, b;
+  double X[8], Y[8], Zc[8];
+  /* in legacy mode the source point sits at z=-dist relative to the exit window (see TRACE) */
+  double zoff = exit_window_refpt ? -dist : 0;
+  /* anode drawing size: the real slab if given, otherwise a few beam sizes */
+  double aw = xwidth ? xwidth : 3 * width;
+  double ah = yheight ? yheight : 3 * height;
+  Coords C;
 
-  double x1, y1, z1, x2, y2, z2, width_2, height_2;
-  double dx, dy, dz;
-  /*these are just dummies*/
-  double d1, d2, d3, d4, d5, d6;
+  /* illuminated spot on the anode surface (rotated rectangle) */
+  for (i = 0; i < 4; i++) {
+    double sx = (i == 1 || i == 2) ? width / 2.0 : -width / 2.0;
+    double sz = (i >= 2) ? height / 2.0 : -height / 2.0;
+    C = coords_add (rot_apply (R_xray_gen, coords_set (sx, 0, sz)), O_xray_gen);
+    coords_get (C, &X[i], &Y[i], &Zc[i]);
+    Zc[i] += zoff;
+  }
+  for (i = 0; i < 4; i++) {
+    b = (i + 1) % 4;
+    line (X[i], Y[i], Zc[i], X[b], Y[b], Zc[b]);
+  }
 
-  width_2 = width / 2.0;
-  height_2 = height / 2.0;
-  p1.x = -width_2;
-  p1.y = 0;
-  p1.z = -height_2;
-  p2.x = -width_2;
-  p2.y = 0;
-  p2.z = height_2;
+  /* anode slab: spans y in [-thickness,0] of the anode frame (same convention as box_intersect in TRACE).
+     It is tilted by take_off, hence 12 edges with line() rather than box(). */
+  for (a = 0; a < 8; a++) {
+    double sx = (a & 1) ? aw / 2.0 : -aw / 2.0;
+    double sy = (a & 2) ? 0 : -thickness;
+    double sz = (a & 4) ? ah / 2.0 : -ah / 2.0;
+    C = coords_add (rot_apply (R_xray_gen, coords_set (sx, sy, sz)), O_xray_gen);
+    coords_get (C, &X[a], &Y[a], &Zc[a]);
+    Zc[a] += zoff;
+  }
+  for (a = 0; a < 8; a++) {
+    for (b = 1; b <= 4; b <<= 1) {
+      if (!(a & b)) line (X[a], Y[a], Zc[a], X[a | b], Y[a | b], Zc[a | b]);
+    }
+  }
 
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  mccoordschange (O_xray_gen, R_xray_gen, &p2);
-  line (p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+  /* electron beam (dashed, along the anode normal) and the optical axis to the exit window */
+  C = coords_add (rot_apply (R_xray_gen, coords_set (0, 5 * (width > height ? width : height), 0)), O_xray_gen);
+  coords_get (C, &X[0], &Y[0], &Zc[0]);
+  dashed_line (X[0], Y[0], Zc[0] + zoff, 0, 0, zoff, 5);
+  dashed_line (0, 0, zoff, 0, 0, zoff + dist, 5);
 
-  p1.x = width_2;
-  p1.y = 0;
-  p1.z = height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  line (p2.x, p2.y, p2.z, p1.x, p1.y, p1.z);
-
-  p2.x = width_2;
-  p2.y = 0;
-  p2.z = -height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p2);
-  line (p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-
-  p1.x = -width_2;
-  p1.y = 0;
-  p1.z = -height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  line (p2.x, p2.y, p2.z, p1.x, p1.y, p1.z);
-
-  /*this is the mean penetration depth of electron that get converted to x-rays*/
-  p1.x = -width_2;
-  p1.y = -mu_electron;
-  p1.z = -height_2;
-  p2.x = -width_2;
-  p2.y = -mu_electron;
-  p2.z = height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  mccoordschange (O_xray_gen, R_xray_gen, &p2);
-  dashed_line (p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, 5);
-  p1.x = width_2;
-  p1.y = -mu_electron;
-  p1.z = height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  dashed_line (p2.x, p2.y, p2.z, p1.x, p1.y, p1.z, 5);
-  p2.x = width_2;
-  p2.y = -mu_electron;
-  p2.z = -height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p2);
-  dashed_line (p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, 5);
-  p1.x = -width_2;
-  p1.y = -mu_electron;
-  p1.z = -height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  dashed_line (p2.x, p2.y, p2.z, p1.x, p1.y, p1.z, 5);
-
-  p1.x = -width_2;
-  p1.y = -mu_electron;
-  p1.z = -height_2;
-  p2.x = -width_2;
-  p2.y = 0;
-  p2.z = -height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  mccoordschange (O_xray_gen, R_xray_gen, &p2);
-  line (p2.x, p2.y, p2.z, p1.x, p1.y, p1.z);
-  p1.x = width_2;
-  p1.y = -mu_electron;
-  p1.z = -height_2;
-  p2.x = width_2;
-  p2.y = 0;
-  p2.z = -height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  mccoordschange (O_xray_gen, R_xray_gen, &p2);
-  line (p2.x, p2.y, p2.z, p1.x, p1.y, p1.z);
-  p1.x = -width_2;
-  p1.y = -mu_electron;
-  p1.z = height_2;
-  p2.x = -width_2;
-  p2.y = 0;
-  p2.z = height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  mccoordschange (O_xray_gen, R_xray_gen, &p2);
-  line (p2.x, p2.y, p2.z, p1.x, p1.y, p1.z);
-  p1.x = width_2;
-  p1.y = -mu_electron;
-  p1.z = height_2;
-  p2.x = width_2;
-  p2.y = 0;
-  p2.z = height_2;
-  mccoordschange (O_xray_gen, R_xray_gen, &p1);
-  mccoordschange (O_xray_gen, R_xray_gen, &p2);
-  line (p2.x, p2.y, p2.z, p1.x, p1.y, p1.z);
-
-  /*now draw "exit" window*/
-  rectangle ("xy", 0, 0, 0, focus_xw, focus_yh);
+  /* exit window */
+  rectangle ("xy", 0, 0, exit_window_refpt ? 0 : dist, focus_xw, focus_yh);
 %}
 
 END

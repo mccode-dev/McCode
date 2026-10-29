@@ -72,27 +72,6 @@ void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER f
     allow_backprop = 0; \
   } while(0)
 
-#define PROP_MAGNET(dt) \
-  do { \
-    /* change coordinates from local system to magnet system */ \
-    Rotation rotLM, rotTemp; \
-    Coords   posLM = coords_sub(POS_A_CURRENT_COMP, mcMagnetPos); \
-    rot_transpose(ROT_A_CURRENT_COMP, rotTemp); \
-    rot_mul(rotTemp, mcMagnetRot, rotLM); \
-    mcMagnetPrecession(mcnlx, mcnly, mcnlz, mcnlt, mcnlvx, mcnlvy, mcnlvz, \
-	   	       &mcnlsx, &mcnlsy, &mcnlsz, dt, posLM, rotLM); \
-  } while(0)
-
-#define mcPROP_DT(dt) \
-  do { \
-    if (mcMagnet && dt > 0) PROP_MAGNET(dt);\
-    x += kx*(dt); \
-    y += ky*(dt); \
-    z += kz*(dt); \
-    t += (dt); \
-    if (isnan(p) || isinf(p)) { instrument->counter_AbsorbProp[INDEX_CURRENT_COMP]++; ABSORB; }\
-  } while(0)
-
 /*An interrupt a'la mcMagnet should be inserted below if there's non-zero permeability*/
 /*perhaps some kind of PROP_POL*/
 
@@ -109,22 +88,6 @@ void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER f
 /*    if (isnan(p) || isinf(p)) { instrument->counter_AbsorbProp[INDEX_CURRENT_COMP] =  instrument->counter_AbsorbProp[INDEX_CURRENT_COMP] + 1; ABSORB; }\
 */
 
-/*gravity not an issue with x-rays*/
-/* ADD: E. Farhi, Aug 6th, 2001 PROP_GRAV_DT propagation with acceleration. */
-#define PROP_GRAV_DT(dt, Ax, Ay, Az) \
-  do { \
-    if(dt < 0 && allow_backprop == 0) { instrument->counter_AbsorbProp[INDEX_CURRENT_COMP]++; ABSORB; }\
-    if (mcMagnet) /*printf("Spin precession gravity\n")*/; \
-    x  += vx*(dt) + (Ax)*(dt)*(dt)/2; \
-    y  += vy*(dt) + (Ay)*(dt)*(dt)/2; \
-    z  += vz*(dt) + (Az)*(dt)*(dt)/2; \
-    vx += (Ax)*(dt); \
-    vy += (Ay)*(dt); \
-    vz += (Az)*(dt); \
-    t  += (dt); \
-    DISALLOW_BACKPROP;\
-  } while(0)
-
 /*adapted from PROP_DT(dt)*/
 #define PROP_DL(dl) \
   do{ \
@@ -133,16 +96,8 @@ void SCATTER_func(_class_particle *_particle); /* provides function to SCATTER f
     DISALLOW_BACKPROP;\
   } while (0)
 
-#define PROP_DT(dt) \
-  do { \
-    if(dt < 0) { RESTORE=1; ABSORB; }; \
-    if (mcgravitation) { Coords mcLocG; double mc_gx, mc_gy, mc_gz; \
-    mcLocG = rot_apply(ROT_A_CURRENT_COMP, coords_set(0,-GRAVITY,0)); \
-    coords_get(mcLocG, &mc_gx, &mc_gy, &mc_gz); \
-    PROP_GRAV_DT(dt, mc_gx, mc_gy, mc_gz); } \
-    else mcPROP_DT(dt); \
-    DISALLOW_BACKPROP;\
-  } while(0)
+/* propagate by time dt [s]: x-rays move c*dt along k, no gravity */
+#define PROP_DT(dt) PROP_DL((dt)*M_C)
 
 #define PROP_X0 \
   do { \

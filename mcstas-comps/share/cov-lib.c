@@ -44,21 +44,21 @@ double tl2_k_to_E(double kix, double kiy, double kiz, double kfx, double kfy, do
 }
 
 
-void tl2_print_vec(const double* vec, const char* title, int I)
+void tl2_print_vec(const double* vec, const char* title, int I_cov)
 {
 	if(title)
 		printf("%s: ", title);
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 		printf("%12.4e ", vec[i]);
 	printf("\n");
 }
 
 
-void tl2_print_mat(const double* mat, const char* title, int I, int J)
+void tl2_print_mat(const double* mat, const char* title, int I_cov, int J)
 {
 	if(title)
 		printf("%s:\n", title);
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 	{
 		printf("\t");
 		for(int j = 0; j < J; ++j)
@@ -135,12 +135,12 @@ int tl2_flt_equals(double x, double y, double eps)
 /**
  * set matrix elements to zero
  */
-void tl2_mat_zero(double* M, int I, int J)
+void tl2_mat_zero(double* M, int I_cov, int J)
 {
 	if(!M)
 		return;
 
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 		for(int j = 0; j < J; ++j)
 			M[i*J + j] = 0.;
 }
@@ -175,12 +175,12 @@ void tl2_vec_cpy(double* dst, const double* src, int N)
 /**
  * copy a matrix
  */
-void tl2_mat_cpy(double* DST, const double* SRC, int I, int J)
+void tl2_mat_cpy(double* DST, const double* SRC, int I_cov, int J)
 {
 	if(!DST || !SRC)
 		return;
 
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 		for(int j = 0; j < J; ++j)
 			DST[i*J + j] = SRC[i*J + j];
 }
@@ -277,9 +277,9 @@ double tl2_determinant(const double* M, int N)
 /**
  * inverted matrix
  */
-int tl2_inverse(const double* M, double* I, int N)
+int tl2_inverse(const double* M, double* I_cov, int N)
 {
-	if(!M || !I)
+	if(!M || !I_cov)
 		return 0;
 
 	double fullDet = tl2_determinant(M, N);
@@ -298,7 +298,7 @@ int tl2_inverse(const double* M, double* I, int N)
 		{
 			tl2_submat(M, N, submat, i, j);
 			const double sgn = ((i+j) % 2) == 0 ? 1. : -1.;
-			I[j*N + i] = tl2_determinant(submat, N - 1) * sgn / fullDet;
+			I_cov[j*N + i] = tl2_determinant(submat, N - 1) * sgn / fullDet;
 		}
 	}
 	free(submat);
@@ -310,12 +310,12 @@ int tl2_inverse(const double* M, double* I, int N)
 /**
  * matrix-matrix product
  */
-void tl2_matmat_mul(const double* M1, const double* M2, double *RES, int I, int J, int K)
+void tl2_matmat_mul(const double* M1, const double* M2, double *RES, int I_cov, int J, int K)
 {
 	if(!M1 || !M2)
 		return;
 
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 	{
 		for(int j = 0; j < J; ++j)
 		{
@@ -331,12 +331,12 @@ void tl2_matmat_mul(const double* M1, const double* M2, double *RES, int I, int 
 /**
  * matrix-vector product
  */
-void tl2_matvec_mul(const double* M, const double* v, double *res, int I, int J)
+void tl2_matvec_mul(const double* M, const double* v, double *res, int I_cov, int J)
 {
 	if(!M || !v || !res)
 		return;
 
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 	{
 		res[i] = 0.;
 		for(int j = 0; j < J; ++j)
@@ -482,12 +482,12 @@ void tl2_vec_div(const double* vec, double s, double *res, int N)
 /**
  * matrix addition
  */
-void tl2_mat_add(const double* M0, const double* M1, double *RES, int I, int J)
+void tl2_mat_add(const double* M0, const double* M1, double *RES, int I_cov, int J)
 {
 	if(!M0 || !M1 || !RES)
 		return;
 
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 		for(int j = 0; j < J; ++j)
 			RES[i*J + j] = M0[i*J + j] + M1[i*J + j];
 }
@@ -496,12 +496,12 @@ void tl2_mat_add(const double* M0, const double* M1, double *RES, int I, int J)
 /**
  * matrix subtraction
  */
-void tl2_mat_sub(const double* M0, const double* M1, double *RES, int I, int J)
+void tl2_mat_sub(const double* M0, const double* M1, double *RES, int I_cov, int J)
 {
 	if(!M0 || !M1 || !RES)
 		return;
 
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 		for(int j = 0; j < J; ++j)
 			RES[i*J + j] = M0[i*J + j] - M1[i*J + j];
 }
@@ -510,12 +510,12 @@ void tl2_mat_sub(const double* M0, const double* M1, double *RES, int I, int J)
 /**
  * negative matrix
  */
-void tl2_mat_neg(const double* M, double *RES, int I, int J)
+void tl2_mat_neg(const double* M, double *RES, int I_cov, int J)
 {
 	if(!M || !RES)
 		return;
 
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 		for(int j = 0; j < J; ++j)
 			RES[i*J + j] = - M[i*J + j];
 }
@@ -524,12 +524,12 @@ void tl2_mat_neg(const double* M, double *RES, int I, int J)
 /**
  * matrix-scalar multiplication
  */
-void tl2_mat_mul(const double* M, double s, double *RES, int I, int J)
+void tl2_mat_mul(const double* M, double s, double *RES, int I_cov, int J)
 {
 	if(!M || !RES)
 		return;
 
-	for(int i = 0; i < I; ++i)
+	for(int i = 0; i < I_cov; ++i)
 		for(int j = 0; j < J; ++j)
 			RES[i*J + j] = M[i*J + j] * s;
 }
@@ -538,9 +538,9 @@ void tl2_mat_mul(const double* M, double s, double *RES, int I, int J)
 /**
  * matrix-scalar division
  */
-void tl2_mat_div(const double* M, double s, double *RES, int I, int J)
+void tl2_mat_div(const double* M, double s, double *RES, int I_cov, int J)
 {
-	tl2_mat_mul(M, 1./s, RES, I, J);
+	tl2_mat_mul(M, 1./s, RES, I_cov, J);
 }
 
 

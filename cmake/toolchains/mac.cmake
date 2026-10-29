@@ -16,6 +16,6 @@ set(XRLFLAGS "-IGETPATH(miniconda3/include) -Wl,-rpath,GETPATH(miniconda3/lib) -
 set(MPIRUN "mpirun")
 set(MPILIB "mpi")
 set(NEXUSLIB "GETPATH(miniconda3/lib)")
-set(NEXUSINCLUDE "GETPATH(miniconda3/include/nexus)")
+set(NEXUSINCLUDE "GETPATH(miniconda3/include)")
 set(MCCODE_CFLAGS "-g -O2 -DNDEBUG -lm -std=c99")
 set(EDITOR "open")

@@ -21,6 +21,7 @@ on:
 # the "plots" tickbox when running the workflow manually
 env:
   NOPLOTS: ${{ inputs.plots && '' || '--noplots' }}
+  NVHPC_VERSION: '26.9'
 
 jobs:
   build:
@@ -38,13 +39,19 @@ jobs:
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
           - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
+          # --- conda + NVIDIA nvhpc, compile-only OpenACC (mctest -n0, no GPU on the runner) ---
+          - { method: conda,  os: ubuntu-24.04,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic', openacc: true}
           - { method: conda,  os: windows-latest, CC: CL,   CXX: CL,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
-    name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.cogen }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}
+    name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.cogen }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}${{ matrix.openacc && '.openacc' || '' }}
     runs-on: ${{ matrix.os }}
     env:
       CC: ${{ matrix.CC }}
       CXX: ${{ matrix.CXX }}
+      # Extra mctest flags for the OpenACC leg: compile with nvc, never run
+      MCTEST_OACC: ${{ matrix.openacc && '--openacc --no-mpi -n0' || '' }}
+      # Compile instruments in parallel, except with mccode-antlr (shared cogen cache)
+      MCTEST_JOBS: ${{ matrix.cogen != 'antlr' && '-j auto' || '' }}
     defaults:
       run:
         shell: bash -el {0}
@@ -59,6 +66,23 @@ jobs:
         # actual merge-base with main / the pre-push SHA, rather than just
         # the single most recent commit - see that step for why.
         fetch-depth: 0
+
+    # nvhpc (~5 GB download, ~15 GB installed) installs in the background
+    # while the conda env and code generator (conda compilers) are built
+    - name: Start nvhpc install (background, OpenACC)
+      if: matrix.openacc
+      run: |
+           { (
+             set -euo pipefail
+             sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+             curl -fsSL https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK \
+               | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
+             echo 'deb [signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' \
+               | sudo tee /etc/apt/sources.list.d/nvhpc.list
+             sudo apt-get update -y
+             sudo apt-get install -y --no-install-recommends nvhpc-${NVHPC_VERSION/./-}
+             sudo apt-get clean
+           ) > nvhpc.log 2>&1; echo $? > nvhpc.done; } < /dev/null > /dev/null 2>&1 &
 
     - name: Setup python
       uses: actions/setup-python@v6
@@ -86,13 +110,13 @@ jobs:
       id: setup-linux
       if: matrix.method == 'source' && runner.os == 'Linux'
       run: |
-           sudo apt -y install libgsl-dev libnexus-dev
+           sudo apt -y install libgsl-dev libhdf5-dev
 
     - name: Setup (macOS, source build)
       id: setup-macos
       if: matrix.method == 'source' && runner.os == 'macOS'
       run: |
-           brew install bison flex gfortran gsl homebrew/science/nexusformat
+           brew install bison flex gfortran gsl hdf5
 
     - name: Setup (Windows, source build)
       id: setup-Windows
@@ -161,7 +185,6 @@ jobs:
            if [ "$RUNNER_OS" == "macOS" ] && [ -f "/opt/homebrew/opt/flex/bin/flex" ]; then export HOMEBRW="/opt/homebrew/opt"; export GSLFLAGS="-lgsl -lgslcblas -L/opt/homebrew/lib -I/opt/homebrew/include"; fi
            if [ "$RUNNER_OS" == "macOS" ] && [ -f "/usr/local/opt/flex/bin/flex" ]; then export HOMEBRW="/usr/local/opt"; export GSLFLAGS="-lgsl -lgslcblas -L/usr/local/lib -I/usr/local/include"; fi
            if [ "$RUNNER_OS" == "macOS" ]; then export EXTRA_ARGS_FOR_CMAKE="-DBISON_EXECUTABLE=${HOMEBRW}/bison/bin/bison -DFLEX_EXECUTABLE=${HOMEBRW}/flex/bin/flex -DCMAKE_Fortran_COMPILER=${HOMEBRW}/gfortran/bin/gfortran"; fi
-           if [ "$RUNNER_OS" == "Linux" ]; then export EXTRA_ARGS_FOR_CMAKE="-DNEXUSLIB=/usr/lib -DNEXUSINCLUDE=/usr/include/nexus"; fi
            if [ "$RUNNER_OS" == "Windows" ]; then export MPIINC=`cygpath -m -s  "${MSMPI_INC}"`; export MPILIB=`cygpath -m -s  "${MSMPI_LIB64}"`; export EXTRA_ARGS_FOR_CMAKE="-DMPILIBDIR=${MPILIB} -DMPIINCLUDEDIR=${MPIINC}"; fi
            cmake \
                -DCMAKE_INSTALL_PREFIX=../install_mcstas \
@@ -366,6 +389,20 @@ jobs:
            # The point of this leg: resources must be found without the environment variable
            test -z "${MCSTAS:-}"
 
+    - name: Wait for nvhpc install (OpenACC)
+      if: matrix.openacc
+      timeout-minutes: 45
+      run: |
+           while [ ! -f nvhpc.done ]; do sleep 15; done
+           cat nvhpc.log
+           test "$(cat nvhpc.done)" = 0
+           echo /opt/nvidia/hpc_sdk/Linux_x86_64/${NVHPC_VERSION}/compilers/bin >> "$GITHUB_PATH"
+           # CI only: a single GPU target (Ampere) - without a GPU, nvc may otherwise build for all it supports
+           CFG=${CONDA_PREFIX}/share/mcstas/tools/Python/mccodelib/mccode_config.json
+           sed -i 's/-gpu=mem:managed/-gpu=cc80,mem:managed/' $CFG
+           grep -H OACCFLAGS $CFG | grep -q -- '-gpu=cc80,mem:managed'
+           grep -H OACCFLAGS $CFG
+
     - name: Normalize PATH to installed McStas tools
       id: normalize-path
       run: |
@@ -386,6 +423,7 @@ jobs:
     # Start of tests (shared across all 5 matrix legs)
     - name: Launch RNG test instrument
       id: RNG-test
+      if: ${{ !matrix.openacc }}
       run: |
            set -e
            set -u
@@ -435,7 +473,7 @@ jobs:
            mcstas${EXESUFFIX} --version
            if [ "${{ matrix.nmpi }}" != "0" ];
            then
-             mctest${SUFFIX}  --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource,Masked_ESS_butterfly_image --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
+             mctest${SUFFIX}  --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} ${MCTEST_OACC} ${MCTEST_JOBS} --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Test_KDSource,Masked_ESS_butterfly_image --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
            fi
 
     - name: Direct binary run without $MCSTAS (compiled-in resource dir, issue #2759)
@@ -446,7 +484,7 @@ jobs:
       # found via the resource dir baked into the binary by the code generator -
       # the situation on mccode.org-style .deb installs, where $MCSTAS is unset.
       # classic only: the antlr code generator embeds a released runtime
-      if: matrix.cogen == 'classic' && matrix.nmpi != '0'
+      if: matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
       run: |
            set -e
            set -u
@@ -472,7 +510,7 @@ jobs:
     - name: MPI event-list output regression test
       id: mpilisttest
       # classic only: the antlr code generator embeds a released runtime
-      if: matrix.cogen == 'classic' && matrix.nmpi != '0'
+      if: matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
       run: |
            set -e
            set -u
@@ -491,7 +529,7 @@ jobs:
     - name: NeXus output regression test
       id: nexusoutputtest
       # classic only: the antlr code generator embeds a released runtime
-      if: matrix.cogen == 'classic' && matrix.nmpi != '0'
+      if: matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
       run: |
            set -e
            set -u
@@ -572,8 +610,8 @@ jobs:
            fi
            if [ -n "$SCOPE" ]; then
              mkdir -p run_mctest && cd run_mctest
-             ${MCTEST_EXECUTABLE} --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
-             if [ -z "${NOPLOTS}" ]; then ${MCVIEWTEST_EXECUTABLE} --nobrowse $PWD; fi
+             ${MCTEST_EXECUTABLE} --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} ${MCTEST_OACC} ${MCTEST_JOBS} --testdir $PWD $SCOPE --suffix=CHANGES_${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} $PERMISSIVE --uid=${MYWORKERID} || { echo "${MCTEST_EXECUTABLE} failed with exit code $?"; exit 1; }
+             if [ -z "${NOPLOTS}" ] && [ -z "${MCTEST_OACC}" ]; then ${MCVIEWTEST_EXECUTABLE} --nobrowse $PWD; fi
            else
              echo "No component or instrument code changes - nothing to test"
            fi
@@ -592,7 +630,7 @@ jobs:
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
-      if: always()
+      if: always() && !matrix.openacc
       with:
         name: mcstas-artefacts-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
         path: "mcstas-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"

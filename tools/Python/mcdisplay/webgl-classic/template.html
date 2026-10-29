@@ -78,6 +78,13 @@
 		{
 			controller.setViewSide();
 		}
+		// --trace=2 shapes as surfaces and/or lines, never neither: unchecking one checks the other
+		var handleShapesChanged = function(cbx, otherId)
+		{
+			var other = document.getElementById(otherId);
+			if (!cbx.checked) { other.checked = true; }
+			controller.main.showShapes(document.getElementById("cbxSurfaces").checked, document.getElementById("cbxLines").checked);
+		}
 		var handleViewHome = function()
 		{
 			controller.setViewHome();
@@ -107,7 +114,10 @@
 		<label id="lblView" style="color: white; background-color: black; display: inline-block; text-align:right; width: 120px;">Show BB</label>
 		<input id="cbxBoundingbox" type="checkbox">
 		<label id="lblSurfaces" style="color: white; background-color: black; display: inline-block; text-align:right; width: 120px;">
-			Surfaces<input id="cbxSurfaces" type="checkbox" checked autocomplete="off" onchange="controller.main.showSurfaces(this.checked);">
+			Surfaces<input id="cbxSurfaces" type="checkbox" checked autocomplete="off" onchange="handleShapesChanged(this, 'cbxLines');">
+		</label>
+		<label id="lblLines" style="color: white; background-color: black; display: inline-block; text-align:right; width: 80px;">
+			Lines<input id="cbxLines" type="checkbox" autocomplete="off" onchange="handleShapesChanged(this, 'cbxSurfaces');">
 		</label>
 	</div>
 	<div id="3dcanvas"></div>
