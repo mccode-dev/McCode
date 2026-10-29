@@ -1104,6 +1104,7 @@ int r_within_surroundings(Coords pos,struct geometry_struct *geometry);
 // -------------    General geometry ------------------------------------------------------------
 
 Coords point_on_circle(Coords center, Coords direction, double radius, int point_nr, int number_of_points);
+void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes);
 
 void points_on_circle(Coords *output, Coords center, Coords direction, double radius, int number_of_points);
 

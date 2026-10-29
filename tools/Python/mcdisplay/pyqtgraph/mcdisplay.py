@@ -632,6 +632,7 @@ if __name__ == '__main__':
     parser.add_argument('--inspect', help='display only particle rays reaching this component')
     parser.add_argument('--invcanvas', action='store_true', help='invert canvas background from black to white')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=300, help='Number of particles to simulate')
+    parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1], default=1, help='mcrun --trace level, only 1 is supported')
 
     args, unknown = parser.parse_known_args()
     # if --inspect --first or --last are given after instr, the remaining args become "unknown",

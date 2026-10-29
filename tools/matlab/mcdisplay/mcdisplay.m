@@ -60,6 +60,9 @@ function [comps, fig] = mcdisplay(varargin)
       match=varargin{index+1}; 
       index = index+1;
       continue;
+    elseif strncmp(this_arg, '--trace', 7)  % only --trace=1 is supported
+      if ~strcmp(this_arg, '--trace=1'), error([ mfilename ': only --trace=1 is supported' ]); end
+      continue;
     elseif this_arg(1) == '-'
       options = [ options ' ' this_arg ];
     elseif isempty(instr) & ~any(strcmp({ 'mxrun','mcrun'}, this_arg))
