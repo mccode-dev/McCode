@@ -1,0 +1,67 @@
+/*******************************************************************************
+* McXtrace, X-ray tracing package
+*
+* %Identification
+* Written by: Peter Willendrup
+* Date: October 2026
+* Origin: DTU Physics
+* %INSTRUMENT_SITE: Tests_union
+*
+* Union_mesh sample compared to the same sample as a Union_box
+*
+* %Description
+* A 50 x 50 x 10 mm slab of an incoherent scatterer, read from box.off with
+* Union_mesh (use_mesh=1) or given as a Union_box (use_mesh=0). The slab sits
+* in a vacuum Union_sphere and is cut by a vacuum Union_cylinder, so the mesh
+* within/overlap functions against the basic shapes are used. The two settings
+* should give the same intensities.
+*
+* %Example: use_mesh=1 Detector: psd_trans_I=7.79e-05
+* %Example: use_mesh=0 Detector: psd_trans_I=7.79e-05
+*
+* %Parameters
+* use_mesh: [1] 1: slab from box.off with Union_mesh, 0: slab as Union_box
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_mesh(int use_mesh=1)
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_flat(xwidth = 0.04, yheight = 0.04, dist = 1, focus_xw = 0.04, focus_yh = 0.04, E0 = 20, dE = 1)
+AT (0, 0, 0) RELATIVE origin
+
+COMPONENT sample_pos = Arm()
+AT (0, 0, 1) RELATIVE origin
+
+COMPONENT incoherent = Incoherent_process(sigma = 2*5.08, unit_cell_volume = 27.66)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT scatterer = Union_make_material(my_absorption = 2*5.08*100/27.66, process_string = "incoherent")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT envelope = Union_sphere(radius = 0.06, priority = 1, material_string = "Vacuum")
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT slab_mesh = Union_mesh(filename = "box.off", coordinate_scale = 1, priority = 2, material_string = "scatterer", number_of_activations = use_mesh)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT slab_box = Union_box(xwidth = 0.05, yheight = 0.05, zdepth = 0.01, priority = 2, material_string = "scatterer", number_of_activations = !use_mesh)
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT hole = Union_cylinder(radius = 0.01, yheight = 0.1, priority = 3, material_string = "Vacuum")
+AT (0.01, 0, 0) RELATIVE sample_pos
+
+COMPONENT master = Union_master()
+AT (0, 0, 0) RELATIVE sample_pos
+
+COMPONENT psd_trans = PSD_monitor(xwidth = 0.06, yheight = 0.06, nx = 60, ny = 60, filename = "psd_trans")
+AT (0, 0, 0.5) RELATIVE sample_pos
+
+COMPONENT psd_side = PSD_monitor(xwidth = 0.1, yheight = 0.1, nx = 50, ny = 50, filename = "psd_side", restore_xray = 1)
+AT (0.3, 0, 0) RELATIVE sample_pos ROTATED (0, 90, 0) RELATIVE sample_pos
+
+END

@@ -22,6 +22,8 @@
 #ifndef UNION_LIB_H
 #define UNION_LIB_H
 
+%include "geometry-mesh-lib"
+
 // McXtrace Union structures hold t_Table
 %include "read_table-lib"
 
@@ -190,7 +192,8 @@ double z;
 };
 
 struct focus_data_struct {
-Coords Aim;
+Coords RayAim; // Vector from ray position (within geometry) to target
+Coords Aim; // Vector from geometry to target
 double angular_focus_width;
 double angular_focus_height;
 double spatial_focus_width;
@@ -751,6 +754,8 @@ void add_element_to_int_list(struct pointer_to_1d_int_list *list,int value);
 // Need to check if absolute_rotation is preserved correctly.
 void add_element_to_focus_data_array(struct focus_data_array_struct *focus_data_array,struct focus_data_struct focus_data);
 
+void copy_focus_data_array(struct focus_data_array_struct *original_array, struct focus_data_array_struct *new_array);
+
 
 void add_to_logger_with_data(struct logger_with_data_struct *logger_with_data, struct logger_struct *logger);
 
@@ -963,23 +968,8 @@ Coords direction_vector;
 };
 
 struct mesh_storage{
-int n_facets;
-int counter;
-double *v1_x;
-double *v1_y;
-double *v1_z;
-double *v2_x;
-double *v2_y;
-double *v2_z;
-double *v3_x;
-double *v3_y;
-double *v3_z;
-double *normal_x;
-double *normal_y;
-double *normal_z;
-Coords direction_vector;
-Coords Bounding_Box_Center;
-double Bounding_Box_Radius;
+gmesh_struct mesh; // triangle mesh and BVH, in the frame of the mesh component
+int display_layer; // BVH layer whose boxes mcdisplay draws, 0 to draw the triangle edges
 };
 
 // A number of functions below use Dot() as scalar product, replace by coords_sp define
@@ -998,7 +988,7 @@ union geometry_parameter_union allocate_sphere_storage_copy(union geometry_param
 
 union geometry_parameter_union allocate_cone_storage_copy(union geometry_parameter_union *union_input);
 
-union geometry_parameter_union allocate_mesh_storage_copy(union geometry_parameter_union *union_input);
+union geometry_parameter_union allocate_mesh_copy(union geometry_parameter_union *union_input);
 
 // -------------    Surroundings  ---------------------------------------------------------------
 int r_within_surroundings(Coords pos,struct geometry_struct *geometry);
@@ -1006,6 +996,7 @@ int r_within_surroundings(Coords pos,struct geometry_struct *geometry);
 // -------------    General geometry ------------------------------------------------------------
 
 Coords point_on_circle(Coords center, Coords direction, double radius, int point_nr, int number_of_points);
+void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes);
 
 void points_on_circle(Coords *output, Coords center, Coords direction, double radius, int number_of_points);
 
@@ -1115,8 +1106,24 @@ int cone_overlaps_cone(struct geometry_struct *geometry1,struct geometry_struct 
 int cone_within_cone(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
 
 int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
+int mesh_overlaps_box(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
+int mesh_overlaps_cone(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
+int mesh_overlaps_sphere(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
+int mesh_overlaps_cylinder(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
+int box_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
+int cone_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
+int sphere_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
+int cylinder_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct *geometry2);
 
 int mesh_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
+int mesh_within_box(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
+int box_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
+int mesh_within_sphere(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
+int sphere_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
+int cone_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
+int mesh_within_cone(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
+int mesh_within_cylinder(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
+int cylinder_within_mesh(struct geometry_struct *geometry_child,struct geometry_struct *geometry_parent);
 
 // -------------    Overlap functions for two different geometries --------------------------------
 

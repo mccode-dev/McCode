@@ -324,6 +324,9 @@ struct {
   {"Cf", 98, 0,  4.14210, -0.73977, 0.93342, -0.62981},
 };/*}}}*/
 
+#define FF_LOW_Q_N (int)(sizeof(form_factor_low_q_data)/sizeof(form_factor_low_q_data[0]))
+#define FF_HI_Q_N  (int)(sizeof(form_factor_hi_q_data)/sizeof(form_factor_hi_q_data[0]))
+
 double atomic_form_factor_low_q(int j, double s){
   int i;
   double f=form_factor_low_q_data[j].c;
@@ -348,12 +351,13 @@ double atomic_form_factor_hi_q(int j, double s){
 
 double atomic_form_factor(int Z, int ion_charge, double q){
   double s=q/(4*M_PI);
+  if (Z<1 || Z>FF_HI_Q_N) return 0;/*not tabulated*/
   if(s<2&& s>=0){
     int j=Z-1;
-    while (form_factor_low_q_data[j].Z!=Z || form_factor_low_q_data[j].ion_charge!=ion_charge){
+    while (j<FF_LOW_Q_N && (form_factor_low_q_data[j].Z!=Z || form_factor_low_q_data[j].ion_charge!=ion_charge)){
       j++;
     }
-    if (j==131) return 0;/*not found - should drop an error*/
+    if (j==FF_LOW_Q_N) return 0;/*not found - should drop an error*/
     return atomic_form_factor_low_q(j,s);
   }else if (s<6.0){
     return atomic_form_factor_hi_q(Z-1,s);
@@ -365,13 +369,13 @@ double atomic_form_factor(int Z, int ion_charge, double q){
 double atomic_form_factor_by_sym(char *sym, double q){
   if(q<2.0&& q>=0){
     int j=0;
-    while (strcmp(form_factor_low_q_data[j].symbol,sym)) j++;
-    if (j==131) return 0;/*not found - should drop an error*/
+    while (j<FF_LOW_Q_N && strcmp(form_factor_low_q_data[j].symbol,sym)) j++;
+    if (j==FF_LOW_Q_N) return 0;/*not found - should drop an error*/
     return atomic_form_factor_low_q(j,q);
   }else if (q<6.0){
     int j=0;
-    while (strncmp(form_factor_hi_q_data[j].symbol, sym, 2)) j++;
-    if (j==98) return 0;/*not found - should drop an error*/
+    while (j<FF_HI_Q_N && strncmp(form_factor_hi_q_data[j].symbol, sym, 2)) j++;
+    if (j==FF_HI_Q_N) return 0;/*not found - should drop an error*/
     return atomic_form_factor_hi_q(j,q);
   }else{
     return 0;

@@ -32,6 +32,9 @@ jobs:
 
     name: ${{ matrix.os }}.${{ matrix.mpi }}.${{ matrix.cogen }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite
     runs-on: ${{ matrix.os }}
+    env:
+      # Compile instruments in parallel, except with mccode-antlr (shared cogen cache)
+      MCTEST_JOBS: ${{ matrix.cogen != 'antlr' && '-j auto' || '' }}
     defaults:
       run:
         shell: bash -el {0}
@@ -185,7 +188,7 @@ jobs:
              test "$(command -v mctest)" == "/usr/bin/mctest"
            fi
            # Run the test with 2 core mpi
-           ${MCTEST_EXECUTABLE} --verbose --nsigma 5 --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
+           ${MCTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} --nsigma 5 --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
     - name: 'Tar output files'
       id: tar-package
       if: always()

@@ -26,7 +26,7 @@ var Main = function ()
     this.iColor = -1;
 
     this.raynodes = [];
-    this.wirenodes = []; // --trace=2 shapes as wireframe, hidden while surfaces are shown
+    this.linenodes = []; // --trace=2 shapes as lines (all edges)
     this.surfnodes = []; // --trace=2 shapes as surfaces
 
     this.iRay = -1;
@@ -64,33 +64,30 @@ Main.prototype.addCircle = function(plane, x, y, z, radius, parent, linecolor)
 
     parent.add( circle );
 }
-// add a geometry as a semi-transparent surface and as a wireframe (unless outline: lines only),
+// add a geometry as lines (its edges) and a semi-transparent surface (unless outline: lines only),
 // centred at (x, y, z), turning the geometry's own axis (a THREE.Vector3) to n = [nx, ny, nz] (--trace=2 shapes)
 Main.prototype.addShape = function(geometry, x, y, z, axis, n, parent, linecolor, outline)
 {
     var node = new THREE.Object3D();
-    var material = new THREE.LineBasicMaterial({color: linecolor});
-    var wire = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), material);
-    node.add(wire);
+    var lines = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({color: linecolor}));
+    node.add(lines);
     if (!outline) {
-        // surface: edges between faces meeting at < 20 deg (facets of curved surfaces) are left to the shading
-        var surf = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 20), material);
-        surf.add(new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({color: linecolor, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false})));
+        var surf = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({color: linecolor, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
         node.add(surf);
-        wire.visible = false;
-        this.wirenodes.push(wire);
+        lines.visible = false; // default: surfaces only, lines with the Lines checkbox
+        this.linenodes.push(lines);
         this.surfnodes.push(surf);
     }
     node.quaternion.setFromUnitVectors(axis, new THREE.Vector3(n[0], n[1], n[2]).normalize());
     node.position.set(x, y, z);
     parent.add(node);
 }
-// show --trace=2 shapes as surfaces (true) or wireframes (false)
-Main.prototype.showSurfaces = function(show)
+// show --trace=2 shapes as surfaces and/or lines
+Main.prototype.showShapes = function(surfaces, lines)
 {
     for (var i = 0; i < this.surfnodes.length; i++) {
-        this.surfnodes[i].visible = show;
-        this.wirenodes[i].visible = !show;
+        this.surfnodes[i].visible = surfaces;
+        this.linenodes[i].visible = lines;
     }
 }
 // add a polyhedron given as {"vertices": [[x,y,z], ...], "faces": [{"face": [i,j,k,...]}, ...]}
@@ -411,7 +408,7 @@ TraceLoader.prototype.loadInstr = function()
         for (var j = 0; j < drawcalls.length; j++) {
             call = drawcalls[j];
 
-            drawFunc(call, comp_node, acolor);
+            drawFunc(call, comp_node, call['color'] || acolor);
         }
 
         comp_matrix = new THREE.Matrix4();

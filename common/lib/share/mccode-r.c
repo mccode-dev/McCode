@@ -1571,7 +1571,312 @@ static char *strcpy_valid(char *valid, char *original)
 
 #ifdef USE_NEXUS
 
+/* ========================================================================== */
+
+/*         NeXus API subset (napi.h) on native HDF5, see mccode-r.h           */
+
+/* ========================================================================== */
+
 NXhandle nxhandle = NULL;
+
+/* The open groups are a stack of HDF5 ids, so names are resolved by HDF5
+   relative to the current group: no path buffers, and a failed open leaves
+   the stack unchanged. At most one data set is open (napi semantics). */
+#define MCNX_MAXDEPTH 32
+struct mcnx_file { hid_t fid, d, g[MCNX_MAXDEPTH]; int depth; };
+static int mcnx_quiet = 0; /* nesting depth of NXMDisableErrorReporting (napi5 did not nest) */
+
+void NXMDisableErrorReporting(void) { mcnx_quiet++; }
+void NXMEnableErrorReporting(void)  { if (mcnx_quiet) mcnx_quiet--; }
+
+static NXstatus mcnx_error(const char *what, const char *name)
+{
+  if (!mcnx_quiet) fprintf(stderr, "NeXus error: %s '%s'\n", what, name ? name : "");
+  return(NX_ERROR);
+}
+
+/* current group, the file id standing for the root group */
+static hid_t mcnx_loc(struct mcnx_file *f) { return f->depth ? f->g[f->depth-1] : f->fid; }
+
+static hid_t mcnx_type(int type)
+{
+  return type == NX_INT32 ? H5T_NATIVE_INT : type == NX_FLOAT64 ? H5T_NATIVE_DOUBLE : -1;
+}
+
+/* scalar attribute, replacing an existing one (napi5) */
+static herr_t mcnx_attr(hid_t obj, const char *name, hid_t type, const void *data)
+{
+  hid_t  space = H5Screate(H5S_SCALAR), a;
+  herr_t ret   = -1;
+  if (H5Aexists_by_name(obj, ".", name, H5P_DEFAULT) > 0)
+    H5Adelete_by_name(obj, ".", name, H5P_DEFAULT);
+  a = H5Acreate_by_name(obj, ".", name, type, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  if (a >= 0) { ret = H5Awrite(a, type, data); H5Aclose(a); }
+  H5Sclose(space);
+  return(ret);
+}
+
+/* fixed-length string attribute without terminating NUL; HDF5 has no empty fixed strings */
+static herr_t mcnx_attr_str(hid_t obj, const char *name, const char *value, size_t len)
+{
+  hid_t  t;
+  herr_t ret;
+  if (!len) return(-1);
+  t = H5Tcopy(H5T_C_S1);
+  H5Tset_size(t, len);
+  ret = mcnx_attr(obj, name, t, value);
+  H5Tclose(t);
+  return(ret);
+}
+
+NXstatus NXopen(const char *filename, NXaccess am, NXhandle *h)
+{
+  struct mcnx_file *f = calloc(1, sizeof(*f));
+  hid_t fapl;
+
+  *h = NULL;
+  if (!f) return(mcnx_error("out of memory opening", filename));
+  H5Eset_auto2(H5E_DEFAULT, NULL, NULL); /* failures are reported here, as napi5 did */
+  fapl = H5Pcreate(H5P_FILE_ACCESS);
+  H5Pset_fclose_degree(fapl, H5F_CLOSE_STRONG); /* H5Fclose also closes ids left open */
+  f->fid = am == NXACC_CREATE5 ? H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, fapl)
+                               : H5Fopen(filename, H5F_ACC_RDWR, fapl);
+  H5Pclose(fapl);
+  if (f->fid < 0) { free(f); return(mcnx_error("cannot open file", filename)); }
+  if (am == NXACC_CREATE5) { /* root attributes, as written by napi5 */
+    unsigned maj, min, rel;
+    char     ver[32], date[64];
+    time_t   t = time(NULL);
+    size_t   n = strftime(date, sizeof(date), "%Y-%m-%dT%H:%M:%S%z", localtime(&t));
+    if (n == 24) { memmove(date+23, date+22, 3); date[22] = ':'; n = 25; } /* +hhmm -> +hh:mm */
+    H5get_libversion(&maj, &min, &rel);
+    snprintf(ver, sizeof(ver), "%u.%u.%u", maj, min, rel);
+    mcnx_attr_str(f->fid, "NeXus_version", "4.4.2", 5); /* ponytail: last napi version, kept for readers checking it */
+    mcnx_attr_str(f->fid, "file_name",     filename, strlen(filename));
+    mcnx_attr_str(f->fid, "HDF5_Version",  ver, strlen(ver));
+    mcnx_attr_str(f->fid, "file_time",     date, n); /* no NX_class: the napi 4.4.3 builds in use never wrote it */
+  }
+  *h = f;
+  return(NX_OK);
+}
+
+NXstatus NXclose(NXhandle *h)
+{
+  struct mcnx_file *f = *h;
+  herr_t ret;
+  if (!f) return(NX_ERROR);
+  ret = H5Fclose(f->fid); /* closes open groups/data set too (H5F_CLOSE_STRONG) */
+  free(f);
+  *h = NULL;
+  return(ret < 0 ? mcnx_error("cannot close file", NULL) : NX_OK);
+}
+
+NXstatus NXmakegroup(NXhandle h, const char *name, const char *nxclass)
+{
+  struct mcnx_file *f = h;
+  hid_t  g = H5Gcreate2(mcnx_loc(f), name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  herr_t ret;
+  if (g < 0) return(mcnx_error("could not create group", name));
+  ret = mcnx_attr_str(g, "NX_class", nxclass, strlen(nxclass));
+  H5Gclose(g);
+  return(ret < 0 ? mcnx_error("failed to store class of group", name) : NX_OK);
+}
+
+/* ponytail: the NX_class of the group is not checked against nxclass (napi5 did) */
+NXstatus NXopengroup(NXhandle h, const char *name, const char *nxclass)
+{
+  struct mcnx_file *f = h;
+  hid_t g;
+  if (f->depth == MCNX_MAXDEPTH) return(mcnx_error("groups nested too deep at", name));
+  g = H5Gopen2(mcnx_loc(f), name, H5P_DEFAULT);
+  if (g < 0) return(mcnx_error("group does not exist", name));
+  f->g[f->depth++] = g;
+  return(NX_OK);
+}
+
+NXstatus NXclosegroup(NXhandle h)
+{
+  struct mcnx_file *f = h;
+  if (!f->depth) return(mcnx_error("no group open to close", NULL)); /* napi5: silent */
+  H5Gclose(f->g[--f->depth]);
+  return(NX_OK);
+}
+
+NXstatus NXcompmakedata64(NXhandle h, const char *name, int type, int rank,
+                          int64_t dims[], int comp, int64_t chunk[])
+{
+  struct mcnx_file *f = h;
+  hsize_t cur[H5S_MAX_RANK], max[H5S_MAX_RANK], ch[H5S_MAX_RANK];
+  hid_t   t, s, p, d;
+  int     i, unlimited = 0;
+  int     lzw   = comp == NX_COMP_LZW || comp/100 == NX_COMP_LZW;
+  int     level = comp == NX_COMP_LZW ? 6 : comp % 100;
+  double  bytes;
+
+  if (!f->depth || rank < 1 || rank > H5S_MAX_RANK
+   || (type != NX_CHAR && mcnx_type(type) < 0))
+    return(mcnx_error("cannot create data set (no group, rank or type)", name));
+  for (i = 0; i < rank; i++) {
+    unlimited |= dims[i] <= 0;
+    cur[i] = dims[i] > 0 ? dims[i] : 1;
+    max[i] = dims[i] > 0 ? dims[i] : H5S_UNLIMITED;
+    ch[i]  = chunk[i] > 0 ? chunk[i] : 1;
+  }
+  if (type == NX_CHAR) { /* napi5: the last dimension is the string length */
+    t = H5Tcopy(H5T_C_S1);
+    H5Tset_size(t, cur[rank-1]);
+    cur[rank-1] = max[rank-1] = ch[rank-1] = 1;
+  } else t = H5Tcopy(mcnx_type(type));
+  p = H5Pcreate(H5P_DATASET_CREATE);
+  if (lzw || unlimited) {
+    /* HDF5 refuses chunks of 4 GiB or more: napi5 then lost the whole data set */
+    for (bytes = H5Tget_size(t), i = 0; i < rank; i++) bytes *= ch[i];
+    if (bytes >= 4294967295.0) ch[0] = ch[0]/(hsize_t)(bytes/4294967295.0 + 1) + 1;
+    H5Pset_chunk(p, rank, ch);
+    if (lzw) { H5Pset_shuffle(p); H5Pset_deflate(p, level); }
+  }
+  s = H5Screate_simple(rank, cur, max);
+  d = H5Dcreate2(mcnx_loc(f), name, t, s, H5P_DEFAULT, p, H5P_DEFAULT);
+  H5Sclose(s); H5Pclose(p); H5Tclose(t);
+  if (d < 0) return(mcnx_error("could not create data set", name));
+  H5Dclose(d);
+  return(NX_OK);
+}
+
+NXstatus NXcompmakedata(NXhandle h, const char *name, int type, int rank, int dims[], int comp, int chunk[])
+{
+  int64_t d[H5S_MAX_RANK], c[H5S_MAX_RANK];
+  int i;
+  for (i = 0; i < rank && i < H5S_MAX_RANK; i++) { d[i] = dims[i]; c[i] = chunk[i]; }
+  return(NXcompmakedata64(h, name, type, rank, d, comp, c));
+}
+
+NXstatus NXmakedata(NXhandle h, const char *name, int type, int rank, int dims[])
+{
+  return(NXcompmakedata(h, name, type, rank, dims, NX_COMP_NONE, dims));
+}
+
+NXstatus NXopendata(NXhandle h, const char *name)
+{
+  struct mcnx_file *f = h;
+  if (f->d) H5Dclose(f->d);
+  f->d = H5Dopen2(mcnx_loc(f), name, H5P_DEFAULT);
+  if (f->d < 0) { f->d = 0; return(mcnx_error("data set not found", name)); }
+  return(NX_OK);
+}
+
+NXstatus NXclosedata(NXhandle h)
+{
+  struct mcnx_file *f = h;
+  if (!f->d) return(mcnx_error("no data set open to close", NULL));
+  H5Dclose(f->d);
+  f->d = 0;
+  return(NX_OK);
+}
+
+/* write data with the type of the data set (napi5); only used with fixed-size data sets */
+NXstatus NXputdata(NXhandle h, const void *data)
+{
+  struct mcnx_file *f = h;
+  hid_t  t;
+  herr_t ret;
+  if (!f->d) return(mcnx_error("no data set open to write", NULL));
+  t   = H5Dget_type(f->d);
+  ret = H5Dwrite(f->d, t, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+  H5Tclose(t);
+  return(ret < 0 ? mcnx_error("failure to write data", NULL) : NX_OK);
+}
+
+/* write a slab, extending unlimited dimensions as needed */
+NXstatus NXputslab64(NXhandle h, const void *data, const int64_t start[], const int64_t size[])
+{
+  struct mcnx_file *f = h;
+  hsize_t s0[H5S_MAX_RANK], n[H5S_MAX_RANK], ext[H5S_MAX_RANK], max[H5S_MAX_RANK];
+  hid_t   fs, ms, t;
+  herr_t  ret = -1;
+  int     i, rank, grow = 0;
+
+  if (!f->d) return(mcnx_error("no data set open to write", NULL));
+  fs   = H5Dget_space(f->d);
+  rank = H5Sget_simple_extent_dims(fs, ext, max);
+  for (i = 0; i < rank; i++) {
+    s0[i] = start[i]; n[i] = size[i];
+    if (max[i] == H5S_UNLIMITED && s0[i] + n[i] > ext[i]) { ext[i] = s0[i] + n[i]; grow = 1; }
+  }
+  if (grow) { H5Sclose(fs); H5Dset_extent(f->d, ext); fs = H5Dget_space(f->d); }
+  ms = H5Screate_simple(rank, n, NULL);
+  t  = H5Dget_type(f->d);
+  if (H5Sselect_hyperslab(fs, H5S_SELECT_SET, s0, NULL, n, NULL) >= 0)
+    ret = H5Dwrite(f->d, t, ms, fs, H5P_DEFAULT, data);
+  H5Tclose(t); H5Sclose(ms); H5Sclose(fs);
+  return(ret < 0 ? mcnx_error("writing slab failed", NULL) : NX_OK);
+}
+
+/* attribute of the open data set, else of the current group (root included) */
+NXstatus NXputattr(NXhandle h, const char *name, const void *data, int len, int type)
+{
+  struct mcnx_file *f = h;
+  hid_t  obj = f->d ? f->d : mcnx_loc(f);
+  herr_t ret = type == NX_CHAR ? mcnx_attr_str(obj, name, data, len > 0 ? len : 0)
+             : mcnx_type(type) >= 0 ? mcnx_attr(obj, name, mcnx_type(type), data) : -1;
+  return(ret < 0 ? mcnx_error("attribute cannot be created", name) : NX_OK);
+}
+
+NXstatus NXgetinfo64(NXhandle h, int *rank, int64_t dims[], int *type)
+{
+  struct mcnx_file *f = h;
+  hsize_t d[H5S_MAX_RANK];
+  hid_t   s, t;
+  int     i;
+  if (!f->d) return(mcnx_error("no data set open", NULL));
+  s = H5Dget_space(f->d); t = H5Dget_type(f->d);
+  *rank = H5Sget_simple_extent_dims(s, d, NULL);
+  for (i = 0; i < *rank; i++) dims[i] = d[i];
+  /* ponytail: only the types McCode writes; napi5 also mapped sizes/signedness */
+  *type = H5Tget_class(t) == H5T_STRING ? NX_CHAR : H5Tget_class(t) == H5T_INTEGER ? NX_INT32 : NX_FLOAT64;
+  H5Tclose(t); H5Sclose(s);
+  return(NX_OK);
+}
+
+/* number of items in the current group; name/class only for the root (all McCode uses) */
+NXstatus NXgetgroupinfo(NXhandle h, int *n, NXname name, NXname nxclass)
+{
+  struct mcnx_file *f = h;
+  H5G_info_t info;
+  if (H5Gget_info(mcnx_loc(f), &info) < 0) return(mcnx_error("cannot get group info", NULL));
+  *n = (int)info.nlinks;
+  strcpy(name,    f->depth ? "" : "root");
+  strcpy(nxclass, f->depth ? "" : "NXroot");
+  return(NX_OK);
+}
+
+NXstatus NXgetgroupID(NXhandle h, NXlink *link)
+{
+  struct mcnx_file *f = h;
+  ssize_t len;
+  if (!f->depth) return(NX_ERROR);
+  len = H5Iget_name(f->g[f->depth-1], link->targetPath, sizeof(link->targetPath));
+  if (len <= 0 || len >= (ssize_t)sizeof(link->targetPath))
+    return(mcnx_error("group path too long to link", NULL));
+  link->linkType = 0;
+  return(NX_OK);
+}
+
+/* hard link to link->targetPath in the current group, and 'target' attribute on it */
+NXstatus NXmakelink(NXhandle h, NXlink *link)
+{
+  struct mcnx_file *f = h;
+  const char *item = strrchr(link->targetPath, '/');
+  hid_t  obj;
+  herr_t ret;
+  if (!f->depth || !item) return(mcnx_error("cannot link", link->targetPath));
+  H5Lcreate_hard(f->fid, link->targetPath, mcnx_loc(f), item+1, H5P_DEFAULT, H5P_DEFAULT); /* an existing link is kept (napi5) */
+  obj = H5Oopen(f->fid, link->targetPath, H5P_DEFAULT);
+  if (obj < 0) return(mcnx_error("link target does not exist", link->targetPath));
+  ret = mcnx_attr_str(obj, "target", link->targetPath, strlen(link->targetPath));
+  H5Oclose(obj);
+  return(ret < 0 ? mcnx_error("cannot set link target", link->targetPath) : NX_OK);
+}
 
 /* name of the NXentry opened by mcinfo_out_nexus (used by mclist_vds_write) */
 static char mcnxentry[CHAR_BUF_LENGTH] = "entry1";
@@ -2398,19 +2703,6 @@ static void mccomp_param_nexus(NXhandle nxhandle, char* component, char* paramet
 *   open data:NXdetector then filename:NXdata and write headers/attributes
 *   requires: NXentry to be opened
 *******************************************************************************/
-/* napi5 assembles group paths in char[1024] buffers without bounds checks:
-   a longer path overflows them (crash or corrupt file), so it is not written */
-static int mcnexus_path_ok(MCDETECTOR *detector, char *data_name, int warn)
-{
-  size_t len = strlen(mcnxentry) + strlen("/instrument/components/")
-             + strlen(detector->nexuscomp) + strlen("/output/") + strlen(data_name);
-  if (len < 1000) return(1);
-  if (warn)
-    fprintf(stderr, "Warning: %s: NeXus path of '%.40s...' has %lu characters, more than the NeXus API handles. "
-      "Not written to the NeXus file (mcdatainfo_out_nexus)\n", detector->component, data_name, (unsigned long)len);
-  return(0);
-}
-
 static void
 mcdatainfo_out_nexus(NXhandle f, MCDETECTOR detector)
 {
@@ -2420,7 +2712,6 @@ mcdatainfo_out_nexus(NXhandle f, MCDETECTOR detector)
   strcpy_valid(data_name,
     strlen(detector.filename) ?
       detector.filename : detector.component);
-  if (!mcnexus_path_ok(&detector, data_name, 1)) return;
 
   /* the NXdetector group has been created in mcinfo_out_nexus (siminfo_init) */
   if (NXopengroup(f, "instrument", "NXinstrument") == NX_OK) {
@@ -2513,7 +2804,9 @@ int mcdetector_out_axis_nexus(NXhandle f, char *label, char *var, int rank, long
       axis[i] = min+(max-min)*(i+0.5)/length;
     /* create the data set */
     strcpy_valid(valid, label);
+    NXMDisableErrorReporting(); /* exists when a list buffer was flushed before */
     NXcompmakedata(f, valid, NX_FLOAT64, 1, &dim, NX_COMPRESSION, &dim);
+    NXMEnableErrorReporting();
     /* open it */
     if (NXopendata(f, valid) != NX_OK) {
       fprintf(stderr, "Warning: could not open axis rank %i '%s' (NeXus)\n",
@@ -2555,15 +2848,9 @@ int mcdetector_out_array_nexus(NXhandle f, char *part, double *data, MCDETECTOR 
   /* when this is a list, we set 1st dimension to NX_UNLIMITED for creation */
   if (strcasestr(detector.format, "list")) fulldims[0] = NX_UNLIMITED;
 
-  /* HDF5 refuses chunks of 4 GiB or more (napi5 uses the whole block as chunk):
-     the data set would not be created at all */
-  int64_t chunk[3]={dims[0],dims[1],dims[2]};
-  double  bytes=8.0*dims[0]*(detector.rank > 1 ? dims[1] : 1)*(detector.rank > 2 ? dims[2] : 1);
-  if (bytes >= 4294967295.0) chunk[0] = chunk[0]/(int64_t)(bytes/4294967295.0 + 1) + 1;
-
   /* create the data set in NXdata group */
   NXMDisableErrorReporting(); /* inactivate NeXus error messages, as creation may fail */
-  ret = NXcompmakedata64(f, part, NX_FLOAT64, detector.rank, fulldims, NX_COMPRESSION, chunk);
+  ret = NXcompmakedata64(f, part, NX_FLOAT64, detector.rank, fulldims, NX_COMPRESSION, dims);
   if (ret != NX_OK) {
     /* failed: data set already exists */
     int datatype=0;
@@ -2620,7 +2907,6 @@ int mcdetector_out_data_nexus(NXhandle f, MCDETECTOR detector)
   strcpy_valid(data_name,
     strlen(detector.filename) ?
       detector.filename : detector.component);
-  if (!mcnexus_path_ok(&detector, data_name, 0)) return(NX_ERROR);
   NXlink pLink;
   int    linked = 0;
   /* the NXdetector group has been created in mcinfo_out_nexus (siminfo_init) */
@@ -3142,8 +3428,6 @@ static void mcdetector_list_write(MCDETECTOR detector, int append_raw)
 *   result; 'h5repack -l CONTI' makes a self-contained copy.
 *******************************************************************************/
 #ifdef USE_NEXUS
-#include <hdf5.h>
-
 /* one VDS to create in mccode.h5 after NXclose (master only) */
 struct mclist_vds {
   char       path[4*CHAR_BUF_LENGTH]; /* /entry/.../events in mccode.h5 */
@@ -3868,6 +4152,18 @@ mcsetseed(char *arg)
 
 void mcdis_magnify(char *what){
   // Do nothing here, better use interactive zoom from the tools
+}
+
+/* Set pen colour for the following draw calls of this component, "#rrggbb" or "rrggbb".
+   Emitted as integer RGB; backends without support ignore it. */
+void mcdis_pencolor(char *hex){
+  unsigned int r, g, b;
+  if (hex && hex[0] == '#') hex++;
+  if (!hex || strlen(hex) != 6 || sscanf(hex, "%2x%2x%2x", &r, &g, &b) != 3) {
+    fprintf(stderr, "Warning: mcdis_pencolor: ignoring invalid colour '%s', expected \"#rrggbb\"\n", hex ? hex : "(null)");
+    return;
+  }
+  printf("MCDISPLAY: pencolor(%u,%u,%u)\n", r, g, b);
 }
 
 void mcdis_line(double x1, double y1, double z1,
@@ -5540,7 +5836,7 @@ double _rand0max(double max, randstate_t* state) {
 }
 // Return a random number between min and max.
 double _randminmax(double min, double max, randstate_t* state) {
-	return _rand0max(max - min, state) + max;
+	return _rand0max(max - min, state) + min;
 }
 
 

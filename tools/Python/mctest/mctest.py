@@ -18,6 +18,7 @@ import shutil
 import platform
 import subprocess
 import io
+import concurrent.futures
 from datetime import datetime
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -429,12 +430,61 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     anyfailed=False
 
     # compile, record time
-    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots
+    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots, jobs
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
     else:
         logging.info("c-lint'ing instruments [seconds]...")
+
+    def compile_and_display(test):
+        ''' Compile (or lint) the instrument of test with mcrun, and if a binary results, run
+        mcdisplay (single particle only). Runs subprocesses only and touches no shared state,
+        so with -j/--jobs > 1 it runs in a thread pool. '''
+        binfile = os.path.splitext(test.localfile)[0] + "." + mccode_config.platform["EXESUFFIX"].lower()
+        mpiswitch = " --no-mpi " if no_mpi else ''
+        t1 = time.time()
+        cmd = mccode_config.configuration["MCRUN"]
+        if lint:
+            cmd = cmd + " --verbose -C %s > compile_stdout.txt 2>&1" % test.instrname
+        else:
+            if nexus:
+                cmd = cmd + " --format=NeXus "
+            if configdir:
+                cmd = cmd + " --override-config=" + configdir
+            if openacc:
+                cmd = cmd + " --openacc "
+            cmd = cmd + mpiswitch
+            if mpi and not no_mpi:
+                cmd = cmd + " --mpi=1 "
+            cmd = cmd + " --verbose -c -n0 %s > compile_stdout.txt 2>&1" % test.instrname
+
+        utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname), timeout=compilemax)
+        res = {'cmd': cmd, 'compiletime': time.time() - t1, 'displayed': None, 'displaytime': None}
+        if os.path.exists(binfile):
+            t1 = time.time()
+            if test.testnb>0:
+                dispvals = scan_first_point(test.parvals) if test.scan else test.parvals
+                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s %s -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispvals if dispvals else '-y')
+            else:
+                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s -y -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr')
+            retcode = utils.run_subtool_noread(dispcmd, cwd=join(testdir, test.instrname), timeout=displaymax)
+            res['displayed'] = retcode[0]==0
+            res['displaytime'] = time.time() - t1
+        return res
+
+    # -j/--jobs > 1: compile the first test of each instrument in a thread pool up front, with
+    # the same conditions as in the loop below, which then picks up the results in test order
+    pending = {}
+    if jobs > 1:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=jobs)
+        for test in tests:
+            stem = os.path.splitext(test.localfile)[0]
+            if test.localfile in pending or any(os.path.exists(stem + ext) for ext in
+                ('.failed', '.linted', '.' + mccode_config.platform["EXESUFFIX"].lower())):
+                continue
+            if test.testnb > 0 or (not args.skipnontest):
+                pending[test.localfile] = executor.submit(compile_and_display, test)
 
     for test in tests:
         if strict and test.testnb==0:
@@ -447,63 +497,31 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         compilefailed=os.path.splitext(test.localfile)[0] + ".failed"
         # if we linted, continue
         linted=os.path.splitext(test.localfile)[0] + ".linted"
-        if os.path.exists(compilefailed):
+        # a compile queued with -j/--jobs may already have made its binary
+        queued = test.localfile in pending
+        if not queued and os.path.exists(compilefailed):
             test.compiled = False
             test.compiletime = -1
             anyfailed=True
-        elif os.path.exists(binfile):
+        elif not queued and os.path.exists(binfile):
             test.compiled = True
             test.compiletime = 0
-        elif os.path.exists(linted):
+        elif not queued and os.path.exists(linted):
             test.linted = True
         else:
             if test.testnb > 0 or (not args.skipnontest):
-                log = LineLogger()
-                t1 = time.time()
-                cmd = mccode_config.configuration["MCRUN"]
-                if lint:
-                    cmd = cmd + " --verbose -C %s > compile_stdout.txt 2>&1" % test.instrname
-                else:
-                    if nexus:
-                        cmd = cmd + " --format=NeXus "
-                    if configdir:
-                        cmd = cmd + " --override-config=" + configdir
-                    if openacc:
-                        cmd = cmd + " --openacc "
-                    mpiswitch = ''
-                    if no_mpi:
-                        cmd = cmd + " --no-mpi "
-                        mpiswitch = " --no-mpi "
-                        mpi=None
-
-                    if mpi:
-                        cmd = cmd + " --mpi=1 "
-                    cmd = cmd + " --verbose -c -n0 %s > compile_stdout.txt 2>&1" % test.instrname
-
-                utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname), timeout=compilemax)
-                t2 = time.time()
+                res = pending.pop(test.localfile).result() if test.localfile in pending else compile_and_display(test)
+                cmd = res['cmd']
                 test.compiled = os.path.exists(binfile)
-                test.compiletime = t2 - t1
+                test.compiletime = res['compiletime']
 
                 # log to terminal
                 if test.compiled:
                     formatstr = "%-" + "%ds: " % maxnamelen + \
                       "{:3d}.".format(math.floor(test.compiletime)) + str(test.compiletime-int(test.compiletime)).split('.')[1][:2]
                     logging.info(formatstr % test.get_display_name())
-                    # Run mcdisplay (single particle only)
-                    t1 = time.time()
-                    if test.testnb>0:
-                        dispvals = scan_first_point(test.parvals) if test.scan else test.parvals
-                        cmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s %s -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispvals if dispvals else '-y')
-                    else:
-                        cmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s -y -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr')
-                    retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname), timeout=displaymax)
-                    t2 = time.time()
-                    if retcode[0]==0:
-                        test.displayed = True
-                    else:
-                        test.displayed = False
-                    test.displaytime = t2 - t1
+                    test.displayed = res['displayed']
+                    test.displaytime = res['displaytime']
                 else:
                     if lint:
                         formatstr = "%-" + "%ds: Linted using using:\n" % maxnamelen
@@ -526,6 +544,8 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         # save (incomplete) test results to disk
         if not skipped:
             test.save(infolder=join(testdir, test.instrname))
+    if jobs > 1:
+        executor.shutdown()
 
     # run, record time
     logging.info("")
@@ -554,6 +574,11 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 formatstr = "%-" + "%ds:   Display FAILED (%ds)" % (maxnamelen+1, displaytime)
                 logging.info(formatstr % test.instrname)
 
+        # -n0 means compile only (e.g. --openacc on a GPU-less CI runner)
+        if float(ncount) == 0:
+            formatstr = "%-" + "%ds:   Compiled only (-n0)" % (maxnamelen+1)
+            logging.info(formatstr % test.get_display_name())
+            continue
         # runable tests have testnb > 0
         if test.testnb <= 0:
             formatstr = "%-" + "%ds:   NO TEST" % (maxnamelen+1)
@@ -955,6 +980,7 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
 ncount = None
 mpi = None
 openacc = None
+jobs = 1
 suffix = None
 nexus = None
 lint = None
@@ -1024,7 +1050,7 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, noscans, nsigma, statfactor
+    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, noscans, nsigma, statfactor, jobs
     ncount = "1e6"
     no_mpi = False
     if args.ncount:
@@ -1109,6 +1135,13 @@ def main(args):
         mpi = args.mpi[0]
         logging.info("mpi count is: %s" % mpi)
         suffix = '_mpi_x_' + str(mpi) + suffix
+    if args.jobs:
+        if args.jobs[0] == 'auto':
+            # sched_getaffinity respects cgroup/taskset CPU limits, but is Linux only
+            jobs = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
+        else:
+            jobs = max(1, int(args.jobs[0]))
+        logging.info("compiling up to %d instruments in parallel" % jobs)
     if args.openacc:
         openacc = True
         logging.info("openacc is enabled")
@@ -1174,12 +1207,13 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ncount', nargs=1, help='ncount sent to %s' % (mccode_config.configuration["MCRUN"]) )
-    parser.add_argument('-n', nargs=1, help='ncount sent to %s' % (mccode_config.configuration["MCRUN"]) )
+    parser.add_argument('--ncount', nargs=1, help='ncount sent to %s (0: compile only, no test runs)' % (mccode_config.configuration["MCRUN"]) )
+    parser.add_argument('-n', nargs=1, help='ncount sent to %s (0: compile only, no test runs)' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--seed', nargs=1, help='seed sent to %s (default 1000 - use 0/NULL to "randomize")' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('-s', nargs=1, help='seed sent to %s (default 1000 - use 0/NULL to "randomize")' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--mpi', nargs=1, help='mpi nodecount sent to %s' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--no-mpi', action='store_true', help='MPI compilation disabled via %s --no-mpi' % (mccode_config.configuration["MCRUN"]) )
+    parser.add_argument('-j', '--jobs', nargs=1, help='Compile up to JOBS instruments in parallel, or "auto" for one pr. available processor (default 1). Test runs are always one at a time.')
     parser.add_argument('--openacc', action='store_true', help='openacc flag sent to %s' % (mccode_config.configuration["MCRUN"]))
     parser.add_argument('--config', nargs="?", help='test this specific config only - label name (regex) or absolute path')
     parser.add_argument('--instr', nargs="?", help='test only intruments matching this filter (py regex). Comma-separated list allowed for multiple filters. Combined with --comp, instruments matching either are tested.')

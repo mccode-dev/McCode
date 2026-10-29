@@ -48,7 +48,7 @@ extern int tl2_flt_equals(double x, double y, double eps);
 /**
  * set matrix elements to zero
  */
-extern void tl2_mat_zero(double* M, int I, int J);
+extern void tl2_mat_zero(double* M, int I_cov, int J);
 
 /**
  * set vector elements to zero
@@ -63,7 +63,7 @@ extern void tl2_vec_cpy(double* dst, const double* src, int N);
 /**
  * copy a matrix
  */
-extern void tl2_mat_cpy(double* DST, const double* SRC, int I, int J);
+extern void tl2_mat_cpy(double* DST, const double* SRC, int I_cov, int J);
 
 /**
  * removes a given row and column of a square matrix
@@ -78,19 +78,19 @@ extern double tl2_determinant(const double* M, int N);
 /**
  * inverted matrix
  */
-extern int tl2_inverse(const double* M, double* I, int N);
+extern int tl2_inverse(const double* M, double* I_cov, int N);
 
 /**
  * matrix-matrix product
  */
 extern void tl2_matmat_mul(const double* M1, const double* M2,
-	double *RES, int I, int J, int K);
+	double *RES, int I_cov, int J, int K);
 
 /**
  * matrix-vector product
  */
 extern void tl2_matvec_mul(const double* M, const double* v,
-	double *res, int I, int J);
+	double *res, int I_cov, int J);
 
 /**
  * transposed matrix
@@ -146,30 +146,30 @@ extern void tl2_vec_div(const double* v, double s, double *res, int N);
  * matrix addition
  */
 extern void tl2_mat_add(const double* M0, const double* M1,
-	double *RES, int I, int J);
+	double *RES, int I_cov, int J);
 
 /**
  * matrix subtraction
  */
 extern void tl2_mat_sub(const double* M0, const double* M1,
-	double *RES, int I, int J);
+	double *RES, int I_cov, int J);
 
 /**
  * negative matrix
  */
-extern void tl2_mat_neg(const double* M, double *RES, int I, int J);
+extern void tl2_mat_neg(const double* M, double *RES, int I_cov, int J);
 
 /**
  * matrix-scalar multiplication
  */
 extern void tl2_mat_mul(const double* M, double s,
-	double *RES, int I, int J);
+	double *RES, int I_cov, int J);
 
 /**
  * matrix-scalar division
  */
 extern void tl2_mat_div(const double* M, double s,
-	double *RES, int I, int J);
+	double *RES, int I_cov, int J);
 
 /**
  * mean vector
@@ -203,8 +203,8 @@ extern int tl2_reso(const double* vecs, const double* probs,
 #pragma acc routine
 extern double tl2_k_to_E(double kix, double kiy, double kiz, double kfx, double kfy, double kfz);
 
-extern void tl2_print_vec(const double* vec, const char* title, int I);
-extern void tl2_print_mat(const double* mat, const char* title, int I, int J);
+extern void tl2_print_vec(const double* vec, const char* title, int I_cov);
+extern void tl2_print_mat(const double* mat, const char* title, int I_cov, int J);
 
 /**
  * save neutron events
