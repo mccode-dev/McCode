@@ -23,12 +23,14 @@ jobs:
             mcrun: mcrun
             mctest: mctest
             mpilists: Tests_monitors
+            pip: mcpl ncrystal
             instr: BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Masked_ESS_butterfly_image
           - flavor: mcxtrace
             build: BUILD_MCXTRACE
             mcrun: mxrun
             mctest: mxtest
             mpilists: Tests
+            pip: mcpl
             instr: JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output
     name: freebsd.${{ matrix.flavor }}
     runs-on: ubuntu-latest
@@ -52,14 +54,13 @@ jobs:
             # MPI builds use base cc + mpich paths, not mpich's mpicc: mpicc links with binutils ld,
             # which lacks LLVMgold.so for the -flto that cmake probed with cc/lld.
             # Python modules by port origin: follows the default Python flavour (pyXYZ-) on pkg updates.
-            sudo pkg install -y cmake bison flex gsl hdf5 mpich python3 devel/py-pip devel/py-pyyaml devel/py-ply sysutils/py-psutil math/py-numpy science/py-h5py
-            # MCPL and NCrystal from PyPI (sdist builds, as in their own FreeBSD CI); McCode finds
-            # them at instrument compile time via mcpl-config / ncrystal-config on PATH.
-            python3 -mpip install --user mcpl ncrystal
+            sudo pkg install -y devel/cmake-core bison flex gsl hdf5 mpich python3 devel/py-pip devel/py-pyyaml devel/py-ply sysutils/py-psutil math/py-numpy science/py-h5py
+            # MCPL (and NCrystal for McStas) from PyPI (sdist builds, as in their own FreeBSD CI);
+            # McCode finds them at instrument compile time via mcpl-config / ncrystal-config on PATH.
+            python3 -mpip install --user ${{ matrix.pip }}
             PATH="$HOME/.local/bin:$PATH"
             export PATH
-            mcpl-config --show buildflags
-            ncrystal-config --show buildflags
+            for p in ${{ matrix.pip }}; do $p-config --show buildflags; done
             cmake -S ./src -B ./build \
                 -DCMAKE_INSTALL_PREFIX=$PWD/install \
                 -DCMAKE_BUILD_TYPE=Release \
