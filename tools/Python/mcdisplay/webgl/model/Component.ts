@@ -10,4 +10,5 @@ export interface Component {
 export interface DrawCall {
   key: string;
   args: number[];
+  color?: string; // '#rrggbb' from pencolor
 }

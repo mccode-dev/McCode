@@ -123,12 +123,25 @@ function [comps, fig] = mcdisplay(varargin)
         next = numel(output_mcdisplay_section); end
       % get the MCDISPLAY section for a single component
       section = output_mcdisplay_section(index_mcdisplay_comp(index):next);
-      % then we get the multiline and circle commands in this section
-      for token = {'multiline' ,'mcdiscircle'}
-        [x,y,z] = mcdisplay_get_token(section, token{1});
-        comps(index).x = [ comps(index).x nan x ];
-        comps(index).y = [ comps(index).y nan y ];
-        comps(index).z = [ comps(index).z nan z ];
+      % split at pencolor lines: the first part uses the component colour, each further part its pen colour
+      ipen = [ find(~cellfun(@isempty, strfind(section, 'MCDISPLAY: pencolor('))); numel(section)+1 ];
+      comps(index).pens = struct('rgb', {}, 'x', {}, 'y', {}, 'z', {});
+      for p = 0:numel(ipen)-1
+        if p == 0, part = section(1:ipen(1)-1); else part = section(ipen(p)+1:ipen(p+1)-1); end
+        % then we get the multiline and circle commands in this part
+        X=[]; Y=[]; Z=[];
+        for token = {'multiline' ,'mcdiscircle'}
+          [x,y,z] = mcdisplay_get_token(part, token{1});
+          X = [ X nan x ]; Y = [ Y nan y ]; Z = [ Z nan z ];
+        end
+        if p == 0
+          comps(index).x = [ comps(index).x X ];
+          comps(index).y = [ comps(index).y Y ];
+          comps(index).z = [ comps(index).z Z ];
+        else
+          rgb = sscanf(section{ipen(p)}, 'MCDISPLAY: pencolor(%d,%d,%d)')'/255;
+          comps(index).pens(end+1) = struct('rgb', rgb, 'x', X, 'y', Y, 'z', Z);
+        end
       end
     end
     clear output_mcdisplay_section
@@ -207,20 +220,28 @@ function [comps, fig] = mcdisplay(varargin)
     end
     if ~found, continue; end % not found match -> skip this comp
     
-    r = [ comp.x ; comp.y ; comp.z ];
-    if all(isnan(r)), continue; end
-    R = comp.rot*r;
-    x = R(1,:)+comp.pos(1);
-    y = R(2,:)+comp.pos(2);
-    z = R(3,:)+comp.pos(3);
-    disp([' Component: ' comp.name ' [' num2str(index) '] AT (' sprintf('%g,%g,%g', comp.pos) ')'  ])
     c = mod(comp.index, numel(colors)); c=colors(c+1);
-    h = plot3(z,x,y, [ c '-' ], 'DisplayName', comp.name);
-    popup=uicontextmenu;
-    uimenu(popup,'label', comp.name,'ForeGroundColor',c);
-    uimenu(popup,'label', [ 'AT: ' mat2str(comp.pos) ]);
-    set(h,'uicontextmenu',popup);
-    hold on
+    pens = struct('rgb', c, 'x', comp.x, 'y', comp.y, 'z', comp.z); % component colour, then pencolor parts
+    if isfield(comp, 'pens'), pens = [ pens comp.pens ]; end
+    shown = false;
+    for pen = pens
+      r = [ pen.x ; pen.y ; pen.z ];
+      if all(isnan(r)), continue; end
+      R = comp.rot*r;
+      x = R(1,:)+comp.pos(1);
+      y = R(2,:)+comp.pos(2);
+      z = R(3,:)+comp.pos(3);
+      if ~shown
+        disp([' Component: ' comp.name ' [' num2str(index) '] AT (' sprintf('%g,%g,%g', comp.pos) ')'  ])
+        shown = true;
+      end
+      h = plot3(z,x,y, '-', 'Color', pen.rgb, 'DisplayName', comp.name);
+      popup=uicontextmenu;
+      uimenu(popup,'label', comp.name,'ForeGroundColor',c);
+      uimenu(popup,'label', [ 'AT: ' mat2str(comp.pos) ]);
+      set(h,'uicontextmenu',popup);
+      hold on
+    end
   end
   if isempty(match)
     % plot a red dashed line that follows the centre location of components

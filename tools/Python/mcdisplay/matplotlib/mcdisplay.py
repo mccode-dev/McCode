@@ -32,6 +32,7 @@ MC_SPHERE = 'MCDISPLAY: mcdissphere'
 MC_BOX = 'MCDISPLAY: mcdisbox'
 MC_CONE = 'MCDISPLAY: mcdiscone'
 MC_POLYGON = 'MCDISPLAY: polyhedron'
+MC_PENCOLOR = 'MCDISPLAY: pencolor'
 
 MC_ENTER = 'ENTER:'
 MC_LEAVE = 'LEAVE:'
@@ -98,6 +99,7 @@ def parse_trace(backend):
     ax.set(xlabel='z / [m]', ylabel='x / [m]', zlabel='y / [m]')
 
     color = 0
+    pen = COLORS[color]  # current pen: component colour unless set by pencolor
 
     # map from component name to (position, rotation matrix)
     comps = {}
@@ -137,6 +139,7 @@ def parse_trace(backend):
         # switch perspective
         elif line.startswith(MC_COMP):
             color = (color + 1) % len(COLORS)
+            pen = COLORS[color]
             comp = comps[line[len(MC_COMP) + 1:]]
 
         elif line.startswith(MC_COMP_SHORT):
@@ -144,36 +147,39 @@ def parse_trace(backend):
             comp = comps[name]
             skip = True
 
+        elif line.startswith(MC_PENCOLOR):
+            pen = '#%02x%02x%02x' % tuple(int(x) for x in line[len(MC_PENCOLOR):].strip('()\n').split(','))
+
         #process primitives
         elif line.startswith(MC_LINE):
-            process_multiline(ax, line, COLORS[color], comp, transparency)
+            process_multiline(ax, line, pen, comp, transparency)
 
         elif line.startswith(MC_POLYGON):
-            process_polygon(ax, line, comp, COLORS[color], transparency)
+            process_polygon(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_CIRCLE):
-            process_circle(ax, line, COLORS[color], comp, transparency)
+            process_circle(ax, line, pen, comp, transparency)
 
         elif line.startswith(MC_DISC):
-            process_disc(ax, line, comp, COLORS[color], transparency)
+            process_disc(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_ANNULUS):
-            process_annulus(ax, line, comp, COLORS[color], transparency)
+            process_annulus(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_NEW_CIRCLE):
-            process_new_circle(ax, line, comp, COLORS[color], transparency)
+            process_new_circle(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_CONE):
-            process_cone(ax, line, comp, COLORS[color], transparency)
+            process_cone(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_SPHERE):
-            process_sphere(ax, line, comp, COLORS[color], transparency)
+            process_sphere(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_BOX):
-            process_box(ax, line, comp, COLORS[color], transparency)
+            process_box(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_CYLINDER):
-            process_cylinder(ax, line, comp, COLORS[color], transparency)
+            process_cylinder(ax, line, comp, pen, transparency)
 
         # activate neutron when it enters
         elif line.startswith(MC_ENTER):

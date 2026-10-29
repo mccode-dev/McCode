@@ -604,6 +604,7 @@ int _getcomp_index(char* compname);
 
 /* send MCDISPLAY message to stdout to show gemoetry */
 void mcdis_magnify(char *what);
+void mcdis_pencolor(char *hex);
 void mcdis_line(double x1, double y1, double z1,
                 double x2, double y2, double z2);
 void mcdis_dashed_line(double x1, double y1, double z1,
@@ -762,22 +763,6 @@ void normal_vec(double *nx, double *ny, double *nz,
     (y) = mcrt_vpy + mcrt_vn1y; \
     (z) = mcrt_vpz + mcrt_vn1z; \
   } while(0)
-
-/**
- * Mirror (xyz) in the plane given by the point (rx,ry,rz) and normal (nx,ny,nz)
- *
- * TODO: This define is seemingly never used...
- */
-#define mirror(x,y,z,rx,ry,rz,nx,ny,nz) \
-  do { \
-    double mcrt_tmpx= (nx), mcrt_tmpy = (ny), mcrt_tmpz = (nz); \
-    double mcrt_tmpt; \
-    NORM(mcrt_tmpx, mcrt_tmpy, mcrt_tmpz); \
-    mcrt_tmpt=scalar_prod((rx),(ry),(rz),mcrt_tmpx,mcrt_tmpy,mcrt_tmpz); \
-    (x) = rx -2 * mcrt_tmpt*mcrt_rmpx; \
-    (y) = ry -2 * mcrt_tmpt*mcrt_rmpy; \
-    (z) = rz -2 * mcrt_tmpt*mcrt_rmpz; \
-  } while (0)
 
 #pragma acc routine
 Coords coords_set(MCNUM x, MCNUM y, MCNUM z);
@@ -995,7 +980,54 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
      mcdetector_out_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 
 #ifdef USE_NEXUS
-#include "napi.h"
+/* NeXus output: the subset of the frozen NeXus API (napi.h) used by McCode and
+   its components, implemented on native HDF5 in mccode-r.c. Names, values and
+   the written file layout follow napi5. */
+#include <hdf5.h>
+typedef void *NXhandle;
+typedef int   NXstatus;
+typedef int   NXaccess;
+typedef char  NXname[128];
+typedef struct { char targetPath[1024]; int linkType; } NXlink;
+#define NX_OK         1
+#define NX_ERROR      0
+#define NX_UNLIMITED -1
+#define NX_CHAR       4
+#define NX_FLOAT64    6
+#define NX_INT32     24
+#define NXACC_RDWR    2
+#define NXACC_CREATE5 5
+#define NX_COMP_NONE  100
+#define NX_COMP_LZW   200
+#define NX_COMP_LZW_LVL0 (100*NX_COMP_LZW + 0)
+#define NX_COMP_LZW_LVL1 (100*NX_COMP_LZW + 1)
+#define NX_COMP_LZW_LVL2 (100*NX_COMP_LZW + 2)
+#define NX_COMP_LZW_LVL3 (100*NX_COMP_LZW + 3)
+#define NX_COMP_LZW_LVL4 (100*NX_COMP_LZW + 4)
+#define NX_COMP_LZW_LVL5 (100*NX_COMP_LZW + 5)
+#define NX_COMP_LZW_LVL6 (100*NX_COMP_LZW + 6)
+#define NX_COMP_LZW_LVL7 (100*NX_COMP_LZW + 7)
+#define NX_COMP_LZW_LVL8 (100*NX_COMP_LZW + 8)
+#define NX_COMP_LZW_LVL9 (100*NX_COMP_LZW + 9)
+NXstatus NXopen(const char *filename, NXaccess am, NXhandle *h);
+NXstatus NXclose(NXhandle *h);
+NXstatus NXmakegroup(NXhandle h, const char *name, const char *nxclass);
+NXstatus NXopengroup(NXhandle h, const char *name, const char *nxclass);
+NXstatus NXclosegroup(NXhandle h);
+NXstatus NXmakedata(NXhandle h, const char *name, int type, int rank, int dims[]);
+NXstatus NXcompmakedata(NXhandle h, const char *name, int type, int rank, int dims[], int comp, int chunk[]);
+NXstatus NXcompmakedata64(NXhandle h, const char *name, int type, int rank, int64_t dims[], int comp, int64_t chunk[]);
+NXstatus NXopendata(NXhandle h, const char *name);
+NXstatus NXclosedata(NXhandle h);
+NXstatus NXputdata(NXhandle h, const void *data);
+NXstatus NXputslab64(NXhandle h, const void *data, const int64_t start[], const int64_t size[]);
+NXstatus NXputattr(NXhandle h, const char *name, const void *data, int len, int type);
+NXstatus NXgetinfo64(NXhandle h, int *rank, int64_t dims[], int *type);
+NXstatus NXgetgroupinfo(NXhandle h, int *n, NXname name, NXname nxclass);
+NXstatus NXgetgroupID(NXhandle h, NXlink *link);
+NXstatus NXmakelink(NXhandle h, NXlink *link);
+void     NXMDisableErrorReporting(void);
+void     NXMEnableErrorReporting(void);
 extern NXhandle nxhandle;
 /* store post-INIT values of component SETTING parameters (called after init()) */
 void mccomp_param_runtime_nexus_all(NXhandle f);

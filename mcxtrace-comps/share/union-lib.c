@@ -1293,39 +1293,36 @@ void print_intersection_table(struct intersection_time_table_struct *intersectio
     }
 
 void merge_lines_to_draw(struct lines_to_draw *lines_master,struct lines_to_draw *lines_new) {
-    if (lines_master->number_of_lines == 0) {
-    lines_master->number_of_lines = lines_new->number_of_lines;
-    if (!lines_master->number_of_lines) {
-      fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw 1 - Exit!\n");
-      exit(EXIT_FAILURE);
+    // Appends the lines of lines_new to lines_master, then frees lines_new->lines
+    // and leaves lines_new empty.
+    // The allocation behind lines_master->lines is only ever made here, and its
+    // capacity is always the smallest power of two holding number_of_lines, so it
+    // need not be stored: appending one line at a time costs amortized O(1).
+    // A master is started by setting number_of_lines = 0.
+    int capacity, needed, iterate;
+    if (lines_new->number_of_lines <= 0) return;
+    needed = lines_master->number_of_lines + lines_new->number_of_lines;
+    capacity = 0; // an empty master owns no allocation (lines may be unset)
+    if (lines_master->number_of_lines > 0) {
+      capacity = 1;
+      while (capacity < lines_master->number_of_lines) capacity *= 2;
     }
-    lines_master->lines = malloc(lines_master->number_of_lines*sizeof(struct line_segment));
-    if (!lines_master->lines) {
-      fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw 2 - Exit!\n");
-      exit(EXIT_FAILURE);
+    if (needed > capacity) {
+      int new_capacity = capacity > 0 ? capacity : 1;
+      struct line_segment *grown;
+      while (new_capacity < needed) new_capacity *= 2;
+      grown = realloc(capacity > 0 ? lines_master->lines : NULL, new_capacity*sizeof(struct line_segment));
+      if (!grown) {
+        fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw - Exit!\n");
+        exit(EXIT_FAILURE);
+      }
+      lines_master->lines = grown;
     }
-    lines_master->lines = lines_new->lines;
-    // One could free lines_new->lines;
-    } else {
-    int iterate;
-    struct line_segment *temp_lines;
-    temp_lines = malloc(lines_master->number_of_lines*sizeof(struct line_segment));
-    if (!temp_lines) {
-      fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw 3 - Exit!\n");
-      exit(EXIT_FAILURE);
-    }
-    for (iterate = 0;iterate < lines_master->number_of_lines;iterate++) temp_lines[iterate] = lines_master->lines[iterate];
-    free(lines_master->lines);
-    lines_master->lines = malloc((lines_master->number_of_lines+lines_new->number_of_lines)*sizeof(struct line_segment));
-    if (!lines_master->lines) {
-      fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw 4 - Exit!\n");
-      exit(EXIT_FAILURE);
-    }
-    for (iterate = 0;iterate < lines_master->number_of_lines;iterate++) lines_master->lines[iterate] = temp_lines[iterate];
-    for (iterate = 0;iterate < lines_new->number_of_lines;iterate++) lines_master->lines[iterate+lines_master->number_of_lines] = lines_new->lines[iterate];
-    lines_master->number_of_lines = lines_master->number_of_lines + lines_new->number_of_lines;
-    free(temp_lines);
-    }
+    for (iterate = 0;iterate < lines_new->number_of_lines;iterate++) lines_master->lines[lines_master->number_of_lines+iterate] = lines_new->lines[iterate];
+    lines_master->number_of_lines = needed;
+    free(lines_new->lines);
+    lines_new->lines = NULL;
+    lines_new->number_of_lines = 0;
     }
 
 int r_has_highest_priority(Coords point,int N,struct geometry_struct **Geometries,int number_of_volumes) {
@@ -1473,6 +1470,7 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
 
         }
     }
+    free(temp_intersection);
     // Now we have a list of intersection distances between r1 and r2 and all volumes.
     // This list needs to be sorted before we continue!
 
@@ -1534,9 +1532,9 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
               draw_order.lines[draw_order.number_of_lines++] = lines[iterate];
             }
         }
-        if (intersection_list.num_elements > 0) free(intersection_list.elements);
     }
-    
+    if (intersection_list.num_elements > 0) free(intersection_list.elements);
+
     free(points);
     free(lines);
     free(draw_logic);

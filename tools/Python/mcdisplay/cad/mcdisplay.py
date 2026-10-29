@@ -374,9 +374,13 @@ def _polyhedron(json_str):
 # instrument -> parts
 # ---------------------------------------------------------------------------
 
-def component_to_part(comp, color, segments=64):
-    part = Part(comp.name, color)
+def component_to_part(comp, color, segments=64, pen=None):
+    ''' the component's draw calls with pen colour `pen` ('#rrggbb' from pencolor, None: the component color) '''
+    part = Part(comp.name + ('_' + pen[1:] if pen else ''),
+                tuple(int(pen[i:i + 2], 16) / 255 for i in (1, 3, 5)) if pen else color)
     for d in comp.drawcalls:
+        if d.color != pen:
+            continue
         mesh, lines = tessellate(d, segments)
         if mesh is not None:
             part.add_mesh(mesh)
@@ -402,10 +406,11 @@ def instrument_to_parts(inst, segments=64):
     parts = []
     ci = 0  # color index over all components (so colors differ even if some are empty)
     for comp in inst.components:
-        part = component_to_part(comp, color_for(ci), segments)
+        for pen in dict.fromkeys(d.color for d in comp.drawcalls) or [None]:  # one part per pen colour
+            part = component_to_part(comp, color_for(ci), segments, pen)
+            if not part.is_empty():
+                parts.append(part)
         ci += 1
-        if not part.is_empty():
-            parts.append(part)
     return parts
 
 

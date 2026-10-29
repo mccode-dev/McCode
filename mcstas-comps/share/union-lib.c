@@ -1390,38 +1390,36 @@ void print_intersection_table(struct intersection_time_table_struct *intersectio
     }
 
 void merge_lines_to_draw(struct lines_to_draw *lines_master,struct lines_to_draw *lines_new) {
-    if (lines_master->number_of_lines == 0) {
-    lines_master->number_of_lines = lines_new->number_of_lines;
-    if (!lines_master->number_of_lines) {
-      return;
+    // Appends the lines of lines_new to lines_master, then frees lines_new->lines
+    // and leaves lines_new empty.
+    // The allocation behind lines_master->lines is only ever made here, and its
+    // capacity is always the smallest power of two holding number_of_lines, so it
+    // need not be stored: appending one line at a time costs amortized O(1).
+    // A master is started by setting number_of_lines = 0.
+    int capacity, needed, iterate;
+    if (lines_new->number_of_lines <= 0) return;
+    needed = lines_master->number_of_lines + lines_new->number_of_lines;
+    capacity = 0; // an empty master owns no allocation (lines may be unset)
+    if (lines_master->number_of_lines > 0) {
+      capacity = 1;
+      while (capacity < lines_master->number_of_lines) capacity *= 2;
     }
-    lines_master->lines = malloc(lines_master->number_of_lines*sizeof(struct line_segment));
-    if (!lines_master->lines) {
-      fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw 2 - Exit!\n");
-      exit(EXIT_FAILURE);
+    if (needed > capacity) {
+      int new_capacity = capacity > 0 ? capacity : 1;
+      struct line_segment *grown;
+      while (new_capacity < needed) new_capacity *= 2;
+      grown = realloc(capacity > 0 ? lines_master->lines : NULL, new_capacity*sizeof(struct line_segment));
+      if (!grown) {
+        fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw - Exit!\n");
+        exit(EXIT_FAILURE);
+      }
+      lines_master->lines = grown;
     }
-    lines_master->lines = lines_new->lines;
-    // One could free lines_new->lines;
-    } else {
-    int iterate;
-    struct line_segment *temp_lines;
-    temp_lines = malloc(lines_master->number_of_lines*sizeof(struct line_segment));
-    if (!temp_lines) {
-      fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw 3 - Exit!\n");
-      exit(EXIT_FAILURE);
-    }
-    for (iterate = 0;iterate < lines_master->number_of_lines;iterate++) temp_lines[iterate] = lines_master->lines[iterate];
-    free(lines_master->lines);
-    lines_master->lines = malloc((lines_master->number_of_lines+lines_new->number_of_lines)*sizeof(struct line_segment));
-    if (!lines_master->lines) {
-      fprintf(stderr,"Failure allocating list in Union function merge_lines_to_draw 4 - Exit!\n");
-      exit(EXIT_FAILURE);
-    }
-    for (iterate = 0;iterate < lines_master->number_of_lines;iterate++) lines_master->lines[iterate] = temp_lines[iterate];
-    for (iterate = 0;iterate < lines_new->number_of_lines;iterate++) lines_master->lines[iterate+lines_master->number_of_lines] = lines_new->lines[iterate];
-    lines_master->number_of_lines = lines_master->number_of_lines + lines_new->number_of_lines;
-    free(temp_lines);
-    }
+    for (iterate = 0;iterate < lines_new->number_of_lines;iterate++) lines_master->lines[lines_master->number_of_lines+iterate] = lines_new->lines[iterate];
+    lines_master->number_of_lines = needed;
+    free(lines_new->lines);
+    lines_new->lines = NULL;
+    lines_new->number_of_lines = 0;
     }
 
 int r_has_highest_priority(Coords point,int N,struct geometry_struct **Geometries,int number_of_volumes) {
@@ -1589,6 +1587,7 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
         }
     }
     free(double_dummy);
+    free(int_dummy);
     free(temp_intersection);
     // Now we have a list of intersection distances between r1 and r2 and all volumes.
     // This list needs to be sorted before we continue!
@@ -1652,9 +1651,9 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
               draw_order.lines[draw_order.number_of_lines++] = lines[iterate];
             }
         }
-        if (intersection_list.num_elements > 0) free(intersection_list.elements);
     }
-    
+    if (intersection_list.num_elements > 0) free(intersection_list.elements);
+
     free(points);
     free(lines);
     free(draw_logic);
@@ -1805,14 +1804,14 @@ union geometry_parameter_union allocate_cone_storage_copy(union geometry_paramet
 
 union geometry_parameter_union allocate_mesh_copy(union geometry_parameter_union *union_input) {
   union geometry_parameter_union union_output;
-  // Allocate the space for a gmesh_struct in the new union_output (union as the c structre)
-  union_output.p_mesh = malloc(sizeof(gmesh_struct));
-  if (!union_output.p_mesh) {
+  // Allocate the space for a mesh_storage in the new union_output (union as the c structre)
+  union_output.p_mesh_storage = malloc(sizeof(struct mesh_storage));
+  if (!union_output.p_mesh_storage) {
     fprintf(stderr,"Failure allocating list in Union function allocate_mesh_copy - Exit!\n");
     exit(EXIT_FAILURE);
   }
   // Copy the input storage to the output
-  *union_output.p_mesh = *union_input->p_mesh;
+  *union_output.p_mesh_storage = *union_input->p_mesh_storage;
   
   return union_output;
 }
@@ -2760,7 +2759,7 @@ This function was created by Martin Olsen at NBI on september 20, 2018.
 int r_within_mesh(Coords pos,struct geometry_struct *geometry) {
   // Point in mesh test (parity of ray crossings) in the frame of the mesh component
   Coords local_position = rot_apply(geometry->transpose_rotation_matrix, coords_sub(pos, geometry->center));
-  return gmesh_inside(geometry->geometry_parameters.p_mesh, local_position);
+  return gmesh_inside(&geometry->geometry_parameters.p_mesh_storage->mesh, local_position);
 }
 
 int sample_mesh_intersect(double *t,
@@ -2771,7 +2770,7 @@ int sample_mesh_intersect(double *t,
   // Times of intersection with a mesh component, nearest first, with the unit
   // outward normals rotated back to the frame of the master component.
   // Hits slightly before r are kept, so that the surface the ray leaves is found.
-  gmesh_struct *triangle_mesh = geometry->geometry_parameters.p_mesh;
+  gmesh_struct *triangle_mesh = &geometry->geometry_parameters.p_mesh_storage->mesh;
   gmesh_hit hits[GMESH_MAX_HITS];
   Coords position = rot_apply(geometry->transpose_rotation_matrix, coords_sub(coords_set(r[0], r[1], r[2]), geometry->center));
   Coords velocity = rot_apply(geometry->transpose_rotation_matrix, coords_set(v[0], v[1], v[2]));
@@ -4163,7 +4162,7 @@ int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct 
     }
     // Secondary check with edges intersecting on faces
     if (geometry1->eShape==mesh){
-      gmesh_struct *mesh1 = geometry1->geometry_parameters.p_mesh;
+      gmesh_struct *mesh1 = &geometry1->geometry_parameters.p_mesh_storage->mesh;
       Coords vert1, vert2, vert3;
       for (i = 0; i < mesh1->ntris; i++){
         vert1 = shell_points1.elements[mesh1->tri[3*i]];
@@ -4187,7 +4186,7 @@ int mesh_overlaps_mesh(struct geometry_struct *geometry1,struct geometry_struct 
       }
     }
     if (geometry2->eShape==mesh){
-      gmesh_struct *mesh2 = geometry2->geometry_parameters.p_mesh;
+      gmesh_struct *mesh2 = &geometry2->geometry_parameters.p_mesh_storage->mesh;
       Coords vert1, vert2, vert3;
       for (i = 0; i < mesh2->ntris; i++){
         vert1 = shell_points2.elements[mesh2->tri[3*i]];

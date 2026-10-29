@@ -225,7 +225,7 @@ union geometry_parameter_union{
     struct cylinder_storage *p_cylinder_storage;
     struct box_storage      *p_box_storage;
     struct cone_storage     *p_cone_storage;
-    gmesh_struct            *p_mesh;
+    struct mesh_storage     *p_mesh_storage;
     // add as many pointers to structs as wanted, without increasing memory footprint.
 };
 
@@ -1072,6 +1072,11 @@ double cone_radius_top;
 double cone_radius_bottom;
 double height;
 Coords direction_vector;
+};
+
+struct mesh_storage{
+gmesh_struct mesh; // triangle mesh and BVH, in the frame of the mesh component
+int display_layer; // BVH layer whose boxes mcdisplay draws, 0 to draw the triangle edges
 };
 
 
