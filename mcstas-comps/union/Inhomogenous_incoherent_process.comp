@@ -166,8 +166,8 @@ SHARE
 
   // Function for calculating my in Incoherent case
   int
-  Inhomogenous_incoherent_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                                      _class_particle* _particle) {
+  Inhomogenous_incoherent_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
     double sigma;
     double unit_cell_volume;
     double packing_factor;
@@ -211,8 +211,11 @@ SHARE
 
   // Function for basic incoherent scattering event
   int
-  Inhomogenous_incoherent_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
-                                              struct focus_data_struct* focus_data, _class_particle* _particle) {
+  Inhomogenous_incoherent_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer,
+                                              struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
+    double k_final[3];
+    double weight = _particle->p;
     double lorentzian_width;
     double QE_sampling_frequency = data_transfer.Inhomogenous_incoherent_struct->QE_sampling_frequency;
     if (data_transfer.Inhomogenous_incoherent_struct->lorentzian_width) {
@@ -227,16 +230,16 @@ SHARE
     Coords k_out;
     // Here is the focusing system in action, get a vector
     double solid_angle;
-    focus_data->focusing_function (&k_out, &solid_angle, focus_data);
+    focus_data->focusing_function (&k_out, &solid_angle, focus_data, _particle);
     NORM (k_out.x, k_out.y, k_out.z);
-    *weight *= solid_angle * 0.25 / PI;
+    weight *= solid_angle * 0.25 / PI;
 
     double v_i, v_f, E_i, dE, E_f;
 
-    if (rand01 () < QE_sampling_frequency) {
+    if (_rand01 (_particle->randstate) < QE_sampling_frequency) {
       v_i = k_length * K2V;
       E_i = VS2E * v_i * v_i;
-      dE = lorentzian_width * tan (PI / 2 * randpm1 ());
+      dE = lorentzian_width * tan (PI / 2 * _randpm1 (_particle->randstate));
       E_f = E_i + dE;
       if (E_f <= 0)
         return 0;
@@ -247,6 +250,8 @@ SHARE
     k_final[0] = k_out.x * k_length;
     k_final[1] = k_out.y * k_length;
     k_final[2] = k_out.z * k_length;
+    _particle->p = weight;
+    UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
     return 1;
   };
 

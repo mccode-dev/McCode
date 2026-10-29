@@ -199,7 +199,7 @@ SHARE
   int precomputeUpsilon_l (struct hkl_data_texture* L, struct legendre* lgdr);
   int computeV (struct fourier_coef* fc, struct legendre* lgdr, struct hkl_data_texture* L);
   // sampling
-  int sampleKprime_hkl (double* kf, double* ki, struct hkl_data_texture* L, struct legendre* lgdr);
+  int sampleKprime_hkl (double* kf, double* ki, struct hkl_data_texture* L, struct legendre* lgdr, _class_particle* _particle);
   double probPhiq (double ctq, double phiq, struct hkl_data_texture* L, struct legendre* lgdr);
   double probPhiqImag (double ctq, double phiq, struct hkl_data_texture* L, struct legendre* lgdr);
   int precomputeProbPhiq (struct hkl_data_texture* L, struct legendre* lgdr);
@@ -664,7 +664,7 @@ SHARE
   ////////////////////////////////
 
   int
-  sampleKprime_hkl (double* kf, double* ki, struct hkl_data_texture* L, struct legendre* lgdr) {
+  sampleKprime_hkl (double* kf, double* ki, struct hkl_data_texture* L, struct legendre* lgdr, _class_particle* _particle) {
     int it, i, is, j;
     double xi, kdg;
     // modulus of ki and local orthonormal basis containing ki, (t1,t2,kih)
@@ -844,12 +844,14 @@ SHARE
 
     // rejection method
     for (it = 0; it < maxIterReject; it++) {
-      phi = -PI + 2 * PI * rand01 ();
+      phi = -PI + 2 * PI * _rand01 (_particle->randstate);
       // interpolate
       j = (int)((PI + phi) / dphi);
+      if (j >= nSamplingPoints - 1)
+        j = nSamplingPoints - 2;
       // p = probpts[j] + (phi-phipts[j])*(probpts[j+1]-probpts[j])/dphi;
       p = aa[j] + phi * bb[j];
-      if (p / maxProb > rand01 ()) {
+      if (p / maxProb > _rand01 (_particle->randstate)) {
         // printf("rej. it: %d j: %d  phi: %f\n",it,j,phi);
         kft1 = stheta * cos (phi);
         kft2 = stheta * sin (phi);
@@ -2071,7 +2073,8 @@ SHARE
   // Function for calculating my, the inverse penetration depth (for only this scattering process).
   // The input for this function and its order may not be changed, but the names may be updated.
   int
-  Texture_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
+  Texture_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
     int i, is;
     // k_initial is a pointer to a simple vector with 3 doubles, k[0], k[1], k[2] (wavevector)
     double kix = k_initial[0];
@@ -2173,8 +2176,9 @@ SHARE
 
   // Function that provides description of a basic scattering event.
   int
-  Texture_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                              _class_particle* _particle) {
+  Texture_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
+    double k_final[3];
     int i, is, j, num_hkl_scatt;
     double r, sum, accum, *cumProb_hkl; /* Locals */
     double kf[3];                       /* Final wave vector (local) */
@@ -2256,10 +2260,10 @@ SHARE
     }
 
     j = -1;
-    r = rand01 ();
+    r = _rand01 (_particle->randstate);
     for (i = 0; i <= num_hkl_scatt; i++) {
       // hkl_info->num_hkl_scatt implements Bragg cutoff
-      if (r < cumProb_hkl[i]) {
+      if (r < cumProb_hkl[i] || (i == num_hkl_scatt && r <= cumProb_hkl[i])) {
         j = i;
         break;
       }
@@ -2278,7 +2282,7 @@ SHARE
     }
 
     // sampling kprime
-    sampleKprime_hkl (kf, k_initial, L + j, lgdr);
+    sampleKprime_hkl (kf, k_initial, L + j, lgdr, _particle);
 
     /* Adjust neutron weight (see manual for explanation). */
     //*weight *= T[j].xsect*hkl_info->coh_refl/(hkl_info->cohMu*T[j].refl);
@@ -2297,6 +2301,7 @@ SHARE
     k_final[1] = kf[1];
     k_final[2] = kf[2];
 
+    UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
     return 1;
   };
 

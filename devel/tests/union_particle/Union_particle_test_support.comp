@@ -1,0 +1,258 @@
+DEFINE COMPONENT Union_particle_test_support
+SETTING PARAMETERS(int mode=0)
+
+SHARE
+%{
+  %include "union-lib"
+
+  struct Template_physics_storage_struct {
+    double my_scattering;
+    int corrupt_particle;
+  };
+
+  void union_particle_test_seed(_class_particle *particle) {
+    particle->x = 0.0;
+    particle->y = 0.0;
+    particle->z = 0.0;
+#if MCCODE_PARTICLE_CODE == 2112
+    particle->vx = 0.0;
+    particle->vy = 0.0;
+    particle->vz = 1200.0;
+    particle->sx = 0.1;
+    particle->sy = 0.2;
+    particle->sz = 0.3;
+    particle->mcgravitation = 0;
+    particle->mcMagnet = NULL;
+#else
+    particle->kx = 0.0;
+    particle->ky = 0.0;
+    particle->kz = 1.0;
+    particle->phi = 0.0;
+    particle->Ex = 0.1;
+    particle->Ey = 0.2;
+    particle->Ez = 0.3;
+#endif
+    particle->t = 0.0;
+    particle->p = 1.0;
+    particle->allow_backprop = 0;
+    particle->_mctmp_a = 0.0;
+    particle->_mctmp_b = 0.0;
+    particle->_mctmp_c = 0.0;
+    particle->_absorbed = 0;
+    particle->_scattered = 0;
+    particle->_restore = 0;
+    particle->flag_nocoordschange = 0;
+    particle->_logic.dummy = 0;
+    particle->test_marker = 42.25;
+  }
+
+  void union_particle_test_dump(FILE *file, const char *label, const _class_particle *particle) {
+    int i;
+    fprintf(file, "%s x=%a y=%a z=%a", label, particle->x, particle->y, particle->z);
+#if MCCODE_PARTICLE_CODE == 2112
+    fprintf(file, " vx=%a vy=%a vz=%a sx=%a sy=%a sz=%a mcgravitation=%d magnet=%d",
+            particle->vx, particle->vy, particle->vz, particle->sx, particle->sy, particle->sz,
+            particle->mcgravitation, particle->mcMagnet != NULL);
+#else
+    fprintf(file, " kx=%a ky=%a kz=%a phi=%a Ex=%a Ey=%a Ez=%a",
+            particle->kx, particle->ky, particle->kz, particle->phi,
+            particle->Ex, particle->Ey, particle->Ez);
+#endif
+    fprintf(file, " t=%a p=%a allow_backprop=%d uid=%lld index=%ld absorbed=%ld scattered=%ld restore=%ld nocoords=%ld",
+            particle->t, particle->p, particle->allow_backprop, particle->_uid, particle->_index,
+            particle->_absorbed, particle->_scattered, particle->_restore, particle->flag_nocoordschange);
+    fprintf(file, " mctmp_a=%a mctmp_b=%a mctmp_c=%a logic=%d marker=%a rng=",
+            particle->_mctmp_a, particle->_mctmp_b, particle->_mctmp_c, particle->_logic.dummy,
+            particle->test_marker);
+    for (i = 0; i < RANDSTATE_LEN; i++)
+      fprintf(file, "%s%" PRIxMAX, i ? "," : "", (uintmax_t)particle->randstate[i]);
+    fputc('\n', file);
+  }
+
+  void union_particle_test_sequence(const char *kind, const _class_particle *particle, double extra) {
+    FILE *file = fopen("union_particle_sequence.log", "a");
+    Coords direction;
+    if (!file)
+      exit(1);
+    direction = union_particle_direction(particle);
+    fprintf(file, "%s uid=%lld p=%a marker=%a extra=%a direction=%a,%a,%a\n", kind,
+            particle->_uid, particle->p, particle->test_marker, extra,
+            direction.x, direction.y, direction.z);
+    fclose(file);
+  }
+
+  void union_particle_test_corrupt(_class_particle *particle, int tag) {
+    int i;
+    particle->x = 10.0 + tag;
+    particle->y = -20.0 - tag;
+    particle->z = 30.0 + tag;
+#if MCCODE_PARTICLE_CODE == 2112
+    particle->vx = 41.0 + tag;
+    particle->vy = -43.0 - tag;
+    particle->vz = 47.0 + tag;
+    particle->sx = -0.4 - tag;
+    particle->sy = 0.5 + tag;
+    particle->sz = -0.6 - tag;
+    particle->mcgravitation = 1;
+    particle->mcMagnet = (void *)1;
+#else
+    particle->kx = 51.0 + tag;
+    particle->ky = -53.0 - tag;
+    particle->kz = 57.0 + tag;
+    particle->phi = 61.0 + tag;
+    particle->Ex = -0.7 - tag;
+    particle->Ey = 0.8 + tag;
+    particle->Ez = -0.9 - tag;
+#endif
+    particle->t = 70.0 + tag;
+    particle->p = 80.0 + tag;
+    particle->allow_backprop = 1;
+    particle->_mctmp_a = 90.0 + tag;
+    particle->_mctmp_b = 100.0 + tag;
+    particle->_mctmp_c = 110.0 + tag;
+    particle->_uid = -1000000LL - tag;
+    particle->_index = 120 + tag;
+    particle->_absorbed = 1;
+    particle->_scattered = 1;
+    particle->_restore = 1;
+    particle->flag_nocoordschange = 1;
+    particle->_logic.dummy = 130 + tag;
+    particle->test_marker = -140.0 - tag;
+    for (i = 0; i < RANDSTATE_LEN; i++)
+      particle->randstate[i] ^= (randstate_t)(0x9e3779b97f4a7c15ULL + (unsigned)i + (unsigned)tag);
+  }
+
+  int union_particle_test_physics_my(double *my, _class_particle *particle,
+                                     union data_transfer_union data_transfer,
+                                     struct focus_data_struct *focus_data) {
+    (void)focus_data;
+    union_particle_test_corrupt(particle, 1);
+    (void)_rand01(particle->randstate);
+    *my = data_transfer.pointer_to_a_Template_physics_storage_struct->my_scattering;
+    return 1;
+  }
+
+  int union_particle_test_physics_scattering(_class_particle *particle,
+                                             union data_transfer_union data_transfer,
+                                             struct focus_data_struct *focus_data) {
+    _class_particle before = *particle;
+    double incoming[3];
+    double outgoing[3];
+    double length;
+    double draw;
+    (void)data_transfer;
+    (void)focus_data;
+    union_particle_get_wavevector(incoming, &before);
+    length = sqrt(incoming[0] * incoming[0] + incoming[1] * incoming[1] + incoming[2] * incoming[2]);
+    if (!(length > 0))
+      return 0;
+    draw = _rand01(particle->randstate);
+    outgoing[0] = length * (0.12 + 0.04 * draw);
+    outgoing[1] = length * (0.21 + 0.03 * draw);
+    outgoing[2] = length * sqrt(1.0 - (outgoing[0] / length) * (outgoing[0] / length)
+                                - (outgoing[1] / length) * (outgoing[1] / length));
+    particle->p = before.p * (0.55 + 0.15 * draw);
+    union_particle_set_wavevector(particle, outgoing);
+    if (data_transfer.pointer_to_a_Template_physics_storage_struct->corrupt_particle) {
+      _class_particle allowed = *particle;
+      union_particle_test_corrupt(particle, 2);
+      union_particle_copy_rng(particle, &allowed);
+      union_particle_set_wavevector(particle, outgoing);
+      particle->p = allowed.p;
+    }
+    union_particle_test_sequence("PROCESS_SCATTER", particle, draw);
+    return 1;
+  }
+
+  void union_particle_test_logger_noop(union logger_data_union *data) {
+    (void)data;
+  }
+
+  void union_particle_test_logger_noop_final(union logger_data_union *data, double weight) {
+    (void)data;
+    (void)weight;
+  }
+
+  void union_particle_test_abs_noop(union abs_logger_data_union *data) {
+    (void)data;
+  }
+
+  void union_particle_test_abs_noop_final(union abs_logger_data_union *data, double weight) {
+    (void)data;
+    (void)weight;
+  }
+
+  void union_particle_test_record(const _class_particle *before, const _class_particle *after,
+                                  int scattered_in_volume, int scattered_in_process,
+                                  int total_scattering_events, struct logger_struct *logger,
+                                  struct logger_with_data_struct *logger_with_data) {
+    FILE *file;
+    int corrupt = strstr(logger->name, "corrupt") != NULL;
+    (void)scattered_in_volume;
+    (void)scattered_in_process;
+    (void)total_scattering_events;
+    (void)logger_with_data;
+    file = fopen(logger->name, "a");
+    if (!file)
+      exit(1);
+    union_particle_test_dump(file, "before", before);
+    union_particle_test_dump(file, "after", after);
+    fclose(file);
+    union_particle_test_sequence(corrupt ? "LOGGER_CORRUPT" : "LOGGER_OBSERVER", after, 0.0);
+    if (corrupt) {
+      union_particle_test_corrupt((_class_particle *)before, 3);
+      union_particle_test_corrupt((_class_particle *)after, 4);
+    }
+  }
+
+  void union_particle_test_abs_record(const _class_particle *event, double absorbed_weight,
+                                      int scattered_in_volume, int total_scattering_events,
+                                      struct abs_logger_struct *logger,
+                                      struct abs_logger_with_data_struct *logger_with_data) {
+    FILE *file;
+    int corrupt = strstr(logger->name, "corrupt") != NULL;
+    (void)scattered_in_volume;
+    (void)total_scattering_events;
+    (void)logger_with_data;
+    file = fopen(logger->name, "a");
+    if (!file)
+      exit(1);
+    fprintf(file, "absorbed_weight=%a\n", absorbed_weight);
+    union_particle_test_dump(file, "event", event);
+    fclose(file);
+    union_particle_test_sequence(corrupt ? "ABS_CORRUPT" : "ABS_OBSERVER", event, absorbed_weight);
+    if (corrupt)
+      union_particle_test_corrupt((_class_particle *)event, 5);
+  }
+%}
+
+DECLARE
+%{
+  FILE *state_file;
+%}
+
+INITIALIZE
+%{
+  state_file = NULL;
+  if (mode == 1) {
+    state_file = fopen("final_state.log", "w");
+    if (!state_file)
+      exit(1);
+  }
+%}
+
+TRACE
+%{
+  if (mode == 0)
+    union_particle_test_seed(_particle);
+  else
+    union_particle_test_dump(state_file, "final", _particle);
+%}
+
+FINALLY
+%{
+  if (state_file)
+    fclose(state_file);
+%}
+
+END

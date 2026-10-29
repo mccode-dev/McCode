@@ -31,7 +31,7 @@ double length_of_position_vector(Coords point) {
         return sqrt(point.x*point.x+point.y*point.y+point.z*point.z);
     }
 
-Coords make_position(double *r) {
+Coords make_position(const double *r) {
     Coords temp;
 
     temp.x = r[0];temp.y = r[1];temp.z = r[2];
@@ -5138,6 +5138,12 @@ int intersect_function(double *t,int *num_solutions,double *r,double *v,struct g
     return output;
 }
 
+int intersect_particle_function(double *t, int *num_solutions, const _class_particle *particle, struct geometry_struct *geometry) {
+    double r[3] = { particle->x, particle->y, particle->z };
+    double k[3] = { particle->kx, particle->ky, particle->kz };
+    return intersect_function(t, num_solutions, r, k, geometry);
+}
+
 int r_within_function(Coords pos,struct geometry_struct *geometry) {
     int output = 0;
     switch(geometry->eShape) {
@@ -7512,26 +7518,26 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
     //printf("generate lists free completed\n");
 }
 
-void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle) {
     // Calls the standard McXtrace randvec_target_rect_angular focusing function, but is with the new data input format.
-    randvec_target_rect_angular(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->angular_focus_width, focus_data->angular_focus_height,focus_data->absolute_rotation);
+    _randvec_target_rect_angular(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->angular_focus_width, focus_data->angular_focus_height, focus_data->absolute_rotation, particle);
     //randvec_target_rect_angular(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.aw, VarsInc.ah, ROT_A_CURRENT_COMP);
 }
 
-void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle) {
 // Calls the standard McXtrace randvec_target_rect focusing function, but is with the new data input format.
-    randvec_target_rect(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_width, focus_data->spatial_focus_height,focus_data->absolute_rotation);
+    _randvec_target_rect_real(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_width, focus_data->spatial_focus_height, focus_data->absolute_rotation, 0, 0, 0, 1, particle);
     // randvec_target_rect(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.xw, VarsInc.yh, ROT_A_CURRENT_COMP);
 }
 
-void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle) {
 // Calls the standard McXtrace randvec_target_circle focusing function, but is with the new data input format.
 
     // debug input into randvec_target_circle
     //print_position(focus_data->Aim,"Aim vector input for randvec_target_circle");
     //printf("Radius input %f\n",focus_data->spatial_focus_radius);
 
-    randvec_target_circle(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_radius);
+    _randvec_target_circle(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_radius, particle);
     //randvec_target_circle(&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
 }
 
@@ -7777,6 +7783,109 @@ void union_release(const char *comp_name) {
   if (--union_state.refcount > 0) return;
   union_check_unconsumed();
   union_free_state();
+}
+
+void union_particle_set_wavevector(_class_particle *particle, const double *wavevector) {
+  particle->kx = wavevector[0];
+  particle->ky = wavevector[1];
+  particle->kz = wavevector[2];
+}
+
+void union_particle_get_wavevector(double *wavevector, const _class_particle *particle) {
+  wavevector[0] = particle->kx;
+  wavevector[1] = particle->ky;
+  wavevector[2] = particle->kz;
+}
+
+void union_particle_copy_rng(_class_particle *destination, const _class_particle *source) {
+  int i;
+  for (i = 0; i < RANDSTATE_LEN; i++)
+    destination->randstate[i] = source->randstate[i];
+}
+
+Coords union_particle_position(const _class_particle *particle) {
+  return coords_set(particle->x, particle->y, particle->z);
+}
+
+Coords union_particle_direction(const _class_particle *particle) {
+  return coords_set(particle->kx, particle->ky, particle->kz);
+}
+
+void union_particle_to_local(_class_particle *particle, Coords center, Rotation rotation) {
+  // mccoordschange adds its translation after rotating: R * (r - center).
+  mccoordschange(coords_neg(rot_apply(rotation, center)), rotation, particle);
+}
+
+void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering) {
+  _class_particle after = *particle;
+  *particle = *before;
+  union_particle_copy_rng(particle, &after);
+  if (scattering) {
+    particle->kx = after.kx;
+    particle->ky = after.ky;
+    particle->kz = after.kz;
+    particle->p = after.p;
+  }
+}
+
+void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
+                                      const _class_particle *before, Rotation inverse, int rotated, int safe_mode) {
+  _class_particle committed = *result;
+  if (rotated) {
+    // Despite its name, this helper rotates any vector, here the outgoing wavevector.
+    mccoordschange_polarisation(inverse, &committed.kx, &committed.ky, &committed.kz);
+  }
+  // Restore master-frame fields exactly, without a local-frame round trip.
+  committed.x = before->x;
+  committed.y = before->y;
+  committed.z = before->z;
+  committed.Ex = before->Ex;
+  committed.Ey = before->Ey;
+  committed.Ez = before->Ez;
+  *particle = committed;
+  if (safe_mode) {
+    union_particle_restore(particle, before, 1);
+  }
+}
+
+_class_particle union_particle_absorption_event(const _class_particle *particle, double distance, double full_weight) {
+  _class_particle event = *particle;
+  double wavevector_length = length_of_position_vector(union_particle_direction(&event));
+  if (wavevector_length > 0) {
+    event.x += distance * event.kx / wavevector_length;
+    event.y += distance * event.ky / wavevector_length;
+    event.z += distance * event.kz / wavevector_length;
+  }
+  event.t += distance / M_C;
+  event.phi += 1e10 * wavevector_length * distance;
+  event.p = full_weight;
+  return event;
+}
+
+void union_record_scattering(struct logger_struct *logger, const _class_particle *before, const _class_particle *after,
+                             int scattered_in_volume, int scattered_in_process, int total_scattering_events,
+                             struct logger_with_data_struct *logger_with_data, int safe_mode) {
+  if (safe_mode) {
+    _class_particle before_copy = *before, after_copy = *after;
+    logger->function_pointers.active_record_function(&before_copy, &after_copy, scattered_in_volume, scattered_in_process,
+                                                     total_scattering_events, logger, logger_with_data);
+  } else {
+    logger->function_pointers.active_record_function(before, after, scattered_in_volume, scattered_in_process,
+                                                     total_scattering_events, logger, logger_with_data);
+  }
+}
+
+void union_record_absorption(struct abs_logger_struct *logger, const _class_particle *particle, double absorbed_weight,
+                             int scattered_in_volume, int total_scattering_events,
+                             struct abs_logger_with_data_struct *abs_logger_with_data, int safe_mode) {
+  if (safe_mode) {
+    _class_particle copy = *particle;
+    logger->function_pointers.active_record_function(&copy, absorbed_weight, scattered_in_volume, total_scattering_events,
+                                                     logger, abs_logger_with_data);
+  } else {
+    logger->function_pointers.active_record_function(particle, absorbed_weight, scattered_in_volume, total_scattering_events,
+                                                     logger, abs_logger_with_data);
+  }
 }
 
 #endif /* UNION_LIB_C */

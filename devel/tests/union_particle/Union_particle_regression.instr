@@ -1,0 +1,67 @@
+DEFINE INSTRUMENT Union_particle_regression(int safe_mode=0, int bad_process=0)
+
+USERVARS
+%{
+  double test_marker;
+%}
+
+TRACE
+
+COMPONENT seed = Union_particle_test_support(mode=0)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT incoherent = Incoherent_process(sigma=0.2, interact_fraction=0.25)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT adversarial = Union_particle_test_process(sigma=30, interact_fraction=0.75, corrupt=bad_process)
+AT (0,0,0) ABSOLUTE
+ROTATED (0,27,0) ABSOLUTE
+
+COMPONENT absorber_material = Union_make_material(my_absorption=4.0, absorber=1)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT material = Union_make_material(my_absorption=0.4, process_string="incoherent,adversarial")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT absorber = Union_box(xwidth=0.05, yheight=0.05, zdepth=0.20,
+                               priority=5, material_string="absorber_material",
+                               target_z=2.0, focus_r=0.02)
+AT (0,0,0.40) ABSOLUTE
+
+COMPONENT outer = Union_box(xwidth=0.06, yheight=0.06, zdepth=0.40,
+                            priority=10, material_string="material",
+                            target_z=2.0, focus_r=0.02)
+AT (0,0,1.00) ABSOLUTE
+ROTATED (0,8,0) ABSOLUTE
+
+COMPONENT inner = Union_box(xwidth=0.03, yheight=0.03, zdepth=0.24,
+                            priority=20, material_string="material",
+                            target_z=2.0, focus_r=0.01)
+AT (0,0,1.02) ABSOLUTE
+ROTATED (0,-13,5) ABSOLUTE
+
+COMPONENT ordinary_corrupt = Union_particle_test_logger(filename="ordinary_corrupt.log")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT ordinary_observer = Union_particle_test_logger(filename="ordinary_observer.log")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT absorption_corrupt = Union_particle_test_abs_logger(filename="abs_corrupt.log")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT absorption_observer = Union_particle_test_abs_logger(filename="abs_observer.log")
+AT (0,0,0) ABSOLUTE
+
+COMPONENT master = Union_master(verbal=0, safe_mode=safe_mode)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT final_state = Union_particle_test_support(mode=1)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT detector = PSD_monitor(xwidth=2, yheight=2, nx=4, ny=4, filename="detector.dat")
+AT (0,0,2) ABSOLUTE
+
+COMPONENT stop = Union_stop()
+AT (0,0,0) ABSOLUTE
+
+END

@@ -188,11 +188,12 @@ ncrystal_union_get_numberdensity (ncrystal_info_t info, const char *component_na
 }
 
 int
-NCrystal_physics_my (double *my, double *k_initial, union data_transfer_union data_transfer, struct focus_data_struct *focus_data, _class_particle *_particle)
+NCrystal_physics_my (double *my, _class_particle *_particle, union data_transfer_union data_transfer, struct focus_data_struct *focus_data)
 {
   // Function for calculating my, the inverse penetration depth (for only this
   // scattering process). The input for this function and its order may not be
   // changed, but the names may be updated.
+  double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
   double k_mag = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
   // Normalized direction dir[3].
   double dir[3];
@@ -214,12 +215,13 @@ NCrystal_physics_my (double *my, double *k_initial, union data_transfer_union da
 }
 
 int
-NCrystal_physics_scattering (double *k_final, double *k_initial, double *weight, union data_transfer_union data_transfer,
-                             struct focus_data_struct *focus_data, _class_particle *_particle)
+NCrystal_physics_scattering (_class_particle *_particle, union data_transfer_union data_transfer, struct focus_data_struct *focus_data)
 {
   // Function that provides description of a basic scattering event.
   // Do not change the function signature.
   // Magnitude of given wavevector.
+  double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
+  double k_final[3];
   double k_mag = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
   // Normalized direction dir[3].
   double dir[3], dirout[3];
@@ -245,9 +247,8 @@ NCrystal_physics_scattering (double *k_final, double *k_initial, double *weight,
   k_final[0] = dirout[0] * k_mag;
   k_final[1] = dirout[1] * k_mag;
   k_final[2] = dirout[2] * k_mag;
-  // A pointer to k_final is returned, and the wavevector will be set to k_final
-  // after a scattering event. Return 1 for success; return 0 for failure, and
-  // the ray will be absorbed.
+  // Commit the outgoing wavevector only after a successful event.
+  UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
   return 1;
 }
 

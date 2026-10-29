@@ -1,0 +1,58 @@
+DEFINE COMPONENT Union_particle_test_process
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS(double sigma=30, double interact_fraction=0.75, int corrupt=0, string init="")
+
+SHARE
+%{
+  %include "union-lib"
+
+  #undef UNION_CASE_PHYSICS_MY_TEMPLATE
+  #define UNION_CASE_PHYSICS_MY_TEMPLATE(out, ...) case Template: out = union_particle_test_physics_my(__VA_ARGS__); break;
+  #undef UNION_CASE_PHYSICS_SCATTERING_TEMPLATE
+  #define UNION_CASE_PHYSICS_SCATTERING_TEMPLATE(out, ...) case Template: out = union_particle_test_physics_scattering(__VA_ARGS__); break;
+%}
+
+DECLARE
+%{
+  struct global_process_element_struct global_process_element;
+  struct scattering_process_struct This_process;
+  struct Template_physics_storage_struct test_storage;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct *union_state_p = union_acquire();
+#if MCCODE_PARTICLE_CODE == 2112
+  scattering_process_struct_init(&This_process);
+#else
+  memset(&This_process, 0, sizeof(This_process));
+#endif
+  test_storage.my_scattering = sigma;
+  test_storage.corrupt_particle = corrupt;
+  This_process.eProcess = Template;
+  This_process.non_isotropic_rot_index = 1;
+#if MCCODE_PARTICLE_CODE == 2112
+  This_process.needs_cross_section_focus = -1;
+#endif
+  This_process.process_p_interact = interact_fraction;
+  This_process.data_transfer.pointer_to_a_Template_physics_storage_struct = &test_storage;
+  This_process.probability_for_scattering_function = &union_particle_test_physics_my;
+  This_process.scattering_function = &union_particle_test_physics_scattering;
+  sprintf(This_process.name, "%s", NAME_CURRENT_COMP);
+  rot_copy(This_process.rotation_matrix, ROT_A_CURRENT_COMP);
+  sprintf(global_process_element.name, "%s", NAME_CURRENT_COMP);
+  global_process_element.component_index = INDEX_CURRENT_COMP;
+  global_process_element.p_scattering_process = &This_process;
+  add_element_to_process_list(&union_state_p->u_process_list, global_process_element);
+%}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+  union_release(NAME_CURRENT_COMP);
+%}
+
+END

@@ -493,7 +493,8 @@ SHARE
 
   // Function for calculating my in the Powder case
   int
-  Powder_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
+  Powder_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { _particle->kx, _particle->ky, _particle->kz };
     int method_switch = 1;
     // For test
     int line_v, line0, line, count;
@@ -582,8 +583,10 @@ SHARE
   };
 
   int
-  Powder_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                             _class_particle* _particle) {
+  Powder_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { _particle->kx, _particle->ky, _particle->kz };
+    double k_final[3];
+    double* weight = &_particle->p;
 
     struct line_info_struct_union* line_info = data_transfer.pointer_to_a_Powder_physics_storage_struct->line_info_storage;
     // double vertical_angular_limit = data_transfer.pointer_to_a_Powder_physics_storage_struct->vertical_angular_limit;
@@ -607,12 +610,14 @@ SHARE
     /* Coherent scattering branch identical to PowderN component*/
     if (line_info->count > 0) {
       /* choose line */
-      if (line_info->Nq > 1)
-        line = floor (line_info->Nq * rand01 ()); /* Select between Nq powder lines */
-      else
+      if (line_info->Nq > 1) {
+        line = floor (line_info->Nq * _rand01 (_particle->randstate)); /* Select between Nq powder lines */
+        if (line >= line_info->Nq)
+          line = line_info->Nq - 1;
+      } else
         line = 0;
       if (line_info->w[line])
-        arg = line_info->q[line] * (1 + line_info->w[line] * randnorm ()) / (2.0 * k);
+        arg = line_info->q[line] * (1 + line_info->w[line] * _randnorm2 (_particle->randstate)) / (2.0 * k);
       else
         arg = line_info->q[line] / (2.0 * k);
       my_s_n = line_info->my_s_k2[line] / (k * k);
@@ -635,7 +640,7 @@ SHARE
       //            /* Focusing */
       //            alpha = fabs(alpha);
       //            /* Trick to get scattering for pos/neg theta's */
-      //            alpha0= 2*rand01()*alpha;
+      //            alpha0= 2*_rand01(_particle->randstate)*alpha;
       //            if (alpha0 > alpha) {
       //                alpha0=M_PI+(alpha0-1.5*alpha);
       //            } else {
@@ -647,7 +652,7 @@ SHARE
       //        }
       //        else
 
-      alpha0 = M_PI * randpm1 ();
+      alpha0 = M_PI * _randpm1 (_particle->randstate);
 
       /* now find a nearly vertical rotation axis:
        * Either
@@ -700,7 +705,11 @@ SHARE
     } else {
       /* else transmit <-- No powder lines in file */
       printf ("Error, need lines in the PowderN input file\n");
+      k_final[0] = k_initial[0];
+      k_final[1] = k_initial[1];
+      k_final[2] = k_initial[2];
     }
+    UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
     return 1;
   };
   #ifndef PROCESS_DETECTOR

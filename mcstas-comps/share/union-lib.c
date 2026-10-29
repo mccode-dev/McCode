@@ -47,7 +47,7 @@ double length_of_position_vector(Coords point) {
         return sqrt(point.x*point.x+point.y*point.y+point.z*point.z);
     }
 
-Coords make_position(double *r) {
+Coords make_position(const double *r) {
     Coords temp;
 
     temp.x = r[0];temp.y = r[1];temp.z = r[2];
@@ -5659,6 +5659,13 @@ int intersect_function(double *t, double *nx, double *ny, double *nz, int *surfa
     return output;
 }
 
+int intersect_particle_function(double *t, double *nx, double *ny, double *nz, int *surface_index, int *num_solutions,
+                                const _class_particle *particle, struct geometry_struct *geometry) {
+    double r[3] = { particle->x, particle->y, particle->z };
+    double v[3] = { particle->vx, particle->vy, particle->vz };
+    return intersect_function(t, nx, ny, nz, surface_index, num_solutions, r, v, geometry);
+}
+
 int r_within_function(Coords pos,struct geometry_struct *geometry) {
     int output = 0;
     switch(geometry->eShape) {
@@ -8033,26 +8040,26 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
     //printf("generate lists free completed\n");
 }
 
-void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle) {
     // Calls the standard McStas randvec_target_rect_angular focusing function, but is with the new data input format.
-    randvec_target_rect_angular(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->angular_focus_width, focus_data->angular_focus_height,focus_data->absolute_rotation);
+    _randvec_target_rect_angular(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->angular_focus_width, focus_data->angular_focus_height, focus_data->absolute_rotation, particle);
     //randvec_target_rect_angular(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.aw, VarsInc.ah, ROT_A_CURRENT_COMP);
 }
 
-void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle) {
 // Calls the standard McStas randvec_target_rect focusing function, but is with the new data input format.
-    randvec_target_rect(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_width, focus_data->spatial_focus_height,focus_data->absolute_rotation);
+    _randvec_target_rect_real(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_width, focus_data->spatial_focus_height, focus_data->absolute_rotation, 0, 0, 0, 1, particle);
     // randvec_target_rect(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.xw, VarsInc.yh, ROT_A_CURRENT_COMP);
 }
 
-void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle) {
 // Calls the standard McStas randvec_target_circle focusing function, but is with the new data input format.
 
     // debug input into randvec_target_circle
     //print_position(focus_data->Aim,"Aim vector input for randvec_target_circle");
     //printf("Radius input %f\n",focus_data->spatial_focus_radius);
 
-    randvec_target_circle(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_radius);
+    _randvec_target_circle(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_radius, particle);
     //randvec_target_circle(&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
 }
 
@@ -8334,53 +8341,24 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
 
   void
-  transform_wavevector_into_local_coord_system (struct Volume_struct* Volume, Coords* wavevector_rotated, double* k_rotated, int p_index,
-                                                Coords* wavevector, Coords* ray_position_geometry) {
-
-    int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
-    *wavevector_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *wavevector);
-    coords_get (*wavevector_rotated, &k_rotated[0], &k_rotated[1], &k_rotated[2]);
-
-    if (Volume->p_physics->p_scattering_array[p_index].needs_cross_section_focus == 1) {
-      // Prepare focus data using ray_position_geometry of forced scattering point which will be prepared if any process needs cross_section time
-      // focusing
-      Coords ray_position_geometry_rotated = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], *ray_position_geometry);
-
-      int focus_data_index = Volume->geometry.focus_array_indices.elements[p_index];
-      struct focus_data_struct* this_focus_data = &Volume->geometry.focus_data_array.elements[focus_data_index];
-      this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated); // Aim vector for this ray
-
-      #ifdef Union_trace_verbal_setting
-      printf ("Checking process number : %d, it was not isotropic, so RayAim updated \n", p_index);
-      print_position (*ray_position_geometry, "ray_position_geometry");
-      print_position (ray_position_geometry_rotated, "ray_position_geometry_rotated");
-      print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
-      #endif
-    }
-  }
-
-
-
-  void
   move_and_aim_neutron (struct physics_struct* physics, int i, struct scattering_process_struct* process, _class_particle* _particle,
-                        struct Volume_struct* Volume, int p_index, Coords* ray_velocity, Coords* ray_position, struct focus_data_struct* this_focus_data) {
-    // Transport neutron to place inside geometry
-    *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz);
-    // Find location of scattering point in master coordinate system without changing main position / velocity variables
-    Coords direction = coords_scalar_mult (*ray_velocity, 1.0 / length_of_position_vector (*ray_velocity));
-    Coords sampling_displacement = coords_scalar_mult (direction, physics->cumul_dists[i]);
-    Coords sampling_point = coords_add (*ray_position, sampling_displacement);
-    Coords sampling_point_geometry = coords_sub (sampling_point, Volume->geometry.center);
-    // Also focus the ray at this point, if the component needs focusing
-    if (process->needs_cross_section_focus) {
-      if (Volume->p_physics->p_scattering_array[p_index].non_isotropic_rot_index != -1) {
-        int non_isotropic_rot_index = Volume->p_physics->p_scattering_array[p_index].non_isotropic_rot_index;
-        sampling_point_geometry = rot_apply (Volume->geometry.process_rot_matrix_array[non_isotropic_rot_index], sampling_point_geometry);
-      }
-      this_focus_data->RayAim = coords_sub (this_focus_data->Aim, sampling_point_geometry);
+                        struct Volume_struct* Volume, struct focus_data_struct* this_focus_data) {
+    // This is a query snapshot in master coordinates, not live propagation.
+    // Preserve its time while sampling the spatial cross-section profile.
+    double dt = physics->cumul_dists[i] / length_of_position_vector(union_particle_direction(_particle));
+    _particle->x += _particle->vx * dt;
+    _particle->y += _particle->vy * dt;
+    _particle->z += _particle->vz * dt;
+    if (process->non_isotropic_rot_index != -1) {
+      union_particle_to_local(_particle, Volume->geometry.center,
+                              Volume->geometry.process_rot_matrix_array[process->non_isotropic_rot_index]);
+    } else {
+      _particle->x -= Volume->geometry.center.x;
+      _particle->y -= Volume->geometry.center.y;
+      _particle->z -= Volume->geometry.center.z;
     }
-    // Calculate mu and probability
-    coords_get (sampling_point_geometry, &_particle->x, &_particle->y, &_particle->z);
+    if (process->needs_cross_section_focus == 1)
+      this_focus_data->RayAim = coords_sub(this_focus_data->Aim, union_particle_position(_particle));
   }
 
   int
@@ -8399,44 +8377,27 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
 
   void
   focus_in_cross_section_set_forced_point_and_dir (double* forced_length_to_scattering, double safety_distance, double safety_distance2, double length_to_boundary,
-                                             _class_particle* _particle, Coords* ray_velocity, Coords* ray_position_geometry, Coords* ray_position,
-                                             struct Volume_struct* Volume, struct focus_data_struct* this_focus_data) {
+                                             _class_particle* _particle, Coords* ray_position_geometry, struct Volume_struct* Volume) {
     // Sample length_to_scattering in linear manner
     *forced_length_to_scattering = safety_distance + rand01 () * (length_to_boundary - safety_distance2);
 
-    *ray_velocity = coords_set (_particle->vx, _particle->vy, _particle->vz); // Test for root cause
-    // Find location of scattering point in master coordinate system without changing main position / velocity variables
-    Coords direction = coords_scalar_mult (*ray_velocity, 1.0 / length_of_position_vector (*ray_velocity));
+    Coords velocity = union_particle_direction(_particle);
+    Coords direction = coords_scalar_mult (velocity, 1.0 / length_of_position_vector (velocity));
     Coords scattering_displacement = coords_scalar_mult (direction, *forced_length_to_scattering);
-    Coords forced_ray_scattering_point = coords_add (*ray_position, scattering_displacement);
+    Coords forced_ray_scattering_point = coords_add (union_particle_position(_particle), scattering_displacement);
     *ray_position_geometry = coords_sub (forced_ray_scattering_point, Volume->geometry.center); // ray_position relative to geometry center
 
-    // Calculate the aim for non isotropic processes
-    this_focus_data = &Volume->geometry.focus_data_array.elements[0];
-    this_focus_data->RayAim = coords_sub (this_focus_data->Aim, *ray_position_geometry); // Aim vector for this ray
-
-    #ifdef Union_trace_verbal_setting
-    printf ("Prepared for focus in cross section calculation in volume: %s \n", Volume->name);
-    printf ("forced_length_to_scattering =%lf \n", forced_length_to_scattering);
-    print_position (*ray_position, "ray_position");
-    print_position (direction, "direction");
-    print_position (scattering_displacement, "scattering_displacement");
-    print_position (forced_ray_scattering_point, "forced_ray_scattering_point");
-    print_position (*ray_position_geometry, "ray_position_geometry");
-    printf ("for isotropic processes this RayAim is used \n");
-    print_position (this_focus_data->RayAim, "this_focus_data->RayAim");
-    #endif
   }
 
   void
-  focus_in_cross_section_set_scat_length (double* length_to_scattering, double forced_length_to_scattering, double* weight, double length_to_boundary,
+  focus_in_cross_section_set_scat_length (double* length_to_scattering, double forced_length_to_scattering, _class_particle* particle, double length_to_boundary,
                              double my_sum_plus_abs) {
     // Respect forced length to scattering chosen by process
     *length_to_scattering = forced_length_to_scattering;
     // Drawing between 0 and L from constant s = 1/L and should have been q = A*exp(-kz).
     // Normalizing A*exp(-kz) over 0 to L: A = k/(1-exp(-k*L))
     // Weight correction is ratio between s and q, L*A*exp(-kz) = L*k*exp(-kz)/(1-exp(-Lk))
-    *weight *= length_to_boundary * my_sum_plus_abs * exp (-*length_to_scattering * my_sum_plus_abs) / (1.0 - exp (-length_to_boundary * my_sum_plus_abs));
+    particle->p *= length_to_boundary * my_sum_plus_abs * exp (-*length_to_scattering * my_sum_plus_abs) / (1.0 - exp (-length_to_boundary * my_sum_plus_abs));
     #ifdef Union_trace_verbal_setting
      printf ("Used forced length to scattering, %lf \n", *length_to_scattering);
     #endif
@@ -8530,21 +8491,21 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   }
 
   void
-  p_interact_check_scattering_event (struct Volume_struct* Volume, _class_particle* _particle, int* scattering_event, double* weight, double real_transmission_prob) {
+  p_interact_check_scattering_event (struct Volume_struct* Volume, _class_particle* _particle, int* scattering_event, double real_transmission_prob) {
     double mc_transmission_prob = 1 - Volume->geometry.geometry_p_interact;
     *scattering_event = rand01 () > mc_transmission_prob;
     if (*scattering_event) {
       // Scattering event happens, this is the correction for the weight
-      *weight *= (1.0 - real_transmission_prob) / (1.0 - mc_transmission_prob);
+      _particle->p *= (1.0 - real_transmission_prob) / (1.0 - mc_transmission_prob);
     } else {
       // Scattering event does not happen, this is the appropriate correction
-      *weight *= real_transmission_prob / mc_transmission_prob;
+      _particle->p *= real_transmission_prob / mc_transmission_prob;
     }
   }
 
   void
   p_interact_select_process (struct Volume_struct* Volume, _class_particle* _particle, double* my_trace_fraction_control, double* my_trace, double* total_process_interact,
-                             double* culmative_probability, double* mc_prop, double* weight, double my_sum, int* selected_process) {
+                             double* culmative_probability, double* mc_prop, double my_sum, int* selected_process) {
     // Interact_fraction is used to influence the choice of process in this material
     *mc_prop = rand01 ();
     *culmative_probability = 0;
@@ -8565,7 +8526,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
       *culmative_probability += my_trace_fraction_control[i] / *total_process_interact;
       if (*culmative_probability > *mc_prop) {
         *selected_process = i;
-        *weight *= (my_trace[i] / my_sum) * (*total_process_interact / my_trace_fraction_control[i]);
+        _particle->p *= (my_trace[i] / my_sum) * (*total_process_interact / my_trace_fraction_control[i]);
         break;
       }
     }
@@ -8652,6 +8613,118 @@ void union_release(const char *comp_name) {
   if (--union_state.refcount > 0) return;
   union_check_unconsumed();
   union_free_state();
+}
+
+#pragma acc routine
+void union_particle_set_wavevector(_class_particle *particle, const double *wavevector) {
+  particle->vx = K2V * wavevector[0];
+  particle->vy = K2V * wavevector[1];
+  particle->vz = K2V * wavevector[2];
+}
+
+#pragma acc routine
+void union_particle_get_wavevector(double *wavevector, const _class_particle *particle) {
+  wavevector[0] = V2K * particle->vx;
+  wavevector[1] = V2K * particle->vy;
+  wavevector[2] = V2K * particle->vz;
+}
+
+#pragma acc routine
+void union_particle_copy_rng(_class_particle *destination, const _class_particle *source) {
+  int i;
+  for (i = 0; i < RANDSTATE_LEN; i++)
+    destination->randstate[i] = source->randstate[i];
+}
+
+#pragma acc routine
+Coords union_particle_position(const _class_particle *particle) {
+  return coords_set(particle->x, particle->y, particle->z);
+}
+
+#pragma acc routine
+Coords union_particle_direction(const _class_particle *particle) {
+  return coords_set(particle->vx, particle->vy, particle->vz);
+}
+
+#pragma acc routine
+void union_particle_to_local(_class_particle *particle, Coords center, Rotation rotation) {
+  // mccoordschange adds its translation after rotating: R * (r - center).
+  mccoordschange(coords_neg(rot_apply(rotation, center)), rotation, particle);
+}
+
+#pragma acc routine
+void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering) {
+  _class_particle after = *particle;
+  *particle = *before;
+  union_particle_copy_rng(particle, &after);
+  if (scattering) {
+    particle->vx = after.vx;
+    particle->vy = after.vy;
+    particle->vz = after.vz;
+    particle->p = after.p;
+  }
+}
+
+#pragma acc routine
+void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
+                                      const _class_particle *before, Rotation inverse, int rotated, int safe_mode) {
+  _class_particle committed = *result;
+  if (rotated) {
+    // Despite its name, this helper rotates any vector, here the outgoing velocity.
+    mccoordschange_polarisation(inverse, &committed.vx, &committed.vy, &committed.vz);
+  }
+  // These fields belong to the master frame. Do not round-trip them through
+  // local coordinates: even a conforming callback would then change their bits.
+  committed.x = before->x;
+  committed.y = before->y;
+  committed.z = before->z;
+  committed.sx = before->sx;
+  committed.sy = before->sy;
+  committed.sz = before->sz;
+  *particle = committed;
+  if (safe_mode) {
+    union_particle_restore(particle, before, 1);
+  }
+}
+
+_class_particle union_particle_absorption_event(const _class_particle *particle, double distance, double full_weight) {
+  _class_particle event = *particle;
+  double speed = length_of_position_vector(union_particle_direction(&event));
+  if (speed > 0) {
+    double propagation_time = distance / speed;
+    event.x += event.vx * propagation_time;
+    event.y += event.vy * propagation_time;
+    event.z += event.vz * propagation_time;
+    event.t += propagation_time;
+  }
+  event.p = full_weight;
+  return event;
+}
+
+void union_record_scattering(struct logger_struct *logger, const _class_particle *before, const _class_particle *after,
+                             int scattered_in_volume, int scattered_in_process, int total_scattering_events,
+                             struct logger_with_data_struct *logger_with_data, int safe_mode) {
+  if (safe_mode) {
+    _class_particle before_copy = *before, after_copy = *after;
+    logger->function_pointers.active_record_function(&before_copy, &after_copy, scattered_in_volume, scattered_in_process,
+                                                     total_scattering_events, logger, logger_with_data);
+  } else {
+    logger->function_pointers.active_record_function(before, after, scattered_in_volume, scattered_in_process,
+                                                     total_scattering_events, logger, logger_with_data);
+  }
+}
+
+void union_record_absorption(struct abs_logger_struct *logger, const _class_particle *particle, double absorbed_weight,
+                             int scattered_in_volume, int total_scattering_events,
+                             struct abs_logger_with_data_struct *abs_logger_with_data, int safe_mode) {
+  if (safe_mode) {
+    _class_particle copy = *particle;
+    logger->function_pointers.active_record_function(&copy, absorbed_weight, scattered_in_volume, total_scattering_events,
+                                                     logger, abs_logger_with_data);
+  } else {
+    logger->function_pointers.active_record_function(particle, absorbed_weight, scattered_in_volume, total_scattering_events,
+                                                     logger, abs_logger_with_data);
+  }
 }
 
 #endif /* UNION_LIB_C */

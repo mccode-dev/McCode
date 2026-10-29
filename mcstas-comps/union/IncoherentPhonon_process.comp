@@ -222,18 +222,18 @@ SHARE
   void compute_dXS_dEp_dOmega (struct IncoherentPhonon_physics_storage_struct* data);
 
   // build the final wave vector
-  int build_K_final (double kabs, double ct, double* ki, double* kf);
+  int build_K_final (double kabs, double ct, double* ki, double* kf, _class_particle* _particle);
 
   // sampling direction in phonon expansion (same function in any approximation: approximations only deal with Fp)
-  double sampleDir (double x, double E, int p, struct IncoherentPhonon_physics_storage_struct* data);
+  double sampleDir (double x, double E, int p, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
   double angularIntegral_p_phonon (int p, double alpha, double x);
 
   ///////////////////////////////////////
   // exact terms in phonon expansion ////
   ///////////////////////////////////////
-  double sampleKprime_1ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data);
-  double sampleKprime_2ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data);
-  double sampleKprime_3ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data);
+  double sampleKprime_1ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
+  double sampleKprime_2ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
+  double sampleKprime_3ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
   int compute_dXSdx_max_1ph (int n, double kabs, struct IncoherentPhonon_physics_storage_struct* data, double* xm, double* xsDiffMax);
   int compute_dXSdx_max_2ph (int n, double kabs, struct IncoherentPhonon_physics_storage_struct* data, double* xm, double* xsDiffMax);
   int compute_dXSdx_max_3ph (int n, double kabs, struct IncoherentPhonon_physics_storage_struct* data, double* xm, double* xsDiffMax);
@@ -267,7 +267,7 @@ SHARE
   ///////////////////////////////////////////////////////////
   // multiphonon expansion in gaussian approximation ////////
   ///////////////////////////////////////////////////////////
-  double sampleKprime_pph_gauss (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data);
+  double sampleKprime_pph_gauss (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
   double dXSdx_pph_gauss (int p, double x, double E, struct IncoherentPhonon_physics_storage_struct* data);
   double totXS_pph_gauss (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data);
   void computeTotalXS_pph_gauss (struct IncoherentPhonon_physics_storage_struct* data);
@@ -280,7 +280,7 @@ SHARE
   /////////////////////////////////////////////////////////
   // multiphonon expansion in saddle approximation ////////
   /////////////////////////////////////////////////////////
-  double sampleKprime_pph_sp (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data);
+  double sampleKprime_pph_sp (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
   double dXSdx_pph_sp (int p, double x, double E, struct IncoherentPhonon_physics_storage_struct* data);
   double totXS_pph_sp (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data);
   void computeTotalXS_pph_sp (struct IncoherentPhonon_physics_storage_struct* data);
@@ -298,9 +298,9 @@ SHARE
   /////////////////////////////////////////////////////////
   // multi-phonon resumation saddle-point  ///////////
   ////////////////////////////////////////////////////
-  void sample_Kprime_and_Dir_mph (double kabs, double* x, double* z, struct IncoherentPhonon_physics_storage_struct* data);
-  double sample_u_mph (double umax, struct IncoherentPhonon_physics_storage_struct* data);
-  double sample_Q2_mph (double u, double Erat, struct IncoherentPhonon_physics_storage_struct* data);
+  void sample_Kprime_and_Dir_mph (double kabs, double* x, double* z, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
+  double sample_u_mph (double umax, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
+  double sample_Q2_mph (double u, double Erat, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle);
   double totXS_mph (double kabs, struct IncoherentPhonon_physics_storage_struct* data);
   void compute_dXSdu_mph (struct IncoherentPhonon_physics_storage_struct* data);
   double quad_dXSdu_mph (double u, struct IncoherentPhonon_physics_storage_struct* data);
@@ -371,8 +371,8 @@ SHARE
 
   // Function for calculating my in Incoherent phonon case
   int
-  IncoherentPhonon_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                               _class_particle* _particle) {
+  IncoherentPhonon_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
     struct IncoherentPhonon_physics_storage_struct* data = data_transfer.pointer_to_a_IncoherentPhonon_physics_storage_struct;
 
     double kabs = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
@@ -418,8 +418,11 @@ SHARE
 
   // Function for incoherent phonon scattering event
   int
-  IncoherentPhonon_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
-                                       struct focus_data_struct* focus_data, _class_particle* _particle) {
+  IncoherentPhonon_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer,
+                                       struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
+    double k_final[3];
+    double* weight = &_particle->p;
     int p, type;
     double kabs, E, x, ct, rnd, accum, xstot, ki[3];
 
@@ -442,27 +445,27 @@ SHARE
     // sample scattering type
     xstot = data->xsTot;
 
-    rnd = rand01 ();
+    rnd = _rand01 (_particle->randstate);
 
     // one phonon
     accum = (data->xs1phe) / xstot;
     if (rnd < accum) {
       // Sample energy
       type = 1;
-      x = sampleKprime_1ph (kabs, data);
+      x = sampleKprime_1ph (kabs, data, _particle);
       if (x < 0) {
         fprintf (data->filep, "sampleKprime_1ph returns negative: %f It seems maxIter=%d exceeded. Exiting\n", x, maxIter);
         exit (1);
       }
       // Sample polar direction
-      ct = sampleDir (x, E, 1, data);
+      ct = sampleDir (x, E, 1, data, _particle);
       if (ct < -1) {
         fprintf (data->filep, "sampleDir 1ph returns < -1: %f It seems maxIter exceeded. Exiting\n", ct);
         exit (1);
       }
       // x = kprime/k, with normalized kprime
-      build_K_final (x * kabs, ct, ki, k_final);
-      // The particle weight is unchanged.
+      build_K_final (x * kabs, ct, ki, k_final, _particle);
+      UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
       return 1;
     }
 
@@ -472,20 +475,20 @@ SHARE
       if (rnd < accum) {
         // Sample energy
         type = 2;
-        x = sampleKprime_2ph (kabs, data);
+        x = sampleKprime_2ph (kabs, data, _particle);
         if (x < 0) {
           fprintf (data->filep, "sampleKprime_2ph returns negative: %f It seems maxIter=%d exceeded. Exiting\n", x, maxIter);
           exit (1);
         }
         // Sample polar direction
-        ct = sampleDir (x, E, 2, data);
+        ct = sampleDir (x, E, 2, data, _particle);
         if (ct < -1) {
           fprintf (data->filep, "sampleDir 2ph returns < -1: %f It seems maxIter exceeded. Exiting\n", ct);
           exit (1);
         }
         // x = kprime/k, with normalized kprime
-        build_K_final (x * kabs, ct, ki, k_final);
-        // The particle weight is unchanged.
+        build_K_final (x * kabs, ct, ki, k_final, _particle);
+        UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
         return 1;
       }
     }
@@ -496,20 +499,20 @@ SHARE
       if (rnd < accum) {
         // Sample energy
         type = 3;
-        x = sampleKprime_3ph (kabs, data);
+        x = sampleKprime_3ph (kabs, data, _particle);
         if (x < 0) {
           fprintf (data->filep, "sampleKprime_3ph returns negative: %f It seems maxIter=%d exceeded. Exiting\n", x, maxIter);
           exit (1);
         }
         // Sample polar direction
-        ct = sampleDir (x, E, 3, data);
+        ct = sampleDir (x, E, 3, data, _particle);
         if (ct < -1) {
           fprintf (data->filep, "sampleDir 3ph returns < -1: %f It seems maxIter exceeded. Exiting\n", ct);
           exit (1);
         }
         // x = kprime/k, with normalized kprime
-        build_K_final (x * kabs, ct, ki, k_final);
-        // The particle weight is unchanged.
+        build_K_final (x * kabs, ct, ki, k_final, _particle);
+        UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
         return 1;
       }
     }
@@ -521,20 +524,20 @@ SHARE
         if (rnd < accum) {
           // Sample energy
           type = p;
-          x = sampleKprime_pph_gauss (p, kabs, data);
+          x = sampleKprime_pph_gauss (p, kabs, data, _particle);
           if (x < 0) {
             fprintf (data->filep, "sampleKprime_pph_gauss returns negative: %f It seems maxIter=%d exceeded. Exiting\n", x, maxIter);
             exit (1);
           }
           // Sample polar direction
-          ct = sampleDir (x, E, p, data);
+          ct = sampleDir (x, E, p, data, _particle);
           if (ct < -1) {
             fprintf (data->filep, "sampleDir p-ph gaussian returns < -1: %f It seems maxIter exceeded. Exiting\n", ct);
             exit (1);
           }
           // x = kprime/k, with normalized kprime
-          build_K_final (x * kabs, ct, ki, k_final);
-          // The particle weight is unchanged.
+          build_K_final (x * kabs, ct, ki, k_final, _particle);
+          UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
           return 1;
         }
       }
@@ -545,20 +548,20 @@ SHARE
         if (rnd < accum) {
           // Sample energy
           type = p;
-          x = sampleKprime_pph_sp (p, kabs, data);
+          x = sampleKprime_pph_sp (p, kabs, data, _particle);
           if (x < 0) {
             fprintf (data->filep, "sampleKprime_pph_sp returns negative: %f It seems maxIter=%d exceeded. Exiting\n", x, maxIter);
             exit (1);
           }
           // Sample polar direction
-          ct = sampleDir (x, E, p, data);
+          ct = sampleDir (x, E, p, data, _particle);
           if (ct < -1) {
             fprintf (data->filep, "sampleDir p-ph saddle point returns < -1: %f It seems maxIter exceeded. Exiting\n", ct);
             exit (1);
           }
           // x = kprime/k, with normalized kprime
-          build_K_final (x * kabs, ct, ki, k_final);
-          // The particle weight is unchanged.
+          build_K_final (x * kabs, ct, ki, k_final, _particle);
+          UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
           return 1;
         }
       }
@@ -570,10 +573,10 @@ SHARE
       if (rnd < accum) {
         type = 0;
         // Sample energy and polar direction
-        sample_Kprime_and_Dir_mph (kabs, &x, &ct, data);
+        sample_Kprime_and_Dir_mph (kabs, &x, &ct, data, _particle);
         // x = kprime/k, with normalized kprime
-        build_K_final (x * kabs, ct, ki, k_final);
-        // The particle weight is unchanged.
+        build_K_final (x * kabs, ct, ki, k_final, _particle);
+        UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
         return 1;
       }
     }
@@ -608,12 +611,12 @@ SHARE
   };
 
   int
-  build_K_final (double kabs, double ct, double* ki, double* kf) {
+  build_K_final (double kabs, double ct, double* ki, double* kf, _class_particle* _particle) {
     double t1[3], t2[3];
     double st = sqrt (1. - ct * ct);
 
     // sample azimuthal direction
-    double phi = 2. * PI * rand01 ();
+    double phi = 2. * PI * _rand01 (_particle->randstate);
     double cp = cos (phi);
     double sp = sin (phi);
 
@@ -1031,7 +1034,7 @@ SHARE
   ////////////////////////////////////
 
   double
-  sampleKprime_1ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data) {
+  sampleKprime_1ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     // x = kprime/k
     int i;
     double x, px;
@@ -1048,7 +1051,7 @@ SHARE
     delta_x = xmax - xmin;
     FILE* filep;
     for (i = 0; i < maxIter; i++) {
-      x = xmin + delta_x * rand01 ();
+      x = xmin + delta_x * _rand01 (_particle->randstate);
       px = dXSdx_1ph (x, E, data);
       if (px > pxmax) {
         fprintf (data->filep, "sampleKprime_1ph:\n");
@@ -1067,7 +1070,7 @@ SHARE
         fclose (filep);
         exit (1);
       }
-      if (px / pxmax > rand01 ()) {
+      if (px / pxmax > _rand01 (_particle->randstate)) {
         return x;
       }
     }
@@ -1085,7 +1088,7 @@ SHARE
   };
 
   double
-  sampleKprime_2ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data) {
+  sampleKprime_2ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     // x = kprime/k
     int i;
     double x, px;
@@ -1102,7 +1105,7 @@ SHARE
     delta_x = xmax - xmin;
     FILE* filep;
     for (i = 0; i < maxIter; i++) {
-      x = xmin + delta_x * rand01 ();
+      x = xmin + delta_x * _rand01 (_particle->randstate);
       px = dXSdx_2ph (x, E, data);
       if (px > pxmax) {
         fprintf (data->filep, "sampleKprime_2ph:\n");
@@ -1121,7 +1124,7 @@ SHARE
         fclose (filep);
         exit (1);
       }
-      if (px / pxmax > rand01 ()) {
+      if (px / pxmax > _rand01 (_particle->randstate)) {
         return x;
       }
     }
@@ -1138,7 +1141,7 @@ SHARE
   };
 
   double
-  sampleKprime_3ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data) {
+  sampleKprime_3ph (double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     // x = kprime/k
     int i;
     double x, px;
@@ -1155,7 +1158,7 @@ SHARE
     delta_x = xmax - xmin;
     FILE* filep;
     for (i = 0; i < maxIter; i++) {
-      x = xmin + delta_x * rand01 ();
+      x = xmin + delta_x * _rand01 (_particle->randstate);
       px = dXSdx_3ph (x, E, data);
       if (px > pxmax) {
         fprintf (data->filep, "sampleKprime_3ph:\n");
@@ -1174,7 +1177,7 @@ SHARE
         fclose (filep);
         exit (1);
       }
-      if (px / pxmax > rand01 ()) {
+      if (px / pxmax > _rand01 (_particle->randstate)) {
         return x;
       }
     }
@@ -1191,7 +1194,7 @@ SHARE
   };
 
   double
-  sampleDir (double x, double E, int p, struct IncoherentPhonon_physics_storage_struct* data) {
+  sampleDir (double x, double E, int p, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     // return z=cos(theta)
     if (x <= 0) {
       return 1;
@@ -1219,7 +1222,7 @@ SHARE
     }
 
     for (i = 0; i < maxIter; i++) {
-      z = -1.0 + 2.0 * rand01 ();
+      z = -1.0 + 2.0 * _rand01 (_particle->randstate);
       Q2 = fac * (1 + x * x - 2.0 * x * z);
       pz = exp (-g0 * Q2) * pow (Q2, p);
       if (pz / pzmax > 1) {
@@ -1236,7 +1239,7 @@ SHARE
         fprintf (data->filep, "pz/pzmax: %.6e\n", pz / pzmax);
         exit (1);
       }
-      if (pz / pzmax > rand01 ()) {
+      if (pz / pzmax > _rand01 (_particle->randstate)) {
         return z;
       }
     }
@@ -2059,7 +2062,7 @@ SHARE
   /////////////////////////////////////
 
   void
-  sample_Kprime_and_Dir_mph (double kabs, double* x, double* z, struct IncoherentPhonon_physics_storage_struct* data) {
+  sample_Kprime_and_Dir_mph (double kabs, double* x, double* z, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     // x = kprime/kabs
     // z = cos(theta)
     int i;
@@ -2071,7 +2074,7 @@ SHARE
     // rejection method
     // for(i=0;i<maxIter;i++) {
     while (1) {
-      u = sample_u_mph (Erat, data);
+      u = sample_u_mph (Erat, data, _particle);
       if (isnan (u)) {
         printf ("u nan: %f %f %f\n", kabs, E, Erat);
       }
@@ -2080,7 +2083,7 @@ SHARE
         continue;
       }
       *x = sqrt (x2);
-      Q2 = sample_Q2_mph (u, Erat, data);
+      Q2 = sample_Q2_mph (u, Erat, data, _particle);
       *z = (1.0 + x2 - iEMrat * Q2) / (2 * (*x));
       if (fabs (*z) <= 1) {
         return;
@@ -2091,7 +2094,7 @@ SHARE
   };
 
   double
-  sample_u_mph (double umax, struct IncoherentPhonon_physics_storage_struct* data) {
+  sample_u_mph (double umax, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     int i;
     double u, f, fmax, a1, a2;
     int np = data->np_u_mph;
@@ -2111,13 +2114,13 @@ SHARE
     // rejection method
     // for(i=0;i<maxIter;i++) {
     while (1) {
-      u = umin + rand01 () * du;
+      u = umin + _rand01 (_particle->randstate) * du;
       if (u > up[np - 1]) {
         f = 2. * PI - a1 / u - a2 / (u * u);
       } else {
         f = interpFunc (u, np, up, xs);
       }
-      if (f / fmax > rand01 ()) {
+      if (f / fmax > _rand01 (_particle->randstate)) {
         return u;
       }
     }
@@ -2127,7 +2130,7 @@ SHARE
   };
 
   double
-  sample_Q2_mph (double u, double Erat, struct IncoherentPhonon_physics_storage_struct* data) {
+  sample_Q2_mph (double u, double Erat, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     int i;
     int np = data->np_u_mph;
     double Q2, f, fmax, Q2m;
@@ -2196,14 +2199,14 @@ SHARE
     // rejection method
     // for(i=0;i<maxIter;i++) {
     while (1) {
-      Q2 = Q2min + rand01 () * dQ2;
+      Q2 = Q2min + _rand01 (_particle->randstate) * dQ2;
       f = SFuncInterp (u / Q2, Q2, data);
       if (isnan (f)) {
         printf ("isnan Q2\n");
         printf ("%f %f %.6e\n", u, Q2, u / Q2);
         exit (1);
       }
-      if (f / fmax > rand01 ()) {
+      if (f / fmax > _rand01 (_particle->randstate)) {
         return Q2;
       }
     }
@@ -3475,7 +3478,7 @@ SHARE
   };
 
   double
-  sampleKprime_pph_gauss (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data) {
+  sampleKprime_pph_gauss (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     // x = kprime/k
     int i;
     double x, px;
@@ -3494,7 +3497,7 @@ SHARE
     delta_x = xmax - xmin;
     FILE* filep;
     for (i = 0; i < maxIter; i++) {
-      x = xmin + delta_x * rand01 ();
+      x = xmin + delta_x * _rand01 (_particle->randstate);
       px = dXSdx_pph_gauss (p, x, E, data);
       if (px > pxmax) {
         fprintf (data->filep, "sampleKprime_pph_gauss: p = %d\n", p);
@@ -3515,7 +3518,7 @@ SHARE
         fclose (filep);
         exit (1);
       }
-      if (px / pxmax > rand01 ()) {
+      if (px / pxmax > _rand01 (_particle->randstate)) {
         return x;
       }
     }
@@ -3647,7 +3650,7 @@ SHARE
   ///////////////////////////////////////////////
 
   double
-  sampleKprime_pph_sp (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data) {
+  sampleKprime_pph_sp (int p, double kabs, struct IncoherentPhonon_physics_storage_struct* data, _class_particle* _particle) {
     // x = kprime/k
     FILE* filep;
     int i;
@@ -3664,7 +3667,7 @@ SHARE
     }
     delta_x = xmax - xmin;
     for (i = 0; i < maxIter; i++) {
-      x = xmin + delta_x * rand01 ();
+      x = xmin + delta_x * _rand01 (_particle->randstate);
       px = dXSdx_pph_sp (p, x, E, data);
       if (px > pxmax) {
         fprintf (data->filep, "sampleKprime_pph_sp: p = %d\n", p);
@@ -3684,7 +3687,7 @@ SHARE
         fclose (filep);
         exit (1);
       }
-      if (px / pxmax > rand01 ()) {
+      if (px / pxmax > _rand01 (_particle->randstate)) {
         return x;
       }
     }

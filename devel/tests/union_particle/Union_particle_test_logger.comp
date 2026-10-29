@@ -1,0 +1,44 @@
+DEFINE COMPONENT Union_particle_test_logger
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS(string filename="ordinary.log", string init="")
+
+SHARE
+%{
+  %include "union-lib"
+%}
+
+DECLARE
+%{
+  struct logger_struct this_logger;
+  struct global_logger_element_struct logger_element;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct *union_state_p = union_acquire();
+  memset(&this_logger, 0, sizeof(this_logger));
+  snprintf(this_logger.name, sizeof(this_logger.name), "%s", filename);
+  this_logger.function_pointers.active_record_function = &union_particle_test_record;
+  this_logger.function_pointers.inactive_record_function = &union_particle_test_record;
+  this_logger.function_pointers.clear_temp = &union_particle_test_logger_noop;
+  this_logger.function_pointers.temp_to_perm = &union_particle_test_logger_noop;
+  this_logger.function_pointers.temp_to_perm_final_p = &union_particle_test_logger_noop_final;
+  this_logger.function_pointers.select_t_to_p = 1;
+  this_logger.conditional_list.num_elements = 0;
+  this_logger.data_union.p_1D_storage = NULL;
+  snprintf(logger_element.name, sizeof(logger_element.name), "%s", NAME_CURRENT_COMP);
+  logger_element.component_index = INDEX_CURRENT_COMP;
+  logger_element.logger = &this_logger;
+  add_element_to_logger_list(&union_state_p->u_all_volume_logger_list, logger_element);
+%}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+  union_release(NAME_CURRENT_COMP);
+%}
+
+END

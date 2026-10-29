@@ -116,24 +116,41 @@ enum process {
 #define UNION_PROCESS_FALLBACK(out, name, call) out = call;
 #endif
 
+// Functions keep particle field access outside TRACE's state-variable macros.
+void union_particle_set_wavevector(_class_particle *particle, const double *wavevector);
+void union_particle_get_wavevector(double *wavevector, const _class_particle *particle);
+void union_particle_copy_rng(_class_particle *destination, const _class_particle *source);
+#define UNION_PARTICLE_SET_WAVEVECTOR union_particle_set_wavevector
+#define UNION_PARTICLE_GET_WAVEVECTOR union_particle_get_wavevector
+#define UNION_COPY_PARTICLE_RNG union_particle_copy_rng
+Coords union_particle_position(const _class_particle *particle);
+Coords union_particle_direction(const _class_particle *particle);
+void union_particle_to_local(_class_particle *particle, Coords center, Rotation rotation);
+void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering);
+void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
+                                      const _class_particle *before, Rotation inverse, int rotated, int safe_mode);
+_class_particle union_particle_absorption_event(const _class_particle *particle, double distance, double full_weight);
+
 // Statement macros used by Union_master TRACE; `out` receives the return value.
-#define UNION_PHYSICS_MY(out, process, my, k_initial, focus_data, particle) \
+#define UNION_PHYSICS_MY(out, process, my, focus_data, particle) do { \
   switch ((process)->eProcess) { \
-    UNION_CASES_PHYSICS_MY(out, my, k_initial, (process)->data_transfer, focus_data, particle) \
+    UNION_CASES_PHYSICS_MY(out, my, particle, (process)->data_transfer, focus_data) \
     default: \
       UNION_PROCESS_FALLBACK(out, "physics_my", \
-        (process)->probability_for_scattering_function(my, k_initial, (process)->data_transfer, focus_data, particle)) \
+        (process)->probability_for_scattering_function(my, particle, (process)->data_transfer, focus_data)) \
       break; \
-  }
+  } \
+} while (0)
 
-#define UNION_PHYSICS_SCATTERING(out, process, k_final, k_initial, weight, focus_data, particle) \
+#define UNION_PHYSICS_SCATTERING(out, process, focus_data, particle) do { \
   switch ((process)->eProcess) { \
-    UNION_CASES_PHYSICS_SCATTERING(out, k_final, k_initial, weight, (process)->data_transfer, focus_data, particle) \
+    UNION_CASES_PHYSICS_SCATTERING(out, (particle), (process)->data_transfer, focus_data) \
     default: \
       UNION_PROCESS_FALLBACK(out, "physics_scattering", \
-        (process)->scattering_function(k_final, k_initial, weight, (process)->data_transfer, focus_data, particle)) \
+        (process)->scattering_function((particle), (process)->data_transfer, focus_data)) \
       break; \
-  }
+  } \
+} while (0)
 
 struct intersection_time_table_struct {
 int num_volumes;
@@ -201,7 +218,7 @@ double spatial_focus_height;
 double spatial_focus_radius;
 Rotation absolute_rotation;
 // focusing_function creates a vector per selected criteria of focus_data_struct / selected focus function and returns solid angle
-void (*focusing_function)(Coords*, double*, struct focus_data_struct*);
+void (*focusing_function)(Coords*, double*, struct focus_data_struct*, _class_particle*);
 //                        v_out  , solid_a,
 };
 
@@ -287,9 +304,10 @@ struct logger_pointer_set_struct {
   //  but if a conditional has been defined, it can switch the two, making the active one recording to temporary, which
   //  can then be filtered based on the future path of the ray
 
-  // function input Coords position, k[3], k_old[3], p, p_old, NV, NPV, N, logger_data_union, logger_with_data_struct
-  void (*active_record_function)(Coords*, double*, double*, double, double, double, int, int, int, struct logger_struct*, struct logger_with_data_struct*);
-  void (*inactive_record_function)(Coords*, double*, double*, double, double, double, int, int, int, struct logger_struct*, struct logger_with_data_struct*);
+  // function input immutable particle snapshots before and after scattering,
+  // followed by the event counters and logger storage.
+  void (*active_record_function)(const _class_particle*, const _class_particle*, int, int, int, struct logger_struct*, struct logger_with_data_struct*);
+  void (*inactive_record_function)(const _class_particle*, const _class_particle*, int, int, int, struct logger_struct*, struct logger_with_data_struct*);
 
   // A clear temporary data function (for new ray)
   void (*clear_temp)(union logger_data_union*);
@@ -327,9 +345,9 @@ struct abs_logger_pointer_set_struct {
   //  but if a conditional has been defined, it can switch the two, making the active one recording to temporary, which
   //  can then be filtered based on the future path of the ray
 
-  // function input Coords position, k[3], p, NV, N, logger_data_union, logger_with_data_struct
-  void (*active_record_function)(Coords*, double*, double,  double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*);
-  void (*inactive_record_function)(Coords*, double*, double,  double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*);
+  // Event particle has its full pre-attenuation weight; absorbed weight is separate.
+  void (*active_record_function)(const _class_particle*, double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*);
+  void (*inactive_record_function)(const _class_particle*, double, int, int, struct abs_logger_struct*, struct abs_logger_with_data_struct*);
 
   // A clear temporary data function (for new ray)
   void (*clear_temp)(union abs_logger_data_union*);
@@ -447,6 +465,13 @@ struct abs_logger_struct {
 
   struct conditional_list_struct conditional_list;
 };
+
+void union_record_scattering(struct logger_struct *logger, const _class_particle *before, const _class_particle *after,
+                             int scattered_in_volume, int scattered_in_process, int total_scattering_events,
+                             struct logger_with_data_struct *logger_with_data, int safe_mode);
+void union_record_absorption(struct abs_logger_struct *logger, const _class_particle *particle, double absorbed_weight,
+                             int scattered_in_volume, int total_scattering_events,
+                             struct abs_logger_with_data_struct *abs_logger_with_data, int safe_mode);
 
 // To be stored in volume, a list of pointers to the relevant abs loggers corresponding to each process
 /*
@@ -576,13 +601,14 @@ Rotation rotation_matrix;      // rotation matrix of process, reported by compon
 
 union data_transfer_union data_transfer; // The way to reach the storage space allocated for this process (see examples in process.comp files)
 
-// probability_for_scattering_functions calculates this probability given k_i and parameters
-int (*probability_for_scattering_function)(double*,double*,union data_transfer_union,struct focus_data_struct*, _class_particle *_particle);
-//                                         prop,   k_i,   ,parameters               , focus data / function
+// Callbacks receive a process-local particle. Queries may advance RNG only;
+// scattering may also update wavevector and weight. The master owns all other fields.
+int (*probability_for_scattering_function)(double*, _class_particle*, union data_transfer_union, struct focus_data_struct*);
+//                                         my,     particle, parameters, focus data
 
-// A scattering_function takes k_i and parameters, returns k_f
-int (*scattering_function)(double*,double*,double*,union data_transfer_union,struct focus_data_struct*, _class_particle *_particle);
-//                         k_f,    k_i,    weight, parameters               , focus data / function
+// A scattering_function updates the particle's outgoing state in place.
+int (*scattering_function)(_class_particle*, union data_transfer_union, struct focus_data_struct*);
+//                         particle, parameters, focus data
 };
 
 //this object stores data relevant for absorption
@@ -726,7 +752,7 @@ double length_of_3vector(double *r);
 
 double length_of_position_vector(Coords point);
 
-Coords make_position(double *r);
+Coords make_position(const double *r);
 
 Coords coords_scalar_mult(Coords input,double scalar);
 
@@ -1184,6 +1210,7 @@ int box_within_cone(struct geometry_struct *geometry_child,struct geometry_struc
 
 // Flexible intersection function
 int intersect_function(double *t,int *num_solutions,double *r,double *v,struct geometry_struct *geometry);
+int intersect_particle_function(double *t, int *num_solutions, const _class_particle *particle, struct geometry_struct *geometry);
 
 // Flexible within function
 int r_within_function(Coords pos,struct geometry_struct *geometry);
@@ -1273,11 +1300,11 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
 ////                        v_out  , solid_a,
 //};
 
-void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data);
+void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle);
 
-void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data);
+void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle);
 
-void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data);
+void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle);
 
 
 

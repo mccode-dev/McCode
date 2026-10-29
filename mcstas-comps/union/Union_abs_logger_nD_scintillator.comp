@@ -320,7 +320,7 @@ SHARE
   void
   add_element_to_temp_abs_nD_scintillator (struct a_nD_scintillator_abs_storage_struct* storage, double x_pos, double y_pos, double z_pos, double x_vel,
                                            double y_vel, double z_vel, double time, double weight, struct abs_logger_struct* abs_logger,
-                                           struct abs_logger_with_data_struct* abs_logger_with_data_array, _class_particle* _particle) {
+                                           struct abs_logger_with_data_struct* abs_logger_with_data_array, const _class_particle* particle) {
 
     if (storage->temp_abs_nD_scintillator_data.num_elements < storage->temp_abs_nD_scintillator_data.allocated_elements) {
 
@@ -330,11 +330,11 @@ SHARE
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].x_vel = x_vel;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].y_vel = y_vel;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].z_vel = z_vel;
-      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].x_pol = 0.0;
-      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].y_pol = 0.0;
-      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].z_pol = 1.0;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].x_pol = particle->sx;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].y_pol = particle->sy;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].z_pol = particle->sz;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].time = time;
-      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].particle = *_particle;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].particle = *particle;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements++].weight = weight;
     } else {
       // No more space, need to allocate a larger buffer for this logger. Wish I had generics.
@@ -398,11 +398,11 @@ SHARE
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].x_vel = x_vel;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].y_vel = y_vel;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].z_vel = z_vel;
-      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].x_pol = 0.0;
-      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].y_pol = 0.0;
-      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].z_pol = 1.0;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].x_pol = particle->sx;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].y_pol = particle->sy;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].z_pol = particle->sz;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].time = time;
-      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].particle = *_particle;
+      storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements].particle = *particle;
       storage->temp_abs_nD_scintillator_data.elements[storage->temp_abs_nD_scintillator_data.num_elements++].weight = weight;
     }
 
@@ -420,9 +420,8 @@ SHARE
   // Monitor_nD, since this path is only used while a conditional is attached
   // to this logger and the outcome isn't known yet.
   void
-  record_to_temp_abs_nD_scintillator (Coords* position, double* k, double p, double time, int scattered_in_this_volume, int total_number_of_scattering_events,
-                                      struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array,
-                                      _class_particle* _particle) {
+  record_to_temp_abs_nD_scintillator (const _class_particle* particle, double absorbed_weight, int scattered_in_this_volume, int total_number_of_scattering_events,
+                                      struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array) {
 
     struct a_nD_scintillator_abs_storage_struct* storage;
     storage = abs_logger->data_union.p_nD_scintillator_abs_storage;
@@ -445,36 +444,36 @@ SHARE
 
     if (add_point == 1) {
 
-      Coords transformed_ray_position;
-      transformed_ray_position = coords_sub (*position, storage->position);
-      transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
+      _class_particle local_particle = *particle;
+      union_particle_to_local (&local_particle, storage->position, storage->rotation);
 
       double given_x_pos, given_y_pos, given_z_pos;
-      coords_get (transformed_ray_position, &given_x_pos, &given_y_pos, &given_z_pos);
+      given_x_pos = local_particle.x;
+      given_y_pos = local_particle.y;
+      given_z_pos = local_particle.z;
 
       struct scintillator_pixel_hit_probabilities_struct hit = compute_scintillator_pixel_hit_probabilities (storage, given_x_pos, given_y_pos);
 
-      Coords k_coords = make_position (k);
-      Coords transformed_k_coords = rot_apply (storage->rotation, k_coords);
-
       double given_x_vel, given_y_vel, given_z_vel;
-      coords_get (coords_scalar_mult (transformed_k_coords, K2V), &given_x_vel, &given_y_vel, &given_z_vel);
+      given_x_vel = local_particle.vx;
+      given_y_vel = local_particle.vy;
+      given_z_vel = local_particle.vz;
 
       if (hit.true_pixel_p > 0.0)
-        add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time, p * hit.true_pixel_p,
-                                                 abs_logger, abs_logger_with_data_array, _particle);
+        add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, local_particle.t,
+                                                  absorbed_weight * hit.true_pixel_p, abs_logger, abs_logger_with_data_array, &local_particle);
       if (hit.up_pixel_p > 0.0)
-        add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y + hit.pixel_size, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time,
-                                                 p * hit.up_pixel_p, abs_logger, abs_logger_with_data_array, _particle);
+        add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y + hit.pixel_size, given_z_pos, given_x_vel, given_y_vel, given_z_vel, local_particle.t,
+                                                 absorbed_weight * hit.up_pixel_p, abs_logger, abs_logger_with_data_array, &local_particle);
       if (hit.down_pixel_p > 0.0)
-        add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y - hit.pixel_size, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time,
-                                                 p * hit.down_pixel_p, abs_logger, abs_logger_with_data_array, _particle);
+        add_element_to_temp_abs_nD_scintillator (storage, hit.x, hit.y - hit.pixel_size, given_z_pos, given_x_vel, given_y_vel, given_z_vel, local_particle.t,
+                                                 absorbed_weight * hit.down_pixel_p, abs_logger, abs_logger_with_data_array, &local_particle);
       if (hit.left_pixel_p > 0.0)
-        add_element_to_temp_abs_nD_scintillator (storage, hit.x - hit.pixel_size, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time,
-                                                 p * hit.left_pixel_p, abs_logger, abs_logger_with_data_array, _particle);
+        add_element_to_temp_abs_nD_scintillator (storage, hit.x - hit.pixel_size, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, local_particle.t,
+                                                 absorbed_weight * hit.left_pixel_p, abs_logger, abs_logger_with_data_array, &local_particle);
       if (hit.right_pixel_p > 0.0)
-        add_element_to_temp_abs_nD_scintillator (storage, hit.x + hit.pixel_size, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, time,
-                                                 p * hit.right_pixel_p, abs_logger, abs_logger_with_data_array, _particle);
+        add_element_to_temp_abs_nD_scintillator (storage, hit.x + hit.pixel_size, hit.y, given_z_pos, given_x_vel, given_y_vel, given_z_vel, local_particle.t,
+                                                 absorbed_weight * hit.right_pixel_p, abs_logger, abs_logger_with_data_array, &local_particle);
     }
   }
 
@@ -486,9 +485,8 @@ SHARE
 
   // record_to_perm
   void
-  record_to_perm_abs_nD_scintillator (Coords* position, double* k, double p, double time, int scattered_in_this_volume, int total_number_of_scattering_events,
-                                      struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array,
-                                      _class_particle* _particle) {
+  record_to_perm_abs_nD_scintillator (const _class_particle* particle, double absorbed_weight, int scattered_in_this_volume, int total_number_of_scattering_events,
+                                      struct abs_logger_struct* abs_logger, struct abs_logger_with_data_struct* abs_logger_with_data_array) {
 
     struct a_nD_scintillator_abs_storage_struct* storage;
     storage = abs_logger->data_union.p_nD_scintillator_abs_storage;
@@ -510,67 +508,50 @@ SHARE
     }
 
     if (add_point == 1) {
-      Coords transformed_ray_position;
-      transformed_ray_position = coords_sub (*position, storage->position);
-      transformed_ray_position = rot_apply (storage->rotation, transformed_ray_position);
+      _class_particle local_particle = *particle;
+      union_particle_to_local (&local_particle, storage->position, storage->rotation);
 
       double given_x_pos, given_y_pos, given_z_pos;
-      coords_get (transformed_ray_position, &given_x_pos, &given_y_pos, &given_z_pos);
+      given_x_pos = local_particle.x;
+      given_y_pos = local_particle.y;
+      given_z_pos = local_particle.z;
 
       struct scintillator_pixel_hit_probabilities_struct hit = compute_scintillator_pixel_hit_probabilities (storage, given_x_pos, given_y_pos);
 
-      Coords k_coords = make_position (k);
-      Coords transformed_k_coords = rot_apply (storage->rotation, k_coords);
-
-      double given_x_vel, given_y_vel, given_z_vel;
-      coords_get (coords_scalar_mult (transformed_k_coords, K2V), &given_x_vel, &given_y_vel, &given_z_vel);
-
-      // Start from the real particle, for its ID and user variables
-      _class_particle _localparticle = *_particle;
-
-      _localparticle.z = given_z_pos;
-
-      _localparticle.vx = given_x_vel;
-      _localparticle.vy = given_y_vel;
-      _localparticle.vz = given_z_vel;
-
-      _localparticle.sx = 0.0;
-      _localparticle.sy = 0.0;
-      _localparticle.sz = 1.0;
-
-      _localparticle.t = time;
+      // Start from the local particle, preserving its metadata and polarization.
+      local_particle.z = given_z_pos;
 
       int pp;
 
       if (hit.true_pixel_p > 0.0) {
-        _localparticle.p = p * hit.true_pixel_p;
-        _localparticle.x = hit.x;
-        _localparticle.y = hit.y;
-        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &_localparticle);
+        local_particle.p = absorbed_weight * hit.true_pixel_p;
+        local_particle.x = hit.x;
+        local_particle.y = hit.y;
+        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &local_particle);
       }
       if (hit.up_pixel_p > 0.0) {
-        _localparticle.p = p * hit.up_pixel_p;
-        _localparticle.x = hit.x;
-        _localparticle.y = hit.y + hit.pixel_size;
-        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &_localparticle);
+        local_particle.p = absorbed_weight * hit.up_pixel_p;
+        local_particle.x = hit.x;
+        local_particle.y = hit.y + hit.pixel_size;
+        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &local_particle);
       }
       if (hit.down_pixel_p > 0.0) {
-        _localparticle.p = p * hit.down_pixel_p;
-        _localparticle.x = hit.x;
-        _localparticle.y = hit.y - hit.pixel_size;
-        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &_localparticle);
+        local_particle.p = absorbed_weight * hit.down_pixel_p;
+        local_particle.x = hit.x;
+        local_particle.y = hit.y - hit.pixel_size;
+        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &local_particle);
       }
       if (hit.left_pixel_p > 0.0) {
-        _localparticle.p = p * hit.left_pixel_p;
-        _localparticle.x = hit.x - hit.pixel_size;
-        _localparticle.y = hit.y;
-        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &_localparticle);
+        local_particle.p = absorbed_weight * hit.left_pixel_p;
+        local_particle.x = hit.x - hit.pixel_size;
+        local_particle.y = hit.y;
+        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &local_particle);
       }
       if (hit.right_pixel_p > 0.0) {
-        _localparticle.p = p * hit.right_pixel_p;
-        _localparticle.x = hit.x + hit.pixel_size;
-        _localparticle.y = hit.y;
-        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &_localparticle);
+        local_particle.p = absorbed_weight * hit.right_pixel_p;
+        local_particle.x = hit.x + hit.pixel_size;
+        local_particle.y = hit.y;
+        pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &local_particle);
       }
     }
   }
@@ -597,12 +578,7 @@ SHARE
       _localparticle.vy = storage->temp_abs_nD_scintillator_data.elements[index].y_vel;
       _localparticle.vz = storage->temp_abs_nD_scintillator_data.elements[index].z_vel;
 
-      _localparticle.sx = 0.0;
-      _localparticle.sy = 0.0;
-      _localparticle.sz = 1.0;
-
       _localparticle.p = storage->temp_abs_nD_scintillator_data.elements[index].weight;
-      _localparticle.t = storage->temp_abs_nD_scintillator_data.elements[index].time;
 
       int pp;
       pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &_localparticle);
@@ -631,12 +607,7 @@ SHARE
       _localparticle.vy = storage->temp_abs_nD_scintillator_data.elements[index].y_vel;
       _localparticle.vz = storage->temp_abs_nD_scintillator_data.elements[index].z_vel;
 
-      _localparticle.sx = 0.0;
-      _localparticle.sy = 0.0;
-      _localparticle.sz = 1.0;
-
       _localparticle.p = final_weight;
-      _localparticle.t = storage->temp_abs_nD_scintillator_data.elements[index].time;
 
       int pp;
       pp = Monitor_nD_Trace (storage->p_DEFS, storage->p_Vars, &_localparticle);
@@ -918,4 +889,3 @@ FINALLY INHERIT Monitor_nD EXTEND
 MCDISPLAY INHERIT Monitor_nD
 
 END
-

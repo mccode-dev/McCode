@@ -82,23 +82,23 @@ SHARE
   };
 
   // Function for handling surface physics
-  // The input for this function and its order may not be changed, but the names may be updated.
+  // The particle is in the master frame. Only velocity, weight and RNG state
+  // may be changed by a surface callback.
   int
   Template_surface_function (
+      _class_particle* _particle,
       union surface_data_transfer_union data_transfer, // data in struct defined above, can have data stored in initialize and other calls to this function
-      double* weight, double* wavevector,
-      int* continues, // given weight and wavevector, to be updated, and pointer to continues which should be provided by function
-      double* normal_vector,
-      enum in_or_out inward_or_outward, // normal_vector of surface and information on whether the neutron is going into or out of this surface
-      _class_particle* _particle) {
+      int* continues, // pointer to continues which should be provided by function
+      const double* normal_vector,
+      enum in_or_out inward_or_outward) { // normal_vector of surface and information on whether the neutron is going into or out of this surface
 
-    // wavevector and normal_vector are a pointers to a simple array with 3 doubles, wavevector[0], wavevector[1], wavevector[2] which describes the vector
+    double k[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
 
     // Retrieve data storage struct
     struct Template_surface_storage_struct* storage;
     storage = data_transfer.pointer_to_a_Template_surface_storage_struct;
 
-    double k_n_dot = wavevector[0] * normal_vector[0] + wavevector[1] * normal_vector[1] + wavevector[2] * normal_vector[2];
+    double k_n_dot = k[0] * normal_vector[0] + k[1] * normal_vector[1] + k[2] * normal_vector[2];
 
     // Calculate q normal
     double q_normal = 2.0 * fabs (k_n_dot);
@@ -116,9 +116,13 @@ SHARE
       *continues = 1; // Tells algorithm the ray goes through this surface
     } else {
       // mirror ray
-      wavevector[0] = wavevector[0] - 2.0 * k_n_dot * normal_vector[0];
-      wavevector[1] = wavevector[1] - 2.0 * k_n_dot * normal_vector[1];
-      wavevector[2] = wavevector[2] - 2.0 * k_n_dot * normal_vector[2];
+      k[0] = k[0] - 2.0 * k_n_dot * normal_vector[0];
+      k[1] = k[1] - 2.0 * k_n_dot * normal_vector[1];
+      k[2] = k[2] - 2.0 * k_n_dot * normal_vector[2];
+
+      _particle->vx = K2V * k[0];
+      _particle->vy = K2V * k[1];
+      _particle->vz = K2V * k[2];
 
       *continues = 0; // Tells algorithm the ray does not go through this surface
     }

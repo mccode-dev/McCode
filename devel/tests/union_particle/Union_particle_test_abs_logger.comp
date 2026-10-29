@@ -1,0 +1,43 @@
+DEFINE COMPONENT Union_particle_test_abs_logger
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS(string filename="abs.log", string init="")
+
+SHARE
+%{
+  %include "union-lib"
+%}
+
+DECLARE
+%{
+  struct abs_logger_struct this_abs_logger;
+  struct global_abs_logger_element_struct abs_logger_element;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct *union_state_p = union_acquire();
+  memset(&this_abs_logger, 0, sizeof(this_abs_logger));
+  snprintf(this_abs_logger.name, sizeof(this_abs_logger.name), "%s", filename);
+  this_abs_logger.function_pointers.active_record_function = &union_particle_test_abs_record;
+  this_abs_logger.function_pointers.inactive_record_function = &union_particle_test_abs_record;
+  this_abs_logger.function_pointers.clear_temp = &union_particle_test_abs_noop;
+  this_abs_logger.function_pointers.temp_to_perm = &union_particle_test_abs_noop;
+  this_abs_logger.function_pointers.temp_to_perm_final_p = &union_particle_test_abs_noop_final;
+  this_abs_logger.conditional_list.num_elements = 0;
+  this_abs_logger.data_union.p_1D_abs_storage = NULL;
+  snprintf(abs_logger_element.name, sizeof(abs_logger_element.name), "%s", NAME_CURRENT_COMP);
+  abs_logger_element.component_index = INDEX_CURRENT_COMP;
+  abs_logger_element.abs_logger = &this_abs_logger;
+  add_element_to_abs_logger_list(&union_state_p->u_all_volume_abs_logger_list, abs_logger_element);
+%}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+  union_release(NAME_CURRENT_COMP);
+%}
+
+END
