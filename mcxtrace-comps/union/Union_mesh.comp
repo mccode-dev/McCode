@@ -1,0 +1,496 @@
+/*******************************************************************************
+*
+*  McXtrace, x-ray ray-tracing package
+*  Copyright(C) 2007 Risoe National Laboratory.
+*
+* %I
+* Written by: Martin Olsen, and expanded upon by Daniel Lomholt Christensen 
+* Date: 17.09.18
+* Origin: University of Copenhagen / ACTNXT project
+*
+* Component for including 3D mesh in Union geometry
+*
+* %D
+* Part of the Union components, a set of components that work together and thus
+*  separates geometry and physics within McXtrace.
+* The use of this component requires other components to be used.
+*
+* 1) One specifies a number of processes using process components
+* 2) These are gathered into material definitions using Union_make_material
+* 3) Geometries are placed using Union_box/cylinder/sphere/mesh, assigned a material
+* 4) A Union_master component placed after all the above
+*
+* Only in step 4 will any simulation happen, and per default all geometries
+*  defined before this master, but after the previous will be simulated here.
+*
+* There is a dedicated manual available for the Union_components
+*
+* The mesh component loads a 3D OFF, STL or PLY file as the geometry, using
+* geometry-mesh-lib (polygons are triangulated, duplicated vertices welded).
+* Faces given more than once are removed, so a volumetric mesh (cells sharing
+* faces) gives its outer surface.
+* The mesh geometry that is loaded must be a watertight mesh: every edge must be
+* shared by exactly two triangles.
+*
+* Number of intersections per ray: for each mesh, Union_master stores the
+* GMESH_MAX_HITS (default 50) nearest crossings of the ray with the mesh surface.
+* A concave mesh, or one made of several parts, can be crossed more often. Then
+* the farther crossings are lost, the ray can not find the surface where it
+* leaves the mesh, and Union_master reports trace errors. geometry-mesh-lib
+* warns once when this happens:
+*   Warning: <file>: a ray crossed the mesh N times, but only the 4 nearest hits are kept
+* To fix it, add this line after the DEFINE INSTRUMENT line of the instrument,
+* with N at least the number given in the warning:
+*   DEPENDENCY " -DGMESH_MAX_HITS=N "
+*
+* It is allowed to overlap components, but it is not allowed to have two
+*  parallel planes that coincides. This will crash the code on run time.
+*
+*
+*
+* %P
+* INPUT PARAMETERS:
+* filename: [str] Name of file that contains the 3D geometry: OFF, STL (ascii or binary) or PLY
+* material_string: [string]  material name of this volume, defined using Union_make_material
+* priority:   [1]  priotiry of the volume (can not be the same as another volume) A high priority is on top of low.
+* p_interact: [1]  probability to interact with this geometry [0-1]
+* visualize:  [1]  set to 0 if you wish to hide this geometry in mcdisplay
+* number_of_activations: [1]  Number of subsequent Union_master components that will simulate this geometry
+* mask_string: [string]      Comma seperated list of geometry names which this geometry should mask
+* mask_setting: [string]     "All" or "Any", should the masked volume be simulated when the ray is in just one mask, or all.
+* target_index:  [1]    Focuses on component a component this many steps further in the component sequence
+* target_x:      [m] position of target to focus at
+* target_y:      [m] Position of target to focus at
+* target_z:      [m] position of target to focus at
+* focus_aw:      [deg] horiz. angular dimension of a rectangular area
+* focus_ah:      [deg] vert. angular dimension of a rectangular area
+* focus_xw:      [m]   horiz. dimension of a rectangular area
+* focus_xh:      [m]   vert. dimension of a rectangular area
+* focus_r:       [m]   focusing on circle with this radius
+* bvh_display_layers: [1] mcdisplay draws the bounding boxes of this layer of the mesh BVH (the root is layer 1) when the BVH has more layers than this, otherwise the triangle edges. Set to 0 to always draw the triangle edges.
+* coordinate_scale [1e-3] Multiplier that the vertex positions are multiplied by. Set to 1 for input coordinates in meters. Set to 1e-3 for input coordinates in mm.
+* init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
+*
+* CALCULATED PARAMETERS:
+*
+* %L
+*
+* %E
+******************************************************************************/
+
+DEFINE COMPONENT Union_mesh
+
+SETTING PARAMETERS(string filename = 0,
+   string material_string=0,
+   priority, 
+   visualize=1, 
+   int target_index=0, 
+   target_x=0,
+   target_y=0,
+   target_z=0,
+   focus_aw=0,
+   focus_ah=0,
+   focus_xw=0,
+   focus_xh=0,
+   focus_r=0,
+   p_interact=0,
+   string mask_string=0,
+   string mask_setting=0,
+   number_of_activations=1,
+    coordinate_scale = 1e-3, string init="",
+    int bvh_display_layers = 12
+   )
+
+
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
+
+//=============================================================================
+//                            SHARE SECTION
+//=============================================================================
+SHARE
+%{
+  %include "read_table-lib"
+  %include "union-lib"
+
+  #ifndef ANY_GEOMETRY_DETECTOR_DECLARE
+  #define ANY_GEOMETRY_DETECTOR_DECLARE dummy
+  // struct pointer_to_global_geometry_list global_geometry_list = {0,NULL};
+  #endif
+
+  int
+  compare_mesh_edges (const void* first, const void* second) {
+    // Orders edges (pairs of vertex indices) by their first, then second vertex
+    const long* edge_a = first;
+    const long* edge_b = second;
+    if (edge_a[0] != edge_b[0])
+      return (edge_a[0] < edge_b[0]) ? -1 : 1;
+    if (edge_a[1] != edge_b[1])
+      return (edge_a[1] < edge_b[1]) ? -1 : 1;
+    return 0;
+  }
+
+  int
+  mesh_bvh_layers (gmesh_struct* triangle_mesh) {
+    // Number of layers of the BVH, the root alone is one layer
+    int node_stack[GMESH_BVH_STACK + 2];
+    int layer_stack[GMESH_BVH_STACK + 2];
+    int top = 0, layers = 0;
+    node_stack[0] = 0;
+    layer_stack[0] = 1;
+    top = 1;
+    while (top > 0) {
+      top--;
+      gmesh_node* node = &triangle_mesh->node[node_stack[top]];
+      int layer = layer_stack[top];
+      if (layer > layers)
+        layers = layer;
+      if (node->count == 0) {
+        node_stack[top] = node->first;
+        layer_stack[top++] = layer + 1;
+        node_stack[top] = node->first + 1;
+        layer_stack[top++] = layer + 1;
+      }
+    }
+    return layers;
+  }
+
+  void
+  mcdisplay_mesh_bvh_boxes (struct lines_to_draw* lines_to_draw_output, int index, struct geometry_struct** Geometries, int number_of_volumes) {
+    // Draws the bounding box of every BVH node in the display layer of the mesh storage, and of the leaves above it,
+    // in the frame of the master component
+    struct geometry_struct* geometry = Geometries[index];
+    gmesh_struct* triangle_mesh = &geometry->geometry_parameters.p_mesh_storage->mesh;
+    int node_stack[GMESH_BVH_STACK + 2];
+    int layer_stack[GMESH_BVH_STACK + 2];
+    // corner bits (x, y, z) of the 12 box edges
+    const int box_edges[12][2] = { { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, { 0, 2 }, { 1, 3 }, { 4, 6 }, { 5, 7 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
+    int top = 1;
+    int corner, edge;
+    struct lines_to_draw lines_to_draw_temp;
+    node_stack[0] = 0;
+    layer_stack[0] = 1;
+    while (top > 0) {
+      top--;
+      gmesh_node* node = &triangle_mesh->node[node_stack[top]];
+      int layer = layer_stack[top];
+      if (node->count == 0 && layer < geometry->geometry_parameters.p_mesh_storage->display_layer) {
+        node_stack[top] = node->first;
+        layer_stack[top++] = layer + 1;
+        node_stack[top] = node->first + 1;
+        layer_stack[top++] = layer + 1;
+        continue;
+      }
+      Coords corners[8];
+      for (corner = 0; corner < 8; corner++) {
+        Coords local = coords_set ((corner & 1) ? node->hi.x : node->lo.x, (corner & 2) ? node->hi.y : node->lo.y, (corner & 4) ? node->hi.z : node->lo.z);
+        corners[corner] = coords_add (rot_apply (geometry->rotation_matrix, local), geometry->center);
+      }
+      for (edge = 0; edge < 12; edge++) {
+        lines_to_draw_temp
+            = draw_line_with_highest_priority (corners[box_edges[edge][0]], corners[box_edges[edge][1]], index, Geometries, number_of_volumes, 100);
+        merge_lines_to_draw (lines_to_draw_output, &lines_to_draw_temp);
+      }
+    }
+  }
+
+  void
+  mcdisplay_mesh_function (struct lines_to_draw* lines_to_draw_output, int index, struct geometry_struct** Geometries, int number_of_volumes) {
+    // Draws each edge of the polygons in the file once, in the frame of the master component,
+    // or the BVH boxes of the display layer when that is set
+    if (Geometries[index]->geometry_parameters.p_mesh_storage->display_layer > 0) {
+      mcdisplay_mesh_bvh_boxes (lines_to_draw_output, index, Geometries, number_of_volumes);
+      return;
+    }
+    gmesh_struct* triangle_mesh = &Geometries[index]->geometry_parameters.p_mesh_storage->mesh;
+    struct pointer_to_1d_coords_list points_struct = Geometries[index]->shell_points (Geometries[index], 1);
+    Coords* points = points_struct.elements;
+    long* edges = malloc (2 * triangle_mesh->faceSize * sizeof (long));
+    long n_edges = 0;
+    long i, j;
+    struct lines_to_draw lines_to_draw_temp;
+
+    if (!edges) {
+      printf ("ERROR: malloc failed in mcdisplay_mesh_function\n");
+      exit (1);
+    }
+    // Every polygon edge as (lower, higher) vertex index, then sorted so that shared edges are adjacent
+    for (i = 0; i < triangle_mesh->faceSize; i += triangle_mesh->faceArray[i] + 1) {
+      long n = triangle_mesh->faceArray[i];
+      for (j = 0; j < n; j++) {
+        long a = triangle_mesh->faceArray[i + 1 + j];
+        long b = triangle_mesh->faceArray[i + 1 + (j + 1) % n];
+        edges[2 * n_edges] = (a < b) ? a : b;
+        edges[2 * n_edges + 1] = (a < b) ? b : a;
+        n_edges++;
+      }
+    }
+    qsort (edges, n_edges, 2 * sizeof (long), compare_mesh_edges);
+    for (i = 0; i < n_edges; i++) {
+      if (edges[2 * i] == edges[2 * i + 1])
+        continue;
+      if (i > 0 && compare_mesh_edges (&edges[2 * i], &edges[2 * i - 2]) == 0)
+        continue;
+      lines_to_draw_temp = draw_line_with_highest_priority (points[edges[2 * i]], points[edges[2 * i + 1]], index, Geometries, number_of_volumes, 100);
+      merge_lines_to_draw (lines_to_draw_output, &lines_to_draw_temp);
+    }
+    free (edges);
+    free (points);
+  }
+
+  struct pointer_to_1d_coords_list
+  allocate_shell_points (struct geometry_struct* geometry, int max_number_of_points) {
+    // Function that returns all vertex points in the frame of the master component
+    gmesh_struct* triangle_mesh = &geometry->geometry_parameters.p_mesh_storage->mesh;
+    struct pointer_to_1d_coords_list mesh_shell_array;
+
+    mesh_shell_array.elements = malloc (triangle_mesh->nverts * sizeof (Coords));
+    if (!mesh_shell_array.elements) {
+      printf ("ERROR: malloc failed in allocate_shell_points of Union_mesh\n");
+      exit (1);
+    }
+    for (int i = 0; i < triangle_mesh->nverts; i++) {
+      mesh_shell_array.elements[i] = rot_apply (geometry->rotation_matrix, triangle_mesh->vtx[i]);
+      mesh_shell_array.elements[i] = coords_add (mesh_shell_array.elements[i], geometry->center);
+    }
+    mesh_shell_array.num_elements = triangle_mesh->nverts;
+
+    return mesh_shell_array;
+  }
+
+  void
+  initialize_mesh_geometry_from_main_component (struct geometry_struct* mesh) {
+    // Called from the master component. Nothing to update: the mesh is ray traced
+    // in its own frame, using the center and rotation of the geometry struct.
+  }
+%}
+
+//=============================================================================
+//                            DECLARE SECTION
+//=============================================================================
+DECLARE
+%{
+  // Needed for transport to the main component
+  struct global_geometry_element_struct global_geometry_element;
+
+  int loop_index;
+  int loop_2_index;
+  int material_index;
+
+  // Volume struct contains name, geometry struct, physics struct
+  // loggers struct and absorption loggers struct.
+  struct Volume_struct mesh_vol;
+
+  // Mesh storage contains the triangle mesh read with geometry-mesh-lib
+  struct mesh_storage this_mesh_storage;
+%}
+//=============================================================================
+//                         INITIALIZE SECTION
+//=============================================================================
+
+INITIALIZE
+%{
+  struct union_state_struct* union_state_p = union_acquire ();
+  // Initializes the focusing system for this volume including input sanitation.
+  focus_initialize (&mesh_vol.geometry, POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP, ROT_A_CURRENT_COMP, target_index, target_x,
+                    target_y, target_z, focus_aw, focus_ah, focus_xw, focus_xh, focus_r, NAME_CURRENT_COMP);
+
+  struct pointer_to_global_material_list* global_material_list = &union_state_p->u_material_list;
+
+  // Use sanitation
+  #ifdef MATERIAL_DETECTOR
+  if (global_material_list->num_elements == 0) {
+    // Here if the user have defined a material, but only after this material
+    printf ("\nERROR: Need to define a material using Union_make_material"
+            " before using a Union geometry component. \n");
+    printf ("%s was defined before first use of Union_make_material.\n", NAME_CURRENT_COMP);
+    exit (1);
+  }
+
+  #endif
+  #ifndef MATERIAL_DETECTOR
+  printf ("\nERROR: Need to define a material using Union_make_material"
+          " before using a Union geometry component. \n");
+  exit (1);
+  #endif
+
+  mesh_vol.geometry.is_masked_volume = 0;
+  mesh_vol.geometry.is_exit_volume = 0;
+  mesh_vol.geometry.is_mask_volume = 0;
+
+  struct pointer_to_global_geometry_list* global_geometry_list = &union_state_p->u_geometry_list;
+  //==============================================================================
+  //                         Find out what this component masks
+  //==============================================================================
+
+  // Read the material input, or if it lacks, use automatic linking.
+  if (mask_string && strlen (mask_string) && strcmp (mask_string, "NULL") && strcmp (mask_string, "0")) {
+    // A mask volume is used to limit the extend of other volumes,
+    // called the masked volumes. These are specified in the mask_string.
+    // In order for a ray to enter a masked volume,
+    // it needs to be both in the region covered by that volume AND the mask volume.
+    // When more than
+    mesh_vol.geometry.mask_mode = 1; // Default mask mode is ALL
+    if (mask_setting && strlen (mask_setting) && strcmp (mask_setting, "NULL") && strcmp (mask_setting, "0")) {
+      if (strcmp (mask_setting, "ALL") == 0 || strcmp (mask_setting, "All") == 0) {
+        mesh_vol.geometry.mask_mode = 1;
+      } else if (strcmp (mask_setting, "ANY") == 0 || strcmp (mask_setting, "Any") == 0) {
+        mesh_vol.geometry.mask_mode = 2;
+      } else {
+        printf ("The mask_mode of component %s is set to %s,"
+                " but must be either ALL or ANY.\n",
+                NAME_CURRENT_COMP, mask_setting);
+        exit (1);
+      }
+    }
+
+    int found_geometries = 0;
+    for (loop_index = 0; loop_index < global_geometry_list->num_elements; loop_index++) {
+      // Add mask list
+
+      if (1 == manual_linking_function (global_geometry_list->elements[loop_index].name, mask_string)) {
+        add_element_to_int_list (&mesh_vol.geometry.mask_list, global_geometry_list->elements[loop_index].component_index);
+        add_element_to_int_list (&global_geometry_list->elements[loop_index].Volume->geometry.masked_by_list, INDEX_CURRENT_COMP);
+        global_geometry_list->elements[loop_index].Volume->geometry.is_masked_volume = 1;
+        if (mesh_vol.geometry.mask_mode == 2)
+          global_geometry_list->elements[loop_index].Volume->geometry.mask_mode = 2;
+        if (mesh_vol.geometry.mask_mode == 1) {
+          if (global_geometry_list->elements[loop_index].Volume->geometry.is_masked_volume == 1
+              && global_geometry_list->elements[loop_index].Volume->geometry.mask_mode != 2)
+            // If more than one mask is added to one volume, the ANY mode overwrites the (default) ALL mode.
+            global_geometry_list->elements[loop_index].Volume->geometry.mask_mode = 1;
+        }
+
+        found_geometries = 1;
+      }
+    }
+    if (found_geometries == 0) {
+      printf ("The mask_string in geometry: "
+              "%s did not find any of the specified volumes in the mask_string "
+              "%s \n",
+              NAME_CURRENT_COMP, mask_string);
+      exit (1);
+    }
+    mesh_vol.p_physics = malloc (sizeof (struct physics_struct));
+    mesh_vol.p_physics->is_vacuum = 0;                // Makes this volume a vacuum
+    mesh_vol.p_physics->number_of_processes = (int)0; // Should not be used.
+    mesh_vol.p_physics->my_a = 0;                     // Should not be used.
+    sprintf (mesh_vol.p_physics->name, "Mask");
+    mesh_vol.geometry.is_mask_volume = 1;
+
+    // Read the material input, or if it lacks, use automatic linking.
+  } else if (material_string && strlen (material_string) && strcmp (material_string, "NULL") && strcmp (material_string, "0")) {
+    // A geometry string was given, use it to determine which material
+    if (0 == strcmp (material_string, "vacuum") || 0 == strcmp (material_string, "Vacuum")) {
+      // One could have a global physics struct for vacuum instead of creating one for each
+      mesh_vol.p_physics = malloc (sizeof (struct physics_struct));
+      mesh_vol.p_physics->is_vacuum = 1; // Makes this volume a vacuum
+      mesh_vol.p_physics->number_of_processes = (int)0;
+      mesh_vol.p_physics->my_a = 0; // Should not be used.
+      sprintf (mesh_vol.p_physics->name, "Vacuum");
+    } else if (0 == strcmp (material_string, "exit") || 0 == strcmp (material_string, "Exit")) {
+      // One could have a global physics struct for exit instead of creating one for each
+      mesh_vol.p_physics = malloc (sizeof (struct physics_struct));
+      mesh_vol.p_physics->is_vacuum = 1; // Makes this volume a vacuum
+      mesh_vol.p_physics->number_of_processes = (int)0;
+      mesh_vol.p_physics->my_a = 0; // Should not be used.
+      mesh_vol.geometry.is_exit_volume = 1;
+      sprintf (mesh_vol.p_physics->name, "Exit");
+    } else {
+      for (loop_index = 0; loop_index < global_material_list->num_elements; loop_index++) {
+        if (0 == strcmp (material_string, global_material_list->elements[loop_index].name)) {
+          mesh_vol.p_physics = global_material_list->elements[loop_index].physics;
+          break;
+        }
+        if (loop_index == global_material_list->num_elements - 1) {
+          printf ("\n");
+          printf ("ERROR: The material string \"%s\" in Union geometry \"%s\""
+                  " did not match a specified material. \n",
+                  material_string, NAME_CURRENT_COMP);
+          printf ("       The materials available at this point"
+                  " (need to be defined before the geometry): \n");
+          for (loop_index = 0; loop_index < global_material_list->num_elements; loop_index++)
+            printf ("         %s\n", global_material_list->elements[loop_index].name);
+          printf ("\n");
+          printf ("       It is also possible to use one of the defualt materials avaiable: \n");
+          printf ("           Vacuum (for a Volume without scattering or absorption)\n");
+          printf ("           Exit (for a Volume where the ray exits the component if it enters)\n");
+          printf ("           Mask (for a Volume that masks existing volumes specified in the mask_string\n");
+          exit (1);
+        }
+      }
+    }
+  } else {
+    // Automatic linking, simply using the last defined material.
+    #ifndef MATERIAL_DETECTOR
+    printf ("Need to define a material before the geometry to use automatic linking %s.\n", NAME_CURRENT_COMP);
+    exit (1);
+    #endif
+    mesh_vol.p_physics = global_material_list->elements[global_material_list->num_elements - 1].physics;
+  }
+  //==============================================================================
+  //                       READ FILE
+  //==============================================================================
+  // Read the STL/OFF/PLY file in the frame of this component, scaled by coordinate_scale
+  if (!gmesh_init (filename, coordinate_scale, GMESH_PROPS_IGNORE, &this_mesh_storage.mesh)) {
+    printf ("\nERROR IN %s: could not read the geometry file %s\n", NAME_CURRENT_COMP, filename);
+    exit (1);
+  }
+  if (!this_mesh_storage.mesh.closed) {
+    printf ("\n\nERROR: Input mesh %s of %s is not closed: %d boundary and %d non-manifold edges."
+            "\nUnion_mesh requires a closed (watertight) mesh.\n\n",
+            filename, NAME_CURRENT_COMP, this_mesh_storage.mesh.nboundary, this_mesh_storage.mesh.nnonmanifold);
+    exit (1);
+  }
+
+  sprintf (mesh_vol.name, "%s", NAME_CURRENT_COMP);
+  sprintf (mesh_vol.geometry.shape, "mesh");
+  mesh_vol.geometry.eShape = mesh;
+  mesh_vol.geometry.priority_value = priority;
+  mesh_vol.geometry.visualization_on = visualize;
+  this_mesh_storage.display_layer = 0;
+  if (bvh_display_layers > 0) {
+    int layers = mesh_bvh_layers (&this_mesh_storage.mesh);
+    if (layers > bvh_display_layers) {
+      this_mesh_storage.display_layer = bvh_display_layers;
+      if (mcdotrace)
+        MPI_MASTER (printf ("Union_mesh %s: mcdisplay draws the BVH boxes of layer %d of %d instead of the %d triangles\n", NAME_CURRENT_COMP, bvh_display_layers,
+                            layers, this_mesh_storage.mesh.ntris);)
+    }
+  }
+  mesh_vol.geometry.geometry_p_interact = p_interact;
+  mesh_vol.geometry.within_function = &r_within_mesh;
+  mesh_vol.geometry.geometry_parameters.p_mesh_storage = &this_mesh_storage;
+  mesh_vol.geometry.intersect_function = &sample_mesh_intersect;
+  mesh_vol.geometry.mcdisplay_function = &mcdisplay_mesh_function;
+  mesh_vol.geometry.shell_points = &allocate_shell_points;
+  mesh_vol.geometry.initialize_from_main_function = &initialize_mesh_geometry_from_main_component;
+  mesh_vol.geometry.process_rot_allocated = 0;
+  mesh_vol.geometry.copy_geometry_parameters = &allocate_mesh_copy;
+  mesh_vol.geometry.center = POS_A_CURRENT_COMP;
+  rot_copy (mesh_vol.geometry.rotation_matrix, ROT_A_CURRENT_COMP);
+  rot_transpose (ROT_A_CURRENT_COMP, mesh_vol.geometry.transpose_rotation_matrix);
+
+  // Initialize loggers
+  mesh_vol.loggers.num_elements = 0;
+
+  mesh_vol.abs_loggers.num_elements = 0;
+
+  // packing the information into the global_geometry_element, which is then included in the global_geometry_list.
+  sprintf (global_geometry_element.name, "%s", NAME_CURRENT_COMP);
+  global_geometry_element.activation_counter = number_of_activations;
+  global_geometry_element.component_index = INDEX_CURRENT_COMP;
+  global_geometry_element.Volume = &mesh_vol; // Would be nicer if this m was a pointer, now we have the (small) data two places
+  add_element_to_geometry_list (global_geometry_list, global_geometry_element);
+%}
+
+TRACE
+%{
+
+%}
+
+FINALLY 
+%{
+
+  union_release (NAME_CURRENT_COMP);
+%}
+END
