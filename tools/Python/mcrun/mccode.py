@@ -14,6 +14,7 @@ import yaml
 
 from os.path import isfile, dirname, basename, splitext, join
 from decimal import Decimal
+from subprocess import CalledProcessError
 
 # import config
 import numpy
@@ -494,6 +495,15 @@ class McStas:
                 self.hint_nexus_lists()
                 raise
 
+        if binpath != self.binpath:  # run via mpirun
+            # OpenMPI 5 (PMIx) occasionally fails to start mpirun on macOS, before
+            # the simulation runs (exit status 213). Retry such a launch failure once.
+            try:
+                return Process(binpath).run(args, pipe=pipe)
+            except CalledProcessError as err:
+                if err.returncode != 213:
+                    raise
+                LOG.warning("mpirun failed to launch (exit status 213), retrying once")
         return Process(binpath).run(args, pipe=pipe)
 
     def hint_nexus_lists(self):
