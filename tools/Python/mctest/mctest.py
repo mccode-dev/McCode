@@ -19,7 +19,7 @@ import platform
 import subprocess
 import io
 import concurrent.futures
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
@@ -349,6 +349,7 @@ def parse_detector_I_value(resfile_path, detector_name):
 def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilter=None, configdir=None):
     ''' this main test function tests the given mccode installation, optionally with the
     mccode_config.json in configdir (passed to mcrun --override-config) '''
+    t0 = time.time()
     skipped=False
     global runLocal
     # copy instr files and record info
@@ -554,7 +555,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     for test in tests:
         if strict and test.testnb==0:
             runfailed = True
-            formatstr = "%-" + "%ds: FAILURE: tool in --strict mode and instrument includes no %%%%Example: line(s)!" % (maxnamelen+1)
+            formatstr = "%-" + "%ds: FAILURE: tool in --strict mode and instrument includes no %%%%Test: line(s)!" % (maxnamelen+1)
             logging.info(formatstr % test.instrname)
             continue
         elif test.linted:
@@ -800,6 +801,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     metainfo["user"] = username
     metainfo["cpu_type"] = cpu_type
     metainfo["gpu_type"] = gpu_type
+    metainfo["walltime"] = format_walltime(time.time() - t0)
 
     # displayname must be unique, we can return a dict, which eases comparison between tests
     obj = {}
@@ -811,6 +813,10 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
 #
 # Utility
 #
+
+def format_walltime(seconds):
+    ''' h:mm:ss '''
+    return str(timedelta(seconds=round(seconds)))
 
 def activate_mccode_version(mccoderoot):
     '''
@@ -882,6 +888,7 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     logging.debug("")
     logging.debug("Test results written to: %s" % reportfile)
     print("======================================")
+    print("Total runtime: %s" % format_walltime(time.time() - starttime))
     print("Overall test result:")
     if (failed):
         if (not permissive):
@@ -889,7 +896,7 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
                 print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
                 exit(-1)
             else:
-                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off / %d missing %%Example(s))" % (num_compilefail, num_runfail, num_valfail, num_noexample) )
+                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off / %d missing %%Test(s))" % (num_compilefail, num_runfail, num_valfail, num_noexample) )
                 exit(-1)
         else:
             print("Failures reported but tool was run in permissive mode (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
@@ -962,13 +969,14 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
             logging.debug("Test results written to: %s" % reportfile)
             counts = "%d compile errs / %d runtime errs / %d values off" % (num_compilefail, num_runfail, num_valfail)
             if strict:
-                counts = counts + " / %d missing %%Example(s)" % num_noexample
+                counts = counts + " / %d missing %%Test(s)" % num_noexample
             print("%s: %s (%s)" % (label, "FAILED" if failed else "SUCCESS", counts))
             anyfailed = anyfailed or failed
         finally:
             deactivate_mccode_version(oldpath)
 
     print("======================================")
+    print("Total runtime: %s" % format_walltime(time.time() - starttime))
     print("Overall test result:")
     if anyfailed and not permissive:
         print("FAILED! One or more configs errored")
@@ -977,6 +985,7 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
 
 
 
+starttime = time.time()
 ncount = None
 mpi = None
 openacc = None
@@ -1180,7 +1189,7 @@ def main(args):
     strict = False
     if args.strict:
         strict = True
-        logging.info("Strict mode, tool will report failure for instruments without %Example")
+        logging.info("Strict mode, tool will report failure for instruments without %Test")
 
     noplots = args.noplots
     noscans = args.noscans
@@ -1231,7 +1240,7 @@ if __name__ == '__main__':
     parser.add_argument('--runmax', nargs=1, help='Maximum time (s) allowed pr. test Example run (default 3600s)')
     parser.add_argument('--displaymax', nargs=1, help='Maximum time allowed pr. test Example DISPLAY run (default 60s)')
     parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional. Can not be combined with --strict.')
-    parser.add_argument('--strict', action='store_true', help='Let instruments without %%Example line(s) instantly fail. Can not be combined with --permissive.')
+    parser.add_argument('--strict', action='store_true', help='Let instruments without %%Test line(s) instantly fail. Can not be combined with --permissive.')
     parser.add_argument('--noplots', action='store_true', help='Do not generate plots (01_overview.pdf and 02_plots.html) of the test output. Useful e.g. in CI, where the plots are not looked at, and can take long for instruments with many monitors.')
     parser.add_argument('--nsigma', type=float, help='Accept a test value (each point for %%Scan tests) within NSIGMA x the combined error bar sqrt(ERR_test^2 + ERR_target^2), if the target line gives NAME_ERR. Targets without NAME_ERR are assumed to have the test run\'s ERR, and are also accepted within 20%%. Error bars from fewer than 100 effective events, (I/ERR)^2, are not used: the 20%% rule applies.')
     parser.add_argument('--statfactor', type=float, help='Scale the ncount of every test (and pr. scan point) by this factor, e.g. 0.01 for quick runs or 100 for reference-quality ones. With --nsigma/--pvalue a target without NAME_ERR is assumed to come from the unscaled ncount, i.e. the combined error bar is sqrt(1 + STATFACTOR) x ERR_test.')
