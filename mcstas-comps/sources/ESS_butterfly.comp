@@ -78,6 +78,9 @@
 * An ad-hoc method for future implementation of "engineering reality" is included, use the
 * "c_performance/t_performance" parameters to down-scale performance uniformly across all wavelengths.
 * 
+* <b>ESS logo</b>
+* The ESS logo drawn in MCDISPLAY in place of the target wheel (logo=1) is © ESS. All rights reserved.
+* 
 * <b>References:</b>
 * <ol>
 * <li><A HREF="http://essbutterfly.mcstas.org/PDFs/Update_to_ESS_moderators_KHA_latest.pdf">Release document "Update to ESS Moderators, latest version"</a>
@@ -106,6 +109,7 @@
 * tfocus_dist: [m]      Position of time focusing window along z axis
 * tfocus_time: [s]      Time position of time focusing window
 * tfocus_width: [s]     Time width of time focusing window
+* logo: [1]             If 1, MCDISPLAY shows the ESS emblem in place of the target wheel; 0 suppresses it
 *
 * 
 *
@@ -117,7 +121,7 @@ DEFINE COMPONENT ESS_butterfly
 SETTING PARAMETERS (string sector="N",int beamline=1, yheight=0.03, cold_frac=0.5, 
   int target_index=0, dist=0, focus_xw=0, focus_yh=0,
   c_performance=1, t_performance=1, Lmin, Lmax, tmax_multiplier=3, int n_pulses=1,
-  acc_power=5,tfocus_dist=0,tfocus_time=0,tfocus_width=0)
+  acc_power=5,tfocus_dist=0,tfocus_time=0,tfocus_width=0, int logo=1)
 
 
 SHARE %{
@@ -665,10 +669,12 @@ TRACE
 MCDISPLAY
 %{
   #ifndef OPENACC
+  mcdis_pencolor ("#0099dc"); /* ESS blue, from the ess.eu logo */
   magnify ("");
   butterfly_geometry (delta_y, jmax, cx, cz, orientation_angle, Beamlines, tx, ty, tz, rC1_x, rC1_z, rC2_x, rC2_z, rC3_x, rC3_z, rT1_x, rT1_z, rT2_x, rT2_z,
-                      rT3_x, rT3_z, r11, r12, r21, r22, focus_xw, focus_yh);
-  if (tbl_mode) { /* second cold wing emission plane */
+                      rT3_x, rT3_z, r11, r12, r21, r22, focus_xw, focus_yh, logo);
+  if (tbl_mode) { /* second cold wing emission plane, yellow as the others */
+    mcdis_pencolor ("#ffff00");
     mcdis_dashed_line (rC4_x, -delta_y, rC4_z, rC5_x, -delta_y, rC5_z, 11);
     mcdis_dashed_line (rC4_x, delta_y, rC4_z, rC5_x, delta_y, rC5_z, 11);
     mcdis_dashed_line (rC5_x, -delta_y, rC5_z, rC5_x, delta_y, rC5_z, 11);
