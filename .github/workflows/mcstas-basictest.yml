@@ -136,8 +136,9 @@ jobs:
 
     # nvhpc (~5 GB download, ~15 GB installed) installs in the background
     # while the conda env and code generator (conda compilers) are built
+    # - only needed for the simulation steps, so skipped when they are
     - name: Start nvhpc install (background, OpenACC)
-      if: matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.openacc
       run: |
            { (
              set -euo pipefail
@@ -457,7 +458,7 @@ jobs:
            test -z "${MCSTAS:-}"
 
     - name: Wait for nvhpc install (OpenACC)
-      if: matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.openacc
       timeout-minutes: 45
       run: |
            while [ ! -f nvhpc.done ]; do sleep 15; done
