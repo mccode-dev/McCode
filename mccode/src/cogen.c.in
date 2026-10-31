@@ -611,6 +611,8 @@ int cogen_comp_declare(struct comp_inst *comp)
     coutf("}; /* _struct_%s_parameters */", comp->def->name);
     coutf("typedef struct _struct_%s_parameters _class_%s_parameters;",
       comp->def->name, comp->def->name);
+    /* lets other components guard COMP_GETPAR3(type, ...) on the type being present */
+    coutf("#define MCCODE_COMP_TYPE_%s 1", comp->def->name);
     cout("");
 
     coutf("/* Parameters for component type '%s' */", comp->def->name);
@@ -1201,6 +1203,37 @@ void cogen_getcompindex_fct(struct instr_def *instr){
   cout("");
 }
 
+/*
+ * Generates the functions that return the type name and the absolute rotation
+ * of a named component. Used to check the type before COMP_GETPAR3 is applied.
+ */
+void cogen_getcomptype_fct(struct instr_def *instr){
+  List_handle iter;
+  struct comp_inst *comp;
+  cout("char* _getcomp_type(char* compname)");
+  cout("/* Returns the component type of a named instance, or NULL */");
+  cout("{");
+  iter = list_iterate(instr->complist);
+  while ((comp = list_next(iter)) != NULL) {
+    coutf("  if (!strcmp(compname, \"%s\")) return \"%s\";", comp->name, comp->def->name);
+  }
+  list_iterate_end(iter);
+  cout("  return NULL;");
+  cout("}");
+  cout("");
+  cout("int _getcomp_rotation(char* compname, Rotation r)");
+  cout("/* Copies the absolute rotation of a named instance into r; returns 0 if not found */");
+  cout("{");
+  iter = list_iterate(instr->complist);
+  while ((comp = list_next(iter)) != NULL) {
+    coutf("  if (!strcmp(compname, \"%s\")) { rot_copy(r, _%s_var._rotation_absolute); return 1; }", comp->name, comp->name);
+  }
+  list_iterate_end(iter);
+  cout("  return 0;");
+  cout("}");
+  cout("");
+}
+
 void cogen_getdistance_fct(){
   cout("double index_getdistance(int first_index, int second_index)");
   cout("/* Calculate the distance two components from their indexes*/");
@@ -1314,6 +1347,7 @@ int cogen_decls(struct instr_def *instr)
   }
   cout("};");
   cout("typedef struct _struct_instrument_parameters _class_instrument_parameters;");
+  cout("#define MCCODE_HAS_GETCOMP_TYPE 1 /* _getcomp_type(), _getcomp_rotation(), MCCODE_COMP_TYPE_<type> */");
   cout("");
 
   /* check if we have GROUP, SPLIT and JUMP */
@@ -3303,6 +3337,7 @@ cogen(char *output_name, struct instr_def *instr)
 
 
   cogen_getcompindex_fct(instr);
+  cogen_getcomptype_fct(instr);
 
   embed_file("metadata-r.c"); // functions used to query and display instrument/component-defined metadata strings
   embed_file("mccode_main.c");
