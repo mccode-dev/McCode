@@ -174,7 +174,7 @@ double sphere_form(double q, double radius, double sld, double solvent_sld);
 #pragma acc routine seq
 double sphere_volume(double radius)
 {
-    return M_4PI_3*cube(radius);
+    return M_4PI_3*sas_cube(radius);
 }
     
 #pragma acc routine seq
@@ -182,7 +182,7 @@ double sphere_form(double q, double radius, double sld, double solvent_sld)
 {
     const double fq = sphere_volume(radius) * sas_3j1x_x(q*radius);
     const double contrast = (sld - solvent_sld);
-    return 1.0e-4*square(contrast * fq);
+    return 1.0e-4*sas_square(contrast * fq);
 }
 
 
@@ -544,9 +544,9 @@ sc_Zq(double qa, double qb, double qc, double dnn, double d_factor)
     // Rewriting denominator
     //         => exp(a)^2 - 2 cos(d ak) exp(a) + 1)
     //         => (exp(a) - 2 cos(d ak)) * exp(a) + 1
-    const double arg = -0.5*square(dnn*d_factor)*(a1*a1 + a2*a2 + a3*a3);
+    const double arg = -0.5*sas_square(dnn*d_factor)*(a1*a1 + a2*a2 + a3*a3);
     const double exp_arg = exp(arg);
-    const double Zq = -cube(expm1(2.0*arg))
+    const double Zq = -sas_cube(expm1(2.0*arg))
         / ( ((exp_arg - 2.0*cos(dnn*a1))*exp_arg + 1.0)
           * ((exp_arg - 2.0*cos(dnn*a2))*exp_arg + 1.0)
           * ((exp_arg - 2.0*cos(dnn*a3))*exp_arg + 1.0));
