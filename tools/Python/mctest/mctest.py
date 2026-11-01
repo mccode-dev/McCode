@@ -549,6 +549,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         executor.shutdown()
 
     # run, record time
+    t1 = time.time()
     logging.info("")
     logging.info("Running tests / getting status...")
     runfailed=False
@@ -802,6 +803,8 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     metainfo["cpu_type"] = cpu_type
     metainfo["gpu_type"] = gpu_type
     metainfo["walltime"] = format_walltime(time.time() - t0)
+    metainfo["compiletime"] = format_walltime(t1 - t0)
+    metainfo["simtime"] = format_walltime(time.time() - t1)
 
     # displayname must be unique, we can return a dict, which eases comparison between tests
     obj = {}
@@ -888,6 +891,8 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     logging.debug("")
     logging.debug("Test results written to: %s" % reportfile)
     print("======================================")
+    print("Compilation time: %s" % results["_meta"]["compiletime"])
+    print("Simulation time: %s" % results["_meta"]["simtime"])
     print("Total runtime: %s" % format_walltime(time.time() - starttime))
     print("Overall test result:")
     if (failed):
@@ -970,7 +975,7 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
             counts = "%d compile errs / %d runtime errs / %d values off" % (num_compilefail, num_runfail, num_valfail)
             if strict:
                 counts = counts + " / %d missing %%Test(s)" % num_noexample
-            print("%s: %s (%s)" % (label, "FAILED" if failed else "SUCCESS", counts))
+            print("%s: %s (%s) [compilation %s, simulation %s]" % (label, "FAILED" if failed else "SUCCESS", counts, results["_meta"]["compiletime"], results["_meta"]["simtime"]))
             anyfailed = anyfailed or failed
         finally:
             deactivate_mccode_version(oldpath)
