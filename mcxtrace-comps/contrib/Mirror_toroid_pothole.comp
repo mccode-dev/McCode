@@ -203,7 +203,7 @@ MCDISPLAY
   // Because the code above doesn't actually reproduce a torus exactly but uses a cylinder and an ellipsoid to construct the toroidal mirror (to avoid solving
   // quartic equations), there's a slight mismatch between the 3D view (exact torus) and the actual toroidal mirror coded above.
 
-  double x0, y0, z0, x1, y1, z1, theta, phi, phi_total, theta_total, theta_beginning, phi_beginning, theta_end, phi_end;
+  double theta, phi, phi_total, theta_total, theta_beginning, phi_beginning, theta_end, phi_end;
   // int N=50; too many points, makes the 3D matlab viewer bug
   int N = 10;
 
@@ -221,46 +221,16 @@ MCDISPLAY
   theta_end = theta + (theta_total / 2);
   phi_end = phi + (phi_total / 2);
 
-  theta = theta_beginning;
-  phi = phi_beginning;
-
-  while (theta <= theta_end) {
-    phi = 180 - (phi_total / 2);
-    x0 = radius * sin (DEG2RAD * theta);
-    y0 = (radius_o + radius * cos (DEG2RAD * theta)) * cos (DEG2RAD * phi) + (radius_o + radius);
-    z0 = (radius_o + radius * cos (DEG2RAD * theta)) * sin (DEG2RAD * phi);
-    while (phi <= phi_end) {
-      x1 = radius * sin (DEG2RAD * theta);
-      y1 = (radius_o + radius * cos (DEG2RAD * theta)) * cos (DEG2RAD * phi) + (radius_o + radius);
-      z1 = (radius_o + radius * cos (DEG2RAD * theta)) * sin (DEG2RAD * phi);
-      line (x0, y0, z0, x1, y1, z1);
-      x0 = x1;
-      y0 = y1;
-      z0 = z1;
-      phi += phi_total / N;
+  int i, j;
+  for (i = 0; i < N; i++) {
+    for (j = 0; j < N; j++) {
+      double t0 = DEG2RAD * (theta_beginning + i * theta_total / N), t1 = DEG2RAD * (theta_beginning + (i + 1) * theta_total / N);
+      double p0 = DEG2RAD * (phi_beginning + j * phi_total / N), p1 = DEG2RAD * (phi_beginning + (j + 1) * phi_total / N);
+      polygon (4, radius * sin (t0), (radius_o + radius * cos (t0)) * cos (p0) + (radius_o + radius), (radius_o + radius * cos (t0)) * sin (p0),
+               radius * sin (t1), (radius_o + radius * cos (t1)) * cos (p0) + (radius_o + radius), (radius_o + radius * cos (t1)) * sin (p0), radius * sin (t1),
+               (radius_o + radius * cos (t1)) * cos (p1) + (radius_o + radius), (radius_o + radius * cos (t1)) * sin (p1), radius * sin (t0),
+               (radius_o + radius * cos (t0)) * cos (p1) + (radius_o + radius), (radius_o + radius * cos (t0)) * sin (p1));
     }
-    theta += theta_total / N;
-  }
-
-  theta = theta_beginning;
-  phi = phi_beginning;
-
-  while (phi <= phi_end) {
-    theta = -(theta_total / 2);
-    x0 = radius * sin (DEG2RAD * theta);
-    y0 = (radius_o + radius * cos (DEG2RAD * theta)) * cos (DEG2RAD * phi) + (radius_o + radius);
-    z0 = (radius_o + radius * cos (DEG2RAD * theta)) * sin (DEG2RAD * phi);
-    while (theta <= theta_end) {
-      x1 = radius * sin (DEG2RAD * theta);
-      y1 = (radius_o + radius * cos (DEG2RAD * theta)) * cos (DEG2RAD * phi) + (radius_o + radius);
-      z1 = (radius_o + radius * cos (DEG2RAD * theta)) * sin (DEG2RAD * phi);
-      line (x0, y0, z0, x1, y1, z1);
-      x0 = x1;
-      y0 = y1;
-      z0 = z1;
-      theta += theta_total / N;
-    }
-    phi += phi_total / N;
   }
 %}
 

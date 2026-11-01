@@ -90,6 +90,11 @@ Main.prototype.showShapes = function(surfaces, lines)
         this.linenodes[i].visible = lines;
     }
 }
+// opacity (0..1) of the --trace=2 shape surfaces
+Main.prototype.setSurfaceOpacity = function(opacity)
+{
+    for (var i = 0; i < this.surfnodes.length; i++) { this.surfnodes[i].material.opacity = opacity; }
+}
 // add a polyhedron given as {"vertices": [[x,y,z], ...], "faces": [{"face": [i,j,k,...]}, ...]}
 // (OFF files and polygons at --trace=2)
 Main.prototype.addPolyhedron = function(json, parent, linecolor)
@@ -144,7 +149,8 @@ Main.prototype.init = function(campos, invert, box)
 
     document.getElementById("3dcanvas").appendChild(this.renderer.domElement);
 
-    this.controls = new THREE.OrbitControls(this.camera);
+    // on the canvas only: on the whole document it swallows mousedown, so range inputs can not be dragged
+    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.x = -campos.x/2; //1;
     this.controls.target.y = 0; //0;
     this.controls.target.z = campos.z; //49;

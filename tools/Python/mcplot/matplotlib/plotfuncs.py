@@ -492,10 +492,10 @@ def dumpfile(frmat, filename = None):
     # Check for existance of earlier exports
     if os.path.isfile(saveto):
         index=1
-        saveto = f"{basename}_{index}{frmat}"
+        saveto = f"{basename}_{index}{ext}"
         while os.path.isfile(saveto):
             index += 1
-            saveto = f"{basename}_{index}{frmat}"
+            saveto = f"{basename}_{index}{ext}"
 
     savefig(saveto)
     print("Saved " + saveto)
@@ -503,7 +503,8 @@ def dumpfile(frmat, filename = None):
 
 def click(event, subplts, click_cbs, ctrl_cbs, back_cb, dc_cb):
     subplt = event.inaxes
-    if not subplt:
+    # also ignore axes that are not panels, e.g. a 2D plot's colorbar
+    if not subplt or subplt not in subplts:
         return False
     else:
         # Don't treat a click that landed on the panel's own legend as a

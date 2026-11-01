@@ -55,6 +55,7 @@ typedef struct {
 
 /* compile 'src' using variables varnames[0..nvars-1]. returns 0 on success */
 int mcvine_expr_compile (mcvine_expr* e, const char* src, int nvars, const char** varnames, const char* owner);
+#pragma acc routine seq
 double mcvine_expr_eval (const mcvine_expr* e, const double* vars);
 void mcvine_expr_free (mcvine_expr* e);
 
@@ -77,6 +78,7 @@ typedef struct {
   double *x, *y;
 } mcvine_table1d;
 int mcvine_table1d_load (mcvine_table1d* t, const char* file, const char* owner);
+#pragma acc routine seq
 double mcvine_table1d_eval (const mcvine_table1d* t, double x);
 
 /* 2D grid f(x,y) on (possibly non-uniform) ascending axes, bilinear, 0 outside */
@@ -84,6 +86,7 @@ typedef struct {
   int nx, ny;
   double *x, *y, *f;
 } mcvine_grid2d;
+#pragma acc routine seq
 double mcvine_grid2d_eval (const mcvine_grid2d* g, double x, double y);
 /* S(Q,E) in the Isotropic_Sqw format: 1st numeric row = q values,
    2nd numeric row = w (E) values, then nq rows with nw values each */
@@ -101,6 +104,7 @@ typedef struct {
   double* f;
 } mcvine_grid3d;
 int mcvine_grid3d_load (mcvine_grid3d* g, const char* file, const char* owner);
+#pragma acc routine seq
 double mcvine_grid3d_eval (const mcvine_grid3d* g, double x, double y, double z);
 
 /* a scalar function of 1..3 variables given either as expression or file */
@@ -112,6 +116,7 @@ typedef struct {
   mcvine_grid2d g2;
   mcvine_grid3d g3;
 } mcvine_func;
+#pragma acc routine seq
 double mcvine_func_eval (const mcvine_func* f, const double* v);
 /* set up from a file (if file non-empty; filetype 2=table1d, 3=sqw grid,
    4=grid3d) or else from an expression in the variables vars[]            */
@@ -120,11 +125,15 @@ int mcvine_func_setup (mcvine_func* f, const char* expr, const char* file, int f
 /* ------------------------------------------------------------------------ */
 /* vector helpers                                                           */
 /* ------------------------------------------------------------------------ */
+#pragma acc routine seq
 double mcvine_len3 (const double* a);
+#pragma acc routine seq
 void mcvine_cross3 (const double* a, const double* b, double* c);
 /* MCViNE local frame: e1 = v/|v|, e2 = (0,0,1) x e1 (or fallback), e3 = e1 x e2 */
+#pragma acc routine seq
 void mcvine_frame (const double* v, double* e1, double* e2, double* e3);
 /* dir = sin(t)cos(phi) e2 + sin(t) sin(phi) e3 + cos(t) e1 */
+#pragma acc routine seq
 void mcvine_dir_from_frame (const double* e1, const double* e2, const double* e3, double cost, double sint, double phi, double* dir);
 
 /* ------------------------------------------------------------------------ */
@@ -140,6 +149,7 @@ typedef struct {
 
 int mcvine_shape_init (mcvine_shape* s, double radius, double xwidth, double yheight, double zdepth, double thickness, const char* owner);
 /* time intervals [seg[2i], seg[2i+1]] (t>=0) spent inside the material */
+#pragma acc routine seq
 int mcvine_shape_segments (const mcvine_shape* s, double x, double y, double z, double vx, double vy, double vz, double* seg);
 
 /* kernel S function: modifies v (and may read r, t); multiplies *p by the
@@ -157,7 +167,31 @@ typedef struct {
 
 void mcvine_scatterer_init (mcvine_scatterer* sc, const mcvine_shape* s, double mu2200, double sigma, double pack, double p_transmit, int order);
 /* returns -1: event must be absorbed; 0: missed/transmitted; n>0: scattered n times */
-int mcvine_scatterer_interact (const mcvine_scatterer* sc, void* kernel, mcvine_S_fn S, _class_particle* _particle);
+#pragma acc routine seq
+int mcvine_scatterer_interact (const mcvine_scatterer* sc, void* kernel, int kind, _class_particle* _particle);
+
+/* Kernel ids for mcvine_scatterer_interact / mcvine_S. OpenACC device code cannot
+   call through function pointers, so the S function is selected with a switch.
+   (mcvine_S_fn above is still used by the CPU-only Union processes.)       */
+enum {
+  MCVINE_K_ConstantEnergyTransfer,
+  MCVINE_K_ConstantQE,
+  MCVINE_K_ConstantvQE,
+  MCVINE_K_E_Q,
+  MCVINE_K_Broadened_E_Q,
+  MCVINE_K_E_vQ,
+  MCVINE_K_SQ,
+  MCVINE_K_SvQ,
+  MCVINE_K_SQE,
+  MCVINE_K_DGSSXRes,
+  MCVINE_K_SANS2D_ongrid,
+  MCVINE_K_Phonon_IncoherentElastic,
+  MCVINE_K_Phonon_IncoherentInelastic,
+  MCVINE_K_Phonon_CoherentInelastic_PolyXtal,
+  MCVINE_K_Phonon_CoherentInelastic_SingleXtal,
+};
+#pragma acc routine seq
+int mcvine_S (int kind, void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 /* cross section helper: barn / AA^3 -> 1/m */
 double mcvine_xs2coeff (double xs_barn, double V_AA3);
@@ -168,16 +202,19 @@ double mcvine_xs2coeff (double xs_barn, double V_AA3);
 typedef struct {
   double m_E;
 } mcvine_kernel_ConstantEnergyTransfer;
+#pragma acc routine seq
 int mcvine_S_ConstantEnergyTransfer (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
   double m_Q, m_E;
 } mcvine_kernel_ConstantQE;
+#pragma acc routine seq
 int mcvine_S_ConstantQE (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
   double m_Q[3], m_E, m_dE;
 } mcvine_kernel_ConstantvQE;
+#pragma acc routine seq
 int mcvine_S_ConstantvQE (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
@@ -185,6 +222,7 @@ typedef struct {
   double m_Qmin, m_Qmax;
   int m_unbiased;
 } mcvine_kernel_E_Q;
+#pragma acc routine seq
 int mcvine_S_E_Q (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
@@ -193,6 +231,7 @@ typedef struct {
   int m_lorentzian, m_unbiased;
 } mcvine_kernel_Broadened_E_Q;
 void mcvine_Broadened_E_Q_init (mcvine_kernel_Broadened_E_Q* k);
+#pragma acc routine seq
 int mcvine_S_Broadened_E_Q (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
@@ -201,17 +240,20 @@ typedef struct {
   int m_nsteps;
   double m_xacc;
 } mcvine_kernel_E_vQ;
+#pragma acc routine seq
 int mcvine_S_E_vQ (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
   mcvine_func m_S;
   double m_Qmin, m_Qmax;
 } mcvine_kernel_SQ;
+#pragma acc routine seq
 int mcvine_S_SQ (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
   mcvine_func m_S;
 } mcvine_kernel_SvQ;
+#pragma acc routine seq
 int mcvine_S_SvQ (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
@@ -219,19 +261,23 @@ typedef struct {
   double m_Qmin, m_Qmax, m_Emin, m_Emax, m_Ef, m_dEf;
   int m_focusing;
 } mcvine_kernel_SQE;
+#pragma acc routine seq
 int mcvine_S_SQE (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
   double m_target[3], m_target_radius, m_tof_at_target, m_dtof;
 } mcvine_kernel_DGSSXRes;
+#pragma acc routine seq
 int mcvine_DGSSXRes_final (const mcvine_kernel_DGSSXRes* k, const double* dir, double solid_angle, double L, double* v, double t, double* p,
                            _class_particle* _particle);
+#pragma acc routine seq
 int mcvine_S_DGSSXRes (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
   mcvine_grid2d m_S;
   double m_Qx_min, m_Qx_max, m_Qy_min, m_Qy_max;
 } mcvine_kernel_SANS2D_ongrid;
+#pragma acc routine seq
 int mcvine_S_SANS2D_ongrid (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 /* ---- phonon support ---- */
@@ -244,10 +290,13 @@ typedef struct {
 /* reads 2-column ASCII (E[meV] g(E)) or IDF binary DOS (THz); applies
    MCViNE's nice_dos() (resample >=500 pts, parabolic low-E, normalize)   */
 int mcvine_dos_load (mcvine_dos* d, const char* file, int ascii_THz, const char* owner);
+#pragma acc routine seq
 double mcvine_dos_value (const mcvine_dos* d, double E);
 /* Debye-Waller core (2W = core*Q^2, AA^2) from DOS, MCViNE DWFromDOS */
 double mcvine_dw_core_from_dos (const mcvine_dos* d, double mass_amu, double T, int nsample);
+#pragma acc routine seq
 double mcvine_bose (double E, double T);               /* 1/(exp(|E|/kT)-1)   */
+#pragma acc routine seq
 double mcvine_phonon_bose_factor (double E, double T); /* n+1 (E>0), n (E<0) */
 
 typedef struct {
@@ -273,12 +322,15 @@ typedef struct {
 } mcvine_dispersion;
 /* read an MCViNE IDF phonon directory: Qgridinfo, Omega2, Polarizations, DOS */
 int mcvine_dispersion_load_idf (mcvine_dispersion* d, const char* dir, const char* owner);
+#pragma acc routine seq
 double mcvine_dispersion_energy (const mcvine_dispersion* d, int branch, const double* Q);
+#pragma acc routine seq
 void mcvine_dispersion_polarization (const mcvine_dispersion* d, int branch, int atom, const double* Q, double* re, double* im);
 
 typedef struct {
   double m_dw_core;
 } mcvine_kernel_Phonon_IncoherentElastic;
+#pragma acc routine seq
 int mcvine_S_Phonon_IncoherentElastic (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
@@ -289,6 +341,7 @@ typedef struct {
   int m_focusing;
   double m_Ef, m_dEf;
 } mcvine_kernel_Phonon_IncoherentInelastic;
+#pragma acc routine seq
 int mcvine_S_Phonon_IncoherentInelastic (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
@@ -298,6 +351,7 @@ typedef struct {
   double m_dw_core, m_T, m_max_omega, m_min_omega, m_xs_coh_tot;
   int m_unbiased;
 } mcvine_kernel_Phonon_CoherentInelastic_PolyXtal;
+#pragma acc routine seq
 int mcvine_S_Phonon_CoherentInelastic_PolyXtal (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 typedef struct {
@@ -310,6 +364,7 @@ typedef struct {
   double m_xacc;
   int m_unbiased;
 } mcvine_kernel_Phonon_CoherentInelastic_SingleXtal;
+#pragma acc routine seq
 int mcvine_S_Phonon_CoherentInelastic_SingleXtal (void* k, const double* r, double* v, double t, double* p, _class_particle* _particle);
 
 #endif /* MCVINE_LIB_H */

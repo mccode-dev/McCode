@@ -348,7 +348,7 @@ fractal_sq(double q, double radius, double fractal_dim, double cor_length)
         // Note: for large Dm1, sin(Dm1*atan(q*cor_length) can go negative
         const double t1 = sas_gamma(D+1.)/Dm1*sin(Dm1*atan(q*cor_length));
         const double t2 = pow(q*radius, -D);
-        const double t3 = pow(1.0 + 1.0/square(q*cor_length), -0.5*Dm1);
+        const double t3 = pow(1.0 + 1.0/sas_square(q*cor_length), -0.5*Dm1);
         term = t1 * t2 * t3;
     }
     return 1.0 + term;
@@ -365,7 +365,7 @@ fractal_sq(double q, double radius, double fractal_dim, double cor_length)
  static double
  form_volume_fractal(double radius)
  {
-     return M_4PI_3 * cube(radius);
+     return M_4PI_3 * sas_cube(radius);
  }
 
 static double
@@ -518,29 +518,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

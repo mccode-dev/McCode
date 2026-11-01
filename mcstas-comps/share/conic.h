@@ -486,7 +486,7 @@ double solveQuad(double A, double B, double C) {
 }
 
 //! Returns sign of x, either -1 or 1
-int sign(double x) {
+int conic_sign(double x) {
     if (x < 0)
         return -1;
     return 1;
@@ -1094,7 +1094,7 @@ ConicSurf makeParaboloid(double f, Point p, double zstart,
     s.ze = zend;
 
     double r2 = p.x*p.x+p.y*p.y;
-    double a = (-(p.z-f)+sign(p.z-f)*sqrt((p.z-f)*(p.z-f)+r2))/2;
+    double a = (-(p.z-f)+conic_sign(p.z-f)*sqrt((p.z-f)*(p.z-f)+r2))/2;
 
     s.k3 = 0.0;
     s.k2 = 4*a;
@@ -1152,7 +1152,7 @@ FlatSurf makeFlatparbola(
     s.ze = zend;
 
     double r2 = p.x*p.x+p.y*p.y;
-    double a = (-(p.z-f)+sign(p.z-f)*sqrt((p.z-f)*(p.z-f)+r2))/2;
+    double a = (-(p.z-f)+conic_sign(p.z-f)*sqrt((p.z-f)*(p.z-f)+r2))/2;
 
     s.k3 = 0.0;
     s.k2 = 4*a;
@@ -1343,7 +1343,7 @@ Vec getNormConic(Point p, ConicSurf s) {
     double den = sqrt(det);
     double nx = -2*p.x/den;
     double ny = -2*p.y/den;
-    double nz = sign(2*s.k3*p.z+s.k2);
+    double nz = conic_sign(2*s.k3*p.z+s.k2);
     double n = sqrt(nx*nx+ny*ny+nz*nz);
     return makeVec(nx/n,ny/n,nz/n);
 }
@@ -1373,7 +1373,7 @@ Vec getNormFlat(Point p, FlatSurf s) {
     }
     double nx = -2*p.x/den;
     double ny = 0;
-    double nz = sign(2*s.k3*p.z+s.k2);
+    double nz = conic_sign(2*s.k3*p.z+s.k2);
     double n = sqrt(nx*nx+ny*ny+nz*nz);
     return makeVec(nx/n,ny/n,nz/n);
 }
@@ -1698,7 +1698,7 @@ void refractNeutronFlat(_class_particle* p, Vec n, double m1, double m2) {
     //printf("the magnitude %f\n", k2_perp);
     if (k2_perp>0){//refraction
         
-        k2_perp = sqrt(k2_perp)*sign(vn);
+        k2_perp = sqrt(k2_perp)*conic_sign(vn);
         p->vx = v_p.x + n.x*k2_perp;
         p->vy = v_p.y + n.y*k2_perp;
         p->vz = v_p.z + n.z*k2_perp;

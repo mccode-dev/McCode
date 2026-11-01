@@ -24,7 +24,74 @@ env:
   NVHPC_VERSION: '26.9'
 
 jobs:
+  # Decides once per run whether the instrument simulations in build and
+  # freebsd are needed: only when the code generator, the runtime,
+  # mcrun/mccodelib/mctest, the mcstas components or this workflow changed; other
+  # changes (other CI, other tools, docs) only build. Scheduled and manual runs
+  # always simulate.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.sims.outputs.run }}
+      diffbase: ${{ steps.sims.outputs.diffbase }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        path: src
+        fetch-depth: 0
+
+    - name: Check for simulation-relevant changes
+      id: sims
+      run: |
+           set -euo pipefail
+           set -x
+           # Determine which base commit to diff against, robustly - this
+           # replaces the old `git diff --name-only HEAD HEAD~1`, which only
+           # ever considers the single most recent commit. That silently
+           # misses changes whenever a PR or push contains more than one
+           # commit (verified: a 3-commit PR touching 3 different files was
+           # only detected as a 1-file change under the old logic).
+           #
+           # - pull_request / pushes to non-main branches: diff against the
+           #   merge-base with origin/main, so every commit since branching
+           #   off main is considered, however many there are and regardless
+           #   of rebases/force-pushes on the branch itself.
+           # - direct pushes to main: origin/main already includes this very
+           #   push by the time we fetch it, so merge-base against it would
+           #   wrongly show zero changes. Diff against the pre-push SHA
+           #   (github.event.before) instead, so a multi-commit push to main
+           #   still gets its full set of changes considered.
+           cd src
+           git fetch origin main --quiet || true
+           if [ "${{ github.ref }}" == "refs/heads/main" ] && [ "${{ github.event_name }}" == "push" ]; then
+             DIFFBASE="${{ github.event.before }}"
+             if [ -z "$DIFFBASE" ] || [ "$DIFFBASE" == "0000000000000000000000000000000000000000" ]; then
+               DIFFBASE=$(git rev-parse HEAD~1)
+             fi
+           else
+             DIFFBASE=$(git merge-base origin/main HEAD)
+           fi
+           echo "diffbase=$DIFFBASE" >> "$GITHUB_OUTPUT"
+           if [ "${{ github.event_name }}" != "push" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
+             echo "${{ github.event_name }} run - simulating everything"
+             echo "run=true" >> "$GITHUB_OUTPUT"
+             exit 0
+           fi
+           PY=$(command -v python3 || command -v python)
+           # Changed files (doc-header-only .comp/.instr edits left out, see
+           # devel/bin/mccode-git-diff-code) plus deleted files
+           CHANGED=$(${PY} devel/bin/mccode-git-diff-code "$DIFFBASE" HEAD && git diff --name-only --diff-filter=D "$DIFFBASE" HEAD)
+           RELEVANT=$(echo "$CHANGED" | grep -E '^((mccode|common|tools/Python/(mcrun|mccodelib|mctest)|mcstas-comps)/|\.github/workflows/mcstas-basictest\.yml$)' || true)
+           echo "Simulation-relevant changes: ${RELEVANT:-none}"
+           if [ -n "$RELEVANT" ]; then
+             echo "run=true" >> "$GITHUB_OUTPUT"
+           else
+             echo "run=false" >> "$GITHUB_OUTPUT"
+           fi
+
   build:
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
@@ -69,8 +136,9 @@ jobs:
 
     # nvhpc (~5 GB download, ~15 GB installed) installs in the background
     # while the conda env and code generator (conda compilers) are built
+    # - only needed for the simulation steps, so skipped when they are
     - name: Start nvhpc install (background, OpenACC)
-      if: matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.openacc
       run: |
            { (
              set -euo pipefail
@@ -390,7 +458,7 @@ jobs:
            test -z "${MCSTAS:-}"
 
     - name: Wait for nvhpc install (OpenACC)
-      if: matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.openacc
       timeout-minutes: 45
       run: |
            while [ ! -f nvhpc.done ]; do sleep 15; done
@@ -423,7 +491,7 @@ jobs:
     # Start of tests (shared across all 5 matrix legs)
     - name: Launch RNG test instrument
       id: RNG-test
-      if: ${{ !matrix.openacc }}
+      if: needs.changes.outputs.run == 'true' && !matrix.openacc
       run: |
            set -e
            set -u
@@ -457,6 +525,7 @@ jobs:
 
     - name: Launch basic tests
       id: basictests
+      if: needs.changes.outputs.run == 'true'
       run: |
            set -e
            set -u
@@ -484,7 +553,7 @@ jobs:
       # found via the resource dir baked into the binary by the code generator -
       # the situation on mccode.org-style .deb installs, where $MCSTAS is unset.
       # classic only: the antlr code generator embeds a released runtime
-      if: matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
       run: |
            set -e
            set -u
@@ -510,7 +579,7 @@ jobs:
     - name: MPI event-list output regression test
       id: mpilisttest
       # classic only: the antlr code generator embeds a released runtime
-      if: matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
       run: |
            set -e
            set -u
@@ -529,7 +598,7 @@ jobs:
     - name: NeXus output regression test
       id: nexusoutputtest
       # classic only: the antlr code generator embeds a released runtime
-      if: matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.cogen == 'classic' && matrix.nmpi != '0' && !matrix.openacc
       run: |
            set -e
            set -u
@@ -547,6 +616,7 @@ jobs:
 
     - name: Check for modified instruments
       id: instr-test
+      if: needs.changes.outputs.run == 'true'
       run: |
            set -e
            set -u
@@ -560,32 +630,8 @@ jobs:
            fi
            export PERMISSIVE=" "
 
-           # Determine which base commit to diff against, robustly - this
-           # replaces the old `git diff --name-only HEAD HEAD~1`, which only
-           # ever considers the single most recent commit. That silently
-           # misses changes whenever a PR or push contains more than one
-           # commit (verified: a 3-commit PR touching 3 different files was
-           # only detected as a 1-file change under the old logic).
-           #
-           # - pull_request / pushes to non-main branches: diff against the
-           #   merge-base with origin/main, so every commit since branching
-           #   off main is considered, however many there are and regardless
-           #   of rebases/force-pushes on the branch itself.
-           # - direct pushes to main: origin/main already includes this very
-           #   push by the time we fetch it, so merge-base against it would
-           #   wrongly show zero changes. Diff against the pre-push SHA
-           #   (github.event.before) instead, so a multi-commit push to main
-           #   still gets its full set of changes considered.
+           DIFFBASE="${{ needs.changes.outputs.diffbase }}"
            cd src
-           git fetch origin main --quiet || true
-           if [ "${{ github.ref }}" == "refs/heads/main" ] && [ "${{ github.event_name }}" == "push" ]; then
-             export DIFFBASE="${{ github.event.before }}"
-             if [ -z "$DIFFBASE" ] || [ "$DIFFBASE" == "0000000000000000000000000000000000000000" ]; then
-               export DIFFBASE=$(git rev-parse HEAD~1)
-             fi
-           else
-             export DIFFBASE=$(git merge-base origin/main HEAD)
-           fi
            echo "Diffing against: $DIFFBASE"
            PY=$(command -v python3 || command -v python)
            # Changed components and instruments, in one pass (doc-header-only and
@@ -618,7 +664,7 @@ jobs:
 
     - name: 'Tar output files'
       id: tar-package
-      if: always()
+      if: always() && needs.changes.outputs.run == 'true'
       run: |
            set -e
            set -u
@@ -630,7 +676,7 @@ jobs:
     - name: 'Upload Artifact'
       id: tar-upload
       uses: actions/upload-artifact@v6
-      if: always() && !matrix.openacc
+      if: always() && needs.changes.outputs.run == 'true' && !matrix.openacc
       with:
         name: mcstas-artefacts-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
         path: "mcstas-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}_output.tgz"
@@ -666,9 +712,130 @@ jobs:
       with:
         limit-access-to-actor: true
 
+  # Source build of McStas/McXtrace in a FreeBSD VM, after the approach in
+  # mctools/mcpl and mctools/ncrystal (.github/workflows/freebsd.yml).
+  # Tests follow the build job above (classic cogen, no KDSource/xraylib), artifacts
+  # use its naming so they can sit next to the other platforms' output. Runs only
+  # when the changes job finds simulation-relevant changes.
+  freebsd:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: mcstas
+            build: BUILD_MCSTAS
+            mcrun: mcrun
+            mctest: mctest
+            mpilists: Tests_monitors
+            pip: mcpl ncrystal
+            instr: BNL_H8,ISIS_CRISP,templateSANS_Mantid,NCrystal_example,ESS_BEER_MCPL,Test_MCPL_input,Test_MCPL_output,Masked_ESS_butterfly_image
+    name: freebsd.${{ matrix.flavor }}
+    runs-on: ubuntu-latest
+    env:
+      LABEL: ${{ matrix.flavor }}-classic.freebsd.freebsd-14.2.cc.mpich.python-pkg
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          path: src
+
+      - name: FreeBSD
+        uses: cross-platform-actions/action@v1.3.0
+        with:
+          operating_system: freebsd
+          version: '14.2'
+          run: |
+            set -eux
+            # FreeBSD's clang does not search /usr/local, so GSL and HDF5 dirs are passed explicitly.
+            # mpich, not openmpi: the openmpi pkg keeps mpicc/mpirun outside PATH.
+            # MPI builds use base cc + mpich paths, not mpich's mpicc: mpicc links with binutils ld,
+            # which lacks LLVMgold.so for the -flto that cmake probed with cc/lld.
+            # Python modules by port origin: follows the default Python flavour (pyXYZ-) on pkg updates.
+            sudo pkg install -y devel/cmake-core bison flex gsl hdf5 mpich python3 devel/py-pip devel/py-pyyaml devel/py-ply sysutils/py-psutil math/py-numpy science/py-h5py
+            # MCPL (and NCrystal for McStas) from PyPI (sdist builds, as in their own FreeBSD CI);
+            # McCode finds them at instrument compile time via mcpl-config / ncrystal-config on PATH.
+            python3 -mpip install --user ${{ matrix.pip }}
+            PATH="$HOME/.local/bin:$PATH"
+            export PATH
+            for p in ${{ matrix.pip }}; do $p-config --show buildflags; done
+            cmake -S ./src -B ./build \
+                -DCMAKE_INSTALL_PREFIX=$PWD/install \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DMCVERSION="3.99.99" \
+                -DMCCODE_BUILD_CONDA_PKG=OFF \
+                -DMCCODE_USE_LEGACY_DESTINATIONS=OFF \
+                -DBUILD_SHARED_LIBS=ON \
+                -DCMAKE_INSTALL_LIBDIR=lib \
+                -D${{ matrix.build }}=ON \
+                -DBUILD_TOOLS=ON \
+                -DENABLE_COMPONENTS=ON \
+                -DENSURE_MCPL=OFF \
+                -DENSURE_NCRYSTAL=OFF \
+                -DENABLE_CIF2HKL=OFF \
+                -DENABLE_NEUTRONICS=OFF \
+                -DGSLFLAGS="-I/usr/local/include -Wl,-rpath,/usr/local/lib -L/usr/local/lib -lgsl -lgslcblas" \
+                -DNEXUSLIB=/usr/local/lib \
+                -DNEXUSINCLUDE=/usr/local/include \
+                -DMPICC=cc \
+                -DMPILIBDIR=/usr/local/lib \
+                -DMPIINCLUDEDIR=/usr/local/include
+            cmake --build ./build --config Release --parallel 2
+            cmake --install ./build --config Release
+            PATH="$PWD/install/bin:$PATH"
+            export PATH
+            cat install/share/${{ matrix.flavor }}/tools/Python/mccodelib/mccode_config.json
+            ${{ matrix.flavor }} --version
+            # RNG test (same expected checksum as the basictests)
+            ${{ matrix.mctest }} --verbose --noplots --instr=Test_RNG_rand01 --testdir=run_rngtest --suffix=classic_freebsd --uid=freebsd
+            SUM=$(find run_rngtest -name rngout.dat | xargs -n1 grep -v \# | md5 -q)
+            test "$SUM" = "6c203d69205b0656c1391555e6068c93"
+            # Basic tests
+            ${{ matrix.mctest }} --verbose --noplots --mpi=2 --instr=${{ matrix.instr }} --testdir=run_basictests --suffix=classic_freebsd_cc_mpich --uid=freebsd
+            # MPI event-list, NeXus output and mcplot loader regression tests.
+            # No SIGTERM check: the runtime installs its sighandler with OpenMPI only (MPICH uses signals).
+            python3 src/${{ matrix.flavor }}-comps/examples/${{ matrix.mpilists }}/Test_Monitor_nD_list_MPI/test_mpi_lists.py --np 2 --mcrun ${{ matrix.mcrun }} --workdir run_mpilists --sigterm-ncount 0
+            python3 src/${{ matrix.flavor }}-comps/examples/Tests_other/Test_NeXus_output/test_nexus_output.py --np 2 --mcrun ${{ matrix.mcrun }} --workdir run_nexusoutput
+            python3 src/${{ matrix.flavor }}-comps/examples/Tests_other/Test_mcplot_loader/test_mcplot_loader.py --mcrun ${{ matrix.mcrun }} --workdir run_mcplotloader
+
+      # The VM syncs the work dir back to the host on teardown, also after a failure
+      - name: 'Tar output files'
+        if: always()
+        run: |
+             set -eux
+             ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d
+             tar cvfz ${LABEL}_output.tgz run_*
+
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ${{ matrix.flavor }}-artefacts-classic.freebsd.freebsd-14.2.cc.mpich.python-pkg
+          path: ${{ env.LABEL }}_output.tgz
+
+      - name: 'Tar logs of failed tests'
+        if: always()
+        run: |
+             set -eux
+             { find run_* -name '*.failed' 2>/dev/null || true
+               grep -rl --include='*.json' --exclude='testresults_*' '"failed": true' run_* 2>/dev/null || true
+             } | sed 's#/[^/]*$##' | sort -u | while read -r d; do
+               find "$d" -maxdepth 1 -type f \( -name '*.txt' -o -name '*.failed' -o -name '*.json' \)
+             done > failed_logs.txt
+             if [ -s failed_logs.txt ]; then tar cvfz ${LABEL}_failedlogs.tgz -T failed_logs.txt; fi
+
+      - name: 'Upload failed-test logs'
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ${{ matrix.flavor }}-failedlogs-classic.freebsd.freebsd-14.2.cc.mpich.python-pkg
+          path: ${{ env.LABEL }}_failedlogs.tgz
+          if-no-files-found: ignore
+
   compare:
     name: mcstas-basictest-comparison
-    needs: build
+    needs: [build, freebsd]
     # Only when plots are requested (manual runs with the "plots" tickbox)
     if: always() && inputs.plots
     runs-on: ubuntu-latest

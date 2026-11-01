@@ -255,23 +255,18 @@ MCDISPLAY
   for (i = 0; i < s.num_f; i++) {
     double step = (s.f[i].ze - s.f[i].zs) / 100;
     double cz, rp, rc;
-	double last_cz = 0;
+    double last_cz = 0;
 
     cz = s.f[i].zs;
-
-    // front line
-    rp = wFlat (cz, s.f[i]);
-    line (rp, -half_mirror_sidelength, cz, rp, half_mirror_sidelength, cz);
-    line (-rp, -half_mirror_sidelength, cz, -rp, half_mirror_sidelength, cz);
 
     for (cz = s.f[i].zs + step; cz < s.f[i].ze; cz += step) {
       rp = wFlat (cz - step, s.f[i]);
       rc = wFlat (cz, s.f[i]);
 
-      line (rp, -half_mirror_sidelength, cz - step, rc, -half_mirror_sidelength, cz);
-      line (rp, half_mirror_sidelength, cz - step, rc, half_mirror_sidelength, cz);
-      line (-rp, -half_mirror_sidelength, cz - step, -rc, -half_mirror_sidelength, cz);
-      line (-rp, half_mirror_sidelength, cz - step, -rc, half_mirror_sidelength, cz);
+      polygon (4, rp, -half_mirror_sidelength, cz - step, rp, half_mirror_sidelength, cz - step, rc, half_mirror_sidelength, cz, rc, -half_mirror_sidelength,
+               cz);
+      polygon (4, -rp, -half_mirror_sidelength, cz - step, -rp, half_mirror_sidelength, cz - step, -rc, half_mirror_sidelength, cz, -rc,
+               -half_mirror_sidelength, cz);
 
       last_cz = cz;
     }
@@ -280,14 +275,10 @@ MCDISPLAY
     // cz to s.f[i].ze
     rp = wFlat (last_cz, s.f[i]);
     rc = wFlat (s.f[i].ze, s.f[i]);
-    line (rp, -half_mirror_sidelength, last_cz, rc, -half_mirror_sidelength, s.f[i].ze);
-    line (rp, half_mirror_sidelength, last_cz, rc, half_mirror_sidelength, s.f[i].ze);
-    line (-rp, -half_mirror_sidelength, last_cz, -rc, -half_mirror_sidelength, s.f[i].ze);
-    line (-rp, half_mirror_sidelength, last_cz, -rc, half_mirror_sidelength, s.f[i].ze);
-
-    // end line
-    line (rc, -half_mirror_sidelength, s.f[i].ze, rc, half_mirror_sidelength, s.f[i].ze);
-    line (-rc, -half_mirror_sidelength, s.f[i].ze, -rc, half_mirror_sidelength, s.f[i].ze);
+    polygon (4, rp, -half_mirror_sidelength, last_cz, rp, half_mirror_sidelength, last_cz, rc, half_mirror_sidelength, s.f[i].ze, rc, -half_mirror_sidelength,
+             s.f[i].ze);
+    polygon (4, -rp, -half_mirror_sidelength, last_cz, -rp, half_mirror_sidelength, last_cz, -rc, half_mirror_sidelength, s.f[i].ze, -rc,
+             -half_mirror_sidelength, s.f[i].ze);
   }
 %}
 

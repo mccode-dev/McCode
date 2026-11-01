@@ -73,58 +73,66 @@ INITIALIZE
 
 TRACE
 %{
-  double l0, l1, dl, alpha, n, nx, nz, s, k, knx, knz;
+  double l0, l1, dl, alpha, n, nx, nz, s, k, knx, knz, k_total;
   /* dl init - cppcheck complains about algorithm below */
   dl=0;
   /*do we hit the mirror within range?*/
   // PROP_Z0;
   k = sqrt (scalar_prod (kx, 0, kz, kx, 0, kz));
+  k_total = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
   knx = kx / k;
   knz = kz / k;
   if (solve_2nd_order (&l0, &l1, knx* knx + knz * knz, 2 * (x * knx + z * knz - radius * knx), x* x - 2 * x * radius + z * z)) {
     if (l0 < 0 && l1 > 0) {
-      dl = l1;
+      if (fabs (x + knx * l1) < fabs (radius)) {
+        dl = l1;
+      }
     } else if (l1 < 0 && l0 > 0) {
-      dl = l0;
+      if (fabs (x + knx * l0) < fabs (radius)) {
+        dl = l0;
+      }
     } else if (l0 > 0 && l1 > 0) {
-      if (fabs (z + knz * l0) < zdepth / 2.0 && fabs (x + knx * l0) < fabs (radius)) {
+      if (fabs (radius * asin ((z + knz * l0) / radius)) < zdepth / 2.0 && fabs (y + (ky / k) * l0) < yheight / 2.0 && fabs (x + knx * l0) < fabs (radius)) {
         /*this means that the first positive match is on the mirror z-wise
           - this should be picked. This would work even if mirror is hit from behind*/
         dl = l0;
-      } else {
+      } else if (fabs (radius * asin ((z + knz * l1) / radius)) < zdepth / 2.0 && fabs (y + (ky / k) * l1) < yheight / 2.0 && fabs (x + knx * l1) < fabs (radius)) {
         dl = l1;
       }
-    } else {
-      /*particle misses the mirror completely (l0<0 and l1<0)*/
-      RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
     }
+    /* else: particle misses the mirror completely (l0<0 and l1<0), dl stays 0 */
 
-    /*correction for only solving in xz-plane*/
-    dl *= sqrt (scalar_prod (kx, ky, kz, kx, ky, kz) / scalar_prod (kx, 0, kz, kx, 0, kz));
+    if (dl != 0) {
+      /*correction for only solving in xz-plane*/
+      dl *= sqrt (scalar_prod (kx, ky, kz, kx, ky, kz) / scalar_prod (kx, 0, kz, kx, 0, kz));
 
-    PROP_DL (dl);
-    alpha = asin (z / radius);
-    if ((zdepth < radius * alpha) || (fabs (y) > yheight / 2.0)) {
-      RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
-    } else {
-      SCATTER;
-      /*reflection*/
-      nx = radius - x;
-      nz = -z;
-      n = sqrt (nx * nx + nz * nz);
-      nx /= n;
-      nz /= n;
+      /* undo the propagation by hand on a miss rather than RESTORE_XRAY: the runtime's restore
+         clears ABSORBED, which would cancel an ABSORB in the instrument EXTEND block */
+      double x0 = x, y0 = y, z0 = z, t0 = t, phi0 = phi;
+      PROP_DL (dl);
+      alpha = asin (z / radius);
+      if ((zdepth / 2.0 < fabs (radius * alpha)) || (fabs (y) > yheight / 2.0)) {
+        x = x0; y = y0; z = z0; t = t0; phi = phi0;
+      } else {
+        SCATTER;
+        /*reflection*/
+        nx = radius - x;
+        nz = -z;
+        n = sqrt (nx * nx + nz * nz);
+        nx /= n;
+        nz /= n;
 
-      s = scalar_prod (kx, 0, kz, nx, 0, nz);
-      kx = kx - 2 * s * nx;
-      kz = kz - 2 * s * nz;
+        s = scalar_prod (kx, 0, kz, nx, 0, nz);
+        kx = kx - 2 * s * nx;
+        kz = kz - 2 * s * nz;
 
-      double Q;
-      /*length of wavevector transfer may be compute from s and n_ above*/
-      Q = fabs (2 * s * sqrt (nx * nx + nz * nz));
-      cdouble R = refleccq (re, Q, 0, k, fabs (90 - acos (s / k) * RAD2DEG));
-      p *= sqrt (creal (cmul(R, conj (R))));
-      phi += atan2 (cimag (R), creal (R));
+        double Q;
+        /*length of wavevector transfer may be compute from s and n_ above*/
+        Q = fabs (2 * s * sqrt (nx * nx + nz * nz));
+        cdouble R = refleccq (re, Q, 0, k_total, fabs (90 - acos (s / k_total) * RAD2DEG));
+        p *= sqrt (creal (cmul(R, conj (R))));
+        phi += atan2 (cimag (R), creal (R));
+      }
     }
   } else if (fabs (kx) < DBL_EPSILON && fabs (kz) < DBL_EPSILON && ky != 0) {
     /*This to catch the extreme case where k//y.*/
@@ -146,16 +154,13 @@ MCDISPLAY
   alpha = -(zdepth / 2.0) / fabs (radius);
   x0 = radius * (1 - cos (alpha));
   z0 = radius * sin (alpha);
-  line (x0, y0, z0, x0, y1, z0);
   while (alpha < (zdepth / 2.0 / fabs (radius))) {
     alpha += zdepth / N / fabs (radius);
     x1 = radius * (1 - cos (alpha));
     z1 = radius * sin (alpha);
-    line (x0, y0, z0, x1, y0, z1);
-    line (x0, y1, z0, x1, y1, z1);
+    polygon (4, x0, y0, z0, x0, y1, z0, x1, y1, z1, x1, y0, z1);
     x0 = x1;
     z0 = z1;
-    line (x0, y0, z0, x0, y1, z0);
   }
 %}
 

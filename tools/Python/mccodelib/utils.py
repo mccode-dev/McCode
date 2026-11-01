@@ -1037,7 +1037,12 @@ def dumpfile_pqtg(scene, filenamebase='mcplot', format='png'):
         exporter.export(outputfile)
     elif format=='svg':
         exporter = pg.exporters.SVGExporter(scene)
-        exporter.export(outputfile)
+        try:
+            exporter.export(outputfile)
+        except ValueError as e:
+            # pyqtgraph 0.14.0 cannot parse the SVG path syntax written by Qt 6.11
+            print('SVG export failed in pyqtgraph (%s), use PNG export instead' % e)
+            return
         # This is where PDF export would be handled via conversion from SVG
         #    elif format=='pdf':
         #        exporter = pg.exporters.SVGExporter(scene)

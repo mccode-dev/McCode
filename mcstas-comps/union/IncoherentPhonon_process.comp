@@ -74,6 +74,9 @@ SHARE
   %include "union-lib"
 
   #ifndef INCOHERENTPHONON
+  /* Define INCOHERENTPHONON_DEBUG_FILES (e.g. -DINCOHERENTPHONON_DEBUG_FILES) to write
+     the debug files xlim.txt, Qlim.txt, interpDoS.txt, quad.txt, tirar.txt,
+     SQ2_mph_comp.txt and dXSdQ2_mph.txt. Off by default. */
   #define INCOHERENTPHONON
   #define maxIter    1000            // Maximum number of iterations for sampling via the rejection method
   #define KS2E       2.0721          // Energy / wave-vector^2 constant
@@ -384,7 +387,7 @@ SHARE
     }
     if (data->nphe_exact > 2) {
       data->xs3phe = interpFunc (kabs, data->nxs, data->kabs, data->xsTot_3ph);
-      data->xsTot += data->xs2phe;
+      data->xsTot += data->xs3phe;
     }
 
     // approximate terms in phonon expansion (none if approx==0)
@@ -2147,6 +2150,8 @@ SHARE
       fmax = interpFunc (u, np, data->u, data->dXSdQ2_Fmax_mph);
       Q2m = interpFunc (u, np, data->u, data->dXSdQ2_Q2max_mph);
       fmax = (data->dXSdQ2_Fmax_mph)[data->np_u_mph - 1];
+      Q2min = (data->Q2min)[0];
+      Q2max = (data->Q2max)[0];
       printf ("u<data->u[0]\n");
     } else if (u > (data->u)[np - 1]) {
       u1 = (data->u)[np - 1];
@@ -2227,16 +2232,22 @@ SHARE
     printf ("umin: %f\n", umin);
     fflush (stdout);
     // look for umax
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     filep = fopen ("tirar.txt", "w");
+    #endif
     u = 0;
     xs = quad_dXSdu_mph (u, data);
     while (fabs (xs - 2 * PI) > 0.01) {
       u += 1;
       xs = quad_dXSdu_mph (u, data);
+      #ifdef INCOHERENTPHONON_DEBUG_FILES
       fprintf (filep, "%f %.6e %.6e\n", u, xs, fabs (xs - 2 * PI));
       fflush (filep);
+      #endif
     }
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     fclose (filep);
+    #endif
     umax = u;
     printf ("umax: %f\n", umax);
     fflush (stdout);
@@ -2505,7 +2516,9 @@ SHARE
     n = 10000;
     dQ2 = 50. / n;
 
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     filep = fopen ("dXSdQ2_mph.txt", "w");
+    #endif
     for (i = 0; i < np; i++) {
       u = (data->u)[i];
       pfm[i] = -1.0;
@@ -2513,14 +2526,18 @@ SHARE
       for (j = 0; j < n; j++) {
         Q2 = j * dQ2;
         xs = SFuncInterp (u / Q2, Q2, data);
+        #ifdef INCOHERENTPHONON_DEBUG_FILES
         fprintf (filep, "%d %f %f %.6e\n", i, u, Q2, xs);
+        #endif
         if (xs > pfm[i]) {
           pfm[i] = xs;
           pQ2[i] = Q2;
         }
       }
+      #ifdef INCOHERENTPHONON_DEBUG_FILES
       fprintf (filep, "\n\n");
       fflush (filep);
+      #endif
       // limits
       Q2min[i] = 0;
       Q2 = pQ2[i];
@@ -2545,7 +2562,9 @@ SHARE
         }
       }
     }
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     fclose (filep);
+    #endif
 
     data->dXSdQ2_Q2max_mph = pQ2;
     data->dXSdQ2_Fmax_mph = pfm;
@@ -2599,29 +2618,41 @@ SHARE
 
     tol = 1.0e-6;
 
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     filep2 = fopen ("Qlim.txt", "a");
+    #endif
 
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     filep = fopen ("SQ2_mph_comp.txt", "w");
+    #endif
     fprintf (data->filep, "compute_SQ2_mph: open\n");
     fflush (data->filep);
 
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     fprintf (filep, "%d\n", np);
+    #endif
     Q2 = Q2min;
     for (i = 0; i < np; i++) {
       ximin = -100;
+      #ifdef INCOHERENTPHONON_DEBUG_FILES
       fprintf (filep2, "==========\n");
       fflush (filep2);
+      #endif
       if (fabs (SFuncInterp (ximin, Q2, data)) < 1.0e-12) {
         while (fabs (SFuncInterp (ximin, Q2, data)) < 1.0e-12) {
+          #ifdef INCOHERENTPHONON_DEBUG_FILES
           fprintf (filep2, "0 %f %f %.16e\n", Q2, ximin, SFuncInterp (ximin, Q2, data));
           fflush (filep2);
+          #endif
           ximin += 1;
         }
         ximin -= 1;
       } else {
         while (fabs (SFuncInterp (ximin, Q2, data)) < 1.0e-12) {
+          #ifdef INCOHERENTPHONON_DEBUG_FILES
           fprintf (filep2, "0 %f %f %.16e\n", Q2, ximin, SFuncInterp (ximin, Q2, data));
           fflush (filep2);
+          #endif
           ximin -= 1;
         }
         ximin += 1;
@@ -2629,27 +2660,37 @@ SHARE
       ximax = 100;
       if (fabs (SFuncInterp (ximax, Q2, data)) < 1.0e-12) {
         while (fabs (SFuncInterp (ximax, Q2, data)) < 1.0e-12) {
+          #ifdef INCOHERENTPHONON_DEBUG_FILES
           fprintf (filep2, "1 %f %f %.16e\n", Q2, ximax, SFuncInterp (ximax, Q2, data));
           fflush (filep2);
+          #endif
           ximax -= 1;
         }
         ximax += 1;
       } else {
         while (fabs (SFuncInterp (ximax, Q2, data)) < 1.0e-12) {
+          #ifdef INCOHERENTPHONON_DEBUG_FILES
           fprintf (filep2, "1 %f %f %.16e\n", Q2, ximax, SFuncInterp (ximax, Q2, data));
           fflush (filep2);
+          #endif
           ximax += 1;
         }
         ximax -= 1;
       }
       (data->Q2)[i] = Q2;
       (data->SQ2_mph)[i] = quadFunc (ximin, ximax, Q2, tol, data, SFuncInterp);
+      #ifdef INCOHERENTPHONON_DEBUG_FILES
       fprintf (filep, "%f %.6e\n", (data->Q2)[i], (data->SQ2_mph)[i]);
       fflush (filep);
+      #endif
       Q2 += dQ2;
     }
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     fclose (filep);
+    #endif
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     fclose (filep2);
+    #endif
 
     fprintf (data->filep, "compute_SQ2_mph: end\n");
 
@@ -2710,7 +2751,6 @@ SHARE
     double E, x, xmin, xmax, dx, z, dz, u, Q2, tsp, Erat, Q2f;
     double fac1, fac2, yp, g0, g0Q2;
     double S, s1, ss;
-    double Se, s1e;
     double stol = 1.0e-8;
     FILE* filep;
 
@@ -2731,7 +2771,6 @@ SHARE
     while (1) {
       u = Erat * (1.0 - x * x);
       s1 = 0;
-      s1e = 0;
       for (j = 0; j <= nz; j++) {
         z = -1.0 + j * dz;
         Q2 = Q2f * (1.0 + x * x - 2.0 * x * z);
@@ -2759,10 +2798,8 @@ SHARE
         //
         if (j != 0 && j != nz) {
           s1 += S;
-          s1e += Se;
         } else {
           s1 += 0.5 * S;
-          s1e += 0.5 * Se;
         }
       }
       if (x * x * dz * s1 < stol) {
@@ -2775,7 +2812,6 @@ SHARE
     while (1) {
       u = Erat * (1.0 - x * x);
       s1 = 0;
-      s1e = 0;
       for (j = 0; j <= nz; j++) {
         z = -1.0 + j * dz;
         Q2 = Q2f * (1.0 + x * x - 2.0 * x * z);
@@ -2803,10 +2839,8 @@ SHARE
         //
         if (j != 0 && j != nz) {
           s1 += S;
-          s1e += Se;
         } else {
           s1 += 0.5 * S;
-          s1e += 0.5 * Se;
         }
       }
       if (x * x * dz * s1 < stol) {
@@ -2816,9 +2850,11 @@ SHARE
       x += dx;
     }
 
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     filep = fopen ("xlim.txt", "a");
     fprintf (filep, "%.6e %.6e %.6e %.6e\n", kabs, E, xmin, xmax);
     fclose (filep);
+    #endif
 
     nx = 10000;
     dx = (xmax - xmin) / nx;
@@ -4291,12 +4327,15 @@ SHARE
     int n;
     double s1, s2;
     double relTol;
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     FILE* filep;
-
     filep = fopen ("quad.txt", "a");
+    #endif
 
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     fprintf (filep, "===============\n");
     fflush (filep);
+    #endif
 
     n = 100;
     s1 = trapezFunc (n, x1, x2, v, data, func);
@@ -4307,8 +4346,10 @@ SHARE
     } else {
       relTol = tol * fabs (0.5 * (s1 + s2));
     }
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     fprintf (filep, "%f %d %.6e %.6e %.16e %.16e\n", v, n, s1, s2, s2 - s1, relTol);
     fflush (filep);
+    #endif
     while (n < nFCmax) {
       if (fabs (0.5 * (s1 + s2)) < 10) {
         relTol = tol;
@@ -4316,19 +4357,25 @@ SHARE
         relTol = tol * fabs (0.5 * (s1 + s2));
       }
       if (fabs (s2 - s1) < relTol) {
+        #ifdef INCOHERENTPHONON_DEBUG_FILES
         fprintf (filep, "===============\n");
         fclose (filep);
+        #endif
         return s2;
       }
       n *= 2;
       s1 = s2;
       s2 = trapezFunc (n, x1, x2, v, data, func);
+      #ifdef INCOHERENTPHONON_DEBUG_FILES
       fprintf (filep, "%f %d %.6e %.6e %.16e %.16e\n", v, n, s1, s2, s2 - s1, relTol);
       fflush (filep);
+      #endif
     }
 
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     fprintf (filep, "===============\n");
     fclose (filep);
+    #endif
 
     printf ("quadFunc: not converged\n");
     printf ("%f %f %d %.6e %.6e %.16e\n", x1, x2, n, s1, s2, s2 - s1);
@@ -4731,11 +4778,13 @@ SHARE
     free (e);
     free (Z);
 
+    #ifdef INCOHERENTPHONON_DEBUG_FILES
     filep = fopen ("interpDoS.txt", "w");
     for (i = 0; i < 10001; i++) {
       fprintf (filep, "%.16e %.16e\n", i * (data->Emax) / 10000, dos (i * (data->Emax) / 10000, data));
     }
     fclose (filep);
+    #endif
   };
 
   //////////////////////////////

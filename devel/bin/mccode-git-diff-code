@@ -8,7 +8,8 @@ TARGET, where code means:
   - everything from the DEFINE COMPONENT / DEFINE INSTRUMENT line onward, and
   - the %Example:/%Test: and %Scan:/%TestScan: lines of the header (mctest
     uses them as test definitions), so a header edit that touches them still
-    triggers a test run.
+    triggers a test run. Only the text after the tag is compared, so renaming
+    a tag (%Example: to %Test:, %Scan: to %TestScan:) is not a change.
     A %Scan: line includes its {}-enclosed target values (and optional _ERR
     values), which may span several header lines; re-wrapping those values is
     not a change.
@@ -75,7 +76,8 @@ def split(text):
     if not m:
         return '', squash(text)  # unrecognised layout: compare everything
     # the header's * line prefixes inside a multi-line {} value list are layout, not content
-    tests = [re.sub(r'\{[^}]*\}', lambda v: v.group(0).replace('*', ' '), t)
+    # only the text after the tag counts: renaming %Example: to %Test: (or %Scan: to %TestScan:) is no change
+    tests = [re.sub(r'\{[^}]*\}', lambda v: v.group(0).replace('*', ' '), t.split(':', 1)[1])
              for t in TESTLINE.findall(text[:m.start()])]
     return squash('\n'.join(tests)), squash(text[m.start():])
 
