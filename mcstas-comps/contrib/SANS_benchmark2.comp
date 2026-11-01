@@ -110,6 +110,10 @@ SHARE
       return B;
   };
 
+  /* Gamma function Gamma(X): Stirling series for ln Gamma, after shifting X up
+     to X0 >= 7 (where the series converges well) and recursing back down with
+     Gamma(X) = Gamma(X+1)/X. Gamma(1) = Gamma(2) = 1 exactly (GL stays 0).
+     Used for the power-law prefactor of the Beaucage model (cases 1-3). */
   double
   gamma (double X) {
 
@@ -160,6 +164,8 @@ SHARE
     return GL;
   };
 
+  /* Error function erf(x), x >= 0: Taylor series (x < 0.86), polynomial fit
+     around x = 1.5 (x < 2.12), asymptotic expansion (larger x). */
   double
   errf (double arg1) { /* precision approx. 1e-5, i.e. good enough for simulations */
 
@@ -196,6 +202,9 @@ SHARE
     return erf;
   };
 
+  /* NB: despite the name, this returns 2*J1(x)/x (-> 1 for x -> 0), i.e. the
+     normalised scattering amplitude of a cylinder cross-section, not the Bessel
+     function J1(x) itself. Power series for x < 6.11, asymptotic expansion above. */
   double
   J1 (double arg0) {
 
@@ -248,6 +257,13 @@ SHARE
     return J1o;
   };
 
+  /* Model library: macroscopic coherent differential cross-section
+     dSigma/dOmega(Q) in cm^-1 for model number sw, with Q in AA^-1.
+     Common ingredients:
+       drho  - scattering-length-density contrast [cm^-2]; drho^2 * (volume in
+               AA^3 * 1e-24 = cm^3) * volume fraction gives cm^-1.
+       exp(-sig^2 Q^2) - smooth high-Q cutoff (monomer size / film roughness).
+     Models 14, 16, 17, 18 are not defined and fall through to 0 (default). */
   double
   dSigdW (int sw, double Q, double* Qtab, double* Itab) {
 
@@ -286,6 +302,9 @@ SHARE
 
     switch (sw) {
 
+    /* Cases 1, 2: polymer coil, Beaucage "unified" model: Guinier term
+       G exp(-Q^2 Rg^2/3) plus a mass-fractal power law B (erf(Q k Rg/sqrt6)^3/(Q Rg))^(1/fle),
+       where the erf^3 factor switches the power law off below Q ~ 1/Rg. */
     case 1:        /* Polymer with Mw = 2.000g/mol     */
       Rg = 18.0;   /* radius of gyration in Angstroem  */
       Mw = 2000.0; /* molecular weight in g/mol        */
@@ -332,6 +351,8 @@ SHARE
       gam = 0.17; /* surfactant content vol/vol        */
       sig = 1.5;  /* roughness of surfactant film in AA*/
 
+      /* Teubner-Strey peak (domain spacing dd, correlation length xi) plus a
+         Beaucage Q^-4 (Porod) term for the surfactant film */
       xim2 = 1.0 / (xi * xi);
       k0p2 = pow (2.0 * Pi / dd, 2);
       AAA = drho * drho * 8e-24 * Pi * 0.25 / xi;
@@ -356,6 +377,14 @@ SHARE
       R2 = 10.0;   /* cross section radius in AA        */
       phi = 2e-4;  /* concentration vol/vol             */
 
+      /* Semiflexible (wormlike) chain with excluded volume, Pedersen-Schurtenberger
+         type parametrisation: y = chain form factor S(Q). Below the crossover Q*b
+         (3.1, or q0) it is Debye function -> excluded-volume blend W (Sexv) plus a
+         stiffness correction (Ssb). Above it, power laws (Q b)^-4.12 and (Q b)^-4.42
+         plus the rigid-rod term pi/(Q L), with a1, a2 chosen so value and slope are
+         continuous at the crossover (the ...p variables are d/dQ). Lb < 4 uses the
+         plain Debye function. The result is multiplied by the cross-section factor
+         (2 J1(Q R2)/(Q R2))^2. */
       Rg0 = sqrt (L * b / 6.0);
       Lb = L / b;
       alpha = pow (1.0 + pow (Lb / 3.12, 2) + pow (Lb / 8.67, 3), 0.5 * 0.17 / 3.0);
@@ -430,6 +459,8 @@ SHARE
       R = 25.0;    /* radius Angstroem                  */
       phi = 0.001; /* concentration vol/vol             */
 
+      /* homogeneous sphere: G = drho^2 phi V, out = G * (3 (sin qR - qR cos qR)/(qR)^3)^2
+         (same formula in cases 15 and 6, only R differs) */
       qR = Q * R;
       G = (drho * drho * phi * 4e-24 * Pi * R * R * R / 3.0);
 
@@ -466,6 +497,8 @@ SHARE
       gam = 7.8e-4; /* Flory Huggins parameter (mol/cm^3)*/
       sig = 1.5;    /* cutoff (monomer size) Angstroem   */
 
+      /* RPA (de Gennes) for a symmetric blend: S^-1 = 1/(N P_Debye(Q)) - 2 chi,
+         P_Debye(x) = 2 (exp(-x) - 1 + x)/x^2 with x = (Q Rg)^2 */
       qRg2 = pow (Q * Rg, 2);
 
       out = (Mw / rho) * 0.5 * 2.0 * (exp (-qRg2) - 1.0 + qRg2) / (qRg2 * qRg2);
@@ -482,6 +515,8 @@ SHARE
 
       qRg2 = pow (Q * Rg, 2);
 
+      /* Leibler RPA for an A-B diblock (A fraction f): Debye functions of the whole
+         chain and of the two blocks give the correlation-hole peak */
       debye1 = 2.0 * (exp (-qRg2) - 1.0 + qRg2) / (qRg2 * qRg2);
       debyef = 2.0 * (exp (-qRg2 * f) - 1.0 + qRg2 * f) / (qRg2 * qRg2);
       debye1f = 2.0 * (exp (-qRg2 * (1.0 - f)) - 1.0 + qRg2 * (1.0 - f)) / (qRg2 * qRg2);
@@ -496,6 +531,9 @@ SHARE
       phi = 0.0002; /* concentration vol/vol             */
       d = 10.0;     /* tickness of single lamellae       */
 
+      /* n concentric shells (spacing R0, thickness d): Fv = lamella form factor,
+         Sv = interference sum over shells in closed form. qmod/eps keeps
+         qa = Q R0 away from multiples of pi, where Sv is 0/0. */
       eps = 1e-6;
       VorF = drho * drho * phi * 4e-24 * Pi * R0 * R0 * d * 6.0 / (((2.0 * n + 3.0) * n + 1.0) * n);
       Fv = sin (0.5 * Q * d) / (0.5 * Q * d);
@@ -525,6 +563,10 @@ SHARE
       npeaks = 13.00;
       I0 = 0.0001; /* Peak height */
 
+      /* npeaks+1 = 14 Gaussian peaks, 3 per decade from 1e-4 to 10^(1/3) AA^-1,
+         relative width 10%. The 1/(Q dQ) prefactor gives every peak the same
+         2D-integrated intensity (2 sqrt(pi) I0). Case 11 shares this shape only
+         for the Idsdw table; TRACE treats model 11 as true delta peaks. */
       delta = (log10 (Qpeak2) - log10 (Qpeak1)) / npeaks;
 
       out = 0.0;
@@ -538,6 +580,9 @@ SHARE
 
     case 12:
     case 13:
+      /* tabulated curves read in INITIALIZE: 12 = Apoferritin.txt, 13 =
+         humanserumalbumin.txt, 256 points each in Qtab/Itab. Constant
+         extrapolation outside the table, bisection + linear interpolation inside. */
       phi = 1.0; // vol percent already
       i = (sw - 12) * 256;
       imi = 0;
@@ -580,7 +625,9 @@ DECLARE
   double Qmaxl;
   double l10;
 
-  double Qtab[512];
+  /* Qmaxd = 10^(1/3) ~ 2.154, so log10(Q) runs from -4 to 1/3 in steps of 1/3 decade (model 11) */
+
+  double Qtab[512]; /* [0..255]: model 12 table, [256..511]: model 13 table */
   double Itab[512];
 %}
 
@@ -601,6 +648,9 @@ INITIALIZE
   char line1[80];
   double d1, d2, d3;
 
+  /* Optional tabulated models 12 and 13. Missing file -> table filled with I = 0.
+     The first line is a header. Columns: Q [AA^-1], I, 3 unused. Itab is rescaled by
+     the original author's normalisation constants. */
   f1 = fopen ("Apoferritin.txt", "r");
   f2 = fopen ("humanserumalbumin.txt", "r");
   o1 = (f1 != NULL);
@@ -658,6 +708,11 @@ INITIALIZE
   double qmin, qmax, step;
   int istp;
 
+  /* Pre-tabulate, per wavelength lambda = 1..30 AA (row index) and model (column),
+       Idsdw = integral of dSigma/dOmega(q) * q dq  from ~0 to min(Qmaxd, 2k = 4 pi/lambda)
+     (midpoint rule on a log grid, 300 points per decade). Since dOmega = 2 pi q dq / k^2,
+     the total coherent cross-section is Sigma_coh = 2 pi / k^2 * Idsdw [cm^-1]. TRACE
+     interpolates linearly in lambda and multiplies by 100 (cm^-1 -> m^-1). */
   istp = floor ((Qmaxl - Qminl) * 300.0 + 0.5);
 
   for (jjj = 0; jjj < 19; jjj++) {
@@ -712,6 +767,13 @@ TRACE
   k0 = v / K2V;
   lambda = 2.0 * PI / k0;
 
+  /* Macroscopic cross-sections at this wavelength, all in m^-1:
+       Scoh  - coherent (SANS) scattering, from the Idsdw table
+       Sinc1 - incoherent scattering into the SANS cone |Q| < qmax
+       Sinc2 - incoherent scattering outside that cone
+     For isotropic dsdw_inc [cm^-1] the cone solid angle is 4 pi Ymax = pi qmax^2/k^2,
+     hence Sinc1 = 100 * dsdw_inc * pi qmax^2/k^2, and Sinc1 + Sinc2 = 100 * 4 pi * dsdw_inc.
+     Ymax = (qmax/2k)^2 = sin^2(theta_max/2), Xmax = 1 - 2 Ymax = cos(theta_max). */
   if (modl != 11) {
 
     Ilam = sb_imax (floor (lambda), 1);
@@ -745,6 +807,11 @@ TRACE
       Ymax = 1.0; /* if rounding errors occurr, this will help to avoid problems */
     Xmax = 1.0 - 2.0 * Ymax;
     thmax = acos (Xmax);
+    /* Model 11: delta peaks at Q = Qmind * 10^(n/3), n = 0 .. NNN-1 (3 per decade),
+       restricted to Q < 2k. NNN = number of reachable peaks, each with the same
+       weight, giving Scoh. icut = fraction of SANS-range paths sent to the peaks
+       (the rest go to incoherent scattering inside the cone). Sinc2 here covers the
+       full 4 pi of incoherent scattering. */
     I0 = 0.0001;
     icut = 0.85;
 
@@ -767,6 +834,11 @@ TRACE
     if (t0 < 0.0)
       ABSORB;
 
+    /* rcut = transmission probability through the full path length.
+       If the sample scatters strongly (1 - rcut > sc_a), sample the first
+       interaction analogously. Otherwise force scattering in a fraction sc_a of
+       the paths (dt from the exponential truncated to the sample) and transmit the
+       rest, reweighting both branches so that the expectation value is unchanged. */
     rcut = exp (-Stot * (t1 - t0) * v);
 
     if (1.0 - rcut > sc_a)
@@ -777,7 +849,7 @@ TRACE
         p *= (1.0 - rcut) / sc_a;
       } else {
         dt = -1.0 / (v * Stot) * log (rcut * rand01 ());
-        dt = 1e33; /* run out of sample ... */
+        dt = 1e33; /* run out of sample ... (overrides the line above: always transmitted) */
         p *= rcut / (1.0 - sc_a);
       };
     };
@@ -788,6 +860,14 @@ TRACE
       SCATTER;
       iscatt = 1;
 
+      /* Choose the scattering direction. A fraction fcut of paths goes to the SANS
+         range: log-uniform Q (pdf 1/(Q ln10 (qmaxl-Qminl))). The weight is the
+         physical probability dSigma/dOmega * dOmega/dQ / Stot divided by that pdf
+         and by fcut, with dOmega/dQ = 2 pi Q/k^2 and 100 for cm^-1 -> m^-1.
+         The remaining paths go isotropically (uniform cos theta) outside the cone.
+         fcut >= Ymax ensures the cone gets at least its isotropic share.
+         NOTE: the outside-cone weight (1-Ymax)/(1-fcut) carries no Sinc2/(...)/Stot
+         factor, unlike the SANS branch. Please verify whether this is intended. */
       fcut = sb_max (Ymax, sans_a);
 
       if (modl != 11) {
@@ -821,6 +901,9 @@ TRACE
         };
       };
 
+      /* New velocity (|v| unchanged, elastic): tilt by theta about an axis
+         perpendicular to v (v x y-hat, so v must not be parallel to y), then spin by
+         a random azimuth phi about the old v. */
       phi = 2.0 * PI * rand01 ();
 
       vec_prod (axis_x, axis_y, axis_z, vx, vy, vz, 0, 1, 0);
@@ -831,6 +914,10 @@ TRACE
       vy = vout_y;
       vz = vout_z;
 
+      /* Multiple scattering (singlesp = 0), up to 10 events in total. Later events
+         are sampled analogously (no forcing): scatter if the free path dt ends before
+         the exit time t1, otherwise leave the sample. Each event repeats the
+         direction choice above. */
       while (iscatt < 10 && sngsp == 0) {
 
         intersect = box_intersect (&t0, &t1, x, y, z, vx, vy, vz, xwidth, yheight, zthick);
