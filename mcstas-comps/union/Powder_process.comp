@@ -581,9 +581,11 @@ SHARE
     // copy from PowderN component
     if (line_info->count > 0) {
       /* choose line */
-      if (line_info->Nq > 1)
+      if (line_info->Nq > 1) {
         line = floor (line_info->Nq * rand01 ()); /* Select between Nq powder lines */
-      else
+        if (line >= line_info->Nq)
+          line = line_info->Nq - 1; /* rand01() may return 1.0 */
+      } else
         line = 0;
       if (line_info->w_v[line])
         arg = line_info->q_v[line] * (1 + line_info->w_v[line] * randnorm ()) / (2.0 * v);
