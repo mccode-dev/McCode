@@ -277,6 +277,7 @@ SHARE
   }
 
   #define ROOTACC 1e-8
+  #define PHONON_SIMPLE_MAX_ROOTS 64 /* size of vf_list in TRACE */
 
   void
   findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (struct neutron_params*, struct phonon_params*),
@@ -290,7 +291,8 @@ SHARE
     for (int i = 0; i < phonon->e_steps_low_; i++) {
       root = zridd (f, brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
 
@@ -298,7 +300,8 @@ SHARE
     for (int i = 0; i < phonon->e_steps_high_; i++) {
       root = zridd (f, brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
   }
@@ -315,7 +318,8 @@ SHARE
     for (int i = 0; i < phonon->e_steps_low_; i++) {
       root = zridd_gpu (brack_low + range_low * i / phonon->e_steps_low_, brack_low + range_low * (i + 1) / phonon->e_steps_low_, neutron, phonon, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
 
@@ -323,7 +327,8 @@ SHARE
     for (int i = 0; i < phonon->e_steps_high_; i++) {
       root = zridd_gpu (brack_mid + range_high * i / phonon->e_steps_high_, brack_mid + range_high * (i + 1) / phonon->e_steps_high_, neutron, phonon, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
   }
@@ -377,21 +382,7 @@ INITIALIZE
 %}
 TRACE
 %{
-  double* vf_list;
-  #ifdef OPENACC
-  vf_list = (double*)malloc ((e_steps_low + e_steps_high) * sizeof (double)); // List of allowed final velocities. Has length of scan_steps
-  #else
-  vf_list = (double*)calloc (e_steps_low + e_steps_high, sizeof (double)); // List of allowed final velocities. Has length of scan_steps
-  #endif
-  if (!vf_list) {
-    printf ("Memory allocation failed, fatal error!\n");
-    exit (-1);
-  }
-  #ifdef OPENACC
-  for (int ii = 0; ii < e_steps_low + e_steps_high; ii++) {
-    vf_list[ii] = 0;
-  }
-  #endif
+  double vf_list[PHONON_SIMPLE_MAX_ROOTS]; /* List of allowed final velocities */
 
   struct neutron_params neutron;
   double t0, t1;                          /* Entry/exit time for cylinder */
@@ -455,7 +446,11 @@ TRACE
     #else
     findroots_gpu (0, v_i, v_i + 2 * c * V2K / VS2E, vf_list, &nf, &neutron, &phonon);
     #endif
+    if (!nf)
+      ABSORB; /* no allowed final velocity, the weight would be zero */
     index = (int)floor (rand01 () * nf);
+    if (index >= nf)
+      index = nf - 1; /* rand01() may return 1.0 */
 
     v_f = vf_list[index];
     neutron.vf = v_f - DV;
@@ -490,7 +485,6 @@ TRACE
     p5 = b * b / M;                                                                   /* Cross section factor 2 */
     p *= p1 * p2 * p3 * p4 * p5;
   } /* else transmit: Neutron did not hit the sample */
-  free (vf_list);
 %}
 
 FINALLY 
