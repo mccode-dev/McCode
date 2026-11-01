@@ -784,8 +784,10 @@ SHARE
 
     /* check if a line_info element has been recorded already - not on OpenACC */
     #ifndef OPENACC
-    if (v >= line_info->v_min && v <= line_info->v_max && line_info->neutron_passed >= CHAR_BUF_LENGTH) {
-      line = (int)floor (v - line_info->v_min) * CHAR_BUF_LENGTH / (line_info->v_max - line_info->v_min);
+    if (v >= line_info->v_min && v <= line_info->v_max && line_info->v_max > line_info->v_min && line_info->neutron_passed >= CHAR_BUF_LENGTH) {
+      line = (int)floor ((v - line_info->v_min) * CHAR_BUF_LENGTH / (line_info->v_max - line_info->v_min));
+      if (line >= CHAR_BUF_LENGTH)
+        line = CHAR_BUF_LENGTH - 1; /* v == v_max */
       Nq = line_info->xs_Nq[line];
       *sum = line_info->xs_sum[line];
       if (!Nq && *sum == 0) {
