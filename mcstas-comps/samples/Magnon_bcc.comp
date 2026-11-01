@@ -183,68 +183,9 @@ SHARE
       return (res_magnon - res_neutron);
   }
 
-  double
-  zridd (double (*func) (double*), double x1, double x2, double* parms, double xacc, _class_particle* _particle) {
-    int j;
-    double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
-
-    //     printf("zridd called with brackets %g %g acceptance %g \n",x1,x2,xacc);
-    //     printf("and %i parameters %g %g %g %g %g \n",Nparms,parms[0],parms[1],parms[2],parms[3], parms[4]);
-    parms[0] = x1;
-    fl = (*func) (parms);
-    parms[0] = x2;
-    fh = (*func) (parms);
-
-    /*      printf("Function values: %g %g \n",fl,fh); */
-    if (fl * fh >= 0) {
-      if (fl == 0)
-        return x1;
-      if (fh == 0)
-        return x2;
-      return UNUSED;
-    } else {
-      xl = x1;
-      xh = x2;
-      ans = UNUSED;
-      for (j = 1; j < MAXRIDD; j++) {
-        xm = 0.5 * (xl + xh);
-        parms[0] = xm;
-        fm = (*func) (parms);
-        s = sqrt (fm * fm - fl * fh);
-        if (s == 0.0)
-          return ans;
-        xnew = xm + (xm - xl) * ((fl >= fh ? 1.0 : -1.0) * fm / s);
-        if (fabs (xnew - ans) <= xacc)
-          return ans;
-        ans = xnew;
-        parms[0] = ans;
-        fnew = (*func) (parms);
-        if (fnew == 0.0)
-          return ans;
-        if (fabs (fm) * SIGN (fnew) != fm) {
-          xl = xm;
-          fl = fm;
-          xh = ans;
-          fh = fnew;
-        } else if (fabs (fl) * SIGN (fnew) != fl) {
-          xh = ans;
-          fh = fnew;
-        } else if (fabs (fh) * SIGN (fnew) != fh) {
-          xl = ans;
-          fl = fnew;
-        } else
-          fatalerror ("never get here in zridd", _particle);
-        if (fabs (xh - xl) <= xacc)
-          return ans;
-      }
-      fatalerror ("zridd exceeded maximum iterations", _particle);
-    }
-    return 0.0; /* Never get here */
-  }
-
   #pragma acc routine
   double
-  zridd_gpu (double x1, double x2, double* parms, double xacc, _class_particle* _particle) {
+  zridd (double x1, double x2, double* parms, double xacc, _class_particle* _particle) {
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
@@ -300,40 +241,14 @@ SHARE
 
   #define ROOTACC 1e-8
   #define MAGNON_BCC_MAX_ROOTS 7 /* size of vf_list in TRACE */
-  int
-  findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (double*), double* parms, _class_particle* _particle) {
-    double root, range_low = brack_mid - brack_low, range_high = brack_high - brack_mid;
-    int i, steps = 100;
-
-    for (i = 0; i < steps; i++) {
-      root = zridd (f, brack_mid + range_high * i / (int)steps, brack_mid + range_high * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
-      if (root != UNUSED) {
-        if (*index < MAGNON_BCC_MAX_ROOTS)
-          list[(*index)++] = root;
-        // printf("findroots found a high root: vf = %g \n",root);
-      }
-    }
-
-    for (i = 0; i < steps; i++) {
-      root = zridd (f, brack_low + range_low * i / (int)steps, brack_low + range_low * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
-      if (root != UNUSED) {
-        if (*index < MAGNON_BCC_MAX_ROOTS)
-          list[(*index)++] = root;
-        // printf("findroots found a  low root: vf = %g \n",root);
-      }
-    }
-    // fatalerror("exiting findroots");
-    return (-1);
-  }
-
   #pragma acc routine
   int
-  findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, _class_particle* _particle) {
+  findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, _class_particle* _particle) {
     double root, range_low = brack_mid - brack_low, range_high = brack_high - brack_mid;
     int i, steps = 100;
 
     for (i = 0; i < steps; i++) {
-      root = zridd_gpu (brack_mid + range_high * i / (int)steps, brack_mid + range_high * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
+      root = zridd (brack_mid + range_high * i / (int)steps, brack_mid + range_high * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
       if (root != UNUSED) {
         if (*index < MAGNON_BCC_MAX_ROOTS)
           list[(*index)++] = root;
@@ -341,7 +256,7 @@ SHARE
     }
 
     for (i = 0; i < steps; i++) {
-      root = zridd_gpu (brack_low + range_low * i / (int)steps, brack_low + range_low * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
+      root = zridd (brack_low + range_low * i / (int)steps, brack_low + range_low * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
       if (root != UNUSED) {
         if (*index < MAGNON_BCC_MAX_ROOTS)
           list[(*index)++] = root;
@@ -455,11 +370,7 @@ TRACE
     parms[13] = verbose;
     parms[14] = 0;
     parms[15] = FM;
-    #ifndef OPENACC
-    findroots (0, v_i, v_i + SE2V * sqrt (8 * s * fabs (J1) + 6 * s * fabs (J2) + s * fabs (D)), vf_list, &nf, omega_q, parms, _particle);
-    #else
-    findroots_gpu (0, v_i, v_i + SE2V * sqrt (8 * s * fabs (J1) + 6 * s * fabs (J2) + s * fabs (D)), vf_list, &nf, parms, _particle);
-    #endif
+    findroots (0, v_i, v_i + SE2V * sqrt (8 * s * fabs (J1) + 6 * s * fabs (J2) + s * fabs (D)), vf_list, &nf, parms, _particle);
 
     index = (int)floor (rand01 () * nf);
     if (index >= nf)
