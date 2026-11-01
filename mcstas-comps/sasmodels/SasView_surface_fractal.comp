@@ -332,14 +332,14 @@ static double _surface_fractal_kernel(double q,
     double cutoff_length)
 {
     // calculate P(q)
-    const double pq = square(sas_3j1x_x(q*radius));
+    const double pq = sas_square(sas_3j1x_x(q*radius));
 
     // calculate S(q)
     // Note: lim q->0 S(q) = -gamma(mmo) cutoff_length^mmo (mmo cutoff_length)
     // however, the surface fractal formula is invalid outside the range
     const double mmo = 5.0 - fractal_dim_surf;
     const double sq = sas_gamma(mmo) * pow(cutoff_length, mmo)
-           * pow(1.0 + square(q*cutoff_length), -0.5*mmo)
+           * pow(1.0 + sas_square(q*cutoff_length), -0.5*mmo)
            * sin(-mmo * atan(q*cutoff_length)) / q;
 
     // Empirically determined that the results are valid within this range.
@@ -354,7 +354,7 @@ static double _surface_fractal_kernel(double q,
 }
 double form_volume_surface_fractal(double radius)
 {
-    return M_4PI_3*cube(radius);
+    return M_4PI_3*sas_cube(radius);
 }
 
 double Iq_surface_fractal(double q,

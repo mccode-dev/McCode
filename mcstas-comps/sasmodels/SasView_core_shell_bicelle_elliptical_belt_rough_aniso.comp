@@ -699,7 +699,7 @@ form_volume_core_shell_bicelle_elliptical_belt_rough(double r_minor,
         double length)
 {
     return M_PI*(  (r_minor + thick_rim)*(r_minor*x_core + thick_rim)* length +
-                 square(r_minor)*x_core*2.0*thick_face  );
+                 sas_square(r_minor)*x_core*2.0*thick_face  );
 }
 
 static double
@@ -775,8 +775,8 @@ Fq_core_shell_bicelle_elliptical_belt_rough(double q,
     //const double vbj=M_PI;
 
     const double r_major = r_minor * x_core;
-    const double r2A = 0.5*(square(r_major) + square(r_minor));
-    const double r2B = 0.5*(square(r_major) - square(r_minor));
+    const double r2A = 0.5*(sas_square(r_major) + sas_square(r_minor));
+    const double r2B = 0.5*(sas_square(r_major) - sas_square(r_minor));
     const double vol1 = M_PI*r_minor*r_major*(2.0*halfheight);
     const double vol2 = M_PI*(r_minor+thick_rim)*(r_major+thick_rim)*2.0*halfheight;
     const double vol3 = M_PI*r_minor*r_major*2.0*(halfheight+thick_face);
@@ -821,8 +821,8 @@ Fq_core_shell_bicelle_elliptical_belt_rough(double q,
     outer_total_F2 *= 0.25;
 
     //convert from [1e-12 A-1] to [cm-1]
-    *F1 = 1e-2*outer_total_F1*exp(-0.25*square(q*sigma));
-    *F2 = 1e-4*outer_total_F2*exp(-0.5*square(q*sigma));
+    *F1 = 1e-2*outer_total_F1*exp(-0.25*sas_square(q*sigma));
+    *F2 = 1e-4*outer_total_F2*exp(-0.5*sas_square(q*sigma));
 }
 
 static double
@@ -850,10 +850,10 @@ Iqabc_core_shell_bicelle_elliptical_belt_rough(double qa, double qb, double qc,
     const double vol3 = M_PI*r_minor*r_major*2.0*(halfheight+thick_face);
 
     // Compute effective radius in rotated coordinates
-    const double qr_hat = sqrt(square(r_major*qb) + square(r_minor*qa));
+    const double qr_hat = sqrt(sas_square(r_major*qb) + sas_square(r_minor*qa));
     // does this need to be changed for the "missing corners" where there there is no "belt" ?
-    const double qrshell_hat = sqrt(square((r_major+thick_rim)*qb)
-                                   + square((r_minor+thick_rim)*qa));
+    const double qrshell_hat = sqrt(sas_square((r_major+thick_rim)*qb)
+                                   + sas_square((r_minor+thick_rim)*qa));
     const double be1 = sas_2J1x_x( qr_hat );
     const double be2 = sas_2J1x_x( qrshell_hat );
     const double si1 = sas_sinx_x( halfheight*qc );

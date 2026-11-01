@@ -308,9 +308,10 @@ SHARE
     aVars->fc_phase = a_phase;
   }
 
+  #pragma acc routine seq
   int
   Gravity_guide_Trace (double* dt, Gravity_guide_Vars_type* aVars, double cx, double cy, double cz, double cvx, double cvy, double cvz, double cxnum, double cxk,
-                       double cynum, double cyk, double* cnx, double* cny, double* cnz) {
+                       double cynum, double cyk, double* cnx, double* cny, double* cnz, _class_particle* _particle) {
     double B, C;
     int ret = 0;
     int side = 0;
@@ -326,8 +327,12 @@ SHARE
     B = aVars->nz[5] * cvz;
     C = aVars->nz[5] * (cz - aVars->wz[5]);
     ret = solve_2nd_order (&dt0, NULL, aVars->A[5], B, C);
-    if (ret && dt0 > 1e-10) {
-      dt_min = dt0;
+    /* The 1e-10 cut below (for the side walls) avoids re-hitting the wall the
+       neutron was just reflected from. It must NOT apply to the exit plane: a
+       reflection within ~1e-10 s of z=l would otherwise skip the exit and
+       send the neutron to the (infinite) extension of the opposite wall. */
+    if (ret && dt0 > -1e-10) {
+      dt_min = (dt0 > 0 ? dt0 : 0); /* also covers z marginally beyond l by rounding */
       side = 5;
     }
 
@@ -354,7 +359,7 @@ SHARE
         C = aVars->ny[i] * (cy - aVars->wy[i]) + aVars->nz[i] * cz;
       }
       ret = solve_2nd_order (&dt0, NULL, aVars->A[i], B, C);
-      if (ret && dt0 > 1e-10 && (dt0 < dt_min || !dt_min)) {
+      if (ret && dt0 > 1e-10 && (dt0 < dt_min || (side != 5 && !dt_min))) {
         dt_min = dt0;
         side = i;
         if (aVars->nzC[i] != 0) {
@@ -407,13 +412,19 @@ SHARE
 
   #ifndef Gravity_psdguide_Version
   #define Gravity_psdguide_Version "$Revision$"
+  #pragma acc routine seq
   void
   update_detectors (int i, double p, double* detN, double* detp, double* detp2) {
-    detN[i]++;
-    detp[i] += p;
-    detp2[i] += p * p;
+    double p2 = p * p;
+    #pragma acc atomic
+    detN[i] = detN[i] + 1;
+    #pragma acc atomic
+    detp[i] = detp[i] + p;
+    #pragma acc atomic
+    detp2[i] = detp2[i] + p2;
   }
 
+  #pragma acc routine seq
   void
   Gravity_guide_Absorb (int side, int nxpsd, double z, double l, double p, double* N1, double* p1, double* p1_2, double* N2, double* p2, double* p2_2, double* N3,
                         double* p3, double* p3_2, double* N4, double* p4, double* p4_2) {
@@ -445,7 +456,7 @@ SHARE
 
 DECLARE
 %{
-  Gravity_guide_Vars_type GVars;
+  Gravity_guide_Vars_type GVarsGlobal;
   /* added  four PSD monitors */
   DArray1d PSDlin_Nxp;
   DArray1d PSDlin_pxp;
@@ -507,19 +518,19 @@ INITIALIZE
   mcLocG = rot_apply (ROT_A_CURRENT_COMP, coords_set (0, G, 0));
   coords_get (mcLocG, &Gx, &Gy, &Gz);
 
-  strcpy (GVars.compcurname, NAME_CURRENT_COMP);
+  strcpy (GVarsGlobal.compcurname, NAME_CURRENT_COMP);
 
   if (l > 0 && nelements > 0) {
 
-    Gravity_guide_Init (&GVars, w1, h1, w2, h2, l, R0, Qc, alpha, m, W, nslit, d, Gx, Gy, Gz, mleft, mright, mtop, mbottom, nhslit, wavy_lr, wavy_tb, wavy_z,
+    Gravity_guide_Init (&GVarsGlobal, w1, h1, w2, h2, l, R0, Qc, alpha, m, W, nslit, d, Gx, Gy, Gz, mleft, mright, mtop, mbottom, nhslit, wavy_lr, wavy_tb, wavy_z,
                         wavy, chamfers_z, chamfers_lr, chamfers_tb, chamfers, nu, phase, aleft, aright, atop, abottom);
     if (!G)
-      for (i = 0; i < 5; GVars.A[i++] = 0)
+      for (i = 0; i < 5; GVarsGlobal.A[i++] = 0)
         ;
-    if (GVars.fc_freq != 0 || GVars.fc_phase != 0) {
+    if (GVarsGlobal.fc_freq != 0 || GVarsGlobal.fc_phase != 0) {
       if (w1 != w2 || h1 != h2)
         exit (fprintf (stderr, "Guide_gravity: %s: rotating slit pack must be straight (w1=w2 and h1=h2).\n", NAME_CURRENT_COMP));
-      printf ("Guide_gravity: %s: Fermi Chopper mode: frequency=%g [Hz] phase=%g [deg]\n", NAME_CURRENT_COMP, GVars.fc_freq, GVars.fc_phase);
+      printf ("Guide_gravity: %s: Fermi Chopper mode: frequency=%g [Hz] phase=%g [deg]\n", NAME_CURRENT_COMP, GVarsGlobal.fc_freq, GVarsGlobal.fc_phase);
     }
   } else
     printf ("Guide_gravity: %s: unactivated (l=0 or nelements=0)\n", NAME_CURRENT_COMP);
@@ -561,6 +572,8 @@ INITIALIZE
 
 TRACE
 %{
+  Gravity_guide_Vars_type GVars = GVarsGlobal;
+
   if (l > 0 && nelements > 0) {
     double B, C, dt;
     int ret, bounces = 0, i = 0;
@@ -656,14 +669,15 @@ TRACE
 
         bounces++;
         /* now look for intersection with guide sides and exit */
-        side = Gravity_guide_Trace (&dt, &GVars, x, y, z, vx, vy, vz, w_chnum, nslit, h_chnum, nhslit, &nx, &ny, &nz);
+        side = Gravity_guide_Trace (&dt, &GVars, x, y, z, vx, vy, vz, w_chnum, nslit, h_chnum, nhslit, &nx, &ny, &nz, _particle);
 
         /* only positive dt are valid */
         /* exit reflection loops if no intersection (neutron is after box) */
-        if (side == 0 || dt <= 0) {
-          if (GVars.warnings < 100)
+        if (side == 0 || (dt <= 0 && side != 5)) {
+          if (GVarsGlobal.warnings < 100)
             fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVars.compcurname);
-          GVars.warnings++;
+          #pragma acc atomic
+          GVarsGlobal.warnings = GVarsGlobal.warnings + 1;
           x += w_adj;
           y += h_adj;
           ABSORB;
@@ -807,9 +821,9 @@ SAVE
 
 FINALLY
 %{
-  if (GVars.warnings > 100) {
-    fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVars.compcurname);
-    fprintf (stderr, "%s: warning: This message has been repeated %g times\n", GVars.compcurname, GVars.warnings);
+  if (GVarsGlobal.warnings > 100) {
+    fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVarsGlobal.compcurname);
+    fprintf (stderr, "%s: warning: This message has been repeated %g times\n", GVarsGlobal.compcurname, GVarsGlobal.warnings);
   }
 
   destroy_darr1d (PSDlin_Nxp);
@@ -843,15 +857,15 @@ MCDISPLAY
       z1 = (n + 1) * (l / nel);
 
       for (j = 0; j < nhslit; j++) {
-        y1 = j * (GVars.h1c + d) - h1 / 2.0;
-        y2 = j * (GVars.h2c + d) - h2 / 2.0;
-        y3 = (j + 1) * (GVars.h1c + d) - d - h1 / 2.0;
-        y4 = (j + 1) * (GVars.h2c + d) - d - h2 / 2.0;
+        y1 = j * (GVarsGlobal.h1c + d) - h1 / 2.0;
+        y2 = j * (GVarsGlobal.h2c + d) - h2 / 2.0;
+        y3 = (j + 1) * (GVarsGlobal.h1c + d) - d - h1 / 2.0;
+        y4 = (j + 1) * (GVarsGlobal.h2c + d) - d - h2 / 2.0;
         for (i = 0; i < nslit; i++) {
-          x1 = i * (GVars.w1c + d) - w1 / 2.0;
-          x2 = i * (GVars.w2c + d) - w2 / 2.0;
-          x3 = (i + 1) * (GVars.w1c + d) - d - w1 / 2.0;
-          x4 = (i + 1) * (GVars.w2c + d) - d - w2 / 2.0;
+          x1 = i * (GVarsGlobal.w1c + d) - w1 / 2.0;
+          x2 = i * (GVarsGlobal.w2c + d) - w2 / 2.0;
+          x3 = (i + 1) * (GVarsGlobal.w1c + d) - d - w1 / 2.0;
+          x4 = (i + 1) * (GVarsGlobal.w2c + d) - d - w2 / 2.0;
           polygon (4, x1, y1, z0, x2, y2, z1, x2, y4, z1, x1, y3, z0);
           polygon (4, x3, y1, z0, x4, y2, z1, x4, y4, z1, x3, y3, z0);
         }

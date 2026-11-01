@@ -288,8 +288,8 @@ SETTING PARAMETERS(
 /* SHARE functions:
 * void     Sqw_Data_init   (struct Sqw_Data_struct *Sqw_Data)
 * t_Table *Sqw_read_PowderN(struct Sqw_sample_struct *Sqw, t_Table sqwTable)
-* int      Sqw_search_SW(struct Sqw_Data_struct Sqw, double randnum)
-* int      Sqw_search_Q_proba_per_w(struct Sqw_Data_struct Sqw, double randnum, int index)
+* int      Sqw_search_SW(struct Sqw_Data_struct *Sqw, double randnum)
+* int      Sqw_search_Q_proba_per_w(struct Sqw_Data_struct *Sqw, double randnum, int index)
 * double   Sqw_init(struct Sqw_sample_struct *Sqw, char *file_coh, char *file_inc)
 * double   Sqw_integrate_iqSq(struct Sqw_Data_struct *Sqw_Data, double Ei)
 * void     Sqw_diagnosis(struct Sqw_sample_struct *Sqw, struct Sqw_Data_struct *Sqw_Data)
@@ -736,7 +736,7 @@ SHARE
    *****************************************************************************/
   #pragma acc routine seq
   int
-  Sqw_search_SW (struct Sqw_Data_struct Sqw, double randnum) {
+  Sqw_search_SW (struct Sqw_Data_struct* Sqw, double randnum) {
     int index_w = 0;
 
     if (randnum < 0)
@@ -744,23 +744,23 @@ SHARE
     if (randnum > 1)
       randnum = 1;
 
-    if (Sqw.w_bins == 1)
+    if (Sqw->w_bins == 1)
       return (0);
     /* benefit from fast lookup table if exists */
-    if (Sqw.SW_lookup) {
-      index_w = Sqw.SW_lookup[(long)floor (randnum * Sqw.lookup_length)] - 1;
+    if (Sqw->SW_lookup) {
+      index_w = Sqw->SW_lookup[(long)floor (randnum * Sqw->lookup_length)] - 1;
       if (index_w < 0)
         index_w = 0;
     }
 
-    while (index_w < Sqw.w_bins && (&(Sqw.SW[index_w]) != NULL) && (randnum > Sqw.SW[index_w].cumul_proba))
+    while (index_w < Sqw->w_bins && (&(Sqw->SW[index_w]) != NULL) && (randnum > Sqw->SW[index_w].cumul_proba))
       index_w++;
-    if (index_w >= Sqw.w_bins)
-      index_w = Sqw.w_bins - 1;
+    if (index_w >= Sqw->w_bins)
+      index_w = Sqw->w_bins - 1;
 
-    if (&(Sqw.SW[index_w]) == NULL) {
+    if (&(Sqw->SW[index_w]) == NULL) {
       printf ("Isotropic_Sqw: Warning: No corresponding value in the SW. randnum too big.\n");
-      printf ("  index_w=%i ; randnum=%f ; Sqw.SW[index_w-1].cumul_proba=%f (Sqw_search_SW)\n", index_w, randnum, Sqw.SW[index_w - 1].cumul_proba);
+      printf ("  index_w=%i ; randnum=%f ; Sqw->SW[index_w-1].cumul_proba=%f (Sqw_search_SW)\n", index_w, randnum, Sqw->SW[index_w - 1].cumul_proba);
       return index_w - 1;
     } else
       return (index_w);
@@ -775,7 +775,7 @@ SHARE
    *****************************************************************************/
   #pragma acc routine seq
   int
-  Sqw_search_Q_proba_per_w (struct Sqw_Data_struct Sqw, double randnum, int index_w) {
+  Sqw_search_Q_proba_per_w (struct Sqw_Data_struct* Sqw, double randnum, int index_w) {
     int index_q = 0;
 
     if (randnum < 0)
@@ -784,19 +784,19 @@ SHARE
       randnum = 1;
 
     /* benefit from fast lookup table if exists */
-    if (Sqw.QW_lookup && Sqw.QW_lookup[index_w]) {
-      index_q = Sqw.QW_lookup[index_w][(long)floor (randnum * Sqw.lookup_length)] - 1;
+    if (Sqw->QW_lookup && Sqw->QW_lookup[index_w]) {
+      index_q = Sqw->QW_lookup[index_w][(long)floor (randnum * Sqw->lookup_length)] - 1;
       if (index_q < 0)
         index_q = 0;
     }
 
-    while (index_q < Sqw.q_bins && (&(Sqw.SQW[index_w][index_q]) != NULL) && (randnum > Sqw.SQW[index_w][index_q].cumul_proba)) {
+    while (index_q < Sqw->q_bins && (&(Sqw->SQW[index_w][index_q]) != NULL) && (randnum > Sqw->SQW[index_w][index_q].cumul_proba)) {
       index_q++;
     }
-    if (index_q >= Sqw.q_bins)
-      index_q = Sqw.q_bins - 1;
+    if (index_q >= Sqw->q_bins)
+      index_q = Sqw->q_bins - 1;
 
-    if (&(Sqw.SQW[index_w][index_q]) == NULL)
+    if (&(Sqw->SQW[index_w][index_q]) == NULL)
       return -1;
     else
       return (index_q);
@@ -1909,7 +1909,7 @@ SHARE
       int i;
       for (i = 0; i < Sqw->lookup_length; i++) {
         double w = (double)i / (double)Sqw->lookup_length; /* a random number tabulated value */
-        SW_lookup[i] = Sqw_search_SW (*Sqw_Data, w);
+        SW_lookup[i] = Sqw_search_SW (Sqw_Data, w);
       }
       Sqw_Data->SW_lookup = SW_lookup;
     }
@@ -1933,7 +1933,7 @@ SHARE
           int i;
           for (i = 0; i < Sqw->lookup_length; i++) {
             double w = (double)i / (double)Sqw->lookup_length; /* a random number tabulated value */
-            QW_lookup[index_w][i] = Sqw_search_Q_proba_per_w (*Sqw_Data, w, index_w);
+            QW_lookup[index_w][i] = Sqw_search_Q_proba_per_w (Sqw_Data, w, index_w);
           }
         }
       }
@@ -2215,10 +2215,11 @@ TRACE
   int flag_ishollow = 0;
   double solid_angle = 0;
   double my_t = 0;
+  double my_s = 0; /* per-neutron scattering cross section, not shared (GPU race) */
   double p_mult = 1;
   double mc_trans, p_trans, mc_scatt;
   double coh = 0, inc = 0;
-  struct Sqw_Data_struct Data_sqw;
+  struct Sqw_Data_struct* Data_sqw;
   double d_phi_thread = d_phi;
 
   char type;
@@ -2339,6 +2340,7 @@ TRACE
         break;
       }
 
+      #pragma acc atomic
       VarSqw.neutron_enter++;
       p_mult = 1;
       if (!v) {
@@ -2355,6 +2357,7 @@ TRACE
 
       if (v <= 0) {
         printf ("Isotropic_Sqw: %s: ERROR: Null velocity !\n", NAME_CURRENT_COMP);
+        #pragma acc atomic
         VarSqw.neutron_removed++;
         ABSORB; /* should never occur */
       }
@@ -2380,22 +2383,23 @@ TRACE
         coh = 0;
       if (inc < 0)
         inc = 0;
-      VarSqw.my_s = (VarSqw.mat_rho * 100 * (coh + inc));
+      my_s = (VarSqw.mat_rho * 100 * (coh + inc));
 
-      my_t = my_a + VarSqw.my_s; /* total scattering Xsect */
+      my_t = my_a + my_s; /* total scattering Xsect */
       if (my_t <= 0) {
         if (VarSqw.neutron_removed < VarSqw.maxloop)
           printf ("Isotropic_Sqw: %s: ERROR: Null total cross section %g. Removing event.\n", NAME_CURRENT_COMP, my_t);
+        #pragma acc atomic
         VarSqw.neutron_removed++;
         ABSORB; /* should never occur */
-      } else if (VarSqw.my_s <= 0) {
+      } else if (my_s <= 0) {
         if (VarSqw.verbose_output > 1 && VarSqw.neutron_removed < VarSqw.maxloop)
-          printf ("Isotropic_Sqw: %s: Warning: Null scattering cross section %g. Ignoring.\n", NAME_CURRENT_COMP, VarSqw.my_s);
-        VarSqw.my_s = 0;
+          printf ("Isotropic_Sqw: %s: Warning: Null scattering cross section %g. Ignoring.\n", NAME_CURRENT_COMP, my_s);
+        my_s = 0;
       }
 
       /* Proba of scattering vs absorption (integrating along the whole trajectory) */
-      ws = VarSqw.my_s / my_t;  /* (inc+coh)/(inc+coh+abs) */
+      ws = my_s / my_t;  /* (inc+coh)/(inc+coh+abs) */
       d_path = v * (dt0 + dt2); /* total path lenght in sample */
       /* Proba of transmission/interaction along length d_path */
       p_trans = exp (-my_t * d_path);
@@ -2404,7 +2408,7 @@ TRACE
       flag = 0; /* flag used for propagation to exit point before ending */
 
       /* are we next to the exit ? probably no scattering (avoid rounding errors) */
-      if (VarSqw.my_s * d_path <= 4e-7) {
+      if (my_s * d_path <= 4e-7) {
         flag = 1; /* No interaction before the exit */
       }
       /* force a given fraction of the beam to scatter */
@@ -2450,8 +2454,11 @@ TRACE
     if (intersect) { /* scattering event */
       double kf = 0, kf1, kf2;
       /* mean scattering probability and absorption fraction */
-      VarSqw.mean_scatt += (1 - exp (-VarSqw.my_s * d_path)) * p;
+      #pragma acc atomic
+      VarSqw.mean_scatt += (1 - exp (-my_s * d_path)) * p;
+      #pragma acc atomic
       VarSqw.mean_abs += (1 - ws) * p;
+      #pragma acc atomic
       VarSqw.psum_scatt += p;
 
       /* Decaying exponential distribution of the path length before scattering */
@@ -2499,7 +2506,7 @@ TRACE
         } else {
           /* CASE 1b: incoherent Sqw from file */
           if (VarSqw.Data_inc.intensity) {
-            Data_sqw = VarSqw.Data_inc;
+            Data_sqw = &VarSqw.Data_inc;
             if (!type)
               type = 'i';
             flag = 1;
@@ -2508,7 +2515,7 @@ TRACE
       } else if (VarSqw.s_coh > 0 && tmp_rand > VarSqw.s_inc) {
         if (VarSqw.Data_coh.intensity) {
           /* CASE2: coherent case */
-          Data_sqw = VarSqw.Data_coh;
+          Data_sqw = &VarSqw.Data_coh;
           if (!type)
             type = 'c';
           flag = 1;
@@ -2527,22 +2534,22 @@ TRACE
           /* energy index for rand > cumul SW */
           index_w = Sqw_search_SW (Data_sqw, tmp_rand);
           VarSqw.rw = (double)index_w;
-          if (index_w >= 0 && &(Data_sqw.SW[index_w]) != NULL) {
-            if (Data_sqw.w_bins > 1) {
+          if (index_w >= 0 && Data_sqw->SW != NULL) {
+            if (Data_sqw->w_bins > 1) {
               double w1, w2;
               if (index_w > 0) { /* interpolate linearly energy */
-                ratio_w = (tmp_rand - Data_sqw.SW[index_w - 1].cumul_proba) / (Data_sqw.SW[index_w].cumul_proba - Data_sqw.SW[index_w - 1].cumul_proba);
+                ratio_w = (tmp_rand - Data_sqw->SW[index_w - 1].cumul_proba) / (Data_sqw->SW[index_w].cumul_proba - Data_sqw->SW[index_w - 1].cumul_proba);
                 /* ratio_w=0 omega[index_w-1], ratio=1 omega[index] */
-                w1 = Data_sqw.SW[index_w - 1].omega;
-                w2 = Data_sqw.SW[index_w].omega;
+                w1 = Data_sqw->SW[index_w - 1].omega;
+                w2 = Data_sqw->SW[index_w].omega;
               } else { /* index_w = 0 interpolate to 0 energy */
                 /* ratio_w=0 omega=0, ratio=1 omega[index] */
-                w1 = Data_sqw.SW[index_w].omega;
-                w2 = Data_sqw.SW[index_w + 1].omega;
-                if (!w2 && index_w + 1 < Data_sqw.w_bins)
-                  w2 = Data_sqw.SW[index_w + 1].omega;
-                if (Data_sqw.w_bins && Data_sqw.SW[index_w].cumul_proba) {
-                  ratio_w = tmp_rand / Data_sqw.SW[index_w].cumul_proba;
+                w1 = Data_sqw->SW[index_w].omega;
+                w2 = Data_sqw->SW[index_w + 1].omega;
+                if (!w2 && index_w + 1 < Data_sqw->w_bins)
+                  w2 = Data_sqw->SW[index_w + 1].omega;
+                if (Data_sqw->w_bins && Data_sqw->SW[index_w].cumul_proba) {
+                  ratio_w = tmp_rand / Data_sqw->SW[index_w].cumul_proba;
                 } else
                   ratio_w = 0;
               }
@@ -2553,7 +2560,7 @@ TRACE
               omega = (1 - ratio_w) * w1 + ratio_w * w2;
             } else {
               ratio_w = 0;
-              omega = Data_sqw.SW[index_w].omega;
+              omega = Data_sqw->SW[index_w].omega;
             }
           } else {
             if (VarSqw.verbose_output >= 3 && VarSqw.neutron_removed < VarSqw.maxloop)
@@ -2568,44 +2575,45 @@ TRACE
           index_q = Sqw_search_Q_proba_per_w (Data_sqw, tmp_rand, index_w);
           VarSqw.rq = (double)index_q;
 
-          if (index_q >= 0 && &(Data_sqw.SQW[index_w]) != NULL) {
-            if (Data_sqw.q_bins > 1 && index_q > 0) {
-              if (index_w > 0 && Data_sqw.w_bins > 1) {
+          if (index_q >= 0 && Data_sqw->SQW != NULL) {
+            if (Data_sqw->q_bins > 1 && index_q > 0) {
+              if (index_w > 0 && Data_sqw->w_bins > 1) {
                 /* bilinear interpolation on - side: index_w > 0, index_q > 0 */
-                ratio_q = (tmp_rand - Data_sqw.SQW[index_w][index_q - 1].cumul_proba)
-                          / (Data_sqw.SQW[index_w][index_q].cumul_proba - Data_sqw.SQW[index_w][index_q - 1].cumul_proba);
-                q22 = Data_sqw.SQW[index_w][index_q].Q;
-                q11 = Data_sqw.SQW[index_w - 1][index_q - 1].Q;
-                q21 = Data_sqw.SQW[index_w][index_q - 1].Q;
-                q12 = Data_sqw.SQW[index_w - 1][index_q].Q;
+                ratio_q = (tmp_rand - Data_sqw->SQW[index_w][index_q - 1].cumul_proba)
+                          / (Data_sqw->SQW[index_w][index_q].cumul_proba - Data_sqw->SQW[index_w][index_q - 1].cumul_proba);
+                q22 = Data_sqw->SQW[index_w][index_q].Q;
+                q11 = Data_sqw->SQW[index_w - 1][index_q - 1].Q;
+                q21 = Data_sqw->SQW[index_w][index_q - 1].Q;
+                q12 = Data_sqw->SQW[index_w - 1][index_q].Q;
                 if (ratio_q < 0)
                   ratio_q = 0;
                 else if (ratio_q > 1)
                   ratio_q = 1;
                 q = (1 - ratio_w) * (1 - ratio_q) * q11 + ratio_w * (1 - ratio_q) * q21 + ratio_w * ratio_q * q22 + (1 - ratio_w) * ratio_q * q12;
               } else { /* bilinear interpolation on + side: index_w=0, index_q > 0 */
-                ratio_q = (tmp_rand - Data_sqw.SQW[index_w][index_q - 1].cumul_proba)
-                          / (Data_sqw.SQW[index_w][index_q].cumul_proba - Data_sqw.SQW[index_w][index_q - 1].cumul_proba);
-                q11 = Data_sqw.SQW[index_w][index_q - 1].Q;
-                q12 = Data_sqw.SQW[index_w][index_q].Q;
+                ratio_q = (tmp_rand - Data_sqw->SQW[index_w][index_q - 1].cumul_proba)
+                          / (Data_sqw->SQW[index_w][index_q].cumul_proba - Data_sqw->SQW[index_w][index_q - 1].cumul_proba);
+                q11 = Data_sqw->SQW[index_w][index_q - 1].Q;
+                q12 = Data_sqw->SQW[index_w][index_q].Q;
                 if (ratio_q < 0)
                   ratio_q = 0;
                 else if (ratio_q > 1)
                   ratio_q = 1;
-                if (index_w < Data_sqw.w_bins - 1 && Data_sqw.w_bins > 1) {
-                  q22 = Data_sqw.SQW[index_w + 1][index_q].Q;
-                  q21 = Data_sqw.SQW[index_w + 1][index_q - 1].Q;
+                if (index_w < Data_sqw->w_bins - 1 && Data_sqw->w_bins > 1) {
+                  q22 = Data_sqw->SQW[index_w + 1][index_q].Q;
+                  q21 = Data_sqw->SQW[index_w + 1][index_q - 1].Q;
                   q = (1 - ratio_w) * (1 - ratio_q) * q11 + ratio_w * (1 - ratio_q) * q21 + ratio_w * ratio_q * q22 + (1 - ratio_w) * ratio_q * q12;
                 } else {
                   q = (1 - ratio_q) * q11 + ratio_q * q12;
                 }
               }
             } else {
-              q = Data_sqw.SQW[index_w][index_q].Q;
+              q = Data_sqw->SQW[index_w][index_q].Q;
             }
           } else {
             if (VarSqw.verbose_output >= 3 && VarSqw.neutron_removed < VarSqw.maxloop)
               printf ("Isotropic_Sqw: %s: Warning: No suitable q transfer for w=%g.\n", NAME_CURRENT_COMP, omega);
+            #pragma acc atomic
             VarSqw.neutron_removed++;
             continue; /* no Q value for this w choice */
           }
@@ -2616,6 +2624,7 @@ TRACE
           if (!solve_2nd_order (&kf1, &kf2, 1, 0, -k * k + VarSqw.sqSE2K * omega)) {
             if (VarSqw.verbose_output >= 3 && VarSqw.neutron_removed < VarSqw.maxloop)
               printf ("Isotropic_Sqw: %s: Warning: imaginary root for w=%g q=%g Ei=%g (triangle can not close)\n", NAME_CURRENT_COMP, omega, q, Ei);
+            #pragma acc atomic
             VarSqw.neutron_removed++;
             continue; /* all roots are imaginary */
           }
@@ -2643,6 +2652,7 @@ TRACE
             printf ("Isotropic_Sqw: %s: Warning: No scattering [q,w] conditions\n"
                     "               last try (%i): type=%c w=%g q=%g cos(theta)=%g k=%g\n",
                     NAME_CURRENT_COMP, VarSqw.maxloop, (type ? type : '-'), omega, q, costheta, k);
+          #pragma acc atomic
           VarSqw.neutron_removed++;
           if (order && SCATTERED != order)
             ABSORB;
@@ -2717,10 +2727,13 @@ TRACE
 
       } /* end if (flag) */
 
+      #pragma acc atomic
       VarSqw.neutron_exit++;
       p *= p_mult;
-      if (p_mult > 1)
+      if (p_mult > 1) {
+        #pragma acc atomic
         VarSqw.neutron_pmult++;
+      }
 
       /* test for a given multiple order */
       if (order && SCATTERED >= order) {
@@ -2744,14 +2757,19 @@ TRACE
   if (SCATTERED) {
 
     if (SCATTERED == 1) {
-      if (type == 'c')
+      if (type == 'c') {
+        #pragma acc atomic
         VarSqw.single_coh += p;
-      else
+      } else {
+        #pragma acc atomic
         VarSqw.single_inc += p;
+      }
       VarSqw.dq = sqrt ((kf_x - ki_x) * (kf_x - ki_x) + (kf_y - ki_y) * (kf_y - ki_y) + (kf_z - ki_z) * (kf_z - ki_z));
       VarSqw.dw = VS2E * (vf * vf - vi * vi);
-    } else
+    } else {
+      #pragma acc atomic
       VarSqw.multi += p;
+    }
 
   } else
     VarSqw.dq = VarSqw.dw = 0;

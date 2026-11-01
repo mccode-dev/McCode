@@ -442,8 +442,8 @@ Fq_triaxial_ellipsoid(double q,
     double radius_equat_major,
     double radius_polar)
 {
-    const double pa = square(radius_equat_minor/radius_equat_major) - 1.0;
-    const double pc = square(radius_polar/radius_equat_major) - 1.0;
+    const double pa = sas_square(radius_equat_minor/radius_equat_major) - 1.0;
+    const double pc = sas_square(radius_polar/radius_equat_major) - 1.0;
     // translate a point in [-1,1] to a point in [0, pi/2]
     const double zm = M_PI_4;
     const double zb = M_PI_4;
@@ -452,7 +452,7 @@ Fq_triaxial_ellipsoid(double q,
     for (int i=0;i<GAUSS_N;i++) {
         //const double u = GAUSS_Z[i]*(upper-lower)/2 + (upper + lower)/2;
         const double phi = GAUSS_Z[i]*zm + zb;
-        const double pa_sinsq_phi = pa*square(sin(phi));
+        const double pa_sinsq_phi = pa*sas_square(sin(phi));
 
         double inner_sum_F1 = 0.0;
         double inner_sum_F2 = 0.0;
@@ -460,7 +460,7 @@ Fq_triaxial_ellipsoid(double q,
         const double ub = 0.5;
         for (int j=0;j<GAUSS_N;j++) {
             // translate a point in [-1,1] to a point in [0, 1]
-            const double usq = square(GAUSS_Z[j]*um + ub);
+            const double usq = sas_square(GAUSS_Z[j]*um + ub);
             const double r = radius_equat_major*sqrt(pa_sinsq_phi*(1.0-usq) + 1.0 + pc*usq);
             const double fq = sas_3j1x_x(q*r);
             inner_sum_F1 += GAUSS_W[j] * fq;
@@ -476,7 +476,7 @@ Fq_triaxial_ellipsoid(double q,
     const double volume = form_volume_triaxial_ellipsoid(radius_equat_minor, radius_equat_major, radius_polar);
     const double contrast = (sld - sld_solvent);
     *F1 = 1.0e-2 * contrast * volume * outer_sum_F1;
-    *F2 = 1.0e-4 * square(contrast * volume) * outer_sum_F2;
+    *F2 = 1.0e-4 * sas_square(contrast * volume) * outer_sum_F2;
 }
 
 
@@ -488,14 +488,14 @@ Iqabc_triaxial_ellipsoid(double qa, double qb, double qc,
     double radius_equat_major,
     double radius_polar)
 {
-    const double qr = sqrt(square(radius_equat_minor*qa)
-                           + square(radius_equat_major*qb)
-                           + square(radius_polar*qc));
+    const double qr = sqrt(sas_square(radius_equat_minor*qa)
+                           + sas_square(radius_equat_major*qb)
+                           + sas_square(radius_polar*qc));
     const double fq = sas_3j1x_x(qr);
     const double vol = form_volume_triaxial_ellipsoid(radius_equat_minor, radius_equat_major, radius_polar);
     const double drho = (sld - sld_solvent);
 
-    return 1.0e-4 * square(vol * drho * fq);
+    return 1.0e-4 * sas_square(vol * drho * fq);
 }
 
 
