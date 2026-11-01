@@ -989,15 +989,14 @@ TRACE
       do {
         // Sample from the generated CDF, but double check that EN matches |ki|-|kf| for this actual ki
         //   since we could be using saved values from a slightly different ki.
+        // Inverse-CDF sampling: pick the first entry with u < CDF[i1], so entry i1 is
+        //   chosen with probability SQW[i1] / sum(SQW).
         double u = rand0max (hkl_info.stored[klist].CDF[hkl_info.stored[klist].nhkl - 1]);
         for (i1 = 0; i1 < hkl_info.stored[klist].nhkl; i1++)
           if (u < hkl_info.stored[klist].CDF[i1])
             break;
         if (i1 >= hkl_info.stored[klist].nhkl) // u can equal the CDF maximum
           i1 = hkl_info.stored[klist].nhkl - 1;
-        if (i1 > 0) {
-          i1 = (u - hkl_info.stored[klist].CDF[i1]) < (hkl_info.stored[klist].CDF[i1] - u) ? i1 - 1 : i1;
-        }
         j = hkl_info.stored[klist].hkl[i1];
         en = hkl_info.list[j].en;
         kfx = kix - hkl_info.list[j].qx;
