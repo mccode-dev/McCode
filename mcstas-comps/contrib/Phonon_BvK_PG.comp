@@ -735,6 +735,7 @@ SHARE
   #endif
 
   #define ROOTACC 1e-8
+  #define BVK_MAX_ROOTS 20 /* size of vf_list in TRACE */
 
   int
   findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (cdouble*, cdouble*), cdouble* parms, cdouble* vector,
@@ -756,7 +757,8 @@ SHARE
         root = zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, -ROOTACC);
 
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < BVK_MAX_ROOTS)
+          list[(*index)++] = root;
         if (verbose >= 4)
           printf ("--- findroots returned a root on the energy loss side: vf = %g \n", root);
       }
@@ -773,7 +775,8 @@ SHARE
                       vector, -ROOTACC);
 
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < BVK_MAX_ROOTS)
+          list[(*index)++] = root;
         if (verbose >= 4)
           printf ("--- findroots returned a root on the energy loss side: vf = %g \n", root);
       }
@@ -790,7 +793,8 @@ SHARE
         root = zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC);
 
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < BVK_MAX_ROOTS)
+          list[(*index)++] = root;
         if (verbose >= 4)
           printf ("*** findroots returned a root on the energy gain side: vf = %g \n", root);
       }
@@ -802,7 +806,8 @@ SHARE
       root = zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC);
 
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < BVK_MAX_ROOTS)
+          list[(*index)++] = root;
         if (verbose >= 4)
           printf ("*** findroots returned a root on the energy gain side: vf = %g \n", root);
       }
@@ -821,13 +826,15 @@ SHARE
     for (i = 0; i < low_steps; i++) {
       root = zridd_gpu (brack_low + range * i / (int)low_steps, brack_low + range * (i + 1) / (int)low_steps, (cdouble*)parms, (cdouble*)vector, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < BVK_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
     for (i = 0; i < high_steps; i++) {
       root = zridd_gpu (brack_mid + range * i / (int)high_steps, brack_high + range * (i + 1) / (int)high_steps, (cdouble*)parms, (cdouble*)vector, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < BVK_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
   }
@@ -909,7 +916,7 @@ TRACE
   double qsquare;
   double bose_factor;
   int nf, index;
-  double vf_list[20];
+  double vf_list[BVK_MAX_ROOTS];
   double J_factor, J0;
   double f1, f2;
   double p_att, p_MC, p_ph1, p_ph2, p_ph3, p_J, p_tot;
@@ -993,7 +1000,11 @@ TRACE
     findroots_gpu (0, v_i, v_i + V_HIGH, vf_list, &nf, p_call, eigenvectormode, e_steps_low, e_steps_high);
     #endif
 
+    if (!nf)
+      ABSORB; /* no allowed final velocity, the weight would be zero */
     index = (int)floor (rand01 () * nf);
+    if (index >= nf)
+      index = nf - 1; /* rand01() may return 1.0 */
     v_f = vf_list[index];
     p_call[0] = cplx (v_f, 0);
 
