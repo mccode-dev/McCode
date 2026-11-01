@@ -89,13 +89,15 @@ NOACC
 
 SHARE
 %{
+  #ifndef MONOCHROMATOR_BENT_LIB
+  #define MONOCHROMATOR_BENT_LIB
   #include <string.h>
 
   ///////////////////////////////////////////////////////////////////////////
   /////////////// Structs for the component
   ///////////////////////////////////////////////////////////////////////////
 
-  struct Monochromator_values {
+  struct mb_Monochromator_values {
     double length, height, thickness;
     double mosaicity_horizontal, mosaicity_vertical;
     int type;
@@ -137,13 +139,13 @@ SHARE
     double bounding_box_thickness; // the xthickness plus the arrowheight (the saggita)
   };
 
-  struct Monochromator_array {
-    struct Monochromator_values* crystal;
+  struct mb_Monochromator_array {
+    struct mb_Monochromator_values* crystal;
     int number_of_crystals;
     int verbosity;
   };
 
-  struct neutron_values {
+  struct mb_neutron_values {
     // Statically allocate vectors that are always 3
     double ki[3]; // Incoming wavevector
     double kf[3]; // outgoig wavevector
@@ -177,26 +179,26 @@ SHARE
     int* intersection_list; // List of intersected crystals, sorted by intersection time.
   };
 
-  enum crystal_type { flat, bent, mosaic, bent_mosaic };
+  enum mb_crystal_type { mb_flat, mb_bent, mb_mosaic, mb_bent_mosaic };
 
   ////////////////////////////////////////////////////////////////////////////
   /////////////// Mathematical functions for the component
   ////////////////////////////////////////////////////////////////////////////
 
   double
-  sign (double x) {
+  mb_sign (double x) {
     if (x >= 0)
       return 1;
     return -1;
   }
 
   double
-  square (double x) {
+  mb_square (double x) {
     return x * x;
   }
   // Function to generate numbers in a uniform distribution
   double
-  random_normal_distribution (double* sigma, _class_particle* _particle) {
+  mb_random_normal_distribution (double* sigma, _class_particle* _particle) {
     double u1, u2;
     u1 = rand01 ();
     u2 = rand01 ();
@@ -209,14 +211,14 @@ SHARE
   // the Gaussian cumulative distribution function,
   // And the inverse gaussian cumulative distribution function.
   double
-  normalCDF (double x, double sigma) {
+  mb_normalCDF (double x, double sigma) {
     return 0.5 * (1 + erf (x * M_SQRT1_2));
   }
   // Inspired by https://gist.github.com/kmpm/1211922/6b7fcd0155b23c3dc71e6f4969f2c48785371292
   double
-  inverseNormalCDF (double p, double sigma) {
+  mb_inverseNormalCDF (double p, double sigma) {
     if (p <= 0 || p >= 1)
-      return sign (p) * 6;
+      return mb_sign (p) * 6;
 
     double mu = 0;
     double r, val;
@@ -298,7 +300,7 @@ SHARE
   //==========================================================================
   //======== Functions for choosing the right crystal for reflections ========
   //==========================================================================
-  enum crystal_plane {
+  enum mb_crystal_plane {
     Cu111,
     Cu200,
     Cu220,
@@ -357,18 +359,18 @@ SHARE
 
   // An array containing all the possible strings that will be accepted if given as an
   // argument to the parameter plane_of_reflection
-  const char* crystal_planeStrings[]
+  const char* mb_crystal_planeStrings[]
       = { "Cu111", "Cu200", "Cu220",     "Cu311", "Cu400", "Cu331", "Cu420", "Cu440", "Ge111",  "Ge220",  "Ge311",  "Ge400",  "Ge331",  "Ge422",
           "Ge511", "Ge533", "Ge711",     "Ge551", "Si111", "Si220", "Si311", "Si400", "Si331",  "Si422",  "Si333",  "Si511",  "Si440",  "Si711",
           "Si551", " Be10", "Be100",     "Be102", "Be103", "Be110", "Be112", "Be200", "Be00_2", "Be10_1", "PG00_2", "PG00_4", "PG00_6", "Fe110",
           "HS111", "HS222", "HS111star", "Di111", "Di220", "Di311", "Di400", "Di331", "Di422",  "Di333",  "Di511",  "Di440" };
 
   // Function to convert a string to an enum value
-  enum crystal_plane
-  stringToEnum (const char* plane) {
-    for (int i = 0; i < sizeof (crystal_planeStrings) / sizeof (crystal_planeStrings[0]); ++i) {
-      if (strcmp (plane, crystal_planeStrings[i]) == 0) {
-        return (enum crystal_plane)i;
+  enum mb_crystal_plane
+  mb_stringToEnum (const char* plane) {
+    for (int i = 0; i < sizeof (mb_crystal_planeStrings) / sizeof (mb_crystal_planeStrings[0]); ++i) {
+      if (strcmp (plane, mb_crystal_planeStrings[i]) == 0) {
+        return (enum mb_crystal_plane)i;
       }
     }
     return 0;
@@ -387,7 +389,7 @@ SHARE
   C2 .... constant from the Freund's paper  [A^-2 eV^-1]
   poi .... Poisson elastic constant */
 
-  double crystal_table[56][10] = { { 2.087063, 0.23391E+00, 7.485, 2.094, 0.55, 11.81, 63.54, 315, 12.00, 0.30000E+00 },
+  double mb_crystal_table[56][10] = { { 2.087063, 0.23391E+00, 7.485, 2.094, 0.55, 11.81, 63.54, 315, 12.00, 0.30000E+00 },
                                    { 1.80745, 0.17544E+00, 7.485, 2.094, 0.55, 11.81, 63.54, 315, 12.00, 0.30000E+00 },
                                    { 1.27806, 0.87718E-01, 7.485, 2.094, 0.55, 11.81, 63.54, 315, 12.00, 0.30000E+00 },
                                    { 1.089933, 0.63795E-01, 7.485, 2.094, 0.55, 11.81, 63.54, 315, 12.00, 0.30000E+00 },
@@ -450,7 +452,7 @@ SHARE
   /////////////// Testing function
   ///////////////////////////////////////////////////////////////////////////
   void
-  print_neutron_state (struct neutron_values* neutron) {
+  mb_print_neutron_state (struct mb_neutron_values* neutron) {
     printf ("Neutron state:\nki %g, %g, %g\ntau %g, %g, %g\nkf %g, %g, %g\nv %g, %g, %g\nr %g, %g, %g\nki size %g, tau size %g, kf size %g, v size %g\n\n",
             neutron->ki[0], neutron->ki[1], neutron->ki[2], neutron->tau[0], neutron->tau[1], neutron->tau[2], neutron->kf[0], neutron->kf[1], neutron->kf[2],
             neutron->v[0], neutron->v[1], neutron->v[2], neutron->r[0], neutron->r[1], neutron->r[2], neutron->ki_size, neutron->tau_size, neutron->kf_size,
@@ -494,7 +496,7 @@ SHARE
   ///////////////////////////////////////////////////////////////////////////
 
   int
-  neutron_is_inside_crystal (double* x, double* y, double* z, struct Monochromator_values* mono) {
+  neutron_is_inside_crystal (double* x, double* y, double* z, struct mb_Monochromator_values* mono) {
     // Check that r, theta and h are within parameters
     double num_sig = 1e-6;
     double r = sqrt (*x * *x + *z * *z);
@@ -526,7 +528,7 @@ SHARE
   // Function that sorts which times are the two lowest for a single crystal
   ///////////////////////////////////////////////////////////////////////////
   void
-  sort_times (double* t1, double* t2, double* new_t) {
+  mb_sort_times (double* t1, double* t2, double* new_t) {
     // NOTE: This algorithm breaks down if an intersection
     // is at exactly -1 second away.
     // Make t1<t2, and if there isn't two times, then leave t1 undefined.
@@ -552,7 +554,7 @@ SHARE
   /////////////// and then updating the intersection times to match.
   ////////////////////////////////////////////////////////////////////////////
   void
-  check_intersection_and_update_times (double* t1, double* t2, double* new_t, struct neutron_values* neutron, struct Monochromator_values* mono) {
+  check_intersection_and_update_times (double* t1, double* t2, double* new_t, struct mb_neutron_values* neutron, struct mb_Monochromator_values* mono) {
     // Function for checking if an intersection has happened,
     //  and then updating the intersection times to match.
     double x, y, z;
@@ -560,7 +562,7 @@ SHARE
     y = neutron->r[1] + neutron->v[1] * *new_t;
     z = neutron->r[2] + neutron->v[2] * *new_t;
     if (neutron_is_inside_crystal (&x, &y, &z, mono)) {
-      sort_times (t1, t2, new_t);
+      mb_sort_times (t1, t2, new_t);
     }
   }
 
@@ -568,7 +570,7 @@ SHARE
   /////////////// Function for finding intersection times for a single crystal
   ////////////////////////////////////////////////////////////////////////////
   int
-  cylinder_cut_out_intersect (double* t1, double* t2, struct neutron_values* neutron, struct Monochromator_values* mono) {
+  cylinder_cut_out_intersect (double* t1, double* t2, struct mb_neutron_values* neutron, struct mb_Monochromator_values* mono) {
     // TODO: Add reference to our paper for a visualisation of the geometry.
     // The equations for this code are derived from the equation of the circle,
     // equations for the neutron line, and the coordinates with cos and sin.
@@ -590,7 +592,7 @@ SHARE
     term1 = mono->radius_inner * mono->radius_inner - neutron->r[0] * neutron->r[0] - neutron->r[2] * neutron->r[2];
     term2 = neutron->r[0] * neutron->v[0] + neutron->r[2] * neutron->v[2];
     divisor = neutron->v[0] * neutron->v[0] + neutron->v[2] * neutron->v[2];
-    term1 = term1 / divisor + square (term2 / divisor);
+    term1 = term1 / divisor + mb_square (term2 / divisor);
     if (term1 > 0) {
       term2 = neutron->r[0] * neutron->v[0] + neutron->r[2] * neutron->v[2];
 
@@ -602,7 +604,7 @@ SHARE
     term1 = mono->radius_outer * mono->radius_outer - neutron->r[0] * neutron->r[0] - neutron->r[2] * neutron->r[2];
     term2 = neutron->r[0] * neutron->v[0] + neutron->r[2] * neutron->v[2];
     divisor = neutron->v[0] * neutron->v[0] + neutron->v[2] * neutron->v[2];
-    term1 = term1 / divisor + square (term2 / divisor);
+    term1 = term1 / divisor + mb_square (term2 / divisor);
     if (term1 > 0) {
       term2 = neutron->r[0] * neutron->v[0] + neutron->r[2] * neutron->v[2];
 
@@ -630,7 +632,7 @@ SHARE
   ///////////////////////////////////////////////////////////////////////////
 
   void
-  Coordinate_transformation (struct neutron_values* neutron, struct Monochromator_values* mono) {
+  mb_Coordinate_transformation (struct mb_neutron_values* neutron, struct mb_Monochromator_values* mono) {
     // Now rotate the neutron, in the crystal coordinate system
     // such that the flat of the crystal is aligned with the z-axis.
     // Rotations are around first x then y then z.
@@ -657,7 +659,7 @@ SHARE
   ////////////////////////////////////////////////////////////////////////////
 
   void
-  rotate_point (double* point, struct Monochromator_values* mono) {
+  mb_rotate_point (double* point, struct mb_Monochromator_values* mono) {
     double new_point[3] = { 0, 0, 0 };
     // In order to not get the rotation matrix anew for each point,
     // define it here and since this is a passive rotation of the crystal
@@ -678,8 +680,8 @@ SHARE
   }
 
   void
-  rotate_all_points (double* x1, double* x2, double* x3, double* x4, double* y1, double* y2, double* z1, double* z2, double* z3, double* z4, double p[][3],
-                     struct Monochromator_values* mono) {
+  mb_rotate_all_points (double* x1, double* x2, double* x3, double* x4, double* y1, double* y2, double* z1, double* z2, double* z3, double* z4, double p[][3],
+                     struct mb_Monochromator_values* mono) {
     // First define the points of the first box
     p[0][0] = *x1;
     p[0][1] = *y1;
@@ -708,14 +710,14 @@ SHARE
     p[7][2] = *z4;
     // Now Rotate all the points and perform their translation
     for (int i = 0; i < 8; i++) {
-      rotate_point (p[i], mono);
+      mb_rotate_point (p[i], mono);
     }
   }
   ///////////////////////////////////////////////////////////////////////////
   // Function for sorting which crystal is intersected first.
   ///////////////////////////////////////////////////////////////////////////
   void
-  sort_intersections (double* t, double* t1, int* l, struct neutron_values* neut) {
+  mb_sort_intersections (double* t, double* t1, int* l, struct mb_neutron_values* neut) {
     for (int i = 0; i < neut->n; i++) {
 
       if (neut->entry_time[i] == 0 && neut->exit_time[i] == 0) {
@@ -742,7 +744,7 @@ SHARE
   // Function for finding intersections with all the crystals in the array.
   ///////////////////////////////////////////////////////////////////////////
   void
-  find_intersections (struct Monochromator_array* mono_arr, struct neutron_values* neutron) {
+  mb_find_intersections (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron) {
 
     memset (neutron->intersection_list, -1, sizeof (int) * neutron->n);
     memset (neutron->entry_time, 0, sizeof (double) * neutron->n);
@@ -762,7 +764,7 @@ SHARE
       dx = mono_arr->crystal[i].bounding_box_thickness;
       dy = 2 * mono_arr->crystal[i].height;
       dz = mono_arr->crystal[i].length;
-      Coordinate_transformation (neutron, &mono_arr->crystal[i]);
+      mb_Coordinate_transformation (neutron, &mono_arr->crystal[i]);
       // Before doing proper intersection, check if the neutron is in a bounding box
       intersects_bounding_box
           = box_intersect (&temp1, &temp2, neutron->r[0], neutron->r[1], neutron->r[2], neutron->v[0], neutron->v[1], neutron->v[2], dx, dy, dz);
@@ -778,7 +780,7 @@ SHARE
           if (t1 < 0) {
             t1 = 0;
           }
-          sort_intersections (&t1, &t2, &i, neutron);
+          mb_sort_intersections (&t1, &t2, &i, neutron);
         }
       }
 
@@ -802,7 +804,7 @@ SHARE
   /////////////// B0 and BT are values used for the Debye factor
   ///////////////////////////////////////////////////////////////////////////
   void
-  calculate_B0_and_BT (struct Monochromator_values* monochromator) {
+  calculate_B0_and_BT (struct mb_Monochromator_values* monochromator) {
     double x;
     monochromator->B0 = 2872.556 / monochromator->atomic_number / monochromator->debye_temperature;
 
@@ -812,7 +814,7 @@ SHARE
       x = monochromator->debye_temperature / 0.1;
     double phis = calculate_phi_integral (x);
 
-    monochromator->BT = 4 * monochromator->B0 * phis / square (x);
+    monochromator->BT = 4 * monochromator->B0 * phis / mb_square (x);
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -820,16 +822,16 @@ SHARE
   /////////////// Zachariasen
   ////////////////////////////////////////////////////////////////////////////
   double
-  calculate_kinematic_reflectivity (struct Monochromator_values* monochromator, struct neutron_values* neutron) {
+  calculate_kinematic_reflectivity (struct mb_Monochromator_values* monochromator, struct mb_neutron_values* neutron) {
     double sine_of_bragg_angle = neutron->wavelength / 2 / monochromator->lattice_spacing;
     if (sine_of_bragg_angle >= 1)
       return 0; // Only do first order reflections
-    double cosine_of_bragg_angle = sqrt (1 - square (sine_of_bragg_angle));
+    double cosine_of_bragg_angle = sqrt (1 - mb_square (sine_of_bragg_angle));
     double extinction_length = monochromator->lattice_spacing / neutron->wavelength * sqrt (4 * PI / monochromator->Maier_Leibnitz_reflectivity * 100);
     // Kinenatic reflectivity = QML*DHKL*sin(theta_B)**2/PI/cos(theta_B) [m⁻1]
     double kinematic_reflectivity = monochromator->Maier_Leibnitz_reflectivity;
     kinematic_reflectivity *= monochromator->lattice_spacing;
-    kinematic_reflectivity *= square (sine_of_bragg_angle);
+    kinematic_reflectivity *= mb_square (sine_of_bragg_angle);
     kinematic_reflectivity *= 1 / PI / cosine_of_bragg_angle;
     kinematic_reflectivity *= monochromator->Debye_Waller_factor;
     // Primary extinction factor, using the approximation
@@ -844,8 +846,8 @@ SHARE
   /////////////// See the citation for Freund higher up.
   ////////////////////////////////////////////////////////////////////////////
   double
-  calculate_attenuation_coefficient (struct Monochromator_values* mono, struct neutron_values* neutron) {
-    double E = square (neutron->v_size) * VS2E; // Neutron energy in meV
+  calculate_attenuation_coefficient (struct mb_Monochromator_values* mono, struct mb_neutron_values* neutron) {
+    double E = mb_square (neutron->v_size) * VS2E; // Neutron energy in meV
     // Get factor for single phonon cross section
 
     double Bernoulli_sequence[31] = { 1,        -0.5, 0.166667, 0, -0.033333, 0, 0.0238095, 0, -0.033333, 0, 0.0757576,    0, -0.253114,    0, 1.16667,     0,
@@ -877,7 +879,7 @@ SHARE
     // Set the cross sections, as written in freunds paper
     mono->nuclear_capture_absorption = mono->incoherent_scattering_cross_section + mono->absorption_for_1AA_Neutrons * neutron->wavelength;
 
-    mono->multiple_phonon_absorption = mono->bound_atom_scattering_cross_section * square (mono->atomic_number / (mono->atomic_number + 1)) * DWMF;
+    mono->multiple_phonon_absorption = mono->bound_atom_scattering_cross_section * mb_square (mono->atomic_number / (mono->atomic_number + 1)) * DWMF;
 
     mono->single_phonon_absorption
         = 3 * mono->bound_atom_scattering_cross_section / mono->atomic_number * sqrt (boltzmann_constant * mono->debye_temperature / E) * R;
@@ -891,16 +893,16 @@ SHARE
   /////////////// Function that retrieves local scattering vector G or tau.
   ///////////////////////////////////////////////////////////////////////////
   void
-  calculate_local_scattering_vector (struct Monochromator_values* mono, struct neutron_values* neutron, int* crystal) {
+  calculate_local_scattering_vector (struct mb_Monochromator_values* mono, struct mb_neutron_values* neutron, int* crystal) {
     double tau_temp[3] = { mono->tau[0], mono->tau[1], mono->tau[2] };
 
-    double size_of_in_plane_tau = sqrt (square (mono->tau[0]) + square (mono->tau[2]));
+    double size_of_in_plane_tau = sqrt (mb_square (mono->tau[0]) + mb_square (mono->tau[2]));
     for (int i = 0; i < 3; i++) {
       tau_temp[i] += mono->lattice_spacing_gradient_field[i][0] * neutron->r[0] + mono->lattice_spacing_gradient_field[i][1] * neutron->r[1]
                      + mono->lattice_spacing_gradient_field[i][2] * neutron->r[2];
     }
 
-    double tau_size = sqrt (square (tau_temp[0]) + square (tau_temp[1]) + square (tau_temp[2]));
+    double tau_size = sqrt (mb_square (tau_temp[0]) + mb_square (tau_temp[1]) + mb_square (tau_temp[2]));
 
     // Add the angles of the mosaic block to the scattering vector
     neutron->tau[0]
@@ -910,7 +912,7 @@ SHARE
         = tau_temp[2] - tau_temp[0] * neutron->horiz_angle[*crystal] - mono->tau[1] * mono->tau[2] / size_of_in_plane_tau * neutron->vert_angle[*crystal];
 
     // Renormalize local scat vect
-    double normalization_factor = tau_size / sqrt (square (neutron->tau[0]) + square (neutron->tau[1]) + square (neutron->tau[2]));
+    double normalization_factor = tau_size / sqrt (mb_square (neutron->tau[0]) + mb_square (neutron->tau[1]) + mb_square (neutron->tau[2]));
 
     neutron->tau[0] *= neutron->direction * normalization_factor;
     neutron->tau[1] *= neutron->direction * normalization_factor;
@@ -920,7 +922,7 @@ SHARE
   // Function that sets the neutron structs values at a point and speed
   ////////////////////////////////////////////////////////////////////////////
   void
-  set_neutron_values (struct neutron_values* neutron, double x, double y, double z, double vx, double vy, double vz) {
+  mb_set_neutron_values (struct mb_neutron_values* neutron, double x, double y, double z, double vx, double vy, double vz) {
     neutron->r[0] = x;
     neutron->r[1] = y;
     neutron->r[2] = z;
@@ -932,8 +934,8 @@ SHARE
     neutron->kf_size = 0;
     for (int i = 0; i < 3; i++) {
       neutron->ki[i] = neutron->v[i] * V2K;
-      neutron->ki_size += square (neutron->ki[i]);
-      neutron->v_size += square (neutron->v[i]);
+      neutron->ki_size += mb_square (neutron->ki[i]);
+      neutron->v_size += mb_square (neutron->v[i]);
     }
 
     neutron->v_size = sqrt (neutron->v_size);
@@ -944,14 +946,14 @@ SHARE
   /////////////// Functions that find epsilon zero and beta.
   ////////////////////////////////////////////////////////////////////////////
   void
-  calculate_epszero_and_beta (struct Monochromator_values* mono, struct neutron_values* neutron, int lamella) {
+  calculate_epszero_and_beta (struct mb_Monochromator_values* mono, struct mb_neutron_values* neutron, int lamella) {
     // Update the final wavevector, as well as the size of the reciprocal lattice vector
     neutron->tau_size = 0;
     neutron->kf_size = 0;
     for (int i = 0; i < 3; i++) {
       neutron->kf[i] = neutron->ki[i] + neutron->tau[i];
-      neutron->tau_size += square (neutron->tau[i]);
-      neutron->kf_size += square (neutron->kf[i]);
+      neutron->tau_size += mb_square (neutron->tau[i]);
+      neutron->kf_size += mb_square (neutron->kf[i]);
     }
 
     neutron->tau_size = sqrt (neutron->tau_size);
@@ -960,7 +962,7 @@ SHARE
     double b = 0;
     // a is the numerator for the angular deviation of the bragg angle.
     // a = (ki + tau_0 + tau*gamma)^2 - ki^2
-    a = square (neutron->kf_size) - square (neutron->ki_size);
+    a = mb_square (neutron->kf_size) - mb_square (neutron->ki_size);
     // b is the angle between k_i and tau, muktiplied by the size of each.
     // b = tau*(ki + tau_0 + delta nabla tau * ki + k*gamma)
     // But only the part that is along the
@@ -991,18 +993,18 @@ SHARE
   ////////////////////////////////////////////////////////////////////////////
 
   void
-  find_propability_of_reflection (struct Monochromator_values* mono, struct neutron_values* neutron, int lamella) {
+  find_propability_of_reflection (struct mb_Monochromator_values* mono, struct mb_neutron_values* neutron, int lamella) {
     double kinematic_reflectivity = calculate_kinematic_reflectivity (mono, neutron);
-    if (mono->type == bent) {
+    if (mono->type == mb_bent) {
       // P = 1 - exp(-Q/(beta))
       neutron->probabilities[lamella] = 1 - exp (-kinematic_reflectivity / fabs (neutron->beta[lamella]));
-    } else if (mono->type == bent_mosaic) {
+    } else if (mono->type == mb_bent_mosaic) {
       // P=1-e^[-Q/beta*(Phi[eps_0/eta + beta k delta/eta]  - Phi[eps_0/eta])]
       // arg1 = [eps_0/eta + beta k delta/eta]
       double arg1 = (neutron->eps_zero[lamella] + neutron->beta[lamella] * neutron->v_size * neutron->path_length[lamella]) / mono->mosaicity_horizontal;
       // arg2 = [eps_0/eta]
       double arg2 = neutron->eps_zero[lamella] / mono->mosaicity_horizontal;
-      neutron->probabilities[lamella] = 1 - exp (-kinematic_reflectivity / neutron->beta[lamella] * (normalCDF (arg1, 1) - normalCDF (arg2, 1)));
+      neutron->probabilities[lamella] = 1 - exp (-kinematic_reflectivity / neutron->beta[lamella] * (mb_normalCDF (arg1, 1) - mb_normalCDF (arg2, 1)));
     }
   }
 
@@ -1011,10 +1013,10 @@ SHARE
   /////////////// block
   ////////////////////////////////////////////////////////////////////////////
   void
-  choose_mosaic_block_angle (struct Monochromator_values* mono, struct neutron_values* neutron, int* i, _class_particle* particle) {
-    if (mono->type == bent_mosaic) {
-      neutron->vert_angle[*i] = random_normal_distribution (&mono->mosaicity_vertical, particle);
-      neutron->horiz_angle[*i] = random_normal_distribution (&mono->mosaicity_horizontal, particle);
+  choose_mosaic_block_angle (struct mb_Monochromator_values* mono, struct mb_neutron_values* neutron, int* i, _class_particle* particle) {
+    if (mono->type == mb_bent_mosaic) {
+      neutron->vert_angle[*i] = mb_random_normal_distribution (&mono->mosaicity_vertical, particle);
+      neutron->horiz_angle[*i] = mb_random_normal_distribution (&mono->mosaicity_horizontal, particle);
     } else {
       neutron->vert_angle[*i] = 0;
       neutron->horiz_angle[*i] = 0;
@@ -1024,15 +1026,15 @@ SHARE
   //===== FUNCTIONS TO MOVE NEUTRON IN MONOCHROMATOR COORDINATES ======
   //===================================================================
   void
-  transport_neutron_to_crystal_coordinates (struct Monochromator_values* mono, struct neutron_values* neutron, int* lamella) {
+  transport_neutron_to_crystal_coordinates (struct mb_Monochromator_values* mono, struct mb_neutron_values* neutron, int* lamella) {
     neutron->r[0] += neutron->v[0] * neutron->entry_time[*lamella];
     neutron->r[1] += neutron->v[1] * neutron->entry_time[*lamella];
     neutron->r[2] += neutron->v[2] * neutron->entry_time[*lamella];
-    Coordinate_transformation (neutron, mono);
+    mb_Coordinate_transformation (neutron, mono);
   }
 
   void
-  propagate_neutrons_to_point_of_reflection (struct neutron_values* neutron) {
+  propagate_neutrons_to_point_of_reflection (struct mb_neutron_values* neutron) {
     neutron->r[0] += neutron->v[0] * neutron->TOR;
     neutron->r[1] += neutron->v[1] * neutron->TOR;
     neutron->r[2] += neutron->v[2] * neutron->TOR;
@@ -1043,11 +1045,11 @@ SHARE
   //==========================================================================
 
   void
-  check_if_neutron_intersects (struct Monochromator_array* mono_arr, struct neutron_values* neutron) {
+  check_if_neutron_intersects (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron) {
     if (mono_arr->verbosity) {
       printf ("Checking if neutron intersects with Monochromator\n");
     }
-    find_intersections (mono_arr, neutron);
+    mb_find_intersections (mono_arr, neutron);
     if (neutron->entry_time[0] < 0) {
       if (mono_arr->verbosity) {
         printf ("!!! POSSIBLE ERROR AT MONOCHROMATOR_BENT!!! \n"
@@ -1070,7 +1072,7 @@ SHARE
   //
 
   void
-  calculate_probabilities_of_reflection (struct Monochromator_array* mono_arr, struct neutron_values* neutron, _class_particle* particle) {
+  calculate_probabilities_of_reflection (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron, _class_particle* particle) {
 
     if (mono_arr->verbosity) {
       printf ("Calculating probabilities of reflection\n");
@@ -1078,7 +1080,7 @@ SHARE
     double position[3] = { neutron->r[0], neutron->r[1], neutron->r[2] };
     double speed[3] = { neutron->v[0], neutron->v[1], neutron->v[2] };
     for (int i = 0; i < neutron->intersections; i++) {
-      struct Monochromator_values* mono = &mono_arr->crystal[neutron->intersection_list[i]];
+      struct mb_Monochromator_values* mono = &mono_arr->crystal[neutron->intersection_list[i]];
 
       transport_neutron_to_crystal_coordinates (mono, neutron, &i);
       choose_mosaic_block_angle (mono, neutron, &i, particle);
@@ -1095,7 +1097,7 @@ SHARE
       }
       // Check if reflection would be inside the crystal
       // It should only ever not be, when the mono is at 0 mosaicity
-      if (mono->type == bent) {
+      if (mono->type == mb_bent) {
         neutron->TOR = -neutron->eps_zero[i] / (neutron->ki_size * neutron->beta[i]);
         neutron->TOR *= neutron->ki_size / neutron->v_size;
         propagate_neutrons_to_point_of_reflection (neutron);
@@ -1104,7 +1106,7 @@ SHARE
           neutron->probabilities[i] = 0;
         }
       }
-      if (i == 0 && mono->type == bent && neutron->reflections > 0) {
+      if (i == 0 && mono->type == mb_bent && neutron->reflections > 0) {
         neutron->probabilities[i] = 0;
         // Don't allow double reflections in a perfect crystal
       }
@@ -1131,7 +1133,7 @@ SHARE
   //
 
   void
-  choose_crystal_to_reflect_from (struct Monochromator_array* mono_arr, struct neutron_values* neutron, int* optimize, _class_particle* _particle) {
+  choose_crystal_to_reflect_from (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron, int* optimize, _class_particle* _particle) {
     if (mono_arr->verbosity) {
       printf ("Choosing crystal to reflect from\n");
     }
@@ -1157,7 +1159,7 @@ SHARE
   //
 
   void
-  check_if_neutron_should_pass_through (struct Monochromator_array* mono_arr, struct neutron_values* neutron, double* weight, double* weight_init) {
+  check_if_neutron_should_pass_through (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron, double* weight, double* weight_init) {
     if (mono_arr->verbosity) {
       printf ("Checking if neutron should pass through\n");
     }
@@ -1177,17 +1179,17 @@ SHARE
   //
 
   void
-  sample_reflection_time (struct Monochromator_array* mono_arr, struct neutron_values* neutron, _class_particle* _particle) {
+  sample_reflection_time (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron, _class_particle* _particle) {
     if (mono_arr->verbosity) {
       printf ("Sampling reflection time\n");
     }
     int crystal = neutron->chosen_crystal;
-    struct Monochromator_values* mono = &mono_arr->crystal[neutron->intersection_list[crystal]];
-    if (mono->type == bent) {
+    struct mb_Monochromator_values* mono = &mono_arr->crystal[neutron->intersection_list[crystal]];
+    if (mono->type == mb_bent) {
       // Note: This equation can also be solved precisely as a
       // quadratic equation in Bragg's law.
       neutron->TOR = -neutron->eps_zero[crystal] / (neutron->ki_size * neutron->beta[crystal]);
-    } else if (mono->type == bent_mosaic) {
+    } else if (mono->type == mb_bent_mosaic) {
       double kinematic_reflectivity = calculate_kinematic_reflectivity (mono, neutron);
       // TOR = eta/k/beta * Phi^-1 [Phi(eps_0/eta) -
       // beta/Q * ln(1-ksi*P(delta_n))] - eps_0/k/beta
@@ -1199,7 +1201,7 @@ SHARE
       double log_result = (double)log ((double)log_arg);
       // arg2 = beta/Q * ln(1-ksi*P(delta_n))
       double arg2 = neutron->beta[crystal] / kinematic_reflectivity * log_result;
-      neutron->TOR = inverseNormalCDF (normalCDF (arg1, 1) - arg2, 1);
+      neutron->TOR = mb_inverseNormalCDF (mb_normalCDF (arg1, 1) - arg2, 1);
       neutron->TOR *= mono->mosaicity_horizontal;
       neutron->TOR -= neutron->eps_zero[crystal];
       neutron->TOR *= 1 / neutron->beta[crystal] / neutron->ki_size;
@@ -1227,13 +1229,13 @@ SHARE
   //
 
   void
-  reflect_neutron (struct Monochromator_array* mono_arr, struct neutron_values* neutron, double* speed_x, double* speed_y, double* speed_z, double* weight,
+  mb_reflect_neutron (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron, double* speed_x, double* speed_y, double* speed_z, double* weight,
                    int* optimize) {
     if (mono_arr->verbosity) {
       printf ("Reflecting neutron\n");
     }
     int crystal = neutron->chosen_crystal;
-    struct Monochromator_values* mono = &mono_arr->crystal[neutron->intersection_list[crystal]];
+    struct mb_Monochromator_values* mono = &mono_arr->crystal[neutron->intersection_list[crystal]];
     double calculated_epsilon = neutron->eps_zero[crystal] + neutron->beta[crystal] * neutron->TOR * neutron->v_size;
     neutron->horiz_angle[crystal] = calculated_epsilon;
     calculate_local_scattering_vector (mono, neutron, &crystal);
@@ -1258,7 +1260,7 @@ SHARE
     // reciprocal lattice vector with a changing
     // lattice spacing across the crystal
 
-    double v_size = sqrt (square (*speed_x) + square (*speed_y) + square (*speed_z));
+    double v_size = sqrt (mb_square (*speed_x) + mb_square (*speed_y) + mb_square (*speed_z));
     *speed_x *= neutron->ki_size / v_size * K2V;
     *speed_y *= neutron->ki_size / v_size * K2V;
     *speed_z *= neutron->ki_size / v_size * K2V;
@@ -1283,11 +1285,11 @@ SHARE
   //
 
   void
-  find_new_intersections (struct Monochromator_array* mono_arr, struct neutron_values* neutron) {
+  mb_find_new_intersections (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron) {
     if (mono_arr->verbosity) {
       printf ("Finding new intersections\n");
     }
-    find_intersections (mono_arr, neutron);
+    mb_find_intersections (mono_arr, neutron);
     if (mono_arr->verbosity) {
       for (int i = 0; i < neutron->intersections; i++) {
         printf ("Intersection %d: t=%g\n", i, neutron->entry_time[i]);
@@ -1300,7 +1302,7 @@ SHARE
   //
 
   void
-  attenuate_neutron (struct Monochromator_array* mono_arr, struct neutron_values* neutron, double* p) {
+  mb_attenuate_neutron (struct mb_Monochromator_array* mono_arr, struct mb_neutron_values* neutron, double* p) {
     if (mono_arr->verbosity) {
       printf ("Attenuating neutron\n");
     }
@@ -1314,6 +1316,7 @@ SHARE
     // It is not currently the use case, and therefore we will live with it.
     *p *= exp (-attenuation_coefficient * neutron->path * neutron->v_size);
   }
+  #endif /* MONOCHROMATOR_BENT_LIB */
 %}
 
 DECLARE
@@ -1322,8 +1325,8 @@ DECLARE
   int counter2;
   double curvature;
 
-  struct neutron_values neutron;
-  struct Monochromator_array mono_arr;
+  struct mb_neutron_values neutron;
+  struct mb_Monochromator_array mono_arr;
 %}
 
 INITIALIZE
@@ -1405,7 +1408,7 @@ INITIALIZE
   ////////////////////////////////////////////////////////////////////////////
   /////////////// INITIALIZING PARAMETERS
   ////////////////////////////////////////////////////////////////////////////
-  mono_arr.crystal = (struct Monochromator_values*)malloc (n_crystals * sizeof (struct Monochromator_values));
+  mono_arr.crystal = (struct mb_Monochromator_values*)malloc (n_crystals * sizeof (struct mb_Monochromator_values));
   mono_arr.number_of_crystals = n_crystals; // [#]
   mono_arr.verbosity = verbose;             // [#]
   for (int i = 0; i < n_crystals; i++) {
@@ -1420,15 +1423,15 @@ INITIALIZE
     mono_arr.crystal[i].angle_range = mono_arr.crystal[i].max_angle - mono_arr.crystal[i].min_angle;
     // Figure out the type of Monochromator
     if (radius_x)
-      mono_arr.crystal[i].type = bent;
+      mono_arr.crystal[i].type = mb_bent;
     if (mosaicity)
-      mono_arr.crystal[i].type = mosaic;
+      mono_arr.crystal[i].type = mb_mosaic;
     if (mosaicity && radius_x)
-      mono_arr.crystal[i].type = bent_mosaic;
+      mono_arr.crystal[i].type = mb_bent_mosaic;
     if (!radius_x && !mosaicity)
-      mono_arr.crystal[i].type = flat;
+      mono_arr.crystal[i].type = mb_flat;
     // Read the designated plane of reflection, for use in the Monochromator.
-    enum crystal_plane plane = stringToEnum ((const char*)&plane_of_reflection);
+    enum mb_crystal_plane plane = mb_stringToEnum ((const char*)&plane_of_reflection);
     // Set Monochromator values
     mono_arr.crystal[i].length = zwidth;                                                                                 // [m]
     mono_arr.crystal[i].height = yheight;                                                                                // [m]
@@ -1441,18 +1444,18 @@ INITIALIZE
     mono_arr.crystal[i].bounding_box_thickness = mono_arr.crystal[i].thickness + 2 * arrowheight;
     mono_arr.crystal[i].domain_thickness = domainthickness;                            // []
     mono_arr.crystal[i].temperature_mono = temperature;                                // [T]
-    mono_arr.crystal[i].lattice_spacing = crystal_table[plane][0];                     // [A]
-    mono_arr.crystal[i].Maier_Leibnitz_reflectivity = crystal_table[plane][1] * 100;   // [A^-1 m^-1]
-    mono_arr.crystal[i].bound_atom_scattering_cross_section = crystal_table[plane][2]; // [barn]
-    mono_arr.crystal[i].absorption_for_1AA_Neutrons = crystal_table[plane][3];         // [barn*A^-1]
-    mono_arr.crystal[i].incoherent_scattering_cross_section = crystal_table[plane][4]; // [barn]
-    mono_arr.crystal[i].volume = crystal_table[plane][5];                              // [A^-3]
-    mono_arr.crystal[i].atomic_number = crystal_table[plane][6];                       // [#]
-    mono_arr.crystal[i].debye_temperature = crystal_table[plane][7];                   // [K]
-    mono_arr.crystal[i].Constant_from_Freund_paper = crystal_table[plane][8];          //[A^-2 eV^-1]
-    mono_arr.crystal[i].poisson_ratio = crystal_table[plane][9];                       // []
+    mono_arr.crystal[i].lattice_spacing = mb_crystal_table[plane][0];                     // [A]
+    mono_arr.crystal[i].Maier_Leibnitz_reflectivity = mb_crystal_table[plane][1] * 100;   // [A^-1 m^-1]
+    mono_arr.crystal[i].bound_atom_scattering_cross_section = mb_crystal_table[plane][2]; // [barn]
+    mono_arr.crystal[i].absorption_for_1AA_Neutrons = mb_crystal_table[plane][3];         // [barn*A^-1]
+    mono_arr.crystal[i].incoherent_scattering_cross_section = mb_crystal_table[plane][4]; // [barn]
+    mono_arr.crystal[i].volume = mb_crystal_table[plane][5];                              // [A^-3]
+    mono_arr.crystal[i].atomic_number = mb_crystal_table[plane][6];                       // [#]
+    mono_arr.crystal[i].debye_temperature = mb_crystal_table[plane][7];                   // [K]
+    mono_arr.crystal[i].Constant_from_Freund_paper = mb_crystal_table[plane][8];          //[A^-2 eV^-1]
+    mono_arr.crystal[i].poisson_ratio = mb_crystal_table[plane][9];                       // []
     calculate_B0_and_BT (&mono_arr.crystal[i]);
-    mono_arr.crystal[i].Debye_Waller_factor = exp (-(mono_arr.crystal[i].B0 + mono_arr.crystal[i].BT) / 2 / square (mono_arr.crystal[i].lattice_spacing));
+    mono_arr.crystal[i].Debye_Waller_factor = exp (-(mono_arr.crystal[i].B0 + mono_arr.crystal[i].BT) / 2 / mb_square (mono_arr.crystal[i].lattice_spacing));
 
     mono_arr.crystal[i].x = x_pos[i];
     mono_arr.crystal[i].y = y_pos[i];
@@ -1469,7 +1472,7 @@ INITIALIZE
     }
 
     // Set the mosaicity if relevant
-    if (mono_arr.crystal[i].type == mosaic || mono_arr.crystal[i].type == bent_mosaic) {
+    if (mono_arr.crystal[i].type == mb_mosaic || mono_arr.crystal[i].type == mb_bent_mosaic) {
       // Input mosaicity is in arc min. Convert to Degrees and then to radians
       //  (And multiply with R8LN2 which I don't know what is).
       //  Is it because of input being fwhm instead of sigma?
@@ -1549,7 +1552,7 @@ TRACE
     ABSORB;
   neutron.transmit_neutron = 0;
   neutron.direction = 1;
-  set_neutron_values (&neutron, x, y, z, vx, vy, vz);
+  mb_set_neutron_values (&neutron, x, y, z, vx, vy, vz);
   if (verbose) {
     printf ("\nNEW NEUTRON STARTED\n");
   }
@@ -1573,11 +1576,11 @@ TRACE
     }
     PROP_DT (neutron.TOR + neutron.entry_time[neutron.chosen_crystal]);
     SCATTER;
-    reflect_neutron (&mono_arr, &neutron, &vx, &vy, &vz, &p, &optimize);
-    set_neutron_values (&neutron, x, y, z, vx, vy, vz); // Update speeds and wavevectors
-    find_new_intersections (&mono_arr, &neutron);
+    mb_reflect_neutron (&mono_arr, &neutron, &vx, &vy, &vz, &p, &optimize);
+    mb_set_neutron_values (&neutron, x, y, z, vx, vy, vz); // Update speeds and wavevectors
+    mb_find_new_intersections (&mono_arr, &neutron);
   }
-  attenuate_neutron (&mono_arr, &neutron, &p);
+  mb_attenuate_neutron (&mono_arr, &neutron, &p);
 %}
 
 FINALLY
@@ -1614,7 +1617,7 @@ MCDISPLAY
     if (draw_as_rectangles) {
       break;
     }
-    struct Monochromator_values* mono = &mono_arr.crystal[j];
+    struct mb_Monochromator_values* mono = &mono_arr.crystal[j];
     double max_i = 5;
     double i = 0;
     // double inner_radii = fabs(mono->radius_horizontal) - xthickness/2;
@@ -1639,20 +1642,17 @@ MCDISPLAY
       z_outer[1] = -sin (angle1) * mono->radius_outer;
       // These 8 coordinates define 8 points. Coordinate transform these
       // to the current crystal
-      rotate_all_points (&x_inner[0], &x_outer[0], &x_inner[1], &x_outer[1], &y_top, &y_bottom, &z_inner[0], &z_outer[0], &z_inner[1], &z_outer[1], points, mono);
-      // Draw a box in th xy plane
-      multiline (5, points[0][0], points[0][1], points[0][2], points[2][0], points[2][1], points[2][2], points[3][0], points[3][1], points[3][2], points[1][0],
-                 points[1][1], points[1][2], points[0][0], points[0][1], points[0][2]);
-
-      // Draw curving parts of crystal in the zx plane
-      line (points[0][0], points[0][1], points[0][2], points[4][0], points[4][1], points[4][2]);
-      line (points[1][0], points[1][1], points[1][2], points[5][0], points[5][1], points[5][2]);
-      line (points[2][0], points[2][1], points[2][2], points[6][0], points[6][1], points[6][2]);
-      line (points[3][0], points[3][1], points[3][2], points[7][0], points[7][1], points[7][2]);
+      mb_rotate_all_points (&x_inner[0], &x_outer[0], &x_inner[1], &x_outer[1], &y_top, &y_bottom, &z_inner[0], &z_outer[0], &z_inner[1], &z_outer[1], points, mono);
+      // Start cap, then inner, outer, top and bottom faces of this segment
+      if (i == 0)
+        polygon (4, points[0][0], points[0][1], points[0][2], points[2][0], points[2][1], points[2][2], points[3][0], points[3][1], points[3][2], points[1][0], points[1][1], points[1][2]);
+      polygon (4, points[0][0], points[0][1], points[0][2], points[1][0], points[1][1], points[1][2], points[5][0], points[5][1], points[5][2], points[4][0], points[4][1], points[4][2]);
+      polygon (4, points[2][0], points[2][1], points[2][2], points[3][0], points[3][1], points[3][2], points[7][0], points[7][1], points[7][2], points[6][0], points[6][1], points[6][2]);
+      polygon (4, points[0][0], points[0][1], points[0][2], points[2][0], points[2][1], points[2][2], points[6][0], points[6][1], points[6][2], points[4][0], points[4][1], points[4][2]);
+      polygon (4, points[1][0], points[1][1], points[1][2], points[3][0], points[3][1], points[3][2], points[7][0], points[7][1], points[7][2], points[5][0], points[5][1], points[5][2]);
     }
-    // Draw a final box in the xy plane
-    multiline (5, points[4][0], points[4][1], points[4][2], points[6][0], points[6][1], points[6][2], points[7][0], points[7][1], points[7][2], points[5][0],
-               points[5][1], points[5][2], points[4][0], points[4][1], points[4][2]);
+    // End cap
+    polygon (4, points[4][0], points[4][1], points[4][2], points[6][0], points[6][1], points[6][2], points[7][0], points[7][1], points[7][2], points[5][0], points[5][1], points[5][2]);
   }
 
   // line(0,0,0,
@@ -1660,7 +1660,7 @@ MCDISPLAY
   if (draw_as_rectangles) {
     for (int crystal = 0; crystal < n_crystals; crystal++) {
       double origo[3] = { 0, 0, 0 };
-      rotate_point (origo, &mono_arr.crystal[crystal]);
+      mb_rotate_point (origo, &mono_arr.crystal[crystal]);
       // Set the box
       box (origo[0], origo[1], origo[2], xthickness, yheight, zwidth, 0, 0, 1, 0);
     }

@@ -226,6 +226,10 @@ class McGuiState(QtCore.QObject):
     
     __thread_exc_signal = QtCore.Signal(str)
     def compile(self, mpi=True):
+        # replacing a running QThread aborts the application
+        if getattr(self, 'compilethread', None) is not None and self.compilethread.isRunning():
+            self.__emitter.status('Compile already in progress')
+            return
         # using Qt in-built cross-thread signaling
         self.__thread_exc_signal.connect(handleExceptionMsg)
         
@@ -616,7 +620,7 @@ class McGuiAppController():
     def handleRunOrInterruptSim(self):
         if self.state.isSimRunning():
             self.state.interrupt()
-        else:
+        elif self.state.canRun():
             # ensure auto-save
             self.view.ew.save()
 
@@ -639,6 +643,7 @@ class McGuiAppController():
                     em.message(msg)
                 handler = ThreadInfoHandler(lambda msg, em=self.emitter: em.message(msg))
 
+                instr = self.state.getInstrumentFile()
                 somethread = McRunQThread()
                 somethread.cmd = mccode_config.configuration["MCRUN"] + ' ' + os.path.basename(self.state.getInstrumentFile()) + " --info"
                 somethread.cwd = os.path.dirname(self.state.getInstrumentFile())
@@ -651,6 +656,11 @@ class McGuiAppController():
                 while not handler.finished:
                     time.sleep(0.2)
                     QtWidgets.QApplication.processEvents()
+
+                # The GUI stays live during --info; the user may have closed or switched instrument
+                if self.state.getInstrumentFile() != instr:
+                    self.emitter.status("Instrument changed while getting parameters, run cancelled")
+                    return
 
                 params = []
                 for l in handler.stdout_lst:
@@ -891,11 +901,12 @@ class McGuiAppController():
     
     def handleSaveAs(self):
         oldinstr = self.state.getInstrumentFile()
-        if oldinstr != '':
-            newinstr = self.view.showSaveAsDialog(oldinstr)
-            if self.displayNotSavedWhitespaceError(lambda: self.state.checkInstrFileCandidate(newinstr))==False:
-                return
-        
+        if oldinstr == '':
+            return
+        newinstr = self.view.showSaveAsDialog(oldinstr)
+        if self.displayNotSavedWhitespaceError(lambda: self.state.checkInstrFileCandidate(newinstr))==False:
+            return
+
         if newinstr != '':
             self.state.unloadInstrument()
             text = get_file_contents(oldinstr)
@@ -930,29 +941,39 @@ class McGuiAppController():
             wd = pathlib.PurePath(self.state.getWorkDir())
             if wd.stem==instrbase.stem:
                 self.state.setWorkDir("..")
-        new_instr_req = self.view.showNewInstrFromTemplateDialog(os.path.join(self.state.getWorkDir(), os.path.basename(os.path.dirname(str(instr_templ)))))
-        if self.displayNotSavedWhitespaceError(lambda: self.state.checkInstrFileCandidate(new_instr_req))==False:
+        # Templates are copied including their containing folder, into a user-selected parent folder
+        srcdir = pathlib.Path(str(instr_templ)).parent
+        parent = self.view.showNewInstrFromTemplateDialog(self.state.getWorkDir())
+        if not parent:
             return
-        
-        if new_instr_req != '':
-            if self.view.closeCodeEditorWindow():
-                text = get_file_contents(instr_templ)
-                self.state.unloadInstrument()
-                # Templates are now copied including their containing folder
-                srcdir = os.path.dirname(str(instr_templ))
-                trgdir = pathlib.Path(new_instr_req)
-                # Case 1: destination folder already exists, "merge":
-                if pathlib.Path.exists(trgdir):
-                    files=os.listdir(srcdir)
-                    for fname in files:
-                        shutil.copy2(os.path.join(srcdir,fname), trgdir)
-                else:
-                    # Case 2: create a new folder:
-                    shutil.copytree(srcdir,trgdir)
+        parent = pathlib.Path(parent)
+        # User may have selected the template-named folder itself
+        trgdir = parent if parent.name == srcdir.name else parent / srcdir.name
+        new_instr = str(trgdir / pathlib.Path(str(instr_templ)).name)
+        if self.displayNotSavedWhitespaceError(lambda: self.state.checkInstrFileCandidate(new_instr))==False:
+            return
 
-                new_instr = os.path.join(trgdir, os.path.basename(str(instr_templ)))
-                self.state.loadInstrument(new_instr)
-                self.emitter.status("Instrument created: " + os.path.basename(str(new_instr)))
+        choice = 'copy'
+        if trgdir.exists():
+            n = 2
+            while (trgdir.parent / (srcdir.name + '_' + str(n))).exists():
+                n += 1
+            newdir = trgdir.parent / (srcdir.name + '_' + str(n))
+            choice = self.view.askTemplateDirExists(trgdir, newdir)
+            if choice is None:
+                return
+            if choice == 'new':
+                trgdir = newdir
+                new_instr = str(trgdir / pathlib.Path(str(instr_templ)).name)
+
+        if self.view.closeCodeEditorWindow():
+            self.state.unloadInstrument()
+            if choice == 'replace':
+                shutil.copytree(srcdir, trgdir, dirs_exist_ok=True)
+            elif choice != 'open':
+                shutil.copytree(srcdir, trgdir)
+            self.state.loadInstrument(new_instr)
+            self.emitter.status("Instrument created: " + os.path.basename(new_instr))
     
     def handleOpenInstrument(self):
         instr = self.view.showOpenInstrumentDlg(self.state.getWorkDir())
@@ -1002,7 +1023,7 @@ class McGuiAppController():
     def handleDefault(self):
         reply = QtWidgets.QMessageBox.question(self.view.mw,
                                            'Define system default?',
-                                           'Do you want to make the current ' +  mccode_config.configuration["MCCODE"] + ' the system default?'),
+                                           'Do you want to make the current ' +  mccode_config.configuration["MCCODE"] + ' the system default?')
  
         if reply == QtWidgets.QMessageBox.Yes:
              subprocess.Popen(mccode_config.configuration["MCCODE"] +'-postinst set_mccode_default', shell=True)
@@ -1090,6 +1111,8 @@ def main():
         mccode_config.check_env_vars()
 
         mcguiApp = QtWidgets.QApplication(sys.argv)
+        # Window/taskbar icon, and the Dock icon on macOS. ponytail: 115px logo, ship a 256px+ PNG if it looks soft
+        mcguiApp.setWindowIcon(QtGui.QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), mccode_config.configuration["MCCODE"] + '-py.png')))
         mcguiApp.ctr = McGuiAppController()
         font = QFont()
         font.setFixedPitch(True)

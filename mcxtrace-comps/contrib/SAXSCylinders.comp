@@ -40,13 +40,11 @@ DEFINE COMPONENT SAXSCylinders
 SETTING PARAMETERS (R = 40.0, Height = 100.0, Concentration = 0.01, DeltaRho = 1.0e-14, AbsorptionCrosssection = 0.0,
     xwidth, yheight, zdepth, SampleToDetectorDistance, DetectorRadius)
 
-DEPENDENCY " @GSLFLAGS@ "
-NOACC
 
 /*X-ray Parameters (x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p)*/
 SHARE
 %{
-  #include <gsl/gsl_sf_bessel.h>
+  %include "saxs_J1.h"
 %}
 DECLARE
 %{
@@ -146,7 +144,7 @@ TRACE
     for (i = 0; i < NumberOfSteps; ++i) {
       Alpha = (i + 0.5) * AlphaStep;
 
-      Formfactor1 = gsl_sf_bessel_J1 (q * R * sin (Alpha)) / (q * R * sin (Alpha));
+      Formfactor1 = saxs_J1 (q * R * sin (Alpha)) / (q * R * sin (Alpha));
       Formfactor2 = sin (q * Height * cos (Alpha) / 2.0) / (q * Height * cos (Alpha) / 2.0);
 
       Intensity += sin (Alpha) * Prefactor * pow (2 * Formfactor1 * Formfactor2, 2) * AlphaStep;

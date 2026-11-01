@@ -34,7 +34,7 @@
 * 30       | Sample Stage (XAS configuration)
 * 35       | Sample Stage (SEXAFS configuration)
 *
-* %Example: SAMBA_E0=15 Detector: SAMBA_det_fluo_I=1.23968e+10
+* %Test: SAMBA_E0=15 Detector: SAMBA_det_fluo_I=3.4637e+12
 *
 * %Parameters
 * SAMBA_E0:               [keV]  Central energy
@@ -64,7 +64,7 @@ INITIALIZE
 %{
   {
   // 1. Monochromator Setup (Si 111)
-  double DM= 5.4909; // Si d-spacing
+  double DM= 5.4309; // Si d-spacing
   SAMBA_d_si = DM/sqrt(3); // Si(111) d-spacing
   SAMBA_dcm_gap  = 0.01;       // gap between the 2 monochromator crystals
 
@@ -77,8 +77,8 @@ INITIALIZE
   // R_M * sin(theta_M) = 2 * d (where d is distance to focus)
   // For collimation/focusing, we use the provided approximate values or angles.
   // Here we allow the user to set angles, and we estimate radius.
-  SAMBA_M1_radius = (2.0 * 14.0) / sin(SAMBA_M1_angle * DEG2RAD);
-  SAMBA_M2_radius = (2.0 * 11.5) / sin(SAMBA_M2_angle * DEG2RAD);
+  SAMBA_M1_radius = (2.0 * 14.0) / sin(SAMBA_M1_angle / 1000); // angle still in mrad here
+  SAMBA_M2_radius = (2.0 * 11.5) / sin(SAMBA_M2_angle / 1000);
 
   MPI_MASTER(
     printf("%s: SAMBA_E0=%g [keV] SAMBA_DCM_theta=%g [deg]\n", NAME_INSTRUMENT, SAMBA_E0, SAMBA_DCM_theta);
@@ -124,7 +124,7 @@ EXTEND %{
 
 COMPONENT SAMBA_M1_out = Monitor_nD(xwidth=0.02, yheight=0.02, options="x y", restore_xray=1)
 AT (0, 0, 0) RELATIVE SAMBA_M1_rotated
-ROTATED (-SAMBA_M1_angle, 0, 0) RELATIVE SAMBA_M1_location
+ROTATED (-2*SAMBA_M1_angle, 0, 0) RELATIVE SAMBA_M1_location // reflected beam: 2x grazing angle
 
 // -----------------------------------------------------------------------------
 // OPTICS 2: Sagittal Focusing DCM (MDC1 at 16m, MDC2 at 17m)
@@ -199,7 +199,7 @@ EXTEND %{
 
 COMPONENT SAMBA_M2_out = Monitor_nD(xwidth=0.02, yheight=0.02, options="x y", restore_xray=1)
 AT (0, 0, 0) RELATIVE SAMBA_M2_rotated
-ROTATED (SAMBA_M2_angle, 0, 0) RELATIVE SAMBA_M2_loc
+ROTATED (2*SAMBA_M2_angle, 0, 0) RELATIVE SAMBA_M2_loc // reflected beam: 2x grazing angle
 
 // -----------------------------------------------------------------------------
 // SAMPLE STAGE (at 30 m)

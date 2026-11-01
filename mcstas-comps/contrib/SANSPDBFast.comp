@@ -52,7 +52,6 @@ SETTING PARAMETERS (RhoSolvent = 9.4e-14, Concentration = 0.01, AbsorptionCrosss
 
 
 DEPENDENCY " @GSLFLAGS@ "
-NOACC
 
 SHARE
 %{
@@ -67,22 +66,6 @@ SHARE
   #define SANSPDB
   #define SANSPDBOrderOfHarmonics 21
 
-  void**
-  matrix2d_new (size_t esize, size_t idim, size_t jdim) {
-    size_t const ptrs_size = sizeof (void*) * idim;
-    size_t const row_size = esize * jdim;
-    void** const rows = malloc (ptrs_size);
-    for (size_t i = 0; i < idim; ++i) {
-      void* const row = malloc (row_size);
-      if (!row) {
-        fprintf (stderr, "SANSPDB(fast): Error allocating 2D-mem\n");
-        exit (-1);
-      } else {
-        rows[i] = row;
-      }
-    }
-    return rows;
-  }
   // Simple mathematical functions
   int
   Sign (double x) {
@@ -343,7 +326,7 @@ SHARE
     fclose (PDBFile);
 
     return (NumberOfResidues);
-  } // ReadAminoPDB\
+  } // ReadAminoPDB
 
 
   #endif /*SANSPDB*/
@@ -393,7 +376,7 @@ INITIALIZE
     int i, j, ResidueID;
     double qStep = (qMax - qMin) / (1.0 * NumberOfQBins);
     double q = qMin + qStep * (qbin + 0.5);
-    cdouble** Matrix = (cdouble**)matrix2d_new (sizeof (cdouble), SANSPDBOrderOfHarmonics + 1, SANSPDBOrderOfHarmonics + 1);
+    cdouble Matrix[SANSPDBOrderOfHarmonics + 1][SANSPDBOrderOfHarmonics + 1];
     // init Matrix = 0
     // ResetMatrix(Matrix, SANSPDBOrderOfHarmonics);
     for (i = 0; i <= SANSPDBOrderOfHarmonics; ++i)

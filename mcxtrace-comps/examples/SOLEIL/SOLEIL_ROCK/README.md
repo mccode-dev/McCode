@@ -48,7 +48,7 @@ Pretty energy repartition monitor result: mxrun SOLEIL_ROCK.instr ROCK_E0=17.000
 
 ## Examples
 
-- **Test: ROCK_E0=15.918 Detector: ROCK_fluo_monitor_I=2e+09**
+- **Test: ROCK_E0=15.918 Detector: ROCK_fluo_monitor_I=1.61e+11**
 
 ## Input parameters
 
