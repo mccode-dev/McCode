@@ -98,7 +98,7 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
 
     def get_col_header(label, meta):
         try:
-            return "<br>".join((label + " - " + meta.get("ncount", ""), meta.get("hostname", ""), "CPU: " + meta.get("cpu_type", ""), "GPU: " + meta.get("gpu_type", ""), meta.get("date", "")))
+            return "<br>".join((label + " - " + meta.get("ncount", ""), meta.get("hostname", ""), "CPU: " + meta.get("cpu_type", ""), "GPU: " + meta.get("gpu_type", ""), meta.get("date", ""), "Runtime: " + meta.get("walltime", "n/a")))
         except:
             return "<br>UNDEFINED"
 

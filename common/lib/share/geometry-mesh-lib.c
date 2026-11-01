@@ -2123,6 +2123,10 @@ gmesh_free (gmesh_struct* mesh) {
   memset (mesh, 0, sizeof (gmesh_struct));
 }
 
+  #ifdef OPENACC // Restore fprintf for code following this lib
+    #undef fprintf
+  #endif
+
 #endif // GEOMETRY_MESH_LIB_C
 
 // end of geometry-mesh-lib.c
