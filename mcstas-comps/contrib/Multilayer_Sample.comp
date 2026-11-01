@@ -35,7 +35,8 @@
 * xwidth: [m]     Width of substrate
 * zlength: [m]    Length of substrate
 * ythick: [m]     Thickness of substrate
-* mu_inc: [m^-1]  Incoherent scattering length
+* mu_inc: [cm^-1] Macroscopic incoherent scattering cross section of the substrate
+* mu_abs: [cm^-1] Macroscopic absorption cross section of the substrate at 2200 m/s (scales as 1/v). Together with mu_inc it attenuates the incoherently scattered neutrons
 * frac_inc: [1]   Fraction of statistics to assign to incoherent scattering
 * pack: [1]       Substrate packing factor
 * nlayer: [1]     Number of film layers
@@ -55,7 +56,7 @@ SETTING PARAMETERS (xwidth=0.2, zlength=0.2, int nlayer=1, int nrepeats=1,
   vector sldPar={0.0,2.0e-6,0.0e-6}, 
   vector dPar={20.0},
   vector sigmaPar={5.0,5.0}, 
-  frac_inc=0, ythick=0, mu_inc=5.62, int target_index=0, focus_xw=0, focus_yh=0)
+  frac_inc=0, ythick=0, mu_inc=5.62, mu_abs=0, int target_index=0, focus_xw=0, focus_yh=0)
 
 DEPENDENCY " @GSLFLAGS@ "
 NOACC
@@ -96,6 +97,25 @@ INITIALIZE
       exit (1);
     }
   }
+  if (nlayer < 0 || nrepeats < 1) {
+    fprintf (stderr, "Multilayer: error: %s: nlayer must be >= 0 and nrepeats >= 1. EXIT\n", NAME_CURRENT_COMP);
+    exit (1);
+  }
+  /* TRACE reads sldPar[0..nlayer+1], dPar[0..nlayer-1] and sigmaPar[0..nlayer].
+     Vectors given as {...} literals are arrays of known length and are checked here.
+     Vectors passed from the instrument are plain pointers (length unknown), as are
+     1-element literals indistinguishably, so those cannot be checked. */
+  #define ML_CHECK_LEN(v, n)                                                                                                    \
+    if (sizeof (v) > sizeof (double*) && sizeof (v) / sizeof (v[0]) < (size_t)(n)) {                                           \
+      fprintf (stderr, "Multilayer: error: %s: " #v " has %d entries, nlayer=%d needs at least %d. EXIT\n", NAME_CURRENT_COMP, \
+               (int)(sizeof (v) / sizeof (v[0])), nlayer, (int)(n));                                                            \
+      exit (1);                                                                                                                 \
+    }
+  ML_CHECK_LEN (sldPar, nlayer + 2);
+  ML_CHECK_LEN (dPar, nlayer);
+  ML_CHECK_LEN (sigmaPar, nlayer + 1);
+  #undef ML_CHECK_LEN
+
   xmin = -xwidth / 2.0;
   xmax = xwidth / 2.0;
   zmin = -zlength / 2.0;
@@ -139,13 +159,20 @@ TRACE
     if (x >= xmin && x <= xmax && z >= zmin && z <= zmax) {
       // Incoherent scattering from substrate or coherent scattering from thin film?
       if (rand01 () < frac_inc) {
-        RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
-        // This part is basically from V_sample
+        /* Undo the move to y=0 (t was not advanced). RESTORE_NEUTRON would only
+           restore the entry state when the component is left, discarding the
+           incoherent scattering below. */
+        x = old_x;
+        y = old_y;
+        z = old_z;
+        // This part is basically from V_sample. The substrate is the box
+        // -ythick < y < 0, i.e. a box centred at y = -ythick/2.
 
         intersect = box_intersect (&t0, &t2, x, y + ythick / 2.0, z, vx, vy, vz, xwidth, ythick, zlength);
         if (intersect) {
           if (t0 < 0)
             ABSORB;                   /* we already passed the sample; this is illegal */
+          double l_full = sqrt (vx * vx + vy * vy + vz * vz) * (t2 - t0); /* Path length through substrate */
           dt = rand01 () * (t2 - t0); /* Time of scattering (relative to t0) */
           PROP_DT (dt + t0);
           SCATTER;
@@ -162,10 +189,14 @@ TRACE
           vx *= v;
           vy *= v;
           vz *= v;
-          intersect = box_intersect (&t0, &t2, x, y, z, vx, vy, vz, xwidth, ythick, zlength);
+          intersect = box_intersect (&t0, &t2, x, y + ythick / 2.0, z, vx, vy, vz, xwidth, ythick, zlength);
           if (intersect) {
+            double mu = mu_inc * 100.0;                     /* cm^-1 -> m^-1 */
+            double mu_tot = mu + mu_abs * 100.0 * 2200.0 / v; /* + absorption, 1/v law */
             l_o = v * t2;
-            p *= (l_i + l_o) * (mu_inc / 100.0) * exp (mu_inc * (l_i + l_o) / 100.0);
+            /* Uniformly sampled scattering point: weight = l_full * mu (scattering
+               probability density) times attenuation along the in and out paths */
+            p *= l_full * mu * exp (-mu_tot * (l_i + l_o));
             p /= 4 * PI / solid_angle;
             p /= frac_inc;
           } else {
