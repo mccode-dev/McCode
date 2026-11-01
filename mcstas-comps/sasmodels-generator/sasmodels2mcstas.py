@@ -203,6 +203,8 @@ def generate_mcstas_models():
                 code = "\n".join(source)
                 fname = loc_ucode.split("/")[-1]
             # print(fname)
+            # sasmodels helpers square()/cube() are sas_-prefixed in kernel_header.c to avoid clashes
+            code = re.sub(r"\b(square|cube)\(", r"sas_\1(", code)
             status = 0
             if "form_volume(" in code:
                 code = "\n".join(["#define FORM_VOL", code])
@@ -277,39 +279,13 @@ MCDISPLAY
 %{
 
   if (shape == 0) {	/* cylinder */
-    circle("xz", 0,  yheight/2.0, 0, R);
-    circle("xz", 0, -yheight/2.0, 0, R);
-    line(-R, -yheight/2.0, 0, -R, +yheight/2.0, 0);
-    line(+R, -yheight/2.0, 0, +R, +yheight/2.0, 0);
-    line(0, -yheight/2.0, -R, 0, +yheight/2.0, -R);
-    line(0, -yheight/2.0, +R, 0, +yheight/2.0, +R);
+    cylinder(0, 0, 0, R, yheight, 0, 0, 1, 0);
   }
   else if (shape == 1) { 	/* box */
-    double xmin = -0.5*xwidth;
-    double xmax =  0.5*xwidth;
-    double ymin = -0.5*yheight;
-    double ymax =  0.5*yheight;
-    double zmin = -0.5*zdepth;
-    double zmax =  0.5*zdepth;
-    multiline(5, xmin, ymin, zmin,
-                 xmax, ymin, zmin,
-                 xmax, ymax, zmin,
-                 xmin, ymax, zmin,
-                 xmin, ymin, zmin);
-    multiline(5, xmin, ymin, zmax,
-                 xmax, ymin, zmax,
-                 xmax, ymax, zmax,
-                 xmin, ymax, zmax,
-                 xmin, ymin, zmax);
-    line(xmin, ymin, zmin, xmin, ymin, zmax);
-    line(xmax, ymin, zmin, xmax, ymin, zmax);
-    line(xmin, ymax, zmin, xmin, ymax, zmax);
-    line(xmax, ymax, zmin, xmax, ymax, zmax);
+    box(0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   }
   else if (shape == 2) {	/* sphere */
-    circle("xy", 0,  0.0, 0, R);
-    circle("xz", 0,  0.0, 0, R);
-    circle("yz", 0,  0.0, 0, R);
+    sphere(0, 0, 0, R);
   }
 %}
 END\n\n"""

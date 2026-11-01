@@ -28,13 +28,13 @@
 * This is a simplified model with an Undulator, mirrors, a double crystal 
 * monochromator, a sample stage and a detector.
 *
-* %Example: PX2a_E0=12.65 sample="Mo.lau" PX2a_SPLITs=1500 PX2a_sample_monitor_I=1.53453e+20
+* %Test: PX2a_E0=12.65 PX2a_sample="Mo.lau" splits=1500 Detector: PX2a_sample_monitor_I=3.7789e+20
 *
 * %Parameters
 * PX2a_E0:    [keV] Energy selected at the Undulator.
 * PX2a_hfm_radius: [m] horizontally focusing mirror radius
 * PX2a_vfm_radius: [m] vertically focusing mirror radius
-* PX2a_mirror_grazing_angle: [deg] Tilt angle of the mirrors.
+* PX2a_mirror_grazing_angle: [rad] Tilt angle of the mirrors (4 mrad).
 * PX2a_sample:[str] Sample structure file, LAU/CIF format.
 * PX2a_rotX:  [deg] Sample rotation around X
 * PX2a_rotY:  [deg] Sample rotation around Y
@@ -155,11 +155,11 @@ COMPONENT PX2a_hpm = Mirror_toroid(
   radius   = 495,
   radius_o = 1000)
 AT (0,0,0) RELATIVE PX2a_hpm_in_yz_plane
-ROTATED (PX2a_mirror_grazing_angle, 0, 0) RELATIVE PX2a_hpm_in_yz_plane
+ROTATED (-PX2a_mirror_grazing_angle*RAD2DEG, 0, 0) RELATIVE PX2a_hpm_in_yz_plane // Mirror_toroid is hit from +y
 
 COMPONENT PX2a_hpm_takeoff = Arm()
 AT (0,0,0) RELATIVE PX2a_hpm_location
-ROTATED (0, 2*PX2a_mirror_grazing_angle, 0) RELATIVE PX2a_hpm_location
+ROTATED (0, -2*PX2a_mirror_grazing_angle*RAD2DEG, 0) RELATIVE PX2a_hpm_location
 
 // KB pair ---------------------------------------------------------------------
 // could use Mirror_elliptic
@@ -180,14 +180,14 @@ COMPONENT PX2a_vfm = Mirror_curved(
   width=0.1,
   radius=PX2a_vfm_radius)
 AT (0,0,0) RELATIVE PX2a_vfm_location
-ROTATED(0,-PX2a_mirror_grazing_angle,0) RELATIVE PX2a_vfm_in_xz_plane
+ROTATED(0,-PX2a_mirror_grazing_angle*RAD2DEG,0) RELATIVE PX2a_vfm_in_xz_plane
 EXTEND %{
   PX2a_flag_vfm=SCATTERED;
 %}
 
 COMPONENT PX2a_vfm_takeoff = COPY(PX2a_vfm_location)
 AT (0,0,0) RELATIVE PX2a_vfm_in_xz_plane
-ROTATED (-2*PX2a_mirror_grazing_angle, 0, 0) RELATIVE PX2a_vfm_location
+ROTATED (-2*PX2a_mirror_grazing_angle*RAD2DEG, 0, 0) RELATIVE PX2a_vfm_location
 
 // KB 2nd mirror (YZ) at 1m from sample, shift height=4.8 mm 
 COMPONENT PX2a_hfm_location = COPY(PX2a_vfm_location)
@@ -200,19 +200,19 @@ COMPONENT PX2a_hfm = Mirror_curved(
   width=0.1,
   radius=PX2a_hfm_radius)
 AT (0,0,0) RELATIVE PX2a_hfm_location
-ROTATED (0,-PX2a_mirror_grazing_angle,0) RELATIVE PX2a_hfm_location
+ROTATED (0,-PX2a_mirror_grazing_angle*RAD2DEG,0) RELATIVE PX2a_hfm_location
 EXTEND %{
   PX2a_flag_hfm=SCATTERED;
 %}
 
 COMPONENT PX2a_hfm_takeoff = COPY(PX2a_vfm_location)
 AT (0,0,0) RELATIVE PX2a_hfm_location
-ROTATED (0,-2*PX2a_mirror_grazing_angle,0) RELATIVE PX2a_hfm_location
+ROTATED (0,-2*PX2a_mirror_grazing_angle*RAD2DEG,0) RELATIVE PX2a_hfm_location
 
 // Sample ----------------------------------------------------------------------
 // we centre the beam after the KB.
 COMPONENT PX2a_sample_stage = Arm()
-AT (1e-3,-1.1e-3,1) RELATIVE PX2a_hfm_takeoff
+AT (0.64e-3,-0.21e-3,1) RELATIVE PX2a_hfm_takeoff
 EXTEND %{
   if (!PX2a_flag_hfm || !PX2a_flag_vfm) ABSORB;
 %}

@@ -641,6 +641,8 @@ TRACE
   }
   // Choose the dispersion relation this neutron will simulate
   int dispersion_mode = (int)(rand01 () * n_modes);
+  if (dispersion_mode >= n_modes)
+    dispersion_mode = n_modes - 1; /* rand01() may return 1.0 */
   time_in_sample = t1 - t0;
   time_of_reflection = rand01 () * time_in_sample;
   // Propagate neutron to point of reflection
@@ -709,12 +711,7 @@ TRACE
 
 MCDISPLAY
 %{
-  circle ("xz", 0, yheight / 2.0, 0, radius);
-  circle ("xz", 0, -yheight / 2.0, 0, radius);
-  line (-radius, -yheight / 2.0, 0, -radius, +yheight / 2.0, 0);
-  line (+radius, -yheight / 2.0, 0, +radius, +yheight / 2.0, 0);
-  line (0, -yheight / 2.0, -radius, 0, +yheight / 2.0, -radius);
-  line (0, -yheight / 2.0, +radius, 0, +yheight / 2.0, +radius);
+  cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
 %}
 
 END

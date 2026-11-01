@@ -433,7 +433,7 @@ TRACE
     strcpy (event, "none");
     #endif
     if (verbose)
-      printf ("%s:%i: [neutron=%li iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=(intersect) %s\n", NAME_CURRENT_COMP, __LINE__, mcget_run_num (),
+      printf ("%s:%i: [neutron=%lld iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=(intersect) %s\n", NAME_CURRENT_COMP, __LINE__, mcget_run_num (),
               iterations, geometry, intersect, t0, t1, dt, event);
 
     /* scattering/absorption in bulk, refraction/reflection at interface */
@@ -500,7 +500,7 @@ TRACE
           p *= fabs (p_trans / mc_trans); /* attenuate beam by portion which is scattered (and left along) */
 
         if (verbose)
-          printf ("%s:%i: [neutron=%li iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=(inbulk) %s scatter_me=%i\n", NAME_CURRENT_COMP, __LINE__,
+          printf ("%s:%i: [neutron=%lld iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=(inbulk) %s scatter_me=%i\n", NAME_CURRENT_COMP, __LINE__,
                   mcget_run_num (), iterations, geometry, intersect, t0, t1, dt, event, scatter_me);
       } /* if inbulk */
 
@@ -542,7 +542,7 @@ TRACE
         strcpy (event, "scatter");
         #endif
         if (verbose)
-          printf ("%s:%i: [neutron=%li iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=(scatter) %s\n", NAME_CURRENT_COMP, __LINE__, mcget_run_num (),
+          printf ("%s:%i: [neutron=%lld iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=(scatter) %s\n", NAME_CURRENT_COMP, __LINE__, mcget_run_num (),
                   iterations, geometry, intersect, t0, t1, dl / v, event);
 
       } else {
@@ -564,8 +564,10 @@ TRACE
 
         /* compute refraction index */
         n = sqrt (1 - (lambda * lambda * rho * bc / PI));
-        mean_n += n;
-        events++;
+        #pragma acc atomic
+        mean_n = mean_n + n;
+        #pragma acc atomic
+        events = events + 1;
 
         /* compute incoming angle */
         if (inbulk) {
@@ -655,7 +657,7 @@ TRACE
         PROP_DT (1e-9);
 
         if (verbose)
-          printf ("%s:%i: [neutron=%li iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=(reflect/refract) %s theta1=%g theta2=%g 1-n=%g |xy|=%g nz=%g\n",
+          printf ("%s:%i: [neutron=%lld iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=(reflect/refract) %s theta1=%g theta2=%g 1-n=%g |xy|=%g nz=%g\n",
                   NAME_CURRENT_COMP, __LINE__, mcget_run_num (), iterations, geometry, intersect, t0, t1, dt, event, theta1, theta2, 1 - n, sqrt (x * x + y * y),
                   nz);
       } /* if reflect/refract */
@@ -665,7 +667,7 @@ TRACE
       break;
 
     if (verbose)
-      printf ("%s:%i: [neutron=%li iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=%s\n", NAME_CURRENT_COMP, __LINE__, mcget_run_num (), iterations,
+      printf ("%s:%i: [neutron=%lld iteration=%i] intersect %s=%i t0=%g t1=%g dt=%g event=%s\n", NAME_CURRENT_COMP, __LINE__, mcget_run_num (), iterations,
               geometry, intersect, t0, t1, dt, event);
   } while (intersect && iterations < 100);
 %}
@@ -694,16 +696,9 @@ MCDISPLAY
 %{
   /* show geometry */
   if (!strcmp (geometry, "sphere")) {
-    circle ("xy", 0, 0, 0, radius);
-    circle ("xz", 0, 0, 0, radius);
-    circle ("yz", 0, 0, 0, radius);
+    sphere (0, 0, 0, radius);
   } else if (!strcmp (geometry, "cylinder")) {
-    circle ("xz", 0, yheight / 2.0, 0, radius);
-    circle ("xz", 0, -yheight / 2.0, 0, radius);
-    line (-radius, -yheight / 2.0, 0, -radius, +yheight / 2.0, 0);
-    line (+radius, -yheight / 2.0, 0, +radius, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -radius, 0, +yheight / 2.0, -radius);
-    line (0, -yheight / 2.0, +radius, 0, +yheight / 2.0, +radius);
+    cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
   } else if (!strcmp (geometry, "box")) {
     box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (!strcmp (geometry, "lens_sphere")) {

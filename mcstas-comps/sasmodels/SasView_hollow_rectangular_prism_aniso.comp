@@ -324,7 +324,7 @@ radius_effective_hollow_rectangular_prism(int mode, double length_a, double b2a_
     case 1: // equivalent cylinder excluded volume
         return radius_from_excluded_volume_hollow_rectangular_prism(length_a, b2a_ratio, c2a_ratio);
     case 2: // equivalent outer volume sphere
-        return cbrt(cube(length_a)*b2a_ratio*c2a_ratio/M_4PI_3);
+        return cbrt(sas_cube(length_a)*b2a_ratio*c2a_ratio/M_4PI_3);
     case 3: // half length_a
         return 0.5 * length_a;
     case 4: // half length_b
@@ -334,9 +334,9 @@ radius_effective_hollow_rectangular_prism(int mode, double length_a, double b2a_
     case 6: // equivalent outer circular cross-section
         return length_a*sqrt(b2a_ratio/M_PI);
     case 7: // half ab diagonal
-        return 0.5*sqrt(square(length_a) * (1.0 + square(b2a_ratio)));
+        return 0.5*sqrt(sas_square(length_a) * (1.0 + sas_square(b2a_ratio)));
     case 8: // half diagonal
-        return 0.5*sqrt(square(length_a) * (1.0 + square(b2a_ratio) + square(c2a_ratio)));
+        return 0.5*sqrt(sas_square(length_a) * (1.0 + sas_square(b2a_ratio) + sas_square(c2a_ratio)));
     }
 }
 
@@ -396,7 +396,7 @@ Fq_hollow_rectangular_prism(double q,
             const double AP2 = vol_core * termA2 * termB2 * termC2;
 
             inner_sum_F1 += GAUSS_W[j] * (AP1-AP2);
-            inner_sum_F2 += GAUSS_W[j] * square(AP1-AP2);
+            inner_sum_F2 += GAUSS_W[j] * sas_square(AP1-AP2);
         }
         inner_sum_F1 *= 0.5 * (v2b-v2a);
         inner_sum_F2 *= 0.5 * (v2b-v2a);
@@ -455,7 +455,7 @@ Iqabc_hollow_rectangular_prism(double qa, double qb, double qc,
     const double delrho = sld - solvent_sld;
 
     // Convert from [1e-12 A-1] to [cm-1]
-    return 1.0e-4 * square(delrho * (AP1-AP2));
+    return 1.0e-4 * sas_square(delrho * (AP1-AP2));
 }
 
 
@@ -602,29 +602,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

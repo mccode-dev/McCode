@@ -48,7 +48,6 @@ DECLARE
   // Declarations
   double Prefactor;
   double Absorption;
-  double q;
   double NumberDensity;
 %}
 
@@ -88,7 +87,8 @@ TRACE
   char Intersect = 0;
 
   // Set radius if polydisperse spheres
-  R = R + randnorm () * dR;
+  double q;
+  double Ri = R + randnorm () * dR;
 
   // Computation
   Intersect = box_intersect (&t0, &t1, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
@@ -131,7 +131,7 @@ TRACE
     // Compute scattering
     l1 = v * t1;
 
-    Formfactor = 3.0 * (sin (q * R) - q * R * cos (q * R)) / pow (q * R, 3);
+    Formfactor = 3.0 * (sin (q * Ri) - q * Ri * cos (q * Ri)) / pow (q * Ri, 3);
 
     p *= l_full * SolidAngle / (4.0 * PI) * Prefactor * pow (Formfactor, 2) * exp (-Absorption * (l + l1) / v);
 

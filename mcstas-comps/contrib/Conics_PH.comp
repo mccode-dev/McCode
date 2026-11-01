@@ -133,30 +133,19 @@ MCDISPLAY
   // Enlarge xy-plane when mcdisplay is ran with --zoom
   magnify ("xy");
 
-  // Draw xy-axis contour for Conic Surfaces
+  // Draw Conic Surfaces (full revolution about z, r(z) from conic.h) as polygon facets
   int i;
   for (i = 0; i < s.num_c; i++) {
-    double step = (s.c[i].ze - s.c[i].zs) / 100;
-    double cz;
-    int draw = -1;
-    for (cz = s.c[i].zs + step; cz <= s.c[i].ze; cz += step) {
-      draw++;
-      double rp = rConic (cz - step, s.c[i]);
-      double rc = rConic (cz, s.c[i]);
-      double rx, ry;
-      int j;
-      double theta;
-      for (j = 0; j < 12; j++) {
-        theta = 2.0 * PI * j / 12.0;
-        rx = rp * cos (theta);
-        ry = rp * sin (theta);
-        line (rx, ry, cz - step - zz, rx, ry, cz - zz);
+    int nz = 10, nphi = 24, iz, j;
+    double dz = (s.c[i].ze - s.c[i].zs) / nz;
+    for (iz = 0; iz < nz; iz++) {
+      double z0 = s.c[i].zs + iz * dz, z1 = z0 + dz;
+      double r0 = rConic (z0, s.c[i]), r1 = rConic (z1, s.c[i]);
+      for (j = 0; j < nphi; j++) {
+        double p0 = 2.0 * PI * j / nphi, p1 = 2.0 * PI * (j + 1) / nphi;
+        polygon (4, r0 * cos (p0), r0 * sin (p0), z0 - zz, r0 * cos (p1), r0 * sin (p1), z0 - zz, r1 * cos (p1), r1 * sin (p1), z1 - zz, r1 * cos (p0),
+                 r1 * sin (p0), z1 - zz);
       }
-      if (draw == 0) {
-        circle ("xy", 0, 0, cz - step - zz, rp);
-      }
-      if (draw == 19)
-        draw = -1;
     }
   }
 
