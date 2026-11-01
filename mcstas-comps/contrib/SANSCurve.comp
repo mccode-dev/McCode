@@ -71,7 +71,7 @@ SHARE
 
   // Function used to extract the scattering profile from a given curve
   int
-  LoadCurve (char Filename[], double** Q, double** Iq) {
+  LoadCurve (char Filename[], double** Q, double** Iq_curve) {
     // Declarations
     FILE* File;
 
@@ -104,7 +104,7 @@ SHARE
 
     fclose (File);
 
-    *Iq = IntensityArray;
+    *Iq_curve = IntensityArray;
     *Q = qArray;
 
     return i; /* number of parsed (q, I) rows, not raw lines */
@@ -115,7 +115,7 @@ DECLARE
 %{
   double Absorption;
   double* Q;
-  double* Iq;
+  double* Iq_curve;
   double ForwardScattering;
   double Prefactor;
   int NumberOfDatapoints;
@@ -128,8 +128,8 @@ INITIALIZE
   NumberDensity = Concentration * 6.02214129e19;
 
   // Initializing curve from file
-  NumberOfDatapoints = LoadCurve (FileWithCurve, &Q, &Iq);
-  ForwardScattering = Iq[0];
+  NumberOfDatapoints = LoadCurve (FileWithCurve, &Q, &Iq_curve);
+  ForwardScattering = Iq_curve[0];
 
   if (!xwidth || !yheight || !zdepth) {
     printf ("%s: Sample has no volume, check parameters!\n", NAME_CURRENT_COMP);
@@ -218,8 +218,8 @@ TRACE
     // Do a linear interpolation
     l1 = v * t1;
 
-    Slope = (Iq[i] - Iq[i - 1]) / (Q[i] - Q[i - 1]);
-    Offset = Iq[i] - Slope * Q[i];
+    Slope = (Iq_curve[i] - Iq_curve[i - 1]) / (Q[i] - Q[i - 1]);
+    Offset = Iq_curve[i] - Slope * Q[i];
 
     Intensity = (Slope * q + Offset) / ForwardScattering;
 
