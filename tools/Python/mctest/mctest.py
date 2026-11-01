@@ -549,7 +549,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         executor.shutdown()
 
     # run, record time
-    t1 = time.time()
+    tsim = time.time()
     logging.info("")
     logging.info("Running tests / getting status...")
     runfailed=False
@@ -803,8 +803,8 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     metainfo["cpu_type"] = cpu_type
     metainfo["gpu_type"] = gpu_type
     metainfo["walltime"] = format_walltime(time.time() - t0)
-    metainfo["compiletime"] = format_walltime(t1 - t0)
-    metainfo["simtime"] = format_walltime(time.time() - t1)
+    metainfo["compiletime"] = format_walltime(tsim - t0)
+    metainfo["simtime"] = format_walltime(time.time() - tsim)
 
     # displayname must be unique, we can return a dict, which eases comparison between tests
     obj = {}
