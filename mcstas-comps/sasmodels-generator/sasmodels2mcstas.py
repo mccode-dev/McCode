@@ -203,6 +203,8 @@ def generate_mcstas_models():
                 code = "\n".join(source)
                 fname = loc_ucode.split("/")[-1]
             # print(fname)
+            # sasmodels helpers square()/cube() are sas_-prefixed in kernel_header.c to avoid clashes
+            code = re.sub(r"\b(square|cube)\(", r"sas_\1(", code)
             status = 0
             if "form_volume(" in code:
                 code = "\n".join(["#define FORM_VOL", code])
