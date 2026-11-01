@@ -866,8 +866,12 @@ TRACE
          and by fcut, with dOmega/dQ = 2 pi Q/k^2 and 100 for cm^-1 -> m^-1.
          The remaining paths go isotropically (uniform cos theta) outside the cone.
          fcut >= Ymax ensures the cone gets at least its isotropic share.
-         NOTE: the outside-cone weight (1-Ymax)/(1-fcut) carries no Sinc2/(...)/Stot
-         factor, unlike the SANS branch. Please verify whether this is intended. */
+         Every branch weight = (physical probability of that branch given a scattering
+         event, i.e. its cross-section / Stot) / (probability of choosing it), so the
+         branch probabilities sum to (Scoh + Sinc1 + Sinc2)/Stot = 1 and the weight is
+         conserved on average. Outside the cone that is Sinc2/Stot / (1 - fcut).
+         For model 11, Sinc2 covers all 4 pi, so the cone and outside parts are
+         Sinc2*Ymax and Sinc2*(1-Ymax), and the delta peaks carry Scoh. */
       fcut = sb_max (Ymax, sans_a);
 
       if (modl != 11) {
@@ -879,24 +883,24 @@ TRACE
           theta = 2.0 * asin (0.5 * Q / k0);
         } else {
           Xsc = -1.0 + (Xmax + 1.0) * rand01 ();
-          p *= (1.0 - Ymax) / (1.0 - fcut);
+          p *= Sinc2 / (Stot * (1.0 - fcut));
           theta = acos (Xsc);
         };
       } else {
         if (rand01 () <= fcut) {
           if (rand01 () <= icut) {
             Q = pow (10.0, Qminl + sb_min (floor (rand01 () * NNN), NNN - 1) / 3.0); /* rand01() may return 1.0 */
-            p *= 200.0 * PI * I0 * NNN / (3.0 * sqrt (PI) * k0 * k0 * Scoh * fcut * icut);
+            p *= Scoh / (Stot * fcut * icut);
             Xsc = 1.0 - 0.5 * (Q * Q / (k0 * k0));
             theta = 2.0 * asin (0.5 * Q / k0);
           } else {
             Xsc = 1.0 - 2.0 * Ymax * rand01 ();
-            p *= Ymax / (fcut * (1.0 - icut));
+            p *= Sinc2 * Ymax / (Stot * fcut * (1.0 - icut));
             theta = acos (Xsc);
           };
         } else {
           Xsc = -1.0 + (Xmax + 1.0) * rand01 ();
-          p *= (1.0 - Ymax) / (1.0 - fcut);
+          p *= Sinc2 * (1.0 - Ymax) / (Stot * (1.0 - fcut));
           theta = acos (Xsc);
         };
       };
@@ -943,24 +947,24 @@ TRACE
               theta = 2.0 * asin (0.5 * Q / k0);
             } else {
               Xsc = -1.0 + (Xmax + 1.0) * rand01 ();
-              p *= (1.0 - Ymax) / (1.0 - fcut);
+              p *= Sinc2 / (Stot * (1.0 - fcut));
               theta = acos (Xsc);
             };
           } else {
             if (rand01 () <= fcut) {
               if (rand01 () <= icut) {
                 Q = pow (10.0, Qminl + sb_min (floor (rand01 () * NNN), NNN - 1) / 3.0); /* rand01() may return 1.0 */
-                p *= 200.0 * PI * I0 * NNN / (3.0 * sqrt (PI) * k0 * k0 * Scoh * fcut * icut);
+                p *= Scoh / (Stot * fcut * icut);
                 Xsc = 1.0 - 0.5 * (Q * Q / (k0 * k0));
                 theta = 2.0 * asin (0.5 * Q / k0);
               } else {
                 Xsc = 1.0 - 2.0 * Ymax * rand01 ();
-                p *= Ymax / (fcut * (1.0 - icut));
+                p *= Sinc2 * Ymax / (Stot * fcut * (1.0 - icut));
                 theta = acos (Xsc);
               };
             } else {
               Xsc = -1.0 + (Xmax + 1.0) * rand01 ();
-              p *= (1.0 - Ymax) / (1.0 - fcut);
+              p *= Sinc2 * (1.0 - Ymax) / (Stot * (1.0 - fcut));
               theta = acos (Xsc);
             };
           };
