@@ -384,7 +384,7 @@ SHARE
     }
     if (data->nphe_exact > 2) {
       data->xs3phe = interpFunc (kabs, data->nxs, data->kabs, data->xsTot_3ph);
-      data->xsTot += data->xs2phe;
+      data->xsTot += data->xs3phe;
     }
 
     // approximate terms in phonon expansion (none if approx==0)
@@ -2147,6 +2147,8 @@ SHARE
       fmax = interpFunc (u, np, data->u, data->dXSdQ2_Fmax_mph);
       Q2m = interpFunc (u, np, data->u, data->dXSdQ2_Q2max_mph);
       fmax = (data->dXSdQ2_Fmax_mph)[data->np_u_mph - 1];
+      Q2min = (data->Q2min)[0];
+      Q2max = (data->Q2max)[0];
       printf ("u<data->u[0]\n");
     } else if (u > (data->u)[np - 1]) {
       u1 = (data->u)[np - 1];
@@ -2710,7 +2712,6 @@ SHARE
     double E, x, xmin, xmax, dx, z, dz, u, Q2, tsp, Erat, Q2f;
     double fac1, fac2, yp, g0, g0Q2;
     double S, s1, ss;
-    double Se, s1e;
     double stol = 1.0e-8;
     FILE* filep;
 
@@ -2731,7 +2732,6 @@ SHARE
     while (1) {
       u = Erat * (1.0 - x * x);
       s1 = 0;
-      s1e = 0;
       for (j = 0; j <= nz; j++) {
         z = -1.0 + j * dz;
         Q2 = Q2f * (1.0 + x * x - 2.0 * x * z);
@@ -2759,10 +2759,8 @@ SHARE
         //
         if (j != 0 && j != nz) {
           s1 += S;
-          s1e += Se;
         } else {
           s1 += 0.5 * S;
-          s1e += 0.5 * Se;
         }
       }
       if (x * x * dz * s1 < stol) {
@@ -2775,7 +2773,6 @@ SHARE
     while (1) {
       u = Erat * (1.0 - x * x);
       s1 = 0;
-      s1e = 0;
       for (j = 0; j <= nz; j++) {
         z = -1.0 + j * dz;
         Q2 = Q2f * (1.0 + x * x - 2.0 * x * z);
@@ -2803,10 +2800,8 @@ SHARE
         //
         if (j != 0 && j != nz) {
           s1 += S;
-          s1e += Se;
         } else {
           s1 += 0.5 * S;
-          s1e += 0.5 * Se;
         }
       }
       if (x * x * dz * s1 < stol) {
