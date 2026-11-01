@@ -10,7 +10,7 @@ h = 1 corresponds to the fcc (2 0 0) reciprocal lattice vector.
 
 The last column is the Phonon_simple cross section written in the form that
 Dispersion_relation reads, in barn/sr per unit cell of side a/2:
-    I = (rho_atom/rho_cell) * b^2/(4 pi) * (hbar^2 kappa^2/2m_n)/omega / M.
+    I = (rho_atom/rho_cell) * b^2 * (hbar^2 kappa^2/2M)/omega, M in amu.
 It depends on the full scattering vector kappa, which the folded grid cannot
 hold, so it is written for the Brillouin zone around one reciprocal lattice
 point given by --zone: each folded coordinate is unfolded to lie within half
@@ -32,6 +32,7 @@ import os
 import numpy as np
 
 HBAR2_OVER_2MN = 2.0721  # hbar^2/(2 m_n) [meV AA^2], K2V^2*VS2E in McStas
+NEUTRON_MASS_U = 1.00866  # m_n/u, so that M is in amu
 
 
 def phonon_simple_omega(qx, qy, qz, a, c):
@@ -46,7 +47,7 @@ def phonon_simple_omega(qx, qy, qz, a, c):
 def phonon_simple_cross_section(kappa2, omega, a, b, M, cell_volume=None):
     """Phonon_simple cross section in barn/sr per unit cell of the given volume.
 
-    Phonon_simple weights a ray by rho_atom/(4 pi) * (hbar^2 kappa^2/2m_n)/omega * b^2/M,
+    Phonon_simple weights a ray by rho_atom * (hbar^2 kappa^2/2m_n)/omega * b^2 * (m_n/u)/M,
     with b in fm, while Dispersion_relation uses rho_cell * I with I in barn/sr.
     The default cell is the cube of side a/2.
     """
@@ -54,7 +55,7 @@ def phonon_simple_cross_section(kappa2, omega, a, b, M, cell_volume=None):
     rho_cell = 1/(cell_volume if cell_volume is not None else (a/2)**3)
     b2_barn = b**2*0.01
     with np.errstate(divide="ignore", invalid="ignore"):
-        cross_section = (rho_atom/rho_cell)*b2_barn/(4*np.pi)*HBAR2_OVER_2MN*kappa2/omega/M
+        cross_section = (rho_atom/rho_cell)*b2_barn*HBAR2_OVER_2MN*kappa2/omega*NEUTRON_MASS_U/M
     # omega = 0 only at the reciprocal lattice points, where no phonon is excited
     return np.where(omega > 0, cross_section, 0)
 
@@ -88,7 +89,7 @@ def main():
     parser.add_argument("--a", type=float, default=4.95, help="fcc lattice constant [AA] (Pb)")
     parser.add_argument("--c", type=float, default=10.0, help="Velocity of sound [meV AA] (Pb)")
     parser.add_argument("--b", type=float, default=9.405, help="Scattering length [fm] (Pb)")
-    parser.add_argument("--M", type=float, default=207.2, help="Atomic mass [a.u.] (Pb)")
+    parser.add_argument("--M", type=float, default=207.2, help="Atomic mass [amu] (Pb)")
     parser.add_argument("--zone", type=float, nargs=3, default=[1, 0, 1], metavar=("H", "K", "L"),
                         help="Reciprocal lattice point, in units of 4 pi/a, whose zone the cross section is written for")
     parser.add_argument("--cell", choices=["cubic", "primitive"], default="cubic",

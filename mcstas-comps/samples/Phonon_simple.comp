@@ -51,7 +51,7 @@
 * sigma_inc: [barns]  Incoherent scattering cross section per atom
 * a: [AA]             fcc Lattice constant
 * b: [fm]             Scattering length
-* M: [a.u.]           Atomic mass
+* M: [amu]            Atomic mass
 * c: [meV/AA^(-1)]    Velocity of sound
 * DW: [1]             Debye-Waller factor
 * T: [K]              Temperature
@@ -262,6 +262,7 @@ SHARE
   }
 
   #define ROOTACC 1e-8
+  #define PHONON_SIMPLE_MAX_ROOTS 64 /* size of vf_list in TRACE */
 
   /*-----------------------------------------------------------------------
    * Parabolic 3-point root finder, following an idea by Kim Lefmann
@@ -427,19 +428,23 @@ SHARE
     if (s1 == 0 || s2 == 0 || s1 != s2) {
       root = bisect_root (f, x1, x2, neutron, phonon, xacc);
       if (root != UNUSED)
-        list[(*index)++] = root;
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
     }
     if (s2 == 0 || s3 == 0 || s2 != s3) {
       root = bisect_root (f, x2, x3, neutron, phonon, xacc);
       if (root != UNUSED)
-        list[(*index)++] = root;
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
     }
     if (s1 != 0 && s1 == s2 && s2 == s3) {
       /* All three samples share the same sign: check for a hidden parabolic double-root */
       parabola_coeffs (y1, y2, y3, Delta, &A, &B, &C);
       if (parabola_two_roots (A, B, C, Delta, &Xr1, &Xr2)) {
-        list[(*index)++] = polish_root (f, x2 + Xr1, neutron, phonon, xacc);
-        list[(*index)++] = polish_root (f, x2 + Xr2, neutron, phonon, xacc);
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = polish_root (f, x2 + Xr1, neutron, phonon, xacc);
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = polish_root (f, x2 + Xr2, neutron, phonon, xacc);
       }
     }
   }
@@ -467,19 +472,23 @@ SHARE
     if (s1 == 0 || s2 == 0 || s1 != s2) {
       root = bisect_root_gpu (x1, x2, neutron, phonon, xacc);
       if (root != UNUSED)
-        list[(*index)++] = root;
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
     }
     if (s2 == 0 || s3 == 0 || s2 != s3) {
       root = bisect_root_gpu (x2, x3, neutron, phonon, xacc);
       if (root != UNUSED)
-        list[(*index)++] = root;
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
     }
     if (s1 != 0 && s1 == s2 && s2 == s3) {
       /* All three samples share the same sign: check for a hidden parabolic double-root */
       parabola_coeffs (y1, y2, y3, Delta, &A, &B, &C);
       if (parabola_two_roots (A, B, C, Delta, &Xr1, &Xr2)) {
-        list[(*index)++] = polish_root_gpu (x2 + Xr1, neutron, phonon, xacc);
-        list[(*index)++] = polish_root_gpu (x2 + Xr2, neutron, phonon, xacc);
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = polish_root_gpu (x2 + Xr1, neutron, phonon, xacc);
+        if (*index < PHONON_SIMPLE_MAX_ROOTS)
+          list[(*index)++] = polish_root_gpu (x2 + Xr2, neutron, phonon, xacc);
       }
     }
   }
@@ -572,25 +581,7 @@ INITIALIZE
 %}
 TRACE
 %{
-  double* vf_list;
-  /* Each of the e_steps_low+e_steps_high sub-intervals can now yield up to
-     2 roots (the parabolic 3-point test can find a hidden double-root, or
-     both halves of a sub-interval can each contain a sign-change root), so
-     the list needs twice the number of sub-intervals as before. */
-  #ifdef OPENACC
-  vf_list = (double*)malloc (2 * (e_steps_low + e_steps_high) * sizeof (double)); // List of allowed final velocities.
-  #else
-  vf_list = (double*)calloc (2 * (e_steps_low + e_steps_high), sizeof (double)); // List of allowed final velocities.
-  #endif
-  if (!vf_list) {
-    printf ("Memory allocation failed, fatal error!\n");
-    exit (-1);
-  }
-  #ifdef OPENACC
-  for (int ii = 0; ii < 2 * (e_steps_low + e_steps_high); ii++) {
-    vf_list[ii] = 0;
-  }
-  #endif
+  double vf_list[PHONON_SIMPLE_MAX_ROOTS]; /* List of allowed final velocities */
 
   struct neutron_params neutron;
   double t0, t1;                          /* Entry/exit time for cylinder */
@@ -654,7 +645,11 @@ TRACE
     #else
     findroots_gpu (0, v_i, v_i + 2 * c * V2K / VS2E, vf_list, &nf, &neutron, &phonon);
     #endif
+    if (!nf)
+      ABSORB; /* no allowed final velocity, the weight would be zero */
     index = (int)floor (rand01 () * nf);
+    if (index >= nf)
+      index = nf - 1; /* rand01() may return 1.0 */
 
     v_f = vf_list[index];
     neutron.vf = v_f - DV;
@@ -683,13 +678,12 @@ TRACE
     my_a_f = V_my_a_v / v_f;
     bose_factor = nbose (omega, T);
     p1 = exp (-(V_my_s * (l_i + l_o) + my_a_i * l_i + my_a_f * l_o));                 /* Absorption factor */
-    p2 = nf * solid_angle * l_full * V_rho / (4 * PI);                                /* Focusing factors; assume random choice of n_f possibilities */
+    p2 = nf * solid_angle * l_full * V_rho;                                           /* Focusing factors; assume random choice of n_f possibilities */
     p3 = (v_f / v_i) * DW * (kappa2 * K2V * K2V * VS2E) / fabs (omega) * bose_factor; /* Cross section factor 1 */
     p4 = 2 * VS2E * v_f / J_factor;                                                   /* Jacobian of delta functions in cross section */
-    p5 = b * b / M;                                                                   /* Cross section factor 2 */
+    p5 = b * b * 1.00866 / M;                                                         /* Cross section factor 2; 1.00866 = m_n/u, M in amu */
     p *= p1 * p2 * p3 * p4 * p5;
   } /* else transmit: Neutron did not hit the sample */
-  free (vf_list);
 %}
 
 FINALLY 
@@ -701,12 +695,7 @@ FINALLY
 MCDISPLAY
 %{
 
-  circle ("xz", 0, yheight / 2.0, 0, radius);
-  circle ("xz", 0, -yheight / 2.0, 0, radius);
-  line (-radius, -yheight / 2.0, 0, -radius, +yheight / 2.0, 0);
-  line (+radius, -yheight / 2.0, 0, +radius, +yheight / 2.0, 0);
-  line (0, -yheight / 2.0, -radius, 0, +yheight / 2.0, -radius);
-  line (0, -yheight / 2.0, +radius, 0, +yheight / 2.0, +radius);
+  cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
 %}
 
 END

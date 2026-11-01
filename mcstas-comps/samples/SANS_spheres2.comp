@@ -122,7 +122,6 @@ DECLARE
   double Qminl;
   double Qmaxl;
   double l10; /* logarithms of Qmind, Qmaxd and constant ln(10) */
-  double p0;
 %}
 
 INITIALIZE
@@ -180,9 +179,6 @@ TRACE
 
   double axis_x, axis_y, axis_z;
   double tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
-
-  /* Initial neutron weight saved for later */
-  p0 = p;
 
   /* Number of scatterings in sample - limit at 10 below */
   iscatt = 0;
@@ -356,22 +352,6 @@ TRACE
 
 MCDISPLAY
 %{
-  double radius = 0;
-  double h = 0;
-
-  {
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zthick;
-    double zmax = 0.5 * zthick;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
-  }
+  box (0, 0, 0, xwidth, yheight, zthick, 0, 0, 1, 0);
 %}
 END
