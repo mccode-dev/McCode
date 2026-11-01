@@ -209,9 +209,10 @@ void *mcmagnet_pop(_class_particle *_particle) {
 #endif
   /*move the stack one step up*/
   int i;
-  for (i=0;i<MCMAGNET_STACKSIZE-2;i++){
+  for (i=0;i<MCMAGNET_STACKSIZE-1;i++){
     stack[i]=stack[i+1];
   }
+  stack[MCMAGNET_STACKSIZE-1]=NULL;
   /*if this makes the upper element go NULL also NULL _particle->mcMagnet
     to flag that precession propagation is no longer needed*/
   if(stack[0]==NULL){
