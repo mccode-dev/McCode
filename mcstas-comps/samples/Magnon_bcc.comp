@@ -84,13 +84,13 @@ target_x=0, target_y=0, target_z=0, int target_index=0,F2=1,focus_r=0,focus_xw=0
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 SHARE
 %{
-  #ifndef PHONON_SIMPLE
-  #define PHONON_SIMPLE $Revision$
+  #ifndef MAGNON_BCC
+  #define MAGNON_BCC $Revision$
   #define T2E (1/11.605)   /* Kelvin to meV */
 
   #pragma acc routine
   double
-  nbose (double omega, double T) /* Other name ?? */
+  magnon_nbose (double omega, double T) /* Other name ?? */
   {
     double nb;
 
@@ -103,16 +103,16 @@ SHARE
   #define MAXRIDD 60
 
   void
-  fatalerror_cpu (char* s) {
+  magnon_fatalerror_cpu (char* s) {
     fprintf (stderr, "%s \n", s);
     exit (1);
   }
 
   #pragma acc routine
   void
-  fatalerror (char* s, _class_particle* _particle) {
+  magnon_fatalerror (char* s, _class_particle* _particle) {
     #ifndef OPENACC
-    fatalerror_cpu (s);
+    magnon_fatalerror_cpu (s);
     #else
     _particle->_absorbed = 1;
     #endif
@@ -120,7 +120,7 @@ SHARE
 
   #pragma acc routine
   double
-  omega_q (double* parms) {
+  magnon_omega_q (double* parms) {
     /* dispersion in units of meV  */
     double vi, vf, vv_x, vv_y, vv_z, vi_x, vi_y, vi_z;
     double q, qx, qy, qz, FM, J1, J2, J10, J1q, J20, J2q, D, Verbose, res_magnon, res_neutron;
@@ -183,75 +183,16 @@ SHARE
       return (res_magnon - res_neutron);
   }
 
-  double
-  zridd (double (*func) (double*), double x1, double x2, double* parms, double xacc, _class_particle* _particle) {
-    int j;
-    double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
-
-    //     printf("zridd called with brackets %g %g acceptance %g \n",x1,x2,xacc);
-    //     printf("and %i parameters %g %g %g %g %g \n",Nparms,parms[0],parms[1],parms[2],parms[3], parms[4]);
-    parms[0] = x1;
-    fl = (*func) (parms);
-    parms[0] = x2;
-    fh = (*func) (parms);
-
-    /*      printf("Function values: %g %g \n",fl,fh); */
-    if (fl * fh >= 0) {
-      if (fl == 0)
-        return x1;
-      if (fh == 0)
-        return x2;
-      return UNUSED;
-    } else {
-      xl = x1;
-      xh = x2;
-      ans = UNUSED;
-      for (j = 1; j < MAXRIDD; j++) {
-        xm = 0.5 * (xl + xh);
-        parms[0] = xm;
-        fm = (*func) (parms);
-        s = sqrt (fm * fm - fl * fh);
-        if (s == 0.0)
-          return ans;
-        xnew = xm + (xm - xl) * ((fl >= fh ? 1.0 : -1.0) * fm / s);
-        if (fabs (xnew - ans) <= xacc)
-          return ans;
-        ans = xnew;
-        parms[0] = ans;
-        fnew = (*func) (parms);
-        if (fnew == 0.0)
-          return ans;
-        if (fabs (fm) * SIGN (fnew) != fm) {
-          xl = xm;
-          fl = fm;
-          xh = ans;
-          fh = fnew;
-        } else if (fabs (fl) * SIGN (fnew) != fl) {
-          xh = ans;
-          fh = fnew;
-        } else if (fabs (fh) * SIGN (fnew) != fh) {
-          xl = ans;
-          fl = fnew;
-        } else
-          fatalerror ("never get here in zridd", _particle);
-        if (fabs (xh - xl) <= xacc)
-          return ans;
-      }
-      fatalerror ("zridd exceeded maximum iterations", _particle);
-    }
-    return 0.0; /* Never get here */
-  }
-
   #pragma acc routine
   double
-  zridd_gpu (double x1, double x2, double* parms, double xacc, _class_particle* _particle) {
+  magnon_zridd (double x1, double x2, double* parms, double xacc, _class_particle* _particle) {
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
     parms[0] = x1;
-    fl = omega_q (parms);
+    fl = magnon_omega_q (parms);
     parms[0] = x2;
-    fh = omega_q (parms);
+    fh = magnon_omega_q (parms);
     if (fl * fh >= 0) {
       if (fl == 0)
         return x1;
@@ -265,7 +206,7 @@ SHARE
       for (j = 1; j < MAXRIDD; j++) {
         xm = 0.5 * (xl + xh);
         parms[0] = xm;
-        fm = omega_q (parms);
+        fm = magnon_omega_q (parms);
         s = sqrt (fm * fm - fl * fh);
         if (s == 0.0)
           return ans;
@@ -274,7 +215,7 @@ SHARE
           return ans;
         ans = xnew;
         parms[0] = ans;
-        fnew = omega_q (parms);
+        fnew = magnon_omega_q (parms);
         if (fnew == 0.0)
           return ans;
         if (fabs (fm) * SIGN (fnew) != fm) {
@@ -289,58 +230,36 @@ SHARE
           xl = ans;
           fl = fnew;
         } else
-          fatalerror ("never get here in zridd", _particle);
+          magnon_fatalerror ("never get here in zridd", _particle);
         if (fabs (xh - xl) <= xacc)
           return ans;
       }
-      fatalerror ("zridd exceeded maximum iterations", _particle);
+      magnon_fatalerror ("zridd exceeded maximum iterations", _particle);
     }
     return 0.0; /* Never get here */
   }
 
   #define ROOTACC 1e-8
-  int
-  findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (double*), double* parms, _class_particle* _particle) {
-    double root, range_low = brack_mid - brack_low, range_high = brack_high - brack_mid;
-    int i, steps = 100;
-
-    for (i = 0; i < steps; i++) {
-      root = zridd (f, brack_mid + range_high * i / (int)steps, brack_mid + range_high * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
-      if (root != UNUSED) {
-        list[(*index)++] = root;
-        // printf("findroots found a high root: vf = %g \n",root);
-      }
-    }
-
-    for (i = 0; i < steps; i++) {
-      root = zridd (f, brack_low + range_low * i / (int)steps, brack_low + range_low * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
-      if (root != UNUSED) {
-        list[(*index)++] = root;
-        // printf("findroots found a  low root: vf = %g \n",root);
-        return (-1);
-      }
-    }
-    // fatalerror("exiting findroots");
-    return (-1);
-  }
-
+  #define MAGNON_BCC_MAX_ROOTS 7 /* size of vf_list in TRACE */
   #pragma acc routine
   int
-  findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, _class_particle* _particle) {
+  magnon_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, _class_particle* _particle) {
     double root, range_low = brack_mid - brack_low, range_high = brack_high - brack_mid;
     int i, steps = 100;
 
     for (i = 0; i < steps; i++) {
-      root = zridd_gpu (brack_mid + range_high * i / (int)steps, brack_mid + range_high * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
+      root = magnon_zridd (brack_mid + range_high * i / (int)steps, brack_mid + range_high * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < MAGNON_BCC_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
 
     for (i = 0; i < steps; i++) {
-      root = zridd_gpu (brack_low + range_low * i / (int)steps, brack_low + range_low * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
+      root = magnon_zridd (brack_low + range_low * i / (int)steps, brack_low + range_low * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < MAGNON_BCC_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
     return (0);
@@ -400,7 +319,7 @@ TRACE
   double bose_factor;                     /* Calculated value of the Bose factor */
   double omega;                           /* energy transfer */
   int nf, index;                          /* Number of allowed final velocities */
-  double vf_list[7];                      /* List of allowed final velocities */
+  double vf_list[MAGNON_BCC_MAX_ROOTS];                   /* List of allowed final velocities */
   double J_factor, coherence_factor;      /* Jacobian from delta fnc.s in cross section  + AFM coherence factor */
   double f1, f2;                          /* probed values of omega_q minus omega */
   double p1, p2, p3, p4, p5;              /* temporary multipliers */
@@ -451,14 +370,12 @@ TRACE
     parms[13] = verbose;
     parms[14] = 0;
     parms[15] = FM;
-    #ifndef OPENACC
-    findroots (0, v_i, v_i + SE2V * sqrt (8 * s * fabs (J1) + 6 * s * fabs (J2) + s * fabs (D)), vf_list, &nf, omega_q, parms, _particle);
-    #else
-    findroots_gpu (0, v_i, v_i + SE2V * sqrt (8 * s * fabs (J1) + 6 * s * fabs (J2) + s * fabs (D)), vf_list, &nf, parms, _particle);
-    #endif
+    magnon_findroots (0, v_i, v_i + SE2V * sqrt (8 * s * fabs (J1) + 6 * s * fabs (J2) + s * fabs (D)), vf_list, &nf, parms, _particle);
 
     index = (int)floor (rand01 () * nf);
-    // fatalerror("1 line after after call of findroots");
+    if (index >= nf)
+      index = nf - 1; /* rand01() may return 1.0 */
+    // magnon_fatalerror("1 line after after call of findroots");
     /*    printf("Root index: %i %g \n", index, vf_list[index]); */
 
     if (nf > 0 && index < 7) {
@@ -467,17 +384,19 @@ TRACE
       /* Recast if v_f is 0 */
       while (recast < 7 && v_f < 10 * FLT_EPSILON) {
         index = (int)floor (rand01 () * nf);
+        if (index >= nf)
+          index = nf - 1; /* rand01() may return 1.0 */
         v_f = vf_list[index];
         recast++;
       }
       parms[0] = v_f;
       parms[14] = 1; // return coherence factor
-      coherence_factor = omega_q (parms);
+      coherence_factor = magnon_omega_q (parms);
       parms[0] = v_f - DV;
       parms[14] = 0; // return dispersion
-      f1 = omega_q (parms);
+      f1 = magnon_omega_q (parms);
       parms[0] = v_f + DV;
-      f2 = omega_q (parms);
+      f2 = magnon_omega_q (parms);
       J_factor = fabs (f2 - f1) / (2 * DV * K2V);
       /*    printf("f1,f2: %g %g , J factor %g \n",f1,f2,J_factor); */
       omega = VS2E * (v_i * v_i - v_f * v_f);
@@ -500,7 +419,7 @@ TRACE
 
         my_a_i = V_my_a_v / v_i;
         my_a_f = V_my_a_v / v_f;
-        bose_factor = nbose (omega, T);
+        bose_factor = magnon_nbose (omega, T);
         p1 = exp (-(V_my_s * (l_i + l_o) + my_a_i * l_i + my_a_f * l_o)); /* Absorption factor */
         p2 = nf * solid_angle * l_full * V_rho / (4 * PI);                /* Focusing factors; assume random choice of n_f possibilities */
         p3 = gamma_n * gamma_n * r0 * r0 * (v_f / v_i) * F2 * DW * s * s * (1 + kappa2_norm_z) * bose_factor;
@@ -517,7 +436,7 @@ TRACE
         }
       } else {  /* ??? did not hit cylinder */
         ABSORB; // Simply absorb if we can not hit, no fatal errors. (Typically indication of v_f==0)
-                // fatalerror("FATAL ERROR: Did not hit cylinder from inside.\n", _particle);
+                // magnon_fatalerror("FATAL ERROR: Did not hit cylinder from inside.\n", _particle);
       }
 
     } else {
