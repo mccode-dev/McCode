@@ -201,10 +201,10 @@ static double micelle_spherical_kernel(double q,
 
     // Self-correlation term of the core
     const double bes_core = sas_3j1x_x(q*radius_core);
-    const double term1 = square(n_aggreg*beta_core*bes_core);
+    const double term1 = sas_square(n_aggreg*beta_core*bes_core);
 
     // Self-correlation term of the chains
-    const double qrg2 = square(q*rg);
+    const double qrg2 = sas_square(q*rg);
     const double debye_chain = (qrg2 == 0.0) ? 1.0 : 2.0*(expm1(-qrg2)+qrg2)/(qrg2*qrg2);
     const double term2 = n_aggreg * beta_corona * beta_corona * debye_chain;
 
@@ -216,7 +216,7 @@ static double micelle_spherical_kernel(double q,
 
     // Interference cross-term between chains
     const double term4 = n_aggreg * (n_aggreg - 1.0)
-                 * square(beta_corona * chain_ampl * bes_corona);
+                 * sas_square(beta_corona * chain_ampl * bes_corona);
 
     // I(q)_micelle : Sum of 4 terms computed above
     double i_micelle = term1 + term2 + term3 + term4;
@@ -383,29 +383,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

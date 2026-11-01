@@ -166,7 +166,7 @@ static double
 f_constant(double q, double r, double sld)
 {
   const double bes = sas_3j1x_x(q * r);
-  const double vol = M_4PI_3 * cube(r);
+  const double vol = M_4PI_3 * sas_cube(r);
   return sld * vol * bes;
 }
 
@@ -184,7 +184,7 @@ outer_radius(double core_radius, double fp_n, double thickness[])
 static double
 form_volume_core_multi_shell(double core_radius, double fp_n, double thickness[])
 {
-  return M_4PI_3 * cube(outer_radius(core_radius, fp_n, thickness));
+  return M_4PI_3 * sas_cube(outer_radius(core_radius, fp_n, thickness));
 }
 
 static double
@@ -209,11 +209,11 @@ Fq_core_multi_shell(double q, double *F1, double *F2, double core_sld, double co
   last_sld = core_sld;
   f = 0.;
   for (int i=0; i<n; i++) {
-    f += M_4PI_3 * cube(r) * (sld[i] - last_sld) * sas_3j1x_x(q*r);
+    f += M_4PI_3 * sas_cube(r) * (sld[i] - last_sld) * sas_3j1x_x(q*r);
     last_sld = sld[i];
     r += thickness[i];
   }
-  f += M_4PI_3 * cube(r) * (solvent_sld - last_sld) * sas_3j1x_x(q*r);
+  f += M_4PI_3 * sas_cube(r) * (solvent_sld - last_sld) * sas_3j1x_x(q*r);
   *F1 = 1e-2 * f;
   *F2 = 1e-4 * f * f;
 }
@@ -347,29 +347,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

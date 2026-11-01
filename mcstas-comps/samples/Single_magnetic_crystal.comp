@@ -537,7 +537,7 @@ INITIALIZE
   if (hkl_info.count)
     printf ("Single_crystal: %s: Read %d reflections from file '%s'\n", NAME_CURRENT_COMP, hkl_info.count, atom_sites);
   else
-    printf ("Single_crystal: %s: Using incoherent elastic scattering only.\n", NAME_CURRENT_COMP, hkl_info.sigma_i);
+    printf ("Single_crystal: %s: Using incoherent elastic scattering only sigma=%g.\n", NAME_CURRENT_COMP, hkl_info.sigma_i);
 
   hkl_info.shape = -1; /* -1:no shape, 0:cyl, 1:box, 2:sphere, 3:any-shape  */
   if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
@@ -904,29 +904,11 @@ MCDISPLAY
 %{
   magnify ("xyz");
   if (hkl_info.shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, radius);
-    circle ("xz", 0, -yheight / 2.0, 0, radius);
-    line (-radius, -yheight / 2.0, 0, -radius, +yheight / 2.0, 0);
-    line (+radius, -yheight / 2.0, 0, +radius, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -radius, 0, +yheight / 2.0, -radius);
-    line (0, -yheight / 2.0, +radius, 0, +yheight / 2.0, +radius);
+    cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
   } else if (hkl_info.shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (hkl_info.shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, radius);
-    circle ("xz", 0, 0.0, 0, radius);
-    circle ("yz", 0, 0.0, 0, radius);
+    sphere (0, 0, 0, radius);
   } else if (hkl_info.shape == 3) { /* OFF file */
     off_display (offdata);
   }

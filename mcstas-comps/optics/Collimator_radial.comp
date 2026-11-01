@@ -289,22 +289,32 @@ MCDISPLAY
     x_out_l = (radius + length) * sin (theta1);
     z_out_r = (radius + length) * cos (theta2);
     x_out_r = (radius + length) * sin (theta2);
-    /* left side */
-    multiline (6, x_in_l, -height_outer, z_in_l, x_in_l, height_outer, z_in_l, x_out_l, height_inner, z_out_l, x_out_l, -height_inner, z_out_l, x_in_l,
-               -height_outer, z_in_l, x_in_r, -height_outer, z_in_r);
     /* left -> right lines */
     line (x_in_l, height_outer, z_in_l, x_in_r, height_outer, z_in_r);
     line (x_out_l, height_inner, z_out_l, x_out_r, height_inner, z_out_r);
     line (x_out_l, -height_inner, z_out_l, x_out_r, -height_inner, z_out_r);
+    line (x_in_l, -height_outer, z_in_l, x_in_r, -height_outer, z_in_r);
   }
-  /* remaining bits */
-  theta1 = nchan * Soller_theta + theta_min;
-  z_in_l = radius * cos (theta1);
-  x_in_l = radius * sin (theta1);
-  z_out_l = (radius + length) * cos (theta1);
-  x_out_l = (radius + length) * sin (theta1);
-  multiline (5, x_in_l, -height_outer, z_in_l, x_in_l, height_outer, z_in_l, x_out_l, height_inner, z_out_l, x_out_l, -height_inner, z_out_l, x_in_l,
-             -height_outer, z_in_l);
+  /* outer walls, at theta_min and theta_max */
+  for (i = 0; i <= nchan; i += nchan) {
+    theta1 = i * Soller_theta + theta_min;
+    z_in_l = radius * cos (theta1);
+    x_in_l = radius * sin (theta1);
+    z_out_l = (radius + length) * cos (theta1);
+    x_out_l = (radius + length) * sin (theta1);
+    multiline (5, x_in_l, -height_outer, z_in_l, x_in_l, height_outer, z_in_l, x_out_l, height_inner, z_out_l, x_out_l, -height_inner, z_out_l, x_in_l,
+               -height_outer, z_in_l);
+  }
+  /* absorbing channel walls in dark grey */
+  mcdis_pencolor ("#404040");
+  for (i = 0; i <= nchan; i++) {
+    theta1 = i * Soller_theta + theta_min;
+    z_in_l = radius * cos (theta1);
+    x_in_l = radius * sin (theta1);
+    z_out_l = (radius + length) * cos (theta1);
+    x_out_l = (radius + length) * sin (theta1);
+    polygon (4, x_in_l, -height_outer, z_in_l, x_in_l, height_outer, z_in_l, x_out_l, height_inner, z_out_l, x_out_l, -height_inner, z_out_l);
+  }
 %}
 
 END

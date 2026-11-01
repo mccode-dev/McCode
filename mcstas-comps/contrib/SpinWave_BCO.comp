@@ -166,7 +166,7 @@ SHARE
         disp_SBCO_fatalerror ("Unphysical dispersion: Check parameters");
       }
     } else {
-      omega_magnon = S * (J1q + Jq - (J10 + J0)) - D * (S - 0.5) + B2E * abs (B); /*FM dispersion*/
+      omega_magnon = S * (J1q + Jq - (J10 + J0)) - D * (S - 0.5) + B2E * fabs (B); /*FM dispersion*/
       if (omega_magnon < 0) {
         disp_SBCO_fatalerror ("Unphysical dispersion: Check parameters");
       }
@@ -308,6 +308,7 @@ SHARE
   }
 
   #define ROOTACC 1e-8
+  #define SBCO_MAX_ROOTS 20 /* size of vf_list in TRACE */
 
   int
   disp_SBCO_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (double*), double* parms, int steps_low,
@@ -319,7 +320,8 @@ SHARE
 
       root = disp_SBCO_zridd (f, brack_low + range * i / (int)steps_low, brack_low + range * (i + 1) / (int)steps_low, (double*)parms, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < SBCO_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
 
@@ -328,9 +330,11 @@ SHARE
     for (i = 0; i <= (steps_high - 1); i++) {
       root = disp_SBCO_zridd (f, brack_mid + range * i / (int)steps_high, brack_mid + range * (i + 1) / (int)steps_high, (double*)parms, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < SBCO_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
+    return *index;
   }
 
   #pragma acc routine
@@ -344,7 +348,8 @@ SHARE
     for (i = 0; i <= (steps_low - 1); i++) {
       root = disp_SBCO_zridd_gpu (brack_low + range * i / (int)steps_low, brack_low + range * (i + 1) / (int)steps_low, (double*)parms, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < SBCO_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
 
@@ -353,9 +358,11 @@ SHARE
     for (i = 0; i <= (steps_high - 1); i++) {
       root = disp_SBCO_zridd_gpu (brack_mid + range * i / (int)steps_high, brack_mid + range * (i + 1) / (int)steps_high, (double*)parms, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < SBCO_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
+    return *index;
   }
 
   #undef UNUSED
@@ -401,6 +408,17 @@ INITIALIZE
     printf ("Magnon_oI: %s: The target is not defined. Using direct beam (Z-axis).\n", NAME_CURRENT_COMP);
     target_z = 1;
   }
+
+  if (FM == 0) {
+    if (B2E * fabs (B) > 2 * sqrt (D * D * (S - 0.5) * (S - 0.5) - 8 * j * D * S * (S - 0.5))) {
+      printf ("Magnetic field too strong. Fieldstrength set to zero\n"); /*Error if B induced spin-flop transition*/
+      B = 0;
+    }
+  } else {
+    if (B < 0) {
+      disp_SBCO_fatalerror ("Field direction flippes spins: Using abs(B)");
+    }
+  }
 %}
 TRACE
 %{
@@ -420,7 +438,7 @@ TRACE
   double bose_factor;                                    /* Calculated value of the Bose factor */
   double omega;                                          /* energy transfer */
   int nf, index;                                         /* Number of allowed final velocities */
-  double vf_list[20];                                    /* List of allowed final velocities */
+  double vf_list[SBCO_MAX_ROOTS];                        /* List of allowed final velocities */
   double J_factor;                                       /* Jacobian from delta fnc.s in cross section */
   double coherence_factor;                               /* Coherence factor in cross section*/
   double f1, f2;                                         /* probed values of omega_q minus omega */
@@ -458,17 +476,6 @@ TRACE
 
     NORM (vx, vy, vz);
     nf = 0;
-
-    if (FM == 0) {
-      if (B2E * abs (B) > 2 * sqrt (D * D * (S - 0.5) * (S - 0.5) - 8 * j * D * S * (S - 0.5))) {
-        printf ("Magnetic field too strong. Fieldstrength set to zero\n"); /*Error if B induced spin-flop transition*/
-        B = 0;
-      }
-    } else {
-      if (B < 0) {
-        disp_SBCO_fatalerror ("Field direction flippes spins: Using abs(B)");
-      }
-    }
 
     mode = 0;
     if (FM == 0) {
@@ -521,7 +528,9 @@ TRACE
     #endif
 
     index = (int)floor (rand01 () * nf);
-    if (nf > 0 && index < 20) {
+    if (index >= nf)
+      index = nf - 1; /* rand01() may return 1.0 */
+    if (nf > 0) {
       v_f = vf_list[index];
       parms[0] = v_f;
 
@@ -589,12 +598,7 @@ TRACE
 MCDISPLAY
 %{
 
-  circle ("xz", 0, yheight / 2.0, 0, radius);
-  circle ("xz", 0, -yheight / 2.0, 0, radius);
-  line (-radius, -yheight / 2.0, 0, -radius, +yheight / 2.0, 0);
-  line (+radius, -yheight / 2.0, 0, +radius, +yheight / 2.0, 0);
-  line (0, -yheight / 2.0, -radius, 0, +yheight / 2.0, -radius);
-  line (0, -yheight / 2.0, +radius, 0, +yheight / 2.0, +radius);
+  cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
 %}
 
 END

@@ -35,7 +35,8 @@
 * xwidth: [m]     Width of substrate
 * zlength: [m]    Length of substrate
 * ythick: [m]     Thickness of substrate
-* mu_inc: [m^-1]  Incoherent scattering length
+* mu_inc: [cm^-1] Macroscopic incoherent scattering cross section of the substrate
+* mu_abs: [cm^-1] Macroscopic absorption cross section of the substrate at 2200 m/s (scales as 1/v). Together with mu_inc it attenuates the incoherently scattered neutrons
 * frac_inc: [1]   Fraction of statistics to assign to incoherent scattering
 * pack: [1]       Substrate packing factor
 * nlayer: [1]     Number of film layers
@@ -55,7 +56,7 @@ SETTING PARAMETERS (xwidth=0.2, zlength=0.2, int nlayer=1, int nrepeats=1,
   vector sldPar={0.0,2.0e-6,0.0e-6}, 
   vector dPar={20.0},
   vector sigmaPar={5.0,5.0}, 
-  frac_inc=0, ythick=0, mu_inc=5.62, int target_index=0, focus_xw=0, focus_yh=0)
+  frac_inc=0, ythick=0, mu_inc=5.62, mu_abs=0, int target_index=0, focus_xw=0, focus_yh=0)
 
 DEPENDENCY " @GSLFLAGS@ "
 NOACC
@@ -80,6 +81,12 @@ DECLARE
   double tx;
   double ty;
   double tz;
+  gsl_matrix_complex* ml_ris; /* per-reflection scratch, allocated once (NOACC: not shared between threads) */
+  gsl_matrix_complex* ml_pfn;
+  gsl_matrix_complex* ml_betan;
+  gsl_matrix_complex* ml_a1;
+  gsl_matrix_complex* ml_a2;
+  gsl_matrix_complex* ml_a3;
 %}
 
 INITIALIZE
@@ -90,6 +97,25 @@ INITIALIZE
       exit (1);
     }
   }
+  if (nlayer < 0 || nrepeats < 1) {
+    fprintf (stderr, "Multilayer: error: %s: nlayer must be >= 0 and nrepeats >= 1. EXIT\n", NAME_CURRENT_COMP);
+    exit (1);
+  }
+  /* TRACE reads sldPar[0..nlayer+1], dPar[0..nlayer-1] and sigmaPar[0..nlayer].
+     Vectors given as {...} literals are arrays of known length and are checked here.
+     Vectors passed from the instrument are plain pointers (length unknown), as are
+     1-element literals indistinguishably, so those cannot be checked. */
+  #define ML_CHECK_LEN(v, n)                                                                                                    \
+    if (sizeof (v) > sizeof (double*) && sizeof (v) / sizeof (v[0]) < (size_t)(n)) {                                           \
+      fprintf (stderr, "Multilayer: error: %s: " #v " has %d entries, nlayer=%d needs at least %d. EXIT\n", NAME_CURRENT_COMP, \
+               (int)(sizeof (v) / sizeof (v[0])), nlayer, (int)(n));                                                            \
+      exit (1);                                                                                                                 \
+    }
+  ML_CHECK_LEN (sldPar, nlayer + 2);
+  ML_CHECK_LEN (dPar, nlayer);
+  ML_CHECK_LEN (sigmaPar, nlayer + 1);
+  #undef ML_CHECK_LEN
+
   xmin = -xwidth / 2.0;
   xmax = xwidth / 2.0;
   zmin = -zlength / 2.0;
@@ -104,6 +130,15 @@ INITIALIZE
     ty = 0;
     tz = 0;
   }
+  if (!tx && !ty && !tz)
+    ty = 1e-9; /* randvec_target_circle needs a non-zero aim direction */
+
+  ml_ris = gsl_matrix_complex_alloc (nlayer + 2, 1);
+  ml_pfn = gsl_matrix_complex_alloc (nlayer + 2, 1);
+  ml_betan = gsl_matrix_complex_alloc (nlayer + 2, 1);
+  ml_a1 = gsl_matrix_complex_alloc (2, 2);
+  ml_a2 = gsl_matrix_complex_alloc (2, 2);
+  ml_a3 = gsl_matrix_complex_alloc (2, 2);
 %}
 
 TRACE
@@ -124,13 +159,20 @@ TRACE
     if (x >= xmin && x <= xmax && z >= zmin && z <= zmax) {
       // Incoherent scattering from substrate or coherent scattering from thin film?
       if (rand01 () < frac_inc) {
-        RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
-        // This part is basically from V_sample
+        /* Undo the move to y=0 (t was not advanced). RESTORE_NEUTRON would only
+           restore the entry state when the component is left, discarding the
+           incoherent scattering below. */
+        x = old_x;
+        y = old_y;
+        z = old_z;
+        // This part is basically from V_sample. The substrate is the box
+        // -ythick < y < 0, i.e. a box centred at y = -ythick/2.
 
         intersect = box_intersect (&t0, &t2, x, y + ythick / 2.0, z, vx, vy, vz, xwidth, ythick, zlength);
         if (intersect) {
           if (t0 < 0)
             ABSORB;                   /* we already passed the sample; this is illegal */
+          double l_full = sqrt (vx * vx + vy * vy + vz * vz) * (t2 - t0); /* Path length through substrate */
           dt = rand01 () * (t2 - t0); /* Time of scattering (relative to t0) */
           PROP_DT (dt + t0);
           SCATTER;
@@ -141,19 +183,20 @@ TRACE
           if (target_index && (focus_xw > 0) && (focus_yh > 0)) {
             randvec_target_rect (&vx, &vy, &vz, &solid_angle, tx, ty, tz, focus_xw, focus_yh, ROT_A_CURRENT_COMP);
           } else {
-            if (tx == ty == tz == 0) {
-              ty = 1e-9;
-            }
             randvec_target_circle (&vx, &vy, &vz, &solid_angle, tx, ty, tz, 0);
           }
           NORM (vx, vy, vz);
           vx *= v;
           vy *= v;
           vz *= v;
-          intersect = box_intersect (&t0, &t2, x, y, z, vx, vy, vz, xwidth, ythick, zlength);
+          intersect = box_intersect (&t0, &t2, x, y + ythick / 2.0, z, vx, vy, vz, xwidth, ythick, zlength);
           if (intersect) {
+            double mu = mu_inc * 100.0;                     /* cm^-1 -> m^-1 */
+            double mu_tot = mu + mu_abs * 100.0 * 2200.0 / v; /* + absorption, 1/v law */
             l_o = v * t2;
-            p *= (l_i + l_o) * (mu_inc / 100.0) * exp (mu_inc * (l_i + l_o) / 100.0);
+            /* Uniformly sampled scattering point: weight = l_full * mu (scattering
+               probability density) times attenuation along the in and out paths */
+            p *= l_full * mu * exp (-mu_tot * (l_i + l_o));
             p /= 4 * PI / solid_angle;
             p /= frac_inc;
           } else {
@@ -183,12 +226,12 @@ TRACE
         gsl_complex ac1, ac2, ac3, ac4;
         gsl_complex cans, tcvar1, tcvar2, tcvar3, tcvar4;
 
-        gsl_matrix_complex* ris = gsl_matrix_complex_alloc (500, 1);
-        gsl_matrix_complex* pfn = gsl_matrix_complex_alloc (500, 1);
-        gsl_matrix_complex* betan = gsl_matrix_complex_alloc (500, 1);
-        gsl_matrix_complex* a1 = gsl_matrix_complex_alloc (2, 2);
-        gsl_matrix_complex* a2 = gsl_matrix_complex_alloc (2, 2);
-        gsl_matrix_complex* a3 = gsl_matrix_complex_alloc (2, 2);
+        gsl_matrix_complex* ris = ml_ris;
+        gsl_matrix_complex* pfn = ml_pfn;
+        gsl_matrix_complex* betan = ml_betan;
+        gsl_matrix_complex* a1 = ml_a1;
+        gsl_matrix_complex* a2 = ml_a2;
+        gsl_matrix_complex* a3 = ml_a3;
 
         t += dt;
         // q = fabs(2*vy*V2Q);
@@ -423,18 +466,22 @@ TRACE
         }
         SCATTER;
 
-        gsl_matrix_complex_free (ris);
-        gsl_matrix_complex_free (pfn);
-        gsl_matrix_complex_free (betan);
-        gsl_matrix_complex_free (a1);
-        gsl_matrix_complex_free (a2);
-        gsl_matrix_complex_free (a3);
       }
     } else {
       /* No intersection: restore neutron state. */
       RESTORE_NEUTRON (INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
     }
   }
+%}
+
+FINALLY
+%{
+  gsl_matrix_complex_free (ml_ris);
+  gsl_matrix_complex_free (ml_pfn);
+  gsl_matrix_complex_free (ml_betan);
+  gsl_matrix_complex_free (ml_a1);
+  gsl_matrix_complex_free (ml_a2);
+  gsl_matrix_complex_free (ml_a3);
 %}
 
 MCDISPLAY

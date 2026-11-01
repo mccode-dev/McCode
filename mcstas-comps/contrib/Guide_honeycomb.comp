@@ -290,7 +290,7 @@ SHARE
 
 DECLARE
 %{
-  Honeycomb_guide_Vars_type GVars;
+  Honeycomb_guide_Vars_type GVarsGlobal;
   // #prama acc routine declare create(GVars)
 %}
 
@@ -313,17 +313,18 @@ INITIALIZE
   mcLocG = rot_apply (ROT_A_CURRENT_COMP, coords_set (Gx, G, Gz));
   coords_get (mcLocG, &Gx, &Gy, &Gz);
 
-  strcpy (GVars.compcurname, NAME_CURRENT_COMP);
-  Honeycomb_guide_Init (&GVars, w1, w2, l, R0, Qc, alpha, m, W, nslit, d, Gx, Gy, Gz, mright, mleft, mleftup, mrightdown, mrightup, mleftdown);
+  strcpy (GVarsGlobal.compcurname, NAME_CURRENT_COMP);
+  Honeycomb_guide_Init (&GVarsGlobal, w1, w2, l, R0, Qc, alpha, m, W, nslit, d, Gx, Gy, Gz, mright, mleft, mleftup, mrightdown, mrightup, mleftdown);
 
   if (!G)
-    for (i = 0; i < 7; GVars.A[i++] = 0)
+    for (i = 0; i < 7; GVarsGlobal.A[i++] = 0)
       ;
-  // #pragma acc update device(GVars)
+  // #pragma acc update device(GVarsGlobal)
 %}
 
 TRACE
 %{
+  Honeycomb_guide_Vars_type GVars = GVarsGlobal;
   double B, C, dt;
   int ret, bounces = 0;
   float n, m1, nv, mv;
@@ -423,9 +424,10 @@ TRACE
       /* only positive dt are valid */
       /* exit reflection loops if no intersection (neutron is after box) */
       if (side == 0 || dt <= 0) {
-        if (GVars.warnings < 100)
+        if (GVarsGlobal.warnings < 100)
           fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVars.compcurname);
-        GVars.warnings++;
+        #pragma acc atomic
+        GVarsGlobal.warnings = GVarsGlobal.warnings + 1;
         x += w_adj;
         y += h_adj;
         ABSORB;
@@ -491,9 +493,9 @@ TRACE
 
 FINALLY
 %{
-  if (GVars.warnings > 100) {
-    fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVars.compcurname);
-    fprintf (stderr, "%s: warning: This message has been repeated %g times\n", GVars.compcurname, GVars.warnings);
+  if (GVarsGlobal.warnings > 100) {
+    fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVarsGlobal.compcurname);
+    fprintf (stderr, "%s: warning: This message has been repeated %g times\n", GVarsGlobal.compcurname, GVarsGlobal.warnings);
   }
 %}
 
@@ -506,16 +508,16 @@ MCDISPLAY
   double y0, y01, y1, y11, y2, y21, y3, y31, y4, y41;
 
   for (j = -nslit / 2; j <= nslit / 2; j++) {
-    y0 = j * (GVars.w1c + d) * 1.732;
-    y01 = j * (GVars.w2c + d) * 1.732;
-    y1 = y0 + (GVars.w1c + d) / 1.732;
-    y11 = y01 + (GVars.w2c + d) / 1.732;
-    y2 = y0 - (GVars.w1c + d) / 1.732;
-    y21 = y01 - (GVars.w2c + d) / 1.732;
-    y3 = y0 + (GVars.w1c + d) * 1.1547;
-    y31 = y01 + (GVars.w2c + d) * 1.1547;
-    y4 = y0 - (GVars.w1c + d) * 1.1547;
-    y41 = y01 - (GVars.w2c + d) * 1.1547;
+    y0 = j * (GVarsGlobal.w1c + d) * 1.732;
+    y01 = j * (GVarsGlobal.w2c + d) * 1.732;
+    y1 = y0 + (GVarsGlobal.w1c + d) / 1.732;
+    y11 = y01 + (GVarsGlobal.w2c + d) / 1.732;
+    y2 = y0 - (GVarsGlobal.w1c + d) / 1.732;
+    y21 = y01 - (GVarsGlobal.w2c + d) / 1.732;
+    y3 = y0 + (GVarsGlobal.w1c + d) * 1.1547;
+    y31 = y01 + (GVarsGlobal.w2c + d) * 1.1547;
+    y4 = y0 - (GVarsGlobal.w1c + d) * 1.1547;
+    y41 = y01 - (GVarsGlobal.w2c + d) * 1.1547;
 
     for (i = -nslit; i <= nslit; i++)
 
@@ -529,24 +531,24 @@ MCDISPLAY
 
       {
 
-        x0 = i * (GVars.w1c + d);
-        x01 = i * (GVars.w2c + d);
-        x1 = x0 + (GVars.w1c + d);
-        x11 = x01 + (GVars.w2c + d);
-        x2 = x0 - (GVars.w1c + d);
-        x21 = x01 - (GVars.w2c + d);
+        x0 = i * (GVarsGlobal.w1c + d);
+        x01 = i * (GVarsGlobal.w2c + d);
+        x1 = x0 + (GVarsGlobal.w1c + d);
+        x11 = x01 + (GVarsGlobal.w2c + d);
+        x2 = x0 - (GVarsGlobal.w1c + d);
+        x21 = x01 - (GVarsGlobal.w2c + d);
 
-        multiline (5, x1, y1, 0.0, x11, y11, (double)l, x21, y11, (double)l, x2, y1, 0.0, x1, y1, 0.0);
+        polygon (4, x1, y1, 0.0, x11, y11, (double)l, x21, y11, (double)l, x2, y1, 0.0);
 
-        multiline (5, x1, y1, 0.0, x11, y11, (double)l, x01, y31, (double)l, x0, y3, 0.0, x1, y1, 0.0);
+        polygon (4, x1, y1, 0.0, x11, y11, (double)l, x01, y31, (double)l, x0, y3, 0.0);
 
-        multiline (5, x0, y3, 0.0, x01, y31, (double)l, x21, y11, (double)l, x2, y1, 0.0, x0, y3, 0.0);
+        polygon (4, x0, y3, 0.0, x01, y31, (double)l, x21, y11, (double)l, x2, y1, 0.0);
 
-        multiline (5, x2, y1, 0.0, x21, y11, (double)l, x21, y21, (double)l, x2, y2, 0.0, x2, y1, 0.0);
+        polygon (4, x2, y1, 0.0, x21, y11, (double)l, x21, y21, (double)l, x2, y2, 0.0);
 
-        multiline (5, x2, y2, 0.0, x21, y21, (double)l, x01, y41, (double)l, x0, y4, 0.0, x2, y2, 0.0);
+        polygon (4, x2, y2, 0.0, x21, y21, (double)l, x01, y41, (double)l, x0, y4, 0.0);
 
-        multiline (5, x0, y4, 0.0, x01, y41, (double)l, x11, y21, (double)l, x1, y2, 0.0, x0, y4, 0.0);
+        polygon (4, x0, y4, 0.0, x01, y41, (double)l, x11, y21, (double)l, x1, y2, 0.0);
       }
     }
   }
