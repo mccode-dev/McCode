@@ -84,14 +84,13 @@ SHARE
   // James Avery eigenvalue solver
   %include "eigen"
 
-  #ifndef PHONON_SIMPLE
-  #define PHONON_SIMPLE $Revision$   // KL comment 040125: what is this used for?
+  #ifndef PHONON_BVK_PG
+  #define PHONON_BVK_PG $Revision$
   #pragma acc routine
 
   // ---------------- THINGS THAT COULD BE GENERAL FOR McStas --------------
 
   #define T2E (1/11.605)   // Kelvin to meV converter
-  #define pi    3.14159265358979323846264338327950288419716939937510L
   #define sqrt3 1.73205080756887729352744634150587236694280525381038L
   #define THz2meV 4.13566 // THz to meV converter
 
@@ -101,7 +100,7 @@ SHARE
   #define mn (1.0087*Da2kg)
 
   double
-  nbose (double omega, double T) /* Give it another name ?? */
+  bvk_nbose (double omega, double T) /* Give it another name ?? */
   {
     double nb;
     nb = (omega > 0) ? 1 + 1 / (exp (omega / (T * T2E)) - 1) : 1 / (exp (-omega / (T * T2E)) - 1);
@@ -114,7 +113,7 @@ SHARE
   #define MAXRIDD 60
 
   void
-  fatalerror_cpu (char* s) {
+  bvk_fatalerror_cpu (char* s) {
     fprintf (stderr, "%s \n", s);
     exit (1);
   }
@@ -129,9 +128,9 @@ SHARE
 
   #pragma acc routine
   void
-  fatalerror (char* s) {
+  bvk_fatalerror (char* s) {
     #ifndef OPENACC
-    fatalerror_cpu (s);
+    bvk_fatalerror_cpu (s);
     #endif
   }
 
@@ -167,7 +166,7 @@ SHARE
   #define TIME_EIGENSYSTEMS 1
 
   #define DIM 12     // dimensionality of the phonon eigenvectors (4 atoms in the unit cell times 3 dimensions)
-  #define DV 0.001   // Velocity change used for numerical derivative [m/s]  CHECK if this should be smaller
+  #define BVK_DV 0.001   // Velocity change used for numerical derivative [m/s]  CHECK if this should be smaller
 
   #include <stdio.h>
   #include <stdlib.h>
@@ -401,7 +400,7 @@ SHARE
   //---------------------------- START CENTRAL FUNCTION OMEGA-Q ----------------------------
 
   double
-  omega_q (cdouble* parms, cdouble* eigenvectorgood) {
+  bvk_omega_q (cdouble* parms, cdouble* eigenvectorgood) {
     double vi, vf, vv_x, vv_y, vv_z, vi_x, vi_y, vi_z;
     double q, qx, qy, qz, Jq, hw_phonon, hw_neutron;
     double h, k, l, hk_inplane, hk_outofplane;
@@ -590,7 +589,7 @@ SHARE
 
   double last_fh, last_x2;
   double
-  zridd (double (*func) (cdouble*, cdouble*), double x1, double x2, cdouble* parms, cdouble* vector, double xacc) {
+  bvk_zridd (double (*func) (cdouble*, cdouble*), double x1, double x2, cdouble* parms, cdouble* vector, double xacc) {
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
@@ -661,30 +660,30 @@ SHARE
         xl = ans;
         fl = fnew;
       } else {
-        fatalerror ("never get here in zridd");
+        bvk_fatalerror ("never get here in zridd");
       }
 
       if (fabs (xh - xl) <= xacc)
         return ans;
     }
 
-    fatalerror ("zridd exceeded maximum iterations");
+    bvk_fatalerror ("zridd exceeded maximum iterations");
     return 0.0;
   }
 
   #ifdef OPENACC
   #pragma acc routine
   double
-  zridd_gpu (double x1, double x2, cdouble* parms, cdouble* vector, double xacc) {
+  bvk_zridd_gpu (double x1, double x2, cdouble* parms, cdouble* vector, double xacc) {
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
     parms[0] = x1;
-    //      fprintf(stderr,"fl=omega_q(%g+i%g)\n",creal(parms[0]),cimag(parms[0]));
-    fl = omega_q (parms, vector);
+    //      fprintf(stderr,"fl=bvk_omega_q(%g+i%g)\n",creal(parms[0]),cimag(parms[0]));
+    fl = bvk_omega_q (parms, vector);
     parms[0] = x2;
-    //      fprintf(stderr,"fh=omega_q(%g+i%g)\n",creal(parms[0]),cimag(parms[0]));
-    fh = omega_q (parms, vector);
+    //      fprintf(stderr,"fh=bvk_omega_q(%g+i%g)\n",creal(parms[0]),cimag(parms[0]));
+    fh = bvk_omega_q (parms, vector);
     if (fl * fh >= 0) {
       if (fl == 0)
         return x1;
@@ -698,8 +697,8 @@ SHARE
       for (j = 1; j < MAXRIDD; j++) {
         xm = 0.5 * (xl + xh);
         parms[0] = xm;
-        //	  fprintf(stderr,"fm=omega_q(%g+i%g)\n",creal(parms[0]),cimag(parms[0]));
-        fm = omega_q (parms, vector);
+        //	  fprintf(stderr,"fm=bvk_omega_q(%g+i%g)\n",creal(parms[0]),cimag(parms[0]));
+        fm = bvk_omega_q (parms, vector);
         s = sqrt (fm * fm - fl * fh);
         if (s == 0.0)
           return ans;
@@ -708,8 +707,8 @@ SHARE
           return ans;
         ans = xnew;
         parms[0] = ans;
-        //	  fprintf(stderr,"fnew=omega_q(%g+i%g)\n",creal(parms[0]),cimag(parms[0]));
-        fnew = omega_q (parms, vector);
+        //	  fprintf(stderr,"fnew=bvk_omega_q(%g+i%g)\n",creal(parms[0]),cimag(parms[0]));
+        fnew = bvk_omega_q (parms, vector);
         if (fnew == 0.0)
           return ans;
         if (fabs (fm) * SIGN (fnew) != fm) {
@@ -724,11 +723,11 @@ SHARE
           xl = ans;
           fl = fnew;
         } else
-          fatalerror ("never get here in zridd");
+          bvk_fatalerror ("never get here in zridd");
         if (fabs (xh - xl) <= xacc)
           return ans;
       }
-      fatalerror ("zridd exceeded maximum iterations");
+      bvk_fatalerror ("zridd exceeded maximum iterations");
     }
     return 0.0; /* Never get here */
   }
@@ -738,13 +737,13 @@ SHARE
   #define BVK_MAX_ROOTS 20 /* size of vf_list in TRACE */
 
   int
-  findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (cdouble*, cdouble*), cdouble* parms, cdouble* vector,
+  bvk_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (cdouble*, cdouble*), cdouble* parms, cdouble* vector,
              int low_steps, int high_steps) {
     double root, range;
     int i;
 
     if (verbose == 2)
-      printf ("Enter findroots() \n");
+      printf ("Enter bvk_findroots() \n");
 
     /* ---- Energy loss side ---- */
 
@@ -752,9 +751,9 @@ SHARE
 
     for (i = 0; i < (low_steps - 1); i++) {
       if (i == 0)
-        root = zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, ROOTACC);
+        root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, ROOTACC);
       else
-        root = zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, -ROOTACC);
+        root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, -ROOTACC);
 
       if (root != UNUSED) {
         if (*index < BVK_MAX_ROOTS)
@@ -768,10 +767,10 @@ SHARE
 
     for (i = 0; i < low_steps; i++) {
       if (low_steps == 1)
-        root = zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms,
+        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms,
                       vector, ROOTACC);
       else
-        root = zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms,
+        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms,
                       vector, -ROOTACC);
 
       if (root != UNUSED) {
@@ -788,9 +787,9 @@ SHARE
 
     for (i = 0; i < high_steps; i++) {
       if (i == 0)
-        root = zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, ROOTACC);
+        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, ROOTACC);
       else
-        root = zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC);
+        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC);
 
       if (root != UNUSED) {
         if (*index < BVK_MAX_ROOTS)
@@ -803,7 +802,7 @@ SHARE
     range = brack_high - brack_mid;
 
     for (i = 1; i < high_steps; i++) {
-      root = zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC);
+      root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC);
 
       if (root != UNUSED) {
         if (*index < BVK_MAX_ROOTS)
@@ -819,19 +818,19 @@ SHARE
   #ifdef OPENACC
   #pragma acc routine
   int
-  findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, cdouble* vector, int low_steps, int high_steps) {
+  bvk_findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index, double* parms, cdouble* vector, int low_steps, int high_steps) {
     double root, range = brack_mid - brack_low;
     int i;
 
     for (i = 0; i < low_steps; i++) {
-      root = zridd_gpu (brack_low + range * i / (int)low_steps, brack_low + range * (i + 1) / (int)low_steps, (cdouble*)parms, (cdouble*)vector, ROOTACC);
+      root = bvk_zridd_gpu (brack_low + range * i / (int)low_steps, brack_low + range * (i + 1) / (int)low_steps, (cdouble*)parms, (cdouble*)vector, ROOTACC);
       if (root != UNUSED) {
         if (*index < BVK_MAX_ROOTS)
           list[(*index)++] = root;
       }
     }
     for (i = 0; i < high_steps; i++) {
-      root = zridd_gpu (brack_mid + range * i / (int)high_steps, brack_high + range * (i + 1) / (int)high_steps, (cdouble*)parms, (cdouble*)vector, ROOTACC);
+      root = bvk_zridd_gpu (brack_mid + range * i / (int)high_steps, brack_high + range * (i + 1) / (int)high_steps, (cdouble*)parms, (cdouble*)vector, ROOTACC);
       if (root != UNUSED) {
         if (*index < BVK_MAX_ROOTS)
           list[(*index)++] = root;
@@ -990,14 +989,14 @@ TRACE
     p_call[12] = cplx ((double)dispersion, 0);
 
     if (dispersion == 1) {
-      f1 = omega_q (p_call, eigenvectormode);
+      f1 = bvk_omega_q (p_call, eigenvectormode);
       p_call[12] = cplx (0, 0);
     }
 
     #ifndef OPENACC
-    findroots (0, v_i, v_i + V_HIGH, vf_list, &nf, omega_q, p_call, eigenvectormode, e_steps_low, e_steps_high);
+    bvk_findroots (0, v_i, v_i + V_HIGH, vf_list, &nf, bvk_omega_q, p_call, eigenvectormode, e_steps_low, e_steps_high);
     #else
-    findroots_gpu (0, v_i, v_i + V_HIGH, vf_list, &nf, p_call, eigenvectormode, e_steps_low, e_steps_high);
+    bvk_findroots_gpu (0, v_i, v_i + V_HIGH, vf_list, &nf, p_call, eigenvectormode, e_steps_low, e_steps_high);
     #endif
 
     if (!nf)
@@ -1008,15 +1007,15 @@ TRACE
     v_f = vf_list[index];
     p_call[0] = cplx (v_f, 0);
 
-    f1 = omega_q (p_call, eigenvectormode);
+    f1 = bvk_omega_q (p_call, eigenvectormode);
 
-    p_call[0] = cplx (v_f - DV, 0);
-    f1 = omega_q (p_call, eigenvectormode);
+    p_call[0] = cplx (v_f - BVK_DV, 0);
+    f1 = bvk_omega_q (p_call, eigenvectormode);
 
-    p_call[0] = cplx (v_f + DV, 0);
-    f2 = omega_q (p_call, eigenvectormode);
+    p_call[0] = cplx (v_f + BVK_DV, 0);
+    f2 = bvk_omega_q (p_call, eigenvectormode);
 
-    J_factor = 1.6022E-22 * 1E-10 * fabs (f2 - f1) / (2 * DV * V2K);
+    J_factor = 1.6022E-22 * 1E-10 * fabs (f2 - f1) / (2 * BVK_DV * V2K);
 
     omega = VS2E * (v_i * v_i - v_f * v_f);
 
@@ -1107,7 +1106,7 @@ TRACE
     my_a_i = V_my_a_v / v_i;
     my_a_f = V_my_a_v / v_f;
 
-    bose_factor = nbose (omega, T);
+    bose_factor = bvk_nbose (omega, T);
 
     J0 = hbar * hbar * v_f * V2K * 1E10 / mn;
 
