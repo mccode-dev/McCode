@@ -1020,7 +1020,9 @@ TRACE
       }
 
       // Ignore absorption, multiple scattering and incoherent scattering for the moment (!)
-      p = p0 * hkl_info.list[j].SQW;
+      // j was sampled with probability SQW[j]/sum(SQW), so the weight is the sum of SQW
+      //   over the kinematically allowed hkl-E points (not SQW[j], which would count it twice).
+      p = p0 * hkl_info.stored[klist].CDF[hkl_info.stored[klist].nhkl - 1];
       vx = K2V * kfx;
       vy = K2V * kfy;
       vz = K2V * kfz;
