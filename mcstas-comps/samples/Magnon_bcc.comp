@@ -299,6 +299,7 @@ SHARE
   }
 
   #define ROOTACC 1e-8
+  #define MAGNON_BCC_MAX_ROOTS 7 /* size of vf_list in TRACE */
   int
   findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (double*), double* parms, _class_particle* _particle) {
     double root, range_low = brack_mid - brack_low, range_high = brack_high - brack_mid;
@@ -307,7 +308,8 @@ SHARE
     for (i = 0; i < steps; i++) {
       root = zridd (f, brack_mid + range_high * i / (int)steps, brack_mid + range_high * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < MAGNON_BCC_MAX_ROOTS)
+          list[(*index)++] = root;
         // printf("findroots found a high root: vf = %g \n",root);
       }
     }
@@ -315,7 +317,8 @@ SHARE
     for (i = 0; i < steps; i++) {
       root = zridd (f, brack_low + range_low * i / (int)steps, brack_low + range_low * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < MAGNON_BCC_MAX_ROOTS)
+          list[(*index)++] = root;
         // printf("findroots found a  low root: vf = %g \n",root);
         return (-1);
       }
@@ -333,14 +336,16 @@ SHARE
     for (i = 0; i < steps; i++) {
       root = zridd_gpu (brack_mid + range_high * i / (int)steps, brack_mid + range_high * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < MAGNON_BCC_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
 
     for (i = 0; i < steps; i++) {
       root = zridd_gpu (brack_low + range_low * i / (int)steps, brack_low + range_low * (i + 1) / (int)steps, (double*)parms, ROOTACC, _particle);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < MAGNON_BCC_MAX_ROOTS)
+          list[(*index)++] = root;
       }
     }
     return (0);
@@ -400,7 +405,7 @@ TRACE
   double bose_factor;                     /* Calculated value of the Bose factor */
   double omega;                           /* energy transfer */
   int nf, index;                          /* Number of allowed final velocities */
-  double vf_list[7];                      /* List of allowed final velocities */
+  double vf_list[MAGNON_BCC_MAX_ROOTS];                   /* List of allowed final velocities */
   double J_factor, coherence_factor;      /* Jacobian from delta fnc.s in cross section  + AFM coherence factor */
   double f1, f2;                          /* probed values of omega_q minus omega */
   double p1, p2, p3, p4, p5;              /* temporary multipliers */
@@ -458,6 +463,8 @@ TRACE
     #endif
 
     index = (int)floor (rand01 () * nf);
+    if (index >= nf)
+      index = nf - 1; /* rand01() may return 1.0 */
     // fatalerror("1 line after after call of findroots");
     /*    printf("Root index: %i %g \n", index, vf_list[index]); */
 
@@ -467,6 +474,8 @@ TRACE
       /* Recast if v_f is 0 */
       while (recast < 7 && v_f < 10 * FLT_EPSILON) {
         index = (int)floor (rand01 () * nf);
+        if (index >= nf)
+          index = nf - 1; /* rand01() may return 1.0 */
         v_f = vf_list[index];
         recast++;
       }
