@@ -15,6 +15,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <complex.h>
 #include <time.h>
 
@@ -27,17 +28,29 @@
 #define ROWS 0
 #define COLS 1
 
+/* Fixed-size scratch: abort on the CPU if n exceeds EIGEN_MAXN (see eigen.h) */
+#ifndef OPENACC
+#define EIGEN_CHECK_N(n) do { if ((n) > EIGEN_MAXN) { \
+      fprintf(stderr, "eigen: matrix size n=%d exceeds EIGEN_MAXN=%d\n", (int)(n), EIGEN_MAXN); \
+      exit(1); } } while (0)
+#else
+#define EIGEN_CHECK_N(n)
+#endif
+
 /* TOOD: Generic matrix functions to separate file */
+#pragma acc routine seq
 INLINE real_t vector_norm2(const cdouble*x, int n){
   real_t sum = 0;
   for(int i=0;i<n;i++) sum += cabs(cmul(x[i],conj(x[i])));
   return sum;
 }
 
+#pragma acc routine seq
 INLINE real_t vector_norm(const cdouble *x, int n){
   return sqrt(vector_norm2(x,n));
 }
 
+#pragma acc routine seq
 INLINE void extract_region(cdouble *S, int N,
 			   int i0, int j0, int m, int n,
 			   cdouble *D)
@@ -47,19 +60,22 @@ INLINE void extract_region(cdouble *S, int N,
       D[i*n+j] = S[(i+i0)*N+(j+j0)];
 }
 
+#pragma acc routine seq
 INLINE void identity_matrix(cdouble *Q, int n)
 {
-  memset(Q,0,n*n*sizeof(cdouble));
+  for(int i=0;i<n*n;i++) Q[i] = cplx(0,0);
   for(int i=0;i<n;i++) Q[i*n+i] = cplx(1,0);
 }
 
+#pragma acc routine seq
 INLINE void real_identity_matrix(real_t *Q, int n)
 {
-  memset(Q,0,n*n*sizeof(real_t));
+  for(int i=0;i<n*n;i++) Q[i] = 0;
   for(int i=0;i<n;i++) Q[i*n+i] = 1;
 }
 
 /* TODO: Make this work with both real and complex cdoubles (cabs should be replaced by a macro) */
+#pragma acc routine seq
 INLINE real_t max_norm(cdouble *A, int m, int n)
 {
   real_t mx = 0;
@@ -71,10 +87,12 @@ INLINE real_t max_norm(cdouble *A, int m, int n)
   return mx;  
 }
 
+#pragma acc routine seq
 INLINE void matrix_inplace_multiply(cdouble *A, cdouble *B, int m, int n, int q)
 {
+  cdouble row[EIGEN_MAXN];
+  EIGEN_CHECK_N(q);
   for(int i=0;i<m;i++){
-    cdouble* row=malloc(q*sizeof(cdouble));
     for(int j=0;j<q;j++){
       cdouble sum = cplx(0,0);
       for(int k=0;k<n;k++) sum = cadd(sum,cmul(A[i*n+k],B[k*q+j]));
@@ -86,10 +104,12 @@ INLINE void matrix_inplace_multiply(cdouble *A, cdouble *B, int m, int n, int q)
 
 
 /* TODO: Document */
+#pragma acc routine seq
 INLINE void apply_reflection(/*in/out*/cdouble* A, const cdouble *v, int m, int n, cdouble sigma, int transpose)
 {
-  cdouble* vHA=malloc(n*sizeof(cdouble));
+  cdouble vHA[EIGEN_MAXN];
   cdouble conj_sigma = conj(sigma);
+  EIGEN_CHECK_N(n);
   int stride[2] = {n*(!transpose) + 1*transpose, n*transpose + 1*(!transpose)};
   
   for(int j=0;j<n;j++){		
@@ -107,10 +127,12 @@ INLINE void apply_reflection(/*in/out*/cdouble* A, const cdouble *v, int m, int 
 /* A: NxN
    Transform mxn region starting at (i0,j0)
  */
+#pragma acc routine seq
 INLINE void reflect_region(/*in/out*/cdouble* A, int N, int i0, int j0, int m, int n, const cdouble *v, cdouble sigma, int cols)
 {
-  cdouble* vHA=malloc(n*sizeof(cdouble));
+  cdouble vHA[EIGEN_MAXN];
   cdouble conj_sigma = conj(sigma);
+  EIGEN_CHECK_N(n);
   int stride[2] = {N*(!cols) + 1*cols, N*cols + 1*(!cols)};
 
   /* printf("reflect_region(A,%d,\n"
@@ -137,6 +159,7 @@ INLINE void reflect_region(/*in/out*/cdouble* A, int N, int i0, int j0, int m, i
 /* Apply n 2D reflections to an mxm matrix Q */
 /* TODO: Transform rows instead (after this works) */
 /* TODO: Since we no longer have views, pass view as function parameter */
+#pragma acc routine seq
 void apply_real_reflections(real_t* V, int n, real_t* Q, int m)
 {
   if(Q != 0){       // Do we want eigenvectors?
@@ -160,6 +183,7 @@ void apply_real_reflections(real_t* V, int n, real_t* Q, int m)
 /*   else return copysign(to,from); */
 /* } */
 
+#pragma acc routine seq
 INLINE void reflection_vector(/*in*/cdouble* a, const real_t anorm,
 			      /*out*/cdouble* v, cdouble* sigma, int n)
 { // Reflection vector that eliminates *row* a (as opposed to *column*)
@@ -203,12 +227,14 @@ void print_matrix(const char *name, cdouble *A, int m, int n)
 }
 
 /* TODO: Kan jeg håndtere a[0] =~= 0 mere robust? Kan jeg inkludere pivots? */
+#pragma acc routine seq
 void QHQ(/*in/out*/cdouble* A, int n, cdouble* Q)
 {
   cdouble  sigma;	        // Elementary operation scale (2 for reflection)
-  cdouble* v=malloc(n*sizeof(cdouble));
-  cdouble* vc=malloc(n*sizeof(cdouble));
-  cdouble* a=malloc(n*sizeof(cdouble));    // Reflection vector
+  cdouble v[EIGEN_MAXN];
+  cdouble vc[EIGEN_MAXN];
+  cdouble a[EIGEN_MAXN];    // Reflection vector
+  EIGEN_CHECK_N(n);
 
   real_t numerical_zero = max_norm(A,n,n)*10*machine_precision;
   
@@ -230,11 +256,11 @@ void QHQ(/*in/out*/cdouble* A, int n, cdouble* Q)
 
     if(Q != 0) reflect_region(Q,n, k+1,0, l,n, v, sigma, ROWS); 
   }
-  free(v);free(vc);free(a);
 }
 
 // TODO: T_QTQ based on Givens rotations (should be possible to do with fewer operations)
 //size_t QTQ_calls = 0;
+#pragma acc routine seq
 void T_QTQ(const int n, const real_t *Din, const real_t *Lin, real_t *Dout, real_t *Lout, real_t *Vout, real_t shift)
 {
   // Unrolled
@@ -246,9 +272,10 @@ void T_QTQ(const int n, const real_t *Din, const real_t *Lin, real_t *Dout, real
   numerical_zero = 100*machine_precision;
   
   real_t a[2], v[2];
-  real_t *D=malloc((n+1)*sizeof(real_t));
-  real_t *L=malloc((n+1)*sizeof(real_t));
-  real_t *U=malloc((2*(n+1))*sizeof(real_t));
+  real_t D[EIGEN_MAXN+1];
+  real_t L[EIGEN_MAXN+1];
+  real_t U[2*(EIGEN_MAXN+1)];
+  EIGEN_CHECK_N(n);
 
   for(int i=0;i<n+1;i++){
     D[i] = Din[i]-shift;		// Diagonal
@@ -331,10 +358,10 @@ void T_QTQ(const int n, const real_t *Din, const real_t *Lin, real_t *Dout, real
       Lout[i] = U[i];  // First lower subdiagonal. L[k] = T(k+1,k) is element below kth diagonal element.
     }
   }
-  free(D); free(L); free(U);
 }
 
 
+#pragma acc routine seq
 INLINE real_pair eigvalsh2x2(real_t a, real_t b, real_t c, real_t d){
   real_pair result;
   real_t D = sqrt(4*b*c+(a-d)*(a-d));
@@ -346,8 +373,11 @@ INLINE real_pair eigvalsh2x2(real_t a, real_t b, real_t c, real_t d){
 }
 
 
+/* Call counter/timing: CPU-only diagnostics, writes shared state */
+#if TIME_EIGENSYSTEMS && !defined(OPENACC)
 int    nth_time = 0;
 real_t eigensystem_cputime = 0;
+#endif
 #define gershgorin_tolerance 1e4*machine_precision
 #define max_iterations       30
 
@@ -355,19 +385,21 @@ real_t eigensystem_cputime = 0;
 // TODO: Assumes all different eigenvalues. Does this break with multiples?
 // TODO: Stop after max_steps for fixed k. Return max Gershgorin radius as convergence -- or max Rayleigh quotient residual?
 // TODO: Implement implicit QR iteration using Francis' Q theorem/bulge chasing
+#pragma acc routine seq
 real_pair eigensystem_hermitian(const cdouble *A,
 				const int n,
 				real_t *lambdas, cdouble* Q)
 {
-  cdouble *T=malloc(n*n*sizeof(cdouble));	         /* T: Tridiagonal transform, dense representation */
-  real_t *V=malloc((2*(n-1))*sizeof(real_t));
-  real_t *Qhat=malloc(n*n*sizeof(real_t));	 /* V: Reflection vectors, Qhat: Inner transform */
-  memcpy(T, A, n*n*sizeof(cdouble));
+  cdouble T[EIGEN_MAXN*EIGEN_MAXN];	         /* T: Tridiagonal transform, dense representation */
+  real_t V[2*EIGEN_MAXN];
+  real_t Qhat[EIGEN_MAXN*EIGEN_MAXN];	 /* V: Reflection vectors, Qhat: Inner transform */
+  EIGEN_CHECK_N(n);
+  for(int i=0;i<n*n;i++) T[i] = A[i];
 
   real_t max_error    = gershgorin_tolerance;
   size_t n_iterations = 0;
 
-#if TIME_EIGENSYSTEMS
+#if TIME_EIGENSYSTEMS && !defined(OPENACC)
   clock_t start_time = clock();
   if(((++nth_time) % 1000)==0) printf("%dth call to eigensystem_hermitian, cpu-time used: %gs, on average %gs per call.\n",
 				      nth_time,eigensystem_cputime, eigensystem_cputime/nth_time);  
@@ -381,8 +413,8 @@ real_pair eigensystem_hermitian(const cdouble *A,
   QHQ(T,n,Q);
 
   /* Copy diagonal + first off-diagonal from dense T. */
-  real_t *D=malloc(n*sizeof(real_t));
-  real_t *L=malloc(n*sizeof(real_t));
+  real_t D[EIGEN_MAXN+1];	/* +1: T_QTQ(n) reads Din[n] (unused padding) */
+  real_t L[EIGEN_MAXN+1];
   for(int i=0;i<n;i++){
     D[i] = creal(T[i*n+i]);
     L[i] = (i+1<n)? creal(T[i*n+i+1]) : 0;
@@ -426,12 +458,14 @@ real_pair eigensystem_hermitian(const cdouble *A,
 
       if(GR <= gershgorin_tolerance) not_done--;      
       if(i>max_iterations && GR > gershgorin_tolerance){
+#ifndef OPENACC
 	fprintf(stderr,"Cannot converge eigenvalue %d to tolerance " G 
 	       " in %d iterations using machine precision " G " (d=" G ", shift=" G ", GR=" G ")\n"
 	       "D[k] = " G ", L[k-1] = " G ", L[k] = " G "\n",
 	       k,gershgorin_tolerance,i,
 	       machine_precision,d,shift,GR,
 	       D[k], (k>0)?L[k-1]:0, (k+1<n)?L[k]:0);
+#endif
 	
 	max_error = fmax(max_error,GR);
 	break;
@@ -442,9 +476,9 @@ real_pair eigensystem_hermitian(const cdouble *A,
   for(int k=0;k<n;k++) lambdas[k] = D[k];
 
   if(Q != 0){
-    cdouble *Q_tmp=malloc(n*n*sizeof(cdouble));
+    cdouble Q_tmp[EIGEN_MAXN*EIGEN_MAXN];
     for(int i=0;i<n;i++){
-      cdouble *col=malloc(n*sizeof(cdouble));
+      cdouble col[EIGEN_MAXN];
       for(int j=0;j<n;j++){
 	cdouble sum = cplx(0,0);
 	for(int k=0;k<n;k++) sum = cadd(sum,rmul(Qhat[i*n+k],Q[k*n+j]));
@@ -452,10 +486,10 @@ real_pair eigensystem_hermitian(const cdouble *A,
       }
       for(int j=0;j<n;j++) Q_tmp[i*n+j] = col[j];
     }
-    memcpy(Q,Q_tmp,n*n*sizeof(cdouble));
+    for(int i=0;i<n*n;i++) Q[i] = Q_tmp[i];
   }
 
-#if TIME_EIGENSYSTEMS
+#if TIME_EIGENSYSTEMS && !defined(OPENACC)
   clock_t end_time = clock();
   eigensystem_cputime += (end_time-start_time)/(real_t)CLOCKS_PER_SEC;
 #endif
@@ -464,7 +498,6 @@ real_pair eigensystem_hermitian(const cdouble *A,
   result.value[0] = max_error;
   result.value[1] = n_iterations;
   
-  free(T); free(V); free(Qhat); free(D); free(L);
   return result;
 }
 
