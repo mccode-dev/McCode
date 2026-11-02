@@ -53,7 +53,6 @@ SETTING PARAMETERS (RhoSolvent = 9.4e-14, Concentration = 0.01, AbsorptionCrosss
 
 
 DEPENDENCY " @GSLFLAGS@ "
-NOACC
 
 SHARE
 %{
@@ -67,15 +66,6 @@ SHARE
   #define SAXSPDB
   #define SAXSPDBOrderOfHarmonics 21
 
-  void**
-  matrix2d_new (size_t esize, size_t idim, size_t jdim) {
-    size_t const ptrs_size = sizeof (void*) * idim;
-    size_t const row_size = esize * jdim;
-    void** const rows = malloc (ptrs_size);
-    for (size_t i = 0; i < idim; ++i)
-      rows[i] = malloc (row_size);
-    return rows;
-  }
   // Simple mathematical functions
   int
   Sign (double x) {
@@ -336,7 +326,7 @@ SHARE
     fclose (PDBFile);
 
     return (NumberOfResidues);
-  } // ReadAminoPDB\
+  } // ReadAminoPDB
 
 
   #endif /*SAXSPDB*/
@@ -386,7 +376,7 @@ INITIALIZE
     int i, j, ResidueID;
     double qStep = (qMax - qMin) / (1.0 * NumberOfQBins);
     double q = qMin + qStep * (qbin + 0.5);
-    cdouble** Matrix = (cdouble**)matrix2d_new (sizeof (cdouble), SAXSPDBOrderOfHarmonics + 1, SAXSPDBOrderOfHarmonics + 1);
+    cdouble Matrix[SAXSPDBOrderOfHarmonics + 1][SAXSPDBOrderOfHarmonics + 1];
     // init Matrix = 0
     // ResetMatrix(Matrix, SAXSPDBOrderOfHarmonics);
     for (i = 0; i <= SAXSPDBOrderOfHarmonics; ++i)

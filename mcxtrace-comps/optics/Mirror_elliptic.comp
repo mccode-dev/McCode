@@ -194,34 +194,21 @@ TRACE
 MCDISPLAY
 %{
   int i, j, N = 12;
-  double t, xx, yy, zz, xx0, yy0, zz0;
   double a2, b2, c2;
   a2 = 1.0 / a2inv;
   b2 = 1.0 / b2inv;
   c2 = 1.0 / c2inv;
   if (xwidth && zdepth) {
-    for (i = 0; i < N; i++) {
-      xx0 = -xwidth / 2.0;
-      zz = i * zdepth / (N - 1) - zdepth / 2.0;
-      yy0 = -(1) * sqrt (b2 * (1 - xx0 * xx0 / a2 - zz * zz / c2)) + sqrt (b2);
-      for (j = 1; j < N; j++) {
-        xx = j * xwidth / (N - 1) - xwidth / 2.0;
-        yy = -(1) * sqrt (b2 * (1 - xx * xx / a2 - zz * zz / c2)) + sqrt (b2);
-        line (xx0, yy0, zz, xx, yy, zz);
-        xx0 = xx;
-        yy0 = yy;
-      }
-    }
-    for (i = 0; i < N; i++) {
-      zz0 = -zdepth / 2.0;
-      xx = i * xwidth / (N - 1) - xwidth / 2.0;
-      yy0 = -(1) * sqrt (b2 * (1 - xx * xx / a2 - zz0 * zz0 / c2)) + sqrt (b2);
-      for (j = 1; j < N; j++) {
-        zz = j * zdepth / (N - 1) - zdepth / 2.0;
-        yy = -(1) * sqrt (b2 * (1 - xx * xx / a2 - zz * zz / c2)) + sqrt (b2);
-        line (xx, yy0, zz0, xx, yy, zz);
-        zz0 = zz;
-        yy0 = yy;
+    double dx = xwidth / (N - 1), dz = zdepth / (N - 1);
+    for (i = 0; i < N - 1; i++) {
+      for (j = 0; j < N - 1; j++) {
+        double x0 = i * dx - xwidth / 2.0, x1 = x0 + dx;
+        double z0 = j * dz - zdepth / 2.0, z1 = z0 + dz;
+        double y00 = -sqrt (b2 * (1 - x0 * x0 / a2 - z0 * z0 / c2)) + sqrt (b2);
+        double y10 = -sqrt (b2 * (1 - x1 * x1 / a2 - z0 * z0 / c2)) + sqrt (b2);
+        double y11 = -sqrt (b2 * (1 - x1 * x1 / a2 - z1 * z1 / c2)) + sqrt (b2);
+        double y01 = -sqrt (b2 * (1 - x0 * x0 / a2 - z1 * z1 / c2)) + sqrt (b2);
+        polygon (4, x0, y00, z0, x1, y10, z0, x1, y11, z1, x0, y01, z1);
       }
     }
   }

@@ -1397,5 +1397,9 @@ void off_display(off_struct data)
   }
 } /* off_display */
 
+#ifdef OPENACC // Restore fprintf for code following this lib
+#undef fprintf
+#endif
+
 /* end of interoff-lib.c */
 #endif // INTEROFF_LIB_C

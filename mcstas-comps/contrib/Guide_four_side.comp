@@ -2231,129 +2231,47 @@ MCDISPLAY
   if ((myu != -1 && myuOW != -1) || (mxr != -1 && mxrOW != -1))
     line (-w2r, h2u, l, -(w2rwt), (h2uwt), l);
 
-  for (i = 0; i < imax; i++) { /* calculation of the points for the INNER LEFT BOTTOM line */
+  for (i = 0; i < imax; i++) { /* INNER walls as polygons, one per wall and z-step */
+    double xl[2], xr[2], yu[2], yd[2];
+    int k;
+    for (k = 0; k < 2; k++) {
+      Z = (i + k) * l / imax;
+      if (linwl == 0 && loutwl == 0)
+        xl[k] = ml * Z + nl1;
+      else if (linwl != 0 && loutwl != 0)
+        xl[k] = bwl * sqrt (1 - ((Z0wl + Z) * (Z0wl + Z)) / (awl * awl));
+      else
+        xl[k] = sqrt ((Z - pbwl) / -pawl);
+      if (linwr == 0 && loutwr == 0)
+        xr[k] = mr * Z + nr1;
+      else if (linwr != 0 && loutwr != 0)
+        xr[k] = -bwr * sqrt (1 - ((Z0wr + Z) * (Z0wr + Z)) / (awr * awr));
+      else
+        xr[k] = -sqrt ((Z - pbwr) / -pawr);
+      if (linhu == 0 && louthu == 0)
+        yu[k] = mu * Z + nu1;
+      else if (linhu != 0 && louthu != 0)
+        yu[k] = bhu * sqrt (1 - ((Z0hu + Z) * (Z0hu + Z)) / (ahu * ahu));
+      else
+        yu[k] = sqrt ((Z - pbhu) / -pahu);
+      if (linhd == 0 && louthd == 0)
+        yd[k] = md * Z + nd1;
+      else if (linhd != 0 && louthd != 0)
+        yd[k] = -bhd * sqrt (1 - ((Z0hd + Z) * (Z0hd + Z)) / (ahd * ahd));
+      else
+        yd[k] = -sqrt ((Z - pbhd) / -pahd);
+    }
     Z = i * l / imax;
     Z1 = (i + 1) * l / imax;
-    if (linwl == 0 && loutwl == 0) {
-      x1 = ml * Z + nl1;
-      x2 = ml * Z1 + nl1;
-    } else {
-      if (linwl != 0 && loutwl != 0) {
-        x1 = bwl * sqrt (1 - ((Z0wl + Z) * (Z0wl + Z)) / (awl * awl));
-        x2 = bwl * sqrt (1 - ((Z0wl + Z1) * (Z0wl + Z1)) / (awl * awl));
-      } else {
-        x1 = sqrt ((Z - pbwl) / -pawl);
-        x2 = sqrt ((Z1 - pbwl) / -pawl);
-      }
-    }
-    if (linhd == 0 && louthd == 0) {
-      y1 = md * Z + nd1;
-      y2 = md * Z1 + nd1;
-    } else {
-      if (linhd != 0 && louthd != 0) {
-        y1 = -bhd * sqrt (1 - ((Z0hd + Z) * (Z0hd + Z)) / (ahd * ahd));
-        y2 = -bhd * sqrt (1 - ((Z0hd + Z1) * (Z0hd + Z1)) / (ahd * ahd));
-      } else {
-        y1 = -sqrt ((Z - pbhd) / -pahd);
-        y2 = -sqrt ((Z1 - pbhd) / -pahd);
-      }
-    }
-    if (mxl != -1 || myd != -1)
-      line ((double)x1, (double)y1, (double)Z, (double)x2, (double)y2, (double)Z1);
-  }
-
-  for (i = 0; i < imax; i++) { /* calculation of the points for the INNER RIGHT BOTTOM line */
-    Z = i * l / imax;
-    Z1 = (i + 1) * l / imax;
-    if (linwr == 0 && loutwr == 0) {
-      x1 = mr * Z + nr1;
-      x2 = mr * Z1 + nr1;
-    } else {
-      if (linwr != 0 && loutwr != 0) {
-        x1 = -bwr * sqrt (1 - ((Z0wr + Z) * (Z0wr + Z)) / (awr * awr));
-        x2 = -bwr * sqrt (1 - ((Z0wr + Z1) * (Z0wr + Z1)) / (awr * awr));
-      } else {
-        x1 = -sqrt ((Z - pbwr) / -pawr);
-        x2 = -sqrt ((Z1 - pbwr) / -pawr);
-      }
-    }
-    if (linhd == 0 && louthd == 0) {
-      y1 = md * Z + nd1;
-      y2 = md * Z1 + nd1;
-    } else {
-      if (linhd != 0 && louthd != 0) {
-        y1 = -bhd * sqrt (1 - ((Z0hd + Z) * (Z0hd + Z)) / (ahd * ahd));
-        y2 = -bhd * sqrt (1 - ((Z0hd + Z1) * (Z0hd + Z1)) / (ahd * ahd));
-      } else {
-        y1 = -sqrt ((Z - pbhd) / -pahd);
-        y2 = -sqrt ((Z1 - pbhd) / -pahd);
-      }
-    }
-    if (mxr != -1 || myd != -1)
-      line ((double)x1, (double)y1, (double)Z, (double)x2, (double)y2, (double)Z1);
-  }
-
-  for (i = 0; i < imax; i++) { /* calculation of the points for the INNER RIGHT TOP line */
-    Z = i * l / imax;
-    Z1 = (i + 1) * l / imax;
-    if (linwr == 0 && loutwr == 0) {
-      x1 = mr * Z + nr1;
-      x2 = mr * Z1 + nr1;
-    } else {
-      if (linwr != 0 && loutwr != 0) {
-        x1 = -bwr * sqrt (1 - ((Z0wr + Z) * (Z0wr + Z)) / (awr * awr));
-        x2 = -bwr * sqrt (1 - ((Z0wr + Z1) * (Z0wr + Z1)) / (awr * awr));
-      } else {
-        x1 = -sqrt ((Z - pbwr) / -pawr);
-        x2 = -sqrt ((Z1 - pbwr) / -pawr);
-      }
-    }
-    if (linhu == 0 && louthu == 0) {
-      y1 = mu * Z + nu1;
-      y2 = mu * Z1 + nu1;
-    } else {
-      if (linhu != 0 && louthu != 0) {
-        y1 = bhu * sqrt (1 - ((Z0hu + Z) * (Z0hu + Z)) / (ahu * ahu));
-        y2 = bhu * sqrt (1 - ((Z0hu + Z1) * (Z0hu + Z1)) / (ahu * ahu));
-      } else {
-        y1 = sqrt ((Z - pbhu) / -pahu);
-        y2 = sqrt ((Z1 - pbhu) / -pahu);
-      }
-    }
-    if (mxr != -1 || myu != -1)
-      line ((double)x1, (double)y1, (double)Z, (double)x2, (double)y2, (double)Z1);
-  }
-
-  for (i = 0; i < imax; i++) { /* calculation of the points for the INNER LEFT TOP line */
-    Z = i * l / imax;
-    Z1 = (i + 1) * l / imax;
-    if (linwl == 0 && loutwl == 0) {
-      x1 = ml * Z + nl1;
-      x2 = ml * Z1 + nl1;
-    } else {
-      if (linwl != 0 && loutwl != 0) {
-        x1 = bwl * sqrt (1 - ((Z0wl + Z) * (Z0wl + Z)) / (awl * awl));
-        x2 = bwl * sqrt (1 - ((Z0wl + Z1) * (Z0wl + Z1)) / (awl * awl));
-      } else {
-        x1 = sqrt ((Z - pbwl) / -pawl);
-        x2 = sqrt ((Z1 - pbwl) / -pawl);
-      }
-    }
-    if (linhu == 0 && louthu == 0) {
-      y1 = mu * Z + nu1;
-      y2 = mu * Z1 + nu1;
-    } else {
-      if (linhu != 0 && louthu != 0) {
-        y1 = bhu * sqrt (1 - ((Z0hu + Z) * (Z0hu + Z)) / (ahu * ahu));
-        y2 = bhu * sqrt (1 - ((Z0hu + Z1) * (Z0hu + Z1)) / (ahu * ahu));
-      } else {
-        y1 = sqrt ((Z - pbhu) / -pahu);
-        y2 = sqrt ((Z1 - pbhu) / -pahu);
-      }
-    }
-    if (mxl != -1 || myu != -1)
-      line ((double)x1, (double)y1, (double)Z, (double)x2, (double)y2, (double)Z1);
-  } /* END INNER LINES*/
+    if (mxl != -1)
+      polygon (4, xl[0], yd[0], Z, xl[0], yu[0], Z, xl[1], yu[1], Z1, xl[1], yd[1], Z1);
+    if (mxr != -1)
+      polygon (4, xr[0], yd[0], Z, xr[0], yu[0], Z, xr[1], yu[1], Z1, xr[1], yd[1], Z1);
+    if (myu != -1)
+      polygon (4, xl[0], yu[0], Z, xr[0], yu[0], Z, xr[1], yu[1], Z1, xl[1], yu[1], Z1);
+    if (myd != -1)
+      polygon (4, xl[0], yd[0], Z, xr[0], yd[0], Z, xr[1], yd[1], Z1, xl[1], yd[1], Z1);
+  } /* END INNER WALLS*/
 
   for (i = 0; i < imax; i++) { /* calculation of the points for the OUTER LEFT BOTTOM line */
     Z = i * l / imax;
