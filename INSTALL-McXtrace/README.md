@@ -1,4 +1,4 @@
-# Installation instructions for McXtrace 3.10.1
+# Installation instructions for McXtrace 3.10.2
 
 For a description of the release changes please consult the [McCode release notes](RELEASE_NOTES.md)
 
