@@ -569,7 +569,7 @@ if __name__ == '__main__':
     parser.add_argument('--testroot', nargs="?", help='test root folder for test result management')
     parser.add_argument('--verbose', action='store_true', help='output excessive information for debug purposes')
     parser.add_argument('--nobrowse', action='store_true', help='Do not spawn browser on exit')
-    parser.add_argument('--nodiff', action='store_true', help='Do not generate mcplotdiff-html comparison cells against the reference column')
+    parser.add_argument('--nodiff', action='store_true', help='Do not generate the mcplotdiff-html / mccoplot-html comparison pages against the reference column')
     parser.add_argument('--diff-errors-only', dest='diff_errors_only', action='store_true', help='Only generate diff cells for rows that show a discrepancy against the reference (default: diff every row with valid data)')
     parser.add_argument('--diffmax', nargs=1, help='Maximum time (s) allowed per mcplotdiff-html comparison (default 300s)')
     parser.add_argument('--diffworkers', nargs=1, help='Number of mcplotdiff-html comparisons to run in parallel (default: number of available processors)')
