@@ -440,7 +440,7 @@ void *Table_File_List_store(t_Table *tab){
     if (rows && filesize > sizeofelement*columns*rows)
       nelements = columns*rows;
     else nelements = (long)(filesize/sizeofelement);
-    if (!nelements || filesize <= *offset) return(0);
+    if (!nelements || (offset && filesize <= *offset)) return(0);
     data    = (double*)malloc(nelements*sizeofelement);
     if (!data) {
       if(!(Table->quiet>1))
