@@ -449,7 +449,7 @@ void *Table_File_List_store(t_Table *tab){
     }
     nelements = fread(data, sizeofelement, nelements, hfile);
 
-    if (!data || !nelements)
+    if (!nelements)
     {
       if(!(Table->quiet>1))
         fprintf(stderr,"Error: reading %ld elements from %s file '%s' (Table_Read_Offset_Binary)\n", nelements, type, File);
@@ -566,8 +566,7 @@ void *Table_File_List_store(t_Table *tab){
             malloc_size_h = count_in_header+4096;
             char *Headertmp = (char*)realloc(Header, malloc_size_h*sizeof(char));
 	    if(!Headertmp) {
-	      free(Header);
-	             fprintf(stderr, "Error: Could not reallocate Header (Table_Read_Handle).\n");
+	      fprintf(stderr, "Error: Could not reallocate Header (Table_Read_Handle).\n");
 		     free(Header);
 		     return (-1);
 	    } else {
