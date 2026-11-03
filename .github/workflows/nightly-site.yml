@@ -1,0 +1,84 @@
+name: nightly-site
+# Reusable: called from mccode-dev/mcstas-nightly and mccode-dev/mcxtrace-nightly
+# (tools/nightly-site/nightly-repo-workflow.yml) once a scheduled conda-testsuite
+# run has uploaded its <flavor>-nightly-site artifact. Publishes the run as today/,
+# adds it to history/ (committed to the calling repo) and deploys GitHub Pages.
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        type: string
+        required: true
+      run_id:
+        type: string
+        required: true
+      date:
+        type: string
+        required: true
+    secrets:
+      NIGHTLY_TOKEN:
+        required: true
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency: nightly-site
+    steps:
+    - name: Checkout nightly repo (history)
+      uses: actions/checkout@v6
+      with:
+        path: nightly
+
+    - name: Checkout McCode (site scripts)
+      uses: actions/checkout@v6
+      with:
+        repository: mccode-dev/McCode
+        path: mccode
+        sparse-checkout: tools/nightly-site
+
+    - name: Download the testsuite site artifact
+      env:
+        GH_TOKEN: ${{ secrets.NIGHTLY_TOKEN }}
+      run: |
+           set -euo pipefail
+           gh run download ${{ inputs.run_id }} -R mccode-dev/McCode -n ${{ inputs.flavor }}-nightly-site -D dl
+           mkdir _site
+           tar xzf dl/${{ inputs.flavor }}-nightly-site.tgz -C _site
+           mv _site/${{ inputs.flavor }}-nightly _site/today
+           mv _site/today/${{ inputs.flavor }}-nightly_output.html _site/today/table.html
+           du -sh _site
+
+    - name: Add tonight to history
+      run: |
+           set -euo pipefail
+           python3 mccode/tools/nightly-site/summarize.py _site/today ${{ inputs.date }} \
+             https://github.com/mccode-dev/McCode/actions/runs/${{ inputs.run_id }} nightly/history
+           cd nightly
+           git config user.name "github-actions[bot]"
+           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+           git add history
+           git commit -m "Nightly ${{ inputs.date }}" || echo "history unchanged"
+           git push
+
+    - name: Assemble site
+      run: |
+           set -euo pipefail
+           cp -r nightly/history _site/
+           sed -e "s#@FLAVOR@#${{ inputs.flavor }}#g" -e "s#@REPO@#${{ github.repository }}#g" \
+             mccode/tools/nightly-site/index.html > _site/index.html
+           touch _site/.nojekyll
+           du -sh _site
+
+    - uses: actions/upload-pages-artifact@v4
+      with:
+        path: _site
+
+    - id: deploy
+      uses: actions/deploy-pages@v4
