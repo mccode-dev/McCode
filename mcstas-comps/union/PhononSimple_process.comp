@@ -39,7 +39,7 @@
 * unit_cell_volume:  [AA^3]   Unit cell volume
 * a:                 [AA]     fcc lattice constant
 * c:                 [meV*AA] Velocity of sound
-* M:                 [units]  Nucleus atomic mass in units
+* M:                 [amu]    Atomic mass
 * b:                 [fm]     Scattring length
 * T:                 [K]      Temperature
 * longitudinal:      [0/1]    Simulate longitudinal branches
@@ -185,6 +185,7 @@ SHARE
   }
 
   #define ROOTACC 1e-8
+  #define PHONONSIMPLE_MAX_ROOTS 6 /* size of vf_list in PhononSimple_physics_my */
   int
   findroots_union (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (double*), double* parms) {
     double root, range = brack_mid - brack_low;
@@ -193,15 +194,18 @@ SHARE
     for (i = 0; i < steps; i++) {
       root = zridd_union (f, brack_low + range * i / (int)steps, brack_low + range * (i + 1) / (int)steps, (double*)parms, ROOTACC);
       if (root != UNUSED) {
-        list[(*index)++] = root;
+        if (*index < PHONONSIMPLE_MAX_ROOTS)
+          list[(*index)++] = root;
         /*        printf("findroots found a  low root: %g \n",root); */
       }
     }
     root = zridd_union (f, brack_mid, brack_high, (double*)parms, ROOTACC);
     if (root != UNUSED) {
-      list[(*index)++] = root;
+      if (*index < PHONONSIMPLE_MAX_ROOTS)
+        list[(*index)++] = root;
       /*        printf("findroots found a high root: %g \n",root); */
     }
+    return *index;
   }
 
   double
@@ -252,7 +256,7 @@ SHARE
     double v_i = k_length * K2V;
 
     double a, b, c, T;
-    double vf_list[6]; /* List of allowed final velocities */
+    double vf_list[PHONONSIMPLE_MAX_ROOTS]; /* List of allowed final velocities */
     int nf, index;
     double* parms;
     double f1, f2, J_factor;
@@ -289,7 +293,13 @@ SHARE
 
     nf = 0;
     findroots_union (0, v_i, v_i + 2 * c * V2K / VS2E, vf_list, &nf, omega_q_union, parms);
+    if (!nf) {
+      *my = 0; /* no allowed final velocity, no scattering */
+      return 1;
+    }
     index = (int)floor (rand01 () * nf);
+    if (index >= nf)
+      index = nf - 1; /* rand01() may return 1.0 */
 
     if (nf > 4 || index > 3) {
       printf ("index = %d, nf = %d \n", index, nf);
@@ -501,11 +511,11 @@ INITIALIZE
     PhononSimple_storage.enable_transverse = 0;
 
   if (PhononSimple_storage.enable_transverse == 0 && PhononSimple_storage.enable_longitudinal == 0) {
-    printf ("PhononSimple_process named %s has no branches as both longitudinal and transverse is disabled! \n");
+    printf ("PhononSimple_process named %s has no branches as both longitudinal and transverse is disabled! \n", NAME_CURRENT_COMP);
     exit (1);
   }
 
-  PhononSimple_storage.my_constant = packing_factor * 4.0 / (a * a * a) * DW * K2V * K2V * VS2E * 2 * VS2E * K2V * b * b / M;
+  PhononSimple_storage.my_constant = packing_factor * 4.0 / (a * a * a) * DW * K2V * K2V * VS2E * 2 * VS2E * K2V * b * b * 4 * PI * 1.00866 / M; /* 4 PI: mu = 4 PI rho dsigma/dOmega; 1.00866 = m_n/u, M in amu */
   // my_constant = V_rho*DW*K2V*K2V*VS2E*2*VS"E*K2V*b*b/M // done in initialize
 
   // First initialise This_process with default values:

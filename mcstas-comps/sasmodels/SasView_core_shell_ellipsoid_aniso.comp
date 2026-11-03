@@ -364,12 +364,12 @@ _cs_ellipsoid_kernel(double qab, double qc,
     double equat_shell, double polar_shell,
     double sld_core_shell, double sld_shell_solvent)
 {
-    const double qr_core = sqrt(square(equat_core*qab) + square(polar_core*qc));
+    const double qr_core = sqrt(sas_square(equat_core*qab) + sas_square(polar_core*qc));
     const double si_core = sas_3j1x_x(qr_core);
     const double volume_core = M_4PI_3*equat_core*equat_core*polar_core;
     const double fq_core = si_core*volume_core*sld_core_shell;
 
-    const double qr_shell = sqrt(square(equat_shell*qab) + square(polar_shell*qc));
+    const double qr_shell = sqrt(sas_square(equat_shell*qab) + sas_square(polar_shell*qc));
     const double si_shell = sas_3j1x_x(qr_shell);
     const double volume_shell = M_4PI_3*equat_shell*equat_shell*polar_shell;
     const double fq_shell = si_shell*volume_shell*sld_shell_solvent;
@@ -647,29 +647,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

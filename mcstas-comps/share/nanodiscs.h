@@ -1,14 +1,17 @@
-#include <gsl/gsl_sf_bessel.h>
+// Requires sans_J1.h (%include "sans_J1.h" before this file)
 // Functions used for compution the intensity from a given liposome
+#pragma acc routine seq
 double FormfactorCylinder(double q, double MajorSemiAxis, double MinorSemiAxis, double Height, double Alpha, double Beta)
 	{
 		double const ProjectedRadius = sqrt(pow(MajorSemiAxis * sin(Beta), 2) + pow(MinorSemiAxis * cos(Beta), 2));
 
-		double const Formfactor1 = gsl_sf_bessel_J1(q * ProjectedRadius * sin(Alpha)) / (q * ProjectedRadius * sin(Alpha));
+		double const Formfactor1 = sans_J1(q * ProjectedRadius * sin(Alpha)) / (q * ProjectedRadius * sin(Alpha));
 		double const Formfactor2 = sin(q * Height * cos(Alpha) / 2.0) / (q * Height * cos(Alpha) / 2.0);
 
 		return 2 * Formfactor1 * Formfactor2;
 	}
+
+	#pragma acc routine seq
 
 	double IntensityOfEmptyNanodiscs(double q, double MajorSemiAxis, double MinorSemiAxis, double ThicknessOfBelt,
 									 double HeightOfBelt, double HeightOfLipids, double HeightOfTails, double HeightOfCH3,
@@ -92,6 +95,7 @@ double FormfactorCylinder(double q, double MajorSemiAxis, double MinorSemiAxis, 
 		return Intensity;
 	}
 	// Functions used to compute the characteristics of the histidine tags
+	#pragma acc routine seq
 	double Debye(double q, double r)
 	{
 		// Variables needed in functions
@@ -110,6 +114,8 @@ double FormfactorCylinder(double q, double MajorSemiAxis, double MinorSemiAxis, 
 		return ReturnValue;
 	}
 
+	#pragma acc routine seq
+
 	double XiRodWithoutEndcaps(double q, double r, double l, double Alpha)
 	{
 		// Variables needed in function
@@ -120,6 +126,8 @@ double FormfactorCylinder(double q, double MajorSemiAxis, double MinorSemiAxis, 
 
 		return ReturnValue;
 	}
+
+	#pragma acc routine seq
 
 	double PsiHammouda(double x)
 	{
@@ -133,6 +141,7 @@ double FormfactorCylinder(double q, double MajorSemiAxis, double MinorSemiAxis, 
 	}
 
 	// Computation of the intensity from a given nanodisc
+	#pragma acc routine seq
 	double IntensityOfEmptyNanodiscsWithTags(
 		double q,
 		double MajorSemiAxis,

@@ -395,6 +395,7 @@ class DrawCommand(object):
         self.args = floatify(args)
         self.args_str = ''
         self.key = ''
+        self.color = None  # '#rrggbb' set by a preceding pencolor(r,g,b), else None (component colour)
         self.boundingbox = None
         if len(args) > 0:
             self.args_str = str(args[0])
@@ -445,6 +446,8 @@ class DrawCommand(object):
         call['key'] = self.key
         #call['args_str'] = self.args_str
         call['args'] = self.args
+        if self.color:
+            call['color'] = self.color
 
         return call
 

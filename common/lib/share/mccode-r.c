@@ -4154,6 +4154,18 @@ void mcdis_magnify(char *what){
   // Do nothing here, better use interactive zoom from the tools
 }
 
+/* Set pen colour for the following draw calls of this component, "#rrggbb" or "rrggbb".
+   Emitted as integer RGB; backends without support ignore it. */
+void mcdis_pencolor(char *hex){
+  unsigned int r, g, b;
+  if (hex && hex[0] == '#') hex++;
+  if (!hex || strlen(hex) != 6 || sscanf(hex, "%2x%2x%2x", &r, &g, &b) != 3) {
+    fprintf(stderr, "Warning: mcdis_pencolor: ignoring invalid colour '%s', expected \"#rrggbb\"\n", hex ? hex : "(null)");
+    return;
+  }
+  printf("MCDISPLAY: pencolor(%u,%u,%u)\n", r, g, b);
+}
+
 void mcdis_line(double x1, double y1, double z1,
                 double x2, double y2, double z2){
   printf("MCDISPLAY: multiline(2,%g,%g,%g,%g,%g,%g)\n",
@@ -5824,7 +5836,7 @@ double _rand0max(double max, randstate_t* state) {
 }
 // Return a random number between min and max.
 double _randminmax(double min, double max, randstate_t* state) {
-	return _rand0max(max - min, state) + max;
+	return _rand0max(max - min, state) + min;
 }
 
 

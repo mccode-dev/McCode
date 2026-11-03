@@ -697,6 +697,8 @@ mcvine_rows_flatten (const mcvine_rows* r, int first, double** out) {
 }
 
 /* index i with x[i] <= v <= x[i+1]; -1 if outside */
+#pragma acc routine seq
+#pragma acc routine seq
 static int
 mcvine_bracket (const double* x, int n, double v, double* frac) {
   int lo = 0, hi = n - 1;
@@ -985,6 +987,8 @@ mcvine_dir_from_frame (const double* e1, const double* e2, const double* e3, dou
   for (i = 0; i < 3; i++)
     dir[i] = sint * c * e2[i] + sint * s * e3[i] + cost * e1[i];
 }
+#pragma acc routine seq
+#pragma acc routine seq
 static void
 mcvine_random_direction (double* d, _class_particle* _particle) {
   double cost = 2 * rand01 () - 1, sint = sqrt (1 - cost * cost), phi = 2 * MCVINE_PI * rand01 ();
@@ -992,20 +996,34 @@ mcvine_random_direction (double* d, _class_particle* _particle) {
   d[1] = sint * sin (phi);
   d[2] = cost;
 }
+#pragma acc routine seq
+#pragma acc routine seq
 static double
 mcvine_E2k (double E) {
   return E > 0 ? V2K * SE2V * sqrt (E) : 0;
 }
+#pragma acc routine seq
+#pragma acc routine seq
 static double
 mcvine_k2E (double k) {
   return VS2E * (K2V * k) * (K2V * k);
 }
 
-/* Ridders' method (mccomponents/math/rootfinding.cc, zridd) */
-typedef double (*mcvine_f1) (double, void*);
+/* Ridders' method (mccomponents/math/rootfinding.cc, zridd).
+   f selects the function (no function pointers on the GPU), see mcvine_f1_eval. */
+#define MCVINE_F1_EVQ 0
+#define MCVINE_F1_OMQ 1
+#pragma acc routine seq
+static double mcvine_f1_eval (int f, double x, void* ctx);
+#pragma acc routine seq
+static double mcvine_evq_f (double kf, void* c);
+#pragma acc routine seq
+static double mcvine_omq_f (double vf, void* c);
+#pragma acc routine seq
+#pragma acc routine seq
 static int
-mcvine_zridd (mcvine_f1 f, void* ctx, double x1, double x2, double xacc, double* root) {
-  double fl = f (x1, ctx), fh = f (x2, ctx), ans, xl, xh, xm, fm, s, xnew, fnew;
+mcvine_zridd (int f, void* ctx, double x1, double x2, double xacc, double* root) {
+  double fl = mcvine_f1_eval (f, x1, ctx), fh = mcvine_f1_eval (f, x2, ctx), ans, xl, xh, xm, fm, s, xnew, fnew;
   int j;
   if (fl * fh >= 0) {
     if (fl == 0) {
@@ -1023,7 +1041,7 @@ mcvine_zridd (mcvine_f1 f, void* ctx, double x1, double x2, double xacc, double*
   ans = -1.11e30;
   for (j = 1; j < 60; j++) {
     xm = 0.5 * (xl + xh);
-    fm = f (xm, ctx);
+    fm = mcvine_f1_eval (f, xm, ctx);
     s = sqrt (fm * fm - fl * fh);
     if (s == 0.0)
       break;
@@ -1033,7 +1051,7 @@ mcvine_zridd (mcvine_f1 f, void* ctx, double x1, double x2, double xacc, double*
       break;
     }
     ans = xnew;
-    fnew = f (ans, ctx);
+    fnew = mcvine_f1_eval (f, ans, ctx);
     if (fnew == 0.0)
       break;
     if ((fnew >= 0 ? fabs (fm) : -fabs (fm)) != fm) {
@@ -1058,8 +1076,10 @@ mcvine_zridd (mcvine_f1 f, void* ctx, double x1, double x2, double xacc, double*
   return 1;
 }
 /* FindRootsEvenly: split [x1,x2] into nsteps and bracket each piece */
+#pragma acc routine seq
+#pragma acc routine seq
 static int
-mcvine_find_roots (mcvine_f1 f, void* ctx, double x1, double x2, int nsteps, double xacc, double* roots, int maxroots) {
+mcvine_find_roots (int f, void* ctx, double x1, double x2, int nsteps, double xacc, double* roots, int maxroots) {
   int i, n = 0;
   double step = (x2 - x1) / nsteps;
   for (i = 0; i < nsteps && n < maxroots; i++) {
@@ -1156,7 +1176,7 @@ mcvine_scatterer_init (mcvine_scatterer* sc, const mcvine_shape* s, double mu220
 }
 
 int
-mcvine_scatterer_interact (const mcvine_scatterer* sc, void* kernel, mcvine_S_fn S, _class_particle* _particle) {
+mcvine_scatterer_interact (const mcvine_scatterer* sc, void* kernel, int kind, _class_particle* _particle) {
   double seg[4], r[3], vel[3];
   int nseg, k, nscat = 0;
   for (k = 0;; k++) {
@@ -1219,7 +1239,7 @@ mcvine_scatterer_interact (const mcvine_scatterer* sc, void* kernel, mcvine_S_fn
     vel[0] = _particle->vx;
     vel[1] = _particle->vy;
     vel[2] = _particle->vz;
-    if (!S (kernel, r, vel, _particle->t, &_particle->p, _particle))
+    if (!mcvine_S (kind, kernel, r, vel, _particle->t, &_particle->p, _particle))
       return -1;
     if (!(_particle->p > 0) || vel[0] != vel[0] || vel[1] != vel[1] || vel[2] != vel[2])
       return -1;
@@ -1396,6 +1416,8 @@ typedef struct {
   const mcvine_func* E;
   double ukf[3], ki[3], Ei;
 } mcvine_evq_ctx;
+#pragma acc routine seq
+#pragma acc routine seq
 static double
 mcvine_evq_f (double kf, void* c) {
   mcvine_evq_ctx* x = (mcvine_evq_ctx*)c;
@@ -1417,7 +1439,7 @@ mcvine_S_E_vQ (void* kk, const double* r, double* v, double t, double* p, _class
     c.ki[i] = V2K * v[i];
   kmag = V2K * vi;
   mcvine_random_direction (c.ukf, _particle);
-  nkf = mcvine_find_roots (mcvine_evq_f, &c, mcvine_E2k (c.Ei - k->m_Emax > 0 ? c.Ei - k->m_Emax : 0), mcvine_E2k (c.Ei), k->m_nsteps, k->m_xacc, roots, 1024);
+  nkf = mcvine_find_roots (MCVINE_F1_EVQ, &c, mcvine_E2k (c.Ei - k->m_Emax > 0 ? c.Ei - k->m_Emax : 0), mcvine_E2k (c.Ei), k->m_nsteps, k->m_xacc, roots, 1024);
   if (nkf < 1)
     return 0;
   idx = nkf > 1 ? (int)floor (rand01 () * nkf) : 0;
@@ -2138,6 +2160,8 @@ mcvine_dispersion_load_idf (mcvine_dispersion* d, const char* dir, const char* o
 }
 
 /* fractional (reduced) coordinates of Q in the grid cell, then trilinear weights */
+#pragma acc routine seq
+#pragma acc routine seq
 static void
 mcvine_disp_locate (const mcvine_dispersion* d, const double* Q, int* id, double* fr) {
   int i;
@@ -2153,6 +2177,8 @@ mcvine_disp_locate (const mcvine_dispersion* d, const double* Q, int* id, double
     fr[i] = r - id[i];
   }
 }
+#pragma acc routine seq
+#pragma acc routine seq
 static double
 mcvine_trilin (const double* f, const int* id, const double* fr, int n1, int n2, size_t stride, size_t off) {
   double s = 0;
@@ -2187,6 +2213,8 @@ mcvine_dispersion_polarization (const mcvine_dispersion* d, int branch, int atom
 }
 
 /* phonon/scattering_length.icc : |sum_i b_i/sqrt(M_i) exp(iQ.d_i) (Q.eps_i)/|eps_i| |^2 */
+#pragma acc routine seq
+#pragma acc routine seq
 static double
 mcvine_norm_slsum (const mcvine_dispersion* d, const mcvine_atom* atoms, int natoms, int branch, const double* Q) {
   double sr = 0, si = 0;
@@ -2339,6 +2367,8 @@ typedef struct {
   int branch;
   double dir[3], vi[3], vil;
 } mcvine_omq_ctx;
+#pragma acc routine seq
+#pragma acc routine seq
 static double
 mcvine_omq_f (double vf, void* c) { /* Omega_minus_deltaE.cc */
   mcvine_omq_ctx* x = (mcvine_omq_ctx*)c;
@@ -2383,7 +2413,7 @@ mcvine_S_Phonon_CoherentInelastic_SingleXtal (void* kk, const double* r, double*
     if (i >= ngood)
       i = ngood - 1;
     c.branch = good[i];
-    nf = mcvine_find_roots (mcvine_omq_f, &c, 0, 2 * vil, k->m_nsteps, k->m_xacc, roots, 256);
+    nf = mcvine_find_roots (MCVINE_F1_OMQ, &c, 0, 2 * vil, k->m_nsteps, k->m_xacc, roots, 256);
     if (nf > 0)
       break;
   }
@@ -2423,6 +2453,50 @@ mcvine_S_Phonon_CoherentInelastic_SingleXtal (void* kk, const double* r, double*
       v[i] = c.dir[i] * vf;
   }
   return 1;
+}
+
+#pragma acc routine seq
+#pragma acc routine seq
+static double
+mcvine_f1_eval (int f, double x, void* ctx) {
+  return f == MCVINE_F1_EVQ ? mcvine_evq_f (x, ctx) : mcvine_omq_f (x, ctx);
+}
+
+int
+mcvine_S (int kind, void* k, const double* r, double* v, double t, double* p, _class_particle* _particle) {
+  switch (kind) {
+  case MCVINE_K_ConstantEnergyTransfer:
+    return mcvine_S_ConstantEnergyTransfer (k, r, v, t, p, _particle);
+  case MCVINE_K_ConstantQE:
+    return mcvine_S_ConstantQE (k, r, v, t, p, _particle);
+  case MCVINE_K_ConstantvQE:
+    return mcvine_S_ConstantvQE (k, r, v, t, p, _particle);
+  case MCVINE_K_E_Q:
+    return mcvine_S_E_Q (k, r, v, t, p, _particle);
+  case MCVINE_K_Broadened_E_Q:
+    return mcvine_S_Broadened_E_Q (k, r, v, t, p, _particle);
+  case MCVINE_K_E_vQ:
+    return mcvine_S_E_vQ (k, r, v, t, p, _particle);
+  case MCVINE_K_SQ:
+    return mcvine_S_SQ (k, r, v, t, p, _particle);
+  case MCVINE_K_SvQ:
+    return mcvine_S_SvQ (k, r, v, t, p, _particle);
+  case MCVINE_K_SQE:
+    return mcvine_S_SQE (k, r, v, t, p, _particle);
+  case MCVINE_K_DGSSXRes:
+    return mcvine_S_DGSSXRes (k, r, v, t, p, _particle);
+  case MCVINE_K_SANS2D_ongrid:
+    return mcvine_S_SANS2D_ongrid (k, r, v, t, p, _particle);
+  case MCVINE_K_Phonon_IncoherentElastic:
+    return mcvine_S_Phonon_IncoherentElastic (k, r, v, t, p, _particle);
+  case MCVINE_K_Phonon_IncoherentInelastic:
+    return mcvine_S_Phonon_IncoherentInelastic (k, r, v, t, p, _particle);
+  case MCVINE_K_Phonon_CoherentInelastic_PolyXtal:
+    return mcvine_S_Phonon_CoherentInelastic_PolyXtal (k, r, v, t, p, _particle);
+  case MCVINE_K_Phonon_CoherentInelastic_SingleXtal:
+    return mcvine_S_Phonon_CoherentInelastic_SingleXtal (k, r, v, t, p, _particle);
+  }
+  return 0;
 }
 
 #endif /* MCVINE_LIB_C */

@@ -179,23 +179,30 @@ TRACE
 
 MCDISPLAY
 %{
+  int j, k;
+  double r1 = radius - height;
 
-  int j;
-  /* Arrays for storing geometry of slit/beamstop */
+  mcdis_disc (0, -delta_y, 0, radius, 0, 0, 1);
 
-  circle ("xy", 0, -delta_y, 0, radius);
-
-  /* Drawing the slit(s) */
+  /* Slit openings in black, each one flat polyhedron: 9 points along the outer arc (0..8) and
+     the inner arc (9..17), joined by a triangle strip (a polygon() fan fails for wide slits) */
+  mcdis_pencolor ("#000000");
   for (j = 0; j < nslit; j++) {
     /* Angular start/end of slit */
     double tmin = j * (2.0 * PI / nslit) - theta_0 / 2.0 + phase;
-    double tmax = tmin + theta_0;
-    /* Draw lines for each slit. */
-
-    line (radius * sin (tmin), radius * cos (tmin) - delta_y, 0, (radius - height) * sin (tmin), (radius - height) * cos (tmin) - delta_y, 0);
-    line ((radius - height) * sin (tmin), (radius - height) * cos (tmin) - delta_y, 0, (radius - height) * sin (tmax), (radius - height) * cos (tmax) - delta_y,
-          0);
-    line ((radius - height) * sin (tmax), (radius - height) * cos (tmax) - delta_y, 0, radius * sin (tmax), radius * cos (tmax) - delta_y, 0);
+    char json[2048];
+    int n = sprintf (json, "{ \"vertices\": [");
+    for (k = 0; k < 9; k++) {
+      double t = tmin + k * theta_0 / 8;
+      n += sprintf (json + n, "[%g, %g, 0], ", radius * sin (t), radius * cos (t) - delta_y);
+    }
+    for (k = 0; k < 9; k++) {
+      double t = tmin + k * theta_0 / 8;
+      n += sprintf (json + n, "[%g, %g, 0]%s", r1 * sin (t), r1 * cos (t) - delta_y, k < 8 ? ", " : "], \"faces\": [");
+    }
+    for (k = 0; k < 8; k++)
+      n += sprintf (json + n, "{ \"face\": [%d, %d, %d]}, { \"face\": [%d, %d, %d]}%s", k, k + 1, k + 10, k, k + 10, k + 9, k < 7 ? ", " : "]}");
+    mcdis_polyhedron (json);
   }
 %}
 

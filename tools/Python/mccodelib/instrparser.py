@@ -48,6 +48,7 @@ class InstrTraceParser:
         'mcdisnew_circle'  : 'DRAWCALL',
         'polygon'     : 'DRAWCALL',
         'polyhedron'  : 'DRAWCALL',
+        'pencolor'    : 'DRAWCALL',
 
 
         'MANTID_PIXEL': 'MANTID_PIXEL',
@@ -339,6 +340,7 @@ class InstrObjectConstructor:
                         comp = Component(name=name, pos=pos, rot=rot)
                         
                         # get draw commands (please print a parse tree with NodeTreePrint to understand this)
+                        pencolor = None  # pen state, reset per component
                         for cc in csc.children:
                             if cc.type == 'draw_commands':
                                 for dc in cc.children:
@@ -351,8 +353,12 @@ class InstrObjectConstructor:
                                     args = argsnode.leaf
                                     
                                     commandname = dc.leaf
+                                    if commandname == 'pencolor':
+                                        pencolor = '#%02x%02x%02x' % tuple(int(float(a)) for a in args)
+                                        continue
                                     draw = drawclass_factory(commandname, args, reduced=True)
                                     if draw:
+                                        draw.color = pencolor
                                         comp.drawcalls.append(draw)
                         
                         instrument_tree.components.append(comp)

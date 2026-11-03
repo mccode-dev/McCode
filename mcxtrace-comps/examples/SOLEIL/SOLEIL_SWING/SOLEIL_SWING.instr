@@ -31,13 +31,13 @@
 * 32       | Sample location
 * 32.5-39  | Detector 162.5 x 155.2 mm
 *
-* %Example: SWING_E0=13 Detector: SWING_Eiger4M_I=128310
+* %Test: SWING_E0=13 Detector: SWING_Eiger4M_I=1.5393e+12
 *
 * %Parameters
 * SWING_E0:             [keV]  Nominal energy at the Wiggler.
 * SWING_dE:             [keV]  Energy half-bandwidth at the Wiggler
 * SWING_dcm_theta:      [deg]  Rotation angle of the DCM. 0=set from energy SWING_E0
-* SWING_mirror_grazing_angle: [deg] Tilt angle of the mirrors.
+* SWING_mirror_grazing_angle: [rad] Tilt angle of the mirrors (4 mrad).
 * SWING_hfm_radius:       [m]  Horizontally focusing mirror radius.
 * SWING_vfm_radius:       [m]  Vertically focusing mirror radius.
 * SWING_sample:         [str]  Sample given as a PDB file, or NULL for a 100A dilute Sphere model.
@@ -69,7 +69,7 @@ USERVARS
 INITIALIZE
 %{
   {
-  double DM= 5.4909;     // Si d-spacing for the Monochromator
+  double DM= 5.4309;     // Si d-spacing for the Monochromator
   double d = DM/sqrt(3); // <111> reflection |<111>|=3
   SWING_dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
    
@@ -190,14 +190,14 @@ COMPONENT SWING_vfm = Mirror_curved(
   width=0.1,
   radius=SWING_vfm_radius)
 AT (0,0,0) RELATIVE SWING_vfm_location
-ROTATED(0,-SWING_mirror_grazing_angle,0) RELATIVE SWING_vfm_in_xz_plane
+ROTATED(0,-SWING_mirror_grazing_angle*RAD2DEG,0) RELATIVE SWING_vfm_in_xz_plane
 EXTEND %{
   SWING_flag_vfm=SCATTERED;
 %}
 
 COMPONENT SWING_vfm_takeoff = COPY(SWING_vfm_location)
 AT (0,0,0) RELATIVE SWING_vfm_in_xz_plane
-ROTATED (-2*SWING_mirror_grazing_angle, 0, 0) RELATIVE SWING_vfm_location
+ROTATED (-2*SWING_mirror_grazing_angle*RAD2DEG, 0, 0) RELATIVE SWING_vfm_location
 
 // KB 2nd mirror (YZ) at 1m from sample, shift height=4.8 mm 
 COMPONENT SWING_hfm_location = COPY(SWING_vfm_location)
@@ -210,14 +210,14 @@ COMPONENT SWING_hfm = Mirror_curved(
   width=0.1,
   radius=SWING_hfm_radius)
 AT (0,0,0) RELATIVE SWING_hfm_location
-ROTATED (0,-SWING_mirror_grazing_angle,0) RELATIVE SWING_hfm_location
+ROTATED (0,-SWING_mirror_grazing_angle*RAD2DEG,0) RELATIVE SWING_hfm_location
 EXTEND %{
   SWING_flag_hfm=SCATTERED;
 %}
 
 COMPONENT SWING_hfm_takeoff = COPY(SWING_vfm_location)
 AT (0,0,0) RELATIVE SWING_hfm_location
-ROTATED (0,-2*SWING_mirror_grazing_angle,0) RELATIVE SWING_hfm_location
+ROTATED (0,-2*SWING_mirror_grazing_angle*RAD2DEG,0) RELATIVE SWING_hfm_location
 EXTEND %{
   if (!SWING_flag_hfm || !SWING_flag_vfm) ABSORB;
 %}

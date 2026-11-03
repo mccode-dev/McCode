@@ -636,13 +636,13 @@ constant double Gauss76Z[76] = {
 static double
 shell_volume(double radius, double thickness, double length)
 {
-    return M_PI*length*(square(radius+thickness) - radius*radius);
+    return M_PI*length*(sas_square(radius+thickness) - radius*radius);
 }
 
 static double
 form_volume_hollow_cylinder(double radius, double thickness, double length)
 {
-    return M_PI*length*square(radius+thickness);
+    return M_PI*length*sas_square(radius+thickness);
 }
 
 static double
@@ -655,14 +655,14 @@ radius_from_excluded_volume_hollow_cylinder(double radius, double thickness, dou
 static double
 radius_from_volume_hollow_cylinder(double radius, double thickness, double length)
 {
-    const double volume_outer_cyl = M_PI*square(radius + thickness)*length;
+    const double volume_outer_cyl = M_PI*sas_square(radius + thickness)*length;
     return cbrt(volume_outer_cyl/M_4PI_3);
 }
 
 static double
 radius_from_diagonal_hollow_cylinder(double radius, double thickness, double length)
 {
-    return sqrt(square(radius + thickness) + 0.25*square(length));
+    return sqrt(sas_square(radius + thickness) + 0.25*sas_square(length));
 }
 
 static double
@@ -693,7 +693,7 @@ _fq(double qab, double qc,
 {
     const double lam1 = sas_2J1x_x((radius+thickness)*qab);
     const double lam2 = sas_2J1x_x(radius*qab);
-    const double gamma_sq = square(radius/(radius+thickness));
+    const double gamma_sq = sas_square(radius/(radius+thickness));
     //Note: lim_{thickness -> 0} psi = sas_J0(radius*qab)
     //Note: lim_{radius -> 0} psi = sas_2J1x_x(thickness*qab)
     const double psi = (lam1 - gamma_sq*lam2)/(1.0 - gamma_sq);    //SRK 10/19/00
@@ -733,7 +733,7 @@ Iqac_hollow_cylinder(double qab, double qc,
 {
     const double form = _fq(qab, qc, radius, thickness, length);
     const double s = (sld - solvent_sld) * shell_volume(radius, thickness, length);
-    return 1.0e-4*square(s * form);
+    return 1.0e-4*sas_square(s * form);
 }
 
 
@@ -867,29 +867,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

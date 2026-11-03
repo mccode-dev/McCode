@@ -154,6 +154,10 @@ INITIALIZE
           SequenceIndex[index++] = i;
       }
     }
+    if (!m) {
+      fprintf (stderr, "StatisticalChopper: %s: Sequence has no open slit ('1').\n", NAME_CURRENT_COMP);
+      exit (-1);
+    }
     c = (double)(m - 1) / (double)(nslit - 1); /* duty cycle */
 
     /* checking sequence */
@@ -207,8 +211,11 @@ TRACE
 
   if (isfirst && SequenceIndex) {
     /* choose a slit in the sequence and set time accordingly */
-    t = atan2 (x, yprime) / omega + SequenceIndex[(int)(rand01 () * m)] / nslit / nu - delay + jitter * randnorm ()
-        + (n_pulse > 1 ? floor (n_pulse * rand01 () / fabs (nu)) : 0);
+    int k = (int)(rand01 () * m);
+    if (k >= m)
+      k = m - 1; /* rand01() can return 1.0 */
+    t = atan2 (x, yprime) / omega + (double)SequenceIndex[k] / nslit / nu - delay + jitter * randnorm ()
+        + (n_pulse > 1 ? floor (n_pulse * rand01 ()) / fabs (nu) : 0);
     p *= (double)m / (double)nslit; /* transmission */
   } else {
     /* check if we pass through a slit */
