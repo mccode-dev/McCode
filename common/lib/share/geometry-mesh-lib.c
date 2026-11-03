@@ -1371,9 +1371,40 @@ gmesh_read_file (char* filename, const char* extension, gmesh_raw* raw) {
   return ok;
 }
 
-// read an STL/OFF/PLY file into mesh, see geometry-mesh-lib.h
-int
-gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh) {
+// factors that multiply the x, y and z coordinates so that a bounding box of
+// size range gets the size xwidth, yheight, zdepth, as off_init of interoff-lib.
+// A zero size, or an axis where the box is flat, takes the factor of the
+// other given sizes; a single given size scales all axes by the same factor.
+static Coords
+gmesh_fit_scale (Coords range, double xwidth, double yheight, double zdepth) {
+  Coords scale = coords_set (1, 1, 1);
+  if (xwidth && range.x) {
+    scale.x = xwidth / range.x;
+    scale.y = scale.x;
+    scale.z = scale.x;
+  }
+  if (yheight && range.y) {
+    scale.y = yheight / range.y;
+    scale.z = scale.y;
+    if (!xwidth)
+      scale.x = scale.y;
+  }
+  if (zdepth && range.z) {
+    scale.z = zdepth / range.z;
+    if (!xwidth)
+      scale.x = scale.z;
+    if (!yheight)
+      scale.y = scale.z;
+  }
+  return scale;
+}
+
+// read an STL/OFF/PLY file into mesh: multiply by scale, then resize the
+// bounding box to xwidth/yheight/zdepth (0: keep); with center the box centre
+// is moved to the origin and the box resized about it, otherwise the
+// coordinates are scaled about the origin (as off_init of interoff-lib)
+static int
+gmesh_load (char* filename, double scale, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh) {
   gmesh_raw raw;
   const char* extension;
   int ok = 0;
@@ -1443,6 +1474,27 @@ gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh) {
       mesh->bbmin.z = p->z;
     if (p->z > mesh->bbmax.z)
       mesh->bbmax.z = p->z;
+  }
+  if (xwidth || yheight || zdepth || center) {
+    Coords range = coords_sub (mesh->bbmax, mesh->bbmin);
+    Coords origin = center ? coords_scale (coords_add (mesh->bbmin, mesh->bbmax), 0.5) : coords_set (0, 0, 0);
+    Coords scale = gmesh_fit_scale (range, xwidth, yheight, zdepth);
+    for (i = 0; i < raw.nverts; i++) {
+      Coords* p = &raw.verts[i];
+      p->x = (p->x - origin.x) * scale.x;
+      p->y = (p->y - origin.y) * scale.y;
+      p->z = (p->z - origin.z) * scale.z;
+    }
+    mesh->bbmin = coords_set ((mesh->bbmin.x - origin.x) * scale.x, (mesh->bbmin.y - origin.y) * scale.y, (mesh->bbmin.z - origin.z) * scale.z);
+    mesh->bbmax = coords_set ((mesh->bbmax.x - origin.x) * scale.x, (mesh->bbmax.y - origin.y) * scale.y, (mesh->bbmax.z - origin.z) * scale.z);
+    MPI_MASTER (
+      if (scale.x != scale.y || scale.x != scale.z)
+        printf ("Warning: Aspect ratio of the geometry %s was modified.\n"
+                "         If you want to keep the original proportions, specify only one of the dimensions.\n", filename);
+      printf ("  Bounding box dimensions for geometry %s:\n", filename);
+      printf ("    Length=%f (%.3f%%)\n", range.x * scale.x, scale.x * 100);
+      printf ("    Width= %f (%.3f%%)\n", range.y * scale.y, scale.y * 100);
+      printf ("    Depth= %f (%.3f%%)\n", range.z * scale.z, scale.z * 100););
   }
   mesh->length_scale = coords_len (coords_sub (mesh->bbmax, mesh->bbmin));
   if (mesh->length_scale <= 0)
@@ -1734,7 +1786,19 @@ gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh) {
 
   MPI_MASTER (gmesh_print_info (mesh););
   return mesh->ntris;
-} // gmesh_init
+} // gmesh_load
+
+// read an STL/OFF/PLY file into mesh, see geometry-mesh-lib.h
+int
+gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh) {
+  return gmesh_load (filename, scale, 0, 0, 0, 0, face_props, mesh);
+}
+
+// read a file and resize it to a bounding box, see geometry-mesh-lib.h
+int
+gmesh_init_fit (char* filename, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh) {
+  return gmesh_load (filename, 1, xwidth, yheight, zdepth, center, face_props, mesh);
+}
 
   // ==========================================================================
   // Ray tracing
@@ -2106,6 +2170,36 @@ gmesh_display (gmesh_struct* mesh) {
     }
     free (edges.e);
   }
+}
+
+// one MANTID_PIXEL line per face, pixel id = offset + face index, see geometry-mesh-lib.h
+void
+gmesh_display_mantid (gmesh_struct* mesh, long offset) {
+  int i, j, face = 0;
+  size_t capacity = 256;
+  char* line;
+  if (!mesh || !mesh->faceSize)
+    return;
+  line = gmesh_xrealloc (NULL, capacity);
+  for (i = 0; i < mesh->faceSize; i += mesh->faceArray[i] + 1, face++) {
+    int n = mesh->faceArray[i];
+    int* idx = &mesh->faceArray[i + 1];
+    Coords cm = coords_set (0, 0, 0);
+    size_t length = 0;
+    if (n < 3)
+      continue;
+    for (j = 0; j < n; j++)
+      cm = coords_add (cm, mesh->vtx[idx[j]]);
+    cm = coords_scale (cm, 1.0 / n);
+    line[0] = 0;
+    gmesh_append (&line, &capacity, &length, "%li,%li,%li,%i,%g,%g,%g", offset + face, offset, offset + mesh->nfaces - 1, n, cm.x, cm.y, cm.z);
+    for (j = 0; j < n; j++) {
+      Coords d = coords_sub (mesh->vtx[idx[j]], cm);
+      gmesh_append (&line, &capacity, &length, ",%g,%g,%g", d.x, d.y, d.z);
+    }
+    printf ("MANTID_PIXEL: %s\n", line);
+  }
+  free (line);
 }
 
 // release the memory held by mesh

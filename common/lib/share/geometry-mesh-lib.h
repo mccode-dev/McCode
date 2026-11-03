@@ -146,6 +146,15 @@ typedef struct gmesh_struct {
 // RETURN: number of triangles, 0 on error
 int gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh);
 
+// int gmesh_init_fit(char *filename, double xwidth, double yheight, double zdepth,
+// int center, int face_props, gmesh_struct *mesh)
+// ACTION: as gmesh_init, then resize the bounding box as off_init of interoff-lib:
+// non-zero sizes set the box size along x/y/z; a single size scales all
+// axes by the same factor (proportions kept). With center, the box centre
+// is moved to the origin; otherwise coordinates are scaled about the origin.
+// RETURN: number of triangles, 0 on error
+int gmesh_init_fit (char* filename, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh);
+
   // int gmesh_intersect(gmesh_struct *mesh, Coords position, Coords direction,
   // double t_min, gmesh_hit hits[GMESH_MAX_HITS])
   // ACTION: intersections of the line position + t*direction with the mesh, for
@@ -174,6 +183,11 @@ void gmesh_print_info (gmesh_struct* mesh);
 
 // draw the polygon edges (each once), or a polyhedron with mcdotrace==2
 void gmesh_display (gmesh_struct* mesh);
+
+// print one "MANTID_PIXEL: id,first,last,nv,cx,cy,cz,dx1,dy1,dz1,..." line per
+// face (as interoff-lib), with id = offset + face index and the vertices
+// relative to the face centre
+void gmesh_display_mantid (gmesh_struct* mesh, long offset);
 
 // release the memory held by the mesh
 void gmesh_free (gmesh_struct* mesh);
