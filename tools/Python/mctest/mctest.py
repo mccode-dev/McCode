@@ -116,7 +116,7 @@ def create_instr_test_objs(sourcefile, localfile, header, noscans=False):
     tests = []
     # the target may be followed by its error bar, as in the simulation's own output:
     #   Detector: NAME_I=2.00752e+08 NAME_ERR=2.28872e+06 NAME_N=50752 "NAME.L_U1"
-    for m in re.findall(r"\%(?:Example|Test):([^\n]*)Detector\:([^\n]*)_I=([0-9.+-e]+)([^\n]*)", header):
+    for m in re.findall(r"\%(?:Example|Test):([^\n]*)Detector\:([^\n]*)_I=([0-9.+\-e]+)([^\n]*)", header):
         parvals, ncount = split_test_line(m[0])
         detector = m[1].strip()
         err = re.search(r"%s_ERR=([0-9.+-eE]+)" % re.escape(detector), m[3])
@@ -297,7 +297,7 @@ def extract_testvals(datafolder, monitorname):
             l = fp.readline()
             if not l:
                 break
-            m = re.match(r"# values: ([0-9+-e.]+) ([0-9+-e.]+) ([0-9]+)", l)
+            m = re.match(r"# values: ([0-9+\-e.]+) ([0-9+\-e.]+) ([0-9]+)", l)
             if m :
                 I = float(m.group(1))
                 I_err = float(m.group(2))
