@@ -266,7 +266,7 @@ SHARE
 %{
   %include "monitor_nd-lib"
   %include "read_table-lib"
-  %include "interoff-lib"
+  %include "geometry-mesh-lib"
 %}
 
 DECLARE
@@ -274,7 +274,7 @@ DECLARE
   MonitornD_Defines_type DEFS;
   MonitornD_Variables_type Vars;
   MCDETECTOR detector;
-  off_struct offdata;
+  gmesh_struct offdata;
 %}
 
 INITIALIZE
@@ -445,7 +445,7 @@ INITIALIZE
     fprintf (stderr, "Error: You are attempting to use an OFF geometry without -DUSE_OFF. You will need to recompile with that define set!\n");
     exit (-1);
     #else
-    if (!off_init (geometry, xwidth, yheight, zdepth, 1, &offdata)) {
+    if (!gmesh_init_fit (geometry, xwidth, yheight, zdepth, 0, GMESH_PROPS_IGNORE, &offdata)) {
       printf ("Monitor_nD: %s could not initiate the OFF geometry %s. \n"
               "            Defaulting to normal Monitor dimensions.\n",
               NAME_CURRENT_COMP, geometry);
@@ -460,11 +460,6 @@ INITIALIZE
     exit (printf ("Monitor_nD: %s has no dimension specified. Aborting (radius, xwidth, yheight, zdepth, previous, geometry).\n", NAME_CURRENT_COMP));
 
   Monitor_nD_Init (&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, offflag, nexus_bins);
-
-  if (Vars.Flag_OFF) {
-    offdata.mantidflag = Vars.Flag_mantid;
-    offdata.mantidoffset = Vars.Coord_Min[Vars.Coord_Number - 1];
-  }
 
   if (filename && strlen (filename) && strcmp (filename, "NULL") && strcmp (filename, "0"))
     strncpy (Vars.Mon_File, filename, 128);
@@ -507,7 +502,7 @@ TRACE
 
   #ifdef OPENACC
   #ifdef USE_OFF
-  off_struct thread_offdata = offdata;
+  gmesh_struct thread_offdata = offdata;
   #endif
   #else
   #define thread_offdata offdata
@@ -519,10 +514,11 @@ TRACE
   #ifdef USE_OFF
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
     /* determine intersections with object */
-    intersect = off_intersect_all (&t0, &t1, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, &thread_offdata);
+    int face = 0;
+    intersect = gmesh_intersect_pair (&thread_offdata, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, NULL, NULL, &face, NULL);
     if (Vars.Flag_mantid) {
       if (intersect) {
-        Vars.OFF_polyidx = thread_offdata.nextintersect;
+        Vars.OFF_polyidx = face;
       } else {
         Vars.OFF_polyidx = -1;
       }
@@ -691,7 +687,9 @@ FINALLY
 MCDISPLAY
 %{
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
-    off_display (offdata);
+    gmesh_display (&offdata);
+    if (Vars.Flag_mantid && mcdotrace != 2)
+      gmesh_display_mantid (&offdata, (long)Vars.Coord_Min[Vars.Coord_Number - 1]);
   } else {
     Monitor_nD_McDisplay (&DEFS, &Vars);
   }
