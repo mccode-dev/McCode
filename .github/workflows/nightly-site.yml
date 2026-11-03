@@ -55,6 +55,22 @@ jobs:
            mv _site/today/${{ inputs.flavor }}-nightly_output.html _site/today/table.html
            du -sh _site
 
+    - name: Download the previous night's site artifact as yesterday/
+      env:
+        GH_TOKEN: ${{ secrets.NIGHTLY_TOKEN }}
+      run: |
+           set -euo pipefail
+           # the last history entry before tonight records its McCode run; its site
+           # artifact (90 days retention) is yesterday/, older nights are history/ only
+           prev=$(python3 -c "import json; idx = [d for d in json.load(open('nightly/history/index.json')) if d['date'] < '${{ inputs.date }}']; print(idx[-1]['run'].rsplit('/', 1)[1] if idx else '')" 2>/dev/null || true)
+           if [ -n "$prev" ] && gh run download "$prev" -R mccode-dev/McCode -n ${{ inputs.flavor }}-nightly-site -D dl_y; then
+             mkdir y && tar xzf dl_y/${{ inputs.flavor }}-nightly-site.tgz -C y
+             mv y/${{ inputs.flavor }}-nightly _site/yesterday
+             mv _site/yesterday/${{ inputs.flavor }}-nightly_output.html _site/yesterday/table.html
+           else
+             echo "No yesterday/ (first night, or the previous run's artifact is gone)"
+           fi
+
     - name: Add tonight to history
       run: |
            set -euo pipefail

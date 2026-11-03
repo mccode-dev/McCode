@@ -56,7 +56,11 @@ d3.json("history/index.json", (err, index) => {
   const color = d3.scaleOrdinal(d3.schemeCategory10).domain(keys);
 
   d3.select("#latest").html(`Latest: <b>${last.date}</b> &middot; <a href="today/table.html">comparison table</a>
-    &middot; <a href="${last.run}">CI run</a> &middot; <a href="${REPO}/releases">raw data</a>`);
+    &middot; <a href="${last.run}">CI run</a> &middot; <a href="${REPO}/releases">raw data</a><span id="yesterday"></span>`);
+  // yesterday/ only exists while the previous night's CI artifact does
+  if (index.length > 1)
+    fetch("yesterday/table.html", {method: "HEAD"}).then(r => r.ok && d3.select("#yesterday").html(
+      ` &middot; yesterday (${index[index.length - 2].date}): <a href="yesterday/table.html">comparison table</a>`));
 
   d3.select("#platforms").html("<tr><th>Platform</th><th>Instruments</th><th>No %Test</th><th>Compile err</th><th>Run err</th><th>Value off</th><th>Walltime</th><th>Data</th></tr>" +
     keys.map(k => { const c = last.columns[k];
@@ -101,7 +105,7 @@ d3.json("history/index.json", (err, index) => {
     : "<tr><td class=\"ok\">Nothing failing.</td></tr>");
 
   d3.select("#history").html(index.slice().reverse().map(d =>
-    `<a href="history/${d.date}/table.html">${d.date}</a> <span class="muted">(${d3.sum(Object.values(d.columns), nfail)} failing, <a href="history/${d.date}/summary.json">json</a>)</span>`).join("<br>"));
+    `<a href="${d === last ? "today" : "history/" + d.date}/table.html">${d.date}</a> <span class="muted">(${d3.sum(Object.values(d.columns), nfail)} failing, <a href="history/${d.date}/summary.json">json</a>)</span>`).join("<br>"));
 });
 </script>
 </body>
