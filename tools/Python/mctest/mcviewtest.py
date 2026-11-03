@@ -9,6 +9,7 @@ import os
 from os.path import join, dirname
 from os import walk
 import shutil
+import glob
 import concurrent.futures
 import jinja2
 
@@ -479,7 +480,9 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
                     logging.info("  ...%d/%d diffs/coplots done" % (done, len(pending_diff_jobs)))
 
     text = open(join(dirname(__file__), "main.template")).read()
-    html = jinja2.Template(text).render(hrow=hrow, rows=rows, header=get_header_lst(refmeta))
+    # Interactive HTML links only when the runs made them (not with mctest --nohtml)
+    plots_html = next(glob.iglob(join(testdir, "*", "*", "*", "02_plots.html")), None) is not None
+    html = jinja2.Template(text).render(hrow=hrow, rows=rows, header=get_header_lst(refmeta), html=plots_html)
 
     # Platform-independent ofile (ensures correct behaviour of mcviewtest and opens browser also on Windows, 
     # irrespective of 'testdir' given as '.' or no inputs)
