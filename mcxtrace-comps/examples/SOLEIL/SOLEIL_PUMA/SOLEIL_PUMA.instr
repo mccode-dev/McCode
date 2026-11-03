@@ -20,7 +20,7 @@
 * spectroscopy (XANES), X-ray diffraction (XRD), and 
 * X-ray-excited optical luminescence spectroscopy (XEOL)
 *
-* %Example: PUMA_E0=10 Detector: PUMA_mon_sample_e_I=1.82885e+12
+* %Test: PUMA_E0=10 -n 1e7 Detector: PUMA_mon_sample_e_I=1.2410e+11
 *
 * %Parameters
 * PUMA_E0:         [keV]  Central energy selected by the DCM. Set to 0 to derive it from PUMA_DCM_theta.
@@ -67,7 +67,7 @@ INITIALIZE
     {
       // HFM mirror
       double p_HFM = 21.0;
-      PUMA_HFM_radius = 2*p_HFM*PUMA_HFM_focal / ((p_HFM+PUMA_HFM_focal) * (sin(PUMA_HFM_angle*DEG2RAD)));
+      PUMA_HFM_radius = 2*p_HFM*PUMA_HFM_focal / ((p_HFM+PUMA_HFM_focal) * (sin(PUMA_HFM_angle/2*DEG2RAD))); // grazing angle is half the deflection
 
       // DCM
       double DM = 5.4309;
@@ -94,11 +94,11 @@ INITIALIZE
 
       // KB VFM
       double p_KB_VFM = 62.515, q_KB_VFM = 0.785;
-      PUMA_KB_VFM_radius = 2*p_KB_VFM*q_KB_VFM / ((p_KB_VFM+q_KB_VFM) * (sin(PUMA_KB_angle*DEG2RAD)));
+      PUMA_KB_VFM_radius = 2*p_KB_VFM*q_KB_VFM / ((p_KB_VFM+q_KB_VFM) * (sin(PUMA_KB_angle/2*DEG2RAD)));
 
       // KB HFM
       double p_KB_HFM = 62.975, q_KB_HFM = 0.325;
-      PUMA_KB_HFM_radius = 2*p_KB_HFM*q_KB_HFM / ((p_KB_HFM+q_KB_HFM) * (sin(PUMA_KB_angle*DEG2RAD)));
+      PUMA_KB_HFM_radius = 2*p_KB_HFM*q_KB_HFM / ((p_KB_HFM+q_KB_HFM) * (sin(PUMA_KB_angle/2*DEG2RAD)));
     }
 %}
 
@@ -284,7 +284,7 @@ COMPONENT PUMA_mirror_KB_VFM = Mirror_curved(
     width = 0.04, coating = PUMA_KB_coating // Rh or B4C
 )
 AT(0, 0, 0)RELATIVE PUMA_KB_VFM_rotated
-ROTATED (0, 0, 0) RELATIVE PUMA_KB_VFM_rotated
+ROTATED (0, 0, -90) RELATIVE PUMA_KB_VFM_rotated // Mirror_curved deflects in its XZ plane: roll it to focus vertically
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
@@ -345,7 +345,7 @@ AT (0, 0, 0) RELATIVE PREVIOUS
 
 /* -------------------------------------------------- Sample */
 COMPONENT PUMA_sample_location = Arm()
-AT (-7.88e-5, 0.002366 , (63.3 - 62.975)) RELATIVE PREVIOUS
+AT (0, 0, (63.3 - 62.975)) RELATIVE PREVIOUS
 
 // Monitors
 COMPONENT PUMA_mon_sample_xy = PSD_monitor(

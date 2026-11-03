@@ -18,8 +18,8 @@ Refer to the component documentation for further instructions.
 
 ## Examples
 
-- **Test: E=10 -n 1e5 focus_r=0.001 Detector: mon1_I=2.86265e-25**
-- **Test: E=10 -n 1e5 focus_a=0.1 Detector: mon1_I=2.86265e-25**
+- **Test: E=10 -n 1e5 focus_r=0.001 Detector: mon1_I=3.62846e-24**
+- **Test: E=10 -n 1e5 focus_a=0.1 Detector: mon1_I=3.62846e-24**
 
 ## Input parameters
 

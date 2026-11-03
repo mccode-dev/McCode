@@ -1,105 +1,101 @@
-Changes in McStas/McXtrace 3.10.0
+Changes in McStas/McXtrace 3.10.2
 
-*Covers everything since the previous "announced" release, 3.9.2.*
+*Covers all changes since 3.10.0, including those already released in 3.10.1.*
 
 ## Highlights
 
-* **New Scipp/Plopp-based plotting and display tools (preview)**: `mcplot-plopp` and `mcdisplay-plopp` are early versions of plotting and 3D display built on [Scipp](https://scipp.github.io) and [Plopp](https://scipp.github.io/plopp). `mcplot-plopp` reads both McCode and NeXus output, including `Monitor_nD` event data shown as a pixel map. Both are offered as choices in `mcgui`/`mxgui`. By @willend.
-* **NeXus output scales with MPI**: in MPI runs, event lists are now written to one HDF5 file per process and joined into a single view (HDF5 "virtual data sets"), instead of being funnelled through one process. NeXus files are now compressed by default, `--scan_split` scans give a single NeXus file, and the requested ray count is stored in the file. List-mode `Monitor_nD`s that also bin in wavelength or time no longer crash in NeXus mode, and Mantid-mode monitors binned only in x or y now load in Mantid. The NeXus writer is also more robust: text containing `%` is stored as given, very long monitor file names no longer crash the run or corrupt the file, and large event lists are no longer silently dropped. By @willend.
-* **Better-quality random numbers in parallel runs**: with the default KISS generator, rays from different seeds, MPI processes and GPU batches could repeat each other's random sequences. Every ray now gets its own independent seed, and neutron IDs are unique across GPU batches and MPI processes. *Note: results for a given seed change compared to earlier versions.* Mersenne Twister runs are unaffected. By @willend (fixes #2807).
-* **Much improved instrument display**: `mcdisplay-webgl-classic` now shows the detailed `--trace=2` component shapes by default, shaded and with a wireframe toggle. Hollow boxes and cylinders are drawn as the cavities they are in the physics, polyhedra with faces of any size display correctly, and `mcdisplay-cad` exports to STEP, PLY and plain OFF, including particle rays. By @willend and @farhi.
-* **New `Text` component in McStas and McXtrace**: puts 3D text labels into your instrument drawings. With the new `Text2OFF` template instrument, any text can also be turned into OFF geometry for components that read OFF files. By @farhi and @willend.
-* **More accurate conic mirrors**: the `conic.h` library behind the `ConicSurf`/`FlatEllipse` mirror family now applies the reflectivity once and with the correct scattering vector, no longer re-hits the surface it just reflected from, and has a configurable figure error (waviness model of Hansen et al.). New `Mirror_conic` test component and test instruments. By @willend (fixes #2787).
-* **Statistically smarter testing with `mctest`**: new `%TestScan:` (aka `%Scan:`) lines run a test over a whole parameter scan. Tests can now pass on Monte Carlo error bars (`--nsigma`/`--pvalue`) instead of only a fixed ±20 % window, and `--statfactor` scales the statistics of every test. `%Example:` lines are now called `%Test:`. By @willend.
-* **Union framework refactored**: the inner scattering loop of Union was reorganised for clarity and maintainability, and `Union_mesh` now uses a new general triangle-mesh library (`geometry-mesh-lib`) that reads STL, OFF and PLY files and ray-traces them efficiently. By Daniel Lomholt Christensen (@Lomholy), @mads-bertelsen-agentic and @willend.
-* **More SOLEIL in McXtrace**: new PX1, NANOSCOPIUM and GALAXIES beamlines, plus a model of the full SOLEIL synchrotron assembling the beamlines, mainly for rendering. By @farhi.
-* **`MCPL_input` consolidated**: `MCPL_input` now includes the MPI splitting of `MCPL_input_once` yet allows to repeat by `repeat_count`. `MCPL_input_once` is moved to the obsolete components. `MCPL_output` now uses `weight_mode=1` by default, which records the initial ray count and rescales weights, adapting with the [`stat:sum` convention](https://mctools.github.io/mcpl/format_statsum/) from MCPL. By @willend.
+* **NeXus output on native HDF5**: McCode now writes NeXus files directly with HDF5, replacing the frozen NeXus API library (napi/libNeXus), which is no longer a dependency. NeXus support only needs HDF5. NeXus output can now also be plotted with `mcplot`, `mcplotdiff` and `mccoplot`, and MPI NeXus scans keep every step's events. By @willend.
+* **Planar monitors restore the ray on a miss**: about 40 simple monitors in McStas and McXtrace (`PSD_monitor`, `L_monitor`, `E_monitor`, `TOF_monitor`, ...) now leave rays that miss them unchanged, as `Monitor_nD` already did. Previously such rays could be lost. In McXtrace, `ALLOW_BACKPROP` is now honoured as in McStas, so some rays that used to be absorbed now survive. *Note: results can change slightly.* By @willend (fixes #2906).
+* **Corrected sample physics**: `Phonon_simple` and the Union `PhononSimple_process` now scale the one-phonon cross-section as in Squires (eq. 3.120), giving about 12.7 times higher intensity than before. The Union `IncoherentPhonon_process` gets the correct ray weight normalisation and its three-phonon total cross-section, `Multilayer_Sample` substrate incoherent scattering now works, and `Single_crystal_inelastic`, `SANS_benchmark2` and `StatisticalChopper` are also corrected. *Note: results for these components change, some substantially.* By @henrikjacobsenfys, Daniel Lomholt Christensen (@Lomholy), @mads-bertelsen-agentic and @willend.
+* **McXtrace sources and optics corrected, SOLEIL models realigned**: `Bending_magnet` now gives the correct flux and samples correctly, `Mirror_curved` reflects as intended, `Single_crystal` absorption is fixed, and `Source_lab` uses xraylib for any single-element anode, with no data file needed. Many SOLEIL beamline models were repaired: mirror radii and angles, the Si lattice constant (5.4309 Å, not 5.4909 Å) and DCM alignment, so the beams now reach the samples as designed. *Note: results for these components and instruments change, some substantially.* By @antoinepado, @farhi and @willend.
+* **Component review: GPU, memory and robustness fixes**: a systematic review of the component libraries fixed GPU race conditions, out-of-bounds table and root indices, memory leaks, uninitialised values and name clashes between components used in the same instrument. The 16 standalone MCViNE components and most SANS/SAXS contributed samples now run on GPUs (OpenACC). By @willend.
+* **Solid, coloured instrument drawings**: under `--trace=2`, guides, mirrors, monochromators, beamstops, collimators, choppers and many other components are now drawn as filled surfaces, and components can switch pen colour with `mcdis_pencolor("#rrggbb")`. Union volumes can be shown as polyhedra, large `Union_mesh` geometries display much faster, and `ESS_butterfly` draws colour-coded solid moderators. `mcdisplay-webgl(-classic)` gains Surfaces/Lines toggles and a surface opacity slider, and overlapping transparent surfaces render correctly. By @willend, Daniel Lomholt Christensen (@Lomholy) and @mads-bertelsen-agentic.
+* **New home for packages and downloads**: the Debian/Ubuntu packages are now served from the McCode apt repository at [mccode-dev.github.io/debian](https://mccode-dev.github.io/debian/), replacing packages.mccode.org, and the macOS and Windows bundles are attached to the [GitHub releases](https://github.com/mccode-dev/McCode/releases). See the updated install instructions. By @willend.
+* **`%Test:` and `%TestScan:` instrument headers**: all example instruments now use the new names for their test lines (`%Example:` and `%Scan:` are still accepted). `mctest` compiles in parallel with `-j N|auto`, compiles only with `-n0`, and reports compilation and simulation time separately. By @willend.
 
 ## What's Changed
 
 ### Common to McStas and McXtrace
 
+#### Components
+* Planar monitors restore the ray on a miss, like `Monitor_nD`, and keep honouring `ALLOW_BACKPROP`. Test references updated accordingly. By @willend in #2907 (fixes #2906)
+* Simple components draw `--trace=2` primitives (boxes, cylinders, spheres, polygons) with pen colours: `Beamstop` as a filled disc or rectangle, collimators with dark blades, `DiskChopper` with its slit openings, `Monitor_nD` banana and sphere-section plates, and more, by @willend in #2943
+
 #### Visualisation and plotting
-* New `mcplot-plopp` and `mcdisplay-plopp` prototypes based on Scipp and Plopp by @willend in #2799, with event pixel maps (#2870), NeXus attribute fixes (#2878) and `mcgui` menu entries (#2879)
-* `mcdisplay-webgl-classic`: `--trace=2` shapes by default with the new `Test_mcdisplay_shapes` example (#2836, #2840), shaded shapes with wireframe toggle (#2848), dead code removed and `-n 0`/`--invcanvas` fixed (#2833), all by @willend
-* `mcdisplay-webgl`: polyhedron faces of any size (#2847), legacy code removed and the viewer rebuilt (#2832), by @willend
-* `mcdisplay`: hollow boxes and cylinders drawn as closed cavities (#2844, documented with tilted test cases in #2845), simple `--trace=1` box/cylinder/cone drawings now match the detailed ones (#2837, #2802), correct polygon winding in `--trace=2` output (#2843), instrument parameters given before `-n` are kept (#2854, fixes #747), closing the pyqtgraph window no longer raises an error (#2800), by @willend
-* `mcdisplay-cad`: much faster and more complete, with STEP output, particle rays, `--tubes` and `-t/--trace` (#2824, by @farhi and @willend), plain OFF output and PLY files readable by the OFF/PLY library (#2868), `Annulus` drawn with the correct ring width (#2846)
-* Python tools now quote file paths when opening them in a browser, by @willend in #2836
-* The text-based `mcplot-terminal` was added and then deferred to a later release, by @willend in #2785, #2822
+* `mcplot`, `mcplotdiff` and `mccoplot` plot NeXus (`mccode.h5`) output, and `mcplot-html` has per-step monitor pages for scans, also on a log scale, by @willend in #2897
+* `mcplot-plopp`: `ui()` returns the data as a scipp DataGroup, by @willend in #2900
+* New `mcdis_pencolor("#rrggbb")` to switch the pen colour within `MCDISPLAY`, supported in the pyqtgraph, plopp, webgl, CAD and Matlab displays, by @willend in #2919
+* `mcdisplay-webgl(-classic)`: Surfaces/Lines toggles for `--trace=2` shapes (#2915), lines restored for translucent shapes (#2926), grids centred on the instrument with 1 m axis arrows (#2948), compact instrument label and surface opacity slider (#2944), by @willend. Overlapping transparent surfaces fixed by @mads-bertelsen-agentic in #2921
+* `mcdisplay-matplotlib`: equal-scale box fitted to the instrument, by @willend in #2949
+* `mcdisplay` backends only accept the `--trace` levels they support, by @willend in #2935
+* `mcgui`/`mxgui`: "New From Template" asks for the parent folder and handles existing copies, the McStas/McXtrace logo is the application icon, and crashes found by monkey-testing `mcgui`, `mcplot` and `mcdisplay` are fixed, by @willend in #2942
 
-#### Running simulations (`mcrun`/`mxrun`, `mcgui`/`mxgui`)
-* `mcrun`: `--scan_split` scans give one NeXus file, laid out as for a serial NeXus scan, by @willend in #2804, #2891
-* `mcrun`: `--verbose` now also applies to compilation, by @farhi in #2821
-* `mcrun`: setting `--autoplotter` now opens the plot automatically, by @willend in #2825
-* `mcgui`/`mxgui`: the run dialogue scrolls for instruments with many parameters and fits the screen, by @farhi and @willend in #2829. Unused interface files removed in #2831
+#### Simulation output (NeXus)
+* NeXus output written directly with HDF5, replacing the frozen napi (libNeXus), which is dropped from dependencies, toolchains and docs. Includes a NeXus output regression test. By @willend in #2895, with a design note on code-generator link hints in #2916
+* MPI NeXus event lists keep each scan step's events, by @willend in #2901
 
-#### Simulation output (NeXus) and random numbers
-* MPI NeXus event lists written per process and combined with HDF5 virtual data sets, compression on by default, requested ray count stored, safe saving on `SIGTERM`, by @willend in #2830
-* `Monitor_nD`: the NeXus `BINS`/pixel map is now sized over the spatial axes only, so list-mode monitors that also bin in e.g. wavelength or time no longer run out of memory and crash, with the new `Test_Monitor_nD_BINS` regression test, by @willend in #2882 (fixes #2484)
-* `Monitor_nD`: NeXus `BINS`/pixel map ordered like the event pixel ID (#2877), and `intensity`/`flux` options no longer add an extra variable (#2856, fixes #2445), by @willend
-* NeXus runtime parameter values also accept the type names used by `mccode-antlr`, by @willend in #2835
-* More robust NeXus writer: string values, titles and parameter literals containing `%` are stored as given (previously garbled), `Monitor_nD` `BINS` output no longer contains uninitialised values, monitor file names too long for the NeXus library are skipped with a warning instead of crashing the run and corrupting `mccode.h5`, chunks are kept below the 4 GiB HDF5 limit so large event lists are written, and several smaller file-handling fixes. New `Test_NeXus_output` regression test in McStas and McXtrace, run in CI with and without MPI. By @willend in #2889
-* Decorrelated per-ray random seeds and unique neutron IDs across MPI processes and GPU batches, by @willend in #2808 (fixes #2807). Test references updated accordingly.
-
-#### Code generator & grammar
-* A round of code-generator fixes: expressions in `{...}` vector parameters, `INHERIT` sections (a section written in the child, even empty, replaces the parent's), `USERVARS` handling as in `mccode-antlr`, with new grammar unit tests, by @willend in #2767
-* `JUMP` to an undefined component now gives a clear error instead of a crash, by @farhi in #2819. Forward `JUMP`s are allowed, by @willend in #2823
-* Obsolete `DETECTOR_OUT_3D` macro removed from components and docs, by @willend in #2859 (fixes #1573)
-* Fixes for intermittent results from header parsing in data files and other undefined behaviour, by @willend in #2770
-* Data file cache (`read_table-lib`) kept consistent, and errors in MPI runs abort cleanly, by @willend in #2784
+#### Runtime and libraries
+* `randminmax` now samples in [min, max) (previously [max, 2·max−min); no library component used it). The never-compiling `mirror()` macro and a dead complex-number fallback were removed. By @willend in #2924
+* Runtime libraries: missing return values, an uninitialised index and a wrong shift when popping the magnetic-field stack fixed (`interpolation-lib`, `pol-lib`, `supermirror-lib`), by @willend in #3001
+* Generic global names prefixed to avoid clashes between components in one instrument: `conic.h` (`sign` → `conic_sign`) and the SasView components (`square`/`cube` → `sas_square`/`sas_cube`) in #3010, by @willend
+* OpenACC: the OFF/PLY and mesh libraries no longer leak an `fprintf` redefinition into later code, by @willend in #2960
 
 #### Testing (`mctest`)
-* New `%TestScan:` (aka `%Scan:`) test lines, used in many example instruments, by @willend in #2772
-* Statistical acceptance (`--nsigma`, `--pvalue`) and `--statfactor`, with a new documentation page. `%Example:` lines renamed `%Test:` (old name still accepted), by @willend in #2776
-* `-n` on `%Test:`/`%Example:` lines is now honoured, as for `%TestScan:`/`%Scan:`, by @willend in #2820, #2841
-
-#### Documentation
-* `mcdoc` renders TeX with a locally installed MathJax (#2871) and writes search results to a separate page (#2855), by @willend
-* McStas manual: the Installing chapter is back and points to the current install instructions, by @willend in #2873
-* Clearer external-contributions guide, by @willend in #2860 (fixes #2771). Component example-coverage lists regenerated (#2861)
-
-#### GPU / OpenACC
-* OpenACC fixes for instruments, the SOLEIL models and test components, by @willend in #2797, #2881. `Dispersion_relation` GPU race fixed in #2769, `Radial_div` monitor accumulation made GPU-safe in #2890
+* All example instrument headers use `%Test:` and `%TestScan:` (formerly `%Example:` and `%Scan:`, still accepted), by @willend in #2945
+* `mctest -j N|auto` compiles instruments in parallel, and `-n0` means compile only, by @willend in #2918
+* `mctest` reports total runtime, and compilation and simulation time separately (#2950, #2961). `mcviewtest` shows test runtimes in the column headers (#2957), by @willend
+* `mctest`/`mcviewtest`: plots, diffs and coplots of NeXus output (#2897). `mcviewtest` labels NeXus and ASCII output and skips non-test folders (#2903, #2904, #2905), by @willend
 
 #### Installation, platforms and packaging
-* `cif2hkl` is now built from the upstream SOLEIL release and required at version 1.5.0 or newer (now 1.5.1) for conda and Debian packages, by @willend in #2864, #2873
-* macOS: workaround for an OpenMPI issue caused by a long `$TMPDIR`, by @willend in #2775
-* Debian install instructions use the new `mccode.sources` file, by @willend in #2873
-* For contributors: new `devel/bin` scripts to get dependencies and build both McStas and McXtrace (#2773), conda environment update (#2795), and many CI improvements: logs of failed tests as artefacts, opt-in result comparisons, `mccode-antlr`/`mcxtrace-antlr` testing from the current checkout (#2826, #2827, #2849, #2850, #2852, #2875). Stray simulation output removed from the repository (#2872)
+* Debian/Ubuntu packages are served from the McCode apt repository on [mccode-dev.github.io/debian](https://mccode-dev.github.io/debian/) (replacing packages.mccode.org), and the per-platform bundles are attached to each GitHub release. The install docs point there and are moved to each new release automatically. By @willend in #3012
+* `h5py` is now an explicit conda dependency, needed for NeXus `--scan_split` and NeXus plotting, by @willend in #2894
+* FreeBSD: builds from source, with a new CI track for McStas and McXtrace, by @willend in #2914, #2932
+* New security policy: please report vulnerabilities privately, as described in `SECURITY.md`, by @willend in #3008
+* For contributors: compile-only OpenACC (NVIDIA nvhpc) CI leg (#2918, #2951), basic tests only simulate instruments when relevant code changed (#2946), and the mccode.org-style Debian CI leg was paused and then moved to the new apt repository (#3011, #3012), by @willend
 
 ### McStas only
 
-#### Components
-* `Monitor_nD` in Mantid mode: square monitors binned only in x or y now get the event columns Mantid expects (previously Mantid silently loaded no events), `y ... x` no longer gives a rotated detector, and `mcdisplay-mantid` places pixels at their centres instead of half a pixel off, by @willend in #2892 (fixes #2178)
-* `MCPL_input` consolidated with `MCPL_input_once` (MPI splitting, `repeat_count`). `MCPL_input_once` moved to obsolete. By @willend in #2780. `MCPL_output` defaults to `weight_mode=1`, following the MCPL [`stat:sum` convention](https://mctools.github.io/mcpl/format_statsum/) (#2779)
-* Conic mirrors (`conic.h`): reflectivity applied once with the correct scattering vector (#2789), configurable figure error with a waviness model, `StdReflecFunc` reflectivity only, `FlatEllipse_finite_mirror` `sourceDist` fix (#2793), no spurious re-hit of the surface just reflected from (#2794). New `Mirror_conic` test component. By @willend, fixes #2787
-* New `Text` component for 3D text labels, used to label the ILL H5 instruments, by @farhi and @willend in #2782. New `Text2OFF` template instrument (#2869)
-* `NCrystal_sample` draws its shape from the component parameters, by @tkittel in #2777
-* `FermiChopper`: warns when phase and delay are both zero (#2818) and documents its length default and that rays missing the cylinder pass unchanged (#2816), by @henrikjacobsenfys
-* ESS 2015 sources now pass the moderator height to the pulse-shape functions (#2814), and `ESS_IN5_reprate` phases its counter-rotating disk correctly (#2812), by @henrikjacobsenfys
-* `Res_monitor` and `TOFRes_monitor` no longer free arrays they did not create, by @henrikjacobsenfys in #2810
-* `Radial_div`: obsolete grammar removed, new `Test_Radial_div`, by @willend in #2857 (fixes #2678)
-* `Annulus`: clearer parameters, by @farhi in #2801
-* `Tomography` template: the `tomo_recon.py` reconstruction script now shows a 3D isosurface, reads and writes NeXus and offers SIRT and filter options, with a full-rotation `%TestScan:` test, by @willend in #2772, #2803
-* `mcstas-chopper-lib` updated to v4.3.0, v4.4.0 and v4.4.1: transmission weighted by how likely a neutron gets through, the depth of moderator emission surfaces, parked discs open while any of the beam crosses an opening, and more. By @g5t, registered in #2805, #2842, #2867
+#### Samples: physics corrections
+* `Phonon_simple` and Union `PhononSimple_process`: one-phonon cross-section scaled as in Squires eq. 3.120, about 12.7 times higher intensity than before, by @henrikjacobsenfys, Daniel Lomholt Christensen (@Lomholy) and @willend in #2806
+* Union `IncoherentPhonon_process`: ray weight normalisation fixed (#2934, by @mads-bertelsen-agentic), three-phonon term in the total cross-section and uninitialised Q² bounds fixed, debug files only on request (#2974, by @willend)
+* `Multilayer_Sample`: substrate incoherent scattering now works and is physical, with absorption treated separately (#2991), GSL scratch space allocated once (#2983), by @willend
+* `Single_crystal_inelastic`: unbiased weights with standard inverse-CDF sampling, per-neutron debug file removed, leaks and out-of-bounds indices fixed, by @willend in #2986
+* `SANS_benchmark2`: scattering-branch weights normalised by the total cross-section, so weight is conserved (#2990), Bragg-peak Q index clamped in model 11 (#2981), by @willend
+* `StatisticalChopper`: slit timing fixed (integer division, pulse offset, random-number bound), by @willend in #2993
 
-#### Union
-* Refactored scattering loop, by Daniel Lomholt Christensen (@Lomholy), @mads-bertelsen-agentic and @willend in #2571
-* `Union_mesh` now built on the new `geometry-mesh-lib`: STL (ASCII/binary), OFF and PLY files, polygons of any size, duplicate vertices and faces cleaned up, and a bounding volume hierarchy for fast ray tracing of large meshes. Each triangle gets its own surface entry. By Daniel Lomholt Christensen (@Lomholy) and @willend in #2866
+#### Component review: GPU, memory and robustness fixes
+* Samples: `PowderN` and Union `Powder_process` (line index clamped, cache-bin precedence; #2962, #2963), `Single_crystal` and Union `Single_crystal_process` (initialised mosaic coefficients; #2977, #2978), `Phonon_simple`, `Magnon_bcc`, `SpinWave_BCO`, `Dispersion_relation` and Union `PhononSimple_process` (bounded root lists and indices, no per-neutron allocation, no name clash between `Magnon_bcc` and `Phonon_simple`; #2964–#2967, #2969), `Isotropic_Sqw` (GPU race; #2980), `Single_magnetic_crystal` message (#2979), `Res_sample`/`TOFRes_sample` output (#2975, #2976), by @willend
+* SANS samples: `SANSSpheres`, `SANSSpheresPolydisperse`, `SANSShells` and `SANSCurve` no longer modify their parameters per neutron or race on GPUs, `SANSCurve` no longer clashes with `<complex.h>`, `SANSPDB`/`SANSPDBFast` and `SANS_spheres2` without leaks and dead code (#2970–#2973, #2982, #2984, #2985). `SANSNanodiscs*`, `SANSCylinders`, `SANSEllipticCylinders` and `SANSPDBFast` run on GPUs and no longer need GSL (#2992), by @willend
+* Optics: gravity guides (`Guide_gravity`, `Guide_gravity_psd`, `Guide_honeycomb`, `Pol_bender_tapering`; #2994), transmission polarisers and `Foil_flipper_magnet` (#2996), `PerfectCrystal` and `SupermirrorFlat` (#2997), `Monochromator_bent(_complex)` build clashes (#2999), `Pol_tabled_field` (#3001) and other optics and polarisation components (#2998) fixed for GPU races, shared state and build errors, by @willend
+* The 16 standalone `MCViNE_*` sample components run on GPUs (OpenACC), by @willend in #3000
 
-#### Python instruments (`mcstas-pygen`)
-* Generated scripts no longer contain the McCode system directory, by @tkittel in #2774
+#### Display
+* Filled `--trace=2` surfaces for guides and benders (#2952, #2953), contributed mirrors (#2956) and monochromators (#2958), by @willend
+* `ESS_butterfly`: colour-coded drawing with solid moderators, proton-beam arrow and ESS emblem (#2947), also drawn in OpenACC builds (#2959), by @willend
+* Union volumes can be displayed as polyhedra under `--trace=2`, with triangles cut exactly at visibility boundaries, and a `display_mode` parameter on `Union_master` to force lines, by @willend in #2927
+* `Union_mesh` display: much faster for large meshes (fixed quadratic cost and leaks), with the option to draw a coarse bounding-box outline, by Daniel Lomholt Christensen (@Lomholy) and @willend in #2893
+
+#### Other components and examples
+* `cov-lib`: parameter `I` renamed `I_cov`, so it no longer clashes with `<complex.h>`, by @willend in #2923
+* `%Test`/`%TestScan` tests added to 12 previously untested example instruments (#2908). The RITA-II Pb(200) `%TestScan` is disabled for now (#2933), by @willend
 
 ### McXtrace only
-* New instruments by @farhi: `SOLEIL_PX1` (#2740), `SOLEIL_NANOSCOPIUM` (#2742), `SOLEIL_GALAXIES` (#2689), and a full `SOLEIL` synchrotron model assembling the beamlines (#2783, #2865)
-* New components ported from McStas by @farhi: `Text` (#2781), and `Annulus`, `Circle`, `Cone`, `Disc` and `Legacy_circle` with a new `Demo_shape_primitives` template (#2801). New `Text2OFF` template instrument (#2869)
-* `Mirror_toroid` and `Mirror_toroid_pothole`: ellipsoid semi-axis and `xmax` fixed, by @antoinepado in #2838
-* `Shape` component fixed, by @farhi in #2828. `Annulus` uses radius/thickness as in McStas (#2837)
-* Single-crystal samples are ignored when their geometry has no volume or the reflection list is invalid, and test values updated for `cif2hkl` structure factors now given in barns, by @farhi in #2839, #2863
-* Component fixes for `mcxtrace-antlr` compatibility, by @willend in #2851
+* `Bending_magnet`: correct flux and sampling, `E0`/`dE` energy options with the `lambda` mode kept, and more tests, by @antoinepado, @farhi and @willend in #2902
+* `Mirror_curved`: reflection fixed by @antoinepado in #2936, and rays it misses keep being absorbed when an instrument's `EXTEND` asks for it, by @willend in #2941
+* `Single_crystal`: absorption fixed (wrong multiplication factor) by @antoinepado in #2880, and now computed directly from mu/rho times the mass density, by @willend in #2937, #2938
+* `Source_lab` now uses xraylib for all material data (any single-element anode, no data file needed; the old data-file mode is still available), and the fraction of Bremsstrahlung is fixed, by @farhi in #2925
+* SOLEIL and other example instruments repaired: mirror grazing angles given in rad where degrees were needed, mirror radii and takeoff directions, the Si lattice constant (5.4309 Å, not 5.4909 Å), DCMs set at the refraction-corrected Bragg angle, and updated test targets, by @willend in #2941
+* `Undulator` minor fixes (#2913) and a `Wiggler` sanity check (#2917), by @farhi
+* `Mirror_toroid`: corrected call to the reflectivity function, by @antoinepado in #2930
+* Filled `--trace=2` surfaces for mirrors and `Capillary`, by @willend in #2955
+* Union: mesh geometry, focusing and display fixes ported from McStas, including the polyhedron display, by @willend in #2929
+* SAXS samples: GPU race and memory-leak fixes ported from the McStas SANS components, and OpenACC enabled for the Nanodiscs, Cylinders, EllipticCylinders and PDBFast variants, by @willend in #2995
+* Runtime fixes: `reflecq` returns R0 for constant reflectivity, form-factor table searches stay within bounds, and `PROP_DT` now works for x-rays, by @willend in #2922
+* `ALLOW_BACKPROP` is honoured by `PROP_DL`, as in McStas, by @willend in #2907
+* AstroX optics: valid nearby intersections are no longer rejected as self-intersections, by @willend in #2912
+* `Air`: non-scattered rays are propagated to the exit surface, by @willend in #2910
+* Rays propagated to a plane land exactly on it, and `Monitor_nD` checks forward propagation by time, by @willend in #2911
+* `%Test` tests added to the AstroX examples `Test_shells`, `ATHENA_1pore` and `ATHENA_1ring`, by @willend in #2909
 
-## New Contributors
-* @henrikjacobsenfys made their first contribution in #2810
+**Full Changelog**: https://github.com/mccode-dev/McCode/compare/v3.10.0...v3.10.2
 
-**Full Changelog**: https://github.com/mccode-dev/McCode/compare/v3.9.2...v3.10.0

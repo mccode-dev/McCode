@@ -70,7 +70,7 @@ SHARE
 %{
 
 
-  typedef struct Polarizer_guide_Vars {
+  typedef struct PolarizerABSnT_guide_Vars {
     double nx[8], ny[8], nz[8];
     double wx[8], wy[8], wz[8];
     double A[8], norm_n2[8], norm_n[8];
@@ -80,10 +80,10 @@ SHARE
     double w2c;
     double n_dot_v[8];
     char compcurname[256];
-  } Polarizer_guide_Vars_type;
+  } PolarizerABSnT_guide_Vars_type;
 
   void
-  Polarizer_guide_Init (Polarizer_guide_Vars_type* aVars, MCNUM a_w1, MCNUM a_h1, MCNUM a_w2, MCNUM a_h2, MCNUM a_l, MCNUM a_R0, MCNUM a_Qc, MCNUM a_alpha,
+  PolarizerABSnT_guide_Init (PolarizerABSnT_guide_Vars_type* aVars, MCNUM a_w1, MCNUM a_h1, MCNUM a_w2, MCNUM a_h2, MCNUM a_l, MCNUM a_R0, MCNUM a_Qc, MCNUM a_alpha,
                         MCNUM a_W, MCNUM a_mleft, MCNUM a_mright, MCNUM a_mtop, MCNUM a_mbottom, MCNUM a_mup, MCNUM a_mdown) {
     int i;
 
@@ -171,7 +171,7 @@ SHARE
   }
 
   int
-  Polarizer_guide_Trace (double* dt, double* dt0, Polarizer_guide_Vars_type* aVars, double cx, double cy, double cz, double cvx, double cvy, double cvz) {
+  PolarizerABSnT_guide_Trace (double* dt, double* dt0, PolarizerABSnT_guide_Vars_type* aVars, double cx, double cy, double cz, double cvx, double cvy, double cvz) {
     double B, C, ret;
     int side = 0;
     double n1, n2;
@@ -248,21 +248,19 @@ SHARE
 
 DECLARE 
 %{
-  Polarizer_guide_Vars_type Vars;
+  PolarizerABSnT_guide_Vars_type Vars;
 
   double Si_sig_i;
   double Si_sig_a;
   double Si_cross_i;
   double Si_cros_av;
   double Si_cross_a_v;
-  double Si_cross_tot;
   double lwafer_Si;
   double Fe_sig_i;
   double Fe_sig_a;
   double Fe_cross_i;
   double Fe_cros_av;
   double Fe_cross_a_v;
-  double Fe_cross_tot;
   double lwafer_Fe;
 %}
 
@@ -275,7 +273,7 @@ INITIALIZE
   }
 
   strcpy (Vars.compcurname, NAME_CURRENT_COMP);
-  Polarizer_guide_Init (&Vars, w1, h1, w2, h2, l, R0, Qc, alpha, W, mleft, mright, mtop, mbottom, mup, mdown);
+  PolarizerABSnT_guide_Init (&Vars, w1, h1, w2, h2, l, R0, Qc, alpha, W, mleft, mright, mtop, mbottom, mup, mdown);
 
   Si_sig_i = Si_i;
   Si_sig_a = Si_a;
@@ -293,6 +291,8 @@ INITIALIZE
 
 TRACE
 %{
+  PolarizerABSnT_guide_Vars_type Vars_thread = Vars; /* per-neutron copy: PolarizerABSnT_guide_Trace writes n_dot_v */
+  double Si_cross_tot, Fe_cross_tot;
   double B, C, dt0, dt;
   double q, arg, selectF, Rtemp;
   int ret, side, side0;
@@ -308,11 +308,11 @@ TRACE
   B = -vz;
   C = -z;
 
-  ret = solve_2nd_order (&dt0, NULL, Vars.A[0], B, C);
+  ret = solve_2nd_order (&dt0, NULL, Vars_thread.A[0], B, C);
   if (ret && dt0 > 0) {
     dt = dt0;
     PROP_DT (dt);
-    Vars.N_reflection[8]++;
+    Vars_thread.N_reflection[8]++;
   }
   /* check if we are in the box input, else absorb */
   if (dt > 0 && fabs (x) <= w1 / 2 && fabs (y) <= h1 / 2) {
@@ -332,20 +332,20 @@ TRACE
       /* 5=+Z side: n=(0, 0, 1) ; W = (0, 0, l) (at z=l, guide exit)*/
 
       B = vz;
-      C = z - Vars.wz[5];
-      ret = solve_2nd_order (&dt0, NULL, Vars.A[5], B, C);
+      C = z - Vars_thread.wz[5];
+      ret = solve_2nd_order (&dt0, NULL, Vars_thread.A[5], B, C);
       if (ret && dt0 > 0) {
         dt = dt0;
         side = 5;
-        Vars.n_dot_v[5] = B;
+        Vars_thread.n_dot_v[5] = B;
       } else {
-        fprintf (stderr, "%s: warning: neutron trajectory is parallel to guide exit, and thus can not exit\n", Vars.compcurname);
+        fprintf (stderr, "%s: warning: neutron trajectory is parallel to guide exit, and thus can not exit\n", Vars_thread.compcurname);
         ABSORB;
       }
 
       /* now look if there is a previous intersection with guide sides */
 
-      side0 = Polarizer_guide_Trace (&dt, &dt0, &Vars, x, y, z, vx, vy, vz);
+      side0 = PolarizerABSnT_guide_Trace (&dt, &dt0, &Vars_thread, x, y, z, vx, vy, vz);
       if (side0)
         side = side0;
 
@@ -353,7 +353,7 @@ TRACE
       /* exit reflection loops if no intersection (neutron is after box) */
 
       if (side == 0 || dt < 0) {
-        fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", Vars.compcurname);
+        fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", Vars_thread.compcurname);
         ABSORB;
       } /* should never occur */
 
@@ -365,14 +365,14 @@ TRACE
 
       if (side == 5) /* neutron reaches end of guide: end loop and exit comp */
       {
-        Vars.N_reflection[side]++;
+        Vars_thread.N_reflection[side]++;
         SCATTER;
         break;
       }
 
       /* else reflection on a guide wall */
 
-      if (Vars.M[side] == 0 || Qc == 0) /* walls are absorbing */
+      if (Vars_thread.M[side] == 0 || Qc == 0) /* walls are absorbing */
       {
         ABSORB;
       }
@@ -381,7 +381,7 @@ TRACE
 
         if (sy < 0) /* spin down */
         {
-          q = 2 * V2Q * fabs (Vars.n_dot_v[side]) / Vars.norm_n[side];
+          q = 2 * V2Q * fabs (Vars_thread.n_dot_v[side]) / Vars_thread.norm_n[side];
           v = sqrt (vx * vx + vy * vy + vz * vz);
           L = (2 * PI / V2K) / v;
           sinW = (q * L) / (4 * PI);
@@ -394,11 +394,11 @@ TRACE
             selectF = rand01 ();
 
             if (selectF <= R0_down) {
-              Vars.N_reflection[side]++;
-              dt0 = 2 * Vars.n_dot_v[side] / Vars.norm_n2[side];
-              vx -= Vars.nx[side] * dt0;
-              vy -= Vars.ny[side] * dt0;
-              vz -= Vars.nz[side] * dt0;
+              Vars_thread.N_reflection[side]++;
+              dt0 = 2 * Vars_thread.n_dot_v[side] / Vars_thread.norm_n2[side];
+              vx -= Vars_thread.nx[side] * dt0;
+              vy -= Vars_thread.ny[side] * dt0;
+              vz -= Vars_thread.nz[side] * dt0;
               SCATTER;
             }
 
@@ -416,11 +416,11 @@ TRACE
               selectF = rand01 ();
 
               if (selectF <= Rtemp) {
-                Vars.N_reflection[side]++;
-                dt0 = 2 * Vars.n_dot_v[side] / Vars.norm_n2[side];
-                vx -= Vars.nx[side] * dt0;
-                vy -= Vars.ny[side] * dt0;
-                vz -= Vars.nz[side] * dt0;
+                Vars_thread.N_reflection[side]++;
+                dt0 = 2 * Vars_thread.n_dot_v[side] / Vars_thread.norm_n2[side];
+                vx -= Vars_thread.nx[side] * dt0;
+                vy -= Vars_thread.ny[side] * dt0;
+                vz -= Vars_thread.nz[side] * dt0;
                 SCATTER;
               }
 
@@ -433,12 +433,12 @@ TRACE
               p = p * exp (-1.0 * ((Si_cross_tot * Wlen_Si) + (Fe_cross_tot * Wlen_Fe)));
             }; /* Cutoff ~ 1E-10, delete  ABSORB A.O. */
           }
-          Vars.N_reflection[0]++;
+          Vars_thread.N_reflection[0]++;
         } /* sy<0 */
 
         if (sy > 0) /* spin up */
         {
-          q = 2 * V2Q * fabs (Vars.n_dot_v[side]) / Vars.norm_n[side];
+          q = 2 * V2Q * fabs (Vars_thread.n_dot_v[side]) / Vars_thread.norm_n[side];
           v = sqrt (vx * vx + vy * vy + vz * vz);
           L = (2 * PI / V2K) / v;
           sinW = (q * L) / (4 * PI);
@@ -450,11 +450,11 @@ TRACE
           if (q < Qc_up) {
             selectF = rand01 ();
             if (selectF <= R0_up) {
-              Vars.N_reflection[side]++;
-              dt0 = 2 * Vars.n_dot_v[side] / Vars.norm_n2[side];
-              vx -= Vars.nx[side] * dt0;
-              vy -= Vars.ny[side] * dt0;
-              vz -= Vars.nz[side] * dt0;
+              Vars_thread.N_reflection[side]++;
+              dt0 = 2 * Vars_thread.n_dot_v[side] / Vars_thread.norm_n2[side];
+              vx -= Vars_thread.nx[side] * dt0;
+              vy -= Vars_thread.ny[side] * dt0;
+              vz -= Vars_thread.nz[side] * dt0;
               SCATTER;
             }
             if (selectF > R0_up) {
@@ -471,11 +471,11 @@ TRACE
               selectF = rand01 ();
 
               if (selectF <= Rtemp) {
-                Vars.N_reflection[side]++;
-                dt0 = 2 * Vars.n_dot_v[side] / Vars.norm_n2[side];
-                vx -= Vars.nx[side] * dt0;
-                vy -= Vars.ny[side] * dt0;
-                vz -= Vars.nz[side] * dt0;
+                Vars_thread.N_reflection[side]++;
+                dt0 = 2 * Vars_thread.n_dot_v[side] / Vars_thread.norm_n2[side];
+                vx -= Vars_thread.nx[side] * dt0;
+                vy -= Vars_thread.ny[side] * dt0;
+                vz -= Vars_thread.nz[side] * dt0;
                 SCATTER;
               }
 
@@ -488,7 +488,7 @@ TRACE
               p = p * exp (-1.0 * ((Si_cross_tot * Wlen_Si) + (Fe_cross_tot * Wlen_Fe)));
             }; /* Cutoff ~ 1E-10, delete  ABSORB A.O. */
           }
-          Vars.N_reflection[0]++;
+          Vars_thread.N_reflection[0]++;
         } /* sy>0 */
 
       } /* side 6,7 */
@@ -498,24 +498,24 @@ TRACE
 
         /* change/mirror velocity: v_f = v - n.2*n.v/|n|^2 */
 
-        Vars.N_reflection[side]++;                         /* Vars.norm_n2 > 0 was checked at INIT */
-        dt0 = 2 * Vars.n_dot_v[side] / Vars.norm_n2[side]; /* 2*n.v/|n|^2 */
-        vx -= Vars.nx[side] * dt0;
-        vy -= Vars.ny[side] * dt0;
-        vz -= Vars.nz[side] * dt0;
+        Vars_thread.N_reflection[side]++;                         /* Vars_thread.norm_n2 > 0 was checked at INIT */
+        dt0 = 2 * Vars_thread.n_dot_v[side] / Vars_thread.norm_n2[side]; /* 2*n.v/|n|^2 */
+        vx -= Vars_thread.nx[side] * dt0;
+        vy -= Vars_thread.ny[side] * dt0;
+        vz -= Vars_thread.nz[side] * dt0;
 
         /* compute q and modify neutron weight */
         /* scattering q=|k_i-k_f| = V2Q*|vf - v| = V2Q*2*n.v/|n| */
 
-        q = 2 * V2Q * fabs (Vars.n_dot_v[side]) / Vars.norm_n[side];
+        q = 2 * V2Q * fabs (Vars_thread.n_dot_v[side]) / Vars_thread.norm_n[side];
 
         B = R0;
 
         if (q > Qc) {
           if (W > 0)
-            arg = (q - Vars.M[side] * Qc) / W;
+            arg = (q - Vars_thread.M[side] * Qc) / W;
           else
-            arg = (q - Vars.M[side] * Qc) * 10000; /* W = 0.00001 */
+            arg = (q - Vars_thread.M[side] * Qc) * 10000; /* W = 0.00001 */
 
           if (arg < 10) {
             B *= .5 * (1 - tanh (arg)) * (1 - alpha * (q - Qc));
@@ -530,7 +530,7 @@ TRACE
         p *= B;
         SCATTER;
 
-        Vars.N_reflection[0]++;
+        Vars_thread.N_reflection[0]++;
         /*************************************************************************************************/
       }
 

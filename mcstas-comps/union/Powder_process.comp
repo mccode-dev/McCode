@@ -394,8 +394,10 @@ SHARE
     // %d\n",line_info->xs_reuse,line_info->xs_compute);
 
     /* check if a line_info element has been recorded already */
-    if (v >= line_info->v_min && v <= line_info->v_max && line_info->neutron_passed >= CHAR_BUF_LENGTH) {
-      line = (int)floor (v - line_info->v_min) * CHAR_BUF_LENGTH / (line_info->v_max - line_info->v_min);
+    if (v >= line_info->v_min && v <= line_info->v_max && line_info->v_max > line_info->v_min && line_info->neutron_passed >= CHAR_BUF_LENGTH) {
+      line = (int)floor ((v - line_info->v_min) * CHAR_BUF_LENGTH / (line_info->v_max - line_info->v_min));
+      if (line >= CHAR_BUF_LENGTH)
+        line = CHAR_BUF_LENGTH - 1; /* v == v_max */
       Nq = line_info->xs_Nq[line];
       *sum = line_info->xs_sum[line];
       if (!Nq && *sum == 0) {
@@ -460,10 +462,6 @@ SHARE
   Powder_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
     //*my = data_transfer.pointer_to_a_Powder_physics_storage_struct->my_scattering;
 
-    int method_switch = 1;
-    // For test
-    int line_v, line0, line;
-
     // Should not interfer with the global variables
     double vx = k_initial[0] * K2V;
     double vy = k_initial[1] * K2V;
@@ -486,63 +484,16 @@ SHARE
       line_info->neutron_passed++;
     }
 
-    if (method_switch == 1) {
-      // Here the cross section is calculated and stored
-      if (fabs (v - line_info->v) < 1e-6) {
-        line_info->nb_reuses++;
-      } else {
-        // printf("calling crosssection calculation \n");
-        //  int calc_xsect_union(double v, double *qv, double *my_sv2, int count, double *sum, struct line_info_struct *line_info)
-        line_info->Nq = calc_xsect_union (v, line_info->q_v, line_info->my_s_v2, line_info->count, &line_info->my_s_v2_sum, line_info);
-        line_info->v = v;
-        line_info->nb_refl += line_info->Nq;
-        line_info->nb_refl_count++;
-      }
+    // Here the cross section is calculated and stored
+    if (fabs (v - line_info->v) < 1e-6) {
+      line_info->nb_reuses++;
     } else {
-      if (fabs (v - line_info->v) < 1e-6) {
-        line_info->nb_reuses++;
-      } else {
-        // printf("calling crosssection calculation \n");
-        if (v >= line_info->v_min && v <= line_info->v_max && line_info->neutron_passed >= CHAR_BUF_LENGTH) {
-          line = (int)floor (v - line_info->v_min) * CHAR_BUF_LENGTH / (line_info->v_max - line_info->v_min);
-          line_info->Nq = line_info->xs_Nq[line];
-          line_info->my_s_v2_sum = line_info->xs_sum[line];
-          if (!line_info->Nq && line_info->my_s_v2_sum == 0) {
-            /* not yet set: we compute the sum up to the corresponding speed in the table cache */
-            // printf("Nq and sum not yet set, have to do this calculation now\n");
-            double line_v = line_info->v_min + line * (line_info->v_max - line_info->v_min) / CHAR_BUF_LENGTH;
-            for (line0 = 0; line0 < line_info->count; line0++) {
-              if (line_info->q_v[line0] <= 2 * line_v) { /* q < 2*kf: restrict structural range */
-                line_info->my_s_v2_sum += line_info->my_s_v2[line0];
-                if (line_info->Nq < line0 + 1)
-                  line_info->Nq = line0 + 1; /* determine maximum line index which can scatter */
-              } else
-                break;
-            }
-            line_info->xs_Nq[line] = line_info->Nq;
-            line_info->xs_sum[line] = line_info->my_s_v2_sum;
-            line_info->xs_compute++;
-            // printf("line_info->xs_Nq[line] = %f, line_info->xs_sum[line] = %f, line_info->xs_compute =
-            // %d\n",line_info->xs_Nq[line],line_info->xs_sum[line],line_info->xs_compute);
-          } else
-            line_info->xs_reuse++;
-          line0 = line_info->Nq;
-        }
-
-        line_info->xs_calls++;
-
-        for (line = line0; line < line_info->count; line++) {
-          if (line_info->q_v[line] <= 2 * v) { /* q < 2*kf: restrict structural range */
-            line_info->my_s_v2_sum += line_info->my_s_v2[line];
-            if (line_info->Nq < line + 1)
-              line_info->Nq = line + 1; /* determine maximum line index which can scatter */
-          } else
-            break;
-        }
-        line_info->v = v;
-        line_info->nb_refl += line_info->Nq;
-        line_info->nb_refl_count++;
-      }
+      // printf("calling crosssection calculation \n");
+      //  int calc_xsect_union(double v, double *qv, double *my_sv2, int count, double *sum, struct line_info_struct *line_info)
+      line_info->Nq = calc_xsect_union (v, line_info->q_v, line_info->my_s_v2, line_info->count, &line_info->my_s_v2_sum, line_info);
+      line_info->v = v;
+      line_info->nb_refl += line_info->Nq;
+      line_info->nb_refl_count++;
     }
 
     *my = line_info->my_s_v2_sum / (v * v);
@@ -581,9 +532,11 @@ SHARE
     // copy from PowderN component
     if (line_info->count > 0) {
       /* choose line */
-      if (line_info->Nq > 1)
+      if (line_info->Nq > 1) {
         line = floor (line_info->Nq * rand01 ()); /* Select between Nq powder lines */
-      else
+        if (line >= line_info->Nq)
+          line = line_info->Nq - 1; /* rand01() may return 1.0 */
+      } else
         line = 0;
       if (line_info->w_v[line])
         arg = line_info->q_v[line] * (1 + line_info->w_v[line] * randnorm ()) / (2.0 * v);

@@ -54,11 +54,11 @@
 DEFINE COMPONENT Undulator
 
 SETTING PARAMETERS (E0=0, dE=0, phase=0, randomphase=1, Ee=2.4, dEe=0, Ie=0.4, B=0, K=0,
-        int Nper=1, lu=16e-3, sigey=0, sigex=0, sigepx=0, sigepy=0, focus_xw=0, focus_yh=0, dist=1, quick_integ=0,
-        E1st=0, int verbose=0, Br=1.35)
+                    int Nper=1, lu=16e-3, sigey=0, sigex=0, sigepx=0, sigepy=0, focus_xw=0, focus_yh=0, dist=1, quick_integ=0,
+                    E1st=0, int verbose=0, Br=1.35)
 
 DEPENDENCY " @GSLFLAGS@ "
-/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 NOACC
 
 SHARE
@@ -121,7 +121,6 @@ DECLARE
   double alpha;
   /*electron mass*/
   double MELE;
-  // double besselj[nharm],besselh[nharm];
 %}
 
 
@@ -152,6 +151,11 @@ INITIALIZE
       K = sqrt (K);
     else
       K = 0;
+    /* K could come out 0 or imaginary (E1st above the undulator reach) */
+    if (K <= 0) {
+      fprintf (stderr, "Error (%s): Cannot realize E1st=%g keV with lu=%g m and Ee=%g GeV (K^2 <= 0). Aborting.\n", NAME_CURRENT_COMP, E1st, lu, Ee);
+      exit (1);
+    }
   } else if (!lu && E1st && K) {
     lu = 4 * M_PI * gamma2 / (K * K / 2 + 1) / (E2K * E1st * 1e10);
   }
@@ -174,9 +178,8 @@ INITIALIZE
 
   /* compute gap estimate */
   if (Br > B) { // remanent field, rather usual for Nd2Fe14B
-    double a = 0.55 * Br + 2.835;
+    double a = 0.55  * Br + 2.835;
     double b = -1.95 * Br + 7.22;
-    double c = -1.3 * Br + 2.97;
     gap = -log (B / a) * lu / b;
   } else
     gap = 3e-3;
@@ -194,7 +197,12 @@ INITIALIZE
     exit (1);
   }
 
-  // printf("Undulator (%s): gamma=%g, divergence is 1/gamma=%g rad.\n",NAME_CURRENT_COMP,gamma,igamma);
+  /* without a focus window every ray is emitted exactly on-axis
+   *  (xi = psi = 0) with a unit solid-angle weight - warn loudly */
+  if (!focus_xw && !focus_yh) {
+    fprintf (stderr, "Warning (%s): focus_xw and focus_yh are both unset - all rays are forced on-axis (xi=psi=0).\n", NAME_CURRENT_COMP);
+  }
+
   /*compute characteristic energy in keV*/
   double Ec = 0.665 * Ee * Ee * B;
   // double Ec=1.5*gamma2*HBAR*CELE*B/MELE *1e-3; /*check units on this one. The 1e-3 factor is because energy is assumed to be in keV*/
@@ -222,7 +230,7 @@ INITIALIZE
 TRACE
 %{
 
-  double k, e, l, w_u, r, w;
+  double k, e, w_u, r, w;
   double xo, yo, zo, xi, psi, theta2, Omega;
   double bsigma_integral, bpi_integral, s_n2;
   double bsigma_error, bpi_error;
@@ -231,11 +239,14 @@ TRACE
   e = E0 + randpm1 () * dE;
 
   /* add electron beam energy spread to gamma parameters (if necessary).*/
+  /* use ray-local copies so the base gamma is not clobbered for
+   *  subsequent rays  */
+  double gamma_l = gamma, gamma2_l = gamma2, igamma_l = igamma;
   if (dEe) {
     double deltaEe = (randnorm () * dEe * Ee) + Ee;
-    gamma = (deltaEe * 1e9) / (MELE / CELE * M_C * M_C); /*the extra CELE is to convert to eV*/
-    gamma2 = gamma * gamma;
-    igamma = 1.0 / gamma;
+    gamma_l = (deltaEe * 1e9) / (MELE / CELE * M_C * M_C); /*the extra CELE is to convert to eV*/
+    gamma2_l = gamma_l * gamma_l;
+    igamma_l = 1.0 / gamma_l;
   }
 
   /* the undulator's fundamental angular frequency*/
@@ -246,21 +257,15 @@ TRACE
    * ... we can now weight properly according to ang. flux density*/
   if (focus_xw && focus_yh) {
     randvec_target_rect (&xo, &yo, &zo, &Omega, 0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP);
-  } else if (focus_yh != 0) {
-    xi = 0;
+  } else if (focus_yh) {
     xo = 0;
-    yo = 0;
     yo = randpm1 () * 0.5 * focus_yh;
     Omega = 1;
-  } else if (focus_xw != 0) {
-    psi = 0;
-    xo = 0;
+  } else if (focus_xw) {
     yo = 0;
     xo = randpm1 () * 0.5 * focus_xw;
     Omega = 1;
   } else {
-    xi = 0;
-    psi = 0;
     xo = 0;
     yo = 0;
     Omega = 1;
@@ -276,7 +281,9 @@ TRACE
     y = randnorm () * sigey;
   }
 
-  xi = fabs (atan2 (xo, dist));
+  /* fabs() is deliberate: only theta^2 enters the weighting, so the
+   *  sign of the angle is irrelevant here. */
+  xi  = fabs (atan2 (xo, dist));
   psi = fabs (atan2 (yo, dist));
   /* This has to be after (xi,psi), else it will be convoluted into the weight calculation.*/
   if (sigepx) {
@@ -300,17 +307,17 @@ TRACE
   ky *= k;
   kz *= k;
 
-  double w1theta = 2 * gamma2 / (1 + K * K / 2.0 + gamma2 * theta2) * w_u;
-  double w10 = 2 * gamma2 / (1 + K * K / 2.0) * w_u;
+  double w1theta = 2 * gamma2_l / (1 + K * K / 2.0 + gamma2_l * theta2) * w_u;
+  double w10 = 2 * gamma2_l / (1 + K * K / 2.0) * w_u;
   double w_w1 = w / w1theta;
   double w_w10 = w / w10;
 
   double Bsig_integ_prms[4], Bpi_integ_prms[4];
   Bsig_integ_prms[0] = Bpi_integ_prms[0] = w_w1;                                           /*relative frequency*/
-  Bsig_integ_prms[1] = Bpi_integ_prms[1] = 2 * w_w10 * xi * gamma * K / (1 + K * K / 2.0); /*p*/
+  Bsig_integ_prms[1] = Bpi_integ_prms[1] = 2 * w_w10 * xi * gamma_l * K / (1 + K * K / 2.0); /*p*/
   Bsig_integ_prms[2] = Bpi_integ_prms[2] = 0.25 * w_w10 * K * K / (1 + K * K / 2.0);       /*q*/
-  Bsig_integ_prms[3] = xi * gamma / K;                                                     /*angle terms*/
-  Bpi_integ_prms[3] = psi * gamma / K;
+  Bsig_integ_prms[3] = xi * gamma_l / K;                                                    /*angle terms*/
+  Bpi_integ_prms[3] = psi * gamma_l / K;
 
   /*pass the parameters to the integrand*/
   Bsig.params = Bsig_integ_prms;
@@ -328,7 +335,7 @@ TRACE
 
   s_n2 = mxundulator_S_N (w_w1, Nper);
 
-  double prefactor = alpha * Ie / CELE * pow (K * gamma / (1 + K * K / 2.0), 2.0) * Nper * Nper * w_w10 * w_w10;
+  double prefactor = alpha * Ie / CELE * pow (K * gamma_l / (1 + K * K / 2.0), 2.0) * Nper * Nper * w_w10 * w_w10;
 
   p *= prefactor * (pow (bsigma_integral, 2.0) + pow (bpi_integral, 2.0)) * s_n2;
 
@@ -344,12 +351,14 @@ TRACE
   Ey = 0;
   Ez = 0;
 %}
+
 FINALLY
 %{
   if (!quick_integ) {
     gsl_integration_workspace_free (gsl_int_ws);
   }
 %}
+
 MCDISPLAY
 %{
 

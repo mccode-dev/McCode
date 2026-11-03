@@ -181,15 +181,15 @@
 // Non-standard function library
 // pi/180, used for converting between degrees and radians
 // 4/3 pi for computing sphere volumes
-// square and cube for computing squares and cubes
+// sas_square and sas_cube for computing squares and cubes (model code calls square()/cube(); the generator prefixes them)
 #ifndef M_PI_180
 #  define M_PI_180 0.017453292519943295
 #endif
 #ifndef M_4PI_3
 #  define M_4PI_3 4.18879020478639
 #endif
-double square(double x) { return x*x; }
-double cube(double x) { return x*x*x; }
+double sas_square(double x) { return x*x; }
+double sas_cube(double x) { return x*x*x; }
 double sas_sinx_x(double x) { return x==0 ? 1.0 : sin(x)/x; }
 
 // CRUFT: support old style models with orientation received qx, qy and angles

@@ -225,7 +225,7 @@ union geometry_parameter_union{
     struct cylinder_storage *p_cylinder_storage;
     struct box_storage      *p_box_storage;
     struct cone_storage     *p_cone_storage;
-    gmesh_struct            *p_mesh;
+    struct mesh_storage     *p_mesh_storage;
     // add as many pointers to structs as wanted, without increasing memory footprint.
 };
 
@@ -1074,6 +1074,11 @@ double height;
 Coords direction_vector;
 };
 
+struct mesh_storage{
+gmesh_struct mesh; // triangle mesh and BVH, in the frame of the mesh component
+int display_layer; // BVH layer whose boxes mcdisplay draws, 0 to draw the triangle edges
+};
+
 
 // A number of functions below use Dot() as scalar product, replace by coords_sp define
 #define Dot(a, b) coords_sp(a, b)
@@ -1099,6 +1104,7 @@ int r_within_surroundings(Coords pos,struct geometry_struct *geometry);
 // -------------    General geometry ------------------------------------------------------------
 
 Coords point_on_circle(Coords center, Coords direction, double radius, int point_nr, int number_of_points);
+void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes);
 
 void points_on_circle(Coords *output, Coords center, Coords direction, double radius, int number_of_points);
 

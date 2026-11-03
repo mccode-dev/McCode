@@ -374,9 +374,13 @@ def _polyhedron(json_str):
 # instrument -> parts
 # ---------------------------------------------------------------------------
 
-def component_to_part(comp, color, segments=64):
-    part = Part(comp.name, color)
+def component_to_part(comp, color, segments=64, pen=None):
+    ''' the component's draw calls with pen colour `pen` ('#rrggbb' from pencolor, None: the component color) '''
+    part = Part(comp.name + ('_' + pen[1:] if pen else ''),
+                tuple(int(pen[i:i + 2], 16) / 255 for i in (1, 3, 5)) if pen else color)
     for d in comp.drawcalls:
+        if d.color != pen:
+            continue
         mesh, lines = tessellate(d, segments)
         if mesh is not None:
             part.add_mesh(mesh)
@@ -402,10 +406,11 @@ def instrument_to_parts(inst, segments=64):
     parts = []
     ci = 0  # color index over all components (so colors differ even if some are empty)
     for comp in inst.components:
-        part = component_to_part(comp, color_for(ci), segments)
+        for pen in dict.fromkeys(d.color for d in comp.drawcalls) or [None]:  # one part per pen colour
+            part = component_to_part(comp, color_for(ci), segments, pen)
+            if not part.is_empty():
+                parts.append(part)
         ci += 1
-        if not part.is_empty():
-            parts.append(part)
     return parts
 
 
@@ -1082,7 +1087,7 @@ if __name__ == '__main__':
     parser.add_argument('--dirname', help='output directory name override')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=0, help='Number of particle rays to trace and include in the output (default 0: geometry only)')
     parser.add_argument('-s', '--segments', dest='segments', type=int, default=16, help='Tessellation resolution (circle segments); lower = smaller/lighter files, e.g. 32 or 16. Default: 16')
-    parser.add_argument('-t', '--trace', dest='trace', type=int, default=1, help='mcrun --trace level: 1 (default, fastest) gives the legacy wireframe drawing, 2 solid primitives. NB: with 1, surface-only formats (STL) may come out empty and many viewers ignore lines in OBJ/PLY; add --tubes to get solids')
+    parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1, 2], default=1, help='mcrun --trace level: 1 (default, fastest) gives the legacy wireframe drawing, 2 solid primitives. NB: with 1, surface-only formats (STL) may come out empty and many viewers ignore lines in OBJ/PLY; add --tubes to get solids')
     parser.add_argument('--tubes', action='store_true', help='Draw lines (multiline etc.) as solid cylinders with spheres at the corners, as in mcdisplay-plopp. NB: with -n > 0 the particle rays are tubed too, which can make files very large (e.g. ~150 MB STEP for 100 rays in PSI_DMC)')
     parser.add_argument('-f', '--format', dest='format', type=output_format, default='glb', help='Output CAD file format (STEP, STL, VRML, GLTF, GLB, OBJ, PLY, OFF, XML/X3D, VTK and VTKJS). Default: GLB')
 

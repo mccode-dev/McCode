@@ -78,6 +78,13 @@
 		{
 			controller.setViewSide();
 		}
+		// --trace=2 shapes as surfaces and/or lines, never neither: unchecking one checks the other
+		var handleShapesChanged = function(cbx, otherId)
+		{
+			var other = document.getElementById(otherId);
+			if (!cbx.checked) { other.checked = true; }
+			controller.main.showShapes(document.getElementById("cbxSurfaces").checked, document.getElementById("cbxLines").checked);
+		}
 		var handleViewHome = function()
 		{
 			controller.setViewHome();
@@ -85,7 +92,7 @@
 	</script>
 
 	<div id="gui" style="width: auto; background-color: black;">
-		<label id="lblInstrInfo" style="color: white;">(instr)</label>
+		<span id="lblInstrInfo" style="color: white; border: 1px solid gray; border-radius: 3px; padding: 0 6px; cursor: help;">(instr)</span>
 	</div>
 	<div id="gui" style="width: auto; background-color: black;">
 		<button id="btnPrev", onclick="handlePrev();" style="width: 90px;">Previous</button>
@@ -107,7 +114,13 @@
 		<label id="lblView" style="color: white; background-color: black; display: inline-block; text-align:right; width: 120px;">Show BB</label>
 		<input id="cbxBoundingbox" type="checkbox">
 		<label id="lblSurfaces" style="color: white; background-color: black; display: inline-block; text-align:right; width: 120px;">
-			Surfaces<input id="cbxSurfaces" type="checkbox" checked autocomplete="off" onchange="controller.main.showSurfaces(this.checked);">
+			Surfaces<input id="cbxSurfaces" type="checkbox" checked autocomplete="off" onchange="handleShapesChanged(this, 'cbxLines');">
+		</label>
+		<label id="lblLines" style="color: white; background-color: black; display: inline-block; text-align:right; width: 80px;">
+			Lines<input id="cbxLines" type="checkbox" autocomplete="off" onchange="handleShapesChanged(this, 'cbxSurfaces');">
+		</label>
+		<label id="lblOpacity" style="color: white; background-color: black; display: inline-block;">
+			Opacity<input id="rngOpacity" type="range" min="0" max="1" step="0.05" value="0.4" autocomplete="off" style="width: 90px; vertical-align: middle;" oninput="controller.main.setSurfaceOpacity(parseFloat(this.value));">
 		</label>
 	</div>
 	<div id="3dcanvas"></div>
@@ -167,7 +180,9 @@
 
 		// set up static ui
 		lblInstrInfo = document.getElementById("lblInstrInfo");
-		lblInstrInfo.innerHTML = MCDATA_instrdata["cmd"];
+		// instrument name only; the full command line (parameters) on hover
+		lblInstrInfo.textContent = MCDATA_instrdata["name"];
+		lblInstrInfo.title = MCDATA_instrdata["cmd"];
 		lblMaxRayIdx = document.getElementById("lblMaxRayIdx");
 		lblMaxRayIdx.innerHTML = '/ ' + (MCDATA_particledata["numrays"] - 1);
 

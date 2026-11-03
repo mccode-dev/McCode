@@ -631,13 +631,7 @@ double *interpolator_interpolate(struct interpolator_struct *interpolator,
   /* nearest direct grid element call *****************************************/
   if (!strcmp(interpolator->method, "regular") && interpolator->gridx) {
     int axis;
-    long *indices = malloc((int)interpolator->space_dimensionality*sizeof(double));
-    if (!indices) {
-      #ifndef OPENACC
-      fprintf(stderr,"interpolation-lib: indices malloc() error in interpolator_interpolate\n");
-      exit(-1);
-      #endif
-    }
+    long indices[INTERPOLATOR_DIMENSIONS] = {0};
     for (axis=0; axis < interpolator->space_dimensionality; axis++) {
       indices[axis] = round((space[axis]-interpolator->min[axis])/interpolator->step[axis]);
     }
@@ -650,7 +644,6 @@ double *interpolator_interpolate(struct interpolator_struct *interpolator,
       if (axis==2)
         field[axis] = interpolator->gridz[index];
     }
-    free(indices);
     return field;
   } else {
     #ifndef OPENACC
@@ -659,7 +652,7 @@ double *interpolator_interpolate(struct interpolator_struct *interpolator,
     exit(-1);
     #endif
   }
-  
+  return NULL;
 } // interpolator_interpolate
 
 

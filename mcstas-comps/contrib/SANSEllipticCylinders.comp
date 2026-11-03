@@ -47,20 +47,17 @@ SETTING PARAMETERS (R1 = 20.0, R2 = 40.0, Height = 100.0, Concentration = 0.01, 
 xwidth, yheight, zdepth, SampleToDetectorDistance, DetectorRadius)
 
 
-DEPENDENCY " @GSLFLAGS@ "
-NOACC
 
 /*X-ray Parameters (x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p)*/
 SHARE
 %{
-  #include <gsl/gsl_sf_bessel.h>
+  %include "sans_J1.h"
 %}
 DECLARE
 %{
   // Declarations
   double Prefactor;
   double Absorption;
-  double q;
   double NumberDensity;
 %}
 
@@ -81,6 +78,7 @@ INITIALIZE
 
 TRACE
 %{
+  double q;
   // Declarations
   double t0;
   double t1;
@@ -168,7 +166,7 @@ TRACE
         Beta = (j + 0.5) * BetaStep;
         ProjectedRadius = sqrt (pow (R1 * sin (Beta), 2) + pow (R2 * cos (Beta), 2));
 
-        Formfactor1 = gsl_sf_bessel_J1 (q * ProjectedRadius * sin (Alpha)) / (q * ProjectedRadius * sin (Alpha));
+        Formfactor1 = sans_J1 (q * ProjectedRadius * sin (Alpha)) / (q * ProjectedRadius * sin (Alpha));
         Formfactor2 = sin (q * Height * cos (Alpha) / 2.0) / (q * Height * cos (Alpha) / 2.0);
 
         Intensity += 2 / PI * sin (Alpha) * Prefactor * pow (2 * Formfactor1 * Formfactor2, 2) * AlphaStep * BetaStep;

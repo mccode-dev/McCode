@@ -148,7 +148,7 @@ if __name__ == '__main__':
     parser.add_argument('--inspect', help='display only particle rays reaching this component')
     parser.add_argument('--nobrowse', action='store_true', help='do not open a webbrowser viewer')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=300, help='Number of particles to simulate')
-    parser.add_argument('-t', '--trace', dest='trace', type=int, default=2, help='Select visualization mode')
+    parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1, 2], default=2, help='Select visualization mode')
     parser.add_argument('--timeout', dest='timeout', type=int, default=300, help='Shutdown time of the WebGL viewer server')
     args, unknown = parser.parse_known_args()
     # Convert the defined arguments in the args Namespace structure to a dict

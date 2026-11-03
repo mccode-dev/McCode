@@ -191,9 +191,19 @@ class McView(object):
         dlg.setNameFilter(mccode_config.configuration["MCCODE"]+" instruments (*.instr)");
         return dlg.getSaveFileName(parent=None, caption='Create Instrument file...')[0]
 
-    def showNewInstrFromTemplateDialog(self, instr):
-        dlg = QtWidgets.QFileDialog()
-        return dlg.getSaveFileName(parent=None, caption='Create Instrument file from Template...', directory=instr)[0]
+    def showNewInstrFromTemplateDialog(self, workdir):
+        return QtWidgets.QFileDialog.getExistingDirectory(self.mw, 'Copy template into folder...', workdir)
+
+    def askTemplateDirExists(self, trgdir, newdir):
+        box = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Question, 'Folder exists',
+                                    str(trgdir) + ' already exists.', parent=self.mw)
+        open_btn = box.addButton('Open existing', QtWidgets.QMessageBox.AcceptRole)
+        new_btn = box.addButton('New copy (' + newdir.name + ')', QtWidgets.QMessageBox.AcceptRole)
+        repl_btn = box.addButton('Replace with template', QtWidgets.QMessageBox.DestructiveRole)
+        box.addButton(QtWidgets.QMessageBox.Cancel)
+        box.setDefaultButton(new_btn)
+        box.exec()
+        return {open_btn: 'open', new_btn: 'new', repl_btn: 'replace'}.get(box.clickedButton())
 
     def showSaveAsDialog(self, instr):
         dlg = QtWidgets.QFileDialog()
@@ -458,7 +468,11 @@ class McCodeEditorWindow(QtWidgets.QMainWindow):
 
     def __handleComponentClicked(self, comp_parser):
         dlg = McInsertComponentDialog()
-        dlg.initComponentData(comp_parser)
+        try:
+            dlg.initComponentData(comp_parser)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Could not read component', str(comp_parser.file) + ':\n' + str(e))
+            return
         if dlg.exec():
             comp_type, inst_name, params, atrel = dlg.getValues()
         else:
@@ -662,6 +676,17 @@ class McStartSimDialog(QtWidgets.QDialog):
         self._set_inspect_visible(False)
         self.ui.cbxSimTrace.currentIndexChanged.connect(lambda i: self._set_inspect_visible(i))
 
+    def accept(self):
+        try:
+            float(self.ui.edtNeutronCnt.text())
+            if self.ui.edtRandomSeed.text():
+                int(self.ui.edtRandomSeed.text())
+        except ValueError:
+            QtWidgets.QMessageBox.warning(self, 'Invalid value',
+                'The ray count must be a number (e.g. 1e6) and the random seed a whole number.')
+            return
+        super(McStartSimDialog, self).accept()
+
     def _setupAdvancedCollapse(self):
         ''' replace the static "Advanced" group box with a roll-up section:
             a QToolButton with arrow toggles gbxAdvanced visibility '''
@@ -847,7 +872,7 @@ class McStartSimDialog(QtWidgets.QDialog):
         inspect = None
         idx = self.ui.cbxInspect.currentIndex()
         if idx > 0:
-            inspect = self._last_inspect_compnames[idx]
+            inspect = self._last_inspect_compnames[idx-1]
         
         mcdisplay = None
         idx = self.ui.cbxMcdisplays.currentIndex()
@@ -1298,9 +1323,12 @@ class McConfigDialog(QtWidgets.QDialog):
         mccode_config.compilation[str(self.ui.edtMpicc.conf_var)] = str(self.ui.edtMpicc.text())
         mccode_config.compilation[str(self.ui.edtMPIrun.conf_var)] = str(self.ui.edtMPIrun.text())
         mccode_config.compilation[str(self.ui.edtNumNodes.conf_var)] = str(self.ui.edtNumNodes.text())
-        mccode_config.configuration[str(self.ui.edtNumCols.conf_var)] = str(self.ui.edtNumCols.text())
+        # GUICOLS and GUIFONTSIZE are parsed with int(): keep the old value unless a positive integer is given
+        if self.ui.edtNumCols.text().isdigit() and int(self.ui.edtNumCols.text()) > 0:
+            mccode_config.configuration[str(self.ui.edtNumCols.conf_var)] = str(self.ui.edtNumCols.text())
         mccode_config.configuration[str(self.ui.edtNDbufsiz.conf_var)] = str(self.ui.edtNDbufsiz.text())
-        mccode_config.configuration[str(self.ui.edtFontSize.conf_var)] = str(self.ui.edtFontSize.text())
+        if self.ui.edtFontSize.text().isdigit() and int(self.ui.edtFontSize.text()) > 0:
+            mccode_config.configuration[str(self.ui.edtFontSize.conf_var)] = str(self.ui.edtFontSize.text())
         mccode_config.configuration[str(self.ui.editor.conf_var)] = str(self.ui.editor.text())
         # Export selected variables to the system / mcrun
         target_mccode=mccode_config.configuration["MCCODE"].upper()

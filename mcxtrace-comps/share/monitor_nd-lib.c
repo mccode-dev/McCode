@@ -1900,12 +1900,11 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
           z3 =-radius*sin(theta0)*sin(phi1);
           y2 = y1; y3 = y0;
 
-          mcdis_multiline(5,
+          mcdis_polygon(4,
             x0,y0,z0,
             x1,y1,z1,
             x2,y2,z2,
-            x3,y3,z3,
-            x0,y0,z0);
+            x3,y3,z3);
         }
     }
     /* disk (circle) */
@@ -1920,11 +1919,10 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
     if (abs(Vars->Flag_Shape) == DEFS->SHAPE_SQUARE)
     {
       mcdis_magnify("xy");
-      mcdis_multiline(5, (double)xmin, (double)ymin, 0.0,
+      mcdis_polygon(4, (double)xmin, (double)ymin, 0.0,
              (double)xmax, (double)ymin, 0.0,
              (double)xmax, (double)ymax, 0.0,
-             (double)xmin, (double)ymax, 0.0,
-             (double)xmin, (double)ymin, 0.0);
+             (double)xmin, (double)ymax, 0.0);
     }
     /* full cylinder/banana */
     else

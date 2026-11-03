@@ -25,7 +25,7 @@
 * modelled; hutch diagnostics such as xbpm, beam imagers and attenuators are
 * omitted for simplicity.
 *
-* %Example: CRISTAL_E0=12 Detector: CRISTAL_detector_diffraction_I=700000.0
+* %Test: CRISTAL_E0=12 Detector: CRISTAL_detector_diffraction_I=6.2037e+05
 *
 * %Parameters
 * CRISTAL_E0:        [keV] Central energy of the beam
@@ -91,7 +91,13 @@ INITIALIZE
         "%s: ERROR: Si(111) can not reflect CRISTAL_E0=%g keV (valid range ~5-30 keV). Aborting.\n",
         NAME_INSTRUMENT, CRISTAL_E0));
 
-    CRISTAL_DCM_theta = asin(sin_theta)*RAD2DEG;
+    CRISTAL_DCM_theta = asin(sin_theta);
+    // refraction shifts the Si(111) reflection above the kinematic Bragg angle by 2*delta/sin(2 theta);
+    // with the narrow source band the DCM would otherwise only pass rays ~20 urad off axis
+    double lambda = 12.398/CRISTAL_E0*1e-10;           // [m]
+    double n_e    = 14*8/(5.4309e-10*5.4309e-10*5.4309e-10); // Si electron density [1/m^3]
+    double delta  = 2.8179403e-15*lambda*lambda*n_e/(2*PI);
+    CRISTAL_DCM_theta = (CRISTAL_DCM_theta + 2*delta/sin(2*CRISTAL_DCM_theta))*RAD2DEG;
   }
 
   MPI_MASTER(

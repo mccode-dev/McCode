@@ -546,7 +546,7 @@ SHARE
         /*for given reflection in list - compute linear comb of tau_a and tau_b*/
         /*check for not in plane - f.i. check if (tau_a X tau_b).tau_i)==0*/
         struct hkl_data_union* l = &(list[i]);
-        double det, c1, c2, sig_tau_c;
+        double det, c1 = 0, c2 = 0, sig_tau_c;
         double em_x, em_y, em_z, tmp_x, tmp_y, tmp_z;
         double tau_a[3], tau_b[3];
         /*convert Miller indices to taus*/
@@ -893,15 +893,10 @@ SHARE
 
     // printf("Single crystal process returned coh_xlen = %E \n",coh_xlen);
     *my = coh_xlen * data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->pack;
-    int iterate;
-    // if (hkl_info->tau_count == 0) printf("my: ki=%f, no reflections matched \n",ki);
-    for (iterate = 0; iterate < hkl_info->tau_count; iterate++)
-      // printf("my: ki=%f, hkl_info->coh_xsect = %f, T[%d].refl = %f, coh_xlen = %f
-      // \n",ki,hkl_info->coh_xsect,iterate,hkl_info->tau_list[iterate].refl,coh_xlen);
-      // Probably need to rotate back from Powder/PG/curvature mode, as another process than this one could be selected. Would just need to send the used rotation
-      // parameters to the process to repeat that rotation.
+    // Probably need to rotate back from Powder/PG/curvature mode, as another process than this one could be selected. Would just need to send the used rotation
+    // parameters to the process to repeat that rotation.
 
-      return 1;
+    return 1;
   };
 
   // Function that provides description of a basic scattering event.
@@ -919,7 +914,7 @@ SHARE
     double b1x, b1y, b1z;  /* First vector spanning tangent plane */
     double b2x, b2y, b2z;  /* Second vector spanning tangent plane */
     double z1, z2, y1, y2; /* Temporaries to choose kf from 2D Gauss */
-    double adjust, r, sum; /* Temporaries */
+    double adjust, sum;    /* Temporaries */
     double kfx, kfy, kfz;  /* Final wave vector */
 
     double kix = k_initial[0], kiy = k_initial[1], kiz = k_initial[2];
@@ -943,8 +938,8 @@ SHARE
       if (hkl_info->flag_warning < 100)
         fprintf (stderr,
                  "Single_crystal_process: Error: Illegal tau search "
-                 "(r=%g, sum=%g, j=%i, tau_count=%i).\n",
-                 r, sum, j, hkl_info->tau_count);
+                 "(sum=%g, j=%i, tau_count=%i).\n",
+                 sum, j, hkl_info->tau_count);
       #endif
       hkl_info->flag_warning++;
       j = hkl_info->tau_count - 1;

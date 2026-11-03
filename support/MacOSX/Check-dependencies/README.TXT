@@ -31,9 +31,9 @@ Contents of this folder:
    - Will ask you to take ownership of /usr/local
    - Will ask you to configure the firewall to allow simple usage of openmpi
 
-6) If you need support for NeXus output, we propose to install this via homebrew (brew install nexusformat).
-   To allow compilation with the NeXus libraries, please redefine your CFLAGS through the mcgui/mxgui preferences:
-   -g -lm -O2 -DUSE_NEXUS -lNeXus -I/usr/local/include/nexus
+6) If you need support for NeXus output, we propose to install HDF5 via homebrew (brew install hdf5).
+   To allow compilation with HDF5, please redefine your CFLAGS through the mcgui/mxgui preferences:
+   -g -lm -O2 -DUSE_NEXUS -I/usr/local/include -L/usr/local/lib -lhdf5
 
 7) Now open either the newly installed app or environment script
 

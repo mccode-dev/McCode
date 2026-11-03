@@ -6,12 +6,14 @@ import ComponentStyler from "./component-styler/ComponentStyler";
 import RaysMenu from "./rays-menu/RaysMenu";
 import BackgroundColorButton from "./background-color-button/BackgroundColorButton";
 import AxesButton from "./axes-button/AxesButton";
+import ShapesButtons from "./shapes-buttons/ShapesButtons";
 
 const ConfigureSceneMenu = () => {
   return (
     <div id="configure-scene-menu">
       <RaysMenu />
       <ComponentStyler />
+      <ShapesButtons />
       <ViewButtons />
       <GridButtons />
       <AxesButton />

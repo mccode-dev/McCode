@@ -63,26 +63,26 @@ SETTING PARAMETERS (AxisRatio = 1.4, NumberOfLipids = 130.0, AreaPerLipidHeadgro
     Roughness = 3.5, Concentration = 0.01, AbsorptionCrosssection = 0.0,
     xwidth, yheight, zdepth, SampleToDetectorDistance, DetectorRadius, qMin = 0.001, qMax = 1.0, int NumberOfQBins=200)
 
-DEPENDENCY " @GSLFLAGS@ "
-NOACC
 
 /*X-ray Parameters (x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p)*/
 SHARE
 %{
-  #include <gsl/gsl_sf_bessel.h>
+  %include "saxs_J1.h"
 
   /* Functions used for compution the intensity from a given liposome */
+  #pragma acc routine seq
   double
   NDTFFormfactorCylinder (double q, double MajorSemiAxis, double MinorSemiAxis, double Height, double Alpha, double Beta) {
     double const ProjectedRadius = sqrt (pow (MajorSemiAxis * sin (Beta), 2) + pow (MinorSemiAxis * cos (Beta), 2));
 
-    double const Formfactor1 = gsl_sf_bessel_J1 (q * ProjectedRadius * sin (Alpha)) / (q * ProjectedRadius * sin (Alpha));
+    double const Formfactor1 = saxs_J1 (q * ProjectedRadius * sin (Alpha)) / (q * ProjectedRadius * sin (Alpha));
     double const Formfactor2 = sin (q * Height * cos (Alpha) / 2.0) / (q * Height * cos (Alpha) / 2.0);
 
     return 2 * Formfactor1 * Formfactor2;
   }
 
   // Functions used to compute the characteristics of the histidine tags
+  #pragma acc routine seq
   double
   NDTFDebye (double q, double r) {
     // Variables needed in functions
@@ -101,17 +101,19 @@ SHARE
     return ReturnValue;
   }
 
+  #pragma acc routine seq
   double
   NDTFXiRodWithoutEndcaps (double q, double r, double l, double Alpha) {
     // Variables needed in function
     double ReturnValue;
 
     // Computation
-    ReturnValue = gsl_sf_bessel_J0 (q * r * sin (Alpha)) * sin (q * l * cos (Alpha) / 2.f) / (q * l * cos (Alpha) / 2.f);
+    ReturnValue = j0 (q * r * sin (Alpha)) * sin (q * l * cos (Alpha) / 2.f) / (q * l * cos (Alpha) / 2.f);
 
     return ReturnValue;
   }
 
+  #pragma acc routine seq
   double
   NDTFPsiHammouda (double x) {
     // Variables used in function
@@ -124,6 +126,7 @@ SHARE
   }
 
   /* Computation of the intensity from a given nanodisc */
+  #pragma acc routine seq
   double
   NDTF_IntensityOfEmptyNanodiscsWithTags (double q, double MajorSemiAxis, double MinorSemiAxis, double ThicknessOfBelt, double HeightOfBelt,
                                           double HeightOfLipids, double HeightOfTails, double HeightOfCH3, double RadiusOfGyrationForHisTag,

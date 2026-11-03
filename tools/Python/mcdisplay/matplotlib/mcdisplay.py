@@ -3,9 +3,10 @@
 ''' Small script to rewrite McStas trace output to python matplotlib for plotting '''
 
 import matplotlib as mpl
-from mpl_toolkits.mplot3d import art3d
+from mpl_toolkits.mplot3d import art3d, proj3d
 from matplotlib import pyplot as plt
 from matplotlib import use
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import json
 import sys
@@ -32,6 +33,7 @@ MC_SPHERE = 'MCDISPLAY: mcdissphere'
 MC_BOX = 'MCDISPLAY: mcdisbox'
 MC_CONE = 'MCDISPLAY: mcdiscone'
 MC_POLYGON = 'MCDISPLAY: polyhedron'
+MC_PENCOLOR = 'MCDISPLAY: pencolor'
 
 MC_ENTER = 'ENTER:'
 MC_LEAVE = 'LEAVE:'
@@ -75,10 +77,10 @@ def dumpfile(frmat, filename = None):
     # Check for existance of earlier exports
     if os.path.isfile(saveto):
         index=1
-        saveto = f"{basename}_{index}{frmat}"
+        saveto = f"{basename}_{index}{ext}"
         while os.path.isfile(saveto):
             index += 1
-            saveto = f"{basename}_{index}{frmat}"
+            saveto = f"{basename}_{index}{ext}"
 
     savefig(saveto)
     print("Saved " + saveto)
@@ -98,6 +100,7 @@ def parse_trace(backend):
     ax.set(xlabel='z / [m]', ylabel='x / [m]', zlabel='y / [m]')
 
     color = 0
+    pen = COLORS[color]  # current pen: component colour unless set by pencolor
 
     # map from component name to (position, rotation matrix)
     comps = {}
@@ -118,8 +121,11 @@ def parse_trace(backend):
     while True:
         # read line
         line = get_line()
-        if not line:
+        if line is None:
             break
+        # blank lines, e.g. from mcrun's compiler output, are not the end
+        if not line:
+            continue
 
         # register components
         if line.startswith(UC_COMP):
@@ -137,6 +143,7 @@ def parse_trace(backend):
         # switch perspective
         elif line.startswith(MC_COMP):
             color = (color + 1) % len(COLORS)
+            pen = COLORS[color]
             comp = comps[line[len(MC_COMP) + 1:]]
 
         elif line.startswith(MC_COMP_SHORT):
@@ -144,36 +151,39 @@ def parse_trace(backend):
             comp = comps[name]
             skip = True
 
+        elif line.startswith(MC_PENCOLOR):
+            pen = '#%02x%02x%02x' % tuple(int(x) for x in line[len(MC_PENCOLOR):].strip('()\n').split(','))
+
         #process primitives
         elif line.startswith(MC_LINE):
-            process_multiline(ax, line, COLORS[color], comp, transparency)
+            process_multiline(ax, line, pen, comp, transparency)
 
         elif line.startswith(MC_POLYGON):
-            process_polygon(ax, line, comp, COLORS[color], transparency)
+            process_polygon(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_CIRCLE):
-            process_circle(ax, line, COLORS[color], comp, transparency)
+            process_circle(ax, line, pen, comp, transparency)
 
         elif line.startswith(MC_DISC):
-            process_disc(ax, line, comp, COLORS[color], transparency)
+            process_disc(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_ANNULUS):
-            process_annulus(ax, line, comp, COLORS[color], transparency)
+            process_annulus(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_NEW_CIRCLE):
-            process_new_circle(ax, line, comp, COLORS[color], transparency)
+            process_new_circle(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_CONE):
-            process_cone(ax, line, comp, COLORS[color], transparency)
+            process_cone(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_SPHERE):
-            process_sphere(ax, line, comp, COLORS[color], transparency)
+            process_sphere(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_BOX):
-            process_box(ax, line, comp, COLORS[color], transparency)
+            process_box(ax, line, comp, pen, transparency)
 
         elif line.startswith(MC_CYLINDER):
-            process_cylinder(ax, line, comp, COLORS[color], transparency)
+            process_cylinder(ax, line, comp, pen, transparency)
 
         # activate neutron when it enters
         elif line.startswith(MC_ENTER):
@@ -210,7 +220,7 @@ def parse_trace(backend):
         else:
             print(line)
 
-    ax.set_box_aspect(None)
+    ax.margins(0)
     set_axis_limits(ax)
 
     try:
@@ -429,27 +439,38 @@ def set_axis_limits(ax):
     ymin = min(y_min_polygon, ymin)
     zmin = min(z_min_polygon, zmin)
 
-    dx = xmax - xmin
-    dy = ymax - ymin
-    dz = zmax - zmin
-    dmax = max(dx, dy, dz)
-    # Check ranges and define axis box of max length cubed
-    if dmax > dx:
-        mean = (xmax + xmin) / 2
-        xmin = mean - dmax / 2
-        xmax = mean + dmax / 2
-    if dmax > dy:
-        mean = (ymax + ymin) / 2
-        ymin = mean - dmax / 2
-        ymax = mean + dmax / 2
-    if dmax > dz:
-        mean = (zmax + zmin) / 2
-        zmin = mean - dmax / 2
-        zmax = mean + dmax / 2
+    # Pad every axis by the same small length, so flat/thin instruments keep a
+    # nonzero extent while x, y and z stay at equal scale
+    pad = 0.02 * max(xmax - xmin, ymax - ymin, zmax - zmin)
+    xmin, xmax = xmin - pad, xmax + pad
+    ymin, ymax = ymin - pad, ymax + pad
+    zmin, zmax = zmin - pad, zmax + pad
     # Set new axis limits
     ax.set_xlim3d(xmin, xmax)
     ax.set_ylim3d(ymin, ymax)
     ax.set_zlim3d(zmin, zmax)
+    # Equal scale: box fitted to the instrument extent rather than a cube
+    extent = (xmax - xmin, ymax - ymin, zmax - zmin)
+    ax.set_box_aspect(extent)
+    # Fewer ticks on the short axes so their labels do not overlap
+    for axis, d in zip((ax.xaxis, ax.yaxis, ax.zaxis), extent):
+        axis.set_major_locator(MaxNLocator(nbins=max(2, round(8 * d / max(extent)))))
+    # Zoom so the projected box fills the figure, leaving room for the axis
+    # labels (zoom needs matplotlib >= 3.6)
+    fig = ax.figure
+    fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+    fig.canvas.draw()
+    corners = np.array(np.meshgrid((xmin, xmax), (ymin, ymax), (zmin, zmax))).reshape(3, -1)
+    px, py, _ = proj3d.proj_transform(*corners, ax.get_proj())
+    px, py = ax.transData.transform(np.column_stack((px, py))).T
+    zoom = 0.75 * min(fig.bbox.width / np.ptp(px), fig.bbox.height / np.ptp(py))
+    try:
+        ax.set_box_aspect(extent, zoom=zoom)
+    except TypeError:
+        return
+    # 3D axes are always square: do not clip what is drawn outside that square
+    for artist in ax.lines + ax.collections:
+        artist.set_clip_on(False)
 
 
 if __name__ == '__main__':
