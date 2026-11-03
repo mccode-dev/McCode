@@ -119,10 +119,12 @@ SHARE
   #pragma acc routine seq
   void
   nrerror (const char* error_text) {
+    #ifndef OPENACC
     printf ("Numerical Recipes run-time error ...\n");
     printf ("%s\n", error_text);
     printf ("... now exiting to system.\n");
     exit (1);
+    #endif
   }
 
   #pragma acc routine seq
@@ -885,6 +887,7 @@ TRACE
     {
       printf ("mode = %d ", mode);
       nrerror ("illegal value of mode");
+      ABSORB; /* reached only on the GPU, where nrerror does not exit */
     }
 
     /* Load the parameter vector.  All values are real-valued physics quantities;
@@ -1018,7 +1021,11 @@ TRACE
 
     if (!intersect) {
       printf ("FATAL ERROR: Did not hit sample surface from inside.\n");
+      #ifndef OPENACC
       exit (1);
+      #else
+      ABSORB;
+      #endif
     }
 
     if (verbose >= 2) printf ("neutron left Phonon_BvK_PG, p_init = %g,", p);
