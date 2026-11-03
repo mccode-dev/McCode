@@ -23,18 +23,19 @@ def column_key(label):
 
 
 def summarize_column(results):
-    s = {"tests": 0, "compile_err": 0, "run_err": 0, "value_off": 0, "failed": []}
+    s = {"tests": 0, "no_test": 0, "compile_err": 0, "run_err": 0, "value_off": 0, "failed": []}
     for name, t in results.items():
         if name == "_meta":
             continue
         s["tests"] += 1
+        # mctest's own verdict: compile errors, then its "failed" flag (runtime error or value off)
         if not t.get("compiled"):
             s["compile_err"] += 1
-        elif not t.get("didrun"):
-            s["run_err"] += 1
         elif t.get("failed"):
-            s["value_off"] += 1
+            s["run_err" if not t.get("didrun") else "value_off"] += 1
         else:
+            if not t.get("testnb"):
+                s["no_test"] += 1  # compiled, no %Test to run
             continue
         s["failed"].append(name)
     s["failed"].sort()
@@ -70,10 +71,12 @@ def selftest():
     today, history = os.path.join(tmp, "today"), os.path.join(tmp, "history")
     label = "mcstas-3.99.99_mpi_x_auto_classic_ubuntu-latest_openmpi_1e6_Linux_abc123"
     os.makedirs(os.path.join(today, label))
-    res = {"A": {"compiled": True, "didrun": True, "failed": False},
+    res = {"A": {"compiled": True, "didrun": True, "failed": False, "testnb": 1},
            "B": {"compiled": False, "didrun": False, "failed": True},
            "C": {"compiled": True, "didrun": False, "failed": True},
            "D": {"compiled": True, "didrun": True, "failed": True},
+           "E": {"compiled": True, "didrun": None, "failed": None, "testnb": 0},
+           "F": {"compiled": True, "didrun": True, "failed": None, "testnb": 1},
            "_meta": {"walltime": "1:00:00"}}
     with open(os.path.join(today, label, "testresults_%s.json" % label), "w") as fh:
         json.dump(res, fh)
@@ -82,7 +85,7 @@ def selftest():
     index = main(today, "2026-11-03", "u2", history)
     c = index[-1]["columns"]["mpi_x_auto_classic_ubuntu-latest_openmpi_1e6_Linux"]
     assert [d["date"] for d in index] == ["2026-11-02", "2026-11-03"]
-    assert (c["tests"], c["compile_err"], c["run_err"], c["value_off"]) == (4, 1, 1, 1), c
+    assert (c["tests"], c["no_test"], c["compile_err"], c["run_err"], c["value_off"]) == (6, 1, 1, 1, 1), c
     assert c["failed"] == ["B", "C", "D"] and c["label"] == label
     assert os.path.isfile(os.path.join(history, "2026-11-03", "table.html"))
     shutil.rmtree(tmp)
