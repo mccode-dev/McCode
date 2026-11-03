@@ -551,6 +551,8 @@ def main(args):
         diffall = not args.diff_errors_only
         ofile = run_normal_mode(testdir, reflabel, nodiff=args.nodiff, diffmax=diffmax,
                         diffall=diffall, diffworkers=diffworkers)
+        # one copy of the js libs for all columns and the diff/coplot pages
+        utils.dedupe_shared_js(testdir)
 
     if not args.nobrowse:
         mccode_config.open_in_browser(ofile)

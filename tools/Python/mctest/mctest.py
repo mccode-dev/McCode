@@ -797,6 +797,9 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     metainfo = OrderedDict()
     metainfo["ncount"] = ncount
     metainfo["mpi"] = mpi
+    if not noplots:
+        logging.info("Moved %d copies of shared js libraries to a single _lib/" % utils.dedupe_shared_js(testdir))
+
     metainfo["date"] = utils.get_datetimestr()
     metainfo["hostname"] = hostnamestr
     metainfo["user"] = username
