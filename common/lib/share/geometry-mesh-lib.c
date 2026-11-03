@@ -1371,27 +1371,32 @@ gmesh_read_file (char* filename, const char* extension, gmesh_raw* raw) {
   return ok;
 }
 
-// scale factors so that the bounding box gets the given size, as in interoff-lib:
-// a single non-zero size sets the same factor on all axes; a zero size or a
-// flat axis keeps the factor of the other axes
-static void
-gmesh_fit_ratios (Coords range, double xwidth, double yheight, double zdepth, double* rx, double* ry, double* rz) {
-  *rx = *ry = *rz = 1;
+// factors that multiply the x, y and z coordinates so that a bounding box of
+// size range gets the size xwidth, yheight, zdepth, as off_init of interoff-lib.
+// A zero size, or an axis where the box is flat, takes the factor of the
+// other given sizes; a single given size scales all axes by the same factor.
+static Coords
+gmesh_fit_scale (Coords range, double xwidth, double yheight, double zdepth) {
+  Coords scale = coords_set (1, 1, 1);
   if (xwidth && range.x) {
-    *rx = *ry = *rz = xwidth / range.x;
+    scale.x = xwidth / range.x;
+    scale.y = scale.x;
+    scale.z = scale.x;
   }
   if (yheight && range.y) {
-    *ry = *rz = yheight / range.y;
+    scale.y = yheight / range.y;
+    scale.z = scale.y;
     if (!xwidth)
-      *rx = *ry;
+      scale.x = scale.y;
   }
   if (zdepth && range.z) {
-    *rz = zdepth / range.z;
+    scale.z = zdepth / range.z;
     if (!xwidth)
-      *rx = *rz;
+      scale.x = scale.z;
     if (!yheight)
-      *ry = *rz;
+      scale.y = scale.z;
   }
+  return scale;
 }
 
 // read an STL/OFF/PLY file into mesh: multiply by scale, then resize the
@@ -1473,24 +1478,23 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
   if (xwidth || yheight || zdepth || center) {
     Coords range = coords_sub (mesh->bbmax, mesh->bbmin);
     Coords origin = center ? coords_scale (coords_add (mesh->bbmin, mesh->bbmax), 0.5) : coords_set (0, 0, 0);
-    double rx, ry, rz;
-    gmesh_fit_ratios (range, xwidth, yheight, zdepth, &rx, &ry, &rz);
+    Coords scale = gmesh_fit_scale (range, xwidth, yheight, zdepth);
     for (i = 0; i < raw.nverts; i++) {
       Coords* p = &raw.verts[i];
-      p->x = (p->x - origin.x) * rx;
-      p->y = (p->y - origin.y) * ry;
-      p->z = (p->z - origin.z) * rz;
+      p->x = (p->x - origin.x) * scale.x;
+      p->y = (p->y - origin.y) * scale.y;
+      p->z = (p->z - origin.z) * scale.z;
     }
-    mesh->bbmin = coords_set ((mesh->bbmin.x - origin.x) * rx, (mesh->bbmin.y - origin.y) * ry, (mesh->bbmin.z - origin.z) * rz);
-    mesh->bbmax = coords_set ((mesh->bbmax.x - origin.x) * rx, (mesh->bbmax.y - origin.y) * ry, (mesh->bbmax.z - origin.z) * rz);
+    mesh->bbmin = coords_set ((mesh->bbmin.x - origin.x) * scale.x, (mesh->bbmin.y - origin.y) * scale.y, (mesh->bbmin.z - origin.z) * scale.z);
+    mesh->bbmax = coords_set ((mesh->bbmax.x - origin.x) * scale.x, (mesh->bbmax.y - origin.y) * scale.y, (mesh->bbmax.z - origin.z) * scale.z);
     MPI_MASTER (
-      if (rx != ry || rx != rz || ry != rz)
+      if (scale.x != scale.y || scale.x != scale.z)
         printf ("Warning: Aspect ratio of the geometry %s was modified.\n"
                 "         If you want to keep the original proportions, specify only one of the dimensions.\n", filename);
       printf ("  Bounding box dimensions for geometry %s:\n", filename);
-      printf ("    Length=%f (%.3f%%)\n", range.x * rx, rx * 100);
-      printf ("    Width= %f (%.3f%%)\n", range.y * ry, ry * 100);
-      printf ("    Depth= %f (%.3f%%)\n", range.z * rz, rz * 100););
+      printf ("    Length=%f (%.3f%%)\n", range.x * scale.x, scale.x * 100);
+      printf ("    Width= %f (%.3f%%)\n", range.y * scale.y, scale.y * 100);
+      printf ("    Depth= %f (%.3f%%)\n", range.z * scale.z, scale.z * 100););
   }
   mesh->length_scale = coords_len (coords_sub (mesh->bbmax, mesh->bbmin));
   if (mesh->length_scale <= 0)
@@ -2000,47 +2004,6 @@ gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, double t
              mesh->filename, total, GMESH_MAX_HITS, total);
   }
   return stored;
-}
-
-  // entry/exit pair of a line with mesh, as off_intersect of interoff-lib,
-  // see geometry-mesh-lib.h
-  #pragma acc routine seq
-int
-gmesh_intersect_pair (gmesh_struct* mesh, Coords position, Coords direction, double* t0, double* t3, Coords* n0, Coords* n3, int* face0, int* face3) {
-  gmesh_hit hits[GMESH_MAX_HITS];
-  int count = gmesh_intersect (mesh, position, direction, -FLT_MAX, hits);
-  int ahead = 0;
-  int first, second;
-  if (!count)
-    return 0;
-  while (ahead < count && hits[ahead].t < 0)
-    ahead++;
-  // last hit behind and first hit ahead, or the first two hits ahead
-  first = ahead ? ahead - 1 : 0;
-  second = ahead ? ahead : 1;
-  if (t0)
-    *t0 = hits[first].t;
-  if (n0)
-    *n0 = hits[first].normal;
-  if (face0)
-    *face0 = hits[first].face;
-  if (second < count) {
-    if (t3)
-      *t3 = hits[second].t;
-    if (n3)
-      *n3 = hits[second].normal;
-    if (face3)
-      *face3 = hits[second].face;
-    return count < 4 ? count : 4;
-  }
-  // no second intersection: 0 when the mesh is behind, FLT_MAX for a single hit ahead
-  if (t3)
-    *t3 = ahead ? 0 : FLT_MAX;
-  if (n3)
-    *n3 = coords_set (0, 0, 0);
-  if (face3)
-    *face3 = 0;
-  return 1;
 }
 
   // 1 when point is inside the box [lower, upper], borders included
