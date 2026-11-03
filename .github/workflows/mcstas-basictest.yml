@@ -100,9 +100,8 @@ jobs:
           - { method: source, os: ubuntu-24.04,   CC: gcc-13,   CXX: g++-13,     python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           - { method: source, os: ubuntu-24.04,   CC: clang,    CXX: clang++,    python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # --- mccode.org-style .deb packages (buildscripts/build_debs_mcstas), apt-installed
-          #     in /usr, no $MCSTAS set - as for users of the mccode.org apt repo ---
-          # PW 2026/11/02 disabled tue to connectivit-issues with mcstas.org webserver...
-          # - { method: debian, os: ubuntu-24.04,   CC: gcc,      CXX: g++,        python: '3.12', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
+          #     in /usr, no $MCSTAS set - as for users of the McCode apt repo ---
+          - { method: debian, os: ubuntu-24.04,   CC: gcc,      CXX: g++,        python: '3.12', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           # --- built via conda ---
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
@@ -429,8 +428,9 @@ jobs:
            set -e
            set -u
            set -x
-           # mccode.org apt repo, as for users: provides mcpl, ncrystal and cif2hkl (>= 1.5.1)
-           sudo curl -fsSLo /etc/apt/sources.list.d/mccode.sources https://packages.mccode.org/debian/mccode.sources
+           # McCode apt repo (https://mccode-dev.github.io/debian/), as for users: provides mcpl, ncrystal and cif2hkl (>= 1.5.1)
+           sudo curl -fsSLo /usr/share/keyrings/mccode-apt.gpg https://mccode-dev.github.io/debian/mccode-apt.gpg
+           sudo curl -fsSLo /etc/apt/sources.list.d/mccode.sources https://mccode-dev.github.io/debian/mccode.sources
            sudo apt-get update
            # Build dependencies, as in dependency-scripts/getdeps_debian (minus LaTeX/equivs:
            # the manuals package and the suite metapackage are not needed for testing)
