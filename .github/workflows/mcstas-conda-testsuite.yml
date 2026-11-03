@@ -192,7 +192,7 @@ jobs:
              test "$(command -v mctest)" == "/usr/bin/mctest"
            fi
            # Run the test with 2 core mpi
-           ${MCTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} --nsigma 5 --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
+           ${MCTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} --nsigma 5 --nohtml --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
     - name: 'Tar output files'
       id: tar-package
       if: always()
@@ -340,9 +340,9 @@ jobs:
       run: |
            cd "$PWD/mcstas-nightly"
            if [ -n "${REFLABEL:-}" ]; then
-             mcviewtest --reflabel "$REFLABEL" --nobrowse
+             mcviewtest --reflabel "$REFLABEL" --nobrowse --nodiff
            else
-             mcviewtest --nobrowse
+             mcviewtest --nobrowse --nodiff
            fi
 
     - name: 'Tar mcstas-nightly output (all platform folders + comparison table)'

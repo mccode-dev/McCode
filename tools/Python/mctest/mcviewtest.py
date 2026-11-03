@@ -9,6 +9,7 @@ import os
 from os.path import join, dirname
 from os import walk
 import shutil
+import glob
 import concurrent.futures
 import jinja2
 
@@ -479,7 +480,9 @@ def run_normal_mode(testdir, reflabel, nodiff=False, diffmax=300, diffall=True, 
                     logging.info("  ...%d/%d diffs/coplots done" % (done, len(pending_diff_jobs)))
 
     text = open(join(dirname(__file__), "main.template")).read()
-    html = jinja2.Template(text).render(hrow=hrow, rows=rows, header=get_header_lst(refmeta))
+    # Interactive HTML links only when the runs made them (not with mctest --nohtml)
+    plots_html = next(glob.iglob(join(testdir, "*", "*", "*", "02_plots.html")), None) is not None
+    html = jinja2.Template(text).render(hrow=hrow, rows=rows, header=get_header_lst(refmeta), html=plots_html)
 
     # Platform-independent ofile (ensures correct behaviour of mcviewtest and opens browser also on Windows, 
     # irrespective of 'testdir' given as '.' or no inputs)
@@ -566,7 +569,7 @@ if __name__ == '__main__':
     parser.add_argument('--testroot', nargs="?", help='test root folder for test result management')
     parser.add_argument('--verbose', action='store_true', help='output excessive information for debug purposes')
     parser.add_argument('--nobrowse', action='store_true', help='Do not spawn browser on exit')
-    parser.add_argument('--nodiff', action='store_true', help='Do not generate mcplotdiff-html comparison cells against the reference column')
+    parser.add_argument('--nodiff', action='store_true', help='Do not generate the mcplotdiff-html / mccoplot-html comparison pages against the reference column')
     parser.add_argument('--diff-errors-only', dest='diff_errors_only', action='store_true', help='Only generate diff cells for rows that show a discrepancy against the reference (default: diff every row with valid data)')
     parser.add_argument('--diffmax', nargs=1, help='Maximum time (s) allowed per mcplotdiff-html comparison (default 300s)')
     parser.add_argument('--diffworkers', nargs=1, help='Number of mcplotdiff-html comparisons to run in parallel (default: number of available processors)')
