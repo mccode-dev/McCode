@@ -34,8 +34,12 @@ State as of 2026-11-03 (after the 3.10.2 release). `TODO:` marks blanks to fill 
 4. **conda-forge**: `conda-forge/mcstas-suite-feedstock` and `mcxtrace-suite-feedstock`:
    version and sha256 in `recipe/meta.yaml` (`recipe/release_sync.sh X.Y.Z` prints them).
    The update usually happens pr. bot PR, may also be done by by hand from the feedstocks.
-5. **Manual step**: Announcements (mailing lists, newsflash on front pages `contents/main.html/`, …)
-6. **Manual step**: FaceBook page(s)
+5. **Manual step**: 
+    - Major (4.0.0) and minor (3.11.0), require announcement, increments/bugfixes (3.10.3) do not
+    - Announce to:
+      - [mcstas-users](https://mailman2.mcstas.org/mailman/listinfo/mcstas-users), [mcxtrace-users](https://mailman2.mcxtrace.org/mailman/listinfo/mcxtrace-users), [NOBUGS](https://lists.nobugsconference.org/mailman/listinfo/nobugs), [neutron mailing list](https://lists.neutronsources.org/mailman/listinfo/neutron) and internal science list at ESS.
+      - Add newsflashes on front pages (edit `contents/main.html/`, …)
+      - McStas/McXtrace FaceBook pages
 
 ## 3. What runs automatically on a release
 
