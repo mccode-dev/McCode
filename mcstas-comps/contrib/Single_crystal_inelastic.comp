@@ -99,7 +99,6 @@
 * RX: [m]       Radius of horizontal along X lattice curvature. flat for 0.
 * RY: [m]       Radius of vertical lattice curvature. flat for 0.
 * RZ: [m]       Radius of horizontal along Z lattice curvature. flat for 0.
-* max_stored_ki: [1] Number of incoming wavevectors for which computed reflection lists are cached
 * %E
 ****************************************************************************/
 
@@ -114,8 +113,7 @@ SETTING PARAMETERS(vector mosaic_AB={0,0, 0,0,0, 0,0,0}, string sqw=0, string ge
             bx=0, by=0, bz=0,
             cx=0, cy=0, cz=0,
             p_transmit=-1, sigma_abs=0, sigma_inc=0,
-            aa=0, bb=0, cc=0, order=0, RX=0, RY=0, RZ=0,
-            max_stored_ki=1000, max_bad=10000)
+            aa=0, bb=0, cc=0, order=0, RX=0, RY=0, RZ=0)
 NOACC
 
 SHARE
@@ -133,13 +131,6 @@ SHARE
     double qx, qy, qz;  /* Coordinates in Cartesian reciprocal space */
     double qmod;        /* Length of (qx, qy, qz) */
     double chki;        /* |Q|+(2m/hbar^2)*E/|Q| - should be less than 2ki to satisfy conservation */
-  };
-
-  struct hkl_store {
-    double kx, ky, kz; /* Momentum direction (in crystal) for this ki */
-    int* hkl;          /* Indices into hkl_data *list */
-    double* CDF;       /* Cumulative distribution function */
-    int nhkl;          /* Number of hkl,en points accessible from this ki */
   };
 
   struct hkl_info_struct {
@@ -176,14 +167,34 @@ SHARE
     double* SqwCDF;             /* Cumulative dist. func. of S(E) at particular values of |Q| */
     int* iSqwCDF;               /* Index into CDF of S(E) */
     int maxecount;              /* Maximum number of E-slice for each |Q| */
-    struct hkl_store* stored;   /* Stored list of allowed hkl for particular ki vector */
-    int stored_ki_max;          /* Maximum number of saved hkl/ki to store */
-    int last_stored;            /* Index of the last hkl/ki list computed */
-    double *badx, *bady, *badz; /* kx,ky,kz of bad ki which cannot satisfy any E(hkl) */
-    int nbad;                   /* Number of bad ki's found */
-    int nextbad;
-    int maxbad;
   };
+
+  /* Sum of S(q,w) over the hkl-E points kinematically accessible with (kix,kiy,kiz).
+     With u >= 0, *j is set to the point where the running sum first exceeds u
+     (inverse-CDF sampling, probability SQW/sum); u at the sum gives the last point. */
+  double
+  sci_allowed_sqw (struct hkl_info_struct* info, double kix, double kiy, double kiz, double u, int* j) {
+    double ki2 = kix * kix + kiy * kiy + kiz * kiz, ki = sqrt (ki2), sum = 0;
+    int i1, i2;
+    for (i1 = 0; i1 < info->nSw; i1++) {
+      if (info->list[info->SwQi[i1][0]].chki > (2 * ki))
+        break; // Further hkl points not kinematically possible
+      for (i2 = 0; i2 < info->nQ[i1]; i2++) {
+        struct hkl_data* h = &info->list[info->SwQi[i1][i2]];
+        double kfx = kix - h->qx, kfy = kiy - h->qy, kfz = kiz - h->qz;
+        // If the energy transfer for this S(q,w) point matches |ki|-|kf|, it is accessible
+        if (fabs (2.072124 * (ki2 - (kfx * kfx + kfy * kfy + kfz * kfz)) - h->en) < 0.001) { // energy fudge factor
+          sum += h->SQW;
+          if (u >= 0) {
+            *j = info->SwQi[i1][i2];
+            if (u < sum)
+              return sum;
+          }
+        }
+      }
+    }
+    return sum;
+  }
 
   /* Quicksort modified from public domain implementation by Darel Rex Finley.
         http://alienryderflex.com/quicksort/ */
@@ -721,26 +732,6 @@ INITIALIZE
                    "ERROR           Please check parameter values (xwidth, yheight, zdepth, radius).\n",
                    NAME_CURRENT_COMP));
 
-  /* Allocates space for saved ki */
-  int i;
-  hkl_info.stored_ki_max = max_stored_ki;
-  hkl_info.stored = (struct hkl_store*)malloc (max_stored_ki * sizeof (struct hkl_store));
-  for (i = 0; i < max_stored_ki; i++) {
-    hkl_info.stored[i].kx = 0.;
-    hkl_info.stored[i].ky = 0.;
-    hkl_info.stored[i].kz = 0.;
-    hkl_info.stored[i].nhkl = 0;
-  }
-  hkl_info.last_stored = 0;
-
-  /* Initialise bad ki_list */
-  hkl_info.maxbad = max_bad;
-  hkl_info.badx = (double*)malloc (max_bad * sizeof (double));
-  hkl_info.bady = (double*)malloc (max_bad * sizeof (double));
-  hkl_info.badz = (double*)malloc (max_bad * sizeof (double));
-  hkl_info.nbad = 0;
-  hkl_info.nextbad = 0;
-
   printf ("Single_crystal_inelastic: %s: Vc=%g [Angs] sigma_abs=%g [barn] sigma_inc=%g [barn] sqw=%s\n", NAME_CURRENT_COMP, hkl_info.V0, hkl_info.sigma_a,
           hkl_info.sigma_i, sqw&& strlen (sqw) ? sqw : "NULL");
 %}
@@ -896,133 +887,22 @@ TRACE
         break;
       }
 
-      // Goes through the full S(q,w) list to find points which are kinematically accessible with this ki, then save this
-      //   to an array which is then re-used for ki's similar to this one in future.
-      int klist = -1;
-      double kdir, kmag;
-
-      // Checks previously generated list of ki's which cannot scatter from the sample due to orientation.
-      for (i1 = 0; i1 < hkl_info.nbad; i1++) {
-        kmag = sqrt (hkl_info.badx[i1] * hkl_info.badx[i1] + hkl_info.bady[i1] * hkl_info.bady[i1] + hkl_info.badz[i1] * hkl_info.badz[i1]);
-        kdir = (kix * hkl_info.badx[i1] + kiy * hkl_info.bady[i1] + kiz * hkl_info.badz[i1]) / kmag / ki;
-        if (fabs (kdir - 1) < 1e-4 && fabs (kmag - ki) < 0.01) {
-          ABSORB; // Should propagate it out of the crystal ...
-          break;
-        }
-      }
-
-      // Check previously generated list of ki's which can scatter, and see if this ki matchs, saving us to go through the S(q,w) list again.
-      for (i1 = 0; i1 < hkl_info.stored_ki_max; i1++) {
-        if (hkl_info.stored[i1].nhkl > 0) {
-          kmag = sqrt (hkl_info.stored[i1].kx * hkl_info.stored[i1].kx + hkl_info.stored[i1].ky * hkl_info.stored[i1].ky
-                       + hkl_info.stored[i1].kz * hkl_info.stored[i1].kz);
-          kdir = (kix * hkl_info.stored[i1].kx + kiy * hkl_info.stored[i1].ky + kiz * hkl_info.stored[i1].kz) / ki / kmag;
-          if (fabs (kdir - 1) < 1e-4 && fabs (kmag - ki) < 0.01) {
-            klist = i1;
-            break;
-          }
-        }
-      }
-
-      // If no previous ki's that can scatter is in the list, generate it.
-      if (klist < 0) {
-        int* tmp_list;
-        tmp_list = (int*)malloc (hkl_info.count * sizeof (int));
-        klist = hkl_info.last_stored;
-        hkl_info.last_stored++;
-        if (hkl_info.last_stored >= hkl_info.stored_ki_max)
-          hkl_info.last_stored = 0;
-        if (hkl_info.stored[klist].nhkl > 0) { // slot reused: release previous lists
-          free (hkl_info.stored[klist].hkl);
-          free (hkl_info.stored[klist].CDF);
-        }
-        hkl_info.stored[klist].nhkl = 0;
-        hkl_info.stored[klist].kx = kix;
-        hkl_info.stored[klist].ky = kiy;
-        hkl_info.stored[klist].kz = kiz;
-        for (i1 = 0; i1 < hkl_info.nSw; i1++) {
-          if (hkl_info.list[hkl_info.SwQi[i1][0]].chki > (2 * ki))
-            break; // Further hkl points not kinematically possible
-          for (i2 = 0; i2 < hkl_info.nQ[i1]; i2++) {
-            kfx = kix - hkl_info.list[hkl_info.SwQi[i1][i2]].qx;
-            kfy = kiy - hkl_info.list[hkl_info.SwQi[i1][i2]].qy;
-            kfz = kiz - hkl_info.list[hkl_info.SwQi[i1][i2]].qz;
-            kf2 = kfx * kfx + kfy * kfy + kfz * kfz;
-            en = 2.072124 * (ki2 - kf2);
-            // If the energy transfer for this S(q,w) point matches |ki|-|kf|, add to list
-            if (fabs (en - hkl_info.list[hkl_info.SwQi[i1][i2]].en) < 0.001) { // energy fudge factor
-              tmp_list[hkl_info.stored[klist].nhkl] = hkl_info.SwQi[i1][i2];
-              hkl_info.stored[klist].nhkl++;
-            }
-          }
-        }
-        if (hkl_info.stored[klist].nhkl == 0) { // No dispersion surface E(hkl) can be satisfied with this ki direction.
-          // Add current ki to "bad" list
-          hkl_info.badx[hkl_info.nextbad] = kix;
-          hkl_info.bady[hkl_info.nextbad] = kiy;
-          hkl_info.badz[hkl_info.nextbad] = kiz;
-          hkl_info.nbad++;
-          hkl_info.nextbad++;
-          if (hkl_info.nbad > hkl_info.maxbad)
-            hkl_info.nbad = hkl_info.maxbad;
-          if (hkl_info.nextbad >= hkl_info.maxbad)
-            hkl_info.nextbad = 0;
-          free (tmp_list);
-          ABSORB; // Should propagate it out of the crystal ...
-          break;
-        } else {
-          // Add current ki to "good" list
-          hkl_info.stored[klist].hkl = (int*)malloc (hkl_info.stored[klist].nhkl * sizeof (int));
-          hkl_info.stored[klist].CDF = (double*)malloc (hkl_info.stored[klist].nhkl * sizeof (double));
-          // Construct a cumulative distribution of the found hkle
-          hkl_info.stored[klist].CDF[0] = hkl_info.list[tmp_list[0]].SQW;
-          for (i1 = 0; i1 < hkl_info.stored[klist].nhkl; i1++) {
-            hkl_info.stored[klist].hkl[i1] = tmp_list[i1];
-            if (i1 > 0)
-              hkl_info.stored[klist].CDF[i1] = hkl_info.stored[klist].CDF[i1 - 1] + hkl_info.list[tmp_list[i1]].SQW;
-          }
-        }
-        free (tmp_list);
-      }
-
-      int notfound = 1;
-      do {
-        // Sample from the generated CDF, but double check that EN matches |ki|-|kf| for this actual ki
-        //   since we could be using saved values from a slightly different ki.
-        // Inverse-CDF sampling: pick the first entry with u < CDF[i1], so entry i1 is
-        //   chosen with probability SQW[i1] / sum(SQW).
-        double u = rand0max (hkl_info.stored[klist].CDF[hkl_info.stored[klist].nhkl - 1]);
-        for (i1 = 0; i1 < hkl_info.stored[klist].nhkl; i1++)
-          if (u < hkl_info.stored[klist].CDF[i1])
-            break;
-        if (i1 >= hkl_info.stored[klist].nhkl) // u can equal the CDF maximum
-          i1 = hkl_info.stored[klist].nhkl - 1;
-        j = hkl_info.stored[klist].hkl[i1];
-        en = hkl_info.list[j].en;
-        kfx = kix - hkl_info.list[j].qx;
-        kfy = kiy - hkl_info.list[j].qy;
-        kfz = kiz - hkl_info.list[j].qz;
-        kf2 = kfx * kfx + kfy * kfy + kfz * kfz;
-        kf = sqrt (kf2);
-        notfound++;
-        if (notfound > 100) {
-          break;
-        }
-        if (fabs (en - 2.072124 * (ki2 - kf2)) < 0.001) {
-          notfound = 0;
-        } // else { printf("retry\n"); }
-      } while (notfound);
-
-      if (notfound > 100) {
-        // Should continue to propagate the neutron...
-        ABSORB;
+      // Sum S(q,w) over the hkl-E points accessible with this exact ki, then pick one of them
+      //   with probability SQW/sum in a second pass over the same points.
+      double sqw_sum = sci_allowed_sqw (&hkl_info, kix, kiy, kiz, -1, &j);
+      if (sqw_sum <= 0) { // No dispersion surface E(hkl) can be satisfied with this ki direction.
+        ABSORB;           // Should propagate it out of the crystal ...
         break;
       }
+      sci_allowed_sqw (&hkl_info, kix, kiy, kiz, rand0max (sqw_sum), &j);
+      kfx = kix - hkl_info.list[j].qx;
+      kfy = kiy - hkl_info.list[j].qy;
+      kfz = kiz - hkl_info.list[j].qz;
 
       // Ignore absorption, multiple scattering and incoherent scattering for the moment (!)
       // j was sampled with probability SQW[j]/sum(SQW), so the weight is the sum of SQW
       //   over the kinematically allowed hkl-E points (not SQW[j], which would count it twice).
-      p = p0 * hkl_info.stored[klist].CDF[hkl_info.stored[klist].nhkl - 1];
+      p = p0 * sqw_sum;
       vx = K2V * kfx;
       vy = K2V * kfy;
       vz = K2V * kfz;
@@ -1041,15 +921,6 @@ TRACE
 
 FINALLY
 %{
-  for (int i = 0; i < hkl_info.stored_ki_max; i++)
-    if (hkl_info.stored[i].nhkl > 0) {
-      free (hkl_info.stored[i].hkl);
-      free (hkl_info.stored[i].CDF);
-    }
-  free (hkl_info.stored);
-  free (hkl_info.badx);
-  free (hkl_info.bady);
-  free (hkl_info.badz);
   if (hkl_info.flag_warning)
     fprintf (stderr, "Single_crystal_inelastic: %s: Error message was repeated %i times with absorbed neutrons.\n", NAME_CURRENT_COMP, hkl_info.flag_warning);
 %}

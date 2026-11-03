@@ -1,0 +1,58 @@
+name: install-docs
+
+# On a published release, open a PR that moves INSTALL-McStas/ and
+# INSTALL-McXtrace/ to the new version (all version strings and the release
+# asset links) and copies the release text into RELEASE_NOTES.md. Merge it
+# for releases that should be announced; close it otherwise.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v3.10.2
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Bump INSTALL docs
+        run: |
+          set -eu
+          NEW=${TAG#v}
+          OLD=$(sed -nE '1s/.* ([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' INSTALL-McStas/README.md)
+          echo "INSTALL docs: $OLD -> $NEW"
+          [ -n "$OLD" ] || { echo "::error::no version in the INSTALL-McStas/README.md heading"; exit 1; }
+          # perl keeps the CRLF line endings of the Windows docs
+          [ "$OLD" = "$NEW" ] || grep -rlF --include='*.md' --exclude=RELEASE_NOTES.md "$OLD" INSTALL-McStas INSTALL-McXtrace \
+            | xargs -r perl -pi -e "s/\Q$OLD\E/$NEW/g"
+          gh release view $TAG -R $GITHUB_REPOSITORY --json body -q .body | tr -d '\r' > INSTALL-McStas/RELEASE_NOTES.md
+          cp INSTALL-McStas/RELEASE_NOTES.md INSTALL-McXtrace/RELEASE_NOTES.md
+          git diff --stat
+
+      - name: Open PR
+        run: |
+          set -eu
+          git diff --quiet && { echo "INSTALL docs already match $TAG"; exit 0; }
+          BRANCH=external/install-docs-$TAG  # the repo ruleset lets bots create only external/ branches
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c $BRANCH
+          git commit -qam "INSTALL docs for $TAG"
+          git push -f origin $BRANCH
+          gh pr view $BRANCH > /dev/null 2>&1 || gh pr create --head $BRANCH \
+            --title "INSTALL docs for $TAG" \
+            --body "Version strings and release links in INSTALL-McStas/ and INSTALL-McXtrace/ moved to $TAG, RELEASE_NOTES.md from the release text. Merge if $TAG should be announced. The release archives are attached by the autobuild about an hour after the tag."
