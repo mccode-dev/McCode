@@ -121,7 +121,7 @@ install(
     )
 
 # Other .py infrastructure
-foreach(NAME package.json package-lock.json vite.config.mts tsconfig.json tsconfig.node.json custom.d.ts index.html __init__.py common.css main.tsx App.tsx)
+foreach(NAME tsconfig.json custom.d.ts index.html __init__.py common.css main.tsx App.tsx)
   install(
     FILES "${PROJECT_SOURCE_DIR}/${NAME}"
     DESTINATION "${DEST_TOOLDIR}/${TOOLS_NAME}"
@@ -142,21 +142,4 @@ if(NOT WINDOWS)
     DESTINATION ${DEST_BINDIR}
     RENAME "${P}display-webgl"
     )
-endif()
-
-# Script for npm instal during install part
-if (NOT WINDOWS)
-  # Configure fallback script
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/npminstall.in" "${WORK}/npminstall" @ONLY)
-  install(
-    PROGRAMS "${WORK}/npminstall"
-    DESTINATION ${DEST_TOOLDIR}/${TOOLS_NAME}
-  )
-else()
-  # Configure fallback script
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/npminstall.bat.in" "${WORK}/npminstall.bat" @ONLY)
-  install(
-    PROGRAMS "${WORK}/npminstall.bat"
-    DESTINATION ${DEST_TOOLDIR}/${TOOLS_NAME}
-  )
 endif()

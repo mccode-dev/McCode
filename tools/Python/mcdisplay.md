@@ -35,7 +35,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `--backend=NAME` | matplotlib backend; `pdf`/`pgf`/`ps`/`svg` save a hardcopy instead of showing a window |
 | `--help` | show wrapper usage and exit |
 
-## mcdisplay-webgl / mxdisplay-webgl *(NodeJS/vite-based)*
+## mcdisplay-webgl / mxdisplay-webgl
 
 | Option | Description |
 |---|---|
@@ -50,7 +50,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `--nobrowse` | do not open a web browser |
 | `--timeout SEC` | shutdown time of the local viewer web server (default: 300) |
 
-*(The viewer ships prebuilt; only if its `dist/` is missing does the first run perform a one-time `npm install && npm run build`, which needs internet access and can take minutes.)*
+*(The viewer ships as a prebuilt static bundle in `dist/`, served by Python's built-in HTTP server; no Node/npm is needed.)*
 
 ## mcdisplay-webgl-classic / mxdisplay-webgl-classic
 
