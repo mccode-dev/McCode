@@ -41,6 +41,7 @@
  * Ray tracing
  *   gmesh_intersect()      the GMESH_MAX_HITS nearest intersections of a
  *                          straight line, sorted in t
+ *   gmesh_intersect_pair() the entry/exit pair as interoff-lib's off_intersect
  *   gmesh_inside()         point-in-mesh test (deterministic, no random numbers)
  *   Hits exactly on an edge or vertex shared by several triangles are
  *   reported once.
@@ -146,6 +147,15 @@ typedef struct gmesh_struct {
 // RETURN: number of triangles, 0 on error
 int gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh);
 
+// int gmesh_init_fit(char *filename, double xwidth, double yheight, double zdepth,
+// int center, int face_props, gmesh_struct *mesh)
+// ACTION: as gmesh_init, then resize the bounding box as off_init of interoff-lib:
+// non-zero sizes set the box size along x/y/z; a single size scales all
+// axes by the same factor (proportions kept). With center, the box centre
+// is moved to the origin; otherwise coordinates are scaled about the origin.
+// RETURN: number of triangles, 0 on error
+int gmesh_init_fit (char* filename, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh);
+
   // int gmesh_intersect(gmesh_struct *mesh, Coords position, Coords direction,
   // double t_min, gmesh_hit hits[GMESH_MAX_HITS])
   // ACTION: intersections of the line position + t*direction with the mesh, for
@@ -156,6 +166,19 @@ int gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh
   // RETURN: number of hits stored
   #pragma acc routine seq
 int gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, double t_min, gmesh_hit hits[GMESH_MAX_HITS]);
+
+  // int gmesh_intersect_pair(gmesh_struct *mesh, Coords position, Coords direction,
+  // double *t0, double *t3, Coords *n0, Coords *n3, int *face0, int *face3)
+  // ACTION: the two intersections a component needs to cross the mesh, chosen
+  // as off_intersect of interoff-lib (any output pointer may be NULL):
+  //   a hit behind (t < 0) exists: t0 = last hit behind, t3 = first hit ahead
+  //   no hit behind:               t0 = first hit ahead, t3 = second hit ahead
+  // When there is no hit for t3 it is a placeholder: 0 when the mesh is
+  // behind, FLT_MAX for a single hit ahead; n3 is then (0,0,0), face3 0.
+  // RETURN: 0 no intersection, 1 only t0 is an intersection, otherwise the
+  // number of intersections (capped at 4)
+  #pragma acc routine seq
+int gmesh_intersect_pair (gmesh_struct* mesh, Coords position, Coords direction, double* t0, double* t3, Coords* n0, Coords* n3, int* face0, int* face3);
 
   // int gmesh_inside(gmesh_struct *mesh, Coords position)
   // ACTION: point in (closed) mesh test, parity of ray crossings along fixed
@@ -174,6 +197,11 @@ void gmesh_print_info (gmesh_struct* mesh);
 
 // draw the polygon edges (each once), or a polyhedron with mcdotrace==2
 void gmesh_display (gmesh_struct* mesh);
+
+// print one "MANTID_PIXEL: id,first,last,nv,cx,cy,cz,dx1,dy1,dz1,..." line per
+// face (as interoff-lib), with id = offset + face index and the vertices
+// relative to the face centre
+void gmesh_display_mantid (gmesh_struct* mesh, long offset);
 
 // release the memory held by the mesh
 void gmesh_free (gmesh_struct* mesh);
