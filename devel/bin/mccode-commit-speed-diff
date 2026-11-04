@@ -328,29 +328,41 @@ def measure_instruments(sha, envname, cfg):
 
 
 def print_report(label1, sha1, results1, label2, sha2, results2):
-    col1, col2 = '%s (%s)' % (label1, sha1), '%s (%s)' % (label2, sha2)
+    headers = ['', '%s (%s) [s]' % (label1, sha1), '%s (%s) [s]' % (label2, sha2),
+              'delta %% (%s vs %s)' % (label2, label1)]
+    widths = [14, max(20, len(headers[1])), max(20, len(headers[2])), max(14, len(headers[3]))]
 
-    def row(name, v1, v2):
+    def hline():
+        print('-+-'.join('-' * w for w in widths))
+
+    def row(cols):
+        cells = ['%-*s' % (widths[0], cols[0])] + ['%*s' % (w, c) for w, c in zip(widths[1:], cols[1:])]
+        print(' | '.join(cells))
+
+    def datarow(name, v1, v2):
         delta = '%+.1f%%' % ((v2 - v1) / v1 * 100) if v1 else 'n/a'
-        print('  %-14s %18.6f %18.6f %12s' % (name, v1, v2, delta))
+        row([name, '%.6f' % v1, '%.6f' % v2, delta])
 
     for instrname in sorted(set(results1) | set(results2)):
         print()
         print(instrname)
         t1, t2 = results1.get(instrname), results2.get(instrname)
         if t1 is None or t2 is None:
-            print('  only measured for %s' % (col2 if t1 is None else col1))
+            print('  only measured for %s' % (headers[2] if t1 is None else headers[1]))
             continue
-        print('  %-14s %18s %18s %12s' % ('', col1, col2, ''))
-        row('initialize', statistics.mean(t1['INITIALIZE']), statistics.mean(t2['INITIALIZE']))
+        hline()
+        row(headers)
+        hline()
+        datarow('initialize', statistics.mean(t1['INITIALIZE']), statistics.mean(t2['INITIALIZE']))
         # trace is timed per ray (not for the whole run): mean/min/max are exact
         # across repeats (same ncount each time), median is the mean of each
         # repeat's own per-ray median rather than a true pooled median
-        row('trace mean', statistics.mean(t1['TRACE_MEAN']), statistics.mean(t2['TRACE_MEAN']))
-        row('trace median', statistics.mean(t1['TRACE_MEDIAN']), statistics.mean(t2['TRACE_MEDIAN']))
-        row('trace min', min(t1['TRACE_MIN']), min(t2['TRACE_MIN']))
-        row('trace max', max(t1['TRACE_MAX']), max(t2['TRACE_MAX']))
-        row('finally', statistics.mean(t1['FINALLY']), statistics.mean(t2['FINALLY']))
+        datarow('trace mean', statistics.mean(t1['TRACE_MEAN']), statistics.mean(t2['TRACE_MEAN']))
+        datarow('trace median', statistics.mean(t1['TRACE_MEDIAN']), statistics.mean(t2['TRACE_MEDIAN']))
+        datarow('trace min', min(t1['TRACE_MIN']), min(t2['TRACE_MIN']))
+        datarow('trace max', max(t1['TRACE_MAX']), max(t2['TRACE_MAX']))
+        datarow('finally', statistics.mean(t1['FINALLY']), statistics.mean(t2['FINALLY']))
+        hline()
 
 
 def parse_args(argv):
