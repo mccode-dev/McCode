@@ -88,6 +88,10 @@ def add_mcrun_cogen_options(parser):
         metavar='D3',
         help='Set extra -D args (implies -c)')
 
+    add('--time-rays',
+        action='store_true', default=False,
+        help='Record per-ray wall-clock statistics in mccode.sim (CPU, non-FUNNEL builds; implies -c)')
+
     add('--no-cflags',
         action='store_true', default=False,
         help='Disable optimising compiler flags for faster compilation')

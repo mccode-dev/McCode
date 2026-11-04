@@ -51,6 +51,10 @@
 #endif
 #include <errno.h>
 
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+#endif
+
 // UNIX specific headers (non-Windows)
 #if defined(__unix__) || defined(__APPLE__)
 #include <unistd.h>
@@ -3112,6 +3116,121 @@ static void mclist_vds_write(void);
 #endif
 
 /*******************************************************************************
+*   Timing: monotonic clock, section times and optional per-ray statistics
+*******************************************************************************/
+long long mccode_time_ns(void)
+{
+#if defined(_MSC_EXTENSIONS) && (defined(WIN32) || defined(_WIN32))
+  // windows.h comes in through winsock2.h in mccode-r.h
+  LARGE_INTEGER c, f;
+  QueryPerformanceCounter(&c);
+  QueryPerformanceFrequency(&f);
+  return (c.QuadPart/f.QuadPart)*1000000000LL
+       + (c.QuadPart%f.QuadPart)*1000000000LL/f.QuadPart;
+#elif defined(__APPLE__)
+  // CLOCK_MONOTONIC has only microsecond resolution on macOS
+  static mach_timebase_info_data_t tb;
+  if (!tb.denom) mach_timebase_info(&tb);
+  return (long long)(mach_absolute_time()*tb.numer/tb.denom);
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long long)ts.tv_sec*1000000000LL + ts.tv_nsec;
+#endif
+}
+
+struct mctime_stat { long long mean, std, min, max; };
+
+static long long mctime_init_ns   = 0;
+static long long mctime_trace_ns  = 0;
+static long long mctime_trace_t0  = 0;
+static long long mctime_finally_t0 = 0;
+static int mctime_reduced = 0;
+static struct mctime_stat mctime_init_stat, mctime_trace_stat;
+
+#ifdef MCCODE_TIME_RAY
+static unsigned long long mcray_count = 0;
+static unsigned long long mcray_sum   = 0;
+static double mcray_sumsq = 0;
+static long long mcray_min = LLONG_MAX;
+static long long mcray_max = 0;
+
+void mcray_time_add(long long dt)
+{
+  mcray_count++;
+  mcray_sum += (unsigned long long)dt;
+  mcray_sumsq += (double)dt*(double)dt;
+  if (dt < mcray_min) mcray_min = dt;
+  if (dt > mcray_max) mcray_max = dt;
+}
+#endif
+
+// statistics from n samples with given sum, sum of squares, min and max
+static struct mctime_stat mctime_stat_from(double n, double sum, double sumsq, long long min, long long max)
+{
+  struct mctime_stat s;
+  double mean, var;
+  if (n <= 0) { s.mean = s.std = s.min = s.max = 0; return s; }
+  mean = sum/n;
+  var  = sumsq/n - mean*mean;
+  s.mean = (long long)(mean + 0.5);
+  s.std  = var > 0 ? (long long)(sqrt(var) + 0.5) : 0;
+  s.min  = min;
+  s.max  = max;
+  return s;
+}
+
+// section times of this process only
+static void mctime_local(void)
+{
+  double t;
+  t = (double)mctime_init_ns;
+  mctime_init_stat = mctime_stat_from(1, t, t*t, mctime_init_ns, mctime_init_ns);
+  t = (double)mctime_trace_ns;
+  mctime_trace_stat = mctime_stat_from(1, t, t*t, mctime_trace_ns, mctime_trace_ns);
+  mctime_reduced = 0;
+}
+
+// section times (and per-ray statistics) combined over all MPI nodes
+static void mctime_reduce(void)
+{
+  mctime_local();
+#ifdef USE_MPI
+  if (mpi_node_count > 1) {
+    double v[4];
+    long long mn[2], mx[2];
+    v[0] = (double)mctime_init_ns;  v[1] = v[0]*v[0];
+    v[2] = (double)mctime_trace_ns; v[3] = v[2]*v[2];
+    mn[0] = mctime_init_ns; mn[1] = mctime_trace_ns;
+    MPI_Allreduce(MPI_IN_PLACE, mn, 2, MPI_LONG_LONG, MPI_MIN, MPI_COMM_WORLD);
+    mx[0] = mctime_init_ns; mx[1] = mctime_trace_ns;
+    MPI_Allreduce(MPI_IN_PLACE, mx, 2, MPI_LONG_LONG, MPI_MAX, MPI_COMM_WORLD);
+    mc_MPI_Sum(v, 4);
+    mctime_init_stat  = mctime_stat_from(mpi_node_count, v[0], v[1], mn[0], mx[0]);
+    mctime_trace_stat = mctime_stat_from(mpi_node_count, v[2], v[3], mn[1], mx[1]);
+    mctime_reduced = 1;
+#ifdef MCCODE_TIME_RAY
+    {
+      double r[3] = { (double)mcray_count, (double)mcray_sum, mcray_sumsq };
+      mc_MPI_Sum(r, 3);
+      mcray_count = (unsigned long long)r[0];
+      mcray_sum   = (unsigned long long)r[1];
+      mcray_sumsq = r[2];
+      MPI_Allreduce(MPI_IN_PLACE, &mcray_min, 1, MPI_LONG_LONG, MPI_MIN, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &mcray_max, 1, MPI_LONG_LONG, MPI_MAX, MPI_COMM_WORLD);
+    }
+#endif
+  }
+#endif
+}
+
+// one statistics row as text: mean +- std (min, max)
+static void mctime_stat_text(char *buf, size_t n, const struct mctime_stat *s)
+{
+  snprintf(buf, n, "%lld +- %lld (min %lld, max %lld)", s->mean, s->std, s->min, s->max);
+}
+
+/*******************************************************************************
 *   siminfo_close:  close SIM
 *******************************************************************************/
 void siminfo_close()
@@ -3120,11 +3239,33 @@ void siminfo_close()
   if(mpi_node_rank == mpi_node_root) {
 #endif
   if(siminfo_file && !mcdisable_output_files) {
+    char tinit[128], ttrace[128];
+    long long tfinally = 0;
+#ifdef MCCODE_TIME_RAY
+    char tray[128];
+    struct mctime_stat sray = mctime_stat_from((double)mcray_count, (double)mcray_sum, mcray_sumsq,
+                                                mcray_count ? mcray_min : 0, mcray_max);
+    mctime_stat_text(tray, sizeof(tray), &sray);
+#endif
+    if (mctime_finally_t0) {
+      tfinally = mccode_time_ns() - mctime_finally_t0;
+      mctime_stat_text(tinit, sizeof(tinit), &mctime_init_stat);
+      mctime_stat_text(ttrace, sizeof(ttrace), &mctime_trace_stat);
+    }
 #ifdef USE_NEXUS
     if (mcformat && strcasestr(mcformat, "NeXus")) {
       time_t t=time(NULL);
       nxprintf(nxhandle, "end_time", "%s", ctime(&t));
       nxprintf(nxhandle, "duration", "%li", (long)t-mcstartdate);
+      if (mctime_finally_t0) {
+        nxprintf(nxhandle, "timing_init", "%s", tinit);
+        nxprintf(nxhandle, "timing_trace", "%s", ttrace);
+        nxprintf(nxhandle, "timing_finally", "%lld", tfinally);
+#ifdef MCCODE_TIME_RAY
+        nxprintf(nxhandle, "timing_rays", "%llu", mcray_count);
+        nxprintf(nxhandle, "timing_ray", "%s", tray);
+#endif
+      }
       NXclosegroup(nxhandle); /* NXentry */
       NXclose(&nxhandle);
 #ifdef USE_MPI
@@ -3132,6 +3273,24 @@ void siminfo_close()
 #endif
     } else {
 #endif
+      if (mctime_finally_t0) {
+        siminfo_out("\nbegin timing\n");
+        siminfo_out("  Clock: monotonic_ns\n");
+#ifdef USE_MPI
+        siminfo_out("  Nodes: %i\n", mpi_node_count);
+#else
+        siminfo_out("  Nodes: 1\n");
+#endif
+        siminfo_out("  Reduced: %s\n", mctime_reduced ? "yes" : "no");
+        siminfo_out("  Init: %s\n", tinit);
+        siminfo_out("  Trace: %s\n", ttrace);
+        siminfo_out("  Finally: %lld\n", tfinally);
+#ifdef MCCODE_TIME_RAY
+        siminfo_out("  Rays: %llu\n", mcray_count);
+        siminfo_out("  Ray: %s\n", tray);
+#endif
+        siminfo_out("end timing\n");
+      }
       fclose(siminfo_file);
 #ifdef USE_NEXUS
     }
@@ -6418,6 +6577,9 @@ void sighandler(int sig)
 #if defined(USE_MPI) && defined(USE_NEXUS)
     mclist_interrupt_note();
 #endif
+    mctime_trace_ns = mctime_trace_t0 ? mccode_time_ns() - mctime_trace_t0 : 0;
+    mctime_finally_t0 = mccode_time_ns();
+    mctime_local();
     finally();
     exit(0);
   }

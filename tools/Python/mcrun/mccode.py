@@ -161,6 +161,9 @@ class McStas:
         if self.options.D3 is not None:
             options.force_compile = True
 
+        if self.options.time_rays:
+            options.force_compile = True
+
         if self.options.I is not None:
             options.force_compile = True
 
@@ -275,6 +278,8 @@ class McStas:
             cflags += self.options.D2 + " "
         if self.options.D3 is not None:
             cflags += self.options.D3 + " "       
+        if self.options.time_rays:
+            cflags += "-DMCCODE_TIME_RAY "
 
         # Add "standard CFLAGS" or "no CFLAGS" if not openacc
         if not self.options.openacc:
