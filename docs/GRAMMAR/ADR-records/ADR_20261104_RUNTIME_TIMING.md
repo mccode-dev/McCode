@@ -10,7 +10,7 @@ A run records no timing. `mcstartdate` has 1 s resolution, so it cannot give the
 
 This ADR adds:
 
-* wall-clock time of INITIALIZE, total TRACE and FINALLY, in integer nanoseconds, written to `mccode.sim` on every run;
+* wall-clock time of INITIALIZE, total TRACE and FINALLY, in seconds with 2 decimals (measured with a nanosecond clock), written to `mccode.sim` on every run;
 * an opt-in per-ray timer (`MCCODE_TIME_RAY`) that adds count, mean, standard deviation, min and max.
 
 ## Decision
@@ -52,17 +52,17 @@ begin timing
   Clock: monotonic_ns
   Nodes: 4
   Reduced: yes
-  Init: 1234567 +- 20311 (min 1200345, max 1260001) [ns]
-  Trace: 987654321 +- 4100221 (min 980001234, max 993000111) [ns]
-  Finally: 2345678 [ns]
+  Init: 0.01 +- 0.00 (min 0.01, max 0.01) [s]
+  Trace: 9.88 +- 0.04 (min 9.80, max 9.93) [s]
+  Finally: 0.02 [s]
   Rays: 1000000
   Ray: 812 +- 95 (min 410, max 90211) [ns]
 end timing
 ```
 
-* Each statistics row is `<key>: <mean> +- <std> (min <min>, max <max>) [ns]`. `Finally` is `<value> [ns]`.
-* With `Reduced: no` (one process, or the signal path), `Init` and `Trace` are single values, e.g. `Init: 1234567 [ns]`. `Ray` always has the full row.
-* Values are integer ns. Mean and std are rounded to the nearest ns.
+* `Init` and `Trace` rows are `<key>: <mean> +- <std> (min <min>, max <max>) [s]`, and `Finally` is `<value> [s]`, all with 2 decimals.
+* With `Reduced: no` (one process, or the signal path), `Init` and `Trace` are single values, e.g. `Init: 0.01 [s]`. `Ray` always has the full row.
+* The `Ray` row is `Ray: <mean> +- <std> (min <min>, max <max>) [ns]` in integer ns. Times are measured and reduced in ns; mean and std are rounded only when written.
 * `Finally` is a single value.
 * `Rays` and `Ray` appear only with `MCCODE_TIME_RAY`.
 * The block has no `filename:` key, so the 0D-monitor "No file" case in `mcplotloader.py` is unaffected.
