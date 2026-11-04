@@ -755,7 +755,7 @@ void *Table_File_List_store(t_Table *tab){
     || Table->rows*Table->columns == 0 || !Table->step_x)
       return(0);
     Table_Stat(Table); /* recompute statitstics and minimal step */
-    new_step = Table->step_x; /* minimal step in 1st column */
+    new_step = fabs(Table->step_x); /* minimal step in 1st column, negative on a decreasing table */
 
     if (!(Table->constantstep)) /* not already evenly spaced */
     {
@@ -818,6 +818,9 @@ void *Table_File_List_store(t_Table *tab){
 #ifndef MAX
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 #endif
+// a monotonic table whose 1st column decreases (row 0 holds max_x)
+#define TABLE_DECREASING(T) ((T).monotonic && (T).rows > 1 && (T).data \
+  && (T).data[0] > (T).data[((T).rows-1)*(T).columns])
 
 double Table_Index(t_Table Table, long i, long j)
 {
@@ -892,31 +895,36 @@ int Table_SetElement(t_Table *Table, long i, long j,
 *   ACTION: find the rows bracketing X in the 1st column, as used by Table_Value
 *   input   Table: table containing data.
 *           X : data value in the first column (index 0), min_x <= X <= max_x
-*   return  Index, with *X1 = data[Index-1][0] <= X < *X2 = data[Index][0]
+*   return  Index, with *X1 = data[Index-1][0] <= X < *X2 = data[Index][0],
+*           or *X1 >= X > *X2 on a decreasing table
 *           *path (if not NULL): READ_TABLE_LOOKUP_CONSTANTSTEP, _BINARY or
 *           _LINEAR, the search that found the bracket. When no search finds
-*           one (e.g. X == max_x), *path is _LINEAR and Index is Table.rows.
+*           one (e.g. X == the last x), *path is _LINEAR and Index is Table.rows.
 *******************************************************************************/
 long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *path)
 {
   long   Index = -1;
   int    found = 0;
+  // a decreasing table is searched as an increasing one in -x
+  double s = TABLE_DECREASING(Table) ? -1 : 1;
+  double first = s > 0 ? Table.min_x : Table.max_x; // x of row 0
+  double last  = s > 0 ? Table.max_x : Table.min_x;
 
   *X1 = 0;
   *X2 = 0;
 
   // Use constant-time lookup when possible
   // a 1-row table is a vector to Table_Index, so there is no row to bracket
-  if(Table.constantstep && Table.rows > 1) {
+  if(Table.constantstep && Table.monotonic && Table.rows > 1) {
     // Index is the upper row of the bracket; floor can land one row off
     // when X is (almost) a table value
     Index = (long)floor(
-              (X - Table.min_x) / (Table.max_x - Table.min_x) * (Table.rows-1)) + 1;
-    if (Table_Index(Table,Index,0) <= X) Index++;
-    else if (X < Table_Index(Table,Index-1,0)) Index--;
+              (X - first) / (last - first) * (Table.rows-1)) + 1;
+    if (s*Table_Index(Table,Index,0) <= s*X) Index++;
+    else if (s*X < s*Table_Index(Table,Index-1,0)) Index--;
     *X1 = Table_Index(Table,Index-1,0);
     *X2 = Table_Index(Table,Index  ,0);
-    if ((*X1 <= X) && (X < *X2)) found = READ_TABLE_LOOKUP_CONSTANTSTEP;
+    if ((s * *X1 <= s*X) && (s*X < s * *X2)) found = READ_TABLE_LOOKUP_CONSTANTSTEP;
   }
   // Use binary search on large, monotonic tables
   else if(Table.monotonic && Table.rows > 100) {
@@ -924,19 +932,19 @@ long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *pat
     long left = 0;
     long right = Table.rows;
 
-    while (!((*X1 <= X) && (X < *X2)) && (right - left > 1)) {
+    while (!((s * *X1 <= s*X) && (s*X < s * *X2)) && (right - left > 1)) {
       Index = (left + right) / 2;
 
       *X1 = Table_Index(Table, Index-1, 0);
       *X2 = Table_Index(Table, Index,   0);
 
-      if (X < *X1) {
+      if (s*X < s * *X1) {
         right = Index;
       } else {
         left  = Index;
       }
     }
-    if ((*X1 <= X) && (X < *X2)) found = READ_TABLE_LOOKUP_BINARY;
+    if ((s * *X1 <= s*X) && (s*X < s * *X2)) found = READ_TABLE_LOOKUP_BINARY;
   }
 
   // Fall back to linear search, if no-one else has set X1, X2 correctly
@@ -946,7 +954,7 @@ long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *pat
     for (Index=1; Index <= Table.rows-1; Index++) {
         *X1 = Table_Index(Table, Index-1,0);
         *X2 = Table_Index(Table, Index  ,0);
-        if ((*X1 <= X) && (X < *X2)) break;
+        if ((s * *X1 <= s*X) && (s*X < s * *X2)) break;
       } /* end for Index */
   }
 
@@ -960,8 +968,9 @@ double Table_Value(t_Table Table, double X, long j)
   double X1=0, Y1=0, X2=0, Y2=0;
   double ret=0;
 
-  if (X > Table.max_x) return Table_Index(Table,Table.rows-1  ,j);
-  if (X < Table.min_x) return Table_Index(Table,0  ,j);
+  // beyond either end, the value at the row holding max_x / min_x
+  if (X > Table.max_x) return Table_Index(Table,TABLE_DECREASING(Table) ? 0 : Table.rows-1,j);
+  if (X < Table.min_x) return Table_Index(Table,TABLE_DECREASING(Table) ? Table.rows-1 : 0,j);
 
   Index = Table_Value_Index(Table, X, &X1, &X2, NULL);
 
@@ -1252,6 +1261,7 @@ MCDETECTOR Table_Write(t_Table Table, char *file, char *xl, char *yl,
     
     /* test for monotonicity and constant step if the table is an XY or single vector */
     if (n > 1) {
+      double dir = 0; /* sign of the first non-zero step */
       /* mean step */
       step = (max_x - min_x)/(n-1);
       /* now test if table is monotonic on first column, and get minimal step size */
@@ -1262,8 +1272,9 @@ MCDETECTOR Table_Write(t_Table Table, char *file, char *xl, char *yl,
         diff = (row ? Table_Index(*Table,i+1,0)
                     : Table_Index(*Table,0,  i+1)) - X;
         if (diff && fabs(diff) < fabs(step)) step = diff;
-        /* change sign ? */
-        if ((max_x - min_x)*diff < 0 && monotonic)
+        /* change sign ? monotonic increasing or decreasing */
+        if (diff && !dir) dir = diff;
+        if (dir*diff < 0 && monotonic)
           monotonic = 0;
       } /* end for */
       
