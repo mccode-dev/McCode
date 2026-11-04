@@ -254,7 +254,7 @@ double tl2_determinant(const double* M, int N)
 	/* recursively expand determiant along a row */
 	double fullDet = 0.;
 
-	double *submat = (double*)malloc((N - 1)*(N - 1) * sizeof(double));
+	double *submat = (double*)malloc((size_t)(N - 1)*(N - 1) * sizeof(double));
 	if(!submat)
 		return 0.;
 
@@ -288,7 +288,7 @@ int tl2_inverse(const double* M, double* I_cov, int N)
 	if(tl2_flt_equals(fullDet, 0., g_tl2_eps))
 		return 0;
 
-	double *submat = (double*)malloc((N - 1)*(N - 1) * sizeof(double));
+	double *submat = (double*)malloc((size_t)(N - 1)*(N - 1) * sizeof(double));
 	if(!submat)
 		return 0;
 
@@ -591,8 +591,8 @@ void tl2_mat_trafo(const double* M, const double* T,
 	if(!M || !T || !RES)
 		return;
 
-	double *Tinv = (double*)malloc(N*N * sizeof(double));
-	double *TMP = (double*)malloc(N*N * sizeof(double));
+	double *Tinv = (double*)malloc((size_t)N*N * sizeof(double));
+	double *TMP = (double*)malloc((size_t)N*N * sizeof(double));
 	if(!Tinv || !TMP)
 		return;
 
@@ -624,7 +624,7 @@ int tl2_covariance(const double* vecs, const double* probs,
 	double prob = 0.;
 	double *vec = (double*)malloc(N * sizeof(double));
 	double *dev = (double*)malloc(N * sizeof(double));
-	double *outer = (double*)malloc(N*N * sizeof(double));
+	double *outer = (double*)malloc((size_t)N*N * sizeof(double));
 	if(!vec || !dev || !outer)
 		return 0;
 
@@ -702,7 +702,7 @@ int tl2_reso(const double* vecs, const double* probs,
 	tl2_vec_zero(Qside, N);
 	tl2_cross(Qup, Qdir, Qside);
 
-	double *T = (double*)malloc(N*N * sizeof(double));
+	double *T = (double*)malloc((size_t)N*N * sizeof(double));
 	if(!T)
 		return 0;
 	tl2_mat_zero(T, N, N);
