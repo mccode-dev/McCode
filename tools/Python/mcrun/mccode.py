@@ -244,6 +244,7 @@ class McStas:
                self.options.openmp:
                 Cflags = cflags
                 Cflags=Cflags.replace('-march=nocona', '')
+                Cflags=Cflags.replace('-mtune=haswell', '')
                 Cflags=Cflags.replace('-ftree-vectorize', '')
                 Cflags=Cflags.replace('-fstack-protector-strong', '')
                 Cflags=Cflags.replace('-fno-plt', '')
