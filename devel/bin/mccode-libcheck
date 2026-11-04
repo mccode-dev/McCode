@@ -3,16 +3,66 @@ import sys
 import os
 import pathlib
 import subprocess
+import sysconfig
 import tempfile
+
+# Substitution values matching a plain McStas build of mccode-r.h.in (no
+# MPI, no OPENACC): the same defaults that file's own #ifndef fallbacks use.
+MCCODE_R_SUBS = {
+    'MCCODE_STRING': ' 3.8.5, git',
+    'MCCODE_DATE': 'git',
+    'MCCODE_VERSION': '3.8.5',
+    'MCCODE_VERSION_MACRO': '308005',
+    'MCCODE_NAME': 'mcstas',
+    'MCCODE_PARTICLE': 'neutron',
+    'MCCODE_PARTICLE_CODE': '2112',
+    'MCCODE_LIBENV': 'MCSTAS',
+}
+
+# mcstas-basics.h supplies the RNG/particle types and the _particle global a
+# generated instrument file would otherwise provide ahead of mccode-r.h.
+PRELUDE = '#include "mcstas-basics.h"\n#include "mccode-r.h"\n'
 
 def find_repo_root():
     return pathlib.Path(__file__).resolve().parents[2]
 
-def run_test(src, cc):
+def sanitize_lib_dir(root, parent):
+    # McStas SHARE libs use one DSL directive, "%include", for their own
+    # dependencies; turn it into a plain #include of that library's real
+    # header, and prepend the prelude every generated instrument C file
+    # would otherwise put ahead of a SHARE block. Also collect each file's
+    # %include names, so callers can link in those dependencies' .c too.
+    dst = pathlib.Path(parent) / 'lib'
+    dst.mkdir()
+    deps = {}
+
+    r_h = (root / 'common' / 'lib' / 'share' / 'mccode-r.h.in').read_text()
+    for name, value in MCCODE_R_SUBS.items():
+        r_h = r_h.replace('@%s@' % name, value)
+    (dst / 'mccode-r.h').write_text(r_h)
+
+    for f in (root / 'common' / 'lib' / 'share').iterdir():
+        if f.is_file() and f.name != 'mccode-r.h.in':
+            lines = f.read_text().splitlines()
+            deps[f.stem] = [l.split('"')[1] for l in lines if l.startswith('%include')]
+            lines = ['#include "%s.h"' % l.split('"')[1] if l.startswith('%include') else l
+                      for l in lines]
+            (dst / f.name).write_text(PRELUDE + '\n'.join(lines))
+    return dst, deps
+
+def dead_strip_flag():
+    return '-Wl,-dead_strip' if sysconfig.get_platform().startswith('macosx') else '-Wl,--gc-sections'
+
+def run_test(src, extra_srcs, cc, include_dirs, defines):
     with tempfile.TemporaryDirectory() as d:
         exe = os.path.join(d, 'a.out')
-        build = subprocess.run([cc, '-O0', '-g', '-o', exe, str(src), '-lm'],
-                                capture_output=True, text=True)
+        cmd = [cc, '-O0', '-g', '-ffunction-sections', '-fdata-sections']
+        for inc in include_dirs:
+            cmd += ['-I', str(inc)]
+        for name, value in defines.items():
+            cmd += ['-D%s=%s' % (name, value)]
+        cmd += ['-o', exe, str(src)] + [str(s) for s in extra_srcs] + [dead_strip_flag(), '-lm']
+        build = subprocess.run(cmd, capture_output=True, text=True)
         if build.returncode != 0:
             return False, build.stderr
         run = subprocess.run([exe], capture_output=True, text=True)
@@ -28,20 +78,49 @@ def main(argv):
                          help='specific test .c files to run (default: all of tools/libcheck/*.c)')
     args = parser.parse_args(argv[1:])
 
-    libcheck_dir = find_repo_root() / 'tools' / 'libcheck'
-    tests = [pathlib.Path(f) for f in args.files] if args.files else sorted(libcheck_dir.glob('*.c'))
+    root = find_repo_root()
+    libcheck_dir = root / 'tools' / 'libcheck'
+    tests = [pathlib.Path(f) for f in args.files] if args.files else sorted(libcheck_dir.glob('*-test.c'))
 
     if not tests:
         sys.exit('No test files found in %s' % libcheck_dir)
 
+    defines = {'MCCODE_DATA_DIR': '"%s"' % (root / 'mcstas-comps' / 'data')}
+    basics_src = libcheck_dir / 'mcstas-basics.c'
+
     failed = []
-    for test in tests:
-        ok, err = run_test(test, args.cc)
-        print('%-40s %s' % (test.name, 'OK' if ok else 'FAIL'))
-        if not ok:
-            failed.append(test.name)
-            if err:
-                print(err)
+    with tempfile.TemporaryDirectory() as d:
+        lib_dir, deps = sanitize_lib_dir(root, d)
+        # mccode-r.c itself compiles standalone (given mcstas-basics.h) and
+        # supplies coords_*, mcdis_line, mcdotrace for every test.
+        mccode_r_src = lib_dir / 'mccode-r.c'
+        for test in tests:
+            # <libname>-test.c exercises <libname>.c, compiled as a second
+            # translation unit linked against the test (not #included), so
+            # public, non-static functions are tested the way callers use
+            # them, through the library's own .h. Its own %include
+            # dependencies (e.g. read_table-lib, for Open_File) are linked
+            # in the same way.
+            lib_name = test.stem[:-len('-test')]
+            extra_srcs = [basics_src, mccode_r_src]
+            pending = [lib_name]
+            seen = set()
+            while pending:
+                name = pending.pop()
+                if name in seen:
+                    continue
+                seen.add(name)
+                lib_src = lib_dir / (name + '.c')
+                if lib_src.exists():
+                    extra_srcs.append(lib_src)
+                pending += deps.get(name, [])
+
+            ok, err = run_test(test, extra_srcs, args.cc, [lib_dir, libcheck_dir], defines)
+            print('%-40s %s' % (test.name, 'OK' if ok else 'FAIL'))
+            if not ok:
+                failed.append(test.name)
+                if err:
+                    print(err)
 
     if failed:
         sys.exit('FAILED: %s' % ', '.join(failed))
