@@ -412,6 +412,19 @@ int mc_MPI_Recv(void *rbuf, long count, MPI_Datatype dtype, int source);
 static int mpi_node_count;
 #endif
 
+long long mccode_time_ns(void);
+#ifdef MCCODE_TIME_RAY
+#if defined(OPENACC) || defined(FUNNEL)
+#error "MCCODE_TIME_RAY is supported only for CPU, non-FUNNEL builds"
+#endif
+void mcray_time_add(long long dt);
+#define MCRAY_TIMER_START long long _mcray_t0 = mccode_time_ns();
+#define MCRAY_TIMER_STOP  mcray_time_add(mccode_time_ns() - _mcray_t0);
+#else
+#define MCRAY_TIMER_START
+#define MCRAY_TIMER_STOP
+#endif
+
 #ifdef USE_THREADS  /* user want threads */
 #error Threading (USE_THREADS) support has been removed for very poor efficiency. Use MPI/SSH grid instead.
 #endif
