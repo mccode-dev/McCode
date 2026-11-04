@@ -906,17 +906,23 @@ long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *pat
   *X2 = 0;
 
   // Use constant-time lookup when possible
-  if(Table.constantstep) {
+  // a 1-row table is a vector to Table_Index, so there is no row to bracket
+  if(Table.constantstep && Table.rows > 1) {
+    // Index is the upper row of the bracket; floor can land one row off
+    // when X is (almost) a table value
     Index = (long)floor(
-              (X - Table.min_x) / (Table.max_x - Table.min_x) * (Table.rows-1));
+              (X - Table.min_x) / (Table.max_x - Table.min_x) * (Table.rows-1)) + 1;
+    if (Table_Index(Table,Index,0) <= X) Index++;
+    else if (X < Table_Index(Table,Index-1,0)) Index--;
     *X1 = Table_Index(Table,Index-1,0);
     *X2 = Table_Index(Table,Index  ,0);
     if ((*X1 <= X) && (X < *X2)) found = READ_TABLE_LOOKUP_CONSTANTSTEP;
   }
   // Use binary search on large, monotonic tables
   else if(Table.monotonic && Table.rows > 100) {
-    long left = Table.min_x;
-    long right = Table.max_x;
+    // row indices, Index runs over 1..rows-1 so the last interval is reachable
+    long left = 0;
+    long right = Table.rows;
 
     while (!((*X1 <= X) && (X < *X2)) && (right - left > 1)) {
       Index = (left + right) / 2;
