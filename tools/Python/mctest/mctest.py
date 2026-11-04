@@ -1001,6 +1001,7 @@ mpi = None
 openacc = None
 jobs = 1
 suffix = None
+MAX_FILTER_SUFFIX = 100
 nexus = None
 lint = None
 permissive = None
@@ -1126,6 +1127,10 @@ def main(args):
             suffix = suffix + '_' + args.suffix[0]
         else:
             suffix = '_' + args.suffix[0]
+    elif len(suffix) > MAX_FILTER_SUFFIX:
+        # the label is also a directory and file name, limited to 255 characters
+        logging.warning("Test directory name truncated to the first %d characters of the --instr/--comp filters, use --suffix to set your own" % MAX_FILTER_SUFFIX)
+        suffix = suffix[:MAX_FILTER_SUFFIX]
 
     if not args.uid:
         uid = "_" + utils.get_datetimestr()
