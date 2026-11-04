@@ -28,6 +28,7 @@ import os
 import pathlib
 import re
 import shutil
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -229,6 +230,29 @@ def measure_ref(ref, reporoot, cfg):
     return sha, envname, worktree, results
 
 
+def print_report(label1, sha1, results1, label2, sha2, results2):
+    col1, col2 = '%s (%s)' % (label1, sha1), '%s (%s)' % (label2, sha2)
+
+    def row(name, v1, v2):
+        delta = '%+.1f%%' % ((v2 - v1) / v1 * 100) if v1 else 'n/a'
+        print('  %-14s %18.6f %18.6f %12s' % (name, v1, v2, delta))
+
+    for instrname in sorted(set(results1) | set(results2)):
+        print()
+        print(instrname)
+        t1, t2 = results1.get(instrname), results2.get(instrname)
+        if t1 is None or t2 is None:
+            print('  only measured for %s' % (col2 if t1 is None else col1))
+            continue
+        print('  %-14s %18s %18s %12s' % ('', col1, col2, ''))
+        row('initialize', statistics.mean(t1['INITIALIZE']), statistics.mean(t2['INITIALIZE']))
+        row('trace mean', statistics.mean(t1['TRACE']), statistics.mean(t2['TRACE']))
+        row('trace median', statistics.median(t1['TRACE']), statistics.median(t2['TRACE']))
+        row('trace min', min(t1['TRACE']), min(t2['TRACE']))
+        row('trace max', max(t1['TRACE']), max(t2['TRACE']))
+        row('finally', statistics.mean(t1['FINALLY']), statistics.mean(t2['FINALLY']))
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         prog=os.path.basename(argv[0]),
@@ -311,12 +335,7 @@ def main():
             if sha1 == sha2:
                 raise SystemExit('ERROR: ref1 and ref2 resolve to the same commit (%s)' % sha1)
 
-            print()
-            print('REF1 %s (%s):' % (args.ref1, sha1))
-            print(results1)
-            print()
-            print('REF2 %s (%s):' % (args.ref2, sha2))
-            print(results2)
+            print_report(args.ref1, sha1, results1, args.ref2, sha2, results2)
         finally:
             if not args.keep_envs and cfg.fresh_env:
                 for envname in envs:
