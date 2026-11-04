@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+import sys
+import os
+import pathlib
+import subprocess
+import tempfile
+
+def find_repo_root():
+    return pathlib.Path(__file__).resolve().parents[2]
+
+def run_test(src, cc):
+    with tempfile.TemporaryDirectory() as d:
+        exe = os.path.join(d, 'a.out')
+        build = subprocess.run([cc, '-O0', '-g', '-o', exe, str(src), '-lm'],
+                                capture_output=True, text=True)
+        if build.returncode != 0:
+            return False, build.stderr
+        run = subprocess.run([exe], capture_output=True, text=True)
+        return run.returncode == 0, run.stderr
+
+def main(argv):
+    from argparse import ArgumentParser as AP
+    parser = AP(prog=os.path.basename(argv[0]),
+                 description='Compile and run the C library unit tests in tools/libcheck')
+    parser.add_argument('-c', '--cc', default=os.environ.get('CC', 'cc'),
+                         help='C compiler to use (default: $CC or cc)')
+    parser.add_argument('files', nargs='*',
+                         help='specific test .c files to run (default: all of tools/libcheck/*.c)')
+    args = parser.parse_args(argv[1:])
+
+    libcheck_dir = find_repo_root() / 'tools' / 'libcheck'
+    tests = [pathlib.Path(f) for f in args.files] if args.files else sorted(libcheck_dir.glob('*.c'))
+
+    if not tests:
+        sys.exit('No test files found in %s' % libcheck_dir)
+
+    failed = []
+    for test in tests:
+        ok, err = run_test(test, args.cc)
+        print('%-40s %s' % (test.name, 'OK' if ok else 'FAIL'))
+        if not ok:
+            failed.append(test.name)
+            if err:
+                print(err)
+
+    if failed:
+        sys.exit('FAILED: %s' % ', '.join(failed))
+
+if __name__ == '__main__':
+    main(sys.argv)
