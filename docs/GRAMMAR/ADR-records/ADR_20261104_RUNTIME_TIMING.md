@@ -61,6 +61,7 @@ end timing
 ```
 
 * Each statistics row is `<key>: <mean> +- <std> (min <min>, max <max>)`.
+* With `Reduced: no` (one process, or the signal path), `Init` and `Trace` are single values, e.g. `Init: 1234567`. `Ray` always has the full row.
 * Values are integer ns. Mean and std are rounded to the nearest ns.
 * `Finally` is a single value.
 * `Rays` and `Ray` appear only with `MCCODE_TIME_RAY`.
@@ -71,7 +72,7 @@ end timing
 * Init and Trace are reduced over ranks to min, mean, population std and max.
 * Per-ray statistics are combined over all rays of all ranks.
 * Finally is master-only. `siminfo_close()` does work only on the master, and a collective call there would deadlock in the signal path. The value is the master's.
-* Without MPI, min = mean = max and std = 0, so the format is the same.
+* Without MPI, or with one rank, there is nothing to reduce, so `Init` and `Trace` are written as single values.
 
 ### Signal path
 
