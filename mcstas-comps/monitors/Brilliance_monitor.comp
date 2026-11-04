@@ -77,6 +77,11 @@ SETTING PARAMETERS (int nlam=101, int nt=1001, int nowritefile=0,
 
 
 
+SHARE
+%{
+  #define MCGPU_PORTED_Brilliance_monitor
+%}
+
 DECLARE
 %{
   DArray2d BRIL_N;
@@ -93,6 +98,13 @@ DECLARE
   DArray1d BRIL_shape;
   DArray1d BRIL_shapeN;
   DArray1d BRIL_shapeE;
+
+  double* BRIL_N_d;
+  double* BRIL_p_d;
+  double* BRIL_p2_d;
+  double* BRIL_mean_d;
+  double* BRIL_meanN_d;
+  double* BRIL_meanE_d;
 
   double tt_0;
   double tt_1;
@@ -139,6 +151,15 @@ INITIALIZE
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
     sprintf (filename, "%s", NAME_CURRENT_COMP);
+
+  #ifdef OMPTARGET
+  BRIL_N_d = mcgpu_to_device (NAME_CURRENT_COMP, "BRIL_N", BRIL_N[0], (size_t)nt * nlam * sizeof (double));
+  BRIL_p_d = mcgpu_to_device (NAME_CURRENT_COMP, "BRIL_p", BRIL_p[0], (size_t)nt * nlam * sizeof (double));
+  BRIL_p2_d = mcgpu_to_device (NAME_CURRENT_COMP, "BRIL_p2", BRIL_p2[0], (size_t)nt * nlam * sizeof (double));
+  BRIL_mean_d = mcgpu_to_device (NAME_CURRENT_COMP, "BRIL_mean", BRIL_mean, (size_t)nlam * sizeof (double));
+  BRIL_meanN_d = mcgpu_to_device (NAME_CURRENT_COMP, "BRIL_meanN", BRIL_meanN, (size_t)nlam * sizeof (double));
+  BRIL_meanE_d = mcgpu_to_device (NAME_CURRENT_COMP, "BRIL_meanE", BRIL_meanE, (size_t)nlam * sizeof (double));
+  #endif
 %}
 
 TRACE
@@ -160,20 +181,20 @@ TRACE
       Pnorm = p / dlam / ster / srcarea;
       double Pnorm2 = Pnorm * Pnorm;
       #pragma acc atomic
-      BRIL_meanN[i] = BRIL_meanN[i] + 1;
+      MC1D (BRIL_meanN, i) = MC1D (BRIL_meanN, i) + 1;
       #pragma acc atomic
-      BRIL_mean[i] = BRIL_mean[i] + Pnorm;
+      MC1D (BRIL_mean, i) = MC1D (BRIL_mean, i) + Pnorm;
       #pragma acc atomic
-      BRIL_meanE[i] = BRIL_meanE[i] + Pnorm2;
+      MC1D (BRIL_meanE, i) = MC1D (BRIL_meanE, i) + Pnorm2;
 
       Pnorm = Pnorm / Freq / dt;
       Pnorm2 = Pnorm + Pnorm;
       #pragma acc atomic
-      BRIL_N[j][i] = BRIL_N[j][i] + 1;
+      MC2D (BRIL_N, j, i, nlam) = MC2D (BRIL_N, j, i, nlam) + 1;
       #pragma acc atomic
-      BRIL_p[j][i] = BRIL_p[j][i] + Pnorm;
+      MC2D (BRIL_p, j, i, nlam) = MC2D (BRIL_p, j, i, nlam) + Pnorm;
       #pragma acc atomic
-      BRIL_p2[j][i] = BRIL_p2[j][i] + Pnorm2;
+      MC2D (BRIL_p2, j, i, nlam) = MC2D (BRIL_p2, j, i, nlam) + Pnorm2;
     }
   }
   if (restore_neutron || !SCATTERED) {
@@ -183,6 +204,14 @@ TRACE
 
 SAVE
 %{
+  #ifdef OMPTARGET
+  mcgpu_from_device (NAME_CURRENT_COMP, "BRIL_N", BRIL_N[0], BRIL_N_d, (size_t)nt * nlam * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "BRIL_p", BRIL_p[0], BRIL_p_d, (size_t)nt * nlam * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "BRIL_p2", BRIL_p2[0], BRIL_p2_d, (size_t)nt * nlam * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "BRIL_mean", BRIL_mean, BRIL_mean_d, (size_t)nlam * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "BRIL_meanN", BRIL_meanN, BRIL_meanN_d, (size_t)nlam * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "BRIL_meanE", BRIL_meanE, BRIL_meanE_d, (size_t)nlam * sizeof (double));
+  #endif
   if (!nowritefile) {
     /* First, dump the 2D monitor */
 
@@ -234,6 +263,14 @@ SAVE
 
 FINALLY
 %{
+  #ifdef OMPTARGET
+  mcgpu_free (BRIL_N_d);
+  mcgpu_free (BRIL_p_d);
+  mcgpu_free (BRIL_p2_d);
+  mcgpu_free (BRIL_mean_d);
+  mcgpu_free (BRIL_meanN_d);
+  mcgpu_free (BRIL_meanE_d);
+  #endif
   destroy_darr2d (BRIL_N);
   destroy_darr2d (BRIL_p);
   destroy_darr2d (BRIL_p2);
