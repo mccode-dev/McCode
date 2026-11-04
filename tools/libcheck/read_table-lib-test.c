@@ -122,6 +122,33 @@ static void check_path(t_Table t, const char *name, double (*x_of)(long, long), 
   }
 }
 
+// Table_Rebin makes a decreasing table evenly spaced and increasing, with the
+// values Table_Value gave before at the new x
+static void check_rebin_decreasing(void)
+{
+  t_Table t;
+  long i, at[] = {0, 7, 100, 1000};
+  double step, lo, before[4];
+  int ok;
+
+  load_table(&t, "rebin_down.dat", 50, x_quadratic_down);
+  step = fabs(t.step_x);
+  lo = t.min_x;
+  for (i = 0; i < 4; i++)
+    before[i] = Table_Value(t, lo + at[i] * step, 1);
+  Table_Rebin(&t);
+  ok = t.rows > 1000 && t.monotonic && t.constantstep && Table_Index(t, 0, 0) == lo
+       && Table_Index(t, 1, 0) > Table_Index(t, 0, 0);
+  for (i = 0; ok && i < 4; i++)
+    ok = fabs(Table_Value(t, lo + at[i] * step, 1) - before[i]) < 1e-12;
+  if (!ok) {
+    fprintf(stderr, "decreasing table: Table_Rebin gives %ld rows, x from %g to %g, monotonic = %d, constantstep = %d\n",
+            t.rows, Table_Index(t, 0, 0), Table_Index(t, t.rows - 1, 0), t.monotonic, t.constantstep);
+    failures++;
+  }
+  Table_Free(&t);
+}
+
 int main(void)
 {
   t_Table t;
@@ -151,6 +178,8 @@ int main(void)
   check_values(t, "decreasing monotonic", x_quadratic_down, 1000);
   check_path(t, "decreasing monotonic", x_quadratic_down, 1000, READ_TABLE_LOOKUP_BINARY);
   Table_Free(&t);
+
+  check_rebin_decreasing();
 
   assert(failures == 0);
   return 0;
