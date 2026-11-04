@@ -1005,20 +1005,14 @@ double Table_Value2d(t_Table Table, double X, double Y)
     double z11,z12,z21,z22;
     double ret=0;
 
+    // clamp here, not in Table_Index: on a vector table Table_Index reads
+    // position i+j along the vector, so an out-of-range row picks a neighbour
+    X = MIN(MAX(0, X), Table.rows-1);
+    Y = MIN(MAX(0, Y), Table.columns-1);
     x1 = (long)floor(X);
     y1 = (long)floor(Y);
-
-    if (x1 > Table.rows-1 || x1 < 0) {
-      x2 = x1;
-    } else {
-      x2 = x1 + 1;
-    }
-
-    if (y1 > Table.columns-1 || y1 < 0) {
-      y2 = y1;
-    } else {
-      y2 = y1 + 1;
-    }
+    x2 = MIN(x1 + 1, Table.rows-1);
+    y2 = MIN(y1 + 1, Table.columns-1);
 
     z11 = Table_Index(Table, x1, y1);
 
