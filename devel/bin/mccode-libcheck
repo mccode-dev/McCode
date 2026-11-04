@@ -1,162 +1,76 @@
 #!/usr/bin/env python3
-import sys
-import os
-import pathlib
-import subprocess
-import sysconfig
-import tempfile
+# Compile and run the C library unit tests in tools/libcheck.
+# Usage: mccode-libcheck [test.c ...]   (default: tools/libcheck/*-test.c; $CC, $AR)
+import os, pathlib, subprocess, sys, tempfile
 
-# Substitution values matching a plain McStas build of mccode-r.h.in (no
-# MPI, no OPENACC): the same defaults that file's own #ifndef fallbacks use.
-MCCODE_R_SUBS = {
-    'MCCODE_STRING': ' 3.8.5, git',
-    'MCCODE_DATE': 'git',
-    'MCCODE_VERSION': '3.8.5',
-    'MCCODE_VERSION_MACRO': '308005',
-    'MCCODE_NAME': 'mcstas',
-    'MCCODE_PARTICLE': 'neutron',
-    'MCCODE_PARTICLE_CODE': '2112',
-    'MCCODE_LIBENV': 'MCSTAS',
-}
-
-# mcstas-basics.h is the preamble of a generated instrument, which precedes
-# mccode-r.h and every SHARE block there.
-PRELUDE = '#include "mcstas-basics.h"\n#include "mccode-r.h"\n'
-
-# common/lib/share/*.c that are not libraries: the instrument's own main()
-NOT_LIBRARIES = {'mccode_main.c'}
-
+# a plain McStas build of mccode-r.h.in (no MPI, no OPENACC)
+SUBS = {'MCCODE_STRING': ' 3.8.5, git', 'MCCODE_DATE': 'git', 'MCCODE_VERSION': '3.8.5',
+        'MCCODE_VERSION_MACRO': '308005', 'MCCODE_NAME': 'mcstas', 'MCCODE_PARTICLE': 'neutron',
+        'MCCODE_PARTICLE_CODE': '2112', 'MCCODE_LIBENV': 'MCSTAS'}
 CFLAGS = ['-O0', '-g', '-ffunction-sections', '-fdata-sections']
+MACOS = sys.platform == 'darwin'
+DEAD_STRIP = '-Wl,-dead_strip' if MACOS else '-Wl,--gc-sections'
 
-def find_repo_root():
-    return pathlib.Path(__file__).resolve().parents[2]
+root = pathlib.Path(__file__).resolve().parents[2]
+share, check = root / 'common' / 'lib' / 'share', root / 'tools' / 'libcheck'
+cc, ar = os.environ.get('CC', 'cc'), os.environ.get('AR', 'ar')
+tests = [pathlib.Path(f) for f in sys.argv[1:]] or sorted(check.glob('*-test.c'))
 
-def sanitize_lib_dir(root, parent):
-    # McStas SHARE libs use one DSL directive, "%include", for their own
-    # dependencies; turn it into a plain #include of that library's real
-    # header, and prepend the prelude every generated instrument C file
-    # would otherwise put ahead of a SHARE block.
-    dst = pathlib.Path(parent) / 'lib'
-    dst.mkdir()
+def run(cmd, **kw):
+    return subprocess.run([str(c) for c in cmd], capture_output=True, text=True, **kw)
 
-    r_h = (root / 'common' / 'lib' / 'share' / 'mccode-r.h.in').read_text()
-    for name, value in MCCODE_R_SUBS.items():
-        r_h = r_h.replace('@%s@' % name, value)
-    (dst / 'mccode-r.h').write_text(r_h)
-
-    for f in (root / 'common' / 'lib' / 'share').iterdir():
-        if f.is_file() and f.name != 'mccode-r.h.in':
-            lines = f.read_text().splitlines()
-            lines = ['#include "%s.h"' % l.split('"')[1] if l.startswith('%include') else l
-                      for l in lines]
-            (dst / f.name).write_text(PRELUDE + '\n'.join(lines))
-    return dst
-
-def is_macos():
-    return sysconfig.get_platform().startswith('macosx')
-
-def dead_strip_flag():
-    return '-Wl,-dead_strip' if is_macos() else '-Wl,--gc-sections'
-
-def whole_archive_flags(archive):
-    if is_macos():
-        return ['-Wl,-force_load,%s' % archive]
-    return ['-Wl,--whole-archive', str(archive), '-Wl,--no-whole-archive']
-
-def run(cmd, **kwargs):
-    return subprocess.run([str(c) for c in cmd], capture_output=True, text=True, **kwargs)
-
-def build_archive(cc, ar, lib_dir, include_flags, out_dir):
-    # every library compiled once, packed into libmccode-share.a: a test
-    # link pulls only the members (and their dependencies) it uses
-    objs = []
-    for src in sorted(lib_dir.glob('*.c')):
-        if src.name in NOT_LIBRARIES:
-            continue
-        obj = out_dir / (src.stem + '.o')
-        r = run([cc] + CFLAGS + include_flags + ['-c', '-o', obj, src])
-        if r.returncode != 0:
-            return None, '%s:\n%s' % (src.name, r.stderr)
-        objs.append(obj)
-    archive = out_dir / 'libmccode-share.a'
-    r = run([ar, 'rcs', archive] + objs)
-    if r.returncode != 0:
-        return None, r.stderr
-    return archive, ''
-
-def check_whole_archive(cc, archive, basics_obj, out_dir):
-    # every member linked in, without dead-code stripping: fails when any
-    # library gains an unresolved symbol or a duplicate global, even one no
-    # test pulls in
-    main_src = out_dir / 'whole-archive.c'
-    main_src.write_text('int main(void) { return 0; }\n')
-    r = run([cc, '-o', out_dir / 'whole-archive', main_src, basics_obj]
-            + whole_archive_flags(archive) + ['-lm'])
-    return r.returncode == 0, r.stderr
-
-def run_test(src, cc, include_flags, defines, basics_obj, out_dir):
-    with tempfile.TemporaryDirectory() as d:
-        exe = os.path.join(d, 'a.out')
-        cmd = [cc] + CFLAGS + include_flags
-        for name, value in defines.items():
-            cmd += ['-D%s=%s' % (name, value)]
-        cmd += ['-o', exe, src, basics_obj, '-L', out_dir, '-lmccode-share', dead_strip_flag(), '-lm']
-        build = run(cmd)
-        if build.returncode != 0:
-            return False, build.stderr
-        r = run([exe], cwd=d)
-        return r.returncode == 0, r.stderr
-
-def report(name, ok, err, failed):
-    print('%-40s %s' % (name, 'OK' if ok else 'FAIL'))
-    if not ok:
+failed = []
+def report(name, r):
+    print('%-40s %s' % (name, 'OK' if r.returncode == 0 else 'FAIL'))
+    if r.returncode:
         failed.append(name)
-        if err:
-            print(err)
+        print(r.stderr)
 
-def main(argv):
-    from argparse import ArgumentParser as AP
-    parser = AP(prog=os.path.basename(argv[0]),
-                 description='Compile and run the C library unit tests in tools/libcheck')
-    parser.add_argument('-c', '--cc', default=os.environ.get('CC', 'cc'),
-                         help='C compiler to use (default: $CC or cc)')
-    parser.add_argument('files', nargs='*',
-                         help='specific test .c files to run (default: all of tools/libcheck/*-test.c)')
-    args = parser.parse_args(argv[1:])
-    ar = os.environ.get('AR', 'ar')
+with tempfile.TemporaryDirectory() as d:
+    d = pathlib.Path(d)
+    # share libs as plain C: configured mccode-r.h, and the McStas DSL
+    # %include "x" as #include "x.h"
+    h = (share / 'mccode-r.h.in').read_text()
+    for k, v in SUBS.items():
+        h = h.replace('@%s@' % k, v)
+    (d / 'mccode-r.h').write_text(h)
+    for f in share.glob('*.[ch]'):
+        lines = ['#include "%s.h"' % l.split('"')[1] if l.startswith('%include') else l
+                 for l in f.read_text().splitlines()]
+        (d / f.name).write_text('\n'.join(lines) + '\n')
 
-    root = find_repo_root()
-    libcheck_dir = root / 'tools' / 'libcheck'
-    tests = [pathlib.Path(f) for f in args.files] if args.files else sorted(libcheck_dir.glob('*-test.c'))
+    inc = ['-I', d, '-I', check]
+    # every library compiled once into libmccode-share.a, preceded like in a
+    # generated instrument by mcstas-basics.h (the fake instrument) and mccode-r.h;
+    # a test link pulls only the members it uses
+    objs = []
+    for src in sorted(d.glob('*.c')):
+        if src.name == 'mccode_main.c':  # the instrument's main(), not a library
+            continue
+        objs.append(d / (src.stem + '.o'))
+        r = run([cc] + CFLAGS + inc + ['-include', 'mcstas-basics.h', '-include', 'mccode-r.h',
+                                       '-c', '-o', objs[-1], src])
+        if r.returncode:
+            sys.exit('%s does not compile:\n%s' % (src.name, r.stderr))
+    archive, basics = d / 'libmccode-share.a', d / 'mcstas-basics.o'
+    for r in (run([ar, 'rcs', archive] + objs),
+              run([cc] + CFLAGS + inc + ['-c', '-o', basics, check / 'mcstas-basics.c'])):
+        if r.returncode:
+            sys.exit(r.stderr)
 
-    if not tests:
-        sys.exit('No test files found in %s' % libcheck_dir)
+    # guard: every library linked in, no dead stripping, so an unresolved
+    # symbol or duplicate global fails even where no test pulls it in
+    (d / 'empty.c').write_text('int main(void) { return 0; }\n')
+    whole = ['-Wl,-force_load,%s' % archive] if MACOS else \
+            ['-Wl,--whole-archive', archive, '-Wl,--no-whole-archive']
+    report('(link every library)', run([cc, '-o', d / 'empty', d / 'empty.c', basics] + whole + ['-lm']))
 
-    defines = {'MCCODE_DATA_DIR': '"%s"' % (root / 'mcstas-comps' / 'data')}
+    for test in tests:
+        with tempfile.TemporaryDirectory() as t:  # tests may write scratch files
+            exe = pathlib.Path(t) / 'a.out'
+            r = run([cc] + CFLAGS + inc + ['-DMCCODE_DATA_DIR="%s"' % (root / 'mcstas-comps' / 'data'),
+                    '-o', exe, test, basics, '-L', d, '-lmccode-share', DEAD_STRIP, '-lm'])
+            report(test.name, r if r.returncode else run([exe], cwd=t))
 
-    failed = []
-    with tempfile.TemporaryDirectory() as d:
-        out_dir = pathlib.Path(d)
-        lib_dir = sanitize_lib_dir(root, d)
-        include_flags = ['-I', lib_dir, '-I', libcheck_dir]
-
-        basics_obj = out_dir / 'mcstas-basics.o'
-        r = run([args.cc] + CFLAGS + include_flags + ['-c', '-o', basics_obj, libcheck_dir / 'mcstas-basics.c'])
-        if r.returncode != 0:
-            sys.exit('mcstas-basics.c does not compile:\n%s' % r.stderr)
-        archive, err = build_archive(args.cc, ar, lib_dir, include_flags, out_dir)
-        if archive is None:
-            sys.exit('libmccode-share.a could not be built, %s' % err)
-
-        ok, err = check_whole_archive(args.cc, archive, basics_obj, out_dir)
-        report('(link every library)', ok, err, failed)
-
-        for test in tests:
-            ok, err = run_test(test, args.cc, include_flags, defines, basics_obj, out_dir)
-            report(test.name, ok, err, failed)
-
-    if failed:
-        sys.exit('FAILED: %s' % ', '.join(failed))
-
-if __name__ == '__main__':
-    main(sys.argv)
+if failed:
+    sys.exit('FAILED: %s' % ', '.join(failed))
