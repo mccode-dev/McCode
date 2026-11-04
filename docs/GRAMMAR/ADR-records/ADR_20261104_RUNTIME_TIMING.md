@@ -52,16 +52,16 @@ begin timing
   Clock: monotonic_ns
   Nodes: 4
   Reduced: yes
-  Init: 1234567 +- 20311 (min 1200345, max 1260001)
-  Trace: 987654321 +- 4100221 (min 980001234, max 993000111)
-  Finally: 2345678
+  Init: 1234567 +- 20311 (min 1200345, max 1260001) [ns]
+  Trace: 987654321 +- 4100221 (min 980001234, max 993000111) [ns]
+  Finally: 2345678 [ns]
   Rays: 1000000
-  Ray: 812 +- 95 (min 410, max 90211)
+  Ray: 812 +- 95 (min 410, max 90211) [ns]
 end timing
 ```
 
-* Each statistics row is `<key>: <mean> +- <std> (min <min>, max <max>)`.
-* With `Reduced: no` (one process, or the signal path), `Init` and `Trace` are single values, e.g. `Init: 1234567`. `Ray` always has the full row.
+* Each statistics row is `<key>: <mean> +- <std> (min <min>, max <max>) [ns]`. `Finally` is `<value> [ns]`.
+* With `Reduced: no` (one process, or the signal path), `Init` and `Trace` are single values, e.g. `Init: 1234567 [ns]`. `Ray` always has the full row.
 * Values are integer ns. Mean and std are rounded to the nearest ns.
 * `Finally` is a single value.
 * `Rays` and `Ray` appear only with `MCCODE_TIME_RAY`.
