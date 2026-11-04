@@ -24,7 +24,7 @@
 *******************************************************************************/
 
 #ifndef ADAPT_TREE_LIB_H
-#error McStas : please import this library with %include "adapt_tree-lib"
+#include "adapt_tree-lib.h"
 #endif
 
 /*******************************************************************************
