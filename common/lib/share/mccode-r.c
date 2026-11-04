@@ -3228,9 +3228,9 @@ static void mctime_reduce(void)
 static void mctime_stat_text(char *buf, size_t n, const struct mctime_stat *s, int full)
 {
   if (full)
-    snprintf(buf, n, "%lld +- %lld (min %lld, max %lld)", s->mean, s->std, s->min, s->max);
+    snprintf(buf, n, "%lld +- %lld (min %lld, max %lld) [ns]", s->mean, s->std, s->min, s->max);
   else
-    snprintf(buf, n, "%lld", s->mean);
+    snprintf(buf, n, "%lld [ns]", s->mean);
 }
 
 /*******************************************************************************
@@ -3263,7 +3263,7 @@ void siminfo_close()
       if (mctime_finally_t0) {
         nxprintf(nxhandle, "timing_init", "%s", tinit);
         nxprintf(nxhandle, "timing_trace", "%s", ttrace);
-        nxprintf(nxhandle, "timing_finally", "%lld", tfinally);
+        nxprintf(nxhandle, "timing_finally", "%lld [ns]", tfinally);
 #ifdef MCCODE_TIME_RAY
         nxprintf(nxhandle, "timing_rays", "%llu", mcray_count);
         nxprintf(nxhandle, "timing_ray", "%s", tray);
@@ -3287,7 +3287,7 @@ void siminfo_close()
         siminfo_out("  Reduced: %s\n", mctime_reduced ? "yes" : "no");
         siminfo_out("  Init: %s\n", tinit);
         siminfo_out("  Trace: %s\n", ttrace);
-        siminfo_out("  Finally: %lld\n", tfinally);
+        siminfo_out("  Finally: %lld [ns]\n", tfinally);
 #ifdef MCCODE_TIME_RAY
         siminfo_out("  Rays: %llu\n", mcray_count);
         siminfo_out("  Ray: %s\n", tray);
