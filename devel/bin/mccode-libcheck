@@ -19,9 +19,9 @@ MCCODE_R_SUBS = {
     'MCCODE_LIBENV': 'MCSTAS',
 }
 
-# mcstas-shim.h supplies the RNG/particle types and the _particle global a
+# mcstas-basics.h supplies the RNG/particle types and the _particle global a
 # generated instrument file would otherwise provide ahead of mccode-r.h.
-PRELUDE = '#include "mcstas-shim.h"\n#include "mccode-r.h"\n'
+PRELUDE = '#include "mcstas-basics.h"\n#include "mccode-r.h"\n'
 
 def find_repo_root():
     return pathlib.Path(__file__).resolve().parents[2]
@@ -86,12 +86,12 @@ def main(argv):
         sys.exit('No test files found in %s' % libcheck_dir)
 
     defines = {'MCCODE_DATA_DIR': '"%s"' % (root / 'mcstas-comps' / 'data')}
-    shim_src = libcheck_dir / 'mcstas-shim.c'
+    basics_src = libcheck_dir / 'mcstas-basics.c'
 
     failed = []
     with tempfile.TemporaryDirectory() as d:
         lib_dir, deps = sanitize_lib_dir(root, d)
-        # mccode-r.c itself compiles standalone (given mcstas-shim.h) and
+        # mccode-r.c itself compiles standalone (given mcstas-basics.h) and
         # supplies coords_*, mcdis_line, mcdotrace for every test.
         mccode_r_src = lib_dir / 'mccode-r.c'
         for test in tests:
@@ -102,7 +102,7 @@ def main(argv):
             # dependencies (e.g. read_table-lib, for Open_File) are linked
             # in the same way.
             lib_name = test.stem[:-len('-test')]
-            extra_srcs = [shim_src, mccode_r_src]
+            extra_srcs = [basics_src, mccode_r_src]
             pending = [lib_name]
             seen = set()
             while pending:

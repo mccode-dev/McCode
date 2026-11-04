@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
-#include "mcstas-shim.h"
+#include "mcstas-basics.h"
 #include "mccode-r.h"
 #include "geometry-mesh-lib.h"
 

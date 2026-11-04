@@ -1,5 +1,5 @@
-#ifndef MCSTAS_SHIM_H
-#define MCSTAS_SHIM_H
+#ifndef MCSTAS_BASICS_H
+#define MCSTAS_BASICS_H
 
 #include <stdint.h>
 
@@ -17,9 +17,5 @@ struct _struct_particle {
 typedef struct _struct_particle _class_particle;
 
 extern _class_particle *_particle;
-
-/* Not declared by mccode-r.h.in (header gap: mcdis_line is, this isn't),
-   so geometry-mesh-lib.c's call to it needs a prototype here instead. */
-void mcdis_polyhedron(char *vertices_faces);
 
 #endif
