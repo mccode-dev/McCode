@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include "mcstas-shim.h"
 #include "mccode-r.h"
-#undef rand01
-#define rand01() 0.5
 #include "geometry-mesh-lib.h"
 
 int main(void)
