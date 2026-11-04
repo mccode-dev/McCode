@@ -110,6 +110,11 @@ mcstatic unsigned long long int mcrun_num            = 0;
 #include "mcstas-globals.h"
 #endif /* !DANSE */
 
+char *mcformat = NULL; /* NULL (default) or a specific format */
+#ifndef NOSIGNALS
+char *mcsig_message;
+#endif
+
 #ifndef NX_COMPRESSION
 #define NX_COMPRESSION NX_COMP_NONE
 #endif
