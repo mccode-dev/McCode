@@ -38,7 +38,7 @@ static void mcdis_line(double x1, double y1, double z1, double x2, double y2, do
   (void)x1; (void)y1; (void)z1; (void)x2; (void)y2; (void)z2;
 }
 
-FILE *Open_File(char *name, const char *Mode, char *path)
+static FILE *Open_File(char *name, const char *Mode, char *path)
 {
   (void)path;
   return fopen(name, Mode);

@@ -10,22 +10,27 @@ def find_repo_root():
 
 def sanitize_lib_dir(root, parent):
     # McStas SHARE libs use one DSL directive, "%include", for their own
-    # dependencies; strip such lines so the files compile as plain C.
+    # dependencies; strip such lines so the files compile as plain C, and
+    # prepend the stub header providing the mcstas runtime pieces they'd
+    # otherwise get from the generated instrument C file.
     dst = pathlib.Path(parent) / 'lib'
     dst.mkdir()
     for f in (root / 'common' / 'lib' / 'share').iterdir():
         if f.is_file():
             lines = f.read_text().splitlines()
-            (dst / f.name).write_text('\n'.join(l for l in lines if not l.startswith('%')))
+            body = '\n'.join(l for l in lines if not l.startswith('%'))
+            (dst / f.name).write_text('#include "mcstas-stub.h"\n' + body)
     return dst
 
-def run_test(src, cc, include_dirs):
+def run_test(src, extra_srcs, cc, include_dirs, defines):
     with tempfile.TemporaryDirectory() as d:
         exe = os.path.join(d, 'a.out')
         cmd = [cc, '-O0', '-g']
         for inc in include_dirs:
             cmd += ['-I', str(inc)]
-        cmd += ['-o', exe, str(src), '-lm']
+        for name, value in defines.items():
+            cmd += ['-D%s=%s' % (name, value)]
+        cmd += ['-o', exe, str(src)] + [str(s) for s in extra_srcs] + ['-lm']
         build = subprocess.run(cmd, capture_output=True, text=True)
         if build.returncode != 0:
             return False, build.stderr
@@ -49,11 +54,23 @@ def main(argv):
     if not tests:
         sys.exit('No test files found in %s' % libcheck_dir)
 
+    defines = {'MCCODE_DATA_DIR': '"%s"' % (root / 'mcstas-comps' / 'data')}
+
     failed = []
     with tempfile.TemporaryDirectory() as d:
         lib_dir = sanitize_lib_dir(root, d)
         for test in tests:
-            ok, err = run_test(test, args.cc, [lib_dir, libcheck_dir])
+            # <libname>-test.c exercises <libname>.c, compiled as a second
+            # translation unit linked against the test (not #included), so
+            # public, non-static functions are tested the way callers use
+            # them, through the library's own .h.
+            lib_name = test.stem
+            if lib_name.endswith('-test'):
+                lib_name = lib_name[:-len('-test')]
+            lib_src = lib_dir / (lib_name + '.c')
+            extra_srcs = [lib_src] if lib_src.exists() else []
+
+            ok, err = run_test(test, extra_srcs, args.cc, [lib_dir, libcheck_dir], defines)
             print('%-40s %s' % (test.name, 'OK' if ok else 'FAIL'))
             if not ok:
                 failed.append(test.name)
