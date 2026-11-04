@@ -818,9 +818,15 @@ void *Table_File_List_store(t_Table *tab){
 #ifndef MAX
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 #endif
-// a monotonic table whose 1st column decreases (row 0 holds max_x)
-#define TABLE_DECREASING(T) ((T).monotonic && (T).rows > 1 && (T).data \
-  && (T).data[0] > (T).data[((T).rows-1)*(T).columns])
+
+// 1 for a monotonic table whose 1st column decreases (row 0 holds max_x)
+#pragma acc routine
+static int Table_Decreasing(t_Table *Table)
+{
+  long last_row = Table->rows - 1;
+  if (!Table->monotonic || last_row < 1 || !Table->data) return 0;
+  return Table->data[0] > Table->data[last_row*Table->columns];
+}
 
 double Table_Index(t_Table Table, long i, long j)
 {
@@ -901,14 +907,23 @@ int Table_SetElement(t_Table *Table, long i, long j,
 *           _LINEAR, the search that found the bracket. When no search finds
 *           one (e.g. X == the last x), *path is _LINEAR and Index is Table.rows.
 *******************************************************************************/
+// 1 when X lies between X1 and X2, X1 included, in the search direction:
+// X1 <= X < X2 when direction is 1, X1 >= X > X2 when it is -1
+#pragma acc routine
+static int Table_In_Bracket(double direction, double X, double X1, double X2)
+{
+  return direction*X1 <= direction*X && direction*X < direction*X2;
+}
+
 long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *path)
 {
   long   Index = -1;
   int    found = 0;
-  // a decreasing table is searched as an increasing one in -x
-  double s = TABLE_DECREASING(Table) ? -1 : 1;
-  double first = s > 0 ? Table.min_x : Table.max_x; // x of row 0
-  double last  = s > 0 ? Table.max_x : Table.min_x;
+  // 1 on an increasing table, -1 on a decreasing one, which is searched as
+  // an increasing one in -x
+  double direction = Table_Decreasing(&Table) ? -1 : 1;
+  double first_x = direction > 0 ? Table.min_x : Table.max_x; // x of row 0
+  double last_x  = direction > 0 ? Table.max_x : Table.min_x; // x of the last row
 
   *X1 = 0;
   *X2 = 0;
@@ -919,12 +934,12 @@ long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *pat
     // Index is the upper row of the bracket; floor can land one row off
     // when X is (almost) a table value
     Index = (long)floor(
-              (X - first) / (last - first) * (Table.rows-1)) + 1;
-    if (s*Table_Index(Table,Index,0) <= s*X) Index++;
-    else if (s*X < s*Table_Index(Table,Index-1,0)) Index--;
+              (X - first_x) / (last_x - first_x) * (Table.rows-1)) + 1;
+    if (direction*Table_Index(Table,Index,0) <= direction*X) Index++;
+    else if (direction*X < direction*Table_Index(Table,Index-1,0)) Index--;
     *X1 = Table_Index(Table,Index-1,0);
     *X2 = Table_Index(Table,Index  ,0);
-    if ((s * *X1 <= s*X) && (s*X < s * *X2)) found = READ_TABLE_LOOKUP_CONSTANTSTEP;
+    if (Table_In_Bracket(direction, X, *X1, *X2)) found = READ_TABLE_LOOKUP_CONSTANTSTEP;
   }
   // Use binary search on large, monotonic tables
   else if(Table.monotonic && Table.rows > 100) {
@@ -932,19 +947,19 @@ long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *pat
     long left = 0;
     long right = Table.rows;
 
-    while (!((s * *X1 <= s*X) && (s*X < s * *X2)) && (right - left > 1)) {
+    while (!Table_In_Bracket(direction, X, *X1, *X2) && (right - left > 1)) {
       Index = (left + right) / 2;
 
       *X1 = Table_Index(Table, Index-1, 0);
       *X2 = Table_Index(Table, Index,   0);
 
-      if (s*X < s * *X1) {
+      if (direction*X < direction * *X1) {
         right = Index;
       } else {
         left  = Index;
       }
     }
-    if ((s * *X1 <= s*X) && (s*X < s * *X2)) found = READ_TABLE_LOOKUP_BINARY;
+    if (Table_In_Bracket(direction, X, *X1, *X2)) found = READ_TABLE_LOOKUP_BINARY;
   }
 
   // Fall back to linear search, if no-one else has set X1, X2 correctly
@@ -954,7 +969,7 @@ long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *pat
     for (Index=1; Index <= Table.rows-1; Index++) {
         *X1 = Table_Index(Table, Index-1,0);
         *X2 = Table_Index(Table, Index  ,0);
-        if ((s * *X1 <= s*X) && (s*X < s * *X2)) break;
+        if (Table_In_Bracket(direction, X, *X1, *X2)) break;
       } /* end for Index */
   }
 
@@ -967,10 +982,18 @@ double Table_Value(t_Table Table, double X, long j)
   long   Index = -1;
   double X1=0, Y1=0, X2=0, Y2=0;
   double ret=0;
+  // max_x is in the last row of an increasing table, in row 0 of a decreasing one
+  long   row_of_max_x = Table.rows-1;
+  long   row_of_min_x = 0;
 
-  // beyond either end, the value at the row holding max_x / min_x
-  if (X > Table.max_x) return Table_Index(Table,TABLE_DECREASING(Table) ? 0 : Table.rows-1,j);
-  if (X < Table.min_x) return Table_Index(Table,TABLE_DECREASING(Table) ? Table.rows-1 : 0,j);
+  if (Table_Decreasing(&Table)) {
+    row_of_max_x = 0;
+    row_of_min_x = Table.rows-1;
+  }
+
+  // beyond either end, the value at that end
+  if (X > Table.max_x) return Table_Index(Table, row_of_max_x, j);
+  if (X < Table.min_x) return Table_Index(Table, row_of_min_x, j);
 
   Index = Table_Value_Index(Table, X, &X1, &X2, NULL);
 
