@@ -51,9 +51,6 @@
 #endif
 #include <errno.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
 #ifdef __APPLE__
 #include <mach/mach_time.h>
 #endif
@@ -3123,7 +3120,8 @@ static void mclist_vds_write(void);
 *******************************************************************************/
 long long mccode_time_ns(void)
 {
-#ifdef _WIN32
+#if defined(_MSC_EXTENSIONS) && (defined(WIN32) || defined(_WIN32))
+  // windows.h comes in through winsock2.h in mccode-r.h
   LARGE_INTEGER c, f;
   QueryPerformanceCounter(&c);
   QueryPerformanceFrequency(&f);
