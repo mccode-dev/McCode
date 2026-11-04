@@ -1,22 +1,32 @@
 #!/usr/bin/env python3
 '''
-Run mctest for a given component or instrument against two commits/branches
-of the repo, each built into its own conda environment, then produce an
-mcviewtest comparison report between the two runs.
+Compare McStas/McXtrace simulation speed for a component or instrument
+between two commits/branches, each built into its own conda environment.
 
-This is the "two (re-)builds and mctest runs wrapped in extra logic" tool
-requested on McCode PR #3029: point it at REF1/REF2 and a component or
-instrument filter, and it hands back a diff report of REF2 against REF1.
+Grew out of the "two (re-)builds ... wrapped in extra logic" tool requested
+on McCode PR #3029, repurposed for speed instead of correctness: for every
+matching instrument, it measures INITIALIZE/TRACE/FINALLY wall time for
+each ref and prints a before/after comparison.
+
+Timing works by patching each instrument's generated C file right after
+codegen, wrapping the init()/raytrace_all()/finally() calls (always present,
+verbatim, in every generated instrument - see common/lib/share/mccode_main.c)
+with clock() timers that print "MCCODE_TIMING <PHASE> <seconds>" lines. mcrun
+is then asked to compile again: since it only regenerates/recompiles what is
+older than its source, touching the already-patched file makes it reuse (not
+overwrite) the patch and recompile the binary from it, with mcrun's own
+normal (already cross-platform-correct) compiler invocation.
 
 By default both refs are built/tested directly in the conda/mamba/micromamba
 environment that is already active. Pass --fresh-env to instead create (and
 download packages into) a new environment per ref.
 
-Usage: mccode-commit-mctest REF1 REF2 (--comp COMP | --instr PATTERN) [options]
+Usage: mccode-commit-speed-diff REF1 REF2 (--comp COMP | --instr PATTERN) [options]
 '''
 import argparse
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -70,8 +80,9 @@ def remove_env_cmd(conda_exe, root_args, envname):
     return [conda_exe] + root_args + ['env', 'remove', '-y', '-n', envname]
 
 
-def run_in_env(conda_exe, root_args, envname, cmd, check=True):
-    return run([conda_exe] + root_args + ['run', '-n', envname] + cmd, check=check)
+def run_in_env(conda_exe, root_args, envname, cmd, check=True, cwd=None, capture_output=False):
+    return run([conda_exe] + root_args + ['run', '-n', envname] + cmd,
+              check=check, cwd=cwd, capture_output=capture_output)
 
 
 def require_active_conda_env():
@@ -81,17 +92,58 @@ def require_active_conda_env():
                          'unset). Pass --fresh-env to create one per ref instead.')
 
 
-def run_cmd(cfg, envname, cmd, check=True):
+def run_cmd(cfg, envname, cmd, check=True, cwd=None, capture_output=False):
     # default: build/test directly in the environment this script itself runs
     # in, instead of spinning up (and downloading packages into) a fresh one
     if not cfg.fresh_env:
-        return run(cmd, check=check)
-    return run_in_env(cfg.conda_exe, cfg.root_args, envname, cmd, check=check)
+        return run(cmd, check=check, cwd=cwd, capture_output=capture_output)
+    return run_in_env(cfg.conda_exe, cfg.root_args, envname, cmd,
+                      check=check, cwd=cwd, capture_output=capture_output)
 
 
-def build_and_test(ref, reporoot, cfg):
+# Timing instrumentation: these two anchors are the verbatim text of
+# common/lib/share/mccode_main.c, which codegen embeds into every generated
+# instrument .c file unconditionally - see that file for the un-timed original.
+TIMING_PATCHES = [
+    ('SIG_MESSAGE("[" __FILE__ "] main INITIALISE");\n  init();',
+     'SIG_MESSAGE("[" __FILE__ "] main INITIALISE");\n'
+     '  clock_t _mcspd_t0 = clock();\n'
+     '  init();\n'
+     '  fprintf(stderr, "MCCODE_TIMING INITIALIZE %.6f\\n", (double)(clock() - _mcspd_t0) / CLOCKS_PER_SEC);\n'
+     '  clock_t _mcspd_t1 = clock();'),
+    ('  mcsave_final = 1;\n  finally();',
+     '  fprintf(stderr, "MCCODE_TIMING TRACE %.6f\\n", (double)(clock() - _mcspd_t1) / CLOCKS_PER_SEC);\n'
+     '  clock_t _mcspd_t2 = clock();\n'
+     '  mcsave_final = 1;\n'
+     '  finally();\n'
+     '  fprintf(stderr, "MCCODE_TIMING FINALLY %.6f\\n", (double)(clock() - _mcspd_t2) / CLOCKS_PER_SEC);'),
+]
+TIMING_RE = re.compile(r'MCCODE_TIMING (INITIALIZE|TRACE|FINALLY) ([0-9.eE+-]+)')
+
+
+def patch_timing(cpath):
+    text = cpath.read_text()
+    for old, new in TIMING_PATCHES:
+        n = text.count(old)
+        if n != 1:
+            raise SystemExit('ERROR: Could not add timing to %s: expected exactly 1 occurrence of '
+                             '%r, found %d (generated code layout changed?)' % (cpath, old, n))
+        text = text.replace(old, new)
+    cpath.write_text(text)
+
+
+def discover_instruments(examples_dir, comp, instr):
+    instrs = sorted(examples_dir.rglob('*.instr'))
+    if instr:
+        rx = re.compile(instr)
+        return [f for f in instrs if rx.search(f.stem)]
+    rx = re.compile(r'=\s*%s\s*\(' % re.escape(comp))
+    return [f for f in instrs if rx.search(f.read_text(encoding='utf-8', errors='replace'))]
+
+
+def build_ref(ref, reporoot, cfg):
     sha = resolve_sha(reporoot, ref)
-    envname = 'mccode-commit-mctest-%s' % sha
+    envname = 'mccode-commit-speed-diff-%s' % sha
     worktree = cfg.workdir / ('src_%s' % sha)
 
     run(['git', '-C', str(reporoot), 'worktree', 'add', '--detach', str(worktree), sha])
@@ -107,43 +159,96 @@ def build_and_test(ref, reporoot, cfg):
            [sys.executable, str(worktree / 'devel' / 'bin' / 'mccode-build-conda'),
             '-m', cfg.mode, '-s', str(worktree)])
 
-    testbin = 'mctest' if cfg.mode == 'mcstas' else 'mxtest'
-    testcmd = [testbin, '--testdir', str(cfg.testdir), '--uid', sha]
-    if cfg.comp:
-        testcmd += ['--comp', cfg.comp]
-    if cfg.instr:
-        testcmd += ['--instr', cfg.instr]
-    testcmd += cfg.extra_mctest_args
-    # mctest exits non-zero on test failures/discrepancies - that is a result
-    # to report, not a failure of this wrapper, so don't abort the script on it
-    run_cmd(cfg, envname, testcmd, check=False)
+    return sha, envname, worktree
 
-    labeldirs = [d.name for d in cfg.testdir.iterdir() if sha in d.name]
-    if len(labeldirs) != 1:
-        raise SystemExit('ERROR: Expected exactly one mctest result folder for '
-                         '%s under %s, found: %s' % (sha, cfg.testdir, labeldirs))
 
-    return sha, envname, worktree, labeldirs[0]
+def measure_instrument(cfg, envname, instr_file, workdir):
+    runbin = 'mcrun' if cfg.mode == 'mcstas' else 'mxrun'
+    exesuffix = 'exe' if cfg.platform == 'win' else 'out'
+
+    instrdir = workdir / instr_file.stem
+    shutil.rmtree(instrdir, ignore_errors=True)
+    shutil.copytree(instr_file.parent, instrdir)
+    cpath = instrdir / (instr_file.stem + '.c')
+    binpath = instrdir / ('%s.%s' % (instr_file.stem, exesuffix))
+
+    # cold compile (-n0: compile and do a trivial run, nothing timed yet)
+    run_cmd(cfg, envname, [runbin, '--verbose', '-n0', instr_file.name], check=False, cwd=instrdir)
+    if not cpath.is_file():
+        print('SKIP %s: code generation did not produce %s' % (instr_file.stem, cpath.name))
+        return None
+
+    try:
+        patch_timing(cpath)
+    except SystemExit as e:
+        print('SKIP %s: %s' % (instr_file.stem, e))
+        return None
+
+    # mcrun only regenerates/recompiles what is older than its source, so the
+    # patch (which just touched cpath) is reused as-is and recompiled into binpath
+    r = run_cmd(cfg, envname, [runbin, '--verbose', '-n0', instr_file.name], check=False, cwd=instrdir)
+    if r.returncode != 0 or not binpath.is_file():
+        print('SKIP %s: recompile of timing-patched code failed' % instr_file.stem)
+        return None
+
+    times = {'INITIALIZE': [], 'TRACE': [], 'FINALLY': []}
+    for i in range(cfg.repeats):
+        outdir = instrdir / ('speed_diff_out_%d' % i)
+        shutil.rmtree(outdir, ignore_errors=True)
+        r = run_cmd(cfg, envname,
+                   [str(binpath), '-y', '--ncount=%s' % cfg.ncount, '--seed=%s' % cfg.seed,
+                    '--dir=%s' % outdir],
+                   check=False, cwd=instrdir, capture_output=True)
+        for phase, value in TIMING_RE.findall((r.stdout or '') + (r.stderr or '')):
+            times[phase].append(float(value))
+
+    if not times['TRACE']:
+        print('SKIP %s: no timing output captured from %d run(s)' % (instr_file.stem, cfg.repeats))
+        return None
+    return times
+
+
+def measure_ref(ref, reporoot, cfg):
+    sha, envname, worktree = build_ref(ref, reporoot, cfg)
+
+    showcfg_bin = 'mcrun' if cfg.mode == 'mcstas' else 'mxrun'
+    mccoderoot = run_cmd(cfg, envname, [showcfg_bin, '--showcfg=resourcedir'],
+                        capture_output=True).stdout.strip()
+    examples_dir = pathlib.Path(mccoderoot) / 'examples'
+    instrs = discover_instruments(examples_dir, cfg.comp, cfg.instr)
+    if not instrs:
+        raise SystemExit('ERROR: No instruments under %s matched the given filter' % examples_dir)
+
+    measuredir = cfg.workdir / ('measure_%s' % sha)
+    results = {}
+    for instr_file in instrs:
+        times = measure_instrument(cfg, envname, instr_file, measuredir)
+        if times is not None:
+            results[instr_file.stem] = times
+
+    return sha, envname, worktree, results
 
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         prog=os.path.basename(argv[0]),
-        description=('Run mctest for a component/instrument against two commits, '
-                     'each built in its own conda environment, and diff the results.'))
-    parser.add_argument('ref1', help='First commit/branch/tag (used as mcviewtest reference)')
-    parser.add_argument('ref2', help='Second commit/branch/tag (compared against ref1)')
+        description=('Measure McStas/McXtrace simulation speed for a component/instrument '
+                     'against two commits, each built in its own conda environment.'))
+    parser.add_argument('ref1', help='First commit/branch/tag ("before")')
+    parser.add_argument('ref2', help='Second commit/branch/tag ("after", compared against ref1)')
     filt = parser.add_mutually_exclusive_group(required=True)
-    filt.add_argument('--comp', help='Test only instruments using this component')
-    filt.add_argument('--instr', help='Test only instruments matching this filter (regex)')
+    filt.add_argument('--comp', help='Measure only instruments using this component')
+    filt.add_argument('--instr', help='Measure only instruments matching this filter (regex)')
     parser.add_argument('-m', '--mode', choices=['mcstas', 'mcxtrace'], default='mcstas',
                         help='Choose McStas or McXtrace mode (default: mcstas)')
     reporoot = detect_reporoot()
     parser.add_argument('-s', '--srcdir', required=(not reporoot), default=reporoot,
                         help=('Source dir (required since reporoot not found)' if not reporoot
                               else 'Source dir (default: McCode repo root)'))
-    parser.add_argument('--testdir', default=None,
-                        help='Where to put mctest results (default: temporary directory)')
+    parser.add_argument('--repeats', type=int, default=3,
+                        help='Number of timed runs per instrument per ref (default: 3)')
+    parser.add_argument('--ncount', default='1e6', help='ncount for the timed runs (default: 1e6)')
+    parser.add_argument('--seed', default='1000', help='seed for the timed runs (default: 1000)')
     parser.add_argument('--workdir', default=None,
                         help='Where to put checkouts/env files (default: temporary directory)')
     parser.add_argument('--conda-exe', default='conda',
@@ -159,15 +264,7 @@ def parse_args(argv):
     parser.add_argument('--keep-envs', action='store_true', help='Do not remove the conda environments afterwards')
     parser.add_argument('--keep-checkouts', action='store_true', help='Do not remove the git worktrees afterwards')
 
-    # args after a literal '--' are passed through to mctest verbatim, e.g.
-    # mccode-commit-mctest main feature --comp Foo -- --ncount 1e7
-    own_argv, extra = argv, []
-    if '--' in argv:
-        i = argv.index('--')
-        own_argv, extra = argv[:i], argv[i + 1:]
-
-    args = parser.parse_args(own_argv[1:])
-    args.extra_mctest_args = extra
+    args = parser.parse_args(argv[1:])
     args.platform = autodetect_platform()
     sd = pathlib.Path(args.srcdir)
     if not sd.is_dir():
@@ -183,9 +280,11 @@ def create_cfg(args):
         conda_exe = args.conda_exe
         root_args = ['-r', args.conda_root] if args.conda_root else []
         fresh_env = args.fresh_env
-        extra_mctest_args = args.extra_mctest_args
         comp = args.comp
         instr = args.instr
+        repeats = args.repeats
+        ncount = args.ncount
+        seed = args.seed
     return Cfg()
 
 
@@ -199,29 +298,25 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         cfg.workdir = pathlib.Path(args.workdir) if args.workdir else pathlib.Path(tmp)
         cfg.workdir.mkdir(parents=True, exist_ok=True)
-        cfg.testdir = pathlib.Path(args.testdir) if args.testdir else pathlib.Path(tmp) / 'mctest-results'
-        cfg.testdir.mkdir(parents=True, exist_ok=True)
 
         envs, worktrees = [], []
         try:
-            sha1, env1, wt1, label1 = build_and_test(args.ref1, reporoot, cfg)
+            sha1, env1, wt1, results1 = measure_ref(args.ref1, reporoot, cfg)
             envs.append(env1)
             worktrees.append(wt1)
-            sha2, env2, wt2, label2 = build_and_test(args.ref2, reporoot, cfg)
+            sha2, env2, wt2, results2 = measure_ref(args.ref2, reporoot, cfg)
             envs.append(env2)
             worktrees.append(wt2)
 
             if sha1 == sha2:
                 raise SystemExit('ERROR: ref1 and ref2 resolve to the same commit (%s)' % sha1)
 
-            viewbin = 'mcviewtest' if cfg.mode == 'mcstas' else 'mxviewtest'
-            run_cmd(cfg, env2, [viewbin, str(cfg.testdir), '--reflabel', label1, '--nobrowse'])
-
-            ofile = cfg.testdir / ('%s_output.html' % cfg.testdir.name)
             print()
-            print('REF1 %s -> label %s' % (args.ref1, label1))
-            print('REF2 %s -> label %s' % (args.ref2, label2))
-            print('Comparison report: %s' % ofile)
+            print('REF1 %s (%s):' % (args.ref1, sha1))
+            print(results1)
+            print()
+            print('REF2 %s (%s):' % (args.ref2, sha2))
+            print(results2)
         finally:
             if not args.keep_envs and cfg.fresh_env:
                 for envname in envs:
