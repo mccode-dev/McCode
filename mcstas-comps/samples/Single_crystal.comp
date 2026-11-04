@@ -42,6 +42,14 @@
 * iteration searches reciprocal space and draws its own reflection among those
 * reachable, with probability proportional to their intensity.
 *
+* <b>Optional reflection list on CPU, -DMCSX_REFL_SLIST</b>
+* For SPLIT on CPU with order=1, compile with -DMCSX_REFL_SLIST to keep the reachable
+* reflections in a list: a particle identical to the preceding one (within deltak)
+* then skips the reciprocal space search and only makes a Monte Carlo choice in that
+* list. The list holds MCSX_REFL_SLIST_SIZE reflections (default 128), and the rest
+* are ignored, with a warning at the end of the simulation. GPU builds ignore this
+* option and always use the default selection, without a list.
+*
 * <b>Mosacitiy modes:</b>
 * The component features three independent ways of parametrising mosaicity:
 *  a) The original algorithm where mosaicity is implemented by extending each 
@@ -199,6 +207,7 @@
 * aa: [deg]                                               Unit cell angles alpha, beta and gamma. Then uses norms of vectors a,b and c as lattice parameters
 * bb: [deg]                                               Beta angle
 * cc: [deg]                                               Gamma angle
+* deltak: [AA^-1]                                          Equality-threshold for SPLIT with -DMCSX_REFL_SLIST. If all of ki_{x,y,z} differ by less than deltak from the previous particle, the reflection search is skipped. Unused otherwise.
 * barns: [1]                                              Flag to indicate if |F|^2 from 'reflections' is in barns or fm^2. barns=1 for laz and isotropic constant elastic scattering (reflections=NULL), barns=0 for lau type files
 * RX: [m]                                                 Radius of horizontal along X lattice curvature. flat for 0
 * RY: [m]                                                 Radius of vertical along Y lattice curvature. flat for 0
@@ -296,7 +305,8 @@ ax = 0, ay = 0, az = 0,
 bx = 0, by = 0, bz = 0,
 cx = 0, cy = 0, cz = 0,
 p_transmit = 0.001, sigma_abs = 0, sigma_inc = 0,
-aa=0, bb=0, cc=0, order=0, extra_order=0, RX=0, RY=0, powder=0, PG=0)
+aa=0, bb=0, cc=0, order=0, extra_order=0, RX=0, RY=0, powder=0, PG=0,
+deltak=1e-6)
 DEPENDENCY "@NCRYSTALFLAGS@"
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
@@ -309,6 +319,19 @@ SHARE
   /* Declare structures and functions only once in each instrument. */
   #ifndef SINGLE_CRYSTAL_DECL
   #define SINGLE_CRYSTAL_DECL
+
+  /* -DMCSX_REFL_SLIST: reflection list and SPLIT reuse, for CPU only. See %D. */
+  #ifdef MCGPU
+  #undef MCSX_REFL_SLIST
+  #endif
+  #ifdef MCSX_REFL_SLIST
+  #ifndef MCSX_REFL_SLIST_SIZE
+  #define MCSX_REFL_SLIST_SIZE 128
+  #endif
+  #define MCSX_TAU_LIST_LEN MCSX_REFL_SLIST_SIZE
+  #else
+  #define MCSX_TAU_LIST_LEN 1
+  #endif
 
   #ifndef Mosaic_AB_Undefined
   #define Mosaic_AB_Undefined {0,0, 0,0,0, 0,0,0}
@@ -364,6 +387,13 @@ SHARE
     int flag_barns;             /* 1: F2 in barns, 0: in fm^2 */
     char type;                  /* type of last event: t=transmit,c=coherent or i=incoherent */
     int h, k, l;                /* last coherent scattering momentum transfer indices */
+    #ifdef MCSX_REFL_SLIST
+    int tau_count;              /* Number of reflections within cutoff */
+    double coh_refl, coh_xsect; /* cross section computed with last tau_list */
+    double kix, kiy, kiz;       /* last incoming neutron ki */
+    int nb_reuses, nb_refl, nb_refl_count;
+    int max_tau_count;
+    #endif
   };
   #pragma acc routine
   int
@@ -1103,15 +1133,18 @@ SHARE
     search the HKL reflections which are on the Ewald sphere, and keep one of them,
     chosen with probability refl_j / sum(refl) by a weighted reservoir draw. No list
     is stored, so any number of reflections can be reachable.
+    With MCSX_REFL_SLIST, T is instead a list that receives all of them, up to its size.
     input:
       L,count,V0: constants for all calls
       kix,kiy,kiz: may be different for each call
       coh_refl, coh_xsect: must be 0 on entry
     this function updates:
       coh_refl, coh_xsect, T (only meaningful when coh_refl > 0)
+    this function returns:
+      tau_count, the number of reachable reflections
    */
   #pragma acc routine
-  void
+  int
   hkl_search_select (struct hkl_data* L, struct tau_data* T, int count, double V0, double kix, double kiy, double kiz, double tau_max, double* coh_refl, double* coh_xsect,
                      _class_particle* _particle) {
     double rho, rho_x, rho_y, rho_z;
@@ -1211,13 +1244,40 @@ SHARE
         *coh_refl += Tj.refl;                                        /* total scatterable intensity*/
         Tj.xsect = Tj.refl * L[i].F2;
         *coh_xsect += Tj.xsect;
+        #ifdef MCSX_REFL_SLIST
+        T[j] = Tj;
+        #else
         /* j == 0: keep the first one also when rand0max returns its upper limit */
         if (j == 0 || rand0max (*coh_refl) < Tj.refl)
           *T = Tj;
+        #endif
         j++;
       }
+      #ifdef MCSX_REFL_SLIST
+      /*protect against tau shortlist buffer overrrun*/
+      if (j == MCSX_REFL_SLIST_SIZE) {
+        break;
+      }
+      #endif
     } /* end for */
+    return (j); // this is 'tau_count', i.e. number of reachable reflections
   } /* end hkl_search_select */
+
+  #ifdef MCSX_REFL_SLIST
+  #pragma acc routine
+  int
+  hkl_select (struct tau_data* T, int tau_count, double coh_refl, double* sum, _class_particle* _particle) {
+    int j;
+    double r = rand0max (coh_refl);
+    *sum = 0;
+    for (j = 0; j < tau_count; j++) {
+      *sum += T[j].refl;
+      if (*sum > r)
+        break;
+    }
+    return j;
+  }
+  #endif
 
   /* Functions for "reorientation", powder and PG modes */
   /* Powder, forward */
@@ -1288,6 +1348,7 @@ DECLARE
   off_struct offdata;
   struct hkl_data* hkl_list;
   struct hkl_data* hkl_list_d;
+  struct tau_data tau_list[MCSX_TAU_LIST_LEN];
 %}
 
 INITIALIZE
@@ -1323,6 +1384,12 @@ INITIALIZE
   hkl_info.column_order[2] = 3;
   hkl_info.column_order[3] = 0;
   hkl_info.column_order[4] = 7;
+  #ifdef MCSX_REFL_SLIST
+  hkl_info.kix = hkl_info.kiy = hkl_info.kiz = 0;
+  hkl_info.nb_reuses = hkl_info.nb_refl = hkl_info.nb_refl_count = 0;
+  hkl_info.tau_count = 0;
+  hkl_info.max_tau_count = 0;
+  #endif
   hkl_info.flag_barns = barns;
 
   /* ought to be cleaned up as mosaic_AB now is a proper vector/array and not a define */
@@ -1412,6 +1479,11 @@ TRACE
   struct hkl_data* L; /* Structure factor list */
   int i;              /* Index into structure factor list */
   struct tau_data T;          /* Selected reflection close to Ewald sphere */
+  #ifdef MCSX_REFL_SLIST
+  int tau_count;              /* Number of reflections close to Ewald sphere*/
+  int j;                      /* Index into reflection list */
+  double sum;
+  #endif
   int event_counter;          /* scattering event counter */
   double kix, kiy, kiz, ki;   /* Initial wave vector [1/AA] */
   double kfx, kfy, kfz;       /* Final wave vector */
@@ -1602,15 +1674,54 @@ TRACE
 
       // Condition to skip calculation of coherent cross section when, needed for extra_order feature
       if (order == 0 || extra_order == 0 || event_counter < order) {
+        #ifdef MCSX_REFL_SLIST
+        /* in case we use 'SPLIT' then consecutive neutrons can be identical when entering here
+           and we may skip the search. One tau_list is reserved for data for the initial
+           ray results so that it potentially can be reused later. */
+        if (order == 1 && fabs (kix - hkl_info.kix) < deltak && fabs (kiy - hkl_info.kiy) < deltak && fabs (kiz - hkl_info.kiz) < deltak) {
+          hkl_info.nb_reuses++;
+
+          /* Restore in case of matching event (e.g. SPLIT) */
+          coh_refl = hkl_info.coh_refl;
+          coh_xsect = hkl_info.coh_xsect;
+          tau_count = hkl_info.tau_count;
+        } else {
+          /* Max possible tau for this ki with 5*sigma delta-d/d cutoff. */
+          double tau_max = 2 * ki / (1 - 5 * hkl_info.m_delta_d_d);
+
+          tau_count = hkl_search_select (L, tau_list, hkl_info.count, hkl_info.V0, kix, kiy, kiz, tau_max, &coh_refl, &coh_xsect, _particle);
+
+          /* store ki so that we can check for further SPLIT iterations */
+          if (tau_count > hkl_info.max_tau_count) {
+            hkl_info.max_tau_count = tau_count;
+          }
+          if (event_counter == 0) { /* only for incoming neutron */
+            hkl_info.kix = kix;
+            hkl_info.kiy = kiy;
+            hkl_info.kiz = kiz;
+
+            /* Store for potential re-use (e.g. SPLIT) */
+            hkl_info.coh_refl = coh_refl;
+            hkl_info.coh_xsect = coh_xsect;
+            hkl_info.tau_count = tau_count;
+            hkl_info.nb_refl += tau_count;
+            hkl_info.nb_refl_count++;
+          }
+        }
+        #else
         /* Max possible tau for this ki with 5*sigma delta-d/d cutoff. */
         double tau_max = 2 * ki / (1 - 5 * hkl_info.m_delta_d_d);
 
         hkl_search_select (L, &T, hkl_info.count, hkl_info.V0, kix, kiy, kiz, tau_max, &coh_refl, &coh_xsect, _particle);
+        #endif
       } else {
         // When extra_order used, disable coherent scattering after order reached, but continue
         // Set coherent cross section to zero to ignore coherent part
         coh_refl = 0;
         coh_xsect = 0;
+        #ifdef MCSX_REFL_SLIST
+        tau_count = 0;
+        #endif
       }
 
       /* (3). Probabilities of the different possible interactions. */
@@ -1724,6 +1835,20 @@ TRACE
         if (coh_refl <= 0) {
           ABSORB;
         }
+        #ifdef MCSX_REFL_SLIST
+        sum = 0;
+        j = hkl_select (tau_list, tau_count, coh_refl, &sum, _particle);
+        if (j >= tau_count) {
+          if (hkl_info.flag_warning < 10)
+            fprintf (stderr,
+                     "Single_crystal: Error: Illegal tau search "
+                     "(sum=%g, j=%i, tau_count=%i).\n",
+                     sum, j, tau_count);
+          hkl_info.flag_warning++;
+          j = tau_count - 1;
+        }
+        T = tau_list[j];
+        #endif
         i = T.index;
         /* (8). Pick scattered wavevector kf from 2D Gauss distribution. */
         z1 = randnorm ();
@@ -1801,6 +1926,25 @@ FINALLY
 
     if (hkl_info.flag_warning)
       fprintf (stderr, "Single_crystal: %s: Error message was repeated %i times with absorbed neutrons.\n", NAME_CURRENT_COMP, hkl_info.flag_warning);
+
+    #ifdef MCSX_REFL_SLIST
+    /* in case this instance is used in a SPLIT, we can recommend the
+       optimal iteration value */
+    if (hkl_info.max_tau_count >= MCSX_REFL_SLIST_SIZE) {
+      fprintf (stderr, "Warning (%s): The reflection short list buffer was exhausted at least once. Please consider redefining MCSX_REFL_SLIST_SIZE > %d\n",
+               NAME_CURRENT_COMP, MCSX_REFL_SLIST_SIZE);
+    }
+
+    if (hkl_info.nb_refl_count) {
+      double split_iterations = (double)hkl_info.nb_reuses / hkl_info.nb_refl_count + 1;
+      double split_optimal = (double)hkl_info.nb_refl / hkl_info.nb_refl_count;
+      if (split_optimal > split_iterations + 5)
+        printf ("Single_crystal: %s: Info: you may highly improve the computation efficiency by using\n"
+                "    SPLIT %i COMPONENT %s=Single_crystal(order=1, ...)\n"
+                "  in the instrument description %s.\n",
+                NAME_CURRENT_COMP, (int)split_optimal, NAME_CURRENT_COMP, instrument_source);
+    }
+    #endif
 
     #ifdef USE_MPI
   }
