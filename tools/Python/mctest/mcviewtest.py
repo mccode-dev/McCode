@@ -45,7 +45,7 @@ def accepted(testval, testerr, targetval, targeterr=None, nsigma=None, statfacto
     i.e. sqrt(1 + statfactor) x the test run's error bar);
     a target given with its _ERR is judged by the error bars alone. Error bars from fewer
     than NSIGMA_MIN_EVENTS effective events (I/ERR)^2 are not used, the 20% rule applies. '''
-    within20 = abs(percent_of(testval, targetval) - 100) <= ERROR_PERCENT_THRESSHOLD_ACCEPT
+    within20 = abs(round(percent_of(testval, targetval)) - 100) <= ERROR_PERCENT_THRESSHOLD_ACCEPT
     def ok(v, e):
         return v != 0 and bool(e) and (v / e) ** 2 >= NSIGMA_MIN_EVENTS
     if nsigma is None or not ok(testval, testerr) or (targeterr is not None and not ok(targetval, targeterr)):
