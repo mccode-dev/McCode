@@ -8,6 +8,10 @@ This is the "two (re-)builds and mctest runs wrapped in extra logic" tool
 requested on McCode PR #3029: point it at REF1/REF2 and a component or
 instrument filter, and it hands back a diff report of REF2 against REF1.
 
+Pass --active-env to build/test both refs directly in the conda/mamba/
+micromamba environment that is already active, instead of creating (and
+downloading packages into) a fresh one per ref.
+
 Usage: mccode-commit-mctest REF1 REF2 (--comp COMP | --instr PATTERN) [options]
 '''
 import argparse
@@ -70,23 +74,37 @@ def run_in_env(conda_exe, root_args, envname, cmd, check=True):
     return run([conda_exe] + root_args + ['run', '-n', envname] + cmd, check=check)
 
 
+def require_active_conda_env():
+    if not os.environ.get('CONDA_PREFIX'):
+        raise SystemExit('ERROR: --active-env requires a conda/mamba/micromamba '
+                         'environment to already be activated ($CONDA_PREFIX is unset).')
+
+
+def run_cmd(cfg, envname, cmd, check=True):
+    # --active-env: build/test directly in the environment this script itself
+    # runs in, instead of spinning up (and downloading packages into) a fresh one
+    if cfg.active_env:
+        return run(cmd, check=check)
+    return run_in_env(cfg.conda_exe, cfg.root_args, envname, cmd, check=check)
+
+
 def build_and_test(ref, reporoot, cfg):
     sha = resolve_sha(reporoot, ref)
     envname = 'mccode-commit-mctest-%s' % sha
     worktree = cfg.workdir / ('src_%s' % sha)
-    yml = cfg.workdir / ('%s.yml' % sha)
 
     run(['git', '-C', str(reporoot), 'worktree', 'add', '--detach', str(worktree), sha])
 
-    run([sys.executable, str(reporoot / 'devel' / 'bin' / 'mccode-create-conda-yml'),
-         '-m', cfg.mode, '-p', cfg.platform, '-n', envname, '-o', str(yml), '-f'])
+    if not cfg.active_env:
+        yml = cfg.workdir / ('%s.yml' % sha)
+        run([sys.executable, str(reporoot / 'devel' / 'bin' / 'mccode-create-conda-yml'),
+             '-m', cfg.mode, '-p', cfg.platform, '-n', envname, '-o', str(yml), '-f'])
+        run(remove_env_cmd(cfg.conda_exe, cfg.root_args, envname), check=False)
+        run(create_env_cmd(cfg.conda_exe, cfg.root_args, yml, envname))
 
-    run(remove_env_cmd(cfg.conda_exe, cfg.root_args, envname), check=False)
-    run(create_env_cmd(cfg.conda_exe, cfg.root_args, yml, envname))
-
-    run_in_env(cfg.conda_exe, cfg.root_args, envname,
-              [sys.executable, str(worktree / 'devel' / 'bin' / 'mccode-build-conda'),
-               '-m', cfg.mode, '-s', str(worktree)])
+    run_cmd(cfg, envname,
+           [sys.executable, str(worktree / 'devel' / 'bin' / 'mccode-build-conda'),
+            '-m', cfg.mode, '-s', str(worktree)])
 
     testbin = 'mctest' if cfg.mode == 'mcstas' else 'mxtest'
     testcmd = [testbin, '--testdir', str(cfg.testdir), '--uid', sha]
@@ -97,7 +115,7 @@ def build_and_test(ref, reporoot, cfg):
     testcmd += cfg.extra_mctest_args
     # mctest exits non-zero on test failures/discrepancies - that is a result
     # to report, not a failure of this wrapper, so don't abort the script on it
-    run_in_env(cfg.conda_exe, cfg.root_args, envname, testcmd, check=False)
+    run_cmd(cfg, envname, testcmd, check=False)
 
     labeldirs = [d.name for d in cfg.testdir.iterdir() if sha in d.name]
     if len(labeldirs) != 1:
@@ -131,6 +149,11 @@ def parse_args(argv):
                         help='conda/mamba/micromamba executable to use (default: conda)')
     parser.add_argument('--conda-root', default=None,
                         help='Root prefix, passed as -r (needed by e.g. micromamba)')
+    parser.add_argument('--active-env', action='store_true',
+                        help=('Build/test both refs directly in the currently active conda '
+                             'environment instead of creating a fresh one per ref. Skips '
+                             'package downloads, at the cost of both refs sharing one '
+                             'environment (built/tested one after the other, not in parallel).'))
     parser.add_argument('--keep-envs', action='store_true', help='Do not remove the conda environments afterwards')
     parser.add_argument('--keep-checkouts', action='store_true', help='Do not remove the git worktrees afterwards')
 
@@ -157,6 +180,7 @@ def create_cfg(args):
         platform = args.platform
         conda_exe = args.conda_exe
         root_args = ['-r', args.conda_root] if args.conda_root else []
+        active_env = args.active_env
         extra_mctest_args = args.extra_mctest_args
         comp = args.comp
         instr = args.instr
@@ -167,6 +191,8 @@ def main():
     args = parse_args(sys.argv)
     cfg = create_cfg(args)
     reporoot = args.srcdir
+    if cfg.active_env:
+        require_active_conda_env()
 
     with tempfile.TemporaryDirectory() as tmp:
         cfg.workdir = pathlib.Path(args.workdir) if args.workdir else pathlib.Path(tmp)
@@ -187,8 +213,7 @@ def main():
                 raise SystemExit('ERROR: ref1 and ref2 resolve to the same commit (%s)' % sha1)
 
             viewbin = 'mcviewtest' if cfg.mode == 'mcstas' else 'mxviewtest'
-            run_in_env(cfg.conda_exe, cfg.root_args, env2,
-                      [viewbin, str(cfg.testdir), '--reflabel', label1, '--nobrowse'])
+            run_cmd(cfg, env2, [viewbin, str(cfg.testdir), '--reflabel', label1, '--nobrowse'])
 
             ofile = cfg.testdir / ('%s_output.html' % cfg.testdir.name)
             print()
@@ -196,7 +221,7 @@ def main():
             print('REF2 %s -> label %s' % (args.ref2, label2))
             print('Comparison report: %s' % ofile)
         finally:
-            if not args.keep_envs:
+            if not args.keep_envs and not cfg.active_env:
                 for envname in envs:
                     run(remove_env_cmd(cfg.conda_exe, cfg.root_args, envname), check=False)
             if not args.keep_checkouts:
