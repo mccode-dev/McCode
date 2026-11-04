@@ -1,0 +1,453 @@
+#!/usr/bin/env python3
+'''
+Compare McStas/McXtrace simulation speed for a component or instrument
+between two commits/branches, each built into its own conda environment.
+
+For every instrument matching --comp/--instr, it measures INITIALIZE/TRACE/
+FINALLY wall time for each ref and prints a before/after comparison.
+
+Timing works by patching each instrument's generated C file right after
+codegen, using timespec_get(..., TIME_UTC) (nanosecond-resolution, C11
+standard, no platform-specific API needed) to bracket init() and finally()
+(each located via a stable nearby marker, not just adjacent text, since the
+exact lines between marker and call have drifted before - see
+common/lib/share/mccode_main.c). TRACE is timed per ray, not for the whole
+run: raytrace_all()'s own per-ray raytrace(_particle) call is timed
+individually into a buffer, then reported as mean/median/min/max over all
+rays in that run. mcrun is then asked to compile again: since it only
+regenerates/recompiles what is older than its source, touching the
+already-patched file makes it reuse (not overwrite) the patch and recompile
+the binary from it, with mcrun's own normal (already cross-platform-correct)
+compiler invocation.
+
+By default both refs are built/tested directly in the conda/mamba/micromamba
+environment that is already active. Pass --fresh-env to instead create (and
+download packages into) a new environment per ref.
+
+Usage: mccode-commit-speed-diff REF1 REF2 (--comp COMP | --instr PATTERN) [options]
+'''
+import argparse
+import os
+import pathlib
+import re
+import shutil
+import statistics
+import subprocess
+import sys
+import tempfile
+
+if os.name == 'nt':
+    try:
+        import mslex as lexer
+    except ImportError:
+        import shlex as lexer
+else:
+    import shlex as lexer
+
+
+def run(cmd, cwd=None, check=True, capture_output=False, timeout=None):
+    print()
+    print('LAUNCHING>>> %s' % lexer.join(str(c) for c in cmd))
+    print()
+    return subprocess.run(cmd, cwd=cwd, check=check, timeout=timeout,
+                          capture_output=capture_output, text=capture_output)
+
+
+def detect_reporoot():
+    reporoot = pathlib.Path(__file__).parent.parent.parent
+    if not reporoot.joinpath('CHANGES_McStas').is_file():
+        return None
+    return reporoot.absolute()
+
+
+def autodetect_platform():
+    import platform
+    return {'Windows': 'win', 'Darwin': 'mac', 'Linux': 'linux'}[platform.system()]
+
+
+def resolve_sha(reporoot, ref):
+    out = run(['git', '-C', str(reporoot), 'rev-parse', '--short', ref],
+              capture_output=True).stdout.strip()
+    if not out:
+        raise SystemExit('ERROR: Could not resolve ref: %s' % ref)
+    return out
+
+
+def create_env_cmd(conda_exe, root_args, yml, envname):
+    # micromamba has no "env" subcommand group for creation, only a flat 'create'
+    if 'micromamba' in pathlib.Path(conda_exe).name.lower():
+        return [conda_exe] + root_args + ['create', '-y', '-n', envname, '-f', str(yml)]
+    return [conda_exe] + root_args + ['env', 'create', '-f', str(yml), '-n', envname]
+
+
+def remove_env_cmd(conda_exe, root_args, envname):
+    return [conda_exe] + root_args + ['env', 'remove', '-y', '-n', envname]
+
+
+def run_in_env(conda_exe, root_args, envname, cmd, check=True, cwd=None, capture_output=False, timeout=None):
+    return run([conda_exe] + root_args + ['run', '-n', envname] + cmd,
+              check=check, cwd=cwd, capture_output=capture_output, timeout=timeout)
+
+
+def require_active_conda_env():
+    if not os.environ.get('CONDA_PREFIX'):
+        raise SystemExit('ERROR: Building in the active environment requires a conda/mamba/'
+                         'micromamba environment to already be activated ($CONDA_PREFIX is '
+                         'unset). Pass --fresh-env to create one per ref instead.')
+
+
+def run_cmd(cfg, envname, cmd, check=True, cwd=None, capture_output=False, timeout=None):
+    # default: build/test directly in the environment this script itself runs
+    # in, instead of spinning up (and downloading packages into) a fresh one
+    if not cfg.fresh_env:
+        return run(cmd, check=check, cwd=cwd, capture_output=capture_output, timeout=timeout)
+    return run_in_env(cfg.conda_exe, cfg.root_args, envname, cmd,
+                      check=check, cwd=cwd, capture_output=capture_output, timeout=timeout)
+
+
+# Timing instrumentation, applied to each instrument's generated C file, all
+# using timespec_get(..., TIME_UTC) (nanosecond resolution, C11 standard
+# library, no platform-specific API). INITIALIZE/FINALLY bracket init()/
+# finally() (always present, verbatim, in every generated instrument - see
+# common/lib/share/mccode_main.c); each is located via a stable marker
+# comment/message rather than assuming the call immediately follows it, since
+# the lines in between have drifted before (e.g. commit ca7edd408 inserted an
+# mcsave_final assignment between the FINALLY marker and the call) and may
+# drift again. TRACE is timed per ray, not for the whole run: the
+# raytrace_all() function (generated per instrument, always with this exact
+# structure for a plain CPU build - no --openacc) times each
+# raytrace(_particle) call into a ncount-sized buffer, then reports
+# mean/median/min/max over all rays in that one run, instead of printing one
+# line per ray.
+INITIALIZE_MARKER = 'SIG_MESSAGE("[" __FILE__ "] main INITIALISE");'
+FINALLY_MARKER = '// save/finally executed by master node/thread/host'
+TIMING_PATCHES = [
+    ('void raytrace_all(unsigned long long ncount, unsigned long seed) {',
+     'static int _mcspd_cmp(const void *a, const void *b) {\n'
+     '  double da = *(const double *)a, db = *(const double *)b;\n'
+     '  return (da > db) - (da < db);\n'
+     '}\n\n'
+     'void raytrace_all(unsigned long long ncount, unsigned long seed) {\n'
+     '  double *_mcspd_times = (double *)malloc(sizeof(double) * (ncount ? ncount : 1));\n'
+     '  if (!_mcspd_times) {\n'
+     '    fprintf(stderr, "MCCODE_TIMING ERROR malloc failed for %llu rays\\n", ncount);\n'
+     '    exit(1);\n'
+     '  }'),
+    ('      raytrace(_particle);',
+     '      struct timespec _mcspd_r0, _mcspd_r1;\n'
+     '      timespec_get(&_mcspd_r0, TIME_UTC);\n'
+     '      raytrace(_particle);\n'
+     '      timespec_get(&_mcspd_r1, TIME_UTC);\n'
+     '      _mcspd_times[pidx] = (_mcspd_r1.tv_sec - _mcspd_r0.tv_sec)\n'
+     '                         + (_mcspd_r1.tv_nsec - _mcspd_r0.tv_nsec) / 1e9;'),
+    ('} /* raytrace_all */',
+     '  if (ncount > 0) {\n'
+     '    double _mcspd_sum = 0, _mcspd_min = _mcspd_times[0], _mcspd_max = _mcspd_times[0];\n'
+     '    unsigned long long _mcspd_i;\n'
+     '    for (_mcspd_i = 0; _mcspd_i < ncount; _mcspd_i++) {\n'
+     '      double v = _mcspd_times[_mcspd_i];\n'
+     '      _mcspd_sum += v;\n'
+     '      if (v < _mcspd_min) _mcspd_min = v;\n'
+     '      if (v > _mcspd_max) _mcspd_max = v;\n'
+     '    }\n'
+     '    qsort(_mcspd_times, ncount, sizeof(double), _mcspd_cmp);\n'
+     '    double _mcspd_median = (ncount % 2) ? _mcspd_times[ncount / 2]\n'
+     '                                         : (_mcspd_times[ncount / 2 - 1] + _mcspd_times[ncount / 2]) / 2.0;\n'
+     '    fprintf(stderr, "MCCODE_TIMING_RAY mean=%.9f median=%.9f min=%.9f max=%.9f n=%llu\\n",\n'
+     '            _mcspd_sum / ncount, _mcspd_median, _mcspd_min, _mcspd_max, ncount);\n'
+     '  }\n'
+     '  free(_mcspd_times);\n'
+     '} /* raytrace_all */'),
+]
+TIMING_RE = re.compile(r'MCCODE_TIMING (INITIALIZE|FINALLY) ([0-9.eE+-]+)')
+TIMING_RAY_RE = re.compile(r'MCCODE_TIMING_RAY mean=([0-9.eE+-]+) median=([0-9.eE+-]+) '
+                          r'min=([0-9.eE+-]+) max=([0-9.eE+-]+) n=(\d+)')
+
+
+def wrap_call_after_marker(text, marker, call, label):
+    ''' Insert nanosecond timing around the first `call` found after `marker`. '''
+    if text.count(marker) != 1:
+        raise SystemExit('ERROR: Could not time %s: expected exactly 1 occurrence of marker '
+                         '%r, found %d (generated code layout changed?)' % (label, marker, text.count(marker)))
+    start = text.index(marker) + len(marker)
+    pos = text.find(call, start)
+    if pos == -1:
+        raise SystemExit('ERROR: Could not time %s: %r not found after its marker '
+                         '(generated code layout changed?)' % (label, call))
+    t0, t1 = '_mcspd_%s0' % label[:1], '_mcspd_%s1' % label[:1]
+    before = ('struct timespec %s, %s; timespec_get(&%s, TIME_UTC);\n  ' % (t0, t1, t0))
+    after = ('\n  timespec_get(&%s, TIME_UTC);\n'
+            '  fprintf(stderr, "MCCODE_TIMING %s %%.9f\\n", '
+            '(%s.tv_sec - %s.tv_sec) + (%s.tv_nsec - %s.tv_nsec) / 1e9);'
+            % (t1, label.upper(), t1, t0, t1, t0))
+    return text[:pos] + before + call + after + text[pos + len(call):]
+
+
+def patch_timing(cpath):
+    text = cpath.read_text(encoding='utf-8', errors='surrogateescape')
+    text = wrap_call_after_marker(text, INITIALIZE_MARKER, 'init();', 'initialize')
+    text = wrap_call_after_marker(text, FINALLY_MARKER, 'finally();', 'finally')
+    for old, new in TIMING_PATCHES:
+        n = text.count(old)
+        if n != 1:
+            raise SystemExit('ERROR: Could not add timing to %s: expected exactly 1 occurrence of '
+                             '%r, found %d (generated code layout changed?)' % (cpath, old, n))
+        text = text.replace(old, new)
+    cpath.write_text(text, encoding='utf-8', errors='surrogateescape')
+
+
+def discover_instruments(examples_dir, comp, instr):
+    instrs = sorted(examples_dir.rglob('*.instr'))
+    if instr:
+        rx = re.compile(instr)
+        return [f for f in instrs if rx.search(f.stem)]
+    rx = re.compile(r'=\s*%s\s*\(' % re.escape(comp))
+    return [f for f in instrs if rx.search(f.read_text(encoding='utf-8', errors='replace'))]
+
+
+def build_ref(sha, reporoot, cfg, worktrees, envs):
+    # worktrees/envs are appended to immediately after each resource is
+    # created, not after this function returns, so a later failure in here
+    # (e.g. the build itself) still leaves them registered for cleanup
+    envname = 'mccode-commit-speed-diff-%s' % sha
+    worktree = cfg.workdir / ('src_%s' % sha)
+
+    run(['git', '-C', str(reporoot), 'worktree', 'add', '--detach', str(worktree), sha])
+    worktrees.append(worktree)
+
+    if cfg.fresh_env:
+        yml = cfg.workdir / ('%s.yml' % sha)
+        run([sys.executable, str(reporoot / 'devel' / 'bin' / 'mccode-create-conda-yml'),
+             '-m', cfg.mode, '-p', cfg.platform, '-n', envname, '-o', str(yml), '-f'])
+        run(remove_env_cmd(cfg.conda_exe, cfg.root_args, envname), check=False)
+        run(create_env_cmd(cfg.conda_exe, cfg.root_args, yml, envname))
+        envs.append(envname)
+
+    run_cmd(cfg, envname,
+           [sys.executable, str(worktree / 'devel' / 'bin' / 'mccode-build-conda'),
+            '-m', cfg.mode, '-s', str(worktree)],
+           timeout=cfg.timeout)
+
+    return envname
+
+
+def measure_instrument(cfg, envname, instr_file, workdir):
+    runbin = 'mcrun' if cfg.mode == 'mcstas' else 'mxrun'
+    exesuffix = 'exe' if cfg.platform == 'win' else 'out'
+
+    instrdir = workdir / instr_file.stem
+    shutil.rmtree(instrdir, ignore_errors=True)
+    shutil.copytree(instr_file.parent, instrdir)
+    cpath = instrdir / (instr_file.stem + '.c')
+    binpath = instrdir / ('%s.%s' % (instr_file.stem, exesuffix))
+
+    # cold compile (-n0: compile and do a trivial run, nothing timed yet)
+    run_cmd(cfg, envname, [runbin, '--verbose', '-n0', instr_file.name],
+           check=False, cwd=instrdir, timeout=cfg.timeout)
+    if not cpath.is_file():
+        print('SKIP %s: code generation did not produce %s' % (instr_file.stem, cpath.name))
+        return None
+
+    try:
+        patch_timing(cpath)
+    except SystemExit as e:
+        print('SKIP %s: %s' % (instr_file.stem, e))
+        return None
+
+    # mcrun only regenerates/recompiles what is older than its source, so the
+    # patch (which just touched cpath) is reused as-is and recompiled into binpath
+    r = run_cmd(cfg, envname, [runbin, '--verbose', '-n0', instr_file.name],
+               check=False, cwd=instrdir, timeout=cfg.timeout)
+    if r.returncode != 0 or not binpath.is_file():
+        print('SKIP %s: recompile of timing-patched code failed' % instr_file.stem)
+        return None
+
+    times = {'INITIALIZE': [], 'FINALLY': [],
+             'TRACE_MEAN': [], 'TRACE_MEDIAN': [], 'TRACE_MIN': [], 'TRACE_MAX': []}
+    for i in range(cfg.repeats):
+        outdir = instrdir / ('speed_diff_out_%d' % i)
+        shutil.rmtree(outdir, ignore_errors=True)
+        try:
+            r = run_cmd(cfg, envname,
+                       [str(binpath), '-y', '--ncount=%s' % cfg.ncount, '--seed=%s' % cfg.seed,
+                        '--dir=%s' % outdir],
+                       check=False, cwd=instrdir, capture_output=True, timeout=cfg.timeout)
+        except subprocess.TimeoutExpired:
+            print('SKIP %s run %d: exceeded --timeout=%s' % (instr_file.stem, i, cfg.timeout))
+            continue
+        out = (r.stdout or '') + (r.stderr or '')
+        phases = dict(TIMING_RE.findall(out))
+        m = TIMING_RAY_RE.search(out)
+        # only accept a run that reported all three phases - a partial run
+        # (e.g. finally() crashing after TRACE was already printed) would
+        # otherwise leave some stat lists shorter than others
+        if not (m and 'INITIALIZE' in phases and 'FINALLY' in phases):
+            print('SKIP %s run %d: incomplete timing output' % (instr_file.stem, i))
+            continue
+        times['INITIALIZE'].append(float(phases['INITIALIZE']))
+        times['FINALLY'].append(float(phases['FINALLY']))
+        mean, median, lo, hi, _n = m.groups()
+        times['TRACE_MEAN'].append(float(mean))
+        times['TRACE_MEDIAN'].append(float(median))
+        times['TRACE_MIN'].append(float(lo))
+        times['TRACE_MAX'].append(float(hi))
+
+    if not times['TRACE_MEAN']:
+        print('SKIP %s: no complete timed run out of %d attempt(s)' % (instr_file.stem, cfg.repeats))
+        return None
+    return times
+
+
+def measure_instruments(sha, envname, cfg):
+    showcfg_bin = 'mcrun' if cfg.mode == 'mcstas' else 'mxrun'
+    mccoderoot = run_cmd(cfg, envname, [showcfg_bin, '--showcfg=resourcedir'],
+                        capture_output=True, timeout=cfg.timeout).stdout.strip()
+    examples_dir = pathlib.Path(mccoderoot) / 'examples'
+    instrs = discover_instruments(examples_dir, cfg.comp, cfg.instr)
+    if not instrs:
+        raise SystemExit('ERROR: No instruments under %s matched the given filter' % examples_dir)
+
+    seen = {}
+    for f in instrs:
+        if f.stem in seen:
+            raise SystemExit('ERROR: Duplicate instrument name %r: both %s and %s match - '
+                             'rerun with a narrower --comp/--instr' % (f.stem, seen[f.stem], f))
+        seen[f.stem] = f
+
+    measuredir = cfg.workdir / ('measure_%s' % sha)
+    results = {}
+    for instr_file in instrs:
+        times = measure_instrument(cfg, envname, instr_file, measuredir)
+        if times is not None:
+            results[instr_file.stem] = times
+
+    if not results:
+        raise SystemExit('ERROR: None of the %d matched instrument(s) produced usable timing '
+                         'for %s' % (len(instrs), sha))
+    return results
+
+
+def print_report(label1, sha1, results1, label2, sha2, results2):
+    col1, col2 = '%s (%s)' % (label1, sha1), '%s (%s)' % (label2, sha2)
+
+    def row(name, v1, v2):
+        delta = '%+.1f%%' % ((v2 - v1) / v1 * 100) if v1 else 'n/a'
+        print('  %-14s %18.6f %18.6f %12s' % (name, v1, v2, delta))
+
+    for instrname in sorted(set(results1) | set(results2)):
+        print()
+        print(instrname)
+        t1, t2 = results1.get(instrname), results2.get(instrname)
+        if t1 is None or t2 is None:
+            print('  only measured for %s' % (col2 if t1 is None else col1))
+            continue
+        print('  %-14s %18s %18s %12s' % ('', col1, col2, ''))
+        row('initialize', statistics.mean(t1['INITIALIZE']), statistics.mean(t2['INITIALIZE']))
+        # trace is timed per ray (not for the whole run): mean/min/max are exact
+        # across repeats (same ncount each time), median is the mean of each
+        # repeat's own per-ray median rather than a true pooled median
+        row('trace mean', statistics.mean(t1['TRACE_MEAN']), statistics.mean(t2['TRACE_MEAN']))
+        row('trace median', statistics.mean(t1['TRACE_MEDIAN']), statistics.mean(t2['TRACE_MEDIAN']))
+        row('trace min', min(t1['TRACE_MIN']), min(t2['TRACE_MIN']))
+        row('trace max', max(t1['TRACE_MAX']), max(t2['TRACE_MAX']))
+        row('finally', statistics.mean(t1['FINALLY']), statistics.mean(t2['FINALLY']))
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        prog=os.path.basename(argv[0]),
+        description=('Measure McStas/McXtrace simulation speed for a component/instrument '
+                     'against two commits, each built in its own conda environment.'))
+    parser.add_argument('ref1', help='First commit/branch/tag ("before")')
+    parser.add_argument('ref2', help='Second commit/branch/tag ("after", compared against ref1)')
+    filt = parser.add_mutually_exclusive_group(required=True)
+    filt.add_argument('--comp', help='Measure only instruments using this component')
+    filt.add_argument('--instr', help='Measure only instruments matching this filter (regex)')
+    parser.add_argument('-m', '--mode', choices=['mcstas', 'mcxtrace'], default='mcstas',
+                        help='Choose McStas or McXtrace mode (default: mcstas)')
+    reporoot = detect_reporoot()
+    parser.add_argument('-s', '--srcdir', required=(not reporoot), default=reporoot,
+                        help=('Source dir (required since reporoot not found)' if not reporoot
+                              else 'Source dir (default: McCode repo root)'))
+    parser.add_argument('--repeats', type=int, default=3,
+                        help='Number of timed runs per instrument per ref (default: 3)')
+    parser.add_argument('--ncount', default='1e6', help='ncount for the timed runs (default: 1e6)')
+    parser.add_argument('--seed', default='1000', help='seed for the timed runs (default: 1000)')
+    parser.add_argument('--timeout', type=int, default=3600,
+                        help='Max seconds per build/compile/run subprocess (default: 3600)')
+    parser.add_argument('--workdir', default=None,
+                        help='Where to put checkouts/env files (default: temporary directory)')
+    parser.add_argument('--conda-exe', default='conda',
+                        help='conda/mamba/micromamba executable to use (default: conda)')
+    parser.add_argument('--conda-root', default=None,
+                        help='Root prefix, passed as -r (needed by e.g. micromamba)')
+    parser.add_argument('--fresh-env', action='store_true',
+                        help=('Create a fresh conda environment per ref (the old default), '
+                             'instead of building/testing both refs in the currently active '
+                             'one. The active-env default skips package downloads, at the '
+                             'cost of both refs sharing one environment (built/tested one '
+                             'after the other, not in parallel).'))
+    parser.add_argument('--keep-envs', action='store_true', help='Do not remove the conda environments afterwards')
+    parser.add_argument('--keep-checkouts', action='store_true', help='Do not remove the git worktrees afterwards')
+
+    args = parser.parse_args(argv[1:])
+    args.platform = autodetect_platform()
+    sd = pathlib.Path(args.srcdir)
+    if not sd.is_dir():
+        parser.error('Missing source dir: %s' % sd)
+    args.srcdir = sd.absolute()
+    return args
+
+
+def create_cfg(args):
+    class Cfg:
+        mode = args.mode
+        platform = args.platform
+        conda_exe = args.conda_exe
+        root_args = ['-r', args.conda_root] if args.conda_root else []
+        fresh_env = args.fresh_env
+        comp = args.comp
+        instr = args.instr
+        repeats = args.repeats
+        ncount = args.ncount
+        seed = args.seed
+        timeout = args.timeout
+    return Cfg()
+
+
+def main():
+    args = parse_args(sys.argv)
+    cfg = create_cfg(args)
+    reporoot = args.srcdir
+    if not cfg.fresh_env:
+        require_active_conda_env()
+
+    sha1 = resolve_sha(reporoot, args.ref1)
+    sha2 = resolve_sha(reporoot, args.ref2)
+    if sha1 == sha2:
+        raise SystemExit('ERROR: ref1 and ref2 resolve to the same commit (%s)' % sha1)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg.workdir = pathlib.Path(args.workdir) if args.workdir else pathlib.Path(tmp)
+        cfg.workdir.mkdir(parents=True, exist_ok=True)
+
+        envs, worktrees = [], []
+        try:
+            env1 = build_ref(sha1, reporoot, cfg, worktrees, envs)
+            env2 = build_ref(sha2, reporoot, cfg, worktrees, envs)
+
+            results1 = measure_instruments(sha1, env1, cfg)
+            results2 = measure_instruments(sha2, env2, cfg)
+
+            print_report(args.ref1, sha1, results1, args.ref2, sha2, results2)
+        finally:
+            if not args.keep_envs and cfg.fresh_env:
+                for envname in envs:
+                    run(remove_env_cmd(cfg.conda_exe, cfg.root_args, envname), check=False)
+            if not args.keep_checkouts:
+                for wt in worktrees:
+                    run(['git', '-C', str(reporoot), 'worktree', 'remove', '--force', str(wt)], check=False)
+
+
+if __name__ == '__main__':
+    main()
