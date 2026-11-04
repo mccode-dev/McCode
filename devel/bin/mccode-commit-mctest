@@ -55,16 +55,19 @@ def resolve_sha(reporoot, ref):
     return out
 
 
-def create_env_cmd(conda_exe, yml, envname):
-    return [conda_exe, 'env', 'create', '-f', str(yml), '-n', envname]
+def create_env_cmd(conda_exe, root_args, yml, envname):
+    # micromamba has no "env" subcommand group for creation, only a flat 'create'
+    if 'micromamba' in pathlib.Path(conda_exe).name.lower():
+        return [conda_exe] + root_args + ['create', '-y', '-n', envname, '-f', str(yml)]
+    return [conda_exe] + root_args + ['env', 'create', '-f', str(yml), '-n', envname]
 
 
-def remove_env_cmd(conda_exe, envname):
-    return [conda_exe, 'env', 'remove', '-y', '-n', envname]
+def remove_env_cmd(conda_exe, root_args, envname):
+    return [conda_exe] + root_args + ['env', 'remove', '-y', '-n', envname]
 
 
-def run_in_env(conda_exe, envname, cmd, check=True):
-    return run([conda_exe, 'run', '-n', envname] + cmd, check=check)
+def run_in_env(conda_exe, root_args, envname, cmd, check=True):
+    return run([conda_exe] + root_args + ['run', '-n', envname] + cmd, check=check)
 
 
 def build_and_test(ref, reporoot, cfg):
@@ -78,10 +81,10 @@ def build_and_test(ref, reporoot, cfg):
     run([sys.executable, str(reporoot / 'devel' / 'bin' / 'mccode-create-conda-yml'),
          '-m', cfg.mode, '-p', cfg.platform, '-n', envname, '-o', str(yml), '-f'])
 
-    run(remove_env_cmd(cfg.conda_exe, envname), check=False)
-    run(create_env_cmd(cfg.conda_exe, yml, envname))
+    run(remove_env_cmd(cfg.conda_exe, cfg.root_args, envname), check=False)
+    run(create_env_cmd(cfg.conda_exe, cfg.root_args, yml, envname))
 
-    run_in_env(cfg.conda_exe, envname,
+    run_in_env(cfg.conda_exe, cfg.root_args, envname,
               [sys.executable, str(worktree / 'devel' / 'bin' / 'mccode-build-conda'),
                '-m', cfg.mode, '-s', str(worktree)])
 
@@ -94,7 +97,7 @@ def build_and_test(ref, reporoot, cfg):
     testcmd += cfg.extra_mctest_args
     # mctest exits non-zero on test failures/discrepancies - that is a result
     # to report, not a failure of this wrapper, so don't abort the script on it
-    run_in_env(cfg.conda_exe, envname, testcmd, check=False)
+    run_in_env(cfg.conda_exe, cfg.root_args, envname, testcmd, check=False)
 
     labeldirs = [d.name for d in cfg.testdir.iterdir() if sha in d.name]
     if len(labeldirs) != 1:
@@ -125,7 +128,9 @@ def parse_args(argv):
     parser.add_argument('--workdir', default=None,
                         help='Where to put checkouts/env files (default: temporary directory)')
     parser.add_argument('--conda-exe', default='conda',
-                        help='conda-CLI-compatible executable to use, e.g. conda or mamba (default: conda)')
+                        help='conda/mamba/micromamba executable to use (default: conda)')
+    parser.add_argument('--conda-root', default=None,
+                        help='Root prefix, passed as -r (needed by e.g. micromamba)')
     parser.add_argument('--keep-envs', action='store_true', help='Do not remove the conda environments afterwards')
     parser.add_argument('--keep-checkouts', action='store_true', help='Do not remove the git worktrees afterwards')
 
@@ -151,6 +156,7 @@ def create_cfg(args):
         mode = args.mode
         platform = args.platform
         conda_exe = args.conda_exe
+        root_args = ['-r', args.conda_root] if args.conda_root else []
         extra_mctest_args = args.extra_mctest_args
         comp = args.comp
         instr = args.instr
@@ -181,7 +187,7 @@ def main():
                 raise SystemExit('ERROR: ref1 and ref2 resolve to the same commit (%s)' % sha1)
 
             viewbin = 'mcviewtest' if cfg.mode == 'mcstas' else 'mxviewtest'
-            run_in_env(cfg.conda_exe, env2,
+            run_in_env(cfg.conda_exe, cfg.root_args, env2,
                       [viewbin, str(cfg.testdir), '--reflabel', label1, '--nobrowse'])
 
             ofile = cfg.testdir / ('%s_output.html' % cfg.testdir.name)
@@ -192,7 +198,7 @@ def main():
         finally:
             if not args.keep_envs:
                 for envname in envs:
-                    run(remove_env_cmd(cfg.conda_exe, envname), check=False)
+                    run(remove_env_cmd(cfg.conda_exe, cfg.root_args, envname), check=False)
             if not args.keep_checkouts:
                 for wt in worktrees:
                     run(['git', '-C', str(reporoot), 'worktree', 'remove', '--force', str(wt)], check=False)
