@@ -2,7 +2,7 @@
 
 ## Status
 
-*Proposed*. Implemented in Lomholy/McCode (PR link to be added). Needs a matching change in mccode-antlr (`translators/c_raytrace.py` emits its own copy of the `raytrace_all` loop).
+*Proposed*. Implemented in Lomholy/McCode#70. Needs a matching change in mccode-antlr (`translators/c_raytrace.py` emits its own copy of the `raytrace_all` loop).
 
 ## Context
 
