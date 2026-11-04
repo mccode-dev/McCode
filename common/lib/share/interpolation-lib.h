@@ -65,6 +65,11 @@
 /*******************************************************************************
  * begin declaration (.h) section
  ******************************************************************************/
+%include "read_table-lib"
+
+#ifndef INTERPOLATION_LIB_H
+#define INTERPOLATION_LIB_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -151,4 +156,6 @@ double *interpolator_interpolate(struct interpolator_struct *interpolator,
 double *interpolator_interpolate3_3(struct interpolator_struct *interpolator,
                     double  x,  double  y,  double  z,
                     double *bx, double *by, double *bz);
+
+#endif
 

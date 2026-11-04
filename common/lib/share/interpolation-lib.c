@@ -65,6 +65,10 @@
 /*******************************************************************************
  * begin declaration (.h) section
  ******************************************************************************/
+#ifndef INTERPOLATION_LIB_H
+#include "interpolation-lib.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
