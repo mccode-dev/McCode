@@ -5938,9 +5938,13 @@ mchelp(char *pgmname)
   fprintf(stderr,
   "This instrument has been compiled with MPI support.\n  Use 'mpirun %s [options] [parm=value ...]'.\n", pgmname);
 #endif
-#ifdef MCGPU
+#ifdef OPENACC
   fprintf(stderr,
   "This instrument has been compiled with NVIDIA GPU support through OpenACC.\n  Running on systems without such devices will lead to segfaults.\nFurter, fprintf, sprintf and printf have been removed from any component TRACE.\n");
+#endif
+#ifdef OMPTARGET
+  fprintf(stderr,
+  "This instrument has been compiled with GPU support through OpenMP target offload.\n  Running on systems without such devices stops with an error when data must move to the device.\nFurther, fprintf, sprintf and printf have been removed from any component TRACE.\n");
 #endif
 
   if(numipar > 0)
