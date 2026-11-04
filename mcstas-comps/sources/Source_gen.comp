@@ -137,6 +137,7 @@ Lmin=0,Lmax=0,Emin=0,Emax=0,T2=0,I2=0,T3=0,I3=0,zdepth=0, int target_index=1)
 
 SHARE
 %{
+  #define MCGPU_PORTED_Source_gen
 %include "read_table-lib"
 
 #ifndef SOURCE_GEN_DEF
@@ -223,6 +224,9 @@ INITIALIZE
 
   /* spectrum characteristics */
   if (flux_file && strlen(flux_file) && strcmp(flux_file,"NULL") && strcmp(flux_file,"0")) {
+#ifdef OMPTARGET
+    mcgpu_die("flux_file table is host heap, not transferred", NAME_CURRENT_COMP, "flux_file");
+#endif
     if (Table_Read(&pTable, flux_file, 1) <= 0) /* read 1st block data from file into pTable */
       exit(fprintf(stderr, "Source_gen: %s: can not read flux file %s\n", NAME_CURRENT_COMP, flux_file));
     /* put table in Log scale */
@@ -286,6 +290,9 @@ INITIALIZE
   /* now read position-divergence files, if any */
   if (xdiv_file && strlen(xdiv_file) && strcmp(xdiv_file,"NULL") && strcmp(xdiv_file,"0")) {
     int i,j;
+#ifdef OMPTARGET
+    mcgpu_die("xdiv_file table is host heap, not transferred", NAME_CURRENT_COMP, "xdiv_file");
+#endif
     if (Table_Read(&pTable_x, xdiv_file, 1) <= 0) /* read 1st block data from file into pTable */
       exit(fprintf(stderr, "Source_gen: %s: can not read XDiv file %s\n", NAME_CURRENT_COMP, xdiv_file));
     pTable_xsum = 0;
@@ -323,6 +330,9 @@ INITIALIZE
 
   if (ydiv_file && strlen(ydiv_file) && strcmp(ydiv_file,"NULL") && strcmp(ydiv_file,"0")) {
     int i,j;
+#ifdef OMPTARGET
+    mcgpu_die("ydiv_file table is host heap, not transferred", NAME_CURRENT_COMP, "ydiv_file");
+#endif
     if (Table_Read(&pTable_y, ydiv_file, 1) <= 0) /* read 1st block data from file into pTable */
       exit(fprintf(stderr, "Source_gen: %s: can not read YDiv file %s\n", NAME_CURRENT_COMP, ydiv_file));
     pTable_ysum = 0;
@@ -527,6 +537,7 @@ TRACE
 
     /* spectral dependency from files or Maxwellians */
 
+#ifndef OMPTARGET
     if (flux_file && strlen(flux_file) && strcmp(flux_file,"NULL") && strcmp(flux_file,"0"))
     {
        double binwidth=Table_Value(pTable, lambda, 1);
@@ -534,6 +545,7 @@ TRACE
        p *= binwidth;
     }
     else 
+#endif
 
 if (T1 > 0 && I1 > 0)
     {
@@ -550,6 +562,7 @@ if (T1 > 0 && I1 > 0)
       p *= Maxwell;
     }
 
+#ifndef OMPTARGET
     /* optional x-xdiv and y-ydiv weightening: position=along columns, div=along rows */
     if (xdiv_file && strlen(xdiv_file)
       && strcmp(xdiv_file,"NULL") && strcmp(xdiv_file,"0") && pTable_xsum > 0) {
@@ -567,6 +580,7 @@ if (T1 > 0 && I1 > 0)
       r = Table_Value2d(pTable_y, i,j);
       p *= r/pTable_ysum;
     }
+#endif
 
     SCATTER;
   }
