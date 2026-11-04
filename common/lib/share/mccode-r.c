@@ -3224,10 +3224,13 @@ static void mctime_reduce(void)
 #endif
 }
 
-// one statistics row as text: mean +- std (min, max)
-static void mctime_stat_text(char *buf, size_t n, const struct mctime_stat *s)
+// one statistics row as text: mean +- std (min, max), or only the mean when !full
+static void mctime_stat_text(char *buf, size_t n, const struct mctime_stat *s, int full)
 {
-  snprintf(buf, n, "%lld +- %lld (min %lld, max %lld)", s->mean, s->std, s->min, s->max);
+  if (full)
+    snprintf(buf, n, "%lld +- %lld (min %lld, max %lld)", s->mean, s->std, s->min, s->max);
+  else
+    snprintf(buf, n, "%lld", s->mean);
 }
 
 /*******************************************************************************
@@ -3245,12 +3248,12 @@ void siminfo_close()
     char tray[128];
     struct mctime_stat sray = mctime_stat_from((double)mcray_count, (double)mcray_sum, mcray_sumsq,
                                                 mcray_count ? mcray_min : 0, mcray_max);
-    mctime_stat_text(tray, sizeof(tray), &sray);
+    mctime_stat_text(tray, sizeof(tray), &sray, 1);
 #endif
     if (mctime_finally_t0) {
       tfinally = mccode_time_ns() - mctime_finally_t0;
-      mctime_stat_text(tinit, sizeof(tinit), &mctime_init_stat);
-      mctime_stat_text(ttrace, sizeof(ttrace), &mctime_trace_stat);
+      mctime_stat_text(tinit, sizeof(tinit), &mctime_init_stat, mctime_reduced);
+      mctime_stat_text(ttrace, sizeof(ttrace), &mctime_trace_stat, mctime_reduced);
     }
 #ifdef USE_NEXUS
     if (mcformat && strcasestr(mcformat, "NeXus")) {
