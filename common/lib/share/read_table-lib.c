@@ -935,7 +935,7 @@ double Table_Value(t_Table Table, double X, long j)
   Y1 = Table_Index(Table,Index-1, j);
   Y2 = Table_Index(Table,Index  , j);
 
-#ifdef OPENACC
+#ifdef MCGPU
 #define strcmp(a,b) str_comp(a,b)
 #endif
 
@@ -946,7 +946,7 @@ double Table_Value(t_Table Table, double X, long j)
     ret = Table_Interp1d_nearest(X, X1,Y1, X2,Y2);
   }
 
-#ifdef OPENACC
+#ifdef MCGPU
 #ifdef strcmp
 #undef strcmp
 #endif
@@ -993,13 +993,13 @@ double Table_Value2d(t_Table Table, double X, double Y)
     if (x2 != x1) z21=Table_Index(Table, x2, y1); else z21 = z11;
     if (y2 != y1) z22=Table_Index(Table, x2, y2); else z22 = z21;
 
-#ifdef OPENACC
+#ifdef MCGPU
 #define strcmp(a,b) str_comp(a,b)
 #endif
 
     if (!strcmp(Table.method,"linear"))
       ret = Table_Interp2d(X,Y, x1,y1,x2,y2, z11,z12,z21,z22);
-#ifdef OPENACC
+#ifdef MCGPU
 #ifdef strcmp
 #undef strcmp
 #endif

@@ -197,6 +197,7 @@
     double **Mon2D_p;
     double **Mon2D_p2;
     double *Mon2D_Buffer;
+    double *Mon2D_N_d, *Mon2D_p_d, *Mon2D_p2_d, *Mon2D_Buffer_d; /* device copies, OMPTARGET only */
     unsigned long PixelID;
 
     double mxmin,mxmax,mymin,mymax,mzmin,mzmax;

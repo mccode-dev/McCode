@@ -302,6 +302,7 @@ DEPENDENCY "@NCRYSTALFLAGS@"
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 SHARE
 %{
+  #define MCGPU_PORTED_Single_crystal
   /* used for reading data table from file */
   %include "read_table-lib"
   %include "interoff-lib"
@@ -1286,6 +1287,7 @@ DECLARE
   struct hkl_info_struct hkl_info;
   off_struct offdata;
   struct hkl_data* hkl_list;
+  struct hkl_data* hkl_list_d;
 %}
 
 INITIALIZE
@@ -1397,6 +1399,11 @@ INITIALIZE
               printf ("  c = [%g %g %g]\n", hkl_info.m_cx, hkl_info.m_cy, hkl_info.m_cz); printf ("Reciprocal space lattice orientation:\n");
               printf ("  a* = [%g %g %g]\n", hkl_info.asx, hkl_info.asy, hkl_info.asz); printf ("  b* = [%g %g %g]\n", hkl_info.bsx, hkl_info.bsy, hkl_info.bsz);
               printf ("  c* = [%g %g %g]\n", hkl_info.csx, hkl_info.csy, hkl_info.csz););
+
+  #ifdef OMPTARGET
+  if (hkl_info.count > 0)
+    hkl_list_d = mcgpu_to_device (NAME_CURRENT_COMP, "hkl_list", hkl_list, hkl_info.count * sizeof (struct hkl_data));
+  #endif
 %}
 
 TRACE
@@ -1448,7 +1455,7 @@ TRACE
   char type; /* type of last event: t=transmit,c=coherent or i=incoherent */
   int itype; /* type of last event: t=1,c=2 or i=3 */
 
-  #ifdef OPENACC
+  #ifdef MCGPU
   #ifdef USE_OFF
   off_struct thread_offdata = offdata;
   #endif
@@ -1487,12 +1494,16 @@ TRACE
     abs_xlen *= 100;
     inc_xlen *= 100;
 
+    #ifdef OMPTARGET
+    L = hkl_list_d;
+    #else
     L = hkl_list;
+    #endif
 
     type = '\0';
     itype = 0;
 
-    #ifndef OPENACC
+    #ifndef MCGPU
     hkl_info.type = type;
     #endif
     do { /* Loop over multiple scattering events */
@@ -1517,7 +1528,7 @@ TRACE
       if (!intersect || t2 * v < -1e-9 || t1 * v > 1e-9) {
         /* neutron is leaving the sample */
         if (hkl_info.flag_warning < 10)
-          #ifndef OPENACC
+          #ifndef MCGPU
           fprintf (stderr,
                    "Single_crystal: %s: Warning: neutron has unexpectedly left the crystal!\n"
                    "                t1=%g t2=%g x=%g y=%g z=%g vx=%g vy=%g vz=%g\n",
@@ -1638,7 +1649,7 @@ TRACE
         type = 't';
         if (!itype)
           itype = 1;
-        #ifndef OPENACC
+        #ifndef MCGPU
         hkl_info.type = type;
         #endif
 
@@ -1705,7 +1716,7 @@ TRACE
         type = 'i';
         if (!itype)
           itype = 2;
-        #ifndef OPENACC
+        #ifndef MCGPU
         hkl_info.type = type;
         #endif
       } else {
@@ -1740,7 +1751,7 @@ TRACE
         type = 'c';
         if (!itype)
           itype = 3;
-        #ifndef OPENACC
+        #ifndef MCGPU
         hkl_info.type = type;
         hkl_info.h = L[i].h;
         hkl_info.k = L[i].k;
@@ -1780,6 +1791,10 @@ TRACE
 
 FINALLY
 %{
+  #ifdef OMPTARGET
+  if (hkl_info.count > 0)
+    mcgpu_free (hkl_list_d);
+  #endif
   #ifdef USE_MPI
   if (mpi_node_rank == mpi_node_root) {
     #endif

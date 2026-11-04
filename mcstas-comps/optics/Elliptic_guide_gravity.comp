@@ -154,6 +154,7 @@ SETTING PARAMETERS (xwidth = 0,yheight = 0,l,
 
 SHARE
 %{
+  #define MCGPU_PORTED_Elliptic_guide_gravity
   %include "ref-lib"
 
   ///////////////////////////////////////////////////////////////////////////
@@ -1051,6 +1052,11 @@ INITIALIZE
     coords_get (mcLocG, &Gx0, &Gy0, &Gz0);
   }
   Circ = 2 * PI * curvature;
+
+  #ifdef OMPTARGET
+  if (guideInfo.enableSegments)
+    mcgpu_die ("guide segments are host heap, not transferred", NAME_CURRENT_COMP, "segLength");
+  #endif
 %}
 
 /**

@@ -53,8 +53,11 @@ int mccode_main(int argc, char *argv[])
   }
 #endif /* USE_MPI */
 
-#ifdef OPENACC
+#ifdef MCGPU
 #ifdef USE_MPI
+#ifdef OMPTARGET
+  if (omp_get_num_devices() > 0) omp_set_default_device(mpi_node_rank % omp_get_num_devices());
+#else
   int num_devices = acc_get_num_devices(acc_device_nvidia);
   if(num_devices>0){
     int my_device = mpi_node_rank % num_devices;
@@ -64,6 +67,7 @@ int mccode_main(int argc, char *argv[])
     printf("There was an issue probing acc_get_num_devices, fallback to host\n");
     acc_set_device_type( acc_device_host );
   }
+#endif
 #endif
 #endif
 

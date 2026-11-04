@@ -59,11 +59,19 @@ SETTING PARAMETERS (int nL=20, int nh=20, int nowritefile=0,
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+SHARE
+%{
+  #define MCGPU_PORTED_DivLambda_monitor
+%}
+
 DECLARE
 %{
   DArray2d Div_N;
   DArray2d Div_p;
   DArray2d Div_p2;
+  double* Div_N_d;
+  double* Div_p_d;
+  double* Div_p2_d;
 %}
 
 INITIALIZE
@@ -93,6 +101,12 @@ INITIALIZE
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
     sprintf (filename, "%s", NAME_CURRENT_COMP);
+
+  #ifdef OMPTARGET
+  Div_N_d = mcgpu_to_device (NAME_CURRENT_COMP, "Div_N", Div_N[0], (size_t)nL * nh * sizeof (double));
+  Div_p_d = mcgpu_to_device (NAME_CURRENT_COMP, "Div_p", Div_p[0], (size_t)nL * nh * sizeof (double));
+  Div_p2_d = mcgpu_to_device (NAME_CURRENT_COMP, "Div_p2", Div_p2[0], (size_t)nL * nh * sizeof (double));
+  #endif
 %}
 
 TRACE
@@ -118,13 +132,13 @@ TRACE
 
       double p2 = p * p;
       #pragma acc atomic
-      Div_N[i][j] = Div_N[i][j] + 1;
+      MC2D (Div_N, i, j, nh) = MC2D (Div_N, i, j, nh) + 1;
 
       #pragma acc atomic
-      Div_p[i][j] = Div_p[i][j] + p;
+      MC2D (Div_p, i, j, nh) = MC2D (Div_p, i, j, nh) + p;
 
       #pragma acc atomic
-      Div_p2[i][j] = Div_p2[i][j] + p2;
+      MC2D (Div_p2, i, j, nh) = MC2D (Div_p2, i, j, nh) + p2;
 
       SCATTER;
     }
@@ -136,6 +150,11 @@ TRACE
 
 SAVE
 %{
+  #ifdef OMPTARGET
+  mcgpu_from_device (NAME_CURRENT_COMP, "Div_N", Div_N[0], Div_N_d, (size_t)nL * nh * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "Div_p", Div_p[0], Div_p_d, (size_t)nL * nh * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "Div_p2", Div_p2[0], Div_p2_d, (size_t)nL * nh * sizeof (double));
+  #endif
   if (!nowritefile) {
     DETECTOR_OUT_2D ("Wavelength-divergence monitor", "Wavelength [AA]", "divergence [deg]", Lmin, Lmax, -maxdiv_h, maxdiv_h, nL, nh, &Div_N[0][0], &Div_p[0][0],
                      &Div_p2[0][0], filename);
@@ -144,6 +163,11 @@ SAVE
 
 FINALLY
 %{
+  #ifdef OMPTARGET
+  mcgpu_free (Div_N_d);
+  mcgpu_free (Div_p_d);
+  mcgpu_free (Div_p2_d);
+  #endif
   destroy_darr2d (Div_N);
   destroy_darr2d (Div_p);
   destroy_darr2d (Div_p2);

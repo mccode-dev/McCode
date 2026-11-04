@@ -49,8 +49,15 @@
 #include <sys/time.h>
 #endif
 #include <float.h>
+/* element (i,j) of a DArray2d in TRACE: the OMPTARGET device copy is flat, row-major */
+#ifdef OMPTARGET
+#  define MC2D(a, i, j, ncol) a##_d[(long)(i) * (long)(ncol) + (j)]
+#else
+#  define MC2D(a, i, j, ncol) a[i][j]
+#endif
 #include <inttypes.h>
 #include <stdint.h>
+#ifdef MCGPU
 #ifdef OPENACC
 #include <openacc.h>
 #ifndef GCCOFFLOAD
@@ -58,8 +65,17 @@
 #else
 #include <math.h>
 #endif
+#else
+#include <math.h>
+#endif
 #pragma acc routine
 int noprintf();
+#if defined(OMPTARGET) && (defined(__AMDGCN__) || defined(__NVPTX__))
+/* device compilation pass: no libc in device code. The host pass is unaffected. */
+#define printf(...) 0
+#define free(p) ((void)0)
+#define abs(x) ((x) < 0 ? -(x) : (x))
+#endif
 #pragma acc routine
 size_t str_len(const char *s);
 #else
@@ -253,13 +269,13 @@ clock_t times (struct tms *__buffer) {
 #  endif
 #endif
 
-#ifdef OPENACC  /* default is to disable signals with PGI/OpenACC */
+#ifdef MCGPU  /* default is to disable signals with PGI/OpenACC */
 #  ifndef NOSIGNALS
 #    define NOSIGNALS 1
 #  endif
 #endif
 
-#ifndef OPENACC
+#ifndef MCGPU
 #  ifndef USE_OFF  /* default is to enable OFF when not using PGI/OpenACC */
 #    define USE_OFF
 #  endif
@@ -368,7 +384,7 @@ void destroy_darr3d(DArray3d a);
 #include "mpi.h"
 
 #ifdef OMPI_MPI_H  /* openmpi does not use signals: we may install our sighandler */
-#ifndef OPENACC    /* ... but only if we are not also running on GPU */
+#ifndef MCGPU    /* ... but only if we are not also running on GPU */
 #undef NOSIGNALS
 #endif
 #endif
