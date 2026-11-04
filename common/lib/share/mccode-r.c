@@ -125,49 +125,6 @@ static double      *mcsig_skip_p1 = NULL; /* block written just before the repla
 void sighandler(int sig);
 #endif
 
-#ifdef OMPTARGET
-/* OMPTARGET device memory. Without unified memory a host heap pointer is not valid on
-   the device, so components keep the device address in separate *_d members. The host
-   pointer is left alone, and the component structs copy bitwise in both directions.
-   Every transfer is listed on the master rank, and any failure is fatal. */
-void mcgpu_die(const char *why, const char *comp, const char *what) {
-  printf("[mcgpu] FATAL: %s (%s.%s)\n", why, comp, what);
-  fflush(stdout);
-  abort();
-}
-
-static int mcgpu_device(const char *comp, const char *what) {
-  if (omp_get_num_devices() < 1) mcgpu_die("no offload device found", comp, what);
-  return omp_get_default_device();
-}
-
-void *mcgpu_to_device(const char *comp, const char *what, void *host, size_t bytes) {
-  int dev = mcgpu_device(comp, what);
-  void *d = omp_target_alloc(bytes, dev);
-  if (!d) mcgpu_die("omp_target_alloc failed", comp, what);
-  if (omp_target_memcpy(d, host, bytes, 0, 0, dev, omp_get_initial_device()))
-    mcgpu_die("copy to device failed", comp, what);
-  MPI_MASTER( printf("[mcgpu] to device   %-24s %-13s %12zu B\n", comp, what, bytes); );
-  return d;
-}
-
-void mcgpu_from_device(const char *comp, const char *what, void *host, void *dev_ptr, size_t bytes) {
-  if (omp_target_memcpy(host, dev_ptr, bytes, 0, 0, omp_get_initial_device(), mcgpu_device(comp, what)))
-    mcgpu_die("copy from device failed", comp, what);
-  MPI_MASTER( printf("[mcgpu] from device %-24s %-13s %12zu B\n", comp, what, bytes); );
-}
-
-void mcgpu_free(void *dev_ptr) {
-  omp_target_free(dev_ptr, omp_get_default_device());
-}
-
-/* Before each kernel. Must stay in this file: the generated TRACE section later
-   redefines mcgravitation as a particle member. mcseed is passed to the kernel. */
-void mcgpu_update_globals(void) {
-  #pragma omp target update to(mcncount, mcrun_num, mcgravitation, mcdotrace)
-}
-#endif /* OMPTARGET */
-
 /* String nullification on GPU and other replacements */
 #ifdef MCGPU
 int noprintf() {
@@ -510,6 +467,49 @@ int mc_MPI_Recv(void *sbuf,
 } /* mc_MPI_Recv */
 
 #endif /* USE_MPI */
+
+#ifdef OMPTARGET
+/* OMPTARGET device memory. Without unified memory a host heap pointer is not valid on
+   the device, so components keep the device address in separate *_d members. The host
+   pointer is left alone, and the component structs copy bitwise in both directions.
+   Every transfer is listed on the master rank, and any failure is fatal. */
+void mcgpu_die(const char *why, const char *comp, const char *what) {
+  printf("[mcgpu] FATAL: %s (%s.%s)\n", why, comp, what);
+  fflush(stdout);
+  abort();
+}
+
+static int mcgpu_device(const char *comp, const char *what) {
+  if (omp_get_num_devices() < 1) mcgpu_die("no offload device found", comp, what);
+  return omp_get_default_device();
+}
+
+void *mcgpu_to_device(const char *comp, const char *what, void *host, size_t bytes) {
+  int dev = mcgpu_device(comp, what);
+  void *d = omp_target_alloc(bytes, dev);
+  if (!d) mcgpu_die("omp_target_alloc failed", comp, what);
+  if (omp_target_memcpy(d, host, bytes, 0, 0, dev, omp_get_initial_device()))
+    mcgpu_die("copy to device failed", comp, what);
+  MPI_MASTER( printf("[mcgpu] to device   %-24s %-13s %12zu B\n", comp, what, bytes); );
+  return d;
+}
+
+void mcgpu_from_device(const char *comp, const char *what, void *host, void *dev_ptr, size_t bytes) {
+  if (omp_target_memcpy(host, dev_ptr, bytes, 0, 0, omp_get_initial_device(), mcgpu_device(comp, what)))
+    mcgpu_die("copy from device failed", comp, what);
+  MPI_MASTER( printf("[mcgpu] from device %-24s %-13s %12zu B\n", comp, what, bytes); );
+}
+
+void mcgpu_free(void *dev_ptr) {
+  omp_target_free(dev_ptr, omp_get_default_device());
+}
+
+/* Before each kernel. Must stay in this file: the generated TRACE section later
+   redefines mcgravitation as a particle member. mcseed is passed to the kernel. */
+void mcgpu_update_globals(void) {
+  #pragma omp target update to(mcncount, mcrun_num, mcgravitation, mcdotrace)
+}
+#endif /* OMPTARGET */
 
 /* SECTION: parameters handling ============================================= */
 
