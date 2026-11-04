@@ -8,9 +8,9 @@ This is the "two (re-)builds and mctest runs wrapped in extra logic" tool
 requested on McCode PR #3029: point it at REF1/REF2 and a component or
 instrument filter, and it hands back a diff report of REF2 against REF1.
 
-Pass --active-env to build/test both refs directly in the conda/mamba/
-micromamba environment that is already active, instead of creating (and
-downloading packages into) a fresh one per ref.
+By default both refs are built/tested directly in the conda/mamba/micromamba
+environment that is already active. Pass --fresh-env to instead create (and
+download packages into) a new environment per ref.
 
 Usage: mccode-commit-mctest REF1 REF2 (--comp COMP | --instr PATTERN) [options]
 '''
@@ -76,14 +76,15 @@ def run_in_env(conda_exe, root_args, envname, cmd, check=True):
 
 def require_active_conda_env():
     if not os.environ.get('CONDA_PREFIX'):
-        raise SystemExit('ERROR: --active-env requires a conda/mamba/micromamba '
-                         'environment to already be activated ($CONDA_PREFIX is unset).')
+        raise SystemExit('ERROR: Building in the active environment requires a conda/mamba/'
+                         'micromamba environment to already be activated ($CONDA_PREFIX is '
+                         'unset). Pass --fresh-env to create one per ref instead.')
 
 
 def run_cmd(cfg, envname, cmd, check=True):
-    # --active-env: build/test directly in the environment this script itself
-    # runs in, instead of spinning up (and downloading packages into) a fresh one
-    if cfg.active_env:
+    # default: build/test directly in the environment this script itself runs
+    # in, instead of spinning up (and downloading packages into) a fresh one
+    if not cfg.fresh_env:
         return run(cmd, check=check)
     return run_in_env(cfg.conda_exe, cfg.root_args, envname, cmd, check=check)
 
@@ -95,7 +96,7 @@ def build_and_test(ref, reporoot, cfg):
 
     run(['git', '-C', str(reporoot), 'worktree', 'add', '--detach', str(worktree), sha])
 
-    if not cfg.active_env:
+    if cfg.fresh_env:
         yml = cfg.workdir / ('%s.yml' % sha)
         run([sys.executable, str(reporoot / 'devel' / 'bin' / 'mccode-create-conda-yml'),
              '-m', cfg.mode, '-p', cfg.platform, '-n', envname, '-o', str(yml), '-f'])
@@ -149,11 +150,12 @@ def parse_args(argv):
                         help='conda/mamba/micromamba executable to use (default: conda)')
     parser.add_argument('--conda-root', default=None,
                         help='Root prefix, passed as -r (needed by e.g. micromamba)')
-    parser.add_argument('--active-env', action='store_true',
-                        help=('Build/test both refs directly in the currently active conda '
-                             'environment instead of creating a fresh one per ref. Skips '
-                             'package downloads, at the cost of both refs sharing one '
-                             'environment (built/tested one after the other, not in parallel).'))
+    parser.add_argument('--fresh-env', action='store_true',
+                        help=('Create a fresh conda environment per ref (the old default), '
+                             'instead of building/testing both refs in the currently active '
+                             'one. The active-env default skips package downloads, at the '
+                             'cost of both refs sharing one environment (built/tested one '
+                             'after the other, not in parallel).'))
     parser.add_argument('--keep-envs', action='store_true', help='Do not remove the conda environments afterwards')
     parser.add_argument('--keep-checkouts', action='store_true', help='Do not remove the git worktrees afterwards')
 
@@ -180,7 +182,7 @@ def create_cfg(args):
         platform = args.platform
         conda_exe = args.conda_exe
         root_args = ['-r', args.conda_root] if args.conda_root else []
-        active_env = args.active_env
+        fresh_env = args.fresh_env
         extra_mctest_args = args.extra_mctest_args
         comp = args.comp
         instr = args.instr
@@ -191,7 +193,7 @@ def main():
     args = parse_args(sys.argv)
     cfg = create_cfg(args)
     reporoot = args.srcdir
-    if cfg.active_env:
+    if not cfg.fresh_env:
         require_active_conda_env()
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -221,7 +223,7 @@ def main():
             print('REF2 %s -> label %s' % (args.ref2, label2))
             print('Comparison report: %s' % ofile)
         finally:
-            if not args.keep_envs and not cfg.active_env:
+            if not args.keep_envs and cfg.fresh_env:
                 for envname in envs:
                     run(remove_env_cmd(cfg.conda_exe, cfg.root_args, envname), check=False)
             if not args.keep_checkouts:
