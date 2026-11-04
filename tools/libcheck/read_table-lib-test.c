@@ -1,13 +1,11 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
-#include <time.h>
 #include "mcstas-basics.h"
 #include "mccode-r.h"
 #include "read_table-lib.h"
 
 static int failures = 0;
-static volatile double sink;
 
 // mccode-dev/McCode#3017: Table_Value2d on one-row and one-column tables
 static void check_value2d(t_Table t, const char *name, double X, double Y, double expected)
@@ -45,8 +43,9 @@ static void test_value2d_vectors(void)
   Table_Free(&C);
 }
 
-// mccode-dev/McCode#3016: Table_Value falls back to the linear search on
-// constant-step and large monotonic tables, so a lookup costs O(rows)
+// mccode-dev/McCode#3016: Table_Value should find the bracketing rows with
+// the constant-step lookup on constant-step tables and with the binary
+// search on monotonic tables of more than 100 rows, not the linear search
 static double x_constant(long i, long rows) { (void)rows; return 1 + 0.5 * i; }
 static double x_quadratic(long i, long rows) { double u = (double)i / (rows - 1); return 0.5 + 19.5 * u * u; }
 static double y_of(double x) { return sin(0.37 * x) + 2; }
@@ -64,24 +63,6 @@ static void load_table(t_Table *t, const char *file, long rows, double (*x_of)(l
   assert(Table_Read(t, (char *)file, 1) == 2 * rows);
 }
 
-static double ns_per_lookup(t_Table t)
-{
-  double span = t.max_x - t.min_x;
-  long n = 0;
-  int i;
-  clock_t start, now;
-
-  srand(1);
-  start = clock();
-  do {
-    for (i = 0; i < 1000; i++)
-      sink += Table_Value(t, t.min_x + span * rand() / ((double)RAND_MAX + 1), 1);
-    n += 1000;
-    now = clock();
-  } while (now - start < CLOCKS_PER_SEC / 20);
-  return 1e9 * (double)(now - start) / CLOCKS_PER_SEC / n;
-}
-
 static void check_values(t_Table t, const char *name, double (*x_of)(long, long), long rows)
 {
   long i = rows / 3;
@@ -94,28 +75,33 @@ static void check_values(t_Table t, const char *name, double (*x_of)(long, long)
   }
 }
 
-static void check_scaling(const char *name, double (*x_of)(long, long), long small, long big)
+// every table point x[i] and interval midpoint, except max_x itself, must be
+// bracketed correctly by the expected search
+static void check_path(t_Table t, const char *name, double (*x_of)(long, long), long rows, int expected)
 {
-  t_Table s, b;
-  double ns_small, ns_big;
-  char file[64];
+  long i, wrong = 0, bad_bracket = 0, checked = 0;
+  double first_wrong = 0;
+  int first_path = 0;
 
-  snprintf(file, sizeof(file), "%s_%ld.dat", name, small);
-  load_table(&s, file, small, x_of);
-  snprintf(file, sizeof(file), "%s_%ld.dat", name, big);
-  load_table(&b, file, big, x_of);
+  for (i = 0; i < 2 * (rows - 1); i++) {
+    double X = (i % 2) ? 0.5 * (x_of(i / 2, rows) + x_of(i / 2 + 1, rows)) : x_of(i / 2, rows);
+    double X1, X2;
+    int path;
+    long Index = Table_Value_Index(t, X, &X1, &X2, &path);
 
-  check_values(b, name, x_of, big);
-  ns_small = ns_per_lookup(s);
-  ns_big = ns_per_lookup(b);
-  if (ns_big > 10 * ns_small) {
-    fprintf(stderr, "#3016: Table_Value on %s: %.0f ns/lookup at %ld rows, %.0f ns/lookup at %ld rows\n",
-            name, ns_small, small, ns_big, big);
+    checked++;
+    if (!(Index >= 1 && Index < rows && X1 == x_of(Index - 1, rows) && X2 == x_of(Index, rows) && X1 <= X && X < X2))
+      bad_bracket++;
+    if (path != expected) {
+      if (!wrong) { first_wrong = X; first_path = path; }
+      wrong++;
+    }
+  }
+  if (wrong || bad_bracket) {
+    fprintf(stderr, "#3016: %s table, %ld rows: %ld of %ld lookups not by path %d (first at X = %g, path %d), %ld wrong brackets\n",
+            name, rows, wrong, checked, expected, first_wrong, first_path, bad_bracket);
     failures++;
   }
-
-  Table_Free(&s);
-  Table_Free(&b);
 }
 
 int main(void)
@@ -124,15 +110,17 @@ int main(void)
 
   test_value2d_vectors();
 
-  load_table(&t, "probe.dat", 1000, x_quadratic);
-  assert(t.monotonic && !t.constantstep);
-  Table_Free(&t);
-  load_table(&t, "probe_c.dat", 1000, x_constant);
+  load_table(&t, "constant_step.dat", 1000, x_constant);
   assert(t.constantstep);
+  check_values(t, "constant_step", x_constant, 1000);
+  check_path(t, "constant_step", x_constant, 1000, READ_TABLE_LOOKUP_CONSTANTSTEP);
   Table_Free(&t);
 
-  check_scaling("constant_step", x_constant, 100, 100000);
-  check_scaling("monotonic", x_quadratic, 1000, 100000);
+  load_table(&t, "monotonic.dat", 1000, x_quadratic);
+  assert(t.monotonic && !t.constantstep && t.rows > 100);
+  check_values(t, "monotonic", x_quadratic, 1000);
+  check_path(t, "monotonic", x_quadratic, 1000, READ_TABLE_LOOKUP_BINARY);
+  Table_Free(&t);
 
   assert(failures == 0);
   return 0;

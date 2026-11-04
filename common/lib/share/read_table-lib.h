@@ -125,6 +125,11 @@ long     Table_Info (t_Table Table);
 double   Table_Index(t_Table Table,   long i, long j); /* get indexed value */
 #pragma acc routine
 double   Table_Value(t_Table Table, double X, long j); /* search X in 1st column and return interpolated value in j-column */
+#define READ_TABLE_LOOKUP_CONSTANTSTEP 1
+#define READ_TABLE_LOOKUP_BINARY       2
+#define READ_TABLE_LOOKUP_LINEAR       3
+#pragma acc routine
+long     Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *path); /* rows bracketing X in 1st column, and the search that found them */
 t_Table *Table_Read_Array(char *File, long *blocks);
 void     Table_Free_Array(t_Table *Table);
 long     Table_Info_Array(t_Table *Table);

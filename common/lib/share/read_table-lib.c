@@ -887,6 +887,67 @@ int Table_SetElement(t_Table *Table, long i, long j,
 * Tests are performed (within Table_Index) on indexes i,j to avoid errors
 * NOTE: data should rather be monotonic, and evenly sampled.
 *******************************************************************************/
+/*******************************************************************************
+* long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *path)
+*   ACTION: find the rows bracketing X in the 1st column, as used by Table_Value
+*   input   Table: table containing data.
+*           X : data value in the first column (index 0), min_x <= X <= max_x
+*   return  Index, with *X1 = data[Index-1][0] <= X < *X2 = data[Index][0]
+*           *path (if not NULL): READ_TABLE_LOOKUP_CONSTANTSTEP, _BINARY or
+*           _LINEAR, the search that found the bracket. When no search finds
+*           one (e.g. X == max_x), *path is _LINEAR and Index is Table.rows.
+*******************************************************************************/
+long Table_Value_Index(t_Table Table, double X, double *X1, double *X2, int *path)
+{
+  long   Index = -1;
+  int    found = 0;
+
+  *X1 = 0;
+  *X2 = 0;
+
+  // Use constant-time lookup when possible
+  if(Table.constantstep) {
+    Index = (long)floor(
+              (X - Table.min_x) / (Table.max_x - Table.min_x) * (Table.rows-1));
+    *X1 = Table_Index(Table,Index-1,0);
+    *X2 = Table_Index(Table,Index  ,0);
+    if ((*X1 <= X) && (X < *X2)) found = READ_TABLE_LOOKUP_CONSTANTSTEP;
+  }
+  // Use binary search on large, monotonic tables
+  else if(Table.monotonic && Table.rows > 100) {
+    long left = Table.min_x;
+    long right = Table.max_x;
+
+    while (!((*X1 <= X) && (X < *X2)) && (right - left > 1)) {
+      Index = (left + right) / 2;
+
+      *X1 = Table_Index(Table, Index-1, 0);
+      *X2 = Table_Index(Table, Index,   0);
+
+      if (X < *X1) {
+        right = Index;
+      } else {
+        left  = Index;
+      }
+    }
+    if ((*X1 <= X) && (X < *X2)) found = READ_TABLE_LOOKUP_BINARY;
+  }
+
+  // Fall back to linear search, if no-one else has set X1, X2 correctly
+  if (!found) {
+    found = READ_TABLE_LOOKUP_LINEAR;
+    /* look for index surrounding X in the table -> Index */
+    for (Index=1; Index <= Table.rows-1; Index++) {
+        *X1 = Table_Index(Table, Index-1,0);
+        *X2 = Table_Index(Table, Index  ,0);
+        if ((*X1 <= X) && (X < *X2)) break;
+      } /* end for Index */
+  }
+
+  if (path) *path = found;
+  return Index;
+} /* end Table_Value_Index */
+
 double Table_Value(t_Table Table, double X, long j)
 {
   long   Index = -1;
@@ -896,41 +957,7 @@ double Table_Value(t_Table Table, double X, long j)
   if (X > Table.max_x) return Table_Index(Table,Table.rows-1  ,j);
   if (X < Table.min_x) return Table_Index(Table,0  ,j);
 
-  // Use constant-time lookup when possible
-  if(Table.constantstep) {
-    Index = (long)floor(
-              (X - Table.min_x) / (Table.max_x - Table.min_x) * (Table.rows-1));
-    X1 = Table_Index(Table,Index-1,0);
-    X2 = Table_Index(Table,Index  ,0);
-  }
-  // Use binary search on large, monotonic tables
-  else if(Table.monotonic && Table.rows > 100) {
-    long left = Table.min_x;
-    long right = Table.max_x;
-
-    while (!((X1 <= X) && (X < X2)) && (right - left > 1)) {
-      Index = (left + right) / 2;
-
-      X1 = Table_Index(Table, Index-1, 0);
-      X2 = Table_Index(Table, Index,   0);
-
-      if (X < X1) {
-        right = Index;
-      } else {
-        left  = Index;
-      }
-    }
-  }
-
-  // Fall back to linear search, if no-one else has set X1, X2 correctly
-  if (!((X1 <= X) && (X < X2))) {
-    /* look for index surrounding X in the table -> Index */
-    for (Index=1; Index <= Table.rows-1; Index++) {
-        X1 = Table_Index(Table, Index-1,0);
-        X2 = Table_Index(Table, Index  ,0);
-        if ((X1 <= X) && (X < X2)) break;
-      } /* end for Index */
-  }
+  Index = Table_Value_Index(Table, X, &X1, &X2, NULL);
 
   Y1 = Table_Index(Table,Index-1, j);
   Y2 = Table_Index(Table,Index  , j);
