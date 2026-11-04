@@ -8,11 +8,25 @@ import tempfile
 def find_repo_root():
     return pathlib.Path(__file__).resolve().parents[2]
 
-def run_test(src, cc):
+def sanitize_lib_dir(root, parent):
+    # McStas SHARE libs use one DSL directive, "%include", for their own
+    # dependencies; strip such lines so the files compile as plain C.
+    dst = pathlib.Path(parent) / 'lib'
+    dst.mkdir()
+    for f in (root / 'common' / 'lib' / 'share').iterdir():
+        if f.is_file():
+            lines = f.read_text().splitlines()
+            (dst / f.name).write_text('\n'.join(l for l in lines if not l.startswith('%')))
+    return dst
+
+def run_test(src, cc, include_dirs):
     with tempfile.TemporaryDirectory() as d:
         exe = os.path.join(d, 'a.out')
-        build = subprocess.run([cc, '-O0', '-g', '-o', exe, str(src), '-lm'],
-                                capture_output=True, text=True)
+        cmd = [cc, '-O0', '-g']
+        for inc in include_dirs:
+            cmd += ['-I', str(inc)]
+        cmd += ['-o', exe, str(src), '-lm']
+        build = subprocess.run(cmd, capture_output=True, text=True)
         if build.returncode != 0:
             return False, build.stderr
         run = subprocess.run([exe], capture_output=True, text=True)
@@ -28,20 +42,23 @@ def main(argv):
                          help='specific test .c files to run (default: all of tools/libcheck/*.c)')
     args = parser.parse_args(argv[1:])
 
-    libcheck_dir = find_repo_root() / 'tools' / 'libcheck'
+    root = find_repo_root()
+    libcheck_dir = root / 'tools' / 'libcheck'
     tests = [pathlib.Path(f) for f in args.files] if args.files else sorted(libcheck_dir.glob('*.c'))
 
     if not tests:
         sys.exit('No test files found in %s' % libcheck_dir)
 
     failed = []
-    for test in tests:
-        ok, err = run_test(test, args.cc)
-        print('%-40s %s' % (test.name, 'OK' if ok else 'FAIL'))
-        if not ok:
-            failed.append(test.name)
-            if err:
-                print(err)
+    with tempfile.TemporaryDirectory() as d:
+        lib_dir = sanitize_lib_dir(root, d)
+        for test in tests:
+            ok, err = run_test(test, args.cc, [lib_dir, libcheck_dir])
+            print('%-40s %s' % (test.name, 'OK' if ok else 'FAIL'))
+            if not ok:
+                failed.append(test.name)
+                if err:
+                    print(err)
 
     if failed:
         sys.exit('FAILED: %s' % ', '.join(failed))
