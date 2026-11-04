@@ -431,7 +431,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     anyfailed=False
 
     # compile, record time
-    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, jobs
+    global ncount, no_mpi, mpi, openacc, openmp, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, jobs
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
@@ -455,6 +455,8 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 cmd = cmd + " --override-config=" + configdir
             if openacc:
                 cmd = cmd + " --openacc "
+            if openmp:
+                cmd = cmd + " --openmp "
             cmd = cmd + mpiswitch
             if mpi and not no_mpi:
                 cmd = cmd + " --mpi=1 "
@@ -576,7 +578,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 formatstr = "%-" + "%ds:   Display FAILED (%ds)" % (maxnamelen+1, displaytime)
                 logging.info(formatstr % test.instrname)
 
-        # -n0 means compile only (e.g. --openacc on a GPU-less CI runner)
+        # -n0 means compile only (e.g. --openacc or --openmp on a GPU-less CI runner)
         if float(ncount) == 0:
             formatstr = "%-" + "%ds:   Compiled only (-n0)" % (maxnamelen+1)
             logging.info(formatstr % test.get_display_name())
@@ -619,6 +621,10 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                     if configdir:
                         cmd = cmd + " --override-config=" + configdir
                     cmd = cmd + " -s %s %s %s -n%s --openacc --mpi=%s -d%d > run_stdout_%d.txt 2>&1" % (seed, test.instrname, parvals, testncount, mpi, test.testnb, test.testnb)
+                elif openmp is True:
+                    if configdir:
+                        cmd = cmd + " --override-config=" + configdir
+                    cmd = cmd + " -s %s %s %s -n%s --openmp --mpi=%s -d%d > run_stdout_%d.txt 2>&1" % (seed, test.instrname, parvals, testncount, mpi, test.testnb, test.testnb)
                 else:
                     if configdir:
                         cmd = cmd + " --override-config=" + configdir
@@ -999,6 +1005,7 @@ starttime = time.time()
 ncount = None
 mpi = None
 openacc = None
+openmp = None
 jobs = 1
 suffix = None
 nexus = None
@@ -1070,7 +1077,7 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, noscans, nsigma, statfactor, jobs
+    global ncount, no_mpi, mpi, skipnontest, openacc, openmp, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, noscans, nsigma, statfactor, jobs
     ncount = "1e6"
     no_mpi = False
     if args.ncount:
@@ -1166,6 +1173,10 @@ def main(args):
         openacc = True
         logging.info("openacc is enabled")
         suffix = '_openacc' + suffix
+    if args.openmp:
+        openmp = True
+        logging.info("openmp is enabled")
+        suffix = '_openmp' + suffix
     if args.nexus:
         nexus = True
         suffix = '_NeXus' + suffix
@@ -1237,7 +1248,9 @@ if __name__ == '__main__':
     parser.add_argument('--mpi', nargs=1, help='mpi nodecount sent to %s' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--no-mpi', action='store_true', help='MPI compilation disabled via %s --no-mpi' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('-j', '--jobs', nargs=1, help='Compile up to JOBS instruments in parallel, or "auto" for one pr. available processor (default 1). Test runs are always one at a time.')
-    parser.add_argument('--openacc', action='store_true', help='openacc flag sent to %s' % (mccode_config.configuration["MCRUN"]))
+    gpu = parser.add_mutually_exclusive_group()
+    gpu.add_argument('--openacc', action='store_true', help='openacc flag sent to %s' % (mccode_config.configuration["MCRUN"]))
+    gpu.add_argument('--openmp', action='store_true', help='openmp flag sent to %s' % (mccode_config.configuration["MCRUN"]))
     parser.add_argument('--config', nargs="?", help='test this specific config only - label name (regex) or absolute path')
     parser.add_argument('--instr', nargs="?", help='test only intruments matching this filter (py regex). Comma-separated list allowed for multiple filters. Combined with --comp, instruments matching either are tested.')
     parser.add_argument('--comp', nargs=1, help='test only intruments utilising COMP (whole-word match). Comma-separated list allowed. Useful for testing the instrument suite after component changes.')
