@@ -237,10 +237,11 @@ class McStas:
             if os.environ.get('CFLAGS'):
                 cflags += os.environ.get('CFLAGS') + " "
 
-            # Special handling of NVIDIA's GPU-aware compiler inside a CONDA env,
-            # remove certain unsupported flags:
+            # Special handling of GPU-aware compilers inside a CONDA env, remove
+            # certain unsupported flags. This means NVIDIA's compiler for OpenACC,
+            # and whichever compiler is configured for OpenMP offload:
             if (self.options.openacc and 'nvc' in mccode_config.compilation['OACC']) or \
-               (self.options.openmp and 'nvc' in mccode_config.compilation['OMP']):
+               self.options.openmp:
                 Cflags = cflags
                 Cflags=Cflags.replace('-march=nocona', '')
                 Cflags=Cflags.replace('-ftree-vectorize', '')
