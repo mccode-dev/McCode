@@ -9,13 +9,16 @@ matching instrument, it measures INITIALIZE/TRACE/FINALLY wall time for
 each ref and prints a before/after comparison.
 
 Timing works by patching each instrument's generated C file right after
-codegen, wrapping the init()/raytrace_all()/finally() calls (always present,
-verbatim, in every generated instrument - see common/lib/share/mccode_main.c)
-with clock() timers that print "MCCODE_TIMING <PHASE> <seconds>" lines. mcrun
-is then asked to compile again: since it only regenerates/recompiles what is
-older than its source, touching the already-patched file makes it reuse (not
-overwrite) the patch and recompile the binary from it, with mcrun's own
-normal (already cross-platform-correct) compiler invocation.
+codegen: INITIALIZE/FINALLY bracket the init()/finally() calls (always
+present, verbatim, in every generated instrument - see
+common/lib/share/mccode_main.c) with clock() timers. TRACE is timed per ray,
+not for the whole run: raytrace_all()'s own per-ray raytrace(_particle) call
+is timed individually into a buffer, then reported as mean/median/min/max
+over all rays in that run. mcrun is then asked to compile again: since it
+only regenerates/recompiles what is older than its source, touching the
+already-patched file makes it reuse (not overwrite) the patch and recompile
+the binary from it, with mcrun's own normal (already cross-platform-correct)
+compiler invocation.
 
 By default both refs are built/tested directly in the conda/mamba/micromamba
 environment that is already active. Pass --fresh-env to instead create (and
@@ -102,24 +105,58 @@ def run_cmd(cfg, envname, cmd, check=True, cwd=None, capture_output=False):
                       check=check, cwd=cwd, capture_output=capture_output)
 
 
-# Timing instrumentation: these two anchors are the verbatim text of
-# common/lib/share/mccode_main.c, which codegen embeds into every generated
-# instrument .c file unconditionally - see that file for the un-timed original.
+# Timing instrumentation, applied to each instrument's generated C file.
+# INITIALIZE/FINALLY bracket the verbatim text of common/lib/share/mccode_main.c
+# (embedded unconditionally into every generated instrument). TRACE is timed
+# per ray, not for the whole run: the raytrace_all() function (generated per
+# instrument, always with this exact structure for a plain CPU build - no
+# --openacc) times each raytrace(_particle) call into a ncount-sized buffer,
+# then reports mean/median/min/max over all rays in that one run, instead of
+# printing one line per ray.
 TIMING_PATCHES = [
     ('SIG_MESSAGE("[" __FILE__ "] main INITIALISE");\n  init();',
      'SIG_MESSAGE("[" __FILE__ "] main INITIALISE");\n'
      '  clock_t _mcspd_t0 = clock();\n'
      '  init();\n'
-     '  fprintf(stderr, "MCCODE_TIMING INITIALIZE %.6f\\n", (double)(clock() - _mcspd_t0) / CLOCKS_PER_SEC);\n'
-     '  clock_t _mcspd_t1 = clock();'),
+     '  fprintf(stderr, "MCCODE_TIMING INITIALIZE %.6f\\n", (double)(clock() - _mcspd_t0) / CLOCKS_PER_SEC);'),
     ('  mcsave_final = 1;\n  finally();',
-     '  fprintf(stderr, "MCCODE_TIMING TRACE %.6f\\n", (double)(clock() - _mcspd_t1) / CLOCKS_PER_SEC);\n'
      '  clock_t _mcspd_t2 = clock();\n'
      '  mcsave_final = 1;\n'
      '  finally();\n'
      '  fprintf(stderr, "MCCODE_TIMING FINALLY %.6f\\n", (double)(clock() - _mcspd_t2) / CLOCKS_PER_SEC);'),
+    ('void raytrace_all(unsigned long long ncount, unsigned long seed) {',
+     'static int _mcspd_cmp(const void *a, const void *b) {\n'
+     '  double da = *(const double *)a, db = *(const double *)b;\n'
+     '  return (da > db) - (da < db);\n'
+     '}\n\n'
+     'void raytrace_all(unsigned long long ncount, unsigned long seed) {\n'
+     '  double *_mcspd_times = (double *)malloc(sizeof(double) * (ncount ? ncount : 1));'),
+    ('      raytrace(_particle);',
+     '      clock_t _mcspd_r0 = clock();\n'
+     '      raytrace(_particle);\n'
+     '      _mcspd_times[pidx] = (double)(clock() - _mcspd_r0) / CLOCKS_PER_SEC;'),
+    ('} /* raytrace_all */',
+     '  if (ncount > 0) {\n'
+     '    double _mcspd_sum = 0, _mcspd_min = _mcspd_times[0], _mcspd_max = _mcspd_times[0];\n'
+     '    unsigned long long _mcspd_i;\n'
+     '    for (_mcspd_i = 0; _mcspd_i < ncount; _mcspd_i++) {\n'
+     '      double v = _mcspd_times[_mcspd_i];\n'
+     '      _mcspd_sum += v;\n'
+     '      if (v < _mcspd_min) _mcspd_min = v;\n'
+     '      if (v > _mcspd_max) _mcspd_max = v;\n'
+     '    }\n'
+     '    qsort(_mcspd_times, ncount, sizeof(double), _mcspd_cmp);\n'
+     '    double _mcspd_median = (ncount % 2) ? _mcspd_times[ncount / 2]\n'
+     '                                         : (_mcspd_times[ncount / 2 - 1] + _mcspd_times[ncount / 2]) / 2.0;\n'
+     '    fprintf(stderr, "MCCODE_TIMING_RAY mean=%.9f median=%.9f min=%.9f max=%.9f n=%llu\\n",\n'
+     '            _mcspd_sum / ncount, _mcspd_median, _mcspd_min, _mcspd_max, ncount);\n'
+     '  }\n'
+     '  free(_mcspd_times);\n'
+     '} /* raytrace_all */'),
 ]
-TIMING_RE = re.compile(r'MCCODE_TIMING (INITIALIZE|TRACE|FINALLY) ([0-9.eE+-]+)')
+TIMING_RE = re.compile(r'MCCODE_TIMING (INITIALIZE|FINALLY) ([0-9.eE+-]+)')
+TIMING_RAY_RE = re.compile(r'MCCODE_TIMING_RAY mean=([0-9.eE+-]+) median=([0-9.eE+-]+) '
+                          r'min=([0-9.eE+-]+) max=([0-9.eE+-]+) n=(\d+)')
 
 
 def patch_timing(cpath):
@@ -192,7 +229,8 @@ def measure_instrument(cfg, envname, instr_file, workdir):
         print('SKIP %s: recompile of timing-patched code failed' % instr_file.stem)
         return None
 
-    times = {'INITIALIZE': [], 'TRACE': [], 'FINALLY': []}
+    times = {'INITIALIZE': [], 'FINALLY': [],
+             'TRACE_MEAN': [], 'TRACE_MEDIAN': [], 'TRACE_MIN': [], 'TRACE_MAX': []}
     for i in range(cfg.repeats):
         outdir = instrdir / ('speed_diff_out_%d' % i)
         shutil.rmtree(outdir, ignore_errors=True)
@@ -200,10 +238,18 @@ def measure_instrument(cfg, envname, instr_file, workdir):
                    [str(binpath), '-y', '--ncount=%s' % cfg.ncount, '--seed=%s' % cfg.seed,
                     '--dir=%s' % outdir],
                    check=False, cwd=instrdir, capture_output=True)
-        for phase, value in TIMING_RE.findall((r.stdout or '') + (r.stderr or '')):
+        out = (r.stdout or '') + (r.stderr or '')
+        for phase, value in TIMING_RE.findall(out):
             times[phase].append(float(value))
+        m = TIMING_RAY_RE.search(out)
+        if m:
+            mean, median, lo, hi, _n = m.groups()
+            times['TRACE_MEAN'].append(float(mean))
+            times['TRACE_MEDIAN'].append(float(median))
+            times['TRACE_MIN'].append(float(lo))
+            times['TRACE_MAX'].append(float(hi))
 
-    if not times['TRACE']:
+    if not times['TRACE_MEAN']:
         print('SKIP %s: no timing output captured from %d run(s)' % (instr_file.stem, cfg.repeats))
         return None
     return times
@@ -246,10 +292,13 @@ def print_report(label1, sha1, results1, label2, sha2, results2):
             continue
         print('  %-14s %18s %18s %12s' % ('', col1, col2, ''))
         row('initialize', statistics.mean(t1['INITIALIZE']), statistics.mean(t2['INITIALIZE']))
-        row('trace mean', statistics.mean(t1['TRACE']), statistics.mean(t2['TRACE']))
-        row('trace median', statistics.median(t1['TRACE']), statistics.median(t2['TRACE']))
-        row('trace min', min(t1['TRACE']), min(t2['TRACE']))
-        row('trace max', max(t1['TRACE']), max(t2['TRACE']))
+        # trace is timed per ray (not for the whole run): mean/min/max are exact
+        # across repeats (same ncount each time), median is the mean of each
+        # repeat's own per-ray median rather than a true pooled median
+        row('trace mean', statistics.mean(t1['TRACE_MEAN']), statistics.mean(t2['TRACE_MEAN']))
+        row('trace median', statistics.mean(t1['TRACE_MEDIAN']), statistics.mean(t2['TRACE_MEDIAN']))
+        row('trace min', min(t1['TRACE_MIN']), min(t2['TRACE_MIN']))
+        row('trace max', max(t1['TRACE_MAX']), max(t2['TRACE_MAX']))
         row('finally', statistics.mean(t1['FINALLY']), statistics.mean(t2['FINALLY']))
 
 
