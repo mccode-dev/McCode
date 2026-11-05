@@ -50,6 +50,9 @@
 #define pclose _pclose
 #endif
 #include <errno.h>
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+#endif
 
 // UNIX specific headers (non-Windows)
 #if defined(__unix__) || defined(__APPLE__)
@@ -3112,6 +3115,34 @@ static void mclist_vds_write(void);
 #endif
 
 /*******************************************************************************
+*   Timing: monotonic wall clock of INITIALIZE, TRACE and FINALLY (master only)
+*******************************************************************************/
+long long mccode_time_ns(void)
+{
+#if defined(_WIN32)
+  LARGE_INTEGER c, f;
+  QueryPerformanceCounter(&c);
+  QueryPerformanceFrequency(&f);
+  return (c.QuadPart/f.QuadPart)*1000000000LL
+       + (c.QuadPart%f.QuadPart)*1000000000LL/f.QuadPart;
+#elif defined(__APPLE__)
+  // CLOCK_MONOTONIC has only microsecond resolution on macOS
+  static mach_timebase_info_data_t tb;
+  if (!tb.denom) mach_timebase_info(&tb);
+  return (long long)(mach_absolute_time()*tb.numer/tb.denom);
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long long)ts.tv_sec*1000000000LL + ts.tv_nsec;
+#endif
+}
+
+// durations in ns, set by mccode_main(); mctime_finally_t0 is 0 unless the normal end was reached
+long long mctime_init_ns = 0;
+long long mctime_trace_ns = 0;
+long long mctime_finally_t0 = 0;
+
+/*******************************************************************************
 *   siminfo_close:  close SIM
 *******************************************************************************/
 void siminfo_close()
@@ -3132,6 +3163,14 @@ void siminfo_close()
 #endif
     } else {
 #endif
+      // ponytail: master's values only, no MPI reduction; NeXus output has no timing block
+      if (mctime_finally_t0) {
+        siminfo_out("\nbegin timing\n");
+        siminfo_out("  Init: %.2f [s]\n", mctime_init_ns*1e-9);
+        siminfo_out("  Trace: %.2f [s]\n", mctime_trace_ns*1e-9);
+        siminfo_out("  Finally: %.2f [s]\n", (mccode_time_ns() - mctime_finally_t0)*1e-9);
+        siminfo_out("end timing\n");
+      }
       fclose(siminfo_file);
 #ifdef USE_NEXUS
     }
