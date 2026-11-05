@@ -1,0 +1,40 @@
+/*******************************************************************************
+* Instrument: Test_lib_supermirror_lib
+*
+* %I
+* %INSTRUMENT_SITE: libtest
+*
+* Smoke test: builds and runs with the library supermirror-lib in the instrument.
+* Fails to compile or link if the library does not build with the runtime.
+*
+* %Test: Ncount=10 Detector: PSD_I=10
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_lib_supermirror_lib(Ncount=10)
+
+DECLARE
+%{
+%include "supermirror-lib"
+%}
+
+INITIALIZE
+%{
+  mcset_ncount(Ncount);
+%}
+
+TRACE
+
+COMPONENT Arm = Arm()
+  AT (0,0,0) ABSOLUTE
+EXTEND %{
+  x = rand01()-0.5;
+  y = rand01()-0.5;
+  p = 1;
+  vz = 1000;
+%}
+
+COMPONENT PSD = PSD_monitor(xwidth=2.0, yheight=2.0, filename="supermirror-lib", nx=10, ny=10)
+  AT (0,0,0) ABSOLUTE
+
+END
