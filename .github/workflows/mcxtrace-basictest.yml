@@ -147,6 +147,16 @@ jobs:
         # the single most recent commit - see that step for why.
         fetch-depth: 0
 
+    # Azure-hosted Ubuntu mirror reported slow; use the main archive for apt.
+    # Unverified: compare run times before keeping.
+    - name: Bypass slow Azure Ubuntu mirror
+      if: matrix.method == 'debian' || matrix.openacc
+      run: |
+           sudo grep -rl 'azure.archive.ubuntu.com' \
+             /etc/apt/sources.list /etc/apt/sources.list.d \
+             --include='*.list' --include='*.sources' 2>/dev/null |
+             xargs -r sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g'
+
     # nvhpc (~5 GB download, ~15 GB installed) installs in the background
     # while the conda env and code generator (conda compilers) are built
     # - only needed for the simulation steps, so skipped when they are
