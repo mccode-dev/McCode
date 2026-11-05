@@ -241,6 +241,10 @@ MSVC does not implement C99 `_Complex` arithmetic. Use the McCode complex wrappe
 ## 12. Working with the maintainers
 
 - Small, reviewable commits on a topic branch; one concern per change.
+- **Fill in the PR template.** Use `docs/pull_request_template.md` as the PR
+  description: complete the free-form text, the AI-tools declaration, the
+  development OS and the checklist sections that apply. Remove sections that do
+  not apply. Tick a box only for a step actually done.
 - When editing files with tools that may time out, edit in small chunks
   (~10–20 lines) and re-read the region afterwards to confirm the actual state
   before retrying — never re-apply blindly.
