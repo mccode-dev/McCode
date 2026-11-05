@@ -66,6 +66,12 @@ If you cannot test a platform, say so explicitly rather than assuming it works.
    simulation results (RNG use, physics, precision, ordering) must be called out.
 6. **Do not add dependencies** without discussion — the stack is packaged on
    conda-forge for three OSes.
+7. **Follow DRY, KISS and YAGNI.** Reuse existing code instead of duplicating it,
+   keep solutions simple, and do not build for needs that do not exist yet.
+8. **Do not commit anything without explicit go-ahead.** This includes commit
+   messages, changelog entries, comments, help items and docstrings.
+9. **Keep commit messages, changelog entries, comments, help items and docstrings
+   simple, concise and readable.**
 
 ---
 
