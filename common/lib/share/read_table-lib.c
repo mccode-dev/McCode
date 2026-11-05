@@ -912,6 +912,7 @@ static int Table_In_Bracket(double direction, double X, double X1, double X2)
   return direction*X1 <= direction*X && direction*X < direction*X2;
 }
 
+#pragma acc routine
 static long Table_Value_Index(t_Table Table, double X, double *X1, double *X2)
 {
   long   Index = -1;
