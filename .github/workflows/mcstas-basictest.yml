@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.sims.outputs.run }}
+      libs: ${{ steps.sims.outputs.libs }}
       diffbase: ${{ steps.sims.outputs.diffbase }}
     steps:
     - name: Checkout
@@ -79,6 +80,7 @@ jobs:
            if [ "${{ github.event_name }}" != "push" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
              echo "${{ github.event_name }} run - simulating everything"
              echo "run=true" >> "$GITHUB_OUTPUT"
+             echo "libs=true" >> "$GITHUB_OUTPUT"
              exit 0
            fi
            PY=$(command -v python3 || command -v python)
@@ -91,6 +93,14 @@ jobs:
              echo "run=true" >> "$GITHUB_OUTPUT"
            else
              echo "run=false" >> "$GITHUB_OUTPUT"
+           fi
+           # Library sources (.c, .h, .h.in) only: run the libtest instruments
+           LIBS=$(echo "$CHANGED" | grep -E '^(common/lib/share|mcstas-comps/share|mccode/nlib/share)/[^/]+\.[ch](\.in)?$' || true)
+           echo "Library changes: ${LIBS:-none}"
+           if [ -n "$LIBS" ]; then
+             echo "libs=true" >> "$GITHUB_OUTPUT"
+           else
+             echo "libs=false" >> "$GITHUB_OUTPUT"
            fi
 
   build:
@@ -526,6 +536,27 @@ jobs:
               echo RNG test failure!
               false
            fi
+
+    - name: Launch library tests
+      id: libtests
+      if: needs.changes.outputs.run == 'true' && needs.changes.outputs.libs == 'true' && !matrix.openacc
+      run: |
+           set -e
+           set -u
+           set -x
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             export SUFFIX=".bat"
+             export EXESUFFIX=".exe"
+           else
+            export SUFFIX=""
+            export EXESUFFIX=""
+           fi
+           test -n "$(command -v mcstas${EXESUFFIX})"
+           # one instrument per library, see mcstas-comps/examples/libtest
+           for instr in $(ls src/mcstas-comps/examples/libtest); do
+             mctest${SUFFIX} --verbose ${NOPLOTS} --instr=$instr --testdir=run_libtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
+           done
 
     - name: Launch basic tests
       id: basictests
