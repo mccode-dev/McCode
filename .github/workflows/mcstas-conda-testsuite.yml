@@ -81,6 +81,16 @@ jobs:
       run: |
            ./src/devel/bin/mccode-build-conda -m mcstas -s $PWD/src -b $PWD/build_mcstas
 
+    # Azure-hosted Ubuntu mirror reported slow; use the main archive for apt.
+    # Unverified: compare run times before keeping.
+    - name: Bypass slow Azure Ubuntu mirror
+      if: matrix.method == 'debian'
+      run: |
+           sudo grep -rl 'azure.archive.ubuntu.com' \
+             /etc/apt/sources.list /etc/apt/sources.list.d \
+             --include='*.list' --include='*.sources' 2>/dev/null |
+             xargs -r sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g'
+
     - name: Build and install mccode.org-style .deb packages (debian)
       id: mcstas-install-debian
       if: matrix.method == 'debian'
