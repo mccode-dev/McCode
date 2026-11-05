@@ -1,0 +1,37 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=http://www.mcxtrace.org
+*
+* Instrument: Test_Timing_record
+*
+* %Identification
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests
+*
+* Minimal check that the timing block is recorded in mccode.sim and,
+* with NeXus output, in the NXentry (timing_init, timing_trace, timing_finally).
+*
+* %Description
+* A flat source and one monitor. Built with NEXUSFLAGS so the same
+* instrument runs in McCode and NeXus format.
+*
+* %Test: Detector: count_I=79566.8
+* %Test: --format=NeXus Detector: count_I=79566.8
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Timing_record()
+DEPENDENCY "@NEXUSFLAGS@"
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+  AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_flat(radius=0.01, dist=1, focus_xw=0.01, focus_yh=0.01,
+  E0=12, dE=1, flux=1e10)
+  AT (0, 0, 0) RELATIVE origin
+
+COMPONENT count = Monitor_nD(xwidth=0.1, yheight=0.1, options="x bins=10")
+  AT (0, 0, 1) RELATIVE source
+
+END
