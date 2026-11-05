@@ -7,12 +7,13 @@ State as of 2026-11-03 (after the 3.10.2 release). `TODO:` marks blanks to fill 
 | Step | Where | Notes |
 |---|---|---|
 | Code and component changes merged | `mccode-dev/McCode` `main` | |
-| Manuals: bump `\reldate` | `docs/manuals/mcstas/preamble_common.tex.in`, `docs/manuals/mcxtrace/preamble.tex.in` | Month/year are hard-coded (`\version` comes from CMake). |
-| Manuals: rebuild and commit PDFs + html tgz | `docpkg/manuals/{mcstas,mcxtrace}/` | Prebuilt binaries, **not** rebuilt by CI: the release ships whatever is committed (3.10.1/3.10.2 still say "3.10.0, October 2026"). Recipe: `docs/manuals/BUILDING.TXT`. The websites copy these PDFs from the release .debs. |
-| Metapackage contents | `meta-pkgs/deb/control.*-suite-python*`, `meta-pkgs/windows/*-MinGW.iss` | Hand-maintained package lists. Check new tools are listed (e.g. webgl-classic, #3018). MSVC installers pull from conda-forge instead. |
-| Draft the release notes | | Text becomes the GitHub release body, which becomes `RELEASE_NOTES.md`. |
-| Put the notes in `CHANGES_McStas` / `CHANGES_McXtrace`, merge | McCode `main` | Must be merged **before tagging**: the McStas website copies `CHANGES_McStas` from the tag. |
-| TODO: | | |
+| Full set of testsuites "acceptable" | Manual run of CI on main / last branch with changes | |
+| Manuals: bump `\reldate` | `docs/manuals/mcstas/preamble_common.tex.in`, `docs/manuals/mcxtrace/preamble.tex.in` | Month/year are hard-coded (`\version` comes from CMake). **Consider options for automation** |
+| Manuals: rebuild and commit PDFs + html tgz | `docpkg/manuals/{mcstas,mcxtrace}/` | Prebuilt binaries, **not** rebuilt by CI: the release ships whatever is committed (3.10.1/3.10.2 still say "3.10.0, October 2026"). Recipe: `docs/manuals/BUILDING.TXT`. The websites copy these PDFs from the release .debs. **Consider options for automation** |
+| Metapackage contents | `meta-pkgs/deb/control.*-suite-python*`, `meta-pkgs/windows/*-MinGW.iss` | Hand-maintained package lists. Check new tools are listed (e.g. webgl-classic, #3018). MSVC installers pull from conda-forge instead.**Consider options for automation** |
+| Draft the release notes | | Text becomes the GitHub release body, which becomes `RELEASE_NOTES.md`. **Tip: use the GitHub release-drafting** |
+| Put the notes in `CHANGES_McStas` / `CHANGES_McXtrace`, merge | McCode `main` | **Must** be merged **before tagging**: the McStas website copies `CHANGES_McStas` from the tag. |
+
 
 ## 2. At the release
 
