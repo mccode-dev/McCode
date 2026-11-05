@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@FLAVOR@ nightly</title>
+<style>
+  :root { --bg: #fff; --fg: #222; --muted: #666; --line: #ddd; --bad: #c0392b; --ok: #1e8449; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181c; --fg: #e6e6e6; --muted: #999; --line: #333; --bad: #ec7063; --ok: #58d68d; }
+  }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; margin: 0 auto; padding: 0 16px 40px; max-width: 1100px; }
+  a { color: inherit; }
+  h1 { font-size: 1.5em; margin: 24px 0 4px; }
+  h2 { font-size: 1.1em; margin: 28px 0 8px; }
+  .muted { color: var(--muted); }
+  .wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; white-space: nowrap; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .ok { color: var(--ok); }
+  svg text { fill: var(--muted); font-size: 11px; }
+  svg .domain, svg .tick line { stroke: var(--line); }
+  #legend span { display: inline-block; margin-right: 14px; }
+  #legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<h1>@FLAVOR@ nightly test suite</h1>
+<p id="latest" class="muted">Loading&hellip;</p>
+
+<h2>Tonight, per platform</h2>
+<div class="wrap"><table id="platforms"></table></div>
+
+<h2>Failing tests over time</h2>
+<div id="legend"></div>
+<div class="wrap"><svg id="chart" width="1068" height="260"></svg></div>
+
+<h2>Failing tonight</h2>
+<div class="wrap"><table id="failing"></table></div>
+
+<h2>History</h2>
+<p id="history"></p>
+
+<script src="d3.v4.min.js"></script>
+<script>
+const REPO = "https://github.com/@REPO@";
+const nfail = c => c.compile_err + c.run_err + c.value_off;
+const td = (v, cls) => `<td${cls ? ` class="${cls}"` : ""}>${v}</td>`;
+
+d3.json("history/index.json", (err, index) => {
+  if (err || !index.length) { d3.select("#latest").text("No nightly results yet."); return; }
+  const last = index[index.length - 1];
+  const keys = Object.keys(last.columns).sort();
+  const color = d3.scaleOrdinal(d3.schemeCategory10).domain(keys);
+
+  d3.select("#latest").html(`Latest: <b>${last.date}</b> &middot; <a href="today/table.html">comparison table</a>
+    &middot; <a href="${last.run}">CI run</a> &middot; <a href="${REPO}/releases">raw data</a><span id="yesterday"></span>`);
+  // yesterday/ only exists while the previous night's CI artifact does
+  if (index.length > 1)
+    fetch("yesterday/table.html", {method: "HEAD"}).then(r => r.ok && d3.select("#yesterday").html(
+      ` &middot; yesterday (${index[index.length - 2].date}): <a href="yesterday/table.html">comparison table</a>`));
+
+  d3.select("#platforms").html("<tr><th>Platform</th><th>Instruments</th><th>No %Test</th><th>Compile err</th><th>Run err</th><th>Value off</th><th>Walltime</th><th>Data</th></tr>" +
+    keys.map(k => { const c = last.columns[k];
+      return "<tr>" + td(k) + td(c.tests, "n") + td(c.no_test || 0, "n") +
+        [c.compile_err, c.run_err, c.value_off].map(v => td(v, v ? "n bad" : "n ok")).join("") +
+        td(c.walltime || "", "n") + td(`<a href="${REPO}/releases/tag/${last.date}_${k}">tgz</a>`) + "</tr>"; }).join(""));
+
+  // failing tests over time, one line per platform
+  const svg = d3.select("#chart"), m = {t: 10, r: 10, b: 24, l: 40};
+  const w = +svg.attr("width") - m.l - m.r, h = +svg.attr("height") - m.t - m.b;
+  const parse = d3.timeParse("%Y-%m-%d");
+  const x = d3.scaleTime().range([0, w]).domain(d3.extent(index, d => parse(d.date)));
+  const y = d3.scaleLinear().range([h, 0]).nice()
+    .domain([0, d3.max(index, d => d3.max(Object.values(d.columns), nfail)) || 1]);
+  const g = svg.append("g").attr("transform", `translate(${m.l},${m.t})`);
+  g.append("g").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x)
+    .ticks(d3.timeDay.every(Math.ceil(index.length / 8))).tickFormat(d3.timeFormat("%b %d")));
+  g.append("g").call(d3.axisLeft(y).ticks(5));
+  keys.forEach(k => {
+    const pts = index.filter(d => d.columns[k]).map(d => [parse(d.date), nfail(d.columns[k])]);
+    g.append("path").datum(pts).attr("fill", "none").attr("stroke", color(k)).attr("stroke-width", 1.5)
+      .attr("d", d3.line().x(p => x(p[0])).y(p => y(p[1])));
+    g.selectAll(null).data(pts).enter().append("circle").attr("r", 2.5).attr("fill", color(k))
+      .attr("cx", p => x(p[0])).attr("cy", p => y(p[1]));
+  });
+  d3.select("#legend").html(keys.map(k => `<span><i style="background:${color(k)}"></i>${k}</span>`).join(""));
+
+  // failing tonight: which platforms, and since when (consecutive nights back)
+  const rows = {};
+  keys.forEach(k => last.columns[k].failed.forEach(t => {
+    let since = last.date;
+    for (let i = index.length - 2; i >= 0; i--) {
+      const c = index[i].columns[k];
+      if (!c || c.failed.indexOf(t) < 0) break;
+      since = index[i].date;
+    }
+    (rows[t] = rows[t] || []).push({k, since});
+  }));
+  const names = Object.keys(rows).sort();
+  d3.select("#failing").html(names.length ? "<tr><th>Test</th><th>Platform</th><th>Failing since</th></tr>" +
+    names.map(t => rows[t].map((r, i) => "<tr>" + td(i ? "" : t) + td(r.k) + td(r.since, r.since === last.date ? "bad" : "") + "</tr>").join("")).join("")
+    : "<tr><td class=\"ok\">Nothing failing.</td></tr>");
+
+  d3.select("#history").html(index.slice().reverse().map(d =>
+    `<a href="${d === last ? "today" : "history/" + d.date}/table.html">${d.date}</a> <span class="muted">(${d3.sum(Object.values(d.columns), nfail)} failing, <a href="history/${d.date}/summary.json">json</a>)</span>`).join("<br>"));
+});
+</script>
+</body>
+</html>

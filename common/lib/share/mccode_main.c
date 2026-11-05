@@ -133,7 +133,9 @@ int mccode_main(int argc, char *argv[])
   // init executed by master/host
   siminfo_init(NULL); /* open SIM */
   SIG_MESSAGE("[" __FILE__ "] main INITIALISE");
+  mctime_init_ns = mccode_time_ns();
   init();
+  mctime_init_ns = mccode_time_ns() - mctime_init_ns;
 
 #ifdef USE_NEXUS
   /* store component SETTING parameter values as present at end of INITIALISE */
@@ -166,6 +168,7 @@ int mccode_main(int argc, char *argv[])
 
 
 // main raytrace work loop
+  mctime_trace_ns = mccode_time_ns();
 #ifndef FUNNEL
   // legacy version
   raytrace_all(mcncount, mcseed);
@@ -176,6 +179,7 @@ int mccode_main(int argc, char *argv[])
 	     );
   raytrace_all_funnel(mcncount, mcseed);
 #endif
+  mctime_trace_ns = mccode_time_ns() - mctime_trace_ns;
 
 
 #ifdef USE_MPI
@@ -192,6 +196,7 @@ int mccode_main(int argc, char *argv[])
   // All MPI nodes reach this final save together: collective output (e.g.
   // gathering event lists on the master) is only allowed from here on.
   mcsave_final = 1;
+  mctime_finally_t0 = mccode_time_ns();
   finally();
 
 
