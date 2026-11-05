@@ -3151,11 +3151,17 @@ void siminfo_close()
   if(mpi_node_rank == mpi_node_root) {
 #endif
   if(siminfo_file && !mcdisable_output_files) {
+    long long tfinally = mctime_finally_t0 ? mccode_time_ns() - mctime_finally_t0 : 0;
 #ifdef USE_NEXUS
     if (mcformat && strcasestr(mcformat, "NeXus")) {
       time_t t=time(NULL);
       nxprintf(nxhandle, "end_time", "%s", ctime(&t));
       nxprintf(nxhandle, "duration", "%li", (long)t-mcstartdate);
+      if (mctime_finally_t0) {
+        nxprintf(nxhandle, "timing_init", "%.2f [s]", mctime_init_ns*1e-9);
+        nxprintf(nxhandle, "timing_trace", "%.2f [s]", mctime_trace_ns*1e-9);
+        nxprintf(nxhandle, "timing_finally", "%.2f [s]", tfinally*1e-9);
+      }
       NXclosegroup(nxhandle); /* NXentry */
       NXclose(&nxhandle);
 #ifdef USE_MPI
@@ -3163,12 +3169,12 @@ void siminfo_close()
 #endif
     } else {
 #endif
-      // ponytail: master's values only, no MPI reduction; NeXus output has no timing block
+      // ponytail: master's values only, no MPI reduction
       if (mctime_finally_t0) {
         siminfo_out("\nbegin timing\n");
         siminfo_out("  Init: %.2f [s]\n", mctime_init_ns*1e-9);
         siminfo_out("  Trace: %.2f [s]\n", mctime_trace_ns*1e-9);
-        siminfo_out("  Finally: %.2f [s]\n", (mccode_time_ns() - mctime_finally_t0)*1e-9);
+        siminfo_out("  Finally: %.2f [s]\n", tfinally*1e-9);
         siminfo_out("end timing\n");
       }
       fclose(siminfo_file);

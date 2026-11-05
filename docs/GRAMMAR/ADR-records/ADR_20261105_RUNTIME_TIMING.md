@@ -27,5 +27,6 @@ end timing
 * No numerical change: no RNG, physics or ordering is touched.
 * Values are the master's wall-clock times. With MPI there is no reduction across nodes.
 * Finally is measured up to the closing of `mccode.sim`, not to the end of `finally()`.
-* A run stopped by a signal, and NeXus output, have no timing block.
-* Not tested: MSVC, Linux/gcc, OpenACC, NeXus, MPI.
+* NeXus: `timing_init`, `timing_trace` and `timing_finally` are written to the NXentry next to `end_time` and `duration`.
+* A run stopped by a signal has no timing block.
+* Not tested: MSVC, Linux/gcc, OpenACC, MPI.
