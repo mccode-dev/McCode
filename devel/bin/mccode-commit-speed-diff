@@ -185,23 +185,15 @@ def clear_test_runs(testdir):
             shutil.rmtree(d, ignore_errors=True)
 
 
-def mctest_supports(cfg, envname, testbin, flag):
-    ''' each ref builds its own mctest, so its CLI flags can predate this script '''
-    helptext = run_cmd(cfg, envname, [testbin, '--help'], capture_output=True).stdout
-    return flag in helptext
-
-
 def measure_ref(cfg, envname, sha):
     testbin = 'mctest' if cfg.mode == 'mcstas' else 'mxtest'
     testdir = cfg.workdir / ('%s_%s' % (cfg.label, sha))
-    # no --no-mpi: omitting --mpi already means a single-node run, on every
-    # mctest version this script supports
+    # no --no-mpi: omitting --mpi already means a single-node run
     cmd = [testbin, '--testdir', str(testdir), '--ncount', cfg.ncount, '--seed', cfg.seed,
-           '--skipnontest', '--permissive']
-    if mctest_supports(cfg, envname, testbin, '--uid'):
-        # fixed, so mctest reuses the same (otherwise timestamped) label dir
-        # and compiled binaries across repeats, instead of rebuilding each time
-        cmd += ['--uid', cfg.label]
+           '--skipnontest', '--permissive',
+           # fixed, so mctest reuses the same (otherwise timestamped) label dir
+           # and compiled binaries across repeats, instead of rebuilding each time
+           '--uid', cfg.label]
     cmd += ['--instr', cfg.instr] if cfg.instr else ['--comp', cfg.comp]
 
     results = {}
