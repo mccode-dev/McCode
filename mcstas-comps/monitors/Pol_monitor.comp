@@ -106,7 +106,6 @@ TRACE
         ABSORB;
       }
     }
-    double p2 = p * p;
     double pp = pol_proj * p;
     double p2p = pol_proj * pol_proj * p;
     #pragma acc atomic
@@ -131,15 +130,46 @@ TRACE
 SAVE
 %{
   if (!nowritefile) {
-    if (Psum && Pol_N) {
-      Pol_p /= Psum;
-      #ifdef USE_MPI
-      Pol_p /= mpi_node_count;
-      #endif
-      Pol_p2 /= Psum;
-      Pol_p2 -= Pol_p * Pol_p;
-      Pol_p2 /= Pol_N;
+    #ifdef USE_MPI
+    /* Merge the raw moments before forming the polarization ratio. */
+    if (mpi_node_count > 1) {
+      mc_MPI_Sum (&Pol_N, 1);
+      mc_MPI_Sum (&Psum, 1);
+      mc_MPI_Sum (&Pol_p, 1);
+      mc_MPI_Sum (&Pol_p2, 1);
     }
+    #endif
+
+    if (Psum && Pol_N) {
+      double mean = Pol_p / Psum;
+      double variance = Pol_p2 / Psum - mean * mean;
+      if (variance < 0) variance = 0;
+
+      Pol_p = mean;
+      if (Pol_N > 1) {
+        double error2 = variance / Pol_N;
+        /* DETECTOR_OUT_0D applies the standard McCode error estimator and
+           performs another MPI reduction. Encode the desired error in the
+           form expected by that estimator. */
+        Pol_p2 = mean * mean / (Pol_N * Pol_N)
+               + error2 * (Pol_N - 1) / Pol_N;
+      } else {
+        Pol_p2 = 0;
+      }
+    } else {
+      Pol_p = 0;
+      Pol_p2 = 0;
+    }
+
+    #ifdef USE_MPI
+    /* The output macro reduces these values once more. */
+    if (mpi_node_count > 1) {
+      Pol_N /= mpi_node_count;
+      Pol_p /= mpi_node_count;
+      Pol_p2 /= mpi_node_count;
+    }
+    #endif
+
     DETECTOR_OUT_0D (titlestring, Pol_N, Pol_p, Pol_p2);
   }
 %}
