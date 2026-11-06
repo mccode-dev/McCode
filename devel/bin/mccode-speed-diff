@@ -287,19 +287,48 @@ def parse_args(argv):
     parser.add_argument('--timeout', type=int, default=3600, help='max seconds per build or run')
     parser.add_argument('--workdir', help='keep checkouts and results here (default: temporary)')
     parser.add_argument('--keep', action='store_true', help='keep the environments and worktrees')
+    parser.add_argument('--report', nargs=2, metavar=('DIR_A', 'DIR_B'),
+                        help='only print the table from two existing mctest result folders (no build, no run)')
     parser.add_argument('--selftest', action='store_true', help='run the built-in check and exit')
     args = parser.parse_args(argv[1:])
     if args.selftest:
         selftest()
         raise SystemExit(0)
-    if not (args.ref1 and args.ref2 and (args.comp or args.instr)):
-        parser.error('give REF1 REF2 and --comp or --instr')
+    if args.report is None and not (args.ref1 and args.ref2 and (args.comp or args.instr)):
+        parser.error('give REF1 REF2 and --comp or --instr, or --report DIR_A DIR_B')
     args.platform = {'Windows': 'win', 'Darwin': 'mac', 'Linux': 'linux'}[platform.system()]
     return args
 
 
+def report_from_dirs(dir_a, dir_b):
+    ''' the table from two existing mctest result folders: each one is one sample per test '''
+    dirs = [pathlib.Path(d).absolute() for d in (dir_a, dir_b)]
+    loaded = []
+    for d in dirs:
+        if not d.is_dir():
+            raise SystemExit('ERROR: not a folder: %s' % d)
+        results, warnings = {}, []
+        collect_repeat(d, results, warnings)
+        if warnings:
+            print('WARNING (%s): %s' % (d, '; '.join(sorted(set(warnings)))), file=sys.stderr)
+        if not results:
+            raise SystemExit('ERROR: no testresults_*.json under %s' % d)
+        loaded.append((results, read_meta(d)))
+    (r1, m1), (r2, m2) = loaded
+    if any(m1.get(k) != m2.get(k) for k in ('mpi', 'openacc')):
+        print('WARNING: mpi/openacc differ between the folders, not a like-for-like comparison',
+              file=sys.stderr)
+    print_report('A', r1, m1, 'B', r2, m2)
+    print()
+    print_config('A', dirs[0], 'folder', m1)
+    print_config('B', dirs[1], 'folder', m2)
+
+
 def main():
     args = parse_args(sys.argv)
+    if args.report:
+        report_from_dirs(*args.report)
+        return
     reporoot = pathlib.Path(args.srcdir).absolute()
     sha1, sha2 = resolve_sha(reporoot, args.ref1), resolve_sha(reporoot, args.ref2)
     if sha1 == sha2:
