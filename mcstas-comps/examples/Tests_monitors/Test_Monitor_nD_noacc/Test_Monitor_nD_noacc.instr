@@ -1,0 +1,56 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: Test Monitor_nD_noacc (FUNNEL / host-side variant)
+*
+* %Identification
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_monitors
+*
+* Minimal check of the NOACC Monitor_nD variant against the regular one.
+* Two monitors see the same beam: Monitor_nD (2D xy, list) and
+* Monitor_nD_noacc (same options). Compare their output with fixed seeds.
+*
+* %Parameters
+* lambda: [AA]  Wavelength of the source
+* L1:     [m]   Source-sample distance
+* bins:   [ ]   Number of bins on the monitors
+* xw:     [m]   Width of the monitors
+* yh:     [m]   Height of the monitors
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_Monitor_nD_noacc(lambda=2, L1=5, int bins=20, xw=0.1, yh=0.1)
+
+DECLARE %{
+  char xyopts[128];
+  char lmonopts[128];
+%}
+
+INITIALIZE
+%{
+  sprintf(xyopts,"x bins=%i, y bins=%i, list",bins,bins);
+  sprintf(lmonopts,"lambda bins=%i, list",bins);
+%}
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT Source = Source_gen(
+    radius = 0.05, dist = L1, focus_xw = 0.05, focus_yh = 0.05,
+    lambda0 = lambda, dlambda = lambda*0.05,
+    T1=229.6,I1=5.32e13,T2=1102, I2=4.37e12, T3=437.1,I3=3.84e13)
+  AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT nD_ref = Monitor_nD(options=xyopts, xwidth = xw, yheight = yh, nowritefile=0)
+  AT (0, 0, L1) RELATIVE Source
+
+COMPONENT nD_noacc = Monitor_nD_noacc(options=xyopts, xwidth = xw, yheight = yh, nowritefile=0)
+  AT (0, 0, 0) RELATIVE PREVIOUS
+
+COMPONENT nD_noacc_lambda = Monitor_nD_noacc(options=lmonopts, xwidth = xw, yheight = yh)
+  AT (0, 0, 0) RELATIVE PREVIOUS
+
+END
