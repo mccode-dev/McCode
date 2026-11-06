@@ -9,6 +9,10 @@ instrument's own %Test line(s)), and reads the Init/Trace/Finally wall-clock
 timing block that siminfo_close() writes to each run's mccode.sim. No source
 patching is involved: the timing comes straight from mccode.sim.
 
+Only works for refs on or after 05/11/2026: mccode-r.c only writes that timing
+block to mccode.sim from that date onward, so an older ref's runs have nothing
+for this script to read.
+
 By default both refs are built/tested directly in the conda/mamba/micromamba
 environment that is already active. Pass --fresh-env to instead create (and
 download packages into) a new environment per ref.
@@ -54,12 +58,40 @@ def autodetect_platform():
     return {'Windows': 'win', 'Darwin': 'mac', 'Linux': 'linux'}[platform.system()]
 
 
+def list_remotes(reporoot):
+    out = run(['git', '-C', str(reporoot), 'remote'], capture_output=True).stdout
+    return out.split()
+
+
+def try_rev_parse(reporoot, ref):
+    ''' returns the short sha for ref, or None if ref does not resolve '''
+    r = run(['git', '-C', str(reporoot), 'rev-parse', '--short', ref],
+           check=False, capture_output=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
 def resolve_sha(reporoot, ref):
-    out = run(['git', '-C', str(reporoot), 'rev-parse', '--short', ref],
-              capture_output=True).stdout.strip()
-    if not out:
-        raise SystemExit('ERROR: Could not resolve ref: %s' % ref)
-    return out
+    ''' resolves ref as given (sha/tag/already-qualified branch), or else as a
+    bare branch name on one of the configured remotes (e.g. "main" -> whichever
+    configured remote has a "main" branch) '''
+    sha = try_rev_parse(reporoot, ref)
+    if sha:
+        return sha
+
+    found = {}
+    for remote in list_remotes(reporoot):
+        candidate = '%s/%s' % (remote, ref)
+        sha = try_rev_parse(reporoot, candidate)
+        if sha:
+            found.setdefault(sha, []).append(candidate)
+    if not found:
+        raise SystemExit('ERROR: Could not resolve ref %r, tried it as-is and as '
+                         '<remote>/%s for remotes: %s' % (ref, ref, ', '.join(list_remotes(reporoot))))
+    if len(found) > 1:
+        detail = '; '.join('%s: %s' % (sha, ', '.join(names)) for sha, names in found.items())
+        raise SystemExit('ERROR: Ambiguous ref %r resolves to different commits on different '
+                         'remotes (%s) - qualify it, e.g. upstream/%s' % (ref, detail, ref))
+    return next(iter(found))
 
 
 def create_env_cmd(conda_exe, root_args, yml, envname):
@@ -156,8 +188,9 @@ def clear_test_runs(testdir):
 def measure_ref(cfg, envname, sha):
     testbin = 'mctest' if cfg.mode == 'mcstas' else 'mxtest'
     testdir = cfg.workdir / ('%s_%s' % (cfg.label, sha))
+    # no --no-mpi: omitting --mpi already means a single-node run
     cmd = [testbin, '--testdir', str(testdir), '--ncount', cfg.ncount, '--seed', cfg.seed,
-           '--no-mpi', '--skipnontest', '--permissive',
+           '--skipnontest', '--permissive',
            # fixed, so mctest reuses the same (otherwise timestamped) label dir
            # and compiled binaries across repeats, instead of rebuilding each time
            '--uid', cfg.label]
@@ -229,8 +262,10 @@ def parse_args(argv):
         prog=os.path.basename(argv[0]),
         description=('Measure McStas/McXtrace simulation speed for a component/instrument '
                      'against two commits, each built in its own conda environment.'))
-    parser.add_argument('ref1', help='First commit/branch/tag ("before")')
-    parser.add_argument('ref2', help='Second commit/branch/tag ("after", compared against ref1)')
+    parser.add_argument('ref1', help='First commit/branch/tag ("before"). A bare branch name '
+                                     '(e.g. "main") resolves against whichever configured remote '
+                                     'has it, as its tip; ambiguous across remotes needs <remote>/<branch>')
+    parser.add_argument('ref2', help='Second commit/branch/tag ("after", compared against ref1); see ref1')
     filt = parser.add_mutually_exclusive_group(required=True)
     filt.add_argument('--comp', help='Measure only instruments using this component')
     filt.add_argument('--instr', help='Measure only instruments matching this filter (regex)')
