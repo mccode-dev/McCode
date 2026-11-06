@@ -223,8 +223,10 @@ def ncount_of(meta):
 
 
 def print_config(label, ref, sha, meta):
+    ''' what A or B is: the ref and its commit, or the folder when reporting from folders '''
+    where = '%s (%s)' % (ref, sha) if sha else 'folder %s' % ref
     mpi = meta.get('mpi') or 'off (single process)'
-    print('%s: %s (%s), mpi=%s, openacc=%s' % (label, ref, sha, mpi, 'on' if meta.get('openacc') else 'off'))
+    print('%s: %s, mpi=%s, openacc=%s' % (label, where, mpi, 'on' if meta.get('openacc') else 'off'))
 
 
 def print_report(label1, results1, meta1, label2, results2, meta2):
@@ -252,8 +254,9 @@ def print_report(label1, results1, meta1, label2, results2, meta2):
 
     for key in sorted(set(results1) | set(results2)):
         print()
-        print(key[0] if sum(1 for k in set(results1) | set(results2) if k[0] == key[0]) == 1
-              else '%s (test %s)' % key)
+        name = key[0] if sum(1 for k in set(results1) | set(results2) if k[0] == key[0]) == 1 \
+            else '%s (test %s)' % key
+        print('Instrument: %s' % name)
         s1, s2 = results1.get(key), results2.get(key)
         if s1 is None or s2 is None:
             print('  only measured for %s' % (label2 if s1 is None else label1))
@@ -354,8 +357,8 @@ def report_from_dirs(dir_a, dir_b):
               file=sys.stderr)
     print_report('A', r1, m1, 'B', r2, m2)
     print()
-    print_config('A', dirs[0], 'folder', m1)
-    print_config('B', dirs[1], 'folder', m2)
+    print_config('A', dirs[0], None, m1)
+    print_config('B', dirs[1], None, m2)
 
 
 def main():
