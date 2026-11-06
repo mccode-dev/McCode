@@ -54,12 +54,40 @@ def autodetect_platform():
     return {'Windows': 'win', 'Darwin': 'mac', 'Linux': 'linux'}[platform.system()]
 
 
+def list_remotes(reporoot):
+    out = run(['git', '-C', str(reporoot), 'remote'], capture_output=True).stdout
+    return out.split()
+
+
+def try_rev_parse(reporoot, ref):
+    ''' returns the short sha for ref, or None if ref does not resolve '''
+    r = run(['git', '-C', str(reporoot), 'rev-parse', '--short', ref],
+           check=False, capture_output=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
 def resolve_sha(reporoot, ref):
-    out = run(['git', '-C', str(reporoot), 'rev-parse', '--short', ref],
-              capture_output=True).stdout.strip()
-    if not out:
-        raise SystemExit('ERROR: Could not resolve ref: %s' % ref)
-    return out
+    ''' resolves ref as given (sha/tag/already-qualified branch), or else as a
+    bare branch name on one of the configured remotes (e.g. "main" -> the one
+    remote - of lomholy/origin/upstream here - whose "main" branch exists) '''
+    sha = try_rev_parse(reporoot, ref)
+    if sha:
+        return sha
+
+    found = {}
+    for remote in list_remotes(reporoot):
+        candidate = '%s/%s' % (remote, ref)
+        sha = try_rev_parse(reporoot, candidate)
+        if sha:
+            found.setdefault(sha, []).append(candidate)
+    if not found:
+        raise SystemExit('ERROR: Could not resolve ref %r, tried it as-is and as '
+                         '<remote>/%s for remotes: %s' % (ref, ref, ', '.join(list_remotes(reporoot))))
+    if len(found) > 1:
+        detail = '; '.join('%s: %s' % (sha, ', '.join(names)) for sha, names in found.items())
+        raise SystemExit('ERROR: Ambiguous ref %r resolves to different commits on different '
+                         'remotes (%s) - qualify it, e.g. upstream/%s' % (ref, detail, ref))
+    return next(iter(found))
 
 
 def create_env_cmd(conda_exe, root_args, yml, envname):
@@ -153,17 +181,27 @@ def clear_test_runs(testdir):
             shutil.rmtree(d, ignore_errors=True)
 
 
+def mctest_supports(cfg, envname, testbin, flag):
+    ''' each ref builds its own mctest, so its CLI flags can predate this script '''
+    helptext = run_cmd(cfg, envname, [testbin, '--help'], capture_output=True).stdout
+    return flag in helptext
+
+
 def measure_ref(cfg, envname, sha):
     testbin = 'mctest' if cfg.mode == 'mcstas' else 'mxtest'
     testdir = cfg.workdir / ('%s_%s' % (cfg.label, sha))
+    # no --no-mpi: omitting --mpi already means a single-node run, on every
+    # mctest version this script supports
     cmd = [testbin, '--testdir', str(testdir), '--ncount', cfg.ncount, '--seed', cfg.seed,
-           '--no-mpi', '--skipnontest', '--permissive',
-           # fixed, so mctest reuses the same (otherwise timestamped) label dir
-           # and compiled binaries across repeats, instead of rebuilding each time
-           '--uid', cfg.label]
+           '--skipnontest', '--permissive']
+    if mctest_supports(cfg, envname, testbin, '--uid'):
+        # fixed, so mctest reuses the same (otherwise timestamped) label dir
+        # and compiled binaries across repeats, instead of rebuilding each time
+        cmd += ['--uid', cfg.label]
     cmd += ['--instr', cfg.instr] if cfg.instr else ['--comp', cfg.comp]
 
     results = {}
+    simfiles_seen = 0
     for i in range(cfg.repeats):
         if i > 0:
             # keep the compiled binaries, only clear each test's run output so
@@ -171,6 +209,7 @@ def measure_ref(cfg, envname, sha):
             clear_test_runs(testdir)
         run_cmd(cfg, envname, cmd, check=False, timeout=cfg.timeout)
         for simfile in sorted(testdir.rglob('mccode.sim')):
+            simfiles_seen += 1
             timing = parse_timing(simfile)
             if timing is None:
                 continue
@@ -180,7 +219,12 @@ def measure_ref(cfg, envname, sha):
                 entry[metric].append(value)
 
     if not results:
-        raise SystemExit('ERROR: mctest produced no timed run for %s under %s '
+        if simfiles_seen:
+            raise SystemExit('ERROR: %s wrote %d mccode.sim file(s) under %s, but none had a '
+                             '"begin timing" block - this ref likely predates that feature in '
+                             'mccode-r.c (siminfo_close), so its runs cannot be timed this way'
+                             % (sha, simfiles_seen, testdir))
+        raise SystemExit('ERROR: mctest produced no run at all for %s under %s '
                          '(check its run_stdout_*.txt files)' % (sha, testdir))
     return results
 
@@ -229,8 +273,10 @@ def parse_args(argv):
         prog=os.path.basename(argv[0]),
         description=('Measure McStas/McXtrace simulation speed for a component/instrument '
                      'against two commits, each built in its own conda environment.'))
-    parser.add_argument('ref1', help='First commit/branch/tag ("before")')
-    parser.add_argument('ref2', help='Second commit/branch/tag ("after", compared against ref1)')
+    parser.add_argument('ref1', help='First commit/branch/tag ("before"). A bare branch name '
+                                     '(e.g. "main") resolves against whichever configured remote '
+                                     'has it, as its tip; ambiguous across remotes needs <remote>/<branch>')
+    parser.add_argument('ref2', help='Second commit/branch/tag ("after", compared against ref1); see ref1')
     filt = parser.add_mutually_exclusive_group(required=True)
     filt.add_argument('--comp', help='Measure only instruments using this component')
     filt.add_argument('--instr', help='Measure only instruments matching this filter (regex)')
