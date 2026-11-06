@@ -190,17 +190,15 @@ def ncount_of(meta):
     return float(meta['ncount']) if meta.get('ncount') else None
 
 
-def print_header(meta):
-    print('-n %s' % meta.get('ncount'))
-
-
 def print_config(label, ref, sha, meta):
     mpi = meta.get('mpi') or 'off (single process)'
     print('%s: %s (%s), mpi=%s, openacc=%s' % (label, ref, sha, mpi, 'on' if meta.get('openacc') else 'off'))
 
 
-def print_report(label1, results1, ncount1, label2, results2, ncount2):
-    headers = ['', '%s [s]' % label1, '%s [s]' % label2, 'delta %% (%s vs %s)' % (label2, label1),
+def print_report(label1, results1, meta1, label2, results2, meta2):
+    ncount1, ncount2 = ncount_of(meta1), ncount_of(meta2)
+    headers = ['', '%s -n %s [s]' % (label1, meta1.get('ncount')), '%s -n %s [s]' % (label2, meta2.get('ncount')),
+               'delta %% (%s vs %s)' % (label2, label1),
                '%s us/ray' % label1, '%s us/ray' % label2]
     widths = [max(len(name) for _, name in ROWS)] + [max(len(h), 9) for h in headers[1:]]
 
@@ -320,12 +318,10 @@ def main():
             tmp.cleanup()
 
     m1, m2 = metas[sha1], metas[sha2]
-    print_header(m1)
-    if any(m1.get(k) != m2.get(k) for k in ('ncount', 'mpi', 'openacc')):
-        print('WARNING: ncount/mpi/openacc differ between the refs, not a like-for-like comparison',
+    if any(m1.get(k) != m2.get(k) for k in ('mpi', 'openacc')):
+        print('WARNING: mpi/openacc differ between the refs, not a like-for-like comparison',
               file=sys.stderr)
-    print()
-    print_report('A', results[sha1], ncount_of(m1), 'B', results[sha2], ncount_of(m2))
+    print_report('A', results[sha1], m1, 'B', results[sha2], m2)
     print()
     print_config('A', args.ref1, sha1[:10], m1)
     print_config('B', args.ref2, sha2[:10], m2)
