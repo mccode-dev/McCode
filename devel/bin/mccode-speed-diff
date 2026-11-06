@@ -117,6 +117,22 @@ def parse_timing(simfile):
     return {'INIT': init, 'TRACE': trace, 'FINALLY': finally_}
 
 
+def parse_timing_h5(h5file):
+    ''' Init/Trace/Finally from a NeXus mccode.h5: the NXentry's timing_* fields, strings like "0.21 [s]" '''
+    import h5py  # already a McCode dependency (environment.yml)
+    with h5py.File(h5file, 'r') as f:
+        entries = sorted(k for k in f if k.startswith('entry'))
+        if not entries or not all(k in f[entries[0]] for k in ('timing_init', 'timing_trace', 'timing_finally')):
+            return None
+        e = f[entries[0]]
+        out = {}
+        for field, metric in (('timing_init', 'INIT'), ('timing_trace', 'TRACE'), ('timing_finally', 'FINALLY')):
+            text = e[field][()][0]
+            text = text.decode() if isinstance(text, bytes) else str(text)
+            out[metric] = float(text.split()[0])
+    return out
+
+
 def clear_previous(testdir):
     ''' drop the last repeat's run folders (<label>/<instr>/<n>) and reports; keep the binaries '''
     for d in testdir.glob('*/*/*'):
@@ -141,9 +157,15 @@ def collect_repeat(testdir, results, warnings):
             samples = results.setdefault(key, {m: [] for m in METRICS})
             samples['compile'].append(entry.get('compiletime') or 0)
             samples['runtime'].append(entry['runtime'])
+            # the run's folder; a NeXus run writes mccode.h5 instead of mccode.sim
+            run_dir = report.parent / entry['instrname'] / str(entry['testnb'])
+            if (run_dir / 'mccode.sim').is_file():
+                timing = parse_timing(run_dir / 'mccode.sim')
+            elif (run_dir / 'mccode.h5').is_file():
+                timing = parse_timing_h5(run_dir / 'mccode.h5')
+            else:
+                timing = None
             # builds before 05/11/2026 write no timing block: sections stay n/a
-            simfile = report.parent / entry['instrname'] / str(entry['testnb']) / 'mccode.sim'
-            timing = parse_timing(simfile) if simfile.is_file() else None
             if timing is None:
                 warnings.append('no timing block for %s' % name)
                 continue
@@ -265,6 +287,14 @@ def selftest():
     s = summarize(samples)
     assert s['runtime'] == 2.0 and s['compile'] == 3.0 and s['n'] == 3
     assert summarize(dict(samples, INIT=[]))['INIT'] is None
+    import tempfile, h5py
+    with tempfile.TemporaryDirectory() as tmp:
+        h5 = pathlib.Path(tmp) / 'mccode.h5'
+        with h5py.File(h5, 'w') as f:
+            f.create_group('entry1').create_dataset('timing_init', data=[b'0.21 [s]'])
+            f['entry1'].create_dataset('timing_trace', data=[b'38.75 [s]'])
+            f['entry1'].create_dataset('timing_finally', data=[b'0.01 [s]'])
+        assert parse_timing_h5(h5) == {'INIT': 0.21, 'TRACE': 38.75, 'FINALLY': 0.01}
     assert per_ray_value(2.0, 1e5) == '20.00'
     print('selftest OK')
 
