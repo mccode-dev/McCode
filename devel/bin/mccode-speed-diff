@@ -35,6 +35,7 @@ TIMING_BLOCK_RE = re.compile(
     r'\s*end timing')
 
 METRICS = ('compile', 'runtime', 'INIT', 'TRACE', 'FINALLY', 'outside')
+SECTIONS = ('INIT', 'TRACE', 'FINALLY', 'outside')
 ROWS = (('compile', 'compile [s]'), ('runtime', 'run total [s]'), ('INIT', '  init [s]'),
         ('TRACE', '  trace [s]'), ('FINALLY', '  finally [s]'), ('outside', '  outside sections [s]'))
 
@@ -240,6 +241,9 @@ def print_report(label1, results1, meta1, label2, results2, meta2):
         row(headers)
         hline()
         for metric, name in ROWS:
+            # detailed timings are left out when neither side has them, rather than printed as n/a
+            if metric in SECTIONS and a[metric] is None and b[metric] is None:
+                continue
             if metric == 'compile':
                 ray1 = ray2 = ''
             else:
