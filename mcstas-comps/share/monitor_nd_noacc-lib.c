@@ -2201,6 +2201,70 @@ void Monitor_nd_noaccMcDisplay(Monitornd_noaccDefines_type *DEFS,
     }
   } /* end Monitor_nd_noaccMcDisplay */
 
+/* ========================================================================= */
+/* Mesh geometry: the two following routines only apply to detectors         */
+/* defined by a mesh file (geometry parameter)                               */
+/* ========================================================================= */
+
+// Hits of the line position + t*velocity with mesh ahead of the neutron
+// (t > 0). Inside a closed mesh, t0 is 0 and t1 the first exit; otherwise
+// t0 is the first hit and t1 the next one (t0 when there is a single hit).
+// face is the face of the first hit ahead. Returns 1 on a hit, 0 otherwise.
+int Monitor_nd_noaccMeshIntersect(gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t1, int* face)
+{
+  gmesh_hit hits[GMESH_MAX_HITS];
+  int nhits = gmesh_intersect(mesh, position, velocity, 0, hits);
+  int inside = 0;
+  if (!nhits)
+    return 0;
+  // normals of a closed, oriented mesh point outward: leaving first means inside
+  if (mesh->closed && mesh->oriented)
+    inside = hits[0].in_out < 0;
+  else if (mesh->closed)
+    inside = gmesh_inside(mesh, position);
+  if (inside) {
+    *t0 = 0;
+    *t1 = hits[0].t;
+  } else {
+    *t0 = hits[0].t;
+    *t1 = hits[0].t;
+    if (nhits > 1)
+      *t1 = hits[1].t;
+  }
+  *face = hits[0].face;
+  return 1;
+}
+
+// Prints one "MANTID_PIXEL: id,first,last,nv,cx,cy,cz,dx1,dy1,dz1,..." line
+// per face of mesh, with id = offset + face index and the vertices relative
+// to the face centre. Faces with less than 3 vertices are skipped.
+void Monitor_nd_noaccMeshMantid(gmesh_struct* mesh, long offset)
+{
+  int i_start = 0;
+  int i_face = 0;
+  if (!mesh || !mesh->faceSize)
+    return;
+  while (i_start < mesh->faceSize) {
+    int nv = mesh->faceArray[i_start];
+    int* vertex_index = &mesh->faceArray[i_start + 1];
+    if (nv >= 3) {
+      Coords centre = coords_set(0, 0, 0);
+      int i_vertex;
+      for (i_vertex = 0; i_vertex < nv; i_vertex++)
+        centre = coords_add(centre, mesh->vtx[vertex_index[i_vertex]]);
+      centre = coords_scale(centre, 1.0 / nv);
+      printf("MANTID_PIXEL: %li,%li,%li,%i,%g,%g,%g", offset + i_face, offset, offset + mesh->nfaces - 1, nv, centre.x, centre.y, centre.z);
+      for (i_vertex = 0; i_vertex < nv; i_vertex++) {
+        Coords corner = coords_sub(mesh->vtx[vertex_index[i_vertex]], centre);
+        printf(",%g,%g,%g", corner.x, corner.y, corner.z);
+      }
+      printf("\n");
+    }
+    i_start += nv + 1;
+    i_face++;
+  }
+}
+
 /* end of monitor_nd_noacc-lib.c */
 
 #ifdef OPENACC_BAK

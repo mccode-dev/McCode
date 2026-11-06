@@ -273,34 +273,6 @@ SHARE
   %include "monitor_nd-lib"
   %include "read_table-lib"
   %include "geometry-mesh-lib"
-
-  // Entry and exit of the line position + t*velocity with mesh, chosen as
-  // off_intersect_all of interoff-lib did: t0 is the last hit behind the
-  // neutron, or the first hit ahead when there is none behind; t1 is the hit
-  // after t0, or 0 when the mesh is behind and FLT_MAX for a single hit ahead.
-  // face is the face hit at t0. Returns the number of hits.
-  #pragma acc routine seq
-  int
-  Monitor_nD_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t1, int* face) {
-    gmesh_hit hits[GMESH_MAX_HITS];
-    int nhits = gmesh_intersect (mesh, position, velocity, -FLT_MAX, hits);
-    int ahead = 0;
-    int first;
-    if (!nhits)
-      return 0;
-    while (ahead < nhits && hits[ahead].t < 0)
-      ahead++;
-    first = ahead ? ahead - 1 : 0;
-    *t0 = hits[first].t;
-    if (first + 1 < nhits)
-      *t1 = hits[first + 1].t;
-    else if (ahead)
-      *t1 = 0;
-    else
-      *t1 = FLT_MAX;
-    *face = hits[first].face;
-    return nhits;
-  }
 %}
 
 DECLARE
@@ -549,7 +521,7 @@ TRACE
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
     /* determine intersections with object */
     int face = 0;
-    intersect = Monitor_nD_mesh_intersect (&thread_offdata, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &face);
+    intersect = Monitor_nD_MeshIntersect (&thread_offdata, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &face);
     if (Vars.Flag_mantid) {
       if (intersect) {
         Vars.OFF_polyidx = face;
@@ -723,7 +695,7 @@ MCDISPLAY
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
     gmesh_display (&offdata);
     if (Vars.Flag_mantid && mcdotrace != 2)
-      gmesh_display_mantid (&offdata, (long)Vars.Coord_Min[Vars.Coord_Number - 1]);
+      Monitor_nD_MeshMantid (&offdata, (long)Vars.Coord_Min[Vars.Coord_Number - 1]);
   } else {
     Monitor_nD_McDisplay (&DEFS, &Vars);
   }
