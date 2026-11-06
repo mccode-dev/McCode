@@ -47,18 +47,20 @@ xwidth=0, yheight=0, int restore_neutron=0)
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+SHARE
+%{
+  #define MCGPU_PORTED_Monitor
+%}
+
 DECLARE
 %{
-  double Nsum;
-  double psum;
-  double p2sum;
+  DArray1d sums; /* N, p, p2 */
+  double* sums_d;
 %}
 
 INITIALIZE
 %{
-  psum = 0;
-  p2sum = 0;
-  Nsum = 0;
+  sums = create_darr1d (3);
 
   if (xwidth > 0) {
     xmax = xwidth / 2;
@@ -75,6 +77,10 @@ INITIALIZE
             NAME_CURRENT_COMP);
     exit (0);
   }
+
+  #ifdef OMPTARGET
+  sums_d = mcgpu_to_device (NAME_CURRENT_COMP, "sums", sums, 3 * sizeof (double));
+  #endif
   %}
 
 TRACE
@@ -86,11 +92,11 @@ TRACE
   if ((backprop || t >= t0) && z == 0.0 && x > xmin && x < xmax && y > ymin && y < ymax) {
     double p2 = p * p;
     #pragma acc atomic
-    Nsum = Nsum + 1;
+    MC1D (sums, 0) = MC1D (sums, 0) + 1;
     #pragma acc atomic
-    psum = psum + p;
+    MC1D (sums, 1) = MC1D (sums, 1) + p;
     #pragma acc atomic
-    p2sum = p2sum + p2;
+    MC1D (sums, 2) = MC1D (sums, 2) + p2;
     SCATTER;
   }
   if (restore_neutron || !SCATTERED) {
@@ -100,10 +106,21 @@ TRACE
 
 SAVE
   %{
+  #ifdef OMPTARGET
+  mcgpu_from_device (NAME_CURRENT_COMP, "sums", sums, sums_d, 3 * sizeof (double));
+  #endif
   char title[1024];
   sprintf (title, "Single monitor %s", NAME_CURRENT_COMP);
-  DETECTOR_OUT_0D (title, Nsum, psum, p2sum);
+  DETECTOR_OUT_0D (title, sums[0], sums[1], sums[2]);
   %}
+
+FINALLY
+%{
+  #ifdef OMPTARGET
+  mcgpu_free (sums_d);
+  #endif
+  destroy_darr1d (sums);
+%}
 
 MCDISPLAY
 %{

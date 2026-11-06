@@ -46,6 +46,7 @@ targets, and where that can mislead, is explained in
 | `--mpi N` | MPI node count sent to `mcrun` |
 | `--no-mpi` | compile and run without MPI (`--no-mpi` sent to `mcrun`) |
 | `--openacc` | pass `--openacc` to `mcrun` |
+| `--openmp` | pass `--openmp` to `mcrun` (excludes `--openacc`) |
 | `--nexus` | compile/run with NeXus output format everywhere |
 | `--lint` | just run the C-linter (no simulation run) |
 | `--config CONFIG` | test only this specific config — label name (regex) or absolute path |

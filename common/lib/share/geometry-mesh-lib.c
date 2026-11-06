@@ -29,7 +29,7 @@
   #include <stdarg.h>
   #include <stdint.h>
 
-  #ifdef OPENACC
+  #ifdef MCGPU
     // fprintf and stderr are not available in GPU device code, so error
     // messages are sent through printf instead (as in interoff-lib)
     #define fprintf(stderr, ...) printf (__VA_ARGS__)
@@ -2123,7 +2123,7 @@ gmesh_free (gmesh_struct* mesh) {
   memset (mesh, 0, sizeof (gmesh_struct));
 }
 
-  #ifdef OPENACC // Restore fprintf for code following this lib
+  #ifdef MCGPU // Restore fprintf for code following this lib
     #undef fprintf
   #endif
 

@@ -80,14 +80,15 @@ def load_config(path=None):
     text = open(userconfig).read()
     obj = json.loads(text)
     configuration = obj['configuration']
-    compilation = obj['compilation']
+    # keep defaults for keys that an older user config does not have
+    compilation = {**compilation, **obj['compilation']}
 
     # Special handling of build-env detected settings on conda
     if configuration['ISCONDAPKG']=='1':
         # Map existing ${CONDA_PREFIX} 'symbols' to actual current CONDA_PREFIX
         conda_prefix = os.environ.get('CONDA_PREFIX')
         if conda_prefix:
-            entries_with_conda_prefix=['CFLAGS','NEXUSFLAGS','MPIFLAGS','OACCFLAGS','CC','MPICC','MPIRUN']
+            entries_with_conda_prefix=['CFLAGS','NEXUSFLAGS','MPIFLAGS','OACCFLAGS','OMPFLAGS','CC','MPICC','MPIRUN']
             if OsPlatform.system() == 'Windows':
                 conda_prefix = str(pathlib.PureWindowsPath(conda_prefix).as_posix())
             else:
@@ -113,7 +114,7 @@ def load_config(path=None):
             except:
                 print(errmsg())
                 raise
-            entries_with_isysroot=['CFLAGS','NEXUSFLAGS','MPIFLAGS','OACCFLAGS','CC','MPICC','MPIRUN']
+            entries_with_isysroot=['CFLAGS','NEXUSFLAGS','MPIFLAGS','OACCFLAGS','OMPFLAGS','CC','MPICC','MPIRUN']
             conda_prefix = str(pathlib.Path(xcrun_path).absolute().resolve())
             for e in entries_with_isysroot:
                 if '${XCRUN_DETECTED}' in compilation[e]:

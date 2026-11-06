@@ -262,12 +262,16 @@ def add_mcrun_adv_options(parser):
         help='Defines path of MPI machinefile to use in parallel mode')
     parser.add_option_group(mpiopt)
 
-    accopt = OptionGroup(parser, 'OpenACC options')
+    accopt = OptionGroup(parser, 'GPU options (OpenACC, OpenMP)')
     add = accopt.add_option
     # Accellerator-support
     add('--openacc',
         action='store_true', default=False,
         help='parallelize using openacc')
+
+    add('--openmp',
+        action='store_true', default=False,
+        help='parallelize using OpenMP target offload (not together with --openacc)')
 
     add('--funnel',
         action='store_true', default=False,
@@ -459,12 +463,18 @@ def expand_options(options):
             options.use_mpi = False
         if options.openacc is True:
             options.cc = mccode_config.compilation['OACC']
+        elif options.openmp is True:
+            options.cc = mccode_config.compilation['OMP']
         else:
             options.cc = mccode_config.compilation['MPICC']
         options.mpirun = mccode_config.compilation['MPIRUN']
     elif options.openacc is True:
         options.use_openacc = True
         options.cc = mccode_config.compilation['OACC']
+        options.use_mpi = False
+    elif options.openmp is True:
+        options.use_openmp = True
+        options.cc = mccode_config.compilation['OMP']
         options.use_mpi = False
     else:
         options.use_mpi = False
@@ -662,6 +672,9 @@ def main():
 
     # Parse options
     (options, args) = parser.parse_args()
+
+    if options.openacc and options.openmp:
+        parser.error('--openacc and --openmp are mutually exclusive')
 
     if options.showcfg:
         #For now, all options are actually directly available as keys in the

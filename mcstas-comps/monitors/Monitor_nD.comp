@@ -264,6 +264,7 @@ SETTING PARAMETERS (
 
 SHARE
 %{
+  #define MCGPU_PORTED_Monitor_nD
   %include "monitor_nd-lib"
   %include "read_table-lib"
   %include "interoff-lib"
@@ -486,12 +487,16 @@ INITIALIZE
                           "WARNING     this may create incorrect distributions (but integrated flux will be right).\n",
                           NAME_CURRENT_COMP););
   #else
-  #ifdef OPENACC
+  #ifdef MCGPU
   if (strstr (Vars.option, "auto"))
     printf ("Monitor_nD: %s is requesting automatic limits option 'auto' together with OpenACC.\n"
             "WARNING     this feature is NOT supported using OpenACC and has been disabled!\n",
             NAME_CURRENT_COMP);
   #endif
+  #endif
+
+  #ifdef OMPTARGET
+  Monitor_nD_to_device (&Vars);
   #endif
 %}
 
@@ -505,7 +510,7 @@ TRACE
   int intersect = 0;
   char Flag_Restore = 0;
 
-  #ifdef OPENACC
+  #ifdef MCGPU
   #ifdef USE_OFF
   off_struct thread_offdata = offdata;
   #endif
@@ -676,6 +681,9 @@ TRACE
 
 SAVE
 %{
+  #ifdef OMPTARGET
+  Monitor_nD_from_device (&Vars);
+  #endif
   if (!nowritefile) {
     /* save results, but do not free pointers */
     detector = Monitor_nD_Save (&DEFS, &Vars);
