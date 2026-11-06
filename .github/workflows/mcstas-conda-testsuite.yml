@@ -166,6 +166,17 @@ jobs:
                sed -i.bak 's+mpirun+mpirun\ -mca\ regx\ naive\ --verbose\ --mca\ btl_tcp_if_include\ lo0+g' ${CONDA_PREFIX}/share/mcstas/tools/Python/mccodelib/mccode_config.json
            fi
 
+    # Shared MCPL inputs, restored from GitHub cache
+    - name: Cache MCPL input files
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/mccode/mcpl
+        key: mcpl-S2_filtered-v1
+
+    # No-op on a cache hit; fetches only when the cache misses (same helper the instrument falls back to)
+    - name: Fetch MCPL input files
+      run: python src/mcstas-comps/examples/ESS/ESS_butterfly_MCPL_test/fetch_mcpl.py S2_filtered.mcpl.gz https://public.esss.dk/users/willend/MCPL/filtered/S2_filtered.mcpl.gz
+
     - name: Test suite, up to 2-core MPI
       id: test-suite
       run: |
