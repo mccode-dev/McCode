@@ -2201,6 +2201,11 @@ void Monitor_nd_noaccMcDisplay(Monitornd_noaccDefines_type *DEFS,
     }
   } /* end Monitor_nd_noaccMcDisplay */
 
+/* ========================================================================= */
+/* Mesh geometry: the two following routines only apply to detectors         */
+/* defined by a mesh file (geometry parameter)                               */
+/* ========================================================================= */
+
 // Hits of the line position + t*velocity with mesh ahead of the neutron
 // (t > 0). Inside a closed mesh, t0 is 0 and t1 the first exit; otherwise
 // t0 is the first hit and t1 the next one (t0 when there is a single hit).
