@@ -23,6 +23,8 @@
 *
 *******************************************************************************/
 
+%include "geometry-mesh-lib"
+
 #ifndef MONITOR_ND_NOACCLIB_H
 #define MONITOR_ND_NOACCLIB_H "Yes"
 #define MONnD_COORD_NMAX  30  /* max number of variables to record */
@@ -223,6 +225,8 @@ int Monitor_nd_noaccTrace(Monitornd_noaccDefines_type *, Monitornd_noaccVariable
 MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *);
 void Monitor_nd_noaccFinally(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *);
 void Monitor_nd_noaccMcDisplay(Monitornd_noaccDefines_type *, Monitornd_noaccVariables_type *);
+int Monitor_nd_noaccMeshIntersect(gmesh_struct*, Coords, Coords, double*, double*, int*);
+void Monitor_nd_noaccMeshMantid(gmesh_struct*, long);
 
 #ifdef OPENACC_BAK
 #define OPENACC

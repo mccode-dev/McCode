@@ -2172,36 +2172,6 @@ gmesh_display (gmesh_struct* mesh) {
   }
 }
 
-// one MANTID_PIXEL line per face, pixel id = offset + face index, see geometry-mesh-lib.h
-void
-gmesh_display_mantid (gmesh_struct* mesh, long offset) {
-  int i, j, face = 0;
-  size_t capacity = 256;
-  char* line;
-  if (!mesh || !mesh->faceSize)
-    return;
-  line = gmesh_xrealloc (NULL, capacity);
-  for (i = 0; i < mesh->faceSize; i += mesh->faceArray[i] + 1, face++) {
-    int n = mesh->faceArray[i];
-    int* idx = &mesh->faceArray[i + 1];
-    Coords cm = coords_set (0, 0, 0);
-    size_t length = 0;
-    if (n < 3)
-      continue;
-    for (j = 0; j < n; j++)
-      cm = coords_add (cm, mesh->vtx[idx[j]]);
-    cm = coords_scale (cm, 1.0 / n);
-    line[0] = 0;
-    gmesh_append (&line, &capacity, &length, "%li,%li,%li,%i,%g,%g,%g", offset + face, offset, offset + mesh->nfaces - 1, n, cm.x, cm.y, cm.z);
-    for (j = 0; j < n; j++) {
-      Coords d = coords_sub (mesh->vtx[idx[j]], cm);
-      gmesh_append (&line, &capacity, &length, ",%g,%g,%g", d.x, d.y, d.z);
-    }
-    printf ("MANTID_PIXEL: %s\n", line);
-  }
-  free (line);
-}
-
 // release the memory held by mesh
 void
 gmesh_free (gmesh_struct* mesh) {

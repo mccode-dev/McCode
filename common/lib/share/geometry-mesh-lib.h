@@ -184,11 +184,6 @@ void gmesh_print_info (gmesh_struct* mesh);
 // draw the polygon edges (each once), or a polyhedron with mcdotrace==2
 void gmesh_display (gmesh_struct* mesh);
 
-// print one "MANTID_PIXEL: id,first,last,nv,cx,cy,cz,dx1,dy1,dz1,..." line per
-// face (as interoff-lib), with id = offset + face index and the vertices
-// relative to the face centre
-void gmesh_display_mantid (gmesh_struct* mesh, long offset);
-
 // release the memory held by the mesh
 void gmesh_free (gmesh_struct* mesh);
 
