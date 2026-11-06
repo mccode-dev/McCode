@@ -440,7 +440,7 @@ void *Table_File_List_store(t_Table *tab){
     if (rows && filesize > sizeofelement*columns*rows)
       nelements = columns*rows;
     else nelements = (long)(filesize/sizeofelement);
-    if (!nelements || filesize <= *offset) return(0);
+    if (!nelements || (offset && filesize <= *offset)) return(0);
     data    = (double*)malloc(nelements*sizeofelement);
     if (!data) {
       if(!(Table->quiet>1))
@@ -755,7 +755,7 @@ void *Table_File_List_store(t_Table *tab){
     || Table->rows*Table->columns == 0 || !Table->step_x)
       return(0);
     Table_Stat(Table); /* recompute statitstics and minimal step */
-    new_step = Table->step_x; /* minimal step in 1st column */
+    new_step = fabs(Table->step_x); /* minimal step in 1st column, negative on a decreasing table */
 
     if (!(Table->constantstep)) /* not already evenly spaced */
     {
@@ -818,6 +818,15 @@ void *Table_File_List_store(t_Table *tab){
 #ifndef MAX
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 #endif
+
+// 1 for a monotonic table whose 1st column decreases (row 0 holds max_x)
+#pragma acc routine
+static int Table_Decreasing(t_Table *Table)
+{
+  long last_row = Table->rows - 1;
+  if (!Table->monotonic || last_row < 1 || !Table->data) return 0;
+  return Table->data[0] > Table->data[last_row*Table->columns];
+}
 
 double Table_Index(t_Table Table, long i, long j)
 {
@@ -887,50 +896,103 @@ int Table_SetElement(t_Table *Table, long i, long j,
 * Tests are performed (within Table_Index) on indexes i,j to avoid errors
 * NOTE: data should rather be monotonic, and evenly sampled.
 *******************************************************************************/
-double Table_Value(t_Table Table, double X, long j)
+/*******************************************************************************
+* long Table_Value_Index(t_Table Table, double X, double *X1, double *X2)
+*   ACTION: find the rows bracketing X in the 1st column, as used by Table_Value
+*   input   Table: table containing data.
+*           X : data value in the first column (index 0), min_x <= X <= max_x
+*   return  Index, with *X1 = data[Index-1][0] <= X < *X2 = data[Index][0],
+*           or *X1 >= X > *X2 on a decreasing table
+*******************************************************************************/
+// 1 when X lies between X1 and X2, X1 included, in the search direction:
+// X1 <= X < X2 when direction is 1, X1 >= X > X2 when it is -1
+#pragma acc routine
+static int Table_In_Bracket(double direction, double X, double X1, double X2)
+{
+  return direction*X1 <= direction*X && direction*X < direction*X2;
+}
+
+#pragma acc routine
+static long Table_Value_Index(t_Table Table, double X, double *X1, double *X2)
 {
   long   Index = -1;
-  double X1=0, Y1=0, X2=0, Y2=0;
-  double ret=0;
+  int    found = 0;
+  // 1 on an increasing table, -1 on a decreasing one, which is searched as
+  // an increasing one in -x
+  double direction = Table_Decreasing(&Table) ? -1 : 1;
+  double first_x = direction > 0 ? Table.min_x : Table.max_x; // x of row 0
+  double last_x  = direction > 0 ? Table.max_x : Table.min_x; // x of the last row
 
-  if (X > Table.max_x) return Table_Index(Table,Table.rows-1  ,j);
-  if (X < Table.min_x) return Table_Index(Table,0  ,j);
+  *X1 = 0;
+  *X2 = 0;
 
   // Use constant-time lookup when possible
-  if(Table.constantstep) {
+  // a 1-row table is a vector to Table_Index, so there is no row to bracket
+  if(Table.constantstep && Table.monotonic && Table.rows > 1) {
+    // Index is the upper row of the bracket; floor can land one row off
+    // when X is (almost) a table value
     Index = (long)floor(
-              (X - Table.min_x) / (Table.max_x - Table.min_x) * (Table.rows-1));
-    X1 = Table_Index(Table,Index-1,0);
-    X2 = Table_Index(Table,Index  ,0);
+              (X - first_x) / (last_x - first_x) * (Table.rows-1)) + 1;
+    if (direction*Table_Index(Table,Index,0) <= direction*X) Index++;
+    else if (direction*X < direction*Table_Index(Table,Index-1,0)) Index--;
+    *X1 = Table_Index(Table,Index-1,0);
+    *X2 = Table_Index(Table,Index  ,0);
+    if (Table_In_Bracket(direction, X, *X1, *X2)) found = 1;
   }
   // Use binary search on large, monotonic tables
   else if(Table.monotonic && Table.rows > 100) {
-    long left = Table.min_x;
-    long right = Table.max_x;
+    // row indices, Index runs over 1..rows-1 so the last interval is reachable
+    long left = 0;
+    long right = Table.rows;
 
-    while (!((X1 <= X) && (X < X2)) && (right - left > 1)) {
+    while (!Table_In_Bracket(direction, X, *X1, *X2) && (right - left > 1)) {
       Index = (left + right) / 2;
 
-      X1 = Table_Index(Table, Index-1, 0);
-      X2 = Table_Index(Table, Index,   0);
+      *X1 = Table_Index(Table, Index-1, 0);
+      *X2 = Table_Index(Table, Index,   0);
 
-      if (X < X1) {
+      if (direction*X < direction * *X1) {
         right = Index;
       } else {
         left  = Index;
       }
     }
+    if (Table_In_Bracket(direction, X, *X1, *X2)) found = 1;
   }
 
   // Fall back to linear search, if no-one else has set X1, X2 correctly
-  if (!((X1 <= X) && (X < X2))) {
+  if (!found) {
+    found = 1;
     /* look for index surrounding X in the table -> Index */
     for (Index=1; Index <= Table.rows-1; Index++) {
-        X1 = Table_Index(Table, Index-1,0);
-        X2 = Table_Index(Table, Index  ,0);
-        if ((X1 <= X) && (X < X2)) break;
+        *X1 = Table_Index(Table, Index-1,0);
+        *X2 = Table_Index(Table, Index  ,0);
+        if (Table_In_Bracket(direction, X, *X1, *X2)) break;
       } /* end for Index */
   }
+
+  return Index;
+} /* end Table_Value_Index */
+
+double Table_Value(t_Table Table, double X, long j)
+{
+  long   Index = -1;
+  double X1=0, Y1=0, X2=0, Y2=0;
+  double ret=0;
+  // max_x is in the last row of an increasing table, in row 0 of a decreasing one
+  long   row_of_max_x = Table.rows-1;
+  long   row_of_min_x = 0;
+
+  if (Table_Decreasing(&Table)) {
+    row_of_max_x = 0;
+    row_of_min_x = Table.rows-1;
+  }
+
+  // beyond either end, the value at that end
+  if (X > Table.max_x) return Table_Index(Table, row_of_max_x, j);
+  if (X < Table.min_x) return Table_Index(Table, row_of_min_x, j);
+
+  Index = Table_Value_Index(Table, X, &X1, &X2);
 
   Y1 = Table_Index(Table,Index-1, j);
   Y2 = Table_Index(Table,Index  , j);
@@ -972,20 +1034,14 @@ double Table_Value2d(t_Table Table, double X, double Y)
     double z11,z12,z21,z22;
     double ret=0;
 
+    // clamp here, not in Table_Index: on a vector table Table_Index reads
+    // position i+j along the vector, so an out-of-range row picks a neighbour
+    X = MIN(MAX(0, X), Table.rows-1);
+    Y = MIN(MAX(0, Y), Table.columns-1);
     x1 = (long)floor(X);
     y1 = (long)floor(Y);
-
-    if (x1 > Table.rows-1 || x1 < 0) {
-      x2 = x1;
-    } else {
-      x2 = x1 + 1;
-    }
-
-    if (y1 > Table.columns-1 || y1 < 0) {
-      y2 = y1;
-    } else {
-      y2 = y1 + 1;
-    }
+    x2 = MIN(x1 + 1, Table.rows-1);
+    y2 = MIN(y1 + 1, Table.columns-1);
 
     z11 = Table_Index(Table, x1, y1);
 
@@ -1225,6 +1281,7 @@ MCDETECTOR Table_Write(t_Table Table, char *file, char *xl, char *yl,
     
     /* test for monotonicity and constant step if the table is an XY or single vector */
     if (n > 1) {
+      double dir = 0; /* sign of the first non-zero step */
       /* mean step */
       step = (max_x - min_x)/(n-1);
       /* now test if table is monotonic on first column, and get minimal step size */
@@ -1235,8 +1292,9 @@ MCDETECTOR Table_Write(t_Table Table, char *file, char *xl, char *yl,
         diff = (row ? Table_Index(*Table,i+1,0)
                     : Table_Index(*Table,0,  i+1)) - X;
         if (diff && fabs(diff) < fabs(step)) step = diff;
-        /* change sign ? */
-        if ((max_x - min_x)*diff < 0 && monotonic)
+        /* change sign ? monotonic increasing or decreasing */
+        if (diff && !dir) dir = diff;
+        if (dir*diff < 0 && monotonic)
           monotonic = 0;
       } /* end for */
       

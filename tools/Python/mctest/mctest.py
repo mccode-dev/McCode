@@ -116,7 +116,7 @@ def create_instr_test_objs(sourcefile, localfile, header, noscans=False):
     tests = []
     # the target may be followed by its error bar, as in the simulation's own output:
     #   Detector: NAME_I=2.00752e+08 NAME_ERR=2.28872e+06 NAME_N=50752 "NAME.L_U1"
-    for m in re.findall(r"\%(?:Example|Test):([^\n]*)Detector\:([^\n]*)_I=([0-9.+\-e]+)([^\n]*)", header):
+    for m in re.findall(r"\%(?:Example|Test):([^\n]*)Detector\:([^\n]*)_I=([0-9.+\-eE]+)([^\n]*)", header):
         parvals, ncount = split_test_line(m[0])
         detector = m[1].strip()
         err = re.search(r"%s_ERR=([0-9.+-eE]+)" % re.escape(detector), m[3])
@@ -1001,6 +1001,7 @@ mpi = None
 openacc = None
 jobs = 1
 suffix = None
+MAX_FILTER_SUFFIX = 100
 nexus = None
 lint = None
 permissive = None
@@ -1126,6 +1127,10 @@ def main(args):
             suffix = suffix + '_' + args.suffix[0]
         else:
             suffix = '_' + args.suffix[0]
+    elif len(suffix) > MAX_FILTER_SUFFIX:
+        # the label is also a directory and file name, limited to 255 characters
+        logging.warning("Test directory name truncated to the first %d characters of the --instr/--comp filters, use --suffix to set your own" % MAX_FILTER_SUFFIX)
+        suffix = suffix[:MAX_FILTER_SUFFIX]
 
     if not args.uid:
         uid = "_" + utils.get_datetimestr()
