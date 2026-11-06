@@ -205,7 +205,6 @@ def measure_ref(cfg, envname, sha):
     cmd += ['--instr', cfg.instr] if cfg.instr else ['--comp', cfg.comp]
 
     results = {}
-    simfiles_seen = 0
     for i in range(cfg.repeats):
         if i > 0:
             # keep the compiled binaries, only clear each test's run output so
@@ -213,7 +212,6 @@ def measure_ref(cfg, envname, sha):
             clear_test_runs(testdir)
         run_cmd(cfg, envname, cmd, check=False, timeout=cfg.timeout)
         for simfile in sorted(testdir.rglob('mccode.sim')):
-            simfiles_seen += 1
             timing = parse_timing(simfile)
             if timing is None:
                 continue
@@ -223,12 +221,7 @@ def measure_ref(cfg, envname, sha):
                 entry[metric].append(value)
 
     if not results:
-        if simfiles_seen:
-            raise SystemExit('ERROR: %s wrote %d mccode.sim file(s) under %s, but none had a '
-                             '"begin timing" block - this ref predates that feature in '
-                             'mccode-r.c (siminfo_close), so its runs cannot be timed this way'
-                             % (sha, simfiles_seen, testdir))
-        raise SystemExit('ERROR: mctest produced no run at all for %s under %s '
+        raise SystemExit('ERROR: mctest produced no timed run for %s under %s '
                          '(check its run_stdout_*.txt files)' % (sha, testdir))
     return results
 
