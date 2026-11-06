@@ -1,0 +1,335 @@
+#!/usr/bin/env python3
+'''
+Compare McStas/McXtrace simulation speed for an instrument or component between
+two commits/branches. Each ref is built into its own fresh conda environment, so
+the active environment is never touched, then tested with mctest/mxtest.
+
+Per test, from mctest's testresults_*.json: compile time and run time.
+From each run's mccode.sim: the Init/Trace/Finally timing block (written for
+runs from 05/11/2026 on). Run time minus those three is the overhead outside them.
+
+Idea by Lomholy (mccode-commit-speed-diff, PR #3054); this is a leaner rewrite.
+
+Usage: mccode-speed-diff REF1 REF2 (--comp COMP | --instr PATTERN) [options]
+       mccode-speed-diff --selftest
+'''
+import argparse
+import json
+import os
+import pathlib
+import platform
+import re
+import shutil
+import statistics
+import subprocess
+import sys
+import tempfile
+
+# siminfo_close() in mccode-r.c writes this block to mccode.sim (see
+# docs/GRAMMAR/ADR-records/ADR_20261105_RUNTIME_TIMING.md)
+TIMING_BLOCK_RE = re.compile(
+    r'begin timing\s*\n'
+    r'\s*Init:\s*([0-9.eE+-]+)\s*\[s\]\s*\n'
+    r'\s*Trace:\s*([0-9.eE+-]+)\s*\[s\]\s*\n'
+    r'\s*Finally:\s*([0-9.eE+-]+)\s*\[s\]\s*\n'
+    r'\s*end timing')
+
+METRICS = ('compile', 'runtime', 'INIT', 'TRACE', 'FINALLY', 'outside')
+ROWS = (('compile', 'compile [s]'), ('runtime', 'run total [s]'), ('INIT', '  init [s]'),
+        ('TRACE', '  trace [s]'), ('FINALLY', '  finally [s]'), ('outside', '  outside sections [s]'))
+
+
+def git(reporoot, *args, check=True):
+    return subprocess.run(['git', '-C', str(reporoot)] + list(args), check=check,
+                          capture_output=True, text=True)
+
+
+def rev_parse(reporoot, ref):
+    r = git(reporoot, 'rev-parse', '--verify', '--quiet', ref + '^{commit}', check=False)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def resolve_sha(reporoot, ref):
+    ''' a remote branch of that name is preferred over a local one (a local main can be
+    stale); otherwise ref is a commit: sha, tag or qualified branch '''
+    remotes = git(reporoot, 'remote').stdout.split()
+    on_remote = {}
+    for r in remotes:
+        if git(reporoot, 'show-ref', '--verify', '--quiet', 'refs/remotes/%s/%s' % (r, ref), check=False).returncode == 0:
+            on_remote[r] = rev_parse(reporoot, '%s/%s' % (r, ref))
+    if 'origin' in on_remote:
+        return on_remote['origin']
+    if len(set(on_remote.values())) > 1:
+        raise SystemExit('ERROR: %r is on several remotes at different commits, qualify it as <remote>/%s'
+                         % (ref, ref))
+    if on_remote:
+        return next(iter(on_remote.values()))
+    sha = rev_parse(reporoot, ref)
+    if sha is None:
+        raise SystemExit('ERROR: cannot resolve %r' % ref)
+    return sha
+
+
+def conda_tool():
+    tool = shutil.which('micromamba') or shutil.which('conda')
+    if tool is None:
+        raise SystemExit('ERROR: needs micromamba or conda on PATH to create the test environments')
+    return tool
+
+
+def env_run(cfg, envname, cmd, check=True, timeout=None):
+    ''' run cmd inside the environment envname '''
+    print('LAUNCHING>>> [%s] %s' % (envname, ' '.join(str(c) for c in cmd)))
+    return subprocess.run([cfg.tool, 'run', '-n', envname] + [str(c) for c in cmd],
+                          check=check, timeout=timeout)
+
+
+def build_ref(sha, reporoot, cfg, worktrees, envs):
+    ''' worktree + fresh environment + build for one ref; both are recorded for cleanup as created '''
+    tag = sha[:10]
+    envname = 'mccode-speed-%s' % tag
+    worktree = cfg.workdir / ('src_%s' % tag)
+    git(reporoot, 'worktree', 'add', '--detach', str(worktree), sha)
+    worktrees.append(worktree)
+
+    yml = cfg.workdir / ('%s.yml' % tag)
+    subprocess.run([sys.executable, str(worktree / 'devel' / 'bin' / 'mccode-create-conda-yml'),
+                    '-m', cfg.mode, '-p', cfg.platform, '-n', envname, '-o', str(yml), '-f'], check=True)
+    if cfg.tool.endswith('micromamba'):
+        create = [cfg.tool, 'create', '-y', '-n', envname, '-f', str(yml)]
+    else:
+        create = [cfg.tool, 'env', 'create', '-f', str(yml), '-n', envname]
+    subprocess.run(create, check=True)
+    envs.append(envname)
+
+    env_run(cfg, envname, ['python', worktree / 'devel' / 'bin' / 'mccode-build-conda',
+                           '-m', cfg.mode, '-s', worktree], timeout=cfg.timeout)
+    return envname
+
+
+def parse_timing(simfile):
+    ''' {'INIT', 'TRACE', 'FINALLY'} in seconds, or None if there is no timing block '''
+    m = TIMING_BLOCK_RE.search(simfile.read_text(encoding='utf-8', errors='replace'))
+    if not m:
+        return None
+    init, trace, finally_ = (float(g) for g in m.groups())
+    return {'INIT': init, 'TRACE': trace, 'FINALLY': finally_}
+
+
+def clear_previous(testdir):
+    ''' drop the last repeat's run folders (<label>/<instr>/<n>) and reports; keep the binaries '''
+    for d in testdir.glob('*/*/*'):
+        if d.is_dir() and d.name.isdigit():
+            shutil.rmtree(d, ignore_errors=True)
+    for report in testdir.glob('*/testresults_*.json'):
+        report.unlink()
+
+
+def collect_repeat(testdir, results, warnings):
+    ''' add one repeat: compile/run times from testresults_*.json, Init/Trace/Finally from
+    each run's mccode.sim. A test without a finished run or timing block is dropped and counted '''
+    for report in testdir.glob('*/testresults_*.json'):
+        data = json.loads(report.read_text(encoding='utf-8'))
+        for name, entry in data.items():
+            if name == '_meta':
+                continue
+            key = (entry['instrname'], entry['testnb'])
+            simfile = report.parent / entry['instrname'] / str(entry['testnb']) / 'mccode.sim'
+            timing = parse_timing(simfile) if simfile.is_file() else None
+            if not entry.get('didrun') or timing is None:
+                warnings.append(name)
+                continue
+            samples = results.setdefault(key, {m: [] for m in METRICS})
+            samples['compile'].append(entry.get('compiletime') or 0)
+            samples['runtime'].append(entry['runtime'])
+            for metric, value in timing.items():
+                samples[metric].append(value)
+            samples['outside'].append(entry['runtime'] - sum(timing.values()))
+
+
+def read_meta(testdir):
+    ''' mctest's _meta (ncount, mpi); OpenACC has no field, mctest only suffixes the label _openacc '''
+    for report in testdir.glob('*/testresults_*.json'):
+        meta = json.loads(report.read_text(encoding='utf-8'))['_meta']
+        meta['openacc'] = '_openacc' in report.parent.name
+        return meta
+    return {}
+
+
+def measure_ref(cfg, envname, sha):
+    testbin = 'mctest' if cfg.mode == 'mcstas' else 'mxtest'
+    testdir = cfg.workdir / ('results_%s' % sha[:10])
+    # a fixed --uid keeps the label folder, and so the compiled binaries, across repeats
+    cmd = [testbin, '--testdir', testdir, '--ncount', cfg.ncount, '--seed', cfg.seed,
+           '--skipnontest', '--permissive', '--uid', 'speed']
+    cmd += ['--instr', cfg.instr] if cfg.instr else ['--comp', cfg.comp]
+
+    results, warnings = {}, []
+    for _ in range(cfg.repeats):
+        clear_previous(testdir)
+        env_run(cfg, envname, cmd, check=False, timeout=cfg.timeout)
+        collect_repeat(testdir, results, warnings)
+    if warnings:
+        print('WARNING: %d test run(s) gave no timed result, dropped: %s'
+              % (len(warnings), ', '.join(sorted(set(warnings)))), file=sys.stderr)
+    if not results:
+        raise SystemExit('ERROR: no timed run for %s under %s (see run_stdout_*.txt)' % (sha, testdir))
+    return results, read_meta(testdir)
+
+
+def summarize(samples):
+    ''' median of each metric; compile only counts when this run built the binary (> 0) '''
+    compile_times = [t for t in samples['compile'] if t > 0]
+    out = {m: statistics.median(samples[m]) for m in METRICS if m != 'compile'}
+    out['compile'] = statistics.median(compile_times) if compile_times else None
+    out['n'] = len(samples['runtime'])
+    return out
+
+
+def ncount_of(meta):
+    return float(meta['ncount']) if meta.get('ncount') else None
+
+
+def print_header(meta):
+    print('-n %s' % meta.get('ncount'))
+
+
+def print_config(label, ref, sha, meta):
+    mpi = meta.get('mpi') or 'off (single process)'
+    print('%s: %s (%s), mpi=%s, openacc=%s' % (label, ref, sha, mpi, 'on' if meta.get('openacc') else 'off'))
+
+
+def print_report(label1, results1, ncount1, label2, results2, ncount2):
+    headers = ['', '%s [s]' % label1, '%s [s]' % label2, 'delta %% (%s vs %s)' % (label2, label1),
+               '%s us/ray' % label1, '%s us/ray' % label2]
+    widths = [max(len(name) for _, name in ROWS)] + [max(len(h), 9) for h in headers[1:]]
+
+    def hline():
+        print('+-' + '-+-'.join('-' * w for w in widths) + '-+')
+
+    def row(cols):
+        cells = ['%-*s' % (widths[0], cols[0])] + ['%*s' % (w, c) for w, c in zip(widths[1:], cols[1:])]
+        print('| ' + ' | '.join(cells) + ' |')
+
+    def value(v):
+        return 'n/a' if v is None else '%.2f' % v
+
+    def delta(v1, v2):
+        return '%+.1f%%' % ((v2 - v1) / v1 * 100) if v1 and v2 is not None else 'n/a'
+
+    def per_ray(v, ncount):
+        return 'n/a' if v is None or not ncount else '%.2f' % (v / ncount * 1e6)
+
+    for key in sorted(set(results1) | set(results2)):
+        print()
+        print(key[0] if sum(1 for k in set(results1) | set(results2) if k[0] == key[0]) == 1
+              else '%s (test %s)' % key)
+        s1, s2 = results1.get(key), results2.get(key)
+        if s1 is None or s2 is None:
+            print('  only measured for %s' % (label2 if s1 is None else label1))
+            continue
+        a, b = summarize(s1), summarize(s2)
+        hline()
+        row(headers)
+        hline()
+        for metric, name in ROWS:
+            if metric == 'compile':
+                ray1 = ray2 = ''
+            else:
+                ray1, ray2 = per_ray(a[metric], ncount1), per_ray(b[metric], ncount2)
+            row([name, value(a[metric]), value(b[metric]), delta(a[metric], b[metric]), ray1, ray2])
+        hline()
+        print('  samples (repeats): %s n=%d, %s n=%d' % (label1, a['n'], label2, b['n']))
+
+
+def selftest():
+    ''' the one check: timing parse, median summary and per-ray scaling '''
+    block = 'x\nbegin timing\n  Init: 0.5 [s]\n  Trace: 10.0 [s]\n  Finally: 0.25 [s]\nend timing\n'
+    m = TIMING_BLOCK_RE.search(block)
+    assert m and [float(g) for g in m.groups()] == [0.5, 10.0, 0.25]
+    samples = {'compile': [0, 3.0, 0], 'runtime': [1.0, 3.0, 2.0], 'INIT': [0.1] * 3,
+               'TRACE': [0.5] * 3, 'FINALLY': [0.1] * 3, 'outside': [0.2] * 3}
+    s = summarize(samples)
+    assert s['runtime'] == 2.0 and s['compile'] == 3.0 and s['n'] == 3
+    assert per_ray_value(2.0, 1e5) == '20.00'
+    print('selftest OK')
+
+
+def per_ray_value(v, ncount):
+    return '%.2f' % (v / ncount * 1e6)
+
+
+def parse_args(argv):
+    reporoot = pathlib.Path(__file__).resolve().parent.parent.parent
+    parser = argparse.ArgumentParser(description='Compare McCode simulation speed between two refs, '
+                                                 'each built into its own fresh environment.')
+    parser.add_argument('ref1', nargs='?', help='first ref ("A"); a remote branch name wins over a local one')
+    parser.add_argument('ref2', nargs='?', help='second ref ("B")')
+    filt = parser.add_mutually_exclusive_group()
+    filt.add_argument('--comp', help='measure instruments using this component')
+    filt.add_argument('--instr', help='measure instruments matching this regex')
+    parser.add_argument('-m', '--mode', choices=['mcstas', 'mcxtrace'], default='mcstas')
+    parser.add_argument('-s', '--srcdir', default=str(reporoot), help='McCode checkout (default: this one)')
+    parser.add_argument('--repeats', type=int, default=3, help='runs per ref (default 3)')
+    parser.add_argument('--ncount', default='1e6', help='rays per run (default 1e6)')
+    parser.add_argument('--seed', default='1000')
+    parser.add_argument('--timeout', type=int, default=3600, help='max seconds per build or run')
+    parser.add_argument('--workdir', help='keep checkouts and results here (default: temporary)')
+    parser.add_argument('--keep', action='store_true', help='keep the environments and worktrees')
+    parser.add_argument('--selftest', action='store_true', help='run the built-in check and exit')
+    args = parser.parse_args(argv[1:])
+    if args.selftest:
+        selftest()
+        raise SystemExit(0)
+    if not (args.ref1 and args.ref2 and (args.comp or args.instr)):
+        parser.error('give REF1 REF2 and --comp or --instr')
+    args.platform = {'Windows': 'win', 'Darwin': 'mac', 'Linux': 'linux'}[platform.system()]
+    return args
+
+
+def main():
+    args = parse_args(sys.argv)
+    reporoot = pathlib.Path(args.srcdir).absolute()
+    sha1, sha2 = resolve_sha(reporoot, args.ref1), resolve_sha(reporoot, args.ref2)
+    if sha1 == sha2:
+        raise SystemExit('ERROR: both refs are the same commit (%s)' % sha1[:10])
+
+    class Cfg:
+        pass
+    cfg = Cfg()
+    cfg.mode, cfg.platform, cfg.tool = args.mode, args.platform, conda_tool()
+    cfg.comp, cfg.instr = args.comp, args.instr
+    cfg.repeats, cfg.ncount, cfg.seed, cfg.timeout = args.repeats, args.ncount, args.seed, args.timeout
+
+    tmp = tempfile.TemporaryDirectory() if not args.workdir else None
+    cfg.workdir = pathlib.Path(args.workdir or tmp.name)
+    cfg.workdir.mkdir(parents=True, exist_ok=True)
+    envs, worktrees, results, metas = [], [], {}, {}
+    try:
+        # one ref at a time: build, then measure, in that ref's own environment
+        for sha in (sha1, sha2):
+            envname = build_ref(sha, reporoot, cfg, worktrees, envs)
+            results[sha], metas[sha] = measure_ref(cfg, envname, sha)
+    finally:
+        if not args.keep:
+            for envname in envs:
+                subprocess.run([cfg.tool, 'env', 'remove', '-y', '-n', envname], check=False)
+            for wt in worktrees:
+                git(reporoot, 'worktree', 'remove', '--force', str(wt), check=False)
+        if tmp:
+            tmp.cleanup()
+
+    m1, m2 = metas[sha1], metas[sha2]
+    print_header(m1)
+    if any(m1.get(k) != m2.get(k) for k in ('ncount', 'mpi', 'openacc')):
+        print('WARNING: ncount/mpi/openacc differ between the refs, not a like-for-like comparison',
+              file=sys.stderr)
+    print()
+    print_report('A', results[sha1], ncount_of(m1), 'B', results[sha2], ncount_of(m2))
+    print()
+    print_config('A', args.ref1, sha1[:10], m1)
+    print_config('B', args.ref2, sha2[:10], m2)
+
+
+if __name__ == '__main__':
+    main()
