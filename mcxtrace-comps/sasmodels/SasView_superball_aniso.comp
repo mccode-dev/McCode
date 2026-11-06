@@ -334,7 +334,7 @@ form_volume_superball(double length_a, double exponent_p)
 {
   double g1 = sas_gamma(1.0 / (2.0 * exponent_p));
   double g3 = sas_gamma(3.0 / (2.0 * exponent_p));
-  return cube(length_a) / 12.0 / square(exponent_p) * cube(g1) / g3;
+  return sas_cube(length_a) / 12.0 / sas_square(exponent_p) * sas_cube(g1) / g3;
 }
 
 static double
@@ -404,7 +404,7 @@ static double oriented_superball(
     const double integration_factor = 0.5 * gamma;
 
     // Eq. 21 in [Dresen2021]
-    outer_integral += GAUSS_W[i_x] * integration_factor * inner_integral * co * 2.0 * square(length_a);
+    outer_integral += GAUSS_W[i_x] * integration_factor * inner_integral * co * 2.0 * sas_square(length_a);
 
   }
 // Needed to normalise the oriented form factor, but would be reverted later with s = SLD contrast * volume
@@ -446,7 +446,7 @@ Fq_superball(double q,
     {
 
       const double cos_theta = GAUSS_Z[i_theta]*0.5 + 0.5; // integrate 0, 1
-      const double sin_theta = sqrt( 1.0 - square(cos_theta) );
+      const double sin_theta = sqrt( 1.0 - sas_square(cos_theta) );
 
 
       const double qx = q * cos_phi * sin_theta;
@@ -457,7 +457,7 @@ Fq_superball(double q,
 
 
       orient_averaged_inner_total_F1 += GAUSS_W[i_theta] * f_oriented;
-      orient_averaged_inner_total_F2 += GAUSS_W[i_theta] * square(f_oriented);
+      orient_averaged_inner_total_F2 += GAUSS_W[i_theta] * sas_square(f_oriented);
 
     }
     orient_averaged_outer_total_F1 += GAUSS_W[i_phi] * orient_averaged_inner_total_F1;
@@ -487,7 +487,7 @@ Iqabc_superball(double qa, double qb, double qc,
   const double s = (sld - solvent_sld); 
 
 
-  const double form = square(s * f_oriented);
+  const double form = sas_square(s * f_oriented);
   // Square and convert from [1e-12 A-1] to [cm-1]
   return 1.0e-4 * form;
 }
@@ -634,29 +634,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

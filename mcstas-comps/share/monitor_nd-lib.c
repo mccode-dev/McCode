@@ -1563,7 +1563,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
                           *(Vars->max_y-Vars->min_y)*1E4, Vars->area);
       printf("Monitor_nD: %s: beam solid angle is %g [st] (%g x %g [deg^2])\n",
         Vars->compcurname,
-        2*fabs(2*atan2(Vars->mean_dx,Vars->mean_p)
+        2.0*fabs(2.0*atan2(Vars->mean_dx,Vars->mean_p)
          *sin(2*atan2(Vars->mean_dy,Vars->mean_p)/2)),
         atan2(Vars->mean_dx,Vars->mean_p)*RAD2DEG,
         atan2(Vars->mean_dy,Vars->mean_p)*RAD2DEG);
@@ -2118,12 +2118,11 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
           z3 =-radius*sin(theta0)*sin(phi1);
           y2 = y1; y3 = y0;
 
-          mcdis_multiline(5,
+          mcdis_polygon(4,
             x0,y0,z0,
             x1,y1,z1,
             x2,y2,z2,
-            x3,y3,z3,
-            x0,y0,z0);
+            x3,y3,z3);
         }
       if (Vars->Flag_mantid) {
 	/* First define the base pixel type */
@@ -2146,11 +2145,10 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
     if (abs(Vars->Flag_Shape) == DEFS->SHAPE_SQUARE)
     {
       mcdis_magnify("xy");
-      mcdis_multiline(5, (double)xmin, (double)ymin, 0.0,
+      mcdis_polygon(4, (double)xmin, (double)ymin, 0.0,
              (double)xmax, (double)ymin, 0.0,
              (double)xmax, (double)ymax, 0.0,
-             (double)xmin, (double)ymax, 0.0,
-             (double)xmin, (double)ymin, 0.0);
+             (double)xmin, (double)ymax, 0.0);
       
       if (Vars->Flag_mantid) {
 	/* x, y and pixel coordinates may come in any order (#2178) */

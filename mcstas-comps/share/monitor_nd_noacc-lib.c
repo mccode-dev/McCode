@@ -1579,7 +1579,7 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
                           *(Vars->max_y-Vars->min_y)*1E4, Vars->area);
       printf("Monitor_nD: %s: beam solid angle is %g [st] (%g x %g [deg^2])\n",
         Vars->compcurname,
-        2*fabs(2*atan2(Vars->mean_dx,Vars->mean_p)
+        2.0*fabs(2.0*atan2(Vars->mean_dx,Vars->mean_p)
          *sin(2*atan2(Vars->mean_dy,Vars->mean_p)/2)),
         atan2(Vars->mean_dx,Vars->mean_p)*RAD2DEG,
         atan2(Vars->mean_dy,Vars->mean_p)*RAD2DEG);

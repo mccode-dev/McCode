@@ -18,7 +18,8 @@ import shutil
 import platform
 import subprocess
 import io
-from datetime import datetime
+import concurrent.futures
+from datetime import datetime, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
@@ -115,7 +116,7 @@ def create_instr_test_objs(sourcefile, localfile, header, noscans=False):
     tests = []
     # the target may be followed by its error bar, as in the simulation's own output:
     #   Detector: NAME_I=2.00752e+08 NAME_ERR=2.28872e+06 NAME_N=50752 "NAME.L_U1"
-    for m in re.findall(r"\%(?:Example|Test):([^\n]*)Detector\:([^\n]*)_I=([0-9.+-e]+)([^\n]*)", header):
+    for m in re.findall(r"\%(?:Example|Test):([^\n]*)Detector\:([^\n]*)_I=([0-9.+\-eE]+)([^\n]*)", header):
         parvals, ncount = split_test_line(m[0])
         detector = m[1].strip()
         err = re.search(r"%s_ERR=([0-9.+-eE]+)" % re.escape(detector), m[3])
@@ -296,7 +297,7 @@ def extract_testvals(datafolder, monitorname):
             l = fp.readline()
             if not l:
                 break
-            m = re.match(r"# values: ([0-9+-e.]+) ([0-9+-e.]+) ([0-9]+)", l)
+            m = re.match(r"# values: ([0-9+\-e.]+) ([0-9+\-e.]+) ([0-9]+)", l)
             if m :
                 I = float(m.group(1))
                 I_err = float(m.group(2))
@@ -348,6 +349,7 @@ def parse_detector_I_value(resfile_path, detector_name):
 def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilter=None, configdir=None):
     ''' this main test function tests the given mccode installation, optionally with the
     mccode_config.json in configdir (passed to mcrun --override-config) '''
+    t0 = time.time()
     skipped=False
     global runLocal
     # copy instr files and record info
@@ -429,12 +431,61 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     anyfailed=False
 
     # compile, record time
-    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots
+    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, jobs
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
     else:
         logging.info("c-lint'ing instruments [seconds]...")
+
+    def compile_and_display(test):
+        ''' Compile (or lint) the instrument of test with mcrun, and if a binary results, run
+        mcdisplay (single particle only). Runs subprocesses only and touches no shared state,
+        so with -j/--jobs > 1 it runs in a thread pool. '''
+        binfile = os.path.splitext(test.localfile)[0] + "." + mccode_config.platform["EXESUFFIX"].lower()
+        mpiswitch = " --no-mpi " if no_mpi else ''
+        t1 = time.time()
+        cmd = mccode_config.configuration["MCRUN"]
+        if lint:
+            cmd = cmd + " --verbose -C %s > compile_stdout.txt 2>&1" % test.instrname
+        else:
+            if nexus:
+                cmd = cmd + " --format=NeXus "
+            if configdir:
+                cmd = cmd + " --override-config=" + configdir
+            if openacc:
+                cmd = cmd + " --openacc "
+            cmd = cmd + mpiswitch
+            if mpi and not no_mpi:
+                cmd = cmd + " --mpi=1 "
+            cmd = cmd + " --verbose -c -n0 %s > compile_stdout.txt 2>&1" % test.instrname
+
+        utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname), timeout=compilemax)
+        res = {'cmd': cmd, 'compiletime': time.time() - t1, 'displayed': None, 'displaytime': None}
+        if os.path.exists(binfile):
+            t1 = time.time()
+            if test.testnb>0:
+                dispvals = scan_first_point(test.parvals) if test.scan else test.parvals
+                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s %s -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispvals if dispvals else '-y')
+            else:
+                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s -y -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr')
+            retcode = utils.run_subtool_noread(dispcmd, cwd=join(testdir, test.instrname), timeout=displaymax)
+            res['displayed'] = retcode[0]==0
+            res['displaytime'] = time.time() - t1
+        return res
+
+    # -j/--jobs > 1: compile the first test of each instrument in a thread pool up front, with
+    # the same conditions as in the loop below, which then picks up the results in test order
+    pending = {}
+    if jobs > 1:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=jobs)
+        for test in tests:
+            stem = os.path.splitext(test.localfile)[0]
+            if test.localfile in pending or any(os.path.exists(stem + ext) for ext in
+                ('.failed', '.linted', '.' + mccode_config.platform["EXESUFFIX"].lower())):
+                continue
+            if test.testnb > 0 or (not args.skipnontest):
+                pending[test.localfile] = executor.submit(compile_and_display, test)
 
     for test in tests:
         if strict and test.testnb==0:
@@ -447,63 +498,31 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         compilefailed=os.path.splitext(test.localfile)[0] + ".failed"
         # if we linted, continue
         linted=os.path.splitext(test.localfile)[0] + ".linted"
-        if os.path.exists(compilefailed):
+        # a compile queued with -j/--jobs may already have made its binary
+        queued = test.localfile in pending
+        if not queued and os.path.exists(compilefailed):
             test.compiled = False
             test.compiletime = -1
             anyfailed=True
-        elif os.path.exists(binfile):
+        elif not queued and os.path.exists(binfile):
             test.compiled = True
             test.compiletime = 0
-        elif os.path.exists(linted):
+        elif not queued and os.path.exists(linted):
             test.linted = True
         else:
             if test.testnb > 0 or (not args.skipnontest):
-                log = LineLogger()
-                t1 = time.time()
-                cmd = mccode_config.configuration["MCRUN"]
-                if lint:
-                    cmd = cmd + " --verbose -C %s > compile_stdout.txt 2>&1" % test.instrname
-                else:
-                    if nexus:
-                        cmd = cmd + " --format=NeXus "
-                    if configdir:
-                        cmd = cmd + " --override-config=" + configdir
-                    if openacc:
-                        cmd = cmd + " --openacc "
-                    mpiswitch = ''
-                    if no_mpi:
-                        cmd = cmd + " --no-mpi "
-                        mpiswitch = " --no-mpi "
-                        mpi=None
-
-                    if mpi:
-                        cmd = cmd + " --mpi=1 "
-                    cmd = cmd + " --verbose -c -n0 %s > compile_stdout.txt 2>&1" % test.instrname
-
-                utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname), timeout=compilemax)
-                t2 = time.time()
+                res = pending.pop(test.localfile).result() if test.localfile in pending else compile_and_display(test)
+                cmd = res['cmd']
                 test.compiled = os.path.exists(binfile)
-                test.compiletime = t2 - t1
+                test.compiletime = res['compiletime']
 
                 # log to terminal
                 if test.compiled:
                     formatstr = "%-" + "%ds: " % maxnamelen + \
                       "{:3d}.".format(math.floor(test.compiletime)) + str(test.compiletime-int(test.compiletime)).split('.')[1][:2]
                     logging.info(formatstr % test.get_display_name())
-                    # Run mcdisplay (single particle only)
-                    t1 = time.time()
-                    if test.testnb>0:
-                        dispvals = scan_first_point(test.parvals) if test.scan else test.parvals
-                        cmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s %s -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispvals if dispvals else '-y')
-                    else:
-                        cmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s -y -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr')
-                    retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname), timeout=displaymax)
-                    t2 = time.time()
-                    if retcode[0]==0:
-                        test.displayed = True
-                    else:
-                        test.displayed = False
-                    test.displaytime = t2 - t1
+                    test.displayed = res['displayed']
+                    test.displaytime = res['displaytime']
                 else:
                     if lint:
                         formatstr = "%-" + "%ds: Linted using using:\n" % maxnamelen
@@ -526,15 +545,18 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         # save (incomplete) test results to disk
         if not skipped:
             test.save(infolder=join(testdir, test.instrname))
+    if jobs > 1:
+        executor.shutdown()
 
     # run, record time
+    tsim = time.time()
     logging.info("")
     logging.info("Running tests / getting status...")
     runfailed=False
     for test in tests:
         if strict and test.testnb==0:
             runfailed = True
-            formatstr = "%-" + "%ds: FAILURE: tool in --strict mode and instrument includes no %%%%Example: line(s)!" % (maxnamelen+1)
+            formatstr = "%-" + "%ds: FAILURE: tool in --strict mode and instrument includes no %%%%Test: line(s)!" % (maxnamelen+1)
             logging.info(formatstr % test.instrname)
             continue
         elif test.linted:
@@ -554,6 +576,11 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 formatstr = "%-" + "%ds:   Display FAILED (%ds)" % (maxnamelen+1, displaytime)
                 logging.info(formatstr % test.instrname)
 
+        # -n0 means compile only (e.g. --openacc on a GPU-less CI runner)
+        if float(ncount) == 0:
+            formatstr = "%-" + "%ds:   Compiled only (-n0)" % (maxnamelen+1)
+            logging.info(formatstr % test.get_display_name())
+            continue
         # runable tests have testnb > 0
         if test.testnb <= 0:
             formatstr = "%-" + "%ds:   NO TEST" % (maxnamelen+1)
@@ -724,10 +751,12 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
                 plot1 = retcode[0] == 0 and not retcode[1]
                 # Interactive html plots
-                htmlplotter = mccode_config.configuration["MCPLOT"].split('-')[0] + "-html"
-                cmd = htmlplotter + " %d/ --nobrowse --output %d/02_plots.html" %  (test.testnb, test.testnb)
-                retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
-                plot2 = retcode[0] == 0 and not retcode[1]
+                plot2 = True
+                if not nohtml:
+                    htmlplotter = mccode_config.configuration["MCPLOT"].split('-')[0] + "-html"
+                    cmd = htmlplotter + " %d/ --nobrowse --output %d/02_plots.html" %  (test.testnb, test.testnb)
+                    retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
+                    plot2 = retcode[0] == 0 and not retcode[1]
                 if plot1 and plot2:
                     logging.info(" - Test %d plots generated OK" % test.testnb)
                 elif plot1:
@@ -770,11 +799,17 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     metainfo = OrderedDict()
     metainfo["ncount"] = ncount
     metainfo["mpi"] = mpi
+    if not noplots:
+        logging.info("Moved %d copies of shared js libraries to a single _lib/" % utils.dedupe_shared_js(testdir))
+
     metainfo["date"] = utils.get_datetimestr()
     metainfo["hostname"] = hostnamestr
     metainfo["user"] = username
     metainfo["cpu_type"] = cpu_type
     metainfo["gpu_type"] = gpu_type
+    metainfo["walltime"] = format_walltime(time.time() - t0)
+    metainfo["compiletime"] = format_walltime(tsim - t0)
+    metainfo["simtime"] = format_walltime(time.time() - tsim)
 
     # displayname must be unique, we can return a dict, which eases comparison between tests
     obj = {}
@@ -786,6 +821,10 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
 #
 # Utility
 #
+
+def format_walltime(seconds):
+    ''' h:mm:ss '''
+    return str(timedelta(seconds=round(seconds)))
 
 def activate_mccode_version(mccoderoot):
     '''
@@ -857,6 +896,9 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
     logging.debug("")
     logging.debug("Test results written to: %s" % reportfile)
     print("======================================")
+    print("Compilation time: %s" % results["_meta"]["compiletime"])
+    print("Simulation time: %s" % results["_meta"]["simtime"])
+    print("Total runtime: %s" % format_walltime(time.time() - starttime))
     print("Overall test result:")
     if (failed):
         if (not permissive):
@@ -864,7 +906,7 @@ def run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix
                 print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
                 exit(-1)
             else:
-                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off / %d missing %%Example(s))" % (num_compilefail, num_runfail, num_valfail, num_noexample) )
+                print("FAILED! One or more tests errored (%d compile errs / %d runtime errs / %d values off / %d missing %%Test(s))" % (num_compilefail, num_runfail, num_valfail, num_noexample) )
                 exit(-1)
         else:
             print("Failures reported but tool was run in permissive mode (%d compile errs / %d runtime errs / %d values off)" % (num_compilefail, num_runfail, num_valfail) )
@@ -937,13 +979,14 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
             logging.debug("Test results written to: %s" % reportfile)
             counts = "%d compile errs / %d runtime errs / %d values off" % (num_compilefail, num_runfail, num_valfail)
             if strict:
-                counts = counts + " / %d missing %%Example(s)" % num_noexample
-            print("%s: %s (%s)" % (label, "FAILED" if failed else "SUCCESS", counts))
+                counts = counts + " / %d missing %%Test(s)" % num_noexample
+            print("%s: %s (%s) [compilation %s, simulation %s]" % (label, "FAILED" if failed else "SUCCESS", counts, results["_meta"]["compiletime"], results["_meta"]["simtime"]))
             anyfailed = anyfailed or failed
         finally:
             deactivate_mccode_version(oldpath)
 
     print("======================================")
+    print("Total runtime: %s" % format_walltime(time.time() - starttime))
     print("Overall test result:")
     if anyfailed and not permissive:
         print("FAILED! One or more configs errored")
@@ -952,10 +995,13 @@ def run_config_test(testdir, mccoderoot, limit, configfilter, instrfilter, compf
 
 
 
+starttime = time.time()
 ncount = None
 mpi = None
 openacc = None
+jobs = 1
 suffix = None
+MAX_FILTER_SUFFIX = 100
 nexus = None
 lint = None
 permissive = None
@@ -964,6 +1010,7 @@ runmax = None
 compilemax = None
 displaymax = None
 noplots = None
+nohtml = None
 noscans = None
 nsigma = None
 statfactor = 1
@@ -1024,7 +1071,7 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, noscans, nsigma, statfactor
+    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, noscans, nsigma, statfactor, jobs
     ncount = "1e6"
     no_mpi = False
     if args.ncount:
@@ -1080,6 +1127,10 @@ def main(args):
             suffix = suffix + '_' + args.suffix[0]
         else:
             suffix = '_' + args.suffix[0]
+    elif len(suffix) > MAX_FILTER_SUFFIX:
+        # the label is also a directory and file name, limited to 255 characters
+        logging.warning("Test directory name truncated to the first %d characters of the --instr/--comp filters, use --suffix to set your own" % MAX_FILTER_SUFFIX)
+        suffix = suffix[:MAX_FILTER_SUFFIX]
 
     if not args.uid:
         uid = "_" + utils.get_datetimestr()
@@ -1109,6 +1160,13 @@ def main(args):
         mpi = args.mpi[0]
         logging.info("mpi count is: %s" % mpi)
         suffix = '_mpi_x_' + str(mpi) + suffix
+    if args.jobs:
+        if args.jobs[0] == 'auto':
+            # sched_getaffinity respects cgroup/taskset CPU limits, but is Linux only
+            jobs = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
+        else:
+            jobs = max(1, int(args.jobs[0]))
+        logging.info("compiling up to %d instruments in parallel" % jobs)
     if args.openacc:
         openacc = True
         logging.info("openacc is enabled")
@@ -1147,9 +1205,10 @@ def main(args):
     strict = False
     if args.strict:
         strict = True
-        logging.info("Strict mode, tool will report failure for instruments without %Example")
+        logging.info("Strict mode, tool will report failure for instruments without %Test")
 
     noplots = args.noplots
+    nohtml = args.nohtml
     noscans = args.noscans
     if args.nsigma is not None and args.pvalue is not None:
         logging.error("ERROR: --nsigma and --pvalue are two ways to give the same threshold, use one of them!")
@@ -1166,6 +1225,8 @@ def main(args):
         logging.info("%Scan tests are skipped")
     if noplots:
         logging.info("No plots of the test output will be generated")
+    elif nohtml:
+        logging.info("Only the 01_overview.pdf plots of the test output will be generated, no 02_plots.html")
 
     if not configfilter:
         run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix)
@@ -1174,12 +1235,13 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ncount', nargs=1, help='ncount sent to %s' % (mccode_config.configuration["MCRUN"]) )
-    parser.add_argument('-n', nargs=1, help='ncount sent to %s' % (mccode_config.configuration["MCRUN"]) )
+    parser.add_argument('--ncount', nargs=1, help='ncount sent to %s (0: compile only, no test runs)' % (mccode_config.configuration["MCRUN"]) )
+    parser.add_argument('-n', nargs=1, help='ncount sent to %s (0: compile only, no test runs)' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--seed', nargs=1, help='seed sent to %s (default 1000 - use 0/NULL to "randomize")' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('-s', nargs=1, help='seed sent to %s (default 1000 - use 0/NULL to "randomize")' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--mpi', nargs=1, help='mpi nodecount sent to %s' % (mccode_config.configuration["MCRUN"]) )
     parser.add_argument('--no-mpi', action='store_true', help='MPI compilation disabled via %s --no-mpi' % (mccode_config.configuration["MCRUN"]) )
+    parser.add_argument('-j', '--jobs', nargs=1, help='Compile up to JOBS instruments in parallel, or "auto" for one pr. available processor (default 1). Test runs are always one at a time.')
     parser.add_argument('--openacc', action='store_true', help='openacc flag sent to %s' % (mccode_config.configuration["MCRUN"]))
     parser.add_argument('--config', nargs="?", help='test this specific config only - label name (regex) or absolute path')
     parser.add_argument('--instr', nargs="?", help='test only intruments matching this filter (py regex). Comma-separated list allowed for multiple filters. Combined with --comp, instruments matching either are tested.')
@@ -1197,8 +1259,9 @@ if __name__ == '__main__':
     parser.add_argument('--runmax', nargs=1, help='Maximum time (s) allowed pr. test Example run (default 3600s)')
     parser.add_argument('--displaymax', nargs=1, help='Maximum time allowed pr. test Example DISPLAY run (default 60s)')
     parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional. Can not be combined with --strict.')
-    parser.add_argument('--strict', action='store_true', help='Let instruments without %%Example line(s) instantly fail. Can not be combined with --permissive.')
+    parser.add_argument('--strict', action='store_true', help='Let instruments without %%Test line(s) instantly fail. Can not be combined with --permissive.')
     parser.add_argument('--noplots', action='store_true', help='Do not generate plots (01_overview.pdf and 02_plots.html) of the test output. Useful e.g. in CI, where the plots are not looked at, and can take long for instruments with many monitors.')
+    parser.add_argument('--nohtml', action='store_true', help='Generate only the compact 01_overview.pdf plots, not the interactive 02_plots.html (which embed all monitor data).')
     parser.add_argument('--nsigma', type=float, help='Accept a test value (each point for %%Scan tests) within NSIGMA x the combined error bar sqrt(ERR_test^2 + ERR_target^2), if the target line gives NAME_ERR. Targets without NAME_ERR are assumed to have the test run\'s ERR, and are also accepted within 20%%. Error bars from fewer than 100 effective events, (I/ERR)^2, are not used: the 20%% rule applies.')
     parser.add_argument('--statfactor', type=float, help='Scale the ncount of every test (and pr. scan point) by this factor, e.g. 0.01 for quick runs or 100 for reference-quality ones. With --nsigma/--pvalue a target without NAME_ERR is assumed to come from the unscaled ncount, i.e. the combined error bar is sqrt(1 + STATFACTOR) x ERR_test.')
     parser.add_argument('--pvalue', type=float, help='As --nsigma, but given as a two-sided Gaussian p-value, e.g. --pvalue 0.0027 for --nsigma 3, or 5.7e-7 for 5')

@@ -465,7 +465,6 @@ TRACE
 %{
 
   Gravity_guide_Vars_type GVars = GVarsGlobal;
-  GVars.warnings = 0;
 
   if (l > 0 && nelements > 0) {
     double B, C, dt;
@@ -565,9 +564,10 @@ TRACE
         /* only positive dt are valid */
         /* exit reflection loops if no intersection (neutron is after box) */
         if (side == 0 || (dt <= 0 && side != 5)) {
-          if (GVars.warnings < 100)
+          if (GVarsGlobal.warnings < 100)
             fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVars.compcurname);
-          GVars.warnings++;
+          #pragma acc atomic
+          GVarsGlobal.warnings = GVarsGlobal.warnings + 1;
           x += w_adj;
           y += h_adj;
           ABSORB;
@@ -671,8 +671,6 @@ TRACE
 
   } /* if l */
 
-  #pragma acc atomic
-  GVarsGlobal.warnings = GVarsGlobal.warnings + GVars.warnings;
 %}
 
 FINALLY

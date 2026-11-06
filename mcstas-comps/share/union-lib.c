@@ -1847,6 +1847,221 @@ Coords point_on_circle(Coords center, Coords direction, double radius, int point
     return output;
 }
 
+// Polyhedron display: triangulate the volume surface and keep the triangles where it has highest priority
+struct union_tri_list {
+  Coords *v; // 3 vertices per triangle
+  int n, size;
+  int N, number_of_volumes;
+  struct geometry_struct **Geometries;
+};
+
+void union_tri_emit(struct union_tri_list *t, Coords a, Coords b, Coords c) {
+  if (t->n == t->size) {
+    t->size = t->size ? 2*t->size : 256;
+    t->v = realloc(t->v, 3*t->size*sizeof(Coords));
+    if (!t->v) {
+      fprintf(stderr,"Failure allocating list in Union function union_tri_emit - Exit!\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+  t->v[3*t->n] = a; t->v[3*t->n+1] = b; t->v[3*t->n+2] = c;
+  t->n++;
+}
+
+#define UNION_TRI_DEPTH 12 // split budget in half levels: a split in 4 costs 2, a split in 2 costs 1
+#define UNION_TRI_CUT_TOL 0.01 // allowed distance between a straight cut and the true boundary, relative to the triangle size
+#define UNION_EDGE_MAX_CUTS 8
+
+// Parameters s in (0,1) along a->b where volume N gains or loses highest priority, from the exact
+// segments of draw_line_with_highest_priority. Returns the number of cuts, *start is the status at a.
+int union_edge_cuts(struct union_tri_list *t, Coords a, Coords b, double *s, int *start) {
+  struct lines_to_draw l = draw_line_with_highest_priority(a,b,t->N,t->Geometries,t->number_of_volumes,100);
+  Coords ab = coords_sub(b,a);
+  double len2 = coords_sp(ab,ab), x = 0, y = -1, eps = 1e-9;
+  int i, n = 0;
+  *start = 0;
+  // Kept segments come in order along a->b; touching ones are merged to intervals [x,y], whose inner ends are the cuts
+  for (i=0;i<=l.number_of_lines;i++) {
+    double s0 = i < l.number_of_lines ? coords_sp(coords_sub(l.lines[i].point1,a),ab)/len2 : 2;
+    if (i < l.number_of_lines && y >= 0 && s0 - y <= eps) { // touches the current interval
+      y = coords_sp(coords_sub(l.lines[i].point2,a),ab)/len2;
+      continue;
+    }
+    if (y >= 0) { // close [x,y]
+      if (x < eps) *start = 1;
+      else { if (n < UNION_EDGE_MAX_CUTS) s[n] = x; n++; } // counted beyond the array, so the caller splits
+      if (y < 1 - eps) { if (n < UNION_EDGE_MAX_CUTS) s[n] = y; n++; }
+    }
+    if (i < l.number_of_lines) { x = s0; y = coords_sp(coords_sub(l.lines[i].point2,a),ab)/len2; }
+  }
+  if (l.number_of_lines > 0) free(l.lines);
+  return n;
+}
+
+// Adds triangle (a,b,c) where volume N has highest priority. A boundary crossing two edges once each is cut
+// along the straight line between the exact edge crossings (as cut_fvc in d3view), if a third crossing on the
+// median from the lone vertex lies within UNION_TRI_CUT_TOL of that line, else (curved boundary) it is split in 4.
+// More crossings (thin slots, corners) split it in 2 through an edge crossing, so new vertices lie on the boundary.
+// A single crossing means the boundary runs from the opposite vertex (left on the boundary by such a split) and is
+// cut straight like the two-crossing case. A boundary crossing no edge but covering the centroid splits it in 4.
+// At depth 0 the centroid decides. Depth above UNION_TRI_DEPTH forces a split in 4.
+// ponytail: a boundary that crosses no edge (an island inside the triangle) is only found if it covers the centroid
+void union_tri_add(struct union_tri_list *t, Coords a, Coords b, Coords c, int depth) {
+  Coords v[3] = {a,b,c};
+  if (depth <= UNION_TRI_DEPTH) {
+    double s[3][UNION_EDGE_MAX_CUTS];
+    int n[3], st[3], k, total = 0;
+    for (k=0;k<3;k++) total += n[k] = union_edge_cuts(t,v[k],v[(k+1)%3],s[k],&st[k]);
+    if (total == 0) {
+      Coords centroid = coords_scalar_mult(coords_add(coords_add(a,b),c),1.0/3.0);
+      if (depth <= 1 || (r_has_highest_priority(centroid,t->N,t->Geometries,t->number_of_volumes) != 0) == st[0]) {
+        if (st[0]) union_tri_emit(t,a,b,c);
+        return;
+      }
+    } else {
+      if (total == 2 && n[0] <= 1 && n[1] <= 1 && n[2] <= 1) {
+        for (k=0;k<3;k++) if (n[k] == 1 && n[(k+2)%3] == 1) break; // lone vertex v[k] between the two cut edges
+        Coords w1 = v[(k+1)%3], w2 = v[(k+2)%3];
+        double sp = s[k][0], sq = 1 - s[(k+2)%3][0]; // fractions from v[k] towards w1 and w2
+        Coords p = coords_add(v[k],coords_scalar_mult(coords_sub(w1,v[k]),sp));
+        Coords q = coords_add(v[k],coords_scalar_mult(coords_sub(w2,v[k]),sq));
+        // straight boundary crosses the median v[k] -> (w1+w2)/2 at 2 sp sq / (sp + sq)
+        Coords m = coords_scalar_mult(coords_add(w1,w2),0.5);
+        double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w1,v[k]),coords_sub(w1,v[k])),
+                                                      fmax(coords_sp(coords_sub(w2,v[k]),coords_sub(w2,v[k])),
+                                                           coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)))));
+        int stm, nm = union_edge_cuts(t,v[k],m,sm,&stm);
+        double median = sqrt(coords_sp(coords_sub(m,v[k]),coords_sub(m,v[k])));
+        if (depth == 0 || (nm == 1 && fabs(sm[0] - 2*sp*sq/(sp + sq))*median < UNION_TRI_CUT_TOL*size)) {
+          if (st[k]) union_tri_emit(t,v[k],p,q);
+          else { union_tri_emit(t,p,w1,w2); union_tri_emit(t,p,w2,q); }
+          return;
+        }
+      } else if (total == 1) { // boundary from the vertex o opposite the cut edge (a vertex made by a split in 2) to p
+        for (k=0;k<3;k++) if (n[k] == 1) break;
+        Coords o = v[(k+2)%3], w1 = v[k], w2 = v[(k+1)%3];
+        Coords p = coords_add(w1,coords_scalar_mult(coords_sub(w2,w1),s[k][0]));
+        // a straight boundary o -> p crosses the mid-line (w1+o)/2 -> (w2+o)/2 at the same fraction s[k][0]
+        Coords m1 = coords_scalar_mult(coords_add(w1,o),0.5), m2 = coords_scalar_mult(coords_add(w2,o),0.5);
+        double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)),
+                                                      fmax(coords_sp(coords_sub(o,w1),coords_sub(o,w1)),
+                                                           coords_sp(coords_sub(o,w2),coords_sub(o,w2)))));
+        int stm, nm = union_edge_cuts(t,m1,m2,sm,&stm);
+        double midline = 0.5*sqrt(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)));
+        if (depth == 0 || (nm == 1 && fabs(sm[0] - s[k][0])*midline < UNION_TRI_CUT_TOL*size)) {
+          if (st[k]) union_tri_emit(t,w1,p,o);
+          else union_tri_emit(t,p,w2,o);
+          return;
+        }
+      } else if (depth > 0) { // split in 2 through the crossing nearest the middle of the most crossed edge
+        int e = 0, i, best = 0;
+        for (k=1;k<3;k++) if (n[k] > n[e]) e = k;
+        for (i=1;i<n[e] && i<UNION_EDGE_MAX_CUTS;i++) if (fabs(s[e][i] - 0.5) < fabs(s[e][best] - 0.5)) best = i;
+        Coords x = coords_add(v[e],coords_scalar_mult(coords_sub(v[(e+1)%3],v[e]),s[e][best]));
+        union_tri_add(t,v[e],x,v[(e+2)%3],depth-1);
+        union_tri_add(t,x,v[(e+1)%3],v[(e+2)%3],depth-1);
+        return;
+      }
+    }
+    if (depth <= 1) { // tangled boundary at the finest level: centroid decides
+      if (r_has_highest_priority(coords_scalar_mult(coords_add(coords_add(a,b),c),1.0/3.0),t->N,t->Geometries,t->number_of_volumes))
+        union_tri_emit(t,a,b,c);
+      return;
+    }
+  }
+  Coords ab = coords_scalar_mult(coords_add(a,b),0.5);
+  Coords bc = coords_scalar_mult(coords_add(b,c),0.5);
+  Coords ca = coords_scalar_mult(coords_add(c,a),0.5);
+  union_tri_add(t,a,ab,ca,depth-2);
+  union_tri_add(t,ab,b,bc,depth-2);
+  union_tri_add(t,ca,bc,c,depth-2);
+  union_tri_add(t,ab,bc,ca,depth-2);
+}
+
+// Surface of revolution through profile points (z[k], r[k]) along axis, with caps where r != 0 at the ends
+void union_tri_lathe(struct union_tri_list *t, Coords center, Coords axis, double *z, double *r, int np) {
+  int nseg = 32, i, k;
+  Coords c0 = coords_add(center,coords_scalar_mult(axis,z[0]));
+  Coords c1 = coords_add(center,coords_scalar_mult(axis,z[np-1]));
+  for (i=0;i<nseg;i++) {
+    for (k=0;k<np-1;k++) {
+      Coords zk = coords_add(center,coords_scalar_mult(axis,z[k]));
+      Coords zk1 = coords_add(center,coords_scalar_mult(axis,z[k+1]));
+      Coords p00 = point_on_circle(zk,axis,r[k],i,nseg),   p01 = point_on_circle(zk,axis,r[k],i+1,nseg);
+      Coords p10 = point_on_circle(zk1,axis,r[k+1],i,nseg), p11 = point_on_circle(zk1,axis,r[k+1],i+1,nseg);
+      if (r[k] > 0)   union_tri_add(t,p00,p01,p11,UNION_TRI_DEPTH);
+      if (r[k+1] > 0) union_tri_add(t,p00,p11,p10,UNION_TRI_DEPTH);
+    }
+    if (r[0] > 0) union_tri_add(t,c0,point_on_circle(c0,axis,r[0],i+1,nseg),point_on_circle(c0,axis,r[0],i,nseg),UNION_TRI_DEPTH);
+    if (r[np-1] > 0) union_tri_add(t,c1,point_on_circle(c1,axis,r[np-1],i,nseg),point_on_circle(c1,axis,r[np-1],i+1,nseg),UNION_TRI_DEPTH);
+  }
+}
+
+// Draws volume N as one polyhedron in the frame of the master component
+void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes) {
+  struct geometry_struct *g = Geometries[N];
+  struct union_tri_list t = {NULL,0,0,N,number_of_volumes,Geometries};
+  int i, j;
+
+  if (g->eShape == box) {
+    struct box_storage *b = g->geometry_parameters.p_box_storage;
+    Coords s[2][4];
+    double w[2] = {b->x_width1,b->x_width2}, h[2] = {b->y_height1,b->y_height2}, zz[2] = {-0.5,0.5};
+    for (j=0;j<2;j++) {
+      s[j][0] = coords_add(coords_add(coords_add(g->center,coords_scalar_mult(b->z_vector,zz[j]*b->z_depth)),
+                                      coords_scalar_mult(b->x_vector,-0.5*w[j])),coords_scalar_mult(b->y_vector,-0.5*h[j]));
+      s[j][1] = coords_add(s[j][0],coords_scalar_mult(b->x_vector,w[j]));
+      s[j][2] = coords_add(s[j][1],coords_scalar_mult(b->y_vector,h[j]));
+      s[j][3] = coords_add(s[j][0],coords_scalar_mult(b->y_vector,h[j]));
+    }
+    for (j=0;j<2;j++) {
+      union_tri_add(&t,s[j][0],s[j][1],s[j][2],UNION_TRI_DEPTH+4);
+      union_tri_add(&t,s[j][0],s[j][2],s[j][3],UNION_TRI_DEPTH+4);
+    }
+    for (i=0;i<4;i++) {
+      union_tri_add(&t,s[0][i],s[0][(i+1)%4],s[1][(i+1)%4],UNION_TRI_DEPTH+4);
+      union_tri_add(&t,s[0][i],s[1][(i+1)%4],s[1][i],UNION_TRI_DEPTH+4);
+    }
+  } else if (g->eShape == cylinder) {
+    struct cylinder_storage *c = g->geometry_parameters.p_cylinder_storage;
+    double z[2] = {-0.5*c->height,0.5*c->height}, r[2] = {c->cyl_radius,c->cyl_radius};
+    union_tri_lathe(&t,g->center,c->direction_vector,z,r,2);
+  } else if (g->eShape == cone) {
+    struct cone_storage *c = g->geometry_parameters.p_cone_storage;
+    double z[2] = {-0.5*c->height,0.5*c->height}, r[2] = {c->cone_radius_bottom,c->cone_radius_top};
+    union_tri_lathe(&t,g->center,c->direction_vector,z,r,2);
+  } else if (g->eShape == sphere) {
+    double R = g->geometry_parameters.p_sphere_storage->sph_radius, z[17], r[17];
+    for (i=0;i<17;i++) { z[i] = -R*cos(PI*i/16); r[i] = (i==0 || i==16) ? 0 : R*sin(PI*i/16); }
+    union_tri_lathe(&t,g->center,coords_set(0,1,0),z,r,17);
+  } else if (g->eShape == mesh) {
+    gmesh_struct *m = &g->geometry_parameters.p_mesh_storage->mesh;
+    struct pointer_to_1d_coords_list pts = g->shell_points(g,1); // all vertices, master frame
+    for (i=0;i<m->faceSize;i+=m->faceArray[i]+1)
+      for (j=1;j<m->faceArray[i]-1;j++) // fan over each polygon
+        union_tri_add(&t,pts.elements[m->faceArray[i+1]],pts.elements[m->faceArray[i+1+j]],pts.elements[m->faceArray[i+2+j]],UNION_TRI_DEPTH);
+    free(pts.elements);
+  }
+  if (t.n == 0) return;
+
+  // Same json layout as mcdis_polygon, bounds per vertex / face as there
+  char *json = malloc(64 + (size_t)t.n*(3*48 + 64));
+  if (!json) {
+    fprintf(stderr,"Failure allocating list in Union function union_mcdisplay_polyhedron - Exit!\n");
+    exit(EXIT_FAILURE);
+  }
+  char *p = json + sprintf(json,"{ \"vertices\": [");
+  for (i=0;i<3*t.n;i++)
+    p += sprintf(p,"%s[%g, %g, %g]",i ? ", " : "",t.v[i].x,t.v[i].y,t.v[i].z);
+  p += sprintf(p,"], \"faces\": [");
+  for (i=0;i<t.n;i++)
+    p += sprintf(p,"%s{ \"face\": [%d, %d, %d]}",i ? ", " : "",3*i,3*i+1,3*i+2);
+  sprintf(p,"]}");
+  mcdis_polyhedron(json);
+  free(json);
+  free(t.v);
+}
+
 void points_on_circle(Coords *output, Coords center, Coords direction, double radius, int number_of_points) {
 
     Coords cross_input = coords_set(0,1,0);

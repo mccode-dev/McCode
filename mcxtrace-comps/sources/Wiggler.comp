@@ -53,7 +53,7 @@ DEFINE COMPONENT Wiggler
 SETTING PARAMETERS (E0=0, dE=0, lambda0=0,dlambda=0, phase=0, randomphase=1, Ee=2.4, Ie=0.4, B=1.6, K=3,
     int Nper=1, length=1, sigey=0, sigex=0, focus_xw=0, focus_yh=0, dist=1, gauss_t=0, int verbose=0, Br=1.35)
 
-/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
 SHARE
 %{
@@ -105,19 +105,19 @@ DECLARE
 
 INITIALIZE
 %{
-  // fprintf(stderr,"Warning (%s): Wiggler is an experimental component - testing is ongoing\n",NAME_CURRENT_COMP);
 
   lu = length / Nper;
 
-  if (K <= 0 || B <= 0 || Ee <= 0 || Ie <= 0 || E0 <= 0 || length <= 0 || Nper <= 0) {
-    fprintf (stderr, "Wiggler Error (%s): (K, B, Ee, Ie, E0, length, Nper) do not have a sane set of values. Found (%g %g %g %g %g). Aborting.\n",
-             NAME_CURRENT_COMP, K, B, Ee, Ie, E0);
-    exit (1);
-  }
+  if (Ee <= 0 || Ie <= 0 || length <= 0 || Nper <= 0 || lu <= 0 
+  || (K <= 0 && B <= 0)  || (E0 <= 0 && lambda0 <= 0)) {
+  fprintf (stderr, "Wiggler Error (%s): (K, B, Ee, Ie, E0, length, Nper) do not have a sane set of values. Found (%g %g %g %g %g %g %d). Aborting.\n",
+           NAME_CURRENT_COMP, K, B, Ee, Ie, E0, length, Nper);
+  exit (1);
+}
 
-  if (K) {
+  if (K > 0) {
     B = 2 * M_PI * MELECTRON * M_C * K / CELE / lu;
-  } else if (B > 0) {
+  } else { /* B > 0 guaranteed by the sanity check */
     K = CELE * B * lu / (2 * M_PI * MELECTRON * M_C);
   }
 
@@ -135,7 +135,7 @@ INITIALIZE
   gamma2 = gamma * gamma;
   igamma = 1.0 / gamma;
 
-  // printf("Wiggler (%s): gamma=%g, divergence is 1/gamma=%g rad.\n",NAME_CURRENT_COMP,gamma,igamma);
+
   /*compute characteristic energy in keV*/
   double Ec = 0.665 * Ee * Ee * B;
   // double Ec=1.5*gamma2*HBAR*CELE*B/MELE *1e-3; /*check units on this one. The 1e-3 factor is because energy is assumed to be in keV*/

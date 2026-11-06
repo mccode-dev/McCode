@@ -299,10 +299,14 @@ const ThreeCanvas = () => {
       backView.camera.position.set(0, 0, bboxSize);
       backView.controls.target.set(0, 0, bboxSize / 2);
 
-      const grids = addGrids(sceneRef.current, bboxSize * 2);
+      const grids = addGrids(
+        sceneRef.current,
+        bboxSize * 2,
+        bbox.getCenter(new THREE.Vector3())
+      );
       gridsRef.current = grids;
 
-      const axes = addAxes(sceneRef.current, bboxSize);
+      const axes = addAxes(sceneRef.current);
       axesRef.current = axes;
 
       // Setup zoom sync for each orthographic camera

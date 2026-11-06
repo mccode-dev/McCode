@@ -1145,12 +1145,11 @@ FINALLY
 MCDISPLAY
 %{
 
-
   // Calculate the points need to draw approximation of the ellipses
   // defining the guide
 
   // the number of lines used to draw one side of the guide
-  int ApproximationMirrors = 500;
+  int ApproximationMirrors = 100;
 
   // The start of the guide
   double zvalue = 0;
@@ -1263,23 +1262,15 @@ MCDISPLAY
   line (xplus[j], 0, zvalue + j * zdelta, xplus[j], yplus[j], zvalue + j * zdelta);
   line (xplus[j], yminus[j], zvalue + j * zdelta, xplus[j], 0, zvalue + j * zdelta);
 
-  // Drawing lines parallel with the z direction
+  // Drawing the four walls as polygons along the z direction
 
   int k = 0;
   for (k = 0; k < ApproximationMirrors; k++) {
-
-    line (xplus[k], yplus[k], zvalue + k * zdelta, xplus[k + 1], yplus[k + 1], zvalue + (k + 1) * zdelta);
-    line (xminus[k], yplus[k], zvalue + k * zdelta, xminus[k + 1], yplus[k + 1], zvalue + (k + 1) * zdelta);
-
-    line (xplus[k], yminus[k], zvalue + k * zdelta, xplus[k + 1], yminus[k + 1], zvalue + (k + 1) * zdelta);
-
-    line (xminus[k], yminus[k], zvalue + k * zdelta, xminus[k + 1], yminus[k + 1], zvalue + (k + 1) * zdelta);
-
-    line (xminus[k], 0, zvalue + k * zdelta, xminus[k + 1], 0, zvalue + (k + 1) * zdelta);
-    line (xplus[k], 0, zvalue + k * zdelta, xplus[k + 1], 0, zvalue + (k + 1) * zdelta);
-
-    line (0, yminus[k], zvalue + k * zdelta, 0, yminus[k + 1], zvalue + (k + 1) * zdelta);
-    line (0, yplus[k], zvalue + k * zdelta, 0, yplus[k], zvalue + (k + 1) * zdelta);
+    double z0 = zvalue + k * zdelta, z1 = zvalue + (k + 1) * zdelta;
+    polygon (4, xplus[k], yminus[k], z0, xplus[k], yplus[k], z0, xplus[k + 1], yplus[k + 1], z1, xplus[k + 1], yminus[k + 1], z1);
+    polygon (4, xminus[k], yminus[k], z0, xminus[k], yplus[k], z0, xminus[k + 1], yplus[k + 1], z1, xminus[k + 1], yminus[k + 1], z1);
+    polygon (4, xminus[k], yplus[k], z0, xplus[k], yplus[k], z0, xplus[k + 1], yplus[k + 1], z1, xminus[k + 1], yplus[k + 1], z1);
+    polygon (4, xminus[k], yminus[k], z0, xplus[k], yminus[k], z0, xplus[k + 1], yminus[k + 1], z1, xminus[k + 1], yminus[k + 1], z1);
   }
 
   if (guideInfo.EnclosingBoxOn) {

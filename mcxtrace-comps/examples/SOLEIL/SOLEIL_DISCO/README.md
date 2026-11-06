@@ -18,9 +18,9 @@ You may DISCO_scan the grating monochromator with e.g.:
 
 ## Examples
 
-- **TestScan: mxrun SOLEIL_DISCO.instr -N21 DISCO_x_screw=20,103 DISCO_scan=1 Detector: Wavelength_I={21 values}**
+- **TestScan: mxrun SOLEIL_DISCO.instr -N21 DISCO_x_screw=20,103 DISCO_scan=1 -n1e6 Detector: Wavelength_I={21 values}**
 - 
-- **Test: DISCO_grazing_angle_one=22.5 -n 1e5 Detector: DISCO_second_HFP_I=2.08292e+11**
+- **Test: DISCO_grazing_angle_one=22.5 -n 1e5 Detector: DISCO_second_HFP_I=1.445e+16**
 
 ## Input parameters
 

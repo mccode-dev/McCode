@@ -103,14 +103,36 @@ TRACE
 %}
 MCDISPLAY
 %{
-  double ROC_angle, x0, z0, x1, z1;
+  double ROC_angle, x0, z0, x1, z1, px0 = 0, pz0 = 0, px1 = 0, pz1 = 0;
+  int first = 1;
 
+  /* outline: first and last blade, joined by the inner and outer arcs */
   for (ROC_angle = ROC_ttmin; ROC_angle <= ROC_ttmax; ROC_angle += ROC_pitch) {
     x0 = ROC_ri * sin (ROC_angle * DEG2RAD);
     z0 = ROC_ri * cos (ROC_angle * DEG2RAD);
     x1 = x0 / ROC_ri * ROC_ro;
     z1 = z0 / ROC_ri * ROC_ro;
-    multiline (5, x0, ROC_h / 2, z0, x0, -ROC_h / 2, z0, x1, -ROC_h / 2, z1, x1, ROC_h / 2, z1, x0, ROC_h / 2, z0);
+    if (first)
+      multiline (5, x0, ROC_h / 2, z0, x0, -ROC_h / 2, z0, x1, -ROC_h / 2, z1, x1, ROC_h / 2, z1, x0, ROC_h / 2, z0);
+    else {
+      line (px0, ROC_h / 2, pz0, x0, ROC_h / 2, z0);
+      line (px0, -ROC_h / 2, pz0, x0, -ROC_h / 2, z0);
+      line (px1, ROC_h / 2, pz1, x1, ROC_h / 2, z1);
+      line (px1, -ROC_h / 2, pz1, x1, -ROC_h / 2, z1);
+    }
+    px0 = x0; pz0 = z0; px1 = x1; pz1 = z1;
+    first = 0;
+  }
+  multiline (5, px0, ROC_h / 2, pz0, px0, -ROC_h / 2, pz0, px1, -ROC_h / 2, pz1, px1, ROC_h / 2, pz1, px0, ROC_h / 2, pz0);
+
+  /* absorbing blades in dark grey */
+  mcdis_pencolor ("#404040");
+  for (ROC_angle = ROC_ttmin; ROC_angle <= ROC_ttmax; ROC_angle += ROC_pitch) {
+    x0 = ROC_ri * sin (ROC_angle * DEG2RAD);
+    z0 = ROC_ri * cos (ROC_angle * DEG2RAD);
+    x1 = x0 / ROC_ri * ROC_ro;
+    z1 = z0 / ROC_ri * ROC_ro;
+    polygon (4, x0, ROC_h / 2, z0, x0, -ROC_h / 2, z0, x1, -ROC_h / 2, z1, x1, ROC_h / 2, z1);
   }
 %}
 END

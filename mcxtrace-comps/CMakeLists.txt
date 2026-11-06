@@ -27,9 +27,9 @@ set(CPACK_PACKAGE_VERSION_PATCH "${MCCODE_PATCH}")
 # (as in mcstas-comps). ENABLE_CIF2HKL is only declared further down, so
 # read it as a cache variable here (default ON, as in its option()).
 if ( NOT DEFINED ENABLE_CIF2HKL OR ENABLE_CIF2HKL )
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0)")
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libhdf5-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0)")
 else()
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libnexus-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0), cif2hkl (>= 1.5.1)")
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${FLAVOR}, libhdf5-dev, libxrl-dev, libgsl-dev, mcpl (>= 2.2.0), cif2hkl (>= 1.5.1)")
 endif()
 set(CPACK_DEBIAN_PACKAGE_REPLACES "${FLAVOR}-comps-3.5.1")
 

@@ -373,7 +373,8 @@ class McPyqtgraphPlotter():
                 posScene = event.scenePos()
                 plotIdx  = self.get_plot_index(posScene)
                 posItem  = event.pos()
-            except AttributeError:
+            except (AttributeError, RuntimeError):
+                # RuntimeError: the clicked item was deleted by a replot before this click was delivered
                 return
 
             if 0 <= plotIdx < len(node_list):

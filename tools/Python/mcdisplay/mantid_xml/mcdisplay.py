@@ -562,6 +562,7 @@ if __name__ == '__main__':
     parser.add_argument('--dirname', help='output directory name override')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=1, help='Number of particles to simulate')
     parser.add_argument('--mpi', dest='nodes', type=int, default=None, help='Number of particles to simulate')
+    parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1], default=1, help='mcrun --trace level, only 1 is supported')
 
     args, unknown = parser.parse_known_args()
 

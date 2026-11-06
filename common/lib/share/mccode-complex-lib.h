@@ -22,14 +22,8 @@
 #ifndef MCCODE_COMPLEX_LIB_H
 #define MCCODE_COMPLEX_LIB_H
 
-// C99 environments without <complex.h> should define __STDC_NO_COMPLEX__
-// https://en.cppreference.com/w/c/numeric/complex
-#if !defined(__STD_NO_COMPLEX__)
-#define HAVE_COMPLEX_H
-#endif
-
-#ifdef HAVE_COMPLEX_H
-// Use C99 complex support for all operations.
+// All supported compilers (gcc, clang, MSVC, nvc) provide <complex.h>; MSVC
+// lacks the C99 complex operators, hence the function wrappers below.
 #include <complex.h>
 // NOT MSVC
 #ifndef _MSC_EXTENSIONS
@@ -57,16 +51,5 @@ inline cdouble cmul(const cdouble a, const cdouble b) { return cplx(creal(a)*cre
 inline cdouble cdiv(const cdouble a, const cdouble b) { return cplx((creal(a)*creal(b)+cimag(a)*cimag(b))/(creal(b)*creal(b)+cimag(b)*cimag(b)),(cimag(a)*creal(b)-creal(a)*cimag(b))/(creal(b)*creal(b)+cimag(b)*cimag(b))); }
 #endif
 
-#else // Use simple structure to represent complex numbers
-
-typedef struct { double x,y; } cdouble;
-inline cdouble cplx(const double x, const double y) { cdouble z = {x,y}; return z; }
-inline double cabs(const cdouble a) { return sqrt(a.x*a.x + a.y*a.y); }
-inline cdouble cneg(const cdouble a) { return cplx(-a.x, -a.y); }
-inline cdouble rmul(const double a, const cdouble b) { return cplx( a*b.x, a*b.y ); }
-inline cdouble cadd(const cdouble a, const cdouble b) { return cplx( a.x+b.x, a.y+b.y ); }
-inline cdouble csub(const cdouble a, const cdouble b) { return cplx( a.x-b.x, a.y-b.y ); }
-
-#endif
 #endif
 /* end of mccode-complex-lib.h */

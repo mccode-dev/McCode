@@ -10,13 +10,47 @@ export function clearScene(parentnode) {
   }
 }
 
+function createSurface(geometry, color, transparency) {
+  const isTransparent = transparency < 1;
+  const createMaterial = (side) => new THREE.MeshLambertMaterial({
+    color: color,
+    transparent: isTransparent,
+    opacity: transparency,
+    depthWrite: !isTransparent,
+    side: side,
+  });
+
+  let surface;
+  if (!isTransparent) {
+    surface = new THREE.Mesh(geometry, createMaterial(THREE.DoubleSide));
+  } else {
+    // Render all translucent back faces before all translucent front faces.
+    // This avoids grouping both passes inside each object when shapes overlap.
+    surface = new THREE.Group();
+    const back = new THREE.Mesh(geometry, createMaterial(THREE.BackSide));
+    const front = new THREE.Mesh(geometry, createMaterial(THREE.FrontSide));
+    back.renderOrder = 1;
+    front.renderOrder = 2;
+    surface.add(back, front);
+  }
+
+  // the shape's edges as lines, shown with or instead of the surface (showShapes)
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geometry),
+    new THREE.LineBasicMaterial({ color: color })
+  );
+  edges.userData.isEdges = true;
+  surface.add(edges);
+  return surface;
+}
+
 export function loadComponents(parentnode, components) {
   let compList = {};
   components.forEach((component, i) => {
     compList[i] = new THREE.Group();
-    let color = component.color;
     let transparency = component.transparency;
     for (let j = 0; j < component.drawcalls.length; j++) {
+      let color = component.drawcalls[j].color || component.color; // pencolor, else component colour
       let args = [];
       if (component.drawcalls.length > 0) {
         args = component.drawcalls[j].args;
@@ -183,6 +217,22 @@ export function loadComponents(parentnode, components) {
     compList[i].name = components[i].name;
     parentnode.add(compList[i]);
   }
+  const shapes = parentnode.userData.shapes ?? { surfaces: true, lines: false };
+  showShapes(parentnode, shapes.surfaces, shapes.lines);
+}
+
+// show the --trace=2 shapes of all components as surfaces and/or lines
+// (remembered on the scene, so a reload by loadComponents keeps the choice)
+export function showShapes(parentnode, surfaces, lines) {
+  parentnode.userData.shapes = { surfaces, lines };
+  parentnode.children
+    .filter((child) => child.type === "Group" && !child.name.includes(RAY))
+    .forEach((group) =>
+      group.traverse((obj) => {
+        if (obj.isMesh) obj.material.visible = surfaces;
+        if (obj.userData.isEdges) obj.visible = lines;
+      })
+    );
 }
 
 // add multiline
@@ -254,13 +304,7 @@ export function addSphere(
     return;
   }
   var geometry = new THREE.SphereGeometry(radius, wseg, hseg);
-  var material = new THREE.MeshLambertMaterial({
-    color: color,
-    transparent: true,
-    opacity: transparency,
-    side: THREE.DoubleSide,
-  });
-  var sphere = new THREE.Mesh(geometry, material);
+  var sphere = createSurface(geometry, color, transparency);
 
   sphere.position.x = x;
   sphere.position.y = y;
@@ -287,13 +331,7 @@ export function addCone(
     return;
   }
   var geometry = new THREE.ConeGeometry(radius, height, radSeg);
-  var material = new THREE.MeshLambertMaterial({
-    color: color,
-    transparent: true,
-    opacity: transparency,
-    side: THREE.DoubleSide,
-  });
-  var cone = new THREE.Mesh(geometry, material);
+  var cone = createSurface(geometry, color, transparency);
 
   cone.position.x = x;
   cone.position.y = y;
@@ -321,15 +359,9 @@ export function addCylinder(
   color,
   transparency
 ) {
-  const material = new THREE.MeshLambertMaterial({
-    color: color,
-    transparent: true,
-    opacity: transparency,
-    side: THREE.DoubleSide,
-  });
   const align_axis = new THREE.Vector3(nx, ny, nz).normalize();
   const add = (geometry) => {
-    const cylinder = new THREE.Mesh(geometry, material);
+    const cylinder = createSurface(geometry, color, transparency);
     cylinder.position.set(x, y, z);
     cylinder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), align_axis);
     parent.add(cylinder);
@@ -362,14 +394,7 @@ export function addAnnulus(
     radSeg
   );
   let original_axis = new THREE.Vector3(0, 0, 1);
-
-  const material = new THREE.MeshLambertMaterial({
-    color: color,
-    transparent: true,
-    opacity: transparency,
-    side: THREE.DoubleSide,
-  });
-  const annulus = new THREE.Mesh(geometry, material);
+  const annulus = createSurface(geometry, color, transparency);
 
   annulus.position.x = x;
   annulus.position.y = y;
@@ -454,15 +479,9 @@ export function addBox(
   color,
   transparency
 ) {
-  const material = new THREE.MeshLambertMaterial({
-    color: color,
-    transparent: true,
-    opacity: transparency,
-    side: THREE.DoubleSide,
-  });
   const align_axis = new THREE.Vector3(nx, ny, nz).normalize();
   const add = (geometry) => {
-    const box = new THREE.Mesh(geometry, material);
+    const box = createSurface(geometry, color, transparency);
     box.position.set(x, y, z);
     box.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), align_axis);
     parent.add(box);
@@ -493,13 +512,7 @@ export function addPolyhedron(faces_vertices, parent, color, transparency) {
   // non-indexed: flat per-face normals instead of averaging across edges
   geometry = geometry.toNonIndexed();
   geometry.computeVertexNormals();
-  const material = new THREE.MeshLambertMaterial({
-    color: color,
-    transparent: true,
-    opacity: transparency,
-    side: THREE.DoubleSide,
-  });
-  const polyhedron = new THREE.Mesh(geometry, material);
+  const polyhedron = createSurface(geometry, color, transparency);
 
   /*
     const edges = new THREE.EdgesGeometry(geometry);
@@ -523,14 +536,7 @@ export function addPolygon(faces_vertices, parent, color, transparency) {
   geometry.setIndex(faces);
   geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
   geometry.computeVertexNormals();
-
-  const material = new THREE.MeshLambertMaterial({
-    color: color,
-    transparent: true,
-    opacity: transparency,
-    side: THREE.DoubleSide,
-  });
-  const polygon = new THREE.Mesh(geometry, material);
+  const polygon = createSurface(geometry, color, transparency);
 
   /*
     const edges = new THREE.EdgesGeometry(geometry);
