@@ -4,55 +4,115 @@
 * Instrument: Test Monitor_nD_noacc (FUNNEL / host-side variant)
 *
 * %Identification
+* Written by: P. Willendrup
+* Date: 30. September 2020
 * Origin: DTU
 * %INSTRUMENT_SITE: Tests_monitors
 *
-* Minimal check of the NOACC Monitor_nD variant against the regular one.
-* Two monitors see the same beam: Monitor_nD (2D xy, list) and
-* Monitor_nD_noacc (same options). Compare their output with fixed seeds.
+* Test Monitor_nD_noacc against basic monitor
+*
+* %Description
+* A test instrument to compare Monitor_nD output against basic 1D and 2D monitors.
 *
 * %Test: lambda=1 Detector: PSD_mon_I=8.34136e+10
 *
 * %Parameters
-* lambda: [AA]  Wavelength of the source
-* L1:     [m]   Source-sample distance
-* bins:   [ ]   Number of bins on the monitors
-* xw:     [m]   Width of the monitors
-* yh:     [m]   Height of the monitors
+* lambda: [AA]  Wavelength at monochromator, computed from DM and THETA_M if left as 0.
+* L1:         [m] Source-sample distance
+* bins:       [ ] Number of bins on monitors
+* xw:         [m] Width of detector
+* yh:         [m] Height of detector
+* hdiv:     [deg] Horizontal divergence measured by detector
+* vdiv:     [deg] Vertical divergence measured by detector
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT Test_Monitor_nD_noacc(lambda=2, L1=5, int bins=20, xw=0.1, yh=0.1)
+DEFINE INSTRUMENT Test_Monitor_nD_noacc(lambda=1, L1=10, int bins=100, xw=0.11, yh=0.16, hdiv=2, vdiv=2)
 
 DECLARE %{
-  char xyopts[128];
   char lmonopts[128];
+  char xyopts[128];
+  char tofopts[128];
+  char divopts[128];
+  char eopts[128];
+  double mudist=1e-6;
+  double V,E,T;
 %}
 
+USERVARS %{
+  double Lam;
+%}
+
+/* The INITIALIZE section is executed when the simulation starts     */
+/* (C code). You may use them as component parameter values.         */
 INITIALIZE
 %{
-  sprintf(xyopts,"x bins=%i, y bins=%i, list",bins,bins);
-  sprintf(lmonopts,"lambda bins=%i, list",bins);
+  V=K2V*(2*PI/lambda);
+  E=VS2E*V*V;
+  T=L1/V;
+  sprintf(lmonopts,"lambda limits=[%g %g] bins=%i",0.985*lambda,1.025*lambda,bins);
+  sprintf(xyopts,"x bins=%i, y bins=%i",bins,bins);
+  sprintf(divopts,"hdiv limits=[%g %g] bins=%i, vdiv limits=[%g %g] bins=%i",-hdiv,hdiv,bins,-vdiv,vdiv,bins);
+  sprintf(eopts,"energy limits=[%g %g] bins=%i",0.9*E,1.1*E,bins);
+  sprintf(tofopts,"tof limits=[%g %g] bins=%i",0.985*T,1.025*T,bins);
 %}
 
+/* Here comes the TRACE section, where the actual      */
+/* instrument is defined as a sequence of components.  */
 TRACE
 
-COMPONENT Origin = Progress_bar()
+REMOVABLE COMPONENT Origin = Progress_bar()
   AT (0,0,0) ABSOLUTE
 
-COMPONENT Source = Source_gen(
-    radius = 0.05, dist = L1, focus_xw = 0.05, focus_yh = 0.05,
-    lambda0 = lambda, dlambda = lambda*0.05,
+/* source with constant flux */
+REMOVABLE COMPONENT Source = Source_gen(
+    radius = 0.11, dist = L1, focus_xw = 0.1, focus_yh = 0.15,
+    lambda0 = lambda, dlambda = lambda*0.01,
     T1=229.6,I1=5.32e13,T2=1102, I2=4.37e12, T3=437.1,I3=3.84e13)
   AT (0, 0, 0) RELATIVE Origin
+EXTEND %{
+  Lam=K2V*(2*PI/sqrt(vx*vx+vy*vy+vz*vz));
+%}
 
-COMPONENT nD_ref = Monitor_nD(options=xyopts, xwidth = xw, yheight = yh, nowritefile=0)
-  AT (0, 0, L1) RELATIVE Source
+/* TIP: monochromator cradle */ 
+COMPONENT mon_cradle = Arm()
+  AT (0, 0, L1) RELATIVE PREVIOUS
 
-COMPONENT nD_noacc = Monitor_nD_noacc(options=xyopts, xwidth = xw, yheight = yh, nowritefile=0)
-  AT (0, 0, 0) RELATIVE PREVIOUS
+COMPONENT PSD_mon = PSD_monitor(nx=bins,ny=bins, xwidth = xw, yheight = yh, restore_neutron=1, filename="PSD")
+  AT (0, 0, 0) RELATIVE mon_cradle
 
-COMPONENT nD_noacc_lambda = Monitor_nD_noacc(options=lmonopts, xwidth = xw, yheight = yh)
-  AT (0, 0, 0) RELATIVE PREVIOUS
+COMPONENT nD_PSD = Monitor_nD_noacc(options=xyopts, xwidth = xw, yheight = yh)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
 
+COMPONENT nFlex_PSD = Flex_monitor_2D(ustring1="x", ustring2="y",filename="Flex_PSD", Umin1=-xw/2.0,Umax1=xw/2.0,Umin2=-yh/2.0, Umax2=yh/2.0, nU1=bins, nU2=bins)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT L_mon = L_monitor(nL=100, xwidth = 0.1, yheight = 0.15, restore_neutron=1, filename="L",Lmin=0.985*lambda,Lmax=1.025*lambda)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT nD_L = Monitor_nD_noacc(options=lmonopts, xwidth = xw, yheight = yh)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT nFlex_L = Flex_monitor_1D(ustring="Lam", filename="Flex_L",Umin=0.985*lambda,Umax=1.025*lambda, nU=bins)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT E_mon = E_monitor(nE=100, xwidth = 0.1, yheight = 0.15, restore_neutron=1, filename="E",Emin=0.9*E,Emax=1.1*E)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT nD_E = Monitor_nD_noacc(options=eopts, xwidth = xw, yheight = yh, restore_neutron=1)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT Tof_mon = TOF_monitor(nt=100, xwidth = 0.1, yheight = 0.15, restore_neutron=1, filename="ToF",tmin=0.985*1e6*T,tmax=1.025*1e6*T)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT nD_ToF = Monitor_nD_noacc(options=tofopts, xwidth = xw, yheight = yh, restore_neutron=1)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT Div_mon = Divergence_monitor(xwidth = xw, yheight = yh, restore_neutron=1, filename="Div", nh=bins, nv=bins,maxdiv_h=hdiv, maxdiv_v=vdiv)
+ AT (0, 0, mudist) RELATIVE PREVIOUS
+
+COMPONENT nD_Div = Monitor_nD_noacc(options=divopts, xwidth = xw, yheight = yh, restore_neutron=1)
+  AT (0, 0, mudist) RELATIVE PREVIOUS
+
+/* The END token marks the instrument definition end */
 END
