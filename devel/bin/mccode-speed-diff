@@ -134,14 +134,18 @@ def collect_repeat(testdir, results, warnings):
             if name == '_meta':
                 continue
             key = (entry['instrname'], entry['testnb'])
-            simfile = report.parent / entry['instrname'] / str(entry['testnb']) / 'mccode.sim'
-            timing = parse_timing(simfile) if simfile.is_file() else None
-            if not entry.get('didrun') or timing is None:
-                warnings.append(name)
+            if not entry.get('didrun'):
+                warnings.append('no run for %s' % name)
                 continue
             samples = results.setdefault(key, {m: [] for m in METRICS})
             samples['compile'].append(entry.get('compiletime') or 0)
             samples['runtime'].append(entry['runtime'])
+            # builds before 05/11/2026 write no timing block: sections stay n/a
+            simfile = report.parent / entry['instrname'] / str(entry['testnb']) / 'mccode.sim'
+            timing = parse_timing(simfile) if simfile.is_file() else None
+            if timing is None:
+                warnings.append('no timing block for %s' % name)
+                continue
             for metric, value in timing.items():
                 samples[metric].append(value)
             samples['outside'].append(entry['runtime'] - sum(timing.values()))
@@ -172,18 +176,21 @@ def measure_ref(cfg, envname, sha):
         env_run(cfg, envname, cmd, check=False, timeout=cfg.timeout)
         collect_repeat(testdir, results, warnings)
     if warnings:
-        print('WARNING: %d test run(s) gave no timed result, dropped: %s'
-              % (len(warnings), ', '.join(sorted(set(warnings)))), file=sys.stderr)
+        print('WARNING: %s' % '; '.join(sorted(set(warnings))), file=sys.stderr)
     if not results:
-        raise SystemExit('ERROR: no timed run for %s under %s (see run_stdout_*.txt)' % (sha, testdir))
+        raise SystemExit('ERROR: no run for %s under %s (see run_stdout_*.txt)' % (sha, testdir))
     return results, read_meta(testdir)
 
 
+def median_or_none(values):
+    return statistics.median(values) if values else None
+
+
 def summarize(samples):
-    ''' median of each metric; compile only counts when this run built the binary (> 0) '''
+    ''' median of each metric (None if never measured); compile only counts when this run built the binary (> 0) '''
     compile_times = [t for t in samples['compile'] if t > 0]
-    out = {m: statistics.median(samples[m]) for m in METRICS if m != 'compile'}
-    out['compile'] = statistics.median(compile_times) if compile_times else None
+    out = {m: median_or_none(samples[m]) for m in METRICS if m != 'compile'}
+    out['compile'] = median_or_none(compile_times)
     out['n'] = len(samples['runtime'])
     return out
 
@@ -253,6 +260,7 @@ def selftest():
                'TRACE': [0.5] * 3, 'FINALLY': [0.1] * 3, 'outside': [0.2] * 3}
     s = summarize(samples)
     assert s['runtime'] == 2.0 and s['compile'] == 3.0 and s['n'] == 3
+    assert summarize(dict(samples, INIT=[]))['INIT'] is None
     assert per_ray_value(2.0, 1e5) == '20.00'
     print('selftest OK')
 
