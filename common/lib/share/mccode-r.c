@@ -50,6 +50,9 @@
 #define pclose _pclose
 #endif
 #include <errno.h>
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+#endif
 
 // UNIX specific headers (non-Windows)
 #if defined(__unix__) || defined(__APPLE__)
@@ -3155,6 +3158,34 @@ static void mclist_vds_write(void);
 #endif
 
 /*******************************************************************************
+*   Timing: monotonic wall clock of INITIALIZE, TRACE and FINALLY (master only)
+*******************************************************************************/
+long long mccode_time_ns(void)
+{
+#if defined(_WIN32)
+  LARGE_INTEGER c, f;
+  QueryPerformanceCounter(&c);
+  QueryPerformanceFrequency(&f);
+  return (c.QuadPart/f.QuadPart)*1000000000LL
+       + (c.QuadPart%f.QuadPart)*1000000000LL/f.QuadPart;
+#elif defined(__APPLE__)
+  // CLOCK_MONOTONIC has only microsecond resolution on macOS
+  static mach_timebase_info_data_t tb;
+  if (!tb.denom) mach_timebase_info(&tb);
+  return (long long)(mach_absolute_time()*tb.numer/tb.denom);
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long long)ts.tv_sec*1000000000LL + ts.tv_nsec;
+#endif
+}
+
+// durations in ns, set by mccode_main(); mctime_finally_t0 is 0 unless the normal end was reached
+long long mctime_init_ns = 0;
+long long mctime_trace_ns = 0;
+long long mctime_finally_t0 = 0;
+
+/*******************************************************************************
 *   siminfo_close:  close SIM
 *******************************************************************************/
 void siminfo_close()
@@ -3163,11 +3194,17 @@ void siminfo_close()
   if(mpi_node_rank == mpi_node_root) {
 #endif
   if(siminfo_file && !mcdisable_output_files) {
+    long long tfinally = mctime_finally_t0 ? mccode_time_ns() - mctime_finally_t0 : 0;
 #ifdef USE_NEXUS
     if (mcformat && strcasestr(mcformat, "NeXus")) {
       time_t t=time(NULL);
       nxprintf(nxhandle, "end_time", "%s", ctime(&t));
       nxprintf(nxhandle, "duration", "%li", (long)t-mcstartdate);
+      if (mctime_finally_t0) {
+        nxprintf(nxhandle, "timing_init", "%.2f [s]", mctime_init_ns*1e-9);
+        nxprintf(nxhandle, "timing_trace", "%.2f [s]", mctime_trace_ns*1e-9);
+        nxprintf(nxhandle, "timing_finally", "%.2f [s]", tfinally*1e-9);
+      }
       NXclosegroup(nxhandle); /* NXentry */
       NXclose(&nxhandle);
 #ifdef USE_MPI
@@ -3175,6 +3212,14 @@ void siminfo_close()
 #endif
     } else {
 #endif
+      // ponytail: master's values only, no MPI reduction
+      if (mctime_finally_t0) {
+        siminfo_out("\nbegin timing\n");
+        siminfo_out("  Init: %.2f [s]\n", mctime_init_ns*1e-9);
+        siminfo_out("  Trace: %.2f [s]\n", mctime_trace_ns*1e-9);
+        siminfo_out("  Finally: %.2f [s]\n", tfinally*1e-9);
+        siminfo_out("end timing\n");
+      }
       fclose(siminfo_file);
 #ifdef USE_NEXUS
     }
