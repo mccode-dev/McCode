@@ -148,8 +148,8 @@ def parse_timing(simfile):
 
 def clear_test_runs(testdir):
     ''' remove mctest's per-test-number run output dirs, so a rerun does not hit its own cache '''
-    for d in testdir.glob('*/[0-9]*'):
-        if d.is_dir():
+    for d in testdir.rglob('*'):
+        if d.is_dir() and d.name.isdigit():
             shutil.rmtree(d, ignore_errors=True)
 
 
@@ -157,7 +157,10 @@ def measure_ref(cfg, envname, sha):
     testbin = 'mctest' if cfg.mode == 'mcstas' else 'mxtest'
     testdir = cfg.workdir / ('%s_%s' % (cfg.label, sha))
     cmd = [testbin, '--testdir', str(testdir), '--ncount', cfg.ncount, '--seed', cfg.seed,
-           '--no-mpi', '--skipnontest', '--permissive']
+           '--no-mpi', '--skipnontest', '--permissive',
+           # fixed, so mctest reuses the same (otherwise timestamped) label dir
+           # and compiled binaries across repeats, instead of rebuilding each time
+           '--uid', cfg.label]
     cmd += ['--instr', cfg.instr] if cfg.instr else ['--comp', cfg.comp]
 
     results = {}
@@ -167,7 +170,7 @@ def measure_ref(cfg, envname, sha):
             # mctest reruns it instead of treating it as already-done
             clear_test_runs(testdir)
         run_cmd(cfg, envname, cmd, check=False, timeout=cfg.timeout)
-        for simfile in sorted(testdir.glob('*/[0-9]*/mccode.sim')):
+        for simfile in sorted(testdir.rglob('mccode.sim')):
             timing = parse_timing(simfile)
             if timing is None:
                 continue
