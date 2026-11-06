@@ -791,7 +791,7 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
     { /* Dim : (Vars->Coord_Number+1)*Vars->Buffer_Block matrix (for p, dp) */
       Vars->Mon2D_Buffer = (double *)malloc((Vars->Coord_Number+1)*Vars->Buffer_Block*sizeof(double));
       if (Vars->Mon2D_Buffer == NULL)
-      { printf("Monitor_nD: %s cannot allocate Vars->Mon2D_Buffer (%li). No list and auto limits.\n", Vars->compcurname, Vars->Buffer_Block*(Vars->Coord_Number+1)*sizeof(double)); Vars->Flag_List = 0; Vars->Flag_Auto_Limits = 0; }
+      { printf("Monitor_nD: %s cannot allocate Vars->Mon2D_Buffer (%zi). No list and auto limits.\n", Vars->compcurname, Vars->Buffer_Block*(Vars->Coord_Number+1)*sizeof(double)); Vars->Flag_List = 0; Vars->Flag_Auto_Limits = 0; }
       else
       {
         for (i=0; i < (Vars->Coord_Number+1)*Vars->Buffer_Block; Vars->Mon2D_Buffer[i++] = (double)0);
@@ -806,14 +806,14 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
       Vars->Mon2D_p  = (double **)malloc((Vars->Coord_Number)*sizeof(double *));
       Vars->Mon2D_p2 = (double **)malloc((Vars->Coord_Number)*sizeof(double *));
       if ((Vars->Mon2D_N == NULL) || (Vars->Mon2D_p == NULL) || (Vars->Mon2D_p2 == NULL))
-      { fprintf(stderr,"Monitor_nD: %s n1D cannot allocate Vars->Mon2D_N/p/p2 (%li). Fatal.\n", Vars->compcurname, (Vars->Coord_Number)*sizeof(double *)); exit(-1); }
+      { fprintf(stderr,"Monitor_nD: %s n1D cannot allocate Vars->Mon2D_N/p/p2 (%zi). Fatal.\n", Vars->compcurname, (Vars->Coord_Number)*sizeof(double *)); exit(-1); }
       for (i= 1; i <= Vars->Coord_Number; i++)
       {
         Vars->Mon2D_N[i-1]  = (double *)malloc(Vars->Coord_Bin[i]*sizeof(double));
         Vars->Mon2D_p[i-1]  = (double *)malloc(Vars->Coord_Bin[i]*sizeof(double));
         Vars->Mon2D_p2[i-1] = (double *)malloc(Vars->Coord_Bin[i]*sizeof(double));
         if ((Vars->Mon2D_N == NULL) || (Vars->Mon2D_p == NULL) || (Vars->Mon2D_p2 == NULL))
-        { fprintf(stderr,"Monitor_nD: %s n1D cannot allocate %s Vars->Mon2D_N/p/p2[%li] (%li). Fatal.\n", Vars->compcurname, Vars->Coord_Var[i], i, (Vars->Coord_Bin[i])*sizeof(double *)); exit(-1); }
+        { fprintf(stderr,"Monitor_nD: %s n1D cannot allocate %s Vars->Mon2D_N/p/p2[%li] (%zi). Fatal.\n", Vars->compcurname, Vars->Coord_Var[i], i, (Vars->Coord_Bin[i])*sizeof(double *)); exit(-1); }
         else
         {
           for (j=0; j < Vars->Coord_Bin[i]; j++ )
@@ -828,14 +828,14 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
       Vars->Mon2D_p  = (double **)malloc((Vars->Coord_Bin[1])*sizeof(double *));
       Vars->Mon2D_p2 = (double **)malloc((Vars->Coord_Bin[1])*sizeof(double *));
       if ((Vars->Mon2D_N == NULL) || (Vars->Mon2D_p == NULL) || (Vars->Mon2D_p2 == NULL))
-      { fprintf(stderr,"Monitor_nD: %s 2D cannot allocate %s Vars->Mon2D_N/p/p2 (%li). Fatal.\n", Vars->compcurname, Vars->Coord_Var[1], (Vars->Coord_Bin[1])*sizeof(double *)); exit(-1); }
+      { fprintf(stderr,"Monitor_nD: %s 2D cannot allocate %s Vars->Mon2D_N/p/p2 (%zi). Fatal.\n", Vars->compcurname, Vars->Coord_Var[1], (Vars->Coord_Bin[1])*sizeof(double *)); exit(-1); }
       for (i= 0; i < Vars->Coord_Bin[1]; i++)
       {
         Vars->Mon2D_N[i]  = (double *)malloc(Vars->Coord_Bin[2]*sizeof(double));
         Vars->Mon2D_p[i]  = (double *)malloc(Vars->Coord_Bin[2]*sizeof(double));
         Vars->Mon2D_p2[i] = (double *)malloc(Vars->Coord_Bin[2]*sizeof(double));
         if ((Vars->Mon2D_N == NULL) || (Vars->Mon2D_p == NULL) || (Vars->Mon2D_p2 == NULL))
-        { fprintf(stderr,"Monitor_nD: %s 2D cannot allocate %s Vars->Mon2D_N/p/p2[%li] (%li). Fatal.\n", Vars->compcurname, Vars->Coord_Var[1], i, (Vars->Coord_Bin[2])*sizeof(double *)); exit(-1); }
+        { fprintf(stderr,"Monitor_nD: %s 2D cannot allocate %s Vars->Mon2D_N/p/p2[%li] (%zi). Fatal.\n", Vars->compcurname, Vars->Coord_Var[1], i, (Vars->Coord_Bin[2])*sizeof(double *)); exit(-1); }
         else
         {
           for (j=0; j < Vars->Coord_Bin[2]; j++ )
@@ -916,37 +916,32 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
 		if (NXopengroup(nxhandle, "Geometry", "NXdata") == NX_OK) {
 		  char tmp[CHAR_BUF_LENGTH];
 		  sprintf(tmp,"%g",Vars->Sphere_Radius);
-		  nxprintattr(nxhandle, "radius", tmp);
+		  nxprintattr(nxhandle, "radius", "%s",  tmp);
 
 		  sprintf(tmp,"%g",Vars->Cylinder_Height);
-		  nxprintattr(nxhandle, "height", tmp);
+		  nxprintattr(nxhandle, "height", "%s",  tmp);
 
 		  sprintf(tmp,"%g",Vars->mxmin);
-		  nxprintattr(nxhandle, "xmin",  tmp);
+		  nxprintattr(nxhandle, "xmin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mxmax);
-		  nxprintattr(nxhandle, "xmax",  tmp);
+		  nxprintattr(nxhandle, "xmax", "%s",  tmp);
 
 		  sprintf(tmp,"%g",Vars->mymin);
-		  nxprintattr(nxhandle, "ymin",  tmp);
+		  nxprintattr(nxhandle, "ymin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mymax);
-		  nxprintattr(nxhandle, "ymax",  tmp);
+		  nxprintattr(nxhandle, "ymax", "%s",  tmp);
 
 		  sprintf(tmp,"%g",Vars->mzmin);
-		  nxprintattr(nxhandle, "zmin",  tmp);
+		  nxprintattr(nxhandle, "zmin", "%s",  tmp);
 		  sprintf(tmp,"%g",Vars->mzmax);
-		  nxprintattr(nxhandle, "zmax",  tmp);
-
-		  sprintf(tmp,"%g",Vars->mzmin);
-		  nxprintattr(nxhandle, "zmin",  tmp);
-		  sprintf(tmp,"%g",Vars->mzmax);
-		  nxprintattr(nxhandle, "zmax",  tmp);
+		  nxprintattr(nxhandle, "zmax", "%s",  tmp);
 
 		  sprintf(tmp,"%i",Vars->Flag_Shape);
-		  nxprintattr(nxhandle, "Shape identifier",  tmp);
+		  nxprintattr(nxhandle, "Shape identifier", "%s",  tmp);
 		  sprintf(tmp,"%s",Vars->Monitor_Label);
-		  nxprintattr(nxhandle, "Shape string",  tmp);
+		  nxprintattr(nxhandle, "Shape string", "%s",  tmp);
 		  sprintf(tmp,"%s",Vars->option);
-		  nxprintattr(nxhandle, "Option string",  tmp);
+		  nxprintattr(nxhandle, "Option string", "%s",  tmp);
 
 		  NXclosegroup(nxhandle); // Geometry
 		} else {
@@ -979,39 +974,7 @@ void Monitor_nd_noaccInit(Monitornd_noaccDefines_type *DEFS,
 	  
 	  MCDETECTOR detector;
 	  
-	  /* Init - perhaps better with an init-function in mccode-r? */
-	  detector.m = 0;
-	  detector.xmin = 0;
-	  detector.xmax = 0;
-	  detector.ymin = 0;
-	  detector.ymax = 0;
-	  detector.zmin = 0;
-	  detector.zmax = 0;
-	  detector.intensity = 0;
-	  detector.error = 0;
-	  detector.events = 0;
-	  detector.min = 0;
-	  detector.max = 0;
-	  detector.mean = 0;
-	  detector.centerX = 0;
-	  detector.halfwidthX = 0;
-	  detector.centerY = 0;
-	  detector.halfwidthY = 0;
-	  detector.rank = 0;
-	  detector.istransposed = 0;
-	  detector.n = 0;
-	  detector.p = 0;
-	  detector.date_l = 0;
-	  detector.p0 = NULL;
-	  detector.p1 = NULL;
-	  detector.p2 = NULL;
-	  sprintf(detector.ncount,"%s","");
-	  sprintf(detector.xvar,"%s","");
-	  sprintf(detector.xlabel,"%s","");
-	  sprintf(detector.yvar,"%s","");
-	  sprintf(detector.ylabel,"%s","");
-	  sprintf(detector.zvar,"%s","");
-	  sprintf(detector.zvar,"%s","");
+	  memset(&detector, 0, sizeof(detector));
 	  sprintf(detector.statistics,"%s","None");
 	  sprintf(detector.variables,"%s","None");
 	  sprintf(detector.signal,"%s","Pixel index");
@@ -1572,6 +1535,7 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
     char    label[CHAR_BUF_LENGTH];
 
     MCDETECTOR detector;
+    memset(&detector, 0, sizeof(detector));
     strcpy(detector.options,Vars->option);
     if (Vars->Flag_Verbose && Vars->Flag_per_cm2) {
       printf("Monitor_nD: %s: active flat detector area is %g [cm^2], total area is %g [cm^2]\n",
@@ -1772,7 +1736,7 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
             if (min1d == max1d) max1d = min1d+1e-6;
             p1m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
             p2m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
-            if (p2m == NULL) /* use Raw Buffer line output */
+            if (p1m == NULL || p2m == NULL) /* use Raw Buffer line output */
             {
               if (Vars->Flag_Verbose) printf("Monitor_nD: %s cannot allocate memory for output. Using raw data.\n", Vars->compcurname);
               if (p1m != NULL) free(p1m);
@@ -1850,14 +1814,11 @@ MCDETECTOR Monitor_nd_noaccSave(Monitornd_noaccDefines_type *DEFS, Monitornd_noa
         p0m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
         p1m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
         p2m = (double *)malloc(Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
-        if (p2m == NULL)
+        if (p0m == NULL || p1m == NULL || p2m == NULL)
         {
-          if (Vars->Flag_Verbose) printf("Monitor_nD: %s cannot allocate memory for 2D array (%li). Skipping.\n", Vars->compcurname, 3*Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
-          /* comment out 'free memory' lines to avoid loosing arrays if
-               'detector' structure is used by other instrument parts
+          if (Vars->Flag_Verbose) printf("Monitor_nD: %s cannot allocate memory for 2D array (%zi). Skipping.\n", Vars->compcurname, 3*Vars->Coord_Bin[1]*Vars->Coord_Bin[2]*sizeof(double));
           if (p0m != NULL) free(p0m);
           if (p1m != NULL) free(p1m);
-          */
         }
         else
         {
@@ -2120,12 +2081,11 @@ void Monitor_nd_noaccMcDisplay(Monitornd_noaccDefines_type *DEFS,
           z3 =-radius*sin(theta0)*sin(phi1);
           y2 = y1; y3 = y0;
 
-          mcdis_multiline(5,
+          mcdis_polygon(4,
             x0,y0,z0,
             x1,y1,z1,
             x2,y2,z2,
-            x3,y3,z3,
-            x0,y0,z0);
+            x3,y3,z3);
         }
       if (Vars->Flag_mantid) {
 	/* First define the base pixel type */
@@ -2148,11 +2108,10 @@ void Monitor_nd_noaccMcDisplay(Monitornd_noaccDefines_type *DEFS,
     if (abs(Vars->Flag_Shape) == DEFS->SHAPE_SQUARE)
     {
       mcdis_magnify("xy");
-      mcdis_multiline(5, (double)xmin, (double)ymin, 0.0,
+      mcdis_polygon(4, (double)xmin, (double)ymin, 0.0,
              (double)xmax, (double)ymin, 0.0,
              (double)xmax, (double)ymax, 0.0,
-             (double)xmin, (double)ymax, 0.0,
-             (double)xmin, (double)ymin, 0.0);
+             (double)xmin, (double)ymax, 0.0);
       
       if (Vars->Flag_mantid) {
 	/* x, y and pixel coordinates may come in any order (#2178) */
