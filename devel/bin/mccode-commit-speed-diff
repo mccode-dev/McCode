@@ -9,6 +9,10 @@ instrument's own %Test line(s)), and reads the Init/Trace/Finally wall-clock
 timing block that siminfo_close() writes to each run's mccode.sim. No source
 patching is involved: the timing comes straight from mccode.sim.
 
+Only works for refs on or after 05/11/2026: mccode-r.c only writes that timing
+block to mccode.sim from that date onward, so an older ref's runs have nothing
+for this script to read.
+
 By default both refs are built/tested directly in the conda/mamba/micromamba
 environment that is already active. Pass --fresh-env to instead create (and
 download packages into) a new environment per ref.
@@ -68,8 +72,8 @@ def try_rev_parse(reporoot, ref):
 
 def resolve_sha(reporoot, ref):
     ''' resolves ref as given (sha/tag/already-qualified branch), or else as a
-    bare branch name on one of the configured remotes (e.g. "main" -> the one
-    remote - of lomholy/origin/upstream here - whose "main" branch exists) '''
+    bare branch name on one of the configured remotes (e.g. "main" -> whichever
+    configured remote has a "main" branch) '''
     sha = try_rev_parse(reporoot, ref)
     if sha:
         return sha
@@ -221,7 +225,7 @@ def measure_ref(cfg, envname, sha):
     if not results:
         if simfiles_seen:
             raise SystemExit('ERROR: %s wrote %d mccode.sim file(s) under %s, but none had a '
-                             '"begin timing" block - this ref likely predates that feature in '
+                             '"begin timing" block - this ref predates that feature in '
                              'mccode-r.c (siminfo_close), so its runs cannot be timed this way'
                              % (sha, simfiles_seen, testdir))
         raise SystemExit('ERROR: mctest produced no run at all for %s under %s '
