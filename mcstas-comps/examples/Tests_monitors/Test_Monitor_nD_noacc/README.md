@@ -1,9 +1,40 @@
-# Test_Monitor_nD_noacc
+# The `Test_Monitor_nD_noacc` Instrument
 
-Small instrument exercising `Monitor_nD_noacc` (the host-side variant used in FUNNEL mode) next to `Monitor_nD`. Drafted from `Tests_monitors/Test_Monitor_nD`.
+*McStas: Test Monitor_nD_noacc against basic monitor*
 
-Run with explicit parameters and a fixed seed, then compare `nD_ref` and `nD_noacc` output:
+## Identification
 
-    mcrun Test_Monitor_nD_noacc.instr lambda=2 L1=5 bins=20 xw=0.1 yh=0.1 -n 1e5 -s 1234 -d out
+- **Site:** Tests_monitors
+- **Author:** P. Willendrup
+- **Origin:** DTU
+- **Date:** 30. September 2020
 
-Checked on CPU (McStas built from `main` at f1066d85d): the numeric data of the 2D `x_y` histogram and the `list.p.x.y` list file are identical between `nD_ref` and `nD_noacc` (headers differ only by component name). Not run with OpenACC.
+## Description
+
+```text
+A test instrument to compare Monitor_nD output against basic 1D and 2D monitors.
+```
+
+## Examples
+
+- **Test: lambda=1 Detector: PSD_mon_I=8.34136e+10**
+
+## Input parameters
+
+Parameters in **boldface** are required; the others are optional.
+
+| Name | Unit | Description | Default |
+|------|------|-------------|---------|
+| lambda | AA | Wavelength at monochromator, computed from DM and THETA_M if left as 0. | 1 |
+| L1 | m | Source-sample distance | 10 |
+| bins |  | Number of bins on monitors | 100 |
+| xw | m | Width of detector | 0.11 |
+| yh | m | Height of detector | 0.16 |
+| hdiv | deg | Horizontal divergence measured by detector | 2 |
+| vdiv | deg | Vertical divergence measured by detector | 2 |
+
+## Links
+
+- [Source code](Test_Monitor_nD_noacc.instr) for `Test_Monitor_nD_noacc.instr`.
+
+---
