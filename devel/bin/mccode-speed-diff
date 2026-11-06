@@ -162,6 +162,8 @@ def measure_ref(cfg, envname, sha):
     # a fixed --uid keeps the label folder, and so the compiled binaries, across repeats
     cmd = [testbin, '--testdir', testdir, '--ncount', cfg.ncount, '--seed', cfg.seed,
            '--skipnontest', '--permissive', '--uid', 'speed']
+    if cfg.mpi:
+        cmd += ['--mpi', str(cfg.mpi)]
     cmd += ['--instr', cfg.instr] if cfg.instr else ['--comp', cfg.comp]
 
     results, warnings = {}, []
@@ -273,6 +275,7 @@ def parse_args(argv):
     parser.add_argument('--repeats', type=int, default=3, help='runs per ref (default 3)')
     parser.add_argument('--ncount', default='1e6', help='rays per run (default 1e6)')
     parser.add_argument('--seed', default='1000')
+    parser.add_argument('--mpi', type=int, default=None, help='MPI ranks per run (default: no MPI)')
     parser.add_argument('--timeout', type=int, default=3600, help='max seconds per build or run')
     parser.add_argument('--workdir', help='keep checkouts and results here (default: temporary)')
     parser.add_argument('--keep', action='store_true', help='keep the environments and worktrees')
@@ -300,6 +303,7 @@ def main():
     cfg.mode, cfg.platform, cfg.tool = args.mode, args.platform, conda_tool()
     cfg.comp, cfg.instr = args.comp, args.instr
     cfg.repeats, cfg.ncount, cfg.seed, cfg.timeout = args.repeats, args.ncount, args.seed, args.timeout
+    cfg.mpi = args.mpi
 
     tmp = tempfile.TemporaryDirectory() if not args.workdir else None
     cfg.workdir = pathlib.Path(args.workdir or tmp.name)
