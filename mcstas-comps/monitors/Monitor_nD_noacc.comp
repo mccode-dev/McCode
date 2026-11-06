@@ -265,15 +265,15 @@ NOACC
 
 SHARE
 %{
-  %include "monitor_nd_noacc-lib"
+  %include "monitor_nd-lib"
   %include "read_table-lib"
   %include "interoff-lib"
 %}
 
 DECLARE
 %{
-  Monitornd_noaccDefines_type DEFS;
-  Monitornd_noaccVariables_type Vars;
+  MonitornD_Defines_type DEFS;
+  MonitornD_Variables_type Vars;
   MCDETECTOR detector;
   off_struct offdata;
 %}
@@ -460,7 +460,7 @@ INITIALIZE
   if (!radius && !xwidth && !yheight && !zdepth && !xmin && !xmax && !ymin && !ymax && !strstr (Vars.option, "previous") && (!geometry || !strlen (geometry)))
     exit (printf ("Monitor_nD: %s has no dimension specified. Aborting (radius, xwidth, yheight, zdepth, previous, geometry).\n", NAME_CURRENT_COMP));
 
-  Monitor_nd_noaccInit (&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, offflag, nexus_bins);
+  Monitor_nD_Init (&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, offflag, nexus_bins);
 
   if (Vars.Flag_OFF) {
     offdata.mantidflag = Vars.Flag_mantid;
@@ -633,7 +633,8 @@ TRACE
       p = p * multiplier_capture / 1.7985;
     }
 
-    pp = Monitor_nd_noaccTrace (&DEFS, &Vars, _particle);
+    Monitor_nD_EnsureCapacity (&DEFS, &Vars);
+    pp = Monitor_nD_Trace (&DEFS, &Vars, _particle);
     if (pp == 0.0) {
       ABSORB;
     } else if (pp == 1) {
@@ -680,14 +681,14 @@ SAVE
   if (!nowritefile) {
 
     /* save results, but do not free pointers */
-    detector = Monitor_nd_noaccSave (&DEFS, &Vars);
+    detector = Monitor_nD_Save (&DEFS, &Vars);
   }
 %}
 
 FINALLY
 %{
   /* free pointers */
-  Monitor_nd_noaccFinally (&DEFS, &Vars);
+  Monitor_nD_Finally (&DEFS, &Vars);
 %}
 
 MCDISPLAY
@@ -695,7 +696,7 @@ MCDISPLAY
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
     off_display (offdata);
   } else {
-    Monitor_nd_noaccMcDisplay (&DEFS, &Vars);
+    Monitor_nD_McDisplay (&DEFS, &Vars);
   }
 %}
 
