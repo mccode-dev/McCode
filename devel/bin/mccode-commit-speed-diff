@@ -3,22 +3,11 @@
 Compare McStas/McXtrace simulation speed for a component or instrument
 between two commits/branches, each built into its own conda environment.
 
-For every instrument matching --comp/--instr, it measures INITIALIZE/TRACE/
-FINALLY wall time for each ref and prints a before/after comparison.
-
-Timing works by patching each instrument's generated C file right after
-codegen, using timespec_get(..., TIME_UTC) (nanosecond-resolution, C11
-standard, no platform-specific API needed) to bracket init() and finally()
-(each located via a stable nearby marker, not just adjacent text, since the
-exact lines between marker and call have drifted before - see
-common/lib/share/mccode_main.c). TRACE is timed per ray, not for the whole
-run: raytrace_all()'s own per-ray raytrace(_particle) call is timed
-individually into a buffer, then reported as mean/median/min/max over all
-rays in that run. mcrun is then asked to compile again: since it only
-regenerates/recompiles what is older than its source, touching the
-already-patched file makes it reuse (not overwrite) the patch and recompile
-the binary from it, with mcrun's own normal (already cross-platform-correct)
-compiler invocation.
+For every instrument matching --comp/--instr, this builds each ref, then runs
+the existing mctest/mxtest tool against it (which compiles and runs each
+instrument's own %Test line(s)), and reads the Init/Trace/Finally wall-clock
+timing block that siminfo_close() writes to each run's mccode.sim. No source
+patching is involved: the timing comes straight from mccode.sim.
 
 By default both refs are built/tested directly in the conda/mamba/micromamba
 environment that is already active. Pass --fresh-env to instead create (and
@@ -105,106 +94,6 @@ def run_cmd(cfg, envname, cmd, check=True, cwd=None, capture_output=False, timeo
                       check=check, cwd=cwd, capture_output=capture_output, timeout=timeout)
 
 
-# Timing instrumentation, applied to each instrument's generated C file, all
-# using timespec_get(..., TIME_UTC) (nanosecond resolution, C11 standard
-# library, no platform-specific API). INITIALIZE/FINALLY bracket init()/
-# finally() (always present, verbatim, in every generated instrument - see
-# common/lib/share/mccode_main.c); each is located via a stable marker
-# comment/message rather than assuming the call immediately follows it, since
-# the lines in between have drifted before (e.g. commit ca7edd408 inserted an
-# mcsave_final assignment between the FINALLY marker and the call) and may
-# drift again. TRACE is timed per ray, not for the whole run: the
-# raytrace_all() function (generated per instrument, always with this exact
-# structure for a plain CPU build - no --openacc) times each
-# raytrace(_particle) call into a ncount-sized buffer, then reports
-# mean/median/min/max over all rays in that one run, instead of printing one
-# line per ray.
-INITIALIZE_MARKER = 'SIG_MESSAGE("[" __FILE__ "] main INITIALISE");'
-FINALLY_MARKER = '// save/finally executed by master node/thread/host'
-TIMING_PATCHES = [
-    ('void raytrace_all(unsigned long long ncount, unsigned long seed) {',
-     'static int _mcspd_cmp(const void *a, const void *b) {\n'
-     '  double da = *(const double *)a, db = *(const double *)b;\n'
-     '  return (da > db) - (da < db);\n'
-     '}\n\n'
-     'void raytrace_all(unsigned long long ncount, unsigned long seed) {\n'
-     '  double *_mcspd_times = (double *)malloc(sizeof(double) * (ncount ? ncount : 1));\n'
-     '  if (!_mcspd_times) {\n'
-     '    fprintf(stderr, "MCCODE_TIMING ERROR malloc failed for %llu rays\\n", ncount);\n'
-     '    exit(1);\n'
-     '  }'),
-    ('      raytrace(_particle);',
-     '      struct timespec _mcspd_r0, _mcspd_r1;\n'
-     '      timespec_get(&_mcspd_r0, TIME_UTC);\n'
-     '      raytrace(_particle);\n'
-     '      timespec_get(&_mcspd_r1, TIME_UTC);\n'
-     '      _mcspd_times[pidx] = (_mcspd_r1.tv_sec - _mcspd_r0.tv_sec)\n'
-     '                         + (_mcspd_r1.tv_nsec - _mcspd_r0.tv_nsec) / 1e9;'),
-    ('} /* raytrace_all */',
-     '  if (ncount > 0) {\n'
-     '    double _mcspd_sum = 0, _mcspd_min = _mcspd_times[0], _mcspd_max = _mcspd_times[0];\n'
-     '    unsigned long long _mcspd_i;\n'
-     '    for (_mcspd_i = 0; _mcspd_i < ncount; _mcspd_i++) {\n'
-     '      double v = _mcspd_times[_mcspd_i];\n'
-     '      _mcspd_sum += v;\n'
-     '      if (v < _mcspd_min) _mcspd_min = v;\n'
-     '      if (v > _mcspd_max) _mcspd_max = v;\n'
-     '    }\n'
-     '    qsort(_mcspd_times, ncount, sizeof(double), _mcspd_cmp);\n'
-     '    double _mcspd_median = (ncount % 2) ? _mcspd_times[ncount / 2]\n'
-     '                                         : (_mcspd_times[ncount / 2 - 1] + _mcspd_times[ncount / 2]) / 2.0;\n'
-     '    fprintf(stderr, "MCCODE_TIMING_RAY mean=%.9f median=%.9f min=%.9f max=%.9f n=%llu\\n",\n'
-     '            _mcspd_sum / ncount, _mcspd_median, _mcspd_min, _mcspd_max, ncount);\n'
-     '  }\n'
-     '  free(_mcspd_times);\n'
-     '} /* raytrace_all */'),
-]
-TIMING_RE = re.compile(r'MCCODE_TIMING (INITIALIZE|FINALLY) ([0-9.eE+-]+)')
-TIMING_RAY_RE = re.compile(r'MCCODE_TIMING_RAY mean=([0-9.eE+-]+) median=([0-9.eE+-]+) '
-                          r'min=([0-9.eE+-]+) max=([0-9.eE+-]+) n=(\d+)')
-
-
-def wrap_call_after_marker(text, marker, call, label):
-    ''' Insert nanosecond timing around the first `call` found after `marker`. '''
-    if text.count(marker) != 1:
-        raise SystemExit('ERROR: Could not time %s: expected exactly 1 occurrence of marker '
-                         '%r, found %d (generated code layout changed?)' % (label, marker, text.count(marker)))
-    start = text.index(marker) + len(marker)
-    pos = text.find(call, start)
-    if pos == -1:
-        raise SystemExit('ERROR: Could not time %s: %r not found after its marker '
-                         '(generated code layout changed?)' % (label, call))
-    t0, t1 = '_mcspd_%s0' % label[:1], '_mcspd_%s1' % label[:1]
-    before = ('struct timespec %s, %s; timespec_get(&%s, TIME_UTC);\n  ' % (t0, t1, t0))
-    after = ('\n  timespec_get(&%s, TIME_UTC);\n'
-            '  fprintf(stderr, "MCCODE_TIMING %s %%.9f\\n", '
-            '(%s.tv_sec - %s.tv_sec) + (%s.tv_nsec - %s.tv_nsec) / 1e9);'
-            % (t1, label.upper(), t1, t0, t1, t0))
-    return text[:pos] + before + call + after + text[pos + len(call):]
-
-
-def patch_timing(cpath):
-    text = cpath.read_text(encoding='utf-8', errors='surrogateescape')
-    text = wrap_call_after_marker(text, INITIALIZE_MARKER, 'init();', 'initialize')
-    text = wrap_call_after_marker(text, FINALLY_MARKER, 'finally();', 'finally')
-    for old, new in TIMING_PATCHES:
-        n = text.count(old)
-        if n != 1:
-            raise SystemExit('ERROR: Could not add timing to %s: expected exactly 1 occurrence of '
-                             '%r, found %d (generated code layout changed?)' % (cpath, old, n))
-        text = text.replace(old, new)
-    cpath.write_text(text, encoding='utf-8', errors='surrogateescape')
-
-
-def discover_instruments(examples_dir, comp, instr):
-    instrs = sorted(examples_dir.rglob('*.instr'))
-    if instr:
-        rx = re.compile(instr)
-        return [f for f in instrs if rx.search(f.stem)]
-    rx = re.compile(r'=\s*%s\s*\(' % re.escape(comp))
-    return [f for f in instrs if rx.search(f.read_text(encoding='utf-8', errors='replace'))]
-
-
 def build_ref(sha, reporoot, cfg, worktrees, envs):
     # worktrees/envs are appended to immediately after each resource is
     # created, not after this function returns, so a later failure in here
@@ -231,100 +120,73 @@ def build_ref(sha, reporoot, cfg, worktrees, envs):
     return envname
 
 
-def measure_instrument(cfg, envname, instr_file, workdir):
-    runbin = 'mcrun' if cfg.mode == 'mcstas' else 'mxrun'
-    exesuffix = 'exe' if cfg.platform == 'win' else 'out'
+# siminfo_close() in mccode-r.c writes this block to mccode.sim only when a run
+# reached its normal end (see docs/GRAMMAR/ADR-records/ADR_20261105_RUNTIME_TIMING.md):
+#
+#   begin timing
+#     Init: 0.01 [s]
+#     Trace: 9.88 [s]
+#     Finally: 0.02 [s]
+#   end timing
+TIMING_BLOCK_RE = re.compile(
+    r'begin timing\s*\n'
+    r'\s*Init:\s*([0-9.eE+-]+)\s*\[s\]\s*\n'
+    r'\s*Trace:\s*([0-9.eE+-]+)\s*\[s\]\s*\n'
+    r'\s*Finally:\s*([0-9.eE+-]+)\s*\[s\]\s*\n'
+    r'\s*end timing')
 
-    instrdir = workdir / instr_file.stem
-    shutil.rmtree(instrdir, ignore_errors=True)
-    shutil.copytree(instr_file.parent, instrdir)
-    cpath = instrdir / (instr_file.stem + '.c')
-    binpath = instrdir / ('%s.%s' % (instr_file.stem, exesuffix))
 
-    # cold compile (-n0: compile and do a trivial run, nothing timed yet)
-    run_cmd(cfg, envname, [runbin, '--verbose', '-n0', instr_file.name],
-           check=False, cwd=instrdir, timeout=cfg.timeout)
-    if not cpath.is_file():
-        print('SKIP %s: code generation did not produce %s' % (instr_file.stem, cpath.name))
+def parse_timing(simfile):
+    ''' returns {'INIT', 'TRACE', 'FINALLY'} in seconds, or None if simfile has no timing block '''
+    text = simfile.read_text(encoding='utf-8', errors='replace')
+    m = TIMING_BLOCK_RE.search(text)
+    if not m:
         return None
-
-    try:
-        patch_timing(cpath)
-    except SystemExit as e:
-        print('SKIP %s: %s' % (instr_file.stem, e))
-        return None
-
-    # mcrun only regenerates/recompiles what is older than its source, so the
-    # patch (which just touched cpath) is reused as-is and recompiled into binpath
-    r = run_cmd(cfg, envname, [runbin, '--verbose', '-n0', instr_file.name],
-               check=False, cwd=instrdir, timeout=cfg.timeout)
-    if r.returncode != 0 or not binpath.is_file():
-        print('SKIP %s: recompile of timing-patched code failed' % instr_file.stem)
-        return None
-
-    times = {'INITIALIZE': [], 'FINALLY': [],
-             'TRACE_MEAN': [], 'TRACE_MEDIAN': [], 'TRACE_MIN': [], 'TRACE_MAX': []}
-    for i in range(cfg.repeats):
-        outdir = instrdir / ('speed_diff_out_%d' % i)
-        shutil.rmtree(outdir, ignore_errors=True)
-        try:
-            r = run_cmd(cfg, envname,
-                       [str(binpath), '-y', '--ncount=%s' % cfg.ncount, '--seed=%s' % cfg.seed,
-                        '--dir=%s' % outdir],
-                       check=False, cwd=instrdir, capture_output=True, timeout=cfg.timeout)
-        except subprocess.TimeoutExpired:
-            print('SKIP %s run %d: exceeded --timeout=%s' % (instr_file.stem, i, cfg.timeout))
-            continue
-        out = (r.stdout or '') + (r.stderr or '')
-        phases = dict(TIMING_RE.findall(out))
-        m = TIMING_RAY_RE.search(out)
-        # only accept a run that reported all three phases - a partial run
-        # (e.g. finally() crashing after TRACE was already printed) would
-        # otherwise leave some stat lists shorter than others
-        if not (m and 'INITIALIZE' in phases and 'FINALLY' in phases):
-            print('SKIP %s run %d: incomplete timing output' % (instr_file.stem, i))
-            continue
-        times['INITIALIZE'].append(float(phases['INITIALIZE']))
-        times['FINALLY'].append(float(phases['FINALLY']))
-        mean, median, lo, hi, _n = m.groups()
-        times['TRACE_MEAN'].append(float(mean))
-        times['TRACE_MEDIAN'].append(float(median))
-        times['TRACE_MIN'].append(float(lo))
-        times['TRACE_MAX'].append(float(hi))
-
-    if not times['TRACE_MEAN']:
-        print('SKIP %s: no complete timed run out of %d attempt(s)' % (instr_file.stem, cfg.repeats))
-        return None
-    return times
+    init, trace, finally_ = (float(g) for g in m.groups())
+    return {'INIT': init, 'TRACE': trace, 'FINALLY': finally_}
 
 
-def measure_instruments(sha, envname, cfg):
-    showcfg_bin = 'mcrun' if cfg.mode == 'mcstas' else 'mxrun'
-    mccoderoot = run_cmd(cfg, envname, [showcfg_bin, '--showcfg=resourcedir'],
-                        capture_output=True, timeout=cfg.timeout).stdout.strip()
-    examples_dir = pathlib.Path(mccoderoot) / 'examples'
-    instrs = discover_instruments(examples_dir, cfg.comp, cfg.instr)
-    if not instrs:
-        raise SystemExit('ERROR: No instruments under %s matched the given filter' % examples_dir)
+def clear_test_runs(testdir):
+    ''' remove mctest's per-test-number run output dirs, so a rerun does not hit its own cache '''
+    for d in testdir.glob('*/[0-9]*'):
+        if d.is_dir():
+            shutil.rmtree(d, ignore_errors=True)
 
-    seen = {}
-    for f in instrs:
-        if f.stem in seen:
-            raise SystemExit('ERROR: Duplicate instrument name %r: both %s and %s match - '
-                             'rerun with a narrower --comp/--instr' % (f.stem, seen[f.stem], f))
-        seen[f.stem] = f
 
-    measuredir = cfg.workdir / ('measure_%s' % sha)
+def measure_ref(cfg, envname, sha):
+    testbin = 'mctest' if cfg.mode == 'mcstas' else 'mxtest'
+    testdir = cfg.workdir / ('%s_%s' % (cfg.label, sha))
+    cmd = [testbin, '--testdir', str(testdir), '--ncount', cfg.ncount, '--seed', cfg.seed,
+           '--no-mpi', '--skipnontest', '--permissive']
+    cmd += ['--instr', cfg.instr] if cfg.instr else ['--comp', cfg.comp]
+
     results = {}
-    for instr_file in instrs:
-        times = measure_instrument(cfg, envname, instr_file, measuredir)
-        if times is not None:
-            results[instr_file.stem] = times
+    for i in range(cfg.repeats):
+        if i > 0:
+            # keep the compiled binaries, only clear each test's run output so
+            # mctest reruns it instead of treating it as already-done
+            clear_test_runs(testdir)
+        run_cmd(cfg, envname, cmd, check=False, timeout=cfg.timeout)
+        for simfile in sorted(testdir.glob('*/[0-9]*/mccode.sim')):
+            timing = parse_timing(simfile)
+            if timing is None:
+                continue
+            key = (simfile.parent.parent.name, simfile.parent.name)
+            entry = results.setdefault(key, {'INIT': [], 'TRACE': [], 'FINALLY': []})
+            for metric, value in timing.items():
+                entry[metric].append(value)
 
     if not results:
-        raise SystemExit('ERROR: None of the %d matched instrument(s) produced usable timing '
-                         'for %s' % (len(instrs), sha))
+        raise SystemExit('ERROR: mctest produced no timed run for %s under %s '
+                         '(check its run_stdout_*.txt files)' % (sha, testdir))
     return results
+
+
+def display_name(key, results1, results2):
+    ''' drop the test number unless this instrument has more than one %Test line '''
+    instrname, testnb = key
+    testnbs = {k[1] for k in set(results1) | set(results2) if k[0] == instrname}
+    return instrname if len(testnbs) <= 1 else '%s (test %s)' % (instrname, testnb)
 
 
 def print_report(label1, sha1, results1, label2, sha2, results2):
@@ -341,26 +203,20 @@ def print_report(label1, sha1, results1, label2, sha2, results2):
 
     def datarow(name, v1, v2):
         delta = '%+.1f%%' % ((v2 - v1) / v1 * 100) if v1 else 'n/a'
-        row([name, '%.6f' % v1, '%.6f' % v2, delta])
+        row([name, '%.2f' % v1, '%.2f' % v2, delta])
 
-    for instrname in sorted(set(results1) | set(results2)):
+    for key in sorted(set(results1) | set(results2)):
         print()
-        print(instrname)
-        t1, t2 = results1.get(instrname), results2.get(instrname)
+        print(display_name(key, results1, results2))
+        t1, t2 = results1.get(key), results2.get(key)
         if t1 is None or t2 is None:
             print('  only measured for %s' % (headers[2] if t1 is None else headers[1]))
             continue
         hline()
         row(headers)
         hline()
-        datarow('initialize', statistics.mean(t1['INITIALIZE']), statistics.mean(t2['INITIALIZE']))
-        # trace is timed per ray (not for the whole run): mean/min/max are exact
-        # across repeats (same ncount each time), median is the mean of each
-        # repeat's own per-ray median rather than a true pooled median
-        datarow('trace mean', statistics.mean(t1['TRACE_MEAN']), statistics.mean(t2['TRACE_MEAN']))
-        datarow('trace median', statistics.mean(t1['TRACE_MEDIAN']), statistics.mean(t2['TRACE_MEDIAN']))
-        datarow('trace min', min(t1['TRACE_MIN']), min(t2['TRACE_MIN']))
-        datarow('trace max', max(t1['TRACE_MAX']), max(t2['TRACE_MAX']))
+        datarow('init', statistics.mean(t1['INIT']), statistics.mean(t2['INIT']))
+        datarow('trace', statistics.mean(t1['TRACE']), statistics.mean(t2['TRACE']))
         datarow('finally', statistics.mean(t1['FINALLY']), statistics.mean(t2['FINALLY']))
         hline()
 
@@ -381,12 +237,14 @@ def parse_args(argv):
     parser.add_argument('-s', '--srcdir', required=(not reporoot), default=reporoot,
                         help=('Source dir (required since reporoot not found)' if not reporoot
                               else 'Source dir (default: McCode repo root)'))
+    parser.add_argument('--label', default='commit-speed-diff',
+                        help="Name for the mctest/mxtest --testdir directory (default: 'commit-speed-diff')")
     parser.add_argument('--repeats', type=int, default=3,
-                        help='Number of timed runs per instrument per ref (default: 3)')
+                        help='Number of times to repeat the mctest run per ref (default: 3)')
     parser.add_argument('--ncount', default='1e6', help='ncount for the timed runs (default: 1e6)')
     parser.add_argument('--seed', default='1000', help='seed for the timed runs (default: 1000)')
     parser.add_argument('--timeout', type=int, default=3600,
-                        help='Max seconds per build/compile/run subprocess (default: 3600)')
+                        help='Max seconds per build/mctest subprocess (default: 3600)')
     parser.add_argument('--workdir', default=None,
                         help='Where to put checkouts/env files (default: temporary directory)')
     parser.add_argument('--conda-exe', default='conda',
@@ -420,6 +278,7 @@ def create_cfg(args):
         fresh_env = args.fresh_env
         comp = args.comp
         instr = args.instr
+        label = args.label
         repeats = args.repeats
         ncount = args.ncount
         seed = args.seed
@@ -445,13 +304,15 @@ def main():
 
         envs, worktrees = [], []
         try:
-            env1 = build_ref(sha1, reporoot, cfg, worktrees, envs)
-            env2 = build_ref(sha2, reporoot, cfg, worktrees, envs)
+            results = {}
+            # build then measure one ref at a time, so in the (default) active-env
+            # mode each ref is measured against its own build, not whichever ref
+            # was built most recently
+            for ref, sha in ((args.ref1, sha1), (args.ref2, sha2)):
+                envname = build_ref(sha, reporoot, cfg, worktrees, envs)
+                results[sha] = measure_ref(cfg, envname, sha)
 
-            results1 = measure_instruments(sha1, env1, cfg)
-            results2 = measure_instruments(sha2, env2, cfg)
-
-            print_report(args.ref1, sha1, results1, args.ref2, sha2, results2)
+            print_report(args.ref1, sha1, results[sha1], args.ref2, sha2, results[sha2])
         finally:
             if not args.keep_envs and cfg.fresh_env:
                 for envname in envs:
