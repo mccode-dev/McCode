@@ -2210,7 +2210,8 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
 int Monitor_nD_MeshIntersect(gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t1, int* face)
 {
   gmesh_hit hits[GMESH_MAX_HITS];
-  int nhits = gmesh_intersect(mesh, position, velocity, 0, hits);
+  double t_min = 0;
+  int nhits = gmesh_intersect(mesh, position, velocity, t_min, hits);
   int inside = 0;
   if (!nhits)
     return 0;

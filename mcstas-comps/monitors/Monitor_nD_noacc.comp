@@ -281,7 +281,7 @@ DECLARE
   Monitornd_noaccDefines_type DEFS;
   Monitornd_noaccVariables_type Vars;
   MCDETECTOR detector;
-  gmesh_struct offdata;
+  gmesh_struct mesh;
 %}
 
 INITIALIZE
@@ -452,7 +452,7 @@ INITIALIZE
     fprintf (stderr, "Error: You are attempting to use an OFF geometry without -DUSE_OFF. You will need to recompile with that define set!\n");
     exit (-1);
     #else
-    if (!gmesh_init_fit (geometry, xwidth, yheight, zdepth, 0, GMESH_PROPS_IGNORE, &offdata)) {
+    if (!gmesh_init_fit (geometry, xwidth, yheight, zdepth, 0, GMESH_PROPS_IGNORE, &mesh)) {
       printf ("Monitor_nD: %s could not initiate the OFF geometry %s. \n"
               "            Defaulting to normal Monitor dimensions.\n",
               NAME_CURRENT_COMP, geometry);
@@ -508,7 +508,7 @@ TRACE
   int intersect = 0;
   char Flag_Restore = 0;
 
-  #define thread_offdata offdata
+  #define thread_mesh mesh
 
   /* this is done automatically
     STORE_NEUTRON(INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
@@ -516,7 +516,7 @@ TRACE
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
     /* determine intersections with object */
     int face = 0;
-    intersect = Monitor_nd_noaccMeshIntersect (&thread_offdata, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &face);
+    intersect = Monitor_nd_noaccMeshIntersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &face);
     if (Vars.Flag_mantid) {
       if (intersect) {
         Vars.OFF_polyidx = face;
@@ -695,9 +695,9 @@ FINALLY
 MCDISPLAY
 %{
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
-    gmesh_display (&offdata);
+    gmesh_display (&mesh);
     if (Vars.Flag_mantid && mcdotrace != 2)
-      Monitor_nd_noaccMeshMantid (&offdata, (long)Vars.Coord_Min[Vars.Coord_Number - 1]);
+      Monitor_nd_noaccMeshMantid (&mesh, (long)Vars.Coord_Min[Vars.Coord_Number - 1]);
   } else {
     Monitor_nd_noaccMcDisplay (&DEFS, &Vars);
   }
