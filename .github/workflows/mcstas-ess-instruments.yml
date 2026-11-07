@@ -115,6 +115,16 @@ jobs:
           python -m pip install --no-deps "$CITOOL"
           mcstas-ess-instr-citool -a runci -o $PWD/out $PWD/repo
 
+      # runci runs mctest with --noplots: make the 01_overview.pdf of each test
+      # output as mctest does (linked from the mcviewtest table)
+      - name: PDF overview plots
+        if: always() && steps.runci.outcome != 'skipped'
+        run: |
+          for d in out/tests/*/*/[0-9]*/; do
+            [ -f "${d}mccode.sim" ] || [ -f "${d}mccode.dat" ] || continue
+            mcplot-matplotlib "$d" --format=pdf --output "${d}01_overview.pdf" || echo "::warning::no PDF plot of $d"
+          done
+
       # One column of the nightly site per instrument (also when a step failed)
       - name: Collect the results
         if: always() && steps.clone.outputs.cloned == 'true'
