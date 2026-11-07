@@ -24,7 +24,7 @@ Based on a Laue tutorial written by K. Nielsen, Feb 7, 2000.
 
 ## Examples
 
-
+- **Test: Detector: psd_tof_monitor_I=0.173301**
 
 ## Input parameters
 

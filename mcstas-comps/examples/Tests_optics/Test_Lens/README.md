@@ -2,7 +2,7 @@
 
 *McStas: Demonstrate focusing effect of refractive lenses
 
-%Example: lambda=10 position_PSD=8.2 Detector: Last_PSD_I=2.6829e-19*
+%Test: lambda=10 position_PSD=8.2 Detector: Last_PSD_I=2.6829e-19*
 
 ## Identification
 

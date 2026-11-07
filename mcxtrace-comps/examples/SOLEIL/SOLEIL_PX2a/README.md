@@ -33,7 +33,7 @@ monochromator, a sample stage and a detector.
 
 ## Examples
 
-- **Test: PX2a_E0=12.65 sample="Mo.lau" PX2a_SPLITs=1500 PX2a_sample_monitor_I=1.53453e+20**
+- **Test: PX2a_E0=12.65 PX2a_sample="Mo.lau" splits=1500 Detector: PX2a_sample_monitor_I=3.7789e+20**
 
 ## Input parameters
 
@@ -44,7 +44,7 @@ Parameters in **boldface** are required; the others are optional.
 | PX2a_E0 | keV | Energy selected at the Undulator. | 12.65 |
 | PX2a_hfm_radius | m | horizontally focusing mirror radius | 495 |
 | PX2a_vfm_radius | m | vertically focusing mirror radius | 859 |
-| PX2a_mirror_grazing_angle | deg | Tilt angle of the mirrors. | 4e-3 |
+| PX2a_mirror_grazing_angle | rad | Tilt angle of the mirrors (4 mrad). | 4e-3 |
 | PX2a_sample | str | Sample structure file, LAU/CIF format. | "adrenaline.lau" |
 | PX2a_rotX | deg | Sample rotation around X | 0 |
 | PX2a_rotY | deg | Sample rotation around Y | 0 |
