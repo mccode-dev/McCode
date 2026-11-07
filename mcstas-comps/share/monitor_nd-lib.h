@@ -23,8 +23,6 @@
 *
 *******************************************************************************/
 
-%include "geometry-mesh-lib"
-
 #ifndef MONITOR_ND_LIB_H
 
 #define MONITOR_ND_LIB_H "$Revision$"
@@ -220,10 +218,6 @@ void Monitor_nD_EnsureCapacity(MonitornD_Defines_type *, MonitornD_Variables_typ
 MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *, MonitornD_Variables_type *);
 void Monitor_nD_Finally(MonitornD_Defines_type *, MonitornD_Variables_type *);
 void Monitor_nD_McDisplay(MonitornD_Defines_type *, MonitornD_Variables_type *);
-#pragma acc routine seq
-int Monitor_nD_MeshIntersect(gmesh_struct*, Coords, Coords, double*, double*, int*);
-void Monitor_nD_MeshMantid(gmesh_struct*, long);
-void Monitor_nD_CheckMantidMesh(gmesh_struct*, int, char*);
 
 #endif
 
