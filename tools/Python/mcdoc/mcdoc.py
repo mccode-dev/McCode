@@ -2057,8 +2057,8 @@ def main(args):
             if len(results) == 1:
                 f = results[0]
 
-                instr = re.search(r'[\w0-9]+\.instr', args.searchterm)
-                comp = re.search(r'[\w0-9]+\.comp', args.searchterm)
+                instr = re.search(r'\w+\.instr', args.searchterm)
+                comp = re.search(r'\w+\.comp', args.searchterm)
 
                 docdir = mccode_config.directories["docdir"]
 

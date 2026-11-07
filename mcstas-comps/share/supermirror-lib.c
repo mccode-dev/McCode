@@ -474,7 +474,7 @@ void sm_print_state(char*subheader, SimState*state, Supermirror*sm, double ws_ta
 		printf("%s t,p,v:|v|,s3-dot-fa:s:s2 = %6f,(%6f,%6f,%6f),(%6f,%6f,%6f):%6f,(%6f,%6f,%6f)dot(%6f,%6f,%6f):%6f:(%6f,%6f)\n", supermirror_flat_s_prefix,
 				state->t, state->p.x, state->p.y, state->p.z, state->v.x, state->v.y, state->v.z, coords_len(state->v), 
 				state->s.x, state->s.y, state->s.z, ((sm->co).fa).x, ((sm->co).fa).y, ((sm->co).fa).z, 
-				coords_sp((sm->co).fa, state->s), (1+coords_sp((sm->co).fa, state->s))/2, (1-coords_sp((sm->co).fa, state->s))/2);
+				coords_sp((sm->co).fa, state->s), (1.0+coords_sp((sm->co).fa, state->s))/2.0, (1.0-coords_sp((sm->co).fa, state->s))/2.0);
 	supermirror_flat_dec_prefix(&supermirror_flat_i_prefix, supermirror_flat_s_prefix);
 
 	printf("%s intersect parameters\n", supermirror_flat_s_prefix);

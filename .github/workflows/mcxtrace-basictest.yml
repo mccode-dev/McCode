@@ -4,7 +4,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: '55 23 * * 0'  # 23:55 every Sunday
+    - cron: '55 19 * * 0'  # 19:55 every Sunday
 
   workflow_dispatch:
     inputs:
@@ -23,6 +23,9 @@ env:
   NOPLOTS: ${{ inputs.plots && '' || '--noplots' }}
   NVHPC_VERSION: '26.9'
 
+permissions:
+  contents: read
+
 jobs:
   # Decides once per run whether the instrument simulations in build and
   # freebsd are needed: only when the code generator, the runtime,
@@ -33,6 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.sims.outputs.run }}
+      libs: ${{ steps.sims.outputs.libs }}
+      full: ${{ steps.sims.outputs.full }}
       diffbase: ${{ steps.sims.outputs.diffbase }}
     steps:
     - name: Checkout
@@ -76,22 +81,39 @@ jobs:
            if [ "${{ github.event_name }}" != "push" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
              echo "${{ github.event_name }} run - simulating everything"
              echo "run=true" >> "$GITHUB_OUTPUT"
+             echo "libs=true" >> "$GITHUB_OUTPUT"
              exit 0
            fi
            PY=$(command -v python3 || command -v python)
            # Changed files (doc-header-only .comp/.instr edits left out, see
            # devel/bin/mccode-git-diff-code) plus deleted files
            CHANGED=$(${PY} devel/bin/mccode-git-diff-code "$DIFFBASE" HEAD && git diff --name-only --diff-filter=D "$DIFFBASE" HEAD)
-           RELEVANT=$(echo "$CHANGED" | grep -E '^((mccode|common|tools/Python/(mcrun|mccodelib|mctest)|mcxtrace-comps)/|\.github/workflows/mcxtrace-basictest\.yml$)' || true)
+           # mccode/doc and mccode.md.in are documentation only
+           RELEVANT=$(echo "$CHANGED" | grep -vE '^mccode/(doc/|mccode\.md\.in$)' | grep -E '^((mccode|common|tools/Python/(mcrun|mccodelib|mctest)|mcxtrace-comps)/|\.github/workflows/mcxtrace-basictest\.yml$)' || true)
            echo "Simulation-relevant changes: ${RELEVANT:-none}"
            if [ -n "$RELEVANT" ]; then
              echo "run=true" >> "$GITHUB_OUTPUT"
            else
              echo "run=false" >> "$GITHUB_OUTPUT"
            fi
+           # Library sources (.c, .h, .h.in) only: run the libtest instruments
+           LIBS=$(echo "$CHANGED" | grep -E '^(mcxtrace-comps/share|mccode/xlib/share)/[^/]+\.[ch](\.in)?$' || true)
+           echo "Library changes: ${LIBS:-none}"
+           if [ -n "$LIBS" ]; then
+             echo "libs=true" >> "$GITHUB_OUTPUT"
+           else
+             echo "libs=false" >> "$GITHUB_OUTPUT"
+           fi
+           # Code generator or runtime changed: every instrument that generated
+           # code can touch needs testing, not just the users of a changed
+           # .comp/.instr (see the instr-test step). Shared library sources
+           # are covered by the libtest instruments instead.
+           CODE=$(echo "$RELEVANT" | grep -E '^(mccode/src/|common/)' || true)
+           if [ -n "$CODE" ]; then echo "full=true" >> "$GITHUB_OUTPUT"; else echo "full=false" >> "$GITHUB_OUTPUT"; fi
 
   build:
     needs: changes
+    if: needs.changes.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -133,6 +155,16 @@ jobs:
         # actual merge-base with main / the pre-push SHA, rather than just
         # the single most recent commit - see that step for why.
         fetch-depth: 0
+
+    # Azure-hosted Ubuntu mirror reported slow; use the main archive for apt.
+    # Unverified: compare run times before keeping.
+    - name: Bypass slow Azure Ubuntu mirror
+      if: matrix.method == 'debian' || matrix.openacc
+      run: |
+           sudo grep -rl 'azure.archive.ubuntu.com' \
+             /etc/apt/sources.list /etc/apt/sources.list.d \
+             --include='*.list' --include='*.sources' 2>/dev/null |
+             xargs -r sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g'
 
     # nvhpc (~5 GB download, ~15 GB installed) installs in the background
     # while the conda env and code generator (conda compilers) are built
@@ -522,6 +554,27 @@ jobs:
               false
            fi
 
+    - name: Launch library tests
+      id: libtests
+      if: needs.changes.outputs.run == 'true' && needs.changes.outputs.libs == 'true' && !matrix.openacc
+      run: |
+           set -e
+           set -u
+           set -x
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             export SUFFIX=".bat"
+             export EXESUFFIX=".exe"
+           else
+            export SUFFIX=""
+            export EXESUFFIX=""
+           fi
+           test -n "$(command -v mcxtrace${EXESUFFIX})"
+           # one instrument per library, see mcxtrace-comps/examples/libtest
+           for instr in $(ls src/mcxtrace-comps/examples/libtest); do
+             mxtest${SUFFIX} --verbose ${NOPLOTS} --instr=$instr --testdir=run_libtest --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
+           done
+
     - name: Launch Basic tests
       id: basictests
       if: needs.changes.outputs.run == 'true'
@@ -543,6 +596,28 @@ jobs:
            then
              mxtest${SUFFIX} --verbose ${NOPLOTS} --mpi=${{ matrix.nmpi }} ${MCTEST_OACC} ${MCTEST_JOBS} --instr=JJ_SAXS,ESRF_BM29,Test_MCPL_input,Test_MCPL_output,Test_Absorption --testdir=run_basictests --suffix=${{ matrix.cogen }}_${{ matrix.method }}_${{ matrix.CC || 'default' }}_${{ matrix.mpi }} --uid=${MYWORKERID}
            fi
+
+    - name: Timing record test (mccode.sim and NeXus)
+      id: timingtest
+      if: needs.changes.outputs.run == 'true'
+      run: |
+           set -e
+           set -u
+           set -x
+           if [ "$RUNNER_OS" == "Windows" ];
+           then
+             export SUFFIX=".bat"
+           else
+            export SUFFIX=""
+           fi
+           PY=$(command -v python3 || command -v python)
+           # two %Test lines: McCode and NeXus output, both must match the monitor value
+           mxtest${SUFFIX} --verbose ${NOPLOTS} --instr=Test_Timing_record --testdir=run_timing --suffix=${{ matrix.cogen }}_${{ matrix.method }} --uid=${MYWORKERID}
+           # probe the timing block in every mccode.sim produced by the test
+           ${PY} -c "import glob,sys; fs=glob.glob('run_timing/**/mccode.sim', recursive=True); assert fs, 'no mccode.sim'; t=open(fs[0]).read(); assert 'begin timing' in t and 'end timing' in t, 'no timing block'; print(t[t.index('begin timing'):t.index('end timing')])"
+           ${PY} -m pip install h5py || ${PY} -m pip install h5py --break-system-packages
+           # probe the timing datasets in the NeXus entry
+           ${PY} -c "import glob,h5py; f=h5py.File(glob.glob('run_timing/**/mccode.h5', recursive=True)[0], 'r'); e=f[sorted(k for k in f if k.startswith('entry'))[0]]; v={k:e[k][()] for k in ['timing_init','timing_trace','timing_finally']}; print(v)"
 
     - name: Direct binary run without $MCXTRACE (compiled-in resource dir, issue #2759)
       id: direct-binary-resourcedir
@@ -651,6 +726,10 @@ jobs:
            if [ "${#SCOPE}" -gt "6000" ]; then
              # Keep within the Windows .bat command-line limit: test everything
              echo "Very many changes - testing all instruments"
+             SCOPE=" "
+           fi
+           if [ "${{ needs.changes.outputs.full }}" == "true" ]; then
+             echo "C runtime / generated-code change - testing all instruments"
              SCOPE=" "
            fi
            if [ -n "$SCOPE" ]; then

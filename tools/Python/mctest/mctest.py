@@ -116,7 +116,7 @@ def create_instr_test_objs(sourcefile, localfile, header, noscans=False):
     tests = []
     # the target may be followed by its error bar, as in the simulation's own output:
     #   Detector: NAME_I=2.00752e+08 NAME_ERR=2.28872e+06 NAME_N=50752 "NAME.L_U1"
-    for m in re.findall(r"\%(?:Example|Test):([^\n]*)Detector\:([^\n]*)_I=([0-9.+-e]+)([^\n]*)", header):
+    for m in re.findall(r"\%(?:Example|Test):([^\n]*)Detector\:([^\n]*)_I=([0-9.+\-eE]+)([^\n]*)", header):
         parvals, ncount = split_test_line(m[0])
         detector = m[1].strip()
         err = re.search(r"%s_ERR=([0-9.+-eE]+)" % re.escape(detector), m[3])
@@ -297,7 +297,7 @@ def extract_testvals(datafolder, monitorname):
             l = fp.readline()
             if not l:
                 break
-            m = re.match(r"# values: ([0-9+-e.]+) ([0-9+-e.]+) ([0-9]+)", l)
+            m = re.match(r"# values: ([0-9+\-e.]+) ([0-9+\-e.]+) ([0-9]+)", l)
             if m :
                 I = float(m.group(1))
                 I_err = float(m.group(2))
@@ -431,7 +431,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     anyfailed=False
 
     # compile, record time
-    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots, jobs
+    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, jobs
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
@@ -751,10 +751,12 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                 retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
                 plot1 = retcode[0] == 0 and not retcode[1]
                 # Interactive html plots
-                htmlplotter = mccode_config.configuration["MCPLOT"].split('-')[0] + "-html"
-                cmd = htmlplotter + " %d/ --nobrowse --output %d/02_plots.html" %  (test.testnb, test.testnb)
-                retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
-                plot2 = retcode[0] == 0 and not retcode[1]
+                plot2 = True
+                if not nohtml:
+                    htmlplotter = mccode_config.configuration["MCPLOT"].split('-')[0] + "-html"
+                    cmd = htmlplotter + " %d/ --nobrowse --output %d/02_plots.html" %  (test.testnb, test.testnb)
+                    retcode = utils.run_subtool_noread(cmd, cwd=join(testdir, test.instrname),timeout=runmax)
+                    plot2 = retcode[0] == 0 and not retcode[1]
                 if plot1 and plot2:
                     logging.info(" - Test %d plots generated OK" % test.testnb)
                 elif plot1:
@@ -797,6 +799,9 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     metainfo = OrderedDict()
     metainfo["ncount"] = ncount
     metainfo["mpi"] = mpi
+    if not noplots:
+        logging.info("Moved %d copies of shared js libraries to a single _lib/" % utils.dedupe_shared_js(testdir))
+
     metainfo["date"] = utils.get_datetimestr()
     metainfo["hostname"] = hostnamestr
     metainfo["user"] = username
@@ -996,6 +1001,7 @@ mpi = None
 openacc = None
 jobs = 1
 suffix = None
+MAX_FILTER_SUFFIX = 100
 nexus = None
 lint = None
 permissive = None
@@ -1004,6 +1010,7 @@ runmax = None
 compilemax = None
 displaymax = None
 noplots = None
+nohtml = None
 noscans = None
 nsigma = None
 statfactor = 1
@@ -1064,7 +1071,7 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, noscans, nsigma, statfactor, jobs
+    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, noscans, nsigma, statfactor, jobs
     ncount = "1e6"
     no_mpi = False
     if args.ncount:
@@ -1120,6 +1127,10 @@ def main(args):
             suffix = suffix + '_' + args.suffix[0]
         else:
             suffix = '_' + args.suffix[0]
+    elif len(suffix) > MAX_FILTER_SUFFIX:
+        # the label is also a directory and file name, limited to 255 characters
+        logging.warning("Test directory name truncated to the first %d characters of the --instr/--comp filters, use --suffix to set your own" % MAX_FILTER_SUFFIX)
+        suffix = suffix[:MAX_FILTER_SUFFIX]
 
     if not args.uid:
         uid = "_" + utils.get_datetimestr()
@@ -1197,6 +1208,7 @@ def main(args):
         logging.info("Strict mode, tool will report failure for instruments without %Test")
 
     noplots = args.noplots
+    nohtml = args.nohtml
     noscans = args.noscans
     if args.nsigma is not None and args.pvalue is not None:
         logging.error("ERROR: --nsigma and --pvalue are two ways to give the same threshold, use one of them!")
@@ -1213,6 +1225,8 @@ def main(args):
         logging.info("%Scan tests are skipped")
     if noplots:
         logging.info("No plots of the test output will be generated")
+    elif nohtml:
+        logging.info("Only the 01_overview.pdf plots of the test output will be generated, no 02_plots.html")
 
     if not configfilter:
         run_default_test(testdir, mccoderoot, limit, instrfilter, compfilter, suffix)
@@ -1247,6 +1261,7 @@ if __name__ == '__main__':
     parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional. Can not be combined with --strict.')
     parser.add_argument('--strict', action='store_true', help='Let instruments without %%Test line(s) instantly fail. Can not be combined with --permissive.')
     parser.add_argument('--noplots', action='store_true', help='Do not generate plots (01_overview.pdf and 02_plots.html) of the test output. Useful e.g. in CI, where the plots are not looked at, and can take long for instruments with many monitors.')
+    parser.add_argument('--nohtml', action='store_true', help='Generate only the compact 01_overview.pdf plots, not the interactive 02_plots.html (which embed all monitor data).')
     parser.add_argument('--nsigma', type=float, help='Accept a test value (each point for %%Scan tests) within NSIGMA x the combined error bar sqrt(ERR_test^2 + ERR_target^2), if the target line gives NAME_ERR. Targets without NAME_ERR are assumed to have the test run\'s ERR, and are also accepted within 20%%. Error bars from fewer than 100 effective events, (I/ERR)^2, are not used: the 20%% rule applies.')
     parser.add_argument('--statfactor', type=float, help='Scale the ncount of every test (and pr. scan point) by this factor, e.g. 0.01 for quick runs or 100 for reference-quality ones. With --nsigma/--pvalue a target without NAME_ERR is assumed to come from the unscaled ncount, i.e. the combined error bar is sqrt(1 + STATFACTOR) x ERR_test.')
     parser.add_argument('--pvalue', type=float, help='As --nsigma, but given as a two-sided Gaussian p-value, e.g. --pvalue 0.0027 for --nsigma 3, or 5.7e-7 for 5')

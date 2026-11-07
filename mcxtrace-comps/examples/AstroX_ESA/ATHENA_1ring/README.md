@@ -32,7 +32,7 @@ Example: ATHENA_1ring.instr shellnumber=3
 
 ## Examples
 
-
+- **Test: shellnumber=3 Detector: focal_detector_I=0.666819**
 
 ## Input parameters
 
