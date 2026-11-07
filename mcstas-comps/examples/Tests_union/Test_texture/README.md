@@ -13,13 +13,11 @@
 
 ```text
 Simple test instrument for texture sample component.
-
-Example: lmax=0 Detector: monitor_I=8.08899e-05
 ```
 
 ## Examples
 
-
+- **Test: lmax=0 -n1e5 Detector: monitor_I=8.08899e-05**
 
 ## Input parameters
 

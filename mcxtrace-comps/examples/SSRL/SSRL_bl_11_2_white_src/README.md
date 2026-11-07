@@ -24,7 +24,7 @@ You may scan like so for example:
 
 - **TestScan: mxrun SSRL_bl_11_2_white_src.instr -N31 Etohit=6900,7500 detuning_percentage=40 -n1e7 Detector: EnergyMonitor_first_I={31 values}**
 - 
-- **Test: Etohit=6900 Detector: EnergyMonitor_first_I=4.24366e+07**
+- **Test: Etohit=6900 Detector: EnergyMonitor_first_I=3.74674e+09**
 
 ## Input parameters
 
