@@ -35,7 +35,7 @@ Position | Element
 
 ## Examples
 
-- **Test: SWING_E0=13 Detector: SWING_Eiger4M_I=128310**
+- **Test: SWING_E0=13 Detector: SWING_Eiger4M_I=1.5393e+12**
 
 ## Input parameters
 
@@ -48,7 +48,7 @@ Parameters in **boldface** are required; the others are optional.
 | SWING_dcm_theta | deg | Rotation angle of the DCM. 0=set from energy SWING_E0 | 0 |
 | SWING_hfm_radius | m | Horizontally focusing mirror radius. | 495 |
 | SWING_vfm_radius | m | Vertically focusing mirror radius. | 859 |
-| SWING_mirror_grazing_angle | deg | Tilt angle of the mirrors. | 4e-3 |
+| SWING_mirror_grazing_angle | rad | Tilt angle of the mirrors (4 mrad). | 4e-3 |
 | SWING_sample | str | Sample given as a PDB file, or NULL for a 100A dilute Sphere model. | "6lyz.pdb" |
 | SWING_sample_det | m | Sample to detector distance in m. | 2 |
 | splits |  |  | 10 |

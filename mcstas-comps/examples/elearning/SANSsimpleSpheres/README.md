@@ -20,7 +20,7 @@ Example: mcrun SANSsimple.instr  Lambda=10 DLambda=0
 
 ## Examples
 
-
+- **Test: Detector: PSD_I=0.834692**
 
 ## Input parameters
 

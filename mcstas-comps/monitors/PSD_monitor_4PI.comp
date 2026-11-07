@@ -86,12 +86,16 @@ TRACE
 
     /* Map to nx * [0 1] interval */
     i = floor (nx * 0.5*(theta / PI+1));
+    if (i >= nx)
+      i = nx - 1; /* theta == PI */
 
     /* Measure latitude via asin(elevation/radius). Returned values will be in [-PI/2 PI/2] */
-    phi = asin (y / radius);
+    phi = asin (fmin (1, fmax (-1, y / radius))); /* y can exceed radius by rounding */
 
     /* Map to ny * [0 1] interval */
     j = floor (ny * (phi + PI / 2) / PI);
+    if (j >= ny)
+      j = ny - 1; /* phi == PI/2 */
 
     double p2 = p * p;
     #pragma acc atomic
