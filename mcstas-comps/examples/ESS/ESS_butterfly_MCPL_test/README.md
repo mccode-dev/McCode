@@ -18,7 +18,7 @@ The below example gives a 50-50 (statistics-wise) cold/thermal beam at beamline 
 https://public.esss.dk/users/willend/MCPL/S2.mcpl.gz
 Example: sector=S beamline=2 Detector: Monitor2_xy1_I=1.59e+11
 and a 'preconditioned' version of this the file from https://public.esss.dk/users/willend/MCPL/S2_filtered.mcpl.gz
-(This file is fetched via a curl command at code-generation time)
+(This file is fetched at code-generation time by fetch_mcpl.py, only if not already cached)
 Example: sector=S beamline=2 filter=1 Detector: Monitor2_xy1_I=1.59e+11
 ```
 

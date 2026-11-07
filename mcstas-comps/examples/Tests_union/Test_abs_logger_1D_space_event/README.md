@@ -12,7 +12,10 @@
 ## Description
 
 ```text
+No example value as the produced file contains events.
 
+Includes conditional component to test record_to_temp functionality
+of investigated abs_logger.
 ```
 
 ## Examples

@@ -45,7 +45,7 @@ Example: ATHENA_1pore.instr porenumber=3
 
 ## Examples
 
-
+- **Test: porenumber=3 Detector: detector_post_optics_I=0.062119**
 
 ## Input parameters
 

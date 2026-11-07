@@ -34,7 +34,7 @@ Position | Element
 
 ## Examples
 
-- **Test: SAMBA_E0=15 Detector: SAMBA_det_fluo_I=5.69e+10**
+- **Test: SAMBA_E0=15 Detector: SAMBA_det_fluo_I=3.4637e+12**
 
 ## Input parameters
 

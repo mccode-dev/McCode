@@ -1067,6 +1067,35 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 /* return values: 0=neutron was absorbed, -1=neutron was outside bounds, 1=neutron was measured*/
 /* ========================================================================= */
 
+/* Host only, never called from OpenACC device code: make room in the list
+   buffer before a particle is stored. Components that run on the CPU call
+   this before Monitor_nD_Trace (in a non-OpenACC build, and Monitor_nD_noacc
+   always). Device builds keep the fixed-size buffer. */
+void Monitor_nD_EnsureCapacity(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars)
+{
+  if ((Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List >= 2))
+  {
+    if (Vars->Buffer_Size >= 1000000 || Vars->Flag_List == 3)
+    { /* save current (possibly append) and re-use Buffer */
+      Monitor_nD_Save(DEFS, Vars);
+      Vars->Flag_List = 3;
+      Vars->Buffer_Block = Vars->Buffer_Size;
+      Vars->Buffer_Counter  = 0;
+      Vars->Neutron_Counter = 0;
+    }
+    else
+    {
+      Vars->Mon2D_Buffer  = (double *)realloc(Vars->Mon2D_Buffer, (Vars->Coord_Number+1)*(2*Vars->Buffer_Block)*sizeof(double));
+      if (Vars->Mon2D_Buffer == NULL)
+            { printf("Monitor_nD: %s cannot reallocate Vars->Mon2D_Buffer (%zi). Skipping.\n", Vars->compcurname, (size_t)(2*Vars->Buffer_Block)*sizeof(double)); Vars->Flag_List = 1; }
+      else {
+          Vars->Buffer_Block = 2*Vars->Buffer_Block;
+          Vars->Buffer_Size = Vars->Buffer_Block;
+      }
+    }
+  }
+}
+
 int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle* _particle)
 {
 
@@ -1107,32 +1136,6 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
     }
     Vars->Flag_Auto_Limits = 2;  /* pass to 2nd auto limits step (read Buffer and generate new events to store in histograms) */
   } /* end if Flag_Auto_Limits == 1 */
-
-#ifndef OPENACC
-  /* manage realloc for 'list all' if Buffer size exceeded: flush Buffer to file */
-  if ((Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List >= 2))
-  {
-    if (Vars->Buffer_Size >= 1000000 || Vars->Flag_List == 3)
-    { /* save current (possibly append) and re-use Buffer */
-
-      Monitor_nD_Save(DEFS, Vars);
-      Vars->Flag_List = 3;
-      Vars->Buffer_Block = Vars->Buffer_Size;
-      Vars->Buffer_Counter  = 0;
-      Vars->Neutron_Counter = 0;
-    }
-    else
-    {
-      Vars->Mon2D_Buffer  = (double *)realloc(Vars->Mon2D_Buffer, (Vars->Coord_Number+1)*(2*Vars->Buffer_Block)*sizeof(double));
-      if (Vars->Mon2D_Buffer == NULL)
-            { printf("Monitor_nD: %s cannot reallocate Vars->Mon2D_Buffer[%li] (%zi). Skipping.\n", Vars->compcurname, i, (long int)(2*Vars->Buffer_Block)*sizeof(double)); Vars->Flag_List = 1; }
-      else { 
-		  Vars->Buffer_Block = 2*Vars->Buffer_Block;
-		  Vars->Buffer_Size = Vars->Buffer_Block;
-	  }
-    }
-  } /* end if Buffer realloc */
-#endif
 
   char    outsidebounds=0;
   while (!While_End)

@@ -4,7 +4,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: '30 23 * * 0'  # 23:30 every Sunday
+    - cron: '30 19 * * 0'  # 19:30 every Sunday
 
   workflow_dispatch:
     inputs:
@@ -37,6 +37,7 @@ jobs:
     outputs:
       run: ${{ steps.sims.outputs.run }}
       libs: ${{ steps.sims.outputs.libs }}
+      full: ${{ steps.sims.outputs.full }}
       diffbase: ${{ steps.sims.outputs.diffbase }}
     steps:
     - name: Checkout
@@ -87,7 +88,8 @@ jobs:
            # Changed files (doc-header-only .comp/.instr edits left out, see
            # devel/bin/mccode-git-diff-code) plus deleted files
            CHANGED=$(${PY} devel/bin/mccode-git-diff-code "$DIFFBASE" HEAD && git diff --name-only --diff-filter=D "$DIFFBASE" HEAD)
-           RELEVANT=$(echo "$CHANGED" | grep -E '^((mccode|common|tools/Python/(mcrun|mccodelib|mctest)|mcstas-comps)/|\.github/workflows/mcstas-basictest\.yml$)' || true)
+           # mccode/doc and mccode.md.in are documentation only
+           RELEVANT=$(echo "$CHANGED" | grep -vE '^mccode/(doc/|mccode\.md\.in$)' | grep -E '^((mccode|common|tools/Python/(mcrun|mccodelib|mctest)|mcstas-comps)/|\.github/workflows/mcstas-basictest\.yml$)' || true)
            echo "Simulation-relevant changes: ${RELEVANT:-none}"
            if [ -n "$RELEVANT" ]; then
              echo "run=true" >> "$GITHUB_OUTPUT"
@@ -102,9 +104,16 @@ jobs:
            else
              echo "libs=false" >> "$GITHUB_OUTPUT"
            fi
+           # Code generator or runtime changed: every instrument that generated
+           # code can touch needs testing, not just the users of a changed
+           # .comp/.instr (see the instr-test step). Shared library sources
+           # are covered by the libtest instruments instead.
+           CODE=$(echo "$RELEVANT" | grep -E '^(mccode/src/|common/)' || true)
+           if [ -n "$CODE" ]; then echo "full=true" >> "$GITHUB_OUTPUT"; else echo "full=false" >> "$GITHUB_OUTPUT"; fi
 
   build:
     needs: changes
+    if: needs.changes.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -697,6 +706,10 @@ jobs:
            if [ "${#SCOPE}" -gt "6000" ]; then
              # Keep within the Windows .bat command-line limit: test everything
              echo "Very many changes - testing all instruments"
+             SCOPE=" "
+           fi
+           if [ "${{ needs.changes.outputs.full }}" == "true" ]; then
+             echo "C runtime / generated-code change - testing all instruments"
              SCOPE=" "
            fi
            if [ -n "$SCOPE" ]; then
