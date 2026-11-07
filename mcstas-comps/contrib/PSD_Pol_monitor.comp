@@ -153,11 +153,41 @@ SAVE
     for (int i = 0; i < nx; i++) {
       for (int j = 0; j < ny; j++) {
         if (PSDpsum[i][j] && PSDpol_N[i][j]) {
-          PSDpol_p[i][j] /= PSDpsum[i][j];
-          PSDpol_p2[i][j] /= PSDpsum[i][j];
+          double mean = PSDpol_p[i][j] / PSDpsum[i][j];
+          double variance = PSDpol_p2[i][j] / PSDpsum[i][j] - mean * mean;
+          if (variance < 0)
+            variance = 0;
+
+          PSDpol_p[i][j] = mean;
+          if (PSDpol_N[i][j] > 1) {
+            double error2 = variance / PSDpol_N[i][j];
+            /* DETECTOR_OUT_2D applies the standard McCode error estimator
+               and performs another MPI reduction. Encode the desired error
+               in the form expected by that estimator. */
+            PSDpol_p2[i][j] = mean * mean / (PSDpol_N[i][j] * PSDpol_N[i][j]) + error2 * (PSDpol_N[i][j] - 1) / PSDpol_N[i][j];
+          } else {
+            PSDpol_p2[i][j] = 0;
+          }
+        } else {
+          PSDpol_p[i][j] = 0;
+          PSDpol_p2[i][j] = 0;
         }
       }
     }
+
+    #ifdef USE_MPI
+    /* The output macro reduces these values once more. */
+    if (mpi_node_count > 1) {
+      for (int i = 0; i < nx; i++) {
+        for (int j = 0; j < ny; j++) {
+          PSDpol_N[i][j] /= mpi_node_count;
+          PSDpol_p[i][j] /= mpi_node_count;
+          PSDpol_p2[i][j] /= mpi_node_count;
+        }
+      }
+    }
+    #endif
+
     DETECTOR_OUT_2D ("PSD Pol monitor", "X position [cm]", "Y position [cm]", xmin * 100.0, xmax * 100.0, ymin * 100.0, ymax * 100.0, nx, ny, &PSDpol_N[0][0],
                      &PSDpol_p[0][0], &PSDpol_p2[0][0], filename);
   }
