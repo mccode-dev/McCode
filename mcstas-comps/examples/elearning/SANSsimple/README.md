@@ -19,7 +19,7 @@ Example: mcrun SANSsimple.instr <parameters=values>
 
 ## Examples
 
-
+- **Test: Detector: PSD_I=55.5558**
 
 ## Input parameters
 

@@ -20,7 +20,7 @@ Example: model_scale=1 Detector: detector_I=83.8252
 
 ## Examples
 
-
+- **Test: -n1e7 Detector: detector_I=1.38634e+06**
 
 ## Input parameters
 

@@ -34,6 +34,7 @@ jobs:
     - name: Checkout nightly repo (history)
       uses: actions/checkout@v6
       with:
+        ref: main  # a re-run would otherwise check out the original sha, and fail to push
         path: nightly
 
     - name: Checkout McCode (site scripts)
@@ -69,6 +70,8 @@ jobs:
              mkdir y && tar xzf dl_y/${{ inputs.flavor }}-nightly-site.tgz -C y
              mv y/${{ inputs.flavor }}-nightly _site/yesterday
              mv _site/yesterday/${{ inputs.flavor }}-nightly_output.html _site/yesterday/table.html
+             # table and PDFs only, keeps the site around GitHub's 1 GB Pages limit
+             find _site/yesterday -type f ! -name table.html ! -name '*.pdf' -delete
            else
              echo "No yesterday/ (first night, or the previous run's artifact is gone)"
            fi

@@ -38,7 +38,7 @@ Position (m) |   Element
 
 ## Examples
 
-- **Test: NANO_E0=11 Detector: NANO_e_dcm_out_I=4.09492e+10**
+- **Test: NANO_E0=11 Detector: NANO_e_dcm_out_I=9.8902e+10**
 
 ## Input parameters
 
