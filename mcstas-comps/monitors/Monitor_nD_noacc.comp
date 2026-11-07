@@ -42,8 +42,8 @@
 * The monitored flux may be per monitor unit area, and weighted by
 * a lambda/lambda(2200m/s) factor to obtain standard integrated capture flux.
 * In normal configuration, the Monitor_nD measures the current parameters
-* of the neutron that is beeing detected. USERVARS can
-* be used in order to study correlations between a neutron being detected in
+* of the neutron that is being detected. USERVARS may be used in order
+* to study correlations between a neutron being detected in
 * a Monitor_nD place, and given parameters that are monitored elsewhere
 * (at the point of initialisation of the USERVARS).
 * The monitor can also act as a 3He gas detector, taking into account the
@@ -271,15 +271,15 @@ NOACC
 
 SHARE
 %{
-  %include "monitor_nd_noacc-lib"
+  %include "monitor_nd-lib"
   %include "read_table-lib"
   %include "geometry-mesh-lib"
 %}
 
 DECLARE
 %{
-  Monitornd_noaccDefines_type DEFS;
-  Monitornd_noaccVariables_type Vars;
+  MonitornD_Defines_type DEFS;
+  MonitornD_Variables_type Vars;
   MCDETECTOR detector;
   gmesh_struct mesh;
 %}
@@ -466,7 +466,7 @@ INITIALIZE
   if (!radius && !xwidth && !yheight && !zdepth && !xmin && !xmax && !ymin && !ymax && !strstr (Vars.option, "previous") && (!geometry || !strlen (geometry)))
     exit (printf ("Monitor_nD: %s has no dimension specified. Aborting (radius, xwidth, yheight, zdepth, previous, geometry).\n", NAME_CURRENT_COMP));
 
-  Monitor_nd_noaccInit (&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, offflag, nexus_bins);
+  Monitor_nD_Init (&DEFS, &Vars, xwidth, yheight, zdepth, xmin, xmax, ymin, ymax, zmin, zmax, offflag, nexus_bins);
 
   if (filename && strlen (filename) && strcmp (filename, "NULL") && strcmp (filename, "0"))
     strncpy (Vars.Mon_File, filename, 128);
@@ -516,7 +516,7 @@ TRACE
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
     /* determine intersections with object */
     int face = 0;
-    intersect = Monitor_nd_noaccMeshIntersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &face);
+    intersect = Monitor_nD_MeshIntersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &face);
     if (Vars.Flag_mantid) {
       if (intersect) {
         Vars.OFF_polyidx = face;
@@ -636,7 +636,8 @@ TRACE
       p = p * multiplier_capture / 1.7985;
     }
 
-    pp = Monitor_nd_noaccTrace (&DEFS, &Vars, _particle);
+    Monitor_nD_EnsureCapacity (&DEFS, &Vars);
+    pp = Monitor_nD_Trace (&DEFS, &Vars, _particle);
     if (pp == 0.0) {
       ABSORB;
     } else if (pp == 1) {
@@ -683,14 +684,14 @@ SAVE
   if (!nowritefile) {
 
     /* save results, but do not free pointers */
-    detector = Monitor_nd_noaccSave (&DEFS, &Vars);
+    detector = Monitor_nD_Save (&DEFS, &Vars);
   }
 %}
 
 FINALLY
 %{
   /* free pointers */
-  Monitor_nd_noaccFinally (&DEFS, &Vars);
+  Monitor_nD_Finally (&DEFS, &Vars);
 %}
 
 MCDISPLAY
@@ -698,9 +699,9 @@ MCDISPLAY
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
     gmesh_display (&mesh);
     if (Vars.Flag_mantid && mcdotrace != 2)
-      Monitor_nd_noaccMeshMantid (&mesh, (long)Vars.Coord_Min[Vars.Coord_Number - 1]);
+      Monitor_nD_MeshMantid (&mesh, (long)Vars.Coord_Min[Vars.Coord_Number - 1]);
   } else {
-    Monitor_nd_noaccMcDisplay (&DEFS, &Vars);
+    Monitor_nD_McDisplay (&DEFS, &Vars);
   }
 %}
 
