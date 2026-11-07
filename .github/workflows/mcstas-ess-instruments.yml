@@ -1,0 +1,112 @@
+name: mcstas-ess-instruments
+
+# Runs the ESS instrument repositories that follow the standard layout (as
+# listed by mcstas-ess-instr-citool) through "runci", with McStas built from
+# this McCode checkout instead of the conda-forge release. The environment is the
+# repository's conda.yml without mcstas, plus McCode's own dependencies.
+#
+# Repositories which are not public need the secret DMSC_GITLAB_TOKEN (a
+# GitLab token with read_repository access); otherwise they are skipped.
+on:
+  schedule:
+    - cron: "17 3 * * *" # daily at 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  CITOOL: git+https://github.com/mccode-dev/mcstas-ess-instr-citool
+
+jobs:
+
+  list:
+    name: List the repositories
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.list.outputs.repos }}
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - id: list
+        run: |
+          set -euo pipefail
+          python -m pip install --no-deps "$CITOOL"
+          mcstas-ess-instr-citool -a repos
+          echo "repos=$(mcstas-ess-instr-citool -a repos-json | jq -c 'map(select(.standard_layout))')" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: ${{ matrix.repo.name }}
+    needs: list
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJSON(needs.list.outputs.repos) }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    env:
+      REPO_URL: ${{ matrix.repo.url }}
+      REPO_PUBLIC: ${{ matrix.repo.public }}
+      GITLAB_TOKEN: ${{ secrets.DMSC_GITLAB_TOKEN }}
+    steps:
+      - name: Clone ${{ matrix.repo.url }}
+        id: clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$REPO_URL"
+          if [ "$REPO_PUBLIC" != "true" ]; then
+            if [ -z "$GITLAB_TOKEN" ]; then
+              echo "::notice::Skipping: not public, and DMSC_GITLAB_TOKEN is not set."
+              exit 0
+            fi
+            url="https://oauth2:${GITLAB_TOKEN}@${REPO_URL#https://}"
+          fi
+          git clone --depth 1 "$url.git" repo
+          git -C repo log -1 --format='Testing commit %h (%cd): %s'
+          echo "cloned=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        if: steps.clone.outputs.cloned == 'true'
+        with:
+          path: src
+
+      - name: Merge conda.yml with the McCode dependencies
+        if: steps.clone.outputs.cloned == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Appending to the dependencies list needs it to be last and flat:
+          if grep -qE '^[[:space:]]*-[[:space:]]*pip:' repo/conda.yml; then
+            echo "::error::pip: section in conda.yml is not supported here"; exit 1
+          fi
+          { sed -E '/^[[:space:]]*-[[:space:]]*mcstas[[:space:]]*([<>=!].*)?$/d' repo/conda.yml
+            ./src/devel/bin/mccode-create-conda-yml -m mcstas | sed '1,/^dependencies:/d'
+          } > env.yml
+          cat env.yml
+
+      - uses: mamba-org/setup-micromamba@v3
+        if: steps.clone.outputs.cloned == 'true'
+        with:
+          environment-file: env.yml
+          environment-name: instrument
+
+      - name: Build and install McCode
+        if: steps.clone.outputs.cloned == 'true'
+        run: |
+          ./src/devel/bin/mccode-build-conda -m mcstas -s $PWD/src -b $PWD/build_mcstas
+          git -C src log -1 --format='McCode at %h (%cd): %s'
+          mcstas --version
+
+      - name: Run the tests (runci)
+        if: steps.clone.outputs.cloned == 'true'
+        run: |
+          python -m pip install --no-deps "$CITOOL"
+          mcstas-ess-instr-citool -a runci repo
