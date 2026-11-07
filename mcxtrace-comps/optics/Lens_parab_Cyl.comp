@@ -10,7 +10,7 @@
 * %Identification
 * Written by: Jana Baltser and Erik Knudsen
 * Date: April 2011
-* Version: 1.0
+* Version: 1.1
 * Release: McXtrace 0.1
 * Origin: NBI
 *
@@ -19,11 +19,12 @@
 * %Description
 * An X-ray compound refractive lens (CRL) with a parabolic cylinder profile focusing in 1D, i.e. onto a line
 * 
-* The lens is invariant along the x-axis and has a parabolic profile along the y-axis defined as z/c = y^2/b^2.
+* The lens is invariant along the x-axis and has a parabolic profile along the y-axis defined as z = y^2/(2r).
 * Thus, i.e. it focuses onto a line along the x-axis.
 * N>1 means that a stack of lenses is to be simulated. Each lens consists of a pair of two opposing parabolic surfaces
 * with a distance d between them. The reference point of the component is at the bottom of the first parabolic
 * surface.
+* Photons that miss the aperture of any surface (or undergo total external reflection) are absorbed.
 *
 * Example: Lens_parab_Cyl(r=.5e-3,yheight=1.3e-3,xwidth=1.3e-3,d=.1e-3,N=21,
 *     material_datafile="Be.txt")
@@ -35,8 +36,6 @@
 * xwidth:   [m] The width of the CRL in the invariant direction x.
 * d:        [m] Distance between two surfaces of the lens along the propagation axis.
 * N:        [1] Number of single lenses in a stack.
-* rough_xy: [rad] RMS value of random slope along x and y.
-* rough_z:  [rad] RMS value of random slope along z.
 * material_datafile: [str]   Datafile containing f1 constants
 *
 * %End
@@ -44,7 +43,7 @@
 
 DEFINE COMPONENT Lens_parab_Cyl
 
-SETTING PARAMETERS (string material_datafile="Be.txt",r=.5e-3,yheight=1.2e-3,xwidth=1.2e-3,d=.1e-3, int N=1, rough_z=0, rough_xy=0)
+SETTING PARAMETERS (string material_datafile="Be.txt",r=.5e-3,yheight=1.2e-3,xwidth=1.2e-3,d=.1e-3, int N=1)
 
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
 
@@ -54,34 +53,33 @@ SHARE
   typedef struct {
     double coord[3];
     double k[3];
+    int hit; /* 1 if a valid refraction took place, 0 otherwise */
   } data_lens_parab_Cyl;
 
-  // intersect_parab_Cyl function calculates the intersection point on a surface of a parabolic cylinder with the photon's trajectory, estimates two points of
-  // intersection (if only) and chooses the one that lies within the interval (-yheight/2<=y=<yheight/2 && -xwidth/2<=x=<xwidth/2) and returns it.
+  // intersect_parab_Cyl calculates the intersection of the photon's trajectory with a parabolic cylinder surface
+  // y^2 - Sign*2*rr*(z-dd) = 0, takes the first forward intersection inside (|y|<=yh/2 && |x|<=xw/2), and
+  // refracts the photon there (vector Snell's law, M = n_in/n_out).
+  // b = {rr, yh, xw, dd, M, Sign}
   #pragma acc routine
   data_lens_parab_Cyl
-  intersect_parab_Cyl (data_lens_parab_Cyl a, double* b, double rough_xy, double rough_z) {
-    data_lens_parab_Cyl result = { a.coord[0], a.coord[1], a.coord[2], a.k[0], a.k[1], a.k[2] };
-    int i;
-    double A, B, C, D, rr;
-    double t[2], p[3], knorm[3], k[3], Knorm, pos_tmp[3], pos1_tmp[3];
-    double Sign, dd, M;
-
-    double N[3], Nx, Ny, Nz, Nnorm;
-    double Arg, s, q, alpha, beta;
-    double k_new[3];
-    double cos_theta, cos_theta1;
-    double yh, xw;
+  intersect_parab_Cyl (data_lens_parab_Cyl a, double* b) {
+    data_lens_parab_Cyl result;
+    int i, j, nroots, found;
+    double A, B, C, D, qq, rr, yh, xw, dd, M, Sign;
+    double t[2], tmp, p[3], k[3], knorm[3], Knorm, pos[3];
+    double Nv[3], Nnorm, ci, disc, fac;
 
     for (i = 0; i <= 2; i++) {
-      k[i] = a.k[i];
-      p[i] = a.coord[i];
+      result.k[i] = k[i] = a.k[i];
+      result.coord[i] = p[i] = a.coord[i];
     }
+    result.hit = 0;
 
     Knorm = sqrt (k[0] * k[0] + k[1] * k[1] + k[2] * k[2]);
-    knorm[0] = k[0] / Knorm;
-    knorm[1] = k[1] / Knorm;
-    knorm[2] = k[2] / Knorm;
+    if (Knorm == 0)
+      return result;
+    for (i = 0; i <= 2; i++)
+      knorm[i] = k[i] / Knorm;
 
     rr = b[0];
     yh = b[1];
@@ -93,87 +91,68 @@ SHARE
     A = knorm[1] * knorm[1];
     B = 2 * (p[1] * knorm[1] - Sign * rr * knorm[2]);
     C = p[1] * p[1] - Sign * 2 * rr * p[2] + Sign * dd * 2 * rr;
-    D = B * B - 4.0 * A * C;
 
-    if (D < 0) { /*ray does not intersect the parabola*/
-      return result;
-    }
-    if (A == 0) { /*incident k-vector is parallel (exactly) to the z-axis. Thus, the eq. becomes linear*/
-      if (B == 0) {
+    if (A == 0) { /*k has no y-component. Thus, the eq. becomes linear*/
+      if (B == 0)
         return result;
-      }
       t[0] = -C / B;
-      for (i = 0; i <= 2; i++) {
-        result.coord[i] = p[i] + t[0] * knorm[i];
-      }
+      nroots = 1;
     } else {
-      double qq;
+      D = B * B - 4.0 * A * C;
+      if (D < 0) /*ray does not intersect the parabola*/
+        return result;
       if (B < 0) {
         qq = -0.5 * (B - sqrt (D));
       } else {
         qq = -0.5 * (B + sqrt (D));
       }
       t[0] = qq / A;
-      t[1] = C / qq;
-
-      for (i = 0; i <= 2; i++) {
-        pos_tmp[i] = p[i] + t[0] * knorm[i];
-        pos1_tmp[i] = p[i] + t[1] * knorm[i];
+      t[1] = (qq != 0) ? C / qq : t[0];
+      if (t[1] < t[0]) {
+        tmp = t[0];
+        t[0] = t[1];
+        t[1] = tmp;
       }
-      if (fabs (pos_tmp[1]) <= fabs (yh / 2) && fabs (pos_tmp[0]) <= fabs (xw / 2)) {
-        for (i = 0; i <= 2; i++) {
-          result.coord[i] = pos_tmp[i];
-        }
-      } else if (fabs (pos1_tmp[1]) <= fabs (yh / 2) && fabs (pos1_tmp[0]) <= fabs (xw / 2)) {
-        for (i = 0; i <= 2; i++) {
-          result.coord[i] = pos1_tmp[i];
-        }
-      } else
-        return result;
+      nroots = 2;
     }
 
-    /*compute normal vector*/
-    Nx = 0;
-    if (result.coord[1] == 0) {
-      Ny = 1;
-      Nz = 0;
-    } else if (result.coord[1] != 0) {
-      Ny = Sign * rr / result.coord[1];
-      Nz = 1;
+    /* first forward intersection inside the aperture (also checked in the linear case) */
+    found = 0;
+    for (j = 0; j < nroots && !found; j++) {
+      if (t[j] < 0)
+        continue;
+      for (i = 0; i <= 2; i++)
+        pos[i] = p[i] + t[j] * knorm[i];
+      if (fabs (pos[1]) <= fabs (yh / 2) && fabs (pos[0]) <= fabs (xw / 2))
+        found = 1;
     }
-    // if (rough_xy) {
-    //  	double d_xy=rough_xy*randnorm();
-    //	Ny+=d_xy;
-    // }
-    // if (rough_z) {
-    //	double d_z=rough_z*randnorm();
-    //   Nz+=d_z;
-    // }
-
-    Nnorm = sqrt (Nx * Nx + Ny * Ny + Nz * Nz);
-    N[0] = Nx / Nnorm;
-    N[1] = Ny / Nnorm;
-    N[2] = Nz / Nnorm;
-
-    cos_theta = N[0] * knorm[0] + N[1] * knorm[1] + N[2] * knorm[2];
-    cos_theta1 = M * cos_theta; /* Snell's law*/
-
-    /* new k vector */
-    if ((1.0 - cos_theta * cos_theta) == 0) {
+    if (!found)
       return result;
+    for (i = 0; i <= 2; i++)
+      result.coord[i] = pos[i];
+
+    /*surface normal (gradient of the parabolic cylinder)*/
+    Nv[0] = 0;
+    Nv[1] = -Sign * pos[1] / rr;
+    Nv[2] = 1;
+    Nnorm = sqrt (Nv[1] * Nv[1] + Nv[2] * Nv[2]);
+    Nv[1] /= Nnorm;
+    Nv[2] /= Nnorm;
+    ci = -(Nv[0] * knorm[0] + Nv[1] * knorm[1] + Nv[2] * knorm[2]);
+    if (ci < 0) {
+      ci = -ci;
+      for (i = 0; i <= 2; i++)
+        Nv[i] = -Nv[i];
     }
 
-    Arg = (1.0 - cos_theta1 * cos_theta1) / (1.0 - cos_theta * cos_theta);
-    s = (1 / M) * sqrt (Arg);
-    q = (Knorm / Nnorm) * ((1 / M) * cos_theta1 - s * cos_theta);
-
-    k_new[0] = q * Nx + s * k[0];
-    k_new[1] = q * Ny + s * k[1];
-    k_new[2] = q * Nz + s * k[2];
-
-    for (i = 0; i < 3; i++) {
-      result.k[i] = k_new[i];
-    }
+    /* vector Snell's law: kn' = M*kn + (M*ci - sqrt(1-M^2(1-ci^2)))*N ; |k'| = |k|/M */
+    disc = 1.0 - M * M * (1.0 - ci * ci);
+    if (disc < 0) /* total external reflection */
+      return result;
+    fac = M * ci - sqrt (disc);
+    for (i = 0; i <= 2; i++)
+      result.k[i] = (Knorm / M) * (M * knorm[i] + fac * Nv[i]);
+    result.hit = 1;
     return result;
   }
 %}
@@ -191,6 +170,10 @@ INITIALIZE
 %{
   int status = 0;
 
+  if (r <= 0 || yheight <= 0 || xwidth <= 0) {
+    fprintf (stderr, "Error (%s): r, yheight and xwidth must be positive.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
   if ((status = Table_Read (&(matT), material_datafile, 0)) == -1) {
     fprintf (stderr, "Error: Could not parse file \"%s\" in COMP %s\n", material_datafile, NAME_CURRENT_COMP);
     exit (-1);
@@ -208,12 +191,12 @@ INITIALIZE
 TRACE
 %{
   // calculation of the parabolic parameters
-  double parab_Cyl[8];
+  double parab_Cyl[6];
   data_lens_parab_Cyl incid, refr, outg;
 
-  int i = 0, nr;
+  int nr;
   double w;
-  double E, mu, f, rhoel, dl, d_total, e, k, delta, beta, Refractive_Index_Re, Refractive_Index_Im;
+  double mu, f, rhoel, dl, d_total, e, k, delta, Refractive_Index_Re;
 
   w = (yheight * yheight) / (8.0 * r); // calculation of the "depth" of the profile
 
@@ -221,25 +204,18 @@ TRACE
   parab_Cyl[1] = yheight;
   parab_Cyl[2] = xwidth;
 
-  parab_Cyl[6] = rough_xy;
-  parab_Cyl[7] = rough_z;
-
   k = sqrt (kx * kx + ky * ky + kz * kz);
   e = K2E * k; /*Energy in KeV, same unit as datafile */
 
   /*Interpolation of Table Values*/
   mu = Table_Value (matT, e, 5) * rho * 1e2; /*mu is now in SI, [m^-1]*/
-  ;
-
   f = Table_Value (matT, e, 1);
 
   /*Calculation of Refractive Index */
   rhoel = f * NA * (rho * 1e-24) / Ar; /*Material's Number Density of Electrons [e/A^3] incl f' scattering length correction*/
   delta = 2.0 * M_PI * RE * rhoel / (k * k);
-  beta = mu * 1e-10 / (2.0 * k); /*mu and k in  A^-1*/
 
   Refractive_Index_Re = 1.0 - delta;
-  Refractive_Index_Im = beta;
 
   incid.k[0] = kx;
   incid.k[1] = ky;
@@ -255,10 +231,10 @@ TRACE
     parab_Cyl[4] = 1.0 / Refractive_Index_Re; // M constant
     parab_Cyl[5] = -1.0;                      // Sign constant
 
-    refr = intersect_parab_Cyl (incid, parab_Cyl, rough_xy, rough_z);
-
-    if (refr.k[0] == 0 && refr.k[1] == 0 && refr.k[2] == 0)
-      continue;
+    refr = intersect_parab_Cyl (incid, parab_Cyl);
+    if (!refr.hit) {
+      ABSORB; /* missed the aperture (or total external reflection) */
+    }
 
     dl = sqrt ((refr.coord[0] - x) * (refr.coord[0] - x) + (refr.coord[1] - y) * (refr.coord[1] - y) + (refr.coord[2] - z) * (refr.coord[2] - z));
     PROP_DL (dl);
@@ -273,7 +249,10 @@ TRACE
     parab_Cyl[4] = Refractive_Index_Re;
     parab_Cyl[5] = 1.0;
 
-    outg = intersect_parab_Cyl (refr, parab_Cyl, rough_xy, rough_z);
+    outg = intersect_parab_Cyl (refr, parab_Cyl);
+    if (!outg.hit) {
+      ABSORB;
+    }
 
     dl = sqrt ((outg.coord[0] - x) * (outg.coord[0] - x) + (outg.coord[1] - y) * (outg.coord[1] - y) + (outg.coord[2] - z) * (outg.coord[2] - z));
     PROP_DL (dl);
@@ -301,7 +280,7 @@ MCDISPLAY
   w = (yheight * yheight) / (8 * r);
   zdepth = N * (2 * w + d);
   z_c = (zdepth / 2.0) - w;
-  box (0, 0, z_c, yheight / 2, yheight / 2, zdepth, 0, 0, 1, 0);
+  box (0, 0, z_c, xwidth, yheight, zdepth, 0, 0, 1, 0);
 %}
 
 END

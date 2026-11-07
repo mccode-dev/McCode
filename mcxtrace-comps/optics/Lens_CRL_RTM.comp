@@ -5,13 +5,13 @@
 *         DTU Physics, Kgs. Lyngby, Denmark
 *         Synchrotron SOLEIL, Saint-Aubin, France
 *
-* Component: Arm
+* Component: Lens_CRL_RTM
 *
 * %Identification
 *
 * Written by: Erik Knudsen 
 * Date: Jan '21 
-* Version: 1.0
+* Version: 1.1
 * Origin: DTU Physics
 *
 * 1D CRL stack based on RTM formalism
@@ -20,6 +20,7 @@
 * A CRL stack component based on the formalism presented by Simons et.al. J. Synch. Rad.
 * 2017, vol. 24.
 * We model a 1D lens stack focusing in the y-direction. I.e. invariant along x.
+* Photons outside the aperture (|x|<xwidth/2, |y|<yheight/2) are absorbed.
 *
 * Example: Lens_CRL_RTM(
 *   r=0.5e-3, N=10, fast=1, yheight=0, d=0.1e-3,xwidth=1e-4, zdepth=4e-4)
@@ -27,21 +28,21 @@
 * %Parameters
 * Input parameters:
 *
-* r:        [m]   Radius of curavature at the lens apex.
-* yheight:  [m]   Height of lens opening. If zero this is set by the lens thickness.
-* N:        [m]   Number of lenslets in the stack.
-* xwidth:   [m]   Width of the lenslets.
-* yheight:  [m]   Physical height of aperture. This may be used to introduce a gap between lenslets.
-* zdepth:   [m]   Thickness of a single lenslet.
+* r:        [m]   Radius of curvature at the lens apex.
+* N:        [1]   Number of lenslets in the stack.
+* xwidth:   [m]   Width of the lenslets (invariant direction).
+* yheight:  [m]   Full physical height of the aperture. If zero the aperture is set by the lenslet thickness: Y=sqrt(r*zdepth).
+* zdepth:   [m]   Length (pitch) of a single lenslet along z.
+* d:        [m]   Thickness of the web between the two parabolic surfaces of a single lenslet.
 * material: [str] Datafile containing f1 constants
-* fast:     [m]   Use fast calculation - should be off for better display with mxdisplay
-* d:        [m]   Thickness of a single lens
+* fast:     [1]   Use fast (analytical) absorption calculation - set to 0 for better display with mxdisplay
+*
 * %End
 *******************************************************************************/
 
 DEFINE COMPONENT Lens_CRL_RTM
 SETTING PARAMETERS (r=0.5e-3,d=0.1e-3,string material="Be.txt",int N=1,
-    zdepth=2e-3,yheight=1e-3, xwidth=1.2e-3, int fast=1)
+    zdepth=2e-3,yheight=0, xwidth=1.2e-3, int fast=1)
 
 SHARE
 %{
@@ -51,9 +52,6 @@ SHARE
 DECLARE
 %{
   double Y;
-  double Yp;
-  double Psi;
-  double zdepth_p;
   t_Table matT;
   double rho;
   double Ar;
@@ -63,9 +61,17 @@ DECLARE
 INITIALIZE
 %{
   int status;
-  Y = pow (r * zdepth, 0.5);
-  if (yheight) {
-    zdepth_p = yheight * yheight / r;
+  if (r <= 0 || zdepth <= 0 || N < 1) {
+    fprintf (stderr, "Error (%s): r, zdepth must be positive and N>=1.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  /* half-height of the aperture */
+  if (yheight > 0) {
+    Y = yheight / 2.0;
+    if (Y > sqrt (r * zdepth) * (1.0 + 1e-9))
+      fprintf (stderr, "Warning (%s): yheight/2 exceeds sqrt(r*zdepth); the parabolic profile is deeper than zdepth.\n", NAME_CURRENT_COMP);
+  } else {
+    Y = sqrt (r * zdepth);
   }
   if ((status = Table_Read (&(matT), material, 0)) == -1) {
     fprintf (stderr, "Error (%s): Could not parse file \"%s\"\n", NAME_CURRENT_COMP, material);
@@ -83,101 +89,92 @@ INITIALIZE
 
 TRACE
 %{
-  // double mu,double delta;
   PROP_Z0;
-  if (fabs (x) < xwidth / 2.0 && fabs (y) < Y) {
-    /*we enter the lens aperture*/
-    SCATTER;
-
-    double knx, kny, knz;
-    double k;
-    double alpha0, y0;
-    double f1, mu, delta, rhoel;
-    double f, psi;
-    double M11_N, M12_N, M21_N, M22_N;
-    double yN, alphaN;
-    double k_yz;
-    double x0, z0;
-
-    k_yz = sqrt (ky * ky + kz * kz);
-    k = sqrt (kx * kx + ky * ky + kz * kz);
-
-    /*get material data from tables*/
-    mu = Table_Value (matT, k * K2E, 5) * rho * 1e2; /*mu is now in SI, [m^-1]*/
-    ;
-    f1 = Table_Value (matT, k * K2E, 1);
-
-    rhoel = f1 * NA * (rho * 1e-24) / Ar; /*Material's Number Density of Electrons [e/A^3] incl f' scattering length correction*/
-    delta = 2.0 * M_PI * RE * rhoel / (k * k);
-
-    /*focal length*/
-    f = r / (2 * delta);
-    psi = sqrt (zdepth / f);
-    alpha0 = acos (kz / k_yz);
-    if (ky < 0) {
-      alpha0 = -alpha0;
-    }
-    x0 = x;
-    y0 = y;
-    z0 = z;
-    SCATTER;
-
-    M11_N = cos (N * psi);
-    M12_N = f * psi * sin (N * psi);
-    M21_N = -sin (N * psi) / (f * psi);
-    M22_N = cos (N * psi);
-    yN = M11_N * y0 + M12_N * alpha0;
-    alphaN = M21_N * y0 + M22_N * alpha0;
-
-    /*compute absorption*/
-    /*ansatz 1 - compute the qudratic sum of yns*/
-    double yn2sum = 0;
-    double pmul;
-    if (!fast) {
-      double ay, atany;
-      ay = (y0 + alpha0 * f * psi);
-      atany = atan (alpha0 * f * psi / y0);
-      int n;
-      for (n = 1; n <= N; n++) {
-        double yn = ay * cos ((n - 0.5) * psi + atany);
-        // set scatter points along the way
-        y = yn;
-        z = zdepth * (n - 0.5);
-        x = x0 + kx * z / kz;
-        SCATTER;
-
-        yn2sum += yn * yn;
-      }
-      pmul = exp (-N * mu * d) * exp (-mu / r * yn2sum);
-    } else {
-      /*2nd analytical version relies on formulating mu/r * sum_{n=1}^N (y_n^2) as AN*alpha0^2 + BN*alpha0*y0 CN*y0*y0
-        which can be solved analyticly.*/
-      double AN, BN, CN;
-      AN = N * mu * zdepth / (4 * delta) * (1.0 - sin (2 * N * psi) / (2 * N * psi));
-      BN = mu / (2 * delta) * (1 - cos (2 * N * psi));
-      CN = N * mu / (2 * r) * (1.0 + sin (2 * N * psi) / (2 * N * psi));
-      yn2sum = AN * alpha0 * alpha0 + BN * alpha0 * y0 + CN * y0 * y0;
-      pmul = exp (-N * mu * d) * exp (-yn2sum);
-    }
-
-    p *= pmul;
-    /*figure out deviation along kx;*/
-    x = x + kx * (zdepth * N) / kz;
-    if (fabs (x) > xwidth / 2.0) {
-      ABSORB;
-    }
-    y = yN;
-    z = zdepth * N;
-    SCATTER;
-    ky = sin (alphaN) * k_yz;
-    kz = cos (alphaN) * k_yz;
+  if (fabs (x) >= xwidth / 2.0 || fabs (y) >= Y) {
+    /* outside the lens aperture */
+    ABSORB;
   }
+  SCATTER;
+
+  double k, k_yz;
+  double alpha0, y0, x0;
+  double f1, mu, delta, rhoel;
+  double f, psi, fpsi;
+  double yN, alphaN;
+
+  k_yz = sqrt (ky * ky + kz * kz);
+  k = sqrt (kx * kx + ky * ky + kz * kz);
+
+  /*get material data from tables*/
+  mu = Table_Value (matT, k * K2E, 5) * rho * 1e2; /*mu is now in SI, [m^-1]*/
+  f1 = Table_Value (matT, k * K2E, 1);
+
+  rhoel = f1 * NA * (rho * 1e-24) / Ar; /*Material's Number Density of Electrons [e/A^3] incl f' scattering length correction*/
+  delta = 2.0 * M_PI * RE * rhoel / (k * k);
+
+  /*focal length of one lenslet (two surfaces) and RTM angle per lenslet*/
+  f = r / (2 * delta);
+  psi = sqrt (zdepth / f);
+  fpsi = sqrt (f * zdepth); /* = f*psi */
+  alpha0 = atan2 (ky, kz);  /* paraxial angle in the yz-plane */
+  x0 = x;
+  y0 = y;
+
+  /*RTM matrix for N lenslets*/
+  yN = cos (N * psi) * y0 + fpsi * sin (N * psi) * alpha0;
+  alphaN = -sin (N * psi) / fpsi * y0 + cos (N * psi) * alpha0;
+
+  /*absorption: each lenslet has material thickness d + y_n^2/r at height y_n*/
+  double yn2sum = 0;
+  double pmul;
+  if (!fast) {
+    int n;
+    for (n = 1; n <= N; n++) {
+      double th = (n - 0.5) * psi;
+      double yn = y0 * cos (th) + fpsi * alpha0 * sin (th);
+      /* set scatter points along the way */
+      y = yn;
+      z = zdepth * (n - 0.5);
+      x = x0 + kx * z / kz;
+      SCATTER;
+      yn2sum += yn * yn;
+    }
+    pmul = exp (-N * mu * d) * exp (-mu / r * yn2sum);
+  } else {
+    /* Closed form of mu/r * sum_{n=1}^N y_n^2 with y_n = y0 cos(th_n) + f*psi*alpha0 sin(th_n), th_n=(n-1/2)psi:
+       sum cos^2 = (N + sN)/2, sum sin^2 = (N - sN)/2, sum sin*cos = (1-cos(2N psi))/(4 sin psi)
+       with sN = sin(2N psi)/(2 sin psi). */
+    double s = sin (psi);
+    double sN = sin (2 * N * psi) / (2 * s);
+    double AN = mu / r * (f * zdepth) * (N - sN) / 2.0;
+    double BN = mu / r * fpsi * (1.0 - cos (2 * N * psi)) / (2 * s);
+    double CN = mu / r * (N + sN) / 2.0;
+    yn2sum = AN * alpha0 * alpha0 + BN * alpha0 * y0 + CN * y0 * y0;
+    pmul = exp (-N * mu * d) * exp (-yn2sum);
+  }
+
+  p *= pmul;
+  /*figure out deviation along x (invariant direction)*/
+  x = x0 + kx * (zdepth * N) / kz;
+  if (fabs (x) > xwidth / 2.0) {
+    ABSORB;
+  }
+  y = yN;
+  z = zdepth * N;
+  SCATTER;
+  ky = sin (alphaN) * k_yz;
+  kz = cos (alphaN) * k_yz;
+%}
+
+FINALLY
+%{
+  Table_Free (&(matT));
 %}
 
 MCDISPLAY
 %{
   /* Draw a box around the lenslets*/
-  box (0, 0, zdepth* N / 2.0, xwidth, Y, zdepth* N, 0, 0, 1, 0);
+  box (0, 0, zdepth * N / 2.0, xwidth, 2 * Y, zdepth * N, 0, 0, 1, 0);
 %}
 
 END
