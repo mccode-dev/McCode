@@ -64,6 +64,13 @@
   #ifndef GMESH_WELD_TOL
     #define GMESH_WELD_TOL 1e-9
   #endif
+  // GMESH_REDUCE_TOL (undefined: off) reduces the triangles at init by edge
+  // collapse (quadric error metrics), as long as the error stays below
+  // GMESH_REDUCE_TOL (m, after scaling). 0 only merges exactly
+  // flat regions (no change of the surface). Boundaries and seams between
+  // faces with different properties are kept; faceArray then holds triangles.
+  // A reduced surface changes the simulation results. From an instrument:
+  // DEPENDENCY " -DGMESH_REDUCE_TOL=1e-5 "
   // max triangles per BVH leaf
   #ifndef GMESH_BVH_LEAF
     #define GMESH_BVH_LEAF 4
