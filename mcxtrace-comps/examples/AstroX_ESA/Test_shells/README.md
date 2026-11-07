@@ -20,7 +20,9 @@ Example: Test_shells.instr shell_type=1
 
 ## Examples
 
-
+- **Test: shell_type=0 Detector: detector_post_optics_I=0.036946**
+- **Test: shell_type=1 Detector: detector_post_optics_I=0.036946**
+- **Test: shell_type=2 Detector: detector_post_optics_I=0.036946**
 
 ## Input parameters
 

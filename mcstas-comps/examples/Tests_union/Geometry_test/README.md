@@ -17,9 +17,9 @@ Use of all basic geometries, mesh(as a torus), sphere, cylinder, cone and box
 
 ## Examples
 
-- **Test: meshfile="torus.off" Detector: detector_scat_I=47.5**
-- **Test: meshfile="torus.STL" Detector: detector_scat_I=47.5**
-- **Test: meshfile="torus.ply" Detector: detector_scat_I=47.5**
+- **Test: meshfile="torus.off" Detector: detector_I=2.479E+6**
+- **Test: meshfile="torus.STL" Detector: detector_I=2.479E+6**
+- **Test: meshfile="torus.ply" Detector: detector_I=2.479E+6**
 
 ## Input parameters
 

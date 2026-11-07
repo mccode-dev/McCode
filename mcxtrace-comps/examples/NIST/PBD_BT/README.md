@@ -17,7 +17,7 @@ This is a preliminary setup of the PBD, using single-bounce crystals instead of 
 
 ## Examples
 
-- **Test: beam_vert=0.005 beam_hor=0.001 slit_1_vert=0.001 slit_1_hor=0.002 omega=53.35 theta=160.05 Detector: mirror_psd_I=1.11886e+16**
+- **Test: beam_vert=0.005 beam_hor=0.001 slit_1_vert=0.001 slit_1_hor=0.002 omega=53.35 theta=160.05 Detector: mirror_psd_I=2831700000000000**
 
 ## Input parameters
 

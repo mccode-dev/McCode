@@ -1,0 +1,33 @@
+# Copy to .github/workflows/nightly-site.yml in mccode-dev/mcstas-nightly and
+# mccode-dev/mcxtrace-nightly. Needs a NIGHTLY_TOKEN secret (actions:read on
+# McCode) and Settings > Pages > Source: GitHub Actions.
+name: nightly-site
+on:
+  # sent by the scheduled McCode <flavor>-conda-testsuite compare job
+  repository_dispatch:
+    types: [nightly]
+  # republish from any McCode testsuite run with a <flavor>-nightly-site artifact
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: mcstas or mcxtrace
+        required: true
+      run_id:
+        description: McCode conda-testsuite run id
+        required: true
+      date:
+        description: Night to file it under (YYYY-MM-DD)
+        required: true
+
+jobs:
+  site:
+    uses: mccode-dev/McCode/.github/workflows/nightly-site.yml@main
+    with:
+      flavor: ${{ github.event.client_payload.flavor || inputs.flavor }}
+      run_id: ${{ github.event.client_payload.run_id || inputs.run_id }}
+      date: ${{ github.event.client_payload.date || inputs.date }}
+    secrets: inherit
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
