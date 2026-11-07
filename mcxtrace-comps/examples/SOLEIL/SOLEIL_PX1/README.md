@@ -92,7 +92,7 @@ published parameters and is not modeled either.
 
 ## Examples
 
-- **Test: PX1_E0=12.67 Detector: PX1_sample_monitor_I=1.232e+20**
+- **Test: PX1_E0=12.67 Detector: PX1_sample_monitor_I=1.8992e+21**
 
 ## Input parameters
 

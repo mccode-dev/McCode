@@ -14,13 +14,11 @@
 ```text
 Test instrument for the IncoherentPhonon_process physics process from
 V. Laliena, Uni Zaragoza.
-
-Example: comp_select=1 Detector: energy_mon_2_I=1156.84
 ```
 
 ## Examples
 
-
+- **Test: comp_select=1 Detector: energy_mon_1_I=844.2**
 
 ## Input parameters
 
