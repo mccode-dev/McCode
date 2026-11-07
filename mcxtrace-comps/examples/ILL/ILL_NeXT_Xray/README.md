@@ -55,7 +55,7 @@ ASSUMPTIONS (to be checked):
 
 ## Examples
 
-- **Test: kV=150 SOD=0.1 SDD=0.5 Detector: Xray_counts_I=176042000000**
+- **Test: kV=150 SOD=0.1 SDD=0.5 Detector: Xray_counts_I=162607000000**
 
 ## Input parameters
 

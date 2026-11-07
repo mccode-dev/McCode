@@ -21,7 +21,7 @@ Example: mcrun SimplePowderDIffractometer.instr coll=40, container=1
 
 ## Examples
 
-
+- **Test: lambda0=1 Detector: Detector_I=8158.51**
 
 ## Input parameters
 

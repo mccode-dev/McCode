@@ -12,7 +12,11 @@
 ## Description
 
 ```text
+Does not include a test case as the event file does not contain a intensity
+value in output to test against.
 
+Includes conditional component to test record_to_temp functionality
+of investigated abs_logger.
 ```
 
 ## Examples
