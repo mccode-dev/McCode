@@ -2236,6 +2236,13 @@ int Monitor_nD_MeshIntersect(gmesh_struct* mesh, Coords position, Coords velocit
   return 1;
 }
 
+// Warns when mantid is combined with a closed mesh: pixel IDs are panels.
+void Monitor_nD_CheckMantidMesh(gmesh_struct* mesh, int flag_mantid, char* name)
+{
+  if (flag_mantid && mesh->closed)
+    printf("Monitor_nD: %s: mantid pixel IDs are panels. A closed mesh gives no meaningful pixel IDs; use an open mesh with mantid.\n", name);
+}
+
 // Prints one "MANTID_PIXEL: id,first,last,nv,cx,cy,cz,dx1,dy1,dz1,..." line
 // per face of mesh, with id = offset + face index and the vertices relative
 // to the face centre. Faces with less than 3 vertices are skipped.
