@@ -25,7 +25,7 @@ X-ray-excited optical luminescence spectroscopy (XEOL)
 
 ## Examples
 
-- **Test: PUMA_E0=10 Detector: PUMA_mon_sample_e_I=4.02276e+11**
+- **Test: PUMA_E0=10 -n 1e7 Detector: PUMA_mon_sample_e_I=1.2410e+11**
 
 ## Input parameters
 

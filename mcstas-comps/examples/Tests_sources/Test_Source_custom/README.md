@@ -18,7 +18,7 @@ Using the parameters for the HBS bi-spectral source
 
 ## Examples
 
-
+- **Test: Detector: L_monitor_I=2.05965e+08**
 
 ## Input parameters
 

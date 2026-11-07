@@ -27,7 +27,7 @@ Very simple test instrument for the SANS_benchmark2 component from H. Frielingha
 - **Test: modnum=8  Detector: detectorSANS_I=3.89201**
 - **Test: modnum=9  Detector: detectorSANS_I=0.0427871**
 - **Test: modnum=10 Detector: detectorSANS_I=0.0234776**
-- **Test: modnum=11 Detector: detectorSANS_I=0.229431**
+- **Test: modnum=11 Detector: detectorSANS_I=0.0244768**
 - **Test: modnum=12 Detector: detectorSANS_I=0.0026947**
 - **Test: modnum=13 Detector: detectorSANS_I=0.00269978**
 - **Test: modnum=14 Detector: detectorSANS_I=0.002694**

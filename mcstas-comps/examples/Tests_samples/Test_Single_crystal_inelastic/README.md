@@ -26,7 +26,7 @@ sensible parameter set.
 
 ## Examples
 
-
+- **Test: Detector: monitoE_I=3.08233e+07**
 
 ## Input parameters
 

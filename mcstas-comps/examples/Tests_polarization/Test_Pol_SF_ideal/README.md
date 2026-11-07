@@ -19,7 +19,7 @@ Example: mcrun test.instr <parameters=values>
 
 ## Examples
 
-
+- **Test: Detector: pm1_I=-1**
 
 ## Input parameters
 

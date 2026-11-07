@@ -25,7 +25,7 @@ You may scan like so for example:
 
 - **TestScan: mxrun SSRL_bl_11_2_not_white_src.instr -N31 Etohit=6900,7500 -n1e6 Detector: EnergyMonitor_first_I={31 values}**
 - 
-- Example: Etohit=6900 Detector: EnergyMonitor_first_I=1.3e+10
+- Example: Etohit=6900 Detector: EnergyMonitor_first_I=1.94915e+11
 
 ## Input parameters
 
