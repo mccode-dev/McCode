@@ -30,6 +30,11 @@
 <h1>@FLAVOR@ nightly test suite</h1>
 <p id="latest" class="muted">Loading&hellip;</p>
 
+<div id="repos-section" hidden>
+<h2>Instrument repositories</h2>
+<div class="wrap"><table id="repos"></table></div>
+</div>
+
 <h2>Tonight, per platform</h2>
 <div class="wrap"><table id="platforms"></table></div>
 
@@ -103,6 +108,19 @@ d3.json("history/index.json", (err, index) => {
   d3.select("#failing").html(names.length ? "<tr><th>Test</th><th>Platform</th><th>Failing since</th></tr>" +
     names.map(t => rows[t].map((r, i) => "<tr>" + td(i ? "" : t) + td(r.k) + td(r.since, r.since === last.date ? "bad" : "") + "</tr>").join("")).join("")
     : "<tr><td class=\"ok\">Nothing failing.</td></tr>");
+
+  // only for sites whose CI stores the repository list (ess-instrument-nightly)
+  d3.json("today/repos.json", (e, repos) => {
+    if (e || !repos) return;
+    d3.select("h1").text("@FLAVOR@ nightly test suite (using McCode main)");
+    d3.select("#repos-section").attr("hidden", null);
+    d3.select("#repos").html("<tr><th>Instrument</th><th>Tonight</th><th>Own CI (main)</th><th>Description</th></tr>" +
+      repos.map(r => { const c = last.columns[r.name];
+        const res = c ? (nfail(c) ? `<a class="bad" href="${last.run}">&#10060; ${nfail(c)} failing</a>` : `<a class="ok" href="${last.run}">&#9989; passes</a>`)
+          : r.standard_layout ? "not tested" : "not migrated";
+        const badge = r.public ? `<a href="${r.url}/-/pipelines?ref=main"><img alt="pipeline status" src="${r.url}/badges/main/pipeline.svg"></a>` : "&ndash;";
+        return "<tr>" + td(`<a href="${r.url}">${r.name}</a>`) + td(res) + td(badge) + td(r.description) + "</tr>"; }).join(""));
+  });
 
   d3.select("#history").html(index.slice().reverse().map(d =>
     `<a href="${d === last ? "today" : "history/" + d.date}/table.html">${d.date}</a> <span class="muted">(${d3.sum(Object.values(d.columns), nfail)} failing, <a href="history/${d.date}/summary.json">json</a>)</span>`).join("<br>"));
