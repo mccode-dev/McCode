@@ -85,7 +85,9 @@ jobs:
            git config user.name "github-actions[bot]"
            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
            git add history
-           git commit -m "Nightly ${{ inputs.date }}" || echo "history unchanged"
+           # always commit: the next run's GITHUB_SHA is the Pages deployment id, and a reused id
+           # makes deploy-pages report the old deployment's success without deploying
+           git commit --allow-empty -m "Nightly ${{ inputs.date }}"
            git push
 
     - name: Assemble site
