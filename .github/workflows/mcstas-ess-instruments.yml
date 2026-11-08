@@ -184,7 +184,7 @@ jobs:
 
       # Same as the mcstas-conda-testsuite compare job, for mccode-dev/ess-instrument-nightly
       - name: Raw data per instrument as release assets in ess-instrument-nightly
-        if: steps.viewtest.outcome == 'success' && github.event_name == 'schedule'
+        if: always() && steps.viewtest.outcome == 'success' && github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ secrets.NIGHTLY_TOKEN }}
         run: |
@@ -213,7 +213,7 @@ jobs:
 
       - name: Strip data files, keeping what the nightly site shows
         id: site
-        if: steps.viewtest.outcome == 'success'
+        if: always() && steps.viewtest.outcome == 'success'
         run: |
           set -euo pipefail
           find ess-nightly -type f ! \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' -o -name '*.txt' -o -name '*.pdf' -o -name '*.png' -o -name '*.svg' -o -name '*.instr' -o -name '*.sim' -o -name '*.failed' \) -delete
@@ -221,14 +221,14 @@ jobs:
           ls -l ess-nightly-site.tgz
       - id: site-upload
         uses: actions/upload-artifact@v6
-        if: steps.site.outcome == 'success'
+        if: always() && steps.site.outcome == 'success'
         with:
           name: ess-nightly-site
           path: ess-nightly-site.tgz
 
       # Publishes via McCode's reusable nightly-site.yml (tools/nightly-site/)
       - name: Trigger the ess-instrument-nightly site deploy
-        if: steps.site-upload.outcome == 'success' && github.event_name == 'schedule'
+        if: always() && steps.site-upload.outcome == 'success' && github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ secrets.NIGHTLY_TOKEN }}
         run: |
