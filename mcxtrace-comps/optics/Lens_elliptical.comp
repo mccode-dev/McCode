@@ -59,6 +59,7 @@ SHARE
 
   /* Intersect ray with the elliptic paraboloid x^2/r1^2 + y^2/r2^2 - Sign*(z-d)/w = 0 inside the elliptic aperture
      (first forward intersection) and refract with M = n_in/n_out (vector Snell's law). */
+  #pragma acc routine seq
   incom_elliptical
   intersection_lens_elliptical (incom_elliptical a, lens_elliptical b) {
     incom_elliptical result;
@@ -117,7 +118,7 @@ SHARE
 
     found = 0;
     for (j = 0; j < nroots && !found; j++) {
-      if (t[j] < 0)
+      if (t[j] < -w) /* more than one sag behind the photon */
         continue;
       for (i = 0; i <= 2; i++)
         pos[i] = p[i] + t[j] * knorm[i];
@@ -222,6 +223,10 @@ TRACE
       ABSORB; /* missed the aperture (or total external reflection) */
     }
     dl = sqrt ((refr.coord[0] - x) * (refr.coord[0] - x) + (refr.coord[1] - y) * (refr.coord[1] - y) + (refr.coord[2] - z) * (refr.coord[2] - z));
+    if ((refr.coord[2] - z) * kz < 0) { /* surface slightly behind the photon */
+      dl = -dl;
+      ALLOW_BACKPROP;
+    }
     PROP_DL (dl);
     SCATTER;
 
@@ -239,6 +244,10 @@ TRACE
       ABSORB;
     }
     dl = sqrt ((outg.coord[0] - x) * (outg.coord[0] - x) + (outg.coord[1] - y) * (outg.coord[1] - y) + (outg.coord[2] - z) * (outg.coord[2] - z));
+    if ((outg.coord[2] - z) * kz < 0) {
+      dl = -dl;
+      ALLOW_BACKPROP;
+    }
     PROP_DL (dl);
     d_total += dl;
     SCATTER;
