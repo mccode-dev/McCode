@@ -3682,7 +3682,12 @@ static void mclist_vds_write(void)
     free(v->rows);
     free(v);
   }
-  if (fid >= 0) H5Fclose(fid);
+  if (fid >= 0) {
+    H5Fclose(fid);
+    printf("\nNOTE:     event lists in %s.h5 link to mccode_node*.h5. For a self-contained file run:\n\n"
+      "            h5repack -l CONTI %s.h5 flat.h5\n\n",
+      siminfo_name, siminfo_name);
+  }
   free(file);
 } /* mclist_vds_write */
 
