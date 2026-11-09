@@ -241,8 +241,9 @@ def verify_callback_logs(run_dir: Path, safe_mode: int) -> None:
 
 
 def build_and_run(generator: str, resources: Path, compiler: list[str], work_dir: Path,
-                  safe_mode: int, ncount: int, seed: int, flavour: str, bad_process: int = 0) -> Path:
-    run_dir = work_dir / f"{flavour}-safe-{safe_mode}-bad-{bad_process}"
+                  safe_mode: int, ncount: int, seed: int, flavour: str, bad_process: int = 0,
+                  abs_scope: int = 0, logger_scope: int = 0) -> Path:
+    run_dir = work_dir / f"{flavour}-safe-{safe_mode}-bad-{bad_process}-abs-{abs_scope}-logger-{logger_scope}"
     run_dir.mkdir()
     source = run_dir / "Union_particle_regression.c"
     executable = run_dir / "Union_particle_regression"
@@ -263,10 +264,19 @@ def build_and_run(generator: str, resources: Path, compiler: list[str], work_dir
     run(command, run_dir)
     run(compiler + ["-std=c99", "-O0", "-g", "-o", str(executable), str(source), "-lm"], run_dir)
     run([str(executable), "--ncount", str(ncount), "--seed", str(seed),
-         f"safe_mode={safe_mode}", f"bad_process={bad_process}"], run_dir)
-    verify_callback_logs(run_dir, safe_mode)
+         f"safe_mode={safe_mode}", f"bad_process={bad_process}", f"abs_scope={abs_scope}",
+         f"logger_scope={logger_scope}"], run_dir)
+    if abs_scope not in (2, 4) and logger_scope != 2:
+        verify_callback_logs(run_dir, safe_mode)
+    if abs_scope == 4:
+        for name in ("abs_corrupt.log", "abs_observer.log"):
+            if "absorbed_weight=" not in require_file(run_dir, name):
+                raise AssertionError(f"volume-specific logger received no events: {name}")
     if not require_file(run_dir, "final_state.log").strip():
         raise AssertionError("no particles reached the final-state observer")
+    local = require_file(run_dir, "process_local.log")
+    if "query " not in local or "scattering " not in local:
+        raise AssertionError("process-local particle snapshots were not recorded")
     verify_detector_activity(run_dir, ("detector.dat",))
     return run_dir
 
@@ -424,6 +434,9 @@ def compare_runs(run_zero: Path, run_one: Path) -> None:
         state_one = require_file(run_one, "final_state.log")
         if state_zero != state_one:
             raise AssertionError("safe_mode changed the exact final particle state dump")
+    if (run_zero / "process_local.log").exists() or (run_one / "process_local.log").exists():
+        if require_file(run_zero, "process_local.log") != require_file(run_one, "process_local.log"):
+            raise AssertionError("process-local particle state or RNG changed")
     detector_zero = detector_bundle(run_zero)
     detector_one = detector_bundle(run_one)
     if detector_zero != detector_one:
@@ -464,7 +477,31 @@ def main() -> int:
         compare_runs(run_zero, run_one)
         run_bad = build_and_run(generator, resources, compiler, work_dir, 1, args.ncount, args.seed, flavour, bad_process=1)
         compare_runs(run_one, run_bad)
-        print(f"custom union particle regression passed for {flavour}: 3 runs, exact safe_mode equality")
+        scoped_runs = {}
+        for safe_mode, global_run in ((0, run_zero), (1, run_one)):
+            for abs_scope in (1, 2, 3, 4):
+                scoped_run = build_and_run(generator, resources, compiler, work_dir, safe_mode,
+                                           args.ncount, args.seed, flavour, abs_scope=abs_scope)
+                scoped_runs[safe_mode, abs_scope] = scoped_run
+                if abs_scope in (1, 3):
+                    compare_runs(global_run, scoped_run)
+                    for name in ("abs_corrupt.log", "abs_observer.log"):
+                        if require_file(global_run, name) != require_file(scoped_run, name):
+                            raise AssertionError(f"absorption logger scope changed {name}")
+        for abs_scope in (1, 2, 3, 4):
+            compare_runs(scoped_runs[0, abs_scope], scoped_runs[1, abs_scope])
+        print("absorption logger global, volume-specific, mixed, absent and subset cases preserve safe-mode equality")
+        for safe_mode, global_run in ((0, run_zero), (1, run_one)):
+            for logger_scope in (1, 2):
+                scoped_run = build_and_run(generator, resources, compiler, work_dir, safe_mode,
+                                           args.ncount, args.seed, flavour, logger_scope=logger_scope)
+                compare_runs(global_run, scoped_run)
+                if logger_scope == 1:
+                    for name in ("ordinary_corrupt.log", "ordinary_observer.log"):
+                        if require_file(global_run, name) != require_file(scoped_run, name):
+                            raise AssertionError(f"scattering logger scope changed {name}")
+        print("scattering logger global, volume-specific and absent cases preserve state and RNG")
+        print(f"custom union particle regression passed for {flavour}: exact safe_mode equality")
         print("safe mode also rejected forbidden process writes without changing outgoing state or RNG")
         if flavour == "mcstas" and not args.no_examples:
             requested = [item for value in (args.examples or []) for item in value.split(",") if item]

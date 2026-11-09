@@ -8653,6 +8653,13 @@ void union_particle_to_local(_class_particle *particle, Coords center, Rotation 
 }
 
 #pragma acc routine
+void union_particle_translate_to_local(_class_particle *particle, Coords center) {
+  particle->x -= center.x;
+  particle->y -= center.y;
+  particle->z -= center.z;
+}
+
+#pragma acc routine
 void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering) {
   _class_particle after = *particle;
   *particle = *before;
@@ -8668,20 +8675,19 @@ void union_particle_restore(_class_particle *particle, const _class_particle *be
 #pragma acc routine
 void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
                                       const _class_particle *before, Rotation inverse, int rotated, int safe_mode) {
-  _class_particle committed = *result;
+  *particle = *result;
   if (rotated) {
     // Despite its name, this helper rotates any vector, here the outgoing velocity.
-    mccoordschange_polarisation(inverse, &committed.vx, &committed.vy, &committed.vz);
+    mccoordschange_polarisation(inverse, &particle->vx, &particle->vy, &particle->vz);
   }
   // These fields belong to the master frame. Do not round-trip them through
   // local coordinates: even a conforming callback would then change their bits.
-  committed.x = before->x;
-  committed.y = before->y;
-  committed.z = before->z;
-  committed.sx = before->sx;
-  committed.sy = before->sy;
-  committed.sz = before->sz;
-  *particle = committed;
+  particle->x = before->x;
+  particle->y = before->y;
+  particle->z = before->z;
+  particle->sx = before->sx;
+  particle->sy = before->sy;
+  particle->sz = before->sz;
   if (safe_mode) {
     union_particle_restore(particle, before, 1);
   }

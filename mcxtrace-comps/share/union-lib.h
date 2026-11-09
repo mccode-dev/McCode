@@ -126,6 +126,7 @@ void union_particle_copy_rng(_class_particle *destination, const _class_particle
 Coords union_particle_position(const _class_particle *particle);
 Coords union_particle_direction(const _class_particle *particle);
 void union_particle_to_local(_class_particle *particle, Coords center, Rotation rotation);
+void union_particle_translate_to_local(_class_particle *particle, Coords center);
 void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering);
 void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
                                       const _class_particle *before, Rotation inverse, int rotated, int safe_mode);

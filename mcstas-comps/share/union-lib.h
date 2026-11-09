@@ -162,6 +162,8 @@ Coords union_particle_direction(const _class_particle *particle);
 #pragma acc routine
 void union_particle_to_local(_class_particle *particle, Coords center, Rotation rotation);
 #pragma acc routine
+void union_particle_translate_to_local(_class_particle *particle, Coords center);
+#pragma acc routine
 void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering);
 #pragma acc routine
 void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,

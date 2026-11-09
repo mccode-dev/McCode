@@ -21,7 +21,9 @@ The default McStas run also builds four isolated copies of
 Coverage includes native particle state and RNG dumps, forbidden process and
 cross-section writes, rotated/focused nested boxes, upstream pure absorption,
 before/after logger snapshots, full versus absorbed event weights, conditional
-logger temporary storage, inhomogeneous scattering, and Mirror surface plus
+logger temporary storage, global and volume-specific scattering loggers,
+absorption loggers (alone, mixed, absent, and limited to a subset of volumes),
+inhomogeneous scattering, and Mirror surface plus
 refraction paths. Detector headers and numeric payloads are compared exactly;
 dates, paths, and parameter-header lines are ignored. All builds and runs use
 temporary directories, so the source examples are never modified or populated.
@@ -51,3 +53,5 @@ conversions can also change rounding. McXtrace propagation now updates phase via
 `PROP_DL`, and its previously inactive absorption-event bookkeeping is connected
 to the particle-based absorption logger API. Equality between normal and safe
 modes is tested separately from agreement with historical simulation references.
+Absorption-distance sampling is skipped when no absorption logger can consume the
+event, so changing logger coverage can change subsequent seeded trajectories.

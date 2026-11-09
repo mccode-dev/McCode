@@ -7816,6 +7816,12 @@ void union_particle_to_local(_class_particle *particle, Coords center, Rotation 
   mccoordschange(coords_neg(rot_apply(rotation, center)), rotation, particle);
 }
 
+void union_particle_translate_to_local(_class_particle *particle, Coords center) {
+  particle->x -= center.x;
+  particle->y -= center.y;
+  particle->z -= center.z;
+}
+
 void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering) {
   _class_particle after = *particle;
   *particle = *before;
@@ -7830,19 +7836,18 @@ void union_particle_restore(_class_particle *particle, const _class_particle *be
 
 void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
                                       const _class_particle *before, Rotation inverse, int rotated, int safe_mode) {
-  _class_particle committed = *result;
+  *particle = *result;
   if (rotated) {
     // Despite its name, this helper rotates any vector, here the outgoing wavevector.
-    mccoordschange_polarisation(inverse, &committed.kx, &committed.ky, &committed.kz);
+    mccoordschange_polarisation(inverse, &particle->kx, &particle->ky, &particle->kz);
   }
   // Restore master-frame fields exactly, without a local-frame round trip.
-  committed.x = before->x;
-  committed.y = before->y;
-  committed.z = before->z;
-  committed.Ex = before->Ex;
-  committed.Ey = before->Ey;
-  committed.Ez = before->Ez;
-  *particle = committed;
+  particle->x = before->x;
+  particle->y = before->y;
+  particle->z = before->z;
+  particle->Ex = before->Ex;
+  particle->Ey = before->Ey;
+  particle->Ez = before->Ez;
   if (safe_mode) {
     union_particle_restore(particle, before, 1);
   }
