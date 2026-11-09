@@ -262,6 +262,8 @@ class McMainWindow(QtWidgets.QMainWindow):
                 self.cb(self.itm)
         
         self.ui.menuNew_From_Template.clear()
+        # long site menus must scroll; Fusion (Linux default) cuts them off (#3080)
+        self.ui.menuNew_From_Template.setStyleSheet('QMenu { menu-scrollable: 1; }')
 
         for i in range(len(args)):
             site = args[i][0]
