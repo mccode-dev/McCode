@@ -1,0 +1,50 @@
+/*******************************************************************************
+* McXtrace instrument definition URL=http://www.mcxtrace.org
+*
+* Instrument: Test_Lens_CRL_RTM
+*
+* %Identification
+* Written by: (PR author to fill in)
+* Date: Nov 2026
+* Origin: McXtrace
+* %INSTRUMENT_SITE: Tests
+*
+* Test of the analytic (fast=1) and per-lenslet (fast=0) absorption in Lens_CRL_RTM
+*
+* %Description
+* A source with a spread in both position and angle illuminates a Be CRL stack.
+* The ray trajectories do not depend on 'fast', so with the same seed and
+* number of rays both modes must give the same intensity. The low energy and the
+* wide beam make the absorption depend strongly on y and on the angle, so an
+* error in any term of the analytic sum shows up as a difference.
+*
+* %Test: fast=1 N=20 E0=8 Detector: det_I=0.34115
+* %Test: fast=0 N=20 E0=8 Detector: det_I=0.34115
+*
+* %Parameters
+* fast: [1]  Lens_CRL_RTM absorption mode: 1 analytic, 0 sum over lenslets.
+* N:    [1]  Number of lenslets.
+* E0:   [keV] Photon energy.
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT Test_Lens_CRL_RTM(int fast=1, int N=20, E0=8)
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0,0,0) ABSOLUTE
+
+COMPONENT src = Source_div(
+    xwidth=1e-4, yheight=1e-3, focus_aw=1e-6, focus_ah=1e-3, E0=E0, dE=0)
+AT (0,0,0) RELATIVE Origin
+
+COMPONENT lens = Lens_CRL_RTM(
+    r=0.5e-3, d=0.1e-3, N=N, zdepth=2e-3, xwidth=1e-3, fast=fast)
+AT (0,0,1) RELATIVE src
+
+COMPONENT det = PSD_monitor(xwidth=0.1, yheight=0.1, nx=51, ny=51, filename="det")
+AT (0,0,1) RELATIVE lens
+
+END
