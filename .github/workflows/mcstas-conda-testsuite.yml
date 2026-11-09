@@ -79,6 +79,14 @@ jobs:
         environment-name: mcstas
         environment-file: dependencies.yml
 
+    # Activate the env via BASH_ENV: the runner user's ~/.bash_profile does not
+    # reliably reach the micromamba block that setup-micromamba appends
+    - name: Activate conda env (self-hosted)
+      if: matrix.os == 'self-hosted'
+      run: |
+           printf 'eval "$(%s shell hook -s bash)"\nmicromamba activate mcstas\n' "$MAMBA_EXE" > "$RUNNER_TEMP/activate.sh"
+           echo "BASH_ENV=$RUNNER_TEMP/activate.sh" >> "$GITHUB_ENV"
+
     - name: Check versions and set worker label
       id: version-checks
       run: |
