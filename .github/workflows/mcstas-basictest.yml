@@ -39,7 +39,22 @@ jobs:
       libs: ${{ steps.sims.outputs.libs }}
       full: ${{ steps.sims.outputs.full }}
       diffbase: ${{ steps.sims.outputs.diffbase }}
+      gpu: ${{ steps.gpu.outputs.idle }}
     steps:
+    # The OpenACC leg runs on the self-hosted GPU runner only when it is idle,
+    # otherwise compile-only on a hosted runner. Needs secret GPU_RUNNER_TOKEN
+    # (fine-grained PAT, Administration: read on this repo); without it - e.g. on
+    # fork PRs, which must never reach the self-hosted machine - always hosted.
+    # ponytail: racy check, two runs starting together may both pick self-hosted and one queues
+    - name: Is the self-hosted GPU runner idle?
+      id: gpu
+      env:
+        GH_TOKEN: ${{ secrets.GPU_RUNNER_TOKEN }}
+      run: |
+           N=$(gh api repos/${{ github.repository }}/actions/runners \
+             -q '[.runners[] | select(.status == "online" and .busy == false)] | length' || echo 0)
+           echo "idle=$([ "${N:-0}" -gt 0 ] && echo true || echo false)" | tee -a "$GITHUB_OUTPUT"
+
     - name: Checkout
       uses: actions/checkout@v6
       with:
@@ -128,8 +143,9 @@ jobs:
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic'}
           - { method: conda,  os: ubuntu-latest,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'antlr'}
           - { method: conda,  os: macos-latest,  CC: clang,  CXX: clang++,   python: '3.13', mpi: 'openmpi', nmpi: '2', cogen: 'classic'}
-          # --- conda + NVIDIA nvhpc, compile-only OpenACC (mctest -n0, no GPU on the runner) ---
-          - { method: conda,  os: ubuntu-24.04,  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic', openacc: true}
+          # --- conda + NVIDIA nvhpc OpenACC: run on the self-hosted GPU runner when idle,
+          #     else compile-only (mctest -n0) on a hosted runner, see the changes job ---
+          - { method: conda,  os: "${{ needs.changes.outputs.gpu == 'true' && 'self-hosted' || 'ubuntu-24.04' }}",  CC: gcc,   CXX: g++,  python: '3.13', mpi: 'openmpi', nmpi: 'auto', cogen: 'classic', openacc: true}
           - { method: conda,  os: windows-latest, CC: CL,   CXX: CL,  python: "3.13",  mpi: 'msmpi', nmpi: 'auto', cogen: 'classic'}
 
     name: ${{ matrix.os }}.${{ matrix.method }}.${{ matrix.cogen }}.${{ matrix.CC || 'default' }}.${{ matrix.mpi }}${{ matrix.openacc && '.openacc' || '' }}
@@ -137,8 +153,8 @@ jobs:
     env:
       CC: ${{ matrix.CC }}
       CXX: ${{ matrix.CXX }}
-      # Extra mctest flags for the OpenACC leg: compile with nvc, never run
-      MCTEST_OACC: ${{ matrix.openacc && '--openacc --no-mpi -n0' || '' }}
+      # Extra mctest flags for the OpenACC leg: compile with nvc, run only on the GPU runner
+      MCTEST_OACC: ${{ matrix.openacc && (matrix.os == 'self-hosted' && '--openacc --no-mpi' || '--openacc --no-mpi -n0') || '' }}
       # Compile instruments in parallel, except with mccode-antlr (shared cogen cache)
       MCTEST_JOBS: ${{ matrix.cogen != 'antlr' && '-j auto' || '' }}
     defaults:
@@ -146,6 +162,11 @@ jobs:
         shell: bash -el {0}
 
     steps:
+    # The self-hosted workspace persists between jobs
+    - name: Clean workspace (self-hosted)
+      if: matrix.os == 'self-hosted'
+      run: rm -rf "${GITHUB_WORKSPACE:?}"/*
+
     - name: Checkout
       uses: actions/checkout@v6
       with:
@@ -159,7 +180,7 @@ jobs:
     # Azure-hosted Ubuntu mirror reported slow; use the main archive for apt.
     # Unverified: compare run times before keeping.
     - name: Bypass slow Azure Ubuntu mirror
-      if: matrix.method == 'debian' || matrix.openacc
+      if: matrix.method == 'debian' || (matrix.openacc && matrix.os != 'self-hosted')
       run: |
            sudo grep -rl 'azure.archive.ubuntu.com' \
              /etc/apt/sources.list /etc/apt/sources.list.d \
@@ -170,7 +191,7 @@ jobs:
     # while the conda env and code generator (conda compilers) are built
     # - only needed for the simulation steps, so skipped when they are
     - name: Start nvhpc install (background, OpenACC)
-      if: needs.changes.outputs.run == 'true' && matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.openacc && matrix.os != 'self-hosted'
       run: |
            { (
              set -euo pipefail
@@ -490,8 +511,14 @@ jobs:
            # The point of this leg: resources must be found without the environment variable
            test -z "${MCSTAS:-}"
 
+    - name: Check nvhpc and GPU (OpenACC, self-hosted)
+      if: matrix.os == 'self-hosted'
+      run: |
+           nvc --version
+           nvidia-smi
+
     - name: Wait for nvhpc install (OpenACC)
-      if: needs.changes.outputs.run == 'true' && matrix.openacc
+      if: needs.changes.outputs.run == 'true' && matrix.openacc && matrix.os != 'self-hosted'
       timeout-minutes: 45
       run: |
            while [ ! -f nvhpc.done ]; do sleep 15; done

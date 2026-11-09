@@ -32,21 +32,35 @@ jobs:
           # mccode.org-style .deb packages from buildscripts/build_debs_mcstas, installed
           # in /usr with no $MCSTAS set (as for users of the mccode.org apt repo)
           - { os: ubuntu-24.04, mpi: 'openmpi', nmpi: 'auto', cogen: 'classic', method: 'debian' }
+          # OpenACC on the self-hosted GPU runner (nvhpc preinstalled); queues if the runner is busy
+          - { os: self-hosted, mpi: 'openacc', nmpi: 'auto', cogen: 'classic', method: 'conda', openacc: true }
 
     name: ${{ matrix.os }}.${{ matrix.mpi }}.${{ matrix.cogen }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite
     runs-on: ${{ matrix.os }}
     env:
       # Compile instruments in parallel, except with mccode-antlr (shared cogen cache)
       MCTEST_JOBS: ${{ matrix.cogen != 'antlr' && '-j auto' || '' }}
+      MCTEST_OACC: ${{ matrix.openacc && '--openacc --no-mpi' || '' }}
     defaults:
       run:
         shell: bash -el {0}
 
     steps:
+    # The self-hosted workspace persists between jobs
+    - name: Clean workspace (self-hosted)
+      if: matrix.os == 'self-hosted'
+      run: rm -rf "${GITHUB_WORKSPACE:?}"/*
+
     - name: Checkout
       uses: actions/checkout@v6
       with:
         path: src
+
+    - name: Check nvhpc and GPU (OpenACC, self-hosted)
+      if: matrix.openacc
+      run: |
+           nvc --version
+           nvidia-smi
 
     - name: Setup VS in shell Intel
       if: runner.os == 'Windows'
@@ -213,7 +227,7 @@ jobs:
              test "$(command -v mctest)" == "/usr/bin/mctest"
            fi
            # Run the test with 2 core mpi
-           ${MCTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} --nsigma 5 --nohtml --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
+           ${MCTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} ${MCTEST_OACC} --nsigma 5 --nohtml --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
     - name: 'Tar output files'
       id: tar-package
       if: always()
