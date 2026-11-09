@@ -18,7 +18,7 @@ N.b. This model is out of date with the present day instrumentation of FemtoMAX.
 
 ## Examples
 
-- **Test: DXUS=1e-2 Detector: EXAFS_I=2.74995e-13**
+- **Test: DXUS=1e-2 Detector: EXAFS_I=6.32396e-15**
 
 ## Input parameters
 

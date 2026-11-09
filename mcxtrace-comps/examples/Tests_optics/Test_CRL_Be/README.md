@@ -17,7 +17,7 @@ Test of a compound refractive lenses using the Lens_parab component.
 
 ## Examples
 
-- **Test: Test_CRL_Be L=14 Detector: e_monitor_I=0.341818**
+- **Test: Test_CRL_Be L=14 Detector: e_monitor_I=0.334**
 
 ## Input parameters
 
