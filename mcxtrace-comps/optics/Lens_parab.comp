@@ -28,8 +28,6 @@
 * r_ap:     [m] Radius of circular aperture, which also defines the depth of the lens profile.
 * d:        [m] Distance between two surfaces of the lens along the propagation axis.
 * N:        [1] Number of single lenses in a stack.
-* rough_xy: [rad] RMS value of random slope error along x and y (NOT IMPLEMENTED, ignored).
-* rough_z:  [rad] RMS value of random slope error along z (NOT IMPLEMENTED, ignored).
 * material_datafile: [str]   Datafile containing f1 constants
 *
 * %End
@@ -37,7 +35,7 @@
 
 DEFINE COMPONENT Lens_parab
 
-SETTING PARAMETERS (string material_datafile="Be.txt", r=0.5e-3, r_ap=1.4e-3, d=.1e-3, int N=1, rough_z=0, rough_xy=0)
+SETTING PARAMETERS (string material_datafile="Be.txt", r=0.5e-3, r_ap=1.4e-3, d=.1e-3, int N=1)
 
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
 
@@ -111,7 +109,7 @@ SHARE
     /* take the first forward intersection that lies inside the circular aperture */
     found = 0;
     for (j = 0; j < nroots && !found; j++) {
-      if (t[j] < 0)
+      if (t[j] < -ap2 / (2.0 * rr)) /* more than one sag behind the photon */
         continue;
       for (i = 0; i <= 2; i++)
         pos[i] = p[i] + t[j] * knorm[i];
@@ -226,6 +224,10 @@ TRACE
     }
 
     dl = sqrt ((refr.coord[0] - x) * (refr.coord[0] - x) + (refr.coord[1] - y) * (refr.coord[1] - y) + (refr.coord[2] - z) * (refr.coord[2] - z));
+    if ((refr.coord[2] - z) * kz < 0) { /* surface slightly behind the photon */
+      dl = -dl;
+      ALLOW_BACKPROP;
+    }
     PROP_DL (dl);
     SCATTER;
 
@@ -244,6 +246,10 @@ TRACE
     }
 
     dl = sqrt ((outg.coord[0] - x) * (outg.coord[0] - x) + (outg.coord[1] - y) * (outg.coord[1] - y) + (outg.coord[2] - z) * (outg.coord[2] - z));
+    if ((outg.coord[2] - z) * kz < 0) {
+      dl = -dl;
+      ALLOW_BACKPROP;
+    }
     PROP_DL (dl);
     d_total += dl;
     SCATTER;
