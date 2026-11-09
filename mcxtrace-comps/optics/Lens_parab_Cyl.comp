@@ -119,7 +119,7 @@ SHARE
     /* first forward intersection inside the aperture (also checked in the linear case) */
     found = 0;
     for (j = 0; j < nroots && !found; j++) {
-      if (t[j] < 0)
+      if (t[j] < -yh * yh / (8.0 * rr)) /* more than one sag behind the photon */
         continue;
       for (i = 0; i <= 2; i++)
         pos[i] = p[i] + t[j] * knorm[i];
@@ -237,6 +237,10 @@ TRACE
     }
 
     dl = sqrt ((refr.coord[0] - x) * (refr.coord[0] - x) + (refr.coord[1] - y) * (refr.coord[1] - y) + (refr.coord[2] - z) * (refr.coord[2] - z));
+    if ((refr.coord[2] - z) * kz < 0) { /* surface slightly behind the photon */
+      dl = -dl;
+      ALLOW_BACKPROP;
+    }
     PROP_DL (dl);
     SCATTER;
 
@@ -255,6 +259,10 @@ TRACE
     }
 
     dl = sqrt ((outg.coord[0] - x) * (outg.coord[0] - x) + (outg.coord[1] - y) * (outg.coord[1] - y) + (outg.coord[2] - z) * (outg.coord[2] - z));
+    if ((outg.coord[2] - z) * kz < 0) {
+      dl = -dl;
+      ALLOW_BACKPROP;
+    }
     PROP_DL (dl);
     d_total += dl;
     SCATTER;
