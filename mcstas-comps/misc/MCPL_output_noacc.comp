@@ -32,7 +32,7 @@
 *
 * These features are set this way to keep file sizes as manageable as possible.
 *
-* %BUGS
+* Example: MCPL_output_noacc( filename="voutput", verbose=1, userflag="flag", userflagcomment="Neutron Id" )
 *
 * %P
 * INPUT PARAMETERS
@@ -50,7 +50,7 @@
 
 DEFINE COMPONENT MCPL_output_noacc
 
-SETTING PARAMETERS ( string filename=0, int weight_mode=-1, int verbose=0,
+SETTING PARAMETERS ( string filename=0, int weight_mode=1, int verbose=0,
                      int polarisationuse=0, int doubleprec=0,
                      string userflag="",  string userflagcomment="",
                      buffermax=0 )
@@ -76,6 +76,7 @@ DECLARE
   int userflagenabled;
   char* outfilename; // "/some/where/myfile.mcpl.gz"
   double weight_scale;
+  long long last_uid;
 %}
 
 INITIALIZE
@@ -135,20 +136,11 @@ INITIALIZE
     mcpl_hdr_add_data (outputfile, "mccode_cmd_line", strlen (clr), clr);
   }
 
-  if (weight_mode == -1) {
-    MPI_MASTER (fprintf (stderr,
-                         "\nWarning (%s): weight_mode unspecified so defaulting to 2"
-                         " (classic mode) which will soon become unavailable and tooling"
-                         " might need updating. Please consult"
-                         " https://github.com/mccode-dev/McCode/discussions/9999 for more"
-                         " information.\n",
-                         NAME_CURRENT_COMP););
-    weight_mode = 2;
-  } else if (weight_mode == 2) {
+  if (weight_mode == 2) {
     MPI_MASTER (fprintf (stderr,
                          "\nWarning (%s): weight_mode=2 selected. This mode will"
                          " soon become unavailable. Please consult"
-                         " https://github.com/mccode-dev/McCode/discussions/9999 for more"
+                         " https://github.com/mccode-dev/McCode/discussions/2076 for more"
                          " information.\n",
                          NAME_CURRENT_COMP););
   }
@@ -158,6 +150,7 @@ INITIALIZE
   }
 
   weight_scale = 1.0;
+  last_uid = -1;
   if (weight_mode != 2) {
     mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", -1.0); // reserve
     // Multiply with mcget_ncount() to undo division supposedly performed in
@@ -224,6 +217,7 @@ TRACE
   });
 
   mcpl_add_particle (outputfile, particle);
+  last_uid = _particle->_uid;
 
   SCATTER;
 %}
@@ -234,8 +228,25 @@ SAVE
 
 FINALLY
 %{
-  if (weight_mode != 2)
-    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", (double)mcget_ncount ());
+  if (weight_mode != 2) {
+    double nrays = (double)mcget_ncount ();
+    if (!mcsave_final) { /* interrupted: rays up to the last one recorded */
+      #ifdef OPENACC
+      nrays = -1; /* parallel loop: _uid order is not execution order */
+      #else
+      /* _uid = rank*ncount + index, see raytrace_all */
+      nrays = last_uid < 0 ? -1 : (double)(last_uid % (long long)mcget_ncount () + 1);
+      #endif
+      if (nrays > 0)
+        fprintf (stderr, "\nWarning (%s): run interrupted, initial_ray_count set to %.0f of %llu requested rays.\n",
+                 NAME_CURRENT_COMP, nrays, mcget_ncount ());
+      else
+        fprintf (stderr, "\nWarning (%s): run interrupted, initial_ray_count unavailable (-1), file is incomplete.\n",
+                 NAME_CURRENT_COMP);
+    }
+    if (nrays > 0)
+      mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", nrays);
+  }
   mcpl_closeandgzip_outfile (outputfile);
 
   #ifdef USE_MPI
