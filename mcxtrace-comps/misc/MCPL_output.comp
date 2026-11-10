@@ -170,7 +170,7 @@ INITIALIZE
   weight_scale = 1.0;
   last_uid = -1;
   if (weight_mode != 2) {
-    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", -1.0); // reserve
+    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", 0.0); // no rays yet, set in FINALLY
     // Multiply with mcget_ncount() to undo division supposedly performed in
     // source:
     weight_scale = (double)mcget_ncount ();
@@ -283,6 +283,8 @@ TRACE
             particle->direction[2], particle->time, particle->weight, particle->polarisation[0], particle->polarisation[1], particle->polarisation[2]);
   });
 
+  if (last_uid < 0 && weight_mode != 2) /* first particle: count unknown until FINALLY */
+    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", -1.0);
   mcpl_add_particle (outputfile, particle);
   last_uid = _particle->_uid;
 
@@ -299,6 +301,8 @@ SAVE
     fprintf (stderr, "MCPL_output captured %g particles which is more than the buffersize (%g)!\n", (double)captured, buffermax);
   }
   mcpl_particle_t Particle;
+  if (captured && weight_mode != 2) /* count unknown until FINALLY */
+    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", -1.0);
   for (i = 0; i < captured; i++) {
     if (P[i] > 0) {
       /*positions are in cm*/
@@ -343,20 +347,20 @@ FINALLY
     double nrays = (double)mcget_ncount ();
     if (!mcsave_final) { /* interrupted: rays up to the last one recorded */
       #ifdef OPENACC
-      nrays = -1; /* parallel loop: _uid order is not execution order */
+      /* parallel loop: _uid order is not execution order */
+      nrays = captured ? -1 : 0;
       #else
       /* _uid = rank*ncount + index, see raytrace_all */
-      nrays = last_uid < 0 ? -1 : (double)(last_uid % (long long)mcget_ncount () + 1);
+      nrays = last_uid < 0 ? 0 : (double)(last_uid % (long long)mcget_ncount () + 1);
       #endif
-      if (nrays > 0)
+      if (nrays >= 0)
         fprintf (stderr, "\nWarning (%s): run interrupted, initial_ray_count set to %.0f of %llu requested rays.\n",
                  NAME_CURRENT_COMP, nrays, mcget_ncount ());
       else
         fprintf (stderr, "\nWarning (%s): run interrupted, initial_ray_count unavailable (-1), file is incomplete.\n",
                  NAME_CURRENT_COMP);
     }
-    if (nrays > 0)
-      mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", nrays);
+    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", nrays);
   }
   mcpl_closeandgzip_outfile (outputfile);
 
