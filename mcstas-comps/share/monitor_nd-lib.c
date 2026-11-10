@@ -2225,12 +2225,12 @@ int Monitor_nD_MeshIntersect(gmesh_struct* mesh, Coords position, Coords velocit
     inside = gmesh_inside(mesh, position);
   if (inside) {
     *t0 = 0;
-    *t1 = hits[0].t;
+    *t1 = hits[0].time;
   } else {
-    *t0 = hits[0].t;
-    *t1 = hits[0].t;
+    *t0 = hits[0].time;
+    *t1 = hits[0].time;
     if (nhits > 1)
-      *t1 = hits[1].t;
+      *t1 = hits[1].time;
   }
   *face = hits[0].face;
   return 1;

@@ -1946,7 +1946,7 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
           *ambiguous = 1;
         continue;
       }
-      hit.t = hit_t;
+      hit.time = hit_t;
       hit.normal = mesh->tri_normal[t];
       hit.tri = t;
       hit.face = mesh->tri_face[t];
@@ -1954,7 +1954,7 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
       hit.edge = on_edge;
       // hits on shared edges/vertices: keep once
       for (k = 0; k < *stored_count; k++) {
-        if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
+        if (hits[k].in_out == in_out && fabs (hits[k].time - hit_t) <= t_tolerance) {
           duplicate = 1;
           break;
         }
@@ -1966,13 +1966,13 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
       if (position == max_hits) {
         if (max_hits == 0)
           continue;
-        if (hit_t >= hits[max_hits - 1].t)
+        if (hit_t >= hits[max_hits - 1].time)
           continue;
         position = max_hits - 1;
       } else {
         (*stored_count)++;
       }
-      while (position > 0 && hits[position - 1].t > hit_t) {
+      while (position > 0 && hits[position - 1].time > hit_t) {
         hits[position] = hits[position - 1];
         position--;
       }
@@ -2220,7 +2220,7 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         } else {
           in_out = -1;
         }
-        hit.t = hit_t;
+        hit.time = hit_t;
         hit.normal = mesh->tri_normal[triangle];
         hit.tri = triangle;
         hit.face = mesh->tri_face[triangle];
@@ -2228,7 +2228,7 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         hit.edge = crossing_edge[i_crossing];
         // hits on shared edges/vertices: keep once
         for (k = 0; k < *stored_count; k++) {
-          if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
+          if (hits[k].in_out == in_out && fabs (hits[k].time - hit_t) <= t_tolerance) {
             duplicate = 1;
             break;
           }
@@ -2238,13 +2238,13 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         total++;
         position = *stored_count;
         if (position == max_hits) {
-          if (hit_t >= hits[max_hits - 1].t)
+          if (hit_t >= hits[max_hits - 1].time)
             continue;
           position = max_hits - 1;
         } else {
           (*stored_count)++;
         }
-        while (position > 0 && hits[position - 1].t > hit_t) {
+        while (position > 0 && hits[position - 1].time > hit_t) {
           hits[position] = hits[position - 1];
           position--;
         }
@@ -2272,13 +2272,6 @@ gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, C
              mesh->filename, total, GMESH_MAX_HITS, total);
   }
   return stored;
-}
-
-  // time of a hit, see geometry-mesh-lib.h
-  #pragma acc routine seq
-double
-gmesh_hit_time (gmesh_hit* hit) {
-  return hit->t;
 }
 
   // 1 when point is inside the box [lower, upper], borders included
