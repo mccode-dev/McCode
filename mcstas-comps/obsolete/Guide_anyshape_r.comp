@@ -41,7 +41,7 @@
 * values as input (common for all the faces), ignoring those specified in the OFF file
 *
 * The complex OFF/PLY geometry option handles any closed non-convex polyhedra.
-*   It supports the OFF and NOFF file format but not COFF (colored faces).
+*   It supports the OFF (incl. NOFF, COFF), PLY and STL file formats.
 *   Standard .OFF files may be generated from XYZ data using:
 *     qhull < coordinates.xyz Qx Qv Tv o > geomview.off
 *   or
@@ -54,7 +54,7 @@
 * %P
 * INPUT PARAMETERS:
 *
-* geometry: [str]              Name of the OFF/PLY file describing the guide geometry
+* geometry: [str]              Name of the OFF, PLY or STL file describing the guide geometry
 * xwidth: [m]                  Redimension the object bounding box on X axis is non-zero
 * yheight: [m]                 Redimension the object bounding box on Y axis is non-zero
 * zdepth: [m]                  Redimension the object bounding box on Z axis is non-zero
@@ -95,26 +95,41 @@ DEPENDENCY " -DUSE_OFF "
 SHARE
 %{
 %include "read_table-lib"
-%include "interoff-lib"
+%include "geometry-mesh-lib"
 %include "ref-lib"
+
+// first hit of the parabola position + t*velocity + t^2/2*acceleration with
+// mesh ahead of the neutron: its time dt, the normal and the face hit.
+// Returns 1 on a hit, 0 otherwise.
+#pragma acc routine seq
+int
+Guide_anyshape_r_mesh_next (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double* dt, Coords* normal, int* face) {
+  gmesh_hit hits[GMESH_MAX_HITS];
+  if (!gmesh_intersect_gravity (mesh, position, velocity, acceleration, 0, hits))
+    return 0;
+  *dt = hits[0].t;
+  *normal = hits[0].normal;
+  *face = hits[0].face;
+  return 1;
+}
 %}
 
 DECLARE
 %{
-  off_struct offdata;
+  gmesh_struct mesh;
   int use_file_coatings; // Flag to specify whether to use (1) or not (0) the mirror parameters given in the .OFF file
 %}
 
 INITIALIZE
 %{
   MPI_MASTER (fprintf (stderr, "Guide_anyshape_r: %s: WARNING: this component is obsolete. Use Guide_anyshape(file_coatings=1) instead.\n", NAME_CURRENT_COMP););
-  /* initialize OFF object from the file(s) */
-  if (!off_init (geometry, xwidth, yheight, zdepth, !center, &offdata))
+  /* initialize the mesh from the file, with the per-face coatings if given */
+  if (!gmesh_init_fit (geometry, xwidth, yheight, zdepth, center, GMESH_PROPS_OPTIONAL, &mesh))
     exit (-1);
 
   if (m == 0 && alpha == 0 && W == 0) {
     use_file_coatings = 1;
-    if (offdata.nfaceprops < 3) {
+    if (mesh.nfaceprops < 3) {
       fprintf (stderr, "Guide_anyshape_r: %s: Error: m, alpha, W are all 0, but %s does not define m, alpha and W values for each face.\n",
                NAME_CURRENT_COMP, geometry);
       exit (-1);
@@ -134,39 +149,23 @@ TRACE
   int counter = 0;
   /* main loop for multiple reflections */
   #ifdef OPENACC
-  off_struct thread_offdata = offdata;
+  gmesh_struct thread_mesh = mesh;
   #else
-  #define thread_offdata offdata
+  #define thread_mesh mesh
   #endif
   do {
-    double t0 = 0, t3 = 0, dt = 0;
-    unsigned long faceindex0 = 0, faceindex3 = 0, fi = 0;
-    Coords n0, n3, n = { 0, 0, 0 };
-    /* determine intersections with object; PL: get index of the intersected face */
+    double dt = 0;
+    int fi = 0;
+    Coords n = { 0, 0, 0 };
+    Coords acceleration = coords_set (0, 0, 0);
+    if (mcgravitation)
+      acceleration = rot_apply (_comp->_rotation_absolute, coords_set (0, -GRAVITY, 0));
 
-    double mc_gx = 0.0, mc_gy = 0.0, mc_gz = 0.0;
-    if (mcgravitation) {
-      Coords locgrav;
-      locgrav = rot_apply (_comp->_rotation_absolute, coords_set (0, -GRAVITY, 0));
-      coords_get (locgrav, &mc_gx, &mc_gy, &mc_gz);
-    }
-
-    intersect = off_intersect_idx (&t0, &t3, &n0, &n3, &faceindex0, &faceindex3, x, y, z, vx, vy, vz, mc_gx, mc_gy, mc_gz, thread_offdata);
-
-    /* get the smallest positive */
-    if (t0 > 0) {
-      dt = t0;
-      n = n0;
-      fi = faceindex0;
-    }
-    if (intersect > 1 && dt <= 0 && t3 > dt) {
-      dt = t3;
-      n = n3;
-      fi = faceindex3;
-    }
+    /* next intersection with the object, along the parabola under gravity; PL: with the index of the face */
+    intersect = Guide_anyshape_r_mesh_next (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), acceleration, &dt, &n, &fi);
 
     /* exit loop when no intersection forward */
-    if (dt <= 0 || !intersect)
+    if (!intersect)
       break;
 
     double nx, ny, nz;
@@ -187,9 +186,10 @@ TRACE
     double W_value = W;
 
     if (use_file_coatings == 1) {
-      m_value = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_M, 0);
-      alpha_value = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_ALPHA, 0);
-      W_value = off_face_prop (&thread_offdata, fi, OFF_FACEPROP_W, 0);
+      // per-face properties m, alpha, W are numbers 0, 1, 2
+      m_value = gmesh_face_prop (&thread_mesh, fi, 0, 0);
+      alpha_value = gmesh_face_prop (&thread_mesh, fi, 1, 0);
+      W_value = gmesh_face_prop (&thread_mesh, fi, 2, 0);
     }
     double par[] = { R0, Qc, alpha_value, m_value, W_value };
     StdReflecFunc (q, par, &R);
@@ -231,7 +231,7 @@ TRACE
 MCDISPLAY
 %{
   /* display the object */
-  off_display (offdata);
+  gmesh_display (&mesh);
 %}
 
 END
