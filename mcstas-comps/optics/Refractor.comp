@@ -48,7 +48,7 @@
 *   The complex geometry option handles any closed non-convex polyhedra.
 *   It computes the intersection points of the neutron ray with the object
 *   transparently, so that it can be used like a regular sample object.
-*   It supports the PLY, OFF and NOFF file format but not COFF (colored faces).
+*   It supports the OFF (incl. NOFF, COFF), PLY and STL file formats.
 *   Such files may be generated from XYZ data using:
 *     qhull < coordinates.xyz Qx Qv Tv o > geomview.off
 *   or
@@ -154,8 +154,73 @@ SHARE
 
 
   %include "read_table-lib"
-  %include "interoff-lib"
+  %include "geometry-mesh-lib"
   %include "ref-lib"
+
+  // Times t0, t3 at which the line position + t*velocity enters and leaves
+  // mesh, as off_intersect of interoff-lib: inside the mesh, t0 < 0 is the
+  // nearest hit behind and t3 the nearest ahead; outside, t0 and t3 are the
+  // next two hits ahead. With a single hit ahead t3 = FLT_MAX, with the mesh
+  // behind t3 = 0. n0, n3 (may be NULL) get the normals of these hits, with
+  // the orientation of interoff-lib: opposite to the right-hand rule of the
+  // vertex order in the file.
+  // Returns 2 when t0 and t3 are both hits, 1 when only t0 is, else 0.
+  #pragma acc routine seq
+  int
+  Refractor_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t3, Coords* n0, Coords* n3) {
+    gmesh_hit ahead[GMESH_MAX_HITS];
+    gmesh_hit behind[GMESH_MAX_HITS];
+    // a hit on the surface the neutron sits on (|t| < tolerance) is counted ahead
+    double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
+    int n_ahead = gmesh_intersect (mesh, position, velocity, -tolerance, ahead);
+    int n_behind = gmesh_intersect (mesh, position, coords_scale (velocity, -1), tolerance, behind);
+    int inside = n_ahead > 0 && n_behind > 0;
+    Coords no_normal = coords_set (0, 0, 0);
+    // gmesh normals follow the right-hand rule, unless the mesh was flipped
+    double normal_sign = mesh->flipped ? 1 : -1;
+    // normals of a closed, oriented mesh point outward: leaving first means inside
+    if (inside && mesh->closed && mesh->oriented)
+      inside = ahead[0].in_out < 0;
+    else if (inside && mesh->closed)
+      inside = gmesh_inside (mesh, position);
+    if (inside) {
+      *t0 = -behind[0].t;
+      *t3 = ahead[0].t;
+      if (n0)
+        *n0 = coords_scale (behind[0].normal, normal_sign);
+      if (n3)
+        *n3 = coords_scale (ahead[0].normal, normal_sign);
+      return 2;
+    }
+    if (n_ahead > 1) {
+      *t0 = ahead[0].t;
+      *t3 = ahead[1].t;
+      if (n0)
+        *n0 = coords_scale (ahead[0].normal, normal_sign);
+      if (n3)
+        *n3 = coords_scale (ahead[1].normal, normal_sign);
+      return 2;
+    }
+    if (n_ahead == 1) {
+      *t0 = ahead[0].t;
+      *t3 = FLT_MAX;
+      if (n0)
+        *n0 = coords_scale (ahead[0].normal, normal_sign);
+      if (n3)
+        *n3 = no_normal;
+      return 1;
+    }
+    if (n_behind) {
+      *t0 = -behind[0].t;
+      *t3 = 0;
+      if (n0)
+        *n0 = coords_scale (behind[0].normal, normal_sign);
+      if (n3)
+        *n3 = no_normal;
+      return 1;
+    }
+    return 0;
+  }
 
   /* wrappers to intersection routines which also return the normal vector */
   int
@@ -319,7 +384,7 @@ DECLARE
 %{
   double rho;
   double bc;
-  off_struct offdata;
+  gmesh_struct mesh;
   double mean_n;
   double events;
   double theta1;
@@ -348,7 +413,7 @@ INITIALIZE
     exit (-1);
     #else
     /* off/ply case */
-    if (!off_init (geometry, xwidth, yheight, zdepth, 0, &offdata))
+    if (!gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh))
       exit (printf ("Refractor: %s: FATAL: invalid OFF/PLY geometry specification for file '%s'.\n", NAME_CURRENT_COMP, geometry));
     #endif
   } else
@@ -382,10 +447,10 @@ TRACE
 
   #ifdef OPENACC
   #ifdef USE_OFF
-  off_struct thread_offdata = offdata;
+  gmesh_struct thread_mesh = mesh;
   #endif
   #else
-  #define thread_offdata offdata
+  #define thread_mesh mesh
   #endif
 
   do {
@@ -410,7 +475,7 @@ TRACE
     #ifdef USE_OFF
     else if (geometry && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
       Coords n0, n1;
-      intersect = off_intersect (&t0, &t1, &n0, &n1, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata);
+      intersect = Refractor_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &n0, &n1);
       if (intersect) {
         coords_get (t0 <= 0 || t0 > t1 ? n1 : n0, &nx, &ny, &nz);
       }
@@ -722,7 +787,7 @@ MCDISPLAY
     }
     box (0, 0, 0, 4 * radius, 4 * radius, 2 * radius + zdepth, 0, 0, 1, 0);
   } else if (geometry && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-    off_display (offdata);
+    gmesh_display (&mesh);
   }
 %}
 END

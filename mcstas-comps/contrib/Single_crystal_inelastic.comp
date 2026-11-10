@@ -55,7 +55,7 @@
 * yheight: [m]   Height of crystal.
 * zdepth: [m]    Depth of crystal (no extinction simulated)
 * sqw:    [string]   Name of a 4d S(q,w) file - example.sqw4 is included in your installation
-* geometry: [string]   Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust.
+* geometry: [string]   Name of an OFF, PLY or STL file for complex geometry. An OFF file may be generated from XYZ coordinates using qhull/powercrust.
 * delta_d_d: [1] Lattice spacing variance, gaussian RMS.
 * mosaic: [arcmin]   Isotropic crystal mosaic, gaussian RMS. Puts the crystal in the isotropic mosaic model state, thus disregarding other mosaicity parameters.
 * mosaic_a: [arcmin] Horizontal (rotation around lattice vector a) mosaic (anisotropic), gaussian RMS. Put the crystal in the anisotropic crystal vector state. I.e. model mosaicity through rotation around the crystal lattice vectors. Has precedence over in-plane mosaic model.
@@ -120,7 +120,72 @@ SHARE
 %{
   /* used for reading data table from file */
   %include "read_table-lib"
-  %include "interoff-lib"
+  %include "geometry-mesh-lib"
+
+  // Times t0, t3 at which the line position + t*velocity enters and leaves
+  // mesh, as off_intersect of interoff-lib: inside the mesh, t0 < 0 is the
+  // nearest hit behind and t3 the nearest ahead; outside, t0 and t3 are the
+  // next two hits ahead. With a single hit ahead t3 = FLT_MAX, with the mesh
+  // behind t3 = 0. n0, n3 (may be NULL) get the normals of these hits, with
+  // the orientation of interoff-lib: opposite to the right-hand rule of the
+  // vertex order in the file.
+  // Returns 2 when t0 and t3 are both hits, 1 when only t0 is, else 0.
+  #pragma acc routine seq
+  int
+  Single_crystal_inelastic_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t3, Coords* n0, Coords* n3) {
+    gmesh_hit ahead[GMESH_MAX_HITS];
+    gmesh_hit behind[GMESH_MAX_HITS];
+    // a hit on the surface the neutron sits on (|t| < tolerance) is counted ahead
+    double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
+    int n_ahead = gmesh_intersect (mesh, position, velocity, -tolerance, ahead);
+    int n_behind = gmesh_intersect (mesh, position, coords_scale (velocity, -1), tolerance, behind);
+    int inside = n_ahead > 0 && n_behind > 0;
+    Coords no_normal = coords_set (0, 0, 0);
+    // gmesh normals follow the right-hand rule, unless the mesh was flipped
+    double normal_sign = mesh->flipped ? 1 : -1;
+    // normals of a closed, oriented mesh point outward: leaving first means inside
+    if (inside && mesh->closed && mesh->oriented)
+      inside = ahead[0].in_out < 0;
+    else if (inside && mesh->closed)
+      inside = gmesh_inside (mesh, position);
+    if (inside) {
+      *t0 = -behind[0].t;
+      *t3 = ahead[0].t;
+      if (n0)
+        *n0 = coords_scale (behind[0].normal, normal_sign);
+      if (n3)
+        *n3 = coords_scale (ahead[0].normal, normal_sign);
+      return 2;
+    }
+    if (n_ahead > 1) {
+      *t0 = ahead[0].t;
+      *t3 = ahead[1].t;
+      if (n0)
+        *n0 = coords_scale (ahead[0].normal, normal_sign);
+      if (n3)
+        *n3 = coords_scale (ahead[1].normal, normal_sign);
+      return 2;
+    }
+    if (n_ahead == 1) {
+      *t0 = ahead[0].t;
+      *t3 = FLT_MAX;
+      if (n0)
+        *n0 = coords_scale (ahead[0].normal, normal_sign);
+      if (n3)
+        *n3 = no_normal;
+      return 1;
+    }
+    if (n_behind) {
+      *t0 = -behind[0].t;
+      *t3 = 0;
+      if (n0)
+        *n0 = coords_scale (behind[0].normal, normal_sign);
+      if (n3)
+        *n3 = no_normal;
+      return 1;
+    }
+    return 0;
+  }
   /* Declare structures and functions only once in each instrument. */
   #ifndef SINGLE_CRYSTAL_DECL
   #define SINGLE_CRYSTAL_DECL
@@ -663,7 +728,7 @@ SHARE
 DECLARE
 %{
   struct hkl_info_struct hkl_info;
-  off_struct offdata;
+  gmesh_struct mesh;
 %}
 
 INITIALIZE
@@ -716,7 +781,7 @@ INITIALIZE
 
   hkl_info.shape = -1; /* -1:no shape, 0:cyl, 1:box, 2:sphere, 3:any-shape  */
   if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-    if (off_init (geometry, xwidth, yheight, zdepth, 0, &offdata)) {
+    if (gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh)) {
       hkl_info.shape = 3;
     }
   } else if (xwidth && yheight && zdepth)
@@ -799,7 +864,7 @@ TRACE
   else if (hkl_info.shape == 2)
     intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
   else if (hkl_info.shape == 3)
-    intersect = off_intersect (&t1, &t2, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, offdata);
+    intersect = Single_crystal_inelastic_mesh_intersect (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t1, &t2, NULL, NULL);
 
   if (t2 < 0)
     intersect = 0; /* we passed sample volume already */
@@ -833,7 +898,7 @@ TRACE
       else if (hkl_info.shape == 2)
         intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
       else if (hkl_info.shape == 3)
-        intersect = off_intersect (&t1, &t2, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, offdata);
+        intersect = Single_crystal_inelastic_mesh_intersect (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t1, &t2, NULL, NULL);
       if (!intersect || t2 * v < -1e-9 || t1 * v > 1e-9) {
         /* neutron is leaving the sample */
         if (hkl_info.flag_warning < 100)
@@ -935,7 +1000,7 @@ MCDISPLAY
   } else if (hkl_info.shape == 2) { /* sphere */
     sphere (0, 0, 0, radius);
   } else if (hkl_info.shape == 3) { /* OFF file */
-    off_display (offdata);
+    gmesh_display (&mesh);
   }
 %}
 END
