@@ -62,18 +62,18 @@ int gravity_tests (void) {
 
   // falling from rest above the unit cube: top at time sqrt(2), bottom at 2
   nhits = gmesh_intersect_gravity (&cube, coords_set (0.5, 2, 0.5), coords_set (0, 0, 0), coords_set (0, -1, 0), 0, hits);
-  gravity_check (nhits == 2 && fabs (hits[0].t - sqrt (2)) < 1e-12 && hits[0].in_out == 1 && fabs (hits[1].t - 2) < 1e-12 && hits[1].in_out == -1,
+  gravity_check (nhits == 2 && fabs (hits[0].time - sqrt (2)) < 1e-12 && hits[0].in_out == 1 && fabs (hits[1].time - 2) < 1e-12 && hits[1].in_out == -1,
                  "fall from rest through cube.off", &failures);
 
   // entering through the front face, leaving through the bottom at time sqrt(2)
   nhits = gmesh_intersect_gravity (&cube, coords_set (0.5, 0.5, -1), coords_set (0, 0, 1), coords_set (0, -0.5, 0), 0, hits);
-  gravity_check (nhits == 2 && fabs (hits[0].t - 1) < 1e-12 && hits[0].in_out == 1 && fabs (hits[1].t - sqrt (2)) < 1e-12 && hits[1].in_out == -1,
+  gravity_check (nhits == 2 && fabs (hits[0].time - 1) < 1e-12 && hits[0].in_out == 1 && fabs (hits[1].time - sqrt (2)) < 1e-12 && hits[1].in_out == -1,
                  "front face in, bottom out of cube.off", &failures);
 
   // thrown up into the cube from below, falling out through the same face
   nhits = gmesh_intersect_gravity (&cube, coords_set (0.5, -1, 0.5), coords_set (0, 2, 0), coords_set (0, -1.2, 0), 0, hits);
-  gravity_check (nhits == 2 && fabs (hits[0].t - (2 - sqrt (1.6)) / 1.2) < 1e-12 && hits[0].in_out == 1
-                   && fabs (hits[1].t - (2 + sqrt (1.6)) / 1.2) < 1e-12 && hits[1].in_out == -1 && hits[0].face == hits[1].face,
+  gravity_check (nhits == 2 && fabs (hits[0].time - (2 - sqrt (1.6)) / 1.2) < 1e-12 && hits[0].in_out == 1
+                   && fabs (hits[1].time - (2 + sqrt (1.6)) / 1.2) < 1e-12 && hits[1].in_out == -1 && hits[0].face == hits[1].face,
                  "in and out through the bottom of cube.off", &failures);
 
   // t_min skips the hits before it
@@ -105,7 +105,7 @@ int gravity_tests (void) {
       continue;
     }
     for (i_hit = 0; i_hit < nhits; i_hit++) {
-      if (fabs (hits[i_hit].t - line_hits[i_hit].t) > 1e-12 * (1 + fabs (line_hits[i_hit].t)) || hits[i_hit].in_out != line_hits[i_hit].in_out)
+      if (fabs (hits[i_hit].time - line_hits[i_hit].time) > 1e-12 * (1 + fabs (line_hits[i_hit].time)) || hits[i_hit].in_out != line_hits[i_hit].in_out)
         mismatches++;
     }
 
@@ -115,21 +115,21 @@ int gravity_tests (void) {
       Coords chord = coords_sub (gravity_parabola (position, velocity, acceleration, (i_step + 1) * step), start);
       int npiece = gmesh_intersect (&socket, start, chord, 0, line_hits);
       int i_piece;
-      for (i_piece = 0; i_piece < npiece && line_hits[i_piece].t <= 1 && nline < GMESH_MAX_HITS; i_piece++) {
-        line_times[nline] = (i_step + line_hits[i_piece].t) * step;
+      for (i_piece = 0; i_piece < npiece && line_hits[i_piece].time <= 1 && nline < GMESH_MAX_HITS; i_piece++) {
+        line_times[nline] = (i_step + line_hits[i_piece].time) * step;
         nline++;
       }
     }
     nhits = gmesh_intersect_gravity (&socket, position, velocity, acceleration, 0, hits);
-    while (nhits > 0 && hits[nhits - 1].t > time_end)
+    while (nhits > 0 && hits[nhits - 1].time > time_end)
       nhits--;
     if (nhits != nline) {
       mismatches++;
       continue;
     }
     for (i_hit = 0; i_hit < nhits; i_hit++) {
-      if (fabs (hits[i_hit].t - line_times[i_hit]) > worst)
-        worst = fabs (hits[i_hit].t - line_times[i_hit]);
+      if (fabs (hits[i_hit].time - line_times[i_hit]) > worst)
+        worst = fabs (hits[i_hit].time - line_times[i_hit]);
     }
   }
   printf ("Test_lib_geometry_mesh_lib: socket.off: %d of 2000 random rays differ from the line or polyline, worst time difference %g s\n", mismatches,

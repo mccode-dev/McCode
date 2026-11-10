@@ -83,7 +83,7 @@
   #endif
 
 typedef struct gmesh_hit {
-  double t; // position along the line: pos + t*dir
+  double time; // position along the line: pos + time*dir
   Coords normal; // unit normal of the triangle hit (outward for closed oriented meshes)
   int tri; // triangle index (BVH order)
   int face; // index of the face (polygon) in the file, 0-based
@@ -178,12 +178,6 @@ int gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, doub
   // RETURN: number of hits stored
   #pragma acc routine seq
 int gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double t_min, gmesh_hit hits[GMESH_MAX_HITS]);
-
-  // double gmesh_hit_time(gmesh_hit *hit)
-  // RETURN: hit->t. For component TRACE sections, where t is the particle
-  // time macro and hit.t can not be written.
-  #pragma acc routine seq
-double gmesh_hit_time (gmesh_hit* hit);
 
   // int gmesh_inside(gmesh_struct *mesh, Coords position)
   // ACTION: point in (closed) mesh test, parity of ray crossings along fixed
