@@ -125,69 +125,21 @@ SHARE
   %include "read_table-lib"
   %include "geometry-mesh-lib"
 
-  // Times t0, t3 at which the line position + t*velocity enters and leaves
-  // mesh, as off_intersect of interoff-lib: inside the mesh, t0 < 0 is the
-  // nearest hit behind and t3 the nearest ahead; outside, t0 and t3 are the
-  // next two hits ahead. With a single hit ahead t3 = FLT_MAX, with the mesh
-  // behind t3 = 0. n0, n3 (may be NULL) get the normals of these hits, with
-  // the orientation of interoff-lib: opposite to the right-hand rule of the
-  // vertex order in the file.
-  // Returns 2 when t0 and t3 are both hits, 1 when only t0 is, else 0.
+  // time dt and normal of the next hit of the line position + t*velocity with
+  // mesh, skipping the surface the neutron sits on (hit at |t| < tolerance).
+  // The normal has the orientation of interoff-lib: opposite to the
+  // right-hand rule of the vertex order in the file. Returns 1 on a hit, else 0.
   #pragma acc routine seq
   int
-  Lens_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t3, Coords* n0, Coords* n3) {
-    gmesh_hit ahead[GMESH_MAX_HITS];
-    gmesh_hit behind[GMESH_MAX_HITS];
-    // a hit on the surface the neutron sits on (|t| < tolerance) is counted ahead
+  Lens_mesh_next (gmesh_struct* mesh, Coords position, Coords velocity, double* dt, Coords* normal) {
+    gmesh_hit hits[GMESH_MAX_HITS];
     double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
-    int n_ahead = gmesh_intersect (mesh, position, velocity, -tolerance, ahead);
-    int n_behind = gmesh_intersect (mesh, position, coords_scale (velocity, -1), tolerance, behind);
-    int inside = n_ahead > 0 && n_behind > 0;
-    Coords no_normal = coords_set (0, 0, 0);
+    if (!gmesh_intersect (mesh, position, velocity, tolerance, hits))
+      return 0;
+    *dt = hits[0].t;
     // gmesh normals follow the right-hand rule, unless the mesh was flipped
-    double normal_sign = mesh->flipped ? 1 : -1;
-    // normals of a closed, oriented mesh point outward: leaving first means inside
-    if (inside && mesh->closed && mesh->oriented)
-      inside = ahead[0].in_out < 0;
-    else if (inside && mesh->closed)
-      inside = gmesh_inside (mesh, position);
-    if (inside) {
-      *t0 = -behind[0].t;
-      *t3 = ahead[0].t;
-      if (n0)
-        *n0 = coords_scale (behind[0].normal, normal_sign);
-      if (n3)
-        *n3 = coords_scale (ahead[0].normal, normal_sign);
-      return 2;
-    }
-    if (n_ahead > 1) {
-      *t0 = ahead[0].t;
-      *t3 = ahead[1].t;
-      if (n0)
-        *n0 = coords_scale (ahead[0].normal, normal_sign);
-      if (n3)
-        *n3 = coords_scale (ahead[1].normal, normal_sign);
-      return 2;
-    }
-    if (n_ahead == 1) {
-      *t0 = ahead[0].t;
-      *t3 = FLT_MAX;
-      if (n0)
-        *n0 = coords_scale (ahead[0].normal, normal_sign);
-      if (n3)
-        *n3 = no_normal;
-      return 1;
-    }
-    if (n_behind) {
-      *t0 = -behind[0].t;
-      *t3 = 0;
-      if (n0)
-        *n0 = coords_scale (behind[0].normal, normal_sign);
-      if (n3)
-        *n3 = no_normal;
-      return 1;
-    }
-    return 0;
+    *normal = coords_scale (hits[0].normal, mesh->flipped ? 1 : -1);
+    return 1;
   }
 
   /* Lens_roughness: function to rotate normal vector around axis for roughness
@@ -344,28 +296,11 @@ TRACE
     nx = ny = nz = 0;
     #ifdef USE_OFF
     if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      double t1 = 0, t0 = 0;
-      Coords n, n0, n1;
-      n = n0 = n1 = coords_set (0, 0, 0);
-      int intersect = Lens_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &n0, &n1);
-      if (!intersect)
+      Coords n;
+      if (Lens_mesh_next (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &dt, &n))
+        coords_get (n, &nx, &ny, &nz);
+      else
         dt = -1;
-      else if (t0 < 0 && 0 < t1) {
-        dt = t1;
-        n = n1;
-      } else if (t1 < 0 && 0 < t0) {
-        dt = t0;
-        n = n0;
-      } else {
-        if (t1 < t0) {
-          dt = t1;
-          n = n1;
-        } else {
-          dt = t0;
-          n = n0;
-        }
-      }
-      coords_get (n, &nx, &ny, &nz);
     } else
       #endif
       if (r1 && !focus1) {
@@ -455,28 +390,11 @@ TRACE
     nx = ny = nz = 0;
     #ifdef USE_OFF
     if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      double t1 = 0, t0 = 0;
-      Coords n, n0, n1;
-      n = n0 = n1 = coords_set (0, 0, 0);
-      int intersect = Lens_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &n0, &n1);
-      if (!intersect)
+      Coords n;
+      if (Lens_mesh_next (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &dt, &n))
+        coords_get (n, &nx, &ny, &nz);
+      else
         dt = -1;
-      else if (t0 < 0 && 0 < t1) {
-        dt = t1;
-        n = n1;
-      } else if (t1 < 0 && 0 < t0) {
-        dt = t0;
-        n = n0;
-      } else {
-        if (t1 < t0) {
-          dt = t1;
-          n = n1;
-        } else {
-          dt = t0;
-          n = n0;
-        }
-      }
-      coords_get (n, &nx, &ny, &nz);
     } else
       #endif
       if (r2 && !focus2)
@@ -579,28 +497,11 @@ TRACE
       nx = ny = nz = 0;
       #ifdef USE_OFF
       if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-        double t1 = 0, t0 = 0;
-        Coords n, n0, n1;
-        n = n0 = n1 = coords_set (0, 0, 0);
-        int intersect = Lens_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &n0, &n1);
-        if (!intersect)
+        Coords n;
+        if (Lens_mesh_next (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &dt, &n))
+          coords_get (n, &nx, &ny, &nz);
+        else
           dt = -1;
-        else if (t0 < 0 && 0 < t1) {
-          dt = t1;
-          n = n1;
-        } else if (t1 < 0 && 0 < t0) {
-          dt = t0;
-          n = n0;
-        } else {
-          if (t1 < t0) {
-            dt = t1;
-            n = n1;
-          } else {
-            dt = t0;
-            n = n0;
-          }
-        }
-        coords_get (n, &nx, &ny, &nz);
       } else
         #endif
         if (r2 && !focus2)

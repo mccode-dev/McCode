@@ -157,69 +157,32 @@ SHARE
   %include "geometry-mesh-lib"
   %include "ref-lib"
 
-  // Times t0, t3 at which the line position + t*velocity enters and leaves
-  // mesh, as off_intersect of interoff-lib: inside the mesh, t0 < 0 is the
-  // nearest hit behind and t3 the nearest ahead; outside, t0 and t3 are the
-  // next two hits ahead. With a single hit ahead t3 = FLT_MAX, with the mesh
-  // behind t3 = 0. n0, n3 (may be NULL) get the normals of these hits, with
-  // the orientation of interoff-lib: opposite to the right-hand rule of the
-  // vertex order in the file.
-  // Returns 2 when t0 and t3 are both hits, 1 when only t0 is, else 0.
+  // Next entry time t0 and exit time t1 of the line position + t*velocity
+  // through mesh, with t0 = 0 and inside = 1 for a neutron that starts inside.
+  // normal is the normal at the next hit (the exit when inside), with the
+  // orientation of interoff-lib: opposite to the right-hand rule of the vertex
+  // order in the file. The surface the neutron sits on (hit at |t| < tolerance)
+  // is skipped. Returns 1 when the mesh is ahead, 0 otherwise.
   #pragma acc routine seq
   int
-  Refractor_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t3, Coords* n0, Coords* n3) {
-    gmesh_hit ahead[GMESH_MAX_HITS];
-    gmesh_hit behind[GMESH_MAX_HITS];
-    // a hit on the surface the neutron sits on (|t| < tolerance) is counted ahead
+  Refractor_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t1, Coords* normal, int* inside) {
+    gmesh_hit hits[GMESH_MAX_HITS];
     double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
-    int n_ahead = gmesh_intersect (mesh, position, velocity, -tolerance, ahead);
-    int n_behind = gmesh_intersect (mesh, position, coords_scale (velocity, -1), tolerance, behind);
-    int inside = n_ahead > 0 && n_behind > 0;
-    Coords no_normal = coords_set (0, 0, 0);
-    // gmesh normals follow the right-hand rule, unless the mesh was flipped
-    double normal_sign = mesh->flipped ? 1 : -1;
+    int nhits = gmesh_intersect (mesh, position, velocity, tolerance, hits);
+    if (!nhits)
+      return 0;
     // normals of a closed, oriented mesh point outward: leaving first means inside
-    if (inside && mesh->closed && mesh->oriented)
-      inside = ahead[0].in_out < 0;
-    else if (inside && mesh->closed)
-      inside = gmesh_inside (mesh, position);
-    if (inside) {
-      *t0 = -behind[0].t;
-      *t3 = ahead[0].t;
-      if (n0)
-        *n0 = coords_scale (behind[0].normal, normal_sign);
-      if (n3)
-        *n3 = coords_scale (ahead[0].normal, normal_sign);
-      return 2;
+    *inside = mesh->closed && (mesh->oriented ? hits[0].in_out < 0 : gmesh_inside (mesh, position));
+    if (*inside) {
+      *t0 = 0;
+      *t1 = hits[0].t;
+    } else {
+      *t0 = hits[0].t;
+      *t1 = nhits > 1 ? hits[1].t : hits[0].t;
     }
-    if (n_ahead > 1) {
-      *t0 = ahead[0].t;
-      *t3 = ahead[1].t;
-      if (n0)
-        *n0 = coords_scale (ahead[0].normal, normal_sign);
-      if (n3)
-        *n3 = coords_scale (ahead[1].normal, normal_sign);
-      return 2;
-    }
-    if (n_ahead == 1) {
-      *t0 = ahead[0].t;
-      *t3 = FLT_MAX;
-      if (n0)
-        *n0 = coords_scale (ahead[0].normal, normal_sign);
-      if (n3)
-        *n3 = no_normal;
-      return 1;
-    }
-    if (n_behind) {
-      *t0 = -behind[0].t;
-      *t3 = 0;
-      if (n0)
-        *n0 = coords_scale (behind[0].normal, normal_sign);
-      if (n3)
-        *n3 = no_normal;
-      return 1;
-    }
-    return 0;
+    // gmesh normals follow the right-hand rule, unless the mesh was flipped
+    *normal = coords_scale (hits[0].normal, mesh->flipped ? 1 : -1);
+    return 1;
   }
 
   /* wrappers to intersection routines which also return the normal vector */
@@ -456,6 +419,7 @@ TRACE
   do {
     double nx = 0, ny = 0, nz = 0;
     double t0 = 0, t1 = 0, dt = 0;
+    int mesh_inside = 0;
 
     intersect = 0;
     iterations++;
@@ -474,10 +438,10 @@ TRACE
     }
     #ifdef USE_OFF
     else if (geometry && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      Coords n0, n1;
-      intersect = Refractor_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &n0, &n1);
+      Coords normal;
+      intersect = Refractor_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &normal, &mesh_inside);
       if (intersect) {
-        coords_get (t0 <= 0 || t0 > t1 ? n1 : n0, &nx, &ny, &nz);
+        coords_get (normal, &nx, &ny, &nz);
       }
     }
     #endif
@@ -506,7 +470,7 @@ TRACE
       char scatter_me = 0, refract_me = 0;
       double my_t = 0, d_path = 0;
       double v = 0, lambda = 0;
-      char inbulk = t0 < 0 && t1 > 0;
+      char inbulk = (t0 < 0 && t1 > 0) || mesh_inside;
 
       /* when density is given negative, we assume bulk refractive material is
          'outside' or 'before' the shape */

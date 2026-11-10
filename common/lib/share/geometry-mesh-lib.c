@@ -1845,6 +1845,171 @@ gmesh_slab (Coords lower, Coords upper, Coords origin, Coords direction, double 
   return 1;
 }
 
+  // Moeller-Trumbore intersection of the line origin + t*direction with a
+  // triangle of mesh, with tolerant barycentric coordinates. Returns 1 on a
+  // hit, with its t in *hit_t and *on_edge = 1 when it is close to an edge.
+  #pragma acc routine seq
+static int
+gmesh_tri_hit (gmesh_struct* mesh, int triangle, Coords origin, Coords direction, double* hit_t, int* on_edge) {
+  Coords v0 = mesh->vtx[mesh->tri[3 * triangle]];
+  Coords v1 = mesh->vtx[mesh->tri[3 * triangle + 1]];
+  Coords v2 = mesh->vtx[mesh->tri[3 * triangle + 2]];
+  Coords e1 = coords_sub (v1, v0);
+  Coords e2 = coords_sub (v2, v0);
+  Coords p = coords_xp (direction, e2);
+  Coords s;
+  Coords q;
+  double det = coords_sp (e1, p);
+  double inv;
+  double u;
+  double v;
+  double eps = GMESH_EPSILON;
+  // parallel
+  if (fabs (det) <= 1e-12 * coords_len (e1) * coords_len (e2) * coords_len (direction))
+    return 0;
+  inv = 1 / det;
+  s = coords_sub (origin, v0);
+  u = coords_sp (s, p) * inv;
+  if (u < -eps || u > 1 + eps)
+    return 0;
+  q = coords_xp (s, e1);
+  v = coords_sp (direction, q) * inv;
+  if (v < -eps || u + v > 1 + eps)
+    return 0;
+  *hit_t = coords_sp (e2, q) * inv;
+  *on_edge = (u < eps || v < eps);
+  if (u + v > 1 - eps) {
+    *on_edge = 1;
+  }
+  return 1;
+}
+
+  // BVH traversal for the line origin + t*direction, t > t_min. Stores the
+  // max_hits nearest hits in hits, sorted by t, with hits on shared edges and
+  // vertices kept once; every hit is visited, so a return value above
+  // *stored_count means hits were dropped. When hits is NULL the hits are only counted, each
+  // triangle hit once, with *ambiguous = 1 when a hit is on an edge or at the
+  // origin. Returns the number of hits found.
+  #pragma acc routine seq
+static int
+gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, gmesh_hit* hits, int max_hits, int* stored_count, int* ambiguous) {
+  int count_only = (hits == NULL);
+  int stack[GMESH_BVH_STACK + 2];
+  int top = 0;
+  int total = 0;
+  double direction_length = coords_len (direction);
+  double t_tolerance;
+  if (direction_length <= 0)
+    return 0;
+  if (!mesh->nnodes)
+    return 0;
+  t_tolerance = 1e-9 * mesh->length_scale / direction_length;
+  stack[top] = 0;
+  top++;
+  while (top > 0) {
+    gmesh_node* node;
+    int t;
+    top--;
+    node = &mesh->node[stack[top]];
+    if (!gmesh_slab (node->lo, node->hi, origin, direction, t_min, FLT_MAX))
+      continue;
+    if (node->count == 0) {
+      // cannot happen: depth limited at build
+      if (top + 2 > GMESH_BVH_STACK)
+        continue;
+      stack[top] = node->first;
+      top++;
+      stack[top] = node->first + 1;
+      top++;
+      continue;
+    }
+    for (t = node->first; t < node->first + node->count; t++) {
+      double hit_t;
+      int on_edge;
+      int in_out;
+      int k;
+      int position;
+      int duplicate = 0;
+      gmesh_hit hit;
+      if (!gmesh_tri_hit (mesh, t, origin, direction, &hit_t, &on_edge))
+        continue;
+      if (hit_t <= t_min)
+        continue;
+      if (coords_sp (mesh->tri_normal[t], direction) < 0) {
+        in_out = 1;
+      } else {
+        in_out = -1;
+      }
+      if (count_only) {
+        total++;
+        if (on_edge || fabs (hit_t) <= t_tolerance)
+          *ambiguous = 1;
+        continue;
+      }
+      hit.t = hit_t;
+      hit.normal = mesh->tri_normal[t];
+      hit.tri = t;
+      hit.face = mesh->tri_face[t];
+      hit.in_out = in_out;
+      hit.edge = on_edge;
+      // hits on shared edges/vertices: keep once
+      for (k = 0; k < *stored_count; k++) {
+        if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
+          duplicate = 1;
+          break;
+        }
+      }
+      if (duplicate)
+        continue;
+      total++;
+      position = *stored_count;
+      if (position == max_hits) {
+        if (max_hits == 0)
+          continue;
+        if (hit_t >= hits[max_hits - 1].t)
+          continue;
+        position = max_hits - 1;
+      } else {
+        (*stored_count)++;
+      }
+      while (position > 0 && hits[position - 1].t > hit_t) {
+        hits[position] = hits[position - 1];
+        position--;
+      }
+      hits[position] = hit;
+    }
+  }
+  return total;
+}
+
+// set once a hit buffer overflow has been reported
+int gmesh_overflow_warned = 0;
+  #pragma acc declare create(gmesh_overflow_warned)
+
+  // intersections of a line with mesh, see geometry-mesh-lib.h
+  #pragma acc routine seq
+int
+gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, double t_min, gmesh_hit hits[GMESH_MAX_HITS]) {
+  int stored = 0;
+  int ambiguous = 0;
+  int total = gmesh_trace (mesh, position, direction, t_min, hits, GMESH_MAX_HITS, &stored, &ambiguous);
+  if (total > stored && !gmesh_overflow_warned) {
+    gmesh_overflow_warned = 1;
+    fprintf (stderr,
+             "Warning: %s: a ray crossed the mesh %d times, but only the %d nearest hits are kept "
+             "(geometry-mesh-lib).\n"
+             "  To keep more, add this line after the DEFINE INSTRUMENT line of your .instr file:\n"
+             "    DEPENDENCY \" -DGMESH_MAX_HITS=%d \"\n"
+             "  This warning is shown once.\n",
+             mesh->filename, total, GMESH_MAX_HITS, total);
+  }
+  return stored;
+}
+
+  // ==========================================================================
+  // Ray tracing of parabolas (e.g. under gravity)
+  // ==========================================================================
+
   // real roots of quadratic*t^2 + linear*t + constant = 0 in roots[0..1],
   // sorted, solving the linear equation when quadratic is 0. Returns their number.
   #pragma acc routine seq
@@ -1997,84 +2162,33 @@ gmesh_tri_hit_gravity (gmesh_struct* mesh, int triangle, Coords origin, Coords v
   return nhits;
 }
 
-  // Moeller-Trumbore intersection of the line origin + t*direction with a
-  // triangle of mesh, with tolerant barycentric coordinates. Returns 1 on a
-  // hit, with its t in *hit_t and *on_edge = 1 when it is close to an edge.
+  // BVH traversal for the parabola origin + t*velocity + t^2/2*acceleration,
+  // t > t_min. Stores the max_hits nearest hits in hits, sorted by t, with hits
+  // on shared edges and vertices kept once, as gmesh_trace does for a line.
+  // Returns the number of hits found; above *stored_count, hits were dropped.
   #pragma acc routine seq
 static int
-gmesh_tri_hit (gmesh_struct* mesh, int triangle, Coords origin, Coords direction, double* hit_t, int* on_edge) {
-  Coords v0 = mesh->vtx[mesh->tri[3 * triangle]];
-  Coords v1 = mesh->vtx[mesh->tri[3 * triangle + 1]];
-  Coords v2 = mesh->vtx[mesh->tri[3 * triangle + 2]];
-  Coords e1 = coords_sub (v1, v0);
-  Coords e2 = coords_sub (v2, v0);
-  Coords p = coords_xp (direction, e2);
-  Coords s;
-  Coords q;
-  double det = coords_sp (e1, p);
-  double inv;
-  double u;
-  double v;
-  double eps = GMESH_EPSILON;
-  // parallel
-  if (fabs (det) <= 1e-12 * coords_len (e1) * coords_len (e2) * coords_len (direction))
-    return 0;
-  inv = 1 / det;
-  s = coords_sub (origin, v0);
-  u = coords_sp (s, p) * inv;
-  if (u < -eps || u > 1 + eps)
-    return 0;
-  q = coords_xp (s, e1);
-  v = coords_sp (direction, q) * inv;
-  if (v < -eps || u + v > 1 + eps)
-    return 0;
-  *hit_t = coords_sp (e2, q) * inv;
-  *on_edge = (u < eps || v < eps);
-  if (u + v > 1 - eps) {
-    *on_edge = 1;
-  }
-  return 1;
-}
-
-  // BVH traversal for the line origin + t*direction, or for the parabola
-  // origin + t*direction + t^2/2*acceleration when acceleration is not zero,
-  // t > t_min. Stores the
-  // max_hits nearest hits in hits, sorted by t, with hits on shared edges and
-  // vertices kept once; every hit is visited, so a return value above
-  // *stored_count means hits were dropped. When hits is NULL the hits are only counted, each
-  // triangle hit once, with *ambiguous = 1 when a hit is on an edge or at the
-  // origin. Returns the number of hits found.
-  #pragma acc routine seq
-static int
-gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, Coords acceleration, double t_min, gmesh_hit* hits, int max_hits, int* stored_count,
-             int* ambiguous) {
-  int count_only = (hits == NULL);
-  int gravity = (acceleration.x != 0 || acceleration.y != 0 || acceleration.z != 0);
+gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords acceleration, double t_min, gmesh_hit* hits, int max_hits, int* stored_count) {
   int stack[GMESH_BVH_STACK + 2];
   int top = 0;
   int total = 0;
-  double direction_length = coords_len (direction);
-  double t_tolerance;
   // a parabola may start at rest: its speed over the mesh size is then about
   // sqrt(|acceleration| * size)
-  if (gravity)
-    direction_length += sqrt (coords_len (acceleration) * mesh->length_scale);
-  if (direction_length <= 0)
+  double speed = coords_len (velocity) + sqrt (coords_len (acceleration) * mesh->length_scale);
+  double t_tolerance;
+  if (speed <= 0)
     return 0;
   if (!mesh->nnodes)
     return 0;
-  t_tolerance = 1e-9 * mesh->length_scale / direction_length;
+  t_tolerance = 1e-9 * mesh->length_scale / speed;
   stack[top] = 0;
   top++;
   while (top > 0) {
     gmesh_node* node;
-    int t;
+    int triangle;
     top--;
     node = &mesh->node[stack[top]];
-    if (gravity) {
-      if (!gmesh_slab_gravity (node->lo, node->hi, origin, direction, acceleration, t_min, FLT_MAX))
-        continue;
-    } else if (!gmesh_slab (node->lo, node->hi, origin, direction, t_min, FLT_MAX))
+    if (!gmesh_slab_gravity (node->lo, node->hi, origin, velocity, acceleration, t_min, FLT_MAX))
       continue;
     if (node->count == 0) {
       // cannot happen: depth limited at build
@@ -2086,19 +2200,14 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, Coords acceler
       top++;
       continue;
     }
-    for (t = node->first; t < node->first + node->count; t++) {
+    for (triangle = node->first; triangle < node->first + node->count; triangle++) {
       double crossing_t[2];
       int crossing_edge[2];
-      int ncrossings;
+      int ncrossings = gmesh_tri_hit_gravity (mesh, triangle, origin, velocity, acceleration, crossing_t, crossing_edge);
       int i_crossing;
-      if (gravity)
-        ncrossings = gmesh_tri_hit_gravity (mesh, t, origin, direction, acceleration, crossing_t, crossing_edge);
-      else
-        ncrossings = gmesh_tri_hit (mesh, t, origin, direction, &crossing_t[0], &crossing_edge[0]);
       for (i_crossing = 0; i_crossing < ncrossings; i_crossing++) {
         double hit_t = crossing_t[i_crossing];
-        int on_edge = crossing_edge[i_crossing];
-        Coords hit_velocity = direction;
+        Coords hit_velocity = coords_add (velocity, coords_scale (acceleration, hit_t));
         int in_out;
         int k;
         int position;
@@ -2106,25 +2215,17 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, Coords acceler
         gmesh_hit hit;
         if (hit_t <= t_min)
           continue;
-        if (gravity)
-          hit_velocity = coords_add (direction, coords_scale (acceleration, hit_t));
-        if (coords_sp (mesh->tri_normal[t], hit_velocity) < 0) {
+        if (coords_sp (mesh->tri_normal[triangle], hit_velocity) < 0) {
           in_out = 1;
         } else {
           in_out = -1;
         }
-        if (count_only) {
-          total++;
-          if (on_edge || fabs (hit_t) <= t_tolerance)
-            *ambiguous = 1;
-          continue;
-        }
         hit.t = hit_t;
-        hit.normal = mesh->tri_normal[t];
-        hit.tri = t;
-        hit.face = mesh->tri_face[t];
+        hit.normal = mesh->tri_normal[triangle];
+        hit.tri = triangle;
+        hit.face = mesh->tri_face[triangle];
         hit.in_out = in_out;
-        hit.edge = on_edge;
+        hit.edge = crossing_edge[i_crossing];
         // hits on shared edges/vertices: keep once
         for (k = 0; k < *stored_count; k++) {
           if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
@@ -2137,8 +2238,6 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, Coords acceler
         total++;
         position = *stored_count;
         if (position == max_hits) {
-          if (max_hits == 0)
-            continue;
           if (hit_t >= hits[max_hits - 1].t)
             continue;
           position = max_hits - 1;
@@ -2156,21 +2255,16 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, Coords acceler
   return total;
 }
 
-// set once a hit buffer overflow has been reported
-int gmesh_overflow_warned = 0;
-  #pragma acc declare create(gmesh_overflow_warned)
-
   // intersections of a parabola with mesh, see geometry-mesh-lib.h
   #pragma acc routine seq
 int
 gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double t_min, gmesh_hit hits[GMESH_MAX_HITS]) {
   int stored = 0;
-  int ambiguous = 0;
-  int total = gmesh_trace (mesh, position, velocity, acceleration, t_min, hits, GMESH_MAX_HITS, &stored, &ambiguous);
+  int total = gmesh_trace_gravity (mesh, position, velocity, acceleration, t_min, hits, GMESH_MAX_HITS, &stored);
   if (total > stored && !gmesh_overflow_warned) {
     gmesh_overflow_warned = 1;
     fprintf (stderr,
-             "Warning: %s: a ray crossed the mesh %d times, but only the %d nearest hits are kept "
+             "Warning: %s: a parabola crossed the mesh %d times, but only the %d nearest hits are kept "
              "(geometry-mesh-lib).\n"
              "  To keep more, add this line after the DEFINE INSTRUMENT line of your .instr file:\n"
              "    DEPENDENCY \" -DGMESH_MAX_HITS=%d \"\n"
@@ -2180,11 +2274,11 @@ gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, C
   return stored;
 }
 
-  // intersections of a line with mesh, see geometry-mesh-lib.h
+  // time of a hit, see geometry-mesh-lib.h
   #pragma acc routine seq
-int
-gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, double t_min, gmesh_hit hits[GMESH_MAX_HITS]) {
-  return gmesh_intersect_gravity (mesh, position, direction, coords_set (0, 0, 0), t_min, hits);
+double
+gmesh_hit_time (gmesh_hit* hit) {
+  return hit->t;
 }
 
   // 1 when point is inside the box [lower, upper], borders included
@@ -2214,7 +2308,7 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
     int stored = 0;
     int ambiguous = 0;
     Coords direction = coords_set (D[j][0], D[j][1], D[j][2]);
-    int n = gmesh_trace (mesh, position, direction, coords_set (0, 0, 0), 0, NULL, 0, &stored, &ambiguous);
+    int n = gmesh_trace (mesh, position, direction, 0, NULL, 0, &stored, &ambiguous);
     if (!ambiguous)
       return (int)(n % 2);
     votes += (int)(n % 2);

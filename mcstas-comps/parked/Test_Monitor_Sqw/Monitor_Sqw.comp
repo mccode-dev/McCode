@@ -96,7 +96,7 @@ DECLARE
   MonitornD_Defines_type DEFS;
   MonitornD_Variables_type Vars;
   MCDETECTOR detector;
-  gmesh_struct mesh;
+  off_struct offdata;
   double mean_vx;
   double mean_vy;
   double mean_vz;
@@ -145,7 +145,7 @@ INITIALIZE
   }
   int offflag=0;
   if (geometry && strlen(geometry) && strcmp(geometry,"NULL") && strcmp(geometry,"0"))
-    if (!gmesh_init_fit(geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh)) {
+    if (!off_init(  geometry, xwidth, yheight, zdepth, 0, &offdata )) {
       printf("Monitor_Sqw: %s could not initiate the OFF geometry. \n"
              "            Defaulting to normal Monitor dimensions.\n", NAME_CURRENT_COMP);
       strcpy(geometry, "");
@@ -180,8 +180,8 @@ TRACE
   if (geometry && strlen(geometry) && strcmp(geometry,"NULL") && strcmp(geometry,"0"))
   {
     /* determine intersections with object */
-    int face = 0;
-    intersect = Monitor_nD_MeshIntersect(&mesh, coords_set(x, y, z), coords_set(vx, vy, vz), &t0, &t1, &face);
+    intersect = off_intersect(&t0, &t1, NULL, NULL,
+       x,y,z, vx, vy, vz, 0, 0, 0, offdata );
   }
   else if (abs(Vars.Flag_Shape) == DEFS.SHAPE_SQUARE) /* square xy */
   {
