@@ -157,34 +157,6 @@ SHARE
   %include "geometry-mesh-lib"
   %include "ref-lib"
 
-  // Next entry time t0 and exit time t1 of the line position + t*velocity
-  // through mesh, with t0 = 0 and inside = 1 for a neutron that starts inside.
-  // normal is the normal at the next hit (the exit when inside), with the
-  // orientation of interoff-lib: opposite to the right-hand rule of the vertex
-  // order in the file. The surface the neutron sits on (hit at |t| < tolerance)
-  // is skipped. Returns 1 when the mesh is ahead, 0 otherwise.
-  #pragma acc routine seq
-  int
-  Refractor_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t1, Coords* normal, int* inside) {
-    gmesh_hit hits[GMESH_MAX_HITS];
-    double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
-    int nhits = gmesh_intersect (mesh, position, velocity, tolerance, hits);
-    if (!nhits)
-      return 0;
-    // normals of a closed, oriented mesh point outward: leaving first means inside
-    *inside = mesh->closed && (mesh->oriented ? hits[0].in_out < 0 : gmesh_inside (mesh, position));
-    if (*inside) {
-      *t0 = 0;
-      *t1 = hits[0].time;
-    } else {
-      *t0 = hits[0].time;
-      *t1 = nhits > 1 ? hits[1].time : hits[0].time;
-    }
-    // gmesh normals follow the right-hand rule, unless the mesh was flipped
-    *normal = coords_scale (hits[0].normal, mesh->flipped ? 1 : -1);
-    return 1;
-  }
-
   /* wrappers to intersection routines which also return the normal vector */
   int
   box_intersect_n (double* t0, double* t1, double x, double y, double z, double vx, double vy, double vz, double dx, double dy, double dz, double* nx, double* ny,
@@ -438,10 +410,15 @@ TRACE
     }
     #ifdef USE_OFF
     else if (geometry && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      Coords normal;
-      intersect = Refractor_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &normal, &mesh_inside);
+      gmesh_hit entering, leaving;
+      intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
       if (intersect) {
-        coords_get (normal, &nx, &ny, &nz);
+        mesh_inside = (intersect == 1);
+        t0 = mesh_inside ? 0 : entering.time;
+        t1 = leaving.time;
+        // normal of the next hit, oriented as in interoff-lib: opposite to the
+        // right-hand rule of the vertex order in the file, unless the mesh was flipped
+        coords_get (coords_scale (mesh_inside ? leaving.normal : entering.normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
       }
     }
     #endif

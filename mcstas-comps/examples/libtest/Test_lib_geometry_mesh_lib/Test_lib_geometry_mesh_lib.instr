@@ -6,8 +6,10 @@
 *
 * Smoke test: builds and runs with the library geometry-mesh-lib in the instrument.
 * Fails to compile or link if the library does not build with the runtime.
-* INITIALIZE also checks gmesh_intersect_gravity, and exits with an error
-* when a check fails:
+* INITIALIZE also checks gmesh_entry_exit and gmesh_intersect_gravity, and
+* exits with an error when a check fails:
+* - gmesh_entry_exit on cube.off from outside, inside, on the entry face and
+*   past the cube
 * - with zero acceleration it gives the hits of gmesh_intersect, to rounding
 * - parabolas through cube.off give the analytic hit times and in_out
 * - random parabolas through socket.off give the hits of a fine polyline of
@@ -24,7 +26,7 @@ DECLARE
 %include "geometry-mesh-lib"
 
 // counts a failed check and prints what failed
-void gravity_check (int ok, const char* what, int* failures) {
+void mesh_check (int ok, const char* what, int* failures) {
   if (!ok) {
     fprintf (stderr, "Test_lib_geometry_mesh_lib: FAILED: %s\n", what);
     (*failures)++;
@@ -40,6 +42,31 @@ Coords gravity_parabola (Coords position, Coords velocity, Coords acceleration, 
 double gravity_uniform (unsigned long* state, double low, double high) {
   *state = (*state * 6364136223846793005UL + 1442695040888963407UL) & 0xFFFFFFFFFFFFFFFFUL;
   return low + (high - low) * (double)(*state >> 11) / 9007199254740992.0;
+}
+
+// checks of gmesh_entry_exit on the unit cube; returns the number of failed checks
+int entry_exit_tests (void) {
+  gmesh_struct cube;
+  gmesh_hit entering;
+  gmesh_hit leaving;
+  int failures = 0;
+  int result;
+  if (!gmesh_init ("cube.off", 1, GMESH_PROPS_IGNORE, &cube)) {
+    fprintf (stderr, "Test_lib_geometry_mesh_lib: FAILED: can not read cube.off\n");
+    return 1;
+  }
+  result = gmesh_entry_exit (&cube, coords_set (0.5, 0.5, -1), coords_set (0, 0, 2), &entering, &leaving);
+  mesh_check (result == 2 && fabs (entering.time - 0.5) < 1e-12 && fabs (leaving.time - 1) < 1e-12, "entry_exit from outside", &failures);
+  result = gmesh_entry_exit (&cube, coords_set (0.5, 0.5, 0.25), coords_set (0, 0, 1), &entering, &leaving);
+  mesh_check (result == 1 && fabs (leaving.time - 0.75) < 1e-12, "entry_exit from inside", &failures);
+  result = gmesh_entry_exit (&cube, coords_set (0.5, 0.5, 0), coords_set (0, 0, 1), &entering, &leaving);
+  mesh_check (result == 1 && fabs (leaving.time - 1) < 1e-12, "entry_exit on the entry face", &failures);
+  result = gmesh_entry_exit (&cube, coords_set (0.5, 0.5, 1), coords_set (0, 0, 1), &entering, &leaving);
+  mesh_check (result == 0, "entry_exit on the exit face, leaving", &failures);
+  result = gmesh_entry_exit (&cube, coords_set (0.5, 0.5, 2), coords_set (0, 0, 1), &entering, &leaving);
+  mesh_check (result == 0, "entry_exit past the cube", &failures);
+  gmesh_free (&cube);
+  return failures;
 }
 
 // checks of gmesh_intersect_gravity; returns the number of failed checks
@@ -62,27 +89,27 @@ int gravity_tests (void) {
 
   // falling from rest above the unit cube: top at time sqrt(2), bottom at 2
   nhits = gmesh_intersect_gravity (&cube, coords_set (0.5, 2, 0.5), coords_set (0, 0, 0), coords_set (0, -1, 0), 0, hits);
-  gravity_check (nhits == 2 && fabs (hits[0].time - sqrt (2)) < 1e-12 && hits[0].in_out == 1 && fabs (hits[1].time - 2) < 1e-12 && hits[1].in_out == -1,
+  mesh_check (nhits == 2 && fabs (hits[0].time - sqrt (2)) < 1e-12 && hits[0].in_out == 1 && fabs (hits[1].time - 2) < 1e-12 && hits[1].in_out == -1,
                  "fall from rest through cube.off", &failures);
 
   // entering through the front face, leaving through the bottom at time sqrt(2)
   nhits = gmesh_intersect_gravity (&cube, coords_set (0.5, 0.5, -1), coords_set (0, 0, 1), coords_set (0, -0.5, 0), 0, hits);
-  gravity_check (nhits == 2 && fabs (hits[0].time - 1) < 1e-12 && hits[0].in_out == 1 && fabs (hits[1].time - sqrt (2)) < 1e-12 && hits[1].in_out == -1,
+  mesh_check (nhits == 2 && fabs (hits[0].time - 1) < 1e-12 && hits[0].in_out == 1 && fabs (hits[1].time - sqrt (2)) < 1e-12 && hits[1].in_out == -1,
                  "front face in, bottom out of cube.off", &failures);
 
   // thrown up into the cube from below, falling out through the same face
   nhits = gmesh_intersect_gravity (&cube, coords_set (0.5, -1, 0.5), coords_set (0, 2, 0), coords_set (0, -1.2, 0), 0, hits);
-  gravity_check (nhits == 2 && fabs (hits[0].time - (2 - sqrt (1.6)) / 1.2) < 1e-12 && hits[0].in_out == 1
+  mesh_check (nhits == 2 && fabs (hits[0].time - (2 - sqrt (1.6)) / 1.2) < 1e-12 && hits[0].in_out == 1
                    && fabs (hits[1].time - (2 + sqrt (1.6)) / 1.2) < 1e-12 && hits[1].in_out == -1 && hits[0].face == hits[1].face,
                  "in and out through the bottom of cube.off", &failures);
 
   // t_min skips the hits before it
   nhits = gmesh_intersect_gravity (&cube, coords_set (0.5, -1, 0.5), coords_set (0, 2, 0), coords_set (0, -1.2, 0), 1, hits);
-  gravity_check (nhits == 1 && hits[0].in_out == -1, "t_min", &failures);
+  mesh_check (nhits == 1 && hits[0].in_out == -1, "t_min", &failures);
 
   // the arc passes above the cube
   nhits = gmesh_intersect_gravity (&cube, coords_set (-1, 1.5, 0.5), coords_set (1, 0, 0), coords_set (0, -0.1, 0), 0, hits);
-  gravity_check (nhits == 0, "arc above cube.off", &failures);
+  mesh_check (nhits == 0, "arc above cube.off", &failures);
 
   for (i_ray = 0; i_ray < 2000; i_ray++) {
     Coords position = coords_set (gravity_uniform (&state, -0.1, 0.1), gravity_uniform (&state, -0.1, 0.1), gravity_uniform (&state, -0.1, 0.1));
@@ -134,7 +161,7 @@ int gravity_tests (void) {
   }
   printf ("Test_lib_geometry_mesh_lib: socket.off: %d of 2000 random rays differ from the line or polyline, worst time difference %g s\n", mismatches,
           worst);
-  gravity_check (mismatches == 0 && worst < 1e-6, "random parabolas through socket.off", &failures);
+  mesh_check (mismatches == 0 && worst < 1e-6, "random parabolas through socket.off", &failures);
 
   gmesh_free (&cube);
   gmesh_free (&socket);
@@ -145,8 +172,8 @@ int gravity_tests (void) {
 INITIALIZE
 %{
   mcset_ncount(Ncount);
-  if (gravity_tests ())
-    exit (fprintf (stderr, "Test_lib_geometry_mesh_lib: gmesh_intersect_gravity checks failed\n"));
+  if (entry_exit_tests () + gravity_tests ())
+    exit (fprintf (stderr, "Test_lib_geometry_mesh_lib: geometry-mesh-lib checks failed\n"));
 %}
 
 TRACE

@@ -311,30 +311,6 @@ SHARE
   %include "read_table-lib"
   %include "geometry-mesh-lib"
 
-  // Next entry time t0 and exit time t3 of the line position + t*velocity
-  // through mesh, with t0 = 0 for a neutron that starts inside. The surface
-  // the neutron sits on (hit at |t| < tolerance) is skipped.
-  // Returns 1 when the mesh is ahead, 0 otherwise.
-  #pragma acc routine seq
-  int
-  Single_crystal_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t3) {
-    gmesh_hit hits[GMESH_MAX_HITS];
-    double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
-    int nhits = gmesh_intersect (mesh, position, velocity, tolerance, hits);
-    int inside;
-    if (!nhits)
-      return 0;
-    // normals of a closed, oriented mesh point outward: leaving first means inside
-    inside = mesh->closed && (mesh->oriented ? hits[0].in_out < 0 : gmesh_inside (mesh, position));
-    if (inside) {
-      *t0 = 0;
-      *t3 = hits[0].time;
-    } else {
-      *t0 = hits[0].time;
-      *t3 = nhits > 1 ? hits[1].time : hits[0].time;
-    }
-    return 1;
-  }
   #ifndef OPENACC
   %include "opencl-lib"
   #endif
@@ -1545,7 +1521,14 @@ TRACE
     intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
   #ifdef USE_OFF
   else if (hkl_info.shape == 3)
-    intersect = Single_crystal_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t1, &t2);
+    {
+      gmesh_hit entering, leaving;
+      intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+      if (intersect) {
+        t1 = intersect == 2 ? entering.time : 0; // 0 when inside
+        t2 = leaving.time;
+      }
+    }
   #endif
   if (t2 < 0)
     intersect = 0; /* we passed sample volume already */
@@ -1593,7 +1576,14 @@ TRACE
         intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
       #ifdef USE_OFF
       else if (hkl_info.shape == 3)
-        intersect = Single_crystal_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t1, &t2);
+        {
+          gmesh_hit entering, leaving;
+          intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+          if (intersect) {
+            t1 = intersect == 2 ? entering.time : 0; // 0 when inside
+            t2 = leaving.time;
+          }
+        }
       #endif
       if (!intersect || t2 * v < -1e-9 || t1 * v > 1e-9) {
         /* neutron is leaving the sample */

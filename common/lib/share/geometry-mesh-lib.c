@@ -2309,6 +2309,36 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
   return votes >= 2;
 }
 
+  // entry and exit of a line through mesh, see geometry-mesh-lib.h
+  #pragma acc routine seq
+int
+gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, gmesh_hit* entering, gmesh_hit* leaving) {
+  gmesh_hit hits[GMESH_MAX_HITS];
+  // skips the surface the particle sits on, e.g. after a propagation to it
+  double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
+  int nhits = gmesh_intersect (mesh, position, velocity, tolerance, hits);
+  int inside;
+  if (!nhits)
+    return 0;
+  // normals of a closed, oriented mesh point outward: leaving first means inside
+  if (!mesh->closed)
+    inside = 0;
+  else if (mesh->oriented)
+    inside = hits[0].in_out < 0;
+  else
+    inside = gmesh_inside (mesh, position);
+  if (inside) {
+    *leaving = hits[0];
+    return 1;
+  }
+  *entering = hits[0];
+  if (nhits > 1)
+    *leaving = hits[1];
+  else
+    *leaving = hits[0];
+  return 2;
+}
+
   // per-face property, see geometry-mesh-lib.h
   #pragma acc routine seq
 double
