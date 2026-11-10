@@ -9,7 +9,7 @@
 * INITIALIZE also checks gmesh_entry_exit and gmesh_intersect_gravity, and
 * exits with an error when a check fails:
 * - gmesh_entry_exit on cube.off from outside, inside, on the entry face and
-*   past the cube
+*   past the cube, and gmesh_entry_exit_gravity for arcs into and out of it
 * - with zero acceleration it gives the hits of gmesh_intersect, to rounding
 * - parabolas through cube.off give the analytic hit times and in_out
 * - random parabolas through socket.off give the hits of a fine polyline of
@@ -65,6 +65,18 @@ int entry_exit_tests (void) {
   mesh_check (result == 0, "entry_exit on the exit face, leaving", &failures);
   result = gmesh_entry_exit (&cube, coords_set (0.5, 0.5, 2), coords_set (0, 0, 1), &entering, &leaving);
   mesh_check (result == 0, "entry_exit past the cube", &failures);
+  // falling from rest above the cube: entry through the top at sqrt(2), exit through the bottom at 2
+  result = gmesh_entry_exit_gravity (&cube, coords_set (0.5, 2, 0.5), coords_set (0, 0, 0), coords_set (0, -1, 0), &entering, &leaving);
+  mesh_check (result == 2 && fabs (entering.time - sqrt (2)) < 1e-12 && fabs (leaving.time - 2) < 1e-12, "entry_exit_gravity from outside", &failures);
+  // thrown up from inside, falling out through the bottom at (1+sqrt(5))/2
+  result = gmesh_entry_exit_gravity (&cube, coords_set (0.5, 0.5, 0.5), coords_set (0, 0.5, 0), coords_set (0, -1, 0), &entering, &leaving);
+  mesh_check (result == 1 && fabs (leaving.time - (1 + sqrt (5)) / 2) < 1e-12, "entry_exit_gravity from inside", &failures);
+  // the arc passes above the cube
+  result = gmesh_entry_exit_gravity (&cube, coords_set (-1, 1.5, 0.5), coords_set (1, 0, 0), coords_set (0, -0.1, 0), &entering, &leaving);
+  mesh_check (result == 0, "entry_exit_gravity arc above the cube", &failures);
+  // zero acceleration: as gmesh_entry_exit
+  result = gmesh_entry_exit_gravity (&cube, coords_set (0.5, 0.5, -1), coords_set (0, 0, 2), coords_set (0, 0, 0), &entering, &leaving);
+  mesh_check (result == 2 && fabs (entering.time - 0.5) < 1e-12 && fabs (leaving.time - 1) < 1e-12, "entry_exit_gravity without acceleration", &failures);
   gmesh_free (&cube);
   return failures;
 }

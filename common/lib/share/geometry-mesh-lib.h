@@ -44,6 +44,7 @@
  *   gmesh_intersect_gravity()  the same for a parabola (e.g. under gravity)
  *   gmesh_inside()         point-in-mesh test (deterministic, no random numbers)
  *   gmesh_entry_exit()     next entry and exit (only exit from inside)
+ *   gmesh_entry_exit_gravity()  the same for a parabola
  *   Hits exactly on an edge or vertex shared by several triangles are
  *   reported once.
  *
@@ -197,6 +198,14 @@ int gmesh_inside (gmesh_struct* mesh, Coords position);
   // 2 outside (entering and leaving are set)
   #pragma acc routine seq
 int gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, gmesh_hit* entering, gmesh_hit* leaving);
+
+  // int gmesh_entry_exit_gravity(gmesh_struct *mesh, Coords position,
+  // Coords velocity, Coords acceleration, gmesh_hit *entering, gmesh_hit *leaving)
+  // ACTION: as gmesh_entry_exit, for the parabola
+  // position + t*velocity + t^2/2*acceleration (see gmesh_intersect_gravity)
+  // RETURN: as gmesh_entry_exit
+  #pragma acc routine seq
+int gmesh_entry_exit_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, gmesh_hit* entering, gmesh_hit* leaving);
 
   // per-face property number 'property' of face 'face', or fallback when it is
   // not given in the file
