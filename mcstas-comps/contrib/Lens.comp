@@ -125,23 +125,6 @@ SHARE
   %include "read_table-lib"
   %include "geometry-mesh-lib"
 
-  // time dt and normal of the next hit of the line position + t*velocity with
-  // mesh, skipping the surface the neutron sits on (hit at |t| < tolerance).
-  // The normal has the orientation of interoff-lib: opposite to the
-  // right-hand rule of the vertex order in the file. Returns 1 on a hit, else 0.
-  #pragma acc routine seq
-  int
-  Lens_mesh_next (gmesh_struct* mesh, Coords position, Coords velocity, double* dt, Coords* normal) {
-    gmesh_hit hits[GMESH_MAX_HITS];
-    double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
-    if (!gmesh_intersect (mesh, position, velocity, tolerance, hits))
-      return 0;
-    *dt = hits[0].time;
-    // gmesh normals follow the right-hand rule, unless the mesh was flipped
-    *normal = coords_scale (hits[0].normal, mesh->flipped ? 1 : -1);
-    return 1;
-  }
-
   /* Lens_roughness: function to rotate normal vector around axis for roughness
    *                 with specified tilt angle (deg)
    * RETURNS: rotated nx,ny,nz coordinates
@@ -296,10 +279,16 @@ TRACE
     nx = ny = nz = 0;
     #ifdef USE_OFF
     if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      Coords n;
-      if (Lens_mesh_next (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &dt, &n))
-        coords_get (n, &nx, &ny, &nz);
-      else
+      gmesh_hit entering, leaving;
+      int nmesh = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+      if (nmesh) {
+        // next hit: the entry from outside, the exit from inside
+        gmesh_hit* next = nmesh == 2 ? &entering : &leaving;
+        dt = next->time;
+        // normal oriented as in interoff-lib: opposite to the right-hand rule of
+        // the vertex order in the file, unless the mesh was flipped
+        coords_get (coords_scale (next->normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
+      } else
         dt = -1;
     } else
       #endif
@@ -390,10 +379,16 @@ TRACE
     nx = ny = nz = 0;
     #ifdef USE_OFF
     if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      Coords n;
-      if (Lens_mesh_next (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &dt, &n))
-        coords_get (n, &nx, &ny, &nz);
-      else
+      gmesh_hit entering, leaving;
+      int nmesh = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+      if (nmesh) {
+        // next hit: the entry from outside, the exit from inside
+        gmesh_hit* next = nmesh == 2 ? &entering : &leaving;
+        dt = next->time;
+        // normal oriented as in interoff-lib: opposite to the right-hand rule of
+        // the vertex order in the file, unless the mesh was flipped
+        coords_get (coords_scale (next->normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
+      } else
         dt = -1;
     } else
       #endif
@@ -497,10 +492,16 @@ TRACE
       nx = ny = nz = 0;
       #ifdef USE_OFF
       if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-        Coords n;
-        if (Lens_mesh_next (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &dt, &n))
-          coords_get (n, &nx, &ny, &nz);
-        else
+        gmesh_hit entering, leaving;
+        int nmesh = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+        if (nmesh) {
+          // next hit: the entry from outside, the exit from inside
+          gmesh_hit* next = nmesh == 2 ? &entering : &leaving;
+          dt = next->time;
+          // normal oriented as in interoff-lib: opposite to the right-hand rule of
+          // the vertex order in the file, unless the mesh was flipped
+          coords_get (coords_scale (next->normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
+        } else
           dt = -1;
       } else
         #endif
