@@ -315,31 +315,6 @@ SHARE
   %include "read_table-lib"
   %include "geometry-mesh-lib"
 
-  // Next entry time t0 and exit time t3 of the line position + t*velocity
-  // through mesh, with t0 = 0 for a neutron that starts inside. The surface
-  // the neutron sits on (hit at |t| < tolerance) is skipped.
-  // Returns 1 when the mesh is ahead, 0 otherwise.
-  #pragma acc routine seq
-  int
-  Isotropic_Sqw_mesh_intersect (gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t3) {
-    gmesh_hit hits[GMESH_MAX_HITS];
-    double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
-    int nhits = gmesh_intersect (mesh, position, velocity, tolerance, hits);
-    int inside;
-    if (!nhits)
-      return 0;
-    // normals of a closed, oriented mesh point outward: leaving first means inside
-    inside = mesh->closed && (mesh->oriented ? hits[0].in_out < 0 : gmesh_inside (mesh, position));
-    if (inside) {
-      *t0 = 0;
-      *t3 = hits[0].time;
-    } else {
-      *t0 = hits[0].time;
-      *t3 = nhits > 1 ? hits[1].time : hits[0].time;
-    }
-    return 1;
-  }
-
   /* For the density of states S(w) */
   struct Sqw_W_struct {
     double omega;       /* omega value for the data block */
@@ -2281,7 +2256,14 @@ TRACE
           intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius);
         #ifdef USE_OFF
         else if (VarSqw.shape == 3)
-          intersect = Isotropic_Sqw_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t3);
+          {
+            gmesh_hit entering, leaving;
+            intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+            if (intersect) {
+              t0 = intersect == 2 ? entering.time : 0; // 0 when inside
+              t3 = leaving.time;
+            }
+          }
         #endif
       } else {
         if (VarSqw.shape == 0)
@@ -2294,7 +2276,14 @@ TRACE
           intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness);
         #ifdef USE_OFF
         else if (VarSqw.shape == 3)
-          intersect = Isotropic_Sqw_mesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t3);
+          {
+            gmesh_hit entering, leaving;
+            intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+            if (intersect) {
+              t0 = intersect == 2 ? entering.time : 0; // 0 when inside
+              t3 = leaving.time;
+            }
+          }
         #endif
       }
     } else
