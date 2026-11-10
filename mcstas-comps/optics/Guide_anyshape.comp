@@ -101,21 +101,6 @@ SHARE
 %include "read_table-lib"
 %include "geometry-mesh-lib"
 %include "ref-lib"
-
-// first hit of the parabola position + t*velocity + t^2/2*acceleration with
-// mesh ahead of the neutron: its time dt, the normal and the face hit.
-// Returns 1 on a hit, 0 otherwise.
-#pragma acc routine seq
-int
-Guide_anyshape_mesh_next (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double* dt, Coords* normal, int* face) {
-  gmesh_hit hits[GMESH_MAX_HITS];
-  if (!gmesh_intersect_gravity (mesh, position, velocity, acceleration, 0, hits))
-    return 0;
-  *dt = hits[0].t;
-  *normal = hits[0].normal;
-  *face = hits[0].face;
-  return 1;
-}
 %}
 
 DECLARE
@@ -168,16 +153,20 @@ TRACE
     double dt = 0;
     int fi = 0;
     Coords n = { 0, 0, 0 };
+    gmesh_hit hits[GMESH_MAX_HITS];
     Coords acceleration = coords_set (0, 0, 0);
     if (mcgravitation)
       acceleration = rot_apply (_comp->_rotation_absolute, coords_set (0, -GRAVITY, 0));
 
     /* next intersection with the object, along the parabola under gravity */
-    intersect = Guide_anyshape_mesh_next (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), acceleration, &dt, &n, &fi);
+    intersect = gmesh_intersect_gravity (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), acceleration, 0, hits);
 
     /* exit loop when no intersection forward */
     if (!intersect)
       break;
+    dt = gmesh_hit_time (&hits[0]);
+    n = hits[0].normal;
+    fi = hits[0].face;
 
     double nx, ny, nz;
     coords_get (n, &nx, &ny, &nz);

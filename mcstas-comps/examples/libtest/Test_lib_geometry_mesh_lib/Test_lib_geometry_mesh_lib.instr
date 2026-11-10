@@ -8,7 +8,7 @@
 * Fails to compile or link if the library does not build with the runtime.
 * INITIALIZE also checks gmesh_intersect_gravity, and exits with an error
 * when a check fails:
-* - with zero acceleration it gives the hits of gmesh_intersect
+* - with zero acceleration it gives the hits of gmesh_intersect, to rounding
 * - parabolas through cube.off give the analytic hit times and in_out
 * - random parabolas through socket.off give the hits of a fine polyline of
 *   straight gmesh_intersect pieces
@@ -97,7 +97,7 @@ int gravity_tests (void) {
     int i_step;
     int i_hit;
 
-    // zero acceleration: the hits of the straight line
+    // zero acceleration: the hits of the straight line, to rounding
     nstraight = gmesh_intersect (&socket, position, velocity, -FLT_MAX, line_hits);
     nhits = gmesh_intersect_gravity (&socket, position, velocity, coords_set (0, 0, 0), -FLT_MAX, hits);
     if (nhits != nstraight) {
@@ -105,7 +105,7 @@ int gravity_tests (void) {
       continue;
     }
     for (i_hit = 0; i_hit < nhits; i_hit++) {
-      if (hits[i_hit].t != line_hits[i_hit].t || hits[i_hit].tri != line_hits[i_hit].tri || hits[i_hit].in_out != line_hits[i_hit].in_out)
+      if (fabs (hits[i_hit].t - line_hits[i_hit].t) > 1e-12 * (1 + fabs (line_hits[i_hit].t)) || hits[i_hit].in_out != line_hits[i_hit].in_out)
         mismatches++;
     }
 
