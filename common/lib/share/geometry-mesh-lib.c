@@ -2309,14 +2309,11 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
   return votes >= 2;
 }
 
-  // entry and exit of a line through mesh, see geometry-mesh-lib.h
+  // entry and exit among the nhits hits ahead of a particle at position, for
+  // gmesh_entry_exit and gmesh_entry_exit_gravity (same return values)
   #pragma acc routine seq
-int
-gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, gmesh_hit* entering, gmesh_hit* leaving) {
-  gmesh_hit hits[GMESH_MAX_HITS];
-  // skips the surface the particle sits on, e.g. after a propagation to it
-  double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
-  int nhits = gmesh_intersect (mesh, position, velocity, tolerance, hits);
+static int
+gmesh_pick_entry_exit (gmesh_struct* mesh, Coords position, gmesh_hit* hits, int nhits, gmesh_hit* entering, gmesh_hit* leaving) {
   int inside;
   if (!nhits)
     return 0;
@@ -2337,6 +2334,30 @@ gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, gmesh_hi
   else
     *leaving = hits[0];
   return 2;
+}
+
+  // entry and exit of a line through mesh, see geometry-mesh-lib.h
+  #pragma acc routine seq
+int
+gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, gmesh_hit* entering, gmesh_hit* leaving) {
+  gmesh_hit hits[GMESH_MAX_HITS];
+  // skips the surface the particle sits on, e.g. after a propagation to it
+  double tolerance = 1e-9 * mesh->length_scale / coords_len (velocity);
+  int nhits = gmesh_intersect (mesh, position, velocity, tolerance, hits);
+  return gmesh_pick_entry_exit (mesh, position, hits, nhits, entering, leaving);
+}
+
+  // entry and exit of a parabola through mesh, see geometry-mesh-lib.h
+  #pragma acc routine seq
+int
+gmesh_entry_exit_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, gmesh_hit* entering, gmesh_hit* leaving) {
+  gmesh_hit hits[GMESH_MAX_HITS];
+  // skips the surface the particle sits on; the speed scale is the one of
+  // gmesh_trace_gravity, as a parabola may start at rest
+  double speed = coords_len (velocity) + sqrt (coords_len (acceleration) * mesh->length_scale);
+  double tolerance = 1e-9 * mesh->length_scale / speed;
+  int nhits = gmesh_intersect_gravity (mesh, position, velocity, acceleration, tolerance, hits);
+  return gmesh_pick_entry_exit (mesh, position, hits, nhits, entering, leaving);
 }
 
   // per-face property, see geometry-mesh-lib.h
