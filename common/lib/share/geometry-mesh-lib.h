@@ -41,6 +41,7 @@
  * Ray tracing
  *   gmesh_intersect()      the GMESH_MAX_HITS nearest intersections of a
  *                          straight line, sorted in t
+ *   gmesh_intersect_gravity()  the same for a parabola (e.g. under gravity)
  *   gmesh_inside()         point-in-mesh test (deterministic, no random numbers)
  *   Hits exactly on an edge or vertex shared by several triangles are
  *   reported once.
@@ -165,6 +166,18 @@ int gmesh_init_fit (char* filename, double xwidth, double yheight, double zdepth
   // RETURN: number of hits stored
   #pragma acc routine seq
 int gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, double t_min, gmesh_hit hits[GMESH_MAX_HITS]);
+
+  // int gmesh_intersect_gravity(gmesh_struct *mesh, Coords position,
+  // Coords velocity, Coords acceleration, double t_min,
+  // gmesh_hit hits[GMESH_MAX_HITS])
+  // ACTION: as gmesh_intersect, for the parabola
+  // position + t*velocity + t^2/2*acceleration (e.g. a neutron under
+  // gravity, with acceleration in the frame of the mesh). in_out refers to
+  // the velocity at the hit, velocity + t*acceleration. With a zero
+  // acceleration the result is that of gmesh_intersect.
+  // RETURN: number of hits stored
+  #pragma acc routine seq
+int gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double t_min, gmesh_hit hits[GMESH_MAX_HITS]);
 
   // int gmesh_inside(gmesh_struct *mesh, Coords position)
   // ACTION: point in (closed) mesh test, parity of ray crossings along fixed
