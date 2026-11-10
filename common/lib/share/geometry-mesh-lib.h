@@ -43,7 +43,7 @@
  *                          straight line, sorted in t
  *   gmesh_intersect_gravity()  the same for a parabola (e.g. under gravity)
  *   gmesh_inside()         point-in-mesh test (deterministic, no random numbers)
- *   gmesh_entry_exit()     next entry and exit (only exit from inside)
+ *   gmesh_entry_exit()     first entry and exit (only exit from inside)
  *   gmesh_entry_exit_gravity()  the same for a parabola
  *   Hits exactly on an edge or vertex shared by several triangles are
  *   reported once.
@@ -79,6 +79,13 @@
   // add DEPENDENCY " -DGMESH_MAX_HITS=20 " after its DEFINE INSTRUMENT line
   #ifndef GMESH_MAX_HITS
     #define GMESH_MAX_HITS 50
+  #endif
+  // distance [m] within which gmesh_entry_exit takes a hit as the surface the
+  // particle sits on and skips it; a neutron is larger than this, so the ray
+  // picture does not hold below it anyway. To change it from an instrument,
+  // add DEPENDENCY " -DGMESH_TOL=1e-10 " after its DEFINE INSTRUMENT line
+  #ifndef GMESH_TOL
+    #define GMESH_TOL 1e-12
   #endif
   #ifndef GMESH_DISPLAY_MAX
     #define GMESH_DISPLAY_MAX 200000
@@ -190,9 +197,10 @@ int gmesh_inside (gmesh_struct* mesh, Coords position);
 
   // int gmesh_entry_exit(gmesh_struct *mesh, Coords position, Coords velocity,
   // gmesh_hit *entering, gmesh_hit *leaving)
-  // ACTION: next entry and exit of the line position + t*velocity through
+  // ACTION: first entry and exit of the line position + t*velocity through
   // mesh, for a particle inside or outside a (closed) mesh. A hit on the
-  // surface the particle sits on (|t| below the mesh tolerance) is skipped.
+  // surface the particle sits on is skipped: the mesh tolerance is a distance
+  // of 1e-12 m, which can be changed with GMESH_TOL.
   // An open mesh counts as outside; with a single hit ahead, leaving = entering.
   // RETURN: 0 when the mesh is not ahead, 1 inside (only leaving is set),
   // 2 outside (entering and leaving are set)
