@@ -35,9 +35,6 @@
  *     boundary / non-manifold edges, Euler characteristic, consistent
  *     orientation. Closed, consistently oriented meshes are oriented with
  *     outward normals.
- *   - rejects a folded mesh (gmesh_init fails): one where the two triangles
- *     of an edge turn back onto each other (antiparallel normals), so the
- *     surface overlaps itself and inside and outside are not defined
  *   - builds a bounding volume hierarchy (BVH) so that a ray costs
  *     O(log N) instead of O(N) triangle tests, without any allocation per ray.
  *
@@ -46,6 +43,7 @@
  *                          straight line, sorted in t
  *   gmesh_intersect_gravity()  the same for a parabola (e.g. under gravity)
  *   gmesh_inside()         point-in-mesh test (deterministic, no random numbers)
+ *   gmesh_check_closed()   optional check that a mesh is closed and not folded
  *   Hits exactly on an edge or vertex shared by several triangles are
  *   reported once.
  *
@@ -138,9 +136,8 @@ typedef struct gmesh_struct {
   double area, volume; // surface area, enclosed volume (closed meshes)
   int nedges, nboundary, nnonmanifold, ndegenerate, nwelded;
   int nduplicate; // faces given more than once (all copies removed)
-  int nfolded; // edges where the surface folds back onto itself (gmesh_init then fails)
   int euler; // V - E + F (2 for a closed genus-0 surface)
-  int closed; // every edge shared by exactly two triangles
+  int closed; // every edge shared by exactly two triangles; after gmesh_check_closed, also not folded
   int oriented; // shared edges run in opposite directions
   int flipped; // orientation was reversed to make normals point outward
   char* filename;
@@ -157,7 +154,7 @@ typedef struct gmesh_struct {
 // ACTION: read an STL/OFF/PLY file and build the mesh structure.
 // INPUT:  scale: multiply file coordinates (1 for m, 1e-3 for mm, 0 same as 1)
 // face_props: GMESH_PROPS_IGNORE, GMESH_PROPS_OPTIONAL or GMESH_PROPS_REQUIRED
-// RETURN: number of triangles, 0 on error (also for a folded mesh)
+// RETURN: number of triangles, 0 on error
 int gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh);
 
 // int gmesh_init_fit(char *filename, double xwidth, double yheight, double zdepth,
@@ -166,7 +163,7 @@ int gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh
 // non-zero sizes set the box size along x/y/z; a single size scales all
 // axes by the same factor (proportions kept). With center, the box centre
 // is moved to the origin; otherwise coordinates are scaled about the origin.
-// RETURN: number of triangles, 0 on error (also for a folded mesh)
+// RETURN: number of triangles, 0 on error
 int gmesh_init_fit (char* filename, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh);
 
   // int gmesh_intersect(gmesh_struct *mesh, Coords position, Coords direction,
@@ -200,6 +197,16 @@ int gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocit
   // RETURN: 1 inside, 0 outside
   #pragma acc routine seq
 int gmesh_inside (gmesh_struct* mesh, Coords position);
+
+  // int gmesh_check_closed(gmesh_struct *mesh)
+  // ACTION: optional check for components that need a volume: the mesh must be
+  // closed (every edge shared by two triangles) and must not fold back onto
+  // itself (no edge whose two triangles turn back onto each other, with
+  // antiparallel normals), as then inside and outside are not defined.
+  // Prints the reason when the mesh does not pass. A folded mesh gets
+  // mesh->closed = 0, so that afterwards mesh->closed holds the result.
+  // RETURN: 1 when the mesh passes, 0 otherwise
+int gmesh_check_closed (gmesh_struct* mesh);
 
   // per-face property number 'property' of face 'face', or fallback when it is
   // not given in the file

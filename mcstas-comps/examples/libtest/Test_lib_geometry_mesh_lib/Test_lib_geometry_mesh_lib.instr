@@ -8,7 +8,8 @@
 * Fails to compile or link if the library does not build with the runtime.
 * INITIALIZE also checks gmesh_inside and gmesh_intersect_gravity, and
 * exits with an error when a check fails:
-* - gmesh_init rejects a folded mesh
+* - gmesh_check_closed passes cube.off and socket.off, and fails the open
+*   Guide.off and a folded (closed, oriented) cube
 * - gmesh_inside on cube.off, and its shortcut for closed, oriented meshes
 *   against the parity of ray crossings for random points around socket.off
 * - with zero acceleration it gives the hits of gmesh_intersect, to rounding
@@ -61,7 +62,7 @@ int inside_tests (void) {
   mesh_check (gmesh_inside (&cube, coords_set (0.5, 0.5, 0.5)) == 1, "inside the cube", &failures);
   // a folded mesh: a unit cube whose bottom reaches past the edge x = 1 to
   // (1.5, 0.5, 0), where triangle 2 1 8 folds back. It is closed and
-  // consistently oriented, but overlaps itself, so gmesh_init fails.
+  // consistently oriented, but overlaps itself at 2 edges.
   {
     gmesh_struct folded;
     FILE* file = fopen ("Test_lib_geometry_mesh_lib_folded.off", "w");
@@ -69,7 +70,9 @@ int inside_tests (void) {
       fprintf (file, "OFF\n9 9 0\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n0 0 1\n1 0 1\n1 1 1\n0 1 1\n1.5 0.5 0\n"
                      "4 4 5 6 7\n4 0 1 5 4\n4 1 2 6 5\n4 2 3 7 6\n4 0 4 7 3\n3 1 0 8\n3 0 3 8\n3 3 2 8\n3 2 1 8\n");
       fclose (file);
-      mesh_check (gmesh_init ("Test_lib_geometry_mesh_lib_folded.off", 1, GMESH_PROPS_IGNORE, &folded) == 0, "folded mesh rejected", &failures);
+      mesh_check (gmesh_init ("Test_lib_geometry_mesh_lib_folded.off", 1, GMESH_PROPS_IGNORE, &folded) && folded.closed && folded.oriented
+                    && !gmesh_check_closed (&folded) && !folded.closed, "folded mesh fails gmesh_check_closed and is then not closed", &failures);
+      gmesh_free (&folded);
       remove ("Test_lib_geometry_mesh_lib_folded.off");
     }
   }
@@ -85,6 +88,13 @@ int inside_tests (void) {
   }
   printf ("Test_lib_geometry_mesh_lib: socket.off: gmesh_inside shortcut and parity differ for %d of 2000 points\n", differ);
   mesh_check (socket.closed && socket.oriented && differ == 0, "gmesh_inside shortcut against parity on socket.off", &failures);
+  mesh_check (gmesh_check_closed (&cube) && gmesh_check_closed (&socket), "gmesh_check_closed on cube.off and socket.off", &failures);
+  {
+    gmesh_struct guide;
+    mesh_check (gmesh_init ("Guide.off", 1, GMESH_PROPS_IGNORE, &guide) && !guide.closed && !gmesh_check_closed (&guide), "gmesh_check_closed on the open Guide.off",
+                &failures);
+    gmesh_free (&guide);
+  }
   gmesh_free (&cube);
   gmesh_free (&socket);
   return failures;
