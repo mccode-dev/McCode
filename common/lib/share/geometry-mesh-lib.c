@@ -1722,6 +1722,20 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
       } else if (edge->dir != 0) {
         mesh->oriented = 0;
       }
+      // folded: the two triangles of the edge turn back onto each other, i.e.
+      // their normals are antiparallel once oriented alike (dir 0)
+      if (edge->n == 2) {
+        double turn = coords_sp (mesh->tri_normal[edge->t0], mesh->tri_normal[edge->t1]);
+        if (edge->dir != 0)
+          turn = -turn;
+        if (turn < -1 + GMESH_EPSILON) {
+          if (!mesh->nfolded) {
+            mesh->folded_face[0] = mesh->tri_face[edge->t0];
+            mesh->folded_face[1] = mesh->tri_face[edge->t1];
+          }
+          mesh->nfolded++;
+        }
+      }
     }
     if (mesh->nnonmanifold)
       mesh->oriented = 0;
@@ -2330,40 +2344,16 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
   // closed check, see geometry-mesh-lib.h
 int
 gmesh_check_closed (gmesh_struct* mesh) {
-  gmesh_etab edges;
-  int i;
-  int nfolded = 0;
-  int folded_face[2] = { -1, -1 };
   if (!mesh->closed) {
     fprintf (stderr, "Error: %s: %d boundary and %d non-manifold edges: the mesh is not closed (geometry-mesh-lib)\n", mesh->filename, mesh->nboundary,
              mesh->nnonmanifold);
     return 0;
   }
-  // folded edges: the two triangles of the edge turn back onto each other,
-  // i.e. their normals are antiparallel once oriented alike (dir 0)
-  gmesh_etab_build (&edges, mesh->tri, mesh->ntris);
-  for (i = 0; i < edges.cap; i++) {
-    gmesh_edge* edge = &edges.e[i];
-    double turn;
-    if (edge->n != 2)
-      continue;
-    turn = coords_sp (mesh->tri_normal[edge->t0], mesh->tri_normal[edge->t1]);
-    if (edge->dir != 0)
-      turn = -turn;
-    if (turn < -1 + GMESH_EPSILON) {
-      if (!nfolded) {
-        folded_face[0] = mesh->tri_face[edge->t0];
-        folded_face[1] = mesh->tri_face[edge->t1];
-      }
-      nfolded++;
-    }
-  }
-  free (edges.e);
-  if (nfolded) {
+  if (mesh->nfolded) {
     fprintf (stderr,
              "Error: %s: %d edges where the surface folds back onto itself, e.g. between faces %d and %d (0-based): "
              "the mesh overlaps itself, so inside and outside are not defined (geometry-mesh-lib)\n",
-             mesh->filename, nfolded, folded_face[0], folded_face[1]);
+             mesh->filename, mesh->nfolded, mesh->folded_face[0], mesh->folded_face[1]);
     // a folded mesh encloses no well-defined volume
     mesh->closed = 0;
     return 0;
@@ -2404,6 +2394,10 @@ gmesh_print_info (gmesh_struct* mesh) {
           mesh->oriented ? "consistently oriented" : "NOT consistently oriented", mesh->flipped ? " (orientation reversed to outward normals)" : "");
   if (!mesh->closed) {
     printf ("  Warning: %d boundary and %d non-manifold edges: the mesh does not enclose a volume.\n", mesh->nboundary, mesh->nnonmanifold);
+  }
+  if (mesh->nfolded) {
+    printf ("  Warning: %d edges where the surface folds back onto itself, e.g. between faces %d and %d (0-based).\n", mesh->nfolded, mesh->folded_face[0],
+            mesh->folded_face[1]);
   }
 
   if (mesh->nfaceprops)
