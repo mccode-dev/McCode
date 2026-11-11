@@ -85,6 +85,10 @@
 *   It computes the intersection points of the neutron ray with the object
 *   transparently, so that it can be used like a regular sample object.
 *   It supports the OFF (incl. NOFF, COFF), PLY and STL file formats.
+*   A mesh must be a single, closed object: the neutron path through it is
+*   taken from the first entry and exit only, so a second part of the mesh
+*   further along the path (disjoint parts, or a concave shape the path
+*   re-enters) is not seen.
 *   Such files may be generated from XYZ data using:
 *     qhull < coordinates.xyz Qx Qv Tv o > geomview.off
 *   or
@@ -1400,7 +1404,8 @@ INITIALIZE
     #else
     if (gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh)) {
       hkl_info.shape = 3;
-    }
+    } else
+      exit (fprintf (stderr, "Single_crystal: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry));
     #endif
   } else if (xwidth && yheight && zdepth)
     hkl_info.shape = 1; /* box */
@@ -1522,11 +1527,18 @@ TRACE
   #ifdef USE_OFF
   else if (hkl_info.shape == 3)
     {
-      gmesh_hit entering, leaving;
-      intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+      gmesh_hit hits[GMESH_MAX_HITS];
+      int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
+      intersect = nhits > 0;
       if (intersect) {
-        t1 = intersect == 2 ? entering.time : 0; // 0 when inside
-        t2 = leaving.time;
+        if (gmesh_inside (&thread_mesh, coords_set (x, y, z))) {
+          t1 = 0;
+          t2 = hits[0].time;
+        } else {
+          // 1 ns past the entry, so that gmesh_inside sees the neutron inside after PROP_DT (t1)
+          t1 = hits[0].time + 1e-9;
+          t2 = nhits > 1 ? hits[1].time : hits[0].time;
+        }
       }
     }
   #endif
@@ -1577,11 +1589,12 @@ TRACE
       #ifdef USE_OFF
       else if (hkl_info.shape == 3)
         {
-          gmesh_hit entering, leaving;
-          intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+          gmesh_hit hits[GMESH_MAX_HITS];
+          int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
+          intersect = nhits > 0 && gmesh_inside (&thread_mesh, coords_set (x, y, z));
           if (intersect) {
-            t1 = intersect == 2 ? entering.time : 0; // 0 when inside
-            t2 = leaving.time;
+            t1 = 0;
+            t2 = hits[0].time;
           }
         }
       #endif

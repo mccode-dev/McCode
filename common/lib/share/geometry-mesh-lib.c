@@ -1410,6 +1410,7 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
   int ok = 0;
   int i, k;
   int* map;
+  int folded_face[2] = { -1, -1 };
 
   if (!mesh || !filename)
     return 0;
@@ -1722,6 +1723,20 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
       } else if (edge->dir != 0) {
         mesh->oriented = 0;
       }
+      // folded: the two triangles of the edge turn back onto each other, i.e.
+      // their normals are antiparallel once oriented alike (dir 0)
+      if (edge->n == 2) {
+        double turn = coords_sp (mesh->tri_normal[edge->t0], mesh->tri_normal[edge->t1]);
+        if (edge->dir != 0)
+          turn = -turn;
+        if (turn < -1 + GMESH_EPSILON) {
+          if (!mesh->nfolded) {
+            folded_face[0] = mesh->tri_face[edge->t0];
+            folded_face[1] = mesh->tri_face[edge->t1];
+          }
+          mesh->nfolded++;
+        }
+      }
     }
     if (mesh->nnonmanifold)
       mesh->oriented = 0;
@@ -1737,6 +1752,16 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
     free (queue);
     free (visited);
     free (used);
+  }
+
+  if (mesh->nfolded) {
+    fprintf (stderr,
+             "Error: %s: %d edges where the surface folds back onto itself, e.g. between faces %d and %d (0-based): "
+             "the mesh overlaps itself, so inside and outside are not defined. Fix the vertex order of the folded faces "
+             "(geometry-mesh-lib)\n",
+             filename, mesh->nfolded, folded_face[0], folded_face[1]);
+    gmesh_free (mesh);
+    return 0;
   }
 
   // volume (divergence theorem); outward normals for closed oriented meshes
@@ -2293,10 +2318,27 @@ int
 gmesh_inside (gmesh_struct* mesh, Coords position) {
   // fixed, "irrational" directions: no random numbers are consumed
   const double D[3][3] = { { 0.4719, 0.6213, 0.6254 }, { 0.8017, -0.3259, 0.5012 }, { -0.2263, 0.9147, -0.3349 } };
+  Coords pad = coords_set (GMESH_TOL, GMESH_TOL, GMESH_TOL);
   int j;
   int votes = 0;
-  if (!gmesh_in_box (position, mesh->bbmin, mesh->bbmax))
+  // the box is padded by GMESH_TOL, for a point on the surface after rounding
+  if (!gmesh_in_box (position, coords_sub (mesh->bbmin, pad), coords_add (mesh->bbmax, pad)))
     return 0;
+  // a closed, oriented mesh has outward normals: the point is inside when the
+  // first hit along a ray is leaving. Hits closer than GMESH_TOL are skipped,
+  // as they are the surface the point sits on. A first hit on an edge, or two
+  // hits at the same distance (touching parts of the mesh), may disagree, so
+  // they are left to the parity test.
+  if (mesh->closed && mesh->oriented) {
+    gmesh_hit first[2];
+    int stored = 0;
+    int ambiguous = 0;
+    gmesh_trace (mesh, position, coords_set (D[0][0], D[0][1], D[0][2]), GMESH_TOL, first, 2, &stored, &ambiguous);
+    if (!stored)
+      return 0;
+    if (!first[0].edge && (stored == 1 || first[1].time - first[0].time > GMESH_TOL))
+      return first[0].in_out < 0;
+  }
   for (j = 0; j < 3; j++) {
     int stored = 0;
     int ambiguous = 0;
@@ -2307,57 +2349,6 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
     votes += (int)(n % 2);
   }
   return votes >= 2;
-}
-
-  // first entry and exit among the nhits hits ahead of a particle at position, for
-  // gmesh_entry_exit and gmesh_entry_exit_gravity (same return values)
-  #pragma acc routine seq
-static int
-gmesh_pick_entry_exit (gmesh_struct* mesh, Coords position, gmesh_hit* hits, int nhits, gmesh_hit* entering, gmesh_hit* leaving) {
-  int inside;
-  if (!nhits)
-    return 0;
-  // normals of a closed, oriented mesh point outward: leaving first means inside
-  if (!mesh->closed)
-    inside = 0;
-  else if (mesh->oriented)
-    inside = hits[0].in_out < 0;
-  else
-    inside = gmesh_inside (mesh, position);
-  if (inside) {
-    *leaving = hits[0];
-    return 1;
-  }
-  *entering = hits[0];
-  if (nhits > 1)
-    *leaving = hits[1];
-  else
-    *leaving = hits[0];
-  return 2;
-}
-
-  // first entry and exit of a line through mesh, see geometry-mesh-lib.h
-  #pragma acc routine seq
-int
-gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, gmesh_hit* entering, gmesh_hit* leaving) {
-  gmesh_hit hits[GMESH_MAX_HITS];
-  // skips the surface the particle sits on (closer than GMESH_TOL), e.g. after a propagation to it
-  double tolerance = GMESH_TOL / coords_len (velocity);
-  int nhits = gmesh_intersect (mesh, position, velocity, tolerance, hits);
-  return gmesh_pick_entry_exit (mesh, position, hits, nhits, entering, leaving);
-}
-
-  // first entry and exit of a parabola through mesh, see geometry-mesh-lib.h
-  #pragma acc routine seq
-int
-gmesh_entry_exit_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, gmesh_hit* entering, gmesh_hit* leaving) {
-  gmesh_hit hits[GMESH_MAX_HITS];
-  // skips the surface the particle sits on (closer than GMESH_TOL); the speed
-  // scale is the one of gmesh_trace_gravity, as a parabola may start at rest
-  double speed = coords_len (velocity) + sqrt (coords_len (acceleration) * mesh->length_scale);
-  double tolerance = GMESH_TOL / speed;
-  int nhits = gmesh_intersect_gravity (mesh, position, velocity, acceleration, tolerance, hits);
-  return gmesh_pick_entry_exit (mesh, position, hits, nhits, entering, leaving);
 }
 
   // per-face property, see geometry-mesh-lib.h

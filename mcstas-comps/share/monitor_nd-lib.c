@@ -2205,6 +2205,37 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
 /* defined by a mesh file (geometry parameter)                               */
 /* ========================================================================= */
 
+// Hits of the line position + t*velocity with mesh ahead of the neutron
+// (t > 0). Inside a closed mesh, t0 is 0 and t1 the first exit; otherwise
+// t0 is the first hit and t1 the next one (t0 when there is a single hit).
+// face is the face of the first hit ahead. Returns 1 on a hit, 0 otherwise.
+#pragma acc routine seq
+int Monitor_nD_MeshIntersect(gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t1, int* face)
+{
+  gmesh_hit hits[GMESH_MAX_HITS];
+  double t_min = 0;
+  int nhits = gmesh_intersect(mesh, position, velocity, t_min, hits);
+  int inside = 0;
+  if (!nhits)
+    return 0;
+  // normals of a closed, oriented mesh point outward: leaving first means inside
+  if (mesh->closed && mesh->oriented)
+    inside = hits[0].in_out < 0;
+  else if (mesh->closed)
+    inside = gmesh_inside(mesh, position);
+  if (inside) {
+    *t0 = 0;
+    *t1 = hits[0].time;
+  } else {
+    *t0 = hits[0].time;
+    *t1 = hits[0].time;
+    if (nhits > 1)
+      *t1 = hits[1].time;
+  }
+  *face = hits[0].face;
+  return 1;
+}
+
 // Warns when mantid is combined with a closed mesh: pixel IDs are panels.
 void Monitor_nD_CheckMantidMesh(gmesh_struct* mesh, int flag_mantid, char* name)
 {

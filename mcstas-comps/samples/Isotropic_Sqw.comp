@@ -69,6 +69,10 @@
 *   It computes the intersection points of the neutron ray with the object
 *   transparently, so that it can be used like a regular sample object.
 *   It supports the OFF (incl. NOFF, COFF), PLY and STL file formats.
+*   A mesh must be a single, closed object: the neutron path through it is
+*   taken from the first entry and exit only, so a second part of the mesh
+*   further along the path (disjoint parts, or a concave shape the path
+*   re-enters) is not seen.
 *   Such files may be generated from XYZ data using:
 *     qhull < coordinates.xyz Qx Qv Tv o > geomview.off
 *   or
@@ -2033,7 +2037,8 @@ INITIALIZE
       VarSqw.shape = 3;
       thickness = 0;
       concentric = 0;
-    }
+    } else
+      exit (fprintf (stderr, "Isotropic_Sqw: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry));
     #endif
   } else if (xwidth && yheight && zdepth)
     VarSqw.shape = 1; /* box */
@@ -2247,6 +2252,23 @@ TRACE
 
     /* Intersection neutron trajectory / sample (sample surface) */
     if (VarSqw.s_coh > 0 || VarSqw.s_inc > 0) {
+      #ifdef USE_OFF
+      // a mesh is used as given, for either sign of thickness
+      if (VarSqw.shape == 3) {
+        gmesh_hit hits[GMESH_MAX_HITS];
+        int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
+        intersect = nhits > 0;
+        if (intersect) {
+          if (gmesh_inside (&thread_mesh, coords_set (x, y, z))) {
+            t0 = 0;
+            t3 = hits[0].time;
+          } else {
+            t0 = hits[0].time;
+            t3 = nhits > 1 ? hits[1].time : hits[0].time;
+          }
+        }
+      } else
+      #endif
       if (thickness >= 0) {
         if (VarSqw.shape == 0)
           intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius, yheight);
@@ -2254,17 +2276,6 @@ TRACE
           intersect = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
         else if (VarSqw.shape == 2)
           intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius);
-        #ifdef USE_OFF
-        else if (VarSqw.shape == 3)
-          {
-            gmesh_hit entering, leaving;
-            intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
-            if (intersect) {
-              t0 = intersect == 2 ? entering.time : 0; // 0 when inside
-              t3 = leaving.time;
-            }
-          }
-        #endif
       } else {
         if (VarSqw.shape == 0)
           intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness, yheight - 2 * thickness > 0 ? yheight - 2 * thickness : yheight);
@@ -2274,17 +2285,6 @@ TRACE
                                yheight - 2 * thickness > 0 ? yheight - 2 * thickness : yheight, zdepth - 2 * thickness > 0 ? zdepth - 2 * thickness : zdepth);
         else if (VarSqw.shape == 2)
           intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness);
-        #ifdef USE_OFF
-        else if (VarSqw.shape == 3)
-          {
-            gmesh_hit entering, leaving;
-            intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
-            if (intersect) {
-              t0 = intersect == 2 ? entering.time : 0; // 0 when inside
-              t3 = leaving.time;
-            }
-          }
-        #endif
       }
     } else
       intersect = 0;

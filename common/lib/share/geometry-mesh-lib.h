@@ -35,6 +35,9 @@
  *     boundary / non-manifold edges, Euler characteristic, consistent
  *     orientation. Closed, consistently oriented meshes are oriented with
  *     outward normals.
+ *   - rejects a folded mesh (gmesh_init fails): one where the two triangles
+ *     of an edge turn back onto each other (antiparallel normals), so the
+ *     surface overlaps itself and inside and outside are not defined
  *   - builds a bounding volume hierarchy (BVH) so that a ray costs
  *     O(log N) instead of O(N) triangle tests, without any allocation per ray.
  *
@@ -43,8 +46,6 @@
  *                          straight line, sorted in t
  *   gmesh_intersect_gravity()  the same for a parabola (e.g. under gravity)
  *   gmesh_inside()         point-in-mesh test (deterministic, no random numbers)
- *   gmesh_entry_exit()     first entry and exit (only exit from inside)
- *   gmesh_entry_exit_gravity()  the same for a parabola
  *   Hits exactly on an edge or vertex shared by several triangles are
  *   reported once.
  *
@@ -80,10 +81,11 @@
   #ifndef GMESH_MAX_HITS
     #define GMESH_MAX_HITS 50
   #endif
-  // distance [m] within which gmesh_entry_exit takes a hit as the surface the
-  // particle sits on and skips it; a neutron is larger than this, so the ray
-  // picture does not hold below it anyway. To change it from an instrument,
-  // add DEPENDENCY " -DGMESH_TOL=1e-10 " after its DEFINE INSTRUMENT line
+  // distance [m] within which a hit is the surface the particle sits on, to be
+  // skipped: gmesh_inside skips it, and components pass t_min = GMESH_TOL/|v|
+  // to gmesh_intersect. A neutron is larger than this, so the ray picture does
+  // not hold below it anyway. To change it from an instrument, add
+  // DEPENDENCY " -DGMESH_TOL=1e-10 " after its DEFINE INSTRUMENT line
   #ifndef GMESH_TOL
     #define GMESH_TOL 1e-12
   #endif
@@ -135,6 +137,7 @@ typedef struct gmesh_struct {
   double area, volume; // surface area, enclosed volume (closed meshes)
   int nedges, nboundary, nnonmanifold, ndegenerate, nwelded;
   int nduplicate; // faces given more than once (all copies removed)
+  int nfolded; // edges where the surface folds back onto itself (gmesh_init then fails)
   int euler; // V - E + F (2 for a closed genus-0 surface)
   int closed; // every edge shared by exactly two triangles
   int oriented; // shared edges run in opposite directions
@@ -153,7 +156,7 @@ typedef struct gmesh_struct {
 // ACTION: read an STL/OFF/PLY file and build the mesh structure.
 // INPUT:  scale: multiply file coordinates (1 for m, 1e-3 for mm, 0 same as 1)
 // face_props: GMESH_PROPS_IGNORE, GMESH_PROPS_OPTIONAL or GMESH_PROPS_REQUIRED
-// RETURN: number of triangles, 0 on error
+// RETURN: number of triangles, 0 on error (also for a folded mesh)
 int gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh);
 
 // int gmesh_init_fit(char *filename, double xwidth, double yheight, double zdepth,
@@ -162,7 +165,7 @@ int gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh
 // non-zero sizes set the box size along x/y/z; a single size scales all
 // axes by the same factor (proportions kept). With center, the box centre
 // is moved to the origin; otherwise coordinates are scaled about the origin.
-// RETURN: number of triangles, 0 on error
+// RETURN: number of triangles, 0 on error (also for a folded mesh)
 int gmesh_init_fit (char* filename, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh);
 
   // int gmesh_intersect(gmesh_struct *mesh, Coords position, Coords direction,
@@ -189,31 +192,13 @@ int gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, doub
 int gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double t_min, gmesh_hit hits[GMESH_MAX_HITS]);
 
   // int gmesh_inside(gmesh_struct *mesh, Coords position)
-  // ACTION: point in (closed) mesh test, parity of ray crossings along fixed
-  // directions. Does not use random numbers.
+  // ACTION: point in (closed) mesh test. For a closed, oriented mesh: whether
+  // the first hit along a fixed direction, beyond GMESH_TOL, is leaving;
+  // otherwise the parity of ray crossings along fixed directions. Does not use
+  // random numbers.
   // RETURN: 1 inside, 0 outside
   #pragma acc routine seq
 int gmesh_inside (gmesh_struct* mesh, Coords position);
-
-  // int gmesh_entry_exit(gmesh_struct *mesh, Coords position, Coords velocity,
-  // gmesh_hit *entering, gmesh_hit *leaving)
-  // ACTION: first entry and exit of the line position + t*velocity through
-  // mesh, for a particle inside or outside a (closed) mesh. A hit on the
-  // surface the particle sits on is skipped: the mesh tolerance is a distance
-  // of 1e-12 m, which can be changed with GMESH_TOL.
-  // An open mesh counts as outside; with a single hit ahead, leaving = entering.
-  // RETURN: 0 when the mesh is not ahead, 1 inside (only leaving is set),
-  // 2 outside (entering and leaving are set)
-  #pragma acc routine seq
-int gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, gmesh_hit* entering, gmesh_hit* leaving);
-
-  // int gmesh_entry_exit_gravity(gmesh_struct *mesh, Coords position,
-  // Coords velocity, Coords acceleration, gmesh_hit *entering, gmesh_hit *leaving)
-  // ACTION: as gmesh_entry_exit, for the parabola
-  // position + t*velocity + t^2/2*acceleration (see gmesh_intersect_gravity)
-  // RETURN: as gmesh_entry_exit
-  #pragma acc routine seq
-int gmesh_entry_exit_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, gmesh_hit* entering, gmesh_hit* leaving);
 
   // per-face property number 'property' of face 'face', or fallback when it is
   // not given in the file

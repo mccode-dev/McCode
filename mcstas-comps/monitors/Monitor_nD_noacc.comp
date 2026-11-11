@@ -516,16 +516,11 @@ TRACE
   */
   if (geometry && strlen (geometry) && strcmp (geometry, "0") && strcmp (geometry, "NULL")) {
     /* determine intersections with object */
-    gmesh_hit entering, leaving;
-    intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
-    if (intersect) {
-      t0 = intersect == 2 ? entering.time : 0; // 0 when inside
-      t1 = leaving.time;
-    }
+    int face = 0;
+    intersect = Monitor_nD_MeshIntersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &face);
     if (Vars.Flag_mantid) {
       if (intersect) {
-        // pixel of the next hit: the entry from outside, the exit from inside
-        Vars.OFF_polyidx = intersect == 2 ? entering.face : leaving.face;
+        Vars.OFF_polyidx = face;
       } else {
         Vars.OFF_polyidx = -1;
       }
