@@ -55,7 +55,7 @@
 * yheight: [m]   Height of crystal.
 * zdepth: [m]    Depth of crystal (no extinction simulated)
 * sqw:    [string]   Name of a 4d S(q,w) file - example.sqw4 is included in your installation
-* geometry: [string]   Name of an OFF, PLY or STL file for complex geometry. An OFF file may be generated from XYZ coordinates using qhull/powercrust.
+* geometry: [string]   Name of an OFF, PLY or STL file for complex geometry. An OFF file may be generated from XYZ coordinates using qhull/powercrust. The mesh must be a single, closed object: only the first entry and exit along the neutron path are used, so a second part of the mesh further along the path (disjoint parts, or a concave shape the path re-enters) is not seen.
 * delta_d_d: [1] Lattice spacing variance, gaussian RMS.
 * mosaic: [arcmin]   Isotropic crystal mosaic, gaussian RMS. Puts the crystal in the isotropic mosaic model state, thus disregarding other mosaicity parameters.
 * mosaic_a: [arcmin] Horizontal (rotation around lattice vector a) mosaic (anisotropic), gaussian RMS. Put the crystal in the anisotropic crystal vector state. I.e. model mosaicity through rotation around the crystal lattice vectors. Has precedence over in-plane mosaic model.
@@ -719,7 +719,8 @@ INITIALIZE
   if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
     if (gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh)) {
       hkl_info.shape = 3;
-    }
+    } else
+      exit (fprintf (stderr, "Single_crystal_inelastic: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry));
   } else if (xwidth && yheight && zdepth)
     hkl_info.shape = 1; /* box */
   else if (radius > 0 && yheight)
@@ -801,11 +802,18 @@ TRACE
     intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
   else if (hkl_info.shape == 3)
     {
-      gmesh_hit entering, leaving;
-      intersect = gmesh_entry_exit (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+      gmesh_hit hits[GMESH_MAX_HITS];
+      int nhits = gmesh_intersect (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
+      intersect = nhits > 0;
       if (intersect) {
-        t1 = intersect == 2 ? entering.time : 0; // 0 when inside
-        t2 = leaving.time;
+        if (gmesh_inside (&mesh, coords_set (x, y, z))) {
+          t1 = 0;
+          t2 = hits[0].time;
+        } else {
+          // 1 ns past the entry, so that gmesh_inside sees the neutron inside after PROP_DT (t1)
+          t1 = hits[0].time + 1e-9;
+          t2 = nhits > 1 ? hits[1].time : hits[0].time;
+        }
       }
     }
 
@@ -842,11 +850,12 @@ TRACE
         intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
       else if (hkl_info.shape == 3)
         {
-          gmesh_hit entering, leaving;
-          intersect = gmesh_entry_exit (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+          gmesh_hit hits[GMESH_MAX_HITS];
+          int nhits = gmesh_intersect (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
+          intersect = nhits > 0 && gmesh_inside (&mesh, coords_set (x, y, z));
           if (intersect) {
-            t1 = intersect == 2 ? entering.time : 0; // 0 when inside
-            t2 = leaving.time;
+            t1 = 0;
+            t2 = hits[0].time;
           }
         }
       if (!intersect || t2 * v < -1e-9 || t1 * v > 1e-9) {

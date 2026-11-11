@@ -41,6 +41,10 @@
 *   It computes the intersection points of the neutron ray with the object  
 *   transparently, so that it can be used like a regular sample object.
 *   It supports the OFF (incl. NOFF, COFF), PLY and STL file formats. 
+*   A mesh must be a single, closed object: the neutron path through it is
+*   taken from the first entry and exit only, so a second part of the mesh
+*   further along the path (disjoint parts, or a concave shape the path
+*   re-enters) is not seen.
 *   Such files may be generated from XYZ data using qhull/powercrust, and 
 *   viewed with geomview
 *   The default size of the object depends of the OFF file data, but its 
@@ -544,7 +548,8 @@ INITIALIZE
   if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
     if (gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh)) {
       hkl_info.shape = 3;
-    }
+    } else
+      exit (fprintf (stderr, "Single_magnetic_crystal: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry));
   } else if (xwidth && yheight && zdepth)
     hkl_info.shape = 1; /* box */
   else if (radius > 0 && yheight)
@@ -615,11 +620,18 @@ TRACE
     intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
   else if (hkl_info.shape == 3)
     {
-      gmesh_hit entering, leaving;
-      intersect = gmesh_entry_exit (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+      gmesh_hit hits[GMESH_MAX_HITS];
+      int nhits = gmesh_intersect (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
+      intersect = nhits > 0;
       if (intersect) {
-        t1 = intersect == 2 ? entering.time : 0; // 0 when inside
-        t2 = leaving.time;
+        if (gmesh_inside (&mesh, coords_set (x, y, z))) {
+          t1 = 0;
+          t2 = hits[0].time;
+        } else {
+          // 1 ns past the entry, so that gmesh_inside sees the neutron inside after PROP_DT (t1)
+          t1 = hits[0].time + 1e-9;
+          t2 = nhits > 1 ? hits[1].time : hits[0].time;
+        }
       }
     }
 
@@ -650,11 +662,12 @@ TRACE
         intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
       else if (hkl_info.shape == 3)
         {
-          gmesh_hit entering, leaving;
-          intersect = gmesh_entry_exit (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+          gmesh_hit hits[GMESH_MAX_HITS];
+          int nhits = gmesh_intersect (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
+          intersect = nhits > 0 && gmesh_inside (&mesh, coords_set (x, y, z));
           if (intersect) {
-            t1 = intersect == 2 ? entering.time : 0; // 0 when inside
-            t2 = leaving.time;
+            t1 = 0;
+            t2 = hits[0].time;
           }
         }
       if (!intersect || t2 * v < -1e-9 || t1 * v > 1e-9) {

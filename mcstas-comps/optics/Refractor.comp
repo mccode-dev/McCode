@@ -410,15 +410,16 @@ TRACE
     }
     #ifdef USE_OFF
     else if (geometry && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      gmesh_hit entering, leaving;
-      intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &entering, &leaving);
+      gmesh_hit hits[GMESH_MAX_HITS];
+      int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
+      intersect = nhits > 0;
       if (intersect) {
-        mesh_inside = (intersect == 1);
-        t0 = mesh_inside ? 0 : entering.time;
-        t1 = leaving.time;
+        mesh_inside = gmesh_inside (&thread_mesh, coords_set (x, y, z));
+        t0 = mesh_inside ? 0 : hits[0].time;
+        t1 = mesh_inside || nhits == 1 ? hits[0].time : hits[1].time;
         // normal of the next hit, oriented as in interoff-lib: opposite to the
         // right-hand rule of the vertex order in the file, unless the mesh was flipped
-        coords_get (coords_scale (mesh_inside ? leaving.normal : entering.normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
+        coords_get (coords_scale (hits[0].normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
       }
     }
     #endif
