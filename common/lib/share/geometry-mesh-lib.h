@@ -81,10 +81,11 @@
   #ifndef GMESH_MAX_HITS
     #define GMESH_MAX_HITS 50
   #endif
-  // distance [m] within which a hit is the surface the particle sits on, to be
-  // skipped: gmesh_inside skips it, and components pass t_min = GMESH_TOL/|v|
-  // to gmesh_intersect. A neutron is larger than this, so the ray picture does
-  // not hold below it anyway. To change it from an instrument, add
+  // tolerance for hits on the surface a particle sits on, to be skipped:
+  // gmesh_inside skips hits closer than GMESH_TOL [m] along its ray, and
+  // components pass t_min = GMESH_TOL [s] to gmesh_intersect. A neutron is
+  // larger than this, so the ray picture does not hold below it anyway. To
+  // change it from an instrument, add
   // DEPENDENCY " -DGMESH_TOL=1e-10 " after its DEFINE INSTRUMENT line
   #ifndef GMESH_TOL
     #define GMESH_TOL 1e-12
@@ -192,10 +193,10 @@ int gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, doub
 int gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double t_min, gmesh_hit hits[GMESH_MAX_HITS]);
 
   // int gmesh_inside(gmesh_struct *mesh, Coords position)
-  // ACTION: point in (closed) mesh test. For a closed, oriented mesh: whether
-  // the first hit along a fixed direction, beyond GMESH_TOL, is leaving;
-  // otherwise the parity of ray crossings along fixed directions. Does not use
-  // random numbers.
+  // ACTION: point in closed mesh test; 0 for an open mesh. For a closed,
+  // oriented mesh: whether the first hit along a fixed direction, beyond
+  // GMESH_TOL, is leaving; otherwise the parity of ray crossings along fixed
+  // directions. Does not use random numbers.
   // RETURN: 1 inside, 0 outside
   #pragma acc routine seq
 int gmesh_inside (gmesh_struct* mesh, Coords position);
