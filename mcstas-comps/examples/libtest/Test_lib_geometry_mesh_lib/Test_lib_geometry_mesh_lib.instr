@@ -66,16 +66,22 @@ int inside_tests (void) {
   // consistently oriented, but overlaps itself at 2 edges.
   {
     gmesh_struct folded;
-    FILE* file = fopen ("Test_lib_geometry_mesh_lib_folded.off", "w");
+    // one file per MPI process, as all processes run these checks
+    char folded_file[64] = "Test_lib_geometry_mesh_lib_folded.off";
+    FILE* file;
+    #ifdef USE_MPI
+    snprintf (folded_file, sizeof (folded_file), "Test_lib_geometry_mesh_lib_folded_%d.off", mpi_node_rank);
+    #endif
+    file = fopen (folded_file, "w");
     if (file) {
       fprintf (file, "OFF\n9 9 0\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n0 0 1\n1 0 1\n1 1 1\n0 1 1\n1.5 0.5 0\n"
                      "4 4 5 6 7\n4 0 1 5 4\n4 1 2 6 5\n4 2 3 7 6\n4 0 4 7 3\n3 1 0 8\n3 0 3 8\n3 3 2 8\n3 2 1 8\n");
       fclose (file);
-      mesh_check (gmesh_init ("Test_lib_geometry_mesh_lib_folded.off", 1, GMESH_PROPS_IGNORE, &folded) && folded.closed && folded.oriented
+      mesh_check (gmesh_init (folded_file, 1, GMESH_PROPS_IGNORE, &folded) && folded.closed && folded.oriented
                     && folded.nfolded == 2 && !gmesh_check_closed (&folded) && !folded.closed,
                   "folded mesh: 2 folded edges, fails gmesh_check_closed and is then not closed", &failures);
       gmesh_free (&folded);
-      remove ("Test_lib_geometry_mesh_lib_folded.off");
+      remove (folded_file);
     }
   }
   mesh_check (gmesh_inside (&cube, coords_set (0.5, 0.5, 1.5)) == 0, "outside the cube", &failures);
