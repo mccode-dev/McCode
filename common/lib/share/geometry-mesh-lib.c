@@ -2024,20 +2024,20 @@ gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, double t
   // Ray tracing of parabolas (e.g. under gravity)
   // ==========================================================================
 
-  // real roots of quadratic*t^2 + linear*t + constant = 0 in roots[0..1],
+  // real roots of quadratic*t^2 + linear*t + constant_term = 0 in roots[0..1],
   // sorted, solving the linear equation when quadratic is 0. Returns their number.
   #pragma acc routine seq
 static int
-gmesh_quadratic_roots (double quadratic, double linear, double constant, double roots[2]) {
+gmesh_quadratic_roots (double quadratic, double linear, double constant_term, double roots[2]) {
   double discriminant;
   double q;
   if (quadratic == 0) {
     if (linear == 0)
       return 0;
-    roots[0] = -constant / linear;
+    roots[0] = -constant_term / linear;
     return 1;
   }
-  discriminant = linear * linear - 4 * quadratic * constant;
+  discriminant = linear * linear - 4 * quadratic * constant_term;
   if (discriminant < 0)
     return 0;
   // q avoids the cancellation of -linear + sqrt(discriminant)
@@ -2047,7 +2047,7 @@ gmesh_quadratic_roots (double quadratic, double linear, double constant, double 
     return 1;
   }
   roots[0] = q / quadratic;
-  roots[1] = constant / q;
+  roots[1] = constant_term / q;
   if (roots[0] > roots[1]) {
     double swap = roots[0];
     roots[0] = roots[1];
