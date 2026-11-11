@@ -717,7 +717,7 @@ def get_instr_site(instr_file):
         text = '';
         print("WARNING: \n  Attempt to parse instrument header faliled for: \n %s" % instr_file)
     
-    site = '("%INSTRUMENT_SITE:" tag not found)'
+    site = 'No SITE defined'
     
     start = text.find('%INSTRUMENT_SITE:')
     if start > -1:

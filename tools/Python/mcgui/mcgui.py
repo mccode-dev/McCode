@@ -9,6 +9,7 @@ import sys
 import os
 import webbrowser
 import subprocess
+import threading
 import time
 import re
 import pathlib
@@ -102,16 +103,20 @@ class McRunQThread(QtCore.QThread):
             # not readable live
             process = subprocess.Popen(self.cmd, 
                                        stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT,
+                                       stderr=subprocess.PIPE,
                                        stdin=subprocess.PIPE,
                                        shell=True,
                                        universal_newlines=True,
                                        cwd=self.cwd)
 
+            # drain stderr concurrently so neither pipe can block the other
+            errthread = threading.Thread(target=lambda: [self.error.emit(l.rstrip('\n')) for l in process.stderr])
+            errthread.start()
             for stdoutdata in process.stdout:
                 self.message.emit(stdoutdata.rstrip('\n'))
+            errthread.join()
 
-            self.process_returncode = process.returncode
+            self.process_returncode = process.wait()
         except Exception as e:
             self.thread_exception.emit(str(e))
             
@@ -530,7 +535,11 @@ class McGuiAppController():
         comprev = os.path.join(mccode_config.configuration["MCCODE_LIB_DIR"], "revision")
         if os.path.exists(comprev):
             self.emitter.message(open(comprev).read(), gui=True)
-        
+        self.emitter.message('Message colours:', gui=True)
+        self.emitter.message('  this colour: info from mcgui', gui=True)
+        self.emitter.message('  this colour: compile / simulation stdout')
+        self.emitter.message('  this colour: compile / simulation stderr\n', err_msg=True)
+
         
         # load instrument file from command line pars, skipping scriptfile
         for a in sys.argv:
