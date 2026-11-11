@@ -283,21 +283,20 @@ TRACE
     else if (VarsInc.shape == 2)
       intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius);
     #ifdef USE_OFF
-    else if (VarsInc.shape == 3)
-      {
-        gmesh_hit hits[GMESH_MAX_HITS];
-        int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
-        intersect = nhits > 0;
-        if (intersect) {
-          if (gmesh_inside (&thread_mesh, coords_set (x, y, z))) {
-            t0 = 0;
-            t3 = hits[0].time;
-          } else {
-            t0 = hits[0].time;
-            t3 = nhits > 1 ? hits[1].time : hits[0].time;
-          }
+    else if (VarsInc.shape == 3) {
+      gmesh_hit hits[GMESH_MAX_HITS];
+      int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL, hits);
+      intersect = nhits > 0;
+      if (intersect) {
+        if (gmesh_inside (&thread_mesh, coords_set (x, y, z))) {
+          t0 = 0;
+          t3 = hits[0].time;
+        } else {
+          t0 = hits[0].time;
+          t3 = nhits > 1 ? hits[1].time : hits[0].time;
         }
       }
+    }
     #endif
 
     if (intersect) {
@@ -493,16 +492,15 @@ TRACE
     else if (VarsInc.shape == 2)
       intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius);
     #ifdef USE_OFF
-    else if (VarsInc.shape == 3)
-      {
-        gmesh_hit hits[GMESH_MAX_HITS];
-        int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL / sqrt (vx * vx + vy * vy + vz * vz), hits);
-        intersect = nhits > 0;
-        if (intersect) {
-          t0 = 0;
-          t3 = hits[0].time;
-        }
+    else if (VarsInc.shape == 3) {
+      gmesh_hit hits[GMESH_MAX_HITS];
+      int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL, hits);
+      intersect = nhits > 0;
+      if (intersect) {
+        t0 = 0;
+        t3 = hits[0].time;
       }
+    }
     #endif
 
     flag_ishollow = 0;

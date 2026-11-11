@@ -2318,11 +2318,12 @@ int
 gmesh_inside (gmesh_struct* mesh, Coords position) {
   // fixed, "irrational" directions: no random numbers are consumed
   const double D[3][3] = { { 0.4719, 0.6213, 0.6254 }, { 0.8017, -0.3259, 0.5012 }, { -0.2263, 0.9147, -0.3349 } };
-  Coords pad = coords_set (GMESH_TOL, GMESH_TOL, GMESH_TOL);
   int j;
   int votes = 0;
-  // the box is padded by GMESH_TOL, for a point on the surface after rounding
-  if (!gmesh_in_box (position, coords_sub (mesh->bbmin, pad), coords_add (mesh->bbmax, pad)))
+  // an open mesh encloses no volume
+  if (!mesh->closed)
+    return 0;
+  if (!gmesh_in_box (position, mesh->bbmin, mesh->bbmax))
     return 0;
   // a closed, oriented mesh has outward normals: the point is inside when the
   // first hit along a ray is leaving. Hits closer than GMESH_TOL are skipped,
