@@ -2305,7 +2305,7 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
   // as they are the surface the point sits on. A first hit on an edge, or two
   // hits at the same distance (touching parts of the mesh), may disagree, so
   // they are left to the parity test.
-  if (mesh->closed && mesh->oriented) {
+  if (mesh->oriented) {
     gmesh_hit first[2];
     int stored = 0;
     int ambiguous = 0;
