@@ -1722,6 +1722,20 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
       } else if (edge->dir != 0) {
         mesh->oriented = 0;
       }
+      // folded: the two triangles of the edge turn back onto each other, i.e.
+      // their normals are antiparallel once oriented alike (dir 0)
+      if (edge->n == 2) {
+        double turn = coords_sp (mesh->tri_normal[edge->t0], mesh->tri_normal[edge->t1]);
+        if (edge->dir != 0)
+          turn = -turn;
+        if (turn < -1 + GMESH_EPSILON) {
+          if (!mesh->nfolded) {
+            mesh->folded_face[0] = mesh->tri_face[edge->t0];
+            mesh->folded_face[1] = mesh->tri_face[edge->t1];
+          }
+          mesh->nfolded++;
+        }
+      }
     }
     if (mesh->nnonmanifold)
       mesh->oriented = 0;
@@ -1946,7 +1960,7 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
           *ambiguous = 1;
         continue;
       }
-      hit.t = hit_t;
+      hit.time = hit_t;
       hit.normal = mesh->tri_normal[t];
       hit.tri = t;
       hit.face = mesh->tri_face[t];
@@ -1954,7 +1968,7 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
       hit.edge = on_edge;
       // hits on shared edges/vertices: keep once
       for (k = 0; k < *stored_count; k++) {
-        if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
+        if (hits[k].in_out == in_out && fabs (hits[k].time - hit_t) <= t_tolerance) {
           duplicate = 1;
           break;
         }
@@ -1966,13 +1980,13 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
       if (position == max_hits) {
         if (max_hits == 0)
           continue;
-        if (hit_t >= hits[max_hits - 1].t)
+        if (hit_t >= hits[max_hits - 1].time)
           continue;
         position = max_hits - 1;
       } else {
         (*stored_count)++;
       }
-      while (position > 0 && hits[position - 1].t > hit_t) {
+      while (position > 0 && hits[position - 1].time > hit_t) {
         hits[position] = hits[position - 1];
         position--;
       }
@@ -2006,6 +2020,274 @@ gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, double t
   return stored;
 }
 
+  // ==========================================================================
+  // Ray tracing of parabolas (e.g. under gravity)
+  // ==========================================================================
+
+  // real roots of quadratic*t^2 + linear*t + constant = 0 in roots[0..1],
+  // sorted, solving the linear equation when quadratic is 0. Returns their number.
+  #pragma acc routine seq
+static int
+gmesh_quadratic_roots (double quadratic, double linear, double constant, double roots[2]) {
+  double discriminant;
+  double q;
+  if (quadratic == 0) {
+    if (linear == 0)
+      return 0;
+    roots[0] = -constant / linear;
+    return 1;
+  }
+  discriminant = linear * linear - 4 * quadratic * constant;
+  if (discriminant < 0)
+    return 0;
+  // q avoids the cancellation of -linear + sqrt(discriminant)
+  q = -0.5 * (linear + copysign (sqrt (discriminant), linear));
+  if (q == 0) {
+    roots[0] = 0;
+    return 1;
+  }
+  roots[0] = q / quadratic;
+  roots[1] = constant / q;
+  if (roots[0] > roots[1]) {
+    double swap = roots[0];
+    roots[0] = roots[1];
+    roots[1] = swap;
+  }
+  return 2;
+}
+
+  // box test of the parabola origin + t*velocity + t^2/2*acceleration, for t in
+  // [t_start, t_end]. Each axis cuts the time range into pieces at the times
+  // the coordinate equals a box border; the range is narrowed to the hull of the
+  // pieces within the box. Returns 0 only when the parabola misses the box; it
+  // may return 1 for a box it misses, which only costs extra triangle tests.
+  #pragma acc routine seq
+static int
+gmesh_slab_gravity (Coords lower, Coords upper, Coords origin, Coords velocity, Coords acceleration, double t_start, double t_end) {
+  double origin_xyz[3] = { origin.x, origin.y, origin.z };
+  double velocity_xyz[3] = { velocity.x, velocity.y, velocity.z };
+  double acceleration_xyz[3] = { acceleration.x, acceleration.y, acceleration.z };
+  double lower_xyz[3] = { lower.x, lower.y, lower.z };
+  double upper_xyz[3] = { upper.x, upper.y, upper.z };
+  int axis;
+  for (axis = 0; axis < 3; axis++) {
+    double low = lower_xyz[axis];
+    double high = upper_xyz[axis];
+    double pad = 1e-9 * (high - low) + 1e-12 * (fabs (low) + fabs (high)) + 1e-300;
+    double half_a = 0.5 * acceleration_xyz[axis];
+    double v = velocity_xyz[axis];
+    double o = origin_xyz[axis];
+    double borders[2];
+    double cuts[6];
+    double roots[2];
+    double inside_start = FLT_MAX;
+    double inside_end = -FLT_MAX;
+    int ncuts = 0;
+    int i_border;
+    int i_cut;
+    borders[0] = low - pad;
+    borders[1] = high + pad;
+    cuts[ncuts] = t_start;
+    ncuts++;
+    for (i_border = 0; i_border < 2; i_border++) {
+      int nroots = gmesh_quadratic_roots (half_a, v, o - borders[i_border], roots);
+      int i_root;
+      for (i_root = 0; i_root < nroots; i_root++) {
+        if (roots[i_root] > t_start && roots[i_root] < t_end) {
+          cuts[ncuts] = roots[i_root];
+          ncuts++;
+        }
+      }
+    }
+    cuts[ncuts] = t_end;
+    ncuts++;
+    // insertion sort of the few cut times
+    for (i_cut = 1; i_cut < ncuts; i_cut++) {
+      double cut = cuts[i_cut];
+      int position = i_cut;
+      while (position > 0 && cuts[position - 1] > cut) {
+        cuts[position] = cuts[position - 1];
+        position--;
+      }
+      cuts[position] = cut;
+    }
+    // the coordinate stays on one side of each border within a piece, so its
+    // value in the middle tells whether the whole piece is within the box.
+    // That value is compared with a rounding margin, as a piece may be only a
+    // few ulp long, e.g. for a flat box.
+    for (i_cut = 0; i_cut + 1 < ncuts; i_cut++) {
+      double middle = 0.5 * cuts[i_cut] + 0.5 * cuts[i_cut + 1];
+      double coordinate = o + (v + half_a * middle) * middle;
+      double margin = 1e-12 * (fabs (o) + fabs (v * middle) + fabs (half_a * middle * middle));
+      if (coordinate >= borders[0] - margin && coordinate <= borders[1] + margin) {
+        if (cuts[i_cut] < inside_start)
+          inside_start = cuts[i_cut];
+        if (cuts[i_cut + 1] > inside_end)
+          inside_end = cuts[i_cut + 1];
+      }
+    }
+    if (inside_start > inside_end)
+      return 0;
+    t_start = inside_start;
+    t_end = inside_end;
+  }
+  return 1;
+}
+
+  // intersections of the parabola origin + t*velocity + t^2/2*acceleration with
+  // a triangle of mesh: the times it crosses the plane of the triangle, kept
+  // when the crossing point is within the triangle (same tolerance as
+  // gmesh_tri_hit). Returns their number (0 to 2), with the times in hit_t and
+  // on_edge = 1 for a crossing close to an edge.
+  #pragma acc routine seq
+static int
+gmesh_tri_hit_gravity (gmesh_struct* mesh, int triangle, Coords origin, Coords velocity, Coords acceleration, double hit_t[2], int on_edge[2]) {
+  Coords v0 = mesh->vtx[mesh->tri[3 * triangle]];
+  Coords e1 = coords_sub (mesh->vtx[mesh->tri[3 * triangle + 1]], v0);
+  Coords e2 = coords_sub (mesh->vtx[mesh->tri[3 * triangle + 2]], v0);
+  Coords normal = mesh->tri_normal[triangle];
+  double e1_e1 = coords_sp (e1, e1);
+  double e1_e2 = coords_sp (e1, e2);
+  double e2_e2 = coords_sp (e2, e2);
+  double denominator = e1_e1 * e2_e2 - e1_e2 * e1_e2;
+  double eps = GMESH_EPSILON;
+  double roots[2];
+  int nroots;
+  int i_root;
+  int nhits = 0;
+  if (denominator <= 0)
+    return 0;
+  nroots = gmesh_quadratic_roots (0.5 * coords_sp (normal, acceleration), coords_sp (normal, velocity), coords_sp (normal, coords_sub (origin, v0)), roots);
+  for (i_root = 0; i_root < nroots; i_root++) {
+    double time = roots[i_root];
+    Coords point = coords_add (origin, coords_add (coords_scale (velocity, time), coords_scale (acceleration, 0.5 * time * time)));
+    Coords relative = coords_sub (point, v0);
+    double r_e1 = coords_sp (relative, e1);
+    double r_e2 = coords_sp (relative, e2);
+    // barycentric coordinates along e1 (u) and e2 (v), as in gmesh_tri_hit
+    double u = (e2_e2 * r_e1 - e1_e2 * r_e2) / denominator;
+    double v = (e1_e1 * r_e2 - e1_e2 * r_e1) / denominator;
+    if (u < -eps || u > 1 + eps || v < -eps || u + v > 1 + eps)
+      continue;
+    hit_t[nhits] = time;
+    on_edge[nhits] = (u < eps || v < eps || u + v > 1 - eps);
+    nhits++;
+  }
+  return nhits;
+}
+
+  // BVH traversal for the parabola origin + t*velocity + t^2/2*acceleration,
+  // t > t_min. Stores the max_hits nearest hits in hits, sorted by t, with hits
+  // on shared edges and vertices kept once, as gmesh_trace does for a line.
+  // Returns the number of hits found; above *stored_count, hits were dropped.
+  #pragma acc routine seq
+static int
+gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords acceleration, double t_min, gmesh_hit* hits, int max_hits, int* stored_count) {
+  int stack[GMESH_BVH_STACK + 2];
+  int top = 0;
+  int total = 0;
+  // a parabola may start at rest: its speed over the mesh size is then about
+  // sqrt(|acceleration| * size)
+  double speed = coords_len (velocity) + sqrt (coords_len (acceleration) * mesh->length_scale);
+  double t_tolerance;
+  if (speed <= 0)
+    return 0;
+  if (!mesh->nnodes)
+    return 0;
+  t_tolerance = 1e-9 * mesh->length_scale / speed;
+  stack[top] = 0;
+  top++;
+  while (top > 0) {
+    gmesh_node* node;
+    int triangle;
+    top--;
+    node = &mesh->node[stack[top]];
+    if (!gmesh_slab_gravity (node->lo, node->hi, origin, velocity, acceleration, t_min, FLT_MAX))
+      continue;
+    if (node->count == 0) {
+      // cannot happen: depth limited at build
+      if (top + 2 > GMESH_BVH_STACK)
+        continue;
+      stack[top] = node->first;
+      top++;
+      stack[top] = node->first + 1;
+      top++;
+      continue;
+    }
+    for (triangle = node->first; triangle < node->first + node->count; triangle++) {
+      double crossing_t[2];
+      int crossing_edge[2];
+      int ncrossings = gmesh_tri_hit_gravity (mesh, triangle, origin, velocity, acceleration, crossing_t, crossing_edge);
+      int i_crossing;
+      for (i_crossing = 0; i_crossing < ncrossings; i_crossing++) {
+        double hit_t = crossing_t[i_crossing];
+        Coords hit_velocity = coords_add (velocity, coords_scale (acceleration, hit_t));
+        int in_out;
+        int k;
+        int position;
+        int duplicate = 0;
+        gmesh_hit hit;
+        if (hit_t <= t_min)
+          continue;
+        if (coords_sp (mesh->tri_normal[triangle], hit_velocity) < 0) {
+          in_out = 1;
+        } else {
+          in_out = -1;
+        }
+        hit.time = hit_t;
+        hit.normal = mesh->tri_normal[triangle];
+        hit.tri = triangle;
+        hit.face = mesh->tri_face[triangle];
+        hit.in_out = in_out;
+        hit.edge = crossing_edge[i_crossing];
+        // hits on shared edges/vertices: keep once
+        for (k = 0; k < *stored_count; k++) {
+          if (hits[k].in_out == in_out && fabs (hits[k].time - hit_t) <= t_tolerance) {
+            duplicate = 1;
+            break;
+          }
+        }
+        if (duplicate)
+          continue;
+        total++;
+        position = *stored_count;
+        if (position == max_hits) {
+          if (hit_t >= hits[max_hits - 1].time)
+            continue;
+          position = max_hits - 1;
+        } else {
+          (*stored_count)++;
+        }
+        while (position > 0 && hits[position - 1].time > hit_t) {
+          hits[position] = hits[position - 1];
+          position--;
+        }
+        hits[position] = hit;
+      }
+    }
+  }
+  return total;
+}
+
+  // intersections of a parabola with mesh, see geometry-mesh-lib.h
+  #pragma acc routine seq
+int
+gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double t_min, gmesh_hit hits[GMESH_MAX_HITS]) {
+  int stored = 0;
+  int total = gmesh_trace_gravity (mesh, position, velocity, acceleration, t_min, hits, GMESH_MAX_HITS, &stored);
+  if (total > stored && !gmesh_overflow_warned) {
+    gmesh_overflow_warned = 1;
+    fprintf (stderr,
+             "Warning: %s: a parabola crossed the mesh %d times, but only the %d nearest hits are kept "
+             "(geometry-mesh-lib).\n"
+             "  To keep more, add this line after the DEFINE INSTRUMENT line of your .instr file:\n"
+             "    DEPENDENCY \" -DGMESH_MAX_HITS=%d \"\n"
+             "  This warning is shown once.\n",
+             mesh->filename, total, GMESH_MAX_HITS, total);
+  }
+  return stored;
+}
+
   // 1 when point is inside the box [lower, upper], borders included
   #pragma acc routine seq
 static int
@@ -2027,8 +2309,25 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
   const double D[3][3] = { { 0.4719, 0.6213, 0.6254 }, { 0.8017, -0.3259, 0.5012 }, { -0.2263, 0.9147, -0.3349 } };
   int j;
   int votes = 0;
+  // an open mesh encloses no volume
+  if (!mesh->closed)
+    return 0;
   if (!gmesh_in_box (position, mesh->bbmin, mesh->bbmax))
     return 0;
+  // a closed, oriented mesh has outward normals: the point is inside when the
+  // first hit along a ray is leaving. A first hit on an edge, or two
+  // hits at the same distance (touching parts of the mesh), may disagree, so
+  // they are left to the parity test.
+  if (mesh->oriented) {
+    gmesh_hit first[2];
+    int stored = 0;
+    int ambiguous = 0;
+    gmesh_trace (mesh, position, coords_set (D[0][0], D[0][1], D[0][2]), 0, first, 2, &stored, &ambiguous);
+    if (!stored)
+      return 0;
+    if (!first[0].edge && (stored == 1 || first[1].time - first[0].time > GMESH_EPSILON * mesh->length_scale))
+      return first[0].in_out < 0;
+  }
   for (j = 0; j < 3; j++) {
     int stored = 0;
     int ambiguous = 0;
@@ -2039,6 +2338,26 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
     votes += (int)(n % 2);
   }
   return votes >= 2;
+}
+
+  // closed check, see geometry-mesh-lib.h
+int
+gmesh_check_closed (gmesh_struct* mesh) {
+  if (!mesh->closed) {
+    fprintf (stderr, "Error: %s: %d boundary and %d non-manifold edges: the mesh is not closed (geometry-mesh-lib)\n", mesh->filename, mesh->nboundary,
+             mesh->nnonmanifold);
+    return 0;
+  }
+  if (mesh->nfolded) {
+    fprintf (stderr,
+             "Error: %s: %d edges where the surface folds back onto itself, e.g. between faces %d and %d (0-based): "
+             "the mesh overlaps itself, so inside and outside are not defined (geometry-mesh-lib)\n",
+             mesh->filename, mesh->nfolded, mesh->folded_face[0], mesh->folded_face[1]);
+    // a folded mesh encloses no well-defined volume
+    mesh->closed = 0;
+    return 0;
+  }
+  return 1;
 }
 
   // per-face property, see geometry-mesh-lib.h
@@ -2075,6 +2394,11 @@ gmesh_print_info (gmesh_struct* mesh) {
   if (!mesh->closed) {
     printf ("  Warning: %d boundary and %d non-manifold edges: the mesh does not enclose a volume.\n", mesh->nboundary, mesh->nnonmanifold);
   }
+  if (mesh->nfolded) {
+    printf ("  Warning: %d edges where the surface folds back onto itself, e.g. between faces %d and %d (0-based).\n", mesh->nfolded, mesh->folded_face[0],
+            mesh->folded_face[1]);
+  }
+
   if (mesh->nfaceprops)
     printf ("  Per-face properties: %d\n", mesh->nfaceprops);
 }

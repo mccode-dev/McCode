@@ -34,14 +34,17 @@
  *   - computes unit normals, area, volume and mesh topology: number of edges,
  *     boundary / non-manifold edges, Euler characteristic, consistent
  *     orientation. Closed, consistently oriented meshes are oriented with
- *     outward normals.
+ *     outward normals. Edges where the surface folds back onto itself are
+ *     counted (nfolded); gmesh_check_closed rejects such a mesh.
  *   - builds a bounding volume hierarchy (BVH) so that a ray costs
  *     O(log N) instead of O(N) triangle tests, without any allocation per ray.
  *
  * Ray tracing
  *   gmesh_intersect()      the GMESH_MAX_HITS nearest intersections of a
  *                          straight line, sorted in t
+ *   gmesh_intersect_gravity()  the same for a parabola (e.g. under gravity)
  *   gmesh_inside()         point-in-mesh test (deterministic, no random numbers)
+ *   gmesh_check_closed()   optional check that a mesh is closed and not folded
  *   Hits exactly on an edge or vertex shared by several triangles are
  *   reported once.
  *
@@ -82,7 +85,7 @@
   #endif
 
 typedef struct gmesh_hit {
-  double t; // position along the line: pos + t*dir
+  double time; // position along the line: pos + time*dir
   Coords normal; // unit normal of the triangle hit (outward for closed oriented meshes)
   int tri; // triangle index (BVH order)
   int face; // index of the face (polygon) in the file, 0-based
@@ -125,8 +128,10 @@ typedef struct gmesh_struct {
   double area, volume; // surface area, enclosed volume (closed meshes)
   int nedges, nboundary, nnonmanifold, ndegenerate, nwelded;
   int nduplicate; // faces given more than once (all copies removed)
+  int nfolded; // edges where the surface folds back onto itself (see gmesh_check_closed)
+  int folded_face[2]; // faces of the first folded edge, 0-based
   int euler; // V - E + F (2 for a closed genus-0 surface)
-  int closed; // every edge shared by exactly two triangles
+  int closed; // every edge shared by exactly two triangles; after gmesh_check_closed, also not folded
   int oriented; // shared edges run in opposite directions
   int flipped; // orientation was reversed to make normals point outward
   char* filename;
@@ -166,12 +171,36 @@ int gmesh_init_fit (char* filename, double xwidth, double yheight, double zdepth
   #pragma acc routine seq
 int gmesh_intersect (gmesh_struct* mesh, Coords position, Coords direction, double t_min, gmesh_hit hits[GMESH_MAX_HITS]);
 
+  // int gmesh_intersect_gravity(gmesh_struct *mesh, Coords position,
+  // Coords velocity, Coords acceleration, double t_min,
+  // gmesh_hit hits[GMESH_MAX_HITS])
+  // ACTION: as gmesh_intersect, for the parabola
+  // position + t*velocity + t^2/2*acceleration (e.g. a neutron under
+  // gravity, with acceleration in the frame of the mesh). in_out refers to
+  // the velocity at the hit, velocity + t*acceleration. With a zero
+  // acceleration the hits are those of gmesh_intersect, to rounding.
+  // RETURN: number of hits stored
+  #pragma acc routine seq
+int gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double t_min, gmesh_hit hits[GMESH_MAX_HITS]);
+
   // int gmesh_inside(gmesh_struct *mesh, Coords position)
-  // ACTION: point in (closed) mesh test, parity of ray crossings along fixed
-  // directions. Does not use random numbers.
+  // ACTION: point in closed mesh test; 0 for an open mesh. For a closed,
+  // oriented mesh: whether the first hit along a fixed direction is leaving;
+  // otherwise the parity of ray crossings along fixed directions. Does not
+  // use random numbers.
   // RETURN: 1 inside, 0 outside
   #pragma acc routine seq
 int gmesh_inside (gmesh_struct* mesh, Coords position);
+
+  // int gmesh_check_closed(gmesh_struct *mesh)
+  // ACTION: optional check for components that need a volume: the mesh must be
+  // closed (every edge shared by two triangles) and must not fold back onto
+  // itself (no edge whose two triangles turn back onto each other, with
+  // antiparallel normals), as then inside and outside are not defined.
+  // Prints the reason when the mesh does not pass. A folded mesh gets
+  // mesh->closed = 0, so that afterwards mesh->closed holds the result.
+  // RETURN: 1 when the mesh passes, 0 otherwise
+int gmesh_check_closed (gmesh_struct* mesh);
 
   // per-face property number 'property' of face 'face', or fallback when it is
   // not given in the file

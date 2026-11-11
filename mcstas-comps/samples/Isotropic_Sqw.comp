@@ -63,12 +63,16 @@
 *   hollow cylinder: radius x yheight and thickness>0
 *   sphere:          radius (yheight=0 thickness=0)
 *   hollow sphere:   radius and thickness>0 (yheight=0)
-*   any shape:       geometry=OFF file
+*   any shape:       geometry=OFF, PLY or STL file
 *
 *   The complex geometry option handles any closed non-convex polyhedra.
 *   It computes the intersection points of the neutron ray with the object
 *   transparently, so that it can be used like a regular sample object.
-*   It supports the OFF, PLY and NOFF file format but not COFF (colored faces).
+*   It supports the OFF (incl. NOFF, COFF), PLY and STL file formats.
+*   A mesh must be a single, closed object: the neutron path through it is
+*   taken from the first entry and exit only, so a second part of the mesh
+*   further along the path (disjoint parts, or a concave shape the path
+*   re-enters) is not seen.
 *   Such files may be generated from XYZ data using:
 *     qhull < coordinates.xyz Qx Qv Tv o > geomview.off
 *   or
@@ -204,7 +208,7 @@
 *
 * OPTIONAL PARAMETERS:
 * concentric: [1]             Indicate that this component has a hollow geometry and may contain other components. It should then be duplicated after the inside part (only for box, cylinder, sphere) [1]
-* geometry: [str]             Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust
+* geometry: [str]             Name of an OFF, PLY or STL file for complex geometry. An OFF file may be generated from XYZ coordinates using qhull/powercrust
 * order: [1]                  Limit multiple scattering up to given order 0:all (default), 1:single, 2:double, ...
 * verbose: [1]                Verbosity level (0:silent, 1:normal, 2:verbose, 3:debug). A verbosity>1 also computes dispersions and S(q,w) analysis.
 * d_phi: [deg]                scattering vertical angular spreading (usually the height of the next component/detector). Use 0 for full space. This is only relevant for single scattering (order=1).
@@ -313,7 +317,7 @@ SHARE
   #define qSq               {-1,0,0,0,0,0,1, 0,0 }
 
   %include "read_table-lib"
-  %include "interoff-lib"
+  %include "geometry-mesh-lib"
 
   /* For the density of states S(w) */
   struct Sqw_W_struct {
@@ -429,8 +433,6 @@ SHARE
     Sqw_Data->type = ' ';
     Sqw_Data->q_min_file = 0;
   }
-
-  off_struct offdata;
 
   /* gaussian distribution to appply around Bragg peaks in a powder */
   double
@@ -2012,7 +2014,7 @@ DECLARE
 %{
   struct Sqw_sample_struct VarSqw;
   int* columns;
-  off_struct offdata;
+  gmesh_struct mesh;
 %}
 
 /*****************************************************************************/
@@ -2031,11 +2033,14 @@ INITIALIZE
     fprintf (stderr, "Error: You are attempting to use an OFF geometry without -DUSE_OFF. You will need to recompile with that define set!\n");
     exit (-1);
     #else
-    if (off_init (geometry, xwidth, yheight, zdepth, 0, &offdata)) {
+    if (gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh)) {
       VarSqw.shape = 3;
       thickness = 0;
       concentric = 0;
-    }
+    } else
+      exit (fprintf (stderr, "Isotropic_Sqw: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry));
+    if (!gmesh_check_closed (&mesh))
+      exit (fprintf (stderr, "Isotropic_Sqw: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry));
     #endif
   } else if (xwidth && yheight && zdepth)
     VarSqw.shape = 1; /* box */
@@ -2239,16 +2244,33 @@ TRACE
 
   #ifdef OPENACC
   #ifdef USE_OFF
-  off_struct thread_offdata = offdata;
+  gmesh_struct thread_mesh = mesh;
   #endif
   #else
-  #define thread_offdata offdata
+  #define thread_mesh mesh
   #endif
 
   do { /* Main interaction loop. Ends with intersect=0 */
 
     /* Intersection neutron trajectory / sample (sample surface) */
     if (VarSqw.s_coh > 0 || VarSqw.s_inc > 0) {
+      #ifdef USE_OFF
+      // a mesh is used as given, for either sign of thickness
+      if (VarSqw.shape == 3) {
+        gmesh_hit hits[GMESH_MAX_HITS];
+        int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
+        intersect = nhits > 0;
+        if (intersect) {
+          if (gmesh_inside (&thread_mesh, coords_set (x, y, z))) {
+            t0 = 0;
+            t3 = hits[0].time;
+          } else {
+            t0 = hits[0].time;
+            t3 = nhits > 1 ? hits[1].time : hits[0].time;
+          }
+        }
+      } else
+      #endif
       if (thickness >= 0) {
         if (VarSqw.shape == 0)
           intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius, yheight);
@@ -2256,10 +2278,6 @@ TRACE
           intersect = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
         else if (VarSqw.shape == 2)
           intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius);
-        #ifdef USE_OFF
-        else if (VarSqw.shape == 3)
-          intersect = off_intersect (&t0, &t3, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata);
-        #endif
       } else {
         if (VarSqw.shape == 0)
           intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness, yheight - 2 * thickness > 0 ? yheight - 2 * thickness : yheight);
@@ -2269,10 +2287,6 @@ TRACE
                                yheight - 2 * thickness > 0 ? yheight - 2 * thickness : yheight, zdepth - 2 * thickness > 0 ? zdepth - 2 * thickness : zdepth);
         else if (VarSqw.shape == 2)
           intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness);
-        #ifdef USE_OFF
-        else if (VarSqw.shape == 3)
-          intersect = off_intersect (&t0, &t3, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata);
-        #endif
       }
     } else
       intersect = 0;
@@ -2904,7 +2918,7 @@ MCDISPLAY
       circle ("xz", 0, 0, 0, radius);
       circle ("yz", 0, 0, 0, radius);
     } else if (VarSqw.shape == 3) { /* OFF file */
-      off_display (offdata);
+      gmesh_display (&mesh);
     }
   }
   /* end MCDISPLAY */

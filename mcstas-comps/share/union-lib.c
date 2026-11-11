@@ -2995,7 +2995,7 @@ int sample_mesh_intersect(double *t,
   *num_solutions = gmesh_intersect(triangle_mesh, position, velocity, t_min, hits);
   for (i = 0; i < *num_solutions; i++) {
     Coords normal = rot_apply(geometry->rotation_matrix, hits[i].normal);
-    t[i] = hits[i].t;
+    t[i] = hits[i].time;
     nx[i] = normal.x;
     ny[i] = normal.y;
     nz[i] = normal.z;

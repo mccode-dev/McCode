@@ -2621,7 +2621,7 @@ int sample_mesh_intersect(double *t,int *num_solutions,double *r,double *v,struc
   // McXtrace intersect functions return lengths, so trace along the unit direction
   direction = coords_scale(direction, 1.0/coords_len(direction));
   *num_solutions = gmesh_intersect(triangle_mesh, position, direction, -1e-9*triangle_mesh->length_scale, hits);
-  for (i = 0; i < *num_solutions; i++) t[i] = hits[i].t;
+  for (i = 0; i < *num_solutions; i++) t[i] = hits[i].time;
   return *num_solutions > 0;
 }
 

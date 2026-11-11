@@ -48,7 +48,7 @@
 *   The complex geometry option handles any closed non-convex polyhedra.
 *   It computes the intersection points of the neutron ray with the object
 *   transparently, so that it can be used like a regular sample object.
-*   It supports the PLY, OFF and NOFF file format but not COFF (colored faces).
+*   It supports the OFF (incl. NOFF, COFF), PLY and STL file formats.
 *   Such files may be generated from XYZ data using:
 *     qhull < coordinates.xyz Qx Qv Tv o > geomview.off
 *   or
@@ -154,7 +154,7 @@ SHARE
 
 
   %include "read_table-lib"
-  %include "interoff-lib"
+  %include "geometry-mesh-lib"
   %include "ref-lib"
 
   /* wrappers to intersection routines which also return the normal vector */
@@ -319,7 +319,7 @@ DECLARE
 %{
   double rho;
   double bc;
-  off_struct offdata;
+  gmesh_struct mesh;
   double mean_n;
   double events;
   double theta1;
@@ -348,8 +348,10 @@ INITIALIZE
     exit (-1);
     #else
     /* off/ply case */
-    if (!off_init (geometry, xwidth, yheight, zdepth, 0, &offdata))
+    if (!gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh))
       exit (printf ("Refractor: %s: FATAL: invalid OFF/PLY geometry specification for file '%s'.\n", NAME_CURRENT_COMP, geometry));
+    if (!gmesh_check_closed (&mesh))
+      exit (fprintf (stderr, "Refractor: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry));
     #endif
   } else
     exit (printf ("Refractor: %s: FATAL: invalid geometry specification.\n"
@@ -382,15 +384,16 @@ TRACE
 
   #ifdef OPENACC
   #ifdef USE_OFF
-  off_struct thread_offdata = offdata;
+  gmesh_struct thread_mesh = mesh;
   #endif
   #else
-  #define thread_offdata offdata
+  #define thread_mesh mesh
   #endif
 
   do {
     double nx = 0, ny = 0, nz = 0;
     double t0 = 0, t1 = 0, dt = 0;
+    int mesh_inside = 0;
 
     intersect = 0;
     iterations++;
@@ -409,10 +412,17 @@ TRACE
     }
     #ifdef USE_OFF
     else if (geometry && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      Coords n0, n1;
-      intersect = off_intersect (&t0, &t1, &n0, &n1, x, y, z, vx, vy, vz, 0, 0, 0, thread_offdata);
+      gmesh_hit hits[GMESH_MAX_HITS];
+      int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
+      intersect = nhits > 0;
       if (intersect) {
-        coords_get (t0 <= 0 || t0 > t1 ? n1 : n0, &nx, &ny, &nz);
+        mesh_inside = gmesh_inside (&thread_mesh, coords_set (x, y, z));
+        // 1e-13 s past the surfaces, so that the next intersection does not find them again
+        t0 = mesh_inside ? 0 : hits[0].time + 1e-13;
+        t1 = (mesh_inside || nhits == 1 ? hits[0].time : hits[1].time) + 1e-13;
+        // normal of the next hit, oriented as in interoff-lib: opposite to the
+        // right-hand rule of the vertex order in the file, unless the mesh was flipped
+        coords_get (coords_scale (hits[0].normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
       }
     }
     #endif
@@ -441,7 +451,7 @@ TRACE
       char scatter_me = 0, refract_me = 0;
       double my_t = 0, d_path = 0;
       double v = 0, lambda = 0;
-      char inbulk = t0 < 0 && t1 > 0;
+      char inbulk = (t0 < 0 && t1 > 0) || mesh_inside;
 
       /* when density is given negative, we assume bulk refractive material is
          'outside' or 'before' the shape */
@@ -722,7 +732,7 @@ MCDISPLAY
     }
     box (0, 0, 0, 4 * radius, 4 * radius, 2 * radius + zdepth, 0, 0, 1, 0);
   } else if (geometry && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-    off_display (offdata);
+    gmesh_display (&mesh);
   }
 %}
 END
