@@ -1529,15 +1529,15 @@ TRACE
   #ifdef USE_OFF
   else if (hkl_info.shape == 3) {
     gmesh_hit hits[GMESH_MAX_HITS];
-    int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL, hits);
+    int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
     intersect = nhits > 0;
     if (intersect) {
       if (gmesh_inside (&thread_mesh, coords_set (x, y, z))) {
         t1 = 0;
         t2 = hits[0].time;
       } else {
-        // 1 ns past the entry, so that gmesh_inside sees the neutron inside after PROP_DT (t1)
-        t1 = hits[0].time + 1e-9;
+        // 1e-13 s past the entry, so that gmesh_inside sees the neutron inside after PROP_DT (t1)
+        t1 = hits[0].time + 1e-13;
         t2 = nhits > 1 ? hits[1].time : hits[0].time;
       }
     }
@@ -1590,7 +1590,7 @@ TRACE
       #ifdef USE_OFF
       else if (hkl_info.shape == 3) {
         gmesh_hit hits[GMESH_MAX_HITS];
-        int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), GMESH_TOL, hits);
+        int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
         intersect = nhits > 0 && gmesh_inside (&thread_mesh, coords_set (x, y, z));
         if (intersect) {
           t1 = 0;

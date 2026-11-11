@@ -2315,18 +2315,17 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
   if (!gmesh_in_box (position, mesh->bbmin, mesh->bbmax))
     return 0;
   // a closed, oriented mesh has outward normals: the point is inside when the
-  // first hit along a ray is leaving. Hits closer than GMESH_TOL are skipped,
-  // as they are the surface the point sits on. A first hit on an edge, or two
+  // first hit along a ray is leaving. A first hit on an edge, or two
   // hits at the same distance (touching parts of the mesh), may disagree, so
   // they are left to the parity test.
   if (mesh->oriented) {
     gmesh_hit first[2];
     int stored = 0;
     int ambiguous = 0;
-    gmesh_trace (mesh, position, coords_set (D[0][0], D[0][1], D[0][2]), GMESH_TOL, first, 2, &stored, &ambiguous);
+    gmesh_trace (mesh, position, coords_set (D[0][0], D[0][1], D[0][2]), 0, first, 2, &stored, &ambiguous);
     if (!stored)
       return 0;
-    if (!first[0].edge && (stored == 1 || first[1].time - first[0].time > GMESH_TOL))
+    if (!first[0].edge && (stored == 1 || first[1].time - first[0].time > GMESH_EPSILON * mesh->length_scale))
       return first[0].in_out < 0;
   }
   for (j = 0; j < 3; j++) {
