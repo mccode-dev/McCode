@@ -359,6 +359,18 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     else:
         searchdir = str(pathlib.Path(runLocal).resolve())
         logging.info("Adding instruments from subfolders in: %s" % str(pathlib.Path(".").resolve()))
+    if compfilter is not None:
+        # components that INHERIT from a --comp component are tested too
+        comps = set(c.strip() for c in compfilter.split(',') if c.strip())
+        _, compfiles = utils.get_instr_comp_files(branchdir, recursive=True)
+        parents = {pathlib.Path(f).stem: set(re.findall(r'\bINHERIT\s+(\w+)', pathlib.Path(f).read_text(encoding="utf8", errors="replace")))
+                   for f in compfiles}
+        while True:
+            derived = set(c for c, p in parents.items() if p & comps) - comps
+            if not derived:
+                break
+            comps |= derived
+        compfilter = ','.join(sorted(comps))
     if instrfilter is not None and compfilter is not None:
         # --instr and --comp together: union, i.e. instruments matching --instr
         # plus instruments using any of the --comp components (single-pass test)
