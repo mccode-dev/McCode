@@ -34,7 +34,8 @@
  *   - computes unit normals, area, volume and mesh topology: number of edges,
  *     boundary / non-manifold edges, Euler characteristic, consistent
  *     orientation. Closed, consistently oriented meshes are oriented with
- *     outward normals.
+ *     outward normals. Edges where the surface folds back onto itself are
+ *     counted (nfolded); gmesh_check_closed rejects such a mesh.
  *   - builds a bounding volume hierarchy (BVH) so that a ray costs
  *     O(log N) instead of O(N) triangle tests, without any allocation per ray.
  *
@@ -136,6 +137,8 @@ typedef struct gmesh_struct {
   double area, volume; // surface area, enclosed volume (closed meshes)
   int nedges, nboundary, nnonmanifold, ndegenerate, nwelded;
   int nduplicate; // faces given more than once (all copies removed)
+  int nfolded; // edges where the surface folds back onto itself (see gmesh_check_closed)
+  int folded_face[2]; // faces of the first folded edge, 0-based
   int euler; // V - E + F (2 for a closed genus-0 surface)
   int closed; // every edge shared by exactly two triangles; after gmesh_check_closed, also not folded
   int oriented; // shared edges run in opposite directions

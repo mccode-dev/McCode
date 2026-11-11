@@ -8,8 +8,9 @@
 * Fails to compile or link if the library does not build with the runtime.
 * INITIALIZE also checks gmesh_inside and gmesh_intersect_gravity, and
 * exits with an error when a check fails:
-* - gmesh_check_closed passes cube.off and socket.off, and fails the open
-*   Guide.off and a folded (closed, oriented) cube
+* - gmesh_init counts the folded edges of a folded (closed, oriented) cube, and
+*   gmesh_check_closed fails it and the open Guide.off, and passes cube.off
+*   and socket.off
 * - gmesh_inside on cube.off, and its shortcut for closed, oriented meshes
 *   against the parity of ray crossings for random points around socket.off
 * - with zero acceleration it gives the hits of gmesh_intersect, to rounding
@@ -71,7 +72,8 @@ int inside_tests (void) {
                      "4 4 5 6 7\n4 0 1 5 4\n4 1 2 6 5\n4 2 3 7 6\n4 0 4 7 3\n3 1 0 8\n3 0 3 8\n3 3 2 8\n3 2 1 8\n");
       fclose (file);
       mesh_check (gmesh_init ("Test_lib_geometry_mesh_lib_folded.off", 1, GMESH_PROPS_IGNORE, &folded) && folded.closed && folded.oriented
-                    && !gmesh_check_closed (&folded) && !folded.closed, "folded mesh fails gmesh_check_closed and is then not closed", &failures);
+                    && folded.nfolded == 2 && !gmesh_check_closed (&folded) && !folded.closed,
+                  "folded mesh: 2 folded edges, fails gmesh_check_closed and is then not closed", &failures);
       gmesh_free (&folded);
       remove ("Test_lib_geometry_mesh_lib_folded.off");
     }
