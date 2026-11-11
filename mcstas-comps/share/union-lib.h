@@ -145,7 +145,7 @@ enum surface {
 #define UNION_PROCESS_FALLBACK(out, name, call) out = call;
 #endif
 
-// Functions keep particle field access outside TRACE's state-variable macros.
+// TRACE state macros such as vx are not defined in SHARE helpers; use particle fields there.
 #pragma acc routine
 void union_particle_set_wavevector(_class_particle *particle, const double *wavevector);
 #pragma acc routine
@@ -1432,11 +1432,11 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
 ////                        v_out  , solid_a,
 //};
 
-void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle);
+void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *_particle);
 
-void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle);
+void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *_particle);
 
-void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *particle);
+void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *_particle);
 
 
 

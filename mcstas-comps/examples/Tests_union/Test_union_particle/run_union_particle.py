@@ -13,9 +13,9 @@ import subprocess
 import tempfile
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 TEST_DIR = Path(__file__).resolve().parent
-INSTRUMENT = TEST_DIR / "Union_particle_regression.instr"
+INSTRUMENT = TEST_DIR / "Test_union_particle.instr"
 EXAMPLE_SPECS = {
     "Test_logger_2DQ": {
         "path": ROOT / "mcstas-comps" / "examples" / "Tests_union" / "Test_logger_2DQ" / "Test_logger_2DQ.instr",
@@ -245,8 +245,8 @@ def build_and_run(generator: str, resources: Path, compiler: list[str], work_dir
                   abs_scope: int = 0, logger_scope: int = 0) -> Path:
     run_dir = work_dir / f"{flavour}-safe-{safe_mode}-bad-{bad_process}-abs-{abs_scope}-logger-{logger_scope}"
     run_dir.mkdir()
-    source = run_dir / "Union_particle_regression.c"
-    executable = run_dir / "Union_particle_regression"
+    source = run_dir / "Test_union_particle.c"
+    executable = run_dir / "Test_union_particle"
     component_root = ROOT / f"{flavour}-comps"
     search_dirs = [
         TEST_DIR,

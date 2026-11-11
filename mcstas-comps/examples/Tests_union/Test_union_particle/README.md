@@ -4,10 +4,10 @@ Run the custom McStas and McXtrace ABI/state tests with the freshly built
 generators:
 
 ```sh
-mamba run -n mcstas-dev python devel/tests/union_particle/run_union_particle.py \
+mamba run -n mcstas-dev python mcstas-comps/examples/Tests_union/Test_union_particle/run_union_particle.py \
   --compiler clang --workdir ../local_work
 
-mamba run -n mcstas-dev python devel/tests/union_particle/run_union_particle.py \
+mamba run -n mcstas-dev python mcstas-comps/examples/Tests_union/Test_union_particle/run_union_particle.py \
   --mcxtrace mcxtrace --compiler clang --workdir ../local_work
 ```
 

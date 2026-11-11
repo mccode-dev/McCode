@@ -745,7 +745,7 @@ SHARE
   int
   hkl_select_union (struct tau_data_union* T, int tau_count, double coh_refl, double* sum, _class_particle* _particle) {
     int j;
-    double r = _rand0max (coh_refl, _particle->randstate);
+    double r = rand0max(coh_refl);
     *sum = 0;
     for (j = 0; j < tau_count; j++) {
       *sum += T[j].refl;
@@ -831,9 +831,9 @@ SHARE
     if (data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->powder_setting) {
       // orientation of crystallite is random
       data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Alpha
-          = _randpm1 (_particle->randstate) * PI * data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->powder_setting;
-      data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Beta = _randpm1 (_particle->randstate) * PI / 2;
-      data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Gamma = _randpm1 (_particle->randstate) * PI;
+          = randpm1() * PI * data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->powder_setting;
+      data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Beta = randpm1() * PI / 2;
+      data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Gamma = randpm1() * PI;
 
       randrotate_union (&kix, &kiy, &kiz, data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Alpha,
                         data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Beta,
@@ -842,7 +842,7 @@ SHARE
     if (data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->PG_setting) {
       // orientation of crystallite is random
       data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Alpha
-          = _rand01 (_particle->randstate) * 2 * PI * data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->PG_setting;
+          = rand01() * 2 * PI * data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->PG_setting;
       PGrotate_union (&kix, &kiy, &kiz, data_transfer.pointer_to_a_Single_crystal_physics_storage_struct->Alpha, hkl_info->csx, hkl_info->csy, hkl_info->csz);
     }
 
@@ -948,8 +948,8 @@ SHARE
     }
     i = T[j].index;
     /* (8). Pick scattered wavevector kf from 2D Gauss distribution. */
-    z1 = _randnorm2 (_particle->randstate);
-    z2 = _randnorm2 (_particle->randstate);
+    z1 = randnorm();
+    z2 = randnorm();
     y1 = T[j].l11 * z1 + T[j].y0x;
     y2 = T[j].l12 * z1 + T[j].l22 * z2 + T[j].y0y;
     kfx = T[j].rho_x + T[j].ox + T[j].b1x * y1 + T[j].b2x * y2;
