@@ -19,7 +19,7 @@ Ncount on success and 0 on failure.*
 ## Description
 
 ```text
-Tests: mccode-dev/McCode#1968, #2565, #3016, #3017
+Tests: mccode-dev/McCode#1968, #2565, #3016, #3017, #3099
 ```
 
 ## Examples
