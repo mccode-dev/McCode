@@ -72,6 +72,9 @@ If you cannot test a platform, say so explicitly rather than assuming it works.
    messages, changelog entries, comments, help items and docstrings.
 9. **Keep commit messages, changelog entries, comments, help items and docstrings
    simple, concise and readable.**
+10. **Exit on error with `exit(-1)`.** Not `exit(1)`, `exit(0)` or
+    `exit(fprintf(...))`. Existing code is not fully converted yet; use it in new
+    and touched code.
 
 ---
 
