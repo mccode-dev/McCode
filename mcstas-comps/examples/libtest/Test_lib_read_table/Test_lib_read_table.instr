@@ -5,9 +5,10 @@
 * %INSTRUMENT_SITE: libtest
 *
 * Unit test of common/lib/share/read_table-lib (Table_Value, Table_Value2d,
-* Table_Rebin) on tables built in memory. Covers the bracket search for
-* constant-step and monotonic tables, both increasing and decreasing, and the
-* 1-row vector case of Table_Value2d.
+* Table_Rebin, Table_Read) on tables built in memory. Covers the bracket search
+* for constant-step and monotonic tables, both increasing and decreasing, the
+* 1-row vector case of Table_Value2d, and that Table_Read of a missing file
+* leaves an empty table.
 *
 * The Arm absorbs every particle if any check failed, so the PSD intensity is
 * Ncount on success and 0 on failure.
@@ -99,6 +100,17 @@ DECLARE
     Table_Free(&t);
     return n;
   }
+
+  // a failed read must leave an empty table, also when the struct held garbage
+  static long check_missing_file(void) {
+    t_Table t;
+    long n = 0;
+    memset(&t, 0xA5, sizeof(t));
+    n += !(Table_Read(&t, "Test_lib_read_table_missing_file.dat", 1) < 0);
+    n += (t.rows != 0) + (t.columns != 0) + (t.data != NULL) + (t.header != NULL);
+    if (!n) Table_Free(&t);
+    return n;
+  }
 %}
 
 INITIALIZE
@@ -107,7 +119,7 @@ INITIALIZE
   mcset_ncount(Ncount);
   nerr = check_table(1000, 0, 0) + check_table(1000, 0, 1)
        + check_table(1000, 1, 0) + check_table(1000, 1, 1)
-       + check_vector() + check_rebin();
+       + check_vector() + check_rebin() + check_missing_file();
   if (nerr) {  /* host-side check: TRACE stays free of device globals */
     fprintf(stderr, "read_table: %ld failed checks\n", nerr);
     exit(1);
