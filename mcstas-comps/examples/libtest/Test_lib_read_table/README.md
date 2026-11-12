@@ -3,7 +3,8 @@
 *McStas: Unit test of common/lib/share/read_table-lib (Table_Value, Table_Value2d,
 Table_Rebin) on tables built in memory. Covers the bracket search for
 constant-step and monotonic tables, both increasing and decreasing, and the
-1-row vector case of Table_Value2d.
+1-row vector case of Table_Value2d. Also checks that Table_Read_Handle and
+Table_Free leave no heap block behind for a file with comment and '***' lines.
 
 The Arm absorbs every particle if any check failed, so the PSD intensity is
 Ncount on success and 0 on failure.*
