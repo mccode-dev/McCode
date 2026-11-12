@@ -107,5 +107,6 @@ jobs:
           git switch -c $BRANCH
           git commit -qm "Docs and manuals for $TAG"
           git push -f origin $BRANCH
-          gh pr view $BRANCH > /dev/null 2>&1 || gh pr create --head $BRANCH --base ${{ inputs.base }} \
+          # gh pr view also finds closed PRs, so a rerun after closing the PR would open none
+          [ "$(gh pr list --head $BRANCH --state open --json number -q length)" != 0 ] || gh pr create --head $BRANCH --base ${{ inputs.base }} \
             --title "Pre-release updates for $TAG" --body-file "$RUNNER_TEMP/body.md"
