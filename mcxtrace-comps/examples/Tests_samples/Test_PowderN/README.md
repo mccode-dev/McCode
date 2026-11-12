@@ -22,7 +22,7 @@ Alternatively, the Single_crystal (powder mode) and FluoPowder components can al
 - **Test: index=1 Detector: Sph_mon_I=1.29869e-12**
 - Example: index=2 Detector: Sph_mon_I=1.91726e-12
 - (Unittest disabled for Single_crystal powder-mode, numerically unstable on GPU)
-- **Test: index=3 Detector: Sph_mon_I=6.29534e-12**
+- **Test: index=3 Detector: Sph_mon_I=2.81248e-12**
 - 
 - (Unittest disabled for Single_crystal powder-mode, numerically unstable on GPU)
 
