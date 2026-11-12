@@ -28,7 +28,7 @@ This model implements the XRD station for powders.
 
 ## Examples
 
-- **Test: MARS_E0=16.99 Detector: MARS_detector_diffraction_I=1.341e+08**
+- **Test: MARS_E0=16.99 Detector: MARS_detector_diffraction_I=2.29e+08**
 
 ## Input parameters
 
