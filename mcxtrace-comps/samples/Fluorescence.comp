@@ -21,6 +21,20 @@
 * - Compton scattering  (inelastic, transfer some energy to an electron,    incoherent)
 * - Rayleigh scattering (elastic,   dipolar radiation of excitated electrons, coherent)
 *
+* Attenuation uses the total cross section (XRayLib CSb_Total). The part of the
+* photo-absorption which does not end in a fluorescence line (e.g. Auger decay,
+* dominant for low-Z elements) is an additional 'absorbed' outcome of the interaction.
+*
+* Polarisation: when the photon has a non-zero polarisation vector (Ex,Ey,Ez), the
+* Rayleigh and Compton scattering use the polarised differential cross sections
+* (DCSPb_*, azimuth measured from the polarisation vector), and the scattered photon
+* polarisation is the projection of the incoming one perpendicular to the new direction.
+* Without polarisation (E=0), unpolarised cross sections are used. Fluorescence emission is
+* isotropic and unpolarised.
+*
+* Fluorescence line widths are the sum of the level widths of the initial and final
+* shells of the line (AtomicLevelWidth), when available. Else the K shell width is used.
+*
 * Use the <b>FluoPowder</b> sample component to properly handle powder diffraction with fluorescence.
 *
 * The 'material' specification is given as a chemical formulae, e.g. "LaB6". It
@@ -92,10 +106,10 @@
 *
 * %Parameters
 * material:  [str]    Chemical formulae, e.g. "LaB6", "Pb2SnO4". If may also be a CIF/LAZ/LAU file.
-* weight:     [g/mol] Atomic/molecular weight of material.
-* density:   [g/cm^3] Density of material. V_rho=density/weight/1e24*N_A.
-* rho:         [AA-3] Density of scattering elements (nb atoms/unit cell V_0).
-* packing_factor: [1] How dense is the material compared to bulk 0-1.
+* weight:     [g/mol] Molecular weight of the 'unit' described by 'rho' (default: formula weight of material).
+* density:   [g/cm^3] Density of material. rho=density/weight/1e24*N_A.
+* rho:         [AA-3] Density of 'units' (formula units, or unit cells when 'weight' is that of a cell). Default is computed from density and weight.
+* packing_factor: [1] How dense is the material compared to bulk 0-1. Only applied when given explicitly.
 * radius:         [m] Outer radius of sample in (x,z) plane. cylinder/sphere.
 * xwidth:         [m] Width for a box sample shape.
 * yheight:        [m] Height of sample in vertical direction for box/cylinder shapes.
@@ -116,12 +130,12 @@
 * flag_compton:   [1] When 0, the Compton  scattering is ignored.
 * flag_rayleigh:  [1] When 0, the Rayleigh scattering is ignored.
 * flag_lorentzian:[1] When 1, the line shapes are assumed to be Lorentzian, else Gaussian.
-* flag_kissel:    [1] When 1 (slower), handle M-lines XRF from Kissel for Z>=52 Te (else only K and L-lines).
+* flag_kissel:    [1] When 1 (slower), handle M-lines XRF from Kissel for Z>=50 (else only K and L-lines).
 * flag_low_z:     [1] When 1, enhances low concentration atoms, else uses cross-sections weighting.
 * order:          [1] Limit multiple fluorescence up to given order. Last iteration is absorption only.
 *
 * CALCULATED PARAMETERS:
-* type: scattering event type 0=FLUORESCENCE fluorescence, 1=RAYLEIGH Rayleigh, 2=COMPTON Compton, 3=TRANSMISSION Transmit (absorbsion), 4=DIFFRACTION Diffraction (not handled here)
+* type: scattering event type 0=FLUORESCENCE fluorescence, 1=RAYLEIGH Rayleigh, 2=COMPTON Compton, 3=DIFFRACTION Diffraction (not handled here), 4=TRANSMISSION Transmit (absorbsion), 5=ABSORPTION non-radiative photo-absorption
 *
 * %Link
 * The XRayLib https://github.com/tschoonj/xraylib http://dx.doi.org/10.1016/j.sab.2011.09.011
@@ -176,7 +190,10 @@ SHARE %{
   #define COMPTON      2  // Incoherent
   #define DIFFRACTION  3  // diffraction
   #define TRANSMISSION 4
+  #define ABSORPTION   5  // photo-absorption without fluorescence line (Auger, ...)
+  #define FLUO_SHELLS  31 // K,L1-3,M1-5,N1-7,O1-7,P1-5,Q1-3 (XRayLib shell indices 0..30)
 
+  #include <ctype.h>
   #include <xraylib/xraylib.h>
   
 /* See XrayLib code (c) T. Schoonjans
@@ -192,13 +209,14 @@ SHARE %{
    * When kissel=1, M-lines are computed, but computation is 10x slower.
    * Computes xs[FLUORESCENCE,RAYLEIGH,COMPTON] that must have been allocated.
    * Return total cross section, given Z and E0:
-   *   total_xs = XRMC_CrossSections(Z, E0, xs[3], flag_kissel);
+   *   total_xs = XRMC_CrossSections(Z, E0, xs[ABSORPTION+1], flag_kissel);
+   * xs[ABSORPTION] receives CSb_Total minus the three processes (non-radiative absorption).
    */
   double XRMC_CrossSections(int Z, double E0, double *xs, int kissel) {
     int    i_line;
     
     if (xs == NULL) return 0;
-    for(i_line=0; i_line<=COMPTON; i_line++) xs[i_line]=0;
+    for(i_line=0; i_line<=ABSORPTION; i_line++) xs[i_line]=0;
     
     // loop on possible fluorescence lines
     for (i_line=0; i_line<XRAYLIB_LINES_MAX; i_line++) { 
@@ -212,14 +230,21 @@ SHARE %{
     xs[RAYLEIGH] = CSb_Rayl( Z, E0, NULL);
     xs[COMPTON]  = CSb_Compt(Z, E0, NULL);
     
-    // total interaction cross section, should converge to CSb_Total(Z, E0, NULL)
-    return xs[FLUORESCENCE] + xs[RAYLEIGH] + xs[COMPTON];
+    // total interaction cross section is CSb_Total(Z, E0, NULL) (never below the sum of the processes)
+    {
+      double xs_sum = xs[FLUORESCENCE] + xs[RAYLEIGH] + xs[COMPTON];
+      double xs_tot = CSb_Total(Z, E0, NULL);
+      xs[ABSORPTION] = xs_tot > xs_sum ? xs_tot - xs_sum : 0;
+      return xs_sum + xs[ABSORPTION];
+    }
   } // XRMC_CrossSections
 
   /* XRMC_SelectFromDistribution: select a random element from a distribution
-   *   index = XRMC_SelectFromDistribution(cum_sum[N], N);
+   *   index = XRMC_SelectFromDistribution(cum_sum[N], N, r);
    * index is returned within 0 and N-1
    * The x_arr must be a continuously increasing cumulated sum, which last element is the max.
+   * When the cumulated array has a leading 0 element (as built in this file), the
+   * returned index is the 0-based index of the selected item, and N must be (nb items + 1).
    */
   int XRMC_SelectFromDistribution(double x_arr[], int N, double r)
   {
@@ -244,37 +269,36 @@ SHARE %{
 
   /* XRMC_SelectInteraction: select interaction type Fluo/Compton/Rayleigh
    * Return the interaction type from a random choice within cross sections 'xs'
-   *   type = XRMC_SelectInteraction(xs[3], 3);
+   *   type = XRMC_SelectInteraction(xs[3], 3, r);
    * 'xs' is computed with XRMC_CrossSections. Can be unsorted.
    * type is e.g. one of FLUORESCENCE | RAYLEIGH | COMPTON
    */
   int XRMC_SelectInteraction(double *xs, int nb_processes, double r)
   {
-    double sum_xs, *cum_xs;
+    double sum_xs, cum_xs[8];
     int    i;
 
-    if (xs == NULL || nb_processes < 1) return 0;
-    cum_xs = malloc((nb_processes+1)*sizeof(double));
-    if (!cum_xs)          return 0;
+    if (xs == NULL || nb_processes < 1 || nb_processes > 7) return 0;
     cum_xs[0]=sum_xs=0;
     for (i=0; i< nb_processes; i++) {
       sum_xs += xs[i];
       cum_xs[i+1]= sum_xs;
     }
-    i = XRMC_SelectFromDistribution(cum_xs, nb_processes+1, r);
-    free(cum_xs);
-    return i;
+    return XRMC_SelectFromDistribution(cum_xs, nb_processes+1, r);
   } // XRMC_SelectInteraction
 
   /* XRMC_SelectFluorescenceEnergy: select outgoing fluo photon energy, when incoming with 'E0'
    * When kissel=1, M-lines are included, but computation is 10x slower
-   *   Ef = XRMC_SelectFluorescenceEnergy(Z, E0, &dE, kissel);
+   *   Ef = XRMC_SelectFluorescenceEnergy(Z, E0, &dE, kissel, r, line_dE);
+   * line_dE[XRAYLIB_LINES_MAX] are the line widths (see fluo_line_widths), or NULL to use the K shell width.
+   * Returns 0 when no line can be excited at E0.
    */
-  double XRMC_SelectFluorescenceEnergy(int Z, double E0, double *dE, int kissel, double r)
+  double XRMC_SelectFluorescenceEnergy(int Z, double E0, double *dE, int kissel, double r, double *line_dE)
   {
     int i_line;
     double sum_xs, cum_xs_lines[XRAYLIB_LINES_MAX+1];
 
+    if (dE) *dE = 0;
     // compute cumulated XS for all fluo lines
     cum_xs_lines[0] = sum_xs = 0;
     for (i_line=0; i_line<XRAYLIB_LINES_MAX; i_line++) { // loop on fluorescent lines
@@ -285,25 +309,108 @@ SHARE %{
       sum_xs += xs;
       cum_xs_lines[i_line+1] = sum_xs; // cumulative sum of their cross sections
     }
-    // select randomly one of these lines
-    i_line = XRMC_SelectFromDistribution(cum_xs_lines, XRAYLIB_LINES_MAX, r); // extract a line
-    // get the K shell line width as approximation of fluorescence line width
-    if (dE) *dE = AtomicLevelWidth(Z, K_SHELL, NULL); // keV, full-width in keV
+    if (sum_xs <= 0) return 0; // no line excited
+    // select randomly one of these lines (array has XRAYLIB_LINES_MAX+1 elements)
+    i_line = XRMC_SelectFromDistribution(cum_xs_lines, XRAYLIB_LINES_MAX+1, r); // extract a line
+    if (i_line >= XRAYLIB_LINES_MAX) i_line = XRAYLIB_LINES_MAX-1;
+    // get the specific line width when available, else the K shell width as approximation
+    if (dE) *dE = line_dE ? line_dE[i_line] : AtomicLevelWidth(Z, K_SHELL, NULL); // keV, full-width in keV
 
     return LineEnergy(Z, -i_line, NULL); // fluorescent line energy
   } // XRMC_SelectFluorescenceEnergy
 
-  // Function removing spaces from string
+  /* fluo_line_widths: natural width (FWHM, [keV]) of each fluorescence line of element Z.
+   *   fluo_line_widths(Z, dE[XRAYLIB_LINES_MAX]);
+   * A line is a transition from an initial vacancy shell to a final one, and its FWHM is
+   * width(initial shell) + width(final shell) (AtomicLevelWidth). The two shells are identified
+   * by matching the line energy to a difference of absorption edges (K, L, M, ... shells), which
+   * avoids relying on an explicit line->shell table. Lines for which the shells or the widths
+   * are not available get the K shell width.
+   */
+  void fluo_line_widths(int Z, double *dE)
+  {
+    double edge[FLUO_SHELLS], width[FLUO_SHELLS];
+    double width_K;
+    int    s, s_i, s_f, i_line;
+
+    if (dE == NULL) return;
+    width_K = AtomicLevelWidth(Z, K_SHELL, NULL);
+    for (s=0; s<FLUO_SHELLS; s++) {
+      edge[s]  = EdgeEnergy(Z, s, NULL);
+      width[s] = AtomicLevelWidth(Z, s, NULL);
+      if (edge[s]  < 0) edge[s]  = 0;
+      if (width[s] < 0) width[s] = 0;
+    }
+    for (i_line=0; i_line<XRAYLIB_LINES_MAX; i_line++) {
+      double E_line = LineEnergy(Z, -i_line, NULL);
+      double best   = 1e30, w = 0;
+      int    b_i    = -1, b_f = -1;
+      dE[i_line] = 0;
+      if (E_line <= 0) continue;
+      for (s_i=0; s_i<FLUO_SHELLS; s_i++) {
+        if (edge[s_i] <= 0) continue;
+        for (s_f=0; s_f<FLUO_SHELLS; s_f++) {
+          double d;
+          if (s_f == s_i || edge[s_f] <= 0 || edge[s_f] >= edge[s_i]) continue;
+          d = fabs(edge[s_i] - edge[s_f] - E_line);
+          if (d < best) { best = d; b_i = s_i; b_f = s_f; }
+        }
+      }
+      if (b_i >= 0 && best <= 0.05*E_line + 0.01) w = width[b_i] + width[b_f];
+      dE[i_line] = w > 0 ? w : width_K;
+    }
+  } // fluo_line_widths
+
+  /* fluo_pol_azimuth: azimuth phi of the outgoing direction kf around the incoming direction k,
+   * measured from the polarisation vector E (projected perpendicular to k).
+   * Returns 1 when the photon is polarised (phi is set), 0 when unpolarised (E=0 or E//k).
+   */
+  int fluo_pol_azimuth(double kx, double ky, double kz, double Ex, double Ey, double Ez,
+                       double kfx, double kfy, double kfz, double *phi)
+  {
+    double k  = sqrt(kx*kx+ky*ky+kz*kz);
+    double EE = sqrt(Ex*Ex+Ey*Ey+Ez*Ez);
+    double ux, uy, uz, s, ex, ey, ez, ne, bx, by, bz;
+    if (k <= 0 || EE <= 0) return 0;
+    ux = kx/k; uy = ky/k; uz = kz/k;
+    s  = ux*Ex + uy*Ey + uz*Ez;
+    ex = Ex - s*ux; ey = Ey - s*uy; ez = Ez - s*uz;   // E perpendicular to k
+    ne = sqrt(ex*ex+ey*ey+ez*ez);
+    if (ne < 1e-6*EE) return 0;
+    ex /= ne; ey /= ne; ez /= ne;
+    bx = uy*ez - uz*ey; by = uz*ex - ux*ez; bz = ux*ey - uy*ex; // b = u x e
+    if (phi) *phi = atan2(kfx*bx+kfy*by+kfz*bz, kfx*ex+kfy*ey+kfz*ez);
+    return 1;
+  } // fluo_pol_azimuth
+
+  /* fluo_pol_scattered: polarisation of the scattered photon (direction kf, unit vector), as the
+   * projection of the incoming polarisation E perpendicular to kf, keeping its amplitude.
+   * Set to 0 (unpolarised) when the projection vanishes. Exact for Rayleigh/Thomson, and the
+   * dominant component for Compton.
+   */
+  void fluo_pol_scattered(double kfx, double kfy, double kfz, double *Ex, double *Ey, double *Ez)
+  {
+    double EE = sqrt((*Ex)*(*Ex)+(*Ey)*(*Ey)+(*Ez)*(*Ez));
+    double s  = kfx*(*Ex) + kfy*(*Ey) + kfz*(*Ez);
+    double ex = *Ex - s*kfx, ey = *Ey - s*kfy, ez = *Ez - s*kfz;
+    double ne = sqrt(ex*ex+ey*ey+ez*ez);
+    if (EE <= 0 || ne < 1e-9*EE) { *Ex = *Ey = *Ez = 0; return; }
+    *Ex = ex*EE/ne; *Ey = ey*EE/ne; *Ez = ez*EE/ne;
+  } // fluo_pol_scattered
+
+  // Function removing spaces (and any char which can not be part of a formula) from string.
+  // Letters, digits, parentheses and decimal points are kept.
   char * removeSpacesFromStr(char *string)
   {
-      // non_space_count to keep the frequency of non space characters
+      // non_space_count to keep the frequency of kept characters
       int non_space_count = 0;
       if (string == NULL) return NULL;
    
-      //Traverse a string and if it is non space character then, place it at index non_space_count
+      //Traverse a string and if it is a kept character then, place it at index non_space_count
       for (int i = 0; string[i] != '\0'; i++)
       {
-          if (isalpha(string[i]) || isdigit(string[i]))
+          unsigned char c = (unsigned char)string[i];
+          if (isalpha(c) || isdigit(c) || c == '(' || c == ')' || c == '.')
           {
               string[non_space_count] = string[i];
               non_space_count++; //non_space_count incremented
@@ -376,7 +483,7 @@ SHARE %{
       else if (!strncasecmp(Line, "Atom", 4))
         token = Line+4;
       else if (!strncasecmp(Line, "Title", 5))
-        token = Line+7;
+        token = Line+5; // "Title" has 5 characters (was Line+7: dropped the first formula characters)
       if (!token) continue;
       if (!strncasecmp(Line, "# TITLE", 7)) {
         first_non_space = Line+7;
@@ -405,6 +512,8 @@ SHARE %{
 DECLARE %{
   struct   compoundData *compound;
   DArray1d cum_massFractions;
+  DArray1d n_atoms;           // nb of atoms of each element per 'unit' (rho is a density of units)
+  DArray1d line_width;        // natural line widths [keV], XRAYLIB_LINES_MAX per element
   DArray1d cum_xs_fluo;
   DArray1d cum_xs_Compton;
   DArray1d cum_xs_Rayleigh;
@@ -421,14 +530,22 @@ DECLARE %{
   double p_Rayleigh;
   
   // cached values for SPLIT
+  int    reuse_valid;
   int    reuse_nb;
   int    reuse_intersect;
+  double reuse_x;
+  double reuse_y;
+  double reuse_z;
+  double reuse_kx;
+  double reuse_ky;
+  double reuse_kz;
   double reuse_ki;
   double reuse_l0;
   double reuse_l1;
   double reuse_l2;
   double reuse_l3;
   double reuse_sigma_barn;
+  double reuse_xs_absorb;
   DArray1d reuse_cum_xs_fluo;
   DArray1d reuse_cum_xs_Compton;
   DArray1d reuse_cum_xs_Rayleigh;
@@ -473,6 +590,7 @@ INITIALIZE %{
   // test if the material is given as a file
   char path[1024];
   char formula[65536];
+  char *mat_name = material;  // formula actually used (never write into the 'material' parameter)
   formula[0]='\0';
   FILE *file = Open_File(material, "r", path);
   if (file != NULL) {
@@ -485,7 +603,7 @@ INITIALIZE %{
     MPI_MASTER(
     fprintf(stderr, "Fluorescence: INFO: %s: found material %s from file %s\n", NAME_CURRENT_COMP, formula, material);
     );
-    strcpy(material, formula);
+    mat_name = formula;
     // CIF: _chemical_formula_structural 'chemical_formulae'
     // CIF: _chemical_formula_sum 'chemical_formulae'
     // LAZ/LAU: # ATOM <at> <trailing>
@@ -496,10 +614,10 @@ INITIALIZE %{
     
   }
     
-  compound = CompoundParser(material, &error); /* XRayLib */
+  compound = CompoundParser(mat_name, &error); /* XRayLib */
   if (error != NULL) {
     exit(fprintf(stderr, "ERROR: %s: Invalid material %s: %s\n",
-      NAME_CURRENT_COMP, material, error->message));
+      NAME_CURRENT_COMP, mat_name, error->message));
   }
   xrl_error_free(error);
   
@@ -507,12 +625,14 @@ INITIALIZE %{
   if (weight <= 0) weight = compound->molarMass; /* g/mol */
   MPI_MASTER(
     printf("%s: Material %s mass fractions:\n", 
-      NAME_CURRENT_COMP, material);
+      NAME_CURRENT_COMP, mat_name);
   )
   
   double mat_density       = 0; /* g/cm3 */
   double sum_massFractions = 0;
+  double sum_w_over_rho    = 0;
   cum_massFractions        = create_darr1d(compound->nElements+1);
+  n_atoms                  = create_darr1d(compound->nElements+1);
   cum_xs_fluo              = create_darr1d(compound->nElements+1);
   cum_xs_Compton           = create_darr1d(compound->nElements+1);
   cum_xs_Rayleigh          = create_darr1d(compound->nElements+1);
@@ -528,9 +648,11 @@ INITIALIZE %{
     double Z_dens = ElementDensity(Z, &error);
     if (error != NULL)
       exit(fprintf(stderr, "ERROR: %s: Z=%i %s\n", NAME_CURRENT_COMP, Z, error->message));
-    mat_density           += compound->massFractions[i]*Z_dens;
+    if (Z_dens > 0) sum_w_over_rho += compound->massFractions[i]/Z_dens; /* volumes add, not densities */
     sum_massFractions     += compound->massFractions[i];
     cum_massFractions[i+1] = sum_massFractions;
+    /* number of atoms of element i per 'unit' of mass 'weight' */
+    n_atoms[i]             = compound->nAtoms[i]*weight/compound->molarMass;
     MPI_MASTER(
       printf("  | %6.2g %%: Z=%3i %3s %8.3g [g/mol] %8.3g [g/cm3]\n",
         compound->massFractions[i]*100, Z, AtomicNumberToSymbol(Z,NULL), AtomicWeight(Z, NULL),
@@ -538,20 +660,29 @@ INITIALIZE %{
     )
   }
   xrl_error_free(error);
-  if (density <= 0)        density        = mat_density;   /* g/cm3 */
-  if (packing_factor <= 0) packing_factor = density/mat_density;
+  /* natural width of each fluorescence line of each element (initial + final level widths) */
+  line_width = create_darr1d(compound->nElements*XRAYLIB_LINES_MAX);
+  for (i=0; i< compound->nElements; i++)
+    fluo_line_widths(compound->Elements[i], &line_width[i*XRAYLIB_LINES_MAX]);
+  if (sum_w_over_rho > 0) mat_density = sum_massFractions/sum_w_over_rho; /* g/cm3 */
+  if (density <= 0)       density     = mat_density;                      /* g/cm3 */
+  if (density <= 0 && rho <= 0)
+    exit(fprintf(stderr, "ERROR: %s: can not determine density of %s. Specify 'density' or 'rho'.\n",
+      NAME_CURRENT_COMP, mat_name));
   
   /* molar volume [cm^3/mol] = weight [g/mol] / density [g/cm^3] */
-  /* atom density per Angs^3 = [mol/cm^3] * N_Avogadro *(1e-8)^3 */
-  if (!rho) rho = density/weight/1e24*NA; // atom density [at/Angs-3]
+  /* unit density per Angs^3 = [mol/cm^3] * N_Avogadro *(1e-8)^3 */
+  if (!rho) rho = density/weight/1e24*NA; // unit density [units/Angs-3]
+  /* packing factor only applies when explicitly given (the 'density' already accounts for it otherwise) */
+  if (packing_factor > 0 && packing_factor < 1) rho *= packing_factor;
+  else if (packing_factor <= 0) packing_factor = 1;
   MPI_MASTER(
     printf("%s: Material %s M=%g [g/mol] density=%g [g/cm3] rho=%g [at/Angs-3]",
-      NAME_CURRENT_COMP, material, weight, density, rho);
+      NAME_CURRENT_COMP, mat_name, weight, density, rho);
     if (fabs(packing_factor-1) > 1e-2)
       printf(" packing_factor=%g", packing_factor);
     printf("\n");
   )
-  if (0 < packing_factor && packing_factor < 1) rho *= packing_factor;
   
   /* target for scattering ================================================== */
   if (!target_index && !target_x && !target_y && !target_z) target_index=1;
@@ -573,7 +704,11 @@ INITIALIZE %{
   p_fluo = p_Compton = p_Rayleigh = 0;
   
   // cached variables set to 0 (for SPLIT)
+  reuse_valid=0;
+  reuse_xs_absorb=0;
   reuse_nb=0;
+  reuse_x=reuse_y=reuse_z=reuse_kx=reuse_ky=reuse_kz=0;
+  reuse_intersect=0;
   reuse_ki=reuse_l0=reuse_l1=reuse_l2=reuse_l3=reuse_sigma_barn=0;
   reuse_cum_xs_fluo              = create_darr1d(compound->nElements+1);
   reuse_cum_xs_Compton           = create_darr1d(compound->nElements+1);
@@ -595,7 +730,7 @@ int    flag_concentric = 0;
 int    flag_ishollow   = 0;
 int    event_counter   = 0;         /* scattering event counter (multiple fluorescence) */
 int    force_transmit  = 0;         /* Flag to handle cross-section weighting in case of finite order */
-double sigma_barn=0, xs[5];         /* cross sections [barn/atom] fluo/Compton/Rayleigh/diff/transmit */
+double sigma_barn=0, xs[ABSORPTION+1];         /* cross sections [barn/unit] fluo/Rayleigh/Compton/diff/transmit */
 double aim_x=0, aim_y=0, aim_z=1;   /* Position of target relative to scattering point */
 
 
@@ -617,9 +752,12 @@ pi = p;     // used to test for multiple fluo weighting and order cutoff
 
 do { /* while (intersect) Loop over multiple scattering events */
 
-  // test for a SPLIT event (same particle comes in)
+  // test for a SPLIT event (same particle comes in: same position, direction and energy)
   l0=l1=l2=l3=dl0=dl1=dl2=0;
-  if (!event_counter && fabs(reuse_ki - ki) < 1e-15) {
+  if (!event_counter && reuse_valid
+   && fabs(reuse_ki - ki)  < 1e-15
+   && fabs(reuse_x  - x)   < 1e-15 && fabs(reuse_y  - y)  < 1e-15 && fabs(reuse_z  - z)  < 1e-15
+   && fabs(reuse_kx - kx)  < 1e-15 && fabs(reuse_ky - ky) < 1e-15 && fabs(reuse_kz - kz) < 1e-15) {
     reuse     = 1;
     reuse_nb++;
     // use cached values and skip actual computation
@@ -666,8 +804,8 @@ do { /* while (intersect) Loop over multiple scattering events */
     }
 
 
-    /* Computing the intermediate lengths */
-    if (intersect && p_interact >= 0) {
+    /* Computing the intermediate lengths (always, also when p_interact<0 which only disables forcing) */
+    if (intersect) {
       flag_ishollow = 0;
       if (thickness > 0) {
         if (shape==0 && cylinder_intersect(&l1,&l2, x,y,z,kx,ky,kz, radius-thickness,
@@ -693,14 +831,17 @@ do { /* while (intersect) Loop over multiple scattering events */
     } /* if intersect */
 
 
-    // store values for potential next SPLIT
+    // store values for potential next SPLIT (incoming state, before any propagation)
     if (!event_counter) {
+      reuse_valid     = 1;
       reuse_intersect = intersect;
       reuse_l0        = l0;
       reuse_l1        = l1;
       reuse_l2        = l2;
       reuse_l3        = l3;
       reuse_ki        = ki;
+      reuse_x = x;   reuse_y = y;   reuse_z = z;
+      reuse_kx = kx; reuse_ky = ky; reuse_kz = kz;
     }
     reuse           = 0;
   } // if !reuse (SPLIT)
@@ -744,39 +885,40 @@ do { /* while (intersect) Loop over multiple scattering events */
   /* ========================================================================== */
   /*                             INTERACTION PROCESS                            */
   /* ========================================================================== */
-  xs[FLUORESCENCE]=xs[COMPTON]=xs[RAYLEIGH]=xs[TRANSMISSION]=xs[DIFFRACTION]=sigma_barn=0;
+  xs[FLUORESCENCE]=xs[COMPTON]=xs[RAYLEIGH]=xs[TRANSMISSION]=xs[DIFFRACTION]=xs[ABSORPTION]=sigma_barn=0;
   cum_xs_fluo[0] = cum_xs_Compton[0] = cum_xs_Rayleigh[0] = 0;
   
   if (intersect) {
     double my_s;
     int    i_Z,i;
-    int    flag=0;
     double d_path, p_trans, p_scatt, mc_trans, mc_scatt;
     
     /* actual fluorescence calculation */
     
     /* compute total scattering cross section for incoming photon energy Ei */
-    /* compute each contribution XS */
+    /* compute each contribution XS, per unit (atoms are weighted by their number in the unit) */
     if (!reuse) {
       for (i_Z=0; i_Z< compound->nElements; i_Z++) {
         int    Z   = compound->Elements[i_Z];
-        double frac= compound->massFractions[i_Z];
-        double xs_Z[3];
+        double nat = n_atoms[i_Z];
+        double xs_Z[ABSORPTION+1];
 
         // get Fluorescence xs
         XRMC_CrossSections(Z, E, xs_Z, flag_kissel); // [barn/atom]
 
-        // local XS for atom (Z)
-        xs_fluo[i_Z+1]     = frac*xs_Z[FLUORESCENCE];
-        xs_Compton[i_Z+1]  = frac*xs_Z[COMPTON];
-        xs_Rayleigh[i_Z+1] = frac*xs_Z[RAYLEIGH];
-        // selection on cumulated distribution xs*frac
+        // local XS for element (Z)
+        xs_fluo[i_Z+1]     = nat*xs_Z[FLUORESCENCE];
+        xs_Compton[i_Z+1]  = nat*xs_Z[COMPTON];
+        xs_Rayleigh[i_Z+1] = nat*xs_Z[RAYLEIGH];
+        // selection on cumulated distribution xs*nat
         cum_xs_fluo[i_Z+1]     = cum_xs_fluo[i_Z]    +xs_fluo[i_Z+1];
         cum_xs_Compton[i_Z+1]  = cum_xs_Compton[i_Z] +xs_Compton[i_Z+1];
         cum_xs_Rayleigh[i_Z+1] = cum_xs_Rayleigh[i_Z]+xs_Rayleigh[i_Z+1];
-        for (i=0; i<3; i++) { xs[i] += frac*xs_Z[i]; }
+        for (i=0; i<3; i++) { xs[i] += nat*xs_Z[i]; }
+        xs[ABSORPTION] += nat*xs_Z[ABSORPTION]; // non-radiative absorption
       } // for Z in compound
-      for (i=0; i<3; i++) sigma_barn += xs[i]; // total XS
+      for (i=0; i<3; i++) sigma_barn += xs[i];
+      sigma_barn += xs[ABSORPTION]; // total XS (CSb_Total)
       
       // store values into cache for SPLIT
       if (!event_counter) {
@@ -789,6 +931,7 @@ do { /* while (intersect) Loop over multiple scattering events */
           reuse_xs_Rayleigh[i_Z]     = xs_Rayleigh[i_Z];
         }
         reuse_sigma_barn = sigma_barn;
+        reuse_xs_absorb  = xs[ABSORPTION];
       }
 
     } else {
@@ -797,20 +940,22 @@ do { /* while (intersect) Loop over multiple scattering events */
         cum_xs_fluo[i_Z]      = reuse_cum_xs_fluo[i_Z];
         cum_xs_Compton[i_Z]   = reuse_cum_xs_Compton[i_Z];
         cum_xs_Rayleigh[i_Z]  = reuse_cum_xs_Rayleigh[i_Z];
-        xs[FLUORESCENCE]     += reuse_cum_xs_fluo[i_Z];
-        xs[COMPTON]          += reuse_cum_xs_Compton[i_Z];
-        xs[RAYLEIGH]         += reuse_cum_xs_Rayleigh[i_Z];
         xs_fluo[i_Z]          = reuse_xs_fluo[i_Z];
         xs_Compton[i_Z]       = reuse_xs_Compton[i_Z];
         xs_Rayleigh[i_Z]      = reuse_xs_Rayleigh[i_Z];
       }
+      // the total per process is the last element of the cumulated sums
+      xs[FLUORESCENCE] = cum_xs_fluo[compound->nElements];
+      xs[COMPTON]      = cum_xs_Compton[compound->nElements];
+      xs[RAYLEIGH]     = cum_xs_Rayleigh[compound->nElements];
+      xs[ABSORPTION]   = reuse_xs_absorb;
       sigma_barn = reuse_sigma_barn;
     }
 //    printf("DEBUG: pi=%g p=%g ; ki=%g k=%g ; xs=[%g %g %g] type=FOLLOW sigma_barn=%g\n",
 //        pi, p, ki, k, xs[0], xs[1], xs[2], sigma_barn);
     
     /* probability to absorb/scatter */
-    my_s   = rho*100*sigma_barn; /* mu, 100: convert from barns to fm^2. my_s in [1/m] */
+    my_s   = rho*100*sigma_barn; /* mu, 100: convert from barns*Angs-3 to m-1. my_s in [1/m] */
     d_path = ( dl0 +dl2 );  /* total path lenght in sample */
     
     /* Proba of transmission/interaction along length d_path */    
@@ -826,7 +971,7 @@ do { /* while (intersect) Loop over multiple scattering events */
       mc_trans = p_trans; /* 1 - p_scatt */
     }
     mc_scatt = 1 - mc_trans; /* portion of beam to scatter (or force to) */
-    if (mc_scatt <= 0) ABSORB;
+    /* when mc_scatt<=0 nothing can scatter: the photon is simply transmitted below */
     
     if (!force_transmit && mc_scatt > 0 && (mc_scatt >= 1 || rand01() < mc_scatt)) {
       /* we "scatter" with one of the interaction processes */
@@ -844,7 +989,7 @@ do { /* while (intersect) Loop over multiple scattering events */
       /* we go through the material without interaction, and exit */
       if (type <0) type = TRANSMISSION; // transmission
       intersect = 0;
-      PROP_DL(d_path);
+      PROP_DL(dl0+dl1+dl2); /* up to the exit point (includes the hole, if any) */
       /* attenuate beam by portion which is scattered (and left along) */
       p *= p_trans;
       if (!event_counter && p_interact>0 && p_interact<=1) p /= mc_trans;
@@ -858,47 +1003,45 @@ do { /* while (intersect) Loop over multiple scattering events */
   if (intersect) { /* scattering event */
     int    i_Z, Z;
     double solid_angle=0;
-    double theta, dsigma;
+    double theta, dsigma, sigma_Z, cos_theta;
+    double phi1=0;           // azimuth from the polarisation vector
+    int    polarised=0;     // 1 when the photon has a polarisation vector
     double Ef, dE;
     double kf=k, kf_x, kf_y, kf_z;  // next particle direction
 
     /* MC choose process from cross sections 'xs': fluo, Rayleigh, Compton  */
-    type = XRMC_SelectInteraction(xs, COMPTON+1, rand01()); // up to COMPTON
+    type = XRMC_SelectInteraction(xs, ABSORPTION+1, rand01()); // up to ABSORPTION (xs[DIFFRACTION|TRANSMISSION]=0)
+    if (type != FLUORESCENCE && type != RAYLEIGH && type != COMPTON) ABSORB;
+    if (type == RAYLEIGH && !flag_rayleigh) ABSORB;
+    if (type == COMPTON  && !flag_compton)  ABSORB;
     
-    /* choose Z (element) on associated XS, taking into account mass-fractions */
+    /* choose Z (element) on associated XS, taking into account the number of atoms */
     if (flag_low_z) {
+      /* uniform choice of element, weighted back by the true probability */
+      double xs_sel;
       i_Z = (int)floor(compound->nElements * rand01());
+      if (i_Z >= compound->nElements) i_Z = compound->nElements-1;
       switch (type) {
-        case FLUORESCENCE:
-          p *= xs_fluo[i_Z+1]/xs[type];
-          break;
-        case RAYLEIGH:
-          p *= xs_Rayleigh[i_Z+1]/xs[type];
-          break;
-        case COMPTON:
-          p *= xs_Compton[i_Z+1]/xs[type];
-          break;
-        default:
-          // printf("%s: WARNING: process %i unknown. Absorb.\n", NAME_CURRENT_COMP, type);
-          ABSORB;
+        case FLUORESCENCE: xs_sel = xs_fluo[i_Z+1];     break;
+        case RAYLEIGH:     xs_sel = xs_Rayleigh[i_Z+1]; break;
+        default:           xs_sel = xs_Compton[i_Z+1];  break;
       }
+      if (xs_sel <= 0 || xs[type] <= 0) ABSORB;
+      /* true probability xs_sel/xs[type], sampled with 1/nElements */
+      p *= compound->nElements*xs_sel/xs[type];
     } else {
       switch (type) {
         case FLUORESCENCE:
           i_Z = XRMC_SelectFromDistribution(cum_xs_fluo,     compound->nElements+1, rand01());
           break;
         case RAYLEIGH:
-          if (!flag_rayleigh) ABSORB;
           i_Z = XRMC_SelectFromDistribution(cum_xs_Rayleigh, compound->nElements+1, rand01());
           break;
-        case COMPTON:
-          if (!flag_compton) ABSORB;
+        default: /* COMPTON */
           i_Z = XRMC_SelectFromDistribution(cum_xs_Compton,  compound->nElements+1, rand01());
           break;
-        default:
-          // printf("%s: WARNING: process %i unknown. Absorb.\n", NAME_CURRENT_COMP, type);
-          ABSORB;
       }
+      if (i_Z >= compound->nElements) i_Z = compound->nElements-1;
     }
     Z   = compound->Elements[i_Z];
     
@@ -921,44 +1064,52 @@ do { /* while (intersect) Loop over multiple scattering events */
 
     NORM(kf_x, kf_y, kf_z);  // normalize the outout direction |kf|=1
     
+    // scattering angle (clamped, to avoid NaN from rounding)
+    cos_theta = scalar_prod(kf_x,kf_y, kf_z, kx,ky,kz)/k;
+    if (cos_theta >  1) cos_theta =  1;
+    if (cos_theta < -1) cos_theta = -1;
+    theta = acos(cos_theta);
+    // azimuth around the incoming direction, from the polarisation vector (before k is updated)
+    polarised = fluo_pol_azimuth(kx,ky,kz, Ex,Ey,Ez, kf_x,kf_y,kf_z, &phi1);
+    
     // determine final energy (kf)
     switch (type) {
       case FLUORESCENCE: /* 0 Fluo: choose line */
-        Ef      = XRMC_SelectFluorescenceEnergy(Z, E, &dE, flag_kissel, rand01()); // dE full-width in keV
+        Ef      = XRMC_SelectFluorescenceEnergy(Z, E, &dE, flag_kissel, rand01(), &line_width[i_Z*XRAYLIB_LINES_MAX]); // dE full-width in keV
+        if (Ef <= 0) ABSORB; // no line can be excited
         if (dE) {
-          dE /= 2;  // half-width
-          if (flag_lorentzian) dE  *= tan(PI/2*randpm1()); // Lorentzian distribution
-          else                 dE  *= randnorm();          // Gaussian distribution
+          if (flag_lorentzian) dE = dE/2*tan(PI/2*randpm1()); // Lorentzian: HWHM=FWHM/2
+          else                 dE = dE/(2*sqrt(2*log(2.0)))*randnorm(); // Gaussian: sigma=FWHM/2.355
           Ef = Ef + dE;
+          if (Ef <= 0) ABSORB;
         }
         kf      = Ef*E2K;
-        theta   = acos(scalar_prod(kf_x,kf_y, kf_z, kx,ky,kz)/k);
-        /* add polarisation factor */
-        if (Ex!=0 || Ey!=0 || Ez!=0){
-          double EE=sqrt(Ex*Ex+Ey*Ey+Ez*Ez);
-          double s=scalar_prod(kf_x,kf_y,kf_z,Ex,Ey,Ez)/EE;
-          p *= (1-s)*(1-s);
-        } else {
-          /*unpolarized light in - means an effective reduction according to only theta*/
-          p *= (1+cos(theta)*cos(theta))*0.5;
-        }
+        /* Fluorescence emission is isotropic and (to a good approximation) unpolarised:
+           no angular factor, only the solid-angle weight applied above. */
+        Ex = Ey = Ez = 0;
         n_fluo++;
         p_fluo += p;
         break;
         
       case RAYLEIGH:     /* 1 Rayleigh: Coherent, elastic */
-        theta      = acos(scalar_prod(kf_x,kf_y, kf_z, kx,ky,kz)/k);
-        dsigma     = DCSb_Rayl(Z,  E, theta, NULL); // [barn/at/st]
-        p         *= 4*PI*dsigma/xs[RAYLEIGH];
+        sigma_Z    = CSb_Rayl(Z, E, NULL);              // [barn/atom]
+        if (sigma_Z <= 0) ABSORB;
+        dsigma     = (polarised ? DCSPb_Rayl(Z, E, theta, phi1, NULL) : DCSb_Rayl(Z, E, theta, NULL));     // [barn/at/st]
+        p         *= 4*PI*dsigma/sigma_Z;
+        /* scattered polarisation: projection of the incoming one (stays unpolarised otherwise) */
+        if (polarised) fluo_pol_scattered(kf_x,kf_y,kf_z, &Ex,&Ey,&Ez);
         n_Rayleigh++;
         p_Rayleigh += p;
         break;
       
       case COMPTON:      /* 2 Compton: Incoherent: choose final energy */
-        theta      = acos(scalar_prod(kf_x,kf_y, kf_z, kx,ky,kz)/k);
-        dsigma     = DCS_Compt(Z,  E, theta, NULL); // [barn/at/st]
+        sigma_Z    = CSb_Compt(Z, E, NULL);             // [barn/atom]
+        if (sigma_Z <= 0) ABSORB;
+        dsigma     = (polarised ? DCSPb_Compt(Z, E, theta, phi1, NULL) : DCSb_Compt(Z, E, theta, NULL));    // [barn/at/st] (DCS_Compt would be cm2/g/st)
         kf         = ComptonEnergy(E, theta, NULL)*E2K; /* XRayLib, fraction of emc2=511 keV */
-        p         *= 4*PI*dsigma/xs[COMPTON];
+        p         *= 4*PI*dsigma/sigma_Z;
+        /* scattered polarisation: projection of the incoming one (stays unpolarised otherwise) */
+        if (polarised) fluo_pol_scattered(kf_x,kf_y,kf_z, &Ex,&Ey,&Ez);
         n_Compton++;
         p_Compton += p;
         break;
@@ -1000,73 +1151,15 @@ FINALLY %{
 %}
 
 DISPLAY %{
-    if (shape == 0) { /* cyl */
-      circle("xz", 0,  yheight/2.0, 0, radius);
-      circle("xz", 0, -yheight/2.0, 0, radius);
-      line(-radius, -yheight/2.0, 0, -radius, +yheight/2.0, 0);
-      line(+radius, -yheight/2.0, 0, +radius, +yheight/2.0, 0);
-      line(0, -yheight/2.0, -radius, 0, +yheight/2.0, -radius);
-      line(0, -yheight/2.0, +radius, 0, +yheight/2.0, +radius);
-      if (thickness) {
-        double radius_i=radius-thickness;
-        circle("xz", 0,  yheight/2.0, 0, radius_i);
-        circle("xz", 0, -yheight/2.0, 0, radius_i);
-        line(-radius_i, -yheight/2.0, 0, -radius_i, +yheight/2.0, 0);
-        line(+radius_i, -yheight/2.0, 0, +radius_i, +yheight/2.0, 0);
-        line(0, -yheight/2.0, -radius_i, 0, +yheight/2.0, -radius_i);
-        line(0, -yheight/2.0, +radius_i, 0, +yheight/2.0, +radius_i);
-      }
+    if (shape == 0)        {  /* cyl */
+      cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
     } else if (shape == 1) {  /* box */
-      double xmin = -0.5*xwidth;
-      double xmax =  0.5*xwidth;
-      double ymin = -0.5*yheight;
-      double ymax =  0.5*yheight;
-      double zmin = -0.5*zdepth;
-      double zmax =  0.5*zdepth;
-      multiline(5, xmin, ymin, zmin,
-                   xmax, ymin, zmin,
-                   xmax, ymax, zmin,
-                   xmin, ymax, zmin,
-                   xmin, ymin, zmin);
-      multiline(5, xmin, ymin, zmax,
-                   xmax, ymin, zmax,
-                   xmax, ymax, zmax,
-                   xmin, ymax, zmax,
-                   xmin, ymin, zmax);
-      line(xmin, ymin, zmin, xmin, ymin, zmax);
-      line(xmax, ymin, zmin, xmax, ymin, zmax);
-      line(xmin, ymax, zmin, xmin, ymax, zmax);
-      line(xmax, ymax, zmin, xmax, ymax, zmax);
-      if (zdepth) {
-        xmin = -0.5*xwidth;
-        xmax =  0.5*xwidth;
-        ymin = -0.5*yheight;
-        ymax =  0.5*yheight;
-        zmin = -0.5*zdepth;
-        zmax =  0.5*zdepth;
-        multiline(5, xmin, ymin, zmin,
-                  xmax, ymin, zmin,
-                  xmax, ymax, zmin,
-                  xmin, ymax, zmin,
-                  xmin, ymin, zmin);
-        multiline(5, xmin, ymin, zmax,
-                  xmax, ymin, zmax,
-                  xmax, ymax, zmax,
-                  xmin, ymax, zmax,
-                  xmin, ymin, zmax);
-        line(xmin, ymin, zmin, xmin, ymin, zmax);
-        line(xmax, ymin, zmin, xmax, ymin, zmax);
-        line(xmin, ymax, zmin, xmin, ymax, zmax);
-        line(xmax, ymax, zmin, xmax, ymax, zmax);
-      }
-    } if (shape == 2) { /* sphere */
-      circle("xy",0,0,0,radius);
-      circle("xz",0,0,0,radius);
-      circle("yz",0,0,0,radius);
-    } else if (shape == 3) {        /* OFF file */
+      box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
+    } else if (shape == 2) {  /* sphere */
+      sphere (0, 0, 0, radius);
+    } else if (shape == 3) {  /* OFF file */
       off_display(offdata);
     }
 %}
 
 END
-
