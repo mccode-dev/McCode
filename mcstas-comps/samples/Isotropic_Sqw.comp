@@ -1599,10 +1599,7 @@ SHARE
       T = 0; /* unrealistic */
     if (!T_file && T) {
       MPI_MASTER (
-        if (Sqw->verbose_output > 0) {
-	  printf ("Isotropic_Sqw: %s: Temperature computed from S(q,w) data from %s is T=%g [K].\n", Sqw->compname, file, T);
-	}
-      );
+          if (Sqw->verbose_output > 0) { printf ("Isotropic_Sqw: %s: Temperature computed from S(q,w) data from %s is T=%g [K].\n", Sqw->compname, file, T); });
     }
 
     if (Sqw->Temperature == 0) {
@@ -2040,7 +2037,8 @@ INITIALIZE
     } else
       exit (fprintf (stderr, "Isotropic_Sqw: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry));
     if (!gmesh_check_closed (&mesh))
-      exit (fprintf (stderr, "Isotropic_Sqw: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry));
+      exit (fprintf (stderr, "Isotropic_Sqw: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP,
+                     geometry));
     #endif
   } else if (xwidth && yheight && zdepth)
     VarSqw.shape = 1; /* box */
@@ -2270,24 +2268,24 @@ TRACE
           }
         }
       } else
-      #endif
-      if (thickness >= 0) {
-        if (VarSqw.shape == 0)
-          intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius, yheight);
-        else if (VarSqw.shape == 1)
-          intersect = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
-        else if (VarSqw.shape == 2)
-          intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius);
-      } else {
-        if (VarSqw.shape == 0)
-          intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness, yheight - 2 * thickness > 0 ? yheight - 2 * thickness : yheight);
-        else if (VarSqw.shape == 1)
-          intersect
-              = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth - 2 * thickness > 0 ? xwidth - 2 * thickness : xwidth,
-                               yheight - 2 * thickness > 0 ? yheight - 2 * thickness : yheight, zdepth - 2 * thickness > 0 ? zdepth - 2 * thickness : zdepth);
-        else if (VarSqw.shape == 2)
-          intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness);
-      }
+        #endif
+        if (thickness >= 0) {
+          if (VarSqw.shape == 0)
+            intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius, yheight);
+          else if (VarSqw.shape == 1)
+            intersect = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
+          else if (VarSqw.shape == 2)
+            intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius);
+        } else {
+          if (VarSqw.shape == 0)
+            intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness, yheight - 2 * thickness > 0 ? yheight - 2 * thickness : yheight);
+          else if (VarSqw.shape == 1)
+            intersect
+                = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth - 2 * thickness > 0 ? xwidth - 2 * thickness : xwidth,
+                                 yheight - 2 * thickness > 0 ? yheight - 2 * thickness : yheight, zdepth - 2 * thickness > 0 ? zdepth - 2 * thickness : zdepth);
+          else if (VarSqw.shape == 2)
+            intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius - thickness);
+        }
     } else
       intersect = 0;
 
@@ -2413,7 +2411,7 @@ TRACE
       }
 
       /* Proba of scattering vs absorption (integrating along the whole trajectory) */
-      ws = my_s / my_t;  /* (inc+coh)/(inc+coh+abs) */
+      ws = my_s / my_t;         /* (inc+coh)/(inc+coh+abs) */
       d_path = v * (dt0 + dt2); /* total path lenght in sample */
       /* Proba of transmission/interaction along length d_path */
       p_trans = exp (-my_t * d_path);
@@ -2833,27 +2831,22 @@ FINALLY
     mc_MPI_Sum (&VarSqw.multi, 1);
   }
   #endif
-  MPI_MASTER(
-    if (VarSqw.neutron_removed)
-      printf("Isotropic_Sqw: %s: %li neutron events (out of %li) that should have\n"
-             "               scattered were transmitted because scattering conditions\n"
-             "WARNING        could not be satisfied after %i tries.\n",
-            NAME_CURRENT_COMP, VarSqw.neutron_removed,
-            VarSqw.neutron_exit+VarSqw.neutron_removed, VarSqw.maxloop);
-    if (VarSqw.neutron_pmult)
-      printf("Isotropic_Sqw: %s: %li neutron events (out of %li) reached\n"
-             "WARNING        unrealistic weight. The S(q,w) norm might be too high.\n",
-            NAME_CURRENT_COMP, VarSqw.neutron_pmult, VarSqw.neutron_exit);
+  MPI_MASTER (if (VarSqw.neutron_removed) printf ("Isotropic_Sqw: %s: %li neutron events (out of %li) that should have\n"
+                                                  "               scattered were transmitted because scattering conditions\n"
+                                                  "WARNING        could not be satisfied after %i tries.\n",
+                                                  NAME_CURRENT_COMP, VarSqw.neutron_removed, VarSqw.neutron_exit + VarSqw.neutron_removed, VarSqw.maxloop);
+              if (VarSqw.neutron_pmult) printf ("Isotropic_Sqw: %s: %li neutron events (out of %li) reached\n"
+                                                "WARNING        unrealistic weight. The S(q,w) norm might be too high.\n",
+                                                NAME_CURRENT_COMP, VarSqw.neutron_pmult, VarSqw.neutron_exit);
 
-    if (VarSqw.verbose_output >= 1 && VarSqw.psum_scatt > 0) {
-      printf ("Isotropic_Sqw: %s: Scattering fraction=%g of incoming intensity\n"
-	      "               Absorption fraction           =%g\n",
-	      NAME_CURRENT_COMP, VarSqw.mean_scatt / VarSqw.psum_scatt, VarSqw.mean_abs / VarSqw.psum_scatt);
-      printf ("               Single   scattering intensity =%g (coh=%g inc=%g)\n"
-	      "               Multiple scattering intensity =%g\n",
-	      VarSqw.single_coh + VarSqw.single_inc, VarSqw.single_coh, VarSqw.single_inc, VarSqw.multi);
-    }
-  );
+              if (VarSqw.verbose_output >= 1 && VarSqw.psum_scatt > 0) {
+                printf ("Isotropic_Sqw: %s: Scattering fraction=%g of incoming intensity\n"
+                        "               Absorption fraction           =%g\n",
+                        NAME_CURRENT_COMP, VarSqw.mean_scatt / VarSqw.psum_scatt, VarSqw.mean_abs / VarSqw.psum_scatt);
+                printf ("               Single   scattering intensity =%g (coh=%g inc=%g)\n"
+                        "               Multiple scattering intensity =%g\n",
+                        VarSqw.single_coh + VarSqw.single_inc, VarSqw.single_coh, VarSqw.single_inc, VarSqw.multi);
+              });
   /* end FINALLY */
 %}
 /*****************************************************************************/
