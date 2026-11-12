@@ -1,0 +1,101 @@
+name: pre-release
+
+# Run by hand before tagging vX.Y.Z (docs/RELEASE-CHECKLIST.md, section 1).
+# Opens a PR with: instrument .md's, tool-doc .html twins, \reldate bump and
+# rebuilt manuals (PDF + html tgz) in docpkg/. The PR text lists built packages
+# that the metapackages leave out. Review, merge, then tag.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Wanted release tag, e.g. v3.10.3
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check tag
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tag must look like v3.10.3"; exit 1; }
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: TeX and python-markdown
+        run: |
+          set -euo pipefail
+          sudo apt-get -qq update
+          sudo apt-get -qq install texlive texlive-latex-extra texlive-bibtex-extra texlive-plain-generic dvipng
+          pip install -q markdown
+
+      - name: Instrument md's, tool docs, reldate, manuals
+        run: |
+          set -euo pipefail
+          # mcdoc/mxdoc straight from this checkout: mcdoc.py only needs a
+          # mccode_config with the flavour and version filled in.
+          mkdir -p "$RUNNER_TEMP/bin"
+          for t in mcdoc mxdoc; do
+            printf '#!/bin/sh\nexec python3 %s/tools/Python/mcdoc/mcdoc.py "$@"\n' "$PWD" > "$RUNNER_TEMP/bin/$t"
+            chmod +x "$RUNNER_TEMP/bin/$t"
+          done
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          mock_config() {  # flavour prefix
+            for f in py json; do
+              sed -e "s/@FLAVOR@/$1/g" -e "s/@MCCODE_PREFIX@/$2/g" -e "s/@MCCODE_VERSION@/${TAG#v}/g" -e 's/@[A-Za-z0-9_]*@//g' \
+                tools/Python/mccodelib/mccode_config.$f.in > tools/Python/mccodelib/mccode_config.$f
+            done
+          }
+
+          sed -i -E "/reldate\}\{/s/[A-Z][a-z]+, [0-9]{4}/$(LC_ALL=C date '+%B, %Y')/" \
+            docs/manuals/mcstas/preamble_common.tex.in docs/manuals/mcxtrace/preamble*.tex.in
+          devel/bin/mccode-tooldocs-html
+
+          mock_config mcstas mc
+          mcdoc --in-repo --dir mcstas-comps/examples --md
+          buildscripts/build_manuals_mcstas ${TAG#v}
+
+          mock_config mcxtrace mx
+          mxdoc --in-repo --dir mcxtrace-comps/examples --md
+          buildscripts/build_manuals_mcxtrace ${TAG#v}
+
+      - name: Metapackage report
+        run: |
+          set -euo pipefail
+          {
+            echo "Instrument .md's, tool-doc .html twins, \reldate and rebuilt manuals in docpkg/ for $TAG. Merge before tagging."
+            echo
+            echo "Built packages not in the metapackages (add to \`meta-pkgs/\` if any should ship):"
+            for x in mcstas:mc:McStas mcxtrace:mx:McXtrace; do
+              IFS=: read fl P N <<< "$x"
+              for p in $(grep -o 'mkdist [^ ]*' buildscripts/build_debs_$fl | awk '{print $2}' | sed "s/\$FLAVOUR/$fl/;s/\${P}/$P/" | sort -u); do
+                grep -qE -- "$p(,|$)" meta-pkgs/deb/control.$fl-suite-python || echo "- \`$p\`: not in deb"
+                grep -qF -- "\\$p-NSIS64" meta-pkgs/windows/$N-metapackage64-MinGW.iss || echo "- \`$p\`: not in MinGW.iss"
+              done
+            done
+          } | tee "$RUNNER_TEMP/body.md"
+
+      - name: Open PR
+        run: |
+          set -euo pipefail
+          BRANCH=external/pre-release-$TAG  # the repo ruleset lets bots create only external/ branches
+          git add -u
+          git add mcstas-comps/examples mcxtrace-comps/examples
+          git diff --cached --quiet && { echo "Nothing to do for $TAG"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c $BRANCH
+          git commit -qm "Docs and manuals for $TAG"
+          git push -f origin $BRANCH
+          gh pr view $BRANCH > /dev/null 2>&1 || gh pr create --head $BRANCH \
+            --title "Pre-release updates for $TAG" --body-file "$RUNNER_TEMP/body.md"
