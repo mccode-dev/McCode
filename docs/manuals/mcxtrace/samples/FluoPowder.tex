@@ -25,6 +25,12 @@ Sample that models multiple photon-matter interactions:
 - powder diffraction  (elastic,   coherent)
 \end{verbatim}
 
+The part of the photo-absorption which does not end in a fluorescence line (e.g. Auger decay, dominant for low-Z elements) is an additional 'absorbed' outcome.
+
+Polarisation: when the photon has a non-zero polarisation vector (Ex,Ey,Ez), the Rayleigh and Compton scattering use the polarised differential cross sections (DCSPb\_*, azimuth measured from the polarisation vector), and the scattered photon polarisation is the projection of the incoming one perpendicular to the new direction. Without polarisation (E=0), unpolarised cross sections are used. Fluorescence emission is isotropic and unpolarised.
+
+Fluorescence line widths are the sum of the level widths of the initial and final shells of the line (AtomicLevelWidth), when available. Else the K shell width is used.
+
 The 'material' specification is given as a chemical formulae, e.g. "LaB6". It may also be given as a file name (CIF/LAU/LAZ/FullProf format) in which case the formulae is guessed (but may be approximative), and the powder diffraction is computed, following same options as the \textbf{PowderN} sample component. The fluorescence is handled for atoms from Z=5 to Z=90.
 
 By setting the 'order' to 1, the absorption along the scattered path is handled. A higher 'order' will handle multiple scattering events, and final absorption. For instance, a value order\textgreater{}=2 handles e.g. fluorescence iterative cascades in the material. Leaving 'order=0' handles the single scattering only.
@@ -63,7 +69,9 @@ COMPONENT F\_out = COPY(F\_in)(concentric=0) AT (0,0,0) RELATIVE sample\_positio
 
 \textbf{Enhancing computation efficiency:} An important option to enhance statistics is to set 'p\_interact' to, say, 30 percent (0.3) in order to force a fraction of the beam to scatter. This will result on a larger number of scattered events, retaining intensity.
 
-In addition, it may be desirable to define a 'target' for the fluorescence processes via e.g. the 'target\_index' and the 'focus\_xw / focus\_yh' options. This target should e.g. be the SDD area. The powder scattering can be focused along an horizontal tore via the 'd\_phi' and 'tth\_sign' options. To get a vertical tore, rotate the sample by 90 deg around Z.
+In addition, it may be desirable to define a 'target' for the fluorescence processes via e.g. the 'target\_index' and the 'focus\_xw / focus\_yh' options. This target should e.g. be the SDD area.
+
+The powder scattering can be focused along an horizontal tore via the 'd\_phi' and 'tth\_sign' options. To get a vertical tore, rotate the sample by 90 deg around Z.
 
 This sample component can advantageously benefit from the SPLIT feature, e.g. SPLIT COMPONENT sample = FluoPowder(...)
 
@@ -85,9 +93,9 @@ yheight & m & Height of sample in vertical direction for box/cylinder shapes. & 
 zdepth & m & Depth for a box sample shape. & 0 \\
 concentric & 1 & Indicate that this component has a hollow geometry and may contain other components. It should then be duplicated after the inside part (only for box, cylinder, sphere). & 0 \\
 material & str & A CIF/LAZ/LAU file e.g. "LaB6.cif" to handle diffraction or chemical formulae, e.g. "Pb2SnO4" (no diffraction). & "LaB6.cif" \\
-packing\_factor & 1 & How dense is the material compared to bulk 0-1. & 0 \\
-density & g/cm$^{3}$ & Density of material. V\_rho=density/weight/1e24*N\_A at/\AA{}\textasciicircum{}3. & 0 \\
-weight & g/mol & Atomic/molecular weight of material. & 0 \\
+packing\_factor & 1 & How dense is the material compared to bulk 0-1. Only applied when given explicitly. & 0 \\
+density & g/cm$^{3}$ & Density of material. fluo\_rho=density/weight/1e24*N\_A units/\AA{}\textasciicircum{}3. & 0 \\
+weight & g/mol & Molecular weight of the 'unit' described by 'density' (default: formula weight of material). & 0 \\
 p\_interact & 1 & Force a given fraction of the beam to scatter, keeping intensity right, to enhance small signals (-1 inactivate). & 0 \\
 target\_x & m & Position of target to focus at, along X (for fluorescence). & 0 \\
 target\_y & m & Position of target to focus at, along Y (for fluorescence). & 0 \\
@@ -102,7 +110,8 @@ flag\_compton & 1 & When 0, the Compton  scattering is ignored. & 1 \\
 flag\_rayleigh & 1 & When 0, the Rayleigh scattering is ignored. & 1 \\
 flag\_lorentzian & 1 & When 1, the fluorescence line shapes are assumed to be Lorentzian, else Gaussian. & 0 \\
 flag\_powder & 1 & When 0, the powder diffraction is ignored. & 1 \\
-flag\_kissel & 1 & When 1 (slower), handle M-lines XRF from Kissel for Z\textgreater{}=52 Te (else only K and L-lines). & 0 \\
+flag\_kissel & 1 & When 1 (slower), handle M-lines XRF from Kissel for Z\textgreater{}=50 (else only K and L-lines). & 0 \\
+flag\_low\_z & 1 & When 1, enhances low concentration atoms, else uses cross-sections weighting. & 0 \\
 powder\_refl & str & A CIF/LAZ/LAU reflection file as for PowderN. When not given, 'material' is used. Specify it when 'material' is a chemical formula. & "" \\
 powder\_format & \{\} & List of structure file column indexes. See the PowderN component. & \{0,0,0,0,0,0,0,0\} \\
 Vc & \AA{}$^{3}$ & Volume of unit cell=nb atoms per cell/density of atoms. & 0 \\
