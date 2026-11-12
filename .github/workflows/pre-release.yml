@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get -qq update
-          sudo apt-get -qq install texlive texlive-latex-extra texlive-bibtex-extra texlive-plain-generic dvipng
+          sudo apt-get -qq install texlive texlive-latex-extra texlive-bibtex-extra texlive-plain-generic texlive-pstricks texlive-science dvipng
           pip install -q markdown
 
       - name: Instrument md's, tool docs, reldate, manuals
@@ -64,10 +64,14 @@ jobs:
           mock_config mcstas mc
           mcdoc --in-repo --dir mcstas-comps/examples --md
           buildscripts/build_manuals_mcstas ${TAG#v}
+          # build_manuals_* exits 0 even when LaTeX fails
+          for d in manual Component_manual; do test -s dist/mcstas-manuals-${TAG#v}-noarch-not-packaged.work/$d.pdf; done
 
           mock_config mcxtrace mx
           mxdoc --in-repo --dir mcxtrace-comps/examples --md
           buildscripts/build_manuals_mcxtrace ${TAG#v}
+          # build_manuals_* exits 0 even when LaTeX fails
+          for d in manual Component_manual; do test -s dist/mcxtrace-manuals-${TAG#v}-noarch-not-packaged.work/$d.pdf; done
 
       - name: Metapackage report
         run: |
