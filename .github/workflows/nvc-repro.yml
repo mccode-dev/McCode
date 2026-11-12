@@ -1,0 +1,33 @@
+name: nvc-repro
+
+# Throwaway: does nvcpfe (nvhpc) segfault on nvc-repro/ILL_IN6.c?
+on:
+  push:
+    branches: [nvc-repro]
+
+env:
+  NVHPC_VERSION: '26.9'
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install nvhpc
+      run: |
+           set -euo pipefail
+           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+           curl -fsSL https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK \
+             | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
+           echo 'deb [signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' \
+             | sudo tee /etc/apt/sources.list.d/nvhpc.list
+           sudo apt-get update -y
+           sudo apt-get install -y --no-install-recommends nvhpc-${NVHPC_VERSION/./-}
+           echo /opt/nvidia/hpc_sdk/Linux_x86_64/${NVHPC_VERSION}/compilers/bin >> "$GITHUB_PATH"
+    # Fails if no segfault was seen in 50 compiles
+    - name: Run reproducer
+      working-directory: nvc-repro
+      run: nvc --version && ./repro.sh ILL_IN6.c 50
