@@ -4,12 +4,16 @@ name: pre-release
 # Opens a PR with: instrument .md's, tool-doc .html twins, \reldate bump and
 # rebuilt manuals (PDF + html tgz) in docpkg/. The PR text lists built packages
 # that the metapackages leave out. Review, merge, then tag.
+# The PR targets (and is cut from) the `base` input, default main.
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: Wanted release tag, e.g. v3.10.3
         required: true
+      base:
+        description: Branch to update and open the PR against
+        default: main
 
 permissions:
   contents: write
@@ -23,6 +27,8 @@ jobs:
       TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.base }}
 
       - name: Check tag
         run: |
@@ -101,5 +107,5 @@ jobs:
           git switch -c $BRANCH
           git commit -qm "Docs and manuals for $TAG"
           git push -f origin $BRANCH
-          gh pr view $BRANCH > /dev/null 2>&1 || gh pr create --head $BRANCH \
+          gh pr view $BRANCH > /dev/null 2>&1 || gh pr create --head $BRANCH --base ${{ inputs.base }} \
             --title "Pre-release updates for $TAG" --body-file "$RUNNER_TEMP/body.md"
