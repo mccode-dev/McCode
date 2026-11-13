@@ -1,9 +1,10 @@
 # The `Test_lib_read_table` Instrument
 
 *McXtrace: Unit test of common/lib/share/read_table-lib (Table_Value, Table_Value2d,
-Table_Rebin) on tables built in memory. Covers the bracket search for
-constant-step and monotonic tables, both increasing and decreasing, and the
-1-row vector case of Table_Value2d.
+Table_Rebin, Table_Read) on tables built in memory. Covers the bracket search
+for constant-step and monotonic tables, both increasing and decreasing, the
+1-row vector case of Table_Value2d, and that Table_Read of a missing file
+leaves an empty table.
 
 The Arm absorbs every particle if any check failed, so the PSD intensity is
 Ncount on success and 0 on failure.*
