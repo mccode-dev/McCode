@@ -125,6 +125,20 @@ SHARE
   %include "read_table-lib"
   %include "geometry-mesh-lib"
 
+  // time to the next surface of mesh (t > 1e-13 s, which skips the surface the
+  // neutron sits on after a refraction or reflection), -1 when there is none.
+  // normal is oriented as in interoff-lib: opposite to the right-hand rule of
+  // the vertex order in the file, unless the mesh was flipped.
+  #pragma acc routine seq
+  double
+  Lens_mesh_hit (gmesh_struct* mesh, Coords position, Coords velocity, Coords* normal) {
+    gmesh_hit hits[GMESH_MAX_HITS];
+    if (!gmesh_intersect (mesh, position, velocity, 1e-13, hits))
+      return -1;
+    *normal = coords_scale (hits[0].normal, mesh->flipped ? 1 : -1);
+    return hits[0].t;
+  }
+
   /* Lens_roughness: function to rotate normal vector around axis for roughness
    *                 with specified tilt angle (deg)
    * RETURNS: rotated nx,ny,nz coordinates
@@ -239,10 +253,14 @@ INITIALIZE
     exit (-1);
     #else
     /* init the OFF/PLY without centering and scaling */
-    if (!gmesh_init_fit (geometry, 0, 0, 0, 0, GMESH_PROPS_IGNORE, &mesh))
-      exit (printf ("Lens: %s: FATAL: could not initialize geometry file %s [OFF/PLY]\n", NAME_CURRENT_COMP, geometry));
-    if (!gmesh_check_closed (&mesh))
-      exit (fprintf (stderr, "Lens: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry));
+    if (!gmesh_init_fit (geometry, 0, 0, 0, 0, GMESH_PROPS_IGNORE, &mesh)) {
+      printf ("Lens: %s: FATAL: could not initialize geometry file %s [OFF/PLY]\n", NAME_CURRENT_COMP, geometry);
+      exit (-1);
+    }
+    if (!gmesh_check_closed (&mesh)) {
+      fprintf (stderr, "Lens: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry);
+      exit (-1);
+    }
     #endif
   }
 
@@ -281,15 +299,9 @@ TRACE
     nx = ny = nz = 0;
     #ifdef USE_OFF
     if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      gmesh_hit hits[GMESH_MAX_HITS];
-      // t_min = 1e-13 s skips the surface the neutron sits on after a refraction or reflection
-      if (gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 1e-13, hits)) {
-        dt = hits[0].time;
-        // normal oriented as in interoff-lib: opposite to the right-hand rule of
-        // the vertex order in the file, unless the mesh was flipped
-        coords_get (coords_scale (hits[0].normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
-      } else
-        dt = -1;
+      Coords n = coords_set (0, 0, 0);
+      dt = Lens_mesh_hit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &n);
+      coords_get (n, &nx, &ny, &nz);
     } else
       #endif
       if (r1 && !focus1) {
@@ -379,15 +391,9 @@ TRACE
     nx = ny = nz = 0;
     #ifdef USE_OFF
     if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      gmesh_hit hits[GMESH_MAX_HITS];
-      // t_min = 1e-13 s skips the surface the neutron sits on after a refraction or reflection
-      if (gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 1e-13, hits)) {
-        dt = hits[0].time;
-        // normal oriented as in interoff-lib: opposite to the right-hand rule of
-        // the vertex order in the file, unless the mesh was flipped
-        coords_get (coords_scale (hits[0].normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
-      } else
-        dt = -1;
+      Coords n = coords_set (0, 0, 0);
+      dt = Lens_mesh_hit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &n);
+      coords_get (n, &nx, &ny, &nz);
     } else
       #endif
       if (r2 && !focus2)
@@ -490,15 +496,9 @@ TRACE
       nx = ny = nz = 0;
       #ifdef USE_OFF
       if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-        gmesh_hit hits[GMESH_MAX_HITS];
-        // t_min = 1e-13 s skips the surface the neutron sits on after a refraction or reflection
-        if (gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 1e-13, hits)) {
-          dt = hits[0].time;
-          // normal oriented as in interoff-lib: opposite to the right-hand rule of
-          // the vertex order in the file, unless the mesh was flipped
-          coords_get (coords_scale (hits[0].normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
-        } else
-          dt = -1;
+        Coords n = coords_set (0, 0, 0);
+        dt = Lens_mesh_hit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &n);
+        coords_get (n, &nx, &ny, &nz);
       } else
         #endif
         if (r2 && !focus2)

@@ -884,10 +884,14 @@ INITIALIZE
       line_info.shape = 3;
       thickness = 0;
       concentric = 0;
-    } else
-      exit (fprintf (stderr, "PowderN: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry));
-    if (!gmesh_check_closed (&mesh))
-      exit (fprintf (stderr, "PowderN: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry));
+    } else {
+      fprintf (stderr, "PowderN: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry);
+      exit (-1);
+    }
+    if (!gmesh_check_closed (&mesh)) {
+      fprintf (stderr, "PowderN: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry);
+      exit (-1);
+    }
     #endif
   } else if (xwidth && yheight && zdepth)
     line_info.shape = 1; /* box */
@@ -1122,18 +1126,7 @@ TRACE
     }
     #ifdef USE_OFF
     else if (line_info.shape == 3) {
-      gmesh_hit hits[GMESH_MAX_HITS];
-      int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
-      intersect = nhits > 0;
-      if (intersect) {
-        if (gmesh_inside (&thread_mesh, coords_set (x, y, z))) {
-          t0 = 0;
-          t3 = hits[0].time;
-        } else {
-          t0 = hits[0].time;
-          t3 = nhits > 1 ? hits[1].time : hits[0].time;
-        }
-      }
+      intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t3, NULL);
       intersecti = 0;
     }
     #endif
@@ -1328,13 +1321,7 @@ TRACE
           }
           #ifdef USE_OFF
           else if (line_info.shape == 3) {
-            gmesh_hit hits[GMESH_MAX_HITS];
-            int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
-            intersect = nhits > 0;
-            if (intersect) {
-              t0 = 0;
-              t3 = hits[0].time;
-            }
+            intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t3, NULL);
             intersecti = 0;
           }
           #endif
@@ -1408,13 +1395,7 @@ TRACE
         }
         #ifdef USE_OFF
         else if (line_info.shape == 3) {
-          gmesh_hit hits[GMESH_MAX_HITS];
-          int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
-          intersect = nhits > 0;
-          if (intersect) {
-            t0 = 0;
-            t3 = hits[0].time;
-          }
+          intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t3, NULL);
           intersecti = 0;
         }
         #endif

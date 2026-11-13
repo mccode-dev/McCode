@@ -97,6 +97,19 @@ SHARE
 %include "read_table-lib"
 %include "geometry-mesh-lib"
 %include "ref-lib"
+
+// next hit of the parabola position + t*velocity + t^2/2*acceleration with
+// mesh (t > 0): its time, 0 when there is none, with its normal and face
+#pragma acc routine seq
+double
+Guide_anyshape_r_hit (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, Coords* normal, int* face) {
+  gmesh_hit hits[GMESH_MAX_HITS];
+  if (!gmesh_intersect_gravity (mesh, position, velocity, acceleration, 0, hits))
+    return 0;
+  *normal = hits[0].normal;
+  *face = hits[0].face;
+  return hits[0].t;
+}
 %}
 
 DECLARE
@@ -142,20 +155,17 @@ TRACE
     double dt = 0;
     int fi = 0;
     Coords n = { 0, 0, 0 };
-    gmesh_hit hits[GMESH_MAX_HITS];
     Coords acceleration = coords_set (0, 0, 0);
     if (mcgravitation)
       acceleration = rot_apply (_comp->_rotation_absolute, coords_set (0, -GRAVITY, 0));
 
     // next intersection with the object, along the parabola under gravity; PL: with the index of the face
-    intersect = gmesh_intersect_gravity (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), acceleration, 0, hits);
+    dt = Guide_anyshape_r_hit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), acceleration, &n, &fi);
+    intersect = dt > 0;
 
     /* exit loop when no intersection forward */
     if (!intersect)
       break;
-    dt = hits[0].time;
-    n = hits[0].normal;
-    fi = hits[0].face;
 
     double nx, ny, nz;
     coords_get (n, &nx, &ny, &nz);

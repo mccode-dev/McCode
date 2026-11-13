@@ -1400,9 +1400,8 @@ gmesh_fit_scale (Coords range, double xwidth, double yheight, double zdepth) {
 }
 
 // read an STL/OFF/PLY file into mesh: multiply by scale, then resize the
-// bounding box to xwidth/yheight/zdepth (0: keep); with center the box centre
-// is moved to the origin and the box resized about it, otherwise the
-// coordinates are scaled about the origin (as off_init of interoff-lib)
+// bounding box about its centre to xwidth/yheight/zdepth (0: keep); with
+// center the box centre is moved to the origin, otherwise it stays in place
 static int
 gmesh_load (char* filename, double scale, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh) {
   gmesh_raw raw;
@@ -1477,16 +1476,19 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
   }
   if (xwidth || yheight || zdepth || center) {
     Coords range = coords_sub (mesh->bbmax, mesh->bbmin);
-    Coords origin = center ? coords_scale (coords_add (mesh->bbmin, mesh->bbmax), 0.5) : coords_set (0, 0, 0);
+    Coords box_center = coords_scale (coords_add (mesh->bbmin, mesh->bbmax), 0.5);
+    Coords shift = center ? coords_set (0, 0, 0) : box_center;
     Coords scale = gmesh_fit_scale (range, xwidth, yheight, zdepth);
     for (i = 0; i < raw.nverts; i++) {
       Coords* p = &raw.verts[i];
-      p->x = (p->x - origin.x) * scale.x;
-      p->y = (p->y - origin.y) * scale.y;
-      p->z = (p->z - origin.z) * scale.z;
+      p->x = (p->x - box_center.x) * scale.x + shift.x;
+      p->y = (p->y - box_center.y) * scale.y + shift.y;
+      p->z = (p->z - box_center.z) * scale.z + shift.z;
     }
-    mesh->bbmin = coords_set ((mesh->bbmin.x - origin.x) * scale.x, (mesh->bbmin.y - origin.y) * scale.y, (mesh->bbmin.z - origin.z) * scale.z);
-    mesh->bbmax = coords_set ((mesh->bbmax.x - origin.x) * scale.x, (mesh->bbmax.y - origin.y) * scale.y, (mesh->bbmax.z - origin.z) * scale.z);
+    mesh->bbmin = coords_set ((mesh->bbmin.x - box_center.x) * scale.x + shift.x, (mesh->bbmin.y - box_center.y) * scale.y + shift.y,
+                              (mesh->bbmin.z - box_center.z) * scale.z + shift.z);
+    mesh->bbmax = coords_set ((mesh->bbmax.x - box_center.x) * scale.x + shift.x, (mesh->bbmax.y - box_center.y) * scale.y + shift.y,
+                              (mesh->bbmax.z - box_center.z) * scale.z + shift.z);
     MPI_MASTER (
       if (scale.x != scale.y || scale.x != scale.z)
         printf ("Warning: Aspect ratio of the geometry %s was modified.\n"
@@ -1747,7 +1749,7 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
       }
     }
     mesh->euler = (int)(nused - mesh->nedges + mesh->ntris);
-    mesh->closed = (mesh->nboundary == 0 && mesh->nnonmanifold == 0);
+    mesh->closed = (mesh->nboundary == 0 && mesh->nnonmanifold == 0 && mesh->nfolded == 0);
     free (queue);
     free (visited);
     free (used);
@@ -1960,7 +1962,7 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
           *ambiguous = 1;
         continue;
       }
-      hit.time = hit_t;
+      hit.t = hit_t;
       hit.normal = mesh->tri_normal[t];
       hit.tri = t;
       hit.face = mesh->tri_face[t];
@@ -1968,7 +1970,7 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
       hit.edge = on_edge;
       // hits on shared edges/vertices: keep once
       for (k = 0; k < *stored_count; k++) {
-        if (hits[k].in_out == in_out && fabs (hits[k].time - hit_t) <= t_tolerance) {
+        if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
           duplicate = 1;
           break;
         }
@@ -1980,13 +1982,13 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
       if (position == max_hits) {
         if (max_hits == 0)
           continue;
-        if (hit_t >= hits[max_hits - 1].time)
+        if (hit_t >= hits[max_hits - 1].t)
           continue;
         position = max_hits - 1;
       } else {
         (*stored_count)++;
       }
-      while (position > 0 && hits[position - 1].time > hit_t) {
+      while (position > 0 && hits[position - 1].t > hit_t) {
         hits[position] = hits[position - 1];
         position--;
       }
@@ -2234,7 +2236,7 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         } else {
           in_out = -1;
         }
-        hit.time = hit_t;
+        hit.t = hit_t;
         hit.normal = mesh->tri_normal[triangle];
         hit.tri = triangle;
         hit.face = mesh->tri_face[triangle];
@@ -2242,7 +2244,7 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         hit.edge = crossing_edge[i_crossing];
         // hits on shared edges/vertices: keep once
         for (k = 0; k < *stored_count; k++) {
-          if (hits[k].in_out == in_out && fabs (hits[k].time - hit_t) <= t_tolerance) {
+          if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
             duplicate = 1;
             break;
           }
@@ -2252,13 +2254,13 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         total++;
         position = *stored_count;
         if (position == max_hits) {
-          if (hit_t >= hits[max_hits - 1].time)
+          if (hit_t >= hits[max_hits - 1].t)
             continue;
           position = max_hits - 1;
         } else {
           (*stored_count)++;
         }
-        while (position > 0 && hits[position - 1].time > hit_t) {
+        while (position > 0 && hits[position - 1].t > hit_t) {
           hits[position] = hits[position - 1];
           position--;
         }
@@ -2309,25 +2311,8 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
   const double D[3][3] = { { 0.4719, 0.6213, 0.6254 }, { 0.8017, -0.3259, 0.5012 }, { -0.2263, 0.9147, -0.3349 } };
   int j;
   int votes = 0;
-  // an open mesh encloses no volume
-  if (!mesh->closed)
-    return 0;
   if (!gmesh_in_box (position, mesh->bbmin, mesh->bbmax))
     return 0;
-  // a closed, oriented mesh has outward normals: the point is inside when the
-  // first hit along a ray is leaving. A first hit on an edge, or two
-  // hits at the same distance (touching parts of the mesh), may disagree, so
-  // they are left to the parity test.
-  if (mesh->oriented) {
-    gmesh_hit first[2];
-    int stored = 0;
-    int ambiguous = 0;
-    gmesh_trace (mesh, position, coords_set (D[0][0], D[0][1], D[0][2]), 0, first, 2, &stored, &ambiguous);
-    if (!stored)
-      return 0;
-    if (!first[0].edge && (stored == 1 || first[1].time - first[0].time > GMESH_EPSILON * mesh->length_scale))
-      return first[0].in_out < 0;
-  }
   for (j = 0; j < 3; j++) {
     int stored = 0;
     int ambiguous = 0;
@@ -2340,10 +2325,36 @@ gmesh_inside (gmesh_struct* mesh, Coords position) {
   return votes >= 2;
 }
 
+  // first entry and exit of a line through mesh, see geometry-mesh-lib.h
+  #pragma acc routine seq
+int
+gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, double* t_in, double* t_out, gmesh_hit* first) {
+  gmesh_hit hits[GMESH_MAX_HITS];
+  int nhits = gmesh_intersect (mesh, position, velocity, 0, hits);
+  int inside = 0;
+  if (!nhits)
+    return 0;
+  // normals of a closed, oriented mesh point outward: leaving first means inside
+  if (mesh->closed && mesh->oriented)
+    inside = hits[0].in_out < 0;
+  else if (mesh->closed)
+    inside = gmesh_inside (mesh, position);
+  if (first)
+    *first = hits[0];
+  if (inside) {
+    *t_in = 0;
+    *t_out = hits[0].t + 1e-13;
+    return 1;
+  }
+  *t_in = hits[0].t + 1e-13;
+  *t_out = (nhits > 1 ? hits[1].t : hits[0].t) + 1e-13;
+  return 2;
+}
+
   // closed check, see geometry-mesh-lib.h
 int
 gmesh_check_closed (gmesh_struct* mesh) {
-  if (!mesh->closed) {
+  if (mesh->nboundary || mesh->nnonmanifold) {
     fprintf (stderr, "Error: %s: %d boundary and %d non-manifold edges: the mesh is not closed (geometry-mesh-lib)\n", mesh->filename, mesh->nboundary,
              mesh->nnonmanifold);
     return 0;
@@ -2353,8 +2364,6 @@ gmesh_check_closed (gmesh_struct* mesh) {
              "Error: %s: %d edges where the surface folds back onto itself, e.g. between faces %d and %d (0-based): "
              "the mesh overlaps itself, so inside and outside are not defined (geometry-mesh-lib)\n",
              mesh->filename, mesh->nfolded, mesh->folded_face[0], mesh->folded_face[1]);
-    // a folded mesh encloses no well-defined volume
-    mesh->closed = 0;
     return 0;
   }
   return 1;
@@ -2391,7 +2400,7 @@ gmesh_print_info (gmesh_struct* mesh) {
     printf (", volume %g", mesh->volume);
   printf ("\n  Topology: %d edges, Euler characteristic %d, %s, %s%s\n", mesh->nedges, mesh->euler, mesh->closed ? "closed" : "OPEN",
           mesh->oriented ? "consistently oriented" : "NOT consistently oriented", mesh->flipped ? " (orientation reversed to outward normals)" : "");
-  if (!mesh->closed) {
+  if (mesh->nboundary || mesh->nnonmanifold) {
     printf ("  Warning: %d boundary and %d non-manifold edges: the mesh does not enclose a volume.\n", mesh->nboundary, mesh->nnonmanifold);
   }
   if (mesh->nfolded) {

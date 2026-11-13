@@ -348,11 +348,14 @@ INITIALIZE
     exit (-1);
     #else
     /* off/ply case */
-    if (!gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh))
-      exit (printf ("Refractor: %s: FATAL: invalid OFF/PLY geometry specification for file '%s'.\n", NAME_CURRENT_COMP, geometry));
-    if (!gmesh_check_closed (&mesh))
-      exit (
-          fprintf (stderr, "Refractor: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry));
+    if (!gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh)) {
+      printf ("Refractor: %s: FATAL: invalid OFF/PLY geometry specification for file '%s'.\n", NAME_CURRENT_COMP, geometry);
+      exit (-1);
+    }
+    if (!gmesh_check_closed (&mesh)) {
+      fprintf (stderr, "Refractor: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n", NAME_CURRENT_COMP, geometry);
+      exit (-1);
+    }
     #endif
   } else
     exit (printf ("Refractor: %s: FATAL: invalid geometry specification.\n"
@@ -413,18 +416,13 @@ TRACE
     }
     #ifdef USE_OFF
     else if (geometry && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-      gmesh_hit hits[GMESH_MAX_HITS];
-      int nhits = gmesh_intersect (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
-      intersect = nhits > 0;
-      if (intersect) {
-        mesh_inside = gmesh_inside (&thread_mesh, coords_set (x, y, z));
-        // 1e-13 s past the surfaces, so that the next intersection does not find them again
-        t0 = mesh_inside ? 0 : hits[0].time + 1e-13;
-        t1 = (mesh_inside || nhits == 1 ? hits[0].time : hits[1].time) + 1e-13;
-        // normal of the next hit, oriented as in interoff-lib: opposite to the
-        // right-hand rule of the vertex order in the file, unless the mesh was flipped
-        coords_get (coords_scale (hits[0].normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
-      }
+      gmesh_hit first;
+      intersect = gmesh_entry_exit (&thread_mesh, coords_set (x, y, z), coords_set (vx, vy, vz), &t0, &t1, &first);
+      mesh_inside = intersect == 1;
+      // normal of the next hit, oriented as in interoff-lib: opposite to the
+      // right-hand rule of the vertex order in the file, unless the mesh was flipped
+      if (intersect)
+        coords_get (coords_scale (first.normal, thread_mesh.flipped ? 1 : -1), &nx, &ny, &nz);
     }
     #endif
 
