@@ -10,7 +10,7 @@
 * %Identification
 * Written by: Jana Baltser and Erik Knudsen
 * Date: August 2010, modified July 2011
-* Version: 1.0
+* Version: 1.1
 * Release: McXtrace 0.1
 * Origin: NBI
 *
@@ -18,6 +18,7 @@
 *
 * %Description
 * A simple X-ray compound refractive lens (CRL) with a profile of the parabola in rotation simulates the photons' movement on passing through it. The CRL focuses in 2D
+* Photons that miss the circular aperture of any surface (or undergo total external reflection) are absorbed.
 *
 * Example: Lens_parab(material_datafile = "Be.txt", r=200e-6, r_ap=0.5e-3, d=50e-6, N=16)
 *
@@ -26,9 +27,7 @@
 * r:        [m] Radius of curvature (circular approximation at the tip of the profile).
 * r_ap:     [m] Radius of circular aperture, which also defines the depth of the lens profile.
 * d:        [m] Distance between two surfaces of the lens along the propagation axis.
-* N:        [m] Number of single lenses in a stack.
-* rough_xy: [rad] RMS value of random slope error along x and y.
-* rough_z:  [rad] RMS value of random slope error along z.
+* N:        [1] Number of single lenses in a stack.
 * material_datafile: [str]   Datafile containing f1 constants
 *
 * %End
@@ -36,7 +35,7 @@
 
 DEFINE COMPONENT Lens_parab
 
-SETTING PARAMETERS (string material_datafile="Be.txt", r=0.5e-3, r_ap=1.4e-3, d=.1e-3, int N=1, rough_z=0, rough_xy=0)
+SETTING PARAMETERS (string material_datafile="Be.txt", r=0.5e-3, r_ap=1.4e-3, d=.1e-3, int N=1)
 
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
 
@@ -46,155 +45,105 @@ SHARE
   struct incom_parab {
     double coord[3];
     double k[3];
+    int hit; /* 1 if a valid refraction took place, 0 otherwise */
   };
 
+  /* Intersect a ray with the paraboloid  x^2+y^2 - Sign*2*rr*(z-dd) = 0, restricted to x^2+y^2 <= (b[1]/2)^2,
+     and refract (Snell's law in vector form) with relative index ratio M = n_in/n_out.
+     b = {rr, 2*r_ap, (unused), dd, M, Sign} */
   #pragma acc routine seq
   struct incom_parab
-  intersection_lens_parab (struct incom_parab a, double* b, double roughness_xy, double roughness_z) {
-    struct incom_parab result; //={a.coord[0],a.coord[1],a.coord[2],a.k[0],a.k[1],a.k[2]};
-    int i;
-    double A, B, C, D, rr;
-    double t[2], p[3], knorm[3], k[3], pos1_tmp[3], pos_tmp[3];
-
-    double nxn, nyn, nzn, Nx, Ny, Nz, NORM, Knorm;
-    double cos_theta, cos_theta1, Arg, Arg1, s, q;
-    double k_new[3], k_new1[3], M, Sign, dd;
-    double yh, xw;
-
-    double tx, ty, tz, tnorm, txn, tyn, tzn;
-    double v, w;
-
-    /* Ensure initialisation of t-comps */
-    tx = ty = tz = 0;
+  intersection_lens_parab (struct incom_parab a, double* b) {
+    struct incom_parab result;
+    int i, j, nroots, found;
+    double A, B, C, D, qq, rr, ap2, M, Sign, dd;
+    double t[2], tmp, p[3], k[3], knorm[3], Knorm, pos[3];
+    double Nv[3], Nnorm, ci, disc, fac;
 
     for (i = 0; i <= 2; i++) {
       result.k[i] = k[i] = a.k[i];
       result.coord[i] = p[i] = a.coord[i];
     }
+    result.hit = 0;
 
     Knorm = sqrt (k[0] * k[0] + k[1] * k[1] + k[2] * k[2]);
-    knorm[0] = k[0] / Knorm;
-    knorm[1] = k[1] / Knorm;
-    knorm[2] = k[2] / Knorm;
+    if (Knorm == 0)
+      return result;
+    for (i = 0; i <= 2; i++)
+      knorm[i] = k[i] / Knorm;
 
     rr = b[0];
-    yh = b[1];
-    xw = b[2];
+    ap2 = (b[1] / 2.0) * (b[1] / 2.0);
     dd = b[3];
     M = b[4];
     Sign = b[5];
 
     A = knorm[0] * knorm[0] + knorm[1] * knorm[1];
     B = 2.0 * (p[0] * knorm[0] + p[1] * knorm[1] - Sign * rr * knorm[2]);
-    C = p[0] * p[0] + p[1] * p[1] - Sign * 2 * rr * p[2] + Sign * rr * 2 * dd;
-    D = B * B - 4.0 * A * C;
+    C = p[0] * p[0] + p[1] * p[1] - Sign * 2 * rr * p[2] + Sign * 2 * rr * dd;
 
-    if (D < 0) { /*ray does not intersect the parabola*/
-      return result;
-    }
     if (A == 0) { /*incident k-vector is parallel (exactly) to the z-axis. Thus, the eq. becomes linear*/
-      if (B == 0) {
+      if (B == 0)
         return result;
-      }
       t[0] = -C / B;
-      for (i = 0; i <= 2; i++) {
-        result.coord[i] = p[i] + t[0] * knorm[i];
-      }
+      nroots = 1;
     } else {
-      double qq;
+      D = B * B - 4.0 * A * C;
+      if (D < 0) /*ray does not intersect the parabola*/
+        return result;
       if (B < 0) {
         qq = -0.5 * (B - sqrt (D));
       } else {
         qq = -0.5 * (B + sqrt (D));
       }
       t[0] = qq / A;
-      t[1] = C / qq;
-
-      for (i = 0; i <= 2; i++) {
-        pos_tmp[i] = p[i] + t[0] * knorm[i];
-        pos1_tmp[i] = p[i] + t[1] * knorm[i];
+      t[1] = (qq != 0) ? C / qq : t[0];
+      if (t[1] < t[0]) {
+        tmp = t[0];
+        t[0] = t[1];
+        t[1] = tmp;
       }
-      if (fabs (pos_tmp[1]) <= fabs (yh / 2) && fabs (pos_tmp[0]) <= fabs (xw / 2)) {
-        for (i = 0; i <= 2; i++) {
-          result.coord[i] = pos_tmp[i];
-        }
-      } else if (fabs (pos1_tmp[1]) <= fabs (yh / 2) && fabs (pos1_tmp[0]) <= fabs (xw / 2)) {
-        for (i = 0; i <= 2; i++) {
-          result.coord[i] = pos1_tmp[i];
-        }
-      } else
-        return result;
+      nroots = 2;
     }
 
-    /* Calculating tangential vector  */
-    if (result.coord[0] == 0 && result.coord[1] == 0) { // incoming ray is along the axis, so it does not refract
-      k_new[0] = k[0];
-      k_new[1] = k[1];
-      k_new[2] = k[2];
-      for (i = 0; i < 3; i++) {
-        result.k[i] = k_new[i];
-      }
+    /* take the first forward intersection that lies inside the circular aperture */
+    found = 0;
+    for (j = 0; j < nroots && !found; j++) {
+      if (t[j] < -ap2 / (2.0 * rr)) /* more than one sag behind the photon */
+        continue;
+      for (i = 0; i <= 2; i++)
+        pos[i] = p[i] + t[j] * knorm[i];
+      if (pos[0] * pos[0] + pos[1] * pos[1] <= ap2)
+        found = 1;
+    }
+    if (!found)
       return result;
-    } else if (result.coord[0] != 0 && result.coord[1] != 0) {
-      Nx = -Sign * (result.coord[0] / rr); // surface normal
-      Ny = -Sign * (result.coord[1] / rr);
-      Nz = 1;
+    for (i = 0; i <= 2; i++)
+      result.coord[i] = pos[i];
 
-      if (roughness_xy) {
-        // Nx=Nx+roughness_xy*randnorm();
-        // Ny=Ny+roughness_xy*randnorm();
-      }
-      if (roughness_z) {
-        // Nz=Nz+roughness_z*randnorm();
-      }
-
-      NORM = sqrt (Nx * Nx + Ny * Ny + Nz * Nz);
-      nxn = Nx / NORM;
-      nyn = Ny / NORM;
-      nzn = Nz / NORM;
-
-      double cos_chi;
-      cos_chi = knorm[0] * nxn + knorm[1] * nyn + knorm[2] * nzn;
-      w = 1 / (sqrt (1 - cos_chi * cos_chi)); // tangential vector
-      v = -w * cos_chi;
-
-      tx = v * nxn + w * knorm[0];
-      ty = v * nyn + w * knorm[1];
-      tz = v * nzn + w * knorm[2];
-    } else if (result.coord[0] == 0) {
-      tx = 0;
-      ty = Sign * (rr / result.coord[1]);
-      tz = 1;
-    } else if (result.coord[1] == 0) {
-      tx = Sign * (rr / result.coord[0]);
-      ty = 0;
-      tz = 1;
+    /* surface normal (gradient of the paraboloid) */
+    Nv[0] = -Sign * pos[0] / rr;
+    Nv[1] = -Sign * pos[1] / rr;
+    Nv[2] = 1;
+    Nnorm = sqrt (Nv[0] * Nv[0] + Nv[1] * Nv[1] + Nv[2] * Nv[2]);
+    for (i = 0; i <= 2; i++)
+      Nv[i] /= Nnorm;
+    /* orient the normal against the propagation direction */
+    ci = -(Nv[0] * knorm[0] + Nv[1] * knorm[1] + Nv[2] * knorm[2]);
+    if (ci < 0) {
+      ci = -ci;
+      for (i = 0; i <= 2; i++)
+        Nv[i] = -Nv[i];
     }
 
-    tnorm = sqrt (tx * tx + ty * ty + tz * tz);
-    txn = tx / tnorm;
-    tyn = ty / tnorm;
-    tzn = tz / tnorm;
-
-    cos_theta = txn * knorm[0] + tyn * knorm[1] + tzn * knorm[2];
-    cos_theta1 = M * cos_theta; /* Snell's law*/
-
-    /* new k vector */
-    if ((1.0 - cos_theta * cos_theta) == 0) {
+    /* vector Snell's law: kn' = M*kn + (M*ci - sqrt(1-M^2(1-ci^2)))*N ; |k'| = |k|/M */
+    disc = 1.0 - M * M * (1.0 - ci * ci);
+    if (disc < 0) /* total external reflection */
       return result;
-    }
-
-    Arg = (1.0 - cos_theta1 * cos_theta1) / (1.0 - cos_theta * cos_theta);
-    s = (1 / M) * sqrt (Arg);
-    q = (Knorm / tnorm) * ((1 / M) * cos_theta1 - s * cos_theta);
-
-    k_new[0] = q * tx + s * k[0];
-    k_new[1] = q * ty + s * k[1];
-    k_new[2] = q * tz + s * k[2];
-
-    for (i = 0; i < 3; i++) {
-      result.k[i] = k_new[i];
-    }
+    fac = M * ci - sqrt (disc);
+    for (i = 0; i <= 2; i++)
+      result.k[i] = (Knorm / M) * (M * knorm[i] + fac * Nv[i]);
+    result.hit = 1;
     return result;
   }
 %}
@@ -211,6 +160,10 @@ INITIALIZE
 %{
   int status = 0;
 
+  if (r <= 0 || r_ap <= 0) {
+    fprintf (stderr, "Error (%s): r and r_ap must be positive.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
   if ((status = Table_Read (&(matT), material_datafile, 0)) == -1) {
     fprintf (stderr, "Error: Could not parse file \"%s\" in COMP %s\n", material_datafile, NAME_CURRENT_COMP);
     exit (-1);
@@ -228,10 +181,10 @@ INITIALIZE
 TRACE
 %{
   double parab[6];
-  double E, mu, f, rhoel, dl, d_total, e, k, delta, beta, Refractive_Index_Re, Refractive_Index_Im, w;
+  double mu, f, rhoel, dl, d_total, e, k, delta, Refractive_Index_Re, w;
   struct incom_parab incid, refr, outg;
 
-  int i = 0, nr;
+  int nr;
 
   parab[0] = r;
   parab[1] = r_ap * 2;
@@ -243,17 +196,13 @@ TRACE
 
   /*Interpolation of Table Values*/
   mu = Table_Value (matT, e, 5) * rho * 1e2; /*mu is now in SI, [m^-1]*/
-  ;
-
   f = Table_Value (matT, e, 1);
 
   /*Calculation of Refractive Index */
   rhoel = f * NA * (rho * 1e-24) / Ar; /*Material's Number Density of Electrons [e/A^3] incl f' scattering length correction*/
   delta = 2.0 * M_PI * RE * rhoel / (k * k);
-  beta = mu * 1e-10 / (2.0 * k); /*mu and k in  A^-1*/
 
   Refractive_Index_Re = 1.0 - delta;
-  Refractive_Index_Im = beta;
 
   incid.k[0] = kx;
   incid.k[1] = ky;
@@ -269,12 +218,16 @@ TRACE
     parab[4] = 1.0 / Refractive_Index_Re; // M constant
     parab[5] = -1.0;                      // Sign constant
 
-    refr = intersection_lens_parab (incid, parab, rough_xy, rough_z);
-
-    if (refr.k[0] == 0 && refr.k[1] == 0 && refr.k[2] == 0)
-      continue;
+    refr = intersection_lens_parab (incid, parab);
+    if (!refr.hit) {
+      ABSORB; /* missed the aperture (or total external reflection) */
+    }
 
     dl = sqrt ((refr.coord[0] - x) * (refr.coord[0] - x) + (refr.coord[1] - y) * (refr.coord[1] - y) + (refr.coord[2] - z) * (refr.coord[2] - z));
+    if ((refr.coord[2] - z) * kz < 0) { /* surface slightly behind the photon */
+      dl = -dl;
+      ALLOW_BACKPROP;
+    }
     PROP_DL (dl);
     SCATTER;
 
@@ -287,9 +240,16 @@ TRACE
     parab[4] = Refractive_Index_Re;
     parab[5] = 1.0;
 
-    outg = intersection_lens_parab (refr, parab, rough_xy, rough_z);
+    outg = intersection_lens_parab (refr, parab);
+    if (!outg.hit) {
+      ABSORB;
+    }
 
     dl = sqrt ((outg.coord[0] - x) * (outg.coord[0] - x) + (outg.coord[1] - y) * (outg.coord[1] - y) + (outg.coord[2] - z) * (outg.coord[2] - z));
+    if ((outg.coord[2] - z) * kz < 0) {
+      dl = -dl;
+      ALLOW_BACKPROP;
+    }
     PROP_DL (dl);
     d_total += dl;
     SCATTER;

@@ -50,6 +50,9 @@
 #define pclose _pclose
 #endif
 #include <errno.h>
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+#endif
 
 // UNIX specific headers (non-Windows)
 #if defined(__unix__) || defined(__APPLE__)
@@ -3112,6 +3115,34 @@ static void mclist_vds_write(void);
 #endif
 
 /*******************************************************************************
+*   Timing: monotonic wall clock of INITIALIZE, TRACE and FINALLY (master only)
+*******************************************************************************/
+long long mccode_time_ns(void)
+{
+#if defined(_WIN32)
+  LARGE_INTEGER c, f;
+  QueryPerformanceCounter(&c);
+  QueryPerformanceFrequency(&f);
+  return (c.QuadPart/f.QuadPart)*1000000000LL
+       + (c.QuadPart%f.QuadPart)*1000000000LL/f.QuadPart;
+#elif defined(__APPLE__)
+  // CLOCK_MONOTONIC has only microsecond resolution on macOS
+  static mach_timebase_info_data_t tb;
+  if (!tb.denom) mach_timebase_info(&tb);
+  return (long long)(mach_absolute_time()*tb.numer/tb.denom);
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long long)ts.tv_sec*1000000000LL + ts.tv_nsec;
+#endif
+}
+
+// durations in ns, set by mccode_main(); mctime_finally_t0 is 0 unless the normal end was reached
+long long mctime_init_ns = 0;
+long long mctime_trace_ns = 0;
+long long mctime_finally_t0 = 0;
+
+/*******************************************************************************
 *   siminfo_close:  close SIM
 *******************************************************************************/
 void siminfo_close()
@@ -3120,11 +3151,17 @@ void siminfo_close()
   if(mpi_node_rank == mpi_node_root) {
 #endif
   if(siminfo_file && !mcdisable_output_files) {
+    long long tfinally = mctime_finally_t0 ? mccode_time_ns() - mctime_finally_t0 : 0;
 #ifdef USE_NEXUS
     if (mcformat && strcasestr(mcformat, "NeXus")) {
       time_t t=time(NULL);
       nxprintf(nxhandle, "end_time", "%s", ctime(&t));
       nxprintf(nxhandle, "duration", "%li", (long)t-mcstartdate);
+      if (mctime_finally_t0) {
+        nxprintf(nxhandle, "timing_init", "%.2f [s]", mctime_init_ns*1e-9);
+        nxprintf(nxhandle, "timing_trace", "%.2f [s]", mctime_trace_ns*1e-9);
+        nxprintf(nxhandle, "timing_finally", "%.2f [s]", tfinally*1e-9);
+      }
       NXclosegroup(nxhandle); /* NXentry */
       NXclose(&nxhandle);
 #ifdef USE_MPI
@@ -3132,6 +3169,14 @@ void siminfo_close()
 #endif
     } else {
 #endif
+      // ponytail: master's values only, no MPI reduction
+      if (mctime_finally_t0) {
+        siminfo_out("\nbegin timing\n");
+        siminfo_out("  Init: %.2f [s]\n", mctime_init_ns*1e-9);
+        siminfo_out("  Trace: %.2f [s]\n", mctime_trace_ns*1e-9);
+        siminfo_out("  Finally: %.2f [s]\n", tfinally*1e-9);
+        siminfo_out("end timing\n");
+      }
       fclose(siminfo_file);
 #ifdef USE_NEXUS
     }
@@ -3637,7 +3682,12 @@ static void mclist_vds_write(void)
     free(v->rows);
     free(v);
   }
-  if (fid >= 0) H5Fclose(fid);
+  if (fid >= 0) {
+    H5Fclose(fid);
+    printf("\nNOTE:     event lists in %s.h5 link to mccode_node*.h5. For a self-contained file run:\n\n"
+      "            h5repack -l CONTI %s.h5 flat.h5\n\n",
+      siminfo_name, siminfo_name);
+  }
   free(file);
 } /* mclist_vds_write */
 
@@ -4152,6 +4202,18 @@ mcsetseed(char *arg)
 
 void mcdis_magnify(char *what){
   // Do nothing here, better use interactive zoom from the tools
+}
+
+/* Set pen colour for the following draw calls of this component, "#rrggbb" or "rrggbb".
+   Emitted as integer RGB; backends without support ignore it. */
+void mcdis_pencolor(char *hex){
+  unsigned int r, g, b;
+  if (hex && hex[0] == '#') hex++;
+  if (!hex || strlen(hex) != 6 || sscanf(hex, "%2x%2x%2x", &r, &g, &b) != 3) {
+    fprintf(stderr, "Warning: mcdis_pencolor: ignoring invalid colour '%s', expected \"#rrggbb\"\n", hex ? hex : "(null)");
+    return;
+  }
+  printf("MCDISPLAY: pencolor(%u,%u,%u)\n", r, g, b);
 }
 
 void mcdis_line(double x1, double y1, double z1,
@@ -5824,7 +5886,7 @@ double _rand0max(double max, randstate_t* state) {
 }
 // Return a random number between min and max.
 double _randminmax(double min, double max, randstate_t* state) {
-	return _rand0max(max - min, state) + max;
+	return _rand0max(max - min, state) + min;
 }
 
 

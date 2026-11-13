@@ -1,0 +1,144 @@
+/*******************************************************************************
+* Instrument: Test_lib_read_table
+*
+* %I
+* %INSTRUMENT_SITE: libtest
+*
+* Unit test of common/lib/share/read_table-lib (Table_Value, Table_Value2d,
+* Table_Rebin, Table_Read) on tables built in memory. Covers the bracket search
+* for constant-step and monotonic tables, both increasing and decreasing, the
+* 1-row vector case of Table_Value2d, and that Table_Read of a missing file
+* leaves an empty table.
+*
+* The Arm absorbs every particle if any check failed, so the PSD intensity is
+* Ncount on success and 0 on failure.
+*
+* %D
+* Tests: mccode-dev/McCode#1968, #2565, #3016, #3017
+*
+* %Test: Ncount=1000 Detector: PSD_I=1000
+*
+* %P
+* Ncount: [1] Number of particles
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_lib_read_table(Ncount=1000)
+
+DECLARE
+%{
+%include "read_table-lib"
+
+
+  static double tbl_y(double x) { return sin(0.37*x) + 2; }
+
+  /* k-th x of a table of rows rows: constant step or quadratic, increasing or decreasing */
+  static double tbl_x(long i, long rows, int quad, int down) {
+    long k = down ? rows-1-i : i;
+    double u = (double)k/(rows-1);
+    return quad ? 0.5 + 19.5*u*u : 1 + 0.5*k;
+  }
+
+  static int bad(double got, double want) { return fabs(got-want) > 1e-12; }
+
+  static long check_table(long rows, int quad, int down) {
+    t_Table t;
+    long i, n = 0;
+    double xl, xh;
+    Table_Init(&t, rows, 2);
+    for (i = 0; i < rows; i++) {
+      double x = tbl_x(i, rows, quad, down);
+      Table_SetElement(&t, i, 0, x);
+      Table_SetElement(&t, i, 1, tbl_y(x));
+    }
+    Table_Stat(&t);
+    for (i = 0; i < rows-1; i++) {
+      double x1 = tbl_x(i, rows, quad, down), x2 = tbl_x(i+1, rows, quad, down);
+      double y1 = tbl_y(x1), y2 = tbl_y(x2);
+      n += bad(Table_Value(t, x1, 1), y1);
+      n += bad(Table_Value(t, 0.5*(x1+x2), 1), 0.5*(y1+y2));
+    }
+    xl = tbl_x(0, rows, quad, down);
+    xh = tbl_x(rows-1, rows, quad, down);
+    n += bad(Table_Value(t, MAX(xl, xh)+1, 1), tbl_y(MAX(xl, xh)));
+    n += bad(Table_Value(t, MIN(xl, xh)-1, 1), tbl_y(MIN(xl, xh)));
+    Table_Free(&t);
+    return n;
+  }
+
+  static long check_vector(void) {
+    t_Table R;
+    long i, n = 0;
+    Table_Init(&R, 1, 5);
+    for (i = 0; i < 5; i++) Table_SetElement(&R, 0, i, 10*i);
+    n += bad(Table_Value2d(R, 0, 1.5), 15);
+    n += bad(Table_Value2d(R, 0.5, 1), 10);
+    n += bad(Table_Value2d(R, -1, 1), 10);
+    n += bad(Table_Value2d(R, 2, 1), 10);
+    Table_Free(&R);
+    return n;
+  }
+
+  /* a decreasing table rebins to an increasing, evenly spaced one with the same values */
+  static long check_rebin(void) {
+    t_Table t;
+    long i, n = 0, at[] = {0, 7, 20};
+    double step, x_min, before[3];
+    Table_Init(&t, 50, 2);
+    for (i = 0; i < 50; i++) {
+      double x = tbl_x(i, 50, 1, 1);
+      Table_SetElement(&t, i, 0, x);
+      Table_SetElement(&t, i, 1, tbl_y(x));
+    }
+    Table_Stat(&t);
+    step = fabs(t.step_x);
+    x_min = t.min_x;
+    for (i = 0; i < 3; i++) before[i] = Table_Value(t, x_min + at[i]*step, 1);
+    Table_Rebin(&t);
+    n += bad(Table_Index(t, 0, 0), x_min);
+    n += !(Table_Index(t, 1, 0) > Table_Index(t, 0, 0));
+    for (i = 0; i < 3; i++) n += bad(Table_Value(t, x_min + at[i]*step, 1), before[i]);
+    Table_Free(&t);
+    return n;
+  }
+
+  // a failed read must leave an empty table, also when the struct held garbage
+  static long check_missing_file(void) {
+    t_Table t;
+    long n = 0;
+    memset(&t, 0xA5, sizeof(t));
+    n += !(Table_Read(&t, "Test_lib_read_table_missing_file.dat", 1) < 0);
+    n += (t.rows != 0) + (t.columns != 0) + (t.data != NULL) + (t.header != NULL);
+    if (!n) Table_Free(&t);
+    return n;
+  }
+%}
+
+INITIALIZE
+%{
+  long nerr;
+  mcset_ncount(Ncount);
+  nerr = check_table(1000, 0, 0) + check_table(1000, 0, 1)
+       + check_table(1000, 1, 0) + check_table(1000, 1, 1)
+       + check_vector() + check_rebin() + check_missing_file();
+  if (nerr) {  /* host-side check: TRACE stays free of device globals */
+    fprintf(stderr, "read_table: %ld failed checks\n", nerr);
+    exit(-1);
+  }
+%}
+
+TRACE
+
+COMPONENT Arm = Arm()
+  AT (0,0,0) ABSOLUTE
+EXTEND %{
+  x = rand01()-0.5;
+  y = rand01()-0.5;
+  p = 1;
+  kz = 1000;
+%}
+
+COMPONENT PSD = PSD_monitor(xwidth=2.0, yheight=2.0, filename="read_table", nx=10, ny=10)
+  AT (0,0,0) ABSOLUTE
+
+END

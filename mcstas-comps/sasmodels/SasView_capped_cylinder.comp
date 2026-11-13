@@ -671,7 +671,7 @@ _cap_kernel(double qab, double qc, double h, double radius_cap,
     }
     // translate dx in [-1,1] to dx in [lower,upper]
     const double integral = total*zm;
-    const double cap_Fq = 2.0*M_PI*cube(radius_cap)*integral;
+    const double cap_Fq = 2.0*M_PI*sas_cube(radius_cap)*integral;
     return cap_Fq;
 }
 
@@ -690,10 +690,10 @@ static double
 form_volume_capped_cylinder(double radius, double radius_cap, double length)
 {
     // cap radius should never be less than radius when this is called
-    const double h = -sqrt(square(radius_cap) - square(radius));
-    const double slice = M_PI*(square(radius_cap)*h - cube(h)/3.0);
-    const double hemisphere = 2.0*M_PI/3.0*cube(radius_cap);
-    const double rod = M_PI*square(radius)*length;
+    const double h = -sqrt(sas_square(radius_cap) - sas_square(radius));
+    const double slice = M_PI*(sas_square(radius_cap)*h - sas_cube(h)/3.0);
+    const double hemisphere = 2.0*M_PI/3.0*sas_cube(radius_cap);
+    const double rod = M_PI*sas_square(radius)*length;
     // h < 0 so slice is subtracted from hemisphere
     return rod + 2.0*(hemisphere + slice);
 }
@@ -701,7 +701,7 @@ form_volume_capped_cylinder(double radius, double radius_cap, double length)
 static double
 radius_from_excluded_volume_capped_cylinder(double radius, double radius_cap, double length)
 {
-    const double h = -sqrt(square(radius_cap) - square(radius));
+    const double h = -sqrt(sas_square(radius_cap) - sas_square(radius));
     const double length_tot = length + 2.0*(radius_cap + h);
     // Use cylinder excluded volume with length' = length + caps and
     // radius' = cylinder radius since the lens is smaller than the cylinder.
@@ -719,7 +719,7 @@ radius_from_volume_capped_cylinder(double radius, double radius_cap, double leng
 static double
 radius_from_totallength_capped_cylinder(double radius, double radius_cap, double length)
 {
-    const double h = -sqrt(square(radius_cap) - square(radius));
+    const double h = -sqrt(sas_square(radius_cap) - sas_square(radius));
     const double half_length = 0.5*length;
     return half_length + radius_cap - h;
 }
@@ -746,7 +746,7 @@ static void
 Fq_capped_cylinder(double q,double *F1, double *F2, double sld, double solvent_sld,
     double radius, double radius_cap, double length)
 {
-    const double h = -sqrt(square(radius_cap) - square(radius));
+    const double h = -sqrt(sas_square(radius_cap) - sas_square(radius));
     const double half_length = 0.5*length;
 
     // translate a point in [-1,1] to a point in [0, pi/2]
@@ -781,12 +781,12 @@ Iqac_capped_cylinder(double qab, double qc,
     double sld, double solvent_sld, double radius,
     double radius_cap, double length)
 {
-    const double h = -sqrt(square(radius_cap) - square(radius));
+    const double h = -sqrt(sas_square(radius_cap) - sas_square(radius));
     const double Aq = _fq(qab, qc, h, radius_cap, radius, 0.5*length);
 
     // Multiply by contrast^2 and convert to cm-1
     const double s = (sld - solvent_sld);
-    return 1.0e-4 * square(s * Aq);
+    return 1.0e-4 * sas_square(s * Aq);
 }
 
 
@@ -920,29 +920,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

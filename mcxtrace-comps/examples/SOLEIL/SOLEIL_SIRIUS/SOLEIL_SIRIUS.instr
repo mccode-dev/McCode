@@ -28,7 +28,7 @@
 * 30       | Sample Stage (XAS configuration)
 * 35       | Sample Stage (SEXAFS configuration)
 *
-* %Example: SIRIUS_E0=8 Detector: SIRIUS_def_loc_I=2.14522e+10
+* %Test: SIRIUS_E0=8 Detector: SIRIUS_def_loc_I=1.3905e+12
 *
 * %Parameters
 * SIRIUS_E0:               [keV]  Central energy (1.4 - 13 keV)
@@ -62,14 +62,14 @@ INITIALIZE
 %{
   {
   // 1. Monochromator Setup (Si 111)
-  double DM= 5.4909;     // Si d-spacing
+  double DM= 5.4309;     // Si d-spacing
   double d = DM/sqrt(3); // <111> reflection |<111>|=3
   double sin_theta = 2*PI/E2K/SIRIUS_E0 / 2 / d;
   SIRIUS_DCM_theta = asin(sin_theta)*RAD2DEG;
   SIRIUS_dcm_gap  = 0.01;       // gap between the 2 monochromator crystals
 
   // 2. Mirror Radii (Approximation based on typical vertical focusing)
-  SIRIUS_M1_radius = 1000.0; 
+  SIRIUS_M1_radius = (2.0 * 14.0) / sin(SIRIUS_M1_angle / 1000); // collimating M1 at 14 m, angle still in mrad here
   SIRIUS_M2_radius = 1000.0;
   SIRIUS_def_mirror_radius = 1000.0;
 
@@ -119,7 +119,7 @@ EXTEND %{
 
 COMPONENT SIRIUS_M1_out = Arm()
 AT (0, 0, 0) RELATIVE SIRIUS_M1_rot
-ROTATED (-SIRIUS_M1_angle, 0, 0) RELATIVE SIRIUS_M1_loc
+ROTATED (-2*SIRIUS_M1_angle, 0, 0) RELATIVE SIRIUS_M1_loc // reflected beam: 2x grazing angle
 
 // -----------------------------------------------------------------------------
 // OPTICS 2: Fixed-exit Double Crystal Monochromator (DCM)
@@ -187,7 +187,7 @@ AT (0, 0, 0) RELATIVE SIRIUS_def_loc
 ROTATED (-SIRIUS_def_angle, 0, 0) RELATIVE SIRIUS_def_loc
 
 COMPONENT SIRIUS_def_mirror = Mirror(
-    xwidth=0.1, yheight=0.05)
+    xwidth=0.1, zdepth=0.05) // horizontal mirror (XZ plane), deflecting vertically
 AT (0, 0, 0) RELATIVE SIRIUS_def_rot
 EXTEND %{ 
   if (!SCATTERED) ABSORB; 
@@ -195,7 +195,7 @@ EXTEND %{
 
 COMPONENT SIRIUS_def_out = Arm()
 AT (0, 0, 0) RELATIVE SIRIUS_def_rot
-ROTATED (-SIRIUS_def_angle, 0, 0) RELATIVE SIRIUS_def_loc
+ROTATED (-2*SIRIUS_def_angle, 0, 0) RELATIVE SIRIUS_def_loc // reflected beam: 2x grazing angle
 
 // -----------------------------------------------------------------------------
 // SAMPLE STAGE

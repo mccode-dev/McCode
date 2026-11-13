@@ -81,7 +81,7 @@ NOACC
 // The component is currently "NOACC" only, there are thread race-conditions on GPU 
 
 SHARE INHERIT Monochromator_bent EXTEND %{
-char *repeat_with_semicolon(const char *src, int n) {
+char *mb_repeat_with_semicolon(const char *src, int n) {
     size_t len = strlen(src);
     size_t total = n * len + (n - 1) + 1;  // repetitions + semicolons + null terminator
 
@@ -109,8 +109,8 @@ DECLARE
   int counter;
   int counter2;
   double curvature;
-  struct neutron_values neutron;
-  struct Monochromator_array mono_arr;
+  struct mb_neutron_values neutron;
+  struct mb_Monochromator_array mono_arr;
 %}
 
 INITIALIZE
@@ -128,7 +128,7 @@ INITIALIZE
   ////////////////////////////////////////////////////////////////////////////
   /////////////// INITIALIZING PARAMETERS
   ////////////////////////////////////////////////////////////////////////////
-  mono_arr.crystal = (struct Monochromator_values*)malloc (n_crystals * sizeof (struct Monochromator_values));
+  mono_arr.crystal = (struct mb_Monochromator_values*)malloc (n_crystals * sizeof (struct mb_Monochromator_values));
   mono_arr.number_of_crystals = n_crystals; // [#]
   mono_arr.verbosity = verbose;             // [#]
 
@@ -140,7 +140,7 @@ INITIALIZE
 
   if (strchr (plane_of_reflection, ';') == NULL && n_crystals > 1) {
     // Apply the same plane to all crystals
-    input_string = repeat_with_semicolon (plane_of_reflection, n_crystals);
+    input_string = mb_repeat_with_semicolon (plane_of_reflection, n_crystals);
   } else {
     // Use the original string
     input_string = strdup (plane_of_reflection);
@@ -190,13 +190,13 @@ INITIALIZE
     mono_arr.crystal[i].angle_range = mono_arr.crystal[i].max_angle - mono_arr.crystal[i].min_angle;
     // Figure out the type of Monochromator
     if (radius_x[i])
-      mono_arr.crystal[i].type = bent;
+      mono_arr.crystal[i].type = mb_bent;
     if (mosaicity[i])
-      mono_arr.crystal[i].type = mosaic;
+      mono_arr.crystal[i].type = mb_mosaic;
     if ((mosaicity[i] > 0) && (fabs (radius_x[i]) > 0))
-      mono_arr.crystal[i].type = bent_mosaic;
+      mono_arr.crystal[i].type = mb_bent_mosaic;
     // Read the designated plane of reflection, for use in the Monochromator.
-    enum crystal_plane plane = stringToEnum ((const char*)planes[i]);
+    enum mb_crystal_plane plane = mb_stringToEnum ((const char*)planes[i]);
     // Set Monochromator values
     mono_arr.crystal[i].length = zwidth[i];                                                                              // [m]
     mono_arr.crystal[i].height = yheight[i];                                                                             // [m]
@@ -209,19 +209,19 @@ INITIALIZE
     mono_arr.crystal[i].bounding_box_thickness = mono_arr.crystal[i].thickness + 2 * arrowheight;
     mono_arr.crystal[i].domain_thickness = domainthickness[i];     // []
     mono_arr.crystal[i].temperature_mono = temperature[i];         // [T]
-    mono_arr.crystal[i].lattice_spacing = crystal_table[plane][0]; // [A]
+    mono_arr.crystal[i].lattice_spacing = mb_crystal_table[plane][0]; // [A]
 
-    mono_arr.crystal[i].Maier_Leibnitz_reflectivity = crystal_table[plane][1] * 100;   // [A^-1 m^-1]
-    mono_arr.crystal[i].bound_atom_scattering_cross_section = crystal_table[plane][2]; // [barn]
-    mono_arr.crystal[i].absorption_for_1AA_Neutrons = crystal_table[plane][3];         // [barn*A^-1]
-    mono_arr.crystal[i].incoherent_scattering_cross_section = crystal_table[plane][4]; // [barn]
-    mono_arr.crystal[i].volume = crystal_table[plane][5];                              // [A^-3]
-    mono_arr.crystal[i].atomic_number = crystal_table[plane][6];                       // [#]
-    mono_arr.crystal[i].debye_temperature = crystal_table[plane][7];                   // [K]
-    mono_arr.crystal[i].Constant_from_Freund_paper = crystal_table[plane][8];          //[A^-2 eV^-1]
-    mono_arr.crystal[i].poisson_ratio = crystal_table[plane][9];                       // []
+    mono_arr.crystal[i].Maier_Leibnitz_reflectivity = mb_crystal_table[plane][1] * 100;   // [A^-1 m^-1]
+    mono_arr.crystal[i].bound_atom_scattering_cross_section = mb_crystal_table[plane][2]; // [barn]
+    mono_arr.crystal[i].absorption_for_1AA_Neutrons = mb_crystal_table[plane][3];         // [barn*A^-1]
+    mono_arr.crystal[i].incoherent_scattering_cross_section = mb_crystal_table[plane][4]; // [barn]
+    mono_arr.crystal[i].volume = mb_crystal_table[plane][5];                              // [A^-3]
+    mono_arr.crystal[i].atomic_number = mb_crystal_table[plane][6];                       // [#]
+    mono_arr.crystal[i].debye_temperature = mb_crystal_table[plane][7];                   // [K]
+    mono_arr.crystal[i].Constant_from_Freund_paper = mb_crystal_table[plane][8];          //[A^-2 eV^-1]
+    mono_arr.crystal[i].poisson_ratio = mb_crystal_table[plane][9];                       // []
     calculate_B0_and_BT (&mono_arr.crystal[i]);
-    mono_arr.crystal[i].Debye_Waller_factor = exp (-(mono_arr.crystal[i].B0 + mono_arr.crystal[i].BT) / 2 / square (mono_arr.crystal[i].lattice_spacing));
+    mono_arr.crystal[i].Debye_Waller_factor = exp (-(mono_arr.crystal[i].B0 + mono_arr.crystal[i].BT) / 2 / mb_square (mono_arr.crystal[i].lattice_spacing));
 
     mono_arr.crystal[i].x = x_pos[i];
     mono_arr.crystal[i].y = y_pos[i];
@@ -238,7 +238,7 @@ INITIALIZE
     }
 
     // Set the mosaicity if relevant
-    if (mono_arr.crystal[i].type == mosaic || mono_arr.crystal[i].type == bent_mosaic) {
+    if (mono_arr.crystal[i].type == mb_mosaic || mono_arr.crystal[i].type == mb_bent_mosaic) {
       // Input mosaicity is in arc min. Convert to Degrees and then to radians
       //  (And multiply with R8LN2 which I don't know what is).
       //  Is it because of input being fwhm instead of sigma?
@@ -315,7 +315,7 @@ MCDISPLAY
     if (draw_as_rectangles) {
       break;
     }
-    struct Monochromator_values* mono = &mono_arr.crystal[j];
+    struct mb_Monochromator_values* mono = &mono_arr.crystal[j];
     double max_i = 5;
     double i = 0;
     // double inner_radii = fabs(mono->radius_horizontal) - xthickness/2;
@@ -340,29 +340,26 @@ MCDISPLAY
       z_outer[1] = -sin (angle1) * mono->radius_outer;
       // These 8 coordinates define 8 points. Coordinate transform these
       // to the current crystal
-      rotate_all_points (&x_inner[0], &x_outer[0], &x_inner[1], &x_outer[1], &y_top, &y_bottom, &z_inner[0], &z_outer[0], &z_inner[1], &z_outer[1], points, mono);
-      // Draw a box in th xy plane
-      multiline (5, points[0][0], points[0][1], points[0][2], points[2][0], points[2][1], points[2][2], points[3][0], points[3][1], points[3][2], points[1][0],
-                 points[1][1], points[1][2], points[0][0], points[0][1], points[0][2]);
-
-      // Draw curving parts of crystal in the zx plane
-      line (points[0][0], points[0][1], points[0][2], points[4][0], points[4][1], points[4][2]);
-      line (points[1][0], points[1][1], points[1][2], points[5][0], points[5][1], points[5][2]);
-      line (points[2][0], points[2][1], points[2][2], points[6][0], points[6][1], points[6][2]);
-      line (points[3][0], points[3][1], points[3][2], points[7][0], points[7][1], points[7][2]);
+      mb_rotate_all_points (&x_inner[0], &x_outer[0], &x_inner[1], &x_outer[1], &y_top, &y_bottom, &z_inner[0], &z_outer[0], &z_inner[1], &z_outer[1], points, mono);
+      // Start cap, then inner, outer, top and bottom faces of this segment
+      if (i == 0)
+        polygon (4, points[0][0], points[0][1], points[0][2], points[2][0], points[2][1], points[2][2], points[3][0], points[3][1], points[3][2], points[1][0], points[1][1], points[1][2]);
+      polygon (4, points[0][0], points[0][1], points[0][2], points[1][0], points[1][1], points[1][2], points[5][0], points[5][1], points[5][2], points[4][0], points[4][1], points[4][2]);
+      polygon (4, points[2][0], points[2][1], points[2][2], points[3][0], points[3][1], points[3][2], points[7][0], points[7][1], points[7][2], points[6][0], points[6][1], points[6][2]);
+      polygon (4, points[0][0], points[0][1], points[0][2], points[2][0], points[2][1], points[2][2], points[6][0], points[6][1], points[6][2], points[4][0], points[4][1], points[4][2]);
+      polygon (4, points[1][0], points[1][1], points[1][2], points[3][0], points[3][1], points[3][2], points[7][0], points[7][1], points[7][2], points[5][0], points[5][1], points[5][2]);
     }
-    // Draw a final box in the xy plane
-    multiline (5, points[4][0], points[4][1], points[4][2], points[6][0], points[6][1], points[6][2], points[7][0], points[7][1], points[7][2], points[5][0],
-               points[5][1], points[5][2], points[4][0], points[4][1], points[4][2]);
+    // End cap
+    polygon (4, points[4][0], points[4][1], points[4][2], points[6][0], points[6][1], points[6][2], points[7][0], points[7][1], points[7][2], points[5][0], points[5][1], points[5][2]);
   }
 
   // line(0,0,0,
   // 	-mono.perp_to_tau[0], -mono.perp_to_tau[1], -mono.perp_to_tau[2]);
   if (draw_as_rectangles) {
     for (int crystal = 0; crystal < n_crystals; crystal++) {
-      struct Monochromator_values* mono = &mono_arr.crystal[crystal];
+      struct mb_Monochromator_values* mono = &mono_arr.crystal[crystal];
       double origo[3] = { 0, 0, 0 };
-      rotate_point (origo, mono);
+      mb_rotate_point (origo, mono);
       // Set the box
       box (origo[0], origo[1], origo[2], mono->thickness, mono->height, mono->length, 0, 0, 1, 0);
     }

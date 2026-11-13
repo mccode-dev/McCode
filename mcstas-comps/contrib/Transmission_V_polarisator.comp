@@ -241,14 +241,12 @@ DECLARE
   double Si_cross_i;
   double Si_cros_av;
   double Si_cross_a_v;
-  double Si_cross_tot;
   double lwafer_Si;
   double Fe_sig_i;
   double Fe_sig_a;
   double Fe_cross_i;
   double Fe_cros_av;
   double Fe_cross_a_v;
-  double Fe_cross_tot;
   double lwafer_Fe;
 
   t_Table upTable;
@@ -309,12 +307,8 @@ TRACE
   double v, L, sinW, Wlen_Si, Wlen_Fe;
 
   /* On the GPU we need Polarizer_guide_Vars pr. thread... */
-  #ifdef OPENACC
-  Polarizer_guide_Vars_type Vars_thread = Vars;
-  /* whereas on CPU we can make do with a single, shared structure: */
-  #else
-  #define Vars_thread Vars
-  #endif
+  Polarizer_guide_Vars_type Vars_thread = Vars; /* per-neutron copy: Polarizer_guide_Trace writes n_dot_v */
+  double Si_cross_tot, Fe_cross_tot;
 
   dt = -1;
   dt0 = -1;

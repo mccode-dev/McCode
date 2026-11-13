@@ -717,7 +717,7 @@ def get_instr_site(instr_file):
         text = '';
         print("WARNING: \n  Attempt to parse instrument header faliled for: \n %s" % instr_file)
     
-    site = '("%INSTRUMENT_SITE:" tag not found)'
+    site = 'No SITE defined'
     
     start = text.find('%INSTRUMENT_SITE:')
     if start > -1:
@@ -1037,7 +1037,12 @@ def dumpfile_pqtg(scene, filenamebase='mcplot', format='png'):
         exporter.export(outputfile)
     elif format=='svg':
         exporter = pg.exporters.SVGExporter(scene)
-        exporter.export(outputfile)
+        try:
+            exporter.export(outputfile)
+        except ValueError as e:
+            # pyqtgraph 0.14.0 cannot parse the SVG path syntax written by Qt 6.11
+            print('SVG export failed in pyqtgraph (%s), use PNG export instead' % e)
+            return
         # This is where PDF export would be handled via conversion from SVG
         #    elif format=='pdf':
         #        exporter = pg.exporters.SVGExporter(scene)
@@ -1063,3 +1068,47 @@ def make_executable(path):
     mode = os.stat(path).st_mode
     mode |= (mode & 0o444) >> 2    # copy R bits to X
     os.chmod(path, mode)
+
+SHARED_JS = ("d3.v4.min.js", "plotfuncs.js", "three.min.js", "OrbitControls.js", "Lut.js")
+
+def dedupe_shared_js(root):
+    ''' Keep a single copy of the js libraries that mcplot-html / mcdisplay-webgl-classic
+    copy next to every html they write, in root/_lib/, and point the html there with
+    relative src paths. Saves ~400 MB on an instrument suite test run. '''
+    import filecmp, shutil
+    root = os.path.abspath(root)
+    libdir = join(root, "_lib")
+    pat = re.compile(r'src="((?:[^":]*/)?)(%s)"' % "|".join(map(re.escape, SHARED_JS)))
+    for d, dirs, files in os.walk(root):
+        if d == libdir:
+            continue
+        for f in files:
+            if not f.endswith(".html"):
+                continue
+            html = join(d, f)
+            with open(html, encoding="utf-8", errors="surrogateescape") as fh:
+                text = fh.read()
+            def repl(m):
+                src = os.path.normpath(join(d, m.group(1), m.group(2)))
+                lib = join(libdir, m.group(2))
+                if src == lib or not os.path.isfile(src):
+                    return m.group(0)
+                if not os.path.isfile(lib):
+                    os.makedirs(libdir, exist_ok=True)
+                    shutil.copyfile(src, lib)
+                if not filecmp.cmp(src, lib, shallow=False):
+                    return m.group(0)  # another version of the lib, leave it be
+                return 'src="%s"' % os.path.relpath(lib, d).replace(os.sep, "/")
+            new = pat.sub(repl, text)
+            if new != text:
+                with open(html, "w", encoding="utf-8", errors="surrogateescape") as fh:
+                    fh.write(new)
+    # every html using a copy identical to the _lib/ one now points there
+    removed = 0
+    for d, dirs, files in os.walk(root):
+        for f in set(files).intersection(SHARED_JS):
+            lib = join(libdir, f)
+            if d != libdir and os.path.isfile(lib) and filecmp.cmp(join(d, f), lib, shallow=False):
+                os.remove(join(d, f))
+                removed += 1
+    return removed

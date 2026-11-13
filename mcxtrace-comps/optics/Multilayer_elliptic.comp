@@ -232,31 +232,20 @@ TRACE
 
 MCDISPLAY
 %{
-  /*
-  rectangle("xz",0,0,0,width,length); */
-  int i, j, NN = 10;
-  double x0, y0, z0;
-  double x1, y1, z1, z_el, y_el;
-
-  x0 = -width / 2.0;
-
-  for (i = 0; i <= NN; i++) {
-    z0 = -length / 2.0;
-    z_el = cos (xi) * z0 + Z0; // transformation to EL reference frame
+  int j, NN = 10;
+  double z0, y0, z1, y1, z_el, y_el;
+  z0 = -length / 2.0;
+  z_el = cos (xi) * z0 + Z0; // transformation to EL reference frame
+  y_el = b * sqrt (1.0 - ((z_el * z_el) / (a * a)));
+  y0 = cos (xi) * (y_el - Y0) - sin (xi) * (z_el - Z0);
+  for (j = 0; j < NN; j++) {
+    z1 = z0 + length / NN;
+    z_el = cos (xi) * z1 + Z0;
     y_el = b * sqrt (1.0 - ((z_el * z_el) / (a * a)));
-    y0 = cos (xi) * (y_el - Y0) - sin (xi) * (z_el - Z0);
-    line (-width / 2, y0, z0, width / 2, y0, z0);
-    for (j = 0; j <= NN; j++) {
-      z1 = z0 + length / NN;
-      z_el = cos (xi) * z1 + Z0;
-      y_el = b * sqrt (1.0 - ((z_el * z_el) / (a * a)));
-      y1 = cos (xi) * (y_el - Y0) - sin (xi) * (z_el - Z0);
-      line (x0, y0, z0, x0, y1, z1);
-      y0 = y1;
-      z0 = z1;
-      line (-width / 2, y1, z1, width / 2, y1, z1);
-    }
-    x0 = x0 + width / NN;
+    y1 = cos (xi) * (y_el - Y0) - sin (xi) * (z_el - Z0);
+    polygon (4, -width / 2.0, y0, z0, width / 2.0, y0, z0, width / 2.0, y1, z1, -width / 2.0, y1, z1);
+    y0 = y1;
+    z0 = z1;
   }
 %}
 

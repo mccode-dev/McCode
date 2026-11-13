@@ -75,7 +75,7 @@ of the two scanned parameters.
 
 `generate_phonon_dispersion.py` writes the `Phonon_simple` dispersion of Pb to
 a grid. The last column is the `Phonon_simple` cross section,
-b²/(4π) · (ħ²κ²/2m_n)/ω / M per unit cell, in the form `Dispersion_relation`
+b² · (ħ²κ²/2M)/ω per unit cell, M in amu, in the form `Dispersion_relation`
 reads (see the component header). It depends on the full scattering vector κ,
 while the file is read at q folded into one unit cell, so the file is written
 for the Brillouin zone around one reciprocal lattice point (`--zone`, default
@@ -95,7 +95,7 @@ broadened by the resolution of the spectrometer:
 
 | | `Dispersion_relation` | `Phonon_simple` |
 |---|---|---|
-| Total intensity over the scan (n/s) | 1.572e-9 | 1.585e-9 |
+| Total intensity over the scan (n/s) | 1.993e-8 | 2.009e-8 |
 | Ring radius from intensity (r.l.u.), contour 0.215 | 0.215 | 0.215 |
 
 The intensity maps have a correlation of 0.999, and the total intensities

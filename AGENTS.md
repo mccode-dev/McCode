@@ -66,6 +66,15 @@ If you cannot test a platform, say so explicitly rather than assuming it works.
    simulation results (RNG use, physics, precision, ordering) must be called out.
 6. **Do not add dependencies** without discussion — the stack is packaged on
    conda-forge for three OSes.
+7. **Follow DRY, KISS and YAGNI.** Reuse existing code instead of duplicating it,
+   keep solutions simple, and do not build for needs that do not exist yet.
+8. **Do not commit anything without explicit go-ahead.** This includes commit
+   messages, changelog entries, comments, help items and docstrings.
+9. **Keep commit messages, changelog entries, comments, help items and docstrings
+   simple, concise and readable.**
+10. **Exit on error with `exit(-1)`.** Not `exit(1)`, `exit(0)` or
+    `exit(fprintf(...))`. Existing code is not fully converted yet; use it in new
+    and touched code.
 
 ---
 
@@ -235,6 +244,10 @@ MSVC does not implement C99 `_Complex` arithmetic. Use the McCode complex wrappe
 ## 12. Working with the maintainers
 
 - Small, reviewable commits on a topic branch; one concern per change.
+- **Fill in the PR template.** Use `docs/pull_request_template.md` as the PR
+  description: complete the free-form text, the AI-tools declaration, the
+  development OS and the checklist sections that apply. Remove sections that do
+  not apply. Tick a box only for a step actually done.
 - When editing files with tools that may time out, edit in small chunks
   (~10–20 lines) and re-read the region afterwards to confirm the actual state
   before retrying — never re-apply blindly.

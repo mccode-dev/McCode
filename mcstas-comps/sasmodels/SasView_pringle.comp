@@ -1219,7 +1219,7 @@ double _integrate_psi(
         double sin_psi, cos_psi;
         SINCOS(psi, sin_psi, cos_psi);
         double bessel_term = _sum_bessel_orders(radius, alpha, beta, q*sin_psi, q*cos_psi);
-        double sinc_term = square(sas_sinx_x(q * thickness * cos_psi / 2.0));
+        double sinc_term = sas_square(sas_sinx_x(q * thickness * cos_psi / 2.0));
         double pringle_kernel = 4.0 * sin_psi * bessel_term * sinc_term;
         sum += GAUSS_W[i] * pringle_kernel;
     }
@@ -1264,7 +1264,7 @@ double Iq_pringle(
     double form = _integrate_psi(q, radius, thickness, alpha, beta);
     double contrast = sld - sld_solvent;
     double volume = M_PI*radius*radius*thickness;
-    return 1.0e-4*form * square(contrast * volume);
+    return 1.0e-4*form * sas_square(contrast * volume);
 }
 
 
@@ -1394,29 +1394,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

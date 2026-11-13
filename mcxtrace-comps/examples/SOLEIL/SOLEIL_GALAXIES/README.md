@@ -52,7 +52,7 @@ Expected performance (ray tracing, EXP-OPT-CDC-1029):
 
 ## Examples
 
-- **Test: GALAXIES_E0=10 Detector: GALAXIES_mon_dcm_xy_I=6.05992e+12**
+- **Test: GALAXIES_E0=10 Detector: GALAXIES_mon_dcm_xy_I=1.1407e+19**
 
 ## Input parameters
 

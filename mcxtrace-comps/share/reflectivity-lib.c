@@ -531,7 +531,7 @@ double reflecq( t_Reflec r_handle, double q, double g, double k, double theta){
     switch(r_handle.type){
       case CONSTANT:
         {
-          r=1.0; //fabs(r_handle.rconst.R);
+          r=fabs(r_handle.rconst.R);
           break;
         }
     case BARE:

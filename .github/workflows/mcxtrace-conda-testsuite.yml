@@ -1,7 +1,7 @@
 name: mcxtrace-conda-testsuite
 on:
   schedule:
-    - cron: '00 01 * * *'  # 01:00 every day
+    - cron: '15 23 * * *'  # 23:15 every day
 
   workflow_dispatch:
     inputs:
@@ -16,6 +16,9 @@ on:
 
 # The mxviewtest comparison is off by default (schedule); request it via the
 # "comparison" tickbox when running the workflow manually
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
@@ -32,6 +35,9 @@ jobs:
 
     name: ${{ matrix.os }}.${{ matrix.mpi }}.${{ matrix.cogen }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite
     runs-on: ${{ matrix.os }}
+    env:
+      # Compile instruments in parallel, except with mccode-antlr (shared cogen cache)
+      MCTEST_JOBS: ${{ matrix.cogen != 'antlr' && '-j auto' || '' }}
     defaults:
       run:
         shell: bash -el {0}
@@ -75,6 +81,16 @@ jobs:
       run: |
            ./src/devel/bin/mccode-build-conda -m mcxtrace -s $PWD/src -b $PWD/build_mcxtrace
 
+    # Azure-hosted Ubuntu mirror reported slow; use the main archive for apt.
+    # Unverified: compare run times before keeping.
+    - name: Bypass slow Azure Ubuntu mirror
+      if: matrix.method == 'debian'
+      run: |
+           sudo grep -rl 'azure.archive.ubuntu.com' \
+             /etc/apt/sources.list /etc/apt/sources.list.d \
+             --include='*.list' --include='*.sources' 2>/dev/null |
+             xargs -r sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g'
+
     - name: Build and install mccode.org-style .deb packages (debian)
       id: mcxtrace-install-debian
       if: matrix.method == 'debian'
@@ -82,8 +98,9 @@ jobs:
            set -e
            set -u
            set -x
-           # mccode.org apt repo, as for users: provides mcpl, ncrystal and cif2hkl (>= 1.5.1)
-           sudo curl -fsSLo /etc/apt/sources.list.d/mccode.sources https://packages.mccode.org/debian/mccode.sources
+           # McCode apt repo (https://mccode-dev.github.io/debian/), as for users: provides mcpl, ncrystal and cif2hkl (>= 1.5.1)
+           sudo curl -fsSLo /usr/share/keyrings/mccode-apt.gpg https://mccode-dev.github.io/debian/mccode-apt.gpg
+           sudo curl -fsSLo /etc/apt/sources.list.d/mccode.sources https://mccode-dev.github.io/debian/mccode.sources
            sudo apt-get update
            # Build dependencies, as in dependency-scripts/getdeps_debian (minus LaTeX/equivs:
            # the manuals package and the suite metapackage are not needed for testing)
@@ -176,7 +193,7 @@ jobs:
              test "$(command -v mxtest)" == "/usr/bin/mxtest"
            fi
            # Run the test with 2 core mpi
-           ${MXTEST_EXECUTABLE} --verbose --nsigma 5 --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
+           ${MXTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} --nsigma 5 --nohtml --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
 
     - name: 'Tar output files'
       id: tar-package
@@ -187,6 +204,8 @@ jobs:
            set -x
            # Clear out binaries from sim dir and tar up artifact
            ls | grep run_ | xargs -n1 ./src/devel/bin/mccode-simdir-cleanfiles -d 
+           # Nothing reads MCPL output, drop it
+           find run_test-suite \( -name '*.mcpl' -o -name '*.mcpl.gz' \) -delete
            tar cvfz mcxtrace-${{ matrix.cogen }}.${{ matrix.os }}.${{ matrix.mpi }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite_output.tgz run_test-suite
 
     - name: 'Upload Artifact'
@@ -231,14 +250,19 @@ jobs:
   compare:
     name: mcxtrace-conda-testsuite-comparison
     needs: build
-    # Only when requested (manual runs with the "comparison" tickbox)
-    if: always() && inputs.comparison
+    # Nightly (schedule), or when requested (manual runs with the "comparison" tickbox)
+    if: always() && (inputs.comparison || github.event_name == 'schedule')
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash -el {0}
 
     steps:
+    - name: Free disk space for the merged platform outputs
+      run: |
+           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+           df -h .
+
     - name: Checkout
       uses: actions/checkout@v6
       with:
@@ -295,11 +319,11 @@ jobs:
            # needed to make them comparable.
            for tgz in downloaded_artifacts/*/*.tgz; do
              work=$(mktemp -d)
-             tar xzf "$tgz" -C "$work"
+             tar xzf "$tgz" -C "$work" --exclude='*.c'
              artifact_name=$(basename "$(dirname "$tgz")")
 
              for labeldir in "$work"/run_test-suite/*/; do
-               if [[ "$artifact_name" == *"ubuntu-latest"* ]]; then
+               if [[ "$artifact_name" == *"ubuntu-latest.classic"* ]]; then
                REFLABEL=$(basename "$labeldir")
              fi
                mv $labeldir mcxtrace-nightly/
@@ -319,24 +343,84 @@ jobs:
       run: |
            cd "$PWD/mcxtrace-nightly"
            if [ -n "${REFLABEL:-}" ]; then
-             mxviewtest --reflabel "$REFLABEL" --nobrowse
+             mxviewtest --reflabel "$REFLABEL" --nobrowse --nodiff
            else
-             mxviewtest --nobrowse
+             mxviewtest --nobrowse --nodiff
            fi
 
     - name: 'Tar mcxtrace-nightly output (all platform folders + comparison table)'
       id: tar-package
-      if: always()
+      # Full merged data only for manual comparison runs; nightlies keep it in the platform artifacts
+      if: always() && github.event_name != 'schedule'
       run: |
            tar cvfz mcxtrace-conda-testsuite-comparison.tgz mcxtrace-nightly
 
     - name: 'Upload comparison artifact'
       id: comparison-upload
       uses: actions/upload-artifact@v6
-      if: always()
+      # Full merged data only for manual comparison runs; nightlies keep it in the platform artifacts
+      if: always() && github.event_name != 'schedule'
       with:
         name: mcxtrace-testsuite-comparison
         path: mcxtrace-conda-testsuite-comparison.tgz
+
+    - name: 'Raw data per instrument as release assets in mcxtrace-nightly'
+      id: release
+      if: always() && steps.viewtest.outcome == 'success' && github.event_name == 'schedule'
+      env:
+        GH_TOKEN: ${{ secrets.NIGHTLY_TOKEN }}
+      run: |
+           set -euo pipefail
+           day=$(date -u +%F)
+           echo "NIGHT=$day" >> "$GITHUB_ENV"
+           repo=mccode-dev/mcxtrace-nightly
+           cd mcxtrace-nightly
+           for col in */; do
+             col=${col%/}
+             [ "$col" = _lib ] && continue
+             # same platform key as tools/nightly-site/summarize.py column_key()
+             key=$(echo "$col" | cut -d_ -f2- | rev | cut -d_ -f2- | rev)
+             mkdir ../rel
+             for instr in "$col"/*/; do
+               tar czf "../rel/$(basename "$instr").tgz" "${instr%/}"
+             done
+             gh release create "${day}_${key}" -R $repo --title "${day} ${key}" \
+               --notes "Raw output of $col from https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" ../rel/*.tgz
+             rm -rf ../rel
+           done
+           # ponytail: fixed 14-night retention of the raw data, tune if release storage matters
+           gh release list -R $repo --limit 1000 --json tagName,createdAt \
+             -q ".[] | select(.createdAt < \"$(date -u -d '14 days ago' +%FT%TZ)\") | .tagName" |
+             xargs -r -n1 gh release delete -R $repo --yes --cleanup-tag
+
+    - name: 'Strip data files, keeping what the nightly site shows'
+      id: site
+      if: always() && steps.viewtest.outcome == 'success'
+      run: |
+           set -euo pipefail
+           du -sh mcxtrace-nightly
+           # mcviewtest is done with the .dat/.h5/list-mode data: keep html, plots, test json and logs
+           find mcxtrace-nightly -type f ! \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' -o -name '*.txt' -o -name '*.pdf' -o -name '*.png' -o -name '*.svg' -o -name '*.instr' -o -name '*.sim' -o -name '*.failed' \) -delete
+           du -sh mcxtrace-nightly
+           tar czf mcxtrace-nightly-site.tgz mcxtrace-nightly
+           ls -l mcxtrace-nightly-site.tgz
+
+    - name: 'Upload nightly site artifact'
+      id: site-upload
+      uses: actions/upload-artifact@v6
+      if: always() && steps.site.outcome == 'success'
+      with:
+        name: mcxtrace-nightly-site
+        path: mcxtrace-nightly-site.tgz
+
+    - name: 'Trigger the mcxtrace-nightly site deploy'
+      if: always() && steps.site-upload.outcome == 'success' && github.event_name == 'schedule'
+      env:
+        GH_TOKEN: ${{ secrets.NIGHTLY_TOKEN }}
+      run: |
+           gh api repos/mccode-dev/mcxtrace-nightly/dispatches -f event_type=nightly \
+             -f 'client_payload[flavor]=mcxtrace' -f 'client_payload[run_id]=${{ github.run_id }}' \
+             -f "client_payload[date]=${NIGHT:-$(date -u +%F)}"
 
     - name: Setup tmate session for manual debugging
       uses: mxschmitt/action-tmate@v3

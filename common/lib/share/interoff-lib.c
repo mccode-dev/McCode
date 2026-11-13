@@ -677,6 +677,11 @@ long off_init(  char *offfile, double xwidth, double yheight, double zdepth,
   {
     double x,y,z;
     ret=fscanf(f, "%lg%lg%lg", &x,&y,&z);
+    if (ret == EOF) {
+      fprintf(stderr, "Error: unexpected end of file reading vertices for vertex %li in file %s (interoff/off_init).\n",
+        i, offfile);
+      exit(2);
+    }
     if (ret == 0) {
       // invalid line: we skip it (probably a comment)
       off_readline(f, &line, &lineCap);
@@ -771,6 +776,11 @@ long off_init(  char *offfile, double xwidth, double yheight, double zdepth,
     int  nbVertex=0, j=0;
     // read the length of this polygon
     ret=fscanf(f, "%d", &nbVertex);
+    if (ret == EOF) {
+      fprintf(stderr, "Error: unexpected end of file reading polygon %li length in file %s (interoff/off_init).\n",
+        i, offfile);
+      exit(3);
+    }
     if (ret == 0) {
       // invalid line: we skip it (probably a comment)
       off_readline(f, &line, &lineCap);
@@ -1396,6 +1406,10 @@ void off_display(off_struct data)
     free(pixelinfo.s);
   }
 } /* off_display */
+
+#ifdef OPENACC // Restore fprintf for code following this lib
+#undef fprintf
+#endif
 
 /* end of interoff-lib.c */
 #endif // INTEROFF_LIB_C

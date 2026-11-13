@@ -474,7 +474,7 @@ void sm_print_state(char*subheader, SimState*state, Supermirror*sm, double ws_ta
 		printf("%s t,p,v:|v|,s3-dot-fa:s:s2 = %6f,(%6f,%6f,%6f),(%6f,%6f,%6f):%6f,(%6f,%6f,%6f)dot(%6f,%6f,%6f):%6f:(%6f,%6f)\n", supermirror_flat_s_prefix,
 				state->t, state->p.x, state->p.y, state->p.z, state->v.x, state->v.y, state->v.z, coords_len(state->v), 
 				state->s.x, state->s.y, state->s.z, ((sm->co).fa).x, ((sm->co).fa).y, ((sm->co).fa).z, 
-				coords_sp((sm->co).fa, state->s), (1+coords_sp((sm->co).fa, state->s))/2, (1-coords_sp((sm->co).fa, state->s))/2);
+				coords_sp((sm->co).fa, state->s), (1.0+coords_sp((sm->co).fa, state->s))/2.0, (1.0-coords_sp((sm->co).fa, state->s))/2.0);
 	supermirror_flat_dec_prefix(&supermirror_flat_i_prefix, supermirror_flat_s_prefix);
 
 	printf("%s intersect parameters\n", supermirror_flat_s_prefix);
@@ -1375,11 +1375,11 @@ void set_event(SimState *state, Supermirror*sm, int event_code)
 int add_neutron_record(double w, double t, Coords p, Coords v, Coords s, SupermirrorProcess*proc) {
 
 	NeutronRecord*nr;
-	int i,j,i_nr;
+	int i,j,i_nr=proc->n_nr;
 	
 	if (proc->n_nr_allocated == proc->n_nr) { 
 		//increase memory if full
-		int j = proc->n_nr_allocated;
+		j = proc->n_nr_allocated;
 		proc->n_nr_allocated += proc->nr_allocation_size;
 		proc->nr = (NeutronRecord*)realloc(proc->nr, proc->n_nr_allocated * sizeof(NeutronRecord));
 		for (i=proc->n_nr_allocated-1; i>=j; i--) {
@@ -1414,7 +1414,7 @@ int add_neutron_record(double w, double t, Coords p, Coords v, Coords s, Supermi
 	nr->nr_s = s;
 
 	++(proc->n_nr);
-
+	return 0;
 }
 
 int empty_neutron_record(SupermirrorProcess*proc) {

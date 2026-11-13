@@ -90,6 +90,11 @@ Main.prototype.showShapes = function(surfaces, lines)
         this.linenodes[i].visible = lines;
     }
 }
+// opacity (0..1) of the --trace=2 shape surfaces
+Main.prototype.setSurfaceOpacity = function(opacity)
+{
+    for (var i = 0; i < this.surfnodes.length; i++) { this.surfnodes[i].material.opacity = opacity; }
+}
 // add a polyhedron given as {"vertices": [[x,y,z], ...], "faces": [{"face": [i,j,k,...]}, ...]}
 // (OFF files and polygons at --trace=2)
 Main.prototype.addPolyhedron = function(json, parent, linecolor)
@@ -144,15 +149,36 @@ Main.prototype.init = function(campos, invert, box)
 
     document.getElementById("3dcanvas").appendChild(this.renderer.domElement);
 
-    this.controls = new THREE.OrbitControls(this.camera);
+    // on the canvas only: on the whole document it swallows mousedown, so range inputs can not be dragged
+    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.x = -campos.x/2; //1;
     this.controls.target.y = 0; //0;
     this.controls.target.z = campos.z; //49;
 
     this.camera.lookAt(this.controls.target);
 
+    // double-click a component: turn the camera to its centre
+    var _this = this;
+    this.renderer.domElement.addEventListener('dblclick', function(e) { _this.focusComponent(e); });
+
     this.addLight(new THREE.Vector3(10, 50, 130))
     this.scene.add(this.rootnode);
+}
+//  point the orbit target at the centre of the component under the mouse
+Main.prototype.focusComponent = function(e)
+{
+    var r = e.target.getBoundingClientRect();
+    var p = new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+    var nodes = Object.keys(this.compnodes).map(function(k) { return this.compnodes[k]; }, this);
+    var ray = new THREE.Raycaster();
+    ray.linePrecision = 0.01; // default 1 (m) picks nearly anything
+    ray.setFromCamera(p, this.camera);
+    var hits = ray.intersectObjects(nodes, true).filter(function(h) { return h.object.visible; });
+    if (hits.length == 0) { return; }
+    var comp = hits[0].object;
+    while (nodes.indexOf(comp) < 0) { comp = comp.parent; }
+    new THREE.Box3().setFromObject(comp).center(this.controls.target);
+    this.controls.update();
 }
 //  cat camera view according to campos, a Vector3
 //
@@ -408,7 +434,7 @@ TraceLoader.prototype.loadInstr = function()
         for (var j = 0; j < drawcalls.length; j++) {
             call = drawcalls[j];
 
-            drawFunc(call, comp_node, acolor);
+            drawFunc(call, comp_node, call['color'] || acolor);
         }
 
         comp_matrix = new THREE.Matrix4();

@@ -60,7 +60,7 @@ EH4             | 197.2-208.5 | Guard slits; microtomography sample stage; detec
 
 ## Examples
 
-- **Test: -n 1e5 ANATOMIX_E0=17 Detector: ANATOMIX_psd_monitor_after_cc_I=1e18**
+- **Test: -n 1e5 ANATOMIX_E0=17 ANATOMIX_dE=0.01 Detector: ANATOMIX_psd_monitor_after_cc_I=9.4e+17**
 
 ## Input parameters
 

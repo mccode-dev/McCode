@@ -102,12 +102,14 @@ export const initializeRenderer = (width, height) => {
   return renderer;
 };
 
-export const addAxes = (scene, size) => {
+export const addAxes = (scene) => {
   const axes = {};
 
+  // 1 m long arrows from the origin
+  const size = 1;
   const center = new THREE.Vector3(0, 0, 0);
-  const arrowHeadLength = size * 0.01;
-  const arrowHeadWidth = size * 0.005;
+  const arrowHeadLength = size * 0.1;
+  const arrowHeadWidth = size * 0.05;
 
   /* arrow colors should match --x-axis-color, y-ax.. colors in common.css*/
   const x_axis = new THREE.ArrowHelper(
@@ -150,31 +152,31 @@ export const addAxes = (scene, size) => {
   return axes;
 };
 
-export const addGrids = (scene, gridSize) => {
+// All three grids cross at center, the midpoint of the instrument bounding box
+export const addGrids = (scene, gridSize, center) => {
 
   const correctedGridSize = gridSize / 2  || 100;
   //griddivisions is equal to the number of lines in the grid to ensure that each division represents 1 meter.
   const correctedGridDivisions = correctedGridSize || 100;
-  const center = gridSize / 4 || 25;
 
   const grids = {};
   const gridXZ = new THREE.GridHelper(correctedGridSize, correctedGridSize);
   console.log("correctedGridSize: ", correctedGridSize);
-  gridXZ.position.set(0, 0, center);
+  gridXZ.position.copy(center);
   gridXZ.visible = true;
   gridXZ.name = "gridXZ";
   scene.add(gridXZ);
   grids.gridXZ = gridXZ;
 
   const gridXY = new THREE.GridHelper(correctedGridSize, correctedGridSize);
-  gridXY.position.set(0, 0, 0);
+  gridXY.position.copy(center);
   gridXY.visible = false;
   gridXY.rotation.x = Math.PI / 2;
   gridXY.name = "gridXY";
   scene.add(gridXY);
   grids.gridXY = gridXY;
   const gridYZ = new THREE.GridHelper(correctedGridSize, correctedGridSize);
-  gridYZ.position.set(0, 0, center);
+  gridYZ.position.copy(center);
   gridYZ.visible = false;
   gridYZ.rotation.z = Math.PI / 2;
   gridYZ.name = "gridYZ";

@@ -721,7 +721,7 @@ a_long(double q, double L, double b/*, double p1, double p2, double q0*/)
     const double qr_b_4 = qr_b_sq*qr_b_sq;
     const double qr_b_miu = pow(qr_b, -1.0/miu);
     const double em1_qr_b_sq = expm1(-qr_b_sq);
-    const double sech2 = 1.0/square(cosh((qr_b-C4)/C5));
+    const double sech2 = 1.0/sas_square(cosh((qr_b-C4)/C5));
     const double w = w_WR(qr_b);
 
     const double t1 = pow(q0, 1.0 + p1 + p2)/(b*(p1-p2));
@@ -778,7 +778,7 @@ a_short(double qp, double L, double b
     const double p2short = 5.62;
 
     const double r2 = Rgsquareshort(L,b);
-    const double exp_qr_b = exp(r2*square(q0/b));
+    const double exp_qr_b = exp(r2*sas_square(q0/b));
     const double pdiff = p1short - p2short;
     const double a1 = _short(r2,exp_qr_b,L,b,p1short,p2short,q0)/pdiff;
     const double a2= -_short(r2,exp_qr_b,L,b,p2short,p1short,q0)/pdiff;
@@ -850,7 +850,7 @@ Sk_WR(double q, double L, double b)
         }
     } else { // L <= 4*b : Shorter Chains
         if (q*b <= q0short) { // q*b <= fmax(1.9/Rg_short, 3)
-            //printf("branch C-%d q=%g L=%g b=%g\n", square(q*Rg_short)<DEBYE_CUTOFF, q, L, b);
+            //printf("branch C-%d q=%g L=%g b=%g\n", sas_square(q*Rg_short)<DEBYE_CUTOFF, q, L, b);
             // Note that q0short is usually 3, but it will be greater than 3
             // small enough b, depending on the L/b ratio:
             //     L/b == 1 => b < 2.37
@@ -858,7 +858,7 @@ Sk_WR(double q, double L, double b)
             //     L/b == 3 => b < 1.00
             //     L/b == 4 => b < 0.816
             // 2017-10-01 pkienzle: moved low q approximation into Sdebye()
-            ans = Sdebye(square(q*Rg_short));
+            ans = Sdebye(sas_square(q*Rg_short));
         } else {  // q*b > max(1.9/Rg_short, 3)
             //printf("branch D q=%g L=%g b=%g\n", q, L, b);
             ans = a_short(q, L, b /*, p1short, p2short*/, q0short);
@@ -1079,29 +1079,11 @@ MCDISPLAY
 %{
 
   if (shape == 0) { /* cylinder */
-    circle ("xz", 0, yheight / 2.0, 0, R);
-    circle ("xz", 0, -yheight / 2.0, 0, R);
-    line (-R, -yheight / 2.0, 0, -R, +yheight / 2.0, 0);
-    line (+R, -yheight / 2.0, 0, +R, +yheight / 2.0, 0);
-    line (0, -yheight / 2.0, -R, 0, +yheight / 2.0, -R);
-    line (0, -yheight / 2.0, +R, 0, +yheight / 2.0, +R);
+    cylinder (0, 0, 0, R, yheight, 0, 0, 1, 0);
   } else if (shape == 1) { /* box */
-    double xmin = -0.5 * xwidth;
-    double xmax = 0.5 * xwidth;
-    double ymin = -0.5 * yheight;
-    double ymax = 0.5 * yheight;
-    double zmin = -0.5 * zdepth;
-    double zmax = 0.5 * zdepth;
-    multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
-    multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
-    line (xmin, ymin, zmin, xmin, ymin, zmax);
-    line (xmax, ymin, zmin, xmax, ymin, zmax);
-    line (xmin, ymax, zmin, xmin, ymax, zmax);
-    line (xmax, ymax, zmin, xmax, ymax, zmax);
+    box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
   } else if (shape == 2) { /* sphere */
-    circle ("xy", 0, 0.0, 0, R);
-    circle ("xz", 0, 0.0, 0, R);
-    circle ("yz", 0, 0.0, 0, R);
+    sphere (0, 0, 0, R);
   }
 %}
 END

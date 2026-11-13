@@ -1067,6 +1067,35 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 /* return values: 0=neutron was absorbed, -1=neutron was outside bounds, 1=neutron was measured*/
 /* ========================================================================= */
 
+/* Host only, never called from OpenACC device code: make room in the list
+   buffer before a particle is stored. Components that run on the CPU call
+   this before Monitor_nD_Trace (in a non-OpenACC build, and Monitor_nD_noacc
+   always). Device builds keep the fixed-size buffer. */
+void Monitor_nD_EnsureCapacity(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars)
+{
+  if ((Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List >= 2))
+  {
+    if (Vars->Buffer_Size >= 1000000 || Vars->Flag_List == 3)
+    { /* save current (possibly append) and re-use Buffer */
+      Monitor_nD_Save(DEFS, Vars);
+      Vars->Flag_List = 3;
+      Vars->Buffer_Block = Vars->Buffer_Size;
+      Vars->Buffer_Counter  = 0;
+      Vars->Neutron_Counter = 0;
+    }
+    else
+    {
+      Vars->Mon2D_Buffer  = (double *)realloc(Vars->Mon2D_Buffer, (Vars->Coord_Number+1)*(2*Vars->Buffer_Block)*sizeof(double));
+      if (Vars->Mon2D_Buffer == NULL)
+            { printf("Monitor_nD: %s cannot reallocate Vars->Mon2D_Buffer (%zi). Skipping.\n", Vars->compcurname, (size_t)(2*Vars->Buffer_Block)*sizeof(double)); Vars->Flag_List = 1; }
+      else {
+          Vars->Buffer_Block = 2*Vars->Buffer_Block;
+          Vars->Buffer_Size = Vars->Buffer_Block;
+      }
+    }
+  }
+}
+
 int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle* _particle)
 {
 
@@ -1107,32 +1136,6 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
     }
     Vars->Flag_Auto_Limits = 2;  /* pass to 2nd auto limits step (read Buffer and generate new events to store in histograms) */
   } /* end if Flag_Auto_Limits == 1 */
-
-#ifndef OPENACC
-  /* manage realloc for 'list all' if Buffer size exceeded: flush Buffer to file */
-  if ((Vars->Buffer_Counter >= Vars->Buffer_Block) && (Vars->Flag_List >= 2))
-  {
-    if (Vars->Buffer_Size >= 1000000 || Vars->Flag_List == 3)
-    { /* save current (possibly append) and re-use Buffer */
-
-      Monitor_nD_Save(DEFS, Vars);
-      Vars->Flag_List = 3;
-      Vars->Buffer_Block = Vars->Buffer_Size;
-      Vars->Buffer_Counter  = 0;
-      Vars->Neutron_Counter = 0;
-    }
-    else
-    {
-      Vars->Mon2D_Buffer  = (double *)realloc(Vars->Mon2D_Buffer, (Vars->Coord_Number+1)*(2*Vars->Buffer_Block)*sizeof(double));
-      if (Vars->Mon2D_Buffer == NULL)
-            { printf("Monitor_nD: %s cannot reallocate Vars->Mon2D_Buffer[%li] (%zi). Skipping.\n", Vars->compcurname, i, (long int)(2*Vars->Buffer_Block)*sizeof(double)); Vars->Flag_List = 1; }
-      else { 
-		  Vars->Buffer_Block = 2*Vars->Buffer_Block;
-		  Vars->Buffer_Size = Vars->Buffer_Block;
-	  }
-    }
-  } /* end if Buffer realloc */
-#endif
 
   char    outsidebounds=0;
   while (!While_End)
@@ -1563,7 +1566,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
                           *(Vars->max_y-Vars->min_y)*1E4, Vars->area);
       printf("Monitor_nD: %s: beam solid angle is %g [st] (%g x %g [deg^2])\n",
         Vars->compcurname,
-        2*fabs(2*atan2(Vars->mean_dx,Vars->mean_p)
+        2.0*fabs(2.0*atan2(Vars->mean_dx,Vars->mean_p)
          *sin(2*atan2(Vars->mean_dy,Vars->mean_p)/2)),
         atan2(Vars->mean_dx,Vars->mean_p)*RAD2DEG,
         atan2(Vars->mean_dy,Vars->mean_p)*RAD2DEG);
@@ -2118,12 +2121,11 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
           z3 =-radius*sin(theta0)*sin(phi1);
           y2 = y1; y3 = y0;
 
-          mcdis_multiline(5,
+          mcdis_polygon(4,
             x0,y0,z0,
             x1,y1,z1,
             x2,y2,z2,
-            x3,y3,z3,
-            x0,y0,z0);
+            x3,y3,z3);
         }
       if (Vars->Flag_mantid) {
 	/* First define the base pixel type */
@@ -2146,11 +2148,10 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
     if (abs(Vars->Flag_Shape) == DEFS->SHAPE_SQUARE)
     {
       mcdis_magnify("xy");
-      mcdis_multiline(5, (double)xmin, (double)ymin, 0.0,
+      mcdis_polygon(4, (double)xmin, (double)ymin, 0.0,
              (double)xmax, (double)ymin, 0.0,
              (double)xmax, (double)ymax, 0.0,
-             (double)xmin, (double)ymax, 0.0,
-             (double)xmin, (double)ymin, 0.0);
+             (double)xmin, (double)ymax, 0.0);
       
       if (Vars->Flag_mantid) {
 	/* x, y and pixel coordinates may come in any order (#2178) */
@@ -2198,5 +2199,78 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
       mcdis_line(xmax, ymax, zmin, xmax, ymax, zmax);
     }
   } /* end Monitor_nD_McDisplay */
+
+/* ========================================================================= */
+/* Mesh geometry: the two following routines only apply to detectors         */
+/* defined by a mesh file (geometry parameter)                               */
+/* ========================================================================= */
+
+// Hits of the line position + t*velocity with mesh ahead of the neutron
+// (t > 0). Inside a closed mesh, t0 is 0 and t1 the first exit; otherwise
+// t0 is the first hit and t1 the next one (t0 when there is a single hit).
+// face is the face of the first hit ahead. Returns 1 on a hit, 0 otherwise.
+#pragma acc routine seq
+int Monitor_nD_MeshIntersect(gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t1, int* face)
+{
+  gmesh_hit hits[GMESH_MAX_HITS];
+  double t_min = 0;
+  int nhits = gmesh_intersect(mesh, position, velocity, t_min, hits);
+  int inside = 0;
+  if (!nhits)
+    return 0;
+  // normals of a closed, oriented mesh point outward: leaving first means inside
+  if (mesh->closed && mesh->oriented)
+    inside = hits[0].in_out < 0;
+  else if (mesh->closed)
+    inside = gmesh_inside(mesh, position);
+  if (inside) {
+    *t0 = 0;
+    *t1 = hits[0].t;
+  } else {
+    *t0 = hits[0].t;
+    *t1 = hits[0].t;
+    if (nhits > 1)
+      *t1 = hits[1].t;
+  }
+  *face = hits[0].face;
+  return 1;
+}
+
+// Warns when mantid is combined with a closed mesh: pixel IDs are panels.
+void Monitor_nD_CheckMantidMesh(gmesh_struct* mesh, int flag_mantid, char* name)
+{
+  if (flag_mantid && mesh->closed)
+    printf("Monitor_nD: %s: mantid pixel IDs are panels. A closed mesh gives no meaningful pixel IDs; use an open mesh with mantid.\n", name);
+}
+
+// Prints one "MANTID_PIXEL: id,first,last,nv,cx,cy,cz,dx1,dy1,dz1,..." line
+// per face of mesh, with id = offset + face index and the vertices relative
+// to the face centre. Faces with less than 3 vertices are skipped.
+void Monitor_nD_MeshMantid(gmesh_struct* mesh, long offset)
+{
+  int i_start = 0;
+  int i_face = 0;
+  if (!mesh || !mesh->faceSize)
+    return;
+  while (i_start < mesh->faceSize) {
+    int nv = mesh->faceArray[i_start];
+    int* vertex_index = &mesh->faceArray[i_start + 1];
+    if (nv >= 3) {
+      Coords centre = coords_set(0, 0, 0);
+      int i_vertex;
+      for (i_vertex = 0; i_vertex < nv; i_vertex++)
+        centre = coords_add(centre, mesh->vtx[vertex_index[i_vertex]]);
+      centre = coords_scale(centre, 1.0 / nv);
+      printf("MANTID_PIXEL: %li,%li,%li,%i,%g,%g,%g", offset + i_face, offset, offset + mesh->nfaces - 1, nv, centre.x, centre.y, centre.z);
+      for (i_vertex = 0; i_vertex < nv; i_vertex++) {
+        Coords corner = coords_sub(mesh->vtx[vertex_index[i_vertex]], centre);
+        printf(",%g,%g,%g", corner.x, corner.y, corner.z);
+      }
+      printf("\n");
+    }
+    i_start += nv + 1;
+    i_face++;
+  }
+}
 
 /* end of monitor_nd-lib.c */

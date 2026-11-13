@@ -39,6 +39,7 @@
 *   history_limit:               [1]Limit the number of unique histories that are saved
 *   enable_conditionals:  [0/1] Use conditionals with this master
 *   inherit_number_of_scattering_events: [0/1] Inherit the number of scattering events from last master
+*   display_mode:                        [0/1/2] Volume display in mcdisplay: 0 follows --trace, 1 forces lines, 2 polyhedra (only with --trace=2, --trace=1 always gives lines)
 * init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
 * OUTPUT PARAMETERS:
@@ -57,7 +58,7 @@ SETTING PARAMETERS(verbal = 1,
                    enable_tagging = 0,
                    history_limit=300000,
                    enable_conditionals=1,
-                    inherit_number_of_scattering_events=0, string init=""
+                    inherit_number_of_scattering_events=0, int display_mode=0, string init=""
                    )
 OUTPUT PARAMETERS ()
 NOACC
@@ -284,6 +285,7 @@ DECLARE
   // Focusing
   struct focus_data_struct temporary_focus_data;
   int focus_data_index;
+  struct focus_data_struct* this_focus_data;
 
   // Record absorption
   double r_old[3];
@@ -623,6 +625,10 @@ INITIALIZE
         // A simple copy_geometry_parameters function is added to the geometry in each geometry component
         Volumes[volume_index]->geometry.geometry_parameters = Volumes[volume_index]->geometry.copy_geometry_parameters (
             &global_geometry_list_master->elements[geometry_list_index].Volume->geometry.geometry_parameters);
+
+        // Copy focusing data too, it will be modified based on this master components rotation, so should not be reused
+        copy_focus_data_array (&global_geometry_list_master->elements[geometry_list_index].Volume->geometry.focus_data_array,
+                               &Volumes[volume_index]->geometry.focus_data_array);
       }
 
       // This section identifies the different non isotropic processes in the current volume and give them appropriate transformation matrices
@@ -989,7 +995,7 @@ INITIALIZE
   intersection_time_table.intersection_times = (double**)malloc (intersection_time_table.num_volumes * sizeof (double));
   for (iterator = 0; iterator < intersection_time_table.num_volumes; iterator++) {
     if (strcmp (Volumes[iterator]->geometry.shape, "mesh") == 0) {
-      intersection_time_table.n_elements[iterator] = (int)100; // Meshes can have any number of intersections, here we allocate room for 100
+      intersection_time_table.n_elements[iterator] = (int)GMESH_MAX_HITS; // Meshes report up to GMESH_MAX_HITS intersections (geometry-mesh-lib)
     } else {
       intersection_time_table.n_elements[iterator] = (int)2; // number of intersection for all other geometries
     }
@@ -1736,8 +1742,11 @@ TRACE
         k_old[1] = k[1];
         k_old[2] = k[2];
 
-        // Find correct focus_data_array index for this volume/process
+        // Find correct focus_data_array index for this volume/process and correct for ray position
         focus_data_index = Volumes[current_volume]->geometry.focus_array_indices.elements[selected_process];
+        this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[focus_data_index];
+
+        Coords ray_position_geometry = coords_sub (ray_position, Volumes[current_volume]->geometry.center); // ray_position relative to geometry center
 
         // Rotation to local process coordinate system (for non isotropic processes)
         if (Volumes[current_volume]->p_physics->p_scattering_array[selected_process].non_isotropic_rot_index != -1) {
@@ -1745,8 +1754,15 @@ TRACE
               Volumes[current_volume]
                   ->geometry.process_rot_matrix_array[Volumes[current_volume]->p_physics->p_scattering_array[selected_process].non_isotropic_rot_index],
               ray_wavevector);
+
+          Coords ray_position_geometry_rotated = rot_apply (
+              Volumes[current_volume]
+                  ->geometry.process_rot_matrix_array[Volumes[current_volume]->p_physics->p_scattering_array[selected_process].non_isotropic_rot_index],
+              ray_position_geometry);
+          this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated); // Aim vector for this ray
         } else {
           ray_wavevector_rotated = ray_wavevector;
+          this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
         }
         #ifdef Union_trace_verbal_setting
         printf ("Kin: %g %g %g, selected_process: %i %i\n", k[0], k[1], k[2], selected_process, current_volume);
@@ -1758,7 +1774,7 @@ TRACE
         // I may replace a intial and final k with one instance that serves as both input and output
         process = &Volumes[current_volume]->p_physics->p_scattering_array[selected_process]; // CPU Only
         int scattering_output;
-        UNION_PHYSICS_SCATTERING (scattering_output, process, k_new, k, &p, &Volumes[current_volume]->geometry.focus_data_array.elements[0], _particle);
+        UNION_PHYSICS_SCATTERING (scattering_output, process, k_new, k, &p, this_focus_data, _particle);
         if (0 == scattering_output) {
           /*
           // PowderN and Single_crystal requires the option of absorbing the x-ray, which is weird. If there is a scattering probability, there should be a new
@@ -2472,6 +2488,10 @@ MCDISPLAY
   struct lines_to_draw lines_to_draw_master;
   for (volume_index = 1; volume_index < number_of_volumes; volume_index++) {
     if (Volumes[volume_index]->geometry.visualization_on == 1) {
+      if (mcdotrace == 2 && display_mode != 1 && Geometries[volume_index]->is_mask_volume == 0) { // polyhedra, masks stay wireframe
+        union_mcdisplay_polyhedron (volume_index, Geometries, number_of_volumes);
+        continue;
+      }
       lines_to_draw_master.number_of_lines = 0;
 
       Volumes[volume_index]->geometry.mcdisplay_function (&lines_to_draw_master, volume_index, Geometries, number_of_volumes);
