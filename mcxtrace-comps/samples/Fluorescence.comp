@@ -267,24 +267,34 @@ SHARE %{
     return id;
   } // XRMC_SelectFromDistribution
 
-  /* XRMC_SelectInteraction: select interaction type Fluo/Compton/Rayleigh
-   * Return the interaction type from a random choice within cross sections 'xs'
-   *   type = XRMC_SelectInteraction(xs[3], 3, r);
-   * 'xs' is computed with XRMC_CrossSections. Can be unsorted.
-   * type is e.g. one of FLUORESCENCE | RAYLEIGH | COMPTON
+  /* XRMC_SelectInteraction: select an item among 'nb_processes' weights, e.g. the interaction
+   * type Fluo/Rayleigh/Compton/..., or a powder line (see FluoPowder).
+   *   type = XRMC_SelectInteraction(xs, nb_processes, r);
+   * The probability of item i is xs[i]/sum(xs). 'xs' can be unsorted (e.g. computed with
+   * XRMC_CrossSections). Negative weights are ignored.
+   * There is no limit on 'nb_processes': it does not allocate memory, nor build a cumulated
+   * array (a single pass on 'xs' for the sum, and a second pass up to the selected item).
+   * Returns the 0-based index of the selected item, e.g. one of FLUORESCENCE | RAYLEIGH | COMPTON,
+   * or -1 when no item has a positive weight (or invalid arguments).
    */
   int XRMC_SelectInteraction(double *xs, int nb_processes, double r)
   {
-    double sum_xs, cum_xs[8];
-    int    i;
+    double sum_xs=0, cum_xs=0, x;
+    int    i, last=-1;
 
-    if (xs == NULL || nb_processes < 1 || nb_processes > 7) return 0;
-    cum_xs[0]=sum_xs=0;
+    if (xs == NULL || nb_processes < 1) return -1;
+    for (i=0; i< nb_processes; i++)
+      if (xs[i] > 0) sum_xs += xs[i];
+    if (sum_xs <= 0) return -1;
+
+    x = r*sum_xs;                    // threshold on the cumulated weight
     for (i=0; i< nb_processes; i++) {
-      sum_xs += xs[i];
-      cum_xs[i+1]= sum_xs;
+      if (xs[i] <= 0) continue;      // an item without weight is never selected
+      cum_xs += xs[i];
+      last    = i;
+      if (cum_xs > x) return i;
     }
-    return XRMC_SelectFromDistribution(cum_xs, nb_processes+1, r);
+    return last;                     // only reached by rounding: last item with a weight
   } // XRMC_SelectInteraction
 
   /* XRMC_SelectFluorescenceEnergy: select outgoing fluo photon energy, when incoming with 'E0'
