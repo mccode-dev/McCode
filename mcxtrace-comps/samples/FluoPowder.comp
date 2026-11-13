@@ -112,7 +112,7 @@
 * material:     [str] A CIF/LAZ/LAU file e.g. "LaB6.cif" to handle diffraction or chemical formulae, e.g. "Pb2SnO4" (no diffraction).
 * weight:     [g/mol] Molecular weight of the 'unit' described by 'density' (default: formula weight of material).
 * density:   [g/cm^3] Density of material. fluo_rho=density/weight/1e24*N_A units/Angs^3.
-* packing_factor: [1] How dense is the material compared to bulk 0-1. Only applied when given explicitly.
+* packing_factor: [1] How dense is the material compared to bulk 0-1. Only applied when given explicitly. It scales all processes, including the powder diffraction.
 * radius:         [m] Outer radius of sample in (x,z) plane. cylinder/sphere.
 * xwidth:         [m] Width for a box sample shape.
 * yheight:        [m] Height of sample in vertical direction for box/cylinder shapes.
@@ -221,6 +221,8 @@ DECLARE
   int    n_diff;
   double p_diff;
   double fluo_rho;
+  double fluo_pf;             // packing factor actually applied (1 when not given)
+  double d_phi_deg;           // diffraction focusing vertical range [deg]: 'd_phi' or derived from the focus
   double   reuse_cum_xs_diffraction;
   // offdata is declared in PowderN
 
@@ -287,7 +289,9 @@ INITIALIZE %{
     fprintf(stderr, "FluoPowder: WARNING: %s: Using flag_lorentzian=1 Lorentzian line-shape with order>1 may create artifacts.\n", NAME_CURRENT_COMP);
 
   // test if the material is given as a file
-  char formula[16384];
+  char formula[65536];
+  char *mat_name  = material;   // formula actually used (never write into the 'material' parameter)
+  char *refl_name = NULL;       // reflection file for the powder lines (never write into 'powder_refl')
   formula[0]='\0';
   FILE *file = Open_File(material, "r", NULL);
   if (file != NULL) {
@@ -318,12 +322,14 @@ INITIALIZE %{
       line_info.flag_barns= barns;
       strncpy(line_info.compname, NAME_CURRENT_COMP, 256);
       if (!powder_refl || !strlen(powder_refl) || !strcmp(powder_refl, "NULL") || !strcmp(powder_refl, "0"))
-        strcpy(powder_refl, material);
-      i = read_line_data(powder_refl, &line_info);
+        refl_name = material;
+      else
+        refl_name = powder_refl;
+      i = read_line_data(refl_name, &line_info);
       if (i == 0) {
         MPI_MASTER(
         fprintf(stderr,"WARNING: FluoPowder: %s: reflection file %s is not valid (CIF/LAU/LAZ). Ignoring diffraction process.\n",
-                      NAME_CURRENT_COMP, powder_refl);
+                      NAME_CURRENT_COMP, refl_name);
         );
         flag_powder=0;
       }
@@ -369,7 +375,7 @@ INITIALIZE %{
       }
     }
 
-    strncpy(material, formula, 16384);
+    mat_name = formula;
     // CIF: _chemical_formula_structural 'chemical_formulae'
     // CIF: _chemical_formula_sum 'chemical_formulae'
     // LAZ/LAU: # ATOM <at> <trailing>
@@ -380,10 +386,10 @@ INITIALIZE %{
 
   }
 
-  compound = CompoundParser(material, &error); /* XRayLib */
+  compound = CompoundParser(mat_name, &error); /* XRayLib */
   if (error != NULL) {
     exit(fprintf(stderr, "ERROR: %s: Invalid material %s: %s\n",
-      NAME_CURRENT_COMP, material, error->message));
+      NAME_CURRENT_COMP, mat_name, error->message));
   }
   xrl_error_free(error);
 
@@ -391,7 +397,7 @@ INITIALIZE %{
   if (weight <= 0) weight = compound->molarMass; /* g/mol */
   MPI_MASTER(
     printf("%s: Material %s mass fractions:\n",
-      NAME_CURRENT_COMP, material);
+      NAME_CURRENT_COMP, mat_name);
   )
 
   double mat_density       = 0; /* g/cm3 */
@@ -434,17 +440,18 @@ INITIALIZE %{
   if (density <= 0)       density     = mat_density;                      /* g/cm3 */
   if (density <= 0)
     exit(fprintf(stderr, "ERROR: %s: can not determine density of %s. Specify 'density'.\n",
-      NAME_CURRENT_COMP, material));
+      NAME_CURRENT_COMP, mat_name));
   
   /* molar volume [cm^3/mol] = weight [g/mol] / density [g/cm^3] */
   /* unit density per Angs^3 = [mol/cm^3] * N_Avogadro *(1e-8)^3 */
   fluo_rho = density/weight/1e24*NA; // unit density [units/Angs-3]
   /* packing factor only applies when explicitly given (the 'density' already accounts for it otherwise) */
-  if (packing_factor > 0 && packing_factor < 1) fluo_rho *= packing_factor;
+  fluo_pf = 1;  // also applied to the powder diffraction (see TRACE)
+  if (packing_factor > 0 && packing_factor < 1) { fluo_pf = packing_factor; fluo_rho *= fluo_pf; }
   else if (packing_factor <= 0) packing_factor = 1;
   MPI_MASTER(
     printf("%s: Material %s M=%g [g/mol] density=%g [g/cm3] rho=%g [units/Angs-3]",
-      NAME_CURRENT_COMP, material, weight, density, fluo_rho);
+      NAME_CURRENT_COMP, mat_name, weight, density, fluo_rho);
     if (fabs(packing_factor-1) > 1e-2)
       printf(" packing_factor=%g", packing_factor);
     printf("\n");
@@ -466,11 +473,12 @@ INITIALIZE %{
     );
   }
   // checks for d_pĥi focusing
-  if (flag_powder && !d_phi) {
-    if (focus_ah) d_phi=focus_ah;
+  d_phi_deg = d_phi;
+  if (flag_powder && !d_phi_deg) {
+    if (focus_ah) d_phi_deg=focus_ah;
     else if (focus_yh && (target_x || target_y || target_z)) {
       double target_dist2=target_x*target_x+target_y*target_y+target_z*target_z;
-      d_phi = atan2(focus_yh,sqrt(target_dist2));
+      d_phi_deg = 2*atan2(focus_yh/2, sqrt(target_dist2))*(180.0/PI); // full vertical angle, in [deg]
     }
   }
 
@@ -701,7 +709,7 @@ do { /* while (intersect) Loop over multiple scattering events */
         line_info.my_s_k2_sum = my_s_k2_sum;
         line_info.Nq          = Nq;
         line_info.k           = k;
-        xs[DIFFRACTION]       = my_s_k2_sum/(k*k)/100/fluo_rho; // 100: fm^2 -> barn
+        xs[DIFFRACTION]       = fluo_pf*my_s_k2_sum/(k*k)/100/fluo_rho; // 100: fm^2 -> barn. fluo_rho already includes the packing factor: apply it here as well
         sigma_barn           += xs[DIFFRACTION];
       } else {
         xs[DIFFRACTION] = 0;
@@ -842,15 +850,19 @@ do { /* while (intersect) Loop over multiple scattering events */
     }
     if (type == DIFFRACTION) {
       if (!flag_powder) ABSORB;
+      if (Nq < 1) ABSORB; /* no powder line possible at this energy */
       if (Nq > 1) {
-        // choose a line among those possible, using F2 as relative probability/intensity
+        // choose a line among the Nq possible ones, using F2 as relative probability/intensity
+        // (XRMC_SelectInteraction has no limit on the number of items)
         line = XRMC_SelectInteraction(line_info.my_s_k2, Nq, rand01());
-      } else line = 0; /* Select between Nq powder lines */
+        if (line < 0 || line >= Nq) ABSORB; /* no line with a positive weight */
+      } else line = 0;
     }
 
     /* select outgoing vector (kf_x, kf_y, kf_z) and |kf| */
     if (type == DIFFRACTION) {
       double arg, tmp_kx, tmp_ky, tmp_kz, kout_x, kout_y, kout_z, nx, ny, nz, alpha0, sg=1;
+      double dphi = d_phi_deg;  /* local copy for this event: never modify the 'd_phi' parameter */
 
       if (line_info.w[line])
         arg = line_info.q[line]*(1+line_info.w[line]*randnorm())/(2.0*k);
@@ -868,16 +880,16 @@ do { /* while (intersect) Loop over multiple scattering events */
 
       /* Choose point on Debye-Scherrer cone */
       alpha = 0;
-      if (d_phi)
+      if (dphi)
       { /* relate height of detector to the height on DS cone */
-        arg = sin(d_phi*DEG2RAD/2)/sin(2*theta);
+        arg = sin(dphi*DEG2RAD/2)/sin(2*theta);
         /* If full Debye-Scherrer cone is within d_phi, don't focus */
-        if (arg < -1 || arg > 1) d_phi = alpha = 0;
+        if (arg < -1 || arg > 1) dphi = alpha = 0;
         /* Otherwise, determine alpha to rotate from scattering plane
          *    into d_phi focusing area */
         else alpha = 2*asin(arg);
       }
-      if (d_phi && alpha) {
+      if (dphi && alpha) {
         /* Focusing */
         alpha  = fabs(alpha);
         alpha0 = 0.5*randpm1()*alpha;
@@ -975,17 +987,16 @@ do { /* while (intersect) Loop over multiple scattering events */
 
       case DIFFRACTION:  /* 3 diffraction: line chosen before */
         /* weight the outgoing signal according to polarization */
-        if (Ex!=0 || Ey!=0 || Ez!=0){
-          double EE=sqrt(Ex*Ex+Ey*Ey+Ez*Ez);
-          double s=scalar_prod(kf_x,kf_y,kf_z,Ex,Ey,Ez)/EE;
-          p *= (1-s)*(1-s);
-        } else {
-          /*unpolarized light in - means an effective reduction according to only theta*/
-          p *= (1+cos(theta)*cos(theta))*0.5;
-        }
-        if (d_phi && alpha) {
+        /* Thomson polarisation factor (theta is the scattering angle 2*theta_Bragg).
+           Polarised: 1-(kf.e)^2 = 1-sin^2(theta)*cos^2(phi), phi from the polarisation vector.
+           Its average over phi is (1+cos^2(theta))/2, the unpolarised factor. */
+        if (polarised) p *= 1 - (1-cos_theta*cos_theta)*cos(phi1)*cos(phi1);
+        else           p *= (1+cos_theta*cos_theta)*0.5;
+        if (alpha) {   /* focusing on the vertical range (alpha is 0 when not focusing) */
           p *= alpha/PI;
         }
+        /* scattered polarisation: projection of the incoming one (stays unpolarised otherwise) */
+        if (polarised) fluo_pol_scattered(kf_x,kf_y,kf_z, &Ex,&Ey,&Ez);
         n_diff++;
         p_diff += p;
         break;
