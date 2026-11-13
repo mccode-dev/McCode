@@ -334,6 +334,7 @@ void *Table_File_List_store(t_Table *tab){
 
     /*TK: Valgrind flags it as usage of uninitialised variable: */
     Table->quiet = 0;
+    Table_Init(Table, 0, 0);
 
     //if (offset && *offset) snprintf(name, 1024, "%s@%li", File, *offset);
     //else                   
@@ -369,8 +370,6 @@ void *Table_File_List_store(t_Table *tab){
     stat(path,&stfile); filesize = stfile.st_size;
     if (offset && *offset) fseek(hfile, *offset, SEEK_SET);
     begin     = ftell(hfile);
-    
-    Table_Init(Table, 0, 0);
 
     /* read file content and set the Table */
     nelements = Table_Read_Handle(Table, hfile, block_number, max_rows, name);
@@ -544,14 +543,14 @@ void *Table_File_List_store(t_Table *tab){
     }
 
     int flag_In_array = 0;
+    char  *line=malloc(1024*CHAR_BUF_LENGTH*sizeof(char));
+    if (!line) {
+      fprintf(stderr,"Could not allocate line buffer\n");
+      exit(-1);
+    }
     do { /* while (!flag_End_row_loop) */
-      char  *line=malloc(1024*CHAR_BUF_LENGTH*sizeof(char));
       long  back_pos=0;   /* ftell start of line */
 
-      if (!line) {
-	fprintf(stderr,"Could not allocate line buffer\n");
-	exit(-1);
-      }
       back_pos = ftell(hfile);
       if (fgets(line, 1024*CHAR_BUF_LENGTH, hfile) != NULL) { /* analyse line */
         /* first skip blank and tabulation characters */
@@ -568,6 +567,7 @@ void *Table_File_List_store(t_Table *tab){
 	    if(!Headertmp) {
 	      fprintf(stderr, "Error: Could not reallocate Header (Table_Read_Handle).\n");
 		     free(Header);
+		     free(line);
 		     return (-1);
 	    } else {
 	      Header = Headertmp;
@@ -644,6 +644,7 @@ void *Table_File_List_store(t_Table *tab){
                       fprintf(stderr, "Error: Can not re-allocate memory %zi (Table_Read_Handle).\n",
                               malloc_size*sizeof(double));
 		      free(Data);
+		      free(line);
                       return (-1);
                     } else {
                       Data=Datatmp;
@@ -679,8 +680,8 @@ void *Table_File_List_store(t_Table *tab){
         } /* while (!flag_End_Line) */
       } /* end: if fgets */
       else flag_End_row_loop = 1; /* else fgets : end of file */
-      free(line);
     } while (!flag_End_row_loop); /* end while flag_End_row_loop */
+    free(line);
 
     Table->block_number = block_number;
     Table->array_length = 1;
