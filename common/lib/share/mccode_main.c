@@ -69,6 +69,7 @@ int mccode_main(int argc, char *argv[])
     } else {
       printf("[mcgpu] rank %d found no offload device\n", mpi_node_rank);
     }
+    fflush(stdout);
   }
 #else
   int num_devices = acc_get_num_devices(acc_device_nvidia);
