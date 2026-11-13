@@ -334,6 +334,7 @@ void *Table_File_List_store(t_Table *tab){
 
     /*TK: Valgrind flags it as usage of uninitialised variable: */
     Table->quiet = 0;
+    Table_Init(Table, 0, 0);
 
     //if (offset && *offset) snprintf(name, 1024, "%s@%li", File, *offset);
     //else                   
@@ -369,8 +370,6 @@ void *Table_File_List_store(t_Table *tab){
     stat(path,&stfile); filesize = stfile.st_size;
     if (offset && *offset) fseek(hfile, *offset, SEEK_SET);
     begin     = ftell(hfile);
-    
-    Table_Init(Table, 0, 0);
 
     /* read file content and set the Table */
     nelements = Table_Read_Handle(Table, hfile, block_number, max_rows, name);
