@@ -6,7 +6,7 @@
 *         Institut Laue Langevin, Grenoble, France
 *
 * Component: FlipChopFlipper
-*
+* %I
 * Written by: Niels Geerits
 * Date: August 2026
 * Version: $Revision$
@@ -15,10 +15,6 @@
 *
 * Resonant RF Spin Flipper for FlipChop at SNS
 *
-* %I
-*
-* FlipChop Flipper
-*
 * %D
 * This component calculates the polarization of a neutron beam interacting with an idealized
 * resonant RF flipper. A perfect match between the RF and Larmor frequency is assumed. The
@@ -26,18 +22,17 @@
 * high flipping probability over the entire wavelength band
 *
 * %P
-* Input parameters:
-* nx:    [ ] x-component of the normalized RF field vector.
-* ny:    [ ] y-component of the normalized RF field vector.
-* nz:    [ ] z-component of the normalized RF field vector.
-* xwidth: [m] width of the spin flipper.
-* yheight: [m] height of the spin flipper.
-* zdepth: [m] length of the spin flipper.
-* TOFOn TOF mode (1) or continuous mode (0)
-* L the distance from the source to the flipper.
-* tbit the size of one sequence bit in sequence in seconds.
-* tdelay phase delay
-* SEQ the on/off correlation sequence.
+* nx:     [1] x-component of the normalized RF field direction.
+* ny:     [1] y-component of the normalized RF field direction.
+* nz:     [1] z-component of the normalized RF field direction.
+* xwidth: [m] Width of the spin flipper.
+* yheight:[m] Height of the spin flipper.
+* zdepth: [m] Thickness of the spin flipper along the beam direction.
+* TOFOn:  [1] Use TOF operation (1) or continuous-source operation (0).
+* tbit:   [s] Duration of one bit in the modulation sequence.
+* L:      [m] Distance from the source to the flipper.
+* tdelay: [s] Time offset of the modulation sequence.
+* SEQ:    [string] Binary modulation sequence containing 0 and 1 characters.
 *
 * %E
 *******************************************************************************/
@@ -50,7 +45,7 @@ SETTING PARAMETERS (nx=1, ny=0, nz=0, xwidth=0.05, yheight=0.05, zdepth=0.005, T
 TRACE
 %{
   int hit;
-  int NSEQ = strlen(SEQ);
+  int NSEQ = strlen (SEQ);
   long EntryBit, ExitBit;
   double t0, t1, tentry, texit, phi, v_assumed, ta, tb;
 
@@ -58,7 +53,7 @@ TRACE
   if (hit) {
 
     tentry = t + t0 - tdelay;
-    texit  = t + t1 - tdelay;
+    texit = t + t1 - tdelay;
 
     PROP_DT (t0);
     if (fabs (z - -zdepth * 0.5) > DBL_EPSILON) {
@@ -70,24 +65,23 @@ TRACE
     PROP_Z0;
     SCATTER;
 
-    if (TOFOn == 1){
+    if (TOFOn == 1) {
       v_assumed = L / t;
     } else {
       v_assumed = vz;
     }
 
-
     double omega = PI * v_assumed / zdepth;
 
-    EntryBit = floor(tentry / tbit);
-    ExitBit = floor(texit / tbit);
+    EntryBit = floor (tentry / tbit);
+    ExitBit = floor (texit / tbit);
 
     phi = 0;
 
-    for (long k = EntryBit; k <= ExitBit; k++){
+    for (long k = EntryBit; k <= ExitBit; k++) {
       int j = ((k % NSEQ) + NSEQ) % NSEQ;
-      ta = fmax(k*tbit,tentry);
-      tb = fmin((k+1)*tbit,texit);
+      ta = fmax (k * tbit, tentry);
+      tb = fmin ((k + 1) * tbit, texit);
       phi += omega * (SEQ[j] - 48) * (tb - ta);
     }
 
@@ -95,7 +89,7 @@ TRACE
     double sy0 = sy;
     double sz0 = sz;
 
-    rotate(sx, sy, sz, sx0, sy0, sz0, phi, nx, ny, nz);
+    rotate (sx, sy, sz, sx0, sy0, sz0, phi, nx, ny, nz);
 
     PROP_DT ((t1 - t0) / 2); /*propagate the remaining distance to the box exit*/
     if (fabs (z - zdepth * 0.5) > DBL_EPSILON) {
