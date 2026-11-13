@@ -306,9 +306,12 @@ INITIALIZE %{
     fprintf(stderr, "FluoCrystal: WARNING: %s: Using flag_lorentzian=1 Lorentzian line-shape with order>1 may create artifacts.\n", NAME_CURRENT_COMP);
 
   // test if the material is given as a file
-  char formula[16384];
+  char  formula[65536];
+  char  path[1024];
+  char *mat_name  = material;   // formula actually used (never write into the 'material' parameter)
+  char *refl_name = NULL;       // reflection file for the diffraction (never write into 'sx_refl')
   formula[0]='\0';
-  FILE *file = Open_File(material, "r", NULL);
+  FILE *file = Open_File(material, "r", path);
   if (file != NULL) {
     fclose(file);
     // open the material structure file (laz/lau/cif...)
@@ -362,19 +365,21 @@ INITIALIZE %{
       double* mosaic_ABin = mosaic_AB;
 
       if (!sx_refl || !strlen(sx_refl) || !strcmp(sx_refl, "NULL") || !strcmp(sx_refl, "0"))
-        strcpy(sx_refl, material);
-      i = read_hkl_data(sx_refl, &hkl_info, &hkl_list, mosaic, mosaic_a, mosaic_b, mosaic_c, mosaic_ABin,
+        refl_name = material;
+      else
+        refl_name = sx_refl;
+      i = read_hkl_data(refl_name, &hkl_info, &hkl_list, mosaic, mosaic_a, mosaic_b, mosaic_c, mosaic_ABin,
                         hkl_info.ctr_size,hkl_info.ctr_k,hkl_info.ctr_FT2,hkl_info.ctr_dir); // returns hkl_info.count
       if (i == 0) {
         MPI_MASTER(
         fprintf(stderr,"WARNING: FluoCrystal: %s: mosaic or material file %s is not valid (CIF/LAU). Ignoring diffraction process.\n",
-                      NAME_CURRENT_COMP, sx_refl);
+                      NAME_CURRENT_COMP, refl_name);
         );
         flag_sx=0; // The failed read_hkl_data has set hkl_info.count = 0
       } else {
         MPI_MASTER(
           printf("FluoCrystal: %s: Read %d reflections from file '%s'\n",
-                          NAME_CURRENT_COMP, hkl_info.count, sx_refl);
+                          NAME_CURRENT_COMP, hkl_info.count, refl_name);
           printf("Direct space lattice orientation: Vc=%g [Angs^3]\n", hkl_info.V0);
           printf("  a  = [%g %g %g]\n", hkl_info.m_ax, hkl_info.m_ay, hkl_info.m_az);
           printf("  b  = [%g %g %g]\n", hkl_info.m_bx, hkl_info.m_by, hkl_info.m_bz);
@@ -387,7 +392,7 @@ INITIALIZE %{
       }
     }
 
-    strncpy(material, formula, 16384);
+    mat_name = formula;
     // CIF: _chemical_formula_structural 'chemical_formulae'
     // CIF: _chemical_formula_sum 'chemical_formulae'
     // LAZ/LAU: # ATOM <at> <trailing>
@@ -398,10 +403,10 @@ INITIALIZE %{
 
   }
 
-  compound = CompoundParser(material, &error); /* XRayLib */
+  compound = CompoundParser(mat_name, &error); /* XRayLib */
   if (error != NULL) {
     exit(fprintf(stderr, "ERROR: %s: Invalid material %s: %s\n",
-      NAME_CURRENT_COMP, material, error->message));
+      NAME_CURRENT_COMP, mat_name, error->message));
   }
   xrl_error_free(error);
 
@@ -409,7 +414,7 @@ INITIALIZE %{
   if (weight <= 0) weight = compound->molarMass; /* g/mol */
   MPI_MASTER(
     printf("%s: Material %s mass fractions:\n",
-      NAME_CURRENT_COMP, material);
+      NAME_CURRENT_COMP, mat_name);
   )
 
   double mat_density       = 0; /* g/cm3 */
@@ -452,7 +457,7 @@ INITIALIZE %{
   if (density <= 0)       density     = mat_density;                      /* g/cm3 */
   if (density <= 0)
     exit(fprintf(stderr, "ERROR: %s: can not determine density of %s. Specify 'density'.\n",
-      NAME_CURRENT_COMP, material));
+      NAME_CURRENT_COMP, mat_name));
 
   /* molar volume [cm^3/mol] = weight [g/mol] / density [g/cm^3] */
   /* unit density per Angs^3 = [mol/cm^3] * N_Avogadro *(1e-8)^3 */
@@ -462,7 +467,7 @@ INITIALIZE %{
   else if (packing_factor <= 0) packing_factor = 1;
   MPI_MASTER(
     printf("%s: Material %s M=%g [g/mol] density=%g [g/cm3] rho=%g [units/Angs-3]",
-      NAME_CURRENT_COMP, material, weight, density, fluo_rho);
+      NAME_CURRENT_COMP, mat_name, weight, density, fluo_rho);
     if (fabs(packing_factor-1) > 1e-2)
       printf(" packing_factor=%g", packing_factor);
     printf("\n");
@@ -713,7 +718,7 @@ do { /* while (intersect) Loop over multiple scattering events */
         tau_count = hkl_search(L, T, hkl_info.count, hkl_info.V0,
                                kx, ky, kz, tau_max,
                                &coh_refl, &coh_xsect);
-        xs[DIFFRACTION] = coh_xsect;
+        xs[DIFFRACTION] = packing_factor*coh_xsect/(hkl_info.V0*fluo_rho);
         sigma_barn     += xs[DIFFRACTION];
       } else {
         xs[DIFFRACTION] = coh_refl = coh_xsect = 0;
@@ -961,15 +966,12 @@ do { /* while (intersect) Loop over multiple scattering events */
         break;
 
       case DIFFRACTION:  /* 3 diffraction: line chosen before */
-        /* weight the outgoing signal according to polarization */
-        if (Ex!=0 || Ey!=0 || Ez!=0){
-          double EE=sqrt(Ex*Ex+Ey*Ey+Ez*Ez);
-          double s=scalar_prod(kf_x,kf_y,kf_z,Ex,Ey,Ez)/EE;
-          p *= (1-s)*(1-s);
-        } else {
-          /*unpolarized light in - means an effective reduction according to only theta*/
-          p *= (1+cos(theta)*cos(theta))*0.5;
-        }
+        /* Thomson polarisation factor: 1-(kf.eps)^2 = 1-sin^2(theta)cos^2(phi) for a polarised beam,
+           azimuthal average (1+cos^2(theta))/2 when unpolarised */
+        if (polarised) p *= 1 - (1-cos_theta*cos_theta)*cos(phi1)*cos(phi1);
+        else           p *= (1+cos_theta*cos_theta)*0.5;
+        /* scattered polarisation: projection of the incoming one */
+        if (polarised) fluo_pol_scattered(kf_x,kf_y,kf_z, &Ex,&Ey,&Ez);
         n_diff++;
         p_diff += p;
         break;
