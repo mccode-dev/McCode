@@ -108,6 +108,7 @@
 * order:         [1] limit multiple scattering up to given order (0: all, 1: first, 2: second, ...)
 * q_min:     [AA^-1] lower boundary of momentum transfer range to generate hkls in
 * q_max:     [AA^-1] upper boundary of momentum transfer range to generate hkls in
+* verbose:       [1] If non-zero output info on the computed reflections.
 *
 * Optional input parameters:
 *
@@ -130,7 +131,7 @@ SETTING PARAMETERS(string atom_sites=0, string geometry=NULL,
             mosaic = -1, mosaic_h = -1, mosaic_v = -1, mosaic_n = -1,
             recip_cell=0, q_min=0,q_max=-1,mx=0,my=1,mz=0,
             na=1, nb=1, nc=1, ax = 0, ay = 0, az = 0, bx = 0, by = 0, bz = 0, cx = 0, cy = 0, cz = 0,
-            p_transmit = -1, sigma_abs = 0, sigma_inc = 0,order=0)
+            p_transmit = -1, sigma_abs = 0, sigma_inc = 0, order=0, int verbose = 0)
 NOACC
 
 SHARE
@@ -247,7 +248,7 @@ SHARE
   } /* SM_list_compare */
 
   int
-  read_hkl_data (char* atoms_file, struct hkl_info_struct* info, double SC_mosaic, double SC_mosaic_h, double SC_mosaic_v, double SC_mosaic_n) { /*{{{*/
+  read_hkl_data (char* atoms_file, struct hkl_info_struct* info, double SC_mosaic, double SC_mosaic_h, double SC_mosaic_v, double SC_mosaic_n, int verbose) { /*{{{*/
     struct hkl_data* list = NULL;
     int size = 0;
     t_Table sTable; /* sample data table structure from atoms_file */
@@ -436,7 +437,7 @@ SHARE
 
                 M = fabs (r0) * g / 2 * 1e12; /*2nd factor to end up with x-sections in barns*/
                 if ((S_x != 0 || S_y != 0 || S_z != 0)) {
-                  /*S_|_=q_norm x (S x _norm) */
+                  /*S_|_=q_norm x (S x q_norm) */
                   double S_orto_x, S_orto_y, S_orto_z;
                   vec_prod (S_orto_x, S_orto_y, S_orto_z, S_x, S_y, S_z, qx, qy, qz);
                   vec_prod (S_orto_x, S_orto_y, S_orto_z, qx, qy, qz, S_x, S_y, S_z);
@@ -444,9 +445,9 @@ SHARE
                   S_orto_y /= (q * q);
                   S_orto_z /= (q * q);
 
-                  /* Refer to coordinates where polarisation is along z*/
+                  /*Refer to coordinates where polarisation is along z*/
                   double mm1sq = scalar_prod (info->refx, info->refy, info->refz, info->refx, info->refy, info->refz);
-                  /*gram-schmidt orthogonalization*/
+                  /*Gram-Schmidt orthogonalization*/
                   double mm2x = 1, mm2y = 0, mm2z = 0, mm2sq = 1, mm3x = 0, mm3y = 0, mm3z = 1, mm3sq = 1;
                   if (info->refy == 0) {
                     if (info->refx == 0) {
@@ -523,12 +524,15 @@ SHARE
                 list = list_new;
                 size = 2 * size;
               }
-              printf ("(hkl)=(%2d %2d %2d) ", h, k, l);
-              printf (" |f++|^2=%g |f--|^2=%g |f+-|^2=%g |f-+|^2=%g", cabs (f_[0]) * cabs (f_[0]), cabs (f_[1]) * cabs (f_[1]), cabs (f_[2]) * cabs (f_[2]),
+	      if (verbose) {
+		printf("%d\n",verbose);
+		printf (":(hkl)=(%2d %2d %2d) ", h, k, l);
+		printf (" |f++|^2=%g |f--|^2=%g |f+-|^2=%g |f-+|^2=%g", cabs (f_[0]) * cabs (f_[0]), cabs (f_[1]) * cabs (f_[1]), cabs (f_[2]) * cabs (f_[2]),
                       cabs (f_[3]) * cabs (f_[3]));
-              printf (" f++=%g%+gj, f--=%g%+gj, f+-=%g%+gj, f-+=%g%+gj\n", creal (f_[0]), cimag (f_[0]), creal (f_[1]), cimag (f_[1]), creal (f_[2]),
+		printf (" f++=%g%+gj, f--=%g%+gj, f+-=%g%+gj, f-+=%g%+gj\n", creal (f_[0]), cimag (f_[0]), creal (f_[1]), cimag (f_[1]), creal (f_[2]),
                       cimag (f_[2]), creal (f_[3]), cimag (f_[3]));
-            }
+	      }
+	    }
           }
         }
       }
@@ -647,7 +651,7 @@ INITIALIZE
   }
   /* Read in structure factors, and do some pre-calculations.
      read_hkl_data follows the POSIX convention: 0 on success, -1 on error. */
-  if (read_hkl_data (atom_sites, &hkl_info, mosaic, mosaic_h, mosaic_v, mosaic_n))
+  if (read_hkl_data (atom_sites, &hkl_info, mosaic, mosaic_h, mosaic_v, mosaic_n, verbose))
     exit (-1);
   if (hkl_info.count)
     printf ("Single_magnetic_crystal: %s: Read %d reflections from file '%s'\n", NAME_CURRENT_COMP, hkl_info.count, atom_sites);
