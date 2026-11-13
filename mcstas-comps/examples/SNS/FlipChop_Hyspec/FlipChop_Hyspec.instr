@@ -1,0 +1,177 @@
+
+/*******************************************************************************
+* McStas instrument definition
+*
+* Instrument: FlipChop_Hyspec
+*
+* %Identification
+* Written by: Niels Geerits and Thomas Huegle
+* Date: November 2026
+* Origin: ORNL
+*
+* Simulation of a statistica resonant RF neutron spin flip "chopper" at Hyspec.
+*
+* %Description
+* This instrument demos the FlipChopFlipper component, a resonant RF neutron spin flipper being operated as
+* operated as a correlation chopper, on the HYSPEC spectrometer at the Spallation Neutron Source (SNS).
+*
+* The instrument models the Fermi chopper, a vertically focusing HOPG monochromator, an ideal neutron polarizer,
+* the FlipChopFlipper component, an ideal polarization analyzer, and a time-of-flight detector.
+*
+* The FlipChopFlipper applies an arbitrary binary modulation sequence to the neutron spin. The default is a 16 bit
+* Golay sequence. The spin rotation is calculated by integrating the RF interaction over the finite transit time
+* through the flipper. In TOF mode, the RF amplitude is ramped using the time elapsed since the source pulse.
+*
+* The flipper is positioned 1 m upstream of the nominal sample position, and the detector is located 3.1 m downstream of the sample.
+*
+* Example:
+* mcrun FlipChop_HYSPEC.instr Polarizer_py=-1 Analyzer_my=1
+*
+* %Parameters
+* Polarizer_py: [1] Initial neutron polarization along the y-axis
+* Analyzer_my:  [1] Analyzer polarization direction along the y-axis
+*
+* %Link
+* https://mcstas.org
+* https://neutrons.ornl.gov/hyspec
+*
+* %End
+*******************************************************************************/
+
+
+DEFINE INSTRUMENT FlipChop_test (Polarizer_py=-1, Analyzer_my=1)
+
+DECLARE
+%{
+char *corrchop_sequence;
+char moderator_path[1024];
+%}
+
+INITIALIZE
+%{
+corrchop_sequence = "1110110111100010";
+
+/* Locate the bundled moderator data using McStas's search paths. */
+FILE *moderator_handle = Open_File(
+    "source_sct41a_bd_14_1.dat", "r", moderator_path);
+
+if (moderator_handle == NULL) {
+    fprintf(stderr,
+        "FlipChop_Hyspec: cannot locate source_sct41a_bd_14_1.dat\n");
+    exit(EXIT_FAILURE);
+}
+
+fclose(moderator_handle);
+printf("Moderator data: %s\n", moderator_path);
+%}
+
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+//SNS first target station BL14B
+COMPONENT Source = SNS_source(
+    filename = moderator_path,
+    xwidth = 0.1,
+    yheight = 0.12,
+    dist = 38.98,
+    focus_xw = 0.26,
+    focus_yh = 0.17,
+    Emin = 1,
+    Emax = 20
+)
+AT (0,0,0) RELATIVE Origin
+
+//Hyspec Fermi chopper can rotate at 30 Hz with FlipChop installed.
+COMPONENT Fermi = FermiChopper(
+    nu       = 30,
+    radius   = 0.060,
+    yheight  = 0.150,
+    w        = 0.0006,
+    nslit    = 70,
+    length   = 0.010,
+    m        = 0,
+    R0       = 0,
+    eff      = 0.85,
+    delay    = 0.0311,
+    zero_time = 0
+)
+AT (0, 0, 37.17) RELATIVE Source
+
+//Focusing monochromator stand in
+COMPONENT Mono = Monochromator_curved(
+    NH = 13,
+    NV = 13,
+    zwidth = 0.019,
+    yheight = 0.012,
+    gap = 0.001,
+    mosaich = 48,
+    mosaicv = 48,
+    r0 = 0.8,
+    DM = 3.355,
+    RV = 1.77,
+    RH = 0,
+    order = 1
+)
+AT (0,0,38.98) RELATIVE Source
+ROTATED (0,29.45,0) RELATIVE Source
+
+COMPONENT MonoExit = Arm()
+AT (0,0,0) RELATIVE Mono
+ROTATED (0,58.9,0) RELATIVE Source
+
+// Ideal polarization preparation
+COMPONENT Polarizer = Set_pol(
+    px=0, py=Polarizer_py, pz=0,
+    randomOn=0, normalize=0
+)
+AT (0,0,0.20) RELATIVE MonoExit
+ROTATED (0,0,0) RELATIVE MonoExit
+
+// FlipChop flipper
+COMPONENT FlipChop = FlipChopFlipper(
+    nx=1,
+    ny=0,
+    nz=0,
+    xwidth=1,
+    yheight=1,
+    zdepth=0.005,
+    TOFOn=1,
+    tbit=8.62e-6,
+    L=40,
+    tdelay=0.015,
+    SEQ=corrchop_sequence
+)
+AT (0,0,0.80) RELATIVE MonoExit
+ROTATED (0,0,0) RELATIVE MonoExit
+
+// Sample position
+COMPONENT SamplePosition = Arm()
+AT (0,0,1.80) RELATIVE MonoExit
+ROTATED (0,0,0) RELATIVE MonoExit
+
+// Ideal polarization analysis
+COMPONENT Analyzer = PolAnalyser_ideal(
+    mx=0, my=Analyzer_my, mz=0
+)
+AT (0,0,3.09) RELATIVE SamplePosition
+ROTATED (0,0,0) RELATIVE SamplePosition
+
+// TOF Detector
+COMPONENT TOF_after_Analyzer = TOF_monitor(
+    nt=10000,
+    filename="TOF_after_Analyzer",
+    xwidth=0.1,
+    yheight=0.1,
+    tmin=25000,
+    tmax=40000
+)
+AT (0,0,3.10) RELATIVE SamplePosition
+ROTATED (0,0,0) RELATIVE SamplePosition
+
+FINALLY
+%{
+%}
+END

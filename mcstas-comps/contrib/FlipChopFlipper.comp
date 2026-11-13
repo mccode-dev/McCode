@@ -1,0 +1,123 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: FlipChopFlipper
+*
+* Written by: Niels Geerits
+* Date: August 2026
+* Version: $Revision$
+* Release: McStas 3.7.9
+* Origin: ORNL
+*
+* Resonant RF Spin Flipper for FlipChop at SNS
+*
+* %I
+*
+* FlipChop Flipper
+*
+* %D
+* This component calculates the polarization of a neutron beam interacting with an idealized
+* resonant RF flipper. A perfect match between the RF and Larmor frequency is assumed. The
+* component assumes a time of flight source and adjusts the RF amplitude by 1/t to ensure A
+* high flipping probability over the entire wavelength band
+*
+* %P
+* Input parameters:
+* nx:    [ ] x-component of the normalized RF field vector.
+* ny:    [ ] y-component of the normalized RF field vector.
+* nz:    [ ] z-component of the normalized RF field vector.
+* xwidth: [m] width of the spin flipper.
+* yheight: [m] height of the spin flipper.
+* zdepth: [m] length of the spin flipper.
+* TOFOn TOF mode (1) or continuous mode (0)
+* L the distance from the source to the flipper.
+* tbit the size of one sequence bit in sequence in seconds.
+* tdelay phase delay
+* SEQ the on/off correlation sequence.
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT FlipChopFlipper
+
+SETTING PARAMETERS (nx=1, ny=0, nz=0, xwidth=0.05, yheight=0.05, zdepth=0.005, TOFOn=1, tbit = 1e-5, L=30, tdelay = 0.015, string SEQ="0110100110010110100101100110101")
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+TRACE
+%{
+  int hit;
+  int NSEQ = strlen(SEQ);
+  long EntryBit, ExitBit;
+  double t0, t1, tentry, texit, phi, v_assumed, ta, tb;
+
+  hit = box_intersect (&t0, &t1, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
+  if (hit) {
+
+    tentry = t + t0 - tdelay;
+    texit  = t + t1 - tdelay;
+
+    PROP_DT (t0);
+    if (fabs (z - -zdepth * 0.5) > DBL_EPSILON) {
+      /*neutron must have hit the side walls*/
+      ABSORB;
+    }
+
+    /*move to center of box and flip*/
+    PROP_Z0;
+    SCATTER;
+
+    if (TOFOn == 1){
+      v_assumed = L / t;
+    } else {
+      v_assumed = vz;
+    }
+
+
+    double omega = PI * v_assumed / zdepth;
+
+    EntryBit = floor(tentry / tbit);
+    ExitBit = floor(texit / tbit);
+
+    phi = 0;
+
+    for (long k = EntryBit; k <= ExitBit; k++){
+      int j = ((k % NSEQ) + NSEQ) % NSEQ;
+      ta = fmax(k*tbit,tentry);
+      tb = fmin((k+1)*tbit,texit);
+      phi += omega * (SEQ[j] - 48) * (tb - ta);
+    }
+
+    double sx0 = sx;
+    double sy0 = sy;
+    double sz0 = sz;
+
+    rotate(sx, sy, sz, sx0, sy0, sz0, phi, nx, ny, nz);
+
+    PROP_DT ((t1 - t0) / 2); /*propagate the remaining distance to the box exit*/
+    if (fabs (z - zdepth * 0.5) > DBL_EPSILON) {
+      ABSORB;
+    }
+  }
+%}
+
+MCDISPLAY
+%{
+  double dx = xwidth / 16;
+  double dy = yheight / 8;
+
+  box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
+
+  line (dx, -dy, 0, dx, -dy + yheight / 2.0, 0);
+  line (-dx, dy, 0, -dx, dy - yheight / 2.0, 0);
+  line (dx, -dy + yheight / 2.0, 0, dx + xwidth / 16, -dy + yheight - yheight / 16, 0);
+  line (dx, -dy + yheight / 2.0, 0, dx - xwidth / 16, -dy + yheight - yheight / 16, 0);
+
+  line (-dx, dy - yheight / 2.0, 0, -dx + xwidth / 16, dy - yheight + yheight / 16, 0);
+  line (-dx, dy - yheight / 2.0, 0, -dx - xwidth / 16, dy - yheight + yheight / 16, 0);
+%}
+
+END
