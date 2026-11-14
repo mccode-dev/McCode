@@ -46,6 +46,33 @@
 *   The default size of the object depends of the OFF file data, but its 
 *   bounding box may be resized using xwidth,yheight and zdepth.
 *
+* <b>Atom sites file format:</b>
+* The atom_sites input file is a whitespace-separated table with one row per
+* atom in the CHEMICAL unit cell (the magnetic cell may be larger via the
+* na/nb/nc scaling). Columns (0-indexed):
+*
+*   index iontype xrel yrel zrel b[fm] gS Sx Sy Sz gL Lx Ly Lz [j0* j2* ...]
+*
+*   index, iontype : ignored (any number / 0)
+*   xrel,yrel,zrel : fractional position of the atom in the chemical cell
+*                    (dimensionless, along a, b, c)
+*   b              : bound coherent nuclear scattering length in fm
+*                    (divided internally by 10, so that |f|^2 comes out in barns)
+*   gS, gL         : spin and orbital Lande g-factors; g = gS + gL
+*   Sx,Sy,Sz       : spin vector of the ion in units of hbar, given as
+*                    components along the crystallographic a, b, c axes
+*                    (e.g. 0.5 for spin-1/2; 0 for non-magnetic ions)
+*   Lx,Ly,Lz       : orbital angular momentum vector, same convention
+*                    (parsed, but not yet used by the scattering formulas)
+*   j0*, j2*       : <j0>/<j2> magnetic form-factor coefficients in the Brown
+*                    parameterization j(x) = A*exp(-a*x^2) + B*exp(-b*x^2)
+*                    + C*exp(-c*x^2) + D (optional trailing columns,
+*                    currently unused - the magnetic form factor is 1)
+*
+* Files with 6 data columns or fewer are treated as nuclear-only. Note that
+* a magnetic atom file should provide at least 14 columns; shorter files
+* give undefined magnetic moments for the extra columns.
+*
 * Also, always use a non-zero value of delta_d_d.
 *
 *
@@ -81,6 +108,7 @@
 * order:         [1] limit multiple scattering up to given order (0: all, 1: first, 2: second, ...)
 * q_min:     [AA^-1] lower boundary of momentum transfer range to generate hkls in
 * q_max:     [AA^-1] upper boundary of momentum transfer range to generate hkls in
+* verbose:       [1] If non-zero output info on the computed reflections.
 *
 * Optional input parameters:
 *
@@ -103,7 +131,7 @@ SETTING PARAMETERS(string atom_sites=0, string geometry=NULL,
             mosaic = -1, mosaic_h = -1, mosaic_v = -1, mosaic_n = -1,
             recip_cell=0, q_min=0,q_max=-1,mx=0,my=1,mz=0,
             na=1, nb=1, nc=1, ax = 0, ay = 0, az = 0, bx = 0, by = 0, bz = 0, cx = 0, cy = 0, cz = 0,
-            p_transmit = -1, sigma_abs = 0, sigma_inc = 0,order=0)
+            p_transmit = -1, sigma_abs = 0, sigma_inc = 0, order=0, int verbose = 0)
 NOACC
 
 SHARE
@@ -177,8 +205,51 @@ SHARE
     double y0x, y0y;      /* 2D Gauss center in tangent plane */
   };
 
+  /* Comparator for sorting the reflection list by increasing |tau|
+     (cf. SX_list_compare in Single_crystal.comp, distinct name to avoid a
+     clash when an instrument uses both components). The TRACE-section
+     Ewald-sphere search relies on the list being sorted by tau. */
   int
-  read_hkl_data (char* atoms_file, struct hkl_info_struct* info, double SC_mosaic, double SC_mosaic_h, double SC_mosaic_v, double SC_mosaic_n) { /*{{{*/
+  SM_list_compare (void const* a, void const* b) {
+    struct hkl_data const* pa = a;
+    struct hkl_data const* pb = b;
+
+    /* Sort by tau */
+    if (pa->tau < pb->tau)
+      return -1;
+    if (pa->tau > pb->tau)
+      return 1;
+
+    /* Sort by tau_x */
+    if (pa->tau_x < pb->tau_x)
+      return -1;
+    if (pa->tau_x > pb->tau_x)
+      return 1;
+
+    /* Sort by tau_y */
+    if (pa->tau_y < pb->tau_y)
+      return -1;
+    if (pa->tau_y > pb->tau_y)
+      return 1;
+
+    /* Sort by tau_z */
+    if (pa->tau_z < pb->tau_z)
+      return -1;
+    if (pa->tau_z > pb->tau_z)
+      return 1;
+
+    /* In case of tie, sort by F2 also */
+    if (pa->F2 < pb->F2)
+      return -1;
+    if (pa->F2 > pb->F2)
+      return 1;
+
+    return 0;
+  } /* SM_list_compare */
+
+  int
+  read_hkl_data (char* atoms_file, struct hkl_info_struct* info, double SC_mosaic, double SC_mosaic_h, double SC_mosaic_v, double SC_mosaic_n,
+                 int verbose) { /*{{{*/
     struct hkl_data* list = NULL;
     int size = 0;
     t_Table sTable; /* sample data table structure from atoms_file */
@@ -198,8 +269,20 @@ SHARE
       int status;
       if ((status = Table_Read (&atoms, atoms_file, 0)) == -1) {
         fprintf (stderr, "Single_magnetic_crystal: Error reading atom list from file: %s\n", atoms_file);
-        return (0);
+        return (-1);
       }
+
+      /* Validate the column count: 6 data columns or fewer means nuclear-only,
+         while a magnetic file needs at least 14 columns (through Lz). For 7-13
+         columns Table_Index clamps out-of-range indices to the last column,
+         so the missing moment components would silently alias it. */
+      if (atoms.columns > 6 && atoms.columns < 14)
+        fprintf (stderr,
+                 "Single_magnetic_crystal: WARNING: atom file '%s' has only %d data columns (< 14).\n"
+                 "                The magnetic moment columns (Sx, Sy, Sz, gL, Lx, Ly, Lz) are incomplete;\n"
+                 "                missing columns will read as duplicates of the last column and give a wrong moment.\n"
+                 "                Please supply at least: index iontype xrel yrel zrel b[fm] gS Sx Sy Sz gL Lx Ly Lz\n",
+                 atoms_file, atoms.columns);
 
       printf ("index type x y z b\n");
       for (i = 0; i < atoms.rows; i++) {
@@ -261,6 +344,18 @@ SHARE
       info->m_b = sqrt (scalar_prod (info->m_bx, info->m_by, info->m_bz, info->m_bx, info->m_by, info->m_bz));
       info->m_c = sqrt (scalar_prod (info->m_cx, info->m_cy, info->m_cz, info->m_cx, info->m_cy, info->m_cz));
 
+      /* Sanity-check the unit cell: zero-length or degenerate (co-planar)
+         lattice vectors would give division by zero / inf / NaN when building
+         the reciprocal lattice and the hkl loops below. !(x > 0) also catches
+         NaN, !isfinite catches inf (e.g. recip_cell=1 with a zero vector). */
+      if (!(info->m_a > 0) || !(info->m_b > 0) || !(info->m_c > 0) || !isfinite (info->V0) || !(info->V0 > 0)) {
+        fprintf (stderr,
+                 "Single_magnetic_crystal: invalid unit cell definition (a=%g b=%g c=%g V0=%g).\n"
+                 "ERROR           Please check the ax..cz / recip_cell / na,nb,nc parameter values.\n",
+                 info->m_a, info->m_b, info->m_c, info->V0);
+        return (-1);
+      }
+
       /*give the atom list - calculate the chemical structure factors of a series of hkls that are within the q-range*/
       double as, bs, cs;
       as = sqrt (scalar_prod (info->asx, info->asy, info->asz, info->asx, info->asy, info->asz));
@@ -281,6 +376,16 @@ SHARE
         fprintf (stderr, "Single_magnetic_crystal: Error allocating reflection list\n");
         return (-1);
       }
+      /* Scratch array holding the 4 spin-channel structure factors of the
+         reflection currently being built. Heap-allocated once and reused for
+         every hkl (its contents are copied into list[i].f below), so it stays
+         a single allocation also for very large (~1e6) reflection lists. */
+      cdouble* f_ = malloc (4 * sizeof (cdouble));
+      if (!f_) {
+        fprintf (stderr, "Single_magnetic_crystal: Error allocating cdouble f_[4]\n");
+        free (list);
+        return (-1);
+      }
       printf ("q=[%g %g]\n", info->tau_min, info->tau_max);
       printf ("as,bs,cs=(%g %g %g)\n", as, bs, cs);
       i = 0;
@@ -297,11 +402,6 @@ SHARE
               continue;
             f = cplx (0, 0);
             cdouble f_tau = cplx (0, 0);
-            cdouble* f_ = malloc (4 * sizeof (cdouble));
-            if (!f_) {
-              fprintf (stderr, "Single_magnetic_crystal: Error allocating cdouble f_[4]\n");
-              return (-1);
-            }
             f_[0] = f_[1] = f_[2] = f_[3] = cplx (0, 0);
 
             for (m = 0; m < atoms.rows; m++) {
@@ -338,7 +438,7 @@ SHARE
 
                 M = fabs (r0) * g / 2 * 1e12; /*2nd factor to end up with x-sections in barns*/
                 if ((S_x != 0 || S_y != 0 || S_z != 0)) {
-                  /*S_|_=q_norm x (S x _norm) */
+                  /*S_|_=q_norm x (S x q_norm) */
                   double S_orto_x, S_orto_y, S_orto_z;
                   vec_prod (S_orto_x, S_orto_y, S_orto_z, S_x, S_y, S_z, qx, qy, qz);
                   vec_prod (S_orto_x, S_orto_y, S_orto_z, qx, qy, qz, S_x, S_y, S_z);
@@ -346,9 +446,9 @@ SHARE
                   S_orto_y /= (q * q);
                   S_orto_z /= (q * q);
 
-                  /* Refer to coordinates where polarisation is along z*/
+                  /*Refer to coordinates where polarisation is along z*/
                   double mm1sq = scalar_prod (info->refx, info->refy, info->refz, info->refx, info->refy, info->refz);
-                  /*gram-schmidt orthogonalization*/
+                  /*Gram-Schmidt orthogonalization*/
                   double mm2x = 1, mm2y = 0, mm2z = 0, mm2sq = 1, mm3x = 0, mm3y = 0, mm3z = 1, mm3sq = 1;
                   if (info->refy == 0) {
                     if (info->refx == 0) {
@@ -414,28 +514,40 @@ SHARE
               }
               list[i].F2 = cabs (f_tau) * cabs (f_tau);
               if (++i == size) {
-                size = 2 * size;
-                list = (struct hkl_data*)realloc (list, size * sizeof (struct hkl_data));
-                if (!list) {
-                  fprintf (stderr, "Single_crystal: Error re-allocating reflection list\n");
+                struct hkl_data* list_new = (struct hkl_data*)realloc (list, 2 * size * sizeof (struct hkl_data));
+                if (!list_new) {
+                  fprintf (stderr, "Single_magnetic_crystal: Error re-allocating reflection list\n");
+                  free (list);
+                  free (f_);
+                  Table_Free (&atoms);
                   return (-1);
                 }
+                list = list_new;
+                size = 2 * size;
               }
-              printf ("(hkl)=(%2d %2d %2d) ", h, k, l);
-              printf (" |f++|^2=%g |f--|^2=%g |f+-|^2=%g |f-+|^2=%g", cabs (f_[0]) * cabs (f_[0]), cabs (f_[1]) * cabs (f_[1]), cabs (f_[2]) * cabs (f_[2]),
-                      cabs (f_[3]) * cabs (f_[3]));
-              printf (" f++=%g%+gj, f--=%g%+gj, f+-=%g%+gj, f-+=%g%+gj\n", creal (f_[0]), cimag (f_[0]), creal (f_[1]), cimag (f_[1]), creal (f_[2]),
-                      cimag (f_[2]), creal (f_[3]), cimag (f_[3]));
+              if (verbose) {
+                printf ("%d\n", verbose);
+                printf (":(hkl)=(%2d %2d %2d) ", h, k, l);
+                printf (" |f++|^2=%g |f--|^2=%g |f+-|^2=%g |f-+|^2=%g", cabs (f_[0]) * cabs (f_[0]), cabs (f_[1]) * cabs (f_[1]), cabs (f_[2]) * cabs (f_[2]),
+                        cabs (f_[3]) * cabs (f_[3]));
+                printf (" f++=%g%+gj, f--=%g%+gj, f+-=%g%+gj, f-+=%g%+gj\n", creal (f_[0]), cimag (f_[0]), creal (f_[1]), cimag (f_[1]), creal (f_[2]),
+                        cimag (f_[2]), creal (f_[3]), cimag (f_[3]));
+              }
             }
           }
         }
       }
       /*set size to actual number of reflections*/
       size = i;
+      /* the scratch array and the parsed atom table are no longer needed */
+      free (f_);
+      Table_Free (&atoms);
     }
 
     if (flag)
-      return (-1);
+      /* No atom file given: incoherent elastic scattering only. This is a
+         valid configuration, not an error (POSIX: 0 == success). */
+      return (0);
 
     /*re-loop over reflections and evaluate mosaicity coefficients etc.*/
     for (i = 0; i < size; i++) {
@@ -467,7 +579,8 @@ SHARE
         /* Use anisotropic mosaic. */
         /*This is not implemeted fully yet (see todo below)- therefore exit with a warning*/
         fprintf (stderr, "Single_magnetic_crystal: Anisotropic mosaic not implemented yet - aborting.\n");
-        return (0);
+        free (list);
+        return (-1);
       }
       list[i].sig123 = list[i].sig1 * list[i].sig2 * list[i].sig3;
       list[i].m1 = 1 / (2 * list[i].sig1 * list[i].sig1);
@@ -484,14 +597,20 @@ SHARE
       else
         list[i].cutoff = 5 * list[i].sig3;
     }
+    /* Sort the reflection list by increasing |tau|. The TRACE-section search
+       assumes sortedness, so it can break early once L[i].tau > tau_max;
+       without the sort most reflections would never be reached. */
+    qsort (list, i, sizeof (struct hkl_data), SM_list_compare);
     info->list = list;
     info->count = i;
     info->tau_list = malloc (i * sizeof (*info->tau_list));
     if (!info->tau_list) {
-      fprintf (stderr, "Single_crystal: Error: Out of memory!\n");
-      return (0);
+      fprintf (stderr, "Single_magnetic_crystal: Error: Out of memory!\n");
+      free (list);
+      return (-1);
     }
-    return (info->count = i);
+    info->count = i;
+    return (0);
   } /*}}}*/
   #endif /* !SINGLE_MAGNETIC_CRYSTAL_DECL */
 %}
@@ -531,13 +650,14 @@ INITIALIZE
     hkl_info.refx = hkl_info.refz = 0;
     hkl_info.refy = 1;
   }
-  /* Read in structure factors, and do some pre-calculations. */
-  if (!read_hkl_data (atom_sites, &hkl_info, mosaic, mosaic_h, mosaic_v, mosaic_n))
+  /* Read in structure factors, and do some pre-calculations.
+     read_hkl_data follows the POSIX convention: 0 on success, -1 on error. */
+  if (read_hkl_data (atom_sites, &hkl_info, mosaic, mosaic_h, mosaic_v, mosaic_n, verbose))
     exit (-1);
   if (hkl_info.count)
-    printf ("Single_crystal: %s: Read %d reflections from file '%s'\n", NAME_CURRENT_COMP, hkl_info.count, atom_sites);
+    printf ("Single_magnetic_crystal: %s: Read %d reflections from file '%s'\n", NAME_CURRENT_COMP, hkl_info.count, atom_sites);
   else
-    printf ("Single_crystal: %s: Using incoherent elastic scattering only sigma=%g.\n", NAME_CURRENT_COMP, hkl_info.sigma_i);
+    printf ("Single_magnetic_crystal: %s: Using incoherent elastic scattering only sigma_i=%g.\n", NAME_CURRENT_COMP, hkl_info.sigma_i);
 
   hkl_info.shape = -1; /* -1:no shape, 0:cyl, 1:box, 2:sphere, 3:any-shape  */
   if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
@@ -646,7 +766,7 @@ TRACE
         /* neutron is leaving the sample */
         if (hkl_info.flag_warning < 100)
           fprintf (stderr,
-                   "Single_crystal: %s: Warning: neutron has unexpectedly left the crystal!\n"
+                   "Single_magnetic_crystal: %s: Warning: neutron has unexpectedly left the crystal!\n"
                    "                t1=%g t2=%g x=%g y=%g z=%g vx=%g vy=%g vz=%g\n",
                    NAME_CURRENT_COMP, t1, t2, x, y, z, vx, vy, vz);
         hkl_info.flag_warning++;
@@ -828,7 +948,7 @@ TRACE
         }
         if (j >= tau_count) {
           fprintf (stderr,
-                   "Single_crystal: Error: Illegal tau search "
+                   "Single_magnetic_crystal: Error: Illegal tau search "
                    "(r = %g, sum = %g).\n",
                    r, sum);
           j = tau_count - 1;
@@ -897,7 +1017,7 @@ TRACE
 FINALLY
 %{
   if (hkl_info.flag_warning)
-    fprintf (stderr, "Single_crystal: %s: Error message was repeated %i times with absorbed neutrons.\n", NAME_CURRENT_COMP, hkl_info.flag_warning);
+    fprintf (stderr, "Single_magnetic_crystal: %s: Error message was repeated %i times with absorbed neutrons.\n", NAME_CURRENT_COMP, hkl_info.flag_warning);
 %}
 
 MCDISPLAY
