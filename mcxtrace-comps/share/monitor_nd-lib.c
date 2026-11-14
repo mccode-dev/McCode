@@ -879,6 +879,17 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 /* return values: 0=photon was absorbed, -1=photon was outside bounds, 1=photon was measured*/
 /* ========================================================================= */
 
+/* Histogram index of coord, kept within [-1:bins] so the conversion to long
+   is defined for huge, infinite or NaN coordinates (NaN gives -1) */
+#pragma acc routine seq
+long Monitor_nD_Index(double coord, double min, double range, long bins)
+{
+  double idx = floor((coord-min)*bins/range);
+  if (!(idx >= -1)) return -1;
+  if (idx > bins)   return bins;
+  return (long)idx;
+}
+
 int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle* _particle)
 {
 
@@ -964,7 +975,7 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
           XY = (Vars->Coord_Max[i]-Vars->Coord_Min[i]);
 
           Coord[i] = Vars->Mon2D_Buffer[i+While_Buffer*(Vars->Coord_Number+1)];
-          if (XY > 0) Coord_Index[i] = floor((Coord[i]-Vars->Coord_Min[i])*Vars->Coord_Bin[i]/XY);
+          if (XY > 0) Coord_Index[i] = Monitor_nD_Index(Coord[i], Vars->Coord_Min[i], XY, Vars->Coord_Bin[i]);
           else        Coord_Index[i] = 0;
           if (Vars->Flag_With_Borders)
           {
@@ -1178,7 +1189,7 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
           if ((!Vars->Flag_Auto_Limits || !(Vars->Coord_Type[i] & DEFS->COORD_AUTO)) && Vars->Coord_Bin[i]>1)
           { /* compute index in histograms for each variable to monitor */
             XY = (Vars->Coord_Max[i]-Vars->Coord_Min[i]);
-            if (XY > 0) Coord_Index[i] = floor((Coord[i]-Vars->Coord_Min[i])*Vars->Coord_Bin[i]/XY);
+            if (XY > 0) Coord_Index[i] = Monitor_nD_Index(Coord[i], Vars->Coord_Min[i], XY, Vars->Coord_Bin[i]);
             if (Vars->Flag_With_Borders)
             {
               if (Coord_Index[i] >= Vars->Coord_Bin[i]) Coord_Index[i] = Vars->Coord_Bin[i] - 1;
@@ -1395,7 +1406,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
             else {
               XY = (Vars->Coord_Max[i]-Vars->Coord_Min[i]);
               Coord[i] = Vars->Mon2D_Buffer[i+While_Buffer*(Vars->Coord_Number+1)];
-              if (XY > 0) Coord_Index[i] = floor((Coord[i]-Vars->Coord_Min[i])*Vars->Coord_Bin[i]/XY);
+              if (XY > 0) Coord_Index[i] = Monitor_nD_Index(Coord[i], Vars->Coord_Min[i], XY, Vars->Coord_Bin[i]);
               else Coord_Index[i] = 0;
               if (Vars->Flag_With_Borders)
               {

@@ -79,8 +79,8 @@
 DEFINE COMPONENT ESS_moderator
 
 SETTING PARAMETERS (isleft=0.9,
-Lmin, Lmax, cold_frac=1.0, dist=0, focus_xw, focus_yh, int target_index=0, tmax_multiplier=3,yheight_c=0.12, yheight_t=0.12,
-int n_pulses=1, acc_power=5, beamport_angle=-1, string sourcedef="2015", xwidth_c=0.1, xwidth_t=0.18, extraction_opening=120)
+Lmin, Lmax, cold_frac=1.0, dist=0, focus_xw, focus_yh, int target_index=0, tmax_multiplier=3,yheight_c=0.03, yheight_t=0.03,
+int n_pulses=1, acc_power=5, beamport_angle=25, string sourcedef="2015", xwidth_c=0.1, xwidth_t=0.18, extraction_opening=120)
 
 SHARE
 %{
@@ -90,7 +90,12 @@ SHARE
 DECLARE
 %{
 // Weighting-oriented scalars
-double l_range, w_mult, w_geom, w_geom_c, w_geom_t, w_stat;
+double l_range;
+double w_mult;
+double w_geom;
+double w_geom_c;
+double w_geom_t;
+double w_stat;
 // Flag to indicate if originating from cold or thermal moderator
 int cold;
 // Flag to indicate if originating from left or right thermal slab
@@ -98,11 +103,21 @@ int wasleft;
 // Flag to indicate if we should apply the solid angle correction from randvec
 int cosine;
 // Target coordinates (focusing)
-  double tx,ty,tz;
+  double tx;
+  double ty;
+  double tz;
   // Displacement of cold moderator centre from comp origin, cold moderator radius 2014 only!
-  double cx,cy,cz,cyl_radius;
+  double cx;
+  double cy;
+  double cz;
+  double cyl_radius;
   // Vectors giving direction of the thermal slabs
-  double t1x,t1y,t1z,t2x,t2y,t2z;
+  double t1x;
+  double t1y;
+  double t1z;
+  double t2x;
+  double t2y;
+  double t2z;
 
   /* Struct for transfer to ess-source-lib funcs  */
   ess_moderator_struct modextras;
@@ -110,13 +125,22 @@ int cosine;
   functype cold_bril;
   functype thermal_bril;
   /* Time-focusing parameters - currently unused */
-  double tfocus_width,  tfocus_time,  dt;
+  double tfocus_width;
+  double tfocus_time;
+  double dt;
   /* radius of vacated zone around the moderator */
   double r_empty;
-  double lambda,xprime,yprime,zprime;
-  double abs_beamport_angle,cos_beamport_angle,sin_beamport_angle;
+  double lambda;
+  double xprime;
+  double yprime;
+  double zprime;
+  double abs_beamport_angle;
+  double cos_beamport_angle;
+  double sin_beamport_angle;
   /* variables needed to correct for the emission surface angle*/
-  double cos_thermal,cos_cold, edge_thermal;
+  double cos_thermal;
+  double cos_cold;
+  double edge_thermal;
   int sgnport;
 %}
 

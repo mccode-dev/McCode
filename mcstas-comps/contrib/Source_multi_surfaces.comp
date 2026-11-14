@@ -130,11 +130,11 @@ INITIALIZE
 %{
   int n_surf = 1, c_surf = 1; /*numbers of subsurfaces*/
   int rows_surf;              /*number of Source_multi_surfaces.comp rows*/
-  int i, j, string_num, k;    /*filename_table indices*/
+  int i, j, k;                /*filename_table indices*/
 
   char* token;
   FILE* files_name;
-  char fu[50];
+  char fu[128];
   struct filename_table {
     int index1;
     char spec_name[128];
@@ -183,38 +183,29 @@ INITIALIZE
 
   /*read files_name.dat, generate a table with the files filename*/
 
-  files_name = fopen (filename, "r");
-
-  i = 0;
-  rows_surf = 0;
-  while (1) {
-    if (feof (files_name))
-      break;
-    fgets (values[i].tmp_name, 512, files_name);
-    i = i + 1;
-    rows_surf = i;
-  } /*we do not consider the number of line*/
-
-  j = 0;
-  i = 0;
-  k = 0;
-  for (j = 0; j < rows_surf; j++) {
-    token = strtok (values[j].tmp_name, " ");
-    if (j > 0)
-      i = i + (7 - xdim);
-    sprintf (values[i].spec_name, "%s\n", token);
-    i = i + 1;
-    k = k + 1;
-    while (token = strtok (0, " ")) {
-      sprintf (values[i].spec_name, "%s\n", token);
-      i = i + 1;
-      k = k + 1;
-      c_surf = k;
-    }
+  files_name = Open_File (filename, "r", NULL);
+  if (!files_name) {
+    fprintf (stderr, "Source_multi_surfaces: Error: Cannot open file %s\n", filename);
+    exit (-1);
   }
-  sprintf (values[i - 1].spec_name, "%s", "empty");
+
+  /* one line per row of sub-surfaces, file names separated by blanks:
+     slot i*7+j holds row i, column j of the (at most 7x7) grid */
+  rows_surf = 0;
+  k = 0;
+  while (rows_surf < 7 && fgets (values[rows_surf].tmp_name, 512, files_name)) {
+    j = 0;
+    for (token = strtok (values[rows_surf].tmp_name, " \t\r\n"); token; token = strtok (0, " \t\r\n")) {
+      if (j < 7)
+        snprintf (values[rows_surf * 7 + j].spec_name, sizeof (values[0].spec_name), "%s", token);
+      j++;
+      k++;
+    }
+    if (j) /* skip blank lines */
+      rows_surf++;
+  }
+  c_surf = k;
   fclose (files_name);
-  rows_surf = rows_surf - 1;
 
   if (n_surf != c_surf) {
     fprintf (stderr, "Source_multi_surfaces: Error: Number of subdivision (xdim*ydim) and number of input file not equal (files_name.dat)\n");
@@ -227,37 +218,16 @@ INITIALIZE
     for (j = 0; j < 7; j++) {
       k = i * 7 + j;
       if (strcmp (values[k].spec_name, "empty")) {
-        switch (j) {
-        case 0:
-          if (xdim > 1) {
-            string_num = strlen (values[k].spec_name) - 1;
-          } else {
-            string_num = strlen (values[k].spec_name) - 2;
-          }
-          break;
-        case 6:
-          if (xdim == 7) {
-            string_num = strlen (values[k].spec_name) - 2;
-          }
-          break;
-        default:
-          if (xdim == j + 1) {
-            string_num = strlen (values[k].spec_name) - 2;
-          } else {
-            string_num = strlen (values[k].spec_name) - 1;
-          }
-        }
-        strncpy (fu, values[k].spec_name, string_num);
-        fu[string_num] = '\0';
+        snprintf (fu, sizeof (fu), "%s", values[k].spec_name);
         Table_Read (&Tables[k], fu, 0);
         if (Lmax > Table_Index (Tables[k], 0, 0)) {
-          fprintf (stderr, "Source_multi_surfaces: Error: Lmax or Emin not present in %s", values[k].spec_name);
+          fprintf (stderr, "Source_multi_surfaces: Error: Lmax or Emin not present in %s\n", values[k].spec_name);
           fprintf (stderr, "Source_multi_surfaces: Choosen Lmax or Emin is %2.8f larger as the given Lmax-value in the file %s . \n",
                    (Lmax - Table_Index (Tables[k], (Tables[k].rows - 1), 0)), values[k].spec_name);
           exit (-1);
         }
         if (Lmin < Table_Index (Tables[k], (Tables[k].rows - 1), 0)) {
-          fprintf (stderr, "Source_multi_surfaces: Error: Lmin or Emax not present in %s", values[k].spec_name);
+          fprintf (stderr, "Source_multi_surfaces: Error: Lmin or Emax not present in %s\n", values[k].spec_name);
           fprintf (stderr, "Source_multi_surfaces: Choosen Lmin or Emax is %2.8f smaller as the given Lmin-value in the file %s . \n",
                    (Table_Index (Tables[k], 0, 0) - Lmin), values[k].spec_name);
           exit (-1);

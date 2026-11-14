@@ -680,12 +680,11 @@ Detector makeDetector(double z0,double xmin, double xmax, double ymin, double ym
     }
     int x;
     for(x = 0; x  < d.ncols; x++) {
-        d.data[x] = (double*)malloc(d.ncols*sizeof(double));
+        d.data[x] = (double*)calloc(d.nrows, sizeof(double));
         if (d.data[x] == NULL) {
             fprintf(stderr, "MEMORY ALLOCATION PROBLEM\n");
             exit(-1);
         }
-        (*d.data[x]) = 0;
     }
 
     return d;
@@ -742,7 +741,12 @@ void traceNeutronDetector(_class_particle* p, Detector d) {
     if (t < 0)
         return;
     move_class_particleT(t,p);
-    d.data[(int)floor((p->x-d.xmin)/d.xstep)][(int)floor((p->y-d.ymin)/d.ystep)] += p->p;
+    int ix = (int)floor((p->x-d.xmin)/d.xstep);
+    int iy = (int)floor((p->y-d.ymin)/d.ystep);
+    /* a hit on xmax/ymax lands one bin past the end */
+    if (ix >= d.ncols) ix = d.ncols-1;
+    if (iy >= d.nrows) iy = d.nrows-1;
+    d.data[ix][iy] += p->p;
     (*d.num_count) += p->p;
 }
 

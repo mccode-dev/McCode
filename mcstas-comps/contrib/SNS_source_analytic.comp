@@ -100,6 +100,7 @@ SETTING PARAMETERS (
 
 SHARE
 %{
+%include "read_table-lib"
 
   #ifdef OPENACC
   /* there's no abort() on the GPU */
@@ -798,13 +799,17 @@ DECLARE
 
 INITIALIZE
 %{
+  if (sample_t != 0 && sample_t != 1) {
+    fprintf (stderr, "SNS_source_analytic: %s: sample_t allows only values 0 or 1. Exit.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
   char line[1000];
   int linelength = 1000;
   int k, kk;
 
   FILE* fp;
 
-  fp = fopen (filename, "r");
+  fp = Open_File (filename, "r", NULL);
   if (fp == NULL) {
     fprintf (stderr, "Error opening file\n");
     exit (-1);
