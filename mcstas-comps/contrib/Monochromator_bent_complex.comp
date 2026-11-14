@@ -115,6 +115,21 @@ DECLARE
 
 INITIALIZE
 %{
+  if (n_crystals < 1) {
+    fprintf (stderr, "Monochromator_bent_complex: %s: n_crystals must be at least 1. Exit.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (!zwidth || !yheight || !xthickness || !radius_x || !radius_y || !angle_to_cut_horizontal || !mosaicity || !mosaic_anisotropy || !domainthickness
+      || !temperature || !x_pos || !y_pos || !z_pos || !x_rot || !y_rot || !z_rot) {
+    fprintf (stderr, "Monochromator_bent_complex: %s: all vector parameters must be given (n_crystals entries each). Exit.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  for (int i = 0; i < n_crystals; i++) {
+    if (radius_x[i] == 0) {
+      fprintf (stderr, "Monochromator_bent_complex: %s: radius_x[%d]=0 (flat crystal) is not supported, use a large radius. Exit.\n", NAME_CURRENT_COMP, i);
+      exit (-1);
+    }
+  }
 
   if (verbose)
     for (int i = 0; i < 1; i++) {
@@ -168,6 +183,11 @@ INITIALIZE
   while (plane != NULL && token_count < n_crystals) {
     planes[token_count++] = plane;
     plane = strtok (NULL, ";");
+  }
+  if (token_count < n_crystals) {
+    fprintf (stderr, "Monochromator_bent_complex: %s: plane_of_reflection gives %d planes for %d crystals. Exit.\n", NAME_CURRENT_COMP, token_count,
+             n_crystals);
+    exit (-1);
   }
 
   // Print the tokens
