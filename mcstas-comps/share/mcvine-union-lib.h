@@ -27,10 +27,8 @@ struct MCViNE_physics_storage_struct {
   int m_kind;             /* MCVINE_UNION_*                                   */
 };
 
-int MCViNE_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                       _class_particle* _particle);
-int MCViNE_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
-                               struct focus_data_struct* focus_data, _class_particle* _particle);
+int MCViNE_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data);
+int MCViNE_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data);
 /* fill a Union scattering_process_struct for an MCViNE kernel */
 void mcvine_union_register (struct pointer_to_global_process_list* process_list, struct scattering_process_struct* proc,
                             struct global_process_element_struct* elem, struct MCViNE_physics_storage_struct* storage,

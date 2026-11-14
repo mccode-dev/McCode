@@ -1,0 +1,59 @@
+DEFINE COMPONENT Union_particle_test_logger
+DEFINITION PARAMETERS ()
+// scope: 0 global, 1 all scattering volumes individually, 2 disabled.
+SETTING PARAMETERS(string filename="ordinary.log", scope=0, string init="")
+
+SHARE
+%{
+  %include "union-lib"
+%}
+
+DECLARE
+%{
+  struct logger_struct this_logger;
+  struct global_logger_element_struct logger_element;
+%}
+
+INITIALIZE
+%{
+  struct union_state_struct *union_state_p = union_acquire();
+  memset(&this_logger, 0, sizeof(this_logger));
+  snprintf(this_logger.name, sizeof(this_logger.name), "%s", filename);
+  this_logger.function_pointers.active_record_function = &union_particle_test_record;
+  this_logger.function_pointers.inactive_record_function = &union_particle_test_record;
+  this_logger.function_pointers.clear_temp = &union_particle_test_logger_noop;
+  this_logger.function_pointers.temp_to_perm = &union_particle_test_logger_noop;
+  this_logger.function_pointers.temp_to_perm_final_p = &union_particle_test_logger_noop_final;
+  this_logger.function_pointers.select_t_to_p = 1;
+  this_logger.conditional_list.num_elements = 0;
+  this_logger.data_union.p_1D_storage = NULL;
+  snprintf(logger_element.name, sizeof(logger_element.name), "%s", NAME_CURRENT_COMP);
+  logger_element.component_index = INDEX_CURRENT_COMP;
+  logger_element.logger = &this_logger;
+  if (scope == 0) {
+    add_element_to_logger_list(&union_state_p->u_all_volume_logger_list, logger_element);
+  } else if (scope == 1) {
+    struct pointer_to_global_geometry_list *geometries = &union_state_p->u_geometry_list;
+    add_element_to_logger_list(&union_state_p->u_specific_volumes_logger_list, logger_element);
+    for (int i = 0; i < geometries->num_elements; ++i) {
+      struct Volume_struct *volume = geometries->elements[i].Volume;
+      int count = volume->p_physics->number_of_processes;
+      if (count == 0)
+        continue;
+      add_initialized_logger_in_volume(&volume->loggers, count);
+      for (int j = 0; j < count; ++j)
+        volume->loggers.p_logger_volume[volume->loggers.num_elements - 1].p_logger_process[j] = &this_logger;
+    }
+  }
+%}
+
+TRACE
+%{
+%}
+
+FINALLY
+%{
+  union_release(NAME_CURRENT_COMP);
+%}
+
+END

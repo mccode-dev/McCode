@@ -76,7 +76,7 @@ SHARE
   // Function for calculating my, the inverse penetration depth (for only this scattering process).
   // The input for this function and its order may not be changed, but the names may be updated.
   int
-  Template_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
+  Template_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
     // *k_initial is a pointer to a simple vector with 3 doubles, k[0], k[1], k[2] which describes the wavevector
 
     // Simple case, just retrive the parameter saved from initialize
@@ -87,8 +87,10 @@ SHARE
   // Function that provides description of a basic scattering event.
   // Do not change the
   int
-  Template_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                               _class_particle* _particle) {
+  Template_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
+    double k_final[3];
+    double* weight = &_particle->p;
 
     // k_final and k_initial are passed as pointers to double vector[3]
     double k_length = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
@@ -96,7 +98,7 @@ SHARE
     Coords k_out;
     // Here is the focusing system in action, get a vector
     double solid_angle;
-    focus_data->focusing_function (&k_out, &solid_angle, focus_data);
+    focus_data->focusing_function (&k_out, &solid_angle, focus_data, _particle);
     NORM (k_out.x, k_out.y, k_out.z);
     *weight *= solid_angle * 0.25 / PI;
 
@@ -104,6 +106,7 @@ SHARE
     k_final[1] = k_out.y * k_length;
     k_final[2] = k_out.z * k_length;
     // A pointer to k_final is returned, and the wavevector will be set to k_final after a scattering event
+    UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
     return 1; // return 1 is sucess, return 0 is failure, and the ray will be absorbed.
               // failure should not happen, as this function will only be called when
               // the cross section for the current k_initial is above zero.
