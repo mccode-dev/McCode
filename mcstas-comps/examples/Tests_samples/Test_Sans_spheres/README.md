@@ -4,7 +4,7 @@
 
 ## Identification
 
-- **Site:** Test_samples
+- **Site:** Tests_samples
 - **Author:** Daniel Lomholt Christensen
 - **Origin:** Niels Bohr Institute @ UCPH
 - **Date:** 18/08/2026
