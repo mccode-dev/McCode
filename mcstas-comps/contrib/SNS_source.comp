@@ -51,6 +51,7 @@ SETTING PARAMETERS (string filename=NULL, xwidth=0.1, yheight=0.12, dist, focus_
 
 
 SHARE %{
+%include "read_table-lib"
 
   #define Maxlength 200
   #define MAXCOLS 500
@@ -80,9 +81,10 @@ SHARE %{
     }
     /* open file */
     printf("%s\n",fname);
-    fp=fopen(fname,"r");
+    fp=Open_File(fname,"r",NULL);
     if (fp==NULL){
-      exit(printf("Error opening file: %s. Check existence/permission. Aborting.\n", fname));
+      fprintf(stderr,"Error opening file: %s. Check existence/permission. Aborting.\n", fname);
+      exit(-1);
       }
     /* skip header lines any line that begin with # */
     while((fgets(line,Maxlength,fp)!=NULL)&&(strchr(line,'#')!=NULL)){
