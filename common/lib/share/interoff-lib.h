@@ -63,7 +63,7 @@
 
 /* Only used with -DOFF_LEGACY (full sorted list of intersections) */
 #ifndef OFF_INTERSECT_MAX
-#ifdef OPENACC
+#ifdef MCGPU
 #define OFF_INTERSECT_MAX 100
 #else
 #define OFF_INTERSECT_MAX 1024

@@ -237,11 +237,14 @@ class McStas:
             if os.environ.get('CFLAGS'):
                 cflags += os.environ.get('CFLAGS') + " "
 
-            # Special handling of NVIDIA's OpenACC-aware compiler inside a CONDA env,
-            # remove certain unsupported flags:
-            if self.options.openacc and 'nvc' in mccode_config.compilation['OACC']:
+            # Special handling of GPU-aware compilers inside a CONDA env, remove
+            # certain unsupported flags. This means NVIDIA's compiler for OpenACC,
+            # and whichever compiler is configured for OpenMP offload:
+            if (self.options.openacc and 'nvc' in mccode_config.compilation['OACC']) or \
+               self.options.openmp:
                 Cflags = cflags
                 Cflags=Cflags.replace('-march=nocona', '')
+                Cflags=Cflags.replace('-mtune=haswell', '')
                 Cflags=Cflags.replace('-ftree-vectorize', '')
                 Cflags=Cflags.replace('-fstack-protector-strong', '')
                 Cflags=Cflags.replace('-fno-plt', '')
@@ -258,6 +261,10 @@ class McStas:
         # OpenACC
         if self.options.openacc: 
             cflags += mccodelib.cflags.evaluate_dependency_str(mccode_config.compilation['OACCFLAGS'],
+                                                                              options.verbose) + " "
+        # OpenMP target offload
+        if self.options.openmp:
+            cflags += mccodelib.cflags.evaluate_dependency_str(mccode_config.compilation['OMPFLAGS'],
                                                                               options.verbose) + " "
         # NeXus
         if self.options.format.lower() == 'nexus':
@@ -276,8 +283,8 @@ class McStas:
         if self.options.D3 is not None:
             cflags += self.options.D3 + " "       
 
-        # Add "standard CFLAGS" or "no CFLAGS" if not openacc
-        if not self.options.openacc:
+        # Add "standard CFLAGS" or "no CFLAGS" if not on GPU
+        if not self.options.openacc and not self.options.openmp:
             cflags += options.no_cflags and ['-O0'] + " " or mccode_config.compilation['CFLAGS'] + " " # cflags
 
         # Look for CFLAGS in the generated C code

@@ -52,11 +52,19 @@ SETTING PARAMETERS (int nx=90, int ny=90, string filename=0,
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+SHARE
+%{
+  #define MCGPU_PORTED_PSD_monitor
+%}
+
 DECLARE
 %{
   DArray2d PSD_N;
   DArray2d PSD_p;
   DArray2d PSD_p2;
+  double* PSD_N_d;
+  double* PSD_p_d;
+  double* PSD_p2_d;
 %}
 INITIALIZE
 %{
@@ -83,6 +91,12 @@ INITIALIZE
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
     sprintf (filename, "%s", NAME_CURRENT_COMP);
+
+  #ifdef OMPTARGET
+  PSD_N_d = mcgpu_to_device (NAME_CURRENT_COMP, "PSD_N", PSD_N[0], (size_t)nx * ny * sizeof (double));
+  PSD_p_d = mcgpu_to_device (NAME_CURRENT_COMP, "PSD_p", PSD_p[0], (size_t)nx * ny * sizeof (double));
+  PSD_p2_d = mcgpu_to_device (NAME_CURRENT_COMP, "PSD_p2", PSD_p2[0], (size_t)nx * ny * sizeof (double));
+  #endif
 %}
 
 TRACE
@@ -97,13 +111,13 @@ TRACE
 
     double p2 = p * p;
     #pragma acc atomic
-    PSD_N[i][j] = PSD_N[i][j] + 1;
+    MC2D (PSD_N, i, j, ny) = MC2D (PSD_N, i, j, ny) + 1;
 
     #pragma acc atomic
-    PSD_p[i][j] = PSD_p[i][j] + p;
+    MC2D (PSD_p, i, j, ny) = MC2D (PSD_p, i, j, ny) + p;
 
     #pragma acc atomic
-    PSD_p2[i][j] = PSD_p2[i][j] + p2;
+    MC2D (PSD_p2, i, j, ny) = MC2D (PSD_p2, i, j, ny) + p2;
 
     SCATTER;
   }
@@ -114,6 +128,11 @@ TRACE
 
 SAVE
 %{
+  #ifdef OMPTARGET
+  mcgpu_from_device (NAME_CURRENT_COMP, "PSD_N", PSD_N[0], PSD_N_d, (size_t)nx * ny * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "PSD_p", PSD_p[0], PSD_p_d, (size_t)nx * ny * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "PSD_p2", PSD_p2[0], PSD_p2_d, (size_t)nx * ny * sizeof (double));
+  #endif
   if (!nowritefile) {
     DETECTOR_OUT_2D ("PSD monitor", "X position [cm]", "Y position [cm]", xmin * 100.0, xmax * 100.0, ymin * 100.0, ymax * 100.0, nx, ny, &PSD_N[0][0],
                      &PSD_p[0][0], &PSD_p2[0][0], filename);
@@ -121,6 +140,11 @@ SAVE
   %}
 
 FINALLY %{
+  #ifdef OMPTARGET
+  mcgpu_free (PSD_N_d);
+  mcgpu_free (PSD_p_d);
+  mcgpu_free (PSD_p2_d);
+  #endif
   destroy_darr2d(PSD_N);
   destroy_darr2d(PSD_p);
   destroy_darr2d(PSD_p2);

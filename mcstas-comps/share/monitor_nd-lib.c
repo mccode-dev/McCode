@@ -343,7 +343,7 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
         if (!strcmp(token, "parallel")){ Vars->Flag_parallel = 1; iskeyword=1; }
         if (!strcmp(token, "capture")) { Vars->Flag_capture = 1; iskeyword=1; }
         if (!strcmp(token, "auto")) { 
-        #ifndef OPENACC
+        #ifndef MCGPU
         if (Flag_auto != -1) {
 	    Vars->Flag_Auto_Limits = 1;
 	    if (Flag_All) Flag_auto = -1;
@@ -1067,9 +1067,9 @@ void Monitor_nD_Init(MonitornD_Defines_type *DEFS,
 /* return values: 0=neutron was absorbed, -1=neutron was outside bounds, 1=neutron was measured*/
 /* ========================================================================= */
 
-/* Host only, never called from OpenACC device code: make room in the list
+/* Host only, never called from device code: make room in the list
    buffer before a particle is stored. Components that run on the CPU call
-   this before Monitor_nD_Trace (in a non-OpenACC build, and Monitor_nD_noacc
+   this before Monitor_nD_Trace (in a CPU build, and Monitor_nD_noacc
    always). Device builds keep the fixed-size buffer. */
 void Monitor_nD_EnsureCapacity(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars)
 {
@@ -1441,9 +1441,15 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
 	       use local pointer aliases for atomic writes through struct members.
 	       Once fixed upstream, remove these aliases and restore the original
 	       Vars->... atomic expressions. */
+	    #ifdef OMPTARGET
+	    double *Mon2D_N = Vars->Mon2D_N_d + i*Vars->Coord_Bin[2];
+	    double *Mon2D_p = Vars->Mon2D_p_d + i*Vars->Coord_Bin[2];
+	    double *Mon2D_p2 = Vars->Mon2D_p2_d + i*Vars->Coord_Bin[2];
+	    #else
 	    double *Mon2D_N = Vars->Mon2D_N[i];
 	    double *Mon2D_p = Vars->Mon2D_p[i];
 	    double *Mon2D_p2 = Vars->Mon2D_p2[i];
+	    #endif
 	    double p2 = pp*pp;
             #pragma acc atomic
 	    Mon2D_N[j] = Mon2D_N[j]+1;
@@ -1502,7 +1508,11 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
         if (buffer_slot < Vars->Buffer_Block)
         {
           /* The row is owned by this thread only: plain stores suffice */
+          #ifdef OMPTARGET
+          double *Mon2D_Buffer = Vars->Mon2D_Buffer_d + buffer_slot*(Vars->Coord_Number+1);
+          #else
           double *Mon2D_Buffer = Vars->Mon2D_Buffer + buffer_slot*(Vars->Coord_Number+1);
+          #endif
           for (i = 0; i <= Vars->Coord_Number; i++)
             Mon2D_Buffer[i] = Coord[i];
           if (Vars->Flag_Verbose && (buffer_slot + 1 == Vars->Buffer_Block) && (Vars->Flag_List == 1))
@@ -1535,6 +1545,69 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
   }
   return 1;
 } /* end Monitor_nD_Trace */
+
+#ifdef OMPTARGET
+/* OMPTARGET transfers. 2D histogram rows are separate mallocs on the host and one
+   flat block on the device. Called from the INITIALIZE and SAVE of Monitor_nD. */
+static double *Monitor_nD_rows_to_device(const char *comp, const char *what, double **rows, long nr, long nc)
+{
+  size_t rb = nc * sizeof(double);
+  double *tmp = malloc(nr * rb), *d;
+  if (!tmp) mcgpu_die("malloc failed", comp, what);
+  for (long i = 0; i < nr; i++) memcpy(tmp + i * nc, rows[i], rb);
+  d = mcgpu_to_device(comp, what, tmp, nr * rb);
+  free(tmp);
+  return d;
+}
+
+static void Monitor_nD_rows_from_device(const char *comp, const char *what, double **rows, double *d, long nr, long nc)
+{
+  size_t rb = nc * sizeof(double);
+  double *tmp = malloc(nr * rb);
+  if (!tmp) mcgpu_die("malloc failed", comp, what);
+  mcgpu_from_device(comp, what, tmp, d, nr * rb);
+  for (long i = 0; i < nr; i++) memcpy(rows[i], tmp + i * nc, rb);
+  free(tmp);
+  mcgpu_free(d);
+}
+
+void Monitor_nD_to_device(MonitornD_Variables_type *Vars)
+{
+  const char *comp = Vars->compcurname;
+  long nr = Vars->Coord_Bin[1], nc = Vars->Coord_Bin[2];
+  if (Vars->Flag_Auto_Limits) mcgpu_die("auto limits need host realloc, give explicit limits", comp, "Vars");
+  if (Vars->Flag_Multiple && Vars->Mon2D_N) mcgpu_die("n1D histograms are not ported", comp, "Vars");
+  if (Vars->Mon2D_N) {
+    Vars->Mon2D_N_d  = Monitor_nD_rows_to_device(comp, "Mon2D_N",  Vars->Mon2D_N,  nr, nc);
+    Vars->Mon2D_p_d  = Monitor_nD_rows_to_device(comp, "Mon2D_p",  Vars->Mon2D_p,  nr, nc);
+    Vars->Mon2D_p2_d = Monitor_nD_rows_to_device(comp, "Mon2D_p2", Vars->Mon2D_p2, nr, nc);
+  }
+  if (Vars->Mon2D_Buffer)
+    Vars->Mon2D_Buffer_d = mcgpu_to_device(comp, "Mon2D_Buffer", Vars->Mon2D_Buffer,
+                                           (Vars->Coord_Number + 1) * Vars->Buffer_Block * sizeof(double));
+}
+
+void Monitor_nD_from_device(MonitornD_Variables_type *Vars)
+{
+  const char *comp = Vars->compcurname;
+  long nr = Vars->Coord_Bin[1], nc = Vars->Coord_Bin[2];
+  if (Vars->Mon2D_N_d) {
+    Monitor_nD_rows_from_device(comp, "Mon2D_N",  Vars->Mon2D_N,  Vars->Mon2D_N_d,  nr, nc);
+    Monitor_nD_rows_from_device(comp, "Mon2D_p",  Vars->Mon2D_p,  Vars->Mon2D_p_d,  nr, nc);
+    Monitor_nD_rows_from_device(comp, "Mon2D_p2", Vars->Mon2D_p2, Vars->Mon2D_p2_d, nr, nc);
+    Vars->Mon2D_N_d = NULL;
+  }
+  if (Vars->Mon2D_Buffer_d) {
+    /* Buffer_Counter arrived with the 'target update from' of the component struct */
+    unsigned long n = Vars->Buffer_Counter < Vars->Buffer_Block ? Vars->Buffer_Counter : Vars->Buffer_Block;
+    if (Vars->Buffer_Counter >= Vars->Buffer_Block)
+      printf("[mcgpu] WARNING: %s list is full, %lu rows kept: events were lost. Raise the buffer or lower -n.\n", comp, n);
+    mcgpu_from_device(comp, "Mon2D_Buffer", Vars->Mon2D_Buffer, Vars->Mon2D_Buffer_d, n * (Vars->Coord_Number + 1) * sizeof(double));
+    mcgpu_free(Vars->Mon2D_Buffer_d);
+    Vars->Mon2D_Buffer_d = NULL;
+  }
+}
+#endif /* OMPTARGET */
 
 /* ========================================================================= */
 /* Monitor_nD_Save: this routine is used to save data files                  */
@@ -1726,7 +1799,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         if (Vars->Flag_List >= 2) Vars->Buffer_Size = Vars->Neutron_Counter;
         if (Vars->Buffer_Size >= Vars->Neutron_Counter)
           Vars->Buffer_Size = Vars->Neutron_Counter;
-#ifdef OPENACC
+#ifdef MCGPU
         /* On GPU the list buffer is never flushed during TRACE, so it holds
            at most Buffer_Counter rows even when more events were counted.
            Never write rows beyond what was actually stored. */

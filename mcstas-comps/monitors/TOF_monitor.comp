@@ -52,11 +52,19 @@ SETTING PARAMETERS (int nt=20, string filename=0, xmin=-0.05, xmax=0.05, ymin=-0
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+SHARE
+%{
+  #define MCGPU_PORTED_TOF_monitor
+%}
+
 DECLARE
 %{
   DArray1d TOF_N;
   DArray1d TOF_p;
   DArray1d TOF_p2;
+  double* TOF_N_d;
+  double* TOF_p_d;
+  double* TOF_p2_d;
   double t_min;
   double t_max;
   double delta_t;
@@ -97,6 +105,12 @@ INITIALIZE
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
     sprintf (filename, "%s", NAME_CURRENT_COMP);
+
+  #ifdef OMPTARGET
+  TOF_N_d = mcgpu_to_device (NAME_CURRENT_COMP, "TOF_N", TOF_N, (size_t)nt * sizeof (double));
+  TOF_p_d = mcgpu_to_device (NAME_CURRENT_COMP, "TOF_p", TOF_p, (size_t)nt * sizeof (double));
+  TOF_p2_d = mcgpu_to_device (NAME_CURRENT_COMP, "TOF_p2", TOF_p2, (size_t)nt * sizeof (double));
+  #endif
 %}
 
 TRACE
@@ -112,11 +126,11 @@ TRACE
     if (i >= 0 && i < nt) {
       double p2 = p * p;
       #pragma acc atomic
-      TOF_N[i] = TOF_N[i] + 1;
+      MC1D (TOF_N, i) = MC1D (TOF_N, i) + 1;
       #pragma acc atomic
-      TOF_p[i] = TOF_p[i] + p;
+      MC1D (TOF_p, i) = MC1D (TOF_p, i) + p;
       #pragma acc atomic
-      TOF_p2[i] = TOF_p2[i] + p2;
+      MC1D (TOF_p2, i) = MC1D (TOF_p2, i) + p2;
       SCATTER;
     }
   }
@@ -127,6 +141,11 @@ TRACE
 
 SAVE
 %{
+  #ifdef OMPTARGET
+  mcgpu_from_device (NAME_CURRENT_COMP, "TOF_N", TOF_N, TOF_N_d, (size_t)nt * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "TOF_p", TOF_p, TOF_p_d, (size_t)nt * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "TOF_p2", TOF_p2, TOF_p2_d, (size_t)nt * sizeof (double));
+  #endif
   if (!nowritefile) {
     DETECTOR_OUT_1D ("Time-of-flight monitor", "Time-of-flight [\\gms]", "Intensity", "t", t_min, t_max, nt, &TOF_N[0], &TOF_p[0], &TOF_p2[0], filename);
   }
@@ -134,6 +153,11 @@ SAVE
 
 FINALLY
 %{
+  #ifdef OMPTARGET
+  mcgpu_free (TOF_N_d);
+  mcgpu_free (TOF_p_d);
+  mcgpu_free (TOF_p2_d);
+  #endif
   destroy_darr1d (TOF_N);
   destroy_darr1d (TOF_p);
   destroy_darr1d (TOF_p2);

@@ -380,7 +380,7 @@ struct interpolator_struct *interpolator_load(char *filename,
     return NULL;
   }
 
-  #ifdef OPENACC
+  #ifdef MCGPU
   if (method && strlen(method) && (!strcmp(method, "kdtree"))) {
     fprintf(stderr, "\n\n!! interpolator_load: FATAL ERROR: !! \n'kdtree' is not supported on OpenACC/GPU - only 'regular' works!\n\n");
     Table_Free(&table);
@@ -609,7 +609,7 @@ double *interpolator_interpolate(struct interpolator_struct *interpolator,
   double *space, double *field)
 {
   if (!space || !interpolator || !field) return NULL;
-  #ifdef OPENACC
+  #ifdef MCGPU
   #define strcmp str_comp
   #endif
   
@@ -646,7 +646,7 @@ double *interpolator_interpolate(struct interpolator_struct *interpolator,
     }
     return field;
   } else {
-    #ifndef OPENACC
+    #ifndef MCGPU
     fprintf(stderr, "interpolator_interpolate: ERROR: invalid interpolator method %s from file '%s'.\n",
       interpolator->method, interpolator->filename);
     exit(-1);

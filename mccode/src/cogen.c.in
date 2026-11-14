@@ -24,6 +24,7 @@
 *
 *******************************************************************************/
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
@@ -161,6 +162,53 @@ char *instr_formal_type_names_real[] =
   { "int", "char*", "char", "MCNUM", "MCNUM", "double"};
 
 /*******************************************************************************
+* omp_twin: after a "#pragma acc" line, output its OpenMP counterpart, active only
+* with -DOMPTARGET. Directives with no entry here need no OpenMP line: functions
+* called from a target region in this translation unit are declared implicitly.
+*******************************************************************************/
+static void
+omp_twin(const char *line)
+{
+  const char *p = line, *q;
+  char omp[4096];
+  int  n = 0, section = 0;
+
+  while (isspace((unsigned char)*p)) p++;
+  if (*p++ != '#') return;
+  while (isspace((unsigned char)*p)) p++;
+  if (strncmp(p, "pragma", 6)) return;
+  p += 6;
+  while (isspace((unsigned char)*p)) p++;
+  if (strncmp(p, "acc", 3) || !isspace((unsigned char)p[3])) return;
+  p += 3;
+  while (isspace((unsigned char)*p)) p++;
+
+  if (!strncmp(p, "atomic", 6))
+    n = snprintf(omp, sizeof(omp), "omp %s", p);
+  else if (!strncmp(p, "update device", 13))
+    n = snprintf(omp, sizeof(omp), "omp target update to%s", p + 13);
+  else if (!strncmp(p, "update host", 11))
+    n = snprintf(omp, sizeof(omp), "omp target update from%s", p + 11);
+  else if (!strncmp(p, "parallel loop num_gangs(numgangs) vector_length(vecsize)", 55))
+    n = snprintf(omp, sizeof(omp), "omp target teams distribute parallel for num_teams(numgangs) thread_limit(vecsize)");
+  else if (!strncmp(p, "declare create", 14) || !strncmp(p, "declare copyin", 14)) {
+    /* same variable list, without array sections */
+    n = snprintf(omp, sizeof(omp), "omp declare target");
+    for (q = p + 14; *q && n < (int)sizeof(omp) - 1; q++) {
+      if (*q == '[') section = 1;
+      if (!section) omp[n++] = *q;
+      if (*q == ']') section = 0;
+    }
+    omp[n] = '\0';
+  }
+  if (!n) return;
+  if (n >= (int)sizeof(omp)) n = sizeof(omp) - 1;
+  while (n > 0 && isspace((unsigned char)omp[n-1])) omp[--n] = '\0';
+  fprintf(output_handle, "#ifdef OMPTARGET\n#pragma %s\n#endif\n", omp);
+  num_next_output_line += 3;
+}
+
+/*******************************************************************************
 * Output a single line of code
 * Assumes that the output does not contain newlines.
 *******************************************************************************/
@@ -169,6 +217,7 @@ cout(char *s)
 {
   fprintf(output_handle, "%s\n", s);
   num_next_output_line++;
+  omp_twin(s);
 }
 
 /*******************************************************************************
@@ -185,6 +234,13 @@ coutf(char *format, ...)
   va_end(ap);
   fprintf(output_handle, "\n");
   num_next_output_line++;
+  if (strstr(format, "#pragma acc")) {
+    char line[1024];
+    va_start(ap, format);
+    vsnprintf(line, sizeof(line), format, ap);
+    va_end(ap);
+    omp_twin(line);
+  }
 }
 
 /*******************************************************************************
@@ -229,6 +285,7 @@ codeblock_out(struct code_block *code)
   {
     fprintf(output_handle, "%s", line);
     num_next_output_line++;
+    omp_twin(line);
   }
   list_iterate_end(liter);
   code_reset_source();
@@ -252,6 +309,7 @@ codeblock_out_brace(struct code_block *code)
   {
     fprintf(output_handle, "%s", line);
     num_next_output_line++;
+    omp_twin(line);
   }
   list_iterate_end(liter);
   cout("}");
@@ -628,6 +686,10 @@ int cogen_comp_declare(struct comp_inst *comp)
     coutf("  _class_%s_parameters _parameters;", comp->def->name);
     cout("};");
     coutf("typedef struct _struct_%s _class_%s;", comp->def->name, comp->def->name);
+    /* OMPTARGET has no unified memory: heap data must be moved by the component */
+    coutf("#if defined(OMPTARGET) && !defined(MCGPU_PORTED_%s)", comp->def->name);
+    coutf("#error \"Component %s is not ported to OMPTARGET\"", comp->def->name);
+    cout("#endif");
   } /* define class type parameter structure when not done yet (only once) */
 
   /* instantiate one structure per component instance */
@@ -1162,7 +1224,7 @@ void cogen_getvarpars_fct(struct instr_def *instr)
   cout("/* enables settings parameters based use of the GETPAR macro */");
   cout("{");
 
-  cout("  #ifdef OPENACC");
+  cout("  #ifdef MCGPU");
   cout("    #define strcmp(a,b) str_comp(a,b)");
   cout("  #endif");
 
@@ -1365,8 +1427,8 @@ int cogen_decls(struct instr_def *instr)
   if (index)
     cout( "  struct instrument_logic_struct logic; /* instrument logic */");
   cout( "} _instrument_var;");
-  cout("struct _instrument_struct *instrument = & _instrument_var;");
   cout("#pragma acc declare create ( _instrument_var )");
+  cout("struct _instrument_struct *instrument = & _instrument_var;");
   cout("#pragma acc declare create ( instrument )");
   cout("");
 
@@ -1668,8 +1730,10 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
 
     // call acc_attach for OpenACC (last thing to do in init)
     cout("");
+    cout("#ifdef MCGPU");
     cout("#ifdef OPENACC");
     cout("#include <openacc.h>");
+    cout("#endif");
     // update component instances on device (e.g. push "managed" data structures)
     liter = list_iterate(instr->complist);
     while((comp = list_next(liter)) != NULL) {
@@ -1677,6 +1741,11 @@ int cogen_section(struct instr_def *instr, char *section, char *section_lower,
     }
     // update instrument
     cout("#pragma acc update device(_instrument_var)");
+    // the static initialiser of instrument holds the host address
+    cout("#ifdef OMPTARGET");
+    cout("  #pragma omp target");
+    cout("  { instrument = &_instrument_var; }");
+    cout("#endif");
     cout("#endif");
   }
   else if (!strcmp(section, "SAVE"))
@@ -1727,7 +1796,7 @@ void def_trace_section(struct instr_def *instr)
   cout("/* if on GPU, globally nullify sprintf,fprintf,printfs   */");
   cout("/* (Similar defines are available in each comp trace but */");
   cout("/*  those are not enough to handle external libs etc. )  */");
-  cout("#ifdef OPENACC");
+  cout("#ifdef MCGPU");
   cout("#define fprintf(stderr,...) printf(__VA_ARGS__)");
   cout("#define sprintf(string,...) printf(__VA_ARGS__)");
   cout("#define exit(...) noprintf()");
@@ -1764,7 +1833,7 @@ void undef_trace_section(struct instr_def *instr)
   for(i = 0; i < num_state_pars; i++)
     coutf("#undef %s", statepars_all[i]);
 
-  cout("#ifdef OPENACC");
+  cout("#ifdef MCGPU");
   cout("#undef strlen");
   cout("#undef strcmp");
   cout("#undef exit");
@@ -2092,7 +2161,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("void raytrace_all(unsigned long long ncount, unsigned long seed) {");
   coutf("");
   coutf("  // if on GPU and mcdotrace just exit");
-  coutf("  #ifdef OPENACC");
+  coutf("  #ifdef MCGPU");
   coutf("  if (!mcdotrace) {");
   coutf("  #endif");
   coutf("");
@@ -2100,7 +2169,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("  unsigned long long loops;");
   coutf("  loops = ceil((double)ncount/gpu_innerloop);");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
-  cout("  #ifdef OPENACC");
+  cout("  #ifdef MCGPU");
   cout("  #undef strlen");
   cout("  #undef strcmp");
   cout("  #undef exit");
@@ -2109,7 +2178,7 @@ int cogen_raytrace(struct instr_def *instr)
   cout("  #undef fprintf");
   cout("  #endif");
   coutf("");
-  coutf("  #ifdef OPENACC");
+  coutf("  #ifdef MCGPU");
   coutf("  if (ncount>gpu_innerloop) {");
   coutf("    printf(\"Defining %%llu CPU loops around GPU kernel and adjusting ncount\\n\",loops);");
   coutf("    mcset_ncount(loops*gpu_innerloop);");
@@ -2117,17 +2186,20 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("    #endif");
   coutf("    loops=1;");
   coutf("    gpu_innerloop = ncount;");
-  coutf("    #ifdef OPENACC");
+  coutf("    #ifdef MCGPU");
   coutf("  }");
   coutf("    #endif");
   coutf("");
+  cout("  #ifdef OMPTARGET");
+  cout("  mcgpu_update_globals();");
+  cout("  #endif");
   coutf("  for (unsigned long long cloop=0; cloop<loops; cloop++) {");
-  coutf("    #ifdef OPENACC");
+  coutf("    #ifdef MCGPU");
   coutf("    if (loops>1) fprintf(stdout, \"%%d..\", (int)cloop); fflush(stdout);");
   coutf("    #endif");
   coutf("");
   coutf("    /* if on GPU, re-nullify printf */");
-  cout("     #ifdef OPENACC");
+  cout("     #ifdef MCGPU");
   cout("     #undef strlen");
   cout("     #undef strcmp");
   cout("     #undef exit");
@@ -2151,7 +2223,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("    } /* inner for */");
   coutf("  } /* CPU for */");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
-  cout("     #ifdef OPENACC");
+  cout("     #ifdef MCGPU");
   cout("     #undef strlen");
   cout("     #undef strcmp");
   cout("     #undef exit");
@@ -2164,7 +2236,7 @@ int cogen_raytrace(struct instr_def *instr)
   coutf("  );");
   coutf("");
   coutf("  // if on GPU and mcdotrace just exit");
-  coutf("  #ifdef OPENACC");
+  coutf("  #ifdef MCGPU");
   coutf("  }");
   coutf("  #endif");
   coutf("");
@@ -2208,14 +2280,14 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("void raytrace_all_funnel(unsigned long long ncount, unsigned long seed) {");
   coutf("");
   coutf("  // if on GPU and mcdotrace just exit");
-  coutf("  #ifdef OPENACC");
+  coutf("  #ifdef MCGPU");
   coutf("  if (!mcdotrace) {");
   coutf("  #endif");
   coutf("  // set up outer (CPU) loop / particle batches");
   coutf("  unsigned long long loops;");
   coutf("");
   coutf("  /* if on GPU, printf has been globally nullified, re-enable here */");
-  cout("   #ifdef OPENACC");
+  cout("   #ifdef MCGPU");
   cout("   #undef strlen");
   cout("   #undef strcmp");
   cout("   #undef exit");
@@ -2235,7 +2307,7 @@ int cogen_rt_funnel(struct instr_def *instr)
 	coutf("printf(\" --> Your instrument may give different output with FUNNEL\\n\");");
     }
   }
-  coutf("  #ifdef OPENACC");
+  coutf("  #ifdef MCGPU");
   coutf("  loops = ceil((double)ncount/gpu_innerloop);");
   coutf("  if (ncount>gpu_innerloop) {");
   coutf("    printf(\"Defining %%llu CPU loops around kernel and adjusting ncount\\n\",loops);");
@@ -2244,7 +2316,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   coutf("  #endif");
   coutf("    loops=1;");
   coutf("    gpu_innerloop = ncount;");
-  coutf("  #ifdef OPENACC");
+  coutf("  #ifdef MCGPU");
   coutf("  }");
   coutf("  #endif");
   coutf("");
@@ -2400,7 +2472,7 @@ int cogen_rt_funnel(struct instr_def *instr)
   cout( "");
   coutf("  printf(\"\\n\");");
   coutf("  // if on GPU and mcdotrace just exit");
-  coutf("  #ifdef OPENACC");
+  coutf("  #ifdef MCGPU");
   coutf("  }");
   coutf("  #endif");
   coutf("} /* raytrace_all_funnel */");
@@ -2459,6 +2531,21 @@ cogen_header(struct instr_def *instr, char *output_name)
   coutf("#ifdef _MSC_EXTENSIONS");
   coutf("#pragma warning(disable: 4068)");
   coutf("#endif");
+  cout("");
+
+  /* GPU backends: exactly one of OPENACC, OMPTARGET. MCGPU means "device build" */
+  cout("#if defined(OPENACC) && defined(OMPTARGET)");
+  cout("#  error \"OPENACC and OMPTARGET are mutually exclusive\"");
+  cout("#endif");
+  cout("#if defined(OPENACC) || defined(OMPTARGET)");
+  cout("#  define MCGPU 1");
+  cout("#endif");
+  cout("#ifdef OMPTARGET");
+  cout("#  ifdef FUNNEL");
+  cout("#    error \"FUNNEL is not supported with OMPTARGET\"");
+  cout("#  endif");
+  cout("#  include <omp.h>");
+  cout("#endif");
   cout("");
 
   coutf("#define MCCODE_STRING \"%s\"", MCCODE_STRING);
@@ -2680,13 +2767,13 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#pragma acc routine");
   cout("double particle_getvar(_class_particle *p, char *name, int *suc);");
   cout("");
-  cout("#ifdef OPENACC");
+  cout("#ifdef MCGPU");
   cout("#pragma acc routine");
   cout("int str_comp(char *str1, char *str2);");
   cout("#endif");
   cout("");
   cout("double particle_getvar(_class_particle *p, char *name, int *suc){");
-  cout("#ifndef OPENACC");
+  cout("#ifndef MCGPU");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int s=1;");
@@ -2733,13 +2820,13 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("#pragma acc routine");
   cout("void* particle_getvar_void(_class_particle *p, char *name, int *suc);");
   cout("");
-  cout("#ifdef OPENACC");
+  cout("#ifdef MCGPU");
   cout("#pragma acc routine");
   cout("int str_comp(char *str1, char *str2);");
   cout("#endif");
   cout("");
   cout("void* particle_getvar_void(_class_particle *p, char *name, int *suc){");
-  cout("#ifndef OPENACC");
+  cout("#ifndef MCGPU");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int s=1;");
@@ -2781,7 +2868,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("int particle_setvar_void(_class_particle *, char *, void*);");
   cout("");
   cout("int particle_setvar_void(_class_particle *p, char *name, void* value){");
-  cout("#ifndef OPENACC");
+  cout("#ifndef MCGPU");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int rval=1;");
@@ -2826,7 +2913,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("int particle_setvar_void_array(_class_particle *, char *, void*, int);");
   cout("");
   cout("int particle_setvar_void_array(_class_particle *p, char *name, void* value, int elements){");
-  cout("#ifndef OPENACC");
+  cout("#ifndef MCGPU");
   cout("#define str_comp strcmp");
   cout("#endif");
   cout("  int rval=1;");

@@ -60,6 +60,7 @@ SETTING PARAMETERS (string reflect=0, w1, h1, w2=0, h2=0, l, R0=0.99, Qc=0.0219,
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 SHARE
 %{
+  #define MCGPU_PORTED_Guide
 %include "read_table-lib"
 %include "ref-lib"
 %}
@@ -85,6 +86,9 @@ INITIALIZE
     h2 = h1;
 
   if (reflect && strlen (reflect) && strcmp (reflect, "NULL") && strcmp (reflect, "0")) {
+    #ifdef OMPTARGET
+    mcgpu_die ("reflect table is host heap, not transferred", NAME_CURRENT_COMP, "reflect");
+    #endif
     if (Table_Read (&pTable, reflect, 1) <= 0) /* read 1st block data from file into pTable */
       exit (fprintf (stderr, "Guide: %s: can not read file %s\n", NAME_CURRENT_COMP, reflect));
     table_present = 1;
