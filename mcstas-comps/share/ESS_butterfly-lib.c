@@ -48,13 +48,15 @@ double ESS_2015_Schoenfeldt_cold_spectrum(double lambda,double theta){
   double par4=2.53;
   double par5=-0.0478073-0.160*exp(-0.45186*(theta-5.)/10.);
   
+  /* par6 is tabulated at theta=5,15,...,55 deg: use the nearest */
+  int ip = theta >= 50 ? 5 : theta >= 40 ? 4 : theta >= 30 ? 3 : theta >= 20 ? 2 : theta >= 10 ? 1 : 0;
   double par6;
-  if(theta==5)par6=5.73745e+015/25.;
-  else if(theta==15)par6=5.88284e+015/25.;
-  else if(theta==25)par6=6.09573e+015/25.;
-  else if(theta==35)par6=6.29116e+015/25.;
-  else if(theta==45)par6=6.03436e+015/25.;
-  else if(theta==55)par6=6.02045e+015/25.;
+  if(ip==0)par6=5.73745e+015/25.;
+  else if(ip==1)par6=5.88284e+015/25.;
+  else if(ip==2)par6=6.09573e+015/25.;
+  else if(ip==3)par6=6.29116e+015/25.;
+  else if(ip==4)par6=6.03436e+015/25.;
+  else par6=6.02045e+015/25.;
   double par7=0.788956+0.00854184*(theta-5.)/10.;
   double par8=0.0461868-0.0016464*(theta-5.)/10.;
   double par9=0.325;
