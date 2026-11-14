@@ -55,7 +55,7 @@
 * yheight: [m]   Height of crystal.
 * zdepth: [m]    Depth of crystal (no extinction simulated)
 * sqw:    [string]   Name of a 4d S(q,w) file - example.sqw4 is included in your installation
-* geometry: [string]   Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust.
+* geometry: [string]   Name of an OFF, PLY or STL file for complex geometry. An OFF file may be generated from XYZ coordinates using qhull/powercrust. The mesh must be a single, closed object: only the first entry and exit along the neutron path are used, so a second part of the mesh further along the path (disjoint parts, or a concave shape the path re-enters) is not seen.
 * delta_d_d: [1] Lattice spacing variance, gaussian RMS.
 * mosaic: [arcmin]   Isotropic crystal mosaic, gaussian RMS. Puts the crystal in the isotropic mosaic model state, thus disregarding other mosaicity parameters.
 * mosaic_a: [arcmin] Horizontal (rotation around lattice vector a) mosaic (anisotropic), gaussian RMS. Put the crystal in the anisotropic crystal vector state. I.e. model mosaicity through rotation around the crystal lattice vectors. Has precedence over in-plane mosaic model.
@@ -120,7 +120,8 @@ SHARE
 %{
   /* used for reading data table from file */
   %include "read_table-lib"
-  %include "interoff-lib"
+  %include "geometry-mesh-lib"
+
   /* Declare structures and functions only once in each instrument. */
   #ifndef SINGLE_CRYSTAL_DECL
   #define SINGLE_CRYSTAL_DECL
@@ -163,10 +164,10 @@ SHARE
     double* SwCDF;           /* Cumulative dist. func. of S(|Q|) for inv. transform sampling */
     int nSw;                 /* Number of points in CDF */
     int** SwQi;
-    int* nQ;                    /* Number of q-points at each energy */
-    double* SqwCDF;             /* Cumulative dist. func. of S(E) at particular values of |Q| */
-    int* iSqwCDF;               /* Index into CDF of S(E) */
-    int maxecount;              /* Maximum number of E-slice for each |Q| */
+    int* nQ;        /* Number of q-points at each energy */
+    double* SqwCDF; /* Cumulative dist. func. of S(E) at particular values of |Q| */
+    int* iSqwCDF;   /* Index into CDF of S(E) */
+    int maxecount;  /* Maximum number of E-slice for each |Q| */
   };
 
   /* Sum of S(q,w) over the hkl-E points kinematically accessible with (kix,kiy,kiz).
@@ -239,7 +240,8 @@ SHARE
   }
 
   int
-  read_hkl_data (char* SC_file, struct hkl_info_struct* info, double SC_mosaic, double SC_mosaic_a, double SC_mosaic_b, double SC_mosaic_c, double* SC_mosaic_AB) {
+  read_hkl_data (char* SC_file, struct hkl_info_struct* info, double SC_mosaic, double SC_mosaic_a, double SC_mosaic_b, double SC_mosaic_c,
+                 double* SC_mosaic_AB) {
     struct hkl_data* list = NULL;
     int size = 0;
     t_Table sTable; /* sample data table structure from SC_file */
@@ -663,7 +665,7 @@ SHARE
 DECLARE
 %{
   struct hkl_info_struct hkl_info;
-  off_struct offdata;
+  gmesh_struct mesh;
 %}
 
 INITIALIZE
@@ -716,9 +718,13 @@ INITIALIZE
 
   hkl_info.shape = -1; /* -1:no shape, 0:cyl, 1:box, 2:sphere, 3:any-shape  */
   if (geometry && strlen (geometry) && strcmp (geometry, "NULL") && strcmp (geometry, "0")) {
-    if (off_init (geometry, xwidth, yheight, zdepth, 0, &offdata)) {
+    if (gmesh_init_fit (geometry, xwidth, yheight, zdepth, 1, GMESH_PROPS_IGNORE, &mesh))
       hkl_info.shape = 3;
-    }
+    else
+      exit (fprintf (stderr, "Single_crystal_inelastic: %s: can not use the geometry file %s. Aborting.\n", NAME_CURRENT_COMP, geometry));
+    if (!gmesh_check_closed (&mesh))
+      exit (fprintf (stderr, "Single_crystal_inelastic: %s: the mesh %s is not closed or folds back onto itself (see the error above). Aborting.\n",
+                     NAME_CURRENT_COMP, geometry));
   } else if (xwidth && yheight && zdepth)
     hkl_info.shape = 1; /* box */
   else if (radius > 0 && yheight)
@@ -798,8 +804,21 @@ TRACE
     intersect = box_intersect (&t1, &t2, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
   else if (hkl_info.shape == 2)
     intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
-  else if (hkl_info.shape == 3)
-    intersect = off_intersect (&t1, &t2, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, offdata);
+  else if (hkl_info.shape == 3) {
+    gmesh_hit hits[GMESH_MAX_HITS];
+    int nhits = gmesh_intersect (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
+    intersect = nhits > 0;
+    if (intersect) {
+      if (gmesh_inside (&mesh, coords_set (x, y, z))) {
+        t1 = 0;
+        t2 = hits[0].time;
+      } else {
+        // 1e-13 s past the entry, so that gmesh_inside sees the neutron inside after PROP_DT (t1)
+        t1 = hits[0].time + 1e-13;
+        t2 = nhits > 1 ? hits[1].time : hits[0].time;
+      }
+    }
+  }
 
   if (t2 < 0)
     intersect = 0; /* we passed sample volume already */
@@ -832,8 +851,15 @@ TRACE
         intersect = box_intersect (&t1, &t2, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
       else if (hkl_info.shape == 2)
         intersect = sphere_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius);
-      else if (hkl_info.shape == 3)
-        intersect = off_intersect (&t1, &t2, NULL, NULL, x, y, z, vx, vy, vz, 0, 0, 0, offdata);
+      else if (hkl_info.shape == 3) {
+        gmesh_hit hits[GMESH_MAX_HITS];
+        int nhits = gmesh_intersect (&mesh, coords_set (x, y, z), coords_set (vx, vy, vz), 0, hits);
+        intersect = nhits > 0 && gmesh_inside (&mesh, coords_set (x, y, z));
+        if (intersect) {
+          t1 = 0;
+          t2 = hits[0].time;
+        }
+      }
       if (!intersect || t2 * v < -1e-9 || t1 * v > 1e-9) {
         /* neutron is leaving the sample */
         if (hkl_info.flag_warning < 100)
@@ -935,7 +961,7 @@ MCDISPLAY
   } else if (hkl_info.shape == 2) { /* sphere */
     sphere (0, 0, 0, radius);
   } else if (hkl_info.shape == 3) { /* OFF file */
-    off_display (offdata);
+    gmesh_display (&mesh);
   }
 %}
 END

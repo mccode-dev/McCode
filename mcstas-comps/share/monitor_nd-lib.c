@@ -2215,22 +2215,16 @@ int Monitor_nD_MeshIntersect(gmesh_struct* mesh, Coords position, Coords velocit
   gmesh_hit hits[GMESH_MAX_HITS];
   double t_min = 0;
   int nhits = gmesh_intersect(mesh, position, velocity, t_min, hits);
-  int inside = 0;
   if (!nhits)
     return 0;
-  // normals of a closed, oriented mesh point outward: leaving first means inside
-  if (mesh->closed && mesh->oriented)
-    inside = hits[0].in_out < 0;
-  else if (mesh->closed)
-    inside = gmesh_inside(mesh, position);
-  if (inside) {
+  if (gmesh_inside(mesh, position)) {
     *t0 = 0;
-    *t1 = hits[0].t;
+    *t1 = hits[0].time;
   } else {
-    *t0 = hits[0].t;
-    *t1 = hits[0].t;
+    *t0 = hits[0].time;
+    *t1 = hits[0].time;
     if (nhits > 1)
-      *t1 = hits[1].t;
+      *t1 = hits[1].time;
   }
   *face = hits[0].face;
   return 1;
