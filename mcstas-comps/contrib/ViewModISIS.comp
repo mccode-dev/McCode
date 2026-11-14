@@ -72,6 +72,7 @@ SETTING PARAMETERS (string Face="TS1_S04_Merlin.mcstas",E0, E1, modPosition=0,
 
 SHARE
 %{
+%include "read_table-lib"
 
   #include <ctype.h>
 
@@ -886,9 +887,8 @@ SHARE
 
     /* Now check for the requested moderator file. In terms of precedence,
        1) Use MCTABLES location if available
-       2) Is a local file available in PWD?
-       3) Is there an ISIS_tables in PWD?
-       4) Is the file available from the MCSTAS/contrib/ISIS_tables folder?
+       2) Search working dir, instrument dir and MCSTAS data/contrib (Open_File)
+       3) Search an ISIS_tables subfolder of those
        - otherwise fail */
 
     fprintf (stderr, "Searching for %s in multiple locations... -- \n", FileName);
@@ -904,36 +904,25 @@ SHARE
       }
     }
 
-    /* 2) Is the file located in working dir? */
-    efile = fopen (FileName, "r");
-    if (efile) {
-      fprintf (stderr, " - Found in current directory!\n");
-      return efile;
+    /* 2) Search working dir, instrument dir and MCSTAS data/contrib */
+    efile = Open_File (FileName, "r", testFileName);
+    if (!efile)
+      efile = Open_File (extFileName, "r", testFileName);
+
+    /* 3) Search an ISIS_tables subfolder of those */
+    if (!efile) {
+      char sub[1024];
+      snprintf (sub, 1024, "%s%c%s", "ISIS_tables", MC_PATHSEP_C, FileName);
+      efile = Open_File (sub, "r", testFileName);
     }
-
-    efile = fopen (extFileName, "r");
-    if (efile)
-      return efile;
-
-    /* 3) Is the file in a local 'tablefiles' folder? */
-    sprintf (testFileName, "%s%c%s", "ISIS_tables", MC_PATHSEP_C, FileName);
-    efile = fopen (testFileName, "r");
     if (efile) {
-      fprintf (stderr, " - Found in local ISIS_tables directory!\n");
-      return efile;
-    }
-
-    /* 4) Is the file available within the MCSTAS install dir? */
-    sprintf (testFileName, "%s%c%s%c%s%c%s", MCSTAS, MC_PATHSEP_C, "data", MC_PATHSEP_C, "ISIS_tables", MC_PATHSEP_C, FileName);
-    efile = fopen (testFileName, "r");
-    if (efile) {
-      fprintf (stderr, " - Found in MCSTAS system dir: \n %s%c%s%c%s\n", MCSTAS, MC_PATHSEP_C, "contrib", MC_PATHSEP_C, "ISIS_tables");
+      fprintf (stderr, " - Found %s\n", testFileName);
       return efile;
     }
 
     /* If we reach here, the file was not found - raise fatal error */
     fprintf (stderr, "%s - Not found! \nPlease check your McStas installation and/or MCTABLES environment variable!\n", FileName);
-    exit (1);
+    exit (-1);
     return efile;
   } /* openFile */
 
