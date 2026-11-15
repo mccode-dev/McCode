@@ -94,8 +94,7 @@ SHARE
 
   #define Da2kg 1.66054e-27 //Dalton to kg converter
   #define dyn2N 1e-3 // dyn/cm to N/m converter
-  #define hbar 1.0546E-34
-  #define mn (1.0087*Da2kg)
+  #define BVK_MEV2J 1.6022E-22 // meV to J converter
 
   double
   bvk_nbose (double omega, double T) /* Give it another name ?? */
@@ -113,15 +112,15 @@ SHARE
   void
   bvk_fatalerror_cpu (char* s) {
     fprintf (stderr, "%s \n", s);
-    exit (1);
+    exit (-1);
   }
 
   void
   nrerror (const char* error_text) {
-    printf ("Numerical Recipes run-time error ...\n");
-    printf ("%s\n", error_text);
-    printf ("... now exiting to system.\n");
-    exit (1);
+    fprintf (stderr, "Numerical Recipes run-time error ...\n");
+    fprintf (stderr, "%s\n", error_text);
+    fprintf (stderr, "... now exiting to system.\n");
+    exit (-1);
   }
 
   void
@@ -163,14 +162,12 @@ SHARE
   #define SMALL_NUMBER 1E-6
   #define V_HIGH 8000   // Highest velocity to search, corresponding to 320 meV, far above the to of the PG phonon band (202 meV along main axes)
   #define MATRIX_TEST 0 // Change to 1 to write matrices to disk
-  #define TIME_EIGENSYSTEMS 1
 
   #define DIM 12     // dimensionality of the phonon eigenvectors (4 atoms in the unit cell times 3 dimensions)
   #define BVK_DV 0.001   // Velocity change used for numerical derivative [m/s]  CHECK if this should be smaller
 
   extern FILE *matrix_test_file, *parms_test_file;
   extern int matrix_test_count;
-  int mode, verbose, shape;
 
   #define a_latt 2.461 //PG lattice constant in AA; Nicklow1972 gives 2.45 (WHICH PAGE?)
   #define c_latt 6.708 // PG lattice constant in AA; Nicklow1972 gives 6.70
@@ -346,6 +343,8 @@ SHARE
     double q, qx, qy, qz, Jq, hw_phonon, hw_neutron;
     double h, k, l, hk_inplane, hk_outofplane;
     int disp;
+    int mode = (int)creal (parms[13]);
+    int verbose = (int)creal (parms[14]);
 
     for (int ii = 0; ii < 8; ii++)
       if (isnan (creal (parms[ii])) || isnan (cimag (parms[ii]))) {
@@ -353,7 +352,7 @@ SHARE
         fprintf (stderr, "parms = [");
         for (int i = 0; i < 8; i++)
           fprintf (stderr, "%g + i%g%s", creal (parms[i]), cimag (parms[i]), i + 1 < 8 ? ", " : "]\n");
-        abort ();
+        exit (-1);
       }
 
     /* Extract real-valued parameters from the cdouble parms array. */
@@ -559,7 +558,7 @@ SHARE
     double eigenvaluegood[DIM];
 
     for (j = 0; j < DIM; j++) {
-      eigenvectorgood[j] = Q[index[mode] * DIM + j]; /* Eigenvectors are columns of Q */
+      eigenvectorgood[j] = Q[index[mode] * DIM + j]; /* Rows of Q hold the complex conjugate eigenvectors */
     }
 
     if (verbose >= 7) {
@@ -574,7 +573,7 @@ SHARE
     }
 
     for (i = 0; i < DIM; i++)
-      eigenvaluegood[i] = sqrt (eigenvalue[index[i]]) / sqrt (M) / (2 * PI * 1E12) * THz2meV;
+      eigenvaluegood[i] = sqrt (fmax (eigenvalue[index[i]], 0)) / sqrt (M) / (2 * PI * 1E12) * THz2meV;
 
     if (verbose >= 5) {
       printf ("Diagonalization done, eigenvalues (energies) are: \n (");
@@ -628,9 +627,8 @@ SHARE
 
   // ------------------START OF THE GENERAL ROOT-FINDING CODE--------------------
 
-  double last_fh, last_x2;
   double
-  bvk_zridd (double (*func) (cdouble*, cdouble*), double x1, double x2, cdouble* parms, cdouble* vector, double xacc) {
+  bvk_zridd (double (*func) (cdouble*, cdouble*), double x1, double x2, cdouble* parms, cdouble* vector, double xacc, double* last_fh, double* last_x2) {
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
@@ -638,14 +636,14 @@ SHARE
     if (xacc > 0) {
       fl = (*func) (parms, vector);
     } else {
-      fl = last_fh;
+      fl = *last_fh;
       xacc = -xacc;
-      if (fabs (x1 - last_x2) > xacc)
-        printf ("*** error in zridd *** x1: %g last_x2: %g \n", x1, last_x2);
+      if (fabs (x1 - *last_x2) > xacc)
+        printf ("*** error in zridd *** x1: %g last_x2: %g \n", x1, *last_x2);
     }
     parms[0] = cplx(x2, 0.0);
-    last_fh = fh = (*func) (parms, vector);
-    last_x2 = x2;
+    *last_fh = fh = (*func) (parms, vector);
+    *last_x2 = x2;
     if (fl * fh >= 0) {
       if (fl == 0) return x1;
       if (fh == 0) return x2;
@@ -729,12 +727,23 @@ SHARE
   #define BVK_MAX_ROOTS 20 /* size of vf_list in TRACE */
 
   void
+  bvk_addroot (double* list, int* index, double root) {
+    static int warned = 0; // ponytail: benign race under threads, only guards a one-time warning
+    if (*index < BVK_MAX_ROOTS)
+      list[(*index)++] = root;
+    else if (!warned++)
+      fprintf (stderr, "Phonon_BvK_PG: more than %d roots found, extra roots dropped (intensity biased low)\n", BVK_MAX_ROOTS);
+  }
+
+  void
   bvk_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index,
              double (*f) (cdouble*, cdouble*), cdouble* parms, cdouble* vector,
              int low_steps, int high_steps)
   {
     double root, range;
+    double last_fh = 0, last_x2 = 0;
     int i;
+    int verbose = (int)creal (parms[14]);
 
     if (verbose == 2) printf ("Enter bvk_findroots() \n");
 
@@ -742,12 +751,11 @@ SHARE
     range = brack_mid - brack_low;
     for (i = 0; i < (low_steps - 1); i++) {
       if (i == 0)
-        root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, ROOTACC);
+        root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, ROOTACC, &last_fh, &last_x2);
       else
-        root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, -ROOTACC);
+        root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, -ROOTACC, &last_fh, &last_x2);
       if (root != UNUSED) {
-        if (*index < BVK_MAX_ROOTS)
-          list[(*index)++] = root;
+        bvk_addroot (list, index, root);
         if (verbose >= 4) printf ("--- findroots returned a root on the energy loss side: vf = %g \n", root);
       }
     }
@@ -755,12 +763,11 @@ SHARE
     range = (brack_mid - brack_low) / (double)low_steps;
     for (i = 0; i < low_steps; i++) {
       if (low_steps == 1)
-        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms, vector, ROOTACC);
+        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms, vector, ROOTACC, &last_fh, &last_x2);
       else
-        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms, vector, -ROOTACC);
+        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms, vector, -ROOTACC, &last_fh, &last_x2);
       if (root != UNUSED) {
-        if (*index < BVK_MAX_ROOTS)
-          list[(*index)++] = root;
+        bvk_addroot (list, index, root);
         if (verbose >= 4) printf ("--- findroots returned a root on the energy loss side: vf = %g \n", root);
       }
     }
@@ -769,22 +776,20 @@ SHARE
     range = (brack_high - brack_mid) / (double)high_steps;
     for (i = 0; i < high_steps; i++) {
       if (i == 0)
-        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, ROOTACC);
+        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, ROOTACC, &last_fh, &last_x2);
       else
-        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC);
+        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh, &last_x2);
       if (root != UNUSED) {
-        if (*index < BVK_MAX_ROOTS)
-          list[(*index)++] = root;
+        bvk_addroot (list, index, root);
         if (verbose >= 4) printf ("*** findroots returned a root on the energy gain side: vf = %g \n", root);
       }
     }
 
     range = brack_high - brack_mid;
     for (i = 1; i < high_steps; i++) {
-      root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC);
+      root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh, &last_x2);
       if (root != UNUSED) {
-        if (*index < BVK_MAX_ROOTS)
-          list[(*index)++] = root;
+        bvk_addroot (list, index, root);
         if (verbose >= 4) printf ("*** findroots returned a root on the energy gain side: vf = %g \n", root);
       }
     }
@@ -816,26 +821,20 @@ DECLARE
   double V_rho;
   double V_my_s;
   double V_my_a_v;
-  cdouble** Matrix;
-  double q[3]; /* Scattering vector */
-  double qx;
-  double qy;
-  double qz;
-  double q_x;
-  double q_y;
-  double q_z;
-  cdouble eigenvectormode[DIM];
-  cdouble p_call[15]; /* Parameter list to transfer to omega_q; elsewhere known as parms */
+  int shape;
+  int verbose;
 %}
 
 INITIALIZE
 %{
-  int i, j;
-
   if (xwidth && yheight && zdepth)
     shape = 1; /* box */
   else if (radius > 0 && yheight)
     shape = 0; /* cylinder */
+  else {
+    fprintf (stderr, "Phonon_BvK_PG: %s: give either radius and yheight, or xwidth, yheight and zdepth.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
 
   V_rho = 1 / (a_latt * a_latt * c_latt * sqrt3 / 2); // (unit: Å^-3)
   V_my_s = (V_rho * 100 * sigma_inc);
@@ -856,13 +855,6 @@ INITIALIZE
   }
   initialize_omega_q ();
   verbose = verbose_input;
-
-  // m(12*i+j) = M(i,j)
-  // OK for: Rot120
-  for (i = 0; i < 3; i++)
-    for (j = 0; j < 3; j++) {
-      printf ("i,j: %i, %i  ROT120: %g  ROT120FLAT; %g \n", i, j, Rot120[i][j], Rot120_flat[3 * i + j]);
-    }
 %}
 
 TRACE
@@ -890,11 +882,14 @@ TRACE
   double q_dot_r;                                                                              /* q dot r */
   double qh, qk, ql, qhkx, qhky, qh_Bragg, qk_Bragg, ql_Bragg, qh_res, qk_res, qh_add, qk_add; /* components of q */
   double dist_00, dist_01, dist_10, dist_11, dist_min;                                         /* used to calculate nearest Bragg point */
-  int i, j, intersect;
+  int i, j, intersect, mode;
+  double q[3], q_x, q_y, q_z;  /* Scattering vector */
+  cdouble eigenvectormode[DIM];
+  cdouble p_call[15];          /* Parameters for bvk_omega_q */
 
   if (shape == 0)
     intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius, yheight);
-  else if (shape == 1)
+  else
     intersect = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
 
   if (intersect) {
@@ -952,6 +947,8 @@ TRACE
     p_call[10] = cplx(kk,   0.0);
     p_call[11] = cplx(ll,   0.0);
     p_call[12] = cplx((double)dispersion, 0.0);
+    p_call[13] = cplx((double)mode, 0.0);
+    p_call[14] = cplx((double)verbose, 0.0);
 
     if (dispersion == 1) {
       f1 = bvk_omega_q (p_call, eigenvectormode);
@@ -992,7 +989,7 @@ TRACE
     f1 = bvk_omega_q (p_call, eigenvectormode);
     p_call[0] = cplx(v_f + BVK_DV, 0.0);
     f2 = bvk_omega_q (p_call, eigenvectormode);
-    J_factor = 1.6022E-22 * 1E-10 * fabs (f2 - f1) / (2 * BVK_DV * V2K); // unit: meV Å converted to SI units
+    J_factor = BVK_MEV2J * 1E-10 * fabs (f2 - f1) / (2 * BVK_DV * V2K); // unit: meV Å converted to SI units
     omega = VS2E * (v_i * v_i - v_f * v_f);                          // unit: meV
     vx *= v_f;
     vy *= v_f;
@@ -1066,13 +1063,11 @@ TRACE
 
     if (shape == 0)
       intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius, yheight);
-    else if (shape == 1)
+    else
       intersect = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
 
-    if (!intersect) {
-      printf ("FATAL ERROR: Did not hit sample surface from inside.\n");
-      exit (1);
-    }
+    if (!intersect)
+      ABSORB; /* numerical edge case, e.g. near-tangent path */
 
     if (verbose >= 2) printf ("neutron left Phonon_BvK_PG, p_init = %g,", p);
 
@@ -1081,16 +1076,18 @@ TRACE
     my_a_i = V_my_a_v / v_i;
     my_a_f = V_my_a_v / v_f;
     bose_factor = bvk_nbose (omega, T);
-    J0 = hbar * hbar * v_f * V2K * 1E10 / mn; // The J-factor for a flat mode
+    J0 = HBAR * HBAR * v_f * V2K * 1E10 / MNEUTRON; // The J-factor for a flat mode
 
     p_att = exp (-(V_my_s * (l_i + l_o) + my_a_i * l_i + my_a_f * l_o)); /* Absorption factor (units: 1) */
     p_MC = nf * solid_angle * l_full;                                    /* Focusing factors; assume random choice of n_f possibilities (units: m) */
     if (mode_input == 12) p_MC *= 12;                                    // The factor 12 is due to MC choice between the 12 modes
     p_ph1 = (v_f / v_i) * DW * bose_factor * V_rho * 1E30;              /* Cross section factor 1 (units: m^-3) */
-    p_ph2 = hbar * hbar / (2 * (fabs (omega) * 1.6022E-22));            /* Jacobian of delta functions in cross section; and constants. Units: J s^2 */
+    p_ph2 = HBAR * HBAR / (2 * (fabs (omega) * BVK_MEV2J));            /* Jacobian of delta functions in cross section; and constants. Units: J s^2 */
     p_ph3 = creal(cmul(Gn, conj(Gn))) * 1E-10 / M;                      /* Structure factor |Gn|^2.   (units: kg^-1) */
     p_J = J0 / J_factor;
     p_tot = p_att * p_MC * p_ph1 * p_ph2 * p_ph3 * p_J;
+    if (!isfinite (p_tot))
+      ABSORB; /* e.g. omega == 0 */
     p *= p_tot;
 
     if (verbose >= 2) {
@@ -1109,11 +1106,10 @@ TRACE
 
 MCDISPLAY
 %{
-  if (radius > 0 && yheight) { /* cylinder */
+  if (shape == 0)
     cylinder (0, 0, 0, radius, yheight, 0, 0, 1, 0);
-  } else if (xwidth && yheight) { /* box/rectangle */
+  else
     box (0, 0, 0, xwidth, yheight, zdepth, 0, 0, 1, 0);
-  }
 %}
 
 END
