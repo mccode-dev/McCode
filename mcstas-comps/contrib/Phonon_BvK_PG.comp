@@ -12,11 +12,11 @@
 *
 * A sample for phonon scattering based on cross section expressions from the Boothroyd textbook
 * based upon the algorithm from component Phonon_simple (with expressions from Squires, Ch. 3)
-* Using the Born-von Karman force constnts and the normal mode formalism
+* Using the Born-von Karman force constants and the normal mode formalism
 *
 * 
 * %D
-* Single-cylinder or slap shaped shape.
+* Single cylinder or slab shaped sample.
 * Absorption included.
 * No multiple scattering.
 * No incoherent scattering emitted, but incoherent is present in attenuation
@@ -36,8 +36,8 @@
 * INPUT PARAMETERS:
 * radius: [m]         Outer radius of sample in (x,z) plane
 * yheight: [m]        Height of sample in y direction
-* xwidth: [m]         Horiz. dimension of sample if slap
-* zdepth: [m]         Depth of sample if slap
+* xwidth: [m]         Horiz. dimension of sample if slab
+* zdepth: [m]         Depth of sample if slab
 *
 * sigma_abs: [barns]  Absorption cross section at 2200 m/s per atom
 * sigma_inc: [barns]  Incoherent scattering cross section per atom
@@ -52,7 +52,7 @@
 * target_y: [m]       position of target to focus at. Vertical coordinate
 * target_z: [m]       position of target to focus at. Straight ahead.
 * target_index: [1]   relative index of component to focus at, e.g. next is +1 
-* mode_input: [1]     order of the phonon mode to be scattered (unphysical). In the range 0 through 11 . If mode_input == 12, then the mode is choosen at random
+* mode_input: [1]     order of the phonon mode to be scattered (unphysical). In the range 0 through 11 . If mode_input == 12, then the mode is chosen at random
 * verbose_input: [1]        toggles verbose mode (verbose>1) or eigenvector mode (verbose==1)
 * dispersion: [1]   0: do nothing special; 1: calculate and output the dispersion; 2: calculate and output the dispersion while varying v_f
 * e_steps_low: [1] Amount of possible intersections beneath the elastic line
@@ -64,10 +64,10 @@
 * OUTPUT PARAMETERS:
 * V_rho: [AA^-3]      Unit cell density
 * V_my_s: [m^-1]      Attenuation factor due to incoherent scattering
-* V_my_a_v: [m^-1]    Attenuation factor due to absorbtion
+* V_my_a_v: [m^-1]    Attenuation factor due to absorption
 *
 * %L
-* The test/example instrument <a href="../examples/Test_Phonon.instr">Test_Phonon.instr</a>.
+* The test/example instrument <a href="../examples/Tests_samples/Test_Phonon_BvK_PG/Test_Phonon_BvK_PG.instr">Test_Phonon_BvK_PG.instr</a>.
 *
 * %E
 ******************************************************************************/
@@ -105,7 +105,7 @@ SHARE
   }
   #undef T2E
 
-  /* Routine types from Numerical Recipies book */
+  /* Routine types from Numerical Recipes book */
   #define UNUSED (-1.11e30)
   #define MAXRIDD 60
 
@@ -129,7 +129,6 @@ SHARE
     bvk_fatalerror_cpu (s);
     #endif
   }
-
 
   void
   bubblesort (int size, double* inputarray, int* index)
@@ -159,15 +158,10 @@ SHARE
   #include <stdlib.h>
   #include <math.h>
 
-  #define SMALL_NUMBER 1E-6
-  #define V_HIGH 8000   // Highest velocity to search, corresponding to 320 meV, far above the to of the PG phonon band (202 meV along main axes)
-  #define MATRIX_TEST 0 // Change to 1 to write matrices to disk
+  #define V_HIGH 8000   // Highest velocity to search, corresponding to 320 meV, far above the top of the PG phonon band (202 meV along main axes)
 
   #define DIM 12     // dimensionality of the phonon eigenvectors (4 atoms in the unit cell times 3 dimensions)
   #define BVK_DV 0.001   // Velocity change used for numerical derivative [m/s]  CHECK if this should be smaller
-
-  extern FILE *matrix_test_file, *parms_test_file;
-  extern int matrix_test_count;
 
   #define a_latt 2.461 //PG lattice constant in AA; Nicklow1972 gives 2.45 (WHICH PAGE?)
   #define c_latt 6.708 // PG lattice constant in AA; Nicklow1972 gives 6.70
@@ -191,9 +185,6 @@ SHARE
   double Delta[4 * 3] = { 0, 0, 0, a_latt / (2 * sqrt3), a_latt / 2, 0, 0, 0, c_latt / 2, -a_latt / (2 * sqrt3), a_latt / 2, c_latt / 2 };
 
   // Lattice vectors from paper fig. 7
-  double avec[3] = { a_latt * sqrt3 / 2, a_latt * 0.5, 0 }; // THIS IS NEVER USED ??!!
-  double bvec[3] = { a_latt * (-sqrt3 / 2), a_latt * 0.5, 0 };
-  double cvec[3] = { 0, 0, c_latt };
 
   // reciprocal lattice vectors
   double astar = 4 * PI / (sqrt3 * a_latt); // length of reciprocal lattice vector a*
@@ -202,21 +193,20 @@ SHARE
   // Rotation matrices
   // m(12*i+j) = M(i,j)
   double Rot120[3][3] = { { -0.5, sqrt3 / 2, 0 }, { -sqrt3 / 2, -0.5, 0 }, { 0, 0, 1 } };
-  double Rot120_flat[9] = { -0.5, sqrt3 / 2, 0, -sqrt3 / 2, -0.5, 0, 0, 0, 1 };
   double Rot60[3][3] = { { 0.5, sqrt3 / 2, 0 }, { -sqrt3 / 2, 0.5, 0 }, { 0, 0, 1 } };
   double Rot120rev[3][3] = { { -0.5, -sqrt3 / 2, 0 }, { sqrt3 / 2, -0.5, 0 }, { 0, 0, 1 } }; // rotate -120
   double Rot60rev[3][3] = { { 0.5, -sqrt3 / 2, 0 }, { sqrt3 / 2, 0.5, 0 }, { 0, 0, 1 } };    // rotate -60
   double Rot180[3][3] = { { -1, 0, 0 }, { 0, -1, 0 }, { 0, 0, 1 } };                         // rotate 180 or -180
 
   // 1st neighbour
-  double Phi_nn1[3][3] = { { K_l1 * dyn2N, 0, 0 }, { 0, K_t1* dyn2N, 0 }, { 0, 0, K_t1* dyn2N } };
-  double Phi1[3][3] = { { K_l1 * dyn2N, 0, 0 }, { 0, K_t1* dyn2N, 0 }, { 0, 0, K_t1* dyn2N } }; // Phi1 = Phi_nn1
+  double Phi_nn1[3][3] = { { K_l1 * dyn2N, 0, 0 }, { 0, K_t1 * dyn2N, 0 }, { 0, 0, K_t1 * dyn2N } };
+  double Phi1[3][3] = { { K_l1 * dyn2N, 0, 0 }, { 0, K_t1 * dyn2N, 0 }, { 0, 0, K_t1 * dyn2N } }; // Phi1 = Phi_nn1
   double Phi2[3][3];
   double Phi3[3][3];
 
   // 2nd neighbour
-  double Phi_nn2[3][3] = { { K_t2 * dyn2N, 0, 0 }, { 0, K_l2* dyn2N, 0 }, { 0, 0, K_t2* dyn2N } };
-  double Phi4[3][3] = { { K_t2 * dyn2N, 0, 0 }, { 0, K_l2* dyn2N, 0 }, { 0, 0, K_t2* dyn2N } };
+  double Phi_nn2[3][3] = { { K_t2 * dyn2N, 0, 0 }, { 0, K_l2 * dyn2N, 0 }, { 0, 0, K_t2 * dyn2N } };
+  double Phi4[3][3] = { { K_t2 * dyn2N, 0, 0 }, { 0, K_l2 * dyn2N, 0 }, { 0, 0, K_t2 * dyn2N } };
   double Phi5[3][3];
   double Phi6[3][3];
   double Phi7[3][3];
@@ -237,9 +227,9 @@ SHARE
                          { a_latt / sqrt3, -a_latt, 0 },
                          { a_latt / sqrt3, a_latt, 0 } }; // r_j21 - r_add2
 
-  double Phi_nn3[3][3] = { { K_l3 * dyn2N, 0, 0 }, { 0, K_t3* dyn2N, 0 }, { 0, 0, K_t3* dyn2N } };
+  double Phi_nn3[3][3] = { { K_l3 * dyn2N, 0, 0 }, { 0, K_t3 * dyn2N, 0 }, { 0, 0, K_t3 * dyn2N } };
 
-  double Phi10[3][3] = { { K_l3 * dyn2N, 0, 0 }, { 0, K_t3* dyn2N, 0 }, { 0, 0, K_t3* dyn2N } }; // Phi_nn3
+  double Phi10[3][3] = { { K_l3 * dyn2N, 0, 0 }, { 0, K_t3 * dyn2N, 0 }, { 0, 0, K_t3 * dyn2N } }; // Phi_nn3
   double Phi11[3][3];
   double Phi12[3][3];
 
@@ -259,12 +249,12 @@ SHARE
                           { 0, 0, c_latt / 2 },
                           { 0, 0, -c_latt / 2 } }; // r_j12 + r_add3 Sublattice B and D do not have this coupling
 
-  double Phi_nn4[3][3] = { { K_t4 * dyn2N, 0, 0 }, { 0, K_t4* dyn2N, 0 }, { 0, 0, K_l4* dyn2N } };
+  double Phi_nn4[3][3] = { { K_t4 * dyn2N, 0, 0 }, { 0, K_t4 * dyn2N, 0 }, { 0, 0, K_l4 * dyn2N } };
 
-  double Phi13[3][3] = { { K_t4 * dyn2N, 0, 0 }, { 0, K_t4* dyn2N, 0 }, { 0, 0, K_l4* dyn2N } }; // Phi_nn4;
-  double Phi14[3][3] = { { K_t4 * dyn2N, 0, 0 }, { 0, K_t4* dyn2N, 0 }, { 0, 0, K_l4* dyn2N } }; // Phi_nn4;
+  double Phi13[3][3] = { { K_t4 * dyn2N, 0, 0 }, { 0, K_t4 * dyn2N, 0 }, { 0, 0, K_l4 * dyn2N } }; // Phi_nn4;
+  double Phi14[3][3] = { { K_t4 * dyn2N, 0, 0 }, { 0, K_t4 * dyn2N, 0 }, { 0, 0, K_l4 * dyn2N } }; // Phi_nn4;
 
-  // ----------------- END SPECIFIC FOR THE PG COPONENT --------------------------
+  // ----------------- END SPECIFIC FOR THE PG COMPONENT --------------------------
 
   /* TODO: Det er meget langsomt at bruge pointere. Erstat med flad memory. */
   // m(12*i+j) = M(i,j)
@@ -283,21 +273,6 @@ SHARE
     return;
   }
 
-  // TODO: (James Avery) Benchmark against pointer versions: matrix3mupltiplication or matrixmultiplication
-  // m(12*i+j) = M(i,j)
-  void
-  matrix3x3_multiply3 (const double A[9], const double B[9], const double C[9], double result[9]) {
-    // R_{i,j} =  \sum_{k,l=1}^3 A_{i,k}*B_{k,l}*C_{l,j}
-    for (int i = 0; i < 3; i++)
-      for (int j = 0; j < 3; j++) {
-        double ij_sum = 0;
-        for (int k = 0; k < 3; k++)
-          for (int l = 0; l < 3; l++)
-            ij_sum += A[i * 3 + k] * B[k * 3 + l] * C[l * 3 + j];
-        result[i * 3 + j] = ij_sum;
-      }
-  }
-
   /* TODO: (James Avery) It is slow to use points. Replace with flat memory. */
   // m(12*i+j) = M(i,j)
   // Counter argument: (Kim Lefmann) pointers are now only used in the initialization. In the TRACE code, memory is flat
@@ -314,7 +289,7 @@ SHARE
   cdouble
   complexexp_qdotr (double* q, double* rj) {
     double qrj = *(q) * *(rj) + *(q + 1) * *(rj + 1) + *(q + 2) * *(rj + 2);
-    return cplx(cos(qrj), sin(qrj));
+    return cplx (cos (qrj), sin (qrj));
   }
 
   void
@@ -340,7 +315,7 @@ SHARE
     // _______________ DETERMINE Q ____________________________
 
     double vi, vf, vv_x, vv_y, vv_z, vi_x, vi_y, vi_z;
-    double q, qx, qy, qz, Jq, hw_phonon, hw_neutron;
+    double qx, qy, qz, hw_phonon, hw_neutron;
     double h, k, l, hk_inplane, hk_outofplane;
     int disp;
     int mode = (int)creal (parms[13]);
@@ -356,18 +331,18 @@ SHARE
       }
 
     /* Extract real-valued parameters from the cdouble parms array. */
-    vf   = creal(parms[0]);
-    vi   = creal(parms[1]);
-    vv_x = creal(parms[2]);
-    vv_y = creal(parms[3]);
-    vv_z = creal(parms[4]);
-    vi_x = creal(parms[5]);
-    vi_y = creal(parms[6]);
-    vi_z = creal(parms[7]);
-    h    = creal(parms[9]);
-    k    = creal(parms[10]);
-    l    = creal(parms[11]);
-    disp = (int)creal(parms[12]);
+    vf = creal (parms[0]);
+    vi = creal (parms[1]);
+    vv_x = creal (parms[2]);
+    vv_y = creal (parms[3]);
+    vv_z = creal (parms[4]);
+    vi_x = creal (parms[5]);
+    vi_y = creal (parms[6]);
+    vi_z = creal (parms[7]);
+    h = creal (parms[9]);
+    k = creal (parms[10]);
+    l = creal (parms[11]);
+    disp = (int)creal (parms[12]);
 
     qx = V2K * (vi_x - vf * vv_x);
     qy = V2K * (vi_y - vf * vv_y);
@@ -396,20 +371,20 @@ SHARE
         /* Each term: Phi_n[i][j] * (1 - e^{iq.r}) or just Phi_n[i][j] (purely real, for diagonal self-terms).
            The real-valued self-terms are accumulated separately and added via radd() at the end. */
         double real_sum = Phi1[i][j] + Phi2[i][j] + Phi3[i][j] + Phi10[i][j] + Phi11[i][j] + Phi12[i][j];
-        cdouble csum = rmul(Phi4[i][j], radd(1.0, cneg((*complexexp_qdotr)(&qvec[0], &r_j13[3][0]))));
-        csum = cadd(csum, rmul(Phi5[i][j], radd(1.0, cneg((*complexexp_qdotr)(&qvec[0], &r_j13[4][0])))));
-        csum = cadd(csum, rmul(Phi6[i][j], radd(1.0, cneg((*complexexp_qdotr)(&qvec[0], &r_j13[5][0])))));
-        csum = cadd(csum, rmul(Phi7[i][j], radd(1.0, cneg((*complexexp_qdotr)(&qvec[0], &r_j13[6][0])))));
-        csum = cadd(csum, rmul(Phi8[i][j], radd(1.0, cneg((*complexexp_qdotr)(&qvec[0], &r_j13[7][0])))));
-        csum = cadd(csum, rmul(Phi9[i][j], radd(1.0, cneg((*complexexp_qdotr)(&qvec[0], &r_j13[8][0])))));
-        Phi_diag[i * 3 + j] = radd(real_sum, csum);
+        cdouble csum = rmul (Phi4[i][j], radd (1.0, cneg (complexexp_qdotr (&qvec[0], &r_j13[3][0]))));
+        csum = cadd (csum, rmul (Phi5[i][j], radd (1.0, cneg (complexexp_qdotr (&qvec[0], &r_j13[4][0])))));
+        csum = cadd (csum, rmul (Phi6[i][j], radd (1.0, cneg (complexexp_qdotr (&qvec[0], &r_j13[5][0])))));
+        csum = cadd (csum, rmul (Phi7[i][j], radd (1.0, cneg (complexexp_qdotr (&qvec[0], &r_j13[6][0])))));
+        csum = cadd (csum, rmul (Phi8[i][j], radd (1.0, cneg (complexexp_qdotr (&qvec[0], &r_j13[7][0])))));
+        csum = cadd (csum, rmul (Phi9[i][j], radd (1.0, cneg (complexexp_qdotr (&qvec[0], &r_j13[8][0])))));
+        Phi_diag[i * 3 + j] = radd (real_sum, csum);
       }
     }
 
     cdouble Phi_diag1[3 * 3];
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
-        Phi_diag1[i * 3 + j] = cplx(Phi13[i][j] + Phi14[i][j], 0.0);
+        Phi_diag1[i * 3 + j] = cplx (Phi13[i][j] + Phi14[i][j], 0.0);
       }
     }
 
@@ -417,23 +392,23 @@ SHARE
     cdouble Phi_offdiag2[3 * 3];
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
-        cdouble od = rmul(-Phi1[i][j],  (*complexexp_qdotr)(&qvec[0], &r_j13[0][0]));
-        od = cadd(od, rmul(-Phi2[i][j],  (*complexexp_qdotr)(&qvec[0], &r_j13[1][0])));
-        od = cadd(od, rmul(-Phi3[i][j],  (*complexexp_qdotr)(&qvec[0], &r_j13[2][0])));
-        od = cadd(od, rmul(-Phi10[i][j], (*complexexp_qdotr)(&qvec[0], &r_j13[9][0])));
-        od = cadd(od, rmul(-Phi11[i][j], (*complexexp_qdotr)(&qvec[0], &r_j13[10][0])));
-        od = cadd(od, rmul(-Phi12[i][j], (*complexexp_qdotr)(&qvec[0], &r_j13[11][0])));
+        cdouble od = rmul (-Phi1[i][j], complexexp_qdotr (&qvec[0], &r_j13[0][0]));
+        od = cadd (od, rmul (-Phi2[i][j], complexexp_qdotr (&qvec[0], &r_j13[1][0])));
+        od = cadd (od, rmul (-Phi3[i][j], complexexp_qdotr (&qvec[0], &r_j13[2][0])));
+        od = cadd (od, rmul (-Phi10[i][j], complexexp_qdotr (&qvec[0], &r_j13[9][0])));
+        od = cadd (od, rmul (-Phi11[i][j], complexexp_qdotr (&qvec[0], &r_j13[10][0])));
+        od = cadd (od, rmul (-Phi12[i][j], complexexp_qdotr (&qvec[0], &r_j13[11][0])));
         Phi_offdiag1[i * 3 + j] = od;
-        Phi_offdiag2[i * 3 + j] = conj(od);
+        Phi_offdiag2[i * 3 + j] = conj (od);
       }
     }
 
     cdouble Phi_6Dim[6 * 6];
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
-        Phi_6Dim[i * 6 + j]         = cadd(Phi_diag[i * 3 + j], Phi_diag1[i * 3 + j]);
-        Phi_6Dim[i * 6 + j + 3]     = Phi_offdiag1[i * 3 + j];
-        Phi_6Dim[(i + 3) * 6 + j]   = Phi_offdiag2[i * 3 + j];
+        Phi_6Dim[i * 6 + j] = cadd (Phi_diag[i * 3 + j], Phi_diag1[i * 3 + j]);
+        Phi_6Dim[i * 6 + j + 3] = Phi_offdiag1[i * 3 + j];
+        Phi_6Dim[(i + 3) * 6 + j] = Phi_offdiag2[i * 3 + j];
         Phi_6Dim[(i + 3) * 6 + j + 3] = Phi_diag[i * 3 + j]; // Phi_diag1 does not appear for the B,C sublattices
       }
     }
@@ -441,82 +416,30 @@ SHARE
     cdouble Phi_AC[3 * 3];
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
-        Phi_AC[i * 3 + j] = cadd(
-            rmul(-Phi13[i][j], (*complexexp_qdotr)(&qvec[0], &r_j13[12][0])),
-            rmul(-Phi14[i][j], (*complexexp_qdotr)(&qvec[0], &r_j13[13][0])));
+        Phi_AC[i * 3 + j]
+            = cadd (rmul (-Phi13[i][j], complexexp_qdotr (&qvec[0], &r_j13[12][0])), rmul (-Phi14[i][j], complexexp_qdotr (&qvec[0], &r_j13[13][0])));
       }
     }
 
     cdouble Phi_6Dim_offdiag[6 * 6];
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
-        Phi_6Dim_offdiag[i * 6 + j]         = Phi_AC[i * 3 + j];
-        Phi_6Dim_offdiag[i * 6 + j + 3]     = cplx(0.0, 0.0);
-        Phi_6Dim_offdiag[(i + 3) * 6 + j]   = cplx(0.0, 0.0);
-        Phi_6Dim_offdiag[(i + 3) * 6 + j + 3] = cplx(0.0, 0.0);
+        Phi_6Dim_offdiag[i * 6 + j] = Phi_AC[i * 3 + j];
+        Phi_6Dim_offdiag[i * 6 + j + 3] = cplx (0.0, 0.0);
+        Phi_6Dim_offdiag[(i + 3) * 6 + j] = cplx (0.0, 0.0);
+        Phi_6Dim_offdiag[(i + 3) * 6 + j + 3] = cplx (0.0, 0.0);
       }
     }
 
     cdouble Phi_12Dim[12 * 12];
     for (i = 0; i < 6; i++) {
       for (j = 0; j < 6; j++) {
-        Phi_12Dim[i * DIM + j]           = Phi_6Dim[i * 6 + j];
-        Phi_12Dim[i * DIM + j + 6]       = Phi_6Dim_offdiag[i * 6 + j];
-        Phi_12Dim[(i + 6) * DIM + j]     = conj(Phi_6Dim_offdiag[i * 6 + j]);
+        Phi_12Dim[i * DIM + j] = Phi_6Dim[i * 6 + j];
+        Phi_12Dim[i * DIM + j + 6] = Phi_6Dim_offdiag[i * 6 + j];
+        Phi_12Dim[(i + 6) * DIM + j] = conj (Phi_6Dim_offdiag[i * 6 + j]);
         Phi_12Dim[(i + 6) * DIM + j + 6] = Phi_6Dim[i * 6 + j];
       }
     }
-
-    #ifdef TEST_MATRICES
-    printf ("Phi_12Dim=\n");
-    for (i = 0; i < 12; i++) {
-      for (j = 0; j < 12; j++) {
-        if (j == 0) { printf ("{"); }
-        printf ("%g+(%g)i  ", creal (Phi_12Dim[i * DIM + j]), cimag (Phi_12Dim[i * DIM + j]));
-        if (j == 11) { printf ("}\n"); }
-      }
-    }
-    printf ("Phi_6Dim=\n");
-    for (i = 0; i < 6; i++) {
-      for (j = 0; j < 6; j++) {
-        if (j == 0) { printf ("{"); }
-        printf ("%g+(%g)i  ", creal (Phi_6Dim[i * 6 + j]), cimag (Phi_6Dim[i * 6 + j]));
-        if (j == 5) { printf ("}\n"); }
-      }
-    }
-    printf ("Phi_diag=\n");
-    for (i = 0; i < 3; i++) {
-      for (j = 0; j < 3; j++) {
-        if (j == 0) { printf ("{"); }
-        printf ("%g+(%g)i  ", creal (Phi_diag[i * 3 + j]), cimag (Phi_diag[i * 3 + j]));
-        if (j == 2) { printf ("}\n"); }
-      }
-    }
-    printf ("Phi2={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}}\n", Phi2[0][0], Phi2[0][1], Phi2[0][2], Phi2[1][0], Phi2[1][1], Phi2[1][2], Phi2[2][0], Phi2[2][1], Phi2[2][2]);
-    printf ("Phi3={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}",  Phi3[0][0], Phi3[0][1], Phi3[0][2], Phi3[1][0], Phi3[1][1], Phi3[1][2], Phi3[2][0], Phi3[2][1], Phi3[2][2]);
-    printf ("Phi5={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}",  Phi5[0][0], Phi5[0][1], Phi5[0][2], Phi5[1][0], Phi5[1][1], Phi5[1][2], Phi5[2][0], Phi5[2][1], Phi5[2][2]);
-    printf ("Phi6={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}",  Phi6[0][0], Phi6[0][1], Phi6[0][2], Phi6[1][0], Phi6[1][1], Phi6[1][2], Phi6[2][0], Phi6[2][1], Phi6[2][2]);
-    printf ("Phi7={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}",  Phi7[0][0], Phi7[0][1], Phi7[0][2], Phi7[1][0], Phi7[1][1], Phi7[1][2], Phi7[2][0], Phi7[2][1], Phi7[2][2]);
-    printf ("Phi8={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}",  Phi8[0][0], Phi8[0][1], Phi8[0][2], Phi8[1][0], Phi8[1][1], Phi8[1][2], Phi8[2][0], Phi8[2][1], Phi8[2][2]);
-    printf ("Phi9={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}",  Phi9[0][0], Phi9[0][1], Phi9[0][2], Phi9[1][0], Phi9[1][1], Phi9[1][2], Phi9[2][0], Phi9[2][1], Phi9[2][2]);
-    printf ("Phi11={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}", Phi11[0][0], Phi11[0][1], Phi11[0][2], Phi11[1][0], Phi11[1][1], Phi11[1][2], Phi11[2][0], Phi11[2][1], Phi11[2][2]);
-    printf ("Phi12={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}", Phi12[0][0], Phi12[0][1], Phi12[0][2], Phi12[1][0], Phi12[1][1], Phi12[1][2], Phi12[2][0], Phi12[2][1], Phi12[2][2]);
-    printf ("Phi14={{%lf,%lf,%lf},{%lf,%lf,%lf},{%lf,%lf,%lf}\n}", Phi14[0][0], Phi14[0][1], Phi14[0][2], Phi14[1][0], Phi14[1][1], Phi14[1][2], Phi14[2][0], Phi14[2][1], Phi14[2][2]);
-    {
-      cdouble _e3 = (*complexexp_qdotr)(&qvec[0], &r_j13[3][0]);
-      cdouble _e4 = (*complexexp_qdotr)(&qvec[0], &r_j13[4][0]);
-      cdouble _e5 = (*complexexp_qdotr)(&qvec[0], &r_j13[5][0]);
-      cdouble _e6 = (*complexexp_qdotr)(&qvec[0], &r_j13[6][0]);
-      cdouble _e7 = (*complexexp_qdotr)(&qvec[0], &r_j13[7][0]);
-      cdouble _e8 = (*complexexp_qdotr)(&qvec[0], &r_j13[8][0]);
-      printf(" 1-exp(q.r_j13[3]) = %lf + i %lf \n", creal(radd(1.0, cneg(_e3))), cimag(radd(1.0, cneg(_e3))));
-      printf(" 1-exp(q.r_j13[4]) = %lf + i %lf \n", creal(radd(1.0, cneg(_e4))), cimag(radd(1.0, cneg(_e4))));
-      printf(" 1-exp(q.r_j13[5]) = %lf + i %lf \n", creal(radd(1.0, cneg(_e5))), cimag(radd(1.0, cneg(_e5))));
-      printf(" 1-exp(q.r_j13[6]) = %lf + i %lf \n", creal(radd(1.0, cneg(_e6))), cimag(radd(1.0, cneg(_e6))));
-      printf(" 1-exp(q.r_j13[7]) = %lf + i %lf \n", creal(radd(1.0, cneg(_e7))), cimag(radd(1.0, cneg(_e7))));
-      printf(" 1-exp(q.r_j13[8]) = %lf + i %lf \n", creal(radd(1.0, cneg(_e8))), cimag(radd(1.0, cneg(_e8))));
-    }
-    #endif // TEST_MATRICES
 
     double eigenvalue[DIM];
     cdouble Q[DIM * DIM];
@@ -526,15 +449,10 @@ SHARE
     for (i = 0; i < DIM; i++) // transforms from 2D matrix to 1D pseudo-matrix
       for (j = i; j < DIM; j++) {
         matrix[i * DIM + j] = Phi_12Dim[i * DIM + j];
-        matrix[j * DIM + i] = conj(matrix[i * DIM + j]); // Forces the pseudo-matrix Hermitean
+        matrix[j * DIM + i] = conj (matrix[i * DIM + j]); // Forces the pseudo-matrix Hermitian
       } // m(12*i+j) = M(i,j)
 
-    #if MATRIX_TEST
-    fwrite (matrix, sizeof (cdouble), DIM * DIM, matrix_test_file);
-    fwrite (parms, sizeof (cdouble), 8, parms_test_file);
-    #endif
-
-    eigensystem_hermitian (matrix, DIM, eigenvalue, Q); /* Produces unitary transformation matrix Q: eigenvectors are columns */
+    eigensystem_hermitian (matrix, DIM, eigenvalue, Q); /* Produces unitary matrix Q: rows hold the conjugate eigenvectors */
 
     for (i = 0; i < DIM; i++)
       index[i] = i;
@@ -589,7 +507,7 @@ SHARE
     // ___________________ RETURN RESULTS TO CALLING FUNCTION __________________
 
     hw_neutron = fabs (VS2E * (vi * vi - vf * vf)); // neutron energy transfer
-    hw_phonon = eigenvaluegood[mode];                // phonon energy
+    hw_phonon = eigenvaluegood[mode];               // phonon energy
 
     if (verbose >= 4) {
       printf ("Return from omega_q \n");
@@ -597,7 +515,7 @@ SHARE
       printf ("hw_phonon  = %g = eigenvaluegood[%d] = %g = eigenvalues[%d] = %g\n", hw_phonon, mode, eigenvaluegood[mode], index[mode], eigenvalue[index[mode]]);
     }
 
-    parms[8] = cplx(hw_phonon, 0.0);
+    parms[8] = cplx (hw_phonon, 0.0);
 
     if (disp == 1) {
       printf ("mode = %d, (h,k,l) = (%g,%g,%g), hw_q = %g", mode, h, k, l, hw_phonon);
@@ -614,10 +532,8 @@ SHARE
       h = hk_inplane - hk_outofplane / sqrt (3);
       l = qz / cstar;
       printf ("mode = %d, vf = %g, (h,k,l) = (%g,%g,%g), hw_q = %g", mode, vf, h, k, l, hw_phonon);
-      printf (" polarization: (%g + i %g , %g + i %g , %g + i %g) \n",
-              creal (eigenvectorgood[0]), cimag (eigenvectorgood[0]),
-              creal (eigenvectorgood[1]), cimag (eigenvectorgood[1]),
-              creal (eigenvectorgood[2]), cimag (eigenvectorgood[2]));
+      printf (" polarization: (%g + i %g , %g + i %g , %g + i %g) \n", creal (eigenvectorgood[0]), cimag (eigenvectorgood[0]), creal (eigenvectorgood[1]),
+              cimag (eigenvectorgood[1]), creal (eigenvectorgood[2]), cimag (eigenvectorgood[2]));
     }
 
     return (hw_phonon - hw_neutron);
@@ -632,7 +548,7 @@ SHARE
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
-    parms[0] = cplx(x1, 0.0);
+    parms[0] = cplx (x1, 0.0);
     if (xacc > 0) {
       fl = (*func) (parms, vector);
     } else {
@@ -641,12 +557,14 @@ SHARE
       if (fabs (x1 - *last_x2) > xacc)
         printf ("*** error in zridd *** x1: %g last_x2: %g \n", x1, *last_x2);
     }
-    parms[0] = cplx(x2, 0.0);
+    parms[0] = cplx (x2, 0.0);
     *last_fh = fh = (*func) (parms, vector);
     *last_x2 = x2;
     if (fl * fh >= 0) {
-      if (fl == 0) return x1;
-      if (fh == 0) return x2;
+      if (fl == 0)
+        return x1;
+      if (fh == 0)
+        return x2;
       return UNUSED;
     } else {
       xl = x1;
@@ -654,69 +572,34 @@ SHARE
       ans = UNUSED;
       for (j = 1; j < MAXRIDD; j++) {
         xm = 0.5 * (xl + xh);
-        parms[0] = cplx(xm, 0.0);
+        parms[0] = cplx (xm, 0.0);
         fm = (*func) (parms, vector);
         s = sqrt (fm * fm - fl * fh);
-        if (s == 0.0) return ans;
+        if (s == 0.0)
+          return ans;
         xnew = xm + (xm - xl) * ((fl >= fh ? 1.0 : -1.0) * fm / s);
-        if (fabs (xnew - ans) <= xacc) return ans;
+        if (fabs (xnew - ans) <= xacc)
+          return ans;
         ans = xnew;
-        parms[0] = cplx(ans, 0.0);
+        parms[0] = cplx (ans, 0.0);
         fnew = (*func) (parms, vector);
-        if (fnew == 0.0) return ans;
+        if (fnew == 0.0)
+          return ans;
         if (fabs (fm) * SIGN (fnew) != fm) {
-          xl = xm; fl = fm; xh = ans; fh = fnew;
+          xl = xm;
+          fl = fm;
+          xh = ans;
+          fh = fnew;
         } else if (fabs (fl) * SIGN (fnew) != fl) {
-          xh = ans; fh = fnew;
+          xh = ans;
+          fh = fnew;
         } else if (fabs (fh) * SIGN (fnew) != fh) {
-          xl = ans; fl = fnew;
+          xl = ans;
+          fl = fnew;
         } else
           bvk_fatalerror ("never get here in zridd");
-        if (fabs (xh - xl) <= xacc) return ans;
-      }
-      bvk_fatalerror ("zridd exceeded maximum iterations");
-    }
-    return 0.0; /* Never get here */
-  }
-
-  double
-  bvk_zridd_gpu (double x1, double x2, cdouble* parms, cdouble* vector, double xacc) {
-    int j;
-    double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
-
-    parms[0] = cplx(x1, 0.0);
-    fl = bvk_omega_q (parms, vector);
-    parms[0] = cplx(x2, 0.0);
-    fh = bvk_omega_q (parms, vector);
-    if (fl * fh >= 0) {
-      if (fl == 0) return x1;
-      if (fh == 0) return x2;
-      return UNUSED;
-    } else {
-      xl = x1;
-      xh = x2;
-      ans = UNUSED;
-      for (j = 1; j < MAXRIDD; j++) {
-        xm = 0.5 * (xl + xh);
-        parms[0] = cplx(xm, 0.0);
-        fm = bvk_omega_q (parms, vector);
-        s = sqrt (fm * fm - fl * fh);
-        if (s == 0.0) return ans;
-        xnew = xm + (xm - xl) * ((fl >= fh ? 1.0 : -1.0) * fm / s);
-        if (fabs (xnew - ans) <= xacc) return ans;
-        ans = xnew;
-        parms[0] = cplx(ans, 0.0);
-        fnew = bvk_omega_q (parms, vector);
-        if (fnew == 0.0) return ans;
-        if (fabs (fm) * SIGN (fnew) != fm) {
-          xl = xm; fl = fm; xh = ans; fh = fnew;
-        } else if (fabs (fl) * SIGN (fnew) != fl) {
-          xh = ans; fh = fnew;
-        } else if (fabs (fh) * SIGN (fnew) != fh) {
-          xl = ans; fl = fnew;
-        } else
-          bvk_fatalerror ("never get here in zridd");
-        if (fabs (xh - xl) <= xacc) return ans;
+        if (fabs (xh - xl) <= xacc)
+          return ans;
       }
       bvk_fatalerror ("zridd exceeded maximum iterations");
     }
@@ -736,16 +619,15 @@ SHARE
   }
 
   void
-  bvk_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index,
-             double (*f) (cdouble*, cdouble*), cdouble* parms, cdouble* vector,
-             int low_steps, int high_steps)
-  {
+  bvk_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (cdouble*, cdouble*), cdouble* parms,
+                 cdouble* vector, int low_steps, int high_steps) {
     double root, range;
     double last_fh = 0, last_x2 = 0;
     int i;
     int verbose = (int)creal (parms[14]);
 
-    if (verbose == 2) printf ("Enter bvk_findroots() \n");
+    if (verbose == 2)
+      printf ("Enter bvk_findroots() \n");
 
     // First, find roots in energy loss side, if any
     range = brack_mid - brack_low;
@@ -756,19 +638,23 @@ SHARE
         root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, -ROOTACC, &last_fh, &last_x2);
       if (root != UNUSED) {
         bvk_addroot (list, index, root);
-        if (verbose >= 4) printf ("--- findroots returned a root on the energy loss side: vf = %g \n", root);
+        if (verbose >= 4)
+          printf ("--- findroots returned a root on the energy loss side: vf = %g \n", root);
       }
     }
 
     range = (brack_mid - brack_low) / (double)low_steps;
     for (i = 0; i < low_steps; i++) {
       if (low_steps == 1)
-        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms, vector, ROOTACC, &last_fh, &last_x2);
+        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps),
+                          parms, vector, ROOTACC, &last_fh, &last_x2);
       else
-        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps), parms, vector, -ROOTACC, &last_fh, &last_x2);
+        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps),
+                          parms, vector, -ROOTACC, &last_fh, &last_x2);
       if (root != UNUSED) {
         bvk_addroot (list, index, root);
-        if (verbose >= 4) printf ("--- findroots returned a root on the energy loss side: vf = %g \n", root);
+        if (verbose >= 4)
+          printf ("--- findroots returned a root on the energy loss side: vf = %g \n", root);
       }
     }
 
@@ -776,38 +662,27 @@ SHARE
     range = (brack_high - brack_mid) / (double)high_steps;
     for (i = 0; i < high_steps; i++) {
       if (i == 0)
-        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, ROOTACC, &last_fh, &last_x2);
+        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, ROOTACC, &last_fh,
+                          &last_x2);
       else
-        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh, &last_x2);
+        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh,
+                          &last_x2);
       if (root != UNUSED) {
         bvk_addroot (list, index, root);
-        if (verbose >= 4) printf ("*** findroots returned a root on the energy gain side: vf = %g \n", root);
+        if (verbose >= 4)
+          printf ("*** findroots returned a root on the energy gain side: vf = %g \n", root);
       }
     }
 
     range = brack_high - brack_mid;
     for (i = 1; i < high_steps; i++) {
-      root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh, &last_x2);
+      root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh,
+                        &last_x2);
       if (root != UNUSED) {
         bvk_addroot (list, index, root);
-        if (verbose >= 4) printf ("*** findroots returned a root on the energy gain side: vf = %g \n", root);
+        if (verbose >= 4)
+          printf ("*** findroots returned a root on the energy gain side: vf = %g \n", root);
       }
-    }
-  }
-
-  void
-  bvk_findroots_gpu (double brack_low, double brack_mid, double brack_high, double* list, int* index,
-                 cdouble* parms, cdouble* vector, int low_steps, int high_steps) {
-    double root, range = brack_mid - brack_low;
-    int i;
-
-    for (i = 0; i < low_steps; i++) {
-      root = bvk_zridd_gpu (brack_low + range * i / (int)low_steps, brack_low + range * (i + 1) / (int)low_steps, parms, vector, ROOTACC);
-      if (root != UNUSED && *index < BVK_MAX_ROOTS) { list[(*index)++] = root; }
-    }
-    for (i = 0; i < high_steps; i++) {
-      root = bvk_zridd_gpu (brack_mid + range * i / (int)high_steps, brack_high + range * (i + 1) / (int)high_steps, parms, vector, ROOTACC);
-      if (root != UNUSED && *index < BVK_MAX_ROOTS) { list[(*index)++] = root; }
     }
   }
 
@@ -850,7 +725,7 @@ INITIALIZE
     coords_get (ToTarget, &target_x, &target_y, &target_z);
   }
   if (!(target_x || target_y || target_z)) {
-    printf ("Phonon_BkV_PG: %s: The target is not defined. Using direct beam (Z-axis).\n", NAME_CURRENT_COMP);
+    printf ("Phonon_BvK_PG: %s: The target is not defined. Using direct beam (Z-axis).\n", NAME_CURRENT_COMP);
     target_z = 1;
   }
   initialize_omega_q ();
@@ -864,7 +739,7 @@ TRACE
   double vx_i, vy_i, vz_i;                                                                     /* Neutron initial velocity vector */
   double dt0, dt;                                                                              /* Flight times through sample */
   double l_full;                                                                               /* Flight path length for non-scattered neutron */
-  double l_i, l_o;                                                                             /* Flight path lenght in/out for scattered neutron */
+  double l_i, l_o;                                                                             /* Flight path length in/out for scattered neutron */
   double my_a_i;                                                                               /* Initial attenuation factor */
   double my_a_f;                                                                               /* Final attenuation factor */
   double solid_angle;                                                                          /* Solid angle of target as seen from scattering point */
@@ -873,7 +748,7 @@ TRACE
   double qsquare;                                                                              /* Square of the scattering vector */
   double bose_factor;                                                                          /* Calculated value of the Bose factor */
   int nf, index;                                                                               /* Number of allowed final velocities */
-  double vf_list[BVK_MAX_ROOTS];                                                                          /* List of allowed final velocities */
+  double vf_list[BVK_MAX_ROOTS];                                                               /* List of allowed final velocities */
   double J_factor, J0;                                                                         /* Jacobian from delta fnc.s in cross section; elastic J-factor */
   double f1, f2;                                                                               /* Probed values of omega_q minus omega */
   double p_att, p_MC, p_ph1, p_ph2, p_ph3, p_J, p_tot;                                         /* Temporary multipliers */
@@ -883,9 +758,9 @@ TRACE
   double qh, qk, ql, qhkx, qhky, qh_Bragg, qk_Bragg, ql_Bragg, qh_res, qk_res, qh_add, qk_add; /* components of q */
   double dist_00, dist_01, dist_10, dist_11, dist_min;                                         /* used to calculate nearest Bragg point */
   int i, j, intersect, mode;
-  double q[3], q_x, q_y, q_z;  /* Scattering vector */
+  double q[3], q_x, q_y, q_z; /* Scattering vector */
   cdouble eigenvectormode[DIM];
-  cdouble p_call[15];          /* Parameters for bvk_omega_q */
+  cdouble p_call[15]; /* Parameters for bvk_omega_q */
 
   if (shape == 0)
     intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius, yheight);
@@ -893,9 +768,11 @@ TRACE
     intersect = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
 
   if (intersect) {
-    if (t0 < 0) ABSORB; /* Neutron came from the sample or begins inside */
+    if (t0 < 0)
+      ABSORB; /* Neutron came from the sample or begins inside */
 
-    if (verbose >= 2) printf ("neutron entered Phonon_BvK_PG \n");
+    if (verbose >= 2)
+      printf ("neutron entered Phonon_BvK_PG \n");
     /* Neutron enters at t=t0. */
     dt0 = t3 - t0; /* Time in sample */
     v_i = sqrt (vx * vx + vy * vy + vz * vz);
@@ -935,33 +812,31 @@ TRACE
     /* Load the parameter vector.  All values are real-valued physics quantities;
        they are stored as cdouble so that omega_q and the root-finder can mutate
        p_call[0] (v_f) as a simple scalar without breaking the MSVC struct layout. */
-    p_call[0]  = cplx(-1.0, 0.0); // in the end this will be v_f
-    p_call[1]  = cplx(v_i,  0.0);
-    p_call[2]  = cplx(vx,   0.0);
-    p_call[3]  = cplx(vy,   0.0);
-    p_call[4]  = cplx(vz,   0.0);
-    p_call[5]  = cplx(vx_i, 0.0);
-    p_call[6]  = cplx(vy_i, 0.0);
-    p_call[7]  = cplx(vz_i, 0.0);
-    p_call[9]  = cplx(hh,   0.0);
-    p_call[10] = cplx(kk,   0.0);
-    p_call[11] = cplx(ll,   0.0);
-    p_call[12] = cplx((double)dispersion, 0.0);
-    p_call[13] = cplx((double)mode, 0.0);
-    p_call[14] = cplx((double)verbose, 0.0);
+    p_call[0] = cplx (-1.0, 0.0); // in the end this will be v_f
+    p_call[1] = cplx (v_i, 0.0);
+    p_call[2] = cplx (vx, 0.0);
+    p_call[3] = cplx (vy, 0.0);
+    p_call[4] = cplx (vz, 0.0);
+    p_call[5] = cplx (vx_i, 0.0);
+    p_call[6] = cplx (vy_i, 0.0);
+    p_call[7] = cplx (vz_i, 0.0);
+    p_call[9] = cplx (hh, 0.0);
+    p_call[10] = cplx (kk, 0.0);
+    p_call[11] = cplx (ll, 0.0);
+    p_call[12] = cplx ((double)dispersion, 0.0);
+    p_call[13] = cplx ((double)mode, 0.0);
+    p_call[14] = cplx ((double)verbose, 0.0);
 
     if (dispersion == 1) {
       f1 = bvk_omega_q (p_call, eigenvectormode);
-      p_call[12] = cplx(0.0, 0.0);
+      p_call[12] = cplx (0.0, 0.0);
     }
 
-    #ifndef OPENACC
-    if (verbose >= 2) printf ("Call findroots \n");
+    if (verbose >= 2)
+      printf ("Call findroots \n");
     bvk_findroots (0, v_i, v_i + V_HIGH, vf_list, &nf, bvk_omega_q, p_call, eigenvectormode, e_steps_low, e_steps_high);
-    if (verbose >= 2) printf ("Findroots returned %d roots \n", nf);
-    #else
-    bvk_findroots_gpu (0, v_i, v_i + V_HIGH, vf_list, &nf, p_call, eigenvectormode, e_steps_low, e_steps_high);
-    #endif
+    if (verbose >= 2)
+      printf ("Findroots returned %d roots \n", nf);
 
     if (verbose >= 3) {
       printf ("Findroots done, mode %i , last phonon energy %g \n", mode, creal (p_call[8]));
@@ -970,12 +845,12 @@ TRACE
     // ________________ ALL FROM HERE IS CALCULATION OF INTENSITY - SHOULD BE REVISITED ___________________
 
     if (!nf)
-      ABSORB; /* no allowed final velocity, the weight would be zero */
+      ABSORB;                            /* no allowed final velocity, the weight would be zero */
     index = (int)floor (rand01 () * nf); // Select random solution
     if (index >= nf)
       index = nf - 1; /* rand01() may return 1.0 */
     v_f = vf_list[index];
-    p_call[0] = cplx(v_f, 0.0); // transfer choice of v_f to omega_q
+    p_call[0] = cplx (v_f, 0.0); // transfer choice of v_f to omega_q
 
     f1 = bvk_omega_q (p_call, eigenvectormode);
     if (verbose >= 2) {
@@ -985,12 +860,12 @@ TRACE
       printf (" )\n");
       printf ("--------------------------------------------\n");
     }
-    p_call[0] = cplx(v_f - BVK_DV, 0.0);
+    p_call[0] = cplx (v_f - BVK_DV, 0.0);
     f1 = bvk_omega_q (p_call, eigenvectormode);
-    p_call[0] = cplx(v_f + BVK_DV, 0.0);
+    p_call[0] = cplx (v_f + BVK_DV, 0.0);
     f2 = bvk_omega_q (p_call, eigenvectormode);
     J_factor = BVK_MEV2J * 1E-10 * fabs (f2 - f1) / (2 * BVK_DV * V2K); // unit: meV Å converted to SI units
-    omega = VS2E * (v_i * v_i - v_f * v_f);                          // unit: meV
+    omega = VS2E * (v_i * v_i - v_f * v_f);                             // unit: meV
     vx *= v_f;
     vy *= v_f;
     vz *= v_f;
@@ -1014,14 +889,27 @@ TRACE
 
     dist_00 = qh_res * qh_res + qk_res * qk_res + qh_res * qk_res;
     dist_min = dist_00;
-    qh_add = 0; qk_add = 0;
+    qh_add = 0;
+    qk_add = 0;
 
     dist_01 = qh_res * qh_res + (qk_res - 1) * (qk_res - 1) + qh_res * (qk_res - 1);
-    if (dist_01 < dist_min) { dist_min = dist_01; qh_add = 0; qk_add = 1; }
+    if (dist_01 < dist_min) {
+      dist_min = dist_01;
+      qh_add = 0;
+      qk_add = 1;
+    }
     dist_10 = (qh_res - 1) * (qh_res - 1) + qk_res * qk_res + (qh_res - 1) * qk_res;
-    if (dist_10 < dist_min) { dist_min = dist_10; qh_add = 1; qk_add = 0; }
+    if (dist_10 < dist_min) {
+      dist_min = dist_10;
+      qh_add = 1;
+      qk_add = 0;
+    }
     dist_11 = (qh_res - 1) * (qh_res - 1) + (qk_res - 1) * (qk_res - 1) + (qh_res - 1) * (qk_res - 1);
-    if (dist_11 < dist_min) { dist_min = dist_11; qh_add = 1; qk_add = 1; }
+    if (dist_11 < dist_min) {
+      dist_min = dist_11;
+      qh_add = 1;
+      qk_add = 1;
+    }
 
     qh_Bragg += qh_add; // Potentially correct to the right BZ
     qk_Bragg += qk_add;
@@ -1035,7 +923,7 @@ TRACE
       printf ("Dispersion found:  (h,k,l) = (%g, %g, %g), hw = %g \n", q[0] / astar, q[1] / astar, q[2] / cstar, omega);
 
     qsquare = 1;
-    Gn = cplx(0.0, 0.0);
+    Gn = cplx (0.0, 0.0);
 
     double q_Bragg[3]; // Bragg point in Å-1; Cartesian coordinates
     q_Bragg[0] = qh_Bragg * astar + qk_Bragg * astar / 2.0;
@@ -1044,22 +932,23 @@ TRACE
 
     for (i = 0; i < 4; i++) // Calculate phonon structure factor; loop over atoms in unit cell
     {
-      q_dot_e = cplx(0.0, 0.0);
+      q_dot_e = cplx (0.0, 0.0);
       q_dot_r = 0;
       for (j = 0; j < 3; j++) // loop over x,y,z
       {
-        q_dot_e = cadd(q_dot_e, rmul(q[j], eigenvectormode[3 * i + j]));
+        q_dot_e = cadd (q_dot_e, rmul (q[j], eigenvectormode[3 * i + j]));
         q_dot_r += q_Bragg[j] * Delta[3 * i + j];
       }
       if (verbose >= 7) {
-        cdouble contrib = rmul(b_length, cmul(q_dot_e, cexp(cplx(0.0, q_dot_r))));
-        printf ("i = %i , q dot r = %g , q dot e = (%g + i %g) Fn contrib = (%g + i %g)",
-                i, q_dot_r, creal (q_dot_e), cimag (q_dot_e), creal (contrib), cimag (contrib));
+        cdouble contrib = rmul (b_length, cmul (q_dot_e, cexp (cplx (0.0, q_dot_r))));
+        printf ("i = %i , q dot r = %g , q dot e = (%g + i %g) Fn contrib = (%g + i %g)", i, q_dot_r, creal (q_dot_e), cimag (q_dot_e), creal (contrib),
+                cimag (contrib));
       }
       /* Gn += b_length * q_dot_e * e^{i q_Bragg . Delta_i} */
-      Gn = cadd(Gn, rmul(b_length, cmul(q_dot_e, cexp(cplx(0.0, q_dot_r)))));
+      Gn = cadd (Gn, rmul (b_length, cmul (q_dot_e, cexp (cplx (0.0, q_dot_r)))));
     }
-    if (verbose >= 7) printf ("\n");
+    if (verbose >= 7)
+      printf ("\n");
 
     if (shape == 0)
       intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius, yheight);
@@ -1069,7 +958,8 @@ TRACE
     if (!intersect)
       ABSORB; /* numerical edge case, e.g. near-tangent path */
 
-    if (verbose >= 2) printf ("neutron left Phonon_BvK_PG, p_init = %g,", p);
+    if (verbose >= 2)
+      printf ("neutron left Phonon_BvK_PG, p_init = %g,", p);
 
     dt = t3;
     l_o = v_f * dt;
@@ -1080,10 +970,11 @@ TRACE
 
     p_att = exp (-(V_my_s * (l_i + l_o) + my_a_i * l_i + my_a_f * l_o)); /* Absorption factor (units: 1) */
     p_MC = nf * solid_angle * l_full;                                    /* Focusing factors; assume random choice of n_f possibilities (units: m) */
-    if (mode_input == 12) p_MC *= 12;                                    // The factor 12 is due to MC choice between the 12 modes
-    p_ph1 = (v_f / v_i) * DW * bose_factor * V_rho * 1E30;              /* Cross section factor 1 (units: m^-3) */
-    p_ph2 = HBAR * HBAR / (2 * (fabs (omega) * BVK_MEV2J));            /* Jacobian of delta functions in cross section; and constants. Units: J s^2 */
-    p_ph3 = creal(cmul(Gn, conj(Gn))) * 1E-10 / M;                      /* Structure factor |Gn|^2.   (units: kg^-1) */
+    if (mode_input == 12)
+      p_MC *= 12;                                           // The factor 12 is due to MC choice between the 12 modes
+    p_ph1 = (v_f / v_i) * DW * bose_factor * V_rho * 1E30;  /* Cross section factor 1 (units: m^-3) */
+    p_ph2 = HBAR * HBAR / (2 * (fabs (omega) * BVK_MEV2J)); /* Jacobian of delta functions in cross section; and constants. Units: J s^2 */
+    p_ph3 = creal (cmul (Gn, conj (Gn))) * 1E-10 / M;       /* Structure factor |Gn|^2.   (units: kg^-1) */
     p_J = J0 / J_factor;
     p_tot = p_att * p_MC * p_ph1 * p_ph2 * p_ph3 * p_J;
     if (!isfinite (p_tot))
@@ -1091,13 +982,12 @@ TRACE
     p *= p_tot;
 
     if (verbose >= 2) {
-      cdouble GnGnconj = cmul(Gn, conj(Gn));
+      cdouble GnGnconj = cmul (Gn, conj (Gn));
       printf ("nf = %d, solid_angle = %g, l_full = %g \n", nf, solid_angle, l_full);
       printf ("(p in SI units): p_att = %g, p_MC= %g, p_ph1 = %g, p_ph2 = %g, p_ph3 = %g, p_J = %g, bose_factor = %g, V_rho = %g, J_factor/J0 = %g, G_factor = "
               "%g +i %g, conj(G) = %g + I %g, |G|^2 = %g + I %g, ",
-              p_att, p_MC, p_ph1, p_ph2, p_ph3, p_J, bose_factor, V_rho, J_factor / J0,
-              creal(Gn), cimag(Gn), creal(conj(Gn)), cimag(conj(Gn)),
-              creal(GnGnconj), cimag(GnGnconj));
+              p_att, p_MC, p_ph1, p_ph2, p_ph3, p_J, bose_factor, V_rho, J_factor / J0, creal (Gn), cimag (Gn), creal (conj (Gn)), cimag (conj (Gn)),
+              creal (GnGnconj), cimag (GnGnconj));
       printf (" p_tot = %g, p_final = %g\n", p_tot, p);
       printf ("q is (h,k,l) = (%g, %g, %g) \n", q_x / astar, q_y / astar, q_z / cstar);
     }
