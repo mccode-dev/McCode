@@ -81,6 +81,7 @@ INLINE void matrix_inplace_multiply(cdouble *A, cdouble *B, int m, int n, int q)
       row[j] = sum;
     }
     for(int j=0;j<q;j++) A[i*n+j] = row[j];
+    free(row);
   }
 }
 
@@ -102,6 +103,7 @@ INLINE void apply_reflection(/*in/out*/cdouble* A, const cdouble *v, int m, int 
     for(size_t j=0;j<n;j++){
       A[i*stride[0]+j*stride[1]] = csub(A[i*stride[0]+j*stride[1]],cmul(cmul(conj_sigma,v[i]),vHA[j])); 
     }  
+  free(vHA);
 }
 
 /* A: NxN
@@ -132,6 +134,7 @@ INLINE void reflect_region(/*in/out*/cdouble* A, int N, int i0, int j0, int m, i
       size_t IJ = (i+i0)*stride[0] + (j+j0)*stride[1];
       A[IJ] = csub(A[IJ],cmul(conj_sigma,cmul(v[i],vHA[j]))); 
     }  
+  free(vHA);
 }
 
 /* Apply n 2D reflections to an mxm matrix Q */
@@ -451,8 +454,10 @@ real_pair eigensystem_hermitian(const cdouble *A,
 	col[j] = sum;
       }
       for(int j=0;j<n;j++) Q_tmp[i*n+j] = col[j];
+      free(col);
     }
     memcpy(Q,Q_tmp,n*n*sizeof(cdouble));
+    free(Q_tmp);
   }
 
 #if TIME_EIGENSYSTEMS
@@ -468,5 +473,17 @@ real_pair eigensystem_hermitian(const cdouble *A,
   return result;
 }
 
+
+/* Keep generic macro names out of the instrument */
+#undef G
+#undef ROWS
+#undef COLS
+#undef gershgorin_tolerance
+#undef max_iterations
+#undef real_t
+#undef scalar
+#undef machine_precision
+#undef PRINTF_G
+#undef INLINE
 
 #endif
