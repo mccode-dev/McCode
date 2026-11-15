@@ -32,7 +32,7 @@
 #ifndef OPENACC
 #define EIGEN_CHECK_N(n) do { if ((n) > EIGEN_MAXN) { \
       fprintf(stderr, "eigen: matrix size n=%d exceeds EIGEN_MAXN=%d\n", (int)(n), EIGEN_MAXN); \
-      exit(1); } } while (0)
+      exit(-1); } } while (0)
 #else
 #define EIGEN_CHECK_N(n)
 #endif
@@ -501,5 +501,17 @@ real_pair eigensystem_hermitian(const cdouble *A,
   return result;
 }
 
+
+/* Keep generic macro names out of the instrument */
+#undef G
+#undef ROWS
+#undef COLS
+#undef gershgorin_tolerance
+#undef max_iterations
+#undef real_t
+#undef scalar
+#undef machine_precision
+#undef PRINTF_G
+#undef INLINE
 
 #endif
