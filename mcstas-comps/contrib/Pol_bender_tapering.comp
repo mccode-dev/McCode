@@ -213,8 +213,8 @@ INITIALIZE
     exit (-1);
   }
   char** header_parsed;
-  header_parsed = Table_ParseHeader (R.header, "parameter");
-  if (strstr (header_parsed[0], "m")) {
+  header_parsed = Table_ParseHeader (R.header, "parameter", NULL);
+  if (header_parsed[0] && strstr (header_parsed[0], "m")) { /* no "parameter" header: parametrized by q */
     by_q = 0;
   } else {
     by_q = 1;
@@ -314,7 +314,7 @@ TRACE
 
       while (!(x > entry_radius * sin (dx2 / entry_radius) && x < entry_radius * sin (dx1 / entry_radius))) {
         channel_no++;
-        if (channel_no > T.rows) {
+        if (channel_no >= T.rows) {
           // printf("oops I've missed all channels ");
           // printf("%lld %g %g %g %g %g %g %g\n",mcget_run_num(),x,y,z,vx,vy,vz,p);
           ABSORB;

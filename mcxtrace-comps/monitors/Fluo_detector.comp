@@ -22,16 +22,20 @@
 * - energy resolution (above Fano level)
 *
 * The detector geometry can be a rectangle xwidth*yheight, or a disk of given 'radius'.
-* When the radius is given negative, a 4PI detector sphere of given radius is assumed.
+* When the radius is given negative, a 4PI detector sphere of given |radius| is assumed.
 *
 * The detector escape corresponds with a fluorescence excitation within the detector itself
 * that subtracts the K-alpha detector level from the sample scattered energy.
-* The level of escape peaks in set as 'escape_ratio', e.g. 1-2 %.
+* This only happens for photons above the detector absorption edge (Si K edge 1.839 keV,
+* Ge K edge 11.103 keV), set as 'escape_edge', e.g. 1.05*escape_energy when not given.
+* The level of escape peaks is set as 'escape_ratio', e.g. 1-2 %. Zero inactivates.
 *
 * The detector pile-up is related to the detector dead-time, within which time coincidence
 * between two fluorescence photons are summed-up.
 * The level of pile-up is set as 'pileup_ratio', e.g. 1-2 % which can increase for high
-* count rates that saturate the detector.
+* count rates that saturate the detector. The summed partner photon is drawn from the
+* current spectrum (intensity weighted, channel center energy). Pile-up gets active
+* once the spectrum holds at least 1000 in-range events (N_sum>1000).
 *
 * Last, the fluorescence peak shape is broadened using an electronic noise (at E=0) and
 * a nominal resolution at E=resolution_energy (in keV). You may set the electronic_noise
@@ -48,7 +52,7 @@
 * yheight:            [m] Height of rectangle detector.
 * Emin:             [keV] Minimum energy to detect.
 * Emax:             [keV] Maximum energy to detect.
-* nE:                 [m] Number of energy channels.
+* nE:                 [1] Number of energy channels.
 * filename:         [str] Name of file in which to store the detector image.
 * restore_xray:     [0/1] If set, the monitor does not influence the x-ray state.
 * escape_ratio:       [1] Detector escape peak ratio,  e.g. 0.01-0.02. Zero inactivates.
@@ -58,9 +62,10 @@
 * resolution_energy:[keV] Energy at which resolution is given, e.g. 5.9 keV Mn K-alpha.
 * resolution:       [keV] Resolution FWHM in keV at resolution_energy.
 * flag_lorentzian:    [1] When 1, the line shapes are assumed to be Lorentzian, else Gaussian.
+* escape_edge:      [keV] Detector K absorption edge, below which no escape occurs, e.g. 1.839 for Si, 11.103 for Ge. Default: 1.05*escape_energy true for Si.
 *
 * CALCULATED PARAMETERS:
-* type: scattering event type 5=SDD_ESCAPE 6=SDD_PILEUP (dead time)
+* type: scattering event type 6=SDD_ESCAPE 7=SDD_PILEUP (dead time). Values 0-5 are used by the Fluorescence/FluoPowder samples.
 *
 * %Link
 * Fluorescence https://en.wikipedia.org/wiki/Fluorescence
@@ -76,17 +81,16 @@ SETTING PARAMETERS(
   escape_ratio=0.01, escape_energy    = 1.739,
   pileup_ratio=0.01, electronic_noise = 0.1,
   resolution_energy= 6, resolution = 0.2,
-  flag_lorentzian=0)
+  flag_lorentzian=0, escape_edge=0)
 
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
-SHARE INHERIT Fluorescence
-EXTEND %{
+SHARE %{
 #ifndef FLUO_DETECTOR
 #define FLUO_DETECTOR
 
-#define SDD_ESCAPE 5 // Detector escape      peak fluorescence
-#define SDD_PILEUP 6 // Detector pile-up/sum peak fluorescence
+#define SDD_ESCAPE 6 // Detector escape      peak fluorescence
+#define SDD_PILEUP 7 // Detector pile-up/sum peak fluorescence
 #endif
 %}
 
@@ -104,6 +108,7 @@ DECLARE %{
   double   K;
   double   p_sum;
   double   N_sum;
+  char     fname[1024]; // output file name (never write into the 'filename' parameter)
 %}
 
 
@@ -119,7 +124,10 @@ INITIALIZE %{
                         "ERROR          Please check parameter values (xwidth, yheight, zdepth, radius).\n", NAME_CURRENT_COMP));
 
   // Use instance name for monitor output if no input was given
-  if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
+  if (!filename || !strlen(filename) || !strcmp(filename,"NULL") || !strcmp(filename,"0"))
+    snprintf(fname, sizeof(fname), "%s", NAME_CURRENT_COMP);
+  else
+    snprintf(fname, sizeof(fname), "%s", filename);
 
   // storage
   E_N        = create_darr1d(nE);
@@ -134,9 +142,20 @@ INITIALIZE %{
   p_sum=N_sum=0;
 
   // constant for resolution calculation
-  if (resolution > electronic_noise && resolution_energy > 0)
-    K = (resolution*resolution-electronic_noise*electronic_noise)/resolution_energy;
-  else K=0;
+  K = 0;
+  if (resolution_energy > 0) {
+    if (resolution > electronic_noise)
+      K = (resolution*resolution-electronic_noise*electronic_noise)/resolution_energy;
+    else
+      MPI_MASTER(
+        fprintf(stderr,"Fluo_detector: %s: WARNING: resolution=%g keV is not above electronic_noise=%g keV at E=%g keV. Using a constant resolution of %g keV.\n",
+          NAME_CURRENT_COMP, resolution, electronic_noise, resolution_energy,
+          resolution > 0 ? resolution : electronic_noise);
+      );
+  }
+
+  // detector absorption edge for escape events
+  if (escape_edge <= 0) escape_edge = 1.05*escape_energy;
 
 %}
 
@@ -160,7 +179,7 @@ TRACE %{
               && -yheight/2 < y && y < yheight/2);
     }
   else if (shape==2)  // sphere
-    intersect=sphere_intersect  (&l0,&l1, x,y,z,kx,ky,kz, radius);
+    intersect=sphere_intersect  (&l0,&l1, x,y,z,kx,ky,kz, fabs(radius));
 
   if (intersect) {  /* we propagate to the detector surface */
     int i;
@@ -178,17 +197,26 @@ TRACE %{
     type  = 0;
 
     // handle detector escape peak: just shift energy down by detector K-alpha
-    if (escape_ratio > 0 && escape_energy > 0 && E > escape_energy && rand01() < escape_ratio) {
+    // (only possible above the detector K absorption edge)
+    if (escape_ratio > 0 && escape_energy > 0 && E > escape_edge && E > escape_energy && rand01() < escape_ratio) {
         E   -= escape_energy; // escape
         type = SDD_ESCAPE;
 
     }
-    if (pileup_ratio > 0 && N_sum > 1000 && rand01() < pileup_ratio) {
-        // handle detector pile-up peak: get an other fluo line and sum it
-        // require some statistics in the spectrum in order to select a line
-        int i_E = XRMC_SelectInteraction(E_p, nE, rand01());
-        E  += Emin+i_E*(Emax-Emin)/nE;             // pile-up
-        type= SDD_PILEUP;
+    if (pileup_ratio > 0 && N_sum > 1000 && p_sum > 0 && rand01() < pileup_ratio) {
+        // handle detector pile-up peak: get another fluo line and sum it
+        // requires some statistics in the spectrum in order to select a line
+        // draw the partner photon from the intensity-weighted spectrum
+        // (p_sum == sum(E_p[]): both are updated together, see below)
+        double r   = rand0max(p_sum);
+        double cum = 0;
+        int    i_E;
+        for (i_E=0; i_E < nE-1; i_E++) {
+          cum += E_p[i_E];
+          if (cum > r) break;
+        }
+        E   += Emin + (i_E+0.5)*(Emax-Emin)/nE;     // pile-up (channel centre)
+        type = SDD_PILEUP;
     }
 
     // we add the detector resolution (broadening)
@@ -200,9 +228,9 @@ TRACE %{
       dE = electronic_noise;
     else dE=0;
     if (dE) {
-      dE /= 2;  // half-width
-      if (flag_lorentzian) dE  *= tan(PI/2*randpm1()); // Lorentzian distribution
-      else                 dE  *= randnorm();          // Gaussian distribution
+      // dE is the FWHM
+      if (flag_lorentzian) dE *= 0.5*tan(PI/2*randpm1());                // Lorentzian: HWHM=FWHM/2
+      else                 dE *= randnorm()/(2*sqrt(2*log(2.0)));        // Gaussian: sigma=FWHM/2.355
       E += dE;
     }
 
@@ -237,14 +265,14 @@ TRACE %{
         #pragma acc atomic
         N_sum = N_sum +1;
         #pragma acc atomic
-        p_sum = p_sum +1;
+        p_sum = p_sum +p;
         SCATTER;
     }
 
     if (restore_xray) {
         RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
     }
-  } else {
+  } else if (restore_xray) {
     RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
   }
 
@@ -252,16 +280,16 @@ TRACE %{
 
 SAVE
 %{
-  DETECTOR_OUT_1D ("Energy monitor", "Energy [keV]", "Intensity", "E", Emin, Emax, nE, &E_N[0], &E_p[0], &E_p2[0], filename);
+  DETECTOR_OUT_1D ("Energy monitor", "Energy [keV]", "Intensity", "E", Emin, Emax, nE, &E_N[0], &E_p[0], &E_p2[0], fname);
   if (escape_ratio) {
-    char f_escape[1024];
-    snprintf (f_escape, 1024, "Escape_%s", filename);
+    char f_escape[1100];
+    snprintf (f_escape, sizeof(f_escape), "Escape_%s", fname);
     DETECTOR_OUT_1D ("Energy monitor (escape)", "Energy [keV]", "Intensity (escape)", "E", Emin, Emax, nE, &E_N_escape[0], &E_p_escape[0], &E_p2_escape[0],
                      f_escape);
   }
   if (pileup_ratio) {
-    char f_pileup[1024];
-    snprintf (f_pileup, 1024, "PileUp_%s", filename);
+    char f_pileup[1100];
+    snprintf (f_pileup, sizeof(f_pileup), "PileUp_%s", fname);
     DETECTOR_OUT_1D ("Energy monitor (pile-up)", "Energy [keV]", "Intensity (pile-up)", "E", Emin, Emax, nE, &E_N_pileup[0], &E_p_pileup[0], &E_p2_pileup[0],
                      f_pileup);
   }

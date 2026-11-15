@@ -61,6 +61,7 @@ focus_yh = 0.01, xwidth = 0.074, yheight = 0.074, CAngle = 0.0,SAC= 1, Lmin=0, L
 
 SHARE
 %{
+%include "read_table-lib"
   typedef struct {
     int nEnergy; ///< Number of energy bins
     int nTime;   ///< number of time bins
@@ -711,47 +712,23 @@ SHARE
     if (!FileName)
       return (NULL);
 
-    if (!efile && getenv ("MCTABLES")) {
+    if (getenv ("MCTABLES")) {
       /* Is MCTABLES set, files located there? */
       sprintf (ss, "%s%c%s", getenv ("MCTABLES"), MC_PATHSEP_C, FileName);
       efile = fopen (ss, "r");
     }
-
-    /* Is the file located in working dir? */
+    /* Search working dir, instrument dir and MCSTAS data/contrib, then their ISIS_tables subfolders */
+    if (!efile)
+      efile = Open_File (FileName, "r", ss);
     if (!efile) {
-      sprintf (ss, "%s", FileName);
-      efile = fopen (FileName, "r");
-    }
-    if (!efile) {
-      /* Try locating the file in ./ISIS_tables library */
-      sprintf (ss, "%s%c%s%c%s", ".", MC_PATHSEP_C, "ISIS_tables", MC_PATHSEP_C, FileName);
-      efile = fopen (ss, "r");
-    }
-    if (!efile) {
-      /* Try locating the file in the MCSTAS data/ISIS_tables library */
-      sprintf (ss, "%s%c%s%c%s%c%s", getenv ("MCSTAS") ? getenv ("MCSTAS") : MCSTAS, MC_PATHSEP_C, "data", MC_PATHSEP_C, "ISIS_tables", MC_PATHSEP_C, FileName);
-      efile = fopen (ss, "r");
-    }
-    if (!efile) {
-      /* Try locating the file in the MCSTAS data library */
-      sprintf (ss, "%s%c%s%c%s", getenv ("MCSTAS") ? getenv ("MCSTAS") : MCSTAS, MC_PATHSEP_C, "data", MC_PATHSEP_C, FileName);
-      efile = fopen (ss, "r");
-    }
-    if (!efile) {
-      /* Try locating the file in the MCSTAS contrib/ISIS_tables library */
-      sprintf (ss, "%s%c%s%c%s%c%s", getenv ("MCSTAS") ? getenv ("MCSTAS") : MCSTAS, MC_PATHSEP_C, "contrib", MC_PATHSEP_C, "ISIS_tables", MC_PATHSEP_C,
-               FileName);
-      efile = fopen (ss, "r");
-    }
-    if (!efile) {
-      /* Try locating the file in the MCSTAS contrib folder */
-      sprintf (ss, "%s%c%s%c%s", getenv ("MCSTAS") ? getenv ("MCSTAS") : MCSTAS, MC_PATHSEP_C, "contrib", MC_PATHSEP_C, FileName);
-      efile = fopen (ss, "r");
+      char sub[1024];
+      snprintf (sub, 1024, "%s%c%s", "ISIS_tables", MC_PATHSEP_C, FileName);
+      efile = Open_File (sub, "r", ss);
     }
     if (!efile) { /* Still no file - die! */
       fprintf (stderr, "ISIS_moderator: ERROR: Could not read Etable file %s.\n", FileName);
       fprintf (stderr, "                Please check your McStas installation and/or MCTABLES/ISIS_tables setting!\n");
-      exit (1);
+      exit (-1);
     } else
       printf ("Opening -- %s\n", ss);
     return efile;
