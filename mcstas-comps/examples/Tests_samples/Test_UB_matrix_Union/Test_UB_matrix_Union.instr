@@ -1,0 +1,115 @@
+/*******************************************************************************
+* Instrument: Test_UB_matrix_Union
+*
+* %I
+* Written by: Peter Willendrup
+* Date: November 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Test of the UB_matrix component injecting a UB matrix into Union crystal processes
+*
+* %D
+* An Al crystal with the same orientation as in Test_UB_matrix, as a Union
+* volume illuminated by a white beam. The processes are placed AT (0,0,0)
+* ABSOLUTE without rotation, and 'goniometer' is the Union volume.
+* SAMPLE=0: Single_crystal_process reference, direct lattice vectors given
+* SAMPLE=1: Single_crystal_process, UB_matrix with UBin
+* SAMPLE=2: NCrystal_process reference, dir1/dir2 given in cfg
+* SAMPLE=3: NCrystal_process, UB_matrix with UBin appending dir1/dir2 to cfg
+* SAMPLE=4: Union_NCrystal_material reference, dir1/dir2 given in cfg
+* SAMPLE=5: Union_NCrystal_material, UB_matrix with UBin appending dir1/dir2 to cfg
+* SAMPLE=0-1, 2-3 and 4-5 give the same Laue pattern and intensity.
+*
+* %Example: SAMPLE=0 Detector: Laue_I=1.027e-09
+* %Example: SAMPLE=1 Detector: Laue_I=1.027e-09
+* %Example: SAMPLE=2 Detector: Laue_I=5.7478e-09
+* %Example: SAMPLE=3 Detector: Laue_I=5.7478e-09
+* %Example: SAMPLE=4 Detector: Laue_I=5.7007e-09
+* %Example: SAMPLE=5 Detector: Laue_I=5.7007e-09
+*
+* %P
+* SAMPLE: [1]  Orientation input: 0-1 Single_crystal_process, 2-3 NCrystal_process, 4-5 Union_NCrystal_material (reference, UBin)
+* A3: [deg]    Goniometer rotation about the vertical axis
+*
+* %L
+* A. T. Savici, Introduction to the use of the UB matrix (ORNL, 2011)
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_UB_matrix_Union(int SAMPLE=1, A3=0)
+
+TRACE
+
+COMPONENT init = Union_init()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT UB_sc = UB_matrix(target="sc_ub", goniometer="volume", filename="UB_sc.txt",
+    UBin={-0.17459426696, 0.17459426696, 0, 0, 0, 0.246913580247, 0.17459426696, 0.17459426696, 0})
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT UB_nc = UB_matrix(target="nc_ub", goniometer="volume", filename="UB_nc.txt",
+    UBin={-0.17459426696, 0.17459426696, 0, 0, 0, 0.246913580247, 0.17459426696, 0.17459426696, 0})
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT UB_ncm = UB_matrix(target="m_ncm_ub", goniometer="volume", filename="UB_ncm.txt",
+    UBin={-0.17459426696, 0.17459426696, 0, 0, 0, 0.246913580247, 0.17459426696, 0.17459426696, 0})
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT sc_ref = Single_crystal_process(reflections="Al.lau", mosaic=5,
+    ax=-2.863782463806, ay=0, az=2.863782463806, bx=2.863782463806, by=0, bz=2.863782463806, cx=0, cy=4.05, cz=0)
+  AT (0,0,0) ABSOLUTE
+COMPONENT m_sc_ref = Union_make_material(process_string="sc_ref", my_absorption=0)
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT sc_ub = Single_crystal_process(reflections="Al.lau", mosaic=5)
+  AT (0,0,0) ABSOLUTE
+COMPONENT m_sc_ub = Union_make_material(process_string="sc_ub", my_absorption=0)
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT nc_ref = NCrystal_process(
+    cfg="Al_sg225.ncmat;mos=5arcmin;incoh_elas=0;inelas=0;dir1=@crys_hkl:1,1,0@lab:0,0,1;dir2=@crys_hkl:0,0,1@lab:0,1,0")
+  AT (0,0,0) ABSOLUTE
+COMPONENT m_nc_ref = Union_make_material(process_string="nc_ref", my_absorption=0)
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT nc_ub = NCrystal_process(cfg="Al_sg225.ncmat;mos=5arcmin;incoh_elas=0;inelas=0")
+  AT (0,0,0) ABSOLUTE
+COMPONENT m_nc_ub = Union_make_material(process_string="nc_ub", my_absorption=0)
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT m_ncm_ref = Union_NCrystal_material(
+    cfg="Al_sg225.ncmat;mos=5arcmin;incoh_elas=0;inelas=0;dir1=@crys_hkl:1,1,0@lab:0,0,1;dir2=@crys_hkl:0,0,1@lab:0,1,0")
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT m_ncm_ub = Union_NCrystal_material(cfg="Al_sg225.ncmat;mos=5arcmin;incoh_elas=0;inelas=0")
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT Source = Source_simple(radius=0.001, dist=1, focus_xw=0.002, focus_yh=0.002, lambda0=3, dlambda=2.5)
+  AT (0,0,0) RELATIVE Origin
+
+COMPONENT gonio = Arm()
+  AT (0,0,1) RELATIVE Origin
+  ROTATED (0,A3,0) RELATIVE Origin
+
+COMPONENT volume = Union_box(xwidth=0.005, yheight=0.005, zdepth=0.005, priority=1,
+    material_string=(SAMPLE==0 ? "m_sc_ref" : SAMPLE==1 ? "m_sc_ub" : SAMPLE==2 ? "m_nc_ref" :
+                     SAMPLE==3 ? "m_nc_ub" : SAMPLE==4 ? "m_ncm_ref" : "m_ncm_ub"))
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT master = Union_master()
+  AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (number_of_scattering_events == 0) ABSORB;
+%}
+
+COMPONENT Laue = PSD_monitor_4PI(radius=0.5, nx=180, ny=90, filename="Laue")
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT stop = Union_stop()
+  AT (0,0,0) ABSOLUTE
+
+END

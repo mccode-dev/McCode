@@ -7,23 +7,27 @@
 * Origin: DTU
 * %INSTRUMENT_SITE: Tests_samples
 *
-* Test of the UB_matrix component injecting a UB matrix into Single_crystal
+* Test of the UB_matrix component injecting a UB matrix into Single_crystal and FluoCrystal
 *
 * %D
 * A Si single crystal with (1,1,0) along the beam and (0,0,1) up is oriented
-* in three equivalent ways, and illuminated by a white beam:
+* in several equivalent ways, and illuminated by a white beam:
 * SAMPLE=0: reference, direct lattice vectors given to Single_crystal
 * SAMPLE=1: UB_matrix with a UB matrix as 9 numbers (UBin)
 * SAMPLE=2: UB_matrix with the cell and two reflections
-* All three give the same Laue pattern and intensity. The goniometer angle A3
+* SAMPLE=3: FluoCrystal reference, direct lattice vectors given
+* SAMPLE=4: FluoCrystal, UB_matrix with UBin
+* SAMPLE=0-2 give the same Laue pattern and intensity, as do SAMPLE=3-4. The goniometer angle A3
 * rotates all samples about the vertical axis.
 *
 * %Example: SAMPLE=0 Detector: Laue_I=3.5557e-12
 * %Example: SAMPLE=1 Detector: Laue_I=3.5557e-12
 * %Example: SAMPLE=2 Detector: Laue_I=3.5557e-12
+* %Example: SAMPLE=3 Detector: Laue_I=8.848e-11
+* %Example: SAMPLE=4 Detector: Laue_I=8.848e-11
 *
 * %P
-* SAMPLE: [1]  Orientation input: 0 reference, 1 UBin, 2 cell + reflections
+* SAMPLE: [1]  Orientation input: 0-2 Single_crystal (reference, UBin, cell + reflections), 3-4 FluoCrystal (reference, UBin)
 * A3: [deg]    Goniometer rotation about the vertical axis
 *
 * %L
@@ -54,6 +58,10 @@ COMPONENT UB_cell = UB_matrix(target="Sample_cell", filename="UB_cell.txt",
     hkl1={1,1,0}, dir1={0,0,1}, hkl2={0,0,1}, dir2={0,1,0})
   AT (0,0,0) RELATIVE gonio
 
+COMPONENT UB_fluo = UB_matrix(target="Sample_fluo", filename="UB_fluo.txt",
+    UBin={-0.130209534095, 0.130209534095, 0, 0, 0, 0.184144089067, 0.130209534095, 0.130209534095, 0})
+  AT (0,0,0) RELATIVE gonio
+
 COMPONENT Sample_ref = Single_crystal(xwidth=0.0005, yheight=0.0005, zdepth=0.0005, reflections="Si.lau", mosaic=5,
     ax=-3.83996459, ay=0, az=3.83996459, bx=3.83996459, by=0, bz=3.83996459, cx=0, cy=5.43053, cz=0)
   WHEN (SAMPLE==0) AT (0,0,0) RELATIVE gonio
@@ -69,6 +77,19 @@ EXTEND %{
 
 COMPONENT Sample_cell = Single_crystal(xwidth=0.0005, yheight=0.0005, zdepth=0.0005, reflections="Si.lau", mosaic=5)
   WHEN (SAMPLE==2) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_fluo_ref = FluoCrystal(xwidth=0.0005, yheight=0.0005, zdepth=0.0005, material="Si.lau", mosaic=5,
+    ax=-3.83996458844, ay=0, az=3.83996458844, bx=3.83996458844, by=0, bz=3.83996458844, cx=0, cy=5.43053, cz=0)
+  WHEN (SAMPLE==3) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_fluo = FluoCrystal(xwidth=0.0005, yheight=0.0005, zdepth=0.0005, material="Si.lau", mosaic=5)
+  WHEN (SAMPLE==4) AT (0,0,0) RELATIVE gonio
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}

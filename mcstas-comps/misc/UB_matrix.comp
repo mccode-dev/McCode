@@ -30,10 +30,13 @@
 *   with x along the beam and z up).
 * - UBin: 9 numbers, row-major, e.g. from Mantid getUB().
 * - lattice_a..lattice_cc with hkl1/dir1 and hkl2/dir2: two reflections whose
-*   directions in the target frame are given (dir1 is kept exactly, dir2 only
-*   fixes the plane), as for the NCrystal dir1/dir2 options.
+*   directions in the target frame are given. dir1 is kept exactly; dir2 only
+*   fixes the plane, but the dir1-dir2 angle must match the hkl1-hkl2 angle
+*   within tol, as for the NCrystal dir1/dir2 options.
 * When a UB is read and lattice_a is also given, the cell of the UB is checked
 * against the given cell.
+* UBin must have exactly 9 elements, and hkl1, dir1, hkl2 and dir2 exactly 3;
+* shorter vectors are read past their end.
 *
 * Supported targets (the type is looked up from the instance name):
 * Single_crystal, Single_crystal_process, Single_magnetic_crystal,
@@ -44,6 +47,11 @@
 * target must not already define an orientation. For Union processes, place
 * the process AT (0,0,0) ABSOLUTE without rotation and set 'goniometer' to the
 * Union volume.
+* Only the orientation is taken from the UB for NCrystal targets; their cell
+* comes from the material in cfg. For the ax..cz targets the UB cell replaces
+* the cell in the reflection file header, so a UB with a different cell
+* silently shifts the d-spacings of the listed reflections. In both cases,
+* give lattice_a..lattice_cc to have the UB cell checked.
 *
 * Example: UB_matrix(target="Sample", file="sample.mat", format="isaw")
 *
@@ -52,7 +60,7 @@
 * target: [str]           Name of the crystal component to inject into
 * file: [str]             UB matrix file to read, 0 for none
 * format: [str]           File format, "mccode" or "isaw"
-* UBin: [AA^-1]           UB matrix, 9 numbers row-major, used when no file is given
+* UBin: [AA^-1]           UB matrix, exactly 9 numbers row-major, used when no file is given
 * lattice_a: [AA]         Lattice parameter a; with hkl1..dir2 defines the UB, or checks a read UB
 * lattice_b: [AA]         Lattice parameter b
 * lattice_c: [AA]         Lattice parameter c
@@ -102,12 +110,12 @@ SHARE
   double ub_det(double *A) {
     return A[0]*(A[4]*A[8]-A[5]*A[7]) - A[1]*(A[3]*A[8]-A[5]*A[6]) + A[2]*(A[3]*A[7]-A[4]*A[6]);
   }
-  int ub_inv(double *A, double *I) { /* returns 0 when singular */
+  int ub_inv(double *A, double *Ai) { /* returns 0 when singular */
     double d = ub_det(A);
     if (fabs(d) < 1e-300) return 0;
-    I[0] = (A[4]*A[8]-A[5]*A[7])/d; I[1] = (A[2]*A[7]-A[1]*A[8])/d; I[2] = (A[1]*A[5]-A[2]*A[4])/d;
-    I[3] = (A[5]*A[6]-A[3]*A[8])/d; I[4] = (A[0]*A[8]-A[2]*A[6])/d; I[5] = (A[2]*A[3]-A[0]*A[5])/d;
-    I[6] = (A[3]*A[7]-A[4]*A[6])/d; I[7] = (A[1]*A[6]-A[0]*A[7])/d; I[8] = (A[0]*A[4]-A[1]*A[3])/d;
+    Ai[0] = (A[4]*A[8]-A[5]*A[7])/d; Ai[1] = (A[2]*A[7]-A[1]*A[8])/d; Ai[2] = (A[1]*A[5]-A[2]*A[4])/d;
+    Ai[3] = (A[5]*A[6]-A[3]*A[8])/d; Ai[4] = (A[0]*A[8]-A[2]*A[6])/d; Ai[5] = (A[2]*A[3]-A[0]*A[5])/d;
+    Ai[6] = (A[3]*A[7]-A[4]*A[6])/d; Ai[7] = (A[1]*A[6]-A[0]*A[7])/d; Ai[8] = (A[0]*A[4]-A[1]*A[3])/d;
     return 1;
   }
   /* B from the cell (Savici eq. 52, Busing-Levy), no 2pi; returns 0 for an impossible cell */
