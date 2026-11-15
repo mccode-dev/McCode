@@ -1092,19 +1092,19 @@ MCDETECTOR detector_import(
   snprintf(detector.position, CHAR_BUF_LENGTH, "%g %g %g", position.x, position.y, position.z);
   /* may also store actual detector orientation in the future */
 
-  strncpy(detector.title,      title && strlen(title) ? title : component,       CHAR_BUF_LENGTH);
-  strncpy(detector.xlabel,     xlabel && strlen(xlabel) ? xlabel : "X", CHAR_BUF_LENGTH); /* axis labels */
-  strncpy(detector.ylabel,     ylabel && strlen(ylabel) ? ylabel : "Y", CHAR_BUF_LENGTH);
-  strncpy(detector.zlabel,     zlabel && strlen(zlabel) ? zlabel : "Z", CHAR_BUF_LENGTH);
-  strncpy(detector.xvar,       xvar && strlen(xvar) ? xvar :       "x", CHAR_BUF_LENGTH); /* axis variables */
-  strncpy(detector.yvar,       yvar && strlen(yvar) ? yvar :       detector.xvar, CHAR_BUF_LENGTH);
-  strncpy(detector.zvar,       zvar && strlen(zvar) ? zvar :       detector.yvar, CHAR_BUF_LENGTH);
+  snprintf(detector.title, CHAR_BUF_LENGTH, "%s", title && strlen(title) ? title : component);
+  snprintf(detector.xlabel, CHAR_BUF_LENGTH, "%s", xlabel && strlen(xlabel) ? xlabel : "X"); /* axis labels */
+  snprintf(detector.ylabel, CHAR_BUF_LENGTH, "%s", ylabel && strlen(ylabel) ? ylabel : "Y");
+  snprintf(detector.zlabel, CHAR_BUF_LENGTH, "%s", zlabel && strlen(zlabel) ? zlabel : "Z");
+  snprintf(detector.xvar, CHAR_BUF_LENGTH, "%s", xvar && strlen(xvar) ? xvar :       "x"); /* axis variables */
+  snprintf(detector.yvar, CHAR_BUF_LENGTH, "%s", yvar && strlen(yvar) ? yvar :       detector.xvar);
+  snprintf(detector.zvar, CHAR_BUF_LENGTH, "%s", zvar && strlen(zvar) ? zvar :       detector.yvar);
 
   /* set "variables" as e.g. "I I_err N" */
   strcpy(c, "I ");
-  if (strlen(detector.zvar))      strncpy(c, detector.zvar,32);
-  else if (strlen(detector.yvar)) strncpy(c, detector.yvar,32);
-  else if (strlen(detector.xvar)) strncpy(c, detector.xvar,32);
+  if (strlen(detector.zvar))      snprintf(c, 33, "%s", detector.zvar);
+  else if (strlen(detector.yvar)) snprintf(c, 33, "%s", detector.yvar);
+  else if (strlen(detector.xvar)) snprintf(c, 33, "%s", detector.xvar);
 
   if (detector.rank == 1)
     snprintf(detector.variables, CHAR_BUF_LENGTH, "%s %s %s_err N", detector.xvar, c, c);
@@ -1159,11 +1159,11 @@ MCDETECTOR detector_import(
   if (!strcasestr(detector.format,"list")) {
     if (!strcmp(detector.component, instrument_name)) {
       if (strlen(detector.filename))  /* we name it from its filename, or from its title */
-        strncpy(c, detector.filename, CHAR_BUF_LENGTH);
+        snprintf(c, CHAR_BUF_LENGTH, "%s", detector.filename);
       else
         snprintf(c, CHAR_BUF_LENGTH, "%s", instrument_name);
     } else
-      strncpy(c, detector.component, CHAR_BUF_LENGTH);  /* usual detectors written by components */
+      snprintf(c, CHAR_BUF_LENGTH, "%s", detector.component);  /* usual detectors written by components */
 
     printf("Detector: %s_I=%g %s_ERR=%g %s_N=%g",
            c, detector.intensity,
@@ -1542,7 +1542,7 @@ MCDETECTOR mcdetector_out_2D_ascii(MCDETECTOR detector)
 static char *strcpy_valid(char *valid, char *original)
 {
   long i;
-  int  n=CHAR_BUF_LENGTH; /* max length of valid names */
+  int  n=CHAR_BUF_LENGTH-1; /* max length of valid names, leaving room for '\0' */
 
   if (original == NULL || !strlen(original)) return(NULL);
 
@@ -2100,7 +2100,7 @@ static void mcinfo_out_nexus(NXhandle f)
         for(i = 0; i < numipar; i++) {
           if (mcget_run_num() || (mcinputtable[i].val && strlen(mcinputtable[i].val))) {
             if (mcinputtable[i].par == NULL)
-              strncpy(string, (mcinputtable[i].val ? mcinputtable[i].val : ""), CHAR_BUF_LENGTH);
+              snprintf(string, CHAR_BUF_LENGTH, "%s", (mcinputtable[i].val ? mcinputtable[i].val : ""));
             else
               (*mcinputtypes[mcinputtable[i].type].printer)(string, mcinputtable[i].par);
 
@@ -3043,7 +3043,7 @@ FILE *siminfo_init(FILE *f)
     mcformat="McCode";
 #ifdef USE_NEXUS
   } else if (strcasestr(mcformat, "NeXus")) {
-    /* Do nothing */
+    mcformat="NeXus";
 #endif
   } else {
     fprintf(stderr,
@@ -3682,7 +3682,12 @@ static void mclist_vds_write(void)
     free(v->rows);
     free(v);
   }
-  if (fid >= 0) H5Fclose(fid);
+  if (fid >= 0) {
+    H5Fclose(fid);
+    printf("\nNOTE:     event lists in %s.h5 link to mccode_node*.h5. For a self-contained file run:\n\n"
+      "            h5repack -l CONTI %s.h5 flat.h5\n\n",
+      siminfo_name, siminfo_name);
+  }
   free(file);
 } /* mclist_vds_write */
 
@@ -6069,7 +6074,7 @@ mcreadparams(void)
       if (!len || (len == 1 && (buf[0] == '\n' || buf[0] == '\r')))
       {
         if (mcinputtable[i].val && strlen(mcinputtable[i].val)) {
-          strncpy(buf, mcinputtable[i].val, CHAR_BUF_LENGTH);  /* use default value */
+          snprintf(buf, CHAR_BUF_LENGTH, "%s", mcinputtable[i].val);  /* use default value */
           len = strlen(buf);
         }
       }
@@ -6121,7 +6126,7 @@ mcparseoptions(int argc, char *argv[])
       {
         int  status;
         char buf[CHAR_BUF_LENGTH];
-        strncpy(buf, mcinputtable[j].val, CHAR_BUF_LENGTH);
+        snprintf(buf, CHAR_BUF_LENGTH, "%s", mcinputtable[j].val);
         status = (*mcinputtypes[mcinputtable[j].type].getparm)
                    (buf, mcinputtable[j].par);
         if(!status) fprintf(stderr, "Invalid '%s' default value %s in instrument definition (mcparseoptions)\n", mcinputtable[j].name, buf);
