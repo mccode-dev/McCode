@@ -1,9 +1,16 @@
 name: mcstas-openacc-gpu-sim
-# Runs the OpenACC reference tests (BNL_H8, ISIS_CRISP, templateSANS_Mantid) on a
-# simulated NVIDIA H100 (PantheonSim), as the standard runners have no GPU. The
-# monitor values are checked against the reference values in the instrument files.
+# Runs the OpenACC reference tests on a simulated NVIDIA H100 (PantheonSim), as the
+# standard runners have no GPU. The monitor values are checked against the reference
+# values in the instrument files.
 on:
   workflow_dispatch:
+    inputs:
+      instr:
+        description: mctest --instr filter (empty with empty comp = run nothing)
+        default: BNL_H8,ISIS_CRISP,templateSANS_Mantid
+      comp:
+        description: mctest --comp filter
+        default: ''
 
 env:
   NVHPC_VERSION: '26.9'
@@ -14,6 +21,7 @@ permissions:
 jobs:
   openacc-gpu-sim:
     name: ubuntu-24.04.conda.openacc.h100-sim
+    if: inputs.instr != '' || inputs.comp != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     defaults:
@@ -82,17 +90,26 @@ jobs:
            echo "setup took $(( $(date +%s) - T0 )) s (simulator, nvhpc and McStas)"
 
     - name: OpenACC reference tests on the simulated H100
+      env:
+        INSTR: ${{ inputs.instr }}
+        COMP: ${{ inputs.comp }}
+        NVCOMPILER_ACC_TIME: 1
       run: |
+           FILTER=()
+           [ -n "$INSTR" ] && FILTER+=(--instr="$INSTR")
+           [ -n "$COMP" ] && FILTER+=(--comp="$COMP")
            s=$(date +%s)
-           mctest --verbose --noplots --openacc --no-mpi -n 1e6 -j auto --instr=BNL_H8,ISIS_CRISP,templateSANS_Mantid --testdir=run_gpu --suffix=gpusim
+           mctest --verbose --noplots --openacc --no-mpi -n 1e6 -j auto "${FILTER[@]}" --testdir=run_gpu --suffix=gpusim
            echo "mctest took $(( $(date +%s) - s )) s"
 
+    # NVCOMPILER_ACC_TIME makes every OpenACC run report its kernels in run_stdout_*.txt
     - name: Check that the kernels ran on the (simulated) GPU
       run: |
-           cd run_gpu/mcstas-*/ISIS_CRISP
-           NVCOMPILER_ACC_TIME=1 ./ISIS_CRISP.out -n 1e5 FRAC=0.1 sampleconf=0 --dir=gpucheck > acctime.txt 2>&1 || true
-           grep -E "Accelerator Kernel Timing|launch|device=|nvidia" acctime.txt | head -20
-           grep -q "Accelerator Kernel Timing data" acctime.txt
+           shopt -s nullglob
+           LOGS=(run_gpu/*/*/run_stdout_*.txt)
+           [ ${#LOGS[@]} -gt 0 ]
+           MISSING=$(grep -L "Accelerator Kernel Timing data" "${LOGS[@]}" || true)
+           [ -z "$MISSING" ] || { echo "No kernel timing in: $MISSING"; exit 1; }
 
     - name: Tar logs
       if: always()
