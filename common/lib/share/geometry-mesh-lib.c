@@ -2274,7 +2274,11 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
 int
 gmesh_intersect_gravity (gmesh_struct* mesh, Coords position, Coords velocity, Coords acceleration, double t_min, gmesh_hit hits[GMESH_MAX_HITS]) {
   int stored = 0;
-  int total = gmesh_trace_gravity (mesh, position, velocity, acceleration, t_min, hits, GMESH_MAX_HITS, &stored);
+  int total;
+  // no acceleration: the faster straight-line tracing
+  if (acceleration.x == 0 && acceleration.y == 0 && acceleration.z == 0)
+    return gmesh_intersect (mesh, position, velocity, t_min, hits);
+  total = gmesh_trace_gravity (mesh, position, velocity, acceleration, t_min, hits, GMESH_MAX_HITS, &stored);
   if (total > stored && !gmesh_overflow_warned) {
     gmesh_overflow_warned = 1;
     fprintf (stderr,
