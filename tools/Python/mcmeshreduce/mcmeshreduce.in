@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Wrapper script for @P@meshreduce-py
+
+@MCCODE_BASH_STANDARD_PREAMBLE@
+
+TOOL="@P@meshreduce"
+UTILDIR="${MCCODE_TOOLDIR}/Python/$TOOL"
+
+#NB: miniconda should be installed next to the tool folder:
+if [ -d "${MCCODE_TOOLDIR}/../miniconda3" ]; then
+    source "${MCCODE_TOOLDIR}/../miniconda3/bin/activate" "${MCCODE_TOOLDIR}/../miniconda3"
+    export PATH=${MCCODE_TOOLDIR}/../miniconda3/bin/:$PATH
+fi
+
+canrun() {
+    if ! [ -x "${UTILDIR}/${TOOL}.py" ]; then
+        exit 127;
+    fi
+    python3 -c "import trimesh, fast_simplification"
+}
+
+if ( canrun ); then
+    python3 -u "${UTILDIR}/${TOOL}.py" "$@"
+else
+    echo ":: Failed to run Python ${TOOL} - needs trimesh and fast-simplification (conda or pip install)" >&2
+    exit 255
+fi
