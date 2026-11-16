@@ -96,8 +96,6 @@ SHARE
   #ifndef MASTER_DETECTOR
   #define MASTER_DETECTOR dummy
   #endif
-
-
 %}
 
 DECLARE
@@ -1118,7 +1116,7 @@ TRACE
   clear_intersection_table (&intersection_time_table);
 
   time_propagated_without_scattering = 0;
-  v_length = sqrt(vx * vx + vy * vy + vz * vz);
+  v_length = sqrt (vx * vx + vy * vy + vz * vz);
 
   // Initialize logger system / Statistics
   number_of_scattering_events = 0;
@@ -1159,7 +1157,7 @@ TRACE
     // CPU Only
     // == 1) {
     // GPU
-    if (r_within_function (coords_set(x, y, z), &Volumes[mask_volume_index_list.elements[iterator]]->geometry) == 1) {
+    if (r_within_function (coords_set (x, y, z), &Volumes[mask_volume_index_list.elements[iterator]]->geometry) == 1) {
       mask_status_list.elements[iterator] = 1;
     } else {
       mask_status_list.elements[iterator] = 0;
@@ -1171,7 +1169,7 @@ TRACE
   #endif
 
   // Now the initial current_volume can be found, which requires the up to date mask_status_list
-  current_volume = within_which_volume_GPU (coords_set(x, y, z), starting_lists.reduced_start_list, starting_lists.starting_destinations_list, Volumes,
+  current_volume = within_which_volume_GPU (coords_set (x, y, z), starting_lists.reduced_start_list, starting_lists.starting_destinations_list, Volumes,
                                             &mask_status_list, number_of_volumes, pre_allocated1, pre_allocated2, pre_allocated3);
 
   // For excluding closest intersection in search after refraction/reflection
@@ -1264,10 +1262,10 @@ TRACE
                 intersection_time_table.surface_index[*check][1]);
         #endif
         // GPU Flexible intersect_function call
-        geometry_output = intersect_particle_function (intersection_time_table.intersection_times[*check], intersection_time_table.normal_vector_x[*check],
-                                                        intersection_time_table.normal_vector_y[*check], intersection_time_table.normal_vector_z[*check],
-                                                        intersection_time_table.surface_index[*check], number_of_solutions, &reference_particle,
-                                                        &Volumes[*check]->geometry);
+        geometry_output
+            = intersect_particle_function (intersection_time_table.intersection_times[*check], intersection_time_table.normal_vector_x[*check],
+                                           intersection_time_table.normal_vector_y[*check], intersection_time_table.normal_vector_z[*check],
+                                           intersection_time_table.surface_index[*check], number_of_solutions, &reference_particle, &Volumes[*check]->geometry);
 
         intersection_time_table.calculated[*check] = 1;
         #ifdef Union_trace_verbal_setting
@@ -1296,11 +1294,10 @@ TRACE
           // GPU allowed
           int selected_index;
           selected_index = Volumes[current_volume]->geometry.mask_intersect_list.elements[mask_iterator];
-          geometry_output
-              = intersect_particle_function (intersection_time_table.intersection_times[selected_index], intersection_time_table.normal_vector_x[selected_index],
-                                              intersection_time_table.normal_vector_y[selected_index], intersection_time_table.normal_vector_z[selected_index],
-                                              intersection_time_table.surface_index[selected_index], number_of_solutions, &reference_particle,
-                                              &Volumes[selected_index]->geometry);
+          geometry_output = intersect_particle_function (
+              intersection_time_table.intersection_times[selected_index], intersection_time_table.normal_vector_x[selected_index],
+              intersection_time_table.normal_vector_y[selected_index], intersection_time_table.normal_vector_z[selected_index],
+              intersection_time_table.surface_index[selected_index], number_of_solutions, &reference_particle, &Volumes[selected_index]->geometry);
 
           intersection_time_table.calculated[Volumes[current_volume]->geometry.mask_intersect_list.elements[mask_iterator]] = 1;
           // if printf("succesfully calculated intersection times for volume *check = %d \n",*check);
@@ -1370,11 +1367,10 @@ TRACE
       #endif
       if (intersection_with_children == 0) {
         // GPU Allowed
-        geometry_output
-            = intersect_particle_function (intersection_time_table.intersection_times[current_volume], intersection_time_table.normal_vector_x[current_volume],
-                                            intersection_time_table.normal_vector_y[current_volume], intersection_time_table.normal_vector_z[current_volume],
-                                            intersection_time_table.surface_index[current_volume], number_of_solutions, &reference_particle,
-                                            &Volumes[current_volume]->geometry);
+        geometry_output = intersect_particle_function (
+            intersection_time_table.intersection_times[current_volume], intersection_time_table.normal_vector_x[current_volume],
+            intersection_time_table.normal_vector_y[current_volume], intersection_time_table.normal_vector_z[current_volume],
+            intersection_time_table.surface_index[current_volume], number_of_solutions, &reference_particle, &Volumes[current_volume]->geometry);
 
         intersection_time_table.calculated[current_volume] = 1;
       }
@@ -1524,7 +1520,7 @@ TRACE
           struct physics_struct* current_p_physics = Volumes[current_volume]->p_physics;
           int selected_sampling = -1;
           double forced_length_to_scattering;
-          Coords ray_position_geometry = coords_sub(coords_set(x, y, z), Volumes[current_volume]->geometry.center);
+          Coords ray_position_geometry = coords_sub (coords_set (x, y, z), Volumes[current_volume]->geometry.center);
           my_sum = 0;
           p_my_trace = my_trace;
           length_to_boundary = time_to_boundery * v_length;
@@ -1547,8 +1543,8 @@ TRACE
             if (process->needs_cross_section_focus == 1) {
               Coords focus_position = ray_position_geometry;
               if (process->non_isotropic_rot_index != -1)
-                focus_position = rot_apply(Volumes[current_volume]->geometry.process_rot_matrix_array[process->non_isotropic_rot_index], focus_position);
-              this_focus_data->RayAim = coords_sub(this_focus_data->Aim, focus_position);
+                focus_position = rot_apply (Volumes[current_volume]->geometry.process_rot_matrix_array[process->non_isotropic_rot_index], focus_position);
+              this_focus_data->RayAim = coords_sub (this_focus_data->Aim, focus_position);
             }
 
             // Call the probability for scattering function assighed to this specific procress (the process pointer is updated in the for loop)
@@ -1657,8 +1653,8 @@ TRACE
                                                &selected_process);
                 }
               } else {
-                p_interact_select_process (Volumes[current_volume], _particle, my_trace_fraction_control, my_trace, &total_process_interact, &culmative_probability,
-                                           &mc_prop, my_sum, &selected_process);
+                p_interact_select_process (Volumes[current_volume], _particle, my_trace_fraction_control, my_trace, &total_process_interact,
+                                           &culmative_probability, &mc_prop, my_sum, &selected_process);
               }
             }
 
@@ -1755,7 +1751,7 @@ TRACE
 
         // Safe check that should be unecessary. Used to fine tune how close to the edge of a volume a scattering event is allowed to take place (1E-14 m away
         // currently).
-        if (r_within_function (coords_set(x, y, z), &Volumes[current_volume]->geometry) == 0) {
+        if (r_within_function (coords_set (x, y, z), &Volumes[current_volume]->geometry) == 0) {
           printf ("\nERROR, propagated out of current volume instead of to a point within!\n");
           printf ("length_to_scattering_specified = %2.20f\n             length propagated = %2.20f\n            length_to_boundary = %2.20f \n   "
                   "current_position = (%lf,%lf,%lf) \n",
@@ -1764,7 +1760,7 @@ TRACE
                         + time_to_scattering * time_to_scattering * vz * vz),
                   length_to_boundary, x, y, z);
 
-          volume_index = within_which_volume_GPU (coords_set(x, y, z), starting_lists.reduced_start_list, starting_lists.starting_destinations_list, Volumes,
+          volume_index = within_which_volume_GPU (coords_set (x, y, z), starting_lists.reduced_start_list, starting_lists.starting_destinations_list, Volumes,
                                                   &mask_status_list, number_of_volumes, pre_allocated1, pre_allocated2, pre_allocated3);
 
           printf ("Debug info: Volumes[current_volume]->name = %s, but now inside volume number %d named %s.\n", Volumes[current_volume]->name, volume_index,
@@ -1780,7 +1776,7 @@ TRACE
         focus_data_index = Volumes[current_volume]->geometry.focus_array_indices.elements[selected_process];
         this_focus_data = &Volumes[current_volume]->geometry.focus_data_array.elements[focus_data_index];
 
-        Coords ray_position_geometry = coords_sub (coords_set(x, y, z), Volumes[current_volume]->geometry.center);
+        Coords ray_position_geometry = coords_sub (coords_set (x, y, z), Volumes[current_volume]->geometry.center);
 
         this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
 
@@ -1805,11 +1801,11 @@ TRACE
         int scattering_output;
         UNION_PHYSICS_SCATTERING (scattering_output, process, this_focus_data, &process_particle);
         if (process_rotation_index != -1) {
-          union_particle_commit_scattering (
-              _particle, &process_particle, &logger_particle_before,
-              Volumes[current_volume]->geometry.transpose_process_rot_matrix_array[process_rotation_index], 1, safe_mode);
+          union_particle_commit_scattering (_particle, &process_particle, &logger_particle_before,
+                                            Volumes[current_volume]->geometry.transpose_process_rot_matrix_array[process_rotation_index], 1, safe_mode);
         } else {
-          union_particle_commit_scattering (_particle, &process_particle, &logger_particle_before, Volumes[current_volume]->geometry.rotation_matrix, 0, safe_mode);
+          union_particle_commit_scattering (_particle, &process_particle, &logger_particle_before, Volumes[current_volume]->geometry.rotation_matrix, 0,
+                                            safe_mode);
         }
         if (0 == scattering_output) {
           /*
@@ -1841,9 +1837,9 @@ TRACE
           // Logging for detector components associated with this volume.
           for (log_index = 0; log_index < Volumes[current_volume]->loggers.num_elements; log_index++) {
             if (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process] != NULL) {
-              union_record_scattering (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process],
-                                       &logger_particle_before, &logger_particle_after, scattered_flag[current_volume],
-                                       scattered_flag_VP[current_volume][selected_process], number_of_scattering_events, &loggers_with_data_array, safe_mode);
+              union_record_scattering (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process], &logger_particle_before,
+                                       &logger_particle_after, scattered_flag[current_volume], scattered_flag_VP[current_volume][selected_process],
+                                       number_of_scattering_events, &loggers_with_data_array, safe_mode);
             }
           }
 
@@ -1927,7 +1923,7 @@ TRACE
           if (Volumes[current_volume]->geometry.destinations_list.num_elements == 1)
             tree_next_volume = Volumes[current_volume]->geometry.destinations_list.elements[0];
           else {
-            tree_next_volume = within_which_volume_GPU (coords_set(x, y, z), Volumes[current_volume]->geometry.reduced_destinations_list,
+            tree_next_volume = within_which_volume_GPU (coords_set (x, y, z), Volumes[current_volume]->geometry.reduced_destinations_list,
                                                         Volumes[current_volume]->geometry.destinations_list, Volumes, &mask_status_list, number_of_volumes,
                                                         pre_allocated1, pre_allocated2, pre_allocated3);
           }
@@ -2061,7 +2057,7 @@ TRACE
                     #ifdef Union_trace_verbal_setting
                     printf ("Many elements in destinations list, use within_which_volume\n");
                     #endif
-                    tree_next_volume = within_which_volume_GPU (coords_set(x, y, z), Volumes[min_volume]->geometry.reduced_destinations_list,
+                    tree_next_volume = within_which_volume_GPU (coords_set (x, y, z), Volumes[min_volume]->geometry.reduced_destinations_list,
                                                                 Volumes[min_volume]->geometry.destinations_list, Volumes, &mask_status_list, number_of_volumes,
                                                                 pre_allocated1, pre_allocated2, pre_allocated3);
 
@@ -2086,8 +2082,8 @@ TRACE
               // When entering a mask, the new highest priority volume may be one of the masked volumes, if not we keep the current volume
               // Bug found on the 2/9 2016, the destinations_list of a mask does not contain the volumes inside it. Could make an additional list for this.
               // The temporary fix will be to use the mask list for both reduced destinations list and destinations list.
-              tree_next_volume = within_which_volume_GPU (coords_set(x, y, z), Volumes[min_volume]->geometry.mask_list, Volumes[min_volume]->geometry.mask_list, Volumes,
-                                                          &mask_status_list, number_of_volumes, pre_allocated1, pre_allocated2, pre_allocated3);
+              tree_next_volume = within_which_volume_GPU (coords_set (x, y, z), Volumes[min_volume]->geometry.mask_list, Volumes[min_volume]->geometry.mask_list,
+                                                          Volumes, &mask_status_list, number_of_volumes, pre_allocated1, pre_allocated2, pre_allocated3);
               // if within_which_volume returns 0, no result was found (volume 0 can not be masked, so it could not be on the mask list)
               if (tree_next_volume != 0) {
                 if (Volumes[tree_next_volume]->geometry.priority_value > Volumes[current_volume]->geometry.priority_value) {
@@ -2211,7 +2207,7 @@ TRACE
 
             struct surface_process_struct* surface_pointer;
 
-            coords_get(union_particle_direction(_particle), &surface_vx_before, &surface_vy_before, &surface_vz_before);
+            coords_get (union_particle_direction (_particle), &surface_vx_before, &surface_vy_before, &surface_vz_before);
 
             #ifdef Union_trace_verbal_setting
             double dot_product_before = nx * vx + ny * vy + nz * vz;
@@ -2296,9 +2292,7 @@ TRACE
             }
 
             // The old threshold was 1E-10 in k, despite the old m/s comment.
-            if (fabs (surface_vx_before - vx) > K2V * 1E-10
-                || fabs (surface_vy_before - vy) > K2V * 1E-10
-                || fabs (surface_vz_before - vz) > K2V * 1E-10) {
+            if (fabs (surface_vx_before - vx) > K2V * 1E-10 || fabs (surface_vy_before - vy) > K2V * 1E-10 || fabs (surface_vz_before - vz) > K2V * 1E-10) {
 
               #ifdef Union_trace_verbal_setting
               printf (" ray direction updated by surface stack \n");
@@ -2611,7 +2605,7 @@ TRACE
           printf ("Union_master %s: Somehow reached a situation with no intersection time found, but still inside volume %d instead of 0\n", NAME_CURRENT_COMP,
                   current_volume);
           for (volume_index = 1; volume_index < number_of_volumes; volume_index++) {
-            if (r_within_function (coords_set(x, y, z), &Volumes[volume_index]->geometry) == 1)
+            if (r_within_function (coords_set (x, y, z), &Volumes[volume_index]->geometry) == 1)
               printf ("The ray is in volume       %d\n", volume_index);
           }
 
@@ -2646,8 +2640,8 @@ TRACE
   // Could move all add_statistics and similar to this point, but need to filter for failed rays
   if (ray_sucseeded == 1) {
     // Legacy conditional/tagging APIs consume a view of the final state only.
-    Coords ray_position = coords_set(x, y, z);
-    Coords ray_velocity = coords_set(vx, vy, vz);
+    Coords ray_position = coords_set (x, y, z);
+    Coords ray_velocity = coords_set (vx, vy, vz);
 
     // Ray sucseeded, need to check status of conditionals
     #ifdef Union_trace_verbal_setting
