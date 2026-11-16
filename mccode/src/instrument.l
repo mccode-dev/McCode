@@ -249,6 +249,15 @@ METADATA      return TOK_METADATA;
         yylval.string = str_dup(yytext);
         return TOK_CODE_LINE;
       }
+    /* last line of a file, lacking its newline (only then can this rule be
+       the longest match): rescan it with a newline appended */
+    [^\n]+ {
+        char *line = str_dup(yytext);
+        int i = yyleng;
+        unput('\n');
+        while (i > 0) unput(line[--i]);
+        str_free(line);
+      }
     } /* end ccode */
 
  /* C character literals, e.g. 'a' or '\n', kept verbatim as a single token in
