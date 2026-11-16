@@ -43,28 +43,6 @@
 
 DEFINE INSTRUMENT FlipChop_Hyspec (Polarizer_py=-1, Analyzer_my=1)
 
-DECLARE
-%{
-char moderator_path[1024];
-%}
-
-INITIALIZE
-%{
-/* Locate the bundled moderator data using McStas's search paths. */
-FILE *moderator_handle = Open_File(
-    "source_sct41a_bd_14_1.dat", "r", moderator_path);
-
-if (moderator_handle == NULL) {
-    fprintf(stderr,
-        "FlipChop_Hyspec: cannot locate source_sct41a_bd_14_1.dat\n");
-    exit(-1);
-}
-
-fclose(moderator_handle);
-printf("Moderator data: %s\n", moderator_path);
-%}
-
-
 TRACE
 
 COMPONENT Origin = Progress_bar()
@@ -72,7 +50,7 @@ COMPONENT Origin = Progress_bar()
 
 //SNS first target station BL14B
 COMPONENT Source = SNS_source(
-    filename = moderator_path,
+    filename = "source_sct41a_bd_14_1.dat",
     xwidth = 0.1,
     yheight = 0.12,
     dist = 38.98,
