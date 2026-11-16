@@ -27,6 +27,8 @@
 * Example:
 * mcrun FlipChop_Hyspec.instr Polarizer_py=-1 Analyzer_my=1
 *
+* %Test: Polarizer_py=-1 Analyzer_my=1 Detector: TOF_after_Analyzer_I=32942.5
+*
 * %P
 * Polarizer_py: [1] Initial neutron polarization along the y-axis
 * Analyzer_my:  [1] Analyzer polarization direction along the y-axis
@@ -43,14 +45,11 @@ DEFINE INSTRUMENT FlipChop_Hyspec (Polarizer_py=-1, Analyzer_my=1)
 
 DECLARE
 %{
-char *corrchop_sequence;
 char moderator_path[1024];
 %}
 
 INITIALIZE
 %{
-corrchop_sequence = "1110110111100010";
-
 /* Locate the bundled moderator data using McStas's search paths. */
 FILE *moderator_handle = Open_File(
     "source_sct41a_bd_14_1.dat", "r", moderator_path);
@@ -58,7 +57,7 @@ FILE *moderator_handle = Open_File(
 if (moderator_handle == NULL) {
     fprintf(stderr,
         "FlipChop_Hyspec: cannot locate source_sct41a_bd_14_1.dat\n");
-    exit(EXIT_FAILURE);
+    exit(-1);
 }
 
 fclose(moderator_handle);
@@ -142,7 +141,7 @@ COMPONENT FlipChop = FlipChopFlipper(
     tbit=8.62e-6,
     L=40,
     tdelay=0.015,
-    SEQ=corrchop_sequence
+    SEQ="1110110111100010"
 )
 AT (0,0,0.80) RELATIVE MonoExit
 ROTATED (0,0,0) RELATIVE MonoExit
@@ -171,7 +170,4 @@ COMPONENT TOF_after_Analyzer = TOF_monitor(
 AT (0,0,3.10) RELATIVE SamplePosition
 ROTATED (0,0,0) RELATIVE SamplePosition
 
-FINALLY
-%{
-%}
 END

@@ -1,16 +1,13 @@
 /*******************************************************************************
 *
 * McStas, neutron ray-tracing package
-*         Copyright 1997-2002, All rights reserved
-*         Risoe National Laboratory, Roskilde, Denmark
-*         Institut Laue Langevin, Grenoble, France
 *
 * Component: FlipChopFlipper
 * %I
 * Written by: Niels Geerits
 * Date: August 2026
 * Version: $Revision$
-* Release: McStas 3.7.9
+* Release: McStas 3.10.2
 * Origin: ORNL
 *
 * Resonant RF Spin Flipper for FlipChop at SNS
@@ -18,7 +15,7 @@
 * %D
 * This component calculates the polarization of a neutron beam interacting with an idealized
 * resonant RF flipper. A perfect match between the RF and Larmor frequency is assumed. The
-* component assumes a time of flight source and adjusts the RF amplitude by 1/t to ensure A
+* component assumes a time of flight source and adjusts the RF amplitude by 1/t to ensure a
 * high flipping probability over the entire wavelength band
 *
 * %P
@@ -32,7 +29,7 @@
 * tbit:   [s] Duration of one bit in the modulation sequence.
 * L:      [m] Distance from the source to the flipper.
 * tdelay: [s] Time offset of the modulation sequence.
-* SEQ:    [string] Binary modulation sequence containing 0 and 1 characters.
+* SEQ:    [str] Binary modulation sequence containing 0 and 1 characters.
 *
 * %E
 *******************************************************************************/
@@ -41,11 +38,31 @@ DEFINE COMPONENT FlipChopFlipper
 
 SETTING PARAMETERS (nx=1, ny=0, nz=0, xwidth=0.05, yheight=0.05, zdepth=0.005, TOFOn=1, tbit = 1e-5, L=30, tdelay = 0.015, string SEQ="0110100110010110100101100110101")
 
+DECLARE
+%{
+  long NSEQ;
+%}
+
+INITIALIZE
+%{
+  if (SEQ == NULL || SEQ[0] == '\0') {
+    fprintf (stderr, "FlipChopFlipper: SEQ must be populated binary sequence.\n");
+    exit (-1);
+  }
+
+  NSEQ = (long)strlen (SEQ);
+  for (long j = 0; j < NSEQ; j++) {
+    if (SEQ[j] != '0' && SEQ[j] != '1') {
+      fprintf (stderr, "FlipChopFlipper: Invalid SEQ character at index %ld. Must be '0' or '1'.\n", j);
+      exit (-1);
+    }
+  }
+%}
+
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 TRACE
 %{
   int hit;
-  int NSEQ = strlen (SEQ);
   long EntryBit, ExitBit;
   double t0, t1, tentry, texit, phi, v_assumed, ta, tb;
 
@@ -56,7 +73,7 @@ TRACE
     texit = t + t1 - tdelay;
 
     PROP_DT (t0);
-    if (fabs (z - -zdepth * 0.5) > DBL_EPSILON) {
+    if (fabs (z + zdepth * 0.5) > 1e-9 * zdepth) {
       /*neutron must have hit the side walls*/
       ABSORB;
     }
@@ -79,10 +96,10 @@ TRACE
     phi = 0;
 
     for (long k = EntryBit; k <= ExitBit; k++) {
-      int j = ((k % NSEQ) + NSEQ) % NSEQ;
+      long j = ((k % NSEQ) + NSEQ) % NSEQ;
       ta = fmax (k * tbit, tentry);
       tb = fmin ((k + 1) * tbit, texit);
-      phi += omega * (SEQ[j] - 48) * (tb - ta);
+      phi += omega * (SEQ[j] - '0') * (tb - ta);
     }
 
     double sx0 = sx;
@@ -92,7 +109,7 @@ TRACE
     rotate (sx, sy, sz, sx0, sy0, sz0, phi, nx, ny, nz);
 
     PROP_DT ((t1 - t0) / 2); /*propagate the remaining distance to the box exit*/
-    if (fabs (z - zdepth * 0.5) > DBL_EPSILON) {
+    if (fabs (z - zdepth * 0.5) > 1e-9 * zdepth) {
       ABSORB;
     }
   }
