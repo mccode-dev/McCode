@@ -52,6 +52,7 @@ Source: "dist\mcxtrace-tools-python-mxdisplay-pyqtgraph-NSIS64-@VERSION@-mingw64
 Source: "dist\mcxtrace-tools-python-mxdisplay-matplotlib-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxdisplay-plopp-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxdoc-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
+Source: "dist\mcxtrace-tools-python-mxmeshreduce-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "Support\micromamba.exe"; DestDir: "{tmp}"
 
 [Run]
@@ -73,6 +74,7 @@ Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-pyqtgraph-NSIS64-@VERSION@-ming
 Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-matplotlib-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-plopp-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxdoc-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
+Filename: "{tmp}\mcxtrace-tools-python-mxmeshreduce-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\docupdate.bat";
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
