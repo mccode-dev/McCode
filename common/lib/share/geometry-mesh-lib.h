@@ -86,7 +86,7 @@
   #endif
 
 typedef struct gmesh_hit {
-  double t; // position along the line: pos + t*dir
+  double time; // position along the line: pos + time*dir
   Coords normal; // unit normal of the triangle hit (outward for closed oriented meshes)
   int tri; // triangle index (BVH order)
   int face; // index of the face (polygon) in the file, 0-based
@@ -154,10 +154,10 @@ int gmesh_init (char* filename, double scale, int face_props, gmesh_struct* mesh
 
 // int gmesh_init_fit(char *filename, double xwidth, double yheight, double zdepth,
 // int center, int face_props, gmesh_struct *mesh)
-// ACTION: as gmesh_init, then resize the bounding box about its centre:
+// ACTION: as gmesh_init, then resize the bounding box as off_init of interoff-lib:
 // non-zero sizes set the box size along x/y/z; a single size scales all
 // axes by the same factor (proportions kept). With center, the box centre
-// is moved to the origin; otherwise it stays in place.
+// is moved to the origin; otherwise coordinates are scaled about the origin.
 // RETURN: number of triangles, 0 on error
 int gmesh_init_fit (char* filename, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh);
 

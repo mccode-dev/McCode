@@ -1400,8 +1400,9 @@ gmesh_fit_scale (Coords range, double xwidth, double yheight, double zdepth) {
 }
 
 // read an STL/OFF/PLY file into mesh: multiply by scale, then resize the
-// bounding box about its centre to xwidth/yheight/zdepth (0: keep); with
-// center the box centre is moved to the origin, otherwise it stays in place
+// bounding box to xwidth/yheight/zdepth (0: keep); with center the box centre
+// is moved to the origin and the box resized about it, otherwise the
+// coordinates are scaled about the origin (as off_init of interoff-lib)
 static int
 gmesh_load (char* filename, double scale, double xwidth, double yheight, double zdepth, int center, int face_props, gmesh_struct* mesh) {
   gmesh_raw raw;
@@ -1476,19 +1477,16 @@ gmesh_load (char* filename, double scale, double xwidth, double yheight, double 
   }
   if (xwidth || yheight || zdepth || center) {
     Coords range = coords_sub (mesh->bbmax, mesh->bbmin);
-    Coords box_center = coords_scale (coords_add (mesh->bbmin, mesh->bbmax), 0.5);
-    Coords shift = center ? coords_set (0, 0, 0) : box_center;
+    Coords origin = center ? coords_scale (coords_add (mesh->bbmin, mesh->bbmax), 0.5) : coords_set (0, 0, 0);
     Coords scale = gmesh_fit_scale (range, xwidth, yheight, zdepth);
     for (i = 0; i < raw.nverts; i++) {
       Coords* p = &raw.verts[i];
-      p->x = (p->x - box_center.x) * scale.x + shift.x;
-      p->y = (p->y - box_center.y) * scale.y + shift.y;
-      p->z = (p->z - box_center.z) * scale.z + shift.z;
+      p->x = (p->x - origin.x) * scale.x;
+      p->y = (p->y - origin.y) * scale.y;
+      p->z = (p->z - origin.z) * scale.z;
     }
-    mesh->bbmin = coords_set ((mesh->bbmin.x - box_center.x) * scale.x + shift.x, (mesh->bbmin.y - box_center.y) * scale.y + shift.y,
-                              (mesh->bbmin.z - box_center.z) * scale.z + shift.z);
-    mesh->bbmax = coords_set ((mesh->bbmax.x - box_center.x) * scale.x + shift.x, (mesh->bbmax.y - box_center.y) * scale.y + shift.y,
-                              (mesh->bbmax.z - box_center.z) * scale.z + shift.z);
+    mesh->bbmin = coords_set ((mesh->bbmin.x - origin.x) * scale.x, (mesh->bbmin.y - origin.y) * scale.y, (mesh->bbmin.z - origin.z) * scale.z);
+    mesh->bbmax = coords_set ((mesh->bbmax.x - origin.x) * scale.x, (mesh->bbmax.y - origin.y) * scale.y, (mesh->bbmax.z - origin.z) * scale.z);
     MPI_MASTER (
       if (scale.x != scale.y || scale.x != scale.z)
         printf ("Warning: Aspect ratio of the geometry %s was modified.\n"
@@ -1962,7 +1960,7 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
           *ambiguous = 1;
         continue;
       }
-      hit.t = hit_t;
+      hit.time = hit_t;
       hit.normal = mesh->tri_normal[t];
       hit.tri = t;
       hit.face = mesh->tri_face[t];
@@ -1970,7 +1968,7 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
       hit.edge = on_edge;
       // hits on shared edges/vertices: keep once
       for (k = 0; k < *stored_count; k++) {
-        if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
+        if (hits[k].in_out == in_out && fabs (hits[k].time - hit_t) <= t_tolerance) {
           duplicate = 1;
           break;
         }
@@ -1982,13 +1980,13 @@ gmesh_trace (gmesh_struct* mesh, Coords origin, Coords direction, double t_min, 
       if (position == max_hits) {
         if (max_hits == 0)
           continue;
-        if (hit_t >= hits[max_hits - 1].t)
+        if (hit_t >= hits[max_hits - 1].time)
           continue;
         position = max_hits - 1;
       } else {
         (*stored_count)++;
       }
-      while (position > 0 && hits[position - 1].t > hit_t) {
+      while (position > 0 && hits[position - 1].time > hit_t) {
         hits[position] = hits[position - 1];
         position--;
       }
@@ -2236,7 +2234,7 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         } else {
           in_out = -1;
         }
-        hit.t = hit_t;
+        hit.time = hit_t;
         hit.normal = mesh->tri_normal[triangle];
         hit.tri = triangle;
         hit.face = mesh->tri_face[triangle];
@@ -2244,7 +2242,7 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         hit.edge = crossing_edge[i_crossing];
         // hits on shared edges/vertices: keep once
         for (k = 0; k < *stored_count; k++) {
-          if (hits[k].in_out == in_out && fabs (hits[k].t - hit_t) <= t_tolerance) {
+          if (hits[k].in_out == in_out && fabs (hits[k].time - hit_t) <= t_tolerance) {
             duplicate = 1;
             break;
           }
@@ -2254,13 +2252,13 @@ gmesh_trace_gravity (gmesh_struct* mesh, Coords origin, Coords velocity, Coords 
         total++;
         position = *stored_count;
         if (position == max_hits) {
-          if (hit_t >= hits[max_hits - 1].t)
+          if (hit_t >= hits[max_hits - 1].time)
             continue;
           position = max_hits - 1;
         } else {
           (*stored_count)++;
         }
-        while (position > 0 && hits[position - 1].t > hit_t) {
+        while (position > 0 && hits[position - 1].time > hit_t) {
           hits[position] = hits[position - 1];
           position--;
         }
@@ -2343,11 +2341,11 @@ gmesh_entry_exit (gmesh_struct* mesh, Coords position, Coords velocity, double* 
     *first = hits[0];
   if (inside) {
     *t_in = 0;
-    *t_out = hits[0].t + 1e-13;
+    *t_out = hits[0].time + 1e-13;
     return 1;
   }
-  *t_in = hits[0].t + 1e-13;
-  *t_out = (nhits > 1 ? hits[1].t : hits[0].t) + 1e-13;
+  *t_in = hits[0].time + 1e-13;
+  *t_out = (nhits > 1 ? hits[1].time : hits[0].time) + 1e-13;
   return 2;
 }
 
