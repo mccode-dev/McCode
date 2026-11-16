@@ -254,6 +254,16 @@ SHARE
   double Phi13[3][3] = { { K_t4 * dyn2N, 0, 0 }, { 0, K_t4 * dyn2N, 0 }, { 0, 0, K_l4 * dyn2N } }; // Phi_nn4;
   double Phi14[3][3] = { { K_t4 * dyn2N, 0, 0 }, { 0, K_t4 * dyn2N, 0 }, { 0, 0, K_l4 * dyn2N } }; // Phi_nn4;
 
+  // Vectors from the old to the new *unit cell* origin (A-atom) for couplings between sublattices
+  // 1st nn: A to B atoms and C to D atoms
+  double r_1ucA[3][3] = { { -a_latt * sqrt3 / 2, -a_latt / 2, 0 }, { 0, -a_latt, 0 }, { 0, 0, 0 } };
+  double r_1ucC[3][3] = { { a_latt * sqrt3 / 2, -a_latt / 2, 0 }, { 0, 0, 0 }, { 0, -a_latt, 0 } };
+  // 3rd nn: A to B atoms and C to D atoms
+  double r_3ucA[3][3] = { { a_latt * sqrt3 / 2, -a_latt / 2, 0 }, { -a_latt * sqrt3 / 2, a_latt / 2, 0 }, { -a_latt * sqrt3 / 2, -a_latt * 3 / 2, 0 } };
+  double r_3ucC[3][3] = { { -a_latt * sqrt3 / 2, -a_latt / 2, 0 }, { a_latt * sqrt3 / 2, -a_latt * 3 / 2, 0 }, { a_latt * sqrt3 / 2, a_latt / 2, 0 } };
+  // 4th nn: A to C atoms
+  double r_4ucA[2][3] = { { 0, 0, 0 }, { 0, 0, -c_latt } };
+
   // ----------------- END SPECIFIC FOR THE PG COMPONENT --------------------------
 
   /* TODO: Det er meget langsomt at bruge pointere. Erstat med flad memory. */
@@ -388,36 +398,59 @@ SHARE
       }
     }
 
-    cdouble Phi_offdiag1[3 * 3];
-    cdouble Phi_offdiag2[3 * 3];
+    // Couplings within a layer use unit-cell origin phases (Lefmann, Sept 27 2026). The A/B and C/D
+    // layers are mirror images (see Delta), so each gets its own 6x6 block.
+    // Name mapping to the original equations: Phi_1a,b,c = Phi1,2,3; Phi_3a,b,c = Phi10,11,12; Phi_4 = Phi13 = Phi14
+    //
+    // Phi_offdiagAB[i*3+j] =-Phi_1a[i][j]*((*complexexp_qdotr)(&qvec[0], &r_1ucA[0][0]))-Phi_1b[i][j]*((*complexexp_qdotr)(&qvec[0], &r_1ucA[1][0]))-Phi_1c[i][j]*((*complexexp_qdotr)(&qvec[0], &r_1ucA[2][0]))-Phi_3a[i][j]*((*complexexp_qdotr)(&qvec[0], &r_3ucA[0][0]))-Phi_3b[i][j]*((*complexexp_qdotr)(&qvec[0], &r_3ucA[1][0]))-Phi_3c[i][j]*((*complexexp_qdotr)(&qvec[0], &r_3ucA[2][0]));
+    // Phi_offdiagCD[i*3+j] =-Phi_1a[i][j]*((*complexexp_qdotr)(&qvec[0], &r_1ucC[0][0]))-Phi_1b[i][j]*((*complexexp_qdotr)(&qvec[0], &r_1ucC[1][0]))-Phi_1c[i][j]*((*complexexp_qdotr)(&qvec[0], &r_1ucC[2][0]))-Phi_3a[i][j]*((*complexexp_qdotr)(&qvec[0], &r_3ucC[0][0]))-Phi_3b[i][j]*((*complexexp_qdotr)(&qvec[0], &r_3ucC[1][0]))-Phi_3c[i][j]*((*complexexp_qdotr)(&qvec[0], &r_3ucC[2][0]));
+    cdouble Phi_offdiagAB[3 * 3];
+    cdouble Phi_offdiagCD[3 * 3];
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
-        cdouble od = rmul (-Phi1[i][j], complexexp_qdotr (&qvec[0], &r_j13[0][0]));
-        od = cadd (od, rmul (-Phi2[i][j], complexexp_qdotr (&qvec[0], &r_j13[1][0])));
-        od = cadd (od, rmul (-Phi3[i][j], complexexp_qdotr (&qvec[0], &r_j13[2][0])));
-        od = cadd (od, rmul (-Phi10[i][j], complexexp_qdotr (&qvec[0], &r_j13[9][0])));
-        od = cadd (od, rmul (-Phi11[i][j], complexexp_qdotr (&qvec[0], &r_j13[10][0])));
-        od = cadd (od, rmul (-Phi12[i][j], complexexp_qdotr (&qvec[0], &r_j13[11][0])));
-        Phi_offdiag1[i * 3 + j] = od;
-        Phi_offdiag2[i * 3 + j] = conj (od);
+        cdouble od = rmul (-Phi1[i][j], complexexp_qdotr (&qvec[0], &r_1ucA[0][0]));
+        od = cadd (od, rmul (-Phi2[i][j], complexexp_qdotr (&qvec[0], &r_1ucA[1][0])));
+        od = cadd (od, rmul (-Phi3[i][j], complexexp_qdotr (&qvec[0], &r_1ucA[2][0])));
+        od = cadd (od, rmul (-Phi10[i][j], complexexp_qdotr (&qvec[0], &r_3ucA[0][0])));
+        od = cadd (od, rmul (-Phi11[i][j], complexexp_qdotr (&qvec[0], &r_3ucA[1][0])));
+        od = cadd (od, rmul (-Phi12[i][j], complexexp_qdotr (&qvec[0], &r_3ucA[2][0])));
+        Phi_offdiagAB[i * 3 + j] = od;
+        od = rmul (-Phi1[i][j], complexexp_qdotr (&qvec[0], &r_1ucC[0][0]));
+        od = cadd (od, rmul (-Phi2[i][j], complexexp_qdotr (&qvec[0], &r_1ucC[1][0])));
+        od = cadd (od, rmul (-Phi3[i][j], complexexp_qdotr (&qvec[0], &r_1ucC[2][0])));
+        od = cadd (od, rmul (-Phi10[i][j], complexexp_qdotr (&qvec[0], &r_3ucC[0][0])));
+        od = cadd (od, rmul (-Phi11[i][j], complexexp_qdotr (&qvec[0], &r_3ucC[1][0])));
+        od = cadd (od, rmul (-Phi12[i][j], complexexp_qdotr (&qvec[0], &r_3ucC[2][0])));
+        Phi_offdiagCD[i * 3 + j] = od;
       }
     }
 
-    cdouble Phi_6Dim[6 * 6];
+    // Phi_6DimAB[i*6+j] = Phi_diag[i*3+j]+Phi_diagAC[i*3+j]; // Phi_diag1 is only for the A and C sublattices
+    // Phi_6DimAB[i*6+j+3] = Phi_offdiagAB[i*3+j];
+    // Phi_6DimAB[(i+3)*6+j] = conj(Phi_offdiagAB[i*3+j]);
+    // Phi_6DimAB[(i+3)*6+j+3] = Phi_diag[i*3+j];  // Phi_diag is for all sublattices
+    // (Phi_6DimCD: same, with Phi_offdiagCD. Phi_diagAC equals Phi_diag1 here.)
+    cdouble Phi_6DimAB[6 * 6];
+    cdouble Phi_6DimCD[6 * 6];
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
-        Phi_6Dim[i * 6 + j] = cadd (Phi_diag[i * 3 + j], Phi_diag1[i * 3 + j]);
-        Phi_6Dim[i * 6 + j + 3] = Phi_offdiag1[i * 3 + j];
-        Phi_6Dim[(i + 3) * 6 + j] = Phi_offdiag2[i * 3 + j];
-        Phi_6Dim[(i + 3) * 6 + j + 3] = Phi_diag[i * 3 + j]; // Phi_diag1 does not appear for the B,C sublattices
+        Phi_6DimAB[i * 6 + j] = cadd (Phi_diag[i * 3 + j], Phi_diag1[i * 3 + j]); // Phi_diag1 only for the A and C sublattices
+        Phi_6DimAB[i * 6 + j + 3] = Phi_offdiagAB[i * 3 + j];
+        Phi_6DimAB[(i + 3) * 6 + j] = conj (Phi_offdiagAB[i * 3 + j]);
+        Phi_6DimAB[(i + 3) * 6 + j + 3] = Phi_diag[i * 3 + j];
+        Phi_6DimCD[i * 6 + j] = cadd (Phi_diag[i * 3 + j], Phi_diag1[i * 3 + j]);
+        Phi_6DimCD[i * 6 + j + 3] = Phi_offdiagCD[i * 3 + j];
+        Phi_6DimCD[(i + 3) * 6 + j] = conj (Phi_offdiagCD[i * 3 + j]);
+        Phi_6DimCD[(i + 3) * 6 + j + 3] = Phi_diag[i * 3 + j];
       }
     }
 
+    // Phi_AC[i*3+j] = -Phi_4[i][j]*((*complexexp_qdotr)(&qvec[0], &r_4ucA[0][0]))-Phi_4[i][j]*((*complexexp_qdotr)(&qvec[0], &r_4ucA[1][0]));
     cdouble Phi_AC[3 * 3];
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
         Phi_AC[i * 3 + j]
-            = cadd (rmul (-Phi13[i][j], complexexp_qdotr (&qvec[0], &r_j13[12][0])), rmul (-Phi14[i][j], complexexp_qdotr (&qvec[0], &r_j13[13][0])));
+            = cadd (rmul (-Phi13[i][j], complexexp_qdotr (&qvec[0], &r_4ucA[0][0])), rmul (-Phi14[i][j], complexexp_qdotr (&qvec[0], &r_4ucA[1][0])));
       }
     }
 
@@ -434,10 +467,10 @@ SHARE
     cdouble Phi_12Dim[12 * 12];
     for (i = 0; i < 6; i++) {
       for (j = 0; j < 6; j++) {
-        Phi_12Dim[i * DIM + j] = Phi_6Dim[i * 6 + j];
+        Phi_12Dim[i * DIM + j] = Phi_6DimAB[i * 6 + j];
         Phi_12Dim[i * DIM + j + 6] = Phi_6Dim_offdiag[i * 6 + j];
         Phi_12Dim[(i + 6) * DIM + j] = conj (Phi_6Dim_offdiag[i * 6 + j]);
-        Phi_12Dim[(i + 6) * DIM + j + 6] = Phi_6Dim[i * 6 + j];
+        Phi_12Dim[(i + 6) * DIM + j + 6] = Phi_6DimCD[i * 6 + j];
       }
     }
 
@@ -925,11 +958,6 @@ TRACE
     qsquare = 1;
     Gn = cplx (0.0, 0.0);
 
-    double q_Bragg[3]; // Bragg point in Å-1; Cartesian coordinates
-    q_Bragg[0] = qh_Bragg * astar + qk_Bragg * astar / 2.0;
-    q_Bragg[1] = qk_Bragg * astar * 2.0 / sqrt3;
-    q_Bragg[2] = ql_Bragg * cstar;
-
     for (i = 0; i < 4; i++) // Calculate phonon structure factor; loop over atoms in unit cell
     {
       q_dot_e = cplx (0.0, 0.0);
@@ -937,14 +965,15 @@ TRACE
       for (j = 0; j < 3; j++) // loop over x,y,z
       {
         q_dot_e = cadd (q_dot_e, rmul (q[j], eigenvectormode[3 * i + j]));
-        q_dot_r += q_Bragg[j] * Delta[3 * i + j];
+        // q_dot_r += q[j]*Delta[3*i+j];
+        q_dot_r += q[j] * Delta[3 * i + j]; // full q: matches the unit-cell origin phases in omega_q
       }
       if (verbose >= 7) {
         cdouble contrib = rmul (b_length, cmul (q_dot_e, cexp (cplx (0.0, q_dot_r))));
         printf ("i = %i , q dot r = %g , q dot e = (%g + i %g) Fn contrib = (%g + i %g)", i, q_dot_r, creal (q_dot_e), cimag (q_dot_e), creal (contrib),
                 cimag (contrib));
       }
-      /* Gn += b_length * q_dot_e * e^{i q_Bragg . Delta_i} */
+      /* Gn += b_length * q_dot_e * e^{i q . Delta_i} */
       Gn = cadd (Gn, rmul (b_length, cmul (q_dot_e, cexp (cplx (0.0, q_dot_r)))));
     }
     if (verbose >= 7)
