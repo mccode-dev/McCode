@@ -396,7 +396,8 @@ real_pair eigensystem_hermitian(const cdouble *A,
   EIGEN_CHECK_N(n);
   for(int i=0;i<n*n;i++) T[i] = A[i];
 
-  real_t max_error    = gershgorin_tolerance;
+  real_t tol          = gershgorin_tolerance*fmax(1.0, max_norm(T,n,n)); // relative to matrix size
+  real_t max_error    = tol;
   size_t n_iterations = 0;
 
 #if TIME_EIGENSYSTEMS && !defined(OPENACC)
@@ -456,13 +457,13 @@ real_pair eigensystem_hermitian(const cdouble *A,
       } else
 	shift    = D[k];
 
-      if(GR <= gershgorin_tolerance) not_done--;      
-      if(i>max_iterations && GR > gershgorin_tolerance){
+      if(GR <= tol) not_done--;
+      if(i>max_iterations && GR > tol){
 #ifndef OPENACC
 	fprintf(stderr,"Cannot converge eigenvalue %d to tolerance " G 
 	       " in %d iterations using machine precision " G " (d=" G ", shift=" G ", GR=" G ")\n"
 	       "D[k] = " G ", L[k-1] = " G ", L[k] = " G "\n",
-	       k,gershgorin_tolerance,i,
+	       k,tol,i,
 	       machine_precision,d,shift,GR,
 	       D[k], (k>0)?L[k-1]:0, (k+1<n)?L[k]:0);
 #endif
