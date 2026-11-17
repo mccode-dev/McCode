@@ -82,8 +82,8 @@ SHARE
   };
 
   // Function for handling surface physics
-  // The particle is in the master frame. Only velocity, weight and RNG state
-  // may be changed by a surface callback.
+  // _particle holds the input/output state in the master frame. Only its
+  // velocity, weight and RNG state may be changed by a surface callback.
   int
   Template_surface_function (
       _class_particle* _particle,
@@ -92,16 +92,16 @@ SHARE
       const double* normal_vector,
       enum in_or_out inward_or_outward) { // normal_vector of surface and information on whether the neutron is going into or out of this surface
 
-    double k[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
-
     // Retrieve data storage struct
     struct Template_surface_storage_struct* storage;
     storage = data_transfer.pointer_to_a_Template_surface_storage_struct;
 
-    double k_n_dot = k[0] * normal_vector[0] + k[1] * normal_vector[1] + k[2] * normal_vector[2];
+    double velocity_normal = _particle->vx * normal_vector[0] +
+                             _particle->vy * normal_vector[1] +
+                             _particle->vz * normal_vector[2];
 
-    // Calculate q normal
-    double q_normal = 2.0 * fabs (k_n_dot);
+    // Reflectivity is defined in wavevector units; keep the particle state in velocity units.
+    double q_normal = 2.0 * V2K * fabs (velocity_normal);
 
     // Calculate or read reflectivity
     double reflectivity;
@@ -116,13 +116,9 @@ SHARE
       *continues = 1; // Tells algorithm the ray goes through this surface
     } else {
       // mirror ray
-      k[0] = k[0] - 2.0 * k_n_dot * normal_vector[0];
-      k[1] = k[1] - 2.0 * k_n_dot * normal_vector[1];
-      k[2] = k[2] - 2.0 * k_n_dot * normal_vector[2];
-
-      _particle->vx = K2V * k[0];
-      _particle->vy = K2V * k[1];
-      _particle->vz = K2V * k[2];
+      _particle->vx -= 2.0 * velocity_normal * normal_vector[0];
+      _particle->vy -= 2.0 * velocity_normal * normal_vector[1];
+      _particle->vz -= 2.0 * velocity_normal * normal_vector[2];
 
       *continues = 0; // Tells algorithm the ray does not go through this surface
     }
