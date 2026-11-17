@@ -1395,14 +1395,14 @@ INITIALIZE
     }
   }
   if (hkl_info.ctr_size > 1 && (!hkl_info.ctr_dir || !hkl_info.ctr_dir[0] && !hkl_info.ctr_dir[1] && !hkl_info.ctr_dir[2])) { // no CTR normal ?
-    MPI_MASTER (printf ("Single_crystal: %s: Warning: No surf_dir surface normal set. Ignoring CTR.\n", i, NAME_CURRENT_COMP););
+    MPI_MASTER (printf ("Single_crystal: %s: Warning: No surf_dir surface normal set. Ignoring CTR.\n", NAME_CURRENT_COMP););
     hkl_info.ctr_size = 1;
   }
   if (hkl_info.ctr_size > 1 && hkl_info.ctr_FT2 && hkl_info.ctr_k) { // do some CTR tests
     double sum_FT2 = 0, min_k = FLT_MAX, max_k = -FLT_MAX;
     for (i = 0; i < hkl_info.ctr_size; i++) {
       if (hkl_info.ctr_FT2[i] < 0) {
-        MPI_MASTER (printf ("Single_crystal: %s: Warning: surf_FT2[%i] < 0. Must all be >= 0. Ignoring CTR.\n", i, NAME_CURRENT_COMP););
+        MPI_MASTER (printf ("Single_crystal: %s: Warning: surf_FT2[%i] < 0. Must all be >= 0. Ignoring CTR.\n", NAME_CURRENT_COMP, i););
         hkl_info.ctr_size = 1;
         break;
       }
@@ -1413,11 +1413,11 @@ INITIALIZE
         max_k = hkl_info.ctr_k[i];
     }
     if (hkl_info.ctr_size > 1 && min_k * max_k >= 0) { // k vector not around 0 ?
-      MPI_MASTER (printf ("Single_crystal: %s: Warning: surf_k = [%g:%g]. Must be around 0. Ignoring CTR.\n", min_k, max_k, NAME_CURRENT_COMP););
+      MPI_MASTER (printf ("Single_crystal: %s: Warning: surf_k = [%g:%g]. Must be around 0. Ignoring CTR.\n", NAME_CURRENT_COMP, min_k, max_k););
       hkl_info.ctr_size = 1;
     }
     if (hkl_info.ctr_size > 1 && sum_FT2 <= 0) { // no positive FT2 value ?
-      MPI_MASTER (printf ("Single_crystal: %s: Warning: sum(surf_FT2) <= 0. Must be > 0. Ignoring CTR.\n", min_k, max_k, NAME_CURRENT_COMP););
+      MPI_MASTER (printf ("Single_crystal: %s: Warning: sum(surf_FT2) <= 0. Must be > 0. Ignoring CTR.\n", NAME_CURRENT_COMP););
       hkl_info.ctr_size = 1;
     }
     if (hkl_info.ctr_size > 1 && sum_FT2) {                                 // all is fine. Normalize CTR.

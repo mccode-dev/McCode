@@ -55,6 +55,11 @@ SETTING PARAMETERS (int nx=90, int ny=90, int filter_pixels=600, string filename
   filter_xmax=0.8,filter_ymin=-0.8,filter_ymax=0.8,pinhole_filter_distance = 25, pinhole_detector_distance=25,smoothing=0.0,zoom=1.0)
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+SHARE
+%{
+%include "read_table-lib"
+%}
+
 DECLARE
 %{
   DArray2d PSD_N;
@@ -98,7 +103,11 @@ INITIALIZE
 
   TwoD_data = create_darr2d (filter_pixels, filter_pixels);
 
-  filePointer = fopen (TwoD_filename, "r");
+  filePointer = Open_File (TwoD_filename, "r", NULL);
+  if (!filePointer) {
+    fprintf (stderr, "PSD_monitor_Filter: %s: Error: Cannot open file %s\n", NAME_CURRENT_COMP, TwoD_filename);
+    exit (-1);
+  }
 
   for (i = 0; i < filter_pixels; i++) {
     for (j = 0; j < filter_pixels; j++) {

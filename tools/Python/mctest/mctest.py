@@ -636,6 +636,8 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
                         cmd = cmd + " --override-config=" + configdir
                     cmd = cmd + " -s %s %s %s -n%s --mpi=%s -d%d > run_stdout_%d.txt 2>&1" % (seed, test.instrname, parvals, testncount, mpi, test.testnb, test.testnb)
             else:
+                if openacc is True:
+                    cmd = cmd + " --openacc"
                 if configdir:
                     cmd = cmd + " --no-mpi --override-config=" + configdir
                 cmd = cmd + " --no-mpi -s %s %s %s -n%s -d%d > run_stdout_%d.txt 2>&1" % (seed, test.instrname, parvals, testncount, test.testnb, test.testnb)
