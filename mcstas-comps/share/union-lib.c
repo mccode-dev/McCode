@@ -1921,36 +1921,40 @@ void union_tri_add(struct union_tri_list *t, Coords a, Coords b, Coords c, int d
     } else {
       if (total == 2 && n[0] <= 1 && n[1] <= 1 && n[2] <= 1) {
         for (k=0;k<3;k++) if (n[k] == 1 && n[(k+2)%3] == 1) break; // lone vertex v[k] between the two cut edges
-        Coords w1 = v[(k+1)%3], w2 = v[(k+2)%3];
-        double sp = s[k][0], sq = 1 - s[(k+2)%3][0]; // fractions from v[k] towards w1 and w2
-        Coords p = coords_add(v[k],coords_scalar_mult(coords_sub(w1,v[k]),sp));
-        Coords q = coords_add(v[k],coords_scalar_mult(coords_sub(w2,v[k]),sq));
-        // straight boundary crosses the median v[k] -> (w1+w2)/2 at 2 sp sq / (sp + sq)
-        Coords m = coords_scalar_mult(coords_add(w1,w2),0.5);
-        double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w1,v[k]),coords_sub(w1,v[k])),
-                                                      fmax(coords_sp(coords_sub(w2,v[k]),coords_sub(w2,v[k])),
-                                                           coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)))));
-        int stm, nm = union_edge_cuts(t,v[k],m,sm,&stm);
-        double median = sqrt(coords_sp(coords_sub(m,v[k]),coords_sub(m,v[k])));
-        if (depth == 0 || (nm == 1 && fabs(sm[0] - 2*sp*sq/(sp + sq))*median < UNION_TRI_CUT_TOL*size)) {
-          if (st[k]) union_tri_emit(t,v[k],p,q);
-          else { union_tri_emit(t,p,w1,w2); union_tri_emit(t,p,w2,q); }
+        if (k >= 0 && k < 3) {
+          Coords w1 = v[(k+1)%3], w2 = v[(k+2)%3];
+          double sp = s[k][0], sq = 1 - s[(k+2)%3][0]; // fractions from v[k] towards w1 and w2
+          Coords p = coords_add(v[k],coords_scalar_mult(coords_sub(w1,v[k]),sp));
+          Coords q = coords_add(v[k],coords_scalar_mult(coords_sub(w2,v[k]),sq));
+          // straight boundary crosses the median v[k] -> (w1+w2)/2 at 2 sp sq / (sp + sq)
+          Coords m = coords_scalar_mult(coords_add(w1,w2),0.5);
+          double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w1,v[k]),coords_sub(w1,v[k])),
+                                                        fmax(coords_sp(coords_sub(w2,v[k]),coords_sub(w2,v[k])),
+                                                             coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)))));
+          int stm, nm = union_edge_cuts(t,v[k],m,sm,&stm);
+          double median = sqrt(coords_sp(coords_sub(m,v[k]),coords_sub(m,v[k])));
+          if (depth == 0 || (nm == 1 && fabs(sm[0] - 2*sp*sq/(sp + sq))*median < UNION_TRI_CUT_TOL*size)) {
+            if (st[k]) union_tri_emit(t,v[k],p,q);
+            else { union_tri_emit(t,p,w1,w2); union_tri_emit(t,p,w2,q); }
+          }
           return;
         }
       } else if (total == 1) { // boundary from the vertex o opposite the cut edge (a vertex made by a split in 2) to p
         for (k=0;k<3;k++) if (n[k] == 1) break;
-        Coords o = v[(k+2)%3], w1 = v[k], w2 = v[(k+1)%3];
-        Coords p = coords_add(w1,coords_scalar_mult(coords_sub(w2,w1),s[k][0]));
-        // a straight boundary o -> p crosses the mid-line (w1+o)/2 -> (w2+o)/2 at the same fraction s[k][0]
-        Coords m1 = coords_scalar_mult(coords_add(w1,o),0.5), m2 = coords_scalar_mult(coords_add(w2,o),0.5);
-        double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)),
-                                                      fmax(coords_sp(coords_sub(o,w1),coords_sub(o,w1)),
-                                                           coords_sp(coords_sub(o,w2),coords_sub(o,w2)))));
-        int stm, nm = union_edge_cuts(t,m1,m2,sm,&stm);
-        double midline = 0.5*sqrt(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)));
-        if (depth == 0 || (nm == 1 && fabs(sm[0] - s[k][0])*midline < UNION_TRI_CUT_TOL*size)) {
-          if (st[k]) union_tri_emit(t,w1,p,o);
-          else union_tri_emit(t,p,w2,o);
+        if (k >= 0 && k < 3) {
+          Coords o = v[(k+2)%3], w1 = v[k], w2 = v[(k+1)%3];
+          Coords p = coords_add(w1,coords_scalar_mult(coords_sub(w2,w1),s[k][0]));
+          // a straight boundary o -> p crosses the mid-line (w1+o)/2 -> (w2+o)/2 at the same fraction s[k][0]
+          Coords m1 = coords_scalar_mult(coords_add(w1,o),0.5), m2 = coords_scalar_mult(coords_add(w2,o),0.5);
+          double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)),
+                                                        fmax(coords_sp(coords_sub(o,w1),coords_sub(o,w1)),
+                                                             coords_sp(coords_sub(o,w2),coords_sub(o,w2)))));
+          int stm, nm = union_edge_cuts(t,m1,m2,sm,&stm);
+          double midline = 0.5*sqrt(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)));
+          if (depth == 0 || (nm == 1 && fabs(sm[0] - s[k][0])*midline < UNION_TRI_CUT_TOL*size)) {
+            if (st[k]) union_tri_emit(t,w1,p,o);
+            else union_tri_emit(t,p,w2,o);
+          }
           return;
         }
       } else if (depth > 0) { // split in 2 through the crossing nearest the middle of the most crossed edge
