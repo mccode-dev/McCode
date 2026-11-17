@@ -68,9 +68,9 @@
   #ifndef GMESH_WELD_TOL
     #define GMESH_WELD_TOL 1e-9
   #endif
-  // max triangles per BVH leaf
+  // max triangles per BVH leaf (8 measured faster than 4 for small and medium meshes)
   #ifndef GMESH_BVH_LEAF
-    #define GMESH_BVH_LEAF 4
+    #define GMESH_BVH_LEAF 8
   #endif
   // traversal stack depth (the tree depth is limited accordingly at build)
   #ifndef GMESH_BVH_STACK
