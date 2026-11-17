@@ -152,13 +152,19 @@ function( detect_platform_variables resultvarname )
   set( TOOLS_CC "${CMAKE_C_COMPILER}" )
   provide_var( TOOLS_CC )
 
-  #MPI / OACC variables (don't attempt to detect, just expose here so it is
+  #MPI / OACC / OMP variables (don't attempt to detect, just expose here so it is
   #clear how to change them at the CMake cfg level):
 
   set(OACCFLAGS "-fast -Minfo=accel -acc=gpu -gpu=mem:managed -DOPENACC")
   provide_var( OACCFLAGS )
   set(OACC "nvc")
   provide_var( OACC )
+  # OpenMP target offload: defaults as used with Cray CCE on LUMI, where the
+  # GPU target comes from the craype-accel module
+  set(OMPFLAGS "-O2 -fopenmp -DOMPTARGET")
+  provide_var( OMPFLAGS )
+  set(OMP "cc")
+  provide_var( OMP )
   if ( MPILIB )
     if ( NOT WINDOWS )
       set(MPIFLAGS "-DUSE_MPI -l${MPILIB}")

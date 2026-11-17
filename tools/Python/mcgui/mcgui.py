@@ -370,6 +370,14 @@ class McGuiState(QtCore.QObject):
             mcrunparms = ' --openacc --mpi=' + mpicount + ' '
         elif clustering == 6:
             mcrunparms = ' -c --openacc --mpi=' + mpicount + ' '
+        elif clustering == 7:
+            mcrunparms = ' --openmp '
+        elif clustering == 8:
+            mcrunparms = ' -c --openmp '
+        elif clustering == 9:
+            mcrunparms = ' --openmp --mpi=' + mpicount + ' '
+        elif clustering == 10:
+            mcrunparms = ' -c --openmp --mpi=' + mpicount + ' '
 
         # sim/trace and output directory
         simtrace = fixed_params[0]

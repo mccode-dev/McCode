@@ -121,6 +121,7 @@ SETTING PARAMETERS (w1, h1, w2=0, h2=0, l,
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 SHARE
 %{
+  #define MCGPU_PORTED_Guide_gravity
   %include "ref-lib"
   #ifndef Gravity_guide_Version
   #define Gravity_guide_Version "$Revision$"
@@ -420,6 +421,11 @@ INITIALIZE
     }
   }
 
+  #ifdef OMPTARGET
+  if (table_present)
+    mcgpu_die ("reflect table is host heap, not transferred", NAME_CURRENT_COMP, "reflect");
+  #endif
+
   if (nslit <= 0 || nhslit <= 0) {
     fprintf (stderr, "Guide_gravity: %s: nslit nhslit must be >0.\n", NAME_CURRENT_COMP);
     exit (-1);
@@ -564,8 +570,10 @@ TRACE
         /* only positive dt are valid */
         /* exit reflection loops if no intersection (neutron is after box) */
         if (side == 0 || (dt <= 0 && side != 5)) {
+          #ifndef OMPTARGET
           if (GVarsGlobal.warnings < 100)
             fprintf (stderr, "%s: warning: neutron has entered guide, but can not exit !\n", GVars.compcurname);
+          #endif
           #pragma acc atomic
           GVarsGlobal.warnings = GVarsGlobal.warnings + 1;
           x += w_adj;

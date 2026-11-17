@@ -55,11 +55,19 @@ SETTING PARAMETERS (int nL=20, string filename=0, int nowritefile=0,
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+SHARE
+%{
+  #define MCGPU_PORTED_L_monitor
+%}
+
 DECLARE
 %{
   DArray1d L_N;
   DArray1d L_p;
   DArray1d L_p2;
+  double* L_N_d;
+  double* L_p_d;
+  double* L_p2_d;
 %}
 
 INITIALIZE
@@ -87,6 +95,12 @@ INITIALIZE
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
     sprintf (filename, "%s", NAME_CURRENT_COMP);
+
+  #ifdef OMPTARGET
+  L_N_d = mcgpu_to_device (NAME_CURRENT_COMP, "L_N", L_N, (size_t)nL * sizeof (double));
+  L_p_d = mcgpu_to_device (NAME_CURRENT_COMP, "L_p", L_p, (size_t)nL * sizeof (double));
+  L_p2_d = mcgpu_to_device (NAME_CURRENT_COMP, "L_p2", L_p2, (size_t)nL * sizeof (double));
+  #endif
 %}
 
 TRACE
@@ -101,11 +115,11 @@ TRACE
     if (i >= 0 && i < nL) {
       double p2 = p * p;
       #pragma acc atomic
-      L_N[i] = L_N[i] + 1;
+      MC1D (L_N, i) = MC1D (L_N, i) + 1;
       #pragma acc atomic
-      L_p[i] = L_p[i] + p;
+      MC1D (L_p, i) = MC1D (L_p, i) + p;
       #pragma acc atomic
-      L_p2[i] = L_p2[i] + p2;
+      MC1D (L_p2, i) = MC1D (L_p2, i) + p2;
       SCATTER;
     }
   }
@@ -116,6 +130,11 @@ TRACE
 
 SAVE
 %{
+  #ifdef OMPTARGET
+  mcgpu_from_device (NAME_CURRENT_COMP, "L_N", L_N, L_N_d, (size_t)nL * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "L_p", L_p, L_p_d, (size_t)nL * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "L_p2", L_p2, L_p2_d, (size_t)nL * sizeof (double));
+  #endif
   if (!nowritefile) {
     DETECTOR_OUT_1D ("Wavelength monitor", "Wavelength [AA]", "Intensity", "L", Lmin, Lmax, nL, &L_N[0], &L_p[0], &L_p2[0], filename);
   }
@@ -123,6 +142,11 @@ SAVE
 
 FINALLY
 %{
+  #ifdef OMPTARGET
+  mcgpu_free (L_N_d);
+  mcgpu_free (L_p_d);
+  mcgpu_free (L_p2_d);
+  #endif
   destroy_darr1d (L_N);
   destroy_darr1d (L_p);
   destroy_darr1d (L_p2);

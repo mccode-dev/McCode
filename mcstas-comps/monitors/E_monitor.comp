@@ -55,11 +55,19 @@ xwidth=0, yheight=0, Emin, Emax, int restore_neutron=0)
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+SHARE
+%{
+  #define MCGPU_PORTED_E_monitor
+%}
+
 DECLARE
 %{
   DArray1d E_N;
   DArray1d E_p;
   DArray1d E_p2;
+  double* E_N_d;
+  double* E_p_d;
+  double* E_p2_d;
   double S_p;
   double S_pE;
   double S_pE2;
@@ -92,6 +100,12 @@ INITIALIZE
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
     sprintf (filename, "%s", NAME_CURRENT_COMP);
+
+  #ifdef OMPTARGET
+  E_N_d = mcgpu_to_device (NAME_CURRENT_COMP, "E_N", E_N, (size_t)nE * sizeof (double));
+  E_p_d = mcgpu_to_device (NAME_CURRENT_COMP, "E_p", E_p, (size_t)nE * sizeof (double));
+  E_p2_d = mcgpu_to_device (NAME_CURRENT_COMP, "E_p2", E_p2, (size_t)nE * sizeof (double));
+  #endif
 %}
 
 TRACE
@@ -106,19 +120,21 @@ TRACE
   if ((backprop || t >= t0) && z == 0.0 && x > xmin && x < xmax && y > ymin && y < ymax) {
     E = VS2E * (vx * vx + vy * vy + vz * vz);
 
+    #ifndef OMPTARGET
     S_p += p;
     S_pE += p * E;
     S_pE2 += p * E * E;
+    #endif
 
     i = floor ((E - Emin) * nE / (Emax - Emin));
     if (i >= 0 && i < nE) {
       double p2 = p * p;
       #pragma acc atomic
-      E_N[i] = E_N[i] + 1;
+      MC1D (E_N, i) = MC1D (E_N, i) + 1;
       #pragma acc atomic
-      E_p[i] = E_p[i] + p;
+      MC1D (E_p, i) = MC1D (E_p, i) + p;
       #pragma acc atomic
-      E_p2[i] = E_p2[i] + p2;
+      MC1D (E_p2, i) = MC1D (E_p2, i) + p2;
       SCATTER;
     }
   }
@@ -129,6 +145,11 @@ TRACE
 
 SAVE
 %{
+  #ifdef OMPTARGET
+  mcgpu_from_device (NAME_CURRENT_COMP, "E_N", E_N, E_N_d, (size_t)nE * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "E_p", E_p, E_p_d, (size_t)nE * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "E_p2", E_p2, E_p2_d, (size_t)nE * sizeof (double));
+  #endif
   if (!nowritefile) {
     DETECTOR_OUT_1D ("Energy monitor", "Energy [meV]", "Intensity", "E", Emin, Emax, nE, &E_N[0], &E_p[0], &E_p2[0], filename);
     if (S_p)
@@ -138,6 +159,11 @@ SAVE
 
 FINALLY
 %{
+  #ifdef OMPTARGET
+  mcgpu_free (E_N_d);
+  mcgpu_free (E_p_d);
+  mcgpu_free (E_p2_d);
+  #endif
   destroy_darr1d (E_N);
   destroy_darr1d (E_p);
   destroy_darr1d (E_p2);

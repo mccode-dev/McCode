@@ -158,7 +158,7 @@ void *mcmagnet_push(_class_particle *_particle, int func_id, Rotation *magnet_ro
   /*check if any field has been pushed already*/
   if (_particle->mcMagnet==NULL){
     /*No fields exist in the stack so allocate room for it and point _particle->mcMagnet to it*/
-    #ifdef OPENACC
+    #ifdef MCGPU
     _particle->mcMagnet=malloc(MCMAGNET_STACKSIZE*sizeof(mcmagnet_field_info *));
     /* Lack of a calloc makes us NULLify manually since we check for NULL further down */ 
     for (int ll=0; ll<MCMAGNET_STACKSIZE; ll++) {
@@ -168,7 +168,7 @@ void *mcmagnet_push(_class_particle *_particle, int func_id, Rotation *magnet_ro
     _particle->mcMagnet=calloc(MCMAGNET_STACKSIZE,sizeof(mcmagnet_field_info *));
     #endif
     if(!_particle->mcMagnet) {
-      #ifndef OPENACC
+      #ifndef MCGPU
       fprintf(stderr,"pol-lib: malloc() error pushing field to stack\n");
       exit(-1);
       #endif
@@ -182,13 +182,13 @@ void *mcmagnet_push(_class_particle *_particle, int func_id, Rotation *magnet_ro
     stack[i+1]=stack[i];
   }
   /*allocate momery for the new stack item*/
-  #ifdef OPENACC
+  #ifdef MCGPU
   stack[0]=malloc(sizeof(mcmagnet_field_info));
   #else
   stack[0]=calloc(1, sizeof(mcmagnet_field_info));
   #endif
   if(!stack[0]) {
-    #ifndef OPENACC
+    #ifndef MCGPU
     fprintf(stderr,"pol-lib: malloc() error allocating field stack[0]\n");
     exit(-1);
     #endif
@@ -202,7 +202,7 @@ void *mcmagnet_push(_class_particle *_particle, int func_id, Rotation *magnet_ro
 void *mcmagnet_pop(_class_particle *_particle) {
   mcmagnet_field_info **stack=((mcmagnet_field_info **) _particle->mcMagnet);
   /*free memory for upper element*/
-#ifdef OPENACC
+#ifdef MCGPU
   free(stack[0]);
 #else
   free(stack[0]);

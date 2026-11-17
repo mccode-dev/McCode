@@ -56,6 +56,7 @@ in help text, and the McStas-only `-g`/`--gravitation` flag, differ).
 | `--no-mpi` | Do NOT compile with MPI |
 | `--machines machines` | Defines path of MPI machinefile to use in parallel mode |
 | `--openacc` | parallelize using openacc |
+| `--openmp` | parallelize using OpenMP target offload (not together with --openacc) |
 | `--funnel` | funneling simulation flow, e.g. for mixed CPU/GPU |
 | `--vecsize VECSIZE` | vector length in OpenACC parallel scenarios |
 | `--numgangs NUMGANGS` | number of 'gangs' in OpenACC parallel scenarios |

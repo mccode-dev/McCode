@@ -45,7 +45,7 @@
 
 #include <ctype.h>
 
-#ifdef OPENACC // If on GPU map fprintf to printf
+#ifdef MCGPU // If on GPU map fprintf to printf
 #define fprintf(stderr,...) printf(__VA_ARGS__)
 #endif
 
@@ -220,7 +220,7 @@ void off_store_intersection(intersection *t, int *t_size, intersection x)
 {
 #ifdef OFF_LEGACY
   if (*t_size >= OFF_INTERSECT_MAX) {
-    #ifndef OPENACC
+    #ifndef MCGPU
     static int warned=0;
     if (!warned++)
       fprintf(stderr, "Warning: number of intersection exceeded (%d) (interoff-lib/off_store_intersection)\n", OFF_INTERSECT_MAX);
@@ -1111,7 +1111,7 @@ int off_intersect_all_idx(double* t0, double* t3,
     }
 
 #ifdef OFF_LEGACY
-    #ifndef OPENACC
+    #ifndef MCGPU
     qsort(t, t_size, sizeof(intersection),  off_compare);
     #else
     gpusort(t, t_size);
@@ -1407,7 +1407,7 @@ void off_display(off_struct data)
   }
 } /* off_display */
 
-#ifdef OPENACC // Restore fprintf for code following this lib
+#ifdef MCGPU // Restore fprintf for code following this lib
 #undef fprintf
 #endif
 

@@ -39,6 +39,11 @@ DEFINE COMPONENT Progress_bar
 SETTING PARAMETERS (string profile="NULL", percent=10,flag_save=0,minutes=0)
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+SHARE
+%{
+  #define MCGPU_PORTED_Progress_bar
+%}
+
 DECLARE
 %{
   #ifndef PROGRESS_BAR
@@ -65,7 +70,7 @@ INITIALIZE
   if (percent * mcget_ncount () / 100 < 1e5) {
     percent = 1e5 * 100.0 / mcget_ncount ();
   }
-  #ifdef OPENACC
+  #ifdef MCGPU
   time (&StartTime);
   #endif
 
@@ -78,7 +83,7 @@ INITIALIZE
 
 TRACE
 %{
-  #ifndef OPENACC
+  #ifndef MCGPU
   double ncount;
   ncount = mcget_run_num ();
   if (!StartTime) {

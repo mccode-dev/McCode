@@ -100,6 +100,7 @@ SETTING PARAMETERS (string reflect=0, w1, h1, w2, h2, l, R0_left=0.99, R0_right=
 
 SHARE
 %{
+  #define MCGPU_PORTED_Guide_m
 %include "read_table-lib"
 %}
 
@@ -155,6 +156,11 @@ INITIALIZE
     if (mbottom < 1 && mbottom != 0)
       fprintf (stderr, "WARNING: Guide: %s: mbottom < 1 behaves as if m=1.\n", NAME_CURRENT_COMP);
   }
+
+  #ifdef OMPTARGET
+  if (reflect && strlen (reflect))
+    mcgpu_die ("reflect table is host heap, not transferred", NAME_CURRENT_COMP, "reflect");
+  #endif
 %}
 
 TRACE
