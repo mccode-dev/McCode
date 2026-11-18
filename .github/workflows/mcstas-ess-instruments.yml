@@ -31,7 +31,7 @@ jobs:
       repos: ${{ steps.list.outputs.repos }}
       all: ${{ steps.list.outputs.all }}
     steps:
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - id: list
@@ -76,7 +76,7 @@ jobs:
           git -C repo log -1 --format='Testing commit %h (%cd): %s'
           echo "cloned=true" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         if: steps.clone.outputs.cloned == 'true'
         with:
           path: src
@@ -136,7 +136,7 @@ jobs:
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" ess-nightly
           ./src/devel/bin/mccode-simdir-cleanfiles -d ess-nightly
           tar czf ess-column.tgz ess-nightly
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always() && steps.clone.outputs.cloned == 'true'
         with:
           name: ess-column-${{ matrix.repo.name }}
@@ -151,7 +151,7 @@ jobs:
       run:
         shell: bash -el {0}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: src
 
@@ -165,7 +165,7 @@ jobs:
       - name: Build and install McCode
         run: ./src/devel/bin/mccode-build-conda -m mcstas -s $PWD/src -b $PWD/build_mcstas
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: ess-column-*
           path: columns
@@ -220,7 +220,7 @@ jobs:
           tar czf ess-nightly-site.tgz ess-nightly
           ls -l ess-nightly-site.tgz
       - id: site-upload
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always() && steps.site.outcome == 'success'
         with:
           name: ess-nightly-site
