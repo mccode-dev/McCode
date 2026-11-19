@@ -89,6 +89,16 @@
 		{
 			controller.setViewHome();
 		}
+		// tour: fly from component to component, sitting the given seconds at each (for movies)
+		var tourTimer = null;
+		var handleTour = function()
+		{
+			clearTimeout(tourTimer);
+			if (!document.getElementById("cbxTour").checked) { return; }
+			controller.main.flyToNext(document.getElementById("cbxBeam").checked);
+			var sit = parseFloat(document.getElementById("numSit").value);
+			tourTimer = setTimeout(handleTour, FLY_MS + 1000*(sit > 0 ? sit : 0));
+		}
 	</script>
 
 	<div id="gui" style="width: auto; background-color: black;">
@@ -121,6 +131,11 @@
 		</label>
 		<label id="lblOpacity" style="color: white; background-color: black; display: inline-block;">
 			Opacity<input id="rngOpacity" type="range" min="0" max="1" step="0.05" value="0.4" autocomplete="off" style="width: 90px; vertical-align: middle;" oninput="controller.main.setSurfaceOpacity(parseFloat(this.value));">
+		</label>
+		<label id="lblTour" style="color: white; background-color: black; display: inline-block;">
+			Tour<input id="cbxTour" type="checkbox" autocomplete="off" onchange="handleTour();">
+			sit<input id="numSit" type="number" min="0" step="0.5" value="3" style="width: 45px;">s
+			along beam<input id="cbxBeam" type="checkbox" checked autocomplete="off">
 		</label>
 	</div>
 	<div id="3dcanvas"></div>

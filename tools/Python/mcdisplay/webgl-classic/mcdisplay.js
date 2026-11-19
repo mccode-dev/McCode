@@ -180,6 +180,31 @@ Main.prototype.focusComponent = function(e)
     new THREE.Box3().setFromObject(comp).center(this.controls.target);
     this.controls.update();
 }
+//  tour: fly the orbit target to the centre of the next drawn component; the camera keeps its offset,
+//  or with beam, looks along the component z axis (the neutron direction) from the same distance
+Main.prototype.flyToNext = function(beam)
+{
+    var nodes = Object.keys(this.compnodes).map(function(k) { return this.compnodes[k]; }, this)
+        .filter(function(n) { return !new THREE.Box3().setFromObject(n).isEmpty(); }); // e.g. Arm draws nothing
+    if (nodes.length == 0) { return; }
+    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % nodes.length;
+    var node = nodes[this.tourIdx];
+    var offset = this.camera.position.clone().sub(this.controls.target);
+    this.fly = { from: this.controls.target.clone(), to: new THREE.Box3().setFromObject(node).center(), t0: performance.now(),
+                 offFrom: offset, offTo: beam ? node.getWorldDirection().multiplyScalar(-offset.length()) : offset };
+}
+//  advance a flight started by flyToNext, called every frame
+Main.prototype.animate = function()
+{
+    if (!this.fly) { return; }
+    var t = Math.min(1, (performance.now() - this.fly.t0) / FLY_MS);
+    var s = t*t*(3 - 2*t); // smoothstep
+    var offset = this.fly.offFrom.clone().lerp(this.fly.offTo, s);
+    this.controls.target.lerpVectors(this.fly.from, this.fly.to, s);
+    this.camera.position.copy(this.controls.target).add(offset);
+    this.controls.update();
+    if (t >= 1) { this.fly = null; }
+}
 //  cat camera view according to campos, a Vector3
 //
 Main.prototype.setCameraView = function(campos)
@@ -532,6 +557,7 @@ Controller.prototype.run = function()
     var renderLoop = function()
     {
     	requestAnimationFrame(renderLoop);
+    	_this.main.animate();
     	_this.main.renderer.render(_this.main.scene, _this.main.camera);
     }
     var busy = false;
@@ -640,6 +666,7 @@ Controller.prototype.setViewHome = function()
 var Y_AXIS = new THREE.Vector3(0, 1, 0);
 var Z_AXIS = new THREE.Vector3(0, 0, 1);
 var SEGMENTS = 24;
+var FLY_MS = 1000; // tour: flight time between components
 
 //  enum for playback state
 //
