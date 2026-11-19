@@ -180,6 +180,41 @@ Main.prototype.focusComponent = function(e)
     new THREE.Box3().setFromObject(comp).center(this.controls.target);
     this.controls.update();
 }
+//  tour: fly the camera to the origin of the next drawn component, looking along its z axis
+//  (the neutron direction) with beam, else in the current direction; returns the component name
+//      offset  -  [x, y, z] camera displacement from the origin, in the component frame
+//      view    -  [x, y, z] added to the viewing direction 0 0 1 with beam, in the component frame
+Main.prototype.flyToNext = function(beam, offset, view)
+{
+    var names = Object.keys(this.compnodes)
+        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this) // e.g. Arm draws nothing
+        .filter(function(k, i, a) { // skip ahead past components at the previous one's position (within 1 mm)
+            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this);
+    if (names.length == 0) { return ""; }
+    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % names.length;
+    var node = this.compnodes[names[this.tourIdx]];
+    var look = this.controls.target.clone().sub(this.camera.position); // keeps the orbit distance
+    if (beam) {
+        var dir = new THREE.Vector3().fromArray(view).add(new THREE.Vector3(0, 0, 1));
+        if (dir.length() < 1e-9) { dir.set(0, 0, 1); } // camera and target must differ
+        look = dir.normalize().applyQuaternion(node.quaternion).multiplyScalar(look.length());
+    }
+    var pos = new THREE.Vector3().fromArray(offset).applyQuaternion(node.quaternion).add(node.position);
+    this.fly = { posFrom: this.camera.position.clone(), posTo: pos,
+                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now() };
+    return names[this.tourIdx];
+}
+//  advance a flight started by flyToNext, called every frame
+Main.prototype.animate = function()
+{
+    if (!this.fly) { return; }
+    var t = Math.min(1, (performance.now() - this.fly.t0) / FLY_MS);
+    var s = t*t*(3 - 2*t); // smoothstep
+    this.camera.position.lerpVectors(this.fly.posFrom, this.fly.posTo, s);
+    this.controls.target.lerpVectors(this.fly.tgtFrom, this.fly.tgtTo, s);
+    this.controls.update();
+    if (t >= 1) { this.fly = null; }
+}
 //  cat camera view according to campos, a Vector3
 //
 Main.prototype.setCameraView = function(campos)
@@ -532,6 +567,7 @@ Controller.prototype.run = function()
     var renderLoop = function()
     {
     	requestAnimationFrame(renderLoop);
+    	_this.main.animate();
     	_this.main.renderer.render(_this.main.scene, _this.main.camera);
     }
     var busy = false;
@@ -640,6 +676,7 @@ Controller.prototype.setViewHome = function()
 var Y_AXIS = new THREE.Vector3(0, 1, 0);
 var Z_AXIS = new THREE.Vector3(0, 0, 1);
 var SEGMENTS = 24;
+var FLY_MS = 1000; // tour: flight time between components
 
 //  enum for playback state
 //
