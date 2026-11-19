@@ -182,7 +182,8 @@ Main.prototype.focusComponent = function(e)
 }
 //  tour: fly the camera to the origin of the next drawn component, looking along its z axis
 //  (the neutron direction) with beam, else in the current direction; returns the component name
-Main.prototype.flyToNext = function(beam)
+//      offset  -  [x, y, z] camera displacement from the origin, in the component frame
+Main.prototype.flyToNext = function(beam, offset)
 {
     var names = Object.keys(this.compnodes)
         .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this); // e.g. Arm draws nothing
@@ -191,8 +192,9 @@ Main.prototype.flyToNext = function(beam)
     var node = this.compnodes[names[this.tourIdx]];
     var look = this.controls.target.clone().sub(this.camera.position); // keeps the orbit distance
     if (beam) { look = node.getWorldDirection().multiplyScalar(look.length()); }
-    this.fly = { posFrom: this.camera.position.clone(), posTo: node.position.clone(),
-                 tgtFrom: this.controls.target.clone(), tgtTo: node.position.clone().add(look), t0: performance.now() };
+    var pos = new THREE.Vector3().fromArray(offset).applyQuaternion(node.quaternion).add(node.position);
+    this.fly = { posFrom: this.camera.position.clone(), posTo: pos,
+                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now() };
     return names[this.tourIdx];
 }
 //  advance a flight started by flyToNext, called every frame
