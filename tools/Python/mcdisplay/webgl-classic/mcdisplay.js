@@ -186,7 +186,9 @@ Main.prototype.focusComponent = function(e)
 Main.prototype.flyToNext = function(beam, offset)
 {
     var names = Object.keys(this.compnodes)
-        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this); // e.g. Arm draws nothing
+        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this) // e.g. Arm draws nothing
+        .filter(function(k, i, a) { // skip ahead past components at the previous one's position (within 1 mm)
+            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this);
     if (names.length == 0) { return ""; }
     this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % names.length;
     var node = this.compnodes[names[this.tourIdx]];
