@@ -181,18 +181,19 @@ Main.prototype.focusComponent = function(e)
     this.controls.update();
 }
 //  tour: fly the camera to the origin of the next drawn component, looking along its z axis
-//  (the neutron direction) with beam, else in the current direction
+//  (the neutron direction) with beam, else in the current direction; returns the component name
 Main.prototype.flyToNext = function(beam)
 {
-    var nodes = Object.keys(this.compnodes).map(function(k) { return this.compnodes[k]; }, this)
-        .filter(function(n) { return !new THREE.Box3().setFromObject(n).isEmpty(); }); // e.g. Arm draws nothing
-    if (nodes.length == 0) { return; }
-    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % nodes.length;
-    var node = nodes[this.tourIdx];
+    var names = Object.keys(this.compnodes)
+        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this); // e.g. Arm draws nothing
+    if (names.length == 0) { return ""; }
+    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % names.length;
+    var node = this.compnodes[names[this.tourIdx]];
     var look = this.controls.target.clone().sub(this.camera.position); // keeps the orbit distance
     if (beam) { look = node.getWorldDirection().multiplyScalar(look.length()); }
     this.fly = { posFrom: this.camera.position.clone(), posTo: node.position.clone(),
                  tgtFrom: this.controls.target.clone(), tgtTo: node.position.clone().add(look), t0: performance.now() };
+    return names[this.tourIdx];
 }
 //  advance a flight started by flyToNext, called every frame
 Main.prototype.animate = function()
