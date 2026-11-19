@@ -180,8 +180,8 @@ Main.prototype.focusComponent = function(e)
     new THREE.Box3().setFromObject(comp).center(this.controls.target);
     this.controls.update();
 }
-//  tour: fly the orbit target to the centre of the next drawn component; the camera keeps its offset,
-//  or with beam, looks along the component z axis (the neutron direction) from the same distance
+//  tour: fly the camera to the origin of the next drawn component, looking along its z axis
+//  (the neutron direction) with beam, else in the current direction
 Main.prototype.flyToNext = function(beam)
 {
     var nodes = Object.keys(this.compnodes).map(function(k) { return this.compnodes[k]; }, this)
@@ -189,9 +189,10 @@ Main.prototype.flyToNext = function(beam)
     if (nodes.length == 0) { return; }
     this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % nodes.length;
     var node = nodes[this.tourIdx];
-    var offset = this.camera.position.clone().sub(this.controls.target);
-    this.fly = { from: this.controls.target.clone(), to: new THREE.Box3().setFromObject(node).center(), t0: performance.now(),
-                 offFrom: offset, offTo: beam ? node.getWorldDirection().multiplyScalar(-offset.length()) : offset };
+    var look = this.controls.target.clone().sub(this.camera.position); // keeps the orbit distance
+    if (beam) { look = node.getWorldDirection().multiplyScalar(look.length()); }
+    this.fly = { posFrom: this.camera.position.clone(), posTo: node.position.clone(),
+                 tgtFrom: this.controls.target.clone(), tgtTo: node.position.clone().add(look), t0: performance.now() };
 }
 //  advance a flight started by flyToNext, called every frame
 Main.prototype.animate = function()
@@ -199,9 +200,8 @@ Main.prototype.animate = function()
     if (!this.fly) { return; }
     var t = Math.min(1, (performance.now() - this.fly.t0) / FLY_MS);
     var s = t*t*(3 - 2*t); // smoothstep
-    var offset = this.fly.offFrom.clone().lerp(this.fly.offTo, s);
-    this.controls.target.lerpVectors(this.fly.from, this.fly.to, s);
-    this.camera.position.copy(this.controls.target).add(offset);
+    this.camera.position.lerpVectors(this.fly.posFrom, this.fly.posTo, s);
+    this.controls.target.lerpVectors(this.fly.tgtFrom, this.fly.tgtTo, s);
     this.controls.update();
     if (t >= 1) { this.fly = null; }
 }
