@@ -123,16 +123,15 @@ INITIALIZE
 
   {
     char clr[2048];
-    char* clrp = clr;
-    clrp = clr;
-    clrp += snprintf (clrp, sizeof (clr), "%s", instrument_exe);
+    size_t n = snprintf (clr, sizeof (clr), "%s", instrument_exe);
     char Parameters[CHAR_BUF_LENGTH];
-    for (int ii = 0; ii < numipar; ii++) {
+    for (int ii = 0; ii < numipar && n < sizeof (clr); ii++) {
       (*mcinputtypes[mcinputtable[ii].type].printer) (Parameters, mcinputtable[ii].par);
-      clrp += snprintf (clrp, sizeof (clr) - (clrp - clr), " %s=%s", mcinputtable[ii].name, Parameters);
+      n += snprintf (clr + n, sizeof (clr) - n, " %s=%s", mcinputtable[ii].name, Parameters);
     }
-    *clrp = '\0';
-    mcpl_hdr_add_data (outputfile, "mccode_cmd_line", strlen (clr), clr);
+    if (n >= sizeof (clr)) /* truncated: snprintf returns the untruncated length */
+      n = sizeof (clr) - 1;
+    mcpl_hdr_add_data (outputfile, "mccode_cmd_line", n, clr);
   }
 
   if (weight_mode == -1) {
