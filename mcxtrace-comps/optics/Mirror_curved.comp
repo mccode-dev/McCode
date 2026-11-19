@@ -254,7 +254,7 @@ TRACE
   }
 
   if (intersect) {
-    double s, q, R;
+    double s, q;
     double nn = sqrt (nN * nN + nT * nT + nz * nz);
     double nx, ny, nzg;
 
@@ -271,10 +271,9 @@ TRACE
     SCATTER;
     /* surface normal points towards +N, hence s < 0 for the incoming beam */
     q  = 2.0 * fabs (s);
-    R  = reflecq (re, q, 0.0, k, fabs (90 - acos (s / k) * RAD2DEG));
-    p *= R;
-    /*update phase - as an approximation turn by 180 deg.*/;
-    phi += M_PI;
+    cdouble R = refleccq (re, q, 0.0, k, fabs (90 - acos (s / k) * RAD2DEG));
+    p   *= sqrt (creal (cmul(R, conj (R))));
+    phi += atan2 (cimag (R), creal (R));
   } else if(verbose)
     printf("DEBUG: %s: intersect=0 no scatter\n", NAME_CURRENT_COMP);
 %}
