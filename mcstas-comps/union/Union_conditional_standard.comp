@@ -33,6 +33,8 @@
 *  within a certain energy range, time interval or similar.
 *
 * One can apply several conditionals to each logger if desired.
+* Conditional callbacks must not modify the particle or use its RNG.
+* RNG use could be supported in future if needed.
 *
 * In the extend section of a master, the tagging conditional can be acsessed by
 *  the variable name tagging_conditional_extend. Beware, that it only works as
@@ -80,18 +82,18 @@ SHARE
   %include "union-lib"
 
   int
-  conditional_function_standard (union conditional_data_union* data_union, Coords* position, Coords* velocity, double* weight, double* time, int* current_volume,
+  conditional_function_standard (union conditional_data_union* data_union, _class_particle* particle, int* current_volume,
                                  int* total_number_of_scattering, int* number_of_scattering_per_volume, int** number_of_scattering_per_volume_process) {
 
     // printf(" Inside conditional function \n");
     if (data_union->p_standard->T_limit == 1) {
-      if (*time < data_union->p_standard->Tmin || *time > data_union->p_standard->Tmax)
+      if (particle->t < data_union->p_standard->Tmin || particle->t > data_union->p_standard->Tmax)
         return 0;
     }
 
     if (data_union->p_standard->E_limit == 1) {
       // VS2E = 5.22704E-6 m_n / 2e
-      double E = 5.22704E-6 * (velocity->x * velocity->x + velocity->y * velocity->y + velocity->z * velocity->z);
+      double E = 5.22704E-6 * (particle->vx * particle->vx + particle->vy * particle->vy + particle->vz * particle->vz);
       if (E < data_union->p_standard->Emin || E > data_union->p_standard->Emax)
         return 0;
     }

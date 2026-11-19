@@ -32,7 +32,9 @@
 * The live particle is kept in master coordinates. Process callbacks receive a
 * process-local particle; only its outgoing velocity, weight and RNG state are
 * valid scattering outputs. With safe_mode=1, all other particle fields are
-* restored. Cross-section queries always use snapshots and retain only RNG
+* restored after callbacks. With safe_mode=2, forbidden changes to standard
+* particle fields cause an error. Instrument USERVARS and JUMP state are not checked.
+* Cross-section queries always use snapshots and retain only RNG
 * advancement. Loggers receive const before/after snapshots, and absorption
 * loggers receive a const event particle with its full pre-attenuation weight
 * plus a separate absorbed weight. Safe mode isolates each logger invocation
@@ -50,7 +52,7 @@
 *   history_limit:                       [1]   Limit the number of unique histories that are saved
 *   enable_conditionals:                 [0/1] Use conditionals with this master
 *   inherit_number_of_scattering_events: [0/1] Inherit the number of scattering events from last master
-*   safe_mode:                           [0/1] Restore particle fields changed by process callbacks, preserving outgoing state, weight and RNG
+*   safe_mode:                           [1] 0: unchecked, 1: restore forbidden changes, 2: abort on forbidden standard particle field changes
 *   weight_ratio_limit:                  [1]   Limit on the ratio between initial weight and current, ray absorbed if ratio becomes lower than limit
 *   display_mode:                        [0/1/2] Volume display in mcdisplay: 0 follows --trace, 1 forces lines, 2 polyhedra (only with --trace=2, --trace=1 always gives lines)
 * init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
@@ -304,9 +306,9 @@ INITIALIZE
   // Start at 0 error messages, quit after 100.
   component_error_msg = 0;
 
-  if (safe_mode != 0 && safe_mode != 1) {
-    printf ("ERROR in Union_master: safe_mode must be 0 or 1.\n");
-    exit (1);
+  if (safe_mode < 0 || safe_mode > 2) {
+    printf ("ERROR in Union_master: safe_mode must be 0, 1 or 2.\n");
+    exit (-1);
   }
 
   // For within_which_volume
@@ -1560,7 +1562,10 @@ TRACE
                 _class_particle sample_particle = *_particle;
                 move_and_aim_neutron (current_p_physics, i, process, &sample_particle, Volumes[current_volume], this_focus_data);
                 // Calculate mu and probability
+                _class_particle sample_before;
+                if (safe_mode == 2) sample_before = sample_particle;
                 UNION_PHYSICS_MY (physics_output, process, &mu, this_focus_data, &sample_particle);
+                if (safe_mode == 2) union_particle_check (&sample_before, &sample_particle, 1, "process", process->name);
                 UNION_COPY_PARTICLE_RNG (_particle, &sample_particle);
                 current_p_physics->mus[p_index][i] = mu;
                 *p_my_trace += mu / current_p_physics->sampling_points;
@@ -1572,7 +1577,10 @@ TRACE
                                          Volumes[current_volume]->geometry.process_rot_matrix_array[process->non_isotropic_rot_index]);
               else
                 union_particle_translate_to_local (&process_particle, Volumes[current_volume]->geometry.center);
+              _class_particle process_before;
+              if (safe_mode == 2) process_before = process_particle;
               UNION_PHYSICS_MY (physics_output, process, p_my_trace, this_focus_data, &process_particle);
+              if (safe_mode == 2) union_particle_check (&process_before, &process_particle, 1, "process", process->name);
               UNION_COPY_PARTICLE_RNG (_particle, &process_particle);
               if (current_p_physics->sampling_points != -1) {
                 current_p_physics->mus[p_index][0] = *p_my_trace;
@@ -1799,7 +1807,10 @@ TRACE
         coords_print (Volumes[current_volume]->geometry.focus_data_array.elements[0].Aim);
         #endif
         int scattering_output;
+        _class_particle process_before;
+        if (safe_mode == 2) process_before = process_particle;
         UNION_PHYSICS_SCATTERING (scattering_output, process, this_focus_data, &process_particle);
+        if (safe_mode == 2) union_particle_check (&process_before, &process_particle, 1, "process", process->name);
         if (process_rotation_index != -1) {
           union_particle_commit_scattering (_particle, &process_particle, &logger_particle_before,
                                             Volumes[current_volume]->geometry.transpose_process_rot_matrix_array[process_rotation_index], 1, safe_mode);
@@ -2269,6 +2280,8 @@ TRACE
               if (safe_mode)
                 surface_particle_before = *_particle;
               UNION_PHYSICS_SURFACE (surface_output, surface_pointer, _particle, &continues, normal_vector, inward_or_outward);
+              if (safe_mode == 2)
+                union_particle_check (&surface_particle_before, _particle, 1, "surface", "");
               if (safe_mode)
                 union_particle_restore (_particle, &surface_particle_before, 1);
               #ifdef Union_trace_verbal_setting
@@ -2639,10 +2652,6 @@ TRACE
   }
   // Could move all add_statistics and similar to this point, but need to filter for failed rays
   if (ray_sucseeded == 1) {
-    // Legacy conditional/tagging APIs consume a view of the final state only.
-    Coords ray_position = coords_set (x, y, z);
-    Coords ray_velocity = coords_set (vx, vy, vz);
-
     // Ray sucseeded, need to check status of conditionals
     #ifdef Union_trace_verbal_setting
     printf ("----------- logger loop --------------------------------------\n");
@@ -2659,9 +2668,9 @@ TRACE
           printf ("Checking conditional number %d for logger named %s \n", iterator, loggers_with_data_array.logger_pointers[log_index]->name);
           #endif
           if (0
-              == this_logger->conditional_list.conditional_functions[iterator](this_logger->conditional_list.p_data_unions[iterator], &ray_position,
-                                                                               &ray_velocity, &p, &t, &current_volume, &number_of_scattering_events,
-                                                                               scattered_flag, scattered_flag_VP)) {
+              == union_check_conditional(this_logger->conditional_list.conditional_functions[iterator],
+                                         this_logger->conditional_list.p_data_unions[iterator], _particle, &current_volume,
+                                         &number_of_scattering_events, scattered_flag, scattered_flag_VP, safe_mode)) {
             conditional_status = 0;
             break;
           }
@@ -2712,9 +2721,9 @@ TRACE
           printf ("Checking conditional number %d for abs logger named %s \n", iterator, abs_loggers_with_data_array.abs_logger_pointers[log_index]->name);
           #endif
           if (0
-              == this_abs_logger->conditional_list.conditional_functions[iterator](this_abs_logger->conditional_list.p_data_unions[iterator], &ray_position,
-                                                                                   &ray_velocity, &p, &t, &current_volume, &number_of_scattering_events,
-                                                                                   scattered_flag, scattered_flag_VP)) {
+              == union_check_conditional(this_abs_logger->conditional_list.conditional_functions[iterator],
+                                         this_abs_logger->conditional_list.p_data_unions[iterator], _particle, &current_volume,
+                                         &number_of_scattering_events, scattered_flag, scattered_flag_VP, safe_mode)) {
             conditional_status = 0;
             break;
           }
@@ -2761,8 +2770,9 @@ TRACE
         printf ("Checking tagging conditional number %d\n", iterator);
         #endif
         if (0
-            == tagging_conditional_list->conditional_functions[iterator](tagging_conditional_list->p_data_unions[iterator], &ray_position, &ray_velocity, &p, &t,
-                                                                         &current_volume, &number_of_scattering_events, scattered_flag, scattered_flag_VP)) {
+            == union_check_conditional(tagging_conditional_list->conditional_functions[iterator],
+                                       tagging_conditional_list->p_data_unions[iterator], _particle, &current_volume,
+                                       &number_of_scattering_events, scattered_flag, scattered_flag_VP, safe_mode)) {
           conditional_status = 0;
           break;
         }
@@ -2774,6 +2784,8 @@ TRACE
         printf ("Before adding statistics to node: current_tagging_node->number_of_rays = %d\n", current_tagging_node->number_of_rays);
         #endif
 
+        Coords ray_position = coords_set (x, y, z);
+        Coords ray_velocity = coords_set (vx, vy, vz);
         add_statistics_to_node (current_tagging_node, &ray_position, &ray_velocity, &p, &tagging_leaf_counter);
 
         #ifdef Union_trace_verbal_setting

@@ -251,6 +251,7 @@ def build_and_run(generator: str, resources: Path, compiler: list[str], work_dir
     search_dirs = [
         TEST_DIR,
         component_root / "share",
+        ROOT / "common" / "lib" / "share",
         component_root / "union",
         component_root / "monitors",
         component_root / "optics",
@@ -402,6 +403,7 @@ def build_and_run_example(generator: str, resources: Path, compiler: list[str], 
     search_dirs = [
         TEST_DIR,
         component_root / "share",
+        ROOT / "common" / "lib" / "share",
         component_root / "union",
         component_root / "monitors",
         component_root / "optics",
@@ -443,6 +445,42 @@ def compare_runs(run_zero: Path, run_one: Path) -> None:
         raise AssertionError("safe_mode changed detector metadata or numeric payload")
 
 
+def verify_strict_mode(run_dir: Path, ncount: int, seed: int) -> None:
+    executable = run_dir / "Test_union_particle"
+    cases = (
+        ("clean", 2, 2, 2, 1, None),
+        ("bad-process", 1, 2, 2, 0, "process"),
+        ("bad-logger", 2, 2, 0, 0, "logger"),
+        ("bad-abs-logger", 2, 0, 2, 0, "absorption logger"),
+        ("bad-conditional", 2, 2, 2, 2, "conditional"),
+        ("bad-conditional-rng", 2, 2, 2, 3, "conditional"),
+    )
+    for name, bad_process, abs_scope, logger_scope, conditional_test, expected in cases:
+        output_dir = run_dir.parent / f"strict-{name}"
+        output_dir.mkdir()
+        command = [str(executable), "--ncount", str(ncount), "--seed", str(seed),
+                   "--dir", str(output_dir / "data"), "safe_mode=2", f"bad_process={bad_process}",
+                   f"abs_scope={abs_scope}", f"logger_scope={logger_scope}",
+                   f"conditional_test={conditional_test}"]
+        result = subprocess.run(command, cwd=output_dir, capture_output=True, text=True, timeout=300)
+        if expected is None:
+            if result.returncode:
+                raise AssertionError(f"strict clean run failed: {result.stdout}\n{result.stderr}")
+        elif result.returncode == 0 or f"Union safe_mode=2: {expected}" not in result.stderr:
+            raise AssertionError(f"strict {name} was not detected: {result.stdout}\n{result.stderr}")
+    for conditional_test in (2, 3):
+        output_dir = run_dir.parent / f"restore-conditional-{conditional_test}"
+        output_dir.mkdir()
+        result = subprocess.run(
+            [str(executable), "--ncount", str(ncount), "--seed", str(seed), "--dir", str(output_dir / "data"),
+             "safe_mode=1", "bad_process=2", "abs_scope=2", "logger_scope=2",
+             f"conditional_test={conditional_test}"],
+            cwd=output_dir, capture_output=True, text=True, timeout=300,
+        )
+        if result.returncode:
+            raise AssertionError(f"conditional restoration failed: {result.stdout}\n{result.stderr}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group()
@@ -475,6 +513,7 @@ def main() -> int:
         run_zero = build_and_run(generator, resources, compiler, work_dir, 0, args.ncount, args.seed, flavour)
         run_one = build_and_run(generator, resources, compiler, work_dir, 1, args.ncount, args.seed, flavour)
         compare_runs(run_zero, run_one)
+        verify_strict_mode(run_zero, args.ncount, args.seed)
         run_bad = build_and_run(generator, resources, compiler, work_dir, 1, args.ncount, args.seed, flavour, bad_process=1)
         compare_runs(run_one, run_bad)
         scoped_runs = {}

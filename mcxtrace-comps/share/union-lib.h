@@ -128,6 +128,7 @@ Coords union_particle_direction(const _class_particle *particle);
 void union_particle_to_local(_class_particle *particle, Coords center, Rotation rotation);
 void union_particle_translate_to_local(_class_particle *particle, Coords center);
 void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering);
+void union_particle_check(const _class_particle *before, const _class_particle *after, int scattering, const char *kind, const char *name);
 void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
                                       const _class_particle *before, Rotation inverse, int rotated, int safe_mode);
 _class_particle union_particle_absorption_event(const _class_particle *particle, double distance, double full_weight);
@@ -412,7 +413,9 @@ union conditional_data_union {
 
 // General input for conditional functions: Position, Velocity/Wavevector, weight, time, total_scat, scattered_flag, scattered_flag_VP,
 // Optional extras: data_union? tree base(s)? tree base for current ray?
-typedef int (*conditional_function_pointer)(union conditional_data_union*,Coords*, Coords*, double*, double*, int*, int*, int*, int**);
+typedef int (*conditional_function_pointer)(union conditional_data_union*, _class_particle*, int*, int*, int*, int**);
+int union_check_conditional(conditional_function_pointer callback, union conditional_data_union *data, _class_particle *particle,
+                            int *volume, int *total, int *per_volume, int **per_process, int safe_mode);
 //typedef int (**conditional_function_pointer_array)(union *conditional_data_union,Coords*, Coords*, double*, double*, int*, int*, int**);
 
 struct conditional_list_struct{

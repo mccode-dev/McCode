@@ -8711,6 +8711,42 @@ _class_particle union_particle_absorption_event(const _class_particle *particle,
   return event;
 }
 
+/* Check standard particle fields only: instrument USERVARS, generated JUMP
+   counters, and data behind pointers are not checked. */
+void union_particle_check(const _class_particle *before, const _class_particle *after, int scattering, const char *kind, const char *name) {
+#define UNION_CHECK_FIELD(field) do { \
+  if (memcmp(&before->field, &after->field, sizeof(before->field)) != 0) { \
+    fprintf(stderr, "Union safe_mode=2: %s %s modified particle field %s\n", kind, name, #field); \
+    exit(-1); \
+  } \
+} while (0)
+  UNION_CHECK_FIELD(x); UNION_CHECK_FIELD(y); UNION_CHECK_FIELD(z);
+  UNION_CHECK_FIELD(t);
+  UNION_CHECK_FIELD(sx); UNION_CHECK_FIELD(sy); UNION_CHECK_FIELD(sz);
+  UNION_CHECK_FIELD(mcgravitation); UNION_CHECK_FIELD(mcMagnet);
+  UNION_CHECK_FIELD(allow_backprop);
+  UNION_CHECK_FIELD(_mctmp_a); UNION_CHECK_FIELD(_mctmp_b); UNION_CHECK_FIELD(_mctmp_c);
+  UNION_CHECK_FIELD(_uid); UNION_CHECK_FIELD(_index); UNION_CHECK_FIELD(_absorbed);
+  UNION_CHECK_FIELD(_scattered); UNION_CHECK_FIELD(_restore); UNION_CHECK_FIELD(flag_nocoordschange);
+  if (!scattering) {
+    UNION_CHECK_FIELD(vx); UNION_CHECK_FIELD(vy); UNION_CHECK_FIELD(vz);
+    UNION_CHECK_FIELD(p); UNION_CHECK_FIELD(randstate);
+  }
+#undef UNION_CHECK_FIELD
+}
+
+int union_check_conditional(conditional_function_pointer callback, union conditional_data_union *data, _class_particle *particle,
+                            int *volume, int *total, int *per_volume, int **per_process, int safe_mode) {
+  if (!safe_mode)
+    return callback(data, particle, volume, total, per_volume, per_process);
+  _class_particle before = *particle;
+  int result = callback(data, particle, volume, total, per_volume, per_process);
+  if (safe_mode == 2)
+    union_particle_check(&before, particle, 0, "conditional", "");
+  *particle = before;
+  return result;
+}
+
 void union_record_scattering(struct logger_struct *logger, const _class_particle *before, const _class_particle *after,
                              int scattered_in_volume, int scattered_in_process, int total_scattering_events,
                              struct logger_with_data_struct *logger_with_data, int safe_mode) {
@@ -8718,6 +8754,10 @@ void union_record_scattering(struct logger_struct *logger, const _class_particle
     _class_particle before_copy = *before, after_copy = *after;
     logger->function_pointers.active_record_function(&before_copy, &after_copy, scattered_in_volume, scattered_in_process,
                                                      total_scattering_events, logger, logger_with_data);
+    if (safe_mode == 2) {
+      union_particle_check(before, &before_copy, 0, "logger", logger->name);
+      union_particle_check(after, &after_copy, 0, "logger", logger->name);
+    }
   } else {
     logger->function_pointers.active_record_function(before, after, scattered_in_volume, scattered_in_process,
                                                      total_scattering_events, logger, logger_with_data);
@@ -8731,6 +8771,8 @@ void union_record_absorption(struct abs_logger_struct *logger, const _class_part
     _class_particle copy = *particle;
     logger->function_pointers.active_record_function(&copy, absorbed_weight, scattered_in_volume, total_scattering_events,
                                                      logger, abs_logger_with_data);
+    if (safe_mode == 2)
+      union_particle_check(particle, &copy, 0, "absorption logger", logger->name);
   } else {
     logger->function_pointers.active_record_function(particle, absorbed_weight, scattered_in_volume, total_scattering_events,
                                                      logger, abs_logger_with_data);
