@@ -27,12 +27,12 @@
 *   Rz: radius bending the surface along the mirror length (in the local YZ
 *       plane), i.e. focusing along the beam (tangential radius).
 * A radius equal to 0 means the surface is NOT curved in that direction.
-* Rx = Rz         -> spherical mirror (exact intersection).
+* Rx = Rz         -> quasi-spherical mirror (paraxial toroid, large Rx=Rz).
 * Rx != Rz        -> toroidal/astigmatic mirror (paraxial sag intersection).
 * Rz = 0, Rx != 0 -> cylindrical
 * Rz !=0, Rx = 0  -> bent mirror (along beam, e.g. for KB)
 * Rx = Rz = 0     -> perfectly flat mirror, equivalent to Mirror.
-* The radii usually follow f_t=Rz.sin(theta/2) and f_s=Rx/2.sin(theta) where
+* The radii usually follow f_t = Rz*sin(theta)/2 and f_s = Rx/2/sin(theta) where
 * theta is the tilt angle, and f_t and f_s are tangential and sagittal focus 
 * distances.
 *
@@ -48,7 +48,8 @@
 * surface stays flat along the other direction); with two
 * non-zero radii the sag equation (paraxial toroid) is used, exact in the
 * limit of aperture << R. Use Rx=Rz for exact spherical optics.
-* The mirror is located at its center.
+* The mirror is located at its center. 
+* Default geometry is a mirror in the XZ plane, as the Mirror component.
 *
 * Reflectivity is handled exactly as in Mirror: either constant (R0) or from
 * a datafile/coating recipe ('coating').
@@ -80,7 +81,7 @@ SETTING PARAMETERS (zdepth=0.1, xwidth=0.01, yheight=0,
   Rx=0, Rz=0, string coating="", R0=1, 
   radius=0, length=0, width=0, verbose=0)
 
-/* X-ray parameters: (x,y,z,kx,ky,kz,phi,tt,Ex,Ey,Ez,p) */
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
 SHARE
 %{
@@ -111,7 +112,7 @@ INITIALIZE
   if (radius && !Rz) Rz=radius;
   
   if ((Rx && fabs (Rx) < 1e-6) || (Rz && fabs (Rz) < 1e-6)) {
-    fprintf (stderr, "WARNING (%s): |radius| < 1 um is physically meaningless. Aborting.\n",
+    fprintf (stderr, "ERROR (%s): |radius| < 1 um is physically meaningless. Aborting.\n",
              NAME_CURRENT_COMP);
     exit (-1);
   }
@@ -214,7 +215,7 @@ TRACE
       }
     }
     if (!intersect && verbose)
-      printf("DEBUG: %s: intersect=0 roots t=%g %g are not on the mirror plate\n", NAME_CURRENT_COMP, t0, t1);
+      printf("DEBUG: %s: intersect=0 roots tt=%g %g are not on the mirror plate\n", NAME_CURRENT_COMP, t0, t1);
   } else if (verbose)
     printf("DEBUG: %s: intersect=0 no hit ahead of the x-ray\n", NAME_CURRENT_COMP);
 
