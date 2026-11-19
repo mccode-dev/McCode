@@ -97,6 +97,7 @@ try_open_component(char *dir, char *name)
       str_free(lname);
     }
   }
+  closedir(dfd);
   return NULL;
 }
 
