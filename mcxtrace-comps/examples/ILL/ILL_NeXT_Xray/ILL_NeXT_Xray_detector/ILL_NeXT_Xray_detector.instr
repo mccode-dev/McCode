@@ -1,0 +1,85 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=https://www.mcxtrace.org
+*
+* Instrument: ILL_NeXT_Xray_detector
+*
+* %Identification
+* Written by: DRAFT, Peter Willendrup with Claude from public ILL / NeXT-Grenoble information
+* Date: September 2026
+* Origin: ILL
+* %INSTRUMENT_SITE: ILL
+*
+* NeXT (ILL) X-ray arm: Varex PaxScan 2530HE flat-panel detector
+*
+* %Description
+* Building block, %include'd after the sample by ILL_NeXT_Xray and its variants,
+* see ILL_NeXT_Xray_source. The REMOVABLE Arm stands in for anode_spot of
+* ILL_NeXT_Xray_source so that this file is also a valid instrument on its own.
+*
+* Two ideal pixelated monitors on the flat-panel plane at SDD:
+*   Xray_counts:  photon counts (photon-counting response)
+*   Xray_energy:  energy-weighted intensity [keV/s per pixel], a first-order model
+*                 of the energy-integrating CsI flat panel.
+* See ILL_NeXT_Xray for what is not modelled.
+*
+* %Parameters
+* kV:            [kV]  Tube acceleration voltage (sets the upper energy of the spectra)
+* SDD:           [m]   Source - detector distance (0.50, 0.52, 0.54, 0.56)
+* det_binning:   [1]   Detector binning (1: 1792x2176 native, 2, 4, ...)
+*
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT ILL_NeXT_Xray_detector(kV=150, SDD=0.5, int det_binning=4)
+
+DECLARE %{
+  /* Varex PaxScan 2530HE, portrait: 1792 (horizontal) x 2176 (vertical), 139 um */
+  double det_w, det_h;
+  int    det_nx, det_ny;
+%}
+
+USERVARS %{
+  double Ew;                /* saved weight for the energy-weighted detector */
+%}
+
+INITIALIZE %{
+  int b = det_binning < 1 ? 1 : det_binning;
+  det_nx = 1792/b;
+  det_ny = 2176/b;
+  det_w  = 1792*139e-6;
+  det_h  = 2176*139e-6;
+%}
+
+TRACE
+
+REMOVABLE COMPONENT anode_spot = Arm()
+AT (0,0,0) ABSOLUTE
+
+/* ---- flat-panel detector (Varex PaxScan 2530HE) ------------------------- */
+COMPONENT detector_plane = Arm()
+AT (0,0,SDD) RELATIVE anode_spot
+
+/* photon-counting image */
+COMPONENT Xray_counts = PSD_monitor(xwidth=det_w, yheight=det_h,
+  nx=det_nx, ny=det_ny, restore_xray=1)
+AT (0,0,0) RELATIVE detector_plane
+
+/* energy-integrating image (weight x E[keV]) - first-order CsI flat-panel response */
+COMPONENT Eweight_on = Arm()
+AT (0,0,0) RELATIVE detector_plane
+EXTEND %{
+  Ew = p;
+  p *= sqrt(kx*kx+ky*ky+kz*kz)*K2E;
+%}
+
+COMPONENT Xray_energy = PSD_monitor(xwidth=det_w, yheight=det_h,
+  nx=det_nx, ny=det_ny, restore_xray=1)
+AT (0,0,0) RELATIVE detector_plane
+
+COMPONENT Eweight_off = Arm()
+AT (0,0,0) RELATIVE detector_plane
+EXTEND %{
+  p = Ew;
+%}
+
+END
