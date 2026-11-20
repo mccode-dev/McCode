@@ -1,0 +1,49 @@
+/*******************************************************************************
+* Instrument: Test_PowderN_porous
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Nov 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Test of PowderN_porous: Al matrix with pore channels, water below fill_y
+*
+* %D
+* Al cylinder with pore channels from pores.off (make with make_pores.py),
+* water in the pores below fill_y. pores="NULL" gives a plain PowderN-like sample.
+*
+* %Test: Test_PowderN_porous.instr -y Detector: Transm_I=2.75452e-07
+*
+* %P
+* lambda: [AA]   Mean wavelength
+* pores: [str]   Pore mesh file, "NULL" for none
+* fill_y: [m]    Water level in the pores (local y), sample spans +-0.01
+* water: [1]     1: water in the pores below fill_y, 0: void pores
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_PowderN_porous(lambda=2.5, string pores="pores.off", fill_y=0, int water=1)
+
+DEPENDENCY " -DGMESH_MAX_HITS=200 "
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT Source = Source_simple(radius=0.001, dist=1, focus_xw=0.012, focus_yh=0.022,
+  lambda0=lambda, dlambda=0.01*lambda)
+AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT Sample = PowderN_porous(reflections="Al.laz", radius=0.005, yheight=0.02,
+  pores=pores, fill_y=fill_y, fill_Vc=water*29.9, fill_sigma_inc=160.5, fill_sigma_abs=0.665)
+AT (0, 0, 1) RELATIVE Source
+
+COMPONENT Banana = Monitor_nD(radius=0.5, yheight=0.1, options="banana, theta limits=[5 175] bins=340")
+AT (0, 0, 0) RELATIVE Sample
+
+COMPONENT Transm = PSD_monitor(xwidth=0.02, yheight=0.03, nx=40, ny=60, restore_neutron=1)
+AT (0, 0, 0.6) RELATIVE Sample
+
+END
