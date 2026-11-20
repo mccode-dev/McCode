@@ -7,6 +7,7 @@ import RaysMenu from "./rays-menu/RaysMenu";
 import BackgroundColorButton from "./background-color-button/BackgroundColorButton";
 import AxesButton from "./axes-button/AxesButton";
 import ShapesButtons from "./shapes-buttons/ShapesButtons";
+import Tour from "./tour/Tour";
 
 const ConfigureSceneMenu = () => {
   return (
@@ -15,6 +16,7 @@ const ConfigureSceneMenu = () => {
       <ComponentStyler />
       <ShapesButtons />
       <ViewButtons />
+      <Tour />
       <GridButtons />
       <AxesButton />
       <BackgroundColorButton />
