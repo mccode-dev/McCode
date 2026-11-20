@@ -76,7 +76,6 @@ DECLARE
   int userflagenabled;
   char* outfilename; // "/some/where/myfile.mcpl.gz"
   double weight_scale;
-  long long last_uid;
 %}
 
 INITIALIZE
@@ -150,9 +149,8 @@ INITIALIZE
   }
 
   weight_scale = 1.0;
-  last_uid = -1;
   if (weight_mode != 2) {
-    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", 0.0); // no rays yet, set in FINALLY
+    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", -1.0); // reserve
     // Multiply with mcget_ncount() to undo division supposedly performed in
     // source:
     weight_scale = (double)mcget_ncount ();
@@ -216,10 +214,7 @@ TRACE
             particle->direction[2], particle->time, particle->weight, particle->polarisation[0], particle->polarisation[1], particle->polarisation[2]);
   });
 
-  if (last_uid < 0 && weight_mode != 2) /* first particle: count unknown until FINALLY */
-    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", -1.0);
   mcpl_add_particle (outputfile, particle);
-  last_uid = _particle->_uid;
 
   SCATTER;
 %}
@@ -231,23 +226,10 @@ SAVE
 FINALLY
 %{
   if (weight_mode != 2) {
-    double nrays = (double)mcget_ncount ();
-    if (!mcsave_final) { /* interrupted: rays up to the last one recorded */
-      #ifdef OPENACC
-      /* parallel loop: _uid order is not execution order */
-      nrays = last_uid < 0 ? 0 : -1;
-      #else
-      /* _uid = rank*ncount + index, see raytrace_all */
-      nrays = last_uid < 0 ? 0 : (double)(last_uid % (long long)mcget_ncount () + 1);
-      #endif
-      if (nrays >= 0)
-        fprintf (stderr, "\nWarning (%s): run interrupted, initial_ray_count set to %.0f of %llu requested rays.\n",
-                 NAME_CURRENT_COMP, nrays, mcget_ncount ());
-      else
-        fprintf (stderr, "\nWarning (%s): run interrupted, initial_ray_count unavailable (-1), file is incomplete.\n",
-                 NAME_CURRENT_COMP);
-    }
-    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", nrays);
+    if (mcsave_final) /* completed run */
+      mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", (double)mcget_ncount ());
+    else /* interrupted: leave the reserved -1 */
+      fprintf (stderr, "\nWarning (%s): run interrupted, initial_ray_count left at -1 (unknown).\n", NAME_CURRENT_COMP);
   }
   mcpl_closeandgzip_outfile (outputfile);
 

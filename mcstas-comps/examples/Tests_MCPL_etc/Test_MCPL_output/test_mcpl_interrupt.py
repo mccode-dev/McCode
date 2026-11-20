@@ -4,9 +4,8 @@
 Compiles Test_MCPL_output.instr (next to this script; the McStas and McXtrace
 copies of this script are identical), starts it with far more rays than it
 can finish and interrupts it with SIGINT once particles are being written.
-Every ray of this instrument reaches MCPL_output, so the file must then hold
-stat:sum:initial_ray_count == number of particles (one less if the signal
-lands inside the component), not the requested ray count.
+The file must then hold stat:sum:initial_ray_count == -1 (unknown), not the
+requested ray count.
 
 Usage: python3 test_mcpl_interrupt.py [--mcrun mcrun] [--workdir DIR]
 Needs POSIX signals and mcpltool; exit status is 0 when the check passes.
@@ -74,9 +73,9 @@ def main():
     nparticles = int(re.search(r"No\. of particles\s*:\s*(\d+)", head).group(1))
     m = re.search(r"stat:sum:initial_ray_count:\s*(-?[\d.eE+]+)", head)
     rays = float(m.group(1)) if m else None
-    ok = rays is not None and 0 < nparticles < NCOUNT and 0 <= nparticles - rays <= 1
+    ok = rays == -1 and nparticles > 0
     print(f"{'PASS' if ok else 'FAIL'}: interrupted run: {nparticles} particles, "
-          f"initial_ray_count {rays}, requested {NCOUNT:g}")
+          f"initial_ray_count {rays}")
     return 0 if ok else 1
 
 
