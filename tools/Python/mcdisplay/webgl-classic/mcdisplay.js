@@ -180,16 +180,21 @@ Main.prototype.focusComponent = function(e)
     new THREE.Box3().setFromObject(comp).center(this.controls.target);
     this.controls.update();
 }
+//  tour: names of the components it stops at
+Main.prototype.tourNames = function()
+{
+    return Object.keys(this.compnodes)
+        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this) // e.g. Arm draws nothing
+        .filter(function(k, i, a) { // skip ahead past components at the previous one's position (within 1 mm)
+            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this);
+}
 //  tour: fly the camera to the origin of the next drawn component, looking along its z axis
 //  (the neutron direction) with beam, else in the current direction; returns the component name
 //      offset  -  [x, y, z] camera displacement from the origin, in the component frame
 //      view    -  [x, y, z] added to the viewing direction 0 0 1 with beam, in the component frame
 Main.prototype.flyToNext = function(beam, offset, view)
 {
-    var names = Object.keys(this.compnodes)
-        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this) // e.g. Arm draws nothing
-        .filter(function(k, i, a) { // skip ahead past components at the previous one's position (within 1 mm)
-            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this);
+    var names = this.tourNames();
     if (names.length == 0) { return ""; }
     this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % names.length;
     var node = this.compnodes[names[this.tourIdx]];
