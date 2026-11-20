@@ -6,7 +6,7 @@ import { useSceneContext } from "../../../Contexts/SceneContext";
 import { useInstrumentContext } from "../../../Contexts/InstrumentContext";
 import { RAY } from "../../../Contexts/addRays";
 
-const FLY_MS = 1000; // flight time between components
+const FLY_MS = 1000; // flight time between components, divided by the speed setting
 
 // components the tour stops at: drawn ones (e.g. not Arm), skipping any within 1 mm of the previous
 const tourComps = (scene) =>
@@ -24,13 +24,15 @@ const Tour = () => {
   const [record, setRecord] = useState(false);
   const [comp, setComp] = useState("");
   const [sit, setSit] = useState("0");
+  const [smooth, setSmooth] = useState(true);
+  const [speed, setSpeed] = useState("1");
   const [beam, setBeam] = useState(true);
   const [offset, setOffset] = useState(["0", "0", "0"]);
   const [view, setView] = useState(["0", "0", "0"]);
 
   // the timer and the flight read the latest settings
   const s = useRef({});
-  s.current = { on, sit, beam, offset: offset.map(Number), view: view.map(Number) };
+  s.current = { on, sit, smooth, ms: FLY_MS / Number(speed), beam, offset: offset.map(Number), view: view.map(Number) };
   const idx = useRef(-1);
   const timer = useRef(null);
   const recorder = useRef(null);
@@ -53,11 +55,11 @@ const Tour = () => {
     const pos = new THREE.Vector3().fromArray(s.current.offset).applyQuaternion(c.quaternion).add(c.position);
     const fly = {
       posFrom: camera.position.clone(), posTo: pos,
-      tgtFrom: controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now(),
+      tgtFrom: controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now(), ms: s.current.ms,
     };
     const animate = () => {
-      const t = Math.min(1, (performance.now() - fly.t0) / FLY_MS);
-      const e = t * t * (3 - 2 * t); // smoothstep
+      const t = Math.min(1, (performance.now() - fly.t0) / fly.ms);
+      const e = s.current.smooth ? t : t * t * (3 - 2 * t); // smooth: steady, no stop at the component; else smoothstep
       camera.position.lerpVectors(fly.posFrom, fly.posTo, e);
       controls.target.lerpVectors(fly.tgtFrom, fly.tgtTo, e);
       controls.update();
@@ -80,8 +82,8 @@ const Tour = () => {
         stopRecording();
       }
     }
-    const sit = parseFloat(s.current.sit);
-    timer.current = setTimeout(() => step(false), FLY_MS + 1000 * (sit > 0 ? sit : 0));
+    const sit = s.current.smooth ? 0 : parseFloat(s.current.sit);
+    timer.current = setTimeout(() => step(false), s.current.ms + 1000 * (sit > 0 ? sit : 0));
   };
 
   // record the 3D view during a tour, downloaded as <instr>_tour.mp4 (or .webm) when it stops
@@ -158,6 +160,14 @@ const Tour = () => {
             <input type="checkbox" checked={record} onChange={(e) => toggleRecord(e.target.checked)} />Record
           </label>
           <span>sit<input type="number" min="0" step="0.5" value={sit} onChange={(e) => setSit(e.target.value)} />s</span>
+          <label title="no stops: travel through the components at a steady pace (sit is ignored)">
+            <input type="checkbox" checked={smooth} onChange={(e) => setSmooth(e.target.checked)} />Smooth
+          </label>
+          <span title="speed of the camera movement">speed
+            <select value={speed} onChange={(e) => setSpeed(e.target.value)}>
+              {["1", "2", "4"].map((v) => <option key={v} value={v}>{v}x</option>)}
+            </select>
+          </span>
           <label><input type="checkbox" checked={beam} onChange={(e) => setBeam(e.target.checked)} />Move along beam</label>
           {vec("offset", "camera offset from the component origin (m), in the component frame", offset, setOffset, "m")}
           {vec("view", "added to the viewing direction 0 0 1, in the component frame (with Move along beam)", view, setView, "")}

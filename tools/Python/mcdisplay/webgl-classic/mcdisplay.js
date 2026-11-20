@@ -32,6 +32,7 @@ var Main = function ()
     this.iRay = -1;
 
     this.lut = null;
+    this.smooth = true; // tour: no stops (Smooth checkbox)
 }
 // add circle to xy, xz or yz plane
 //
@@ -206,15 +207,15 @@ Main.prototype.flyToNext = function(beam, offset, view)
     }
     var pos = new THREE.Vector3().fromArray(offset).applyQuaternion(node.quaternion).add(node.position);
     this.fly = { posFrom: this.camera.position.clone(), posTo: pos,
-                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now() };
+                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now(), ms: FLY_MS };
     return names[this.tourIdx];
 }
 //  advance a flight started by flyToNext, called every frame
 Main.prototype.animate = function()
 {
     if (!this.fly) { return; }
-    var t = Math.min(1, (performance.now() - this.fly.t0) / FLY_MS);
-    var s = t*t*(3 - 2*t); // smoothstep
+    var t = Math.min(1, (performance.now() - this.fly.t0) / this.fly.ms);
+    var s = this.smooth ? t : t*t*(3 - 2*t); // smooth: steady, no stop at the component; else smoothstep
     this.camera.position.lerpVectors(this.fly.posFrom, this.fly.posTo, s);
     this.controls.target.lerpVectors(this.fly.tgtFrom, this.fly.tgtTo, s);
     this.controls.update();
@@ -681,7 +682,7 @@ Controller.prototype.setViewHome = function()
 var Y_AXIS = new THREE.Vector3(0, 1, 0);
 var Z_AXIS = new THREE.Vector3(0, 0, 1);
 var SEGMENTS = 24;
-var FLY_MS = 1000; // tour: flight time between components
+var FLY_MS = 1000; // tour: flight time between components, divided by the speed setting
 
 //  enum for playback state
 //
