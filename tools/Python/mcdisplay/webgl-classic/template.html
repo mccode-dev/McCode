@@ -7,7 +7,7 @@
 		canvas { width: 100%; height: 100% }
 		#lblTour { margin-left: 12px; }
 		#lblTour input { margin: 0 4px; }
-		#lblTour > span { margin-right: 12px; }
+		#lblTour > * { margin-right: 12px; white-space: nowrap; }
 	</style>
 </head>
 <body>
@@ -94,17 +94,59 @@
 		}
 		// tour: fly from component to component, sitting the given seconds at each (for movies)
 		var tourTimer = null;
-		var handleTour = function()
+		var handleTour = function(start)
 		{
 			clearTimeout(tourTimer);
-			var lbl = document.getElementById("lblTourComp");
-			lbl.textContent = "";
-			if (!document.getElementById("cbxTour").checked) { return; }
+			var sel = document.getElementById("selTourComp");
+			if (!document.getElementById("cbxTour").checked) { sel.value = ""; stopRecording(); return; }
+			if (start && document.getElementById("cbxRecord").checked) { startRecording(""); }
 			var num = function(id) { return parseFloat(document.getElementById(id).value) || 0; };
-			lbl.textContent = controller.main.flyToNext(document.getElementById("cbxBeam").checked,
+			sel.value = controller.main.flyToNext(document.getElementById("cbxBeam").checked,
 				["numOffX", "numOffY", "numOffZ"].map(num), ["numViewX", "numViewY", "numViewZ"].map(num));
+			if (recorder) {
+				if (!recFirst) { recFirst = sel.value; }
+				else if (recFirst == sel.value) { // one full loop recorded
+					document.getElementById("cbxRecord").checked = false;
+					stopRecording();
+				}
+			}
 			var sit = parseFloat(document.getElementById("numSit").value);
 			tourTimer = setTimeout(handleTour, FLY_MS + 1000*(sit > 0 ? sit : 0));
+		}
+		// component picked from the list: the tour starts there (now, if it is on)
+		var handleTourComp = function(name)
+		{
+			if (!name) { return; }
+			controller.main.tourIdx = controller.main.tourNames().indexOf(name) - 1;
+			if (document.getElementById("cbxTour").checked) { handleTour(); }
+		}
+		// record the canvas during a tour, downloaded as <instr>_tour.mp4 (or .webm) when the tour stops
+		var recorder = null;
+		var recFirst = null; // component the recording loop started at
+		var startRecording = function(comp)
+		{
+			recFirst = comp;
+			var type = ["video/mp4", "video/webm"].find(function(t) { return MediaRecorder.isTypeSupported(t); });
+			var chunks = [];
+			recorder = new MediaRecorder(controller.main.renderer.domElement.captureStream(30), {mimeType: type, videoBitsPerSecond: 8e6});
+			recorder.ondataavailable = function(e) { chunks.push(e.data); };
+			recorder.onstop = function() {
+				var a = document.createElement("a");
+				a.href = URL.createObjectURL(new Blob(chunks, {type: type}));
+				a.download = MCDATA_instrdata["name"] + "_tour." + type.slice(6);
+				a.click();
+			};
+			recorder.start();
+		}
+		var stopRecording = function()
+		{
+			if (recorder) { recorder.stop(); recorder = null; }
+		}
+		// Record ticked during a tour: start now, at the current component
+		var handleRecord = function(checked)
+		{
+			if (!checked) { stopRecording(); }
+			else if (document.getElementById("cbxTour").checked) { startRecording(document.getElementById("selTourComp").value); }
 		}
 	</script>
 
@@ -139,16 +181,17 @@
 		<label id="lblOpacity" style="color: white; background-color: black; display: inline-block;">
 			Opacity<input id="rngOpacity" type="range" min="0" max="1" step="0.05" value="0.4" autocomplete="off" style="width: 90px; vertical-align: middle;" oninput="controller.main.setSurfaceOpacity(parseFloat(this.value));">
 		</label>
-		<label id="lblTour" style="color: white; background-color: black; display: inline-block;">
-			<span>Tour<input id="cbxTour" type="checkbox" autocomplete="off" onchange="handleTour();"></span>
-			<span>sit<input id="numSit" type="number" min="0" step="0.5" value="3" style="width: 45px;">s</span>
-			<span>Move along beam<input id="cbxBeam" type="checkbox" checked autocomplete="off"></span>
+		<span id="lblTour" style="color: white; background-color: black; display: inline-block;">
+			<label>Tour<input id="cbxTour" type="checkbox" autocomplete="off" onchange="handleTour(true);"></label>
+			<label title="record one loop of the tour from where it is, then download the video">Record<input id="cbxRecord" type="checkbox" autocomplete="off" onchange="handleRecord(this.checked);"></label>
+			<span>sit<input id="numSit" type="number" min="0" step="0.5" value="0" style="width: 45px;">s</span>
+			<label>Move along beam<input id="cbxBeam" type="checkbox" checked autocomplete="off"></label>
 			<span title="camera offset from the component origin (m), in the component frame">offset
 			<input id="numOffX" type="number" step="0.1" value="0" style="width: 45px;"><input id="numOffY" type="number" step="0.1" value="0" style="width: 45px;"><input id="numOffZ" type="number" step="0.1" value="0" style="width: 45px;">m</span>
 			<span title="added to the viewing direction 0 0 1, in the component frame (with Move along beam)">view
 			<input id="numViewX" type="number" step="0.1" value="0" style="width: 45px;"><input id="numViewY" type="number" step="0.1" value="0" style="width: 45px;"><input id="numViewZ" type="number" step="0.1" value="0" style="width: 45px;"></span>
-			<span id="lblTourComp"></span>
-		</label>
+			<span><select id="selTourComp" autocomplete="off" style="max-width: 160px;" onchange="handleTourComp(this.value);" title="start the tour from this component"><option value=""></option></select></span>
+		</span>
 	</div>
 	<div id="3dcanvas"></div>
 
@@ -228,6 +271,11 @@
 		// call the mcdisplay app!
 		controller.setUpdateGuiFunc(upd.update);
 		controller.run();
+
+		// tour component list
+		controller.main.tourNames().forEach(function(name) {
+			document.getElementById("selTourComp").add(new Option(name, name));
+		});
     </script>
 </body>
 </html>
