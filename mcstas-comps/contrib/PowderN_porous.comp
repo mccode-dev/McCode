@@ -143,9 +143,8 @@ DECLARE INHERIT PowderN EXTEND
   gmesh_struct pmesh;
   double fill_my_a;
   double fill_my_inc;
-  double ppor_nray;  /* weight through the pores */
-  double ppor_nnear; /* ... with >= 80 % of GMESH_MAX_HITS pore crossings */
-  double ppor_nfull; /* ... with GMESH_MAX_HITS crossings, farther pores possibly dropped */
+  double ppor_nnear; /* rays with >= 80 % of GMESH_MAX_HITS pore crossings */
+  double ppor_nfull; /* rays with GMESH_MAX_HITS crossings, farther pores possibly dropped */
 %}
 
 INITIALIZE INHERIT PowderN EXTEND
@@ -167,7 +166,7 @@ INITIALIZE INHERIT PowderN EXTEND
   if (!fill_Vc && (fill_sigma_inc || fill_sigma_abs))
     printf ("PowderN_porous: %s: WARNING: fill_Vc=0, the liquid cross sections are ignored.\n", NAME_CURRENT_COMP);
   memset (&pmesh, 0, sizeof (pmesh));
-  ppor_nray = ppor_nnear = ppor_nfull = 0;
+  ppor_nnear = ppor_nfull = 0;
   if (pores && strlen (pores) && strcmp (pores, "NULL") && strcmp (pores, "0")) {
     if (!gmesh_init (pores, 1, GMESH_PROPS_IGNORE, &pmesh) || !gmesh_check_closed (&pmesh)) {
       fprintf (stderr, "PowderN_porous: %s: can not use the pore mesh %s.\n", NAME_CURRENT_COMP, pores);
@@ -192,16 +191,12 @@ TRACE
   gmesh_struct om = mesh, pm = pmesh; /* per-thread copies, as PowderN on GPU */
 
   n = ppor_path (line_info.shape, &om, &pm, radius, xwidth, yheight, zdepth, fill_y, x, y, z, vx, vy, vz, ts, mat, &nh);
-  if (n && pm.ntris) {
+  if (nh >= 0.8 * GMESH_MAX_HITS) { /* rare: atomics only here */
     #pragma acc atomic
-    ppor_nray += p;
-    if (nh >= 0.8 * GMESH_MAX_HITS) {
-      #pragma acc atomic
-      ppor_nnear += p;
-    }
+    ppor_nnear += 1;
     if (nh >= GMESH_MAX_HITS) {
       #pragma acc atomic
-      ppor_nfull += p;
+      ppor_nfull += 1;
     }
   }
   if (n) {
@@ -303,10 +298,16 @@ TRACE
 
 FINALLY INHERIT PowderN EXTEND
 %{
-  if (ppor_nnear > 0)
-    printf ("PowderN_porous: %s: WARNING: %.3g %% of the intensity through the sample crossed >= 80 %% and %.3g %% >= 100 %% of\n"
-            "  GMESH_MAX_HITS=%d pore surfaces (at 100 %%, farther pores may be dropped). Raise with DEPENDENCY \" -DGMESH_MAX_HITS=... \".\n",
-            NAME_CURRENT_COMP, 100 * ppor_nnear / ppor_nray, 100 * ppor_nfull / ppor_nray, GMESH_MAX_HITS);
+  #ifdef USE_MPI
+  if (mpi_node_count > 1) {
+    mc_MPI_Sum (&ppor_nnear, 1);
+    mc_MPI_Sum (&ppor_nfull, 1);
+  }
+  #endif
+  MPI_MASTER (if (ppor_nnear > 0)
+    printf ("PowderN_porous: %s: WARNING: %g rays crossed >= 80 %% and %g rays 100 %% of GMESH_MAX_HITS=%d pore surfaces\n"
+            "  (at 100 %%, farther pores may be dropped). Raise with DEPENDENCY \" -DGMESH_MAX_HITS=... \".\n",
+            NAME_CURRENT_COMP, ppor_nnear, ppor_nfull, GMESH_MAX_HITS););
   gmesh_free (&pmesh);
 %}
 
