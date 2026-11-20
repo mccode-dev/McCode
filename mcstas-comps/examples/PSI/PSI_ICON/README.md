@@ -45,7 +45,13 @@ resolve from any working directory.
 ## Porous sample variants
 
 Quartz cylinder (radius 4 mm, height 10 mm) with pore channels along y from
-`pores.off` (made with `Tests_samples/Test_PowderN_porous/make_pores.py`).
+`pores.off` in the McStas data folder, made with
+`Tests_samples/Test_PowderN_porous/make_pores.py`:
+
+```
+python make_pores.py --radius 0.004 --yheight 0.01 --diameter 3e-4 --diameter_sigma 5e-5 --length 1.5e-3 --length_sigma 5e-4 --tilt 15 --seed 1
+```
+
 `water=1` fills the pores below `fill_y` (default 0, the sample centre), above
 that they are void; `water=0` gives the dry reference.
 
@@ -86,5 +92,6 @@ FOM = (I/err)²/t [1/min].
 
 ## Links
 
+- <a href="https://www.psi.ch/en/sinq/icon">ICON instrument webpage at PSI</a>
 - <a href="https://doi.org/10.1016/j.nima.2007.11.061">Ludovic Giller et al., NIMA 586 (2008) pp. 59-63</a>
 - <a href="https://doi.org/10.1107/S1600576724003030">Estrid B. Naver et al., JAC 57 (2024) pp. 701-713</a>
