@@ -109,22 +109,55 @@ def read_campath(filename):
         fail("needs at least 2 points")
     return {'file': Path(filename).name, 'points': rows}
 
+def _shrink(a, n):
+    ''' at most n bins along the last axis of a: means of neighbouring bins (display only) '''
+    import numpy as np
+    a = np.asarray(a, dtype=float)
+    m = a.shape[-1]
+    if m <= n:
+        return a
+    idx = np.arange(0, m, -(-m // n))
+    return np.add.reduceat(a, idx, axis=-1) / np.diff(np.append(idx, m))
+
 def read_simdir(dirname):
-    ''' 1D and 2D monitor data of a simulation output directory (--simdir), by component name '''
+    ''' 1D and 2D monitor data of a simulation output directory (--simdir), by component name:
+    text output (mccode.sim), else NeXus (mccode.h5, its first entry: the first point of a scan);
+    shrunk to at most 256 x 256 (2D) or 1024 (1D) bins, to keep the display small '''
     import sys
-    from .mcplotloader import _get_filenames_from_mccodesim, _load_data_from_mcfiles, Data1D, Data2D
-    sim = Path(dirname, 'mccode.sim')
-    if not sim.is_file():
-        print(f"simulation directory {dirname}: no mccode.sim")
+    from .mcplotloader import _get_filenames_from_mccodesim, _load_data_from_mcfiles, _nx_monitors_by_entry, Data1D, Data2D
+    sim, h5 = Path(dirname, 'mccode.sim'), Path(dirname, 'mccode.h5')
+    if sim.is_file():
+        handles = _load_data_from_mcfiles(_get_filenames_from_mccodesim(str(sim)))
+    elif h5.is_file():
+        handles = _nx_monitors_by_entry(str(h5))[0]
+    else:
+        print(f"simulation directory {dirname}: no mccode.sim or mccode.h5")
         sys.exit(-1)
     monitors = {}
-    for handle in _load_data_from_mcfiles(_get_filenames_from_mccodesim(str(sim))):
+    for handle in handles:
         d = handle.getdata()
         if isinstance(d, Data2D):
-            monitors[d.component] = {'z': d.zvals, 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel, 'ylabel': d.ylabel}
+            monitors[d.component] = {'z': _shrink(_shrink(d.zvals, 256).T, 256).T.tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel, 'ylabel': d.ylabel}
         elif isinstance(d, Data1D):
-            monitors[d.component] = {'y': d.yvals, 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
+            monitors[d.component] = {'y': _shrink(d.yvals, 1024).tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
     return monitors
+
+def add_simdir(displaydir, simdir):
+    ''' adds the monitor data of simdir to an existing webgl(-classic) display in displaydir, as --simdir
+    does (for mctest) '''
+    import json
+    monitors = read_simdir(simdir)
+    classic = Path(displaydir, '_instr.js')
+    if classic.exists():  # MCDATA_instrdata = {...};
+        text = classic.read_text()
+        instr = json.loads(text[text.index('=') + 1:].strip().rstrip(';'))
+        instr['monitors'] = monitors
+        classic.write_text('MCDATA_instrdata = %s;' % json.dumps(instr, indent=0))
+    else:
+        webgl = Path(displaydir, 'instrument.json')
+        instr = json.loads(webgl.read_text())
+        instr['monitors'] = monitors
+        webgl.write_text(json.dumps(instr, indent=2))
 
 def make_common_parser(filename, documentation):
     """ Create an argparse.ArgumentParser with arguments (instr, --default, options)"""

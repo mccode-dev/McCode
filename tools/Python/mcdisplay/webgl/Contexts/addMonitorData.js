@@ -6,26 +6,26 @@ import { Lut } from "three/examples/jsm/math/Lut";
 export const curvedOffset = (mon) =>
   /^Longitude/.test(mon.xlabel) ? 0 : /^radial position/.test(mon.xlabel) ? -180 : null;
 
-// --simdir monitor data on the monitor's drawing (component frame), as in mcplot (first row at ymin), as in
-// webgl-classic: flat monitors: 2D as a colour map on the drawn xy rectangle, 1D as a curve;
-// curved monitors (drawn with depth, angle along x): a colour map on a cylinder or sphere (latitude along y)
-export function addMonitorData(group, mon, transparency) {
-  group.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(group); // the drawing, before the component transform
-  const w = box.max.x - box.min.x;
-  let h = box.max.y - box.min.y;
-  const off = curvedOffset(mon);
-  const curved = box.max.z - box.min.z > 1e-9 && off !== null;
-  if (!curved && !(w > 0 && h > 0)) return;
-  const canvas = document.createElement("canvas");
+// --simdir monitor data for the colour map or curve, as in webgl-classic: rows z, as is or log10 (zero and
+// negative bins at a tenth of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
+function monitorValues(z, log) {
+  let pos = Infinity, max = -Infinity;
+  z.forEach((r) => r.forEach((v) => { if (v > 0 && v < pos) pos = v; }));
+  const uselog = log && pos < Infinity;
+  const min = uselog ? Math.log10(pos / 10) : 0;
+  if (uselog) z = z.map((r) => r.map((v) => (v > 0 ? Math.log10(v) : min)));
+  z.forEach((r) => r.forEach((v) => { if (v > max) max = v; }));
+  return { z, min, max: max > min ? max : min + 1 };
+}
+
+// paint --simdir monitor data on canvas: a colour map (2D, and 1D on curved monitors), else a curve
+function paintMonitor(canvas, mon, curved, log) {
   const ctx = canvas.getContext("2d");
-  const z = mon.z || (curved ? [mon.y] : null); // curved 1D: a colour strip
-  if (z) {
-    const ny = z.length, nx = z[0].length;
-    const max = Math.max(...z.map((r) => Math.max(...r)));
+  if (mon.z || curved) {
+    const s = monitorValues(mon.z || [mon.y], log), z = s.z, ny = z.length, nx = z[0].length;
     const lut = new Lut("rainbow", 256);
-    lut.setMin(0);
-    lut.setMax(max > 0 ? max : 1);
+    lut.setMin(s.min);
+    lut.setMax(s.max);
     canvas.width = nx;
     canvas.height = ny;
     const img = ctx.createImageData(nx, ny);
@@ -38,7 +38,7 @@ export function addMonitorData(group, mon, transparency) {
     }
     ctx.putImageData(img, 0, 0);
   } else {
-    const y = mon.y, n = y.length, ymax = Math.max(...y) || 1;
+    const s = monitorValues([mon.y], log), y = s.z[0], n = y.length;
     canvas.width = 256;
     canvas.height = 256;
     ctx.fillStyle = "white";
@@ -48,12 +48,27 @@ export function addMonitorData(group, mon, transparency) {
     ctx.strokeStyle = "blue";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    y.forEach((v, i) => ctx.lineTo(8 + (240 * i) / Math.max(1, n - 1), 248 - (220 * v) / ymax));
+    y.forEach((v, i) => ctx.lineTo(8 + (240 * i) / Math.max(1, n - 1), 248 - (220 * (v - s.min)) / (s.max - s.min)));
     ctx.stroke();
     ctx.fillStyle = "black";
     ctx.font = "16px sans-serif";
-    ctx.fillText(mon.xlabel || "", 8, 20);
+    ctx.fillText((mon.xlabel || "") + (log ? ", log" : ""), 8, 20);
   }
+}
+
+// --simdir monitor data on the monitor's drawing (component frame), as in mcplot (first row at ymin), as in
+// webgl-classic: flat monitors: 2D as a colour map on the drawn xy rectangle, 1D as a curve;
+// curved monitors (drawn with depth, angle along x): a colour map on a cylinder or sphere (latitude along y)
+export function addMonitorData(group, mon, transparency, log) {
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(group); // the drawing, before the component transform
+  const w = box.max.x - box.min.x;
+  let h = box.max.y - box.min.y;
+  const off = curvedOffset(mon);
+  const curved = box.max.z - box.min.z > 1e-9 && off !== null;
+  if (!curved && !(w > 0 && h > 0)) return;
+  const canvas = document.createElement("canvas");
+  paintMonitor(canvas, mon, curved, log);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.magFilter = THREE.NearestFilter;
@@ -89,7 +104,19 @@ export function addMonitorData(group, mon, transparency) {
   surf.position.copy(pos);
   surf.name = mon.title;
   surf.userData.monitor = curved ? "curved" : "flat";
+  surf.userData.mon = mon; // to repaint (setMonitorLog)
   group.add(surf);
+}
+
+// monitor data on a linear or log scale
+// (remembered on the scene, so a reload by loadComponents keeps the choice)
+export function setMonitorLog(parentnode, log) {
+  parentnode.userData.monitorLog = log;
+  parentnode.traverse((o) => {
+    if (!o.userData.monitor) return;
+    paintMonitor(o.material.map.image, o.userData.mon, o.userData.monitor === "curved", log);
+    o.material.map.needsUpdate = true;
+  });
 }
 
 // show or hide the monitor data on flat and curved monitors

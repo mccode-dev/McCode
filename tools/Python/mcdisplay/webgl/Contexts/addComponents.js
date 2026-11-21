@@ -193,7 +193,7 @@ export function loadComponents(parentnode, components, monitors) {
       }
     }
     const mon = monitors && monitors[component.name]; // --simdir
-    if (mon) addMonitorData(compList[i], mon, transparency);
+    if (mon) addMonitorData(compList[i], mon, transparency, parentnode.userData.monitorLog);
   });
   for (let i = 0; i < components.length; i++) {
     let m4 = components[i].m4;

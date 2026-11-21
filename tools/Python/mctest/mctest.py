@@ -19,10 +19,12 @@ import platform
 import subprocess
 import io
 import concurrent.futures
+import contextlib
 from datetime import datetime, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
+from mccodelib.mcdisplayutils import add_simdir
 
 def get_processor_info():
     if platform.system() == "Windows":
@@ -671,6 +673,19 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             if not skipped:
                 test.save(infolder=join(testdir, test.instrname))
             continue
+
+        # the display was made with the parameters of test 1 (of its first point, for a scan): add its monitor data
+        if test.testnb == 1:
+            simdir = join(testdir, test.instrname, "1")
+            if test.scan and isdir(join(simdir, "0")):  # NeXus scans: one file, first point in its first entry
+                simdir = join(simdir, "0")
+            display = join(testdir, test.instrname, "display")
+            if isdir(display) and (os.path.exists(join(simdir, "mccode.sim")) or os.path.exists(join(simdir, "mccode.h5"))):
+                try:
+                    with contextlib.redirect_stdout(sys.stdout if args.verbose else io.StringIO()):  # loader messages
+                        add_simdir(display, simdir)
+                except Exception as e:
+                    logging.info("%s: no monitor data in the display: %s" % (test.get_display_name(), e))
 
         resbase="(No file)"
         # test value extraction
