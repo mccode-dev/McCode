@@ -19,32 +19,32 @@
 * Si 111 or Si 311 may be chosen. Furthermore a double mirror
 * setup may be used to focus the beam onto a sample. The rotation of the
 * first mirror defines the position of the second which is computed automatically.
-* If mirrors are in, the monochromators are automatically reposistioned to
-* accomodate the deflected beam. 
+* If mirrors are in, the monochromators are automatically repositioned to
+* accommodate the deflected beam. 
 *
 * %Test: MAXII_811.instr -n1e7 M1=1 M2=1 M1_pitch=1 M2_pitch=1 theta=14.226   Detector: sphere_psd_I=5.13044e+06
 * %Test: MAXII_811.instr M1=0 M2=0 theta=14.226    Detector: hutch_E2_I=2.2661e+11
 *
 * %Parameters
-* Emin:    [keV] Minmium energy of radiation emitted from wiggler.
-* Emax:    [keV] Maxmium energy of radiation emitted from wiggler.
-* prim_h:  [m]   Horizontal opening of primary slits.
-* prim_v:  [m]   Vertical opening of primary slits.
-* M1:      [ ]   Is mirror 1 in the beam?
-* M1_R:    [m]   Radius of curvature of mirror 1.
-* M1_pitch: [mrad] Central glancing angle of mirror 1.
-* M2:      [ ]   Is mirror 2 in the beam?
-* M2_R:    [m]   Radius of curvature of mirror 2.
-* M2_pitch: [mrag] Central glancing angle of mirror 2.
-* theta:   [deg] Scattering angle of monochromators
-* E0:      [keV] Central energy to be emitted by the source. 0=set from theta.
-* TTH:     [deg] Angle at which to put the surface diffraction detector
-* ATT1:    [ ]   Should attenuation filter 1 be in the beam?
-* ATT2:    [ ]   Should attenuation filter 2 be in the beam?
-* ATT3:    [ ]   Should attenuation filter 3 be in the beam?
-* XAFS:    [ ]   Flag to activate/inactivate the XAFS station
-* xafs_h:  [m]   XAFS station horizontal slit opening
-* xafs_v:  [m]   XAFS station vertical   slit opening
+* Emin:    [keV]  Minmium energy of radiation emitted from wiggler.
+* Emax:    [keV]  Maxmium energy of radiation emitted from wiggler.
+* prim_h:  [m]    Horizontal opening of primary slits.
+* prim_v:  [m]    Vertical opening of primary slits.
+* M1:      [ ]    Is mirror 1 in the beam?
+* M1_R:    [m]    Radius of curvature of mirror 1.
+* M1_pitch:[mrad] Central glancing angle of mirror 1.
+* M2:      [ ]    Is mirror 2 in the beam?
+* M2_R:    [m]    Radius of curvature of mirror 2.
+* M2_pitch:[mrad] Central glancing angle of mirror 2.
+* theta:   [deg]  Scattering angle of monochromators. 0=set from E0.
+* E0:      [keV]  Central energy to be emitted by the source. 0=set from theta.
+* TTH:     [deg]  Angle at which to put the surface diffraction detector
+* ATT1:    [ ]    Should attenuation filter 1 be in the beam?
+* ATT2:    [ ]    Should attenuation filter 2 be in the beam?
+* ATT3:    [ ]    Should attenuation filter 3 be in the beam?
+* XAFS:    [ ]    Flag to activate/inactivate the XAFS station
+* xafs_h:  [m]    XAFS station horizontal slit opening
+* xafs_v:  [m]    XAFS station vertical   slit opening
 
 * %Link
 * http://www.maxlab.lu.se/beamlines/bli811/
@@ -57,7 +57,7 @@ DEFINE INSTRUMENT MAXII_811(
     prim_h=.40e-3,prim_v=0.6e-3,
     xafs_h=3e-3,xafs_v=3e-3,
     M1=0,M1_R=2000,M1_pitch=0,M2=0,M2_R=800,M2_pitch=0,
-    theta=0,TTH=0,
+    theta=14.226,TTH=0,
     ATT1=0,ATT2=0,ATT3=0,
     XAFS=0
 )
@@ -98,8 +98,11 @@ INITIALIZE
   } else if (theta && !E0)
     E0 = 2*PI/E2K / (2*d*sin(theta*DEG2RAD));
 
-  if (!theta || !E0 || E0 < Emin || E0 > Emax)
-    exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect E0=%g [keV]. Aborting.\n", NAME_INSTRUMENT, E0));
+  if (!theta || !E0 || E0 < Emin || E0 > Emax) {
+    fprintf(stderr, "%s: ERROR: Monochromator can not reflect E0=%g [keV]. Aborting.\n",
+      NAME_INSTRUMENT, E0);
+    exit(-1);
+  }
   printf("%s: Monochromator theta=%g [deg] E0=%g [keV]\n", NAME_INSTRUMENT, theta, E0);
    
   if (M1 && M1_pitch){

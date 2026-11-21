@@ -14,42 +14,44 @@
 * Version: 1.3
 * Origin: SOLEIL
 *
-* Rectangular curved mirror (toroidal/spherical/cylindrical) or flat
+* Rectangular curved mirror (paraboloid/quasi-spherical/cylindrical) or flat
 *
 * %Description
 * Like the Mirror component, the mirror is by default tangent to the local
 * XZ plane (mirror surface at y=0, nominal beam along +z), and placed in the
-* local YZ plane instead by setting 'yheight'.
+* local YZ plane instead by setting 'yheight' or 'width'.
 * The surface has two principal curvature radii:
 *   Rx: radius bending the surface across the mirror width, i.e. in the local
 *       XZ plane for an XZ mirror, or in the YZ plane for a YZ mirror
-*       (sagittal radius).
+*       (perpendicular, sagittal radius).
 *   Rz: radius bending the surface along the mirror length (in the local YZ
-*       plane), i.e. focusing along the beam (tangential radius).
+*       plane), i.e. focusing along the beam (meridional, tangential radius).
 * A radius equal to 0 means the surface is NOT curved in that direction.
-* Rx = Rz         -> quasi-spherical mirror (paraxial toroid, large Rx=Rz).
-* Rx != Rz        -> toroidal/astigmatic mirror (paraxial sag intersection).
-* Rz = 0, Rx != 0 -> cylindrical
-* Rz !=0, Rx = 0  -> bent mirror (along beam, e.g. for KB)
-* Rx = Rz = 0     -> perfectly flat mirror, equivalent to Mirror.
-* The radii usually follow f_t = Rz*sin(theta)/2 and f_s = Rx/2/sin(theta) where
-* theta is the tilt angle, and f_t and f_s are tangential and sagittal focus 
-* distances.
+* - Rx  =   Rz      -> quasi-spherical mirror (paraxial toroid, large Rx=Rz).
+* - Rx !=   Rz      -> toroidal/astigmatic mirror (paraxial sag intersection).
+* - Rx !=0  Rz  =0  -> cylindrical
+* - Rx  =0  Rz !=0  -> bent mirror (along beam, e.g. for KB)
+* - Rx  =   Rz  =0  -> perfectly flat mirror, equivalent to Mirror.
+* The radii usually follow f_t=Rz*sin(theta)/2 and f_s=Rx/sin(theta)/2 
+* where theta is the tilt angle, and f_t and f_s are tangential and sagittal  
+* focus distances.
 *
 * Sign convention: R > 0 means the surface sags towards the normal side
-* (towards y for an XZ mirror): the centre of curvature lies downstream and a
+* (towards +y for an XZ mirror): the centre of curvature lies upstream and a
 * beam along +z is focused. R > 0 converges (concave).
 *
-* Surface: N = -( T^2/(2 Rx) + z^2/(2 Rz) ), where N is the surface normal
+* Surface: N = ( T^2/(2 Rx) + z^2/(2 Rz) ), where N is the surface normal
 * (y for an XZ mirror, x for a YZ mirror) and T the transverse coordinate
 * (x for an XZ mirror, y for a YZ mirror). The mirror is truncated to the
 * aperture |T| <= (xwidth|yheight)/2 and |z| <= zdepth/2.
 * With one non-zero radius the ray/cylinder intersection is exact (the
 * surface stays flat along the other direction); with two
 * non-zero radii the sag equation (paraxial toroid) is used, exact in the
-* limit of aperture << R. Use Rx=Rz for exact spherical optics.
+* limit of aperture << R. Use Rx=Rz for quasi-spherical optics.
 * The mirror is located at its center. 
 * Default geometry is a mirror in the XZ plane, as the Mirror component.
+* When using the 'width' or 'yheight' parameter, the mirror flips in the YZ plane.
+* To model a toroid, better use the Mirror_toroid component.
 *
 * Reflectivity is handled exactly as in Mirror: either constant (R0) or from
 * a datafile/coating recipe ('coating').
@@ -79,7 +81,7 @@ DEFINE COMPONENT Mirror_curved
 
 SETTING PARAMETERS (zdepth=0.1, xwidth=0.01, yheight=0,
   Rx=0, Rz=0, string coating="", R0=1, 
-  radius=0, length=0, width=0, verbose=0)
+  radius=0, length=0, width=0)
 
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
@@ -102,7 +104,7 @@ INITIALIZE
   if (length) zdepth  = length;
   if (width)  yheight = width;
 
-  if (yheight > 0 ? yheight <= 0 : xwidth <= 0) {
+  if (yheight <= 0 && xwidth <= 0) {
     fprintf (stderr, "ERROR (%s): Mirror_curved requires xwidth > 0 "
                      "(or yheight > 0 for a YZ-plane mirror). Aborting.\n",
              NAME_CURRENT_COMP);
@@ -214,19 +216,14 @@ TRACE
         intersect = 1;
       }
     }
-    if (!intersect && verbose)
-      printf("DEBUG: %s: intersect=0 roots tt=%g %g are not on the mirror plate\n", NAME_CURRENT_COMP, t0, t1);
-  } else if (verbose)
-    printf("DEBUG: %s: intersect=0 no hit ahead of the x-ray\n", NAME_CURRENT_COMP);
+  }
 
   if (intersect) {
     PROP_DL (tt);
     /* refresh coordinates at the intersection point (on the plate) */
     T = (yzplane ? y : x);
     N = (yzplane ? x : y);
-  }
 
-  if (intersect) {
     /* surface normal in local coordinates */
     if (Rx != 0 && Rz != 0) {
       /* grad F = (T/Rx along T, z/Rz along z, 1 along N) */
@@ -251,9 +248,7 @@ TRACE
       /* flat */
       nN = 1; nT = 0; nz = 0;
     }
-  }
 
-  if (intersect) {
     double s, q;
     double nn = sqrt (nN * nN + nT * nT + nz * nz);
     double nx, ny, nzg;
@@ -272,10 +267,9 @@ TRACE
     /* surface normal points towards +N, hence s < 0 for the incoming beam */
     q  = 2.0 * fabs (s);
     cdouble R = refleccq (re, q, 0.0, k, fabs (90 - acos (s / k) * RAD2DEG));
-    p   *= sqrt (creal (cmul(R, conj (R))));
+    p   *= cabs(R);
     phi += atan2 (cimag (R), creal (R));
-  } else if(verbose)
-    printf("DEBUG: %s: intersect=0 no scatter\n", NAME_CURRENT_COMP);
+  }
 %}
 
 MCDISPLAY
