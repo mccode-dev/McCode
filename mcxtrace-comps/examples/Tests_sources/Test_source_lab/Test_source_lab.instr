@@ -27,39 +27,18 @@
 * %End
 *******************************************************************************/
 
-/* Change name of instrument and input parameters with default values */
 DEFINE INSTRUMENT Test_source_lab(Emin=1, Emax=40, LO=1)
 
-/* The DECLARE section allows us to declare variables or  small      */
-/* functions in C syntax. These may be used in the whole instrument. */
-DECLARE
-%{
-%}
 
-/* The INITIALIZE section is executed when the simulation starts     */
-/* (C code). You may use them as component parameter values.         */
-INITIALIZE
-%{
-%}
-
-/* Here comes the TRACE section, where the actual      */
-/* instrument is defined as a sequence of components.  */
 TRACE
 
-/* The Arm() class component defines reference points and orientations  */
-/* in 3D space. Every component instance must have a unique name. Here, */
-/* Origin is used. This Arm() component is set to define the origin of  */
-/* our global coordinate system (AT (0,0,0) ABSOLUTE). It may be used   */
-/* for further RELATIVE reference, Other useful keywords are : ROTATED  */
-/* EXTEND GROUP PREVIOUS. Also think about adding an xray source !    */
 /* Progress_bar is an Arm displaying simulation progress.               */
 COMPONENT Origin = Progress_bar()
   AT (0,0,0) ABSOLUTE
 
-/* /usr/local/lib/mcxtrace-1.1/data/Ga.tx t*/
 COMPONENT source = Source_lab(
     width=1e-3,height=1e-3,thickness=200e-6,dist=1e-2,tube_current=5,
-    E0=40,focus_xw=1e-3,focus_yh=1e-3,material_datafile="Mo.txt",
+    E0=40,focus_xw=1e-3,focus_yh=1e-3,material="Mo",
     Emin=Emin, Emax=Emax, lorentzian=LO)
 AT (0, 0, 0) RELATIVE Origin
 
@@ -75,12 +54,6 @@ COMPONENT emon2=E_monitor(
     Emin=18, Emax=22, nE=400, filename="emon2", xwidth=1e-2, yheight=1e-2)
 AT(0,0,0.12) RELATIVE source
 
-/* This section is executed when the simulation ends (C code). Other    */
-/* optional sections are : SAVE                                         */
-FINALLY
-%{
-%}
-/* The END token marks the instrument definition end */
 END
 
 
