@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import "../../../common.css";
 import "./tour.css";
@@ -15,6 +15,18 @@ const tourComps = (scene) =>
     .filter((c) => !new THREE.Box3().setFromObject(c).isEmpty())
     .filter((c, i, a) => i === 0 || c.position.distanceTo(a[i - 1].position) >= 1e-3);
 
+// stops P1, P2, ... from the campath file points: x y z, optionally the viewing direction dx dy dz,
+// else towards the next point (the last keeps the previous direction); the stop's z axis is the viewing direction
+const campathStops = (points) => {
+  const Z = new THREE.Vector3(0, 0, 1);
+  const pts = points.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
+  return points.map((p, i) => {
+    const j = Math.min(i, pts.length - 2);
+    const dir = p.length === 6 ? new THREE.Vector3(p[3], p[4], p[5]) : pts[j + 1].clone().sub(pts[j]);
+    return { name: `P${i + 1}`, position: pts[i], quaternion: new THREE.Quaternion().setFromUnitVectors(Z, dir.normalize()) };
+  });
+};
+
 // tour: fly the 3D camera from component to component (as in mcdisplay-webgl-classic), for movies
 const Tour = () => {
   const { sceneRef, primaryCameraRef, primaryControlsRef, primaryViewRef, containerRef } = useSceneContext();
@@ -29,17 +41,23 @@ const Tour = () => {
   const [beam, setBeam] = useState(true);
   const [offset, setOffset] = useState(["0", "0", "0"]);
   const [view, setView] = useState(["0", "0", "0"]);
+  const campath = instrument.campath; // from --campath, if given
+  const path = useMemo(() => campath && campathStops(campath.points), [campath]);
+  const [pathOff, setPathOff] = useState(false); // campath file unticked
 
   // the timer and the flight read the latest settings
   const s = useRef({});
-  s.current = { on, sit, smooth, ms: FLY_MS / Number(speed), beam, offset: offset.map(Number), view: view.map(Number) };
+  s.current = { on, usePath: !!path && !pathOff, sit, smooth, ms: FLY_MS / Number(speed), beam, offset: offset.map(Number), view: view.map(Number) };
   const idx = useRef(-1);
   const timer = useRef(null);
   const recorder = useRef(null);
   const recFirst = useRef(null);
 
+  // the stops: the campath file points, else the components
+  const stops = () => (s.current.usePath ? path : tourComps(sceneRef.current));
+
   const flyToNext = () => {
-    const comps = tourComps(sceneRef.current);
+    const comps = stops();
     const camera = primaryCameraRef.current;
     const controls = primaryControlsRef.current;
     if (comps.length === 0 || !camera) return "";
@@ -83,7 +101,8 @@ const Tour = () => {
       }
     }
     const sit = s.current.smooth ? 0 : parseFloat(s.current.sit);
-    timer.current = setTimeout(() => step(false), s.current.ms + 1000 * (sit > 0 ? sit : 0));
+    const last = s.current.usePath && idx.current === path.length - 1; // a campath file tour stops at its last point
+    timer.current = setTimeout(() => (last ? endTour() : step(false)), s.current.ms + 1000 * (sit > 0 ? sit : 0));
   };
 
   // record the 3D view during a tour, downloaded as <instr>_tour.mp4 (or .webm) when it stops
@@ -125,6 +144,15 @@ const Tour = () => {
     if (checked) step(true);
     else { clearTimeout(timer.current); setComp(""); stopRecording(); }
   };
+  const endTour = () => { setRecord(false); toggleOn(false); };
+  // campath file ticked/unticked: tour its points, or the components
+  const togglePath = (checked) => {
+    s.current.usePath = checked;
+    setPathOff(!checked);
+    idx.current = -1;
+    setComp("");
+    if (on) step(false);
+  };
   // Record ticked during a tour: start now, at the current component
   const toggleRecord = (checked) => {
     setRecord(checked);
@@ -134,7 +162,7 @@ const Tour = () => {
   // component picked from the list: the tour starts there (now, if it is on)
   const pickComp = (name) => {
     if (!name) return;
-    idx.current = tourComps(sceneRef.current).findIndex((c) => c.name === name) - 1;
+    idx.current = stops().findIndex((c) => c.name === name) - 1;
     setComp(name);
     if (on) step(false);
   };
@@ -159,6 +187,11 @@ const Tour = () => {
           <label title="record one loop of the tour from where it is, then download the video">
             <input type="checkbox" checked={record} onChange={(e) => toggleRecord(e.target.checked)} />Record
           </label>
+          {path ? (
+            <label title={`campath: ${campath.file}, ${path.length} points`}>
+              <input type="checkbox" checked={!pathOff} onChange={(e) => togglePath(e.target.checked)} />campath file
+            </label>
+          ) : null}
           <span>sit<input type="number" min="0" step="0.5" value={sit} onChange={(e) => setSit(e.target.value)} />s</span>
           <label title="no stops: travel through the components at a steady pace (sit is ignored)">
             <input type="checkbox" checked={smooth} onChange={(e) => setSmooth(e.target.checked)} />Smooth
@@ -171,9 +204,9 @@ const Tour = () => {
           <label><input type="checkbox" checked={beam} onChange={(e) => setBeam(e.target.checked)} />Move along beam</label>
           {vec("offset", "camera offset from the component origin (m), in the component frame", offset, setOffset, "m")}
           {vec("view", "added to the viewing direction 0 0 1, in the component frame (with Move along beam)", view, setView, "")}
-          <select value={comp} onChange={(e) => pickComp(e.target.value)} title="start the tour from this component">
+          <select value={comp} onChange={(e) => pickComp(e.target.value)} title="start the tour from here">
             <option value=""></option>
-            {sceneRef.current && tourComps(sceneRef.current).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+            {sceneRef.current && stops().map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
           </select>
         </div>
       ) : null}
