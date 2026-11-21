@@ -20,7 +20,7 @@ from mccodelib import mccode_config
 from mccodelib.mcdisplayutils import McDisplayReader
 from shutil import copytree
 
-def write_browse(instrument, raybundle, dirname, timeout, nobrowse=None, **kwds):
+def write_browse(instrument, raybundle, dirname, timeout, nobrowse=None, campath=None, **kwds):
     ''' writes instrument definitions to html/ js, then serves them as plain static files '''
     print("Launching WebGL... Once launched, server will run for " + str(timeout) + " s")
 
@@ -42,7 +42,10 @@ def write_browse(instrument, raybundle, dirname, timeout, nobrowse=None, **kwds)
                             index.read_text(encoding='utf-8')), encoding='utf-8')
 
     # Write instrument
-    json_instr = '%s' % json.dumps(instrument.jsonize(), indent=2)
+    instr = instrument.jsonize()
+    if campath:
+        instr['campath'] = campath
+    json_instr = '%s' % json.dumps(instr, indent=2)
     file_save(json_instr, dest.joinpath('instrument.json'))
 
     if raybundle is not None:
@@ -141,7 +144,7 @@ def main(instr=None, dirname=None, debug=None, n=None, timeout=None, **kwds):
     write_browse(instrument, raybundle, dirname, timeout, **kwds)
 
 if __name__ == '__main__':
-    from mccodelib.mcdisplayutils import make_common_parser
+    from mccodelib.mcdisplayutils import make_common_parser, read_campath
     # Only pre-sets instr, --default, options
     parser, prefix = make_common_parser(__file__, __doc__)
     parser.add_argument('--dirname', '-d', help='output directory name override')
@@ -149,6 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--nobrowse', action='store_true', help='do not open a webbrowser viewer')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=300, help='Number of particles to simulate')
     parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1, 2], default=2, help='Select visualization mode')
+    parser.add_argument('--campath', type=read_campath, help='camera path file for the tour: rows of x y z (m), optionally with viewing direction dx dy dz')
     parser.add_argument('--timeout', dest='timeout', type=int, default=300, help='Shutdown time of the WebGL viewer server')
     args, unknown = parser.parse_known_args()
     # Convert the defined arguments in the args Namespace structure to a dict

@@ -111,13 +111,35 @@
 				}
 			}
 			var sit = controller.main.smooth ? 0 : parseFloat(document.getElementById("numSit").value);
-			tourTimer = setTimeout(handleTour, FLY_MS + 1000*(sit > 0 ? sit : 0));
+			var last = controller.main.usePath && controller.main.tourIdx == controller.main.campath.length - 1;
+			tourTimer = setTimeout(last ? endTour : handleTour, FLY_MS + 1000*(sit > 0 ? sit : 0));
+		}
+		// a campath file tour stops at its last point
+		var endTour = function()
+		{
+			document.getElementById("cbxTour").checked = false;
+			document.getElementById("cbxRecord").checked = false;
+			handleTour();
+		}
+		// campath file ticked/unticked: tour its points, or the components
+		var handleCampath = function(checked)
+		{
+			controller.main.usePath = checked;
+			controller.main.tourIdx = undefined;
+			fillTourStops();
+			if (document.getElementById("cbxTour").checked) { handleTour(); }
+		}
+		var fillTourStops = function()
+		{
+			var sel = document.getElementById("selTourComp");
+			sel.length = 1;
+			controller.main.tourStops().forEach(function(s) { sel.add(new Option(s.name, s.name)); });
 		}
 		// component picked from the list: the tour starts there (now, if it is on)
 		var handleTourComp = function(name)
 		{
 			if (!name) { return; }
-			controller.main.tourIdx = controller.main.tourNames().indexOf(name) - 1;
+			controller.main.tourIdx = controller.main.tourStops().map(function(s) { return s.name; }).indexOf(name) - 1;
 			if (document.getElementById("cbxTour").checked) { handleTour(); }
 		}
 		// record the canvas during a tour, downloaded as <instr>_tour.mp4 (or .webm) when the tour stops
@@ -185,6 +207,7 @@
 			<label>Tour<input id="cbxTour" type="checkbox" autocomplete="off" onchange="handleTour(true);"></label>
 			<label title="record one loop of the tour from where it is, then download the video">Record<input id="cbxRecord" type="checkbox" autocomplete="off" onchange="handleRecord(this.checked);"></label>
 			<span>sit<input id="numSit" type="number" min="0" step="0.5" value="0" style="width: 45px;">s</span>
+			<label id="lblCampath" style="display: none;">campath file<input id="cbxCampath" type="checkbox" autocomplete="off" onchange="handleCampath(this.checked);"></label>
 			<label title="no stops: travel through the components at a steady pace (sit is ignored)">Smooth<input id="cbxSmooth" type="checkbox" checked autocomplete="off" onchange="controller.main.smooth = this.checked;"></label>
 			<span title="speed of the camera movement">speed<select autocomplete="off" onchange="FLY_MS = 1000/this.value;"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select></span>
 			<label>Move along beam<input id="cbxBeam" type="checkbox" checked autocomplete="off"></label>
@@ -192,7 +215,7 @@
 			<input id="numOffX" type="number" step="0.1" value="0" style="width: 45px;"><input id="numOffY" type="number" step="0.1" value="0" style="width: 45px;"><input id="numOffZ" type="number" step="0.1" value="0" style="width: 45px;">m</span>
 			<span title="added to the viewing direction 0 0 1, in the component frame (with Move along beam)">view
 			<input id="numViewX" type="number" step="0.1" value="0" style="width: 45px;"><input id="numViewY" type="number" step="0.1" value="0" style="width: 45px;"><input id="numViewZ" type="number" step="0.1" value="0" style="width: 45px;"></span>
-			<span><select id="selTourComp" autocomplete="off" style="max-width: 160px;" onchange="handleTourComp(this.value);" title="start the tour from this component"><option value=""></option></select></span>
+			<span><select id="selTourComp" autocomplete="off" style="max-width: 160px;" onchange="handleTourComp(this.value);" title="start the tour from here"><option value=""></option></select></span>
 		</span>
 	</div>
 	<div id="3dcanvas"></div>
@@ -275,9 +298,16 @@
 		controller.run();
 
 		// tour component list
-		controller.main.tourNames().forEach(function(name) {
-			document.getElementById("selTourComp").add(new Option(name, name));
-		});
+		var campath = MCDATA_instrdata["campath"];
+		if (campath) {
+			controller.main.setCampath(campath["points"]);
+			var lbl = document.getElementById("lblCampath");
+			lbl.style.display = "";
+			lbl.title = "campath: " + campath["file"] + ", " + campath["points"].length + " points";
+			document.getElementById("cbxCampath").checked = true;
+			controller.main.usePath = true;
+		}
+		fillTourStops();
     </script>
 </body>
 </html>

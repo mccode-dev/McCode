@@ -181,24 +181,38 @@ Main.prototype.focusComponent = function(e)
     new THREE.Box3().setFromObject(comp).center(this.controls.target);
     this.controls.update();
 }
-//  tour: names of the components it stops at
-Main.prototype.tourNames = function()
+//  tour: the stops, {name, position, quaternion}: the campath file points with usePath, else the components
+Main.prototype.tourStops = function()
 {
+    if (this.usePath) { return this.campath; }
     return Object.keys(this.compnodes)
         .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this) // e.g. Arm draws nothing
         .filter(function(k, i, a) { // skip ahead past components at the previous one's position (within 1 mm)
-            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this);
+            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this)
+        .map(function(k) { var n = this.compnodes[k]; return { name: k, position: n.position, quaternion: n.quaternion }; }, this);
 }
-//  tour: fly the camera to the origin of the next drawn component, looking along its z axis
-//  (the neutron direction) with beam, else in the current direction; returns the component name
+//  tour: stops P1, P2, ... from the campath file points: x y z, optionally the viewing direction dx dy dz,
+//  else towards the next point (the last keeps the previous direction); the stop's z axis is the viewing direction
+Main.prototype.setCampath = function(points)
+{
+    var Z = new THREE.Vector3(0, 0, 1);
+    var pts = points.map(function(p) { return new THREE.Vector3(p[0], p[1], p[2]); });
+    this.campath = points.map(function(p, i) {
+        var j = Math.min(i, pts.length - 2);
+        var dir = p.length == 6 ? new THREE.Vector3(p[3], p[4], p[5]) : pts[j+1].clone().sub(pts[j]);
+        return { name: "P" + (i+1), position: pts[i], quaternion: new THREE.Quaternion().setFromUnitVectors(Z, dir.normalize()) };
+    });
+}
+//  tour: fly the camera to the next stop (a component origin or campath point), looking along its z axis
+//  (the neutron direction) with beam, else in the current direction; returns the stop name
 //      offset  -  [x, y, z] camera displacement from the origin, in the component frame
 //      view    -  [x, y, z] added to the viewing direction 0 0 1 with beam, in the component frame
 Main.prototype.flyToNext = function(beam, offset, view)
 {
-    var names = this.tourNames();
-    if (names.length == 0) { return ""; }
-    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % names.length;
-    var node = this.compnodes[names[this.tourIdx]];
+    var stops = this.tourStops();
+    if (stops.length == 0) { return ""; }
+    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % stops.length;
+    var node = stops[this.tourIdx];
     var look = this.controls.target.clone().sub(this.camera.position); // keeps the orbit distance
     if (beam) {
         var dir = new THREE.Vector3().fromArray(view).add(new THREE.Vector3(0, 0, 1));
@@ -208,7 +222,7 @@ Main.prototype.flyToNext = function(beam, offset, view)
     var pos = new THREE.Vector3().fromArray(offset).applyQuaternion(node.quaternion).add(node.position);
     this.fly = { posFrom: this.camera.position.clone(), posTo: pos,
                  tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now(), ms: FLY_MS };
-    return names[this.tourIdx];
+    return node.name;
 }
 //  advance a flight started by flyToNext, called every frame
 Main.prototype.animate = function()
