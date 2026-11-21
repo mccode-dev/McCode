@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RAY } from "./addRays";
+import { addMonitorData, showMonitorData } from "./addMonitorData";
 
 export function clearScene(parentnode) {
   for (let i = parentnode.children.length - 1; i >= 0; i--) {
@@ -44,7 +45,7 @@ function createSurface(geometry, color, transparency) {
   return surface;
 }
 
-export function loadComponents(parentnode, components) {
+export function loadComponents(parentnode, components, monitors) {
   let compList = {};
   components.forEach((component, i) => {
     compList[i] = new THREE.Group();
@@ -191,6 +192,8 @@ export function loadComponents(parentnode, components) {
           break;
       }
     }
+    const mon = monitors && monitors[component.name]; // --simdir
+    if (mon) addMonitorData(compList[i], mon, transparency);
   });
   for (let i = 0; i < components.length; i++) {
     let m4 = components[i].m4;
@@ -219,6 +222,8 @@ export function loadComponents(parentnode, components) {
   }
   const shapes = parentnode.userData.shapes ?? { surfaces: true, lines: false };
   showShapes(parentnode, shapes.surfaces, shapes.lines);
+  const md = parentnode.userData.monitorData ?? { flat: true, curved: true };
+  showMonitorData(parentnode, md.flat, md.curved);
 }
 
 // show the --trace=2 shapes of all components as surfaces and/or lines
@@ -229,7 +234,7 @@ export function showShapes(parentnode, surfaces, lines) {
     .filter((child) => child.type === "Group" && !child.name.includes(RAY))
     .forEach((group) =>
       group.traverse((obj) => {
-        if (obj.isMesh) obj.material.visible = surfaces;
+        if (obj.isMesh && !obj.userData.monitor) obj.material.visible = surfaces; // monitor data: its own buttons
         if (obj.userData.isEdges) obj.visible = lines;
       })
     );

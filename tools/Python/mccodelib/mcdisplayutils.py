@@ -109,6 +109,23 @@ def read_campath(filename):
         fail("needs at least 2 points")
     return {'file': Path(filename).name, 'points': rows}
 
+def read_simdir(dirname):
+    ''' 1D and 2D monitor data of a simulation output directory (--simdir), by component name '''
+    import sys
+    from .mcplotloader import _get_filenames_from_mccodesim, _load_data_from_mcfiles, Data1D, Data2D
+    sim = Path(dirname, 'mccode.sim')
+    if not sim.is_file():
+        print(f"simulation directory {dirname}: no mccode.sim")
+        sys.exit(-1)
+    monitors = {}
+    for handle in _load_data_from_mcfiles(_get_filenames_from_mccodesim(str(sim))):
+        d = handle.getdata()
+        if isinstance(d, Data2D):
+            monitors[d.component] = {'z': d.zvals, 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel, 'ylabel': d.ylabel}
+        elif isinstance(d, Data1D):
+            monitors[d.component] = {'y': d.yvals, 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
+    return monitors
+
 def make_common_parser(filename, documentation):
     """ Create an argparse.ArgumentParser with arguments (instr, --default, options)"""
     from pathlib import Path
