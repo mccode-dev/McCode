@@ -80,6 +80,35 @@ def file_save(data, filename):
     f.write(data)
     f.close()
 
+def read_campath(filename):
+    ''' camera path for the webgl tours (--campath): rows of x y z (m), optionally followed by the
+    viewing direction dx dy dz, separated by spaces, tabs or commas; # starts a comment '''
+    import sys, math
+    def fail(msg):
+        print(f"campath file {filename}: {msg}")
+        sys.exit(-1)
+    try:
+        lines = Path(filename).read_text().splitlines()
+    except OSError as e:
+        fail(e.strerror)
+    rows = []
+    for i, line in enumerate(lines, 1):
+        line = line.split('#')[0].strip()
+        if not line:
+            continue
+        try:
+            row = [float(v) for v in re.split(r'[\s,]+', line)]
+        except ValueError:
+            fail(f"line {i}: not a number")
+        if len(row) not in (3, 6) or (rows and len(row) != len(rows[0])):
+            fail(f"line {i}: {len(row)} columns, expected 3 (x y z) or 6 (x y z dx dy dz) on every line")
+        if not all(math.isfinite(v) for v in row) or (len(row) == 6 and not any(row[3:])):
+            fail(f"line {i}: not finite, or zero viewing direction")
+        rows.append(row)
+    if len(rows) < 2:
+        fail("needs at least 2 points")
+    return {'file': Path(filename).name, 'points': rows}
+
 def make_common_parser(filename, documentation):
     """ Create an argparse.ArgumentParser with arguments (instr, --default, options)"""
     from pathlib import Path

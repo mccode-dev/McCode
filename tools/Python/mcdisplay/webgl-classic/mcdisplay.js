@@ -32,6 +32,7 @@ var Main = function ()
     this.iRay = -1;
 
     this.lut = null;
+    this.smooth = true; // tour: no stops (Smooth checkbox)
 }
 // add circle to xy, xz or yz plane
 //
@@ -180,19 +181,38 @@ Main.prototype.focusComponent = function(e)
     new THREE.Box3().setFromObject(comp).center(this.controls.target);
     this.controls.update();
 }
-//  tour: fly the camera to the origin of the next drawn component, looking along its z axis
-//  (the neutron direction) with beam, else in the current direction; returns the component name
+//  tour: the stops, {name, position, quaternion}: the campath file points with usePath, else the components
+Main.prototype.tourStops = function()
+{
+    if (this.usePath) { return this.campath; }
+    return Object.keys(this.compnodes)
+        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this) // e.g. Arm draws nothing
+        .filter(function(k, i, a) { // skip ahead past components at the previous one's position (within 1 mm)
+            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this)
+        .map(function(k) { var n = this.compnodes[k]; return { name: k, position: n.position, quaternion: n.quaternion }; }, this);
+}
+//  tour: stops P1, P2, ... from the campath file points: x y z, optionally the viewing direction dx dy dz,
+//  else towards the next point (the last keeps the previous direction); the stop's z axis is the viewing direction
+Main.prototype.setCampath = function(points)
+{
+    var Z = new THREE.Vector3(0, 0, 1);
+    var pts = points.map(function(p) { return new THREE.Vector3(p[0], p[1], p[2]); });
+    this.campath = points.map(function(p, i) {
+        var j = Math.min(i, pts.length - 2);
+        var dir = p.length == 6 ? new THREE.Vector3(p[3], p[4], p[5]) : pts[j+1].clone().sub(pts[j]);
+        return { name: "P" + (i+1), position: pts[i], quaternion: new THREE.Quaternion().setFromUnitVectors(Z, dir.normalize()) };
+    });
+}
+//  tour: fly the camera to the next stop (a component origin or campath point), looking along its z axis
+//  (the neutron direction) with beam, else in the current direction; returns the stop name
 //      offset  -  [x, y, z] camera displacement from the origin, in the component frame
 //      view    -  [x, y, z] added to the viewing direction 0 0 1 with beam, in the component frame
 Main.prototype.flyToNext = function(beam, offset, view)
 {
-    var names = Object.keys(this.compnodes)
-        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this) // e.g. Arm draws nothing
-        .filter(function(k, i, a) { // skip ahead past components at the previous one's position (within 1 mm)
-            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this);
-    if (names.length == 0) { return ""; }
-    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % names.length;
-    var node = this.compnodes[names[this.tourIdx]];
+    var stops = this.tourStops();
+    if (stops.length == 0) { return ""; }
+    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % stops.length;
+    var node = stops[this.tourIdx];
     var look = this.controls.target.clone().sub(this.camera.position); // keeps the orbit distance
     if (beam) {
         var dir = new THREE.Vector3().fromArray(view).add(new THREE.Vector3(0, 0, 1));
@@ -201,15 +221,15 @@ Main.prototype.flyToNext = function(beam, offset, view)
     }
     var pos = new THREE.Vector3().fromArray(offset).applyQuaternion(node.quaternion).add(node.position);
     this.fly = { posFrom: this.camera.position.clone(), posTo: pos,
-                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now() };
-    return names[this.tourIdx];
+                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now(), ms: FLY_MS };
+    return node.name;
 }
 //  advance a flight started by flyToNext, called every frame
 Main.prototype.animate = function()
 {
     if (!this.fly) { return; }
-    var t = Math.min(1, (performance.now() - this.fly.t0) / FLY_MS);
-    var s = t*t*(3 - 2*t); // smoothstep
+    var t = Math.min(1, (performance.now() - this.fly.t0) / this.fly.ms);
+    var s = this.smooth ? t : t*t*(3 - 2*t); // smooth: steady, no stop at the component; else smoothstep
     this.camera.position.lerpVectors(this.fly.posFrom, this.fly.posTo, s);
     this.controls.target.lerpVectors(this.fly.tgtFrom, this.fly.tgtTo, s);
     this.controls.update();
@@ -676,7 +696,7 @@ Controller.prototype.setViewHome = function()
 var Y_AXIS = new THREE.Vector3(0, 1, 0);
 var Z_AXIS = new THREE.Vector3(0, 0, 1);
 var SEGMENTS = 24;
-var FLY_MS = 1000; // tour: flight time between components
+var FLY_MS = 1000; // tour: flight time between components, divided by the speed setting
 
 //  enum for playback state
 //
