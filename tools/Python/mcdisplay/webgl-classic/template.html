@@ -203,7 +203,20 @@
 		<label id="lblOpacity" style="color: white; background-color: black; display: inline-block;">
 			Opacity<input id="rngOpacity" type="range" min="0" max="1" step="0.05" value="0.4" autocomplete="off" style="width: 90px; vertical-align: middle;" oninput="controller.main.setSurfaceOpacity(parseFloat(this.value));">
 		</label>
-		<span id="lblTour" style="color: white; background-color: black; display: inline-block;">
+		<span id="lblMonitors" style="color: white; background-color: black; display: none;">Monitor data</span>
+		<label id="lbl1D" style="color: white; background-color: black; display: none;" title="1D monitor data">
+			1D<input id="cbx1D" type="checkbox" checked autocomplete="off" onchange="controller.main.showMonitorData('1D', this.checked);">
+		</label>
+		<label id="lbl2D" style="color: white; background-color: black; display: none;" title="2D monitor data">
+			2D<input id="cbx2D" type="checkbox" checked autocomplete="off" onchange="controller.main.showMonitorData('2D', this.checked);">
+		</label>
+		<label id="lblCurved" style="color: white; background-color: black; display: none;" title="monitor data on cylinder, banana and sphere monitors">
+			curved<input id="cbxCurved" type="checkbox" checked autocomplete="off" onchange="controller.main.showMonitorData('curved', this.checked);">
+		</label>
+		<label id="lblMonitorLog" style="color: white; background-color: black; display: none;" title="monitor data on a log scale">
+			log<input id="cbxMonitorLog" type="checkbox" autocomplete="off" onchange="controller.main.setMonitorLog(this.checked);">
+		</label>
+		<span id="lblTour"style="color: white; background-color: black; display: inline-block;">
 			<label>Tour<input id="cbxTour" type="checkbox" autocomplete="off" onchange="handleTour(true);"></label>
 			<label title="record one loop of the tour from where it is, then download the video">Record<input id="cbxRecord" type="checkbox" autocomplete="off" onchange="handleRecord(this.checked);"></label>
 			<span>sit<input id="numSit" type="number" min="0" step="0.5" value="0" style="width: 45px;">s</span>
@@ -296,6 +309,14 @@
 		// call the mcdisplay app!
 		controller.setUpdateGuiFunc(upd.update);
 		controller.run();
+
+		var mons = controller.main.monnodes.concat(controller.main.curvednodes);
+		var showLbl = function(id, on) { if (on) { document.getElementById(id).style.display = "inline-block"; } };
+		showLbl("lblMonitors", mons.length > 0);
+		showLbl("lbl1D", mons.some(function(m) { return !m.userData.mon.z; }));
+		showLbl("lbl2D", mons.some(function(m) { return m.userData.mon.z; }));
+		showLbl("lblCurved", controller.main.curvednodes.length > 0);
+		showLbl("lblMonitorLog", mons.length > 0);
 
 		// tour component list
 		var campath = MCDATA_instrdata["campath"];
