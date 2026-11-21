@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from mccodelib import mccode_config
-from mccodelib.mcdisplayutils import McDisplayReader
+from mccodelib.mcdisplayutils import McDisplayReader, add_simdir
 from mccodelib.instrgeom import Vector3d
 from mccodelib.utils import get_file_text_direct
 
@@ -120,6 +120,13 @@ def file_save(data, filename):
         f.write(data)
 
 def main(instr=None, dirname=None, debug=None, n=None, **kwds):
+    # an existing display directory: add the --simdir monitor data to it, no simulation
+    if Path(instr).is_dir():
+        add_simdir(instr, kwds.get('simdir'))
+        if not kwds.get('nobrowse'):
+            mccode_config.open_in_browser(str(Path(instr, 'index.html')))
+        return
+
     # output directory
     if dirname is None:
         from datetime import datetime as dt
@@ -141,7 +148,7 @@ if __name__ == '__main__':
     parser.add_argument('--dirname', '-d', help='output directory name override')
     parser.add_argument('--inspect', help='display only particle rays reaching this component')
     parser.add_argument('--campath', type=read_campath, help='camera path file for the tour: rows of x y z (m), optionally with viewing direction dx dy dz')
-    parser.add_argument('--simdir', type=read_simdir, help='simulation output directory: show its 1D/2D monitor data on the monitors')
+    parser.add_argument('--simdir', type=read_simdir, help='simulation output directory: show its 1D/2D monitor data on the monitors; with a display directory from an earlier run in place of the instrument, add the data to that display')
     parser.add_argument('--nobrowse', action='store_true', help='do not open a webbrowser viewer')
     parser.add_argument('--invcanvas', action='store_true', help='invert canvas background from black to white')
     parser.add_argument('--first', help='zoom range first component')

@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
-from mccodelib.mcdisplayutils import add_simdir
+from mccodelib.mcdisplayutils import add_simdir, read_simdir
 
 def get_processor_info():
     if platform.system() == "Windows":
@@ -684,7 +684,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             if isdir(display) and (os.path.exists(join(simdir, "mccode.sim")) or os.path.exists(join(simdir, "mccode.h5"))):
                 try:
                     with contextlib.redirect_stdout(sys.stdout if args.verbose else io.StringIO()):  # loader messages
-                        add_simdir(display, simdir)
+                        add_simdir(display, read_simdir(simdir))
                 except Exception as e:
                     logging.info("%s: no monitor data in the display: %s" % (test.get_display_name(), e))
 

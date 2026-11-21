@@ -147,22 +147,26 @@ def read_simdir(dirname):
             monitors[d.component] = {'y': _shrink(d.yvals, 1024).tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
     return monitors
 
-def add_simdir(displaydir, simdir):
-    ''' adds the monitor data of simdir to an existing webgl(-classic) display in displaydir, as --simdir
-    does (for mctest) '''
-    import json
-    monitors = read_simdir(simdir)
-    classic = Path(displaydir, '_instr.js')
+def add_simdir(displaydir, monitors):
+    ''' adds monitor data (read_simdir) to an existing webgl(-classic) display in displaydir, as --simdir
+    does when the display is made (mcdisplay with a display directory, mctest) '''
+    import json, sys
+    classic, webgl = Path(displaydir, '_instr.js'), Path(displaydir, 'instrument.json')
+    if monitors is None:
+        print(f"display directory {displaydir}: give the simulation output with --simdir")
+        sys.exit(-1)
     if classic.exists():  # MCDATA_instrdata = {...};
         text = classic.read_text()
         instr = json.loads(text[text.index('=') + 1:].strip().rstrip(';'))
         instr['monitors'] = monitors
         classic.write_text('MCDATA_instrdata = %s;' % json.dumps(instr, indent=0))
-    else:
-        webgl = Path(displaydir, 'instrument.json')
+    elif webgl.exists():
         instr = json.loads(webgl.read_text())
         instr['monitors'] = monitors
         webgl.write_text(json.dumps(instr, indent=2))
+    else:
+        print(f"display directory {displaydir}: no _instr.js (webgl-classic) or instrument.json (webgl)")
+        sys.exit(-1)
 
 def make_common_parser(filename, documentation):
     """ Create an argparse.ArgumentParser with arguments (instr, --default, options)"""
