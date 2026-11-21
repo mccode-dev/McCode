@@ -1,0 +1,142 @@
+/*******************************************************************************
+* Instrument: Test_UB_matrix
+*
+* %I
+* Written by: Peter Willendrup
+* Date: October 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Test of the UB_matrix component injecting a UB matrix into Single_crystal
+*
+* %D
+* An Al single crystal with (1,1,0) along the beam and (0,0,1) up is oriented
+* in several equivalent ways, and illuminated by a white beam:
+* SAMPLE=0: Single_crystal reference, direct lattice vectors given
+* SAMPLE=1: Single_crystal, UB_matrix with a UB matrix as 9 numbers (UBin)
+* SAMPLE=2: Single_crystal, UB_matrix with the cell and two reflections
+* SAMPLE=3: Single_crystal, UB_matrix reading a Mantid SaveIsawUB file (UB_Al.mat)
+* SAMPLE=4: NCrystal_sample reference, dir1/dir2 given in cfg
+* SAMPLE=5: NCrystal_sample, UB_matrix with UBin appending dir1/dir2 to cfg
+* SAMPLE=6: Dispersion_relation reference, orthorhombic cell (4, 5, 6 AA) with
+*           direct lattice vectors given, same orientation as above
+* SAMPLE=7: Dispersion_relation, UB_matrix with UBin
+* SAMPLE=0-3 give the same Laue pattern and intensity, as do SAMPLE=4-5 and
+* SAMPLE=6-7. The Dispersion_relation mode is written by the SHELL command
+* below (write_ub_dispersion.py, Python standard library only).
+* The goniometer angle A3 rotates all samples about the vertical axis.
+*
+* %Example: SAMPLE=0 Detector: Laue_I=1.2705e-09
+* %Example: SAMPLE=1 Detector: Laue_I=1.2705e-09
+* %Example: SAMPLE=2 Detector: Laue_I=1.2705e-09
+* %Example: SAMPLE=3 Detector: Laue_I=1.2705e-09
+* %Example: SAMPLE=4 Detector: Laue_I=5.6971e-09
+* %Example: SAMPLE=5 Detector: Laue_I=5.6971e-09
+* %Example: SAMPLE=6 Detector: Laue_I=2.2633e-08
+* %Example: SAMPLE=7 Detector: Laue_I=2.2633e-08
+*
+* %P
+* SAMPLE: [1]  Orientation input: 0-3 Single_crystal (reference, UBin, cell, ISAW file), 4-5 NCrystal_sample (reference, UBin), 6-7 Dispersion_relation (reference, UBin)
+* A3: [deg]    Goniometer rotation about the vertical axis
+*
+* %L
+* A. T. Savici, Introduction to the use of the UB matrix (ORNL, 2011)
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_UB_matrix(int SAMPLE=1, A3=0)
+
+// Write the dispersion file of the Dispersion_relation samples, unless it exists.
+SHELL "python write_ub_dispersion.py"
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT Source = Source_simple(radius=0.001, dist=1, focus_xw=0.002, focus_yh=0.002, lambda0=3, dlambda=2.5)
+  AT (0,0,0) RELATIVE Origin
+
+COMPONENT gonio = Arm()
+  AT (0,0,1) RELATIVE Origin
+  ROTATED (0,A3,0) RELATIVE Origin
+
+COMPONENT UB_numbers = UB_matrix(target="Sample_UBin", filename="UB_numbers.txt",
+    UBin={-0.17459426696, 0.17459426696, 0, 0, 0, 0.246913580247, 0.17459426696, 0.17459426696, 0})
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT UB_cell = UB_matrix(target="Sample_cell", filename="UB_cell.txt",
+    lattice_a=4.05, lattice_b=4.05, lattice_c=4.05,
+    hkl1={1,1,0}, dir1={0,0,1}, hkl2={0,0,1}, dir2={0,1,0})
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT UB_file = UB_matrix(target="Sample_file", filename="UB_file.txt", file="UB_Al.mat", format="isaw",
+    lattice_a=4.05, lattice_b=4.05, lattice_c=4.05)
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT UB_nc = UB_matrix(target="Sample_nc", filename="UB_nc.txt",
+    UBin={-0.17459426696, 0.17459426696, 0, 0, 0, 0.246913580247, 0.17459426696, 0.17459426696, 0})
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT UB_disp = UB_matrix(target="Sample_disp", filename="UB_disp.txt",
+    UBin={-0.176776695296637, 0.14142135623731, 0, 0, 0, 0.166666666666667, 0.176776695296637, 0.14142135623731, 0})
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT Sample_ref = Single_crystal(xwidth=0.005, yheight=0.005, zdepth=0.005, reflections="Al.lau", mosaic=5,
+    ax=-2.863782463806, ay=0, az=2.863782463806, bx=2.863782463806, by=0, bz=2.863782463806, cx=0, cy=4.05, cz=0)
+  WHEN (SAMPLE==0) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_UBin = Single_crystal(xwidth=0.005, yheight=0.005, zdepth=0.005, reflections="Al.lau", mosaic=5)
+  WHEN (SAMPLE==1) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_cell = Single_crystal(xwidth=0.005, yheight=0.005, zdepth=0.005, reflections="Al.lau", mosaic=5)
+  WHEN (SAMPLE==2) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_file = Single_crystal(xwidth=0.005, yheight=0.005, zdepth=0.005, reflections="Al.lau", mosaic=5)
+  WHEN (SAMPLE==3) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_nc_ref = NCrystal_sample(xwidth=0.005, yheight=0.005, zdepth=0.005,
+    cfg="Al_sg225.ncmat;mos=5arcmin;incoh_elas=0;inelas=0;dir1=@crys_hkl:1,1,0@lab:0,0,1;dir2=@crys_hkl:0,0,1@lab:0,1,0")
+  WHEN (SAMPLE==4) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_nc = NCrystal_sample(xwidth=0.005, yheight=0.005, zdepth=0.005,
+    cfg="Al_sg225.ncmat;mos=5arcmin;incoh_elas=0;inelas=0")
+  WHEN (SAMPLE==5) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_disp_ref = Dispersion_relation(radius=0.0025, yheight=0.005, sigma_abs=0, sigma_inc=0, DW=1, T=10,
+    folder_path="UB_dispersion",
+    ax=-2.82842712474619, ay=0, az=2.82842712474619, bx=3.53553390593274, by=0, bz=3.53553390593274, cx=0, cy=6, cz=0)
+  WHEN (SAMPLE==6) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_disp = Dispersion_relation(radius=0.0025, yheight=0.005, sigma_abs=0, sigma_inc=0, DW=1, T=10,
+    folder_path="UB_dispersion")
+  WHEN (SAMPLE==7) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Laue = PSD_monitor_4PI(radius=0.5, nx=180, ny=90, filename="Laue")
+  AT (0,0,0) RELATIVE gonio
+
+END

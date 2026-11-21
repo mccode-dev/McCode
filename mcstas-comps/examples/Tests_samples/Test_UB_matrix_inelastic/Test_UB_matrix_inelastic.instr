@@ -1,0 +1,66 @@
+/*******************************************************************************
+* Instrument: Test_UB_matrix_inelastic
+*
+* %I
+* Written by: Peter Willendrup
+* Date: November 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Test of the UB_matrix component injecting a UB matrix into Single_crystal_inelastic
+*
+* %D
+* A cubic crystal (the cell of example.sqw4) with the same orientation as in
+* Test_UB_matrix, illuminated by a white beam. Single_crystal_inelastic can not
+* be combined with Single_crystal in one instrument, hence this separate test.
+* SAMPLE=0: Single_crystal_inelastic reference, direct lattice vectors given
+* SAMPLE=1: Single_crystal_inelastic, UB_matrix with UBin
+* Both give the same Laue pattern and intensity.
+*
+* %Example: SAMPLE=0 Detector: Laue_I=3.8638e-08
+* %Example: SAMPLE=1 Detector: Laue_I=3.8638e-08
+*
+* %P
+* SAMPLE: [1]  Orientation input: 0 reference, 1 UBin
+* A3: [deg]    Goniometer rotation about the vertical axis
+*
+* %L
+* A. T. Savici, Introduction to the use of the UB matrix (ORNL, 2011)
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_UB_matrix_inelastic(int SAMPLE=1, A3=0)
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+  AT (0,0,0) ABSOLUTE
+
+COMPONENT Source = Source_simple(radius=0.001, dist=1, focus_xw=0.002, focus_yh=0.002, lambda0=3, dlambda=2.5)
+  AT (0,0,0) RELATIVE Origin
+
+COMPONENT gonio = Arm()
+  AT (0,0,1) RELATIVE Origin
+  ROTATED (0,A3,0) RELATIVE Origin
+
+COMPONENT UB_inel = UB_matrix(target="Sample", filename="UB_inel.txt",
+    UBin={-0.171005267518, 0.171005267518, 0, 0, 0, 0.241837968561, 0.171005267518, 0.171005267518, 0})
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT Sample_ref = Single_crystal_inelastic(sqw="example.sqw4", xwidth=0.005, yheight=0.005, zdepth=0.005, delta_d_d=2e-1, mosaic=5,
+    ax=-2.92388654021, ay=0, az=2.92388654021, bx=2.92388654021, by=0, bz=2.92388654021, cx=0, cy=4.135, cz=0)
+  WHEN (SAMPLE==0) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample = Single_crystal_inelastic(sqw="example.sqw4", xwidth=0.005, yheight=0.005, zdepth=0.005, delta_d_d=2e-1, mosaic=5)
+  WHEN (SAMPLE==1) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Laue = PSD_monitor_4PI(radius=0.5, nx=180, ny=90, filename="Laue")
+  AT (0,0,0) RELATIVE gonio
+
+END
