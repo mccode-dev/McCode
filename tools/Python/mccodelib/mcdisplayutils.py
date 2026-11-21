@@ -25,6 +25,11 @@ class McDisplayReader(object):
             print(f"A .instr or compiled instrument file ({ext}) is required")
             exit()
         
+        # at most 1e3 particles (-n); the trace reader keeps up to 1e5 rays, e.g. from SPLIT
+        if n > 1000:
+            print(f"-n {n:g}: at most 1000 particles are displayed, using -n 1000")
+            n = 1000
+
         # assemble command
         mcruncmd = str(Path(mccode_config.directories['bindir'],mccode_config.configuration['MCRUN']))
 
