@@ -23,7 +23,9 @@
 * (I.e. 1 is completely open). At present only absorption in the substrate (modelled by the thickness sdepth) 
 * is included.
 *
-* This  component is currently undergoing validation.
+* Phase shifts of the diffracted orders are not modelled (phi is unchanged).
+*
+* This component can benefit from SPLITing.
 *
 * Example: Grating_trans(
 *   xwidth=25e-3, yheight=25e-3, gamma=0.4, period=2000e-10, zdepth=5100e-10, max_order=3, material="Au.txt")
@@ -159,9 +161,9 @@ INITIALIZE
 
 TRACE
 %{
-  double e, k, f, delta, beta, mu0, smu0, pmul, order_factor, theta, order_likelihood;
-  double thx, thy, period_eff, zdepth_eff;
-  int M;
+  double e, k, f, delta, beta, mu0, smu0, order_factor, order_likelihood;
+  double zdepth_eff, sec, dkx, tot, kxn, kzn, cx, cy, cz;
+  int m;
   int order;
 
   PROP_Z0;
@@ -177,15 +179,7 @@ TRACE
     mu0 = Table_Value (table, e, mu_c) * rho * 1e2;
     beta = mu0 / (2 * k * 1e10);
 
-    /*pick an order according the relative intensity as given by Schnopper*/
-
-    /* correct the period for horizontal angle*/
-    thx = atan (fabs (kx / kz));
-    period_eff = cos (thx) * period;
-
-    M = xwidth / period_eff;
-
-    order = floor (rand01 () * (max_order * 2 + 1)) - max_order;
+    /*pick an order with probability proportional to its relative intensity as given by Schnopper*/
     /* n_m(q)/N_0(q)=([sin(Mmpi)/Msin(mpi)]^2 [sin( (a/d)mpi)/mpi]^2 [1+exp(-2qzk)-2exp(-qzk)cos(qzdelta)]*/
     /* M=number of wires in the grating,
      * d grating spacing (period)
@@ -196,42 +190,62 @@ TRACE
      * q wavenumber.
      */
 
-    /* correct zdepth for vertical angle*/
-    thy = atan (fabs (ky / kz));
-    zdepth_eff = zdepth / cos (thy);
-    if (order) {
-      order_factor = pow (sin (gamma * order * M_PI) / (order * M_PI), 2.0);
-      order_likelihood
-          = order_factor * (1 + exp (-2.0 * k * 1e10 * zdepth_eff * beta) - 2.0 * exp (-k * 1e10 * zdepth_eff * beta) * cos (k * 1e10 * zdepth_eff * delta));
-    } else {
-      order_likelihood = gamma * gamma + (1 - gamma) * (1 - gamma) * exp (-2.0 * k * 1e10 * zdepth_eff * beta)
-                         + 2.0 * gamma * (1 - gamma) * exp (-k * 1e10 * zdepth_eff * beta) * cos (k * 1e10 * zdepth_eff * delta);
+    /* path length factor along the incident direction (both angles), used for grooves and substrate */
+    sec = k / kz;
+    zdepth_eff = zdepth * sec;
+    dkx = 2 * M_PI / (period * 1e10); /* grating wave number [AA^-1], the 1e10 factor because period is in m */
+
+    /* Loop over the propagating orders (kx_m = kx + m*dkx, ky is conserved). Pick one with probability
+       order_likelihood/tot by weighted reservoir sampling; the ray weight is then multiplied by tot. */
+    tot = 0;
+    order = 0;
+    for (m = -max_order; m <= max_order; m++) {
+      if ((kx + m * dkx) * (kx + m * dkx) + ky * ky >= k * k)
+        continue; /* evanescent order */
+      if (m) {
+        order_factor = pow (sin (gamma * m * M_PI) / (m * M_PI), 2.0);
+        order_likelihood
+            = order_factor * (1 + exp (-2.0 * k * 1e10 * zdepth_eff * beta) - 2.0 * exp (-k * 1e10 * zdepth_eff * beta) * cos (k * 1e10 * zdepth_eff * delta));
+      } else {
+        order_likelihood = gamma * gamma + (1 - gamma) * (1 - gamma) * exp (-2.0 * k * 1e10 * zdepth_eff * beta)
+                           + 2.0 * gamma * (1 - gamma) * exp (-k * 1e10 * zdepth_eff * beta) * cos (k * 1e10 * zdepth_eff * delta);
+      }
+      tot += order_likelihood;
+      if (rand01 () * tot < order_likelihood)
+        order = m;
     }
+    if (tot <= 0)
+      ABSORB;
+    p *= tot;
 
-    double fmc;
-    fmc = 1.0 / (max_order * 2 + 1);
-    pmul = order_likelihood / fmc;
+    /* New direction from the grating equation. Each order gets a finite width: the sinc^2 line shape of
+       a grating of width xwidth (FWHM 5.57/xwidth in kx) is approximated by a Gaussian. k is conserved. */
+    kxn = kx + order * dkx + randnorm () * 2.36 / (xwidth * 1e10);
+    kzn = k * k - kxn * kxn - ky * ky;
+    if (kzn <= 0)
+      ABSORB;
+    kzn = sqrt (kzn);
 
-    /*Pick an angle centered on the order*/
-    theta = order * 2 * M_PI / (k * 1e10 * period_eff); /*the 1e10 factor because k is in AA^-1 and period is in m*/
-
-    /* we should rotate around an axis perpendicular to k and in yz-plane*/
-    /*i.e. (ay * ky + az*kz ) = 0 && ay>0 => Without loss of gen. ay=1 => az= -ky/kz*/
-    double az;
-    az = -ky / kz;
+    /* rotate the polarisation with the same rotation that takes the old k to the new k (axis = k x k_new) */
+    cx = ky * kzn - kz * ky;
+    cy = kz * kxn - kx * kzn;
+    cz = kx * ky - ky * kxn;
+    if (cx * cx + cy * cy + cz * cz > 0)
+      rotate (Ex, Ey, Ez, Ex, Ey, Ez, atan2 (sqrt (cx * cx + cy * cy + cz * cz), kx * kxn + ky * ky + kz * kzn), cx, cy, cz);
 
     /*change direction*/
-    rotate (kx, ky, kz, kx, ky, kz, theta, 0, 1, az);
+    kx = kxn;
+    kz = kzn;
 
     /*do absorption according to mean absorption coefficient in the "slab",
-      remembering we can be at an angle. Just use the angle theta.
+      remembering we can be at an angle: use the path length along the incident direction.
       Only if a substrate table was loaded.*/
     smu0 = 0;
     if (substrate && strlen (substrate))
       smu0 = Table_Value (stable, e, smu_c) * srho * 1e2;
 
     /*groove absorption is already contained in order_likelihood*/
-    p *= pmul * exp (-smu0 * (sdepth) / cos (theta));
+    p *= exp (-smu0 * sdepth * sec);
     SCATTER;
   }
 %}
