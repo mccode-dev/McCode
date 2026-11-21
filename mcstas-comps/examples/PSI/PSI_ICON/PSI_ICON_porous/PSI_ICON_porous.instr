@@ -1,0 +1,45 @@
+/*******************************************************************************
+* Instrument: PSI_ICON_porous
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Nov 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: PSI
+*
+* PSI ICON imaging beamline with a porous quartz sample, water in the pores below fill_y
+*
+* %D
+* PSI_ICON_beamline and PSI_ICON_camera (see %include below) with a porous quartz
+* cylinder (PowderN_porous), pore channels from pores.off (in the data folder, made with Tests_samples/Test_PowderN_porous/make_pores.py),
+* water in the pores below fill_y.
+* All PSI_ICON_beamline parameters are available as well.
+*
+* %Test: PSI_ICON_porous.instr -y Detector: VarDetectorZoom_I=759312
+* %Test: PSI_ICON_porous.instr -y matrix=stdlib::SiO2-alpha_sg154_AlphaQuartz.ncmat Detector: VarDetectorZoom_I=758469
+*
+* %P
+* matrix:      [str] Reflection file or NCrystal cfg-string of the porous matrix
+* pores:       [str] Pore mesh file (Tests_samples/Test_PowderN_porous/make_pores.py), "NULL" for none
+* fill_y:      [m]   Water level in the pores, local y (sample spans +-0.005)
+* water:       [1]   1: water below fill_y, 0: void pores
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT PSI_ICON_porous(string matrix="SiO2_quartza.laz", string pores="pores.off", fill_y=0, int water=1)
+
+DEPENDENCY " -DGMESH_MAX_HITS=200 "
+
+TRACE
+
+%include "PSI/PSI_ICON/PSI_ICON_beamline/PSI_ICON_beamline.instr"
+
+// Porous quartz cylinder, water (H2O) in the pores below fill_y
+COMPONENT Sample = PowderN_porous(reflections=matrix, radius=0.004, yheight=0.01,
+    p_transmit=0.9, p_inc=0.03, p_interact=0.03, p_fill=0.04,
+    pores=pores, fill_y=fill_y, fill_Vc=water*29.9, fill_sigma_inc=160.5, fill_sigma_abs=0.665)
+AT (0,0,0) RELATIVE Goniometer
+
+%include "PSI/PSI_ICON/PSI_ICON_camera/PSI_ICON_camera.instr"
+
+END

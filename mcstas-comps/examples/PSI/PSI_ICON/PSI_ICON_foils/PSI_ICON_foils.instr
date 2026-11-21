@@ -1,0 +1,239 @@
+/************************************************
+*
+* McStas model of the ICON imaging instrument at PSI, CH, with metal foil sample.
+*
+* %Identification
+* Written by: Peter Willendrup (DTU/ESS), Estrid B. Naver (DTU), based on earlier model from Ludovic Giller.
+*
+* Date: June, 2021
+* Origin: DTU/ESS
+* %INSTRUMENT_SITE: PSI
+*
+* McStas model of the ICON imaging instrument at PSI, CH.
+*
+* %Description
+* McStas model of the ICON imaging instrument at PSI, CH. Based on earlier model from Ludovic Giller, see links below.
+* Beamline and camera are %include'd from PSI_ICON_beamline and PSI_ICON_camera.
+*
+* The model was developed for an ICON beamtime focussing on exeriments using 'Propagation-based phase-contrast' aka. the Paganin-method.
+* The sample in the model is a series of metal sheets, each with different scattring/refracting properties. A refined version of this
+* instrument file was later used in the publication by Estrid B. Naver et. al., see links below.
+*
+* %Test: PSI_ICON_foils.instr -y Detector: VarDetectorZoom_I=852147
+*
+* %Parameters
+* lambda_min: [AA] Minimum wavelength on wavelength monitors
+* lambda_max: [AA] Maximum wavelength on wavelength monitors
+* Lambda_Min: [AA] Minimum wavelength produced from source
+* Lambda_Max: [AA] Maximum wavelength produced from source
+* eventmode:   [1] Flag to store neutron events with calculated sample-detector travel
+* nx:          [1] Number of x-pixels, camera
+* ny:          [1] Number of y-pixels, camera
+* sp:          [m] Overall goniometer z-position wrt. camera
+* tx:          [m] Goniometer x-translation
+* ty:          [m] Goniometer y-translation
+* tz:          [m] Goniometer z-translation
+* rx:          [m] Goniometer x-rotation
+* ry:          [m] Goniometer y-rotation
+* rz:          [m] Goniometer z-rotation
+* delta_eps:   [m] Finite distance separating metal-slabs in sample
+* delta_y:     [1] Size-factor between slabs of Zr and Al
+* all_mons:    [1] Flag to enable all monitors in the instrument
+*
+* %Link
+* <a href="https://doi.org/10.1016/j.nima.2007.11.061">Ludovic Gilller et. al., NIMA 586 (2008) pp. 59-63</a> 
+* <a href="https://doi.org/10.1107/S1600576724003030">Estrid B. Naver et. al., JAC 57 (2024) pp.701-713</a>
+*
+* %End
+***************************************************/
+
+DEFINE INSTRUMENT PSI_ICON_foils(int eventmode=0, ty=-0.0075, delta_eps=1e-9, delta_y=0.1)
+
+DECLARE
+%{
+   // Overall "box" dimenstions
+   double XWbox;
+   double YHbox;
+   double ZDbox;
+   // "Step-size" along y and z
+   double ystep;
+   double zstep;
+   
+   // Materials
+   double Al_sig_coh;
+   double Al_sig_inc;
+   double Al_sig_abs;
+   double Al_density;
+   double Al_weight;
+
+   double Al_thick1;
+   double Al_thick2;
+
+   double Al_high1;
+   double Al_high2;
+   
+   double Zr_sig_coh;
+   double Zr_sig_inc;
+   double Zr_sig_abs;
+   double Zr_density;
+   double Zr_weight;
+
+   double Zr_thick1;
+   double Zr_thick2;
+
+   double Zr_high1;
+   double Zr_high2;
+   
+   double Zdepth;
+
+
+%}
+
+USERVARS %{
+  int flag_Zr1;
+  int flag_Zr2;
+  int flag_Al1;
+  int flag_Al2;
+  double x0;
+  double y0;
+  double z0;
+  double l_sample;
+%}
+
+INITIALIZE
+%{
+  Zdepth = 0.025/3; // from drawing, square is cut in 3
+  Zr_thick1 = 25e-6;
+  Zr_thick2 = Zr_thick1 * 2;
+
+  Zr_high1 = 0.025;
+  Al_high2 = Zr_high1*(1-delta_y);  
+  Zr_high2 = Zr_high1*(1-2*delta_y);
+  Al_high1 = Zr_high1*(1-3*delta_y);
+  
+  Al_thick1 = 10e-6;
+  Al_thick2 = Al_thick1 * 2;
+
+  XWbox = 0.02;
+  YHbox = 0.055;
+  ZDbox = 0.005;
+  ystep = YHbox / 11.0;
+  zstep = ZDbox / 10.0;
+  
+  Al_sig_coh=1.495;
+  Al_sig_inc=0.0082;
+  Al_sig_abs=0.231;
+  Al_density=2.7;
+  Al_weight=26.982;
+  
+  Zr_sig_coh=6.44;
+  Zr_sig_inc=0.02;
+  Zr_sig_abs=0.185;
+  Zr_density=6.52;
+  Zr_weight=95.91;
+
+%}
+
+TRACE
+
+%include "PSI/PSI_ICON/PSI_ICON_beamline/PSI_ICON_beamline.instr"
+
+SPLIT 100 COMPONENT SampleIn = Arm()
+AT(0,0,-Zdepth/2.0-1e-9) RELATIVE Goniometer
+EXTEND %{
+  PROP_Z0;
+  Coords Pos;
+  Rotation Rot;
+  Pos = coords_neg(POS_A_CURRENT_COMP);
+  rot_transpose(ROT_A_CURRENT_COMP,Rot);
+  _class_particle tmp = *_particle;
+  mccoordschange(Pos, Rot, &tmp);
+  x0=particle_getvar(&tmp,"x",NULL);
+  y0=particle_getvar(&tmp,"y",NULL);
+  z0=particle_getvar(&tmp,"z",NULL);
+  l_sample=0;
+%}
+
+// Longest Zr blade first
+COMPONENT Zr1 = Refractor(p_reflect=0,p_interact=0,
+			  sigma_coh=Zr_sig_coh, sigma_inc=Zr_sig_inc, sigma_abs=Zr_sig_abs,
+			  density=Zr_density, weight=Zr_weight,
+			  xwidth=Zr_thick1, yheight=Zr_high1, zdepth = Zdepth)
+AT (0,0,0) RELATIVE Goniometer
+GROUP Foils
+EXTEND %{
+  if (SCATTERED) flag_Zr1=1;
+%}
+
+COMPONENT Al2 = Refractor(p_reflect=0,p_interact=0,
+			  sigma_coh=Al_sig_coh, sigma_inc=Al_sig_inc, sigma_abs=Al_sig_abs,
+			  density=Al_density, weight=Al_weight,
+			  xwidth=Al_thick2, yheight=Al_high2, zdepth = Zdepth)
+  AT (delta_eps+(Zr_thick1+Al_thick2)/2.0,-(Zr_high1-Al_high2)/2.0,0) RELATIVE Zr1
+GROUP Foils
+EXTEND %{
+  if (SCATTERED) flag_Al2=1;
+%}
+
+COMPONENT Zr2 = Refractor(p_reflect=0,p_interact=0,
+			  sigma_coh=Zr_sig_coh, sigma_inc=Zr_sig_inc, sigma_abs=Zr_sig_abs,
+			  density=Zr_density, weight=Zr_weight,
+			  xwidth=Zr_thick2, yheight=Zr_high2, zdepth = Zdepth)
+AT (delta_eps+(Zr_thick2+Al_thick2)/2.0,-(Al_high2-Zr_high2)/2.0,0) RELATIVE Al2
+GROUP Foils
+EXTEND %{
+  if (SCATTERED) flag_Zr2=1;
+%}
+
+
+COMPONENT Al1 = Refractor(p_reflect=0,p_interact=0,
+			  sigma_coh=Al_sig_coh, sigma_inc=Al_sig_inc, sigma_abs=Al_sig_abs,
+			  density=Al_density, weight=Al_weight,
+			  xwidth=Al_thick1, yheight=Al_high1, zdepth = Zdepth)
+AT (delta_eps+(Zr_thick2+Al_thick1)/2.0,-(Zr_high2-Al_high1)/2.0,0) RELATIVE Zr2
+GROUP Foils
+EXTEND %{
+  if (SCATTERED) flag_Al1=1;
+%}
+
+
+COMPONENT FoilArm = Arm()
+AT (0,0,0) RELATIVE Zr1
+GROUP Foils
+EXTEND %{
+  SCATTER;
+%}
+
+
+COMPONENT SampleOut = Arm()
+AT(0,0,Zdepth/2.0+1e-9) RELATIVE Goniometer
+EXTEND %{
+  PROP_Z0;
+  Coords Pos;
+  Rotation Rot;
+  Pos = coords_neg(POS_A_CURRENT_COMP);
+  rot_transpose(ROT_A_CURRENT_COMP,Rot);
+  _class_particle tmp = *_particle;
+  mccoordschange(Pos, Rot, &tmp);
+  double XX0,YY0,ZZ0;
+  XX0=particle_getvar(&tmp,"x",NULL);
+  YY0=particle_getvar(&tmp,"y",NULL);
+  ZZ0=particle_getvar(&tmp,"z",NULL);
+  l_sample=l_sample +sqrt((XX0-x0)*(XX0-x0)+(YY0-y0)*(YY0-y0)+(ZZ0-z0)*(ZZ0-z0));
+%}
+
+COMPONENT L_sample=Monitor_nD(user1="l_sample", username1="l_sample", options="previous parallel user1 x y z vx vy vz list all neutrons", nowritefile=(!eventmode))
+  WHEN (eventmode)  AT (0,0,0) RELATIVE PREVIOUS
+
+%include "PSI/PSI_ICON/PSI_ICON_camera/PSI_ICON_camera.instr"
+  
+COMPONENT VarDetectorSignal = Monitor_nD(options=zoomoptions, xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, filename="detectorVARzoomSignal",restore_neutron=1, nowritefile=(!all_mons))
+  WHEN (all_mons && (flag_Zr1 || flag_Zr2 || flag_Al1 || flag_Al2))  AT (0,0,7.5) RELATIVE Blende_entrance
+
+COMPONENT VarDetectorZr = Monitor_nD(options=zoomoptions, xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, filename="detectorVARzoomZr",restore_neutron=1, nowritefile=(!all_mons))
+  WHEN (all_mons && (flag_Zr1 || flag_Zr2)) AT (0,0,7.5) RELATIVE Blende_entrance
+
+COMPONENT VarDetectorAl = Monitor_nD(options=zoomoptions, xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, filename="detectorVARzoomAl",restore_neutron=1, nowritefile=(!all_mons))
+  WHEN (all_mons && (flag_Al1 || flag_Al2))  AT (0,0,7.5) RELATIVE Blende_entrance
+
+END
