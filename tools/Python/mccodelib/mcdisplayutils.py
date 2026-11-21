@@ -124,10 +124,10 @@ def _shrink(a, n):
     idx = np.arange(0, m, -(-m // n))
     return np.add.reduceat(a, idx, axis=-1) / np.diff(np.append(idx, m))
 
-def read_simdir(dirname):
+def read_simdir(dirname, nbins=256):
     ''' 1D and 2D monitor data of a simulation output directory (--simdir), by component name:
     text output (mccode.sim), else NeXus (mccode.h5, its first entry: the first point of a scan);
-    shrunk to at most 256 x 256 (2D) or 1024 (1D) bins, to keep the display small '''
+    shrunk to at most nbins x nbins (2D) or 4*nbins (1D) bins, to keep the display small (--simbins) '''
     import sys
     from .mcplotloader import _get_filenames_from_mccodesim, _load_data_from_mcfiles, _nx_monitors_by_entry, Data1D, Data2D
     sim, h5 = Path(dirname, 'mccode.sim'), Path(dirname, 'mccode.h5')
@@ -142,9 +142,9 @@ def read_simdir(dirname):
     for handle in handles:
         d = handle.getdata()
         if isinstance(d, Data2D):
-            monitors[d.component] = {'z': _shrink(_shrink(d.zvals, 256).T, 256).T.tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel, 'ylabel': d.ylabel}
+            monitors[d.component] = {'z': _shrink(_shrink(d.zvals, nbins).T, nbins).T.tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel, 'ylabel': d.ylabel}
         elif isinstance(d, Data1D):
-            monitors[d.component] = {'y': _shrink(d.yvals, 1024).tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
+            monitors[d.component] = {'y': _shrink(d.yvals, 4 * nbins).tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
     return monitors
 
 def add_simdir(displaydir, monitors, viewer=None):

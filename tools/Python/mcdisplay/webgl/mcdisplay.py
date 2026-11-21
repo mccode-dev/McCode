@@ -17,7 +17,7 @@ import threading
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from mccodelib import mccode_config
-from mccodelib.mcdisplayutils import McDisplayReader, add_simdir
+from mccodelib.mcdisplayutils import McDisplayReader, add_simdir, read_simdir
 from shutil import copytree
 
 def write_browse(instrument, raybundle, dirname, timeout, nobrowse=None, campath=None, simdir=None, **kwds):
@@ -110,6 +110,9 @@ def file_save(data, filename):
 def main(instr=None, dirname=None, debug=None, n=None, timeout=None, **kwds):
     sysdir = Path(__file__).resolve().parent
 
+    if kwds.get('simdir'):
+        kwds['simdir'] = read_simdir(kwds['simdir'], kwds.get('simbins') or 256)
+
     # an existing display directory: add the --simdir monitor data to it, no simulation
     if Path(instr).is_dir():
         add_simdir(instr, kwds.get('simdir'), 'webgl')
@@ -156,7 +159,7 @@ def main(instr=None, dirname=None, debug=None, n=None, timeout=None, **kwds):
     write_browse(instrument, raybundle, dirname, timeout, **kwds)
 
 if __name__ == '__main__':
-    from mccodelib.mcdisplayutils import make_common_parser, read_campath, read_simdir
+    from mccodelib.mcdisplayutils import make_common_parser, read_campath
     # Only pre-sets instr, --default, options
     parser, prefix = make_common_parser(__file__, __doc__)
     parser.add_argument('--dirname', '-d', help='output directory name override')
@@ -165,7 +168,8 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=300, help='Number of particles to simulate')
     parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1, 2], default=2, help='Select visualization mode')
     parser.add_argument('--campath', type=read_campath, help='camera path file for the tour: rows of x y z (m), optionally with viewing direction dx dy dz')
-    parser.add_argument('--simdir', type=read_simdir, help='simulation output directory: show its 1D/2D monitor data on the monitors; with a display directory from an earlier run in place of the instrument, add the data to that display')
+    parser.add_argument('--simdir', help='simulation output directory: show its 1D/2D monitor data on the monitors; with a display directory from an earlier run in place of the instrument, add the data to that display')
+    parser.add_argument('--simbins', type=int, default=256, help='--simdir: show monitor data with at most N x N (2D) or 4N (1D) bins, default 256; the display grows as N^2 (~16 bytes/bin), large N may exceed the browser\'s texture size')
     parser.add_argument('--timeout', dest='timeout', type=int, default=300, help='Shutdown time of the WebGL viewer server')
     args, unknown = parser.parse_known_args()
     # Convert the defined arguments in the args Namespace structure to a dict

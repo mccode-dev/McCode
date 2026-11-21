@@ -53,6 +53,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `--inspect COMP` | show only rays reaching component `COMP` |
 | `--campath FILE` | camera path for the tour: rows of `x y z` (m), optionally with viewing direction `dx dy dz` |
 | `--simdir DIR` | simulation output (`mccode.sim` or `mccode.h5`): show its 1D/2D monitor data on the monitors |
+| `--simbins N` | with `--simdir`: at most N x N (2D) or 4N (1D) bins shown (default: 256) |
 | `--nobrowse` | do not open a web browser |
 | `--timeout SEC` | shutdown time of the local viewer web server (default: 300) |
 
@@ -72,6 +73,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `--inspect COMP` | show only rays reaching component `COMP` |
 | `--campath FILE` | camera path for the tour: rows of `x y z` (m), optionally with viewing direction `dx dy dz` |
 | `--simdir DIR` | simulation output (`mccode.sim` or `mccode.h5`): show its 1D/2D monitor data on the monitors |
+| `--simbins N` | with `--simdir`: at most N x N (2D) or 4N (1D) bins shown (default: 256) |
 | `--first COMP` / `--last COMP` | zoom range start/end component |
 | `--invcanvas` | invert canvas background |
 | `--nobrowse` | do not open a web browser |
@@ -80,7 +82,8 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 
 2D data is a colour map on the monitor (as in mcplot), 1D data a curve; on cylinder, banana and
 sphere monitors it follows the curved surface, with the angle along it. Large monitors are shown
-averaged to at most 256 x 256 (1D: 1024) bins; the output files are untouched. Toggles: **1D**,
+averaged to at most 256 x 256 (1D: 1024) bins, set with `--simbins`; the output files are
+untouched. The display grows as N^2 (~16 bytes/bin); a large N may exceed the browser's texture size. Toggles: **1D**,
 **2D**, **curved** and **log**, each shown only when there is such data.
 
 To add data to a display made earlier, give its directory in place of the instrument:
