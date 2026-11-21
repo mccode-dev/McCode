@@ -65,7 +65,8 @@ SHARE
   };
 
   int
-  KN_xrl_physics_my (double* my, double* k_i, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
+  KN_xrl_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_i[3] = { _particle->kx, _particle->ky, _particle->kz };
     /*get the partial cross section using xraylib*/
     double k_length = sqrt (k_i[0] * k_i[0] + k_i[1] * k_i[1] + k_i[2] * k_i[2]);
     double E = K2E * k_length;
@@ -82,8 +83,10 @@ SHARE
   }
 
   int
-  KN_xrl_physics_scattering (double* k_f, double* k_i, double* weight, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                             _class_particle* _particle) {
+  KN_xrl_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_i[3] = { _particle->kx, _particle->ky, _particle->kz };
+    double k_f[3];
+    double* weight = &_particle->p;
     double k_length = sqrt (k_i[0] * k_i[0] + k_i[1] * k_i[1] + k_i[2] * k_i[2]);
     double E = K2E * k_length;
     double E0;
@@ -94,7 +97,7 @@ SHARE
     Coords k_out;
     // Here is the focusing system in action, get a vector
     double solid_angle;
-    focus_data->focusing_function (&k_out, &solid_angle, focus_data);
+    focus_data->focusing_function (&k_out, &solid_angle, focus_data, _particle);
     NORM (k_out.x, k_out.y, k_out.z);
     *weight *= solid_angle * 0.25 / PI;
 
@@ -112,6 +115,7 @@ SHARE
     k_f[0] = k_out.x * k_length;
     k_f[1] = k_out.y * k_length;
     k_f[2] = k_out.z * k_length;
+    UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_f);
     /*get */
     return 1;
   }

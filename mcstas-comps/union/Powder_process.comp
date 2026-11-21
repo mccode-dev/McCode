@@ -47,7 +47,6 @@
 * weight:            [g/mol]     Atomic/molecular weight of material.
 * density:           [g/cm^3]    Density of material. rho=density/weight/1e24*N_A.
 * nb_atoms:          [1]         Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell
-* target_index:      [1]         Relative index of component to focus at, e.g. next is +1
 * d_phi: [deg]         Angle corresponding to the vertical angular range to focus to, e.g. detector height. 0 for no focusing.
 * init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
 *
@@ -456,7 +455,8 @@ SHARE
 
   // Function for calculating my in a test case.
   int
-  Powder_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
+  Powder_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
     //*my = data_transfer.pointer_to_a_Powder_physics_storage_struct->my_scattering;
 
     // Should not interfer with the global variables
@@ -502,8 +502,10 @@ SHARE
 
   // Function that provides a basic nonuniform elastic scattering. Unphysical for testing purposes.
   int
-  Powder_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                             _class_particle* _particle) {
+  Powder_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
+    double k_final[3];
+    double* weight = &_particle->p;
 
     // This component need to write to its storage transfer for each event, is that possible with this structure?
     struct line_info_struct_union* line_info = data_transfer.pointer_to_a_Powder_physics_storage_struct->line_info_storage;
@@ -620,8 +622,12 @@ SHARE
     } else {
       /* else transmit <-- No powder lines in file */
       printf ("Error, need lines in the PowderN input file\n");
+      k_final[0] = k_initial[0];
+      k_final[1] = k_initial[1];
+      k_final[2] = k_initial[2];
     }
 
+    UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
     // printf("Powder scattering function returned 1\n");
     return 1;
   };

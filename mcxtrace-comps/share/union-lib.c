@@ -31,7 +31,7 @@ double length_of_position_vector(Coords point) {
         return sqrt(point.x*point.x+point.y*point.y+point.z*point.z);
     }
 
-Coords make_position(double *r) {
+Coords make_position(const double *r) {
     Coords temp;
 
     temp.x = r[0];temp.y = r[1];temp.z = r[2];
@@ -1825,36 +1825,40 @@ void union_tri_add(struct union_tri_list *t, Coords a, Coords b, Coords c, int d
     } else {
       if (total == 2 && n[0] <= 1 && n[1] <= 1 && n[2] <= 1) {
         for (k=0;k<3;k++) if (n[k] == 1 && n[(k+2)%3] == 1) break; // lone vertex v[k] between the two cut edges
-        Coords w1 = v[(k+1)%3], w2 = v[(k+2)%3];
-        double sp = s[k][0], sq = 1 - s[(k+2)%3][0]; // fractions from v[k] towards w1 and w2
-        Coords p = coords_add(v[k],coords_scalar_mult(coords_sub(w1,v[k]),sp));
-        Coords q = coords_add(v[k],coords_scalar_mult(coords_sub(w2,v[k]),sq));
-        // straight boundary crosses the median v[k] -> (w1+w2)/2 at 2 sp sq / (sp + sq)
-        Coords m = coords_scalar_mult(coords_add(w1,w2),0.5);
-        double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w1,v[k]),coords_sub(w1,v[k])),
-                                                      fmax(coords_sp(coords_sub(w2,v[k]),coords_sub(w2,v[k])),
-                                                           coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)))));
-        int stm, nm = union_edge_cuts(t,v[k],m,sm,&stm);
-        double median = sqrt(coords_sp(coords_sub(m,v[k]),coords_sub(m,v[k])));
-        if (depth == 0 || (nm == 1 && fabs(sm[0] - 2*sp*sq/(sp + sq))*median < UNION_TRI_CUT_TOL*size)) {
-          if (st[k]) union_tri_emit(t,v[k],p,q);
-          else { union_tri_emit(t,p,w1,w2); union_tri_emit(t,p,w2,q); }
+        if (k >= 0 && k < 3) {
+          Coords w1 = v[(k+1)%3], w2 = v[(k+2)%3];
+          double sp = s[k][0], sq = 1 - s[(k+2)%3][0]; // fractions from v[k] towards w1 and w2
+          Coords p = coords_add(v[k],coords_scalar_mult(coords_sub(w1,v[k]),sp));
+          Coords q = coords_add(v[k],coords_scalar_mult(coords_sub(w2,v[k]),sq));
+          // straight boundary crosses the median v[k] -> (w1+w2)/2 at 2 sp sq / (sp + sq)
+          Coords m = coords_scalar_mult(coords_add(w1,w2),0.5);
+          double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w1,v[k]),coords_sub(w1,v[k])),
+                                                        fmax(coords_sp(coords_sub(w2,v[k]),coords_sub(w2,v[k])),
+                                                             coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)))));
+          int stm, nm = union_edge_cuts(t,v[k],m,sm,&stm);
+          double median = sqrt(coords_sp(coords_sub(m,v[k]),coords_sub(m,v[k])));
+          if (depth == 0 || (nm == 1 && fabs(sm[0] - 2*sp*sq/(sp + sq))*median < UNION_TRI_CUT_TOL*size)) {
+            if (st[k]) union_tri_emit(t,v[k],p,q);
+            else { union_tri_emit(t,p,w1,w2); union_tri_emit(t,p,w2,q); }
+          }
           return;
         }
       } else if (total == 1) { // boundary from the vertex o opposite the cut edge (a vertex made by a split in 2) to p
         for (k=0;k<3;k++) if (n[k] == 1) break;
-        Coords o = v[(k+2)%3], w1 = v[k], w2 = v[(k+1)%3];
-        Coords p = coords_add(w1,coords_scalar_mult(coords_sub(w2,w1),s[k][0]));
-        // a straight boundary o -> p crosses the mid-line (w1+o)/2 -> (w2+o)/2 at the same fraction s[k][0]
-        Coords m1 = coords_scalar_mult(coords_add(w1,o),0.5), m2 = coords_scalar_mult(coords_add(w2,o),0.5);
-        double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)),
-                                                      fmax(coords_sp(coords_sub(o,w1),coords_sub(o,w1)),
-                                                           coords_sp(coords_sub(o,w2),coords_sub(o,w2)))));
-        int stm, nm = union_edge_cuts(t,m1,m2,sm,&stm);
-        double midline = 0.5*sqrt(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)));
-        if (depth == 0 || (nm == 1 && fabs(sm[0] - s[k][0])*midline < UNION_TRI_CUT_TOL*size)) {
-          if (st[k]) union_tri_emit(t,w1,p,o);
-          else union_tri_emit(t,p,w2,o);
+        if (k >= 0 && k < 3) {
+          Coords o = v[(k+2)%3], w1 = v[k], w2 = v[(k+1)%3];
+          Coords p = coords_add(w1,coords_scalar_mult(coords_sub(w2,w1),s[k][0]));
+          // a straight boundary o -> p crosses the mid-line (w1+o)/2 -> (w2+o)/2 at the same fraction s[k][0]
+          Coords m1 = coords_scalar_mult(coords_add(w1,o),0.5), m2 = coords_scalar_mult(coords_add(w2,o),0.5);
+          double sm[UNION_EDGE_MAX_CUTS], size = sqrt(fmax(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)),
+                                                        fmax(coords_sp(coords_sub(o,w1),coords_sub(o,w1)),
+                                                             coords_sp(coords_sub(o,w2),coords_sub(o,w2)))));
+          int stm, nm = union_edge_cuts(t,m1,m2,sm,&stm);
+          double midline = 0.5*sqrt(coords_sp(coords_sub(w2,w1),coords_sub(w2,w1)));
+          if (depth == 0 || (nm == 1 && fabs(sm[0] - s[k][0])*midline < UNION_TRI_CUT_TOL*size)) {
+            if (st[k]) union_tri_emit(t,w1,p,o);
+            else union_tri_emit(t,p,w2,o);
+          }
           return;
         }
       } else if (depth > 0) { // split in 2 through the crossing nearest the middle of the most crossed edge
@@ -5138,6 +5142,12 @@ int intersect_function(double *t,int *num_solutions,double *r,double *v,struct g
     return output;
 }
 
+int intersect_particle_function(double *t, int *num_solutions, const _class_particle *particle, struct geometry_struct *geometry) {
+    double r[3] = { particle->x, particle->y, particle->z };
+    double k[3] = { particle->kx, particle->ky, particle->kz };
+    return intersect_function(t, num_solutions, r, k, geometry);
+}
+
 int r_within_function(Coords pos,struct geometry_struct *geometry) {
     int output = 0;
     switch(geometry->eShape) {
@@ -7512,26 +7522,26 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
     //printf("generate lists free completed\n");
 }
 
-void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *_particle) {
     // Calls the standard McXtrace randvec_target_rect_angular focusing function, but is with the new data input format.
-    randvec_target_rect_angular(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->angular_focus_width, focus_data->angular_focus_height,focus_data->absolute_rotation);
+    randvec_target_rect_angular(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->angular_focus_width, focus_data->angular_focus_height, focus_data->absolute_rotation);
     //randvec_target_rect_angular(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.aw, VarsInc.ah, ROT_A_CURRENT_COMP);
 }
 
-void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *_particle) {
 // Calls the standard McXtrace randvec_target_rect focusing function, but is with the new data input format.
-    randvec_target_rect(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_width, focus_data->spatial_focus_height,focus_data->absolute_rotation);
+    randvec_target_rect_real(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_width, focus_data->spatial_focus_height, focus_data->absolute_rotation, 0, 0, 0, 1);
     // randvec_target_rect(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.xw, VarsInc.yh, ROT_A_CURRENT_COMP);
 }
 
-void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data) {
+void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *_particle) {
 // Calls the standard McXtrace randvec_target_circle focusing function, but is with the new data input format.
 
     // debug input into randvec_target_circle
     //print_position(focus_data->Aim,"Aim vector input for randvec_target_circle");
     //printf("Radius input %f\n",focus_data->spatial_focus_radius);
 
-    randvec_target_circle(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x,focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_radius);
+    randvec_target_circle(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_radius);
     //randvec_target_circle(&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
 }
 
@@ -7777,6 +7787,155 @@ void union_release(const char *comp_name) {
   if (--union_state.refcount > 0) return;
   union_check_unconsumed();
   union_free_state();
+}
+
+void union_particle_set_wavevector(_class_particle *particle, const double *wavevector) {
+  particle->kx = wavevector[0];
+  particle->ky = wavevector[1];
+  particle->kz = wavevector[2];
+}
+
+void union_particle_get_wavevector(double *wavevector, const _class_particle *particle) {
+  wavevector[0] = particle->kx;
+  wavevector[1] = particle->ky;
+  wavevector[2] = particle->kz;
+}
+
+void union_particle_copy_rng(_class_particle *destination, const _class_particle *source) {
+  int i;
+  for (i = 0; i < RANDSTATE_LEN; i++)
+    destination->randstate[i] = source->randstate[i];
+}
+
+Coords union_particle_position(const _class_particle *particle) {
+  return coords_set(particle->x, particle->y, particle->z);
+}
+
+Coords union_particle_direction(const _class_particle *particle) {
+  return coords_set(particle->kx, particle->ky, particle->kz);
+}
+
+void union_particle_to_local(_class_particle *particle, Coords center, Rotation rotation) {
+  // mccoordschange adds its translation after rotating: R * (r - center).
+  mccoordschange(coords_neg(rot_apply(rotation, center)), rotation, particle);
+}
+
+void union_particle_translate_to_local(_class_particle *particle, Coords center) {
+  particle->x -= center.x;
+  particle->y -= center.y;
+  particle->z -= center.z;
+}
+
+void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering) {
+  _class_particle after = *particle;
+  *particle = *before;
+  union_particle_copy_rng(particle, &after);
+  if (scattering) {
+    particle->kx = after.kx;
+    particle->ky = after.ky;
+    particle->kz = after.kz;
+    particle->p = after.p;
+  }
+}
+
+void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
+                                      const _class_particle *before, Rotation inverse, int rotated, int safe_mode) {
+  *particle = *result;
+  if (rotated) {
+    // Despite its name, this helper rotates any vector, here the outgoing wavevector.
+    mccoordschange_polarisation(inverse, &particle->kx, &particle->ky, &particle->kz);
+  }
+  // Restore master-frame fields exactly, without a local-frame round trip.
+  particle->x = before->x;
+  particle->y = before->y;
+  particle->z = before->z;
+  particle->Ex = before->Ex;
+  particle->Ey = before->Ey;
+  particle->Ez = before->Ez;
+  if (safe_mode) {
+    union_particle_restore(particle, before, 1);
+  }
+}
+
+_class_particle union_particle_absorption_event(const _class_particle *particle, double distance, double full_weight) {
+  _class_particle event = *particle;
+  double wavevector_length = length_of_position_vector(union_particle_direction(&event));
+  if (wavevector_length > 0) {
+    event.x += distance * event.kx / wavevector_length;
+    event.y += distance * event.ky / wavevector_length;
+    event.z += distance * event.kz / wavevector_length;
+  }
+  event.t += distance / M_C;
+  event.phi += 1e10 * wavevector_length * distance;
+  event.p = full_weight;
+  return event;
+}
+
+/* Check standard particle fields only: instrument USERVARS, generated JUMP
+   counters, and data behind pointers are not checked. */
+void union_particle_check(const _class_particle *before, const _class_particle *after, int scattering, const char *kind, const char *name) {
+#define UNION_CHECK_FIELD(field) do { \
+  if (memcmp(&before->field, &after->field, sizeof(before->field)) != 0) { \
+    fprintf(stderr, "Union safe_mode=2: %s %s modified particle field %s\n", kind, name, #field); \
+    exit(-1); \
+  } \
+} while (0)
+  UNION_CHECK_FIELD(x); UNION_CHECK_FIELD(y); UNION_CHECK_FIELD(z);
+  UNION_CHECK_FIELD(t);
+  UNION_CHECK_FIELD(phi); UNION_CHECK_FIELD(Ex); UNION_CHECK_FIELD(Ey); UNION_CHECK_FIELD(Ez);
+  UNION_CHECK_FIELD(allow_backprop);
+  UNION_CHECK_FIELD(_mctmp_a); UNION_CHECK_FIELD(_mctmp_b); UNION_CHECK_FIELD(_mctmp_c);
+  UNION_CHECK_FIELD(_uid); UNION_CHECK_FIELD(_index); UNION_CHECK_FIELD(_absorbed);
+  UNION_CHECK_FIELD(_scattered); UNION_CHECK_FIELD(_restore); UNION_CHECK_FIELD(flag_nocoordschange);
+  if (!scattering) {
+    UNION_CHECK_FIELD(kx); UNION_CHECK_FIELD(ky); UNION_CHECK_FIELD(kz);
+    UNION_CHECK_FIELD(p); UNION_CHECK_FIELD(randstate);
+  }
+#undef UNION_CHECK_FIELD
+}
+
+int union_check_conditional(conditional_function_pointer callback, union conditional_data_union *data, _class_particle *particle,
+                            int *volume, int *total, int *per_volume, int **per_process, int safe_mode) {
+  if (!safe_mode)
+    return callback(data, particle, volume, total, per_volume, per_process);
+  _class_particle before = *particle;
+  int result = callback(data, particle, volume, total, per_volume, per_process);
+  if (safe_mode == 2)
+    union_particle_check(&before, particle, 0, "conditional", "");
+  *particle = before;
+  return result;
+}
+
+void union_record_scattering(struct logger_struct *logger, const _class_particle *before, const _class_particle *after,
+                             int scattered_in_volume, int scattered_in_process, int total_scattering_events,
+                             struct logger_with_data_struct *logger_with_data, int safe_mode) {
+  if (safe_mode) {
+    _class_particle before_copy = *before, after_copy = *after;
+    logger->function_pointers.active_record_function(&before_copy, &after_copy, scattered_in_volume, scattered_in_process,
+                                                     total_scattering_events, logger, logger_with_data);
+    if (safe_mode == 2) {
+      union_particle_check(before, &before_copy, 0, "logger", logger->name);
+      union_particle_check(after, &after_copy, 0, "logger", logger->name);
+    }
+  } else {
+    logger->function_pointers.active_record_function(before, after, scattered_in_volume, scattered_in_process,
+                                                     total_scattering_events, logger, logger_with_data);
+  }
+}
+
+void union_record_absorption(struct abs_logger_struct *logger, const _class_particle *particle, double absorbed_weight,
+                             int scattered_in_volume, int total_scattering_events,
+                             struct abs_logger_with_data_struct *abs_logger_with_data, int safe_mode) {
+  if (safe_mode) {
+    _class_particle copy = *particle;
+    logger->function_pointers.active_record_function(&copy, absorbed_weight, scattered_in_volume, total_scattering_events,
+                                                     logger, abs_logger_with_data);
+    if (safe_mode == 2)
+      union_particle_check(particle, &copy, 0, "absorption logger", logger->name);
+  } else {
+    logger->function_pointers.active_record_function(particle, absorbed_weight, scattered_in_volume, total_scattering_events,
+                                                     logger, abs_logger_with_data);
+  }
 }
 
 #endif /* UNION_LIB_C */

@@ -76,8 +76,8 @@ SHARE
   // Function for calculating my, the inverse penetration depth (for only this scattering process).
   // The input for this function and its order may not be changed, but the names may be updated.
   int
-  Template_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
-    // *k_initial is a pointer to a simple vector with 3 doubles, k[0], k[1], k[2] which describes the wavevector
+  Template_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    // The current particle state is available through _particle.
 
     // Simple case, just retrive the parameter saved from initialize
     *my = data_transfer.pointer_to_a_Template_physics_storage_struct->my_scattering;
@@ -87,32 +87,31 @@ SHARE
   // Function that provides description of a basic scattering event.
   // Do not change the
   int
-  Template_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                               _class_particle* _particle) {
+  Template_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double* weight = &_particle->p;
+    double speed = sqrt (_particle->vx * _particle->vx +
+                         _particle->vy * _particle->vy +
+                         _particle->vz * _particle->vz);
 
-    // k_final and k_initial are passed as pointers to double vector[3]
-    double k_length = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
-
+    // The particle state is read from and updated through _particle.
     Coords k_out;
     // Here is the focusing system in action, get a vector
     double solid_angle;
-    focus_data->focusing_function (&k_out, &solid_angle, focus_data);
+    focus_data->focusing_function (&k_out, &solid_angle, focus_data, _particle);
     NORM (k_out.x, k_out.y, k_out.z);
     *weight *= solid_angle * 0.25 / PI;
 
-    k_final[0] = k_out.x * k_length;
-    k_final[1] = k_out.y * k_length;
-    k_final[2] = k_out.z * k_length;
-    // A pointer to k_final is returned, and the wavevector will be set to k_final after a scattering event
+    _particle->vx = k_out.x * speed;
+    _particle->vy = k_out.y * speed;
+    _particle->vz = k_out.z * speed;
     return 1; // return 1 is sucess, return 0 is failure, and the ray will be absorbed.
               // failure should not happen, as this function will only be called when
-              // the cross section for the current k_initial is above zero.
+              // the cross section for this particle state is above zero.
 
     // There is access to the data_transfer from within the scattering function
     // In this case the only variable is my, but it could be read by:
     // double my = data_transfer.pointer_to_a_Template_physics_storage_struct->my_scattering;
-    // One can assume that if the scattering function is running, the my fuction was
-    //  executed just before and for the same k_initial.
+    // The Template_physics_my function also receives the particle state through _particle.
   };
 
   // These lines help with future error correction, and tell other Union components
