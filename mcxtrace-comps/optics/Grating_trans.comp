@@ -38,7 +38,7 @@
 * yheight:    [m]   Height of the grating.
 * material:   [str] Data file containing the material from which the grating is made.
 * substrate:  [str] Data file containing material data for the substrate.
-* fixed_delta:[0/1] Set delta to the given constant. Useful for debugging.
+* fixed_delta:[1]   Set delta to the given constant (0 = use tabulated value). Useful for debugging.
 * max_order:  [1]   Maximum order to diffract
 * 
 * %End
@@ -46,7 +46,7 @@
 
 DEFINE COMPONENT Grating_trans
 SETTING PARAMETERS (xwidth=1e-3, yheight=1e-3, period=1e-6,gamma=0.5,zdepth=1e-6,sdepth=0, string material="Au.txt",
-      string substrate="",int max_order=2,fixed_delta=0)
+      string substrate="",int max_order=2,double fixed_delta=0)
 
 SHARE
 %{
@@ -65,7 +65,6 @@ DECLARE
   double srho;
   int smu_c;
   t_Table stable;
-  int order;
 %}
 
 
@@ -73,6 +72,9 @@ DECLARE
 INITIALIZE
 %{
   int status;
+
+  srho = 0;
+  smu_c = 0;
 
   if (xwidth == 0 || yheight == 0) {
     fprintf (stderr, "Error (%s): Grating has 0 area.\n", NAME_CURRENT_COMP);
@@ -132,7 +134,7 @@ TRACE
   double e, k, f, delta, beta, mu0, smu0, pmul, order_factor, theta, order_likelihood;
   double thx, thy, period_eff, zdepth_eff;
   int M;
-  // order;
+  int order;
 
   PROP_Z0;
   if (x < -xwidth * 0.5 || x > xwidth * 0.5 || y < -yheight * 0.5 || y > yheight * 0.5) {
@@ -181,7 +183,7 @@ TRACE
         order_likelihood = order_factor * (1 + exp (-2.0 * k * 1e10 * zdepth * beta) - 2.0 * exp (-k * 1e10 * zdepth * beta) * cos (k * 1e10 * zdepth * delta));
       } else {
         order_likelihood = gamma * gamma + (1 - gamma) * (1 - gamma) * exp (-2.0 * k * 1e10 * zdepth * beta)
-                           - 2.0 * gamma * (1 - gamma) * exp (-k * 1e10 * zdepth * beta) * cos (k * 1e10 * zdepth * delta);
+                           + 2.0 * gamma * (1 - gamma) * exp (-k * 1e10 * zdepth * beta) * cos (k * 1e10 * zdepth * delta);
       }
       tot += order_likelihood;
     }
@@ -195,7 +197,7 @@ TRACE
           = order_factor * (1 + exp (-2.0 * k * 1e10 * zdepth_eff * beta) - 2.0 * exp (-k * 1e10 * zdepth_eff * beta) * cos (k * 1e10 * zdepth_eff * delta));
     } else {
       order_likelihood = gamma * gamma + (1 - gamma) * (1 - gamma) * exp (-2.0 * k * 1e10 * zdepth_eff * beta)
-                         - 2.0 * gamma * (1 - gamma) * exp (-k * 1e10 * zdepth_eff * beta) * cos (k * 1e10 * zdepth_eff * delta);
+                         + 2.0 * gamma * (1 - gamma) * exp (-k * 1e10 * zdepth_eff * beta) * cos (k * 1e10 * zdepth_eff * delta);
     }
 
     double fmc;
@@ -214,10 +216,14 @@ TRACE
     rotate (kx, ky, kz, kx, ky, kz, theta, 0, 1, az);
 
     /*do absorption according to mean absorption coefficient in the "slab",
-      remembering we can be at an angle. Just use the angle theta.*/
-    smu0 = Table_Value (stable, e, smu_c) * srho * 1e2;
+      remembering we can be at an angle. Just use the angle theta.
+      Only if a substrate table was loaded.*/
+    smu0 = 0;
+    if (substrate && strlen (substrate))
+      smu0 = Table_Value (stable, e, smu_c) * srho * 1e2;
 
-    p *= pmul * exp (-smu0 * (sdepth) / cos (theta)) * exp (-mu0 * (zdepth * (1 - gamma)));
+    /*groove absorption is already contained in order_likelihood*/
+    p *= pmul * exp (-smu0 * (sdepth) / cos (theta));
     SCATTER;
   }
 %}
