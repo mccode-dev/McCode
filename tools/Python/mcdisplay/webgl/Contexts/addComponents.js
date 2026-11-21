@@ -193,7 +193,7 @@ export function loadComponents(parentnode, components, monitors) {
       }
     }
     const mon = monitors && monitors[component.name]; // --simdir
-    if (mon) addMonitorData(compList[i], mon, transparency, parentnode.userData.monitorLog);
+    if (mon) addMonitorData(compList[i], mon, transparency, parentnode.userData.monitorLog, component.m4[5] < 0);
   });
   for (let i = 0; i < components.length; i++) {
     let m4 = components[i].m4;
@@ -222,8 +222,7 @@ export function loadComponents(parentnode, components, monitors) {
   }
   const shapes = parentnode.userData.shapes ?? { surfaces: true, lines: false };
   showShapes(parentnode, shapes.surfaces, shapes.lines);
-  const md = parentnode.userData.monitorData ?? { flat: true, curved: true };
-  showMonitorData(parentnode, md.flat, md.curved);
+  showMonitorData(parentnode, parentnode.userData.monitorData ?? { "1D": true, "2D": true, curved: true });
 }
 
 // show the --trace=2 shapes of all components as surfaces and/or lines

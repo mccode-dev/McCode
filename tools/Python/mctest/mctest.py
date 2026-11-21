@@ -478,11 +478,12 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         res = {'cmd': cmd, 'compiletime': time.time() - t1, 'displayed': None, 'displaytime': None}
         if os.path.exists(binfile):
             t1 = time.time()
+            dispn = '0' if openacc else '1e3' # rays in the display, none from an --openacc build
             if test.testnb>0:
                 dispvals = scan_first_point(test.parvals) if test.scan else test.parvals
-                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s %s -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispvals if dispvals else '-y')
+                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s %s -n%s -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispvals if dispvals else '-y', dispn)
             else:
-                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s -y -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr')
+                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s -y -n%s -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispn)
             retcode = utils.run_subtool_noread(dispcmd, cwd=join(testdir, test.instrname), timeout=displaymax)
             res['displayed'] = retcode[0]==0
             res['displaytime'] = time.time() - t1

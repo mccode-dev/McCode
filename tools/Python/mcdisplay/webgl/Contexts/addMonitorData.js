@@ -18,11 +18,11 @@ function monitorValues(z, log) {
   return { z, min, max: max > min ? max : min + 1 };
 }
 
-// paint --simdir monitor data on canvas: a colour map (2D, and 1D on curved monitors), else a curve
+// paint --simdir monitor data on canvas: 2D as a colour map, 1D as a curve (on curved monitors along the angle)
 function paintMonitor(canvas, mon, curved, log) {
   const ctx = canvas.getContext("2d");
-  if (mon.z || curved) {
-    const s = monitorValues(mon.z || [mon.y], log), z = s.z, ny = z.length, nx = z[0].length;
+  if (mon.z) {
+    const s = monitorValues(mon.z, log), z = s.z, ny = z.length, nx = z[0].length;
     const lut = new Lut("rainbow", 256);
     lut.setMin(s.min);
     lut.setMax(s.max);
@@ -39,16 +39,20 @@ function paintMonitor(canvas, mon, curved, log) {
     ctx.putImageData(img, 0, 0);
   } else {
     const s = monitorValues([mon.y], log), y = s.z[0], n = y.length;
-    canvas.width = 256;
+    const w = curved ? 1024 : 256; // curved monitors are long
+    canvas.width = w;
     canvas.height = 256;
     ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, 256, 256);
-    ctx.translate(256, 0);
-    ctx.scale(-1, 1); // +x is on the left looking along the beam: mirror, so it reads from upstream
+    ctx.fillRect(0, 0, w, 256);
+    // flat: +x is on the left looking along the beam: mirror, so it reads from upstream; curved: x is the angle
+    if (!curved) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.strokeStyle = "blue";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    y.forEach((v, i) => ctx.lineTo(8 + (240 * i) / Math.max(1, n - 1), 248 - (220 * (v - s.min)) / (s.max - s.min)));
+    y.forEach((v, i) => ctx.lineTo((w * (i + 0.5)) / n, 248 - (220 * (v - s.min)) / (s.max - s.min))); // bin centres
     ctx.stroke();
     ctx.fillStyle = "black";
     ctx.font = "16px sans-serif";
@@ -58,8 +62,9 @@ function paintMonitor(canvas, mon, curved, log) {
 
 // --simdir monitor data on the monitor's drawing (component frame), as in mcplot (first row at ymin), as in
 // webgl-classic: flat monitors: 2D as a colour map on the drawn xy rectangle, 1D as a curve;
-// curved monitors (drawn with depth, angle along x): a colour map on a cylinder or sphere (latitude along y)
-export function addMonitorData(group, mon, transparency, log) {
+// curved monitors (drawn with depth, angle along x): the same on a cylinder or sphere (latitude along y);
+// down: the monitor is upside down in the instrument, turn 1D curves upright
+export function addMonitorData(group, mon, transparency, log, down) {
   group.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(group); // the drawing, before the component transform
   const w = box.max.x - box.min.x;
@@ -102,6 +107,7 @@ export function addMonitorData(group, mon, transparency, log) {
     map: tex, transparent: transparency < 1, opacity: transparency, side: THREE.DoubleSide, depthWrite: transparency >= 1,
   }));
   surf.position.copy(pos);
+  if (down && !mon.z) surf.scale.set(curved ? 1 : -1, -1, 1); // flat: turned, curved: x is the angle
   surf.name = mon.title;
   surf.userData.monitor = curved ? "curved" : "flat";
   surf.userData.mon = mon; // to repaint (setMonitorLog)
@@ -119,11 +125,12 @@ export function setMonitorLog(parentnode, log) {
   });
 }
 
-// show or hide the monitor data on flat and curved monitors
+// show or hide the monitor data: show = { "1D", "2D", curved (any curved monitor) } on/off
 // (remembered on the scene, so a reload by loadComponents keeps the choice)
-export function showMonitorData(parentnode, flat, curved) {
-  parentnode.userData.monitorData = { flat, curved };
+export function showMonitorData(parentnode, show) {
+  parentnode.userData.monitorData = show;
   parentnode.traverse((o) => {
-    if (o.userData.monitor) o.visible = o.userData.monitor === "curved" ? curved : flat;
+    if (o.userData.monitor)
+      o.visible = (o.userData.mon.z ? show["2D"] : show["1D"]) && (o.userData.monitor !== "curved" || show.curved);
   });
 }

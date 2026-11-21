@@ -4,16 +4,16 @@ import { useSceneContext } from "../../../Contexts/SceneContext";
 import { useInstrumentContext } from "../../../Contexts/InstrumentContext";
 import { curvedOffset, setMonitorLog, showMonitorData } from "../../../Contexts/addMonitorData";
 
-// --simdir monitor data on flat and on curved (cylinder, banana, sphere) monitors, shown only when given
+// --simdir monitor data: 1D, 2D, on curved (cylinder, banana, sphere) monitors and log scale, shown only when given
 const MonitorDataButtons = () => {
   const { sceneRef } = useSceneContext();
   const { instrument } = useInstrumentContext();
-  const [show, setShow] = useState({ flat: true, curved: true });
+  const [show, setShow] = useState({ "1D": true, "2D": true, curved: true });
   const [log, setLog] = useState(false);
 
   useEffect(() => {
     // first render: no scene yet, loadComponents applies the same defaults
-    if (sceneRef.current) showMonitorData(sceneRef.current, show.flat, show.curved);
+    if (sceneRef.current) showMonitorData(sceneRef.current, show);
   }, [show]);
   useEffect(() => {
     if (sceneRef.current) setMonitorLog(sceneRef.current, log);
@@ -24,9 +24,11 @@ const MonitorDataButtons = () => {
   const toggle = (key) => setShow((s) => ({ ...s, [key]: !s[key] }));
   return (
     <div className="row">
-      <button onClick={() => toggle("flat")} className={show.flat ? "active" : ""}>
-        Monitor data
-      </button>
+      {["1D", "2D"].filter((d) => mons.some((m) => !!m.z === (d === "2D"))).map((d) => (
+        <button key={d} onClick={() => toggle(d)} className={show[d] ? "active" : ""} title={`${d} monitor data`}>
+          {d} data
+        </button>
+      ))}
       {mons.some((m) => curvedOffset(m) !== null) ? (
         <button onClick={() => toggle("curved")} className={show.curved ? "active" : ""}
           title="monitor data on cylinder, banana and sphere monitors">
