@@ -1,0 +1,129 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=https://www.mcxtrace.org
+*
+* Instrument: ILL_NeXT_Xray
+*
+* %Identification
+* Written by: DRAFT, Peter Willendrup with Claude from public ILL / NeXT-Grenoble information
+* Date: September 2026
+* Origin: ILL
+* %INSTRUMENT_SITE: ILL
+*
+* NeXT (ILL) - the X-ray cone-beam tomography arm, operated simultaneously with
+* and perpendicular to the neutron beam (companion to ILL_H521_NeXT.instr)
+*
+* %Description
+* DRAFT model of the X-ray imaging option of NeXT-Grenoble at the ILL.
+*
+* Hardware (Tengattini et al., NIM A 968 (2020) 163939):
+*   - source:   Hamamatsu L12161-07 sealed microfocus tube, W target, Be window,
+*               up to 150 kV / 500 uA, minimum focal spot 5 um, 43 deg cone
+*   - detector: Varex PaxScan 2530HE flat panel, CsI scintillator,
+*               1792 x 2176 pixels of 139 um (portrait), up to 9 Hz (33 Hz bin 2)
+*   - source-detector distance: >= 500 mm (set by the 43 deg cone covering the
+*               ~25 x 30 cm panel), four source positions 20 mm apart
+*               -> SDD = 0.50, 0.52, 0.54, 0.56 m
+*   - the sample sits on the common (neutron) rotation axis; the source-object
+*               distance SOD sets the magnification M = SDD/SOD. The quoted 5 um
+*               resolution needs M ~ 28, i.e. SOD ~ 18-20 mm.
+*   - the ILL web page (2026) quotes a 20-300 kV source, i.e. the tube may have
+*               been upgraded; kV > 150 is allowed here but flagged.
+*
+* Geometry: the X-ray axis is the McXtrace z axis. At NeXT it is horizontal and
+* perpendicular to the neutron beam (neutrons travel along -x or +x here, depending
+* on the side of the source); the source/detector pivot (+-20 deg) is not modelled.
+*
+* Assembled from ILL_NeXT_Xray_source and ILL_NeXT_Xray_detector, as is
+* ILL_NeXT_Xray_porous(_Union). Tube and detector parameters: see those files.
+*
+* The sample defaults to the same object as in ILL_H521_NeXT: a vertical Fe rod,
+* radius 5 mm, for direct bimodal comparison (the neutron model gives T~0.4 at the
+* rod centre in white beam). An inner inclusion (e.g. an H2O-filled bore) can be added.
+*
+* Detector: two ideal pixelated monitors on the flat-panel plane
+*   Xray_counts:  photon counts (photon-counting response)
+*   Xray_energy:  energy-weighted intensity [keV/s per pixel], a first-order model
+*                 of the energy-integrating CsI flat panel.
+* NOT modelled: CsI absorption efficiency vs energy, scintillator/optical blur,
+* focal-spot growth with tube power, heel effect, scatter from the sample
+* environment, and the 6 mm Pb / 10 mm + 5 mm B4C neutron shielding of the panel
+* (5 mm B4C over the active area transmits roughly 80-90 % at 40-150 keV).
+*
+* ASSUMPTIONS (to be checked):
+*   - Be exit window 0.2 mm (the L12161-07 datasheet value should be checked)
+*   - focal spot = electron-beam footprint on the anode (square, focal_spot)
+*   - anode take-off angle 12 deg (reflection-type microfocus tube, typical)
+*   - Source_lab is a thick-target Kramers model; absolute intensity is indicative
+*
+* %Test: kV=150 SOD=0.1 SDD=0.5 Detector: Xray_counts_I=162607000000
+*
+* %Parameters
+* sample:        [1]   1: sample in beam, 0: flat field (open beam)
+* sample_mat:    [str] Sample (outer) material file
+* sample_rho:    [g/cm3] Sample density (0: take nominal density from file)
+* sample_radius: [m]   Radius of the cylindrical sample
+* sample_height: [m]   Height of the cylindrical sample
+* incl_mat:      [str] Material of a coaxial inner cylinder ("NULL" for none)
+* incl_radius:   [m]   Radius of the inner cylinder (0 for none)
+* incl_rho:      [g/cm3] Density of the inner cylinder (0: nominal)
+* sample_off:    [str] Optional OFF/PLY geometry for the outer sample, overrides the cylinder ("NULL": none)
+*
+* %Link
+* https://www.ill.eu/en/for-ill-users/instruments/instruments-list/next/
+* %Link
+* A. Tengattini et al., NeXT-Grenoble, the Neutron and X-ray tomograph in Grenoble,
+*   Nucl. Instrum. Meth. A 968 (2020) 163939, doi:10.1016/j.nima.2020.163939
+* %Link
+* NECSA_MIXRAD_Nikon_Tomo.instr (McXtrace examples) - similar lab-source tomograph
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT ILL_NeXT_Xray(
+  int sample=1, string sample_mat="Fe.txt", sample_rho=0,
+  sample_radius=0.005, sample_height=0.05,
+  string incl_mat="NULL", incl_radius=0, incl_rho=0,
+  string sample_off="NULL")
+
+DECLARE %{
+  double open_x;            /* region of the detector used for the open-beam spectrum */
+%}
+
+INITIALIZE %{
+  /* open-beam spectrum window: beside the sample shadow, inside the detector */
+  double Ms = SDD/SOD, w = 1792*139e-6;
+  open_x = 3*sample_radius*Ms;
+  if (open_x > w/2 - 0.01) open_x = w/2 - 0.01;
+  if (sample && 2*sample_radius*Ms > w)
+    printf("%s: note: the magnified sample (%g mm) is wider than the detector (%g mm)\n",
+           NAME_INSTRUMENT, 2*sample_radius*Ms*1e3, w*1e3);
+%}
+
+TRACE
+
+%include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_source/ILL_NeXT_Xray_source.instr"
+
+COMPONENT sample_plane = PSD_monitor(xwidth=4*sample_radius+0.01, yheight=sample_height,
+  nx=100, ny=100, restore_xray=1)
+AT (0,0,-sample_radius-0.001) RELATIVE sample_axis
+
+COMPONENT object = Absorption_sample(
+  material_datafile_o = sample_mat, rho_o = sample_rho,
+  radius_o = sample_radius, yheight_o = sample_height, geometry_o = sample_off,
+  material_datafile_i = incl_mat, rho_i = incl_rho,
+  radius_i = incl_radius, yheight_i = (incl_radius > 0 ? sample_height : 0))
+WHEN (sample)
+AT (0,0,0) RELATIVE sample_rot
+
+%include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_detector/ILL_NeXT_Xray_detector.instr"
+
+/* spectra behind the sample centre and in the open beam (for beam hardening
+   and transmission vs energy), 0.5 mm wide strips on the detector */
+COMPONENT spec_sample = E_monitor(nE=150, Emin=0, Emax=kV,
+  xwidth=0.5e-3, yheight=0.5*sample_height*SDD/SOD, restore_xray=1)
+AT (0,0,0) RELATIVE detector_plane
+
+COMPONENT spec_open = E_monitor(nE=150, Emin=0, Emax=kV,
+  xwidth=0.5e-3, yheight=0.5*sample_height*SDD/SOD, restore_xray=1)
+AT (open_x,0,0) RELATIVE detector_plane
+
+END
