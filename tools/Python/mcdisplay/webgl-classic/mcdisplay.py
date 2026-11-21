@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from mccodelib import mccode_config
-from mccodelib.mcdisplayutils import McDisplayReader
+from mccodelib.mcdisplayutils import McDisplayReader, add_simdir
 from mccodelib.instrgeom import Vector3d
 from mccodelib.utils import get_file_text_direct
 
@@ -61,7 +61,7 @@ def _write_html(instrument, html_filepath, first=None, last=None, invcanvas=Fals
     writer = SimpleWriter(templatefile, campos, box_total, html_filepath, invcanvas)
     writer.write()
 
-def write_browse(instrument, raybundle, dirname, instrname, nobrowse=None, first=None, last=None, invcanvas=None, campath=None, **kwds):
+def write_browse(instrument, raybundle, dirname, instrname, nobrowse=None, first=None, last=None, invcanvas=None, campath=None, simdir=None, **kwds):
     ''' writes instrument definitions to html/ js '''
     from shutil import copy as shutil_copy
     def copy(a, b):
@@ -88,6 +88,8 @@ def write_browse(instrument, raybundle, dirname, instrname, nobrowse=None, first
     instr = instrument.jsonize()
     if campath:
         instr['campath'] = campath
+    if simdir:
+        instr['monitors'] = simdir
     json_instr = 'MCDATA_instrdata = %s;' % json.dumps(instr, indent=0)
     file_save(json_instr, dest.joinpath('_instr.js'))
 
@@ -118,6 +120,13 @@ def file_save(data, filename):
         f.write(data)
 
 def main(instr=None, dirname=None, debug=None, n=None, **kwds):
+    # an existing display directory: add the --simdir monitor data to it, no simulation
+    if Path(instr).is_dir():
+        add_simdir(instr, kwds.get('simdir'), 'webgl-classic')
+        if not kwds.get('nobrowse'):
+            mccode_config.open_in_browser(str(Path(instr, 'index.html')))
+        return
+
     # output directory
     if dirname is None:
         from datetime import datetime as dt
@@ -133,12 +142,13 @@ def main(instr=None, dirname=None, debug=None, n=None, **kwds):
     write_browse(instrument, raybundle, dirname, instr, **kwds)
 
 if __name__ == '__main__':
-    from mccodelib.mcdisplayutils import make_common_parser, read_campath
+    from mccodelib.mcdisplayutils import make_common_parser, read_campath, read_simdir
     # Only pre-sets instr, --default, options
     parser, prefix = make_common_parser(__file__, __doc__)
     parser.add_argument('--dirname', '-d', help='output directory name override')
     parser.add_argument('--inspect', help='display only particle rays reaching this component')
     parser.add_argument('--campath', type=read_campath, help='camera path file for the tour: rows of x y z (m), optionally with viewing direction dx dy dz')
+    parser.add_argument('--simdir', type=read_simdir, help='simulation output directory: show its 1D/2D monitor data on the monitors; with a display directory from an earlier run in place of the instrument, add the data to that display')
     parser.add_argument('--nobrowse', action='store_true', help='do not open a webbrowser viewer')
     parser.add_argument('--invcanvas', action='store_true', help='invert canvas background from black to white')
     parser.add_argument('--first', help='zoom range first component')

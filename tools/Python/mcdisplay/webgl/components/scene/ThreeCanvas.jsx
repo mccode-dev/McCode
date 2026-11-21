@@ -298,7 +298,7 @@ const ThreeCanvas = () => {
 
   useEffect(() => {
     clearScene(sceneRef.current);
-    loadComponents(sceneRef.current, instrument.components);
+    loadComponents(sceneRef.current, instrument.components, instrument.monitors);
     const gridsInitialized = gridsRef.current;
     if (instrument.components.length > 0) {
       const bbox = new THREE.Box3().setFromObject(sceneRef.current);

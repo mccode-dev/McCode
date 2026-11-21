@@ -25,6 +25,11 @@ class McDisplayReader(object):
             print(f"A .instr or compiled instrument file ({ext}) is required")
             exit()
         
+        # at most 1e3 particles (-n); the trace reader keeps up to 1e5 rays, e.g. from SPLIT
+        if n > 1000:
+            print(f"-n {n:g}: at most 1000 particles are displayed, using -n 1000")
+            n = 1000
+
         # assemble command
         mcruncmd = str(Path(mccode_config.directories['bindir'],mccode_config.configuration['MCRUN']))
 
@@ -108,6 +113,65 @@ def read_campath(filename):
     if len(rows) < 2:
         fail("needs at least 2 points")
     return {'file': Path(filename).name, 'points': rows}
+
+def _shrink(a, n):
+    ''' at most n bins along the last axis of a: means of neighbouring bins (display only) '''
+    import numpy as np
+    a = np.asarray(a, dtype=float)
+    m = a.shape[-1]
+    if m <= n:
+        return a
+    idx = np.arange(0, m, -(-m // n))
+    return np.add.reduceat(a, idx, axis=-1) / np.diff(np.append(idx, m))
+
+def read_simdir(dirname):
+    ''' 1D and 2D monitor data of a simulation output directory (--simdir), by component name:
+    text output (mccode.sim), else NeXus (mccode.h5, its first entry: the first point of a scan);
+    shrunk to at most 256 x 256 (2D) or 1024 (1D) bins, to keep the display small '''
+    import sys
+    from .mcplotloader import _get_filenames_from_mccodesim, _load_data_from_mcfiles, _nx_monitors_by_entry, Data1D, Data2D
+    sim, h5 = Path(dirname, 'mccode.sim'), Path(dirname, 'mccode.h5')
+    if sim.is_file():
+        handles = _load_data_from_mcfiles(_get_filenames_from_mccodesim(str(sim)))
+    elif h5.is_file():
+        handles = _nx_monitors_by_entry(str(h5))[0]
+    else:
+        print(f"simulation directory {dirname}: no mccode.sim or mccode.h5")
+        sys.exit(-1)
+    monitors = {}
+    for handle in handles:
+        d = handle.getdata()
+        if isinstance(d, Data2D):
+            monitors[d.component] = {'z': _shrink(_shrink(d.zvals, 256).T, 256).T.tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel, 'ylabel': d.ylabel}
+        elif isinstance(d, Data1D):
+            monitors[d.component] = {'y': _shrink(d.yvals, 1024).tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
+    return monitors
+
+def add_simdir(displaydir, monitors, viewer=None):
+    ''' adds monitor data (read_simdir) to an existing webgl(-classic) display in displaydir, as --simdir
+    does when the display is made (mcdisplay with a display directory, mctest); viewer: the calling
+    mcdisplay ('webgl' or 'webgl-classic'), warns if the display is from the other one '''
+    import json, sys
+    classic, webgl = Path(displaydir, '_instr.js'), Path(displaydir, 'instrument.json')
+    if monitors is None:
+        print(f"display directory {displaydir}: give the simulation output with --simdir")
+        sys.exit(-1)
+    found = 'webgl-classic' if classic.exists() else 'webgl' if webgl.exists() else None
+    if viewer and found and found != viewer:
+        print(f"Warning: {displaydir} is a {found} display, not {viewer}: adding the data, "
+              f"but show it with the {found} viewer")
+    if classic.exists():  # MCDATA_instrdata = {...};
+        text = classic.read_text()
+        instr = json.loads(text[text.index('=') + 1:].strip().rstrip(';'))
+        instr['monitors'] = monitors
+        classic.write_text('MCDATA_instrdata = %s;' % json.dumps(instr, indent=0))
+    elif webgl.exists():
+        instr = json.loads(webgl.read_text())
+        instr['monitors'] = monitors
+        webgl.write_text(json.dumps(instr, indent=2))
+    else:
+        print(f"display directory {displaydir}: no _instr.js (webgl-classic) or instrument.json (webgl)")
+        sys.exit(-1)
 
 def make_common_parser(filename, documentation):
     """ Create an argparse.ArgumentParser with arguments (instr, --default, options)"""

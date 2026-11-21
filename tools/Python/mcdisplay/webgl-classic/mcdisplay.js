@@ -8,6 +8,50 @@ var transformPoints = function(apoints, transform)
     geometry.applyMatrix(transform);
     return geometry.vertices.slice();
 }
+// --simdir monitor data for the colour map or curve: rows z, as is or log10 (zero and negative bins at a tenth
+// of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
+var monitorValues = function(z, log)
+{
+    var pos = Infinity, max = -Infinity;
+    z.forEach(function(r) { r.forEach(function(v) { if (v > 0 && v < pos) { pos = v; } }); });
+    if (log && pos < Infinity) {
+        var floor = Math.log10(pos/10);
+        z = z.map(function(r) { return r.map(function(v) { return v > 0 ? Math.log10(v) : floor; }); });
+    }
+    z.forEach(function(r) { r.forEach(function(v) { if (v > max) { max = v; } }); });
+    var min = log && pos < Infinity ? Math.log10(pos/10) : 0;
+    return {z: z, min: min, max: max > min ? max : min + 1};
+}
+// paint --simdir monitor data on canvas: 2D as a colour map, 1D as a curve (on curved monitors along the angle)
+var paintMonitor = function(canvas, mon, curved, log)
+{
+    var ctx = canvas.getContext("2d");
+    if (mon.z) {
+        var s = monitorValues(mon.z, log), z = s.z, ny = z.length, nx = z[0].length;
+        var lut = new THREE.Lut("rainbow", 256);
+        lut.setMin(s.min); lut.setMax(s.max);
+        canvas.width = nx; canvas.height = ny;
+        var img = ctx.createImageData(nx, ny);
+        for (var iy = 0; iy < ny; iy++) {
+            for (var ix = 0; ix < nx; ix++) {
+                var c = lut.getColor(z[iy][ix]), k = 4*((ny - 1 - iy)*nx + ix);
+                img.data[k] = 255*c.r; img.data[k+1] = 255*c.g; img.data[k+2] = 255*c.b; img.data[k+3] = 255;
+            }
+        }
+        ctx.putImageData(img, 0, 0);
+    } else {
+        var s = monitorValues([mon.y], log), y = s.z[0], n = y.length;
+        var w = curved ? 1024 : 256; // curved monitors are long
+        canvas.width = w; canvas.height = 256;
+        ctx.fillStyle = "white"; ctx.fillRect(0, 0, w, 256);
+        // flat: +x is on the left looking along the beam: mirror, so it reads from upstream; curved: x is the angle
+        if (!curved) { ctx.translate(w, 0); ctx.scale(-1, 1); }
+        ctx.strokeStyle = "blue"; ctx.lineWidth = 3; ctx.beginPath();
+        for (var i = 0; i < n; i++) { ctx.lineTo(w*(i + 0.5)/n, 248 - 220*(y[i] - s.min)/(s.max - s.min)); } // bin centres
+        ctx.stroke();
+        ctx.fillStyle = "black"; ctx.font = "16px sans-serif"; ctx.fillText((mon.xlabel || "") + (log ? ", log" : ""), 8, 20);
+    }
+}
 // "main" class which is a collection of scene graph setup routives and data objects
 //
 var Main = function ()
@@ -28,6 +72,10 @@ var Main = function ()
     this.raynodes = [];
     this.linenodes = []; // --trace=2 shapes as lines (all edges)
     this.surfnodes = []; // --trace=2 shapes as surfaces
+    this.monnodes = []; // --simdir monitor data, flat monitors
+    this.curvednodes = []; // and curved ones
+    this.logMonitors = false; // their log scale
+    this.showData = {"1D": true, "2D": true, curved: true}; // and which are shown
 
     this.iRay = -1;
 
@@ -95,6 +143,7 @@ Main.prototype.showShapes = function(surfaces, lines)
 Main.prototype.setSurfaceOpacity = function(opacity)
 {
     for (var i = 0; i < this.surfnodes.length; i++) { this.surfnodes[i].material.opacity = opacity; }
+    this.monnodes.concat(this.curvednodes).forEach(function(m) { m.material.opacity = opacity; });
 }
 // add a polyhedron given as {"vertices": [[x,y,z], ...], "faces": [{"face": [i,j,k,...]}, ...]}
 // (OFF files and polygons at --trace=2)
@@ -328,6 +377,73 @@ Main.prototype.addComponent = function(compname)
     this.compnodes[compname] = comp;
     return comp;
 }
+// --simdir monitor data on the monitor's drawing (component frame), as in mcplot (first row at ymin):
+// flat monitors: 2D as a colour map on the drawn xy rectangle, 1D as a curve;
+// curved monitors (drawn with depth, angle along x): the same on a cylinder or sphere (latitude along y);
+// down: the monitor is upside down in the instrument, turn 1D curves upright
+Main.prototype.addMonitorData = function(node, mon, down)
+{
+    var box = new THREE.Box3().setFromObject(node); // the drawing, before the component transform
+    var w = box.max.x - box.min.x, h = box.max.y - box.min.y;
+    // longitude atan2(x, z) in Monitor_nD and PSD_monitor_4PI; PSDcyl_monitor adds 180 deg
+    var off = /^Longitude/.test(mon.xlabel) ? 0 : /^radial position/.test(mon.xlabel) ? -180 : null;
+    var curved = box.max.z - box.min.z > 1e-9 && off !== null;
+    if (!curved && !(w > 0 && h > 0)) { return; }
+    var canvas = document.createElement("canvas");
+    paintMonitor(canvas, mon, curved, this.logMonitors);
+    var tex = new THREE.Texture(canvas);
+    tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    var geometry, pos = box.center(); // three r78: center(), not getCenter()
+    if (curved) {
+        // radius: farthest drawn point, from the centre (sphere) or the y axis (cylinder)
+        var r = 0, rxz = 0, D = Math.PI/180, lim = mon.limits;
+        node.updateMatrixWorld(true);
+        node.traverse(function(o) {
+            if (!o.geometry || !o.geometry.vertices) { return; }
+            o.geometry.vertices.forEach(function(v) {
+                var p = v.clone().applyMatrix4(o.matrixWorld);
+                r = Math.max(r, p.length()); rxz = Math.max(rxz, Math.sqrt(p.x*p.x + p.z*p.z));
+            });
+        });
+        var a0 = lim[0] + off, a1 = lim[1] + off;
+        if (mon.z && /^Latitude/.test(mon.ylabel)) {
+            geometry = new THREE.SphereGeometry(r, 64, 32, (a0 + 90)*D, (a1 - a0)*D, (90 - lim[3])*D, (lim[3] - lim[2])*D);
+            pos = new THREE.Vector3();
+        } else {
+            if (mon.z && /\[m\]/.test(mon.ylabel)) { h = lim[3] - lim[2]; pos.y = (lim[3] + lim[2])/2; } // e.g. PSDcyl_monitor draws no height
+            geometry = new THREE.CylinderGeometry(rxz, rxz, h, 64, 1, true, a0*D, (a1 - a0)*D);
+            pos = new THREE.Vector3(0, pos.y, 0);
+        }
+    } else {
+        geometry = new THREE.PlaneGeometry(w, h);
+    }
+    var surf = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({map: tex, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
+    surf.position.copy(pos);
+    if (down && !mon.z) { surf.scale.set(curved ? 1 : -1, -1, 1); } // flat: turned, curved: x is the angle
+    surf.name = mon.title;
+    surf.userData.mon = mon; surf.userData.curved = curved; // to repaint (setMonitorLog)
+    node.add(surf);
+    (curved ? this.curvednodes : this.monnodes).push(surf);
+}
+// monitor data on a linear or log scale
+Main.prototype.setMonitorLog = function(log)
+{
+    this.logMonitors = log;
+    this.monnodes.concat(this.curvednodes).forEach(function(m) {
+        paintMonitor(m.material.map.image, m.userData.mon, m.userData.curved, log);
+        m.material.map.needsUpdate = true;
+    });
+}
+// show or hide the --simdir monitor data: kind "1D", "2D" or "curved" (any curved monitor)
+Main.prototype.showMonitorData = function(kind, on)
+{
+    var show = this.showData;
+    show[kind] = on;
+    this.monnodes.concat(this.curvednodes).forEach(function(m) {
+        m.visible = (m.userData.mon.z ? show["2D"] : show["1D"]) && (!m.userData.curved || show.curved);
+    });
+}
 // returns a cyclically new color intended for a component draw node
 //
 Main.prototype.getNextComponentColor = function()
@@ -491,6 +607,9 @@ TraceLoader.prototype.loadInstr = function()
 
             drawFunc(call, comp_node, call['color'] || acolor);
         }
+
+        var mon = (instr['monitors'] || {})[compname];
+        if (mon) { main.addMonitorData(comp_node, mon, m4[5] < 0); }
 
         comp_matrix = new THREE.Matrix4();
         comp_matrix.set(m4[0], m4[1], m4[2], m4[3], m4[4], m4[5], m4[6], m4[7], m4[8], m4[9], m4[10], m4[11], m4[12], m4[13], m4[14], m4[15]);
