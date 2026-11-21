@@ -147,14 +147,19 @@ def read_simdir(dirname):
             monitors[d.component] = {'y': _shrink(d.yvals, 1024).tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
     return monitors
 
-def add_simdir(displaydir, monitors):
+def add_simdir(displaydir, monitors, viewer=None):
     ''' adds monitor data (read_simdir) to an existing webgl(-classic) display in displaydir, as --simdir
-    does when the display is made (mcdisplay with a display directory, mctest) '''
+    does when the display is made (mcdisplay with a display directory, mctest); viewer: the calling
+    mcdisplay ('webgl' or 'webgl-classic'), warns if the display is from the other one '''
     import json, sys
     classic, webgl = Path(displaydir, '_instr.js'), Path(displaydir, 'instrument.json')
     if monitors is None:
         print(f"display directory {displaydir}: give the simulation output with --simdir")
         sys.exit(-1)
+    found = 'webgl-classic' if classic.exists() else 'webgl' if webgl.exists() else None
+    if viewer and found and found != viewer:
+        print(f"Warning: {displaydir} is a {found} display, not {viewer}: adding the data, "
+              f"but show it with the {found} viewer")
     if classic.exists():  # MCDATA_instrdata = {...};
         text = classic.read_text()
         instr = json.loads(text[text.index('=') + 1:].strip().rstrip(';'))

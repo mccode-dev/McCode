@@ -122,7 +122,7 @@ def file_save(data, filename):
 def main(instr=None, dirname=None, debug=None, n=None, **kwds):
     # an existing display directory: add the --simdir monitor data to it, no simulation
     if Path(instr).is_dir():
-        add_simdir(instr, kwds.get('simdir'))
+        add_simdir(instr, kwds.get('simdir'), 'webgl-classic')
         if not kwds.get('nobrowse'):
             mccode_config.open_in_browser(str(Path(instr, 'index.html')))
         return

@@ -112,7 +112,7 @@ def main(instr=None, dirname=None, debug=None, n=None, timeout=None, **kwds):
 
     # an existing display directory: add the --simdir monitor data to it, no simulation
     if Path(instr).is_dir():
-        add_simdir(instr, kwds.get('simdir'))
+        add_simdir(instr, kwds.get('simdir'), 'webgl')
         if not kwds.get('nobrowse'):
             serve(Path(instr), timeout)
         return
