@@ -77,12 +77,406 @@ SETTING PARAMETERS (
 
 
 SHARE %{
-    %include "sas_rectangular_prism.c"
+%include "sas_kernel_header.c"
+
+/* BEGIN Required header for SASmodel rectangular_prism */
+#define HAS_Iqabc
+#define FORM_VOL
+
+#ifndef SAS_HAVE_gauss76
+#define SAS_HAVE_gauss76
+
+#line 1 "gauss76"
+// Created by Andrew Jackson on 4/23/07
+
+ #ifdef GAUSS_N
+ # undef GAUSS_N
+ # undef GAUSS_Z
+ # undef GAUSS_W
+ #endif
+ #define GAUSS_N 76
+ #define GAUSS_Z Gauss76Z
+ #define GAUSS_W Gauss76Wt
+
+// Gaussians
+constant double Gauss76Wt[76] = {
+	.00126779163408536,		//0
+	.00294910295364247,
+	.00462793522803742,
+	.00629918049732845,
+	.00795984747723973,
+	.00960710541471375,
+	.0112381685696677,
+	.0128502838475101,
+	.0144407317482767,
+	.0160068299122486,
+	.0175459372914742,		//10
+	.0190554584671906,
+	.020532847967908,
+	.0219756145344162,
+	.0233813253070112,
+	.0247476099206597,
+	.026072164497986,
+	.0273527555318275,
+	.028587223650054,
+	.029773487255905,
+	.0309095460374916,		//20
+	.0319934843404216,
+	.0330234743977917,
+	.0339977794120564,
+	.0349147564835508,
+	.0357728593807139,
+	.0365706411473296,
+	.0373067565423816,
+	.0379799643084053,
+	.0385891292645067,
+	.0391332242205184,		//30
+	.0396113317090621,
+	.0400226455325968,
+	.040366472122844,
+	.0406422317102947,
+	.0408494593018285,
+	.040987805464794,
+	.0410570369162294,
+	.0410570369162294,
+	.040987805464794,
+	.0408494593018285,		//40
+	.0406422317102947,
+	.040366472122844,
+	.0400226455325968,
+	.0396113317090621,
+	.0391332242205184,
+	.0385891292645067,
+	.0379799643084053,
+	.0373067565423816,
+	.0365706411473296,
+	.0357728593807139,		//50
+	.0349147564835508,
+	.0339977794120564,
+	.0330234743977917,
+	.0319934843404216,
+	.0309095460374916,
+	.029773487255905,
+	.028587223650054,
+	.0273527555318275,
+	.026072164497986,
+	.0247476099206597,		//60
+	.0233813253070112,
+	.0219756145344162,
+	.020532847967908,
+	.0190554584671906,
+	.0175459372914742,
+	.0160068299122486,
+	.0144407317482767,
+	.0128502838475101,
+	.0112381685696677,
+	.00960710541471375,		//70
+	.00795984747723973,
+	.00629918049732845,
+	.00462793522803742,
+	.00294910295364247,
+	.00126779163408536		//75 (indexed from 0)
+};
+
+constant double Gauss76Z[76] = {
+	-.999505948362153,		//0
+	-.997397786355355,
+	-.993608772723527,
+	-.988144453359837,
+	-.981013938975656,
+	-.972229228520377,
+	-.961805126758768,
+	-.949759207710896,
+	-.936111781934811,
+	-.92088586125215,
+	-.904107119545567,		//10
+	-.885803849292083,
+	-.866006913771982,
+	-.844749694983342,
+	-.822068037328975,
+	-.7980001871612,
+	-.77258672828181,
+	-.74587051350361,
+	-.717896592387704,
+	-.688712135277641,
+	-.658366353758143,		//20
+	-.626910417672267,
+	-.594397368836793,
+	-.560882031601237,
+	-.526420920401243,
+	-.491072144462194,
+	-.454895309813726,
+	-.417951418780327,
+	-.380302767117504,
+	-.342012838966962,
+	-.303146199807908,		//30
+	-.263768387584994,
+	-.223945802196474,
+	-.183745593528914,
+	-.143235548227268,
+	-.102483975391227,
+	-.0615595913906112,
+	-.0205314039939986,
+	.0205314039939986,
+	.0615595913906112,
+	.102483975391227,			//40
+	.143235548227268,
+	.183745593528914,
+	.223945802196474,
+	.263768387584994,
+	.303146199807908,
+	.342012838966962,
+	.380302767117504,
+	.417951418780327,
+	.454895309813726,
+	.491072144462194,		//50
+	.526420920401243,
+	.560882031601237,
+	.594397368836793,
+	.626910417672267,
+	.658366353758143,
+	.688712135277641,
+	.717896592387704,
+	.74587051350361,
+	.77258672828181,
+	.7980001871612,	//60
+	.822068037328975,
+	.844749694983342,
+	.866006913771982,
+	.885803849292083,
+	.904107119545567,
+	.92088586125215,
+	.936111781934811,
+	.949759207710896,
+	.961805126758768,
+	.972229228520377,		//70
+	.981013938975656,
+	.988144453359837,
+	.993608772723527,
+	.997397786355355,
+	.999505948362153		//75
+};
+
+
+#pragma acc declare copyin(Gauss76Wt[0:76], Gauss76Z[0:76])
+
+#endif // SAS_HAVE_gauss76
+
+
+#ifndef SAS_HAVE_rectangular_prism
+#define SAS_HAVE_rectangular_prism
+
+#line 1 "rectangular_prism"
+static double
+form_volume_rectangular_prism(double length_a, double b2a_ratio, double c2a_ratio)
+{
+    return length_a * (length_a*b2a_ratio) * (length_a*c2a_ratio);
+}
+
+static double
+radius_from_excluded_volume_rectangular_prism(double length_a, double b2a_ratio, double c2a_ratio)
+{
+    double const r_equiv   = sqrt(length_a*length_a*b2a_ratio/M_PI);
+    double const length_c  = c2a_ratio*length_a;
+    return 0.5*cbrt(0.75*r_equiv*(2.0*r_equiv*length_c + (r_equiv + length_c)*(M_PI*r_equiv + length_c)));
+}
+
+static double
+radius_effective_rectangular_prism(int mode, double length_a, double b2a_ratio, double c2a_ratio)
+{
+    switch (mode) {
+    default:
+    case 1: // equivalent cylinder excluded volume
+        return radius_from_excluded_volume_rectangular_prism(length_a,b2a_ratio,c2a_ratio);
+    case 2: // equivalent volume sphere
+        return cbrt(sas_cube(length_a)*b2a_ratio*c2a_ratio/M_4PI_3);
+    case 3: // half length_a
+        return 0.5 * length_a;
+    case 4: // half length_b
+        return 0.5 * length_a*b2a_ratio;
+    case 5: // half length_c
+        return 0.5 * length_a*c2a_ratio;
+    case 6: // equivalent circular cross-section
+        return length_a*sqrt(b2a_ratio/M_PI);
+    case 7: // half ab diagonal
+        return 0.5*sqrt(sas_square(length_a) * (1.0 + sas_square(b2a_ratio)));
+    case 8: // half diagonal
+        return 0.5*sqrt(sas_square(length_a) * (1.0 + sas_square(b2a_ratio) + sas_square(c2a_ratio)));
+    }
+}
+
+static double
+Iq_rectangular_prism(double q,
+    double sld,
+    double solvent_sld,
+    double length_a,
+    double b2a_ratio,
+    double c2a_ratio)
+{
+    const double length_b = length_a * b2a_ratio;
+    const double length_c = length_a * c2a_ratio;
+    const double a_half = 0.5 * length_a;
+    const double b_half = 0.5 * length_b;
+    const double c_half = 0.5 * length_c;
+
+   //Integration limits to use in Gaussian quadrature
+    const double v1a = 0.0;
+    const double v1b = M_PI_2;  //theta integration limits
+    const double v2a = 0.0;
+    const double v2b = M_PI_2;  //phi integration limits
+
+    double outer_sum = 0.0;
+    for(int i=0; i<GAUSS_N; i++) {
+        const double theta = 0.5 * ( GAUSS_Z[i]*(v1b-v1a) + v1a + v1b );
+        double sin_theta, cos_theta;
+        SINCOS(theta, sin_theta, cos_theta);
+
+        const double termC = sas_sinx_x(q * c_half * cos_theta);
+
+        double inner_sum = 0.0;
+        for(int j=0; j<GAUSS_N; j++) {
+            double phi = 0.5 * ( GAUSS_Z[j]*(v2b-v2a) + v2a + v2b );
+            double sin_phi, cos_phi;
+            SINCOS(phi, sin_phi, cos_phi);
+
+            // Amplitude AP from eqn. (12), rewritten to avoid round-off effects when arg=0
+            const double termA = sas_sinx_x(q * a_half * sin_theta * sin_phi);
+            const double termB = sas_sinx_x(q * b_half * sin_theta * cos_phi);
+            const double AP = termA * termB * termC;
+            inner_sum += GAUSS_W[j] * AP * AP;
+        }
+        inner_sum = 0.5 * (v2b-v2a) * inner_sum;
+        outer_sum += GAUSS_W[i] * inner_sum * sin_theta;
+    }
+
+    double answer = 0.5*(v1b-v1a)*outer_sum;
+
+    // Normalize by Pi (Eqn. 16).
+    // The term (ABC)^2 does not appear because it was introduced before on
+    // the definitions of termA, termB, termC.
+    // The factor 2 appears because the theta integral has been defined between
+    // 0 and pi/2, instead of 0 to pi.
+    answer /= M_PI_2; //Form factor P(q)
+
+    // Multiply by contrast^2 and volume^2
+    const double volume = length_a * length_b * length_c;
+    answer *= sas_square((sld-solvent_sld)*volume);
+
+    // Convert from [1e-12 A-1] to [cm-1]
+    answer *= 1.0e-4;
+
+    return answer;
+}
+
+static void
+Fq_rectangular_prism(double q,
+    double *F1,
+    double *F2,
+    double sld,
+    double solvent_sld,
+    double length_a,
+    double b2a_ratio,
+    double c2a_ratio)
+{
+    const double length_b = length_a * b2a_ratio;
+    const double length_c = length_a * c2a_ratio;
+    const double a_half = 0.5 * length_a;
+    const double b_half = 0.5 * length_b;
+    const double c_half = 0.5 * length_c;
+
+   //Integration limits to use in Gaussian quadrature
+    const double v1a = 0.0;
+    const double v1b = M_PI_2;  //theta integration limits
+    const double v2a = 0.0;
+    const double v2b = M_PI_2;  //phi integration limits
+
+    double outer_sum_F1 = 0.0;
+    double outer_sum_F2 = 0.0;
+    for(int i=0; i<GAUSS_N; i++) {
+        const double theta = 0.5 * ( GAUSS_Z[i]*(v1b-v1a) + v1a + v1b );
+        double sin_theta, cos_theta;
+        SINCOS(theta, sin_theta, cos_theta);
+
+        const double termC = sas_sinx_x(q * c_half * cos_theta);
+
+        double inner_sum_F1 = 0.0;
+        double inner_sum_F2 = 0.0;
+        for(int j=0; j<GAUSS_N; j++) {
+            double phi = 0.5 * ( GAUSS_Z[j]*(v2b-v2a) + v2a + v2b );
+            double sin_phi, cos_phi;
+            SINCOS(phi, sin_phi, cos_phi);
+
+            // Amplitude AP from eqn. (12), rewritten to avoid round-off effects when arg=0
+            const double termA = sas_sinx_x(q * a_half * sin_theta * sin_phi);
+            const double termB = sas_sinx_x(q * b_half * sin_theta * cos_phi);
+            const double AP = termA * termB * termC;
+            inner_sum_F1 += GAUSS_W[j] * AP;
+            inner_sum_F2 += GAUSS_W[j] * AP * AP;
+        }
+        inner_sum_F1 = 0.5 * (v2b-v2a) * inner_sum_F1;
+        inner_sum_F2 = 0.5 * (v2b-v2a) * inner_sum_F2;
+        outer_sum_F1 += GAUSS_W[i] * inner_sum_F1 * sin_theta;
+        outer_sum_F2 += GAUSS_W[i] * inner_sum_F2 * sin_theta;
+    }
+
+    outer_sum_F1 *= 0.5*(v1b-v1a);
+    outer_sum_F2 *= 0.5*(v1b-v1a);
+
+    // Normalize by Pi (Eqn. 16).
+    // The term (ABC)^2 does not appear because it was introduced before on
+    // the definitions of termA, termB, termC.
+    // The factor 2 appears because the theta integral has been defined between
+    // 0 and pi/2, instead of 0 to pi.
+    outer_sum_F1 /= M_PI_2;
+    outer_sum_F2 /= M_PI_2;
+
+    // Multiply by contrast and volume
+    const double s = (sld-solvent_sld) * (length_a * length_b * length_c);
+
+    // Convert from [1e-12 A-1] to [cm-1]
+    *F1 = 1e-2 * s * outer_sum_F1;
+    *F2 = 1e-4 * s * s * outer_sum_F2;
+}
+
+
+static double
+Iqabc_rectangular_prism(double qa, double qb, double qc,
+    double sld,
+    double solvent_sld,
+    double length_a,
+    double b2a_ratio,
+    double c2a_ratio)
+{
+    const double length_b = length_a * b2a_ratio;
+    const double length_c = length_a * c2a_ratio;
+    const double a_half = 0.5 * length_a;
+    const double b_half = 0.5 * length_b;
+    const double c_half = 0.5 * length_c;
+
+    // Amplitude AP from eqn. (13)
+    const double termA = sas_sinx_x(qa * a_half);
+    const double termB = sas_sinx_x(qb * b_half);
+    const double termC = sas_sinx_x(qc * c_half);
+    const double AP = termA * termB * termC;
+
+    // Multiply by contrast and volume
+    const double s = (sld-solvent_sld) * (length_a * length_b * length_c);
+
+    // Convert from [1e-12 A-1] to [cm-1]
+    return 1.0e-4 * sas_square(s * AP);
+}
+
+
+#endif // SAS_HAVE_rectangular_prism
+
+
+
+/* END Required header for SASmodel rectangular_prism */
 %}
     DECLARE
 %{
   double shape;
-  double my_a_v;
+  double my_a_k;
 %}
 
 INITIALIZE
@@ -115,59 +509,59 @@ INITIALIZE
     target_z = 1;
   }
 
-  my_a_v = model_abs * 2200 * 100; /* Is not yet divided by v. 100: Convert barns -> fm^2 */
+  /*TODO fix absorption*/
+  my_a_k = model_abs; /* assume absorption is given in 1/m */
 %}
 
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double l0, l1, k, l_full, l, dl, d_Phi;
   double aim_x = 0, aim_y = 0, aim_z = 1, axis_x, axis_y, axis_z;
-  double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
-  double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
+  double f, solid_angle, kx_i, ky_i, kz_i, q, qx, qy, qz;
   char intersect = 0;
 
-  /* Intersection neutron trajectory / sample (sample surface) */
+  /* Intersection photon trajectory / sample (sample surface) */
   if (shape == 0) {
-    intersect = cylinder_intersect (&t0, &t1, x, y, z, vx, vy, vz, R, yheight);
+    intersect = cylinder_intersect (&l0, &l1, x, y, z, kx, ky, kz, R, yheight);
   } else if (shape == 1) {
-    intersect = box_intersect (&t0, &t1, x, y, z, vx, vy, vz, xwidth, yheight, zdepth);
+    intersect = box_intersect (&l0, &l1, x, y, z, kx, ky, kz, xwidth, yheight, zdepth);
   } else if (shape == 2) {
-    intersect = sphere_intersect (&t0, &t1, x, y, z, vx, vy, vz, R);
+    intersect = sphere_intersect (&l0, &l1, x, y, z, kx, ky, kz, R);
   }
   if (intersect) {
-    if (t0 < 0)
+    if (l0 < 0)
       ABSORB;
 
-    /* Neutron enters at t=t0. */
-    v = sqrt (vx * vx + vy * vy + vz * vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
-    dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
-    PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    /* Photon enters at l0. */
+    k = sqrt (kx * kx + ky * ky + kz * kz);
+    l_full = (l1 - l0);              /* Length of full path through sample */
+    dl = rand01 () * (l1 - l0) + l0; /* Point of scattering */
+    PROP_DL (dl);                    /* Point of scattering */
+    l = (dl - l0);                   /* Penetration in sample */
 
-    vx_i = vx;
-    vy_i = vy;
-    vz_i = vz;
+    kx_i = kx;
+    ky_i = ky;
+    kz_i = kz;
     if ((target_x || target_y || target_z)) {
       aim_x = target_x - x; /* Vector pointing at target (anal./det.) */
       aim_y = target_y - y;
       aim_z = target_z - z;
     }
     if (focus_aw && focus_ah) {
-      randvec_target_rect_angular (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_aw, focus_ah, ROT_A_CURRENT_COMP);
+      randvec_target_rect_angular (&kx, &ky, &kz, &solid_angle, aim_x, aim_y, aim_z, focus_aw, focus_ah, ROT_A_CURRENT_COMP);
     } else if (focus_xw && focus_yh) {
-      randvec_target_rect (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_xw, focus_yh, ROT_A_CURRENT_COMP);
+      randvec_target_rect (&kx, &ky, &kz, &solid_angle, aim_x, aim_y, aim_z, focus_xw, focus_yh, ROT_A_CURRENT_COMP);
     } else {
-      randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
+      randvec_target_circle (&kx, &ky, &kz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
-    NORM (vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
-    qx = V2K * (vx_i - vx);
-    qy = V2K * (vy_i - vy);
-    qz = V2K * (vz_i - vz);
+    NORM (kx, ky, kz);
+    kx *= k;
+    ky *= k;
+    kz *= k;
+    qx = (kx_i - kx);
+    qy = (ky_i - ky);
+    qz = (kz_i - kz);
     q = sqrt (qx * qx + qy * qy + qz * qz);
 
     double trace_length_a = length_a;
@@ -179,16 +573,16 @@ TRACE
     float Iq_out;
     Iq_out = 1;
 
-    Iq_out = Iq (q, sld, sld_solvent, trace_length_a, b2a_ratio, c2a_ratio);
+    Iq_out = Iq_rectangular_prism (q, sld, sld_solvent, trace_length_a, b2a_ratio, c2a_ratio);
 
     float vol;
-    vol = form_volume (trace_length_a, b2a_ratio, c2a_ratio);
+    vol = form_volume_rectangular_prism (trace_length_a, b2a_ratio, c2a_ratio);
 
-    // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
+    // Scale by 1.0E2 [SasView: 1/cm  ->   McXtrace: 1/m]
     Iq_out = model_scale * Iq_out / vol * 1.0E2;
 
-    l_1 = v * t1;
-    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / v);
+    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_k * (l + l1));
+
     SCATTER;
   }
 %}
