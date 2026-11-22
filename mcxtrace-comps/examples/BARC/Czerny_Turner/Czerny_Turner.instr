@@ -19,7 +19,7 @@
 * It can be found here: https://inis.iaea.org/collection/NCLCollectionStore/_Public/19/019/19019134.pdf
 * Example: Do a scan (scan parameter =1) from x_screw=20 to 103 mm. The calculated monitor "Wavelength(Ang) as a function of x_screw(mm)" will be a linear function. The monochromator functions properly.
 *
-* %Test: x_screw=60 Detector: w_monitor_I=0.0721
+* %Test: x_screw=60 Detector: w_monitor_I=50747500000.0
 * %TestScan: mxrun Czerny_Turner.instr -N21 x_screw=20,103 scan=1 -n1e6 Detector: Wavelength_I={
 *   2007.08,2406.85,2820.95,3242.17,3659.02,4075.98,4485.76,4901.23,
 *   5324.84,5733.95,6156.24,6569.68,6979.66,7395.58,7805.61,8222.2,
@@ -73,11 +73,6 @@ theta_calculated = RAD2DEG*asin(x_screw/164.61);
 fprintf(stdout,"theta_calculated %g degrees, should be 17.6833 for x_screw 50 mm approximately \n", theta_calculated);
 
 order=1;
-
-if (theta_calculated<9){ //to take into account the ray arriving on the other side of the norm. The order 1 does not go towards the M2 when theta_calculated is inferior to 9 degrees, so 
-//better to be centered on the order -1.
-order=-1;
-}
 
 period = 1/(1e3*number_lines_per_mm);
 fprintf(stdout,"Grating period %g \n", period);
@@ -153,7 +148,7 @@ AT (0, 0, 0) RELATIVE PREVIOUS
 ROTATED (-9, 0, 0) RELATIVE PREVIOUS	
 
 SPLIT COMPONENT reflective_grating = Grating_reflect(
-    d_phi=1,order=order,
+    d_phi=2e-3,order=order, // [deg] ~ slit acceptance (13.5um/0.76m = 1e-3 deg) and wider than the order main lobe (<1e-3 deg)
     rho_l=number_lines_per_mm,
     zdepth=102e-3,xwidth=102e-3)    
 AT (0, 0, 0) RELATIVE PREVIOUS
