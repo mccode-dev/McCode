@@ -1080,9 +1080,6 @@ SHARE
                                  "column_j", "Delta_d/d", "lattice_a ", "lattice_b ", "lattice_c ", "lattice_aa", "lattice_bb", "lattice_cc", "nb_atoms",
                                  "multiplicity", NULL);
 
-    printf ("l0\n");
-    fflush (stderr);
-
     if (parsing) {
       if (parsing[0] && !info->sigma_a)
         info->sigma_a = atof (parsing[0]);
@@ -1129,9 +1126,6 @@ SHARE
       }
       free (parsing);
     }
-
-    printf ("l1\n");
-    fflush (stderr);
 
     if (nb_atoms > 1) {
       info->sigma_a *= nb_atoms;
@@ -1195,9 +1189,6 @@ SHARE
       return (0);
     }
 
-    printf ("l2\n");
-    fflush (stderr);
-
     // when lengths a,b,c + angles are given (instead of vectors a,b,c)
     if (info->m_aa && info->m_bb && info->m_cc) {
       double as, bs, cs;
@@ -1252,19 +1243,18 @@ SHARE
       info->m_cz = cs;
       */
 
-      // miguel
-      info->m_ax = as * sin (0.5 * info->m_cc * DEG2RAD);
-      info->m_ay = as * cos (0.5 * info->m_cc * DEG2RAD);
+      // miguel: a and b in the xy-plane, symmetric about y; z along c*.
+      // c from a.c = as*cs*cos(beta) and b.c = bs*cs*cos(alpha).
+      double h = 0.5 * info->m_cc * DEG2RAD;
+      info->m_ax = as * sin (h);
+      info->m_ay = as * cos (h);
       info->m_az = 0;
-      info->m_bx = -as * sin (0.5 * info->m_cc * DEG2RAD);
-      info->m_by = as * cos (0.5 * info->m_cc * DEG2RAD);
+      info->m_bx = -bs * sin (h);
+      info->m_by = bs * cos (h);
       info->m_bz = 0;
-      info->m_cx = 0;
-      info->m_cy = 0;
-      info->m_cz = cs;
-
-      printf ("l3\n");
-      fflush (stderr);
+      info->m_cx = cs * (cos (info->m_bb * DEG2RAD) - cos (info->m_aa * DEG2RAD)) / (2 * sin (h));
+      info->m_cy = cs * (cos (info->m_aa * DEG2RAD) + cos (info->m_bb * DEG2RAD)) / (2 * cos (h));
+      info->m_cz = sqrt (cs * cs - info->m_cx * info->m_cx - info->m_cy * info->m_cy);
 
       printf ("Texture: %s structure a=%g b=%g c=%g aa=%g bb=%g cc=%g ", (flag ? "INC" : SC_file), as, bs, cs, info->m_aa, info->m_bb, info->m_cc);
     } else {
