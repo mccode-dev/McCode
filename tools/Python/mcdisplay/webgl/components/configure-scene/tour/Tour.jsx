@@ -6,7 +6,7 @@ import { useSceneContext } from "../../../Contexts/SceneContext";
 import { useInstrumentContext } from "../../../Contexts/InstrumentContext";
 import { RAY } from "../../../Contexts/addRays";
 
-const FLY_MS = 1000; // flight time between components, divided by the speed setting
+const FLY_MS = 1000; // flight time between components at speed 1
 
 // components the tour stops at: drawn ones (e.g. not Arm), skipping any within 1 mm of the previous
 const tourComps = (scene) =>
@@ -37,7 +37,8 @@ const Tour = () => {
   const [comp, setComp] = useState("");
   const [sit, setSit] = useState("0");
   const [smooth, setSmooth] = useState(true);
-  const [speed, setSpeed] = useState("1");
+  const [speed, setSpeed] = useState("0"); // log10 of the speed: 0.1x - 10x
+  const [paused, setPaused] = useState(false);
   const [beam, setBeam] = useState(true);
   const [offset, setOffset] = useState(["0", "0", "0"]);
   const [view, setView] = useState(["0", "0", "0"]);
@@ -45,18 +46,21 @@ const Tour = () => {
   const path = useMemo(() => campath && campathStops(campath.points), [campath]);
   const [pathOff, setPathOff] = useState(false); // campath file unticked
 
-  // the timer and the flight read the latest settings
+  // the tour clock and the flight read the latest settings
   const s = useRef({});
-  s.current = { on, usePath: !!path && !pathOff, sit, smooth, ms: FLY_MS / Number(speed), beam, offset: offset.map(Number), view: view.map(Number) };
+  s.current = { on, paused, usePath: !!path && !pathOff, sit, smooth, speed: 10 ** Number(speed), beam, offset: offset.map(Number), view: view.map(Number) };
   const idx = useRef(-1);
-  const timer = useRef(null);
+  const fly = useRef(null); // the current flight and sit
+  const last = useRef(0); // time of the last frame
+  const raf = useRef(0); // the clock's next frame
   const recorder = useRef(null);
   const recFirst = useRef(null);
 
   // the stops: the campath file points, else the components
   const stops = () => (s.current.usePath ? path : tourComps(sceneRef.current));
 
-  const flyToNext = () => {
+  // fly to the next stop, then sit sitMs and call next
+  const flyToNext = (sitMs, next) => {
     const comps = stops();
     const camera = primaryCameraRef.current;
     const controls = primaryControlsRef.current;
@@ -71,27 +75,58 @@ const Tour = () => {
       look = dir.normalize().applyQuaternion(c.quaternion).multiplyScalar(look.length());
     }
     const pos = new THREE.Vector3().fromArray(s.current.offset).applyQuaternion(c.quaternion).add(c.position);
-    const fly = {
+    fly.current = {
       posFrom: camera.position.clone(), posTo: pos,
-      tgtFrom: controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now(), ms: s.current.ms,
+      tgtFrom: controls.target.clone(), tgtTo: pos.clone().add(look), t: 0, ms: FLY_MS, sit: sitMs, next,
     };
-    const animate = () => {
-      const t = Math.min(1, (performance.now() - fly.t0) / fly.ms);
-      const e = s.current.smooth ? t : t * t * (3 - 2 * t); // smooth: steady, no stop at the component; else smoothstep
-      camera.position.lerpVectors(fly.posFrom, fly.posTo, e);
-      controls.target.lerpVectors(fly.tgtFrom, fly.tgtTo, e);
-      controls.update();
-      if (t < 1) requestAnimationFrame(animate);
-    };
-    animate();
     return c.name;
   };
 
+  // the tour clock, every frame while the tour is on: runs at the speed setting, unless paused
+  const tick = (now) => {
+    if (!s.current.on) return;
+    const dt = Math.min(100, now - last.current); // no jump after a hidden tab
+    last.current = now;
+    const f = fly.current;
+    if (f && !s.current.paused) {
+      const flying = f.t < f.ms;
+      f.t += dt * s.current.speed;
+      if (flying) { // after arrival, the camera is free during the sit
+        const t = Math.min(1, f.t / f.ms);
+        const e = s.current.smooth ? t : t * t * (3 - 2 * t); // smooth: steady, no stop at the component; else smoothstep
+        primaryCameraRef.current.position.lerpVectors(f.posFrom, f.posTo, e);
+        primaryControlsRef.current.target.lerpVectors(f.tgtFrom, f.tgtTo, e);
+        primaryControlsRef.current.update();
+      }
+      if (f.t >= f.ms + f.sit) {
+        fly.current = null;
+        f.next();
+      }
+    }
+    raf.current = requestAnimationFrame(tick);
+  };
+
+  // pause or go on, with the recording; on going on, the flight continues from where the camera is (it may have been moved)
+  const togglePause = (p) => {
+    s.current.paused = p;
+    setPaused(p);
+    const f = fly.current;
+    if (!p && f && f.t < f.ms) {
+      f.posFrom.copy(primaryCameraRef.current.position);
+      f.tgtFrom.copy(primaryControlsRef.current.target);
+      f.ms -= f.t;
+      f.t = 0;
+    }
+    if (recorder.current) p ? recorder.current.pause() : recorder.current.resume();
+  };
+
   const step = (start) => {
-    clearTimeout(timer.current);
+    fly.current = null;
     if (!s.current.on) return;
     if (start && record) startRecording("");
-    const name = flyToNext();
+    const sit = s.current.smooth ? 0 : parseFloat(s.current.sit);
+    // a campath file tour stops at its last point
+    const name = flyToNext(1000 * (sit > 0 ? sit : 0), () => (s.current.usePath && idx.current === path.length - 1 ? endTour() : step(false)));
     setComp(name);
     if (recorder.current) {
       if (!recFirst.current) recFirst.current = name;
@@ -100,9 +135,6 @@ const Tour = () => {
         stopRecording();
       }
     }
-    const sit = s.current.smooth ? 0 : parseFloat(s.current.sit);
-    const last = s.current.usePath && idx.current === path.length - 1; // a campath file tour stops at its last point
-    timer.current = setTimeout(() => (last ? endTour() : step(false)), s.current.ms + 1000 * (sit > 0 ? sit : 0));
   };
 
   // record the 3D view during a tour, downloaded as <instr>_tour.mp4 (or .webm) when it stops
@@ -141,8 +173,12 @@ const Tour = () => {
   const toggleOn = (checked) => {
     s.current.on = checked;
     setOn(checked);
-    if (checked) step(true);
-    else { clearTimeout(timer.current); setComp(""); stopRecording(); }
+    if (checked) {
+      step(true);
+      last.current = performance.now();
+      cancelAnimationFrame(raf.current);
+      raf.current = requestAnimationFrame(tick);
+    } else { fly.current = null; togglePause(false); setComp(""); stopRecording(); }
   };
   const endTour = () => { setRecord(false); toggleOn(false); };
   // campath file ticked/unticked: tour its points, or the components
@@ -196,10 +232,9 @@ const Tour = () => {
           <label title="no stops: travel through the components at a steady pace (sit is ignored)">
             <input type="checkbox" checked={smooth} onChange={(e) => setSmooth(e.target.checked)} />Smooth
           </label>
-          <span title="speed of the camera movement">speed
-            <select value={speed} onChange={(e) => setSpeed(e.target.value)}>
-              {["1", "2", "4"].map((v) => <option key={v} value={v}>{v}x</option>)}
-            </select>
+          <span title="speed of the tour, also during a flight or sit">speed
+            <input type="range" min="-1" max="1" step="0.05" value={speed} onChange={(e) => setSpeed(e.target.value)} />
+            <span className="tour-speed">{(10 ** Number(speed)).toPrecision(2)}x</span>
           </span>
           <label><input type="checkbox" checked={beam} onChange={(e) => setBeam(e.target.checked)} />Move along beam</label>
           {vec("offset", "camera offset from the component origin (m), in the component frame", offset, setOffset, "m")}
@@ -209,6 +244,13 @@ const Tour = () => {
             {sceneRef.current && stops().map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
           </select>
         </div>
+      ) : null}
+      {on ? (
+        <button id="tour-pause" onClick={() => togglePause(!paused)} title="pause or continue the tour (the camera can be moved while paused)">
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path d={paused ? "M7 4v16l13-8z" : "M6 4h4v16h-4zM14 4h4v16h-4z"} fill="currentColor" />
+          </svg>
+        </button>
       ) : null}
     </div>
   );

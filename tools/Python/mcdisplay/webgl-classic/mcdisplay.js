@@ -81,6 +81,8 @@ var Main = function ()
 
     this.lut = null;
     this.smooth = true; // tour: no stops (Smooth checkbox)
+    this.tourSpeed = 1; // tour clock rate (speed slider)
+    this.tourPaused = false; // tour clock stopped (Pause button)
 }
 // add circle to xy, xz or yz plane
 //
@@ -253,10 +255,11 @@ Main.prototype.setCampath = function(points)
     });
 }
 //  tour: fly the camera to the next stop (a component origin or campath point), looking along its z axis
-//  (the neutron direction) with beam, else in the current direction; returns the stop name
+//  (the neutron direction) with beam, else in the current direction; then sit sitMs and call next;
+//  returns the stop name
 //      offset  -  [x, y, z] camera displacement from the origin, in the component frame
 //      view    -  [x, y, z] added to the viewing direction 0 0 1 with beam, in the component frame
-Main.prototype.flyToNext = function(beam, offset, view)
+Main.prototype.flyToNext = function(beam, offset, view, sitMs, next)
 {
     var stops = this.tourStops();
     if (stops.length == 0) { return ""; }
@@ -270,19 +273,40 @@ Main.prototype.flyToNext = function(beam, offset, view)
     }
     var pos = new THREE.Vector3().fromArray(offset).applyQuaternion(node.quaternion).add(node.position);
     this.fly = { posFrom: this.camera.position.clone(), posTo: pos,
-                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t0: performance.now(), ms: FLY_MS };
+                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t: 0, ms: FLY_MS, sit: sitMs, next: next };
     return node.name;
 }
-//  advance a flight started by flyToNext, called every frame
+//  tour: stop or restart the tour clock; on restart, the flight goes on from where the camera is (it may have been moved)
+Main.prototype.pauseTour = function(paused)
+{
+    this.tourPaused = paused;
+    var f = this.fly;
+    if (paused || !f || f.t >= f.ms) { return; }
+    f.posFrom.copy(this.camera.position);
+    f.tgtFrom.copy(this.controls.target);
+    f.ms -= f.t;
+    f.t = 0;
+}
+//  advance a flight started by flyToNext, called every frame: the tour clock runs at tourSpeed, unless paused
 Main.prototype.animate = function()
 {
-    if (!this.fly) { return; }
-    var t = Math.min(1, (performance.now() - this.fly.t0) / this.fly.ms);
-    var s = this.smooth ? t : t*t*(3 - 2*t); // smooth: steady, no stop at the component; else smoothstep
-    this.camera.position.lerpVectors(this.fly.posFrom, this.fly.posTo, s);
-    this.controls.target.lerpVectors(this.fly.tgtFrom, this.fly.tgtTo, s);
-    this.controls.update();
-    if (t >= 1) { this.fly = null; }
+    var now = performance.now(), dt = this.tourLast === undefined ? 0 : Math.min(100, now - this.tourLast); // no jump after a hidden tab
+    this.tourLast = now;
+    var f = this.fly;
+    if (!f || this.tourPaused) { return; }
+    var flying = f.t < f.ms;
+    f.t += dt*this.tourSpeed;
+    if (flying) { // after arrival, the camera is free during the sit
+        var t = Math.min(1, f.t / f.ms);
+        var s = this.smooth ? t : t*t*(3 - 2*t); // smooth: steady, no stop at the component; else smoothstep
+        this.camera.position.lerpVectors(f.posFrom, f.posTo, s);
+        this.controls.target.lerpVectors(f.tgtFrom, f.tgtTo, s);
+        this.controls.update();
+    }
+    if (f.t >= f.ms + f.sit) {
+        this.fly = null;
+        if (f.next) { f.next(); }
+    }
 }
 //  cat camera view according to campos, a Vector3
 //
@@ -815,7 +839,7 @@ Controller.prototype.setViewHome = function()
 var Y_AXIS = new THREE.Vector3(0, 1, 0);
 var Z_AXIS = new THREE.Vector3(0, 0, 1);
 var SEGMENTS = 24;
-var FLY_MS = 1000; // tour: flight time between components, divided by the speed setting
+var FLY_MS = 1000; // tour: flight time between components at speed 1
 
 //  enum for playback state
 //
