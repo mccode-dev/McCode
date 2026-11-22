@@ -514,11 +514,28 @@ SHARE
 
     flag_qSq = (Sqw->column_order[8] > 0 && Sqw->column_order[6] > 0);
 
-    MPI_MASTER (if (Sqw->column_order[0] == 4 && Sqw->barns != 0)
+    /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'powder_barns' parameter */
+    int hdr_unit = 0;
+    char** unit = Table_ParseHeader (sqwTable.header, "column_F2", "column_F ", NULL);
+    if (unit) {
+      for (i = 0; i <= 1; i++)
+        if (unit[i] && (strstr (unit[i], "barn") || strstr (unit[i], "fm"))) {
+          int hdr_barns = strstr (unit[i], "barn") != NULL;
+          if (hdr_barns != Sqw->barns)
+            MPI_MASTER (printf ("Isotropic_Sqw: %s: |F|^2 unit in file header is %s, using powder_barns=%d\n", Sqw->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
+          Sqw->barns = hdr_barns;
+          hdr_unit = 1;
+        }
+      for (i = 0; i <= 1; i++)
+        if (unit[i])
+          free (unit[i]);
+      free (unit);
+    }
+    MPI_MASTER (if (!hdr_unit && Sqw->column_order[0] == 4 && Sqw->barns != 0)
                     printf ("Isotropic_sqw: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
                             "WARNING:       but F2 unit is set to powder_barns=1 (barns). Intensity might be 100 times too high.\n",
                             Sqw->compname);
-                if (Sqw->column_order[0] == 17 && Sqw->barns == 0)
+                if (!hdr_unit && Sqw->column_order[0] == 17 && Sqw->barns == 0)
                     printf ("Isotropic_sqw: %s: Powder file probably of type Lazy Pulver (laz)\n"
                             "WARNING:       but F2 unit is set to powder_barns=0 (fm^2). Intensity might be 100 times too low.\n",
                             Sqw->compname););
