@@ -19,10 +19,12 @@ import platform
 import subprocess
 import io
 import concurrent.futures
+import contextlib
 from datetime import datetime, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from mccodelib import utils, mccode_config
+from mccodelib.mcdisplayutils import add_simdir, read_simdir
 
 def get_processor_info():
     if platform.system() == "Windows":
@@ -443,7 +445,7 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
     anyfailed=False
 
     # compile, record time
-    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, jobs
+    global ncount, no_mpi, mpi, openacc, suffix, nexus, lint, permissive, compilemax, displaymax, displayncount, runmax, seed, strict, noplots, nohtml, jobs
     logging.info("")
     if not lint:
         logging.info("Compiling instruments [seconds]...")
@@ -476,11 +478,12 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
         res = {'cmd': cmd, 'compiletime': time.time() - t1, 'displayed': None, 'displaytime': None}
         if os.path.exists(binfile):
             t1 = time.time()
+            dispn = '0' if openacc else displayncount # rays in the display, none from an --openacc build
             if test.testnb>0:
                 dispvals = scan_first_point(test.parvals) if test.scan else test.parvals
-                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s %s -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispvals if dispvals else '-y')
+                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s %s -n%s -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispvals if dispvals else '-y', dispn)
             else:
-                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s -y -n0 -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr')
+                dispcmd = mccode_config.configuration["MCDISPLAY"]+'-classic %s --nobrowse %s -y -n%s -d display > displaylog.txt 2>&1' % (mpiswitch, test.instrname+'.instr', dispn)
             retcode = utils.run_subtool_noread(dispcmd, cwd=join(testdir, test.instrname), timeout=displaymax)
             res['displayed'] = retcode[0]==0
             res['displaytime'] = time.time() - t1
@@ -671,6 +674,19 @@ def mccode_test(branchdir, testdir, limitinstrs=None, instrfilter=None, compfilt
             if not skipped:
                 test.save(infolder=join(testdir, test.instrname))
             continue
+
+        # the display was made with the parameters of test 1 (of its first point, for a scan): add its monitor data
+        if test.testnb == 1:
+            simdir = join(testdir, test.instrname, "1")
+            if test.scan and isdir(join(simdir, "0")):  # NeXus scans: one file, first point in its first entry
+                simdir = join(simdir, "0")
+            display = join(testdir, test.instrname, "display")
+            if isdir(display) and (os.path.exists(join(simdir, "mccode.sim")) or os.path.exists(join(simdir, "mccode.h5"))):
+                try:
+                    with contextlib.redirect_stdout(sys.stdout if args.verbose else io.StringIO()):  # loader messages
+                        add_simdir(display, read_simdir(simdir))
+                except Exception as e:
+                    logging.info("%s: no monitor data in the display: %s" % (test.get_display_name(), e))
 
         resbase="(No file)"
         # test value extraction
@@ -1023,6 +1039,7 @@ runLocal = None
 runmax = None
 compilemax = None
 displaymax = None
+displayncount = None
 noplots = None
 nohtml = None
 noscans = None
@@ -1085,7 +1102,7 @@ def main(args):
             quit(1)
     logging.debug("")
 
-    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, runmax, seed, strict, noplots, nohtml, noscans, nsigma, statfactor, jobs
+    global ncount, no_mpi, mpi, skipnontest, openacc, nexus, lint, permissive, runLocal, compilemax, displaymax, displayncount, runmax, seed, strict, noplots, nohtml, noscans, nsigma, statfactor, jobs
     ncount = "1e6"
     no_mpi = False
     if args.ncount:
@@ -1207,6 +1224,10 @@ def main(args):
         displaymax=int(args.displaymax[0])
     else:
         displaymax=60
+    if args.displayncount:
+        displayncount=args.displayncount[0]
+    else:
+        displayncount='1e3'
 
     if args.strict and args.permissive:
         logging.error("ERROR: Permissive mode and strict mode can not be combined!")
@@ -1272,6 +1293,7 @@ if __name__ == '__main__':
     parser.add_argument('--compilemax', nargs=1, help='Maximum time (s) allowed pr. compilation (default 1800s)(if run with --lint muliplied x100)')
     parser.add_argument('--runmax', nargs=1, help='Maximum time (s) allowed pr. test Example run (default 3600s)')
     parser.add_argument('--displaymax', nargs=1, help='Maximum time allowed pr. test Example DISPLAY run (default 60s)')
+    parser.add_argument('--displayncount', nargs=1, help='ncount for the DISPLAY runs, i.e. rays shown (default 1e3, 0 with --openacc)')
     parser.add_argument('--permissive', action='store_true', help='Use zero return-value even if some tests fail. Useful for full test con systems that are only partially functional. Can not be combined with --strict.')
     parser.add_argument('--strict', action='store_true', help='Let instruments without %%Test line(s) instantly fail. Can not be combined with --permissive.')
     parser.add_argument('--noplots', action='store_true', help='Do not generate plots (01_overview.pdf and 02_plots.html) of the test output. Useful e.g. in CI, where the plots are not looked at, and can take long for instruments with many monitors.')

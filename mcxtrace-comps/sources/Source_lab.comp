@@ -44,9 +44,6 @@
 *
 * %Parameters
 * material:   [string] Anode element, symbol ("Cu", "W", ...) or atomic number as a string ("29").
-* material_datafile: [string] Legacy parameter, kept for backward compatibility with Source_lab. Only the
-*             file NAME is used: the element is taken from it ("Cu.txt", "../data/Mo.txt" -> "Cu", "Mo");
-*             the file is not read. If set, it overrides 'material'.
 * width:      [m]    Width of electron beam impinging on the anode.
 * height:     [m]    Height of electron beam impinging on the anode.
 * xwidth:     [m]    Width of the anode material slab (0: practically infinite).
@@ -63,6 +60,7 @@
 * frac:       [0-1]  Fraction of statistic to use for Bremsstrahlung.
 * lorentzian: [0/1]  If nonzero Lorentzian (more correct) line profiles are used.
 * exit_window_refpt: [m] If set, the AT position and exit window will coincide (legacy behaviour).
+* material_datafile: [string] Legacy parameter, kept for backward compatibility. Only the file NAME is used: the element is taken from it ("Cu.txt", "../data/Mo.txt" -> "Cu", "Mo"); the file is not read. If set, it overrides 'material'.
 *
 * %End
 *************************************************************************/
@@ -76,7 +74,7 @@ SETTING PARAMETERS (string material="Cu", width=1e-3, height=1e-3, thickness=100
 
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
-DEPENDENCY " @XRLFLAGS@ -DUSE_OFF "
+DEPENDENCY " @XRLFLAGS@ "
 NOACC
 
 SHARE
@@ -200,16 +198,24 @@ INITIALIZE
     }
     mat_name[n] = '\0';
     if (!n) {
-      fprintf (stderr, "Error (%s): cannot derive an element from material_datafile '%s'\n", NAME_CURRENT_COMP, material_datafile);
+      fprintf (stderr, "Error (%s): cannot derive an element from material_datafile '%s'\n", 
+        NAME_CURRENT_COMP, material_datafile);
       exit (-1);
     }
+    MPI_MASTER(
     if (material && strlen (material) && strcmp (material, mat_name))
-      fprintf (stderr, "Warning (%s): material_datafile '%s' overrides material='%s' (using '%s')\n", NAME_CURRENT_COMP, material_datafile, material, mat_name);
+      fprintf (stderr, "Warning (%s): material_datafile '%s' overrides material='%s' (using '%s')\n", 
+        NAME_CURRENT_COMP, material_datafile, material, mat_name);
+    else
+      fprintf (stderr, "Warning (%s): Compatibility material_datafile '%s'. Better use material='%s'\n", 
+        NAME_CURRENT_COMP, material_datafile, mat_name);
+    );
   } else if (material && strlen (material)) {
     strncpy (mat_name, material, sizeof (mat_name) - 1);
     mat_name[sizeof (mat_name) - 1] = '\0';
   } else {
-    fprintf (stderr, "Error (%s): set 'material' (element symbol or atomic number) or 'material_datafile'\n", NAME_CURRENT_COMP);
+    fprintf (stderr, "Error (%s): set 'material' (element symbol or atomic number) as a string.\n", 
+      NAME_CURRENT_COMP);
     exit (-1);
   }
 

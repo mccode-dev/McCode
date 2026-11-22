@@ -18,6 +18,12 @@ Sample that models many photon-matter interactions:
 - Rayleigh scattering (elastic,   dipolar radiation of excitated electrons, coherent)
 \end{verbatim}
 
+Attenuation uses the total cross section (XRayLib CSb\_Total). The part of the photo-absorption which does not end in a fluorescence line (e.g. Auger decay, dominant for low-Z elements) is an additional 'absorbed' outcome of the interaction.
+
+Polarisation: when the photon has a non-zero polarisation vector (Ex,Ey,Ez), the Rayleigh and Compton scattering use the polarised differential cross sections (DCSPb\_*, azimuth measured from the polarisation vector), and the scattered photon polarisation is the projection of the incoming one perpendicular to the new direction. Without polarisation (E=0), unpolarised cross sections are used. Fluorescence emission is isotropic and unpolarised.
+
+Fluorescence line widths are the sum of the level widths of the initial and final shells of the line (AtomicLevelWidth), when available. Else the K shell width is used.
+
 Use the \textbf{FluoPowder} sample component to properly handle powder diffraction with fluorescence.
 
 The 'material' specification is given as a chemical formulae, e.g. "LaB6". It may also be given as a file name (CIF/LAU/LAZ/FullProf format) in which case the formulae is guessed (but may be approximative). Atoms from Z=5 to Z=90 are handled.
@@ -80,10 +86,10 @@ yheight & m & Height of sample in vertical direction for box/cylinder shapes. & 
 zdepth & m & Depth for a box sample shape. & 0 \\
 concentric & 1 & Indicate that this component has a hollow geometry and may contain other components. It should then be duplicated after the inside part (only for box, cylinder, sphere). & 0 \\
 material & str & Chemical formulae, e.g. "LaB6", "Pb2SnO4". If may also be a CIF/LAZ/LAU file. & "LaB6" \\
-packing\_factor & 1 & How dense is the material compared to bulk 0-1. & 0 \\
-rho & \AA{}-3 & Density of scattering elements (nb atoms/unit cell V\_0). & 0 \\
-density & g/cm$^{3}$ & Density of material. V\_rho=density/weight/1e24*N\_A. & 0 \\
-weight & g/mol & Atomic/molecular weight of material. & 0 \\
+packing\_factor & 1 & How dense is the material compared to bulk 0-1. Only applied when given explicitly. & 0 \\
+rho & \AA{}-3 & Density of 'units' (formula units, or unit cells when 'weight' is that of a cell). Default is computed from density and weight. & 0 \\
+density & g/cm$^{3}$ & Density of material. rho=density/weight/1e24*N\_A. & 0 \\
+weight & g/mol & Molecular weight of the 'unit' described by 'rho' (default: formula weight of material). & 0 \\
 p\_interact & 1 & Force a given fraction of the beam to scatter, keeping intensity right, to enhance small signals (-1 inactivate). & 0 \\
 target\_x & m & Position of target to focus at, along X. & 0 \\
 target\_y & m & Position of target to focus at, along Y. & 0 \\
@@ -97,7 +103,7 @@ target\_index & 1 & Relative index of component to focus at, e.g. next is +1. & 
 flag\_compton & 1 & When 0, the Compton  scattering is ignored. & 1 \\
 flag\_rayleigh & 1 & When 0, the Rayleigh scattering is ignored. & 1 \\
 flag\_lorentzian & 1 & When 1, the line shapes are assumed to be Lorentzian, else Gaussian. & 0 \\
-flag\_kissel & 1 & When 1 (slower), handle M-lines XRF from Kissel for Z\textgreater{}=52 Te (else only K and L-lines). & 0 \\
+flag\_kissel & 1 & When 1 (slower), handle M-lines XRF from Kissel for Z\textgreater{}=50 (else only K and L-lines). & 0 \\
 flag\_low\_z & 1 & When 1, enhances low concentration atoms, else uses cross-sections weighting. & 0 \\
 order & 1 & Limit multiple fluorescence up to given order. Last iteration is absorption only. & 1 \\
 \bottomrule

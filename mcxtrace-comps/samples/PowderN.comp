@@ -646,12 +646,14 @@ SHARE
 
   #pragma acc routine
   int
-  calc_inc_xsect (double k, double* inc, struct line_info_struct* line_info) {
+  calc_inc_xsect (double k, double coh, double my_abs, double* inc, struct line_info_struct* line_info) {
     /*TODO choose one of these bits*/
 
     /* compute the incoherent cross section.
      * amounts to a table lookup in material data_file by energy
-     * In time this should be improved to actually handle Compton scattering.*/
+     * In time this should be improved to actually handle Compton scattering.
+     * coh, my_abs: coherent and absorption attenuation [m^-1] at k, subtracted
+     * when the column also holds them.*/
     double e = k * K2E;
 
     double correction;
@@ -670,11 +672,11 @@ SHARE
       break;
     case 3:
       /*inc is given as inc+ćoh in column i*/
-      correction = line_info->my_s_k2_sum / (k * k);
+      correction = coh;
       break;
     case 4:
       /*inc is given as total attenuation = inc+coh+abs in column i*/
-      correction = line_info->my_s_k2_sum / (k * k) + line_info->my_a;
+      correction = coh + my_abs;
       break;
     case 5:
       /*means no non-zero index has been found - set xsect to 0*/
@@ -682,11 +684,11 @@ SHARE
       return 1;
     }
 
-    *inc = Table_Value ((line_info->mat_table), e, line_info->mat_column_order[i] - 1) - correction;
+    /*scale by rho and 100 to get in units m^-1*/
+    *inc = Table_Value ((line_info->mat_table), e, line_info->mat_column_order[i] - 1) * 100 * line_info->rho - correction;
     if (*inc < 0) {
       *inc = 0;
     }
-    *inc *= 100 * line_info->rho; /*scale by rho and 100 to get in units m^-1*/
     return 0;
   }
 
@@ -1012,7 +1014,7 @@ TRACE
       #endif
       Nq = calc_xsect (k, line_info.q, line_info.my_s_k2, line_info.count, &my_s_k2_sum, &line_info);
       calc_abs_xsect (k, &my_a, &line_info);
-      calc_inc_xsect (k, &my_inc, &line_info);
+      calc_inc_xsect (k, my_s_k2_sum / (k * k), my_a, &my_inc, &line_info);
       if (pack != 1) {
         /*apply packing factor correction*/
         my_a *= pack;

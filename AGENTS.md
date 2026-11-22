@@ -248,6 +248,10 @@ MSVC does not implement C99 `_Complex` arithmetic. Use the McCode complex wrappe
   description: complete the free-form text, the AI-tools declaration, the
   development OS and the checklist sections that apply. Remove sections that do
   not apply. Tick a box only for a step actually done.
+- **AI declaration.** A person is responsible for every contribution. Every
+  AI-assisted commit, also from agent accounts, names the tool in a
+  `Co-Authored-By` line; tick the AI-tools box in the PR template. See
+  `CONTRIBUTING.md`.
 - When editing files with tools that may time out, edit in small chunks
   (~10–20 lines) and re-read the region afterwards to confirm the actual state
   before retrying — never re-apply blindly.
