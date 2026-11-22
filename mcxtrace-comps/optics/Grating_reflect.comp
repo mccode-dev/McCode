@@ -85,6 +85,10 @@ INITIALIZE
 
   d = 1e7 / rho_l;                 /*grating pitch in Angstrom*/
   nslits = (zdepth * 1e3) * rho_l; /*the relative width of openings*/
+  if (nslits < 1) {
+    fprintf (stderr, "ERROR: (%s) fewer than one grating line (zdepth=%g m, rho_l=%g l/mm). \n", NAME_CURRENT_COMP, zdepth, rho_l);
+    exit (-1);
+  }
 
   if (!b) {
     /* Approximated slit-width in Angstrom*/
@@ -95,8 +99,8 @@ INITIALIZE
     printf ("INFO: (%s): Line width, d=%f [AA]. Number of slits,  N=%f. Slit width, b=%f [AA].\n \n", NAME_CURRENT_COMP, d, nslits, b);
   }
 
-  /*We are not sampling the full 2pi range*/
-  pdir = (((d_phi * DEG2RAD)) / (2 * M_PI));
+  /*Angular width [rad] of the sampled window; the weight is an angular density times this width*/
+  pdir = d_phi * DEG2RAD;
 %}
 
 TRACE
@@ -115,7 +119,7 @@ TRACE
     double nx, ny, nz;
     double Gamma, gamma, spsi_i, spsi_o;
     double kz_o, ky2, ky_o;
-    double delta_theta, pdiff;
+    double delta_theta, pdiff, env, dirich;
     /* Normal vector for the grating*/
     nx = 0;
     ny = 1;
@@ -157,9 +161,13 @@ TRACE
       gamma = k * d * (spsi_o - spsi_i);
       /* Phase for diffraction pattern */
       Gamma = k * b * (spsi_o - spsi_i);
-      pdiff = ((sin (Gamma / 2) / (Gamma / 2)) * (sin (Gamma / 2) / (Gamma / 2)))
-              * ((sin (nslits * gamma / 2) / sin (gamma / 2)) * (sin (nslits * gamma / 2) / sin (gamma / 2)));
-      p = p * pdir * (pdiff / (pow (nslits, 2)));
+      /* Single-slit envelope and N-slit interference, with the 0/0 limits (1 and N) handled */
+      env = (fabs (Gamma) < 1e-9) ? 1 : sin (Gamma / 2) / (Gamma / 2);
+      dirich = (fabs (sin (gamma / 2)) < 1e-9) ? nslits : sin (nslits * gamma / 2) / sin (gamma / 2);
+      pdiff = env * env * dirich * dirich;
+      /* Weight = reflectivity * sampled angular width * angular density of the efficiency. The density is normalised so that
+         one order integrates to (b/d)^2*sinc^2 independent of N: d(gamma)/d(theta) = d*|ky| converts the peak from gamma to angle. */
+      p = p * R0 * pdir * (b / d) * (b / d) * pdiff * d * fabs (ky) / (2 * M_PI * nslits);
       SCATTER;
 
     } else {
