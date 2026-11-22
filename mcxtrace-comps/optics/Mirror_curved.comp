@@ -1,167 +1,332 @@
-/************************************************
+/*******************************************************************************
+*
 * McXtrace, x-ray tracing package
 *         Copyright, All rights reserved
 *         DTU Physics, Kgs. Lyngby, Denmark
 *         Synchrotron SOLEIL, Saint-Aubin, France
 *
-* %Identification
-* Written by: Erik Knudsen
-* Date: September 25th, 2009
-* Origin: Risoe
+* Component: Mirror_curved
 *
-* A cylindrically curved mirror (in YZ)
+* %Identification
+*
+* Written by: Emmanuel Farhi, adapted from Mirror by Erik B Knudsen
+* Date: November 2026
+* Version: 1.3
+* Origin: SOLEIL
+*
+* Rectangular curved mirror (paraboloid/quasi-spherical/cylindrical) or flat
 *
 * %Description
-* mirror is in the YZ-plane curved towards positive X if radius is positive
+* Like the Mirror component, the mirror is by default tangent to the local
+* XZ plane (mirror surface at y=0, nominal beam along +z), and placed in the
+* local YZ plane instead by setting 'yheight' or 'width'.
+* The surface has two principal curvature radii:
+*   Rx: radius bending the surface across the mirror width, i.e. in the local
+*       XZ plane for an XZ mirror, or in the YZ plane for a YZ mirror
+*       (perpendicular, sagittal radius).
+*   Rz: radius bending the surface along the mirror length (in the local YZ
+*       plane), i.e. focusing along the beam (meridional, tangential radius).
+* A radius equal to 0 means the surface is NOT curved in that direction.
+* - Rx  =   Rz      -> quasi-spherical mirror (paraxial toroid, large Rx=Rz).
+* - Rx !=   Rz      -> toroidal/astigmatic mirror (paraxial sag intersection).
+* - Rx !=0  Rz  =0  -> cylindrical
+* - Rx  =0  Rz !=0  -> bent mirror (along beam, e.g. for KB)
+* - Rx  =   Rz  =0  -> perfectly flat mirror, equivalent to Mirror.
+* The radii usually follow f_t=Rz*sin(theta)/2 and f_s=Rx/sin(theta)/2 
+* where theta is the tilt angle, and f_t and f_s are tangential and sagittal  
+* focus distances.
 *
-* Example: Mirror_curved( radius=2, length=20e-3, width=40e-3, coating="AlMgF2_disco.dat")
-* 
+* Sign convention: R > 0 means the surface sags towards the normal side
+* (towards +y for an XZ mirror): the centre of curvature lies upstream and a
+* beam along +z is focused. R > 0 converges (concave).
+*
+* Surface: N = ( T^2/(2 Rx) + z^2/(2 Rz) ), where N is the surface normal
+* (y for an XZ mirror, x for a YZ mirror) and T the transverse coordinate
+* (x for an XZ mirror, y for a YZ mirror). The mirror is truncated to the
+* aperture |T| <= (xwidth|yheight)/2 and |z| <= zdepth/2.
+* With one non-zero radius the ray/cylinder intersection is exact (the
+* surface stays flat along the other direction); with two
+* non-zero radii the sag equation (paraxial toroid) is used, exact in the
+* limit of aperture << R. Use Rx=Rz for quasi-spherical optics.
+* The mirror is located at its center. 
+* Default geometry is a mirror in the XZ plane, as the Mirror component.
+* When using the 'width' or 'yheight' parameter, the mirror flips in the YZ plane.
+* To model a toroid, better use the Mirror_toroid component.
+*
+* Reflectivity is handled exactly as in Mirror: either constant (R0) or from
+* a datafile/coating recipe ('coating').
+*
+* Example: Mirror_curved(xwidth=1e-3, zdepth=1e-2, Rx=1.0, Rz=0, R0=1, coating="B4C.dat")
+* Example: Mirror_curved(xwidth=2e-3, zdepth=5e-2, Rx=0.5, Rz=0.7)
+* Example: Mirror_curved(yheight=1e-3, zdepth=1e-2, Rx=0.3)  (YZ-plane mirror)
+*
 * %Parameters
-* radius: [m]   Radius of curvature, along Z.
-* yheight:[m]   Width of the mirror along Y.
-* zdepth: [m]   Length of the unbent mirror along Z.
-* coating:[str] Name of file containing the material data (i.e. f1 and f2) for the coating
-* R0:     [1]   Constant reflectivity value (mostly relevant for debugging, when coating="").
-* width:  [m]   Width of the mirror along Y = yheight
-* length: [m]   Length of the unbent mirror along Z = zdepth
+* Input parameters:
+* xwidth:  [m]    Mirror aperture width along local x (XZ mirror, default)
+* yheight: [m]    Setting yheight > 0 overrides xwidth and places the mirror
+*                 in the YZ plane (aperture along local y), as for Mirror.
+* zdepth:  [m]    Mirror aperture length along local z (beam direction)
+* Rx:      [m]    Sagittal curvature radius (across the mirror width). 0 = flat.
+* Rz:      [m]    Tangential curvature radius (along the beam). 0 = flat.
+* R0:      [0-1]  Constant reflectivity
+* coating: [str]  Filename containing reflectivities (or coating).
+* radius:  [m]    Radius of tangential curvature along Z = Rz (compatibility).
+* width:   [m]    Width of the mirror along Y = yheight (compatibility).
+* length:  [m]    Length of the unbent mirror along Z = zdepth (compatibility).
 *
 * %End
-***********************************************************************/
+*******************************************************************************/
 
 DEFINE COMPONENT Mirror_curved
 
-SETTING PARAMETERS (radius=1, R0=1, string coating="Be.txt",
-  zdepth=0.2, yheight=0.2, 
-  length=0, width=0)
+SETTING PARAMETERS (zdepth=0.1, xwidth=0.01, yheight=0,
+  Rx=0, Rz=0, string coating="", R0=1, 
+  radius=0, length=0, width=0)
 
-/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
 SHARE
 %{
-  %include "mccode-complex-lib"
   %include "read_table-lib"
   %include "reflectivity-lib"
 %}
 
 DECLARE
 %{
-  int Z;
-  double At;
-  double rho;
-  t_Table T;
   t_Reflec re;
 %}
 
 INITIALIZE
 %{
-  int status;
+  int status = 0;
+  
+  /* Compatibility with older use */
+  if (length) zdepth  = length;
+  if (width)  {
+    yheight = width;
+    MPI_MASTER(
+      printf("WARNING: %S: Using 'width' compatibility. Better use 'yheight' for explicit orientation of mirror.\n", NAME_CURRENT_COMP)
+    );
+  }
 
-  if (coating && strlen (coating) && strcmp (coating, "NULL")) {
+  if (yheight <= 0 && xwidth <= 0) {
+    fprintf (stderr, "ERROR (%s): Mirror_curved requires xwidth > 0 "
+                     "(or yheight > 0 for a YZ-plane mirror). Aborting.\n",
+             NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  
+  if (radius && !Rz) Rz=radius;
+  
+  if ((Rx && fabs (Rx) < 1e-6) || (Rz && fabs (Rz) < 1e-6)) {
+    fprintf (stderr, "ERROR (%s): |radius| < 1 um is physically meaningless. Aborting.\n",
+             NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  
+  /* User convention: R > 0 = concave towards the incoming side (+N), i.e. focusing.
+     Internal surface is N = -(T^2/(2Rx) + z^2/(2Rz)), so flip the signs. */
+  Rx = -Rx;
+  Rz = -Rz;
+
+  if (coating && strlen (coating) && strcmp (coating, "NULL") && strcmp (coating, "0")) {
     status = reflec_Init (&re, COATING_UNDEFINED, coating, NULL);
   } else {
     /*assume a constant reflectivity*/
-    status = reflec_Init (&re, CONSTANT, NULL, &(R0));
+    status = reflec_Init_const (&re, R0);
   }
-  if (!radius)
-    radius = 1e6;
-  // compatibility with older use
-  if (length)
-    zdepth = length;
-  if (width)
-    yheight = width;
+
+  if (status != 0) {
+    fprintf (stderr, "ERROR (%s): Could not interpret reflectivity. Aborting.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
 %}
 
 TRACE
 %{
-  double l0, l1, dl, alpha, n, nx, nz, s, k, knx, knz, k_total;
-  /* dl init - cppcheck complains about algorithm below */
-  dl=0;
-  /*do we hit the mirror within range?*/
-  // PROP_Z0;
-  k = sqrt (scalar_prod (kx, 0, kz, kx, 0, kz));
-  k_total = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
-  knx = kx / k;
-  knz = kz / k;
-  if (solve_2nd_order (&l0, &l1, knx* knx + knz * knz, 2 * (x * knx + z * knz - radius * knx), x* x - 2 * x * radius + z * z)) {
-    if (l0 < 0 && l1 > 0) {
-      if (fabs (x + knx * l1) < fabs (radius)) {
-        dl = l1;
-      }
-    } else if (l1 < 0 && l0 > 0) {
-      if (fabs (x + knx * l0) < fabs (radius)) {
-        dl = l0;
-      }
-    } else if (l0 > 0 && l1 > 0) {
-      if (fabs (radius * asin ((z + knz * l0) / radius)) < zdepth / 2.0 && fabs (y + (ky / k) * l0) < yheight / 2.0 && fabs (x + knx * l0) < fabs (radius)) {
-        /*this means that the first positive match is on the mirror z-wise
-          - this should be picked. This would work even if mirror is hit from behind*/
-        dl = l0;
-      } else if (fabs (radius * asin ((z + knz * l1) / radius)) < zdepth / 2.0 && fabs (y + (ky / k) * l1) < yheight / 2.0 && fabs (x + knx * l1) < fabs (radius)) {
-        dl = l1;
+  /* Local frame mapping (like Mirror: yheight > 0 sets a YZ-plane mirror).
+     N : surface normal axis        (y for XZ mirror, x for YZ mirror)
+     T : mirror transverse axis     (x for XZ mirror, y for YZ mirror)
+     specular plane is the local (T,N) plane at z=0, beam along +z        */
+  int yzplane = (yheight > 0);
+  double T    = (yzplane ? y : x);
+  double N    = (yzplane ? x : y);
+  double halfT= (yzplane ? yheight : xwidth) / 2.0;
+  double uT, uN;                       /* unit-vector components */
+
+  int    intersect = 1;
+  double nN = 1, nT = 0, nz = 0;
+  double t0 = 0, t1 = 0, tt = 0;
+  double A, B, C, k;
+
+  k  = sqrt (kx * kx + ky * ky + kz * kz);
+  uT = (yzplane ? ky : kx) / k;
+  uN = (yzplane ? kx : ky) / k;
+
+  if (Rx != 0 && Rz != 0) {
+    /* paraxial toroid: F = N + T^2/(2 Rx) + z^2/(2 Rz) = 0
+       with the ray P(s) = P + s*u, u = k/|k| (s in metres).        */
+    double uk = kz / k;
+    A = uT * uT / (2.0 * Rx) + uk * uk / (2.0 * Rz);
+    B = uN + T * uT / Rx + z * uk / Rz;
+    C = N + T * T / (2.0 * Rx) + z * z / (2.0 * Rz);
+    solve_2nd_order (&t0, &t1, A, B, C);
+  } else if (Rx != 0 || Rz != 0) {
+    /* exact ray/cylinder intersection with a single curvature radius: the
+       surface stays FLAT along the other direction (a cylinder, not a sphere).
+       Rx only: circular section (T,N), axis along z, centre at N = -Rx.
+       Rz only: circular section (z,N), axis along T, centre at z = -Rz.    */
+    double R = (Rx != 0 ? Rx : Rz);
+    if (Rx != 0) { // Rx-only
+      double pc = N + R;
+      A = uT * uT + uN * uN;
+      B = 2 * (T * uT + pc * uN);
+      C = T * T + N * N + 2 * N * R;
+    } else { // Rz-only
+      double uk = kz / k;
+      double pc = N + R;                  /* circle centre at z=0, N=-R */
+      A = uk * uk + uN * uN;
+      B = 2 * (z * uk + pc * uN);
+      C = z * z + N * N + 2 * N * R;
+    }
+    if (A == 0) {
+      /* ray parallel to the cylinder axis: no solve possible */
+      t0 = 0; t1 = 0;
+    } else {
+      solve_2nd_order (&t0, &t1, A, B, C);
+    }
+  } else {
+    /* flat mirror: plane N = 0 */
+    if (uN == 0)
+      intersect = 0;
+    else
+      t0 = -N / uN;
+  }
+
+  /* first root ahead of the x-ray that lies ON the mirror plate
+     (|T| <= halfT and |z| <= zdepth/2). Both roots must be tested: when the
+     x-ray starts far upstream (e.g. after a monitor with restore_xray=1) the
+     extended cylinder is crossed before the plate, and that spurious early
+     crossing must not mask the true hit on the plate.                       */
+  if (intersect) {
+    double tc[2], uk = kz / k;
+    int i;
+    tc[0] = (t0 < t1 ? t0 : t1);
+    tc[1] = (t0 < t1 ? t1 : t0);
+    intersect = 0;
+    for (i = 0; i < 2 && !intersect; i++) {
+      if (tc[i] <= 1e-12) continue;
+      if (fabs (T + tc[i] * uT) <= halfT && fabs (z + tc[i] * uk) <= zdepth / 2.0) {
+        tt = tc[i];
+        intersect = 1;
       }
     }
-    /* else: particle misses the mirror completely (l0<0 and l1<0), dl stays 0 */
+  }
 
-    if (dl != 0) {
-      /*correction for only solving in xz-plane*/
-      dl *= sqrt (scalar_prod (kx, ky, kz, kx, ky, kz) / scalar_prod (kx, 0, kz, kx, 0, kz));
+  if (intersect) {
+    PROP_DL (tt);
+    /* refresh coordinates at the intersection point (on the plate) */
+    T = (yzplane ? y : x);
+    N = (yzplane ? x : y);
 
-      /* undo the propagation by hand on a miss rather than RESTORE_XRAY: the runtime's restore
-         clears ABSORBED, which would cancel an ABSORB in the instrument EXTEND block */
-      double x0 = x, y0 = y, z0 = z, t0 = t, phi0 = phi;
-      PROP_DL (dl);
-      alpha = asin (z / radius);
-      if ((zdepth / 2.0 < fabs (radius * alpha)) || (fabs (y) > yheight / 2.0)) {
-        x = x0; y = y0; z = z0; t = t0; phi = phi0;
+    /* surface normal in local coordinates */
+    if (Rx != 0 && Rz != 0) {
+      /* grad F = (T/Rx along T, z/Rz along z, 1 along N) */
+      nT = T / Rx;
+      nz = z / Rz;
+      nN = 1;
+    } else if (Rx != 0 || Rz != 0) {
+      /* cylinder: normal = (P - centre)/R in the curved (N,z) or (T,N) plane */
+      double R = (Rx != 0 ? Rx : Rz);
+      if (Rx != 0) {
+        /* circle in (T,N), centre at N = -Rx: normal has no z component */
+        nN = (N + R) / R;
+        nT = T / R;
+        nz = 0;
       } else {
-        SCATTER;
-        /*reflection*/
-        nx = radius - x;
-        nz = -z;
-        n = sqrt (nx * nx + nz * nz);
-        nx /= n;
-        nz /= n;
-
-        s = scalar_prod (kx, 0, kz, nx, 0, nz);
-        kx = kx - 2 * s * nx;
-        kz = kz - 2 * s * nz;
-
-        double Q;
-        /*length of wavevector transfer may be compute from s and n_ above*/
-        Q = fabs (2 * s * sqrt (nx * nx + nz * nz));
-        cdouble R = refleccq (re, Q, 0, k_total, fabs (90 - acos (s / k_total) * RAD2DEG));
-        p *= sqrt (creal (cmul(R, conj (R))));
-        phi += atan2 (cimag (R), creal (R));
+        /* circle in (z,N), centre at (z=0, N=-Rz): no T component */
+        nN = (N + R) / R;
+        nT = 0;
+        nz = z / R;
       }
+    } else {
+      /* flat */
+      nN = 1; nT = 0; nz = 0;
     }
-  } else if (fabs (kx) < DBL_EPSILON && fabs (kz) < DBL_EPSILON && ky != 0) {
-    /*This to catch the extreme case where k//y.*/
-    if (y == 0) {
-      /*We hit the "side" of the mirror.*/
-      ABSORB;
-    }
+
+    double s, q;
+    double nn = sqrt (nN * nN + nT * nT + nz * nz);
+    double nx, ny, nzg;
+
+    /* map local normal back to global (x,y,z) */
+    nx  = (yzplane ? nN : nT);
+    ny  = (yzplane ? nT : nN);
+    nzg = nz;
+    nx /= nn; ny /= nn; nzg /= nn;
+
+    s  = scalar_prod (kx, ky, kz, nx, ny, nzg);
+    kx = kx - 2 * s * nx;
+    ky = ky - 2 * s * ny;
+    kz = kz - 2 * s * nzg;
+    SCATTER;
+    /* surface normal points towards +N, hence s < 0 for the incoming beam */
+    q  = 2.0 * fabs (s);
+    cdouble R = refleccq (re, q, 0.0, k, fabs (90 - acos (s / k) * RAD2DEG));
+    p   *= cabs(R);
+    phi += atan2 (cimag (R), creal (R));
   }
 %}
 
 MCDISPLAY
 %{
-  double x0, y0, z0, x1, y1, z1, alpha;
-  int N = 20;
+  /* Draw two meridian outlines of the sagged surface.
+     Local frame: T across the mirror, N = surface normal (sag axis). */
+  int i, Nseg  = 12;
+  int yzplane  = (yheight > 0);
+  double halfT = (yzplane ? yheight : xwidth) / 2.0;
+  double halfz = zdepth / 2.0;
+  /* sag of the surface N = -T^2/(2 Rx) - z^2/(2 Rz); each term vanishes
+     when the corresponding radius is 0, so guard every division.        */
+  double zsag = (Rz != 0 ? halfz * halfz / (2.0 * Rz) : 0);
 
-  y0 = yheight / 2.0;
-  y1 = -y0;
-
-  alpha = -(zdepth / 2.0) / fabs (radius);
-  x0 = radius * (1 - cos (alpha));
-  z0 = radius * sin (alpha);
-  while (alpha < (zdepth / 2.0 / fabs (radius))) {
-    alpha += zdepth / N / fabs (radius);
-    x1 = radius * (1 - cos (alpha));
-    z1 = radius * sin (alpha);
-    polygon (4, x0, y0, z0, x0, y1, z0, x1, y1, z1, x1, y0, z1);
-    x0 = x1;
-    z0 = z1;
+  if (Rx == 0 && Rz == 0) {
+    /* flat mirror */
+    if (yzplane)
+      polygon (4, 0.0, -halfT, -halfz, 0.0, halfT, -halfz, 0.0, halfT, halfz, 0.0, -halfT, halfz);
+    else
+      polygon (4, -halfT, 0.0, -halfz, halfT, 0.0, -halfz, halfT, 0.0, halfz, -halfT, 0.0, halfz);
+  } else {
+    /* outline across the mirror at z = +/- zdepth/2 */
+    for (i = 0; i <= 2 * Nseg; i++) {
+      double T0 = -halfT + i * 2 * halfT / (2 * Nseg);
+      double sT = -(Rx != 0 ? T0 * T0 / (2.0 * Rx) : 0) - zsag;
+      double P0[3], Pt[3];
+      /* point at (T0, N=sT, z=-halfz) and (T0, N=sT, z=+halfz) */
+      if (yzplane) {
+        P0[0] = sT; P0[1] = T0; P0[2] = -halfz;
+        Pt[0] = sT; Pt[1] = T0; Pt[2] = halfz;
+      } else {
+        P0[0] = T0; P0[1] = sT; P0[2] = -halfz;
+        Pt[0] = T0; Pt[1] = sT; Pt[2] = halfz;
+      }
+      line (P0[0], P0[1], P0[2], Pt[0], Pt[1], Pt[2]);
+    }
+    /* outline along the mirror at T = +/- halfT */
+    for (i = 0; i <= 2 * Nseg; i++) {
+      double z0 = -halfz + i * 2 * halfz / (2 * Nseg);
+      double sz = -(Rz != 0 ? z0 * z0 / (2.0 * Rz) : 0);
+      double P0[3], Pt[3];
+      if (yzplane) {
+        P0[0] = sz; P0[1] = -halfT; P0[2] = z0;
+        Pt[0] = sz; Pt[1] = halfT; Pt[2] = z0;
+      } else {
+        P0[0] = -halfT; P0[1] = sz; P0[2] = z0;
+        Pt[0] = halfT; Pt[1] = sz; Pt[2] = z0;
+      }
+      line (P0[0], P0[1], P0[2], Pt[0], Pt[1], Pt[2]);
+    }
   }
 %}
 
 END
+

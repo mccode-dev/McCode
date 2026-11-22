@@ -48,6 +48,7 @@ Source: "dist\mcstas-tools-python-mcplot-matplotlib-NSIS64-@VERSION@-mingw64.exe
 Source: "dist\mcstas-tools-python-mcplot-plopp-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcplot-html-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-matlab-mcplot-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
+Source: "dist\mcstas-tools-matlab-mcdisplay-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcdisplay-webgl-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcdisplay-webgl-classic-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcdisplay-cad-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
@@ -56,6 +57,7 @@ Source: "dist\mcstas-tools-python-mcdisplay-matplotlib-NSIS64-@VERSION@-mingw64.
 Source: "dist\mcstas-tools-python-mcdisplay-plopp-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcdisplay-mantid-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcdoc-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
+Source: "dist\mcstas-tools-python-mcmeshreduce-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "Support\micromamba.exe"; DestDir: "{tmp}"
 
 [Run]
@@ -73,6 +75,7 @@ Filename: "{tmp}\mcstas-tools-python-mcplot-matplotlib-NSIS64-@VERSION@-mingw64.
 Filename: "{tmp}\mcstas-tools-python-mcplot-plopp-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-python-mcplot-html-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-matlab-mcplot-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
+Filename: "{tmp}\mcstas-tools-matlab-mcdisplay-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-python-mcdisplay-webgl-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-python-mcdisplay-webgl-classic-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-python-mcdisplay-cad-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
@@ -81,6 +84,7 @@ Filename: "{tmp}\mcstas-tools-python-mcdisplay-matplotlib-NSIS64-@VERSION@-mingw
 Filename: "{tmp}\mcstas-tools-python-mcdisplay-plopp-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-python-mcdisplay-mantid-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-python-mcdoc-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
+Filename: "{tmp}\mcstas-tools-python-mcmeshreduce-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\docupdate.bat";
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files

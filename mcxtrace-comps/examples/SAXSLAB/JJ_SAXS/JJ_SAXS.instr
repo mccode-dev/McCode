@@ -1,14 +1,14 @@
 /*******************************************************************************
 *         McXtrace instrument definition URL=http://www.mcxtrace.org
 *
-* Instrument: JJ_SAXS (rename also the example and DEFINE lines below)
+* Instrument: JJ_SAXS
 *
 * %Identification
-* Written by: Erik Knudsen (erkn@risoe.dtu.dk)
+* Written by: Erik Knudsen (erkn@risoe.dtu.dk) and E. Farhi
 * Date: September 24th, 2009
-* Origin: Ris&oslash; DTU, (Finnair flight AY67 to Hong Kong)
+* Origin: Risø DTU, (Finnair flight AY67 to Hong Kong)
 * Release: McXtrace
-* Version: 0.1_alpha
+* Version: 0.2
 * %INSTRUMENT_SITE: SAXSLAB
 *
 * Crude model of a laboratory SAXS-instrument mimicking the type sold by SAXSlab/JJ-Xray Systems.
@@ -16,98 +16,109 @@
 * %Description
 * This is a very sketchy model of a SAXS-system, related to the old design of JJ X-ray systems. 
 * It has been superseeded by the SAXS_saxslab model. 
-* Limitations include:
-* - Focusing only in 1 direction.
-* - iNo reflectivity coating is implemented.
 *
 * %Parameters
-* pin2_pos: [m] distance between 1st and 2nd pinhole in beam tube
-* pin3_pos: [m] distance between 2nd and 3rd pinhole in beam tube
-* optic_L:  [m] length of the focusing optic
-* sample_pos:[m] distance from 3rd pinhole to sample
-* detector_pos: [m] distance from 3rd pinhole to detector 
+* E0:         [keV] Nominal energy at the source
+* dE:         [keV] Energy half-bandwidth at the source
+* source2kb:    [m] Distance from source to KB
+* mirror_length:[m] Length of each KB mirror
+* L:            [m] KB focus, e.g. Distance to the sample
+* theta:      [rad] Mirror glancing angle 
+* R:            [m] Mirror curvature radius
+* detector_pos: [m] distance from sample to detector
 *
-* %Test: pin2_pos=0.2 pin3_pos=0.4 optic_L=0.1 sample_pos=0.2 detector_pos=2 Detector: psd1_I=7.8629e-05 
+* %Test: mirror_length=0.5 detector_pos=2 Detector: detector_I=3.39862e-05
 *
 * %End
 *******************************************************************************/
 
-DEFINE INSTRUMENT JJ_SAXS(pin2_pos=0.2, pin3_pos=0.4, optic_L=0.1, sample_pos=0.2, detector_pos=2)
+DEFINE INSTRUMENT JJ_SAXS(
+  L=2,theta=0.00275,R=0, 
+  mirror_length=0.5, source2kb=0.6, E0=6.7, dE=0.5, detector_pos=2)
 
-DECLARE
-%{
-%}
-
-INITIALIZE
-%{
+INITIALIZE %{
+  // checks
+  if (source2kb < mirror_length || L < 3*mirror_length) {
+    fprintf(stderr, "ERROR: %s: invalid parameters (source2kb, mirror_length, L).\n",
+      NAME_INSTRUMENT);
+    exit(-1);
+  }
+  
+  // f_t = (R sin theta)/2 and f_s = R / (2 sin theta). We use f_t here.
+  if (!R && L && theta)
+    R     = 2*L/sin(theta);
+  else if (!theta && L && R)
+    theta = asin(2*L/R);
+  else if (!L && theta && R)
+    L     = R*sin(theta)/2;
+  MPI_MASTER(
+    printf("%s: KB focus theta=%g [rad] L=%g R=%g [m]\n", 
+      NAME_INSTRUMENT, theta, L, R);
+  );
 %}
 
 TRACE
 
-COMPONENT Origin = Progress_bar()
-  AT (0,0,0) ABSOLUTE
+REMOVABLE COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
 
-COMPONENT apparent_source=Source_flat(
-    xwidth=8e-3,yheight=.04e-3,dist=0.1,focus_yh=0.001,focus_xw=0.01,lambda0=1.54,dlambda=0.1
-)
-AT (0,0,0) RELATIVE PREVIOUS
-
-COMPONENT psd00=PSD_monitor(
-    filename="psd00.dat",xwidth=0.2,yheight=0.2,restore_xray=1
-)
-  AT(0,0,0.0999) RELATIVE PREVIOUS
-
-  COMPONENT optic_arm=Arm()
-AT(0,0,0.1) RELATIVE apparent_source
-ROTATED(0,0,-90) RELATIVE apparent_source
-
-COMPONENT optic=Mirror_curved(
-        radius=20,length=0.2, coating="", R0=1)
-AT(0,0,0) RELATIVE optic_arm
-ROTATED(0,2.75,0) RELATIVE optic_arm
-EXTEND
-%{
-  if (!SCATTERED) ABSORB;
-%}
-
-COMPONENT beam_tube_axis=Arm()
-AT(0,0,0.1) RELATIVE apparent_source
-ROTATED (5.5,0,0) RELATIVE Origin
-
-COMPONENT pinhole1=Slit(xwidth=0.1,yheight=0.1)
-  AT(0,0,0.15) RELATIVE beam_tube_axis
-
-COMPONENT psd01=PSD_monitor(
-    filename="psd01.dat",xwidth=0.2,yheight=0.2,restore_xray=1
-)
-  AT(0,0,1e-3) RELATIVE PREVIOUS
-
-COMPONENT pinhole2=Slit(xwidth=0.1,yheight=0.1)
-  AT(0,0,pin2_pos) RELATIVE beam_tube_axis
-
-/*COMPONENT psd02=PSD_monitor(
-    filename="psd02.dat",xwidth=0.2,yheight=0.2
-)
-AT (0,0,1e-3) RELATIVE PREVIOUS 
+// Cu anode that send photons to middle of KB
+/* uncomment to get a realistic X-ray source
+REMOVABLE COMPONENT source = Source_lab(
+  material="Cu",Emin=E0-dE, Emax=E0+dE, E0=80, exit_window_refpt=1,
+  width=1e-4, height=1e-4, xwidth=8e-4,yheight=.04e-3,
+  dist=mirror_length, focus_yh=0.0001,focus_xw=0.0010)
+AT (0, 0, 0) RELATIVE origin
 */
-COMPONENT pinhole3=Slit(xwidth=0.1,yheight=0.1)
-  AT(0,0,pin3_pos) RELATIVE beam_tube_axis
-COMPONENT psd03=PSD_monitor(
-    filename="psd02.dat",xwidth=0.2,yheight=0.2
-)
-AT (0,0,1e-3) RELATIVE PREVIOUS 
 
-COMPONENT psd1=PSD_monitor(
-    filename="psd1.dat",xwidth=0.4,yheight=0.4
-)
-AT (0,0,2) RELATIVE psd03 
+// Ideal source. Comment if you use previous source.
+REMOVABLE COMPONENT source = Source_div(
+  xwidth=8e-4,yheight=.04e-3, E0=E0, dE=dE,
+  dist=mirror_length, focus_yh=0.0001,focus_xw=0.0010)
+AT (0, 0, 0) RELATIVE origin
 
-/* This section is executed when the simulation ends (C code). Other    */
-/* optional sections are : SAVE                                         */
-FINALLY
-%{
+// start of KB -----------------------------------------------------------------
+
+COMPONENT mirror_1 = Mirror_curved(
+    radius=R, length=mirror_length, yheight= 0.05)
+AT (0, 0, source2kb) RELATIVE PREVIOUS
+ROTATED (0, RAD2DEG*theta, 0) RELATIVE PREVIOUS
+EXTEND %{ 
+	if (!SCATTERED) ABSORB; 
 %}
-/* The END token marks the instrument definition end */
+
+COMPONENT arm_1 = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, RAD2DEG*theta, 0) RELATIVE PREVIOUS
+
+COMPONENT arm_2 = Arm()
+AT (0, 0, mirror_length/2+0.01) RELATIVE PREVIOUS
+ROTATED (0, 0, 90) RELATIVE PREVIOUS
+
+COMPONENT mirror_2 = COPY(mirror_1)
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, RAD2DEG*theta, 0) RELATIVE PREVIOUS
+EXTEND %{ 
+	if (!SCATTERED) ABSORB; 
+%}
+
+COMPONENT arm_3 = Arm()
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, RAD2DEG*theta, 0) RELATIVE PREVIOUS
+
+// end of KB -------------------------------------------------------------------
+
+// sample location
+COMPONENT sample = Saxs_spheres(
+    R = 100, Phi = 0.1, Delta_rho = 1.6,
+    yheight = 1e-3, radius = 0.25e-3, focus_xw = 1,
+    focus_yh = 1, sphere_mtrl="Be.txt")
+AT (0,0,L+2*mirror_length) RELATIVE arm_3
+
+COMPONENT detector = PSD_monitor(xwidth=0.2, 
+    yheight=0.2, nx=100,ny=100)
+AT (0,0,detector_pos) RELATIVE sample
+
 END
 
 

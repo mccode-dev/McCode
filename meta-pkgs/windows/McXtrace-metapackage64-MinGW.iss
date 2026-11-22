@@ -46,12 +46,16 @@ Source: "dist\mcxtrace-tools-python-mxplot-pyqtgraph-NSIS64-@VERSION@-mingw64.ex
 Source: "dist\mcxtrace-tools-python-mxplot-matplotlib-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxplot-plopp-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxplot-html-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
+Source: "dist\mcxtrace-tools-matlab-mxplot-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
+Source: "dist\mcxtrace-tools-matlab-mxdisplay-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxdisplay-webgl-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxdisplay-webgl-classic-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxdisplay-pyqtgraph-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxdisplay-matplotlib-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxdisplay-plopp-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
+Source: "dist\mcxtrace-tools-python-mxdisplay-cad-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcxtrace-tools-python-mxdoc-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
+Source: "dist\mcxtrace-tools-python-mxmeshreduce-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "Support\micromamba.exe"; DestDir: "{tmp}"
 
 [Run]
@@ -67,12 +71,16 @@ Filename: "{tmp}\mcxtrace-tools-python-mxplot-pyqtgraph-NSIS64-@VERSION@-mingw64
 Filename: "{tmp}\mcxtrace-tools-python-mxplot-matplotlib-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxplot-plopp-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxplot-html-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
+Filename: "{tmp}\mcxtrace-tools-matlab-mxplot-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
+Filename: "{tmp}\mcxtrace-tools-matlab-mxdisplay-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-webgl-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-webgl-classic-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-pyqtgraph-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-matplotlib-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-plopp-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
+Filename: "{tmp}\mcxtrace-tools-python-mxdisplay-cad-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcxtrace-tools-python-mxdoc-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
+Filename: "{tmp}\mcxtrace-tools-python-mxmeshreduce-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\docupdate.bat";
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files

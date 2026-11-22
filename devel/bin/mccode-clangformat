@@ -75,20 +75,26 @@ def run_clang_format_file_style(code: str, clang_path: str, assume_filename: Pat
         raise RuntimeError(f'clang-format failed for {assume_filename}:\n{err.strip()}')
     return out
 
-def _escape_precompiler_line(s: str) -> str:
+def _escape_precompiler_line(s: str, saved: list) -> str:
     """
-    Prefix lines that start with optional whitespace followed by % or #
-    with a PRE_ESCAPE='//__ESC__PRE' (c++ style comment) so that clang-format 
-    will treat them as normal comments to indent.
-    Example: "  %foo" -> "  //__ESC__PRE%foo"
+    Replace each line starting with optional whitespace followed by % or #
+    (plus any backslash-continued lines) by a short placeholder comment
+    PRE_ESCAPE<n>, so clang-format indents it but never reflows its content.
+    Example: "  #define X 1" -> "  //__ESC__PRE0"
     """
-    return re.sub(r'^([ \t]*)([%#])', lambda m: m.group(1) + PRE_ESCAPE + m.group(2), s, flags=re.MULTILINE)
+    def stash(m):
+        # store continuation lines relative to the directive's indent
+        saved.append(m.group(2).rstrip(' \t').replace('\n' + m.group(1), '\n'))
+        # keep a closing */ visible, e.g. for '#' lines inside a block comment
+        return m.group(1) + PRE_ESCAPE + str(len(saved) - 1) + ('*/' if '*/' in m.group(2) else '')
+    return re.sub(r'^([ \t]*)([%#](?:.*\\\r?\n)*.*)$', stash, s, flags=re.MULTILINE)
 
-def _unescape_precompiler_line(s: str) -> str:
+def _unescape_precompiler_line(s: str, saved: list) -> str:
     """
-    Remove the escape/comment prefix previously added.
+    Put back the lines stashed by _escape_precompiler_line, at the new indent.
     """
-    return s.replace(PRE_ESCAPE, '')
+    return re.sub(r'^([ \t]*)' + re.escape(PRE_ESCAPE) + r'(\d+)(?:\*/)?',
+                  lambda m: m.group(1) + saved[int(m.group(2))].replace('\n', '\n' + m.group(1)), s, flags=re.MULTILINE)
 
 
 def _format_preserving_percent_lines(inner: str, clang_path: str, style_file: Path) -> str:
@@ -96,7 +102,6 @@ def _format_preserving_percent_lines(inner: str, clang_path: str, style_file: Pa
     Format inner text with clang-format by escaping lines that start with '%' or '#'.
     Keeps original line endings.
     """
-    lines = inner.splitlines(True)  # preserve endings
     out_parts = []
     final_parts = []
     buffer = []
@@ -119,13 +124,13 @@ def _format_preserving_percent_lines(inner: str, clang_path: str, style_file: Pa
         out_parts.append(formatted + trailing_nl)
         buffer.clear()
 
-    for L in lines:
-        buffer.append(_escape_precompiler_line(L))
+    saved = []
+    buffer.append(_escape_precompiler_line(inner, saved))
 
     clang_format_buffer()
 
     for L in out_parts:
-        final_parts.append(_unescape_precompiler_line(L))
+        final_parts.append(_unescape_precompiler_line(L, saved))
 
     return ''.join(final_parts)
 

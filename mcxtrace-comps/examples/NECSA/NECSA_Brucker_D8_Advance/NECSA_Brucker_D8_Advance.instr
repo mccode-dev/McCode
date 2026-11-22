@@ -21,7 +21,7 @@
 * Example: <parameters=values>
 *
 * %Parameters
-* source_material:  [str] anode type, among Cu.txt, Co.txt, Cr.txt
+* source_material:  [str] anode type, e.g. Cu, Co, Cr, W, Mo
 * Emin:             [keV] minimum energy at the source
 * Emax:             [keV] maximum energy at the source
 * Gobel_radius:     [m]   Gobel curved mirror curvature radius
@@ -34,7 +34,7 @@
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT NECSA_Brucker_D8_Advance(string source_material="Cu.txt",
+DEFINE INSTRUMENT NECSA_Brucker_D8_Advance(string source_material="Cu",
   Emin=1, Emax=9, 
   Gobel_radius=0.5, Gobel_rotation=20, string Gobel_coating="Ir.dat",
   string Sample_material="Si.laz")
@@ -52,7 +52,7 @@ AT (0, 0, 0) RELATIVE ABSOLUTE
 COMPONENT anode = Source_lab(
     width=10e-6,height=2e-6,thickness=200e-6,dist=0.3,tube_current=40e-3,
     E0=40,focus_xw=1e-3,focus_yh=1e-3,
-    material_datafile=source_material,
+    material=source_material,
     Emin=Emin, Emax=Emax)
 AT(0,0,0) ABSOLUTE
 
@@ -71,7 +71,7 @@ AT (0,0,0.1)                 RELATIVE anode
 ROTATED (Gobel_rotation,0,0) RELATIVE anode
 
 COMPONENT Gobel_mirror = Mirror_curved( 
-  radius=Gobel_radius, length=40e-3, width=40e-3, coating=Gobel_coating)
+  radius=Gobel_radius, length=40e-3, yheight=40e-3, coating=Gobel_coating)
 AT (0,0,0)       RELATIVE Gobel_mirror_holder
 ROTATED (0,0,90) RELATIVE Gobel_mirror_holder
 
