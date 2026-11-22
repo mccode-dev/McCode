@@ -55,7 +55,7 @@ SHARE
     double s0, s1;
     double pmul, pint;
     t_Table T;
-    double complex** dfl;
+    cdouble** dfl;
   };
 %}
 
@@ -114,7 +114,7 @@ INITIALIZE
         fprintf (stderr, "Error(%s): input data not read cleanly (slice %d, row %d)\n", NAME_CURRENT_COMP, k, l);
       }
       for (m = 0; m < gridpoints; m++) {
-        prms.dfl[k][l * gridpoints + m] = r[m] + I * i[m];
+        prms.dfl[k][l * gridpoints + m] = cplx (r[m], i[m]);
       }
     }
     /*printf("done\n");*/
@@ -138,12 +138,13 @@ TRACE
   /*sample x and y from gridsize*/
   x = (rand01 () - 0.5) * xwidth;
   y = (rand01 () - 0.5) * yheight;
+  /* ix+1 and iy+1 are read below: keep them on the grid when rand01()==1 */
   ix = (int)((x + 0.5 * xwidth) / meshsize);
-  if (ix == gridpoints)
-    ix--;
+  if (ix > gridpoints - 2)
+    ix = gridpoints - 2;
   iy = (int)((y + 0.5 * yheight) / meshsize);
-  if (iy == gridpoints)
-    iy--;
+  if (iy > gridpoints - 2)
+    iy = gridpoints - 2;
 
   /*sample s inbetween s and s0 and s1*/
   s = rand01 () * (s1 - s0);
@@ -158,8 +159,8 @@ TRACE
   alpha = ((x + 0.5 * xwidth - ix * meshsize) / meshsize);
   beta = ((y + 0.5 * yheight - iy * meshsize) / meshsize);
 
-  t0 = rmul(1 - alpha, cadd(prms.dfl[is][iy * gridpoints + ix], rmul(alpha, prms.dfl[is][iy * gridpoints + ix + 1])));
-  t1 = rmul(1 - alpha, cadd(prms.dfl[is][(iy + 1) * gridpoints + ix], rmul(alpha, prms.dfl[is][(iy + 1) * gridpoints + ix + 1])));
+  t0 = cadd (rmul (1 - alpha, prms.dfl[is][iy * gridpoints + ix]), rmul (alpha, prms.dfl[is][iy * gridpoints + ix + 1]));
+  t1 = cadd (rmul (1 - alpha, prms.dfl[is][(iy + 1) * gridpoints + ix]), rmul (alpha, prms.dfl[is][(iy + 1) * gridpoints + ix + 1]));
 
   cp = cadd(rmul(1 - beta, t0), rmul(beta, t1));
   /*cp now contains the complex radiation field at x,y*/
