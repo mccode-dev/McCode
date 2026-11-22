@@ -8223,9 +8223,8 @@ void manual_linking_function_surface(char *input_string, struct pointer_to_globa
 
    char *token;
    int loop_index;
-   char local_string[256];
+   char* local_string = strdup (input_string);
    
-   strcpy(local_string, input_string);
    
    // get the first token
    token = strtok(local_string,",");
@@ -8256,6 +8255,7 @@ void manual_linking_function_surface(char *input_string, struct pointer_to_globa
       // Updates the token
       token = strtok(NULL,",");
    }
+   free (local_string);
 }
 
 void fill_surface_stack(char *input_string, struct pointer_to_global_surface_list *global_surface_list, char *component_name,
