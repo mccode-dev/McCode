@@ -166,20 +166,23 @@ INITIALIZE
       for (i = 0; i < nslit; i++) {
         A += Sequence[i] * Sequence[(i + j) % nslit];
       }
+      /* stop at the first lag j that fails the criterion */
       if (j == 0 || j == nslit || j == 2 * nslit) {
-        if (A != m)
+        if (A != m) {
           fprintf (stderr,
                    "StatisticalChopper: %s: Sequence does not satisfy autocorrelation pseudorandom criteria\n"
                    "WARNING             A_0=%i is different from m=%i\n",
                    NAME_CURRENT_COMP, A, m);
-        break;
+          break;
+        }
       } else {
-        if (A != m * (m - 1) / (nslit - 1))
+        if (A != m * (m - 1) / (nslit - 1)) {
           fprintf (stderr,
                    "StatisticalChopper: %s: Sequence does not satisfy autocorrelation pseudorandom\n"
-                   "WARNING             A=%i is different from m(m-1)/(N-1)=%i\n",
-                   NAME_CURRENT_COMP, A, m * (m - 1) / (nslit - 1));
-        break;
+                   "WARNING             A_%i=%i is different from m(m-1)/(N-1)=%i\n",
+                   NAME_CURRENT_COMP, j, A, m * (m - 1) / (nslit - 1));
+          break;
+        }
       }
     } /* for j */
 
