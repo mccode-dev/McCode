@@ -26,7 +26,10 @@
 * using the parameters order or phi0. In the latter case a set angle is chosen as the centre of the
 * sampled interval, in the former the centre angle is computed from the specified grating order.
 * 
-* In an upcoming release this grating model will also include a blazed grating.
+* Slit model: the grating is treated as N slits of width b and pitch d (Fraunhofer), which is an approximation for a
+* reflective lamellar grating: no groove depth, obliquity factor or shadowing. The efficiency summed over orders is R0*b/d.
+* These are derived internally, not input parameters: d = 1e7/rho_l [AA], b = d/3 [AA], N = zdepth*rho_l*1e3.
+* The polarisation is only projected perpendicular to the new k, no polarisation-dependent reflectivity is applied.
 *
 * Example: Grating_reflect(
 *   d_phi=1,order=0,rho_l=100,zdepth=102e-3,xwidth=102e-3) 
@@ -37,12 +40,9 @@
 * zdepth: [m]     The length of the grating.
 * R0:     [0-1]   Constant reflecticity of the grating [0;1].
 * rho_l:  [l/mm]  Number of lines pr mm of the grating. 
-* b:      [AA]    Width of the spacing in Angstrom. If zero, default is found using rho_l/3.
-* d:      [AA]    Width of the slits in Angstrom. If zero, default is found using rho_l.
-* N:      [1]     Number of slits. If Zero, default is found using rho_l.
 * d_phi:  [deg]   Range of diffraction angle that is to be simulated -d_phi/2 ; d_phi/2.
 * order:  [1]     The target order of the grating. If non-zero d_phi will be centered around this scattering line.
-* phi0:   [deg]   Target angle to center d_phi. If this is set to 0 the 0th (or any other chosen by the parameter order) order line will be used.
+* phi0:   [deg]   Outgoing grazing angle (from the grating surface, in the plane perpendicular to the lines) on which d_phi is centered. 0 means unset, so the line chosen by order is used.
 * verbose:[0/1]   If non-zero, more information will be displayed. Nb. generates much output.
 *
 *
@@ -53,12 +53,6 @@ DEFINE COMPONENT Grating_reflect
 SETTING PARAMETERS (d_phi=1, R0=1, rho_l=800,
     order=0, phi0=0,
     zdepth=0.015, xwidth=0.136, int verbose=0)
-
-SHARE
-%{  
-  %include "mccode-complex-lib"
-  %include "read_table-lib"
-%}
 
 /********************************************************************************************
 In DECLARE section, small functions or variables can be defined and used in the entire grating.
@@ -77,26 +71,23 @@ The INITIALIZE section run each statement once.
 ********************************************************************************************/
 INITIALIZE
 %{
-  int status;
   if (R0 < 0 || R0 > 1) {
     fprintf (stderr, "ERROR: (%s) reflectivity (%f) is specified but is not in [0:1]. \n", NAME_CURRENT_COMP, R0);
     exit (-1);
   }
 
   d = 1e7 / rho_l;                 /*grating pitch in Angstrom*/
-  nslits = (zdepth * 1e3) * rho_l; /*the relative width of openings*/
+  nslits = (int) round (zdepth * 1e3 * rho_l); /*number of lines over the full zdepth*/
   if (nslits < 1) {
     fprintf (stderr, "ERROR: (%s) fewer than one grating line (zdepth=%g m, rho_l=%g l/mm). \n", NAME_CURRENT_COMP, zdepth, rho_l);
     exit (-1);
   }
 
-  if (!b) {
-    /* Approximated slit-width in Angstrom*/
-    b = d / 3;
-  }
+  /* Approximated slit-width in Angstrom*/
+  b = d / 3;
 
   if (verbose) {
-    printf ("INFO: (%s): Line width, d=%f [AA]. Number of slits,  N=%f. Slit width, b=%f [AA].\n \n", NAME_CURRENT_COMP, d, nslits, b);
+    printf ("INFO: (%s): Line pitch, d=%f [AA]. Number of slits, N=%d. Slit width, b=%f [AA].\n \n", NAME_CURRENT_COMP, d, nslits, b);
   }
 
   /*Angular width [rad] of the sampled window; the weight is an angular density times this width*/
@@ -153,6 +144,19 @@ TRACE
       ky_o = copysign (sqrt (ky2), ky);
       ky = ky_o * cos (delta_theta) - kz_o * sin (delta_theta);
       kz = ky_o * sin (delta_theta) + kz_o * cos (delta_theta);
+
+      /* Keep E perpendicular to the new k: remove the parallel part and restore |E| */
+      double e0 = sqrt (Ex * Ex + Ey * Ey + Ez * Ez);
+      double edotk = (Ex * kx + Ey * ky + Ez * kz) / (k * k);
+      Ex -= edotk * kx;
+      Ey -= edotk * ky;
+      Ez -= edotk * kz;
+      double e1 = sqrt (Ex * Ex + Ey * Ey + Ez * Ez);
+      if (e1 > 0) {
+        Ex *= e0 / e1;
+        Ey *= e0 / e1;
+        Ez *= e0 / e1;
+      }
 
       /*Finding the weight using diffraction theory.*/
       spsi_o = kz / k;
