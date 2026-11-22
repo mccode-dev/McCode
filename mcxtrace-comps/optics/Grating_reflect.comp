@@ -186,11 +186,16 @@ TRACE
 *************************************************************************************************************/ 
 MCDISPLAY
 %{
+  int i;
+  /* At most 50 ridges are drawn (evenly spread, so not to scale when there are more lines); each ridge has the slit width b */
+  int n = nslits < 50 ? nslits : 50;
+  double step = zdepth / n;
+  double w = step * b / d;
   magnify ("");
-  line (-xwidth / 2.0, 0, -zdepth / 2.0, xwidth / 2.0, 0, -zdepth / 2.0);
-  line (-xwidth / 2.0, 0, zdepth / 2.0, xwidth / 2.0, 0, zdepth / 2.0);
-  line (-xwidth / 2.0, 0, -zdepth / 2.0, -xwidth / 2.0, 0, zdepth / 2.0);
-  line (xwidth / 2.0, 0, -zdepth / 2.0, xwidth / 2.0, 0, zdepth / 2.0);
+  rectangle ("xz", 0, 0, 0, xwidth, zdepth);
+  for (i = 0; i < n; i++) {
+    box (0, w / 2.0, -zdepth / 2.0 + (i + 0.5) * step, xwidth, w, w, 0, 0, 1, 0);
+  }
 %}
 
 END
