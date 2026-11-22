@@ -463,6 +463,9 @@ valid-to     ="2100-01-31 23:59:59" last-modified="DATE">
     footer = '''</instrument>'''
 
     def do_work(self):
+        if not {'sourceMantid', 'sampleMantid'} <= {c.name for c in self.components}:
+            print("ERROR: mcdisplay-mantid needs components named sourceMantid and sampleMantid")
+            sys.exit(-1)
         source = self._get_mantid_source()
         sample = self._get_mantid_sample()
         pixmonitors = self._get_mantid_pixels_monitors()
