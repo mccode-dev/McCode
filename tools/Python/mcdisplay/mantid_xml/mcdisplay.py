@@ -542,7 +542,7 @@ def main(instr=None, dirname=None, default=None, **kwds):
     logging.basicConfig(level=logging.INFO)
 
     # inspect is required b McDisplayReader
-    reader = McDisplayReader(instr=instr, dir=None, **kwds)
+    reader = McDisplayReader(instr=instr, dir=None, default=default, **kwds)
     instrument = reader.read_instrument()
     raybundle = reader.read_particles()
 
