@@ -23,7 +23,7 @@ Spallation Neutron Source", Review of Scientific Instruments, 83 , 015114 (2012)
 
 ## Examples
 
-- **Test: -y Detector: Full_cyl_I=235445**
+- **Test: -y Detector: Full_cyl_I=147438**
 
 ## Input parameters
 
