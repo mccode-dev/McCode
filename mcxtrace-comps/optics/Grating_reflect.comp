@@ -113,8 +113,8 @@ TRACE
     RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
   } else {
     double nx, ny, nz;
-    double Gamma, gamma, psi_i, psi_o, spsi_i, spsi_o;
-    double kx_notouch, ky_notouch, kz_notouch;
+    double Gamma, gamma, spsi_i, spsi_o;
+    double kz_o, ky2, ky_o;
     double delta_theta, pdiff;
     /* Normal vector for the grating*/
     nx = 0;
@@ -123,8 +123,6 @@ TRACE
     /* scalar-product, s and length of k.*/
     double s = scalar_prod (kx, ky, kz, nx, ny, nz);
     double k = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
-    /* Outgoing grazing angle for a perfectly reflecting mirror using angle between two vectors.*/
-    psi_i = acos (s / k) - M_PI_2;
 
     /* outgoing vector for a perfectly reflecting mirror. Order 0.*/
     kx = kx - 2 * s * nx;
@@ -132,58 +130,28 @@ TRACE
     kz = kz - 2 * s * nz;
     // MC picked angle going from +- d_phi
     delta_theta = DEG2RAD * (rand01 () * d_phi - (d_phi * 0.5));
-    double alpha, beta;
-    alpha = M_PI_2 - psi_i;
 
     /********************************************************************************************
-      The grating is lamellar:
+      The grating is lamellar. The lines run along X, so the grating equation conserves kx and
+      changes kz by multiples of 2pi/d. Signed direction cosine along Z: sin(theta) = kz/k.
      ********************************************************************************************/
-    /* Lamellar grating is used.
-         Thus finding outgoing angle only from ingoing angle.
-         using old k and n and rotation matrix.*/
-    beta = asin (-order * (2 * M_PI / k) / d + sin (alpha));
-    // Could have also used an angle convention where the angle between the grating's norm and the ray of order m is positive if it is on the samer side as the
-    // incident angle, negative otherwise.
+    spsi_i = kz / k;
+    /* Grating equation: sin(theta_o) = sin(theta_i) - order*lambda/d */
+    kz_o = kz - order * 2 * M_PI / d;
     if (phi0) {
-      /*a target angle is specified*/
-      psi_o = phi0 * DEG2RAD;
-    } else {
-      psi_o = M_PI_2 - fabs (beta); /*the fabs is necessary due to the sign convention of beta*/
+      /*a target grazing angle (in the YZ-plane) is specified; keep the sign of kz*/
+      kz_o = copysign (sqrt (k * k - kx * kx) * cos (phi0 * DEG2RAD), kz);
     }
 
-    kx_notouch = kx;
-    ky_notouch = ky;
-    kz_notouch = kz;
-
-    kx = kx_notouch;
-
-    if (!isnan (psi_o) && !isnan (psi_i)) {
-      // Still need to take into account the case where the incident ray does not hit perpendicular to the grating
-      if (beta >= 0) {
-        if (kz >= 0) {
-          ky = (ky_notouch * cos (-(psi_o - psi_i) + delta_theta) - kz_notouch * sin (-(psi_o - psi_i) + delta_theta));
-          kz = (ky_notouch * sin (-(psi_o - psi_i) + delta_theta) + kz_notouch * cos (-(psi_o - psi_i) + delta_theta));
-        } else {
-          ky = (ky_notouch * cos ((psi_o - psi_i) + delta_theta) - kz_notouch * sin ((psi_o - psi_i) + delta_theta));
-          kz = (ky_notouch * sin ((psi_o - psi_i) + delta_theta) + kz_notouch * cos ((psi_o - psi_i) + delta_theta));
-        }
-      } else {
-        if (kz >= 0) {
-          ky = (ky_notouch * cos ((-2 * alpha + (psi_o - psi_i)) + delta_theta) - kz_notouch * sin ((-2 * alpha + (psi_o - psi_i)) + delta_theta));
-          kz = (ky_notouch * sin ((-2 * alpha + (psi_o - psi_i)) + delta_theta) + kz_notouch * cos ((-2 * alpha + (psi_o - psi_i)) + delta_theta));
-        } else {
-          ky = (ky_notouch * cos ((2 * alpha - (psi_o - psi_i)) + delta_theta) - kz_notouch * sin ((2 * alpha - (psi_o - psi_i)) + delta_theta));
-          kz = (ky_notouch * sin ((2 * alpha - (psi_o - psi_i)) + delta_theta) + kz_notouch * cos ((2 * alpha - (psi_o - psi_i)) + delta_theta));
-        }
-      }
+    ky2 = k * k - kx * kx - kz_o * kz_o;
+    if (ky2 >= 0) {
+      /* Stay on the reflected side of the surface, then rotate in the YZ-plane by delta_theta (|k| is conserved).*/
+      ky_o = copysign (sqrt (ky2), ky);
+      ky = ky_o * cos (delta_theta) - kz_o * sin (delta_theta);
+      kz = ky_o * sin (delta_theta) + kz_o * cos (delta_theta);
 
       /*Finding the weight using diffraction theory.*/
-      s = scalar_prod (kx, ky, kz, nx, ny, nz);
-      psi_o = acos (s / k) - M_PI_2;
-
-      /*pay attention to sign conventions here. We might cross to the "incoming" side of the normal.*/
-      spsi_i = sin (M_PI_2 - psi_i);
-      spsi_o = sin (M_PI_2 - psi_o); //+delta_theta)); // asin angle out
+      spsi_o = kz / k;
 
       /* Phase for interference pattern:  k = wave vector, d = lines/Angstrom, b=width in Angstrom */
       gamma = k * d * (spsi_o - spsi_i);
@@ -192,9 +160,11 @@ TRACE
       pdiff = ((sin (Gamma / 2) / (Gamma / 2)) * (sin (Gamma / 2) / (Gamma / 2)))
               * ((sin (nslits * gamma / 2) / sin (gamma / 2)) * (sin (nslits * gamma / 2) / sin (gamma / 2)));
       p = p * pdir * (pdiff / (pow (nslits, 2)));
+      SCATTER;
 
     } else {
-      p = 0;
+      /* evanescent order */
+      ABSORB;
     }
   }
 %}
@@ -212,3 +182,4 @@ MCDISPLAY
 %}
 
 END
+
