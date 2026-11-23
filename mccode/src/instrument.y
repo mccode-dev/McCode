@@ -987,7 +987,11 @@ instrument:   "DEFINE" "INSTRUMENT" TOK_ID instrpar_list
       shell metadata dependency comp_declare comp_uservars comp_initialize instr_trace comp_save comp_finally "END"
       {
         /* each instrument's METADATA keeps its own name as source, as in mccode-antlr */
-        for (int i=0; i<list_len($7); ++i) ((struct metadata_struct *) list_access($7, i))->source = $3;
+        for (int i=0; i<list_len($7); ++i) {
+          struct metadata_struct * m = (struct metadata_struct *) list_access($7, i);
+          m->source = $3;
+          m->instance = 2;
+        }
         if (!instrument_metadata) instrument_metadata = list_create();
         list_cat(instrument_metadata, $7);
 

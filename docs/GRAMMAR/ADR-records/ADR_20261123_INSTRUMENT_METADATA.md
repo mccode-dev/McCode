@@ -29,6 +29,8 @@ mccode-antlr kept the source, but replaced instrument blocks by name alone. As t
 
 For all METADATA (definition, instance, instrument), store a quoted name without its quotes, as a quoted type already was. A name with spaces keeps them, as in mccode-antlr. The four `metadatum` alternatives (identifier or string for each) are now one rule. mccode-antlr did not escape these quotes in the generated C, which then did not compile; it now does.
 
+In `pygen.c.in`, write instrument blocks with `instr.add_METADATA(name=..., type=..., value=...)`, guarded by `hasattr`: McStasScript has no instrument METADATA yet, so without it the script prints a warning and continues. All METADATA text is now written as a raw Python string, so escapes such as `\"` in JSON reach McStasScript unchanged.
+
 In `metadata-r.c`, build the `--meta-list` line in place, and let `metadata_table_key_component` return `""` instead of `NULL` when the key has no source part.
 
 ## Consequences
