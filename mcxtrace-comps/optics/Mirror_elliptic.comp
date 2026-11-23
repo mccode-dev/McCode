@@ -89,11 +89,11 @@ INITIALIZE
 
   fflush (NULL); // put diagnostics in order!
 
-  // compatibility with older use
-  if (zdepth)
-    length = zdepth;
-  if (xwidth)
-    width = xwidth;
+  // compatibility with older use: xwidth/zdepth take priority, then width/length, else 0.2
+  if (length)
+    zdepth = length;
+  if (width)
+    xwidth = width;
 %}
 
 TRACE
@@ -135,10 +135,11 @@ TRACE
     zz1 = z + kzu * t1;
 
     /*Check if we hit the mirror and whether the hit it is in front of the ray.
+     * Only the lower half of the ellipsoid (y < y_b) is the mirror surface.
      * This does not account for mirror curvature */
 
-    int hit0 = (fabs (xx0) < width / 2.0) && (fabs (zz0) < length / 2.0) && t0 > 0;
-    int hit1 = (fabs (xx1) < width / 2.0) && (fabs (zz1) < length / 2.0) && t1 > 0;
+    int hit0 = (fabs (xx0) < xwidth / 2.0) && (fabs (zz0) < zdepth / 2.0) && (yy0 < y_b) && t0 > 0;
+    int hit1 = (fabs (xx1) < xwidth / 2.0) && (fabs (zz1) < zdepth / 2.0) && (yy1 < y_b) && t1 > 0;
     int doit = hit0 || hit1;
 
     if (hit0 && !hit1)
@@ -163,6 +164,7 @@ TRACE
       nz = -zt * c2inv;
       NORM (nx, ny, nz);
 
+      /* kdotn > 0 for hits from the concave (inner) side, < 0 for hits from the back (de-focusing) */
       double kdotn;
       kdotn = -scalar_prod (kx, ky, kz, nx, ny, nz);
       double kfx, kfy, kfz;
@@ -176,8 +178,11 @@ TRACE
 
       /*adjust weight of ray*/
 
-      double q = 2.0 * kdotn;
-      double R = reflecq (re, q, 0, K, fabs (90 - acos (kdotn / K) * RAD2DEG));
+      /* reflectivity depends on |kdotn| only: same for front and back hits */
+      double kdotn_abs = fabs (kdotn);
+      double q = 2.0 * kdotn_abs;
+      double theta_g = asin (fmin (1.0, kdotn_abs / K)) * RAD2DEG; /* grazing angle [deg] */
+      double R = reflecq (re, q, 0, K, theta_g);
       p *= R;
       /*update phase - as an approximation turn by 180 deg.*/;
       phi += M_PI;
@@ -215,3 +220,4 @@ MCDISPLAY
 %}
 
 END
+
