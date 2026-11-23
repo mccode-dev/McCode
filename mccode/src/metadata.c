@@ -9,7 +9,7 @@
 /** @brief Assign component metadata to the instrument metadata list
  *
  * @param inst the instrument_definition
- * @param instr_metadata instrument-level METADATA, keyed by the instrument name
+ * @param instr_metadata instrument-level METADATA, with the defining instrument as source
  * @return 0 if successful, non-zero if not
  */
 
@@ -59,11 +59,10 @@ int metadata_construct_table(instr_ptr_t inst, List instr_metadata){
       }
     }
   }
-  // instrument-level metadata, added last as in mccode-antlr; a later duplicate key wins
+  // instrument-level metadata, keyed by the instrument that defined it; a later duplicate key wins
   for (int i=0; i<list_len(instr_metadata); ++i){
     l_ptr = (struct metadata_struct*) list_access(instr_metadata, i);
-    l_ptr->source = inst->name;
-    strcpy(key, inst->name);
+    strcpy(key, l_ptr->source);
     strcat(key, sep);
     strcat(key, l_ptr->name);
     if ((lit_entry = symtab_lookup(lit_map, key))) lit_entry->val = (void *) l_ptr;

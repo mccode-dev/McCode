@@ -986,9 +986,10 @@ instrument:   "DEFINE" "INSTRUMENT" TOK_ID instrpar_list
 //    $6    $7       $8         $9           $10           $11             $12         $13       $14          $15
       shell metadata dependency comp_declare comp_uservars comp_initialize instr_trace comp_save comp_finally "END"
       {
-        /* %include-d instruments reduce first; put them after ours so they win on a duplicate name, as in mccode-antlr */
-        if (instrument_metadata) list_cat($7, instrument_metadata);
-        instrument_metadata = $7;
+        /* each instrument's METADATA keeps its own name as source, as in mccode-antlr */
+        for (int i=0; i<list_len($7); ++i) ((struct metadata_struct *) list_access($7, i))->source = $3;
+        if (!instrument_metadata) instrument_metadata = list_create();
+        list_cat(instrument_metadata, $7);
 
         if (!instrument_definition->decls) instrument_definition->decls = $9;
         else list_cat(instrument_definition->decls->lines, $9->lines);
@@ -1759,8 +1760,9 @@ metadata1: metadatum
 ;
 
 
-/* type and name are identifiers or quoted strings; a quoted name is stored without
-   its quotes, as in mccode-antlr, so it is looked up the same way as an identifier. */
+/* type and name are identifiers or quoted strings, stored without the quotes.
+   As in mccode-antlr, a name with spaces keeps them (escaped for the generated C),
+   so it stays one entry in the space-separated --meta-defined output. */
 metaword: TOK_ID | TOK_STRING
 ;
 
@@ -1771,7 +1773,12 @@ metadatum:
   palloc(metadatum);
   metadatum->source = NULL;
   metadatum->type = $2;
-  metadatum->name = $3;
+  if (strchr($3, ' ')) {
+    char * quoted = malloc(strlen($3) + 3);
+    sprintf(quoted, "\"%s\"", $3);
+    metadatum->name = str_quote(quoted);
+    free(quoted);
+  } else metadatum->name = $3;
   metadatum->lines = list_create(); if (list_len($4->lines)) list_cat(metadatum->lines, $4->lines);
   $$ = metadatum; // This would be very bad to omit. Don't do that!
 }
