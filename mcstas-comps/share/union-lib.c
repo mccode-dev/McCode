@@ -1475,7 +1475,7 @@ int r_has_highest_priority(Coords point,int N,struct geometry_struct **Geometrie
 
 
     for (volume_index = 1;volume_index<number_of_volumes;volume_index++) {
-      if (volume_index != N && Geometries[volume_index]->is_mask_volume == 0) {
+      if (volume_index != N && Geometries[volume_index] && Geometries[volume_index]->is_mask_volume == 0) {
         if (Geometries[volume_index]->within_function(point,Geometries[volume_index])) {
           if (Geometries[volume_index]->is_masked_volume == 1) {
             // Since this volume is masked, the mask status need to be checked
@@ -1557,7 +1557,7 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
 	
     // Find intersections
     for (volume_index = 1;volume_index < number_of_volumes; volume_index++) {
-        if (volume_index != N) {
+        if (volume_index != N && Geometries[volume_index]) {
          if (Geometries[volume_index]->eShape==mesh){
             tmp = realloc(double_dummy, sizeof(double)*1000);
             tmpint = realloc(int_dummy, sizeof(double)*1000);
@@ -1997,11 +1997,49 @@ void union_tri_lathe(struct union_tri_list *t, Coords center, Coords axis, doubl
   }
 }
 
+// Half extents of a volume along the axes of the master frame (not tight for rotated shapes other than box)
+Coords union_half_extents(struct geometry_struct *g) {
+  double r = INFINITY;
+  if (g->eShape == box) {
+    struct box_storage *b = g->geometry_parameters.p_box_storage;
+    double w = 0.5*fmax(b->x_width1,b->x_width2), h = 0.5*fmax(b->y_height1,b->y_height2), d = 0.5*b->z_depth;
+    return coords_set(fabs(b->x_vector.x)*w + fabs(b->y_vector.x)*h + fabs(b->z_vector.x)*d,
+                      fabs(b->x_vector.y)*w + fabs(b->y_vector.y)*h + fabs(b->z_vector.y)*d,
+                      fabs(b->x_vector.z)*w + fabs(b->y_vector.z)*h + fabs(b->z_vector.z)*d);
+  } else if (g->eShape == cylinder) {
+    r = hypot(0.5*g->geometry_parameters.p_cylinder_storage->height,g->geometry_parameters.p_cylinder_storage->cyl_radius);
+  } else if (g->eShape == cone) {
+    struct cone_storage *c = g->geometry_parameters.p_cone_storage;
+    r = hypot(0.5*c->height,fmax(c->cone_radius_bottom,c->cone_radius_top));
+  } else if (g->eShape == sphere) {
+    r = g->geometry_parameters.p_sphere_storage->sph_radius;
+  } else if (g->eShape == mesh) {
+    gmesh_struct *m = &g->geometry_parameters.p_mesh_storage->mesh;
+    r = sqrt(coords_sp(m->bscenter,m->bscenter)) + m->bsradius;
+  }
+  return coords_set(r,r,r);
+}
+
 // Draws volume N as one polyhedron in the frame of the master component
 void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes) {
   struct geometry_struct *g = Geometries[N];
-  struct union_tri_list t = {NULL,0,0,N,number_of_volumes,Geometries};
+  struct union_tri_list t = {NULL,0,0,N,number_of_volumes,NULL};
   int i, j;
+
+  // Volumes that can not hide any of N are left out (NULL); masks are kept, as they are looked up by index
+  t.Geometries = malloc(number_of_volumes*sizeof(struct geometry_struct *));
+  if (!t.Geometries) {
+    fprintf(stderr,"Failure allocating list in Union function union_mcdisplay_polyhedron - Exit!\n");
+    exit(-1);
+  }
+  Coords e = union_half_extents(g);
+  for (i=0;i<number_of_volumes;i++) {
+    struct geometry_struct *o = Geometries[i];
+    t.Geometries[i] = o;
+    if (i == 0 || i == N || o->is_mask_volume) continue;
+    Coords d = coords_sub(o->center,g->center), s = coords_scalar_mult(coords_add(e,union_half_extents(o)),1 + 1e-6);
+    if (fabs(d.x) > s.x || fabs(d.y) > s.y || fabs(d.z) > s.z) t.Geometries[i] = NULL;
+  }
 
   if (g->eShape == box) {
     struct box_storage *b = g->geometry_parameters.p_box_storage;
@@ -2042,6 +2080,7 @@ void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int 
         union_tri_add(&t,pts.elements[m->faceArray[i+1]],pts.elements[m->faceArray[i+1+j]],pts.elements[m->faceArray[i+2+j]],UNION_TRI_DEPTH);
     free(pts.elements);
   }
+  free(t.Geometries);
   if (t.n == 0) return;
 
   // Same json layout as mcdis_polygon, bounds per vertex / face as there
