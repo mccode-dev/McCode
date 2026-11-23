@@ -124,6 +124,9 @@
 * but oriented materials are not. Only Bragg diffraction, absorption and
 * incoherent scattering are modelled. For the full NCrystal physics, use the
 * NCrystal_sample component, or the NCrystal_process component with Union.
+* NCrystal |F|^2 already includes the Debye-Waller factor, so 'DW' is ignored
+* for cfg-strings. The same holds for files made with ncrystal_ncmat2hkl:
+* use them with the default DW (or DW=1), or the Debye-Waller factor is applied twice.
 * <b>Concentricity</b>
 *
 * PowderN assumes 'concentric' shape, i.e. can contain other components inside its
@@ -173,7 +176,7 @@
 * sigma_abs: [barns]   Absorption cross section per unit cell at 2200 m/s. Use a negative value to inactivate it.
 * sigma_inc: [barns]   Incoherent cross section per unit cell. Use a negative value to inactivate it.
 * Vc: [AA^3]           Volume of unit cell=nb atoms per cell/density of atoms.
-* DW: [1]              Global Debye-Waller factor when the 'DW' column is not available. Use 1 if included in F2
+* DW: [1]              Global Debye-Waller factor when the 'DW' column is not available. Use 1 if included in F2 (as from NCrystal). Ignored for NCrystal cfg-strings
 * weight: [g/mol]      Atomic/molecular weight of material.
 * density: [g/cm^3]    Density of material. rho=density/weight/1e24*N_A.
 * nb_atoms: [1]        Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell
@@ -963,6 +966,8 @@ INITIALIZE
   if (reflections && strlen (reflections) && strcmp (reflections, "NULL") && strcmp (reflections, "0")) {
     if (strstr (reflections, ".ncmat") != NULL || strstr (reflections, "::") != NULL) {
       MPI_MASTER (printf ("PowderN: %s: NCrystal cfg-string detected (\"%s\").\n", NAME_CURRENT_COMP, reflections););
+      if (DW > 0 && DW != 1)
+        MPI_MASTER (printf ("PowderN: %s: WARNING: DW=%g ignored, NCrystal |F|^2 already includes the Debye-Waller factor.\n", NAME_CURRENT_COMP, DW););
       i = read_line_data_ncrystal (reflections, &line_info);
     } else {
       i = read_line_data (reflections, &line_info);
