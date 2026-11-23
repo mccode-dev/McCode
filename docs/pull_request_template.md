@@ -1,3 +1,5 @@
+_**Note:** Please remove all sections and bullets below that are not relevant for your PR._
+
 ### Free-form text area
 _Please describe what your PR is adding in terms of features or bugfixes:_
 
@@ -18,12 +20,10 @@ _Please describe what OS you developed and tested your additions on, and if any 
 * ### My contribution includes patches to an **existing component** file
   * [ ] I have used the `mcdoc` utility and **rendered** a reasonable documentation page for the component (please attach as screenshot in comments!)
   * [ ] I have ensured that basic use of the component is OK (e.g. an instrument using it compiles?)
-  * [ ] I have used the `mctest` utility to **test** one or more instruments making use of the component (please attach `mcviewtest` report as screenshot in comments)
   * [ ] I have used the `mccode-clangformat` tool to apply the standard McCode component indentation scheme
   * [ ] I have used the `mcrun --c-lint` "linter" and followed advice to remove most / all warnings that are raised
 * ### My contribution includes patches to an **existing** instrument file
   * [ ] I have used the `mcdoc` utility and **rendered** a reasonable documentation page for the instrument (please attach as screenshot in comments!)
-  * [ ] I have used the `mctest` utility to **test** the instrument (please attach `mcviewtest` report as screenshot in comments)
   * [ ] I have used the `mcrun --c-lint` "linter" and followed advice to remove most / all warnings that are raised
 * ### My contribution includes a **new component** file
   * [ ] I have ensured that naming of parameters are in the style of existing components. (Please check the [McStas](https://github.com/mccode-dev/McCode/blob/main/mcstas-comps/NOMENCLATURE.md) or [McXtrace](https://github.com/mccode-dev/McCode/blob/main/mcxtrace-comps/NOMENCLATURE) NOMENCLATURE docs.)
