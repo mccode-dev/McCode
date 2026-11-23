@@ -98,13 +98,12 @@ class Mesh:
     def transformed(self, m4):
         return Mesh(transform_points(m4, self.verts), self.tris)
 
-    def merge(self, other):
-        if other is None or other.empty():
-            return self
-        if self.empty():
-            return other
-        tris = np.vstack((self.tris, other.tris + len(self.verts)))
-        return Mesh(np.vstack((self.verts, other.verts)), tris)
+    def merge(self, *others):
+        ms = [m for m in (self, *others) if m is not None and not m.empty()]
+        if len(ms) < 2:
+            return ms[0] if ms else self
+        offs = np.cumsum([0] + [len(m.verts) for m in ms[:-1]])
+        return Mesh(np.vstack([m.verts for m in ms]), np.vstack([m.tris + o for m, o in zip(ms, offs)]))
 
 
 class Part:
@@ -360,15 +359,14 @@ def _polyhedron(json_str):
     try:
         data = json.loads(json_str)
         V = np.asarray(data['vertices'], dtype=np.float64).reshape((-1, 3))
-        mesh, lines = None, []
+        meshes, lines = [], []
         for f in data['faces']:
             f = V[np.asarray(f['face'], dtype=np.int64)]
             if len(f) < 3:
                 continue
-            m = Mesh(f, [[0, i, i + 1] for i in range(1, len(f) - 1)])
-            mesh = m if mesh is None else mesh.merge(m)
+            meshes.append(Mesh(f, [[0, i, i + 1] for i in range(1, len(f) - 1)]))
             lines.append(np.vstack((f, f[0])))
-        return mesh, lines
+        return (meshes[0].merge(*meshes[1:]) if meshes else None), lines
     except Exception as e:
         print(f"Polyhedron interpretation failed ({e}); skipped")
         return None, []
@@ -382,14 +380,17 @@ def component_to_part(comp, color, segments=64, pen=None, transparency=0.0):
     ''' the component's draw calls with pen colour `pen` ('#rrggbb' from pencolor, None: the component color) '''
     part = Part(comp.name + ('_' + pen[1:] if pen else ''),
                 tuple(int(pen[i:i + 2], 16) / 255 for i in (1, 3, 5)) if pen else color, transparency)
+    meshes = []
     for d in comp.drawcalls:
         if d.color != pen:
             continue
         mesh, lines = tessellate(d, segments)
         if mesh is not None:
-            part.add_mesh(mesh)
+            meshes.append(mesh)
         for l in lines:
             part.add_polyline(l)
+    if meshes:
+        part.mesh = meshes[0].merge(*meshes[1:])
     return part.transformed(comp.m4)
 
 
@@ -637,9 +638,7 @@ def export_ply(parts, path):
 def export_off(parts, path):
     ''' plain OFF, surfaces only, all components merged; readable by McStas interoff-lib (OFF components).
     No colors: trailing numbers on a face line are per-face properties there (e.g. m/alpha/W in Guide_anyshape) '''
-    m = Mesh(np.zeros((0, 3)), np.zeros((0, 3)))
-    for p in parts:
-        m = m.merge(p.mesh)
+    m = Mesh(np.zeros((0, 3)), np.zeros((0, 3))).merge(*(p.mesh for p in parts))
     with open(path, 'w') as f:
         f.write(f'OFF\n# McCode mcdisplay export, metres\n{len(m.verts)} {len(m.tris)} 0\n')
         for v in m.verts:
@@ -746,17 +745,6 @@ def export_vtk(parts, path):
                 f.write((' '.join(f'{c:.4g}' for c in p.color) + (f' {alpha:.4g}' if rgba else '') + '\n') * n)
 
 
-def _tube_mesh(p0, p1, radius, segments=4):
-    ''' open 4-sided cylinder (no caps) between two points, as a triangle mesh;
-    viewers see the inside via doubleSided materials '''
-    p0 = np.asarray(p0, dtype=np.float64).reshape(3)
-    p1 = np.asarray(p1, dtype=np.float64).reshape(3)
-    w, u, v = _basis_from_axis(p1 - p0)
-    th = np.linspace(0, 2 * np.pi, segments, endpoint=False)
-    ring = radius * (np.outer(np.cos(th), u) + np.outer(np.sin(th), v))
-    return _strip(p0 + ring, p1 + ring)
-
-
 _G = (1 + 5 ** 0.5) / 2  # icosahedron: the sphere at each polyline corner
 ICO_V = np.array([(-1, _G, 0), (1, _G, 0), (-1, -_G, 0), (1, -_G, 0), (0, -1, _G), (0, 1, _G),
                   (0, -1, -_G), (0, 1, -_G), (_G, 0, -1), (_G, 0, 1), (-_G, 0, -1), (-_G, 0, 1)]) / np.hypot(1, _G)
@@ -765,9 +753,13 @@ ICO_F = np.array([(0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11), (1,
                   (3, 8, 9), (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1)])
 
 
-def _tubes(xyz, r, k=6):
-    ''' NaN-separated polylines -> Mesh: a k-sided open cylinder per segment, a sphere per corner
-    (same construction as the mcdisplay-plopp 3D view) '''
+def _nan_separated(polylines):
+    nan = np.full((1, 3), np.nan)
+    return np.vstack([a for pl in polylines for a in (pl, nan)])
+
+
+def _cylinders(xyz, r, k):
+    ''' NaN-separated polylines -> Mesh: a k-sided open cylinder per segment '''
     a, b = xyz[:-1], xyz[1:]
     keep = np.isfinite(a).all(1) & np.isfinite(b).all(1) & (np.linalg.norm(b - a, axis=1) > 0)
     a, b = a[keep], b[keep]
@@ -780,15 +772,19 @@ def _tubes(xyz, r, k=6):
     cyl = np.concatenate([a[:, None] + ring, b[:, None] + ring], axis=1).reshape(-1, 3)
     j, j1 = np.arange(k), (np.arange(k) + 1) % k
     side = np.concatenate([np.stack([j, j1, k + j], 1), np.stack([j1, k + j1, k + j], 1)])
-    cyl_f = (side[None] + 2 * k * np.arange(len(a))[:, None, None]).reshape(-1, 3)
+    return Mesh(cyl, side[None] + 2 * k * np.arange(len(a))[:, None, None])
 
+
+def _tubes(xyz, r, k=6):
+    ''' NaN-separated polylines -> Mesh: cylinders plus a sphere per corner
+    (same construction as the mcdisplay-plopp 3D view) '''
     d1, d2 = xyz[1:-1] - xyz[:-2], xyz[2:] - xyz[1:-1]  # joints only where the polyline turns > ~20 deg;
     with np.errstate(invalid='ignore', divide='ignore'):  # NaN breaks, ends and smooth arcs get none
         cos = (d1 * d2).sum(1) / (np.linalg.norm(d1, axis=1) * np.linalg.norm(d2, axis=1))
     pts = xyz[1:-1][cos < 0.94]
     sph = (pts[:, None] + r * ICO_V[None]).reshape(-1, 3)
-    sph_f = (ICO_F[None] + len(cyl) + 12 * np.arange(len(pts))[:, None, None]).reshape(-1, 3)
-    return Mesh(np.concatenate([cyl, sph]), np.concatenate([cyl_f, sph_f]))
+    sph_f = ICO_F[None] + 12 * np.arange(len(pts))[:, None, None]
+    return _cylinders(xyz, r, k).merge(Mesh(sph, sph_f))
 
 
 def lines_to_tubes(parts, thickness=1e-4):
@@ -799,7 +795,6 @@ def lines_to_tubes(parts, thickness=1e-4):
         return
     pts = np.vstack(pts)
     r = thickness * np.linalg.norm(pts.max(0) - pts.min(0))
-    nan = np.full((1, 3), np.nan)
     for p in list(parts):
         if p.polylines:
             tubes = p
@@ -809,7 +804,7 @@ def lines_to_tubes(parts, thickness=1e-4):
                 else:
                     tubes = Part(p.name + '_lines', p.color)
                     parts.append(tubes)
-            tubes.add_mesh(_tubes(np.vstack([np.vstack((pl, nan)) for pl in p.polylines]), r))
+            tubes.add_mesh(_tubes(_nan_separated(p.polylines), r))
             p.polylines = []
 
 
@@ -869,34 +864,18 @@ def _gltf_buffers(parts):
     # Merge all components sharing the same color into ONE mesh: web viewers
     # (castle-model-viewer, three.js) spend memory and time per node/mesh/draw
     # call, so a few large meshes load much faster than hundreds of small ones.
-    by_color = {}  # (color tuple, transparency) -> [merged_mesh, [component names]]
+    by_color = {}  # (color tuple, transparency) -> [meshes, component names]
     for p in parts:
-        tubes = None
-        if p.polylines:
-            for pl in p.polylines:
-                # merge consecutive collinear segments into one tube
-                runs = [[pl[0], pl[1]]]
-                for j in range(1, len(pl) - 1):
-                    a, b = pl[j], pl[j + 1]
-                    prev = runs[-1]
-                    d_prev = prev[1] - prev[0]
-                    d_cur = b - a
-                    n_p, n_c = np.linalg.norm(d_prev), np.linalg.norm(d_cur)
-                    if n_p > 0 and n_c > 0 and abs(np.dot(d_prev / n_p, d_cur / n_c) - 1.0) < 1e-9:
-                        prev[1] = b  # collinear continuation: extend the previous run
-                    else:
-                        runs.append([a, b])
-                for a, b in runs:
-                    t = _tube_mesh(a, b, tube_r)
-                    tubes = t if tubes is None else tubes.merge(t)
+        tubes = _cylinders(_nan_separated(p.polylines), tube_r, 4) if p.polylines else None
         for mesh, transparency in ((p.mesh, p.transparency), (tubes, 0.0)):  # lines stay opaque
             if mesh is not None and not mesh.empty():
-                entry = by_color.setdefault((tuple(p.color), transparency), [None, []])
-                entry[0] = mesh if entry[0] is None else entry[0].merge(mesh)
+                entry = by_color.setdefault((tuple(p.color), transparency), [[], []])
+                entry[0].append(mesh)
                 if p.name not in entry[1]:
                     entry[1].append(p.name)
     nodes, meshes = [], []
-    for gi, (color, (mesh, names)) in enumerate(by_color.items()):
+    for gi, (color, (group, names)) in enumerate(by_color.items()):
+        mesh = group[0].merge(*group[1:])
         mat_idx = add_material(*color)
         pv = add(mesh.verts, 'float32', 34962)
         pi = add(mesh.tris.reshape(-1), 'uint32', 34963)
