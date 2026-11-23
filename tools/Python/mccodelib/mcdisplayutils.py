@@ -38,6 +38,8 @@ class McDisplayReader(object):
         else:
             cmd = f"{mcruncmd} {instr} --no-output-files --trace={trace} --ncount={n}"
 
+        if default:
+            cmd += ' -y'
         if dir:
             cmd = cmd + ' --dir=' + lexer.quote(dir)
         if options:
@@ -185,7 +187,7 @@ def make_common_parser(filename, documentation):
 
     parser = ArgumentParser(description=documentation.replace('mcdisplay',scriptname))
     parser.add_argument('instr', help=f'display this instrument file (.instr or .{ext})')
-    parser.add_argument('--default', action='store_true', help='automatically use instrument defaults for simulation run')
+    parser.add_argument('-y', '--default', action='store_true', help='use instrument default parameter values (forwards -y to mcrun)')
     parser.add_argument('--no-mpi', action='store_true', help='Forward --no-mpi to run-script')
     parser.add_argument('options', nargs='*', help='simulation options and instrument params')
 

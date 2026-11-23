@@ -15,7 +15,7 @@ instrument one particle can give several rays, up to 1e5 rays in all.
 |---|---|
 | `INSTR` | instrument file (`.instr` or compiled binary) |
 | `name=value ...` | simulation parameters, passed through to `mcrun` |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particles to trace (default: 300, at most 1000) |
 | `-t`, `--trace N` | visualisation mode (default: 2) |
@@ -45,7 +45,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 |---|---|
 | `INSTR` | instrument file, or a display directory from an earlier run (with `--simdir`) |
 | `name=value ...` | simulation parameters |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particles to trace (default: 300, at most 1000) |
 | `-t`, `--trace N` | visualisation mode (default: 2) |
@@ -65,7 +65,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 |---|---|
 | `INSTR` | instrument file, or a display directory from an earlier run (with `--simdir`) |
 | `name=value ...` | simulation parameters |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particles to trace (default: 300, at most 1000) |
 | `-t`, `--trace N` | visualisation mode (default: 2) |
@@ -101,7 +101,7 @@ Requires the `cadquery` Python package.
 |---|---|
 | `INSTR` | instrument file |
 | `name=value ...` | simulation parameters |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particle rays to include (default: 0 — geometry only) |
 | `--dirname DIR` | override output directory name |
@@ -130,7 +130,7 @@ Writes `INSTR.xml`, a Mantid IDF built from the instrument geometry and its Mant
 |---|---|
 | `INSTR` | instrument file |
 | `name=value ...` | simulation parameters |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--dirname DIR` | override output directory name |
 | `-n`, `--ncount N` / `--mpi N` | accepted, but always forced to 1 |
 
