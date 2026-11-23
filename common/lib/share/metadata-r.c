@@ -5,7 +5,6 @@
 #endif
 
 char * metadata_table_key_component(char* key){
-  if (strlen(key) == 0) return NULL;
   char sep[2] = ":\0"; // matches any number of repeated colons
   // look for the separator in the provided key; strtok is allowed to modify the string, so copy it
   char * tok = malloc((strlen(key) + 1) * sizeof(char));
@@ -15,6 +14,7 @@ char * metadata_table_key_component(char* key){
   }
   strcpy(tok, key);
   char * pch = strtok(tok, sep); // this *is* the component name (if provided) -- but we need to move the pointer
+  if (!pch) pch = ""; // empty or all-colon key: matches no component
   char * comp = malloc((1 + strlen(pch)) * sizeof(char));
   if (!comp) {
     fprintf(stderr,"Error allocating comp\n");
@@ -163,18 +163,17 @@ int metadata_table_print_all_components(int no, metadata_table_t * tab){
   size_t nchar = 0;
   for (int i=0; i<count; ++i) nchar += strlen(known[i]) + 1;
   char * line = malloc((nchar + 1) * sizeof(char));
-  char * linetmp = malloc((nchar + 1) * sizeof(char));
-  if (!line || !linetmp) {
-    fprintf(stderr,"Error allocating metadata print arrays\n");
+  if (!line) {
+    fprintf(stderr,"Error allocating metadata print array\n");
     exit(-1);
   }
   line[0] = '\0';
-  for (int i=0; i<count; ++i) sprintf(linetmp, "%s%s ", line, known[i]);
-  line=linetmp;
-  line[strlen(line)] = '\0'; // eat the trailing space
+  for (int i=0; i<count; ++i) {
+    if (i) strcat(line, " ");
+    strcat(line, known[i]);
+  }
   printf("%s\n", line);
   free(line);
-  free(linetmp);
   free(known);
   return count;
 }
@@ -188,6 +187,8 @@ int metadata_table_print_component_keys(int no, metadata_table_t * tab, char * k
   }
   if (name != NULL) printf("%d", count); // replace count by strlen(tab[i].value)?
   printf("\n");
+  free(comp);
+  if (name) free(name);
   return count;
 }
 /* -------------------------------------------------------------------------------------Contents of  metadata-r.c --- */
