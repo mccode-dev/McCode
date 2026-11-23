@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Regression test: MCPL_output ray count of an interrupted run (issue #3055).
+"""Regression test: MCPL_output file of an interrupted run (issues #3055, #3181).
 
 Compiles Test_MCPL_output.instr (next to this script; the McStas and McXtrace
 copies of this script are identical), starts it with far more rays than it
 can finish and interrupts it with SIGINT once particles are being written.
 The file must then hold stat:sum:initial_ray_count == -1 (unknown), not the
-requested ray count.
+requested ray count, and its last particle must be readable. Repeated, as only
+some of the signals arrive while a particle is written.
 
 Usage: python3 test_mcpl_interrupt.py [--mcrun mcrun] [--workdir DIR]
 Needs POSIX signals and mcpltool; exit status is 0 when the check passes.
@@ -25,6 +26,7 @@ INSTR = HERE / "Test_MCPL_output.instr"
 NCOUNT = 2e9  # requested; never reached
 TIMEOUT = 300
 MINSIZE = 1 << 20  # bytes of MCPL output before interrupting
+NRUNS = 10
 
 
 def fail(what, proc, log):
@@ -33,21 +35,8 @@ def fail(what, proc, log):
     return 1
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--mcrun", default="mcrun")
-    ap.add_argument("--workdir", default="run_mcpl_interrupt")
-    args = ap.parse_args()
-    if os.name != "posix" or not shutil.which("mcpltool"):
-        print("SKIP: MCPL interrupt check (needs POSIX and mcpltool)")
-        return 0
-
-    cwd = Path(args.workdir).resolve()
-    shutil.rmtree(cwd, ignore_errors=True)
-    cwd.mkdir(parents=True)
-    shutil.copy(INSTR, cwd)
-    subprocess.run([args.mcrun, "-c", "-n", "0", INSTR.name], cwd=cwd, check=True, timeout=900)
-
+def interrupted_run(cwd):
+    shutil.rmtree(cwd / "out", ignore_errors=True)
     log = cwd / "run.log"
     with open(log, "w") as out:
         proc = subprocess.Popen([str(cwd / (INSTR.stem + ".out")), "-d", "out", "-s", "1", f"Ncount={NCOUNT:g}"],
@@ -73,10 +62,30 @@ def main():
     nparticles = int(re.search(r"No\. of particles\s*:\s*(\d+)", head).group(1))
     m = re.search(r"stat:sum:initial_ray_count:\s*(-?[\d.eE+]+)", head)
     rays = float(m.group(1)) if m else None
-    ok = rays == -1 and nparticles > 0
+    # reads the last particle; fails if the file holds fewer than it claims
+    last = subprocess.run(["mcpltool", "-n", "-l1", f"-s{nparticles - 1}", str(files[0])], stdout=subprocess.DEVNULL)
+    ok = rays == -1 and nparticles > 0 and last.returncode == 0
     print(f"{'PASS' if ok else 'FAIL'}: interrupted run: {nparticles} particles, "
-          f"initial_ray_count {rays}")
+          f"initial_ray_count {rays}, last particle {'ok' if last.returncode == 0 else 'missing'}")
     return 0 if ok else 1
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--mcrun", default="mcrun")
+    ap.add_argument("--workdir", default="run_mcpl_interrupt")
+    args = ap.parse_args()
+    if os.name != "posix" or not shutil.which("mcpltool"):
+        print("SKIP: MCPL interrupt check (needs POSIX and mcpltool)")
+        return 0
+
+    cwd = Path(args.workdir).resolve()
+    shutil.rmtree(cwd, ignore_errors=True)
+    cwd.mkdir(parents=True)
+    shutil.copy(INSTR, cwd)
+    subprocess.run([args.mcrun, "-c", "-n", "0", INSTR.name], cwd=cwd, check=True, timeout=900)
+
+    return max(interrupted_run(cwd) for _ in range(NRUNS))
 
 
 if __name__ == "__main__":

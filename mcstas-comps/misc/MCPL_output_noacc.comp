@@ -177,6 +177,9 @@ INITIALIZE
 TRACE
 %{
 
+  #ifndef NOSIGNALS
+  mcsig_busy++; /* handle signals after TRACE: no ABSORB or return before mcsig_end_write */
+  #endif
   double nrm;
   /*positions are in cm*/
   particle->position[0] = x * 100;
@@ -217,6 +220,9 @@ TRACE
   mcpl_add_particle (outputfile, particle);
 
   SCATTER;
+  #ifndef NOSIGNALS
+  mcsig_end_write (NULL);
+  #endif
 %}
 
 SAVE
