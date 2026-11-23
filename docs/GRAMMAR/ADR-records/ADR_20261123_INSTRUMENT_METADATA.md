@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+Accepted, with [#3180](https://github.com/mccode-dev/McCode/pull/3180).
 
 ## Context
 
@@ -25,7 +25,7 @@ In `instrument.y`, accept `metadata` (zero or more `METADATA` blocks) in the ins
 
 In `metadata.c`, `metadata_construct_table` also adds the instrument blocks, after all component blocks. Each block has the instrument that defined it as its source, also when that instrument is `%include`d. Only a block with the same source and name replaces another, i.e. a repeated name in one instrument header.
 
-mccode-antlr kept the source, but replaced instrument blocks by name alone. As the table is looked up by source and name, a `%include`d instrument silently removed the blocks of the same name from the instruments included before it. mccode-antlr now also replaces by source and name (mccode-antlr branch `metadata-source-name-key`).
+mccode-antlr kept the source, but replaced instrument blocks by name alone. As the table is looked up by source and name, a `%include`d instrument silently removed the blocks of the same name from the instruments included before it. mccode-antlr now also replaces by source and name ([mccode-antlr#415](https://github.com/mccode-dev/mccode-antlr/pull/415), not yet released).
 
 For all METADATA (definition, instance, instrument), store a quoted name without its quotes, as a quoted type already was. A name with spaces keeps them, as in mccode-antlr. The four `metadatum` alternatives (identifier or string for each) are now one rule. mccode-antlr did not escape these quotes in the generated C, which then did not compile; it now does.
 
