@@ -162,9 +162,6 @@ SHARE
     int size = 0;
     t_Table sTable; /* sample data table structure from SC_file */
     int i = 0;
-    int mult_count = 0;
-    char flag = 0;
-    double q_count = 0, j_count = 0, F2_count = 0;
     char** parsing;
     int list_count = 0;
 
@@ -264,7 +261,6 @@ SHARE
     for (i = 0; i < size; i++) {
       /*      printf("Reading in line %i\n",i);*/
       double j = 0, d = 0, w = 0, q = 0, DWfactor = 0, F2 = 0, Epsilon = 0;
-      int index;
 
       if (info->Dd >= 0)
         w = info->Dd;
@@ -323,45 +319,26 @@ SHARE
       list[list_count].F2 = F2;
       list[list_count].Epsilon = Epsilon;
 
-      /* adjust multiplicity if j-column + multiple d-spacing lines */
-      /* if  d = previous d, increase line duplication index */
-      if (!q_count)
-        q_count = q;
-      if (!j_count)
-        j_count = j;
-      if (!F2_count)
-        F2_count = F2;
-      if (fabs (q_count - q) < 0.0001 * fabs (q) && fabs (F2_count - F2) < 0.0001 * fabs (F2) && j_count == j) {
-        mult_count++;
-        flag = 0;
-      } else
-        flag = 1;
-      if (i == size - 1)
-        flag = 1;
-      /* else if d != previous d : just passed equivalent lines */
-      if (flag) {
-        if (i == size - 1)
-          list_count++;
-        /*   if duplication index == previous multiplicity */
-        /*      set back multiplicity of previous lines to 1 */
-        if ((mult_count && list_count > 0)
-            && (mult_count == list[list_count - 1].j || ((list_count < size) && (i == size - 1) && (mult_count == list[list_count].j)))) {
-          MPI_MASTER (printf ("PowderN: %s: Set multiplicity to 1 for lines [%i:%i]\n"
-                              "         (d-spacing %g is duplicated %i times)\n",
-                              info->compname, list_count - mult_count, list_count - 1, list[list_count - 1].q, mult_count););
-          for (index = list_count - mult_count; index < list_count; list[index++].j = 1)
-            ;
-          mult_count = 1;
-          q_count = q;
-          j_count = j;
-          F2_count = F2;
-        }
-        if (i == size - 1)
-          list_count--;
-        flag = 0;
-      }
       list_count++;
     } /* end for */
+
+    /* adjust multiplicity if j-column + multiple d-spacing lines:
+       a run of consecutive lines with equal q, |F|^2 and j, whose length is a
+       multiple of j, lists every equivalent reflection: set j=1 on those lines */
+    for (i = 0; i < list_count;) {
+      int n = 1, k;
+      while (i + n < list_count && fabs (list[i + n].q - list[i].q) <= 0.0001 * fabs (list[i].q)
+             && fabs (list[i + n].F2 - list[i].F2) <= 0.0001 * fabs (list[i].F2) && list[i + n].j == list[i].j)
+        n++;
+      if (n > 1 && list[i].j > 1 && fmod (n, list[i].j) == 0) {
+        MPI_MASTER (printf ("PowderN: %s: Set multiplicity to 1 for lines [%i:%i]\n"
+                            "         (d-spacing %g is duplicated %i times)\n",
+                            info->compname, i, i + n - 1, 2 * PI / list[i].q, n););
+        for (k = i; k < i + n; k++)
+          list[k].j = 1;
+      }
+      i += n;
+    }
 
     Table_Free (&sTable);
 
