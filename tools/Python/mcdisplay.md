@@ -95,8 +95,6 @@ gives a warning.
 
 ## mcdisplay-cad / mxdisplay-cad *(bonus: export instrument geometry to CAD)*
 
-Requires the `cadquery` Python package.
-
 | Option | Description |
 |---|---|
 | `INSTR` | instrument file |

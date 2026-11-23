@@ -54,4 +54,13 @@ for exp, ext in ((export_off, '.off'), (export_ply, '.ply')):
     # interoff-lib reads faces right after the vertices; extra face numbers would be supermirror parameters
     assert all(l.split() == ['3'] + [str(i) for i in t] for l, t in zip(faces, m.tris))
     assert 'edge' not in ' '.join(lines[:20])
+
+# VTK: polygon count right also when vertex 3 is used, colors per point
+from mcdisplay import export_vtk, Mesh
+q = Part('q', (1, 0, 0))
+q.add_mesh(Mesh([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)], [[0, 1, 2], [0, 2, 3]]))
+fn = os.path.join(tempfile.mkdtemp(), 'x.vtk')
+export_vtk([q], fn)
+lines = open(fn).read().splitlines()
+assert 'POLYGONS 2 8' in lines and 'COLOR_SCALARS component_color 3' in lines and lines[-1] == '1 0 0'
 print('ok')

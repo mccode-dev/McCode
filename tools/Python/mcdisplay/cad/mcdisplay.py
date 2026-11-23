@@ -11,7 +11,7 @@ Python), and VTKJS (.vtkjs zip of the vtk.js JSON scene format).
 Each instrument component is assigned a color from a cycling palette, so
 adjacent components are visually distinguishable in the output.
 Color-capable formats: glTF, GLB, OBJ (via companion .mtl), PLY (vertex colors),
-VRML97, X3D. STL, OFF and legacy VTK carry no color information.
+VRML97, X3D, STEP, VTK. STL and OFF carry no color information.
 STL, PLY and OFF hold surfaces only (no lines); PLY and OFF can be read back by
 the McStas OFF components (interoff-lib).
 
@@ -40,6 +40,7 @@ from mccodelib.instrgeom import (Vector3d, DrawMagnify, DrawLine, DrawDashedLine
                                   DrawMultiline, DrawRectangle, DrawBox, DrawCircle,
                                   DrawNewCircle, DrawSphere, DrawCone, DrawCylinder,
                                   DrawDisc, DrawAnnulus, DrawPolygon, DrawPolyhedron)
+from mccodelib.instrparser import MantidPixelLine, MantidRectangularDetectorLine, MantidBananaDetectorLine
 from mccodelib import mccode_config
 
 import numpy as np
@@ -230,8 +231,8 @@ def _v3(p):
 
 def tessellate(d, segments=64):
     ''' convert one draw call into (mesh_or_None, [polylines]) in local coords '''
-    if isinstance(d, DrawMagnify):
-        return None, []
+    if isinstance(d, (DrawMagnify, MantidPixelLine, MantidRectangularDetectorLine, MantidBananaDetectorLine)):
+        return None, []  # nothing to draw
     if isinstance(d, DrawPolygon):
         return None, []  # awaiting C code upstream; nothing to draw
     if isinstance(d, (DrawLine,)):
@@ -610,12 +611,12 @@ def export_vtk(parts, path):
         nlpoly = sum(len(pp.polylines) for pp in parts)
         f.write(f'LINES {nlpoly} {len(lines)}\n')
         f.write(' '.join(map(str, lines)) + '\n')
-        nface = sum(1 for x in faces if x == 3)
-        f.write(f'POLYS {nface} {len(faces)}\n')
-        f.write(' '.join(map(str, faces)) + '\n')
-        # per-point component color scalars (COLORSCALAR names are auto-loaded by many VTK viewers)
+        f.write(f'POLYGONS {len(faces) // 4} {len(faces)}\n')
+        for k in range(0, len(faces), 4):
+            f.write(' '.join(map(str, faces[k:k + 4])) + '\n')
+        # per-point component color scalars
         f.write(f'POINT_DATA {len(pts)}\n')
-        f.write('COLORSCALARS component_color 3\n')
+        f.write('COLOR_SCALARS component_color 3\n')
         for p in parts:
             npts = sum(len(pl) for pl in p.polylines)
             if p.mesh is not None and not p.mesh.empty():
@@ -870,6 +871,14 @@ def export_step(parts, path):
         rep = None
         if p.mesh is not None and not p.mesh.empty():
             faces = []
+            points = {}  # shared by neighbouring faces, else readers (FreeCAD) make one object per face
+
+            def vertex(v):
+                key = r3(v)
+                if key not in points:
+                    points[key] = pt(v)
+                return points[key]
+
             for tri in p.mesh.verts[p.mesh.tris]:
                 a, b, c = tri
                 n = np.cross(b - a, c - a)
@@ -877,7 +886,7 @@ def export_step(parts, path):
                 if ln < 1e-12:
                     continue  # skip degenerate triangles
                 n = n / ln
-                pa, pb, pc = pt(a), pt(b), pt(c)
+                pa, pb, pc = vertex(a), vertex(b), vertex(c)
                 loop = E(f"POLY_LOOP('',({pa},{pb},{pc}))")
                 fb = E(f'FACE_OUTER_BOUND(\'\',{loop},.T.)')
                 dn = E(f"DIRECTION('',{r3(n)})")
