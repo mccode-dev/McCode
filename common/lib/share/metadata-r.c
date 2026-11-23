@@ -95,7 +95,10 @@ char * metadata_table_name(int no, metadata_table_t * tab, char *key){
                 break;
             }
         }
-        if (!found) free(name);
+        if (!found) {
+            free(name);
+            name = NULL;
+        }
     }
     free(comp);
     return name;

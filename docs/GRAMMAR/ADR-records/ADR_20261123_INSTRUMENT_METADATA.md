@@ -31,7 +31,7 @@ For all METADATA (definition, instance, instrument), store a quoted name without
 
 In `pygen.c.in`, write instrument blocks with `instr.add_METADATA(name=..., type=..., value=...)`, guarded by `hasattr`: McStasScript has no instrument METADATA yet, so without it the script prints a warning and continues. All METADATA text is now written as a raw Python string, so escapes such as `\"` in JSON reach McStasScript unchanged.
 
-In `metadata-r.c`, build the `--meta-list` line in place, and let `metadata_table_key_component` return `""` instead of `NULL` when the key has no source part.
+In `metadata-r.c`, build the `--meta-list` line in place, let `metadata_table_key_component` return `""` instead of `NULL` when the key has no source part, and let `metadata_table_name` return `NULL` instead of a freed pointer when the key is not found.
 
 ## Consequences
 
@@ -62,4 +62,4 @@ DECLARE
 - `METADATA text "notes" %{ ... %}` is found with `--meta-data=my_instr:notes`, `METADATA text "two words" %{ ... %}` with `--meta-data='my_instr:"two words"'`.
 - If `my_instr` `%include`s `inc` and both define `dup`, `my_instr:dup` and `inc:dup` are both found.
 - `--meta-defined=::` and `--meta-type=::` exit 1 instead of crashing.
-- Tested on Linux x86_64 with gcc and bison 3.8.2: no grammar conflicts. Generated C was compared before/after for the 375 McStas example instruments: all identical. A test instrument with instrument, instance, quoted-name and nested `%include`d instrument metadata (repeated names in each) gives the same metadata table as mccode-antlr with the change above, with no AddressSanitizer or UBSan errors in the accessors. McXtrace shares the parser and runtime; it was not built. macOS and Windows were not tested.
+- Tested on Linux x86_64 with gcc and bison 3.8.2: no grammar conflicts. Generated C was compared before/after for the 375 McStas example instruments: all identical. A test instrument with instrument, instance, quoted-name and nested `%include`d instrument metadata (repeated names in each) gives the same metadata table as mccode-antlr with the change above, with no AddressSanitizer or UBSan errors in the accessors. McXtrace was built too; `test_File` (McStas and McXtrace) now writes a header METADATA block to a file. macOS and Windows were not tested.
