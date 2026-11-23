@@ -559,6 +559,7 @@ SHARE
                                  "DW", "Debye_Waller", "delta_d_d/d", "column_F ", "V_rho", "density", "weight", "nb_atoms", "multiplicity", /* 23 */
                                  "column_ppm", "column_strain", "ncmat2hklversion", "ncrystal_cfgstr", NULL);
     int ncmat2hklversion = -1;
+    int hdr_unit = 0;
     int has_ncrystal_cfgstr = 0;
 
     if (parsing) {
@@ -614,6 +615,15 @@ SHARE
         info->column_order[8] = atoi (parsing[24]);
       if (parsing[25])
         info->column_order[8] = atoi (parsing[25]);
+      /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'barns' parameter */
+      for (i = 8; i <= 18; i += 10) /* column_F2, column_F */
+        if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
+          int hdr_barns = strstr (parsing[i], "barn") != NULL;
+          if (hdr_barns != info->flag_barns)
+            MPI_MASTER (printf ("PowderN: %s: |F|^2 unit in file header is %s, using barns=%d\n", info->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
+          info->flag_barns = hdr_barns;
+          hdr_unit = 1;
+        }
       if (parsing[26])
         ncmat2hklversion = atoi (parsing[26]);
       if (parsing[27])
@@ -643,11 +653,11 @@ SHARE
     MPI_MASTER (Table_Info (sTable); printf ("PowderN: %s: Reading %d rows from %s\n", info->compname, size, SC_file););
 
     if (filename == SC_file) { // only when not from cif2hkl
-      if (info->column_order[0] == 4 && info->flag_barns != 0)
+      if (!hdr_unit && info->column_order[0] == 4 && info->flag_barns != 0)
         MPI_MASTER (printf ("PowderN: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
                             "WARNING: but F2 unit is set to barns=1 (barns). Intensity might be 100 times too high.\n",
                             info->compname););
-      if (info->column_order[0] == 17 && info->flag_barns == 0)
+      if (!hdr_unit && info->column_order[0] == 17 && info->flag_barns == 0)
         MPI_MASTER (printf ("PowderN: %s: Powder file probably of type Lazy Pulver (laz)\n"
                             "WARNING: but F2 unit is set to barns=0 (fm^2). Intensity might be 100 times too low.\n",
                             info->compname););

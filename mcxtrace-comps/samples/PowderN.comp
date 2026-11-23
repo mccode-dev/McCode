@@ -401,6 +401,7 @@ SHARE
                                  "column_sintheta/lambda", "column_q", /* 10 */
                                  "DW", "Debye_Waller", "delta_d/d", "column_F ", "V_rho", "density", "weight", "nb_atoms", "multiplicity", NULL);
 
+    int hdr_unit = 0;
     if (parsing) {
       if (parsing[0] && !info->V_0)
         info->V_0 = atof (parsing[0]);
@@ -442,6 +443,15 @@ SHARE
         info->at_nb = atof (parsing[18]);
       if (parsing[19] && info->at_nb <= 1)
         info->at_nb = atof (parsing[19]);
+      /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'barns' parameter */
+      for (i = 4; i <= 14; i += 10) /* column_F2, column_F */
+        if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
+          int hdr_barns = strstr (parsing[i], "barn") != NULL;
+          if (hdr_barns != info->flag_barns)
+            MPI_MASTER (printf ("PowderN: %s: |F|^2 unit in file header is %s, using barns=%d\n", info->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
+          info->flag_barns = hdr_barns;
+          hdr_unit = 1;
+        }
       for (i = 0; i <= 19; i++)
         if (parsing[i])
           free (parsing[i]);
@@ -459,11 +469,11 @@ SHARE
     MPI_MASTER (Table_Info (sTable););
 
     if (filename == SC_file) { // only when not from cif2hkl
-      if (info->column_order[0] == 4 && info->flag_barns != 0)
+      if (!hdr_unit && info->column_order[0] == 4 && info->flag_barns != 0)
         MPI_MASTER (printf ("PowderN: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
                             "WARNING: but F2 unit is set to barns=1 (barns). Intensity might be 100 times too high.\n",
                             info->compname););
-      if (info->column_order[0] == 17 && info->flag_barns == 0)
+      if (!hdr_unit && info->column_order[0] == 17 && info->flag_barns == 0)
         MPI_MASTER (printf ("PowderN: %s: Powder file probably of type Lazy Pulver (laz)\n"
                             "WARNING: but F2 unit is set to barns=0 (fm^2). Intensity might be 100 times too low.\n",
                             info->compname););

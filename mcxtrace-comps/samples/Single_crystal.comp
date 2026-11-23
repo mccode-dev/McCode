@@ -583,6 +583,14 @@ SHARE
         info->column_order[3] = atoi (parsing[7]);
       if (parsing[8])
         info->column_order[4] = atoi (parsing[8]);
+      /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'barns' parameter */
+      for (i = 7; i <= 8; i++)
+        if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
+          int hdr_barns = strstr (parsing[i], "barn") != NULL;
+          if (hdr_barns != info->flag_barns)
+            MPI_MASTER (printf ("Single_crystal: %s: |F|^2 unit in file header is %s, using barns=%d\n", info->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
+          info->flag_barns = hdr_barns;
+        }
       if (parsing[9] && info->m_delta_d_d <= 0)
         info->m_delta_d_d = atof (parsing[9]);
       if (parsing[10] && !info->m_a)
