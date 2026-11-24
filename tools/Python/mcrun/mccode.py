@@ -278,7 +278,7 @@ class McStas:
 
         # Add "standard CFLAGS" or "no CFLAGS" if not openacc
         if not self.options.openacc:
-            cflags += options.no_cflags and ['-O0'] + " " or mccode_config.compilation['CFLAGS'] + " " # cflags
+            cflags += ('-O0' if options.no_cflags else mccode_config.compilation['CFLAGS']) + " " # cflags
 
         # Look for CFLAGS in the generated C code
         ccode = open(self.cpath, 'rb')

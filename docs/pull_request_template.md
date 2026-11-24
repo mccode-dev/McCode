@@ -1,10 +1,13 @@
+_**Note:** Please remove all sections and bullets below that are not relevant for your PR._
+
 ### Free-form text area
 _Please describe what your PR is adding in terms of features or bugfixes:_
 
 --------------
 ### Declaration of use of AI-tools
 * [ ] Please add a checkmark here if you used AI-tools during the work for this contribution
-* Furter, please describe how / where and for what the tools were used:
+* Further, please describe how / where and for what the tools were used:
+* AI-assisted commits must carry a `Co-Authored-By` line naming the tool, see [CONTRIBUTING.md](https://github.com/mccode-dev/McCode/blob/main/CONTRIBUTING.md)
 
 --------------
 ### Development OS / boundary conditions
@@ -17,12 +20,10 @@ _Please describe what OS you developed and tested your additions on, and if any 
 * ### My contribution includes patches to an **existing component** file
   * [ ] I have used the `mcdoc` utility and **rendered** a reasonable documentation page for the component (please attach as screenshot in comments!)
   * [ ] I have ensured that basic use of the component is OK (e.g. an instrument using it compiles?)
-  * [ ] I have used the `mctest` utility to **test** one or more instruments making use of the component (please attach `mcviewtest` report as screenshot in comments)
   * [ ] I have used the `mccode-clangformat` tool to apply the standard McCode component indentation scheme
   * [ ] I have used the `mcrun --c-lint` "linter" and followed advice to remove most / all warnings that are raised
 * ### My contribution includes patches to an **existing** instrument file
   * [ ] I have used the `mcdoc` utility and **rendered** a reasonable documentation page for the instrument (please attach as screenshot in comments!)
-  * [ ] I have used the `mctest` utility to **test** the instrument (please attach `mcviewtest` report as screenshot in comments)
   * [ ] I have used the `mcrun --c-lint` "linter" and followed advice to remove most / all warnings that are raised
 * ### My contribution includes a **new component** file
   * [ ] I have ensured that naming of parameters are in the style of existing components. (Please check the [McStas](https://github.com/mccode-dev/McCode/blob/main/mcstas-comps/NOMENCLATURE.md) or [McXtrace](https://github.com/mccode-dev/McCode/blob/main/mcxtrace-comps/NOMENCLATURE) NOMENCLATURE docs.)
@@ -45,7 +46,7 @@ _Please describe what OS you developed and tested your additions on, and if any 
   * [ ] I have added reasoning and documentation for the change through an ADR record in our [GRAMMAR](https://github.com/mccode-dev/McCode/tree/main/docs/GRAMMAR) section
   * [ ] I am attaching test output in the comments
 * ### My work touches / adds to the runtime lib code (.c,.h etc in multiple locations
-  * [ ] I am have added reasoning and documentation for the change below
+  * [ ] I have added reasoning and documentation for the change below
   * [ ] I am attaching test output in the comments
   * [ ] **Unit test:** every new or changed `common/lib/share`, `mccode/nlib/share`, `mcstas-comps/share` or `mcxtrace-comps/share` library and runtime file (`.c`, `.h`, `.h.in`) has a `Test_lib_<name>` instrument in `examples/libtest/` (McStas and/or McXtrace), with a `%Test:` line where the result can be checked. If it cannot be standalone, say why in the free-form text (e.g. needs a component or external package)
 * ### My PR is meant to fix a specific, existing issue

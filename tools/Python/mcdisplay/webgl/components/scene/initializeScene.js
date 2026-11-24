@@ -96,6 +96,7 @@ export const initializeRenderer = (width, height) => {
   const renderer = new THREE.WebGLRenderer({
     canvas: document.getElementById("canvas"),
     antialias: true,
+    preserveDrawingBuffer: true, // the tour recording copies the 3D view out of the canvas
   });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(width, height);

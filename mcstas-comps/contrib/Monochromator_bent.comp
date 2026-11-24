@@ -362,7 +362,7 @@ SHARE
   const char* mb_crystal_planeStrings[]
       = { "Cu111", "Cu200", "Cu220",     "Cu311", "Cu400", "Cu331", "Cu420", "Cu440", "Ge111",  "Ge220",  "Ge311",  "Ge400",  "Ge331",  "Ge422",
           "Ge511", "Ge533", "Ge711",     "Ge551", "Si111", "Si220", "Si311", "Si400", "Si331",  "Si422",  "Si333",  "Si511",  "Si440",  "Si711",
-          "Si551", " Be10", "Be100",     "Be102", "Be103", "Be110", "Be112", "Be200", "Be00_2", "Be10_1", "PG00_2", "PG00_4", "PG00_6", "Fe110",
+          "Si551", "Be10",  "Be100",     "Be102", "Be103", "Be110", "Be112", "Be200", "Be00_2", "Be10_1", "PG00_2", "PG00_4", "PG00_6", "Fe110",
           "HS111", "HS222", "HS111star", "Di111", "Di220", "Di311", "Di400", "Di331", "Di422",  "Di333",  "Di511",  "Di440" };
 
   // Function to convert a string to an enum value
@@ -373,7 +373,11 @@ SHARE
         return (enum mb_crystal_plane)i;
       }
     }
-    return 0;
+    fprintf (stderr, "Monochromator_bent: unknown plane_of_reflection \"%s\". Valid planes are:\n", plane);
+    for (int i = 0; i < sizeof (mb_crystal_planeStrings) / sizeof (mb_crystal_planeStrings[0]); ++i)
+      fprintf (stderr, " %s", mb_crystal_planeStrings[i]);
+    fprintf (stderr, "\n");
+    exit (-1);
   }
   /* TITLE Crystal table for perfect crystal bent monochromator
   Table copied from SIMRES, current url: https://github.com/saroun/simres
