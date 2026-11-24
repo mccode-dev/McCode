@@ -172,7 +172,7 @@ def require_file(run_dir: Path, name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def verify_callback_logs(run_dir: Path, safe_mode: int) -> None:
+def verify_callback_logs(run_dir: Path) -> None:
     ordinary_corrupt = require_file(run_dir, "ordinary_corrupt.log")
     ordinary_observer = require_file(run_dir, "ordinary_observer.log")
     abs_corrupt = require_file(run_dir, "abs_corrupt.log")
@@ -183,14 +183,10 @@ def verify_callback_logs(run_dir: Path, safe_mode: int) -> None:
         raise AssertionError("ordinary logger did not record before and after particles")
     if "absorbed_weight=" not in abs_corrupt or "event " not in abs_corrupt:
         raise AssertionError("absorption logger did not record event weight and particle")
-    if safe_mode == 0 and ordinary_corrupt == ordinary_observer:
-        raise AssertionError("unsafe logger callback did not reach the subsequent observer")
-    if safe_mode == 1 and ordinary_corrupt != ordinary_observer:
-        raise AssertionError("safe logger callback changed the subsequent observer input")
-    if safe_mode == 0 and abs_corrupt == abs_observer:
-        raise AssertionError("unsafe absorption callback did not reach the subsequent observer")
-    if safe_mode == 1 and abs_corrupt != abs_observer:
-        raise AssertionError("safe absorption callback changed the subsequent observer input")
+    if ordinary_corrupt != ordinary_observer:
+        raise AssertionError("scattering logger changed the subsequent observer input")
+    if abs_corrupt != abs_observer:
+        raise AssertionError("absorption logger changed the subsequent observer input")
 
     ordinary_records = [line for line in ordinary_corrupt.splitlines() if line.startswith(("before ", "after "))]
     if len(ordinary_records) < 2 or len(ordinary_records) % 2:
@@ -241,9 +237,9 @@ def verify_callback_logs(run_dir: Path, safe_mode: int) -> None:
 
 
 def build_and_run(generator: str, resources: Path, compiler: list[str], work_dir: Path,
-                  safe_mode: int, ncount: int, seed: int, flavour: str, bad_process: int = 0,
-                  abs_scope: int = 0, logger_scope: int = 0) -> Path:
-    run_dir = work_dir / f"{flavour}-safe-{safe_mode}-bad-{bad_process}-abs-{abs_scope}-logger-{logger_scope}"
+                  safe_mode: int, ncount: int, seed: int, flavour: str, bad_process: int = 2,
+                  abs_scope: int = 0, logger_scope: int = 0, corrupt_loggers: int = 0) -> Path:
+    run_dir = work_dir / f"{flavour}-safe-{safe_mode}-bad-{bad_process}-abs-{abs_scope}-logger-{logger_scope}-corrupt-{corrupt_loggers}"
     run_dir.mkdir()
     source = run_dir / "Test_union_particle.c"
     executable = run_dir / "Test_union_particle"
@@ -266,9 +262,9 @@ def build_and_run(generator: str, resources: Path, compiler: list[str], work_dir
     run(compiler + ["-std=c99", "-O0", "-g", "-o", str(executable), str(source), "-lm"], run_dir)
     run([str(executable), "--ncount", str(ncount), "--seed", str(seed),
          f"safe_mode={safe_mode}", f"bad_process={bad_process}", f"abs_scope={abs_scope}",
-         f"logger_scope={logger_scope}"], run_dir)
+         f"logger_scope={logger_scope}", f"corrupt_loggers={corrupt_loggers}"], run_dir)
     if abs_scope not in (2, 4) and logger_scope != 2:
-        verify_callback_logs(run_dir, safe_mode)
+        verify_callback_logs(run_dir)
     if abs_scope == 4:
         for name in ("abs_corrupt.log", "abs_observer.log"):
             if "absorbed_weight=" not in require_file(run_dir, name):
@@ -448,20 +444,21 @@ def compare_runs(run_zero: Path, run_one: Path) -> None:
 def verify_strict_mode(run_dir: Path, ncount: int, seed: int) -> None:
     executable = run_dir / "Test_union_particle"
     cases = (
-        ("clean", 2, 2, 2, 1, None),
-        ("bad-process", 1, 2, 2, 0, "process"),
-        ("bad-logger", 2, 2, 0, 0, "logger"),
-        ("bad-abs-logger", 2, 0, 2, 0, "absorption logger"),
-        ("bad-conditional", 2, 2, 2, 2, "conditional"),
-        ("bad-conditional-rng", 2, 2, 2, 3, "conditional"),
+        ("clean", 2, 0, 0, 1, 0, None),
+        ("bad-process", 1, 2, 2, 0, 0, "process"),
+        ("bad-logger", 2, 2, 0, 0, 1, "logger"),
+        ("bad-logger-rng", 2, 2, 0, 0, 2, "logger ordinary_corrupt.log modified particle field randstate"),
+        ("bad-abs-logger", 2, 0, 2, 0, 1, "absorption logger"),
+        ("bad-conditional", 2, 2, 2, 2, 0, "conditional"),
+        ("bad-conditional-rng", 2, 2, 2, 3, 0, "conditional  modified particle field randstate"),
     )
-    for name, bad_process, abs_scope, logger_scope, conditional_test, expected in cases:
+    for name, bad_process, abs_scope, logger_scope, conditional_test, corrupt_loggers, expected in cases:
         output_dir = run_dir.parent / f"strict-{name}"
         output_dir.mkdir()
         command = [str(executable), "--ncount", str(ncount), "--seed", str(seed),
                    "--dir", str(output_dir / "data"), "safe_mode=2", f"bad_process={bad_process}",
                    f"abs_scope={abs_scope}", f"logger_scope={logger_scope}",
-                   f"conditional_test={conditional_test}"]
+                   f"conditional_test={conditional_test}", f"corrupt_loggers={corrupt_loggers}"]
         result = subprocess.run(command, cwd=output_dir, capture_output=True, text=True, timeout=300)
         if expected is None:
             if result.returncode:
@@ -514,7 +511,8 @@ def main() -> int:
         run_one = build_and_run(generator, resources, compiler, work_dir, 1, args.ncount, args.seed, flavour)
         compare_runs(run_zero, run_one)
         verify_strict_mode(run_zero, args.ncount, args.seed)
-        run_bad = build_and_run(generator, resources, compiler, work_dir, 1, args.ncount, args.seed, flavour, bad_process=1)
+        run_bad = build_and_run(generator, resources, compiler, work_dir, 1, args.ncount, args.seed, flavour,
+                                bad_process=1, corrupt_loggers=1)
         compare_runs(run_one, run_bad)
         scoped_runs = {}
         for safe_mode, global_run in ((0, run_zero), (1, run_one)):

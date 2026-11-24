@@ -7789,6 +7789,27 @@ void union_release(const char *comp_name) {
   union_free_state();
 }
 
+void union_particle_snapshot_capture(union_particle_snapshot *snapshot, const _class_particle *particle) {
+  snapshot->position[0] = particle->x; snapshot->position[1] = particle->y; snapshot->position[2] = particle->z;
+  snapshot->wavevector[0] = particle->kx; snapshot->wavevector[1] = particle->ky; snapshot->wavevector[2] = particle->kz;
+  snapshot->time = particle->t; snapshot->weight = particle->p;
+  snapshot->field[0] = particle->Ex; snapshot->field[1] = particle->Ey; snapshot->field[2] = particle->Ez;
+  snapshot->phase = particle->phi;
+}
+
+void union_particle_snapshot_restore_except_direction_weight(_class_particle *particle, const union_particle_snapshot *snapshot) {
+  particle->x = snapshot->position[0]; particle->y = snapshot->position[1]; particle->z = snapshot->position[2];
+  particle->t = snapshot->time;
+  particle->Ex = snapshot->field[0]; particle->Ey = snapshot->field[1]; particle->Ez = snapshot->field[2];
+  particle->phi = snapshot->phase;
+}
+
+void union_particle_snapshot_restore(_class_particle *particle, const union_particle_snapshot *snapshot) {
+  union_particle_snapshot_restore_except_direction_weight(particle, snapshot);
+  particle->kx = snapshot->wavevector[0]; particle->ky = snapshot->wavevector[1]; particle->kz = snapshot->wavevector[2];
+  particle->p = snapshot->weight;
+}
+
 void union_particle_set_wavevector(_class_particle *particle, const double *wavevector) {
   particle->kx = wavevector[0];
   particle->ky = wavevector[1];
@@ -7827,48 +7848,30 @@ void union_particle_translate_to_local(_class_particle *particle, Coords center)
 }
 
 void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering) {
-  _class_particle after = *particle;
+  double kx = particle->kx, ky = particle->ky, kz = particle->kz, p = particle->p;
+  randstate_t rng[RANDSTATE_LEN];
+  int i;
+  for (i = 0; i < RANDSTATE_LEN; i++) rng[i] = particle->randstate[i];
   *particle = *before;
-  union_particle_copy_rng(particle, &after);
+  for (i = 0; i < RANDSTATE_LEN; i++) particle->randstate[i] = rng[i];
   if (scattering) {
-    particle->kx = after.kx;
-    particle->ky = after.ky;
-    particle->kz = after.kz;
-    particle->p = after.p;
+    particle->kx = kx;
+    particle->ky = ky;
+    particle->kz = kz;
+    particle->p = p;
   }
 }
 
-void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
-                                      const _class_particle *before, Rotation inverse, int rotated, int safe_mode) {
-  *particle = *result;
-  if (rotated) {
-    // Despite its name, this helper rotates any vector, here the outgoing wavevector.
-    mccoordschange_polarisation(inverse, &particle->kx, &particle->ky, &particle->kz);
-  }
-  // Restore master-frame fields exactly, without a local-frame round trip.
-  particle->x = before->x;
-  particle->y = before->y;
-  particle->z = before->z;
-  particle->Ex = before->Ex;
-  particle->Ey = before->Ey;
-  particle->Ez = before->Ez;
-  if (safe_mode) {
-    union_particle_restore(particle, before, 1);
-  }
-}
-
-_class_particle union_particle_absorption_event(const _class_particle *particle, double distance, double full_weight) {
-  _class_particle event = *particle;
-  double wavevector_length = length_of_position_vector(union_particle_direction(&event));
+void union_particle_at_absorption_event(_class_particle *particle, double distance, double full_weight) {
+  double wavevector_length = length_of_position_vector(union_particle_direction(particle));
   if (wavevector_length > 0) {
-    event.x += distance * event.kx / wavevector_length;
-    event.y += distance * event.ky / wavevector_length;
-    event.z += distance * event.kz / wavevector_length;
+    particle->x += distance * particle->kx / wavevector_length;
+    particle->y += distance * particle->ky / wavevector_length;
+    particle->z += distance * particle->kz / wavevector_length;
   }
-  event.t += distance / M_C;
-  event.phi += 1e10 * wavevector_length * distance;
-  event.p = full_weight;
-  return event;
+  particle->t += distance / M_C;
+  particle->phi += 1e10 * wavevector_length * distance;
+  particle->p = full_weight;
 }
 
 /* Check standard particle fields only: instrument USERVARS, generated JUMP

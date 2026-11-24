@@ -1,18 +1,19 @@
 /*******************************************************************************
 * %Identification
 * %INSTRUMENT_SITE: Tests_union
-* %Test
-* Tests Union particle state, RNG and logger callbacks. Run the accompanying
-* run_union_particle.py for exact state comparisons and both safe modes.
+* %Test: -n4096 safe_mode=0 Detector: detector_I=10.9502 detector_ERR=1.14961
+* %Test: -n4096 safe_mode=1 bad_process=1 corrupt_loggers=1 Detector: detector_I=10.9502 detector_ERR=1.14961
+* Run run_union_particle.py for exact state comparisons and strict-mode checks.
 * %Parameters
 * safe_mode: [1] Restore fields modified by callbacks
 * bad_process: [1] Exercise forbidden particle writes
 * abs_scope: [1] Select absorption logger scope
 * logger_scope: [1] Select scattering logger scope
 * conditional_test: [1] Exercise particle conditional checks
+* corrupt_loggers: [1] Exercise forbidden logger writes
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT Test_union_particle(int safe_mode=0, int bad_process=0, int abs_scope=0, int logger_scope=0, int conditional_test=0)
+DEFINE INSTRUMENT Test_union_particle(int safe_mode=0, int bad_process=2, int abs_scope=0, int logger_scope=0, int conditional_test=0, int corrupt_loggers=0)
 
 USERVARS
 %{
@@ -21,7 +22,7 @@ USERVARS
 
 TRACE
 
-COMPONENT seed = Union_particle_test_support(mode=0, conditional_test=conditional_test, check_mode=safe_mode)
+COMPONENT seed = Union_particle_test_support(mode=0, conditional_test=conditional_test, check_mode=safe_mode, corrupt_loggers=corrupt_loggers)
 AT (0,0,0) ABSOLUTE
 
 COMPONENT incoherent = Incoherent_process(sigma=0.2, interact_fraction=0.25)

@@ -9,17 +9,20 @@
 * %P
 * INPUT PARAMETERS:
 * mode: [1] 0 seeds the particle, 1 writes the final particle state
+* corrupt_loggers: [1] Allow the adversarial loggers to modify their inputs
 *
 * %E
 *******************************************************************************/
 DEFINE COMPONENT Union_particle_test_support
-SETTING PARAMETERS(int mode=0, int conditional_test=0, int check_mode=0)
+SETTING PARAMETERS(int mode=0, int conditional_test=0, int check_mode=0, int corrupt_loggers=0)
 
 NOACC
 
 SHARE
 %{
   %include "union-lib"
+
+  static int union_particle_test_corrupt_loggers;
 
   struct Template_physics_storage_struct {
     double my_scattering;
@@ -138,6 +141,45 @@ SHARE
       particle->randstate[i] ^= (randstate_t)(0x9e3779b97f4a7c15ULL + (unsigned)i + (unsigned)tag);
   }
 
+  void
+  union_particle_test_snapshot (const _class_particle* particle) {
+    _class_particle expected = *particle, probe = *particle;
+    const double outgoing[] = {4.0, 5.0, 6.0};
+    union_particle_snapshot snapshot;
+    #if MCCODE_PARTICLE_CODE == 22
+    expected.phi = probe.phi = 0.375;
+    #endif
+    union_particle_snapshot_capture (&snapshot, &probe);
+    probe.x = -1.25;
+    probe.y = 2.5;
+    probe.z = -3.75;
+    probe.t = 1.0;
+    probe.p = 0.25;
+    #if MCCODE_PARTICLE_CODE == 2112
+    probe.sx = probe.sy = probe.sz = 2.0;
+    #else
+    probe.Ex = probe.Ey = probe.Ez = 2.0;
+    probe.phi = 17.0;
+    #endif
+    probe.test_marker = expected.test_marker = -1.0;
+    probe.randstate[0] = expected.randstate[0] = particle->randstate[0] ^ 1;
+    union_particle_set_wavevector (&probe, outgoing);
+    Coords outgoing_direction = union_particle_direction (&probe);
+    union_particle_snapshot_restore_except_direction_weight (&probe, &snapshot);
+    union_particle_check (&expected, &probe, 1, "snapshot", "partial restore");
+    Coords actual = union_particle_direction (&probe);
+    if (actual.x != outgoing_direction.x || actual.y != outgoing_direction.y || actual.z != outgoing_direction.z || probe.p != 0.25) {
+      fprintf (stderr, "Snapshot changed outgoing direction or weight\n");
+      exit (-1);
+    }
+    union_particle_snapshot_restore (&probe, &snapshot);
+    union_particle_check (&expected, &probe, 0, "snapshot", "full restore");
+    if (probe.test_marker != expected.test_marker) {
+      fprintf (stderr, "Snapshot restored a USERVAR\n");
+      exit (-1);
+    }
+  }
+
   int
   union_particle_test_conditional (union conditional_data_union *data, _class_particle *particle, int *volume,
                                    int *total, int *per_volume, int **per_process) {
@@ -172,8 +214,11 @@ SHARE
     union_particle_test_dump (file, "query", _particle);
     fclose (file);
     (void)focus_data;
-    if (data_transfer.pointer_to_a_Template_physics_storage_struct->corrupt_particle != 2)
+    if (data_transfer.pointer_to_a_Template_physics_storage_struct->corrupt_particle != 2) {
+      _class_particle before = *_particle;
       union_particle_test_corrupt (_particle, 1);
+      union_particle_copy_rng (_particle, &before);
+    }
     (void)rand01 ();
     *my = data_transfer.pointer_to_a_Template_physics_storage_struct->my_scattering;
     return 1;
@@ -252,7 +297,9 @@ SHARE
     union_particle_test_dump (file, "after", after);
     fclose (file);
     union_particle_test_sequence (corrupt ? "LOGGER_CORRUPT" : "LOGGER_OBSERVER", after, 0.0);
-    if (corrupt) {
+    if (corrupt && union_particle_test_corrupt_loggers == 2) {
+      ((_class_particle*)after)->randstate[0] ^= 1;
+    } else if (corrupt && union_particle_test_corrupt_loggers) {
       union_particle_test_corrupt ((_class_particle*)before, 3);
       union_particle_test_corrupt ((_class_particle*)after, 4);
     }
@@ -273,7 +320,7 @@ SHARE
     union_particle_test_dump (file, "event", event);
     fclose (file);
     union_particle_test_sequence (corrupt ? "ABS_CORRUPT" : "ABS_OBSERVER", event, absorbed_weight);
-    if (corrupt)
+    if (corrupt && union_particle_test_corrupt_loggers)
       union_particle_test_corrupt ((_class_particle*)event, 5);
   }
 %}
@@ -286,7 +333,9 @@ DECLARE
 INITIALIZE
 %{
   state_file = NULL;
-  if (mode == 1) {
+  if (mode == 0) {
+    union_particle_test_corrupt_loggers = corrupt_loggers;
+  } else {
     state_file = fopen ("final_state.log", "w");
     if (!state_file)
       exit (1);
@@ -297,6 +346,7 @@ TRACE
 %{
   if (mode == 0) {
     union_particle_test_seed (_particle);
+    union_particle_test_snapshot (_particle);
     if (conditional_test)
       union_particle_test_conditional_run (_particle, conditional_test, check_mode);
   } else

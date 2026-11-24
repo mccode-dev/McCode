@@ -53,6 +53,7 @@
 *   enable_conditionals:                 [0/1] Use conditionals with this master
 *   inherit_number_of_scattering_events: [0/1] Inherit the number of scattering events from last master
 *   safe_mode:                           [1] 0: unchecked, 1: restore forbidden changes, 2: abort on forbidden standard particle field changes
+*                                        In mode 0 callbacks can receive the live particle and must respect their write contract.
 *   weight_ratio_limit:                  [1]   Limit on the ratio between initial weight and current, ray absorbed if ratio becomes lower than limit
 *   display_mode:                        [0/1/2] Volume display in mcdisplay: 0 follows --trace, 1 forces lines, 2 polyhedra (only with --trace=2, --trace=1 always gives lines)
 * init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
@@ -1110,7 +1111,10 @@ TRACE
   double* sampling_mus;
   double v_length;
   double abs_distance;
-  _class_particle reference_particle = *_particle;
+  // Keep the ray used by cached intersections fixed until the cache is cleared.
+  double reference_position[3] = {x, y, z};
+  double reference_direction[3] = {vx, vy, vz};
+  _class_particle particle_copy; // Master-frame state before scattering.
 
   // Initialize logic
   done = 0;
@@ -1265,9 +1269,10 @@ TRACE
         #endif
         // GPU Flexible intersect_function call
         geometry_output
-            = intersect_particle_function (intersection_time_table.intersection_times[*check], intersection_time_table.normal_vector_x[*check],
+            = intersect_function (intersection_time_table.intersection_times[*check], intersection_time_table.normal_vector_x[*check],
                                            intersection_time_table.normal_vector_y[*check], intersection_time_table.normal_vector_z[*check],
-                                           intersection_time_table.surface_index[*check], number_of_solutions, &reference_particle, &Volumes[*check]->geometry);
+                                  intersection_time_table.surface_index[*check], number_of_solutions, reference_position, reference_direction,
+                                  &Volumes[*check]->geometry);
 
         intersection_time_table.calculated[*check] = 1;
         #ifdef Union_trace_verbal_setting
@@ -1296,10 +1301,10 @@ TRACE
           // GPU allowed
           int selected_index;
           selected_index = Volumes[current_volume]->geometry.mask_intersect_list.elements[mask_iterator];
-          geometry_output = intersect_particle_function (
+          geometry_output = intersect_function (
               intersection_time_table.intersection_times[selected_index], intersection_time_table.normal_vector_x[selected_index],
               intersection_time_table.normal_vector_y[selected_index], intersection_time_table.normal_vector_z[selected_index],
-              intersection_time_table.surface_index[selected_index], number_of_solutions, &reference_particle, &Volumes[selected_index]->geometry);
+              intersection_time_table.surface_index[selected_index], number_of_solutions, reference_position, reference_direction, &Volumes[selected_index]->geometry);
 
           intersection_time_table.calculated[Volumes[current_volume]->geometry.mask_intersect_list.elements[mask_iterator]] = 1;
           // if printf("succesfully calculated intersection times for volume *check = %d \n",*check);
@@ -1369,10 +1374,10 @@ TRACE
       #endif
       if (intersection_with_children == 0) {
         // GPU Allowed
-        geometry_output = intersect_particle_function (
+        geometry_output = intersect_function (
             intersection_time_table.intersection_times[current_volume], intersection_time_table.normal_vector_x[current_volume],
             intersection_time_table.normal_vector_y[current_volume], intersection_time_table.normal_vector_z[current_volume],
-            intersection_time_table.surface_index[current_volume], number_of_solutions, &reference_particle, &Volumes[current_volume]->geometry);
+            intersection_time_table.surface_index[current_volume], number_of_solutions, reference_position, reference_direction, &Volumes[current_volume]->geometry);
 
         intersection_time_table.calculated[current_volume] = 1;
       }
@@ -1554,34 +1559,41 @@ TRACE
             double mu;
             current_p_physics->dist = length_to_boundary / current_p_physics->sampling_points - safety_distance;
 
+            // Normally query the live particle and roll back its transport state, not its RNG.
+            // In safe modes isolate arbitrary callback writes, including instrument USERVARS.
+            union_particle_snapshot query_state;
+            _class_particle query_copy, query_before;
+            _class_particle *query_particle = safe_mode ? &query_copy : _particle;
+            if (!safe_mode) union_particle_snapshot_capture (&query_state, _particle);
+
             if (process_needs_inhomogenous_sampling (current_p_physics, process)) {
               // If mulitple sampling is required for this process, populate the neutron distance and probability arrays:
               *p_my_trace = 0;
               for (int i = 0; i < current_p_physics->sampling_points; i++) {
                 inhomogenous_set_cumul_dist_array (current_p_physics, i);
-                _class_particle sample_particle = *_particle;
-                move_and_aim_neutron (current_p_physics, i, process, &sample_particle, Volumes[current_volume], this_focus_data);
+                if (safe_mode) query_copy = *_particle;
+                move_and_aim_neutron (current_p_physics, i, process, query_particle, Volumes[current_volume], this_focus_data);
                 // Calculate mu and probability
-                _class_particle sample_before;
-                if (safe_mode == 2) sample_before = sample_particle;
-                UNION_PHYSICS_MY (physics_output, process, &mu, this_focus_data, &sample_particle);
-                if (safe_mode == 2) union_particle_check (&sample_before, &sample_particle, 1, "process", process->name);
-                UNION_COPY_PARTICLE_RNG (_particle, &sample_particle);
+                if (safe_mode == 2) query_before = query_copy;
+                UNION_PHYSICS_MY (physics_output, process, &mu, this_focus_data, query_particle);
+                if (safe_mode == 2) union_particle_check (&query_before, query_particle, 1, "process", process->name);
+                if (safe_mode) union_particle_copy_rng (_particle, query_particle);
+                else union_particle_snapshot_restore (_particle, &query_state);
                 current_p_physics->mus[p_index][i] = mu;
                 *p_my_trace += mu / current_p_physics->sampling_points;
               }
             } else { // process does not need inhomogenous sampling
-              _class_particle process_particle = *_particle;
+              if (safe_mode) query_copy = *_particle;
               if (process->non_isotropic_rot_index != -1)
-                union_particle_to_local (&process_particle, Volumes[current_volume]->geometry.center,
+                union_particle_to_local (query_particle, Volumes[current_volume]->geometry.center,
                                          Volumes[current_volume]->geometry.process_rot_matrix_array[process->non_isotropic_rot_index]);
               else
-                union_particle_translate_to_local (&process_particle, Volumes[current_volume]->geometry.center);
-              _class_particle process_before;
-              if (safe_mode == 2) process_before = process_particle;
-              UNION_PHYSICS_MY (physics_output, process, p_my_trace, this_focus_data, &process_particle);
-              if (safe_mode == 2) union_particle_check (&process_before, &process_particle, 1, "process", process->name);
-              UNION_COPY_PARTICLE_RNG (_particle, &process_particle);
+                union_particle_translate_to_local (query_particle, Volumes[current_volume]->geometry.center);
+              if (safe_mode == 2) query_before = query_copy;
+              UNION_PHYSICS_MY (physics_output, process, p_my_trace, this_focus_data, query_particle);
+              if (safe_mode == 2) union_particle_check (&query_before, query_particle, 1, "process", process->name);
+              if (safe_mode) union_particle_copy_rng (_particle, query_particle);
+              else union_particle_snapshot_restore (_particle, &query_state);
               if (current_p_physics->sampling_points != -1) {
                 current_p_physics->mus[p_index][0] = *p_my_trace;
               }
@@ -1715,7 +1727,10 @@ TRACE
               abs_distance = -log (1.0 - rand0max (1.0 - exp (-my_sum_plus_abs * length_to_boundary))) / my_sum_plus_abs;
             }
 
-            _class_particle absorption_particle = union_particle_absorption_event (_particle, abs_distance, initial_weight);
+            union_particle_snapshot segment_state, absorption_state;
+            union_particle_snapshot_capture (&segment_state, _particle);
+            union_particle_at_absorption_event (_particle, abs_distance, initial_weight);
+            union_particle_snapshot_capture (&absorption_state, _particle);
             double absorbed_weight = initial_weight * (1.0 - abs_weight_factor);
 
             // Logging for detector components associated with this volume.
@@ -1723,8 +1738,9 @@ TRACE
             printf ("Running abs_logger system for specific volumes \n");
             #endif
             for (log_index = 0; log_index < Volumes[current_volume]->abs_loggers.num_elements; log_index++) {
-              union_record_absorption (Volumes[current_volume]->abs_loggers.p_abs_logger[log_index], &absorption_particle, absorbed_weight,
+              union_record_absorption (Volumes[current_volume]->abs_loggers.p_abs_logger[log_index], _particle, absorbed_weight,
                                        scattered_flag[current_volume], number_of_scattering_events, &abs_loggers_with_data_array, safe_mode);
+              union_particle_snapshot_restore (_particle, &absorption_state);
             }
 
             // Logging for detector components associated with all volumes.
@@ -1732,9 +1748,11 @@ TRACE
             printf ("Running abs_logger system for all volumes \n");
             #endif
             for (log_index = 0; log_index < global_all_volume_abs_logger_list_master->num_elements; log_index++) {
-              union_record_absorption (global_all_volume_abs_logger_list_master->elements[log_index].abs_logger, &absorption_particle, absorbed_weight,
+              union_record_absorption (global_all_volume_abs_logger_list_master->elements[log_index].abs_logger, _particle, absorbed_weight,
                                        scattered_flag[current_volume], number_of_scattering_events, &abs_loggers_with_data_array, safe_mode);
+              union_particle_snapshot_restore (_particle, &absorption_state);
             }
+            union_particle_snapshot_restore (_particle, &segment_state);
           }
         }
       }
@@ -1778,7 +1796,9 @@ TRACE
         }
 
         // Save information before scattering event needed in logging section
-        _class_particle logger_particle_before = *_particle;
+        particle_copy = *_particle;
+        union_particle_snapshot scattering_state;
+        if (!safe_mode) union_particle_snapshot_capture (&scattering_state, _particle);
 
         // Find correct focus_data_array index for this volume/process and correct for ray position
         focus_data_index = Volumes[current_volume]->geometry.focus_array_indices.elements[selected_process];
@@ -1788,36 +1808,34 @@ TRACE
 
         this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry); // Aim vector for this ray
 
+        #ifdef Union_trace_verbal_setting
+        printf ("Kin: %g %g %g, selected_process: %i %i\n", V2K * vx, V2K * vy, V2K * vz, selected_process, current_volume);
+        coords_print (Volumes[current_volume]->geometry.focus_data_array.elements[0].Aim);
+        #endif
+
         // Prepare the process-local particle and focus direction.
         process = &Volumes[current_volume]->p_physics->p_scattering_array[selected_process];
         int process_rotation_index = process->non_isotropic_rot_index;
-        _class_particle process_particle = *_particle;
         if (process_rotation_index != -1) {
-          union_particle_to_local (&process_particle, Volumes[current_volume]->geometry.center,
+          union_particle_to_local (_particle, Volumes[current_volume]->geometry.center,
                                    Volumes[current_volume]->geometry.process_rot_matrix_array[process_rotation_index]);
           Coords ray_position_geometry_rotated
               = rot_apply (Volumes[current_volume]->geometry.process_rot_matrix_array[process_rotation_index], ray_position_geometry);
           this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry_rotated);
         } else {
-          union_particle_translate_to_local (&process_particle, Volumes[current_volume]->geometry.center);
+          union_particle_translate_to_local (_particle, Volumes[current_volume]->geometry.center);
           this_focus_data->RayAim = coords_sub (this_focus_data->Aim, ray_position_geometry);
         }
-        #ifdef Union_trace_verbal_setting
-        printf ("Kin: %g %g %g, selected_process: %i %i\n", V2K * vx, V2K * vy, V2K * vz, selected_process, current_volume);
-        coords_print (Volumes[current_volume]->geometry.focus_data_array.elements[0].Aim);
-        #endif
         int scattering_output;
         _class_particle process_before;
-        if (safe_mode == 2) process_before = process_particle;
-        UNION_PHYSICS_SCATTERING (scattering_output, process, this_focus_data, &process_particle);
-        if (safe_mode == 2) union_particle_check (&process_before, &process_particle, 1, "process", process->name);
+        if (safe_mode == 2) process_before = *_particle;
+        UNION_PHYSICS_SCATTERING (scattering_output, process, this_focus_data, _particle);
+        if (safe_mode == 2) union_particle_check (&process_before, _particle, 1, "process", process->name);
         if (process_rotation_index != -1) {
-          union_particle_commit_scattering (_particle, &process_particle, &logger_particle_before,
-                                            Volumes[current_volume]->geometry.transpose_process_rot_matrix_array[process_rotation_index], 1, safe_mode);
-        } else {
-          union_particle_commit_scattering (_particle, &process_particle, &logger_particle_before, Volumes[current_volume]->geometry.rotation_matrix, 0,
-                                            safe_mode);
+          mccoordschange_polarisation (Volumes[current_volume]->geometry.transpose_process_rot_matrix_array[process_rotation_index], &vx, &vy, &vz);
         }
+        if (safe_mode) union_particle_restore (_particle, &particle_copy, 1);
+        else union_particle_snapshot_restore_except_direction_weight (_particle, &scattering_state);
         if (0 == scattering_output) {
           /*
           // PowderN and Single_crystal requires the option of absorbing the neutron, which is weird. If there is a scattering probability, there should be a new
@@ -1844,12 +1862,11 @@ TRACE
         printf ("Running logger system for specific volumes \n");
         #endif
         if (Volumes[current_volume]->loggers.num_elements > 0 || global_all_volume_logger_list_master->num_elements > 0) {
-          _class_particle logger_particle_after = *_particle;
           // Logging for detector components associated with this volume.
           for (log_index = 0; log_index < Volumes[current_volume]->loggers.num_elements; log_index++) {
             if (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process] != NULL) {
-              union_record_scattering (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process], &logger_particle_before,
-                                       &logger_particle_after, scattered_flag[current_volume], scattered_flag_VP[current_volume][selected_process],
+              union_record_scattering (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process], &particle_copy,
+                                       _particle, scattered_flag[current_volume], scattered_flag_VP[current_volume][selected_process],
                                        number_of_scattering_events, &loggers_with_data_array, safe_mode);
             }
           }
@@ -1858,7 +1875,7 @@ TRACE
           printf ("Running logger system for all volumes \n");
           #endif
           for (log_index = 0; log_index < global_all_volume_logger_list_master->num_elements; log_index++) {
-            union_record_scattering (global_all_volume_logger_list_master->elements[log_index].logger, &logger_particle_before, &logger_particle_after,
+            union_record_scattering (global_all_volume_logger_list_master->elements[log_index].logger, &particle_copy, _particle,
                                      scattered_flag[current_volume], scattered_flag_VP[current_volume][selected_process], number_of_scattering_events,
                                      &loggers_with_data_array, safe_mode);
           }
@@ -1872,7 +1889,8 @@ TRACE
         ++scattered_flag_VP[current_volume][selected_process];
 
         // Clear intersection time lists as the direction of the ray has changed
-        reference_particle = *_particle;
+        coords_get (union_particle_position (_particle), &reference_position[0], &reference_position[1], &reference_position[2]);
+        coords_get (union_particle_direction (_particle), &reference_direction[0], &reference_direction[1], &reference_direction[2]);
         clear_intersection_table (&intersection_time_table);
         time_propagated_without_scattering = 0.0;
         #ifdef Union_trace_verbal_setting
@@ -2329,7 +2347,8 @@ TRACE
               ignore_surface_index = intersection_time_table.surface_index[min_volume][min_solution];
 
               // Since velocity is updated, we need to clear the intersection time table
-              reference_particle = *_particle;
+              coords_get (union_particle_position (_particle), &reference_position[0], &reference_position[1], &reference_position[2]);
+              coords_get (union_particle_direction (_particle), &reference_direction[0], &reference_direction[1], &reference_direction[2]);
               clear_intersection_table (&intersection_time_table);
 
               // Reset origin point for ray
@@ -2518,7 +2537,8 @@ TRACE
                 ignore_surface_index = intersection_time_table.surface_index[min_volume][min_solution];
 
                 // Since velocity is updated, we need to clear the intersection time table
-                reference_particle = *_particle;
+                coords_get (union_particle_position (_particle), &reference_position[0], &reference_position[1], &reference_position[2]);
+                coords_get (union_particle_direction (_particle), &reference_direction[0], &reference_direction[1], &reference_direction[2]);
                 clear_intersection_table (&intersection_time_table);
 
                 // Reset origin point for ray
@@ -2550,7 +2570,8 @@ TRACE
                 ignore_surface_index = intersection_time_table.surface_index[min_volume][min_solution];
 
                 // Since velocity is updated, we need to clear the intersection time table
-                reference_particle = *_particle;
+                coords_get (union_particle_position (_particle), &reference_position[0], &reference_position[1], &reference_position[2]);
+                coords_get (union_particle_direction (_particle), &reference_direction[0], &reference_direction[1], &reference_direction[2]);
                 clear_intersection_table (&intersection_time_table);
 
                 // Reset origin point for ray
@@ -2580,7 +2601,8 @@ TRACE
               ignore_closest = min_volume;
               ignore_surface_index = intersection_time_table.surface_index[min_volume][min_solution];
               // Since velocity is updated, we need to clear the intersection time table
-              reference_particle = *_particle;
+              coords_get (union_particle_position (_particle), &reference_position[0], &reference_position[1], &reference_position[2]);
+              coords_get (union_particle_direction (_particle), &reference_direction[0], &reference_direction[1], &reference_direction[2]);
               clear_intersection_table (&intersection_time_table);
 
               // Reset origin point for ray

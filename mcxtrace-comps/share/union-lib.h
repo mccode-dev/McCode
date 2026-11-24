@@ -116,7 +116,13 @@ enum process {
 #define UNION_PROCESS_FALLBACK(out, name, call) out = call;
 #endif
 
-// TRACE state macros such as kx are not defined in SHARE helpers; use particle fields there.
+/* Transport state only: leave RNG and instrument state on the live particle. */
+typedef struct {
+  double position[3], wavevector[3], time, weight, field[3], phase;
+} union_particle_snapshot;
+void union_particle_snapshot_capture(union_particle_snapshot *snapshot, const _class_particle *particle);
+void union_particle_snapshot_restore(_class_particle *particle, const union_particle_snapshot *snapshot);
+void union_particle_snapshot_restore_except_direction_weight(_class_particle *particle, const union_particle_snapshot *snapshot);
 void union_particle_set_wavevector(_class_particle *particle, const double *wavevector);
 void union_particle_get_wavevector(double *wavevector, const _class_particle *particle);
 void union_particle_copy_rng(_class_particle *destination, const _class_particle *source);
@@ -126,9 +132,7 @@ void union_particle_to_local(_class_particle *particle, Coords center, Rotation 
 void union_particle_translate_to_local(_class_particle *particle, Coords center);
 void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering);
 void union_particle_check(const _class_particle *before, const _class_particle *after, int scattering, const char *kind, const char *name);
-void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
-                                      const _class_particle *before, Rotation inverse, int rotated, int safe_mode);
-_class_particle union_particle_absorption_event(const _class_particle *particle, double distance, double full_weight);
+void union_particle_at_absorption_event(_class_particle *particle, double distance, double full_weight);
 
 // Statement macros used by Union_master TRACE; `out` receives the return value.
 #define UNION_PHYSICS_MY(out, process, my, focus_data, particle) do { \

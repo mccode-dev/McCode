@@ -8347,8 +8347,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
   void
   move_and_aim_neutron (struct physics_struct* physics, int i, struct scattering_process_struct* process, _class_particle* _particle,
                         struct Volume_struct* Volume, struct focus_data_struct* this_focus_data) {
-    // This is a query snapshot in master coordinates, not live propagation.
-    // Preserve its time while sampling the spatial cross-section profile.
+    // Sample the spatial cross-section profile without advancing time.
     double dt = physics->cumul_dists[i] / length_of_position_vector(union_particle_direction(_particle));
     _particle->x += _particle->vx * dt;
     _particle->y += _particle->vy * dt;
@@ -8357,9 +8356,7 @@ void overwrite_if_empty(char *input_string, char *overwrite) {
       union_particle_to_local(_particle, Volume->geometry.center,
                               Volume->geometry.process_rot_matrix_array[process->non_isotropic_rot_index]);
     } else {
-      _particle->x -= Volume->geometry.center.x;
-      _particle->y -= Volume->geometry.center.y;
-      _particle->z -= Volume->geometry.center.z;
+      union_particle_translate_to_local(_particle, Volume->geometry.center);
     }
     if (process->needs_cross_section_focus == 1)
       this_focus_data->RayAim = coords_sub(this_focus_data->Aim, union_particle_position(_particle));
@@ -8664,51 +8661,65 @@ void union_particle_translate_to_local(_class_particle *particle, Coords center)
 }
 
 #pragma acc routine
-void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering) {
-  _class_particle after = *particle;
-  *particle = *before;
-  union_particle_copy_rng(particle, &after);
-  if (scattering) {
-    particle->vx = after.vx;
-    particle->vy = after.vy;
-    particle->vz = after.vz;
-    particle->p = after.p;
-  }
+void union_particle_snapshot_capture(union_particle_snapshot *snapshot, const _class_particle *particle) {
+  snapshot->x = particle->x;
+  snapshot->y = particle->y;
+  snapshot->z = particle->z;
+  snapshot->vx = particle->vx;
+  snapshot->vy = particle->vy;
+  snapshot->vz = particle->vz;
+  snapshot->t = particle->t;
+  snapshot->p = particle->p;
+  snapshot->sx = particle->sx;
+  snapshot->sy = particle->sy;
+  snapshot->sz = particle->sz;
 }
 
 #pragma acc routine
-void union_particle_commit_scattering(_class_particle *particle, const _class_particle *result,
-                                      const _class_particle *before, Rotation inverse, int rotated, int safe_mode) {
-  *particle = *result;
-  if (rotated) {
-    // Despite its name, this helper rotates any vector, here the outgoing velocity.
-    mccoordschange_polarisation(inverse, &particle->vx, &particle->vy, &particle->vz);
-  }
-  // These fields belong to the master frame. Do not round-trip them through
-  // local coordinates: even a conforming callback would then change their bits.
-  particle->x = before->x;
-  particle->y = before->y;
-  particle->z = before->z;
-  particle->sx = before->sx;
-  particle->sy = before->sy;
-  particle->sz = before->sz;
-  if (safe_mode) {
-    union_particle_restore(particle, before, 1);
+void union_particle_snapshot_restore_except_direction_weight(_class_particle *particle, const union_particle_snapshot *snapshot) {
+  particle->x = snapshot->x;
+  particle->y = snapshot->y;
+  particle->z = snapshot->z;
+  particle->t = snapshot->t;
+  particle->sx = snapshot->sx;
+  particle->sy = snapshot->sy;
+  particle->sz = snapshot->sz;
+}
+
+#pragma acc routine
+void union_particle_snapshot_restore(_class_particle *particle, const union_particle_snapshot *snapshot) {
+  union_particle_snapshot_restore_except_direction_weight(particle, snapshot);
+  particle->vx = snapshot->vx;
+  particle->vy = snapshot->vy;
+  particle->vz = snapshot->vz;
+  particle->p = snapshot->p;
+}
+
+#pragma acc routine
+void union_particle_restore(_class_particle *particle, const _class_particle *before, int scattering) {
+  double vx = particle->vx, vy = particle->vy, vz = particle->vz, p = particle->p;
+  randstate_t rng[RANDSTATE_LEN];
+  for (int i = 0; i < RANDSTATE_LEN; i++) rng[i] = particle->randstate[i];
+  *particle = *before;
+  for (int i = 0; i < RANDSTATE_LEN; i++) particle->randstate[i] = rng[i];
+  if (scattering) {
+    particle->vx = vx;
+    particle->vy = vy;
+    particle->vz = vz;
+    particle->p = p;
   }
 }
 
-_class_particle union_particle_absorption_event(const _class_particle *particle, double distance, double full_weight) {
-  _class_particle event = *particle;
-  double speed = length_of_position_vector(union_particle_direction(&event));
+void union_particle_at_absorption_event(_class_particle *particle, double distance, double full_weight) {
+  double speed = length_of_position_vector(union_particle_direction(particle));
   if (speed > 0) {
     double propagation_time = distance / speed;
-    event.x += event.vx * propagation_time;
-    event.y += event.vy * propagation_time;
-    event.z += event.vz * propagation_time;
-    event.t += propagation_time;
+    particle->x += particle->vx * propagation_time;
+    particle->y += particle->vy * propagation_time;
+    particle->z += particle->vz * propagation_time;
+    particle->t += propagation_time;
   }
-  event.p = full_weight;
-  return event;
+  particle->p = full_weight;
 }
 
 /* Check standard particle fields only: instrument USERVARS, generated JUMP
