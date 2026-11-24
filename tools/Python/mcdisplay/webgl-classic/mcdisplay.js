@@ -8,6 +8,15 @@ var transformPoints = function(apoints, transform)
     geometry.applyMatrix(transform);
     return geometry.vertices.slice();
 }
+// helpers for merged geometry: append the values of array b to list a; buffer attribute; line segments
+var pushAll = function(a, b) { for (var i = 0; i < b.length; i++) { a.push(b[i]); } }
+var floats = function(list) { return new THREE.BufferAttribute(new Float32Array(list), 3); }
+var lineSegments = function(list, color)
+{
+    var geometry = new THREE.BufferGeometry();
+    geometry.addAttribute('position', floats(list));
+    return new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({color: color}));
+}
 // --simdir monitor data for the colour map or curve: rows z, as is or log10 (zero and negative bins at a tenth
 // of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
 var monitorValues = function(z, log)
@@ -93,53 +102,75 @@ Main.prototype.addCircle = function(plane, x, y, z, radius, parent, linecolor)
         return;
     }
 
-    var wrapper = new THREE.Object3D();
     var m = new THREE.Matrix4()
     if (plane == 'xy') { } // identity
     if (plane == 'xz') { m.makeRotationX( Math.PI/2 ); }
     if (plane == 'yz') { m.makeRotationY( Math.PI/2 ); }
+    m.setPosition(new THREE.Vector3(x, y, z));
 
     var segments = 48;
     var circleGeometry = new THREE.CircleGeometry( radius, segments );
     circleGeometry.vertices.shift(); // removes center vertex
-    var material = new THREE.MeshBasicMaterial( {color: linecolor} );
-    material.side = THREE.DoubleSide;
-
-    var circle = new THREE.Line( circleGeometry, material ); // THREE.Mesh results in solid coloring
-
-    circle.applyMatrix(m);
-
-    circle.position.x = x;
-    circle.position.y = y;
-    circle.position.z = z;
-
-    parent.add( circle );
+    circleGeometry.applyMatrix(m);
+    this.addMultiLineV3(circleGeometry.vertices, parent, linecolor);
 }
 // add a geometry as lines (its edges) and a semi-transparent surface (unless outline: lines only),
 // centred at (x, y, z), turning the geometry's own axis (a THREE.Vector3) to n = [nx, ny, nz] (--trace=2 shapes)
 Main.prototype.addShape = function(geometry, x, y, z, axis, n, parent, linecolor, outline)
 {
-    var node = new THREE.Object3D();
-    var lines = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({color: linecolor}));
-    node.add(lines);
-    if (!outline) {
-        var surf = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({color: linecolor, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
+    var m = new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(axis, new THREE.Vector3(n[0], n[1], n[2]).normalize()));
+    geometry.applyMatrix(m.setPosition(new THREE.Vector3(x, y, z)));
+    if (outline) { pushAll(this.merged(parent, "lines", linecolor), new THREE.EdgesGeometry(geometry).attributes.position.array); }
+    else { this.merged(parent, "shapes", linecolor).push(geometry); }
+}
+// the list of what is drawn in a component so far in one colour, kind "lines" (coordinates of line segments)
+// or "shapes" (geometries), to be merged into one object by mergeDrawing
+Main.prototype.merged = function(node, kind, color)
+{
+    var d = node.userData[kind] = node.userData[kind] || {};
+    d[color] = d[color] || {color: color, list: []};
+    return d[color].list;
+}
+// draw the lines and shapes of a component: one object per colour, as drawing many objects is slow
+Main.prototype.mergeDrawing = function(node)
+{
+    var lines = node.userData.lines || {}, shapes = node.userData.shapes || {};
+    for (var c in lines) { node.add(lineSegments(lines[c].list, lines[c].color)); }
+    for (var c in shapes) {
+        var pos = [], nor = [];
+        shapes[c].list.forEach(function(g) {
+            g.faces.forEach(function(f) {
+                [f.a, f.b, f.c].forEach(function(k, i) {
+                    var v = g.vertices[k], n = f.vertexNormals.length == 3 ? f.vertexNormals[i] : f.normal;
+                    pos.push(v.x, v.y, v.z); nor.push(n.x, n.y, n.z);
+                });
+            });
+        });
+        var geometry = new THREE.BufferGeometry();
+        geometry.addAttribute('position', floats(pos));
+        geometry.addAttribute('normal', floats(nor));
+        var surf = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({color: shapes[c].color, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
+        surf.userData = shapes[c]; // for the edges, see showShapes
         node.add(surf);
-        lines.visible = false; // default: surfaces only, lines with the Lines checkbox
-        this.linenodes.push(lines);
         this.surfnodes.push(surf);
     }
-    node.quaternion.setFromUnitVectors(axis, new THREE.Vector3(n[0], n[1], n[2]).normalize());
-    node.position.set(x, y, z);
-    parent.add(node);
+    node.userData = {};
 }
 // show --trace=2 shapes as surfaces and/or lines
 Main.prototype.showShapes = function(surfaces, lines)
 {
-    for (var i = 0; i < this.surfnodes.length; i++) {
-        this.surfnodes[i].visible = surfaces;
-        this.linenodes[i].visible = lines;
+    if (lines && this.linenodes.length == 0) { // the edges, made when first shown
+        this.linenodes = this.surfnodes.map(function(surf) {
+            var pos = [];
+            surf.userData.list.forEach(function(g) { pushAll(pos, new THREE.EdgesGeometry(g).attributes.position.array); });
+            var node = lineSegments(pos, surf.userData.color);
+            surf.parent.add(node);
+            surf.userData = {};
+            return node;
+        });
     }
+    this.surfnodes.forEach(function(surf) { surf.visible = surfaces; });
+    this.linenodes.forEach(function(node) { node.visible = lines; });
 }
 // opacity (0..1) of the --trace=2 shape surfaces
 Main.prototype.setSurfaceOpacity = function(opacity)
@@ -326,11 +357,11 @@ Main.prototype.setCameraView = function(campos)
 // 		arrVector3  -  an array of THREE.Vector3 instances
 Main.prototype.addMultiLineV3 = function(arrVector3, parent, linecolor)
 {
-    var multilinematerial = new THREE.LineBasicMaterial({color: linecolor});
-    var multilinegeometry = new THREE.Geometry();
-    multilinegeometry.vertices = arrVector3;
-    var multiline = new THREE.Line(multilinegeometry, multilinematerial);
-    parent.add(multiline);
+    var list = this.merged(parent, "lines", linecolor);
+    for (var i = 0; i + 1 < arrVector3.length; i++) {
+        var a = arrVector3[i], b = arrVector3[i+1];
+        list.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    }
 }
 // add multiline proxy method
 //		points  -  array of single points
@@ -349,18 +380,11 @@ Main.prototype.addMultiLine = function(points, parent, linecolor)
 //
 Main.prototype.putScatterPoints = function(raynode)
 {
-    var v;
-    var vtx = raynode.vtx;
-    for (var i = 0; i < vtx.length; i++)
-    {
-        var geometry = new THREE.BoxGeometry( 0.007, 0.007, 0.007 );
-        v = vtx[i];
-        geometry.translate(v.x, v.y, v.z);
-        var material = new THREE.MeshBasicMaterial({ color: raynode.lut_color });
-        var cube = new THREE.Mesh( geometry, material );
-
-        raynode.annotcubes.add( cube );
-    }
+    var cubes = new THREE.Geometry();
+    raynode.vtx.forEach(function(v) {
+        cubes.merge(new THREE.BoxGeometry( 0.007, 0.007, 0.007 ), new THREE.Matrix4().makeTranslation(v.x, v.y, v.z));
+    });
+    raynode.annotcubes.add(new THREE.Mesh(cubes, new THREE.MeshBasicMaterial({ color: raynode.lut_color })));
 }
 
 //  set color lookuptable min/max range
@@ -424,11 +448,12 @@ Main.prototype.addMonitorData = function(node, mon, down)
         var r = 0, rxz = 0, D = Math.PI/180, lim = mon.limits;
         node.updateMatrixWorld(true);
         node.traverse(function(o) {
-            if (!o.geometry || !o.geometry.vertices) { return; }
-            o.geometry.vertices.forEach(function(v) {
-                var p = v.clone().applyMatrix4(o.matrixWorld);
+            if (!o.geometry) { return; }
+            var a = o.geometry.attributes.position.array;
+            for (var i = 0; i < a.length; i += 3) {
+                var p = new THREE.Vector3(a[i], a[i+1], a[i+2]).applyMatrix4(o.matrixWorld);
                 r = Math.max(r, p.length()); rxz = Math.max(rxz, Math.sqrt(p.x*p.x + p.z*p.z));
-            });
+            }
         });
         var a0 = lim[0] + off, a1 = lim[1] + off;
         if (mon.z && /^Latitude/.test(mon.ylabel)) {
@@ -632,6 +657,7 @@ TraceLoader.prototype.loadInstr = function()
             drawFunc(call, comp_node, call['color'] || acolor);
         }
 
+        main.mergeDrawing(comp_node);
         var mon = (instr['monitors'] || {})[compname];
         if (mon) { main.addMonitorData(comp_node, mon, m4[5] < 0); }
 
@@ -651,6 +677,7 @@ TraceLoader.prototype.loadInstr = function()
 
         drawFunc(call, main.bbnode, 0x808080);
     }
+    main.mergeDrawing(main.bbnode);
 }
 // load particle rays
 //

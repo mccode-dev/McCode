@@ -20,8 +20,8 @@ When ABSORBER is set, a slab of B4C is acts as absorbing medium.
 
 - **Test: Test_DiskChoppers.instr chopper=0 Detector: Tofl_I=0.0005**
 - **Test: Test_DiskChoppers.instr chopper=1 Detector: Tofl_I=0.0005**
-- **Test: Test_DiskChoppers.instr chopper=0 ABSORBER=1 Detector: Tofl_I=0.0007**
-- **Test: Test_DiskChoppers.instr chopper=1 ABSORBER=1 Detector: Tofl_I=0.0007**
+- **Test: Test_DiskChoppers.instr chopper=0 ABSORBER=1 Detector: Tofl_I=0.00083**
+- **Test: Test_DiskChoppers.instr chopper=1 ABSORBER=1 Detector: Tofl_I=0.00083**
 
 ## Input parameters
 

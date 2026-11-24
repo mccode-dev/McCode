@@ -23,23 +23,39 @@
 * x-axis, the b-axis is along the y-axis and the c is along the z-axis.
 * The reference point of the mirror is the ellipsoid centre, offset by one 
 * half-axis along the y-axis (See the component manual for a drawing). 
-* This means that to position the mirror correctly,
-* the user positions the ellipsoid governing the mirror shape, not the mirror itself.
+* This means that to position the mirror correctly, the user positions the 
+* ellipsoid governing the mirror shape, not the mirror itself.
 *
-* Example: Mirror_elliptic( length=150e-3, width=150e-3, x_a=1.025, y_b=1.025, z_c=1.025)
+* Only the lower half of the ellipsoid (y < y_b) is the mirror surface. Rays are
+* reflected from both sides of the surface: from the concave (inner) side, and
+* from the convex (back) side, which de-focuses the beam. The reflectivity only
+* depends on the grazing angle, and not on the side.
+* The complex reflectivity is applied: its modulus scales the ray weight and its
+* argument is added to the ray phase.
+*
+* The foci of the ellipsoid are situated at y = y_b and z = ±√(z_c^2 − y_b^2).
+* For a grazing incidence (z_c > y_b) angle theta and collimated incoming beam, 
+* the focal lengths are situated downstream at (from ellipse centre):
+* - f_t = z_c^2 sin(theta) / (2 y_b)
+* - f_s = x_a^2 / (2 y_b sin(theta))
+* Typical incidence angle is sin(theta) = y_b/z_c
+*
+* Limitation: the polarisation (Ex, Ey, Ez) is not transformed by the reflection.
+*
+* Example: Mirror_elliptic( zdepth=150e-3, xwidth=150e-3, x_a=1.025, y_b=1.025, z_c=1.025)
 * 
 * %Parameters
 * INPUT PARAMETERS
-* x_a:     [m]   1st short half axis (along x). Commonly set to zero, which really implies infinite value, so crystal is an elliptic cylinder.
-* y_b:     [m]   2nd short half axis (along y), which is also the presumed near-normal direction, reflection near the y-z plane.
+* x_a:     [m]   1st short half axis (along x). Commonly set to zero, which really implies infinite value, so the mirror is an elliptic cylinder.
+* y_b:     [m]   2nd short half axis (along y), which is also the presumed near-normal direction, reflection near the y-z plane. Must not be 0.
 * z_c:     [m]   long  half axis (along z). Commonly a=0. b=c, which creates a circular cylindrical surface.
 * xwidth:  [m]   Width of the mirror along X.
 * zdepth:  [m]   Depth (length) of the mirror along Z.
-* coating: [str] Datafile containing either mirror material constants or reflectivity  numbers.
-* R0:      [1]   Reflectivity of mirror (mostly relevant for debugging, when coating="")
+* coating: [str] Datafile containing either mirror material constants or reflectivity numbers. Use "NULL" (or "") for a constant reflectivity R0.
+* R0:      [1]   Constant reflectivity of mirror, used when coating is "NULL" or "".
 * radius:  [m]   Spherical radius, Sets x_a=y_b=z_c=radius
-* length:  [m]   alternate name for zdepth (obsolete)
-* width:   [m]   alternate name for xwidth (obsolete)
+* length:  [m]   alternate name for zdepth (obsolete). When > 0, it overrides zdepth.
+* width:   [m]   alternate name for xwidth (obsolete). When > 0, it overrides xwidth.
 *
 * %End
 *******************************************************************************/
@@ -47,14 +63,12 @@
 DEFINE COMPONENT Mirror_elliptic
 SETTING PARAMETERS (x_a=0, y_b=1.0, z_c=1.0, 
         zdepth=0.2,  xwidth=0.2,  
-        R0=1,string coating="Be.txt",
+        R0=1,string coating="NULL",
         length=0,    width=0, radius=0)
 DEPENDENCY "-std=c99"
 
 SHARE
 %{
-  %include "perfect_crystals-lib"
-  %include "mccode-complex-lib"
   %include "read_table-lib"
   %include "reflectivity-lib"
 %}
@@ -74,39 +88,48 @@ INITIALIZE
   if (radius)
     x_a = y_b = z_c = radius;
 
-  if (coating && strlen (coating) && strcmp (coating, "NULL")) {
+  if (!y_b) {
+    fprintf (stderr, "ERROR (%s): y_b must not be 0. Aborting.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+
+  if (coating && strlen (coating) && strcmp (coating, "NULL") && strcmp (coating, "0")) {
     status = reflec_Init (&re, COATING_UNDEFINED, coating, NULL);
   } else {
     /*assume a constant reflectivity*/
     status = reflec_Init (&re, CONSTANT, NULL, &(R0));
   }
 
-  a2inv = (x_a) ? 1 / (x_a * x_a) : 0; /* 0 really means infinity for x direction */
-  b2inv = (y_b) ? 1 / (y_b * y_b) : 0;
-  c2inv = (z_c) ? 1 / (z_c * z_c) : 0;
+  if (status != 0) {
+    fprintf (stderr, "ERROR (%s): Could not interpret reflectivity. Aborting.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
 
-  printf ("Component %s: initialized\n", NAME_CURRENT_COMP);
+  a2inv = (x_a) ? 1 / (x_a * x_a) : 0; /* 0 really means infinity for x direction */
+  b2inv = 1 / (y_b * y_b);
+  c2inv = (z_c) ? 1 / (z_c * z_c) : 0;
 
   fflush (NULL); // put diagnostics in order!
 
   // compatibility with older use
-  if (zdepth)
-    length = zdepth;
-  if (xwidth)
-    width = xwidth;
+  if (length > 0)
+    zdepth = length;
+  if (width > 0)
+    xwidth = width;
+    
+  if (xwidth <=0 || zdepth <=0) {
+    fprintf (stderr, "ERROR (%s): xwidth and zdepth must be positive. Aborting.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
 %}
 
 TRACE
 %{
-  double E;             // (keV) x-ray energy
   double K;             // length of k-vector
   double kxu, kyu, kzu; // unit vector in the direction of k-vector.
-  double x_int, y_int, z_int;
-  double R;
 
-  /* get the photon's kvector and energy */
+  /* get the photon's kvector */
   K = sqrt (kx * kx + ky * ky + kz * kz);
-  E = K2E * K; /* use built-in constants for consistency */
   /* make unit vector in the direction of k :*/
   kxu = kx;
   kyu = ky;
@@ -135,10 +158,11 @@ TRACE
     zz1 = z + kzu * t1;
 
     /*Check if we hit the mirror and whether the hit it is in front of the ray.
+     * Only the lower half of the ellipsoid (y < y_b) is the mirror surface.
      * This does not account for mirror curvature */
 
-    int hit0 = (fabs (xx0) < width / 2.0) && (fabs (zz0) < length / 2.0) && t0 > 0;
-    int hit1 = (fabs (xx1) < width / 2.0) && (fabs (zz1) < length / 2.0) && t1 > 0;
+    int hit0 = (fabs (xx0) < xwidth / 2.0) && (fabs (zz0) < zdepth / 2.0) && (yy0 < y_b) && t0 > 0;
+    int hit1 = (fabs (xx1) < xwidth / 2.0) && (fabs (zz1) < zdepth / 2.0) && (yy1 < y_b) && t1 > 0;
     int doit = hit0 || hit1;
 
     if (hit0 && !hit1)
@@ -163,6 +187,7 @@ TRACE
       nz = -zt * c2inv;
       NORM (nx, ny, nz);
 
+      /* kdotn > 0 for hits from the concave (inner) side, < 0 for hits from the back (de-focusing) */
       double kdotn;
       kdotn = -scalar_prod (kx, ky, kz, nx, ny, nz);
       double kfx, kfy, kfz;
@@ -174,19 +199,19 @@ TRACE
       ky = kfy;
       kz = kfz;
 
-      /*adjust weight of ray*/
+      /*adjust weight and phase of ray*/
 
-      double q = 2.0 * kdotn;
-      double R = reflecq (re, q, 0, K, fabs (90 - acos (kdotn / K) * RAD2DEG));
-      p *= R;
-      /*update phase - as an approximation turn by 180 deg.*/;
-      phi += M_PI;
+      /* reflectivity depends on |kdotn| only: same for front and back hits */
+      double kdotn_abs = fabs (kdotn);
+      double q         = 2.0 * kdotn_abs;
+      double theta_g   = asin (fmin (1.0, kdotn_abs / K)) * RAD2DEG; /* grazing angle [deg] */
+      cdouble R        = refleccq (re, q, 0, K, theta_g);
+      p   *= cabs (R);
+      phi += atan2 (cimag (R), creal (R));
 
       /*catch dead rays*/
-
-      // if (p==0) ABSORB;
-    } else {
-      RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+      if (p == 0)
+        ABSORB;
     }
   }
 %}
@@ -215,3 +240,4 @@ MCDISPLAY
 %}
 
 END
+

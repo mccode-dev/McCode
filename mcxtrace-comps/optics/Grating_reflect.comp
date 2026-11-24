@@ -26,7 +26,10 @@
 * using the parameters order or phi0. In the latter case a set angle is chosen as the centre of the
 * sampled interval, in the former the centre angle is computed from the specified grating order.
 * 
-* In an upcoming release this grating model will also include a blazed grating.
+* Slit model: the grating is treated as N slits of width b and pitch d (Fraunhofer), which is an approximation for a
+* reflective lamellar grating: no groove depth, obliquity factor or shadowing. The efficiency summed over orders is R0*b/d.
+* These are derived internally, not input parameters: d = 1e7/rho_l [AA], b = d/3 [AA], N = zdepth*rho_l*1e3.
+* The polarisation is only projected perpendicular to the new k, no polarisation-dependent reflectivity is applied.
 *
 * Example: Grating_reflect(
 *   d_phi=1,order=0,rho_l=100,zdepth=102e-3,xwidth=102e-3) 
@@ -37,12 +40,9 @@
 * zdepth: [m]     The length of the grating.
 * R0:     [0-1]   Constant reflecticity of the grating [0;1].
 * rho_l:  [l/mm]  Number of lines pr mm of the grating. 
-* b:      [AA]    Width of the spacing in Angstrom. If zero, default is found using rho_l/3.
-* d:      [AA]    Width of the slits in Angstrom. If zero, default is found using rho_l.
-* N:      [1]     Number of slits. If Zero, default is found using rho_l.
 * d_phi:  [deg]   Range of diffraction angle that is to be simulated -d_phi/2 ; d_phi/2.
 * order:  [1]     The target order of the grating. If non-zero d_phi will be centered around this scattering line.
-* phi0:   [deg]   Target angle to center d_phi. If this is set to 0 the 0th (or any other chosen by the parameter order) order line will be used.
+* phi0:   [deg]   Outgoing grazing angle (from the grating surface, in the plane perpendicular to the lines) on which d_phi is centered. 0 means unset, so the line chosen by order is used.
 * verbose:[0/1]   If non-zero, more information will be displayed. Nb. generates much output.
 *
 *
@@ -53,12 +53,6 @@ DEFINE COMPONENT Grating_reflect
 SETTING PARAMETERS (d_phi=1, R0=1, rho_l=800,
     order=0, phi0=0,
     zdepth=0.015, xwidth=0.136, int verbose=0)
-
-SHARE
-%{  
-  %include "mccode-complex-lib"
-  %include "read_table-lib"
-%}
 
 /********************************************************************************************
 In DECLARE section, small functions or variables can be defined and used in the entire grating.
@@ -77,26 +71,27 @@ The INITIALIZE section run each statement once.
 ********************************************************************************************/
 INITIALIZE
 %{
-  int status;
   if (R0 < 0 || R0 > 1) {
     fprintf (stderr, "ERROR: (%s) reflectivity (%f) is specified but is not in [0:1]. \n", NAME_CURRENT_COMP, R0);
     exit (-1);
   }
 
   d = 1e7 / rho_l;                 /*grating pitch in Angstrom*/
-  nslits = (zdepth * 1e3) * rho_l; /*the relative width of openings*/
-
-  if (!b) {
-    /* Approximated slit-width in Angstrom*/
-    b = d / 3;
+  nslits = (int) round (zdepth * 1e3 * rho_l); /*number of lines over the full zdepth*/
+  if (nslits < 1) {
+    fprintf (stderr, "ERROR: (%s) fewer than one grating line (zdepth=%g m, rho_l=%g l/mm). \n", NAME_CURRENT_COMP, zdepth, rho_l);
+    exit (-1);
   }
+
+  /* Approximated slit-width in Angstrom*/
+  b = d / 3;
 
   if (verbose) {
-    printf ("INFO: (%s): Line width, d=%f [AA]. Number of slits,  N=%f. Slit width, b=%f [AA].\n \n", NAME_CURRENT_COMP, d, nslits, b);
+    printf ("INFO: (%s): Line pitch, d=%f [AA]. Number of slits, N=%d. Slit width, b=%f [AA].\n \n", NAME_CURRENT_COMP, d, nslits, b);
   }
 
-  /*We are not sampling the full 2pi range*/
-  pdir = (((d_phi * DEG2RAD)) / (2 * M_PI));
+  /*Angular width [rad] of the sampled window; the weight is an angular density times this width*/
+  pdir = d_phi * DEG2RAD;
 %}
 
 TRACE
@@ -113,9 +108,9 @@ TRACE
     RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
   } else {
     double nx, ny, nz;
-    double Gamma, gamma, psi_i, psi_o, spsi_i, spsi_o;
-    double kx_notouch, ky_notouch, kz_notouch;
-    double delta_theta, pdiff;
+    double Gamma, gamma, spsi_i, spsi_o;
+    double kz_o, ky2, ky_o;
+    double delta_theta, pdiff, env, dirich;
     /* Normal vector for the grating*/
     nx = 0;
     ny = 1;
@@ -123,8 +118,6 @@ TRACE
     /* scalar-product, s and length of k.*/
     double s = scalar_prod (kx, ky, kz, nx, ny, nz);
     double k = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
-    /* Outgoing grazing angle for a perfectly reflecting mirror using angle between two vectors.*/
-    psi_i = acos (s / k) - M_PI_2;
 
     /* outgoing vector for a perfectly reflecting mirror. Order 0.*/
     kx = kx - 2 * s * nx;
@@ -132,69 +125,58 @@ TRACE
     kz = kz - 2 * s * nz;
     // MC picked angle going from +- d_phi
     delta_theta = DEG2RAD * (rand01 () * d_phi - (d_phi * 0.5));
-    double alpha, beta;
-    alpha = M_PI_2 - psi_i;
 
     /********************************************************************************************
-      The grating is lamellar:
+      The grating is lamellar. The lines run along X, so the grating equation conserves kx and
+      changes kz by multiples of 2pi/d. Signed direction cosine along Z: sin(theta) = kz/k.
      ********************************************************************************************/
-    /* Lamellar grating is used.
-         Thus finding outgoing angle only from ingoing angle.
-         using old k and n and rotation matrix.*/
-    beta = asin (-order * (2 * M_PI / k) / d + sin (alpha));
-    // Could have also used an angle convention where the angle between the grating's norm and the ray of order m is positive if it is on the samer side as the
-    // incident angle, negative otherwise.
+    spsi_i = kz / k;
+    /* Grating equation: sin(theta_o) = sin(theta_i) - order*lambda/d */
+    kz_o = kz - order * 2 * M_PI / d;
     if (phi0) {
-      /*a target angle is specified*/
-      psi_o = phi0 * DEG2RAD;
-    } else {
-      psi_o = M_PI_2 - fabs (beta); /*the fabs is necessary due to the sign convention of beta*/
+      /*a target grazing angle (in the YZ-plane) is specified; keep the sign of kz*/
+      kz_o = copysign (sqrt (k * k - kx * kx) * cos (phi0 * DEG2RAD), kz);
     }
 
-    kx_notouch = kx;
-    ky_notouch = ky;
-    kz_notouch = kz;
+    ky2 = k * k - kx * kx - kz_o * kz_o;
+    if (ky2 >= 0) {
+      /* Stay on the reflected side of the surface, then rotate in the YZ-plane by delta_theta (|k| is conserved).*/
+      ky_o = copysign (sqrt (ky2), ky);
+      ky = ky_o * cos (delta_theta) - kz_o * sin (delta_theta);
+      kz = ky_o * sin (delta_theta) + kz_o * cos (delta_theta);
 
-    kx = kx_notouch;
-
-    if (!isnan (psi_o) && !isnan (psi_i)) {
-      // Still need to take into account the case where the incident ray does not hit perpendicular to the grating
-      if (beta >= 0) {
-        if (kz >= 0) {
-          ky = (ky_notouch * cos (-(psi_o - psi_i) + delta_theta) - kz_notouch * sin (-(psi_o - psi_i) + delta_theta));
-          kz = (ky_notouch * sin (-(psi_o - psi_i) + delta_theta) + kz_notouch * cos (-(psi_o - psi_i) + delta_theta));
-        } else {
-          ky = (ky_notouch * cos ((psi_o - psi_i) + delta_theta) - kz_notouch * sin ((psi_o - psi_i) + delta_theta));
-          kz = (ky_notouch * sin ((psi_o - psi_i) + delta_theta) + kz_notouch * cos ((psi_o - psi_i) + delta_theta));
-        }
-      } else {
-        if (kz >= 0) {
-          ky = (ky_notouch * cos ((-2 * alpha + (psi_o - psi_i)) + delta_theta) - kz_notouch * sin ((-2 * alpha + (psi_o - psi_i)) + delta_theta));
-          kz = (ky_notouch * sin ((-2 * alpha + (psi_o - psi_i)) + delta_theta) + kz_notouch * cos ((-2 * alpha + (psi_o - psi_i)) + delta_theta));
-        } else {
-          ky = (ky_notouch * cos ((2 * alpha - (psi_o - psi_i)) + delta_theta) - kz_notouch * sin ((2 * alpha - (psi_o - psi_i)) + delta_theta));
-          kz = (ky_notouch * sin ((2 * alpha - (psi_o - psi_i)) + delta_theta) + kz_notouch * cos ((2 * alpha - (psi_o - psi_i)) + delta_theta));
-        }
+      /* Keep E perpendicular to the new k: remove the parallel part and restore |E| */
+      double e0 = sqrt (Ex * Ex + Ey * Ey + Ez * Ez);
+      double edotk = (Ex * kx + Ey * ky + Ez * kz) / (k * k);
+      Ex -= edotk * kx;
+      Ey -= edotk * ky;
+      Ez -= edotk * kz;
+      double e1 = sqrt (Ex * Ex + Ey * Ey + Ez * Ez);
+      if (e1 > 0) {
+        Ex *= e0 / e1;
+        Ey *= e0 / e1;
+        Ez *= e0 / e1;
       }
 
       /*Finding the weight using diffraction theory.*/
-      s = scalar_prod (kx, ky, kz, nx, ny, nz);
-      psi_o = acos (s / k) - M_PI_2;
-
-      /*pay attention to sign conventions here. We might cross to the "incoming" side of the normal.*/
-      spsi_i = sin (M_PI_2 - psi_i);
-      spsi_o = sin (M_PI_2 - psi_o); //+delta_theta)); // asin angle out
+      spsi_o = kz / k;
 
       /* Phase for interference pattern:  k = wave vector, d = lines/Angstrom, b=width in Angstrom */
       gamma = k * d * (spsi_o - spsi_i);
       /* Phase for diffraction pattern */
       Gamma = k * b * (spsi_o - spsi_i);
-      pdiff = ((sin (Gamma / 2) / (Gamma / 2)) * (sin (Gamma / 2) / (Gamma / 2)))
-              * ((sin (nslits * gamma / 2) / sin (gamma / 2)) * (sin (nslits * gamma / 2) / sin (gamma / 2)));
-      p = p * pdir * (pdiff / (pow (nslits, 2)));
+      /* Single-slit envelope and N-slit interference, with the 0/0 limits (1 and N) handled */
+      env = (fabs (Gamma) < 1e-9) ? 1 : sin (Gamma / 2) / (Gamma / 2);
+      dirich = (fabs (sin (gamma / 2)) < 1e-9) ? nslits : sin (nslits * gamma / 2) / sin (gamma / 2);
+      pdiff = env * env * dirich * dirich;
+      /* Weight = reflectivity * sampled angular width * angular density of the efficiency. The density is normalised so that
+         one order integrates to (b/d)^2*sinc^2 independent of N: d(gamma)/d(theta) = d*|ky| converts the peak from gamma to angle. */
+      p = p * R0 * pdir * (b / d) * (b / d) * pdiff * d * fabs (ky) / (2 * M_PI * nslits);
+      SCATTER;
 
     } else {
-      p = 0;
+      /* evanescent order */
+      ABSORB;
     }
   }
 %}
@@ -204,11 +186,17 @@ TRACE
 *************************************************************************************************************/ 
 MCDISPLAY
 %{
+  int i;
+  /* At most 50 ridges are drawn (evenly spread, so not to scale when there are more lines); each ridge has the slit width b */
+  int n = nslits < 50 ? nslits : 50;
+  double step = zdepth / n;
+  double w = step * b / d;
   magnify ("");
-  line (-xwidth / 2.0, 0, -zdepth / 2.0, xwidth / 2.0, 0, -zdepth / 2.0);
-  line (-xwidth / 2.0, 0, zdepth / 2.0, xwidth / 2.0, 0, zdepth / 2.0);
-  line (-xwidth / 2.0, 0, -zdepth / 2.0, -xwidth / 2.0, 0, zdepth / 2.0);
-  line (xwidth / 2.0, 0, -zdepth / 2.0, xwidth / 2.0, 0, zdepth / 2.0);
+  rectangle ("xz", 0, 0, 0, xwidth, zdepth);
+  for (i = 0; i < n; i++) {
+    box (0, w / 2.0, -zdepth / 2.0 + (i + 0.5) * step, xwidth, w, w, 0, 0, 1, 0);
+  }
 %}
 
 END
+
