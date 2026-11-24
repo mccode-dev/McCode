@@ -240,14 +240,14 @@ Main.prototype.init = function(campos, invert, box)
 
     this.camera.lookAt(this.controls.target);
 
-    // double-click a component: turn the camera to its centre
+    // double-click a component: turn the camera to its centre, from where it is
     var _this = this;
     this.renderer.domElement.addEventListener('dblclick', function(e) { _this.focusComponent(e); });
 
     this.addLight(new THREE.Vector3(10, 50, 130))
     this.scene.add(this.rootnode);
 }
-//  point the orbit target at the centre of the component under the mouse
+//  turn the orbit target to the centre of the component under the mouse, the camera stays in place
 Main.prototype.focusComponent = function(e)
 {
     var r = e.target.getBoundingClientRect();
@@ -260,8 +260,25 @@ Main.prototype.focusComponent = function(e)
     if (hits.length == 0) { return; }
     var comp = hits[0].object;
     while (nodes.indexOf(comp) < 0) { comp = comp.parent; }
-    new THREE.Box3().setFromObject(comp).center(this.controls.target);
+    // viewing angles from the camera, as in OrbitControls
+    var pos = this.camera.position;
+    var from = new THREE.Spherical().setFromVector3(pos.clone().sub(this.controls.target));
+    var to = new THREE.Spherical().setFromVector3(pos.clone().sub(new THREE.Box3().setFromObject(comp).center()));
+    to.theta -= 2*Math.PI*Math.round((to.theta - from.theta)/(2*Math.PI)); // the short way round
+    this.turn = { from: from, to: to, start: performance.now() };
+}
+//  advance a turn started by focusComponent, called every frame
+Main.prototype.animateTurn = function()
+{
+    if (!this.turn) { return; }
+    var a = this.turn.from, b = this.turn.to;
+    var t = Math.min(1, (performance.now() - this.turn.start) / TURN_MS);
+    var s = t*t*(3 - 2*t);
+    var look = new THREE.Vector3().setFromSpherical(new THREE.Spherical(
+        a.radius + s*(b.radius - a.radius), a.phi + s*(b.phi - a.phi), a.theta + s*(b.theta - a.theta)));
+    this.controls.target.copy(this.camera.position).sub(look);
     this.controls.update();
+    if (t == 1) { this.turn = null; }
 }
 //  tour: the stops, {name, position, quaternion}: the campath file points with usePath, else the components
 Main.prototype.tourStops = function()
@@ -343,6 +360,7 @@ Main.prototype.animate = function()
 //
 Main.prototype.setCameraView = function(campos)
 {
+    this.turn = null;
     this.camera.position.x = campos.x;
     this.camera.position.y = campos.y;
     this.camera.position.z = campos.z;
@@ -758,6 +776,7 @@ Controller.prototype.run = function()
     {
     	requestAnimationFrame(renderLoop);
     	_this.main.animate();
+    	_this.main.animateTurn();
     	_this.main.renderer.render(_this.main.scene, _this.main.camera);
     }
     var busy = false;
@@ -867,6 +886,7 @@ var Y_AXIS = new THREE.Vector3(0, 1, 0);
 var Z_AXIS = new THREE.Vector3(0, 0, 1);
 var SEGMENTS = 24;
 var FLY_MS = 1000; // tour: flight time between components at speed 1
+var TURN_MS = 500; // double-click: time to turn to a component
 
 //  enum for playback state
 //
