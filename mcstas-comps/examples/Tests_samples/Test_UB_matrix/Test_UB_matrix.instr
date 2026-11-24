@@ -21,22 +21,24 @@
 * SAMPLE=6: Dispersion_relation reference, orthorhombic cell (4, 5, 6 AA) with
 *           direct lattice vectors given, same orientation as above
 * SAMPLE=7: Dispersion_relation, UB_matrix with UBin
-* SAMPLE=0-3 give the same Laue pattern and intensity, as do SAMPLE=4-5 and
+* SAMPLE=8: Single_crystal, UB_matrix reading a UB_matrix output file (UB_Al.txt)
+* SAMPLE=0-3 and 8 give the same Laue pattern and intensity, as do SAMPLE=4-5 and
 * SAMPLE=6-7. The Dispersion_relation mode is written by the SHELL command
 * below (write_ub_dispersion.py, Python standard library only).
 * The goniometer angle A3 rotates all samples about the vertical axis.
 *
-* %Example: SAMPLE=0 Detector: Laue_I=1.2705e-09
-* %Example: SAMPLE=1 Detector: Laue_I=1.2705e-09
-* %Example: SAMPLE=2 Detector: Laue_I=1.2705e-09
-* %Example: SAMPLE=3 Detector: Laue_I=1.2705e-09
-* %Example: SAMPLE=4 Detector: Laue_I=5.6971e-09
-* %Example: SAMPLE=5 Detector: Laue_I=5.6971e-09
-* %Example: SAMPLE=6 Detector: Laue_I=2.2633e-08
-* %Example: SAMPLE=7 Detector: Laue_I=2.2633e-08
+* %Test: SAMPLE=0 Detector: Laue_I=5.7390e-09
+* %Test: SAMPLE=1 Detector: Laue_I=5.7390e-09
+* %Test: SAMPLE=2 Detector: Laue_I=5.7390e-09
+* %Test: SAMPLE=3 Detector: Laue_I=5.7390e-09
+* %Test: SAMPLE=4 Detector: Laue_I=5.6971e-09
+* %Test: SAMPLE=5 Detector: Laue_I=5.6971e-09
+* %Test: SAMPLE=6 Detector: Laue_I=2.2633e-08
+* %Test: SAMPLE=7 Detector: Laue_I=2.2633e-08
+* %Test: SAMPLE=8 Detector: Laue_I=5.7390e-09
 *
 * %P
-* SAMPLE: [1]  Orientation input: 0-3 Single_crystal (reference, UBin, cell, ISAW file), 4-5 NCrystal_sample (reference, UBin), 6-7 Dispersion_relation (reference, UBin)
+* SAMPLE: [1]  Orientation input: 0-3 Single_crystal (reference, UBin, cell, ISAW file), 4-5 NCrystal_sample (reference, UBin), 6-7 Dispersion_relation (reference, UBin), 8 Single_crystal (mccode file)
 * A3: [deg]    Goniometer rotation about the vertical axis
 *
 * %L
@@ -80,6 +82,10 @@ COMPONENT UB_nc = UB_matrix(target="Sample_nc", filename="UB_nc.txt",
 
 COMPONENT UB_disp = UB_matrix(target="Sample_disp", filename="UB_disp.txt",
     UBin={-0.176776695296637, 0.14142135623731, 0, 0, 0, 0.166666666666667, 0.176776695296637, 0.14142135623731, 0})
+  AT (0,0,0) RELATIVE gonio
+
+COMPONENT UB_mccode = UB_matrix(target="Sample_mccode", filename="UB_mccode.txt", file="UB_Al.txt", format="mccode",
+    lattice_a=4.05, lattice_b=4.05, lattice_c=4.05)
   AT (0,0,0) RELATIVE gonio
 
 COMPONENT Sample_ref = Single_crystal(xwidth=0.005, yheight=0.005, zdepth=0.005, reflections="Al.lau", mosaic=5,
@@ -132,6 +138,12 @@ EXTEND %{
 COMPONENT Sample_disp = Dispersion_relation(radius=0.0025, yheight=0.005, sigma_abs=0, sigma_inc=0, DW=1, T=10,
     folder_path="UB_dispersion")
   WHEN (SAMPLE==7) AT (0,0,0) RELATIVE gonio
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT Sample_mccode = Single_crystal(xwidth=0.005, yheight=0.005, zdepth=0.005, reflections="Al.lau", mosaic=5)
+  WHEN (SAMPLE==8) AT (0,0,0) RELATIVE gonio
 EXTEND %{
   if (!SCATTERED) ABSORB;
 %}
