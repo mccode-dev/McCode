@@ -56,6 +56,4 @@ _Please describe what OS you developed and tested your additions on, and if any 
   * [ ] Explanation is added in free form text above or below the checklist
 
 --------------
-
-
-
+_Tip for reviewers: Visit `https://blueblazin.github.io/blockviz/#github=[URL_of_this_PR]` for a visual look at code changes_
