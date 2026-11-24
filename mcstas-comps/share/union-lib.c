@@ -1999,7 +1999,7 @@ void union_tri_lathe(struct union_tri_list *t, Coords center, Coords axis, doubl
 
 // Half extents of a volume along the axes of the master frame (not tight for rotated shapes other than box)
 Coords union_half_extents(struct geometry_struct *g) {
-  double r = INFINITY;
+  double r = FLT_MAX;
   if (g->eShape == box) {
     struct box_storage *b = g->geometry_parameters.p_box_storage;
     double w = 0.5*fmax(b->x_width1,b->x_width2), h = 0.5*fmax(b->y_height1,b->y_height2), d = 0.5*b->z_depth;
@@ -2007,10 +2007,10 @@ Coords union_half_extents(struct geometry_struct *g) {
                       fabs(b->x_vector.y)*w + fabs(b->y_vector.y)*h + fabs(b->z_vector.y)*d,
                       fabs(b->x_vector.z)*w + fabs(b->y_vector.z)*h + fabs(b->z_vector.z)*d);
   } else if (g->eShape == cylinder) {
-    r = hypot(0.5*g->geometry_parameters.p_cylinder_storage->height,g->geometry_parameters.p_cylinder_storage->cyl_radius);
+    r = coords_len(coords_set(0.5*g->geometry_parameters.p_cylinder_storage->height,g->geometry_parameters.p_cylinder_storage->cyl_radius,0));
   } else if (g->eShape == cone) {
     struct cone_storage *c = g->geometry_parameters.p_cone_storage;
-    r = hypot(0.5*c->height,fmax(c->cone_radius_bottom,c->cone_radius_top));
+    r = coords_len(coords_set(0.5*c->height,fmax(c->cone_radius_bottom,c->cone_radius_top),0));
   } else if (g->eShape == sphere) {
     r = g->geometry_parameters.p_sphere_storage->sph_radius;
   } else if (g->eShape == mesh) {
