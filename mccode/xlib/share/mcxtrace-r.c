@@ -455,7 +455,7 @@ paraboloid_intersect(double *l0, double *l1, double x, double y, double z,
 }
 
 /******************************************************************************
- * paraboloid_normal: Calucate the normal vector to the given paraboloid at the
+ * paraboloid_normal: Calculate the normal vector to the given paraboloid at the
  * point (x,y,z) and put the result i nx,ny,nz. No check is performed if the
  * the point is on th surface. In that case the result is undefined.
  *****************************************************************************/
