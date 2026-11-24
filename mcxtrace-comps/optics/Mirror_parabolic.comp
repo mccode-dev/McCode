@@ -54,6 +54,19 @@ DECLARE
 %{
   double a2inv;
   double b2inv;
+
+  /* Arc-length coordinate along the parabola from the vertex to transverse
+   * coordinate x (curvature scale a, with a2inv = 1/a^2, or 0 if a == 0):
+   * s = (a^2/4) (u sqrt(1 + u^2) + asinh u) with u = 2 x / a^2.
+   * For a == 0 (flat along that direction) the coordinate is |x|. */
+  double Mirror_parabolic_s (double x, double a, double a2inv)
+  {
+    if (a != 0) {
+      double u = 2 * x * a2inv;
+      return (a * a) / 4.0 * (u * sqrt (u * u + 1) + asinh (u));
+    }
+    return fabs (x);
+  }
 %}
 
 INITIALIZE
@@ -76,16 +89,18 @@ INITIALIZE
 TRACE
 %{
   int status, pi;
-  double l0, l1, ll, sx, sz;
+  double l0, l1, ll = 0, sx, sz;
   double nx, ny, nz;
 
   /* Edge-on fast paths: the surface height must be compared against y
-   * (fix #1), and rays must be within the mirror extent and not already
-   * past it (fix #2). */
+   * (fix #1), rays must be within the mirror extent and not already past
+   * it (fix #2), and only the substrate side (below the surface) is
+   * absorbing - rays just above the surface go on to reflect (yheight
+   * is one-sided). */
   if (b == 0 && kx == 0 && ky == 0) {
     /* k || z and mirror invariant in z: surface height at this x is zz */
     double zz = x * x * a2inv;
-    if (fabs (y - zz) <= yheight
+    if (y <= zz && zz - y <= yheight
         && fabs (x) <= xwidth / 2.0
         && ((kz > 0 && z <= zdepth / 2.0) || (kz < 0 && z >= -zdepth / 2.0))) {
       ABSORB;
@@ -94,7 +109,7 @@ TRACE
   if (a == 0 && ky == 0 && kz == 0) {
     /* k || x and mirror invariant in x: surface height at this z is xx */
     double xx = z * z * b2inv;
-    if (fabs (x - xx) <= yheight
+    if (x <= xx && xx - x <= yheight
         && fabs (z) <= zdepth / 2.0
         && ((kx > 0 && x <= xwidth / 2.0) || (kx < 0 && x >= -xwidth / 2.0))) {
       ABSORB;
@@ -123,7 +138,9 @@ TRACE
   } else if (l1 > 0) {
     ll = l1;
   } else {
-    /* both l0 and l1 <= 0 */
+    /* both l0 and l1 <= 0: no intersection; restore like the limit-miss
+     * path below for consistency */
+    RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
     status = 0;
   }
   int it = 0;
@@ -131,16 +148,8 @@ TRACE
     PROP_DL (ll);
     /* check the mirror limits at the actual hit point; if we have missed
      * the mirror, restore the state from component entry */
-    if (a != 0) {
-      sx = (a * a) / 2.0 * (x * a2inv * sqrt ((2 * x * a2inv) * (2 * x * a2inv) + 1) + asinh (2 * x * a2inv) / 2.0);
-    } else {
-      sx = fabs (x);
-    }
-    if (b != 0) {
-      sz = (b * b) / 2.0 * (z * b2inv * sqrt ((2 * z * b2inv) * (2 * z * b2inv) + 1) + asinh (2 * z * b2inv) / 2.0);
-    } else {
-      sz = fabs (z);
-    }
+    sx = Mirror_parabolic_s (x, a, a2inv);
+    sz = Mirror_parabolic_s (z, b, b2inv);
     if (fabs (sx) > xwidth / 2.0 || fabs (sz) > zdepth / 2.0) {
       RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
       break;
@@ -196,7 +205,7 @@ MCDISPLAY
   x1 = xwidth / 2.0;
   if (a != 0) {
     double xx = (x1 + x0) / 2.0;
-    double sx = (a * a) / 2.0 * (xx * a2inv * sqrt ((2 * xx * a2inv) * (2 * xx * a2inv) + 1) + asinh (2 * xx * a2inv) / 2.0);
+    double sx = Mirror_parabolic_s (xx, a, a2inv);
     i = 0;
     while (fabs (sx - xwidth / 2.0) > 1e-4 && i < 100) {
       if ((sx - xwidth / 2.0) > 0) {
@@ -205,7 +214,7 @@ MCDISPLAY
         x0 = xx;
       }
       xx = (x1 + x0) / 2.0;
-      sx = (a * a) / 2.0 * (xx * a2inv * sqrt ((2 * xx * a2inv) * (2 * xx * a2inv) + 1) + asinh (2 * xx * a2inv) / 2.0);
+      sx = Mirror_parabolic_s (xx, a, a2inv);
       i++;
     }
     xmax = xx;
@@ -217,7 +226,7 @@ MCDISPLAY
   z1 = zdepth / 2.0;
   if (b != 0) {
     double zz = (z1 + z0) / 2.0;
-    double sz = (b * b) / 2.0 * (zz * b2inv * sqrt ((2 * zz * b2inv) * (2 * zz * b2inv) + 1) + asinh (2 * zz * b2inv) / 2.0);
+    double sz = Mirror_parabolic_s (zz, b, b2inv);
     j = 0;
     while (fabs (sz - zdepth / 2.0) > 1e-4 && j < 100) {
       if ((sz - zdepth / 2.0) > 0) {
@@ -226,7 +235,7 @@ MCDISPLAY
         z0 = zz;
       }
       zz = (z1 + z0) / 2.0;
-      sz = (b * b) / 2.0 * (zz * b2inv * sqrt ((2 * zz * b2inv) * (2 * zz * b2inv) + 1) + asinh (2 * zz * b2inv) / 2.0);
+      sz = Mirror_parabolic_s (zz, b, b2inv);
       j++;
     }
     zmax = zz;
