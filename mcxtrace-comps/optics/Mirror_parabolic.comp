@@ -75,7 +75,7 @@ INITIALIZE
 
 TRACE
 %{
-  int status;
+  int status, pi;
   double l0, l1, ll, sx, sz;
   double nx, ny, nz;
 
@@ -104,8 +104,10 @@ TRACE
   /* find plane of entry - i.e. y=sign*x*x*a2inv + sign*z*z*b2inv,
      and propagate the ray there.*/
   double Y0 = (xwidth * xwidth / 4.0 * a2inv) + (zdepth * zdepth / 4.0 * b2inv);
-  plane_intersect (&l0, x, y, z, kx, ky, kz, 0, 1, 0, 0, Y0, 0);
-  if (l0 > 0) {
+  /* plane_intersect leaves *l untouched when the ray is parallel to the
+   * plane, so gate on the return value before using l0 */
+  pi = plane_intersect (&l0, x, y, z, kx, ky, kz, 0, 1, 0, 0, Y0, 0);
+  if (pi > 0) {
     PROP_DL (l0);
   }
 
@@ -124,7 +126,8 @@ TRACE
     /* both l0 and l1 <= 0 */
     status = 0;
   }
-  while (status) {
+  int it = 0;
+  while (status && it++ < 100) { /* cap guards against a tiny positive self-intersection l0 */
     PROP_DL (ll);
     /* check the mirror limits at the actual hit point; if we have missed
      * the mirror, restore the state from component entry */
