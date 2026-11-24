@@ -49,11 +49,9 @@ SETTING PARAMETERS (R0=1, a=1, b=1, xwidth=0.1, zdepth=0.1, yheight=0,
 
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
-DECLARE
-%{
-  double a2inv;
-  double b2inv;
-
+SHARE %{
+#ifndef MIRROR_PARABOLIC_S
+#define MIRROR_PARABOLIC_S
   /* Arc-length coordinate along the parabola from the vertex to transverse
    * coordinate x (curvature scale a, with a2inv = 1/a^2, or 0 if a == 0):
    * s = (a^2/4) (u sqrt(1 + u^2) + asinh u) with u = 2 x / a^2.
@@ -66,6 +64,15 @@ DECLARE
     }
     return fabs (x);
   }
+#endif
+%}
+
+DECLARE
+%{
+  double a2inv;
+  double b2inv;
+
+  
 %}
 
 INITIALIZE
