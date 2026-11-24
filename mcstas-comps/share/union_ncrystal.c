@@ -233,7 +233,7 @@ NCrystal_physics_scattering (_class_particle *_particle, union data_transfer_uni
   k_final[1] = dirout[1] * k_mag;
   k_final[2] = dirout[2] * k_mag;
   // Commit the outgoing wavevector only after a successful event.
-  UNION_PARTICLE_SET_WAVEVECTOR (_particle, k_final);
+  union_particle_set_wavevector (_particle, k_final);
   return 1;
 }
 

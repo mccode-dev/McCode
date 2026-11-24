@@ -7530,8 +7530,8 @@ void randvec_target_rect_angular_union(Coords *v_out,double *solid_angle_out, st
 
 void randvec_target_rect_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *_particle) {
 // Calls the standard McXtrace randvec_target_rect focusing function, but is with the new data input format.
-    randvec_target_rect_real(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z, focus_data->spatial_focus_width, focus_data->spatial_focus_height, focus_data->absolute_rotation, 0, 0, 0, 1);
-    // randvec_target_rect(&vx, &vy, &vz, &solid_angle,aim_x, aim_y, aim_z, VarsInc.xw, VarsInc.yh, ROT_A_CURRENT_COMP);
+    randvec_target_rect(&v_out->x, &v_out->y, &v_out->z, solid_angle_out, focus_data->RayAim.x, focus_data->RayAim.y, focus_data->RayAim.z,
+                        focus_data->spatial_focus_width, focus_data->spatial_focus_height, focus_data->absolute_rotation);
 }
 
 void randvec_target_circle_union(Coords *v_out,double *solid_angle_out, struct focus_data_struct *focus_data, _class_particle *_particle) {

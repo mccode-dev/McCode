@@ -152,9 +152,6 @@ void union_particle_set_wavevector(_class_particle *particle, const double *wave
 void union_particle_get_wavevector(double *wavevector, const _class_particle *particle);
 #pragma acc routine
 void union_particle_copy_rng(_class_particle *destination, const _class_particle *source);
-#define UNION_PARTICLE_SET_WAVEVECTOR union_particle_set_wavevector
-#define UNION_PARTICLE_GET_WAVEVECTOR union_particle_get_wavevector
-#define UNION_COPY_PARTICLE_RNG union_particle_copy_rng
 #pragma acc routine
 Coords union_particle_position(const _class_particle *particle);
 #pragma acc routine

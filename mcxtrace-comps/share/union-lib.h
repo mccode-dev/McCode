@@ -120,9 +120,6 @@ enum process {
 void union_particle_set_wavevector(_class_particle *particle, const double *wavevector);
 void union_particle_get_wavevector(double *wavevector, const _class_particle *particle);
 void union_particle_copy_rng(_class_particle *destination, const _class_particle *source);
-#define UNION_PARTICLE_SET_WAVEVECTOR union_particle_set_wavevector
-#define UNION_PARTICLE_GET_WAVEVECTOR union_particle_get_wavevector
-#define UNION_COPY_PARTICLE_RNG union_particle_copy_rng
 Coords union_particle_position(const _class_particle *particle);
 Coords union_particle_direction(const _class_particle *particle);
 void union_particle_to_local(_class_particle *particle, Coords center, Rotation rotation);
