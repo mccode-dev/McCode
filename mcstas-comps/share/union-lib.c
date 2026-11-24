@@ -1936,8 +1936,8 @@ void union_tri_add(struct union_tri_list *t, Coords a, Coords b, Coords c, int d
           if (depth == 0 || (nm == 1 && fabs(sm[0] - 2*sp*sq/(sp + sq))*median < UNION_TRI_CUT_TOL*size)) {
             if (st[k]) union_tri_emit(t,v[k],p,q);
             else { union_tri_emit(t,p,w1,w2); union_tri_emit(t,p,w2,q); }
+            return;
           }
-          return;
         }
       } else if (total == 1) { // boundary from the vertex o opposite the cut edge (a vertex made by a split in 2) to p
         for (k=0;k<3;k++) if (n[k] == 1) break;
@@ -1954,8 +1954,8 @@ void union_tri_add(struct union_tri_list *t, Coords a, Coords b, Coords c, int d
           if (depth == 0 || (nm == 1 && fabs(sm[0] - s[k][0])*midline < UNION_TRI_CUT_TOL*size)) {
             if (st[k]) union_tri_emit(t,w1,p,o);
             else union_tri_emit(t,p,w2,o);
+            return;
           }
-          return;
         }
       } else if (depth > 0) { // split in 2 through the crossing nearest the middle of the most crossed edge
         int e = 0, i, best = 0;
