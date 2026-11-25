@@ -58,6 +58,7 @@ Source: "dist\mcstas-tools-python-mcdisplay-plopp-NSIS64-@VERSION@-mingw64.exe";
 Source: "dist\mcstas-tools-python-mcdisplay-mantid-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcdoc-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "dist\mcstas-tools-python-mcmeshreduce-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
+Source: "dist\mcstas-tools-python-mcmerge-NSIS64-@VERSION@-mingw64.exe"; DestDir: "{tmp}"
 Source: "Support\micromamba.exe"; DestDir: "{tmp}"
 
 [Run]
@@ -85,6 +86,7 @@ Filename: "{tmp}\mcstas-tools-python-mcdisplay-plopp-NSIS64-@VERSION@-mingw64.ex
 Filename: "{tmp}\mcstas-tools-python-mcdisplay-mantid-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-python-mcdoc-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\mcstas-tools-python-mcmeshreduce-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
+Filename: "{tmp}\mcstas-tools-python-mcmerge-NSIS64-@VERSION@-mingw64.exe"; Parameters: "/S"
 Filename: "{tmp}\docupdate.bat";
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
