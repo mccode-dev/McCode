@@ -996,7 +996,7 @@ int r_within_surroundings(Coords pos,struct geometry_struct *geometry);
 // -------------    General geometry ------------------------------------------------------------
 
 Coords point_on_circle(Coords center, Coords direction, double radius, int point_nr, int number_of_points);
-void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes);
+void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes, struct pointer_to_1d_int_list *overlap_list);
 
 void points_on_circle(Coords *output, Coords center, Coords direction, double radius, int number_of_points);
 
@@ -1239,7 +1239,7 @@ void generate_reduced_starting_destinations_list(struct starting_lists_struct *s
 
 void generate_next_volume_list(struct Volume_struct **Volumes, int number_of_volumes, int verbal);
 
-void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct *starting_lists, int number_of_volumes, int verbal);
+void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct *starting_lists, int number_of_volumes, int verbal, struct pointer_to_1d_int_list ***overlap_lists);
 
 // -------------    Focusing functions   --------------------------------------------------------
 

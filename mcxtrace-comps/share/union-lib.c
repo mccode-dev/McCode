@@ -1373,14 +1373,14 @@ int r_has_highest_priority(Coords point,int N,struct geometry_struct **Geometrie
     if (Geometries[N]->is_masked_volume == 1) {
       if (Geometries[N]->mask_mode == 1) { // ALL mode, need to be within ALL masks
         for (mask_check=mask_start=Geometries[N]->masked_by_list.elements;mask_check-mask_start<Geometries[N]->masked_by_list.num_elements;mask_check++) {
-          if (Geometries[*mask_check]->within_function(point,Geometries[*mask_check]) == 0) {
+          if (!Geometries[*mask_check] || Geometries[*mask_check]->within_function(point,Geometries[*mask_check]) == 0) {
             return 0; // If the point is just outside one mask, the mask status is 0 and the point does not have highest priority
           }
         }
       } else { // ANY mode, need to be within at least one mask
         mask_status = 0;
         for (mask_check=mask_start=Geometries[N]->masked_by_list.elements;mask_check-mask_start<Geometries[N]->masked_by_list.num_elements;mask_check++) {
-          if (Geometries[*mask_check]->within_function(point,Geometries[*mask_check]) == 1) {
+          if (Geometries[*mask_check] && Geometries[*mask_check]->within_function(point,Geometries[*mask_check]) == 1) {
             mask_status = 1;
             break;
           }
@@ -1397,14 +1397,14 @@ int r_has_highest_priority(Coords point,int N,struct geometry_struct **Geometrie
 
 
     for (volume_index = 1;volume_index<number_of_volumes;volume_index++) {
-      if (volume_index != N && Geometries[volume_index]->is_mask_volume == 0) {
+      if (volume_index != N && Geometries[volume_index] && Geometries[volume_index]->is_mask_volume == 0) {
         if (Geometries[volume_index]->within_function(point,Geometries[volume_index])) {
           if (Geometries[volume_index]->is_masked_volume == 1) {
             // Since this volume is masked, the mask status need to be checked
             if (Geometries[volume_index]->mask_mode == 1) { //ALL mode, need to be within ALL masks
               mask_status = 1;
               for (mask_check=mask_start=Geometries[volume_index]->masked_by_list.elements;mask_check-mask_start<Geometries[volume_index]->masked_by_list.num_elements;mask_check++) {
-                if (Geometries[*mask_check]->within_function(point,Geometries[*mask_check]) == 0) {
+                if (!Geometries[*mask_check] || Geometries[*mask_check]->within_function(point,Geometries[*mask_check]) == 0) {
                   mask_status = 0;
                   break;
                 }
@@ -1412,7 +1412,7 @@ int r_has_highest_priority(Coords point,int N,struct geometry_struct **Geometrie
             } else { // ANY mode, need to be within at least one mask
               mask_status = 0;
               for (mask_check=mask_start=Geometries[volume_index]->masked_by_list.elements;mask_check-mask_start<Geometries[volume_index]->masked_by_list.num_elements;mask_check++) {
-                if (Geometries[*mask_check]->within_function(point,Geometries[*mask_check]) == 1) {
+                if (Geometries[*mask_check] && Geometries[*mask_check]->within_function(point,Geometries[*mask_check]) == 1) {
                   mask_status = 1;
                   break;
                 }
@@ -1473,7 +1473,7 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
 
     // Find intersections
     for (volume_index = 1;volume_index < number_of_volumes; volume_index++) {
-        if (volume_index != N) {
+        if (volume_index != N && Geometries[volume_index]) {
             geometry_output = Geometries[volume_index]->intersect_function(temp_intersection,&number_of_solutions,r1,direction,Geometries[volume_index]);
              // printf("No solutions for intersection (Volume %d) with %d \n",N,volume_index);
                 for (iterate=0;iterate<number_of_solutions;iterate++) {
@@ -1902,10 +1902,19 @@ void union_tri_lathe(struct union_tri_list *t, Coords center, Coords axis, doubl
 }
 
 // Draws volume N as one polyhedron in the frame of the master component
-void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes) {
+void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes, struct pointer_to_1d_int_list *overlap_list) {
   struct geometry_struct *g = Geometries[N];
-  struct union_tri_list t = {NULL,0,0,N,number_of_volumes,Geometries};
+  struct union_tri_list t = {NULL,0,0,N,number_of_volumes,NULL};
   int i, j;
+
+  // Only volumes overlapping N can hide part of it, the others are left out (NULL)
+  t.Geometries = calloc(number_of_volumes,sizeof(struct geometry_struct *));
+  if (!t.Geometries) {
+    fprintf(stderr,"Failure allocating list in Union function union_mcdisplay_polyhedron - Exit!\n");
+    exit(-1);
+  }
+  for (i=0;i<overlap_list->num_elements;i++) t.Geometries[overlap_list->elements[i]] = Geometries[overlap_list->elements[i]];
+  t.Geometries[N] = g;
 
   if (g->eShape == box) {
     struct box_storage *b = g->geometry_parameters.p_box_storage;
@@ -1946,6 +1955,7 @@ void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int 
         union_tri_add(&t,pts.elements[m->faceArray[i+1]],pts.elements[m->faceArray[i+1+j]],pts.elements[m->faceArray[i+2+j]],UNION_TRI_DEPTH);
     free(pts.elements);
   }
+  free(t.Geometries);
   if (t.n == 0) return;
 
   // Same json layout as mcdis_polygon, bounds per vertex / face as there
@@ -7332,7 +7342,7 @@ void generate_next_volume_list(struct Volume_struct **Volumes, int number_of_vol
     }
 }
 
-void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct *starting_lists, int number_of_volumes, int verbal) {
+void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct *starting_lists, int number_of_volumes, int verbal, struct pointer_to_1d_int_list ***overlap_lists) {
     // Function to control the generation of lists
     // Some lists are only needed temporary, and are thus declared here to keep them out of the main scope
     // Others are stored in the volume structs as they are needed in the trace algorithm (or tagging)
@@ -7466,8 +7476,10 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
         free(true_overlap_lists[iterate]);
 
         //printf("raw_overlap_lists[iterate]->num_elements = %d \n",raw_overlap_lists[iterate]->num_elements);
-        if (raw_overlap_lists[iterate]->num_elements > 0) free(raw_overlap_lists[iterate]->elements);
-        free(raw_overlap_lists[iterate]);
+        if (!overlap_lists) {
+          if (raw_overlap_lists[iterate]->num_elements > 0) free(raw_overlap_lists[iterate]->elements);
+          free(raw_overlap_lists[iterate]);
+        }
 
         //printf("parents_lists[iterate]->num_elements = %d \n",parents_lists[iterate]->num_elements);
         if (parents_lists[iterate]->num_elements > 0) free(parents_lists[iterate]->elements);
@@ -7506,7 +7518,10 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
         free(true_children_lists[iterate]);
     }
     //printf("generate lists volume specific free completed\n");
-    free(true_overlap_lists);free(raw_overlap_lists);free(parents_lists);free(true_parents_lists);free(true_parents_lists_no_masks);
+    // The raw overlap lists are handed to the caller when asked for, else freed
+    if (overlap_lists) *overlap_lists = raw_overlap_lists;
+    else free(raw_overlap_lists);
+    free(true_overlap_lists);free(parents_lists);free(true_parents_lists);free(true_parents_lists_no_masks);
     free(parents_lists_no_masks);free(true_grandparents_lists);free(grandparents_lists);free(grandparents_lists_no_masks);free(true_grandparents_lists_no_masks);
     free(true_children_lists);
     //printf("generate lists free completed\n");
