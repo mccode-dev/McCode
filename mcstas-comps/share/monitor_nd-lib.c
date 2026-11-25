@@ -1564,6 +1564,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
     char    While_End = 0;
     long    While_Buffer = 0;
     double  XY=0, pp=0;
+    int     ismean = (Vars->Flag_signal != DEFS->COORD_P && !Vars->Flag_log); /* mean of the signal variable */
     double  Coord[MONnD_COORD_NMAX];
     long    Coord_Index[MONnD_COORD_NMAX];
     char    label[CHAR_BUF_LENGTH];
@@ -1722,9 +1723,11 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
       Nsum = Vars->Nsum;
       psum = Vars->psum;
       p2sum= Vars->p2sum;
-      if (Vars->Flag_signal != DEFS->COORD_P && Nsum > 0)
-      { psum /=Nsum; p2sum /= Nsum*Nsum; }
       /* DETECTOR_OUT_0D(Vars->Monitor_Label, Vars->Nsum, Vars->psum, Vars->p2sum); */
+      if (Vars->Flag_signal != DEFS->COORD_P)
+        detector = mcdetector_out_0D_mean(Vars->Monitor_Label, Vars->Nsum, Vars->Nsum, Vars->Nsum, Vars->psum, Vars->p2sum,
+          Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->compcurindex);
+      else
       detector = mcdetector_out_0D(Vars->Monitor_Label, Nsum, psum, p2sum, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->compcurindex);
     }
     else
@@ -1785,6 +1788,18 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
             min1d = Vars->Coord_Min[i+1];
             max1d = Vars->Coord_Max[i+1];
             if (min1d == max1d) max1d = min1d+1e-6;
+            if (ismean) {
+              detector = mcdetector_out_1D_mean(
+                label,
+                Vars->Coord_Label[i+1],
+                Vars->Coord_Label[0],
+                Vars->Coord_Var[i+1],
+                min1d, max1d,
+                Vars->Coord_Bin[i+1],
+                Vars->Mon2D_N[i],Vars->Mon2D_N[i],Vars->Mon2D_N[i],Vars->Mon2D_p[i],Vars->Mon2D_p2[i],
+                fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->compcurindex);
+              continue;
+            }
             p1m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
             p2m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
             if (p1m == NULL || p2m == NULL) /* use Raw Buffer line output */
@@ -1890,7 +1905,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
               p0m[index] = Vars->Mon2D_N[i][j];
               p1m[index] = Vars->Mon2D_p[i][j];
               p2m[index] = Vars->Mon2D_p2[i][j];
-              if (Vars->Flag_signal != DEFS->COORD_P && p0m[index] > 0)
+              if (Vars->Flag_signal != DEFS->COORD_P && p0m[index] > 0 && !(ismean && !Vars->Flag_List))
               {
                   p1m[index] /= p0m[index];
                   p2m[index] /= p0m[index]*p0m[index];
@@ -1938,6 +1953,17 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
 	      Vars->Coord_Bin[2],
 	      p0m,p1m,p2m,
 	      fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->option,Vars->compcurindex);
+	  } else if (ismean) {
+            detector = mcdetector_out_2D_mean(
+              label,
+              Vars->Coord_Label[1],
+              Vars->Coord_Label[2],
+              min1d, max1d,
+              min2d, max2d,
+              Vars->Coord_Bin[1],
+              Vars->Coord_Bin[2],
+              p0m,p0m,p0m,p1m,p2m,
+              fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->compcurindex);
 	  } else {
             detector = mcdetector_out_2D(
               label,
