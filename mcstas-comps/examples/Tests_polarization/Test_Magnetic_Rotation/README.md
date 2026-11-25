@@ -22,7 +22,7 @@ Seeger et al. NIM A: Volume 457, Issues 1-2 , 11 January 2001, Pages 338-346
 
 ## Examples
 
-- **Test: -n1e5 RESTORENEUT=1 Detector: MPLMonNum2Y_I=3.54525**
+- **Test: -n1e5 RESTORENEUT=1 Detector: MPLMonNum2Y_I=0.0308**
 
 ## Input parameters
 
