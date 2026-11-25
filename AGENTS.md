@@ -258,7 +258,8 @@ MSVC does not implement C99 `_Complex` arithmetic. Use the McCode complex wrappe
 - **Fill in the PR template.** Use `docs/pull_request_template.md` as the PR
   description: complete the free-form text, the AI-tools declaration, the
   development OS and the checklist sections that apply. Remove sections that do
-  not apply. Tick a box only for a step actually done.
+  not apply. Tick a box only for a step actually done. Keep the reviewer tip at
+  the end.
 - **AI declaration.** A person is responsible for every contribution. Every
   AI-assisted commit, also from agent accounts, names the tool in a
   `Co-Authored-By` line; tick the AI-tools box in the PR template. See
