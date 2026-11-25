@@ -822,6 +822,9 @@ FILE *mcnew_file(char *name, char *ext, int *exists)
   return file;
 } /* mcnew_file */
 
+static char   mcdetector_ismean = 0; /* set while writing a mean */
+static double mcdetector_total[3];   /* its N, mean and p2 over all bins */
+
 /*******************************************************************************
 * mcdetector_statistics: compute detector statistics, error bars, [x I I_err N] 1D
 * RETURN:            updated detector structure
@@ -917,6 +920,7 @@ MCDETECTOR mcdetector_statistics(
     smon_y = sum_y2z/sum_z-fmon_y*fmon_y; smon_y = smon_y > 0 ? sqrt(smon_y) : 0;
     mean_z = sum_z/detector.n/detector.m/detector.p;
   }
+  if (mcdetector_ismean) { Nsum = mcdetector_total[0]; sum_z = mcdetector_total[1]; P2sum = mcdetector_total[2]; }
   /* store statistics into detector */
   detector.intensity = sum_z;
   detector.error     = Nsum ? (*mcestimate_error_p)(Nsum, sum_z, P2sum) : 0;
@@ -1042,6 +1046,7 @@ MCDETECTOR detector_import(
   else
     snprintf(detector.ncount, CHAR_BUF_LENGTH, "%g/%g", (double)mcget_run_num(), (double)mcget_ncount());
 
+  detector.ismean     = mcdetector_ismean;
   detector.p0         = p0;
   detector.p1         = p1;
   detector.p2         = p2;
@@ -1368,6 +1373,7 @@ mcdatainfo_out(char *pre, FILE *f, MCDETECTOR detector)
   fprintf(f, !mcget_run_num() || mcget_run_num() >= mcget_ncount() ?
              "%sNcount: %s\n" :
              "%sratio: %s\n",  pre, detector.ncount);
+  if (detector.ismean) fprintf(f, "%smean: yes\n", pre);
 
   if (strlen(detector.filename)) {
     fprintf(f, "%sfilename: %s\n", pre, detector.filename);
@@ -2737,6 +2743,7 @@ mcdatainfo_out_nexus(NXhandle f, MCDETECTOR detector)
 	      nxprintattr(f, !mcget_run_num() || mcget_run_num() >= mcget_ncount() ?
 			  "Ncount" :
 			  "ratio", "%s",  detector.ncount);
+	      if (detector.ismean) nxprintattr(f, "mean", "yes");
 
 	      if (strlen(detector.filename)) {
 		nxprintattr(f, "filename", "%s", detector.filename);
@@ -3357,6 +3364,88 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
     return(mcdetector_out_2D_ascii(detector));
 
 } /* mcdetector_out_2D */
+
+/*******************************************************************************
+* mcdetector_mean: N, mean and its p2 for n bins, from the sums over events of
+*   1, w, w^2, w*v and w*v^2. Returns the 3 arrays in one block, to be freed.
+*   The error is sqrt(variance/Neff), with Neff=sum(w)^2/sum(w^2). p2 is such that
+*   mcestimate_error returns it, as corrected for N-1 (the mean if N=1).
+*   The mean over all bins goes to mcdetector_total, for the header.
+*   MPI: all is on the root, other nodes have 0, for the later sum over nodes.
+*******************************************************************************/
+static double *mcdetector_mean(long n, double *p0, double *w, double *w2, double *p1, double *p2)
+{
+  long    i, j, n1 = n+1;                      /* last one is the sum over bins */
+  double *in[5] = {p0, p1, p2, w, w2};
+  double *b     = (double *)calloc(5*n1, sizeof(double));
+  double *N = b, *P1 = b+n1, *P2 = b+2*n1, *W = b+3*n1, *W2 = b+4*n1;
+  if (!b) {
+    fprintf(stderr, "Error: Out of memory for %li bins (mcdetector_mean)\n", n);
+    exit(-1);
+  }
+  for (j=0; j<5; j++)
+    for (i=0; i<n; i++) {
+      b[j*n1+i]  = in[j][i];
+      b[j*n1+n] += in[j][i];
+    }
+#ifdef USE_MPI
+  if (mpi_node_count > 1) {
+    mc_MPI_Sum(b, 5*n1);
+    if (mpi_node_rank != mpi_node_root) memset(b, 0, 5*n1*sizeof(double));
+  }
+#endif
+  for (i=0; i<n1; i++) {
+    double mean = W[i] ? P1[i]/W[i] : 0;
+    double var  = W[i] ? P2[i]/W[i] - mean*mean : 0;
+    P1[i] = mean;
+    P2[i] = 0;
+    if (W[i] && N[i] > 1)
+      P2[i] = (var > 0 ? var*W2[i]/(W[i]*W[i]) : 0) + mean*mean/(N[i]*N[i]);
+  }
+  for (j=0; j<3; j++) mcdetector_total[j] = b[j*n1+n];
+  mcdetector_ismean = 1;
+  return(b);
+} /* mcdetector_mean */
+
+/*******************************************************************************
+* mcdetector_out_0D/1D/2D_mean: as mcdetector_out_0D/1D/2D, for a mean
+*******************************************************************************/
+static MCDETECTOR mcdetector_mean_end(MCDETECTOR detector, double *b)
+{
+  mcdetector_ismean = 0;
+  free(b);
+  detector.p0 = detector.p1 = detector.p2 = NULL;
+  return(detector);
+} /* mcdetector_mean_end */
+
+MCDETECTOR mcdetector_out_0D_mean(char *t, double p0, double w, double w2, double p1, double p2,
+                  char *c, Coords posa, Rotation rota, int index)
+{
+  double *b = mcdetector_mean(1, &p0, &w, &w2, &p1, &p2);
+  return(mcdetector_mean_end(mcdetector_out_0D(t, b[0], b[2], b[4], c, posa, rota, index), b));
+} /* mcdetector_out_0D_mean */
+
+MCDETECTOR mcdetector_out_1D_mean(char *t, char *xl, char *yl,
+                  char *xvar, double x1, double x2, long n,
+                  double *p0, double *w, double *w2, double *p1, double *p2, char *f,
+                  char *c, Coords posa, Rotation rota, int index)
+{
+  long    nb = labs(n), n1 = nb+1;
+  double *b  = mcdetector_mean(nb, p0, w, w2, p1, p2);
+  return(mcdetector_mean_end(mcdetector_out_1D(t, xl, yl, xvar, x1, x2, n, b, b+n1, b+2*n1, f,
+    c, posa, rota, index), b));
+} /* mcdetector_out_1D_mean */
+
+MCDETECTOR mcdetector_out_2D_mean(char *t, char *xl, char *yl,
+                  double x1, double x2, double y1, double y2, long m, long n,
+                  double *p0, double *w, double *w2, double *p1, double *p2, char *f,
+                  char *c, Coords posa, Rotation rota, int index)
+{
+  long    nb = labs(m*n), n1 = nb+1;
+  double *b  = mcdetector_mean(nb, p0, w, w2, p1, p2);
+  return(mcdetector_mean_end(mcdetector_out_2D(t, xl, yl, x1, x2, y1, y2, m, n, b, b+n1, b+2*n1, f,
+    c, posa, rota, index), b));
+} /* mcdetector_out_2D_mean */
 
 /*******************************************************************************
 * mcdetector_list_import: build the MCDETECTOR structure for a 2D_list call
