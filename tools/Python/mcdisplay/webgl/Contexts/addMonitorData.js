@@ -7,14 +7,16 @@ export const curvedOffset = (mon) =>
   /^Longitude/.test(mon.xlabel) ? 0 : /^radial position/.test(mon.xlabel) ? -180 : null;
 
 // --simdir monitor data for the colour map or curve, as in webgl-classic: rows z, as is or log10 (zero and
-// negative bins at a tenth of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
+// negative bins at a tenth of the smallest positive one, at most 6 decades below the largest), with their min and max
+// (min 0 for linear)
 function monitorValues(z, log) {
-  let pos = Infinity, max = -Infinity;
-  z.forEach((r) => r.forEach((v) => { if (v > 0 && v < pos) pos = v; }));
-  const uselog = log && pos < Infinity;
-  const min = uselog ? Math.log10(pos / 10) : 0;
-  if (uselog) z = z.map((r) => r.map((v) => (v > 0 ? Math.log10(v) : min)));
-  z.forEach((r) => r.forEach((v) => { if (v > max) max = v; }));
+  let pos = Infinity, min = 0, max = -Infinity;
+  z.forEach((r) => r.forEach((v) => { if (v > 0 && v < pos) pos = v; if (v > max) max = v; }));
+  if (log && pos < Infinity) {
+    min = Math.log10(Math.max(pos / 10, max * 1e-6));
+    max = Math.log10(max);
+    z = z.map((r) => r.map((v) => (v > 0 ? Math.max(Math.log10(v), min) : min)));
+  }
   return { z, min, max: max > min ? max : min + 1 };
 }
 
@@ -118,6 +120,7 @@ export function addMonitorData(group, mon, transparency, log, down) {
 // (remembered on the scene, so a reload by loadComponents keeps the choice)
 export function setMonitorLog(parentnode, log) {
   parentnode.userData.monitorLog = log;
+  window.parent.postMessage({ simlog: log }, "*"); // plots next to the display (simplots.html)
   parentnode.traverse((o) => {
     if (!o.userData.monitor) return;
     paintMonitor(o.material.map.image, o.userData.mon, o.userData.monitor === "curved", log);

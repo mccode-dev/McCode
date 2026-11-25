@@ -18,17 +18,15 @@ var lineSegments = function(list, color)
     return new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({color: color}));
 }
 // --simdir monitor data for the colour map or curve: rows z, as is or log10 (zero and negative bins at a tenth
-// of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
+// of the smallest positive one, at most 6 decades below the largest), with their min and max (min 0 for linear)
 var monitorValues = function(z, log)
 {
-    var pos = Infinity, max = -Infinity;
-    z.forEach(function(r) { r.forEach(function(v) { if (v > 0 && v < pos) { pos = v; } }); });
+    var pos = Infinity, min = 0, max = -Infinity;
+    z.forEach(function(r) { r.forEach(function(v) { if (v > 0 && v < pos) { pos = v; } if (v > max) { max = v; } }); });
     if (log && pos < Infinity) {
-        var floor = Math.log10(pos/10);
-        z = z.map(function(r) { return r.map(function(v) { return v > 0 ? Math.log10(v) : floor; }); });
+        min = Math.log10(Math.max(pos/10, max*1e-6)); max = Math.log10(max);
+        z = z.map(function(r) { return r.map(function(v) { return v > 0 ? Math.max(Math.log10(v), min) : min; }); });
     }
-    z.forEach(function(r) { r.forEach(function(v) { if (v > max) { max = v; } }); });
-    var min = log && pos < Infinity ? Math.log10(pos/10) : 0;
     return {z: z, min: min, max: max > min ? max : min + 1};
 }
 // paint --simdir monitor data on canvas: 2D as a colour map, 1D as a curve (on curved monitors along the angle)
@@ -497,6 +495,7 @@ Main.prototype.addMonitorData = function(node, mon, down)
 Main.prototype.setMonitorLog = function(log)
 {
     this.logMonitors = log;
+    parent.postMessage({simlog: log}, "*"); // plots next to the display (simplots.html)
     this.monnodes.concat(this.curvednodes).forEach(function(m) {
         paintMonitor(m.material.map.image, m.userData.mon, m.userData.curved, log);
         m.material.map.needsUpdate = true;
