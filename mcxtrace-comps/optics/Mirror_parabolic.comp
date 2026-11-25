@@ -56,6 +56,7 @@ SHARE %{
    * coordinate x (curvature scale a, with a2inv = 1/a^2, or 0 if a == 0):
    * s = (a^2/4) (u sqrt(1 + u^2) + asinh u) with u = 2 x / a^2.
    * For a == 0 (flat along that direction) the coordinate is |x|. */
+  #pragma acc routine
   double Mirror_parabolic_s (double x, double a, double a2inv)
   {
     if (a != 0) {
@@ -137,7 +138,7 @@ TRACE
 
   /* The intersect routine assumes a parabola opening towards positive z
      so swap y and z.*/
-  status = paraboloid_intersect (&l0, &l1, x, z, y, kx, kz, ky, a, b, 0);
+  status = paraboloid_intersect (&l0, &l1, x, z, y, kx, kz, ky, a, b, 1);
   /* if l0==0, assume that we should pick l1 instead (if it is positive).*/
   if (l0 > 0) {
     ll = l0;
@@ -151,15 +152,17 @@ TRACE
   }
   int it = 0;
   while (status && it++ < 100) { /* cap guards against a tiny positive self-intersection l0 */
-    PROP_DL (ll);
+    double mk = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
     /* check the mirror limits at the actual hit point; if we have missed
-     * the mirror, restore the state from component entry */
-    sx = Mirror_parabolic_s (x, a, a2inv);
-    sz = Mirror_parabolic_s (z, b, b2inv);
+     * the mirror on the first hit, restore the state from component entry */
+    sx = Mirror_parabolic_s (x + kx / mk * ll, a, a2inv);
+    sz = Mirror_parabolic_s (z + kz / mk * ll, b, b2inv);
     if (fabs (sx) > xwidth / 2.0 || fabs (sz) > zdepth / 2.0) {
-      RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+      if (it == 1)
+        RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
       break;
     }
+    PROP_DL (ll);
 
     /* reflect in normal - again swap y and z.*/
     paraboloid_normal (&nx, &nz, &ny, x, z, y, a, b, 1);
@@ -175,7 +178,7 @@ TRACE
     p *= R0;
     /* update phase - as an approximation turn by 180 deg.*/
     phi += M_PI;
-    status = paraboloid_intersect (&l0, &l1, x, z, y, kx, kz, ky, a, b, 0);
+    status = paraboloid_intersect (&l0, &l1, x, z, y, kx, kz, ky, a, b, 1);
     if (status) {
       if (l0 > 0) {
         ll = l0;
@@ -258,8 +261,8 @@ MCDISPLAY
       double xb = -xmax + (k + 1) * dx;
       line (xa, xa * xa * a2inv + zmax * zmax * b2inv,  zmax,
             xb, xb * xb * a2inv + zmax * zmax * b2inv,  zmax);
-      line (xa, xa * xa * a2inv - zmax * zmax * b2inv, -zmax,
-            xb, xb * xb * a2inv - zmax * zmax * b2inv, -zmax);
+      line (xa, xa * xa * a2inv + zmax * zmax * b2inv, -zmax,
+            xb, xb * xb * a2inv + zmax * zmax * b2inv, -zmax);
     }
     for (k = 0; k < Nj; k++) {
       double za = -zmax + k * dz;
