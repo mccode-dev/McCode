@@ -1373,7 +1373,7 @@ mcdatainfo_out(char *pre, FILE *f, MCDETECTOR detector)
   fprintf(f, !mcget_run_num() || mcget_run_num() >= mcget_ncount() ?
              "%sNcount: %s\n" :
              "%sratio: %s\n",  pre, detector.ncount);
-  if (detector.ismean) fprintf(f, "%smean: yes\n", pre);
+  fprintf(f, "%smean: %s\n", pre, detector.ismean ? "yes" : "no");
 
   if (strlen(detector.filename)) {
     fprintf(f, "%sfilename: %s\n", pre, detector.filename);
@@ -2743,7 +2743,7 @@ mcdatainfo_out_nexus(NXhandle f, MCDETECTOR detector)
 	      nxprintattr(f, !mcget_run_num() || mcget_run_num() >= mcget_ncount() ?
 			  "Ncount" :
 			  "ratio", "%s",  detector.ncount);
-	      if (detector.ismean) nxprintattr(f, "mean", "yes");
+	      nxprintattr(f, "mean", "%s", detector.ismean ? "yes" : "no");
 
 	      if (strlen(detector.filename)) {
 		nxprintattr(f, "filename", "%s", detector.filename);
