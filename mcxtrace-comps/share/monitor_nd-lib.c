@@ -1544,7 +1544,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         
         detector = mcdetector_out_list(
               label, "List of photon events", Coord_X_Label,
-              -Vars->Buffer_Size, Vars->Coord_Number+1,
+              -Vars->Buffer_Size, Vars->Coord_Number+1, Vars->Photon_Counter,
               Vars->Mon2D_Buffer,
               fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot, Vars->option,Vars->compcurindex);
       }

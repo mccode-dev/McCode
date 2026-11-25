@@ -823,7 +823,7 @@ FILE *mcnew_file(char *name, char *ext, int *exists)
 } /* mcnew_file */
 
 static char   mcdetector_ismean = 0; /* set while writing a mean */
-static double mcdetector_total[3];   /* its N, mean and p2 over all bins */
+static double mcdetector_total[3];   /* its N, mean and p2 over all bins. For lists: N */
 
 /*******************************************************************************
 * mcdetector_statistics: compute detector statistics, error bars, [x I I_err N] 1D
@@ -920,6 +920,7 @@ MCDETECTOR mcdetector_statistics(
     smon_y = sum_y2z/sum_z-fmon_y*fmon_y; smon_y = smon_y > 0 ? sqrt(smon_y) : 0;
     mean_z = sum_z/detector.n/detector.m/detector.p;
   }
+  if (strcasestr(detector.format,"list")) Nsum = mcdetector_total[0];
   if (mcdetector_ismean) { Nsum = mcdetector_total[0]; sum_z = mcdetector_total[1]; P2sum = mcdetector_total[2]; }
   /* store statistics into detector */
   detector.intensity = sum_z;
@@ -4116,10 +4117,10 @@ MCDETECTOR mcdetector_out_2D_list(char *t, char *xl, char *yl,
 
 /*******************************************************************************
 * mcdetector_out_list: wrapper for list output (calls out_2D with mcformat+"list").
-*   m=number of events, n=size of each event
+*   m=number of events, n=size of each event, N=events received (more than m if truncated)
 *******************************************************************************/
 MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
-                  long m, long n,
+                  long m, long n, double N,
                   double *p1, char *f,
 			       char *c, Coords posa, Rotation rota, char* options, int index)
 {
@@ -4134,6 +4135,10 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
   strcpy(format_new, mcformat);
   strcat(format_new, " list");
   mcformat = format_new;
+#ifdef USE_MPI
+  if (mcsave_final && mpi_node_count > 1) mc_MPI_Sum(&N, 1);
+#endif
+  mcdetector_total[0] = N;
   detector = mcdetector_out_2D_list(t, xl, yl,
                   1,labs(m),1,labs(n),
                   m,n,
