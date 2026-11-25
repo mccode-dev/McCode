@@ -125,8 +125,6 @@ DECLARE
   struct geometry_struct** Geometries;
   struct Volume_struct** Volume_copies;
   struct starting_lists_struct starting_lists;
-  // Indices of the volumes each volume overlaps, used by the polyhedron display
-  struct pointer_to_1d_int_list** overlap_lists;
 
   // garbage collection for volume_copies
   struct pointer_to_1d_int_list Volume_copies_allocated;
@@ -905,7 +903,7 @@ INITIALIZE
   // that contain the entire set of at least one parent of volume n Destination list for volume n: Indicies of volumes that could be the destination volume when a
   // ray leaves volume n The overlap, parents and grandparents lists are local variables in the function, and not in the main scope.
 
-  generate_lists (Volumes, &starting_lists, number_of_volumes, list_verbal, &overlap_lists);
+  generate_lists (Volumes, &starting_lists, number_of_volumes, list_verbal);
 
   // Generate "safe starting list", which contains all volumes that the ray may enter from other components
   // These are all volumes without scattering or absorption
@@ -3047,6 +3045,8 @@ FINALLY
       free (Volumes[volume_index]->geometry.mask_intersect_list.elements);
     if (Volumes[volume_index]->geometry.next_volume_list.num_elements > 0)
       free (Volumes[volume_index]->geometry.next_volume_list.elements);
+    if (Volumes[volume_index]->geometry.overlap_list.num_elements > 0)
+      free (Volumes[volume_index]->geometry.overlap_list.elements);
 
     if (finally_verbal)
       printf ("  Freeing physics\n");
@@ -3117,13 +3117,6 @@ FINALLY
     printf ("Freeing Volumes \n");
   free (Volumes);
 
-  for (int overlap_volume_index = 0; overlap_volume_index < number_of_volumes; overlap_volume_index++) {
-    if (overlap_lists[overlap_volume_index]->num_elements > 0)
-      free (overlap_lists[overlap_volume_index]->elements);
-    free (overlap_lists[overlap_volume_index]);
-  }
-  free (overlap_lists);
-
   if (interface_stack.number_of_surfaces > 0)
     free (interface_stack.p_surface_array);
 
@@ -3143,7 +3136,7 @@ MCDISPLAY
 
     if (Volumes[volume_index]->geometry.visualization_on == 1) {
       if (mcdotrace == 2 && display_mode != 1 && Geometries[volume_index]->is_mask_volume == 0) { // polyhedra, masks stay wireframe
-        union_mcdisplay_polyhedron (volume_index, Geometries, number_of_volumes, overlap_lists[volume_index]);
+        union_mcdisplay_polyhedron (volume_index, Geometries, number_of_volumes);
         continue;
       }
       lines_to_draw_master.number_of_lines = 0;

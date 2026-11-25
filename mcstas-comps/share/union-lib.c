@@ -1998,7 +1998,7 @@ void union_tri_lathe(struct union_tri_list *t, Coords center, Coords axis, doubl
 }
 
 // Draws volume N as one polyhedron in the frame of the master component
-void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes, struct pointer_to_1d_int_list *overlap_list) {
+void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int number_of_volumes) {
   struct geometry_struct *g = Geometries[N];
   struct union_tri_list t = {NULL,0,0,N,number_of_volumes,NULL};
   int i, j;
@@ -2009,7 +2009,7 @@ void union_mcdisplay_polyhedron(int N, struct geometry_struct **Geometries, int 
     fprintf(stderr,"Failure allocating list in Union function union_mcdisplay_polyhedron - Exit!\n");
     exit(-1);
   }
-  for (i=0;i<overlap_list->num_elements;i++) t.Geometries[overlap_list->elements[i]] = Geometries[overlap_list->elements[i]];
+  for (i=0;i<g->overlap_list.num_elements;i++) t.Geometries[g->overlap_list.elements[i]] = Geometries[g->overlap_list.elements[i]];
   t.Geometries[N] = g;
 
   if (g->eShape == box) {
@@ -7863,7 +7863,7 @@ void generate_next_volume_list(struct Volume_struct **Volumes, int number_of_vol
     }
 }
 
-void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct *starting_lists, int number_of_volumes, int verbal, struct pointer_to_1d_int_list ***overlap_lists) {
+void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct *starting_lists, int number_of_volumes, int verbal) {
     // Function to control the generation of lists
     // Some lists are only needed temporary, and are thus declared here to keep them out of the main scope
     // Others are stored in the volume structs as they are needed in the trace algorithm (or tagging)
@@ -7997,10 +7997,8 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
         free(true_overlap_lists[iterate]);
 
         //printf("raw_overlap_lists[iterate]->num_elements = %d \n",raw_overlap_lists[iterate]->num_elements);
-        if (!overlap_lists) {
-          if (raw_overlap_lists[iterate]->num_elements > 0) free(raw_overlap_lists[iterate]->elements);
-          free(raw_overlap_lists[iterate]);
-        }
+        Volumes[iterate]->geometry.overlap_list = *raw_overlap_lists[iterate];
+        free(raw_overlap_lists[iterate]);
 
         //printf("parents_lists[iterate]->num_elements = %d \n",parents_lists[iterate]->num_elements);
         if (parents_lists[iterate]->num_elements > 0) free(parents_lists[iterate]->elements);
@@ -8039,10 +8037,7 @@ void generate_lists(struct Volume_struct **Volumes, struct starting_lists_struct
         free(true_children_lists[iterate]);
     }
     //printf("generate lists volume specific free completed\n");
-    // The raw overlap lists are handed to the caller when asked for, else freed
-    if (overlap_lists) *overlap_lists = raw_overlap_lists;
-    else free(raw_overlap_lists);
-    free(true_overlap_lists);free(parents_lists);free(true_parents_lists);free(true_parents_lists_no_masks);
+    free(true_overlap_lists);free(raw_overlap_lists);free(parents_lists);free(true_parents_lists);free(true_parents_lists_no_masks);
     free(parents_lists_no_masks);free(true_grandparents_lists);free(grandparents_lists);free(grandparents_lists_no_masks);free(true_grandparents_lists_no_masks);
     free(true_children_lists);
     //printf("generate lists free completed\n");
