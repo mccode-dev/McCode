@@ -8,6 +8,59 @@ var transformPoints = function(apoints, transform)
     geometry.applyMatrix(transform);
     return geometry.vertices.slice();
 }
+// helpers for merged geometry: append the values of array b to list a; buffer attribute; line segments
+var pushAll = function(a, b) { for (var i = 0; i < b.length; i++) { a.push(b[i]); } }
+var floats = function(list) { return new THREE.BufferAttribute(new Float32Array(list), 3); }
+var lineSegments = function(list, color)
+{
+    var geometry = new THREE.BufferGeometry();
+    geometry.addAttribute('position', floats(list));
+    return new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({color: color}));
+}
+// --simdir monitor data for the colour map or curve: rows z, as is or log10 (zero and negative bins at a tenth
+// of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
+var monitorValues = function(z, log)
+{
+    var pos = Infinity, max = -Infinity;
+    z.forEach(function(r) { r.forEach(function(v) { if (v > 0 && v < pos) { pos = v; } }); });
+    if (log && pos < Infinity) {
+        var floor = Math.log10(pos/10);
+        z = z.map(function(r) { return r.map(function(v) { return v > 0 ? Math.log10(v) : floor; }); });
+    }
+    z.forEach(function(r) { r.forEach(function(v) { if (v > max) { max = v; } }); });
+    var min = log && pos < Infinity ? Math.log10(pos/10) : 0;
+    return {z: z, min: min, max: max > min ? max : min + 1};
+}
+// paint --simdir monitor data on canvas: 2D as a colour map, 1D as a curve (on curved monitors along the angle)
+var paintMonitor = function(canvas, mon, curved, log)
+{
+    var ctx = canvas.getContext("2d");
+    if (mon.z) {
+        var s = monitorValues(mon.z, log), z = s.z, ny = z.length, nx = z[0].length;
+        var lut = new THREE.Lut("rainbow", 256);
+        lut.setMin(s.min); lut.setMax(s.max);
+        canvas.width = nx; canvas.height = ny;
+        var img = ctx.createImageData(nx, ny);
+        for (var iy = 0; iy < ny; iy++) {
+            for (var ix = 0; ix < nx; ix++) {
+                var c = lut.getColor(z[iy][ix]), k = 4*((ny - 1 - iy)*nx + ix);
+                img.data[k] = 255*c.r; img.data[k+1] = 255*c.g; img.data[k+2] = 255*c.b; img.data[k+3] = 255;
+            }
+        }
+        ctx.putImageData(img, 0, 0);
+    } else {
+        var s = monitorValues([mon.y], log), y = s.z[0], n = y.length;
+        var w = curved ? 1024 : 256; // curved monitors are long
+        canvas.width = w; canvas.height = 256;
+        ctx.fillStyle = "white"; ctx.fillRect(0, 0, w, 256);
+        // flat: +x is on the left looking along the beam: mirror, so it reads from upstream; curved: x is the angle
+        if (!curved) { ctx.translate(w, 0); ctx.scale(-1, 1); }
+        ctx.strokeStyle = "blue"; ctx.lineWidth = 3; ctx.beginPath();
+        for (var i = 0; i < n; i++) { ctx.lineTo(w*(i + 0.5)/n, 248 - 220*(y[i] - s.min)/(s.max - s.min)); } // bin centres
+        ctx.stroke();
+        ctx.fillStyle = "black"; ctx.font = "16px sans-serif"; ctx.fillText((mon.xlabel || "") + (log ? ", log" : ""), 8, 20);
+    }
+}
 // "main" class which is a collection of scene graph setup routives and data objects
 //
 var Main = function ()
@@ -28,10 +81,17 @@ var Main = function ()
     this.raynodes = [];
     this.linenodes = []; // --trace=2 shapes as lines (all edges)
     this.surfnodes = []; // --trace=2 shapes as surfaces
+    this.monnodes = []; // --simdir monitor data, flat monitors
+    this.curvednodes = []; // and curved ones
+    this.logMonitors = false; // their log scale
+    this.showData = {"1D": true, "2D": true, curved: true}; // and which are shown
 
     this.iRay = -1;
 
     this.lut = null;
+    this.smooth = true; // tour: no stops (Smooth checkbox)
+    this.tourSpeed = 1; // tour clock rate (speed slider)
+    this.tourPaused = false; // tour clock stopped (Pause button)
 }
 // add circle to xy, xz or yz plane
 //
@@ -42,58 +102,81 @@ Main.prototype.addCircle = function(plane, x, y, z, radius, parent, linecolor)
         return;
     }
 
-    var wrapper = new THREE.Object3D();
     var m = new THREE.Matrix4()
     if (plane == 'xy') { } // identity
     if (plane == 'xz') { m.makeRotationX( Math.PI/2 ); }
     if (plane == 'yz') { m.makeRotationY( Math.PI/2 ); }
+    m.setPosition(new THREE.Vector3(x, y, z));
 
     var segments = 48;
     var circleGeometry = new THREE.CircleGeometry( radius, segments );
     circleGeometry.vertices.shift(); // removes center vertex
-    var material = new THREE.MeshBasicMaterial( {color: linecolor} );
-    material.side = THREE.DoubleSide;
-
-    var circle = new THREE.Line( circleGeometry, material ); // THREE.Mesh results in solid coloring
-
-    circle.applyMatrix(m);
-
-    circle.position.x = x;
-    circle.position.y = y;
-    circle.position.z = z;
-
-    parent.add( circle );
+    circleGeometry.applyMatrix(m);
+    this.addMultiLineV3(circleGeometry.vertices, parent, linecolor);
 }
 // add a geometry as lines (its edges) and a semi-transparent surface (unless outline: lines only),
 // centred at (x, y, z), turning the geometry's own axis (a THREE.Vector3) to n = [nx, ny, nz] (--trace=2 shapes)
 Main.prototype.addShape = function(geometry, x, y, z, axis, n, parent, linecolor, outline)
 {
-    var node = new THREE.Object3D();
-    var lines = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({color: linecolor}));
-    node.add(lines);
-    if (!outline) {
-        var surf = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({color: linecolor, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
+    var m = new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(axis, new THREE.Vector3(n[0], n[1], n[2]).normalize()));
+    geometry.applyMatrix(m.setPosition(new THREE.Vector3(x, y, z)));
+    if (outline) { pushAll(this.merged(parent, "lines", linecolor), new THREE.EdgesGeometry(geometry).attributes.position.array); }
+    else { this.merged(parent, "shapes", linecolor).push(geometry); }
+}
+// the list of what is drawn in a component so far in one colour, kind "lines" (coordinates of line segments)
+// or "shapes" (geometries), to be merged into one object by mergeDrawing
+Main.prototype.merged = function(node, kind, color)
+{
+    var d = node.userData[kind] = node.userData[kind] || {};
+    d[color] = d[color] || {color: color, list: []};
+    return d[color].list;
+}
+// draw the lines and shapes of a component: one object per colour, as drawing many objects is slow
+Main.prototype.mergeDrawing = function(node)
+{
+    var lines = node.userData.lines || {}, shapes = node.userData.shapes || {};
+    for (var c in lines) { node.add(lineSegments(lines[c].list, lines[c].color)); }
+    for (var c in shapes) {
+        var pos = [], nor = [];
+        shapes[c].list.forEach(function(g) {
+            g.faces.forEach(function(f) {
+                [f.a, f.b, f.c].forEach(function(k, i) {
+                    var v = g.vertices[k], n = f.vertexNormals.length == 3 ? f.vertexNormals[i] : f.normal;
+                    pos.push(v.x, v.y, v.z); nor.push(n.x, n.y, n.z);
+                });
+            });
+        });
+        var geometry = new THREE.BufferGeometry();
+        geometry.addAttribute('position', floats(pos));
+        geometry.addAttribute('normal', floats(nor));
+        var surf = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({color: shapes[c].color, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
+        surf.userData = shapes[c]; // for the edges, see showShapes
         node.add(surf);
-        lines.visible = false; // default: surfaces only, lines with the Lines checkbox
-        this.linenodes.push(lines);
         this.surfnodes.push(surf);
     }
-    node.quaternion.setFromUnitVectors(axis, new THREE.Vector3(n[0], n[1], n[2]).normalize());
-    node.position.set(x, y, z);
-    parent.add(node);
+    node.userData = {};
 }
 // show --trace=2 shapes as surfaces and/or lines
 Main.prototype.showShapes = function(surfaces, lines)
 {
-    for (var i = 0; i < this.surfnodes.length; i++) {
-        this.surfnodes[i].visible = surfaces;
-        this.linenodes[i].visible = lines;
+    if (lines && this.linenodes.length == 0) { // the edges, made when first shown
+        this.linenodes = this.surfnodes.map(function(surf) {
+            var pos = [];
+            surf.userData.list.forEach(function(g) { pushAll(pos, new THREE.EdgesGeometry(g).attributes.position.array); });
+            var node = lineSegments(pos, surf.userData.color);
+            surf.parent.add(node);
+            surf.userData = {};
+            return node;
+        });
     }
+    this.surfnodes.forEach(function(surf) { surf.visible = surfaces; });
+    this.linenodes.forEach(function(node) { node.visible = lines; });
 }
 // opacity (0..1) of the --trace=2 shape surfaces
 Main.prototype.setSurfaceOpacity = function(opacity)
 {
     for (var i = 0; i < this.surfnodes.length; i++) { this.surfnodes[i].material.opacity = opacity; }
+    this.monnodes.concat(this.curvednodes).forEach(function(m) { m.material.opacity = opacity; });
 }
 // add a polyhedron given as {"vertices": [[x,y,z], ...], "faces": [{"face": [i,j,k,...]}, ...]}
 // (OFF files and polygons at --trace=2)
@@ -157,14 +240,14 @@ Main.prototype.init = function(campos, invert, box)
 
     this.camera.lookAt(this.controls.target);
 
-    // double-click a component: turn the camera to its centre
+    // double-click a component: turn the camera to its centre, from where it is
     var _this = this;
     this.renderer.domElement.addEventListener('dblclick', function(e) { _this.focusComponent(e); });
 
     this.addLight(new THREE.Vector3(10, 50, 130))
     this.scene.add(this.rootnode);
 }
-//  point the orbit target at the centre of the component under the mouse
+//  turn the orbit target to the centre of the component under the mouse, the camera stays in place
 Main.prototype.focusComponent = function(e)
 {
     var r = e.target.getBoundingClientRect();
@@ -177,13 +260,107 @@ Main.prototype.focusComponent = function(e)
     if (hits.length == 0) { return; }
     var comp = hits[0].object;
     while (nodes.indexOf(comp) < 0) { comp = comp.parent; }
-    new THREE.Box3().setFromObject(comp).center(this.controls.target);
+    // viewing angles from the camera, as in OrbitControls
+    var pos = this.camera.position;
+    var from = new THREE.Spherical().setFromVector3(pos.clone().sub(this.controls.target));
+    var to = new THREE.Spherical().setFromVector3(pos.clone().sub(new THREE.Box3().setFromObject(comp).center()));
+    to.theta -= 2*Math.PI*Math.round((to.theta - from.theta)/(2*Math.PI)); // the short way round
+    this.turn = { from: from, to: to, start: performance.now() };
+}
+//  advance a turn started by focusComponent, called every frame
+Main.prototype.animateTurn = function()
+{
+    if (!this.turn) { return; }
+    var a = this.turn.from, b = this.turn.to;
+    var t = Math.min(1, (performance.now() - this.turn.start) / TURN_MS);
+    var s = t*t*(3 - 2*t);
+    var look = new THREE.Vector3().setFromSpherical(new THREE.Spherical(
+        a.radius + s*(b.radius - a.radius), a.phi + s*(b.phi - a.phi), a.theta + s*(b.theta - a.theta)));
+    this.controls.target.copy(this.camera.position).sub(look);
     this.controls.update();
+    if (t == 1) { this.turn = null; }
+}
+//  tour: the stops, {name, position, quaternion}: the campath file points with usePath, else the components
+Main.prototype.tourStops = function()
+{
+    if (this.usePath) { return this.campath; }
+    return Object.keys(this.compnodes)
+        .filter(function(k) { return !new THREE.Box3().setFromObject(this.compnodes[k]).isEmpty(); }, this) // e.g. Arm draws nothing
+        .filter(function(k, i, a) { // skip ahead past components at the previous one's position (within 1 mm)
+            return i == 0 || this.compnodes[k].position.distanceTo(this.compnodes[a[i-1]].position) >= 1e-3; }, this)
+        .map(function(k) { var n = this.compnodes[k]; return { name: k, position: n.position, quaternion: n.quaternion }; }, this);
+}
+//  tour: stops P1, P2, ... from the campath file points: x y z, optionally the viewing direction dx dy dz,
+//  else towards the next point (the last keeps the previous direction); the stop's z axis is the viewing direction
+Main.prototype.setCampath = function(points)
+{
+    var Z = new THREE.Vector3(0, 0, 1);
+    var pts = points.map(function(p) { return new THREE.Vector3(p[0], p[1], p[2]); });
+    this.campath = points.map(function(p, i) {
+        var j = Math.min(i, pts.length - 2);
+        var dir = p.length == 6 ? new THREE.Vector3(p[3], p[4], p[5]) : pts[j+1].clone().sub(pts[j]);
+        return { name: "P" + (i+1), position: pts[i], quaternion: new THREE.Quaternion().setFromUnitVectors(Z, dir.normalize()) };
+    });
+}
+//  tour: fly the camera to the next stop (a component origin or campath point), looking along its z axis
+//  (the neutron direction) with beam, else in the current direction; then sit sitMs and call next;
+//  returns the stop name
+//      offset  -  [x, y, z] camera displacement from the origin, in the component frame
+//      view    -  [x, y, z] added to the viewing direction 0 0 1 with beam, in the component frame
+Main.prototype.flyToNext = function(beam, offset, view, sitMs, next)
+{
+    var stops = this.tourStops();
+    if (stops.length == 0) { return ""; }
+    this.tourIdx = ((this.tourIdx === undefined ? -1 : this.tourIdx) + 1) % stops.length;
+    var node = stops[this.tourIdx];
+    var look = this.controls.target.clone().sub(this.camera.position); // keeps the orbit distance
+    if (beam) {
+        var dir = new THREE.Vector3().fromArray(view).add(new THREE.Vector3(0, 0, 1));
+        if (dir.length() < 1e-9) { dir.set(0, 0, 1); } // camera and target must differ
+        look = dir.normalize().applyQuaternion(node.quaternion).multiplyScalar(look.length());
+    }
+    var pos = new THREE.Vector3().fromArray(offset).applyQuaternion(node.quaternion).add(node.position);
+    this.fly = { posFrom: this.camera.position.clone(), posTo: pos,
+                 tgtFrom: this.controls.target.clone(), tgtTo: pos.clone().add(look), t: 0, ms: FLY_MS, sit: sitMs, next: next };
+    return node.name;
+}
+//  tour: stop or restart the tour clock; on restart, the flight goes on from where the camera is (it may have been moved)
+Main.prototype.pauseTour = function(paused)
+{
+    this.tourPaused = paused;
+    var f = this.fly;
+    if (paused || !f || f.t >= f.ms) { return; }
+    f.posFrom.copy(this.camera.position);
+    f.tgtFrom.copy(this.controls.target);
+    f.ms -= f.t;
+    f.t = 0;
+}
+//  advance a flight started by flyToNext, called every frame: the tour clock runs at tourSpeed, unless paused
+Main.prototype.animate = function()
+{
+    var now = performance.now(), dt = this.tourLast === undefined ? 0 : Math.min(100, now - this.tourLast); // no jump after a hidden tab
+    this.tourLast = now;
+    var f = this.fly;
+    if (!f || this.tourPaused) { return; }
+    var flying = f.t < f.ms;
+    f.t += dt*this.tourSpeed;
+    if (flying) { // after arrival, the camera is free during the sit
+        var t = Math.min(1, f.t / f.ms);
+        var s = this.smooth ? t : t*t*(3 - 2*t); // smooth: steady, no stop at the component; else smoothstep
+        this.camera.position.lerpVectors(f.posFrom, f.posTo, s);
+        this.controls.target.lerpVectors(f.tgtFrom, f.tgtTo, s);
+        this.controls.update();
+    }
+    if (f.t >= f.ms + f.sit) {
+        this.fly = null;
+        if (f.next) { f.next(); }
+    }
 }
 //  cat camera view according to campos, a Vector3
 //
 Main.prototype.setCameraView = function(campos)
 {
+    this.turn = null;
     this.camera.position.x = campos.x;
     this.camera.position.y = campos.y;
     this.camera.position.z = campos.z;
@@ -198,11 +375,11 @@ Main.prototype.setCameraView = function(campos)
 // 		arrVector3  -  an array of THREE.Vector3 instances
 Main.prototype.addMultiLineV3 = function(arrVector3, parent, linecolor)
 {
-    var multilinematerial = new THREE.LineBasicMaterial({color: linecolor});
-    var multilinegeometry = new THREE.Geometry();
-    multilinegeometry.vertices = arrVector3;
-    var multiline = new THREE.Line(multilinegeometry, multilinematerial);
-    parent.add(multiline);
+    var list = this.merged(parent, "lines", linecolor);
+    for (var i = 0; i + 1 < arrVector3.length; i++) {
+        var a = arrVector3[i], b = arrVector3[i+1];
+        list.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    }
 }
 // add multiline proxy method
 //		points  -  array of single points
@@ -221,18 +398,11 @@ Main.prototype.addMultiLine = function(points, parent, linecolor)
 //
 Main.prototype.putScatterPoints = function(raynode)
 {
-    var v;
-    var vtx = raynode.vtx;
-    for (var i = 0; i < vtx.length; i++)
-    {
-        var geometry = new THREE.BoxGeometry( 0.007, 0.007, 0.007 );
-        v = vtx[i];
-        geometry.translate(v.x, v.y, v.z);
-        var material = new THREE.MeshBasicMaterial({ color: raynode.lut_color });
-        var cube = new THREE.Mesh( geometry, material );
-
-        raynode.annotcubes.add( cube );
-    }
+    var cubes = new THREE.Geometry();
+    raynode.vtx.forEach(function(v) {
+        cubes.merge(new THREE.BoxGeometry( 0.007, 0.007, 0.007 ), new THREE.Matrix4().makeTranslation(v.x, v.y, v.z));
+    });
+    raynode.annotcubes.add(new THREE.Mesh(cubes, new THREE.MeshBasicMaterial({ color: raynode.lut_color })));
 }
 
 //  set color lookuptable min/max range
@@ -272,6 +442,74 @@ Main.prototype.addComponent = function(compname)
     this.rootnode.add(comp);
     this.compnodes[compname] = comp;
     return comp;
+}
+// --simdir monitor data on the monitor's drawing (component frame), as in mcplot (first row at ymin):
+// flat monitors: 2D as a colour map on the drawn xy rectangle, 1D as a curve;
+// curved monitors (drawn with depth, angle along x): the same on a cylinder or sphere (latitude along y);
+// down: the monitor is upside down in the instrument, turn 1D curves upright
+Main.prototype.addMonitorData = function(node, mon, down)
+{
+    var box = new THREE.Box3().setFromObject(node); // the drawing, before the component transform
+    var w = box.max.x - box.min.x, h = box.max.y - box.min.y;
+    // longitude atan2(x, z) in Monitor_nD and PSD_monitor_4PI; PSDcyl_monitor adds 180 deg
+    var off = /^Longitude/.test(mon.xlabel) ? 0 : /^radial position/.test(mon.xlabel) ? -180 : null;
+    var curved = box.max.z - box.min.z > 1e-9 && off !== null;
+    if (!curved && !(w > 0 && h > 0)) { return; }
+    var canvas = document.createElement("canvas");
+    paintMonitor(canvas, mon, curved, this.logMonitors);
+    var tex = new THREE.Texture(canvas);
+    tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    var geometry, pos = box.center(); // three r78: center(), not getCenter()
+    if (curved) {
+        // radius: farthest drawn point, from the centre (sphere) or the y axis (cylinder)
+        var r = 0, rxz = 0, D = Math.PI/180, lim = mon.limits;
+        node.updateMatrixWorld(true);
+        node.traverse(function(o) {
+            if (!o.geometry) { return; }
+            var a = o.geometry.attributes.position.array;
+            for (var i = 0; i < a.length; i += 3) {
+                var p = new THREE.Vector3(a[i], a[i+1], a[i+2]).applyMatrix4(o.matrixWorld);
+                r = Math.max(r, p.length()); rxz = Math.max(rxz, Math.sqrt(p.x*p.x + p.z*p.z));
+            }
+        });
+        var a0 = lim[0] + off, a1 = lim[1] + off;
+        if (mon.z && /^Latitude/.test(mon.ylabel)) {
+            geometry = new THREE.SphereGeometry(r, 64, 32, (a0 + 90)*D, (a1 - a0)*D, (90 - lim[3])*D, (lim[3] - lim[2])*D);
+            pos = new THREE.Vector3();
+        } else {
+            if (mon.z && /\[m\]/.test(mon.ylabel)) { h = lim[3] - lim[2]; pos.y = (lim[3] + lim[2])/2; } // e.g. PSDcyl_monitor draws no height
+            geometry = new THREE.CylinderGeometry(rxz, rxz, h, 64, 1, true, a0*D, (a1 - a0)*D);
+            pos = new THREE.Vector3(0, pos.y, 0);
+        }
+    } else {
+        geometry = new THREE.PlaneGeometry(w, h);
+    }
+    var surf = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({map: tex, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
+    surf.position.copy(pos);
+    if (down && !mon.z) { surf.scale.set(curved ? 1 : -1, -1, 1); } // flat: turned, curved: x is the angle
+    surf.name = mon.title;
+    surf.userData.mon = mon; surf.userData.curved = curved; // to repaint (setMonitorLog)
+    node.add(surf);
+    (curved ? this.curvednodes : this.monnodes).push(surf);
+}
+// monitor data on a linear or log scale
+Main.prototype.setMonitorLog = function(log)
+{
+    this.logMonitors = log;
+    this.monnodes.concat(this.curvednodes).forEach(function(m) {
+        paintMonitor(m.material.map.image, m.userData.mon, m.userData.curved, log);
+        m.material.map.needsUpdate = true;
+    });
+}
+// show or hide the --simdir monitor data: kind "1D", "2D" or "curved" (any curved monitor)
+Main.prototype.showMonitorData = function(kind, on)
+{
+    var show = this.showData;
+    show[kind] = on;
+    this.monnodes.concat(this.curvednodes).forEach(function(m) {
+        m.visible = (m.userData.mon.z ? show["2D"] : show["1D"]) && (!m.userData.curved || show.curved);
+    });
 }
 // returns a cyclically new color intended for a component draw node
 //
@@ -437,6 +675,10 @@ TraceLoader.prototype.loadInstr = function()
             drawFunc(call, comp_node, call['color'] || acolor);
         }
 
+        main.mergeDrawing(comp_node);
+        var mon = (instr['monitors'] || {})[compname];
+        if (mon) { main.addMonitorData(comp_node, mon, m4[5] < 0); }
+
         comp_matrix = new THREE.Matrix4();
         comp_matrix.set(m4[0], m4[1], m4[2], m4[3], m4[4], m4[5], m4[6], m4[7], m4[8], m4[9], m4[10], m4[11], m4[12], m4[13], m4[14], m4[15]);
         comp_node.applyMatrix(comp_matrix);
@@ -453,6 +695,7 @@ TraceLoader.prototype.loadInstr = function()
 
         drawFunc(call, main.bbnode, 0x808080);
     }
+    main.mergeDrawing(main.bbnode);
 }
 // load particle rays
 //
@@ -532,6 +775,8 @@ Controller.prototype.run = function()
     var renderLoop = function()
     {
     	requestAnimationFrame(renderLoop);
+    	_this.main.animate();
+    	_this.main.animateTurn();
     	_this.main.renderer.render(_this.main.scene, _this.main.camera);
     }
     var busy = false;
@@ -640,6 +885,8 @@ Controller.prototype.setViewHome = function()
 var Y_AXIS = new THREE.Vector3(0, 1, 0);
 var Z_AXIS = new THREE.Vector3(0, 0, 1);
 var SEGMENTS = 24;
+var FLY_MS = 1000; // tour: flight time between components at speed 1
+var TURN_MS = 500; // double-click: time to turn to a component
 
 //  enum for playback state
 //

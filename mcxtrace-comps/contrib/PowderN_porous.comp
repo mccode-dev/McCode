@@ -1,0 +1,358 @@
+/*******************************************************************************
+*
+* McXtrace, X-ray tracing package
+*         Copyright (C) 1997-2026, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*
+* Component: PowderN_porous
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Nov 2026
+* Origin: DTU
+*
+* Porous PowderN: powder matrix with mesh pores, partly filled by a liquid
+*
+* %D
+* PowderN (INHERIT) with a pore mesh inside the matrix. All PowderN parameters
+* describe the matrix material and its outer shape (box, cylinder, sphere or
+* geometry= OFF file; hollow shapes/concentric are not supported).
+*
+* pores: closed mesh file (OFF/PLY/STL, coordinates in m in the component frame)
+*   with one closed, outward oriented shell per pore. Shells may overlap and
+*   stick out of the outer shape (open channels); see make_pores.py in
+*   examples/Tests_samples/Test_PowderN_porous.
+* Pores are void above y = fill_y and filled with a liquid below (e.g. water
+*   sucked up through the pores). The liquid is given by an attenuation table
+*   fill_material (first column E [keV], mass coefficients in [cm^2/g]) and
+*   fill_density. Column fill_col_tot holds the total attenuation, column
+*   fill_col_scat (optional) the part scattered, here isotropically. The defaults
+*   fit the NIST element tables in the McXtrace data folder (e.g. H.txt, O.txt).
+*   fill_material="NULL" leaves all pores void.
+*
+* Single scattering as PowderN: each ray is transmitted, or scattered once
+* (matrix coherent/incoherent or liquid diffuse), attenuated along the full
+* in- and outgoing paths through matrix and liquid.
+* Rays crossing more than GMESH_MAX_HITS (50) pore surfaces lose the farther
+* pores; raise it with DEPENDENCY " -DGMESH_MAX_HITS=200 " in the instrument.
+* The limit is printed at start, and FINALLY reports how many rays reached it.
+*
+* Example: PowderN_porous(reflections="Si.laz", material="Si.txt", density=2.33,
+*   mat_format={0,3,0,5,0}, radius=5e-4, yheight=2e-3, pores="pores.off",
+*   fill_y=0, fill_material="H2O_mix.txt", fill_density=1)
+*
+* %P
+* pores: [str]             Closed mesh file with the pores. "NULL": no pores.
+* fill_y: [m]              Pores below this height (local y) hold the liquid.
+* fill_material: [str]     Attenuation table of the liquid. "NULL": no liquid.
+* fill_density: [g/cm^3]   Density of the liquid.
+* fill_col_tot: [1]        Column (from 0) of total mass attenuation in fill_material.
+* fill_col_scat: [1]       Column (from 0) of scattering mass coefficient in fill_material, 0: no liquid scattering.
+* p_fill: [1]              Fraction of rays scattered in the liquid.
+* (all others):            See PowderN.
+*
+* %L
+* See also: PowderN
+*
+* %E
+*******************************************************************************/
+DEFINE COMPONENT PowderN_porous INHERIT PowderN
+
+SETTING PARAMETERS (string pores="NULL", fill_y=0, string fill_material="NULL", fill_density=1,
+  int fill_col_tot=5, int fill_col_scat=4, p_fill=0.1)
+
+SHARE INHERIT PowderN EXTEND
+%{
+  %include "geometry-mesh-lib"
+  #ifndef POWDERN_POROUS_DECL
+  #define POWDERN_POROUS_DECL
+  #define PPOR_MAX (GMESH_MAX_HITS + 3)
+
+  /* Path of the line (x,y,z)+l*(ux,uy,uz), |u|=1, through the outer shape, cut
+     into segments ls[k]..ls[k+1] [m] of material mat[k]: 0 matrix, 1 liquid,
+     2 void. Returns the number of segments, 0 when the shape is not ahead. */
+  #pragma acc routine seq
+  int
+  ppor_path (int shape, off_struct* od, gmesh_struct* pm, double r, double xw, double yh, double zd, double yfill,
+             double x, double y, double z, double ux, double uy, double uz, double* ls, int* mat, int* nhits) {
+    gmesh_hit hits[GMESH_MAX_HITS];
+    double l0 = 0, l3 = 0, lb, lf;
+    int hit = 0, nh = 0, i, n = 0, depth = 0;
+    if (shape == 0)
+      hit = cylinder_intersect (&l0, &l3, x, y, z, ux, uy, uz, r, yh);
+    else if (shape == 1)
+      hit = box_intersect (&l0, &l3, x, y, z, ux, uy, uz, xw, yh, zd);
+    else if (shape == 2)
+      hit = sphere_intersect (&l0, &l3, x, y, z, ux, uy, uz, r);
+    #ifdef USE_OFF
+    else if (shape == 3)
+      hit = off_x_intersect (&l0, &l3, NULL, NULL, x, y, z, ux, uy, uz, *od);
+    #endif
+    *nhits = 0;
+    if (!hit || l3 <= 0)
+      return 0;
+    if (pm->ntris) /* whole line: pores sticking out before l0 set the depth there */
+      nh = gmesh_intersect (pm, coords_set (x, y, z), coords_set (ux, uy, uz), -FLT_MAX, hits);
+    *nhits = nh;
+    for (i = 0; i < nh && hits[i].time <= l0; i++)
+      depth += hits[i].in_out;
+    lf = uy ? (yfill - y) / uy : -FLT_MAX;
+    ls[0] = l0;
+    for (; i <= nh; i++) {
+      lb = (i < nh && hits[i].time < l3) ? hits[i].time : l3;
+      if (lf > ls[n] && lf < lb) { /* fill level cuts this stretch */
+        mat[n] = depth > 0 ? (y + uy * 0.5 * (ls[n] + lf) < yfill ? 1 : 2) : 0;
+        ls[++n] = lf;
+      }
+      mat[n] = depth > 0 ? (y + uy * 0.5 * (ls[n] + lb) < yfill ? 1 : 2) : 0;
+      ls[++n] = lb;
+      if (lb >= l3)
+        break;
+      depth += hits[i].in_out; /* +1 entering a pore, -1 leaving */
+    }
+    return n;
+  }
+
+  /* sum of (segment length in [la,lb]) * mu[material] */
+  #pragma acc routine seq
+  double
+  ppor_tau (double* ls, int* mat, int n, double la, double lb, double* mu) {
+    double tau = 0, lo, hi;
+    int k;
+    for (k = 0; k < n; k++) {
+      lo = ls[k] > la ? ls[k] : la;
+      hi = ls[k + 1] < lb ? ls[k + 1] : lb;
+      if (hi > lo)
+        tau += (hi - lo) * mu[mat[k]];
+    }
+    return tau;
+  }
+
+  /* distance (>=0) after path length s inside material m */
+  #pragma acc routine seq
+  double
+  ppor_locate (double* ls, int* mat, int n, int m, double s) {
+    double lo, d;
+    int k;
+    for (k = 0; k < n; k++) {
+      lo = ls[k] > 0 ? ls[k] : 0;
+      if (mat[k] != m || ls[k + 1] <= lo)
+        continue;
+      d = ls[k + 1] - lo;
+      if (s <= d)
+        return lo + s;
+      s -= d;
+    }
+    return ls[n];
+  }
+
+  /* column count (PowderN DECLAREs a 'columns' variable) */
+  int
+  ppor_ncols (t_Table* t) {
+    return t->columns;
+  }
+  #endif
+%}
+
+DECLARE INHERIT PowderN EXTEND
+%{
+  gmesh_struct pmesh;
+  t_Table fill_table;
+  int fill_on;
+  double ppor_nnear; /* rays with >= 80 % of GMESH_MAX_HITS pore crossings */
+  double ppor_nfull; /* rays with GMESH_MAX_HITS crossings, farther pores possibly dropped */
+%}
+
+INITIALIZE INHERIT PowderN EXTEND
+%{
+  if (thickness || concentric) {
+    fprintf (stderr, "PowderN_porous: %s: hollow shapes (thickness, concentric) are not supported.\n", NAME_CURRENT_COMP);
+    exit (-1);
+  }
+  if (fill_density < 0) {
+    fprintf (stderr, "PowderN_porous: %s: fill_density=%g must be >= 0.\n", NAME_CURRENT_COMP, fill_density);
+    exit (-1);
+  }
+  if (p_fill < 0 || p_fill > 1) {
+    fprintf (stderr, "PowderN_porous: %s: p_fill=%g must be in [0,1].\n", NAME_CURRENT_COMP, p_fill);
+    exit (-1);
+  }
+  memset (&pmesh, 0, sizeof (pmesh));
+  ppor_nnear = ppor_nfull = 0;
+  if (pores && strlen (pores) && strcmp (pores, "NULL") && strcmp (pores, "0")) {
+    if (!gmesh_init (pores, 1, GMESH_PROPS_IGNORE, &pmesh) || !gmesh_check_closed (&pmesh)) {
+      fprintf (stderr, "PowderN_porous: %s: can not use the pore mesh %s.\n", NAME_CURRENT_COMP, pores);
+      exit (-1);
+    }
+    MPI_MASTER (printf ("PowderN_porous: %s: %ld pore triangles, up to GMESH_MAX_HITS=%d pore surface crossings per ray\n"
+                        "  (raise with DEPENDENCY \" -DGMESH_MAX_HITS=... \" in the instrument).\n",
+                        NAME_CURRENT_COMP, (long)pmesh.ntris, GMESH_MAX_HITS););
+  }
+  fill_on = fill_material && strlen (fill_material) && strcmp (fill_material, "NULL") && strcmp (fill_material, "0");
+  if (fill_on && (Table_Read (&fill_table, fill_material, 0) <= 0 || fill_col_tot < 1 || fill_col_tot >= ppor_ncols (&fill_table)
+                  || fill_col_scat < 0 || fill_col_scat >= ppor_ncols (&fill_table))) {
+    fprintf (stderr, "PowderN_porous: %s: can not use columns %i,%i of the liquid table %s.\n", NAME_CURRENT_COMP, fill_col_tot, fill_col_scat, fill_material);
+    exit (-1);
+  }
+  if (fill_on && !fill_density)
+    printf ("PowderN_porous: %s: WARNING: fill_density=0, pores stay void.\n", NAME_CURRENT_COMP);
+  if (fill_on && !pmesh.ntris)
+    printf ("PowderN_porous: %s: WARNING: no pore mesh, the liquid is not used.\n", NAME_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  double ls[PPOR_MAX], mu[3], L[3], q[4], u0[3] = { 1, 0, 0 }, u1[3] = { 0, 1, 0 };
+  double k, ux, uy, uz, e, w, lsc, my_s = 0, my_a = 0, my_inc = 0, mu_fs = 0, Nq = 0, sum, r, solid_angle;
+  double arg, theta, alpha = 0, alpha0, sg, knorm, tmp_kx, tmp_ky, tmp_kz, kout_x, kout_y, kout_z, nx, ny, nz, k1;
+  double d_phi_thread = d_phi;
+  int mat[PPOR_MAX], n, ev, m, line, nh;
+  gmesh_struct pm = pmesh; /* per-thread copies, as PowderN on GPU */
+  off_struct od = offdata;
+
+  k = sqrt (kx * kx + ky * ky + kz * kz);
+  ux = kx / k; uy = ky / k; uz = kz / k;
+  n = ppor_path (line_info.shape, &od, &pm, radius, xwidth, yheight, zdepth, fill_y, x, y, z, ux, uy, uz, ls, mat, &nh);
+  if (nh >= 0.8 * GMESH_MAX_HITS) { /* rare: atomics only here */
+    #pragma acc atomic
+    ppor_nnear += 1;
+    if (nh >= GMESH_MAX_HITS) {
+      #pragma acc atomic
+      ppor_nfull += 1;
+    }
+  }
+  if (n) {
+    e = k * K2E;
+    if (line_info.V_0 > 0) {
+      if (line_info.count) {
+        Nq = calc_xsect (k, line_info.q, line_info.my_s_k2, line_info.count, &sum, &line_info);
+        my_s = pack * sum / (k * k);
+      }
+      calc_abs_xsect (k, &my_a, &line_info);
+      calc_inc_xsect (k, line_info.count ? sum / (k * k) : 0, my_a, &my_inc, &line_info);
+      my_a *= pack;
+      my_inc *= pack;
+    }
+    mu[0] = my_a + my_s + my_inc;
+    mu[1] = fill_on ? Table_Value (fill_table, e, fill_col_tot) * 100 * fill_density : 0;
+    mu[2] = 0;
+    if (fill_on && fill_col_scat)
+      mu_fs = Table_Value (fill_table, e, fill_col_scat) * 100 * fill_density;
+    L[0] = ppor_tau (ls, mat, n, 0, ls[n], u0);
+    L[1] = ppor_tau (ls, mat, n, 0, ls[n], u1);
+
+    /* event: 0 transmit, 1 matrix incoherent, 2 matrix coherent, 3 liquid diffuse */
+    q[0] = p_transmit;
+    q[1] = (L[0] > 0 && my_inc > 0) ? p_inc : 0;
+    q[2] = (L[0] > 0 && Nq > 0) ? p_interact : 0;
+    q[3] = (L[1] > 0 && mu_fs > 0) ? p_fill : 0;
+    sum = q[0] + q[1] + q[2] + q[3];
+    r = rand01 () * sum;
+    for (ev = 0; ev < 3 && r >= q[ev]; ev++)
+      r -= q[ev];
+    if (!q[ev])
+      ev = 0; /* rand01() == 1.0 edge */
+
+    if (ev == 0) {
+      p *= exp (-ppor_tau (ls, mat, n, 0, ls[n], mu)) * sum / q[0];
+    } else {
+      m = (ev == 3);
+      lsc = ppor_locate (ls, mat, n, m, rand01 () * L[m]);
+      w = L[m] * exp (-ppor_tau (ls, mat, n, 0, lsc, mu)) * sum / q[ev];
+      PROP_DL (lsc);
+      SCATTER;
+      if (ev == 2) { /* Bragg, as PowderN */
+        line = Nq > 1 ? floor (Nq * rand01 ()) : 0;
+        if (line >= Nq)
+          line = Nq - 1;
+        arg = line_info.q[line] * (1 + (line_info.w[line] ? line_info.w[line] * randnorm () : 0)) / (2.0 * k);
+        if (fabs (arg) > 1)
+          ABSORB;
+        sg = tth_sign ? (tth_sign > 0 ? 1 : -1) : (randpm1 () > 0 ? 1 : -1);
+        theta = asin (arg);
+        if (d_phi_thread) {
+          arg = sin (d_phi_thread * DEG2RAD / 2) / sin (2 * theta);
+          if (arg < -1 || arg > 1)
+            d_phi_thread = 0;
+          else
+            alpha = 2 * asin (arg);
+        }
+        if (d_phi_thread)
+          alpha0 = 0.5 * randpm1 () * fabs (alpha) + (focus_flip ? M_PI_2 : 0);
+        else
+          alpha0 = M_PI * randpm1 ();
+        knorm = 0;
+        if (target_index) {
+          vec_prod (tmp_kx, tmp_ky, tmp_kz, kx, ky, kz, tgt_x, tgt_y, tgt_z);
+          knorm = sqrt (tmp_kx * tmp_kx + tmp_ky * tmp_ky + tmp_kz * tmp_kz) / k;
+        }
+        if (knorm < 0.01) {
+          if (fabs (kx) < fabs (kz)) {
+            nx = 1; ny = 0; nz = 0;
+          } else {
+            nx = 0; ny = 0; nz = 1;
+          }
+          vec_prod (tmp_kx, tmp_ky, tmp_kz, kx, ky, kz, nx, ny, nz);
+        }
+        rotate (kout_x, kout_y, kout_z, kx, ky, kz, 2 * sg * theta, tmp_kx, tmp_ky, tmp_kz);
+        rotate (tmp_kx, tmp_ky, tmp_kz, kout_x, kout_y, kout_z, alpha0, kx, ky, kz);
+        kx = tmp_kx;
+        ky = tmp_ky;
+        kz = tmp_kz;
+        if (Ex != 0 || Ey != 0 || Ez != 0) { /* polarisation, as PowderN */
+          double EE = sqrt (Ex * Ex + Ey * Ey + Ez * Ez);
+          double s = scalar_prod (kx, ky, kz, Ex, Ey, Ez) / k / EE;
+          w *= (1 - s) * (1 - s);
+        } else
+          w *= (1 + cos (theta) * cos (theta)) * 0.5;
+        w *= Nq * pack * line_info.my_s_k2[line] / (k * k);
+        if (d_phi_thread) {
+          w *= fabs (alpha) / PI;
+          if (tth_sign)
+            w *= 0.5;
+        }
+      } else { /* incoherent matrix or diffuse liquid, isotropic as PowderN */
+        if (d_omega && d_phi_thread)
+          randvec_target_rect_angular (&kx, &ky, &kz, &solid_angle, tgt_x, tgt_y, tgt_z, d_omega * DEG2RAD, d_phi_thread * DEG2RAD, ROT_A_CURRENT_COMP);
+        else if (d_phi_thread)
+          randvec_target_rect_angular (&kx, &ky, &kz, &solid_angle, tgt_x, tgt_y, tgt_z, 2 * PI, d_phi_thread * DEG2RAD, ROT_A_CURRENT_COMP);
+        else
+          randvec_target_circle (&kx, &ky, &kz, &solid_angle, 0, 0, 1, 0);
+        k1 = sqrt (kx * kx + ky * ky + kz * kz);
+        kx *= k / k1;
+        ky *= k / k1;
+        kz *= k / k1;
+        w *= (m ? mu_fs : my_inc) * solid_angle / (4 * PI);
+      }
+      ux = kx / k; uy = ky / k; uz = kz / k;
+      n = ppor_path (line_info.shape, &od, &pm, radius, xwidth, yheight, zdepth, fill_y, x, y, z, ux, uy, uz, ls, mat, &nh);
+      if (!n)
+        ABSORB; /* rounding at the surface */
+      p *= w * exp (-ppor_tau (ls, mat, n, 0, ls[n], mu));
+    }
+  }
+%}
+
+FINALLY INHERIT PowderN EXTEND
+%{
+  #ifdef USE_MPI
+  if (mpi_node_count > 1) {
+    mc_MPI_Sum (&ppor_nnear, 1);
+    mc_MPI_Sum (&ppor_nfull, 1);
+  }
+  #endif
+  MPI_MASTER (if (ppor_nnear > 0)
+    printf ("PowderN_porous: %s: WARNING: %g rays crossed >= 80 %% and %g rays 100 %% of GMESH_MAX_HITS=%d pore surfaces\n"
+            "  (at 100 %%, farther pores may be dropped). Raise with DEPENDENCY \" -DGMESH_MAX_HITS=... \".\n",
+            NAME_CURRENT_COMP, ppor_nnear, ppor_nfull, GMESH_MAX_HITS););
+  gmesh_free (&pmesh);
+  if (fill_on)
+    Table_Free (&fill_table);
+%}
+
+MCDISPLAY INHERIT PowderN EXTEND
+%{
+  gmesh_display (&pmesh);
+%}
+
+END

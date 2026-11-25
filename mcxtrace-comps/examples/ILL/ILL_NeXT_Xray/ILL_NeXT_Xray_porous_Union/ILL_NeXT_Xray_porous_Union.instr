@@ -1,0 +1,104 @@
+/*******************************************************************************
+* Instrument: ILL_NeXT_Xray_porous_Union
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Nov 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: ILL
+*
+* NeXT (ILL) X-ray arm with a porous Si sample (Union), water in the pores below fill_y
+*
+* %D
+* ILL_NeXT_Xray_source and ILL_NeXT_Xray_detector (see %include below) with the
+* sample of ILL_NeXT_Xray_porous built from Union components: Si cylinder,
+* water/void cylinders below/above fill_y (1 um inside the matrix), masked by the
+* pore mesh pores.off (in the data folder).
+*
+* McXtrace Union materials have one constant absorption coefficient, so the
+* attenuation is taken from the tables at a single effective energy E_eff:
+*   Si (2.33 g/cm^3, Si.txt): photoelectric -> my_absorption,
+*      coherent + incoherent -> Incoherent_process (isotropic, Bragg not separate)
+*   water (1 g/cm^3, H2O.txt): total attenuation -> my_absorption, no scattering
+* The default E_eff=34.4 keV reproduces the dry transmission (0.21) of ILL_NeXT_Xray_porous
+* at 150 kV without filter; beam hardening is not described.
+* Unlike PowderN_porous this has multiple scattering.
+* All ILL_NeXT_Xray_source parameters are available as well.
+*
+* %Test: ILL_NeXT_Xray_porous_Union.instr -y Detector: Xray_counts_I=1.80367e+11
+*
+* %P
+* SOD:         [m]   Source - object (rotation axis) distance
+* E_eff:       [keV] Energy at which the attenuation coefficients are taken
+* pores:       [str] Pore mesh file (Tests_samples/Test_PowderN_porous/make_pores.py)
+* fill_y:      [m]   Water level in the pores, local y (sample spans +-0.005)
+* water:       [1]   1: water below fill_y, 0: void pores
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT ILL_NeXT_Xray_porous_Union(SOD=0.05, E_eff=34.4, string pores="pores.off", fill_y=0, int water=1)
+
+DEPENDENCY " -DGMESH_MAX_HITS=200 "
+
+DECLARE
+%{
+  double R_s, H_s, eps_s, h_w, h_v, y_w, y_v;
+  double mu_Si_abs, mu_Si_scat, mu_w;
+  char fill_mat[16];
+%}
+
+INITIALIZE
+%{
+  t_Table t;
+  R_s = 0.004; H_s = 0.01; eps_s = 1e-6;
+  double yb = -H_s/2 + eps_s, yt = H_s/2 - eps_s;
+  double fy = fmin(fmax(fill_y, yb + eps_s), yt - eps_s);
+  h_w = fy - yb;          y_w = (fy + yb)/2;
+  h_v = yt - fy + eps_s;  y_v = (yt + fy - eps_s)/2;
+  strcpy(fill_mat, water ? "Water" : "Vacuum");
+
+  /* mass coefficients [cm^2/g] -> [1/m] */
+  if (Table_Read(&t, "Si.txt", 0) <= 0) exit(-1);
+  mu_Si_abs  = Table_Value(t, E_eff, 3)*2.33*100;
+  mu_Si_scat = Table_Value(t, E_eff, 4)*2.33*100;
+  Table_Free(&t);
+  if (Table_Read(&t, "H2O.txt", 0) <= 0) exit(-1);
+  mu_w = Table_Value(t, E_eff, 1)*1.0*100;
+  Table_Free(&t);
+  printf("%s: at E_eff=%g keV: Si abs %g /m, scat %g /m; water %g /m\n",
+         NAME_INSTRUMENT, E_eff, mu_Si_abs, mu_Si_scat, mu_w);
+%}
+
+TRACE
+
+%include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_source/ILL_NeXT_Xray_source.instr"
+
+// Porous Si cylinder, water (H2O) in the pores below fill_y, as Union:
+// matrix cylinder, water/void cylinders below/above fill_y, masked by the pore mesh
+COMPONENT Si_scat = Incoherent_process(sigma=mu_Si_scat/100, unit_cell_volume=1)
+AT (0,0,0) ABSOLUTE
+COMPONENT Si = Union_make_material(process_string="Si_scat", my_absorption=mu_Si_abs)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Water = Union_make_material(my_absorption=mu_w, absorber=1)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT matrix_vol = Union_cylinder(material_string="Si", priority=1, radius=R_s, yheight=H_s)
+AT (0,0,0) RELATIVE sample_rot
+
+COMPONENT water_vol = Union_cylinder(material_string=fill_mat, priority=2, radius=R_s-eps_s, yheight=h_w)
+AT (0,y_w,0) RELATIVE sample_rot
+
+COMPONENT void_vol = Union_cylinder(material_string="Vacuum", priority=3, radius=R_s-eps_s, yheight=h_v)
+AT (0,y_v,0) RELATIVE sample_rot
+
+COMPONENT pore_mask = Union_mesh(filename=pores, coordinate_scale=1, priority=4,
+    mask_string="water_vol,void_vol", mask_setting="Any")
+AT (0,0,0) RELATIVE sample_rot
+
+COMPONENT Sample = Union_master()
+AT (0,0,0) RELATIVE sample_rot
+
+%include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_detector/ILL_NeXT_Xray_detector.instr"
+
+END

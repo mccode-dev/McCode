@@ -1,0 +1,129 @@
+/*******************************************************************************
+*         McXtrace instrument definition URL=https://www.mcxtrace.org
+*
+* Instrument: ILL_NeXT_Xray_source
+*
+* %Identification
+* Written by: DRAFT, Peter Willendrup with Claude from public ILL / NeXT-Grenoble information
+* Date: September 2026
+* Origin: ILL
+* %INSTRUMENT_SITE: ILL
+*
+* NeXT (ILL) X-ray arm: microfocus tube up to the sample rotation axis
+*
+* %Description
+* Building block, %include'd by ILL_NeXT_Xray (Fe rod / flat field) and
+* ILL_NeXT_Xray_porous and ILL_NeXT_Xray_porous_Union:
+*   %include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_source/ILL_NeXT_Xray_source.instr"
+*   (sample, AT (0,0,0) RELATIVE sample_rot)
+*   %include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_detector/ILL_NeXT_Xray_detector.instr"
+*
+* Hamamatsu L12161-07 sealed microfocus tube, W target, Be window, up to
+* 150 kV / 500 uA, 43 deg cone, focusing on the Varex PaxScan 2530HE panel at SDD.
+* Sample on the common (neutron) rotation axis at SOD, magnification M = SDD/SOD.
+* See ILL_NeXT_Xray for hardware details and assumptions.
+*
+* %Test: ILL_NeXT_Xray_source.instr -y Detector: source_spectrum_I=1.97857e+11
+*
+* %Parameters
+* kV:            [kV]  Tube acceleration voltage (<=150 for L12161-07; 20-300 per ILL web)
+* tube_current:  [A]   Electron beam current (<= 500e-6)
+* focal_spot:    [m]   Focal spot size (square electron footprint on the anode)
+* Emin:          [keV] Lowest photon energy simulated
+* anode:         [str] Anode material file, e.g. Cu, Co, Cr, W, Mo
+* take_off:      [deg] Anode take-off angle
+* Be_window:     [m]   Be exit window thickness
+* filter:        [str] Pre-filter material file (e.g. "Cu.txt", "Al.txt", "Sn.txt")
+* filter_t:      [m]   Pre-filter thickness (0: no filter)
+* SOD:           [m]   Source - object (rotation axis) distance
+* SDD:           [m]   Source - detector distance (0.50, 0.52, 0.54, 0.56)
+* omega:         [deg] Tomography rotation angle of the sample about the vertical axis
+* det_binning:   [1]   Detector binning (1: 1792x2176 native, 2, 4, ...)
+*
+* %Link
+* https://www.ill.eu/en/for-ill-users/instruments/instruments-list/next/
+* %Link
+* A. Tengattini et al., NeXT-Grenoble, the Neutron and X-ray tomograph in Grenoble,
+*   Nucl. Instrum. Meth. A 968 (2020) 163939, doi:10.1016/j.nima.2020.163939
+* %End
+*******************************************************************************/
+
+DEFINE INSTRUMENT ILL_NeXT_Xray_source(kV=150, tube_current=100e-6, focal_spot=5e-6,
+  Emin=5, string anode="W", take_off=12, Be_window=0.2e-3,
+  string filter="Cu.txt", filter_t=0,
+  SOD=0.1, SDD=0.5, omega=0, int det_binning=4)
+
+DECLARE %{
+  /* Varex PaxScan 2530HE, portrait: 1792 x 2176 pixels of 139 um */
+  double src_det_w, src_det_h;
+  double M;                 /* geometric magnification */
+%}
+
+INITIALIZE %{
+  if (kV > 150)
+    fprintf(stderr, "%s: WARNING: kV=%g exceeds the 150 kV of the Hamamatsu L12161-07 "
+                    "(the ILL web page quotes up to 300 kV - check the installed tube)\n",
+                    NAME_INSTRUMENT, kV);
+  if (tube_current > 500e-6)
+    fprintf(stderr, "%s: WARNING: tube_current=%g A exceeds 500 uA\n", NAME_INSTRUMENT, tube_current);
+  if (SDD < 0.5 || SDD > 0.56)
+    fprintf(stderr, "%s: WARNING: SDD=%g m outside the 0.50-0.56 m range of the NeXT setup\n",
+                    NAME_INSTRUMENT, SDD);
+  if (SOD >= SDD) {
+    fprintf(stderr, "%s: ERROR: SOD (%g) must be < SDD (%g)\n", NAME_INSTRUMENT, SOD, SDD);
+    exit(-1);
+  }
+
+  src_det_w = 1792*139e-6;
+  src_det_h = 2176*139e-6;
+  M = SDD/SOD;
+  printf("%s: M=%.2f, effective pixel at object %.2f um (binning %d), "
+         "focal-spot unsharpness %.2f um, FoV at object %.1f x %.1f mm\n",
+         NAME_INSTRUMENT, M, 139e-6*(det_binning > 1 ? det_binning : 1)/M*1e6,
+         det_binning, focal_spot*(M-1)/M*1e6, src_det_w/M*1e3, src_det_h/M*1e3);
+  if (2*SDD*tan(43.0/2*DEG2RAD) < sqrt(src_det_w*src_det_w+src_det_h*src_det_h))
+    printf("%s: note: the 43 deg cone does not fully cover the detector diagonal at SDD=%g m\n",
+           NAME_INSTRUMENT, SDD);
+%}
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0,0,0) ABSOLUTE
+
+/* ---- microfocus X-ray tube ---------------------------------------------- */
+/* focusing on the full detector: every photon heads for the flat panel */
+COMPONENT anode_spot = Source_lab(
+  material = anode,
+  width = focal_spot, height = focal_spot, thickness = 100e-6,
+  E0 = kV, Emin = Emin, Emax = kV,
+  take_off = take_off, tube_current = tube_current,
+  dist = SDD, focus_xw = src_det_w, focus_yh = src_det_h,
+  lorentzian = 1)
+AT (0,0,0) RELATIVE Origin
+
+/* Be exit window (assumed 0.2 mm) */
+COMPONENT Be_exit_window = Filter(material_datafile="Be.txt",
+  xwidth=0.02, yheight=0.02, zdepth=(Be_window > 0 ? Be_window : 1e-9))
+WHEN (Be_window > 0)
+AT (0,0,0.005) RELATIVE anode_spot
+
+/* optional beam-hardening pre-filter */
+COMPONENT prefilter = Filter(material_datafile=filter,
+  xwidth=0.05, yheight=0.05, zdepth=(filter_t > 0 ? filter_t : 1e-9)) /* 1e-9: Filter INITIALIZE runs even when WHEN is false */
+WHEN (filter_t > 0)
+AT (0,0,0.008) RELATIVE anode_spot
+
+COMPONENT source_spectrum = E_monitor(nE=300, Emin=0, Emax=kV,
+  xwidth=0.03, yheight=0.03, restore_xray=1)
+AT (0,0,0.010) RELATIVE anode_spot
+
+/* ---- sample on the common neutron / X-ray rotation axis ------------------ */
+COMPONENT sample_axis = Arm()
+AT (0,0,SOD) RELATIVE anode_spot
+
+COMPONENT sample_rot = Arm()
+AT (0,0,0) RELATIVE sample_axis
+ROTATED (0,omega,0) RELATIVE sample_axis
+
+END

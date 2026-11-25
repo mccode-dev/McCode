@@ -463,6 +463,9 @@ valid-to     ="2100-01-31 23:59:59" last-modified="DATE">
     footer = '''</instrument>'''
 
     def do_work(self):
+        if not {'sourceMantid', 'sampleMantid'} <= {c.name for c in self.components}:
+            print("ERROR: mcdisplay-mantid needs components named sourceMantid and sampleMantid")
+            sys.exit(-1)
         source = self._get_mantid_source()
         sample = self._get_mantid_sample()
         pixmonitors = self._get_mantid_pixels_monitors()
@@ -537,12 +540,27 @@ def file_save(data, filename):
     f.close()
 
 
-def main(instr=None, dirname=None, default=None, **kwds):
+def embed_idf(text, h5file, instr):
+    ''' add IDF to existing NeXus file, same layout as mcrun --IDF '''
+    import h5py
+    import numpy as np
+    with h5py.File(h5file, 'r+') as f:
+        g = f['entry1/instrument']
+        if 'instrument_xml' in g:
+            del g['instrument_xml']
+        g = g.create_group('instrument_xml')
+        g.attrs['NX_class'] = np.bytes_('NXnote')
+        g['data'] = np.array([text.encode()])
+        g['description'] = np.array([('IDF.xml file found with instrument %s' % Path(instr).name).encode()])
+        g['type'] = np.array([b'text/xml'])
+
+
+def main(instr=None, dirname=None, default=None, embed=None, **kwds):
     ''' script execution '''
     logging.basicConfig(level=logging.INFO)
 
     # inspect is required b McDisplayReader
-    reader = McDisplayReader(instr=instr, dir=None, **kwds)
+    reader = McDisplayReader(instr=instr, dir=None, default=default, **kwds)
     instrument = reader.read_instrument()
     raybundle = reader.read_particles()
 
@@ -552,6 +570,9 @@ def main(instr=None, dirname=None, default=None, **kwds):
     filename = instr + '.xml'
     file_save(text, filename)
     print("saved file %s" % filename)
+    if embed:
+        embed_idf(text, embed, instr)
+        print("embedded IDF in %s" % embed)
 
 
 if __name__ == '__main__':
@@ -560,6 +581,7 @@ if __name__ == '__main__':
     parser, prefix = make_common_parser(__file__, __doc__)
 
     parser.add_argument('--dirname', help='output directory name override')
+    parser.add_argument('--embed', metavar='FILE.h5', help='embed IDF in existing NeXus file from mcrun --format=NeXus')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=1, help='Number of particles to simulate')
     parser.add_argument('--mpi', dest='nodes', type=int, default=None, help='Number of particles to simulate')
     parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1], default=1, help='mcrun --trace level, only 1 is supported')

@@ -1,0 +1,38 @@
+/************************************************
+*
+* %Identification
+* Written by: Peter Willendrup (DTU/ESS), Estrid B. Naver (DTU)
+* Date: June, 2021
+* Origin: DTU/ESS
+* %INSTRUMENT_SITE: PSI
+*
+* Camera of the ICON imaging instrument at PSI, CH.
+*
+* %Description
+* Building block, %include'd after the sample by PSI_ICON and its variants,
+* see PSI_ICON_beamline. The REMOVABLE Arm stands in for Blende_entrance of
+* PSI_ICON_beamline so that this file is also a valid instrument on its own.
+*
+* %Parameters
+* all_mons: [1] Flag to enable all monitors in the instrument
+*
+* %End
+***************************************************/
+
+DEFINE INSTRUMENT PSI_ICON_camera(int all_mons=0)
+
+TRACE
+
+REMOVABLE COMPONENT Blende_entrance = Arm()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT VarDetector = Monitor_nD(options="square x bins=2037, y bins=2037", xwidth=0.0275, yheight=0.0275, filename="detectorVAR",restore_neutron=1, nowritefile=(!all_mons))
+WHEN (all_mons) AT (0,0,7.5) RELATIVE Blende_entrance
+
+COMPONENT VarDetectorZoom = Monitor_nD(options="square x bins=900, y bins=900", xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, filename="detectorVARzoom",restore_neutron=1)
+  AT (0,0,7.5) RELATIVE Blende_entrance
+
+COMPONENT Detector1D = PSDlin_monitor(filename="detector_1D", xwidth=0.0275*900.0/2037.0, yheight=0.0275*900.0/2037.0, nbins=900,restore_neutron=1)
+    AT (0,0,7.5) RELATIVE Blende_entrance
+
+END

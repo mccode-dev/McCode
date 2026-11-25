@@ -143,9 +143,9 @@ class ParticlesTraceState(LineHandlerState):
             self.inspect = args.get('inspect', None)
         super(ParticlesTraceState, self).__init__(setcurrent, next, databox, args)
         
-        self.max_particles = 1000
+        self.max_particles = 100000
         if args:
-            self.max_particles = args.get('max_particles', 1000)
+            self.max_particles = args.get('max_particles', 100000)
         
         self.block_count = 0
     
@@ -215,7 +215,7 @@ class TraceReader(Thread):
         self.current = current
         current.add_line(line)
     
-    def __init__(self, cmd, inspect=None, use_defaultpars=False, max_particles=1000):
+    def __init__(self, cmd, inspect=None, use_defaultpars=False, max_particles=100000):
         self.exc_obj = None
         
         # set up state machine

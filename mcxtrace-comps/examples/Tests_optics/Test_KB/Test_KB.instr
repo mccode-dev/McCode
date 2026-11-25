@@ -2,58 +2,85 @@
 * Instrument: Test_KB.instr
 *
 * %Identification
-* Written by: Antoine Padovani
+* Written by: Antoine Padovani and Emmanuel Farhi
 * Date: March 2022
 * Origin: SOLEIL
-* Version: 1.0
+* Version: 1.1
 * %INSTRUMENT_SITE: Tests_optics
 *
 * Test of Kirkpatrick Baez (KB) mirrors
 *
 * %Description
-* Two curved mirrors in a Kirkpatrick Baez geometry. Default parameters
-* are set for a focusing f_m=f_s= 10 m.
-* The KB should satisfy f_m=R.sin(theta/2) and f_s=R/2.sin(theta)
+* Two curved mirrors in a Kirkpatrick Baez geometry, i.e. two perpendicular 
+* mirrors, one shared focus, and a compact X-ray beam for fine-scale experiments.
+* Default parameters are set for a focusing f_t=f_s= 10 m.
+* The KB should satisfy f_t = (R sin theta)/2 and f_s = R / (2 sin theta) where
+* theta is the tilt angle, f_t and f_s are tangential and sagittal focus 
+* distances, and both mirrors are bent along z (tangential).
 *
-* Example: Test_KB L=12
+* %Example: Test_KB L=12 Detector: psd_I=0.677509
 *
 * %Parameters
-* L:     [m]   Distance to the PSD detector, with a shift by 1.5 m
-* theta: [rad] Mirror glancing angle 
-* R:     [m]   Mirror curvature radius
+* E0:         [keV] Nominal energy at the source
+* dE:         [keV] Energy half-bandwidth at the source
+* source2kb:    [m] Distance from source to KB
+* mirror_length:[m] Length of each KB mirror
+* L:            [m] Distance to the PSD detector (focus)
+* theta:      [rad] Mirror glancing angle 
+* R:            [m] Mirror curvature radius
 * 
 * %Link
 * https://github.com/mccode-dev/Schools/tree/master/2023/SOLEIL_May_2023/Day2_Wednesday_May_10th/5_Optics/2_KB_mirrors
 *
 * %End
 *******************************************************************************/
-DEFINE INSTRUMENT Test_KB(L=12,theta=0.003,R=6.66e3)
+DEFINE INSTRUMENT Test_KB(L=11.5,theta=0.003,R=6.66e3,
+  mirror_length=0.5, source2kb=31.5, E0=23.32, dE=1)
+
+INITIALIZE %{
+
+  // checks
+  if (source2kb < mirror_length || L < 3*mirror_length) {
+    fprintf(stderr, "ERROR: %s: invalid parameters (source2kb, mirror_length, L).\n",
+      NAME_INSTRUMENT);
+    exit(-1);
+  }
+  // f_t = (R sin theta)/2 and f_s = R / (2 sin theta). We use f_t here.
+  if (!R && L && theta)
+    R     = 2*L/sin(theta);
+  else if (!theta && L && R)
+    theta = asin(2*L/R);
+  else if (!L && theta && R)
+    L     = R*sin(theta)/2;
+  MPI_MASTER(
+    printf("%s: KB focus theta=%g [rad] L=%g R=%g [m]\n", 
+      NAME_INSTRUMENT, theta, L, R);
+  );
+%}
 
 TRACE
 
-COMPONENT origin = Progress_bar()
+REMOVABLE COMPONENT origin = Progress_bar()
 AT (0, 0, 0) RELATIVE ABSOLUTE
 
-// insert components here (e.g. Insert -> Source -> ...)
-COMPONENT source_gaussian = Source_gaussian(
+REMOVABLE COMPONENT source_gaussian = Source_gaussian(
     sig_x=48.2e-6, 
     sig_y=9.5e-6, 
     sigPr_x=100e-6, 
     sigPr_y=4.3e-6, 
-    dist=31.5, 
+    dist=source2kb, 
     focus_xw=0.001,
     focus_yh=0.001,
     gauss=1, 
-    E0=23.32, 
-    dE=1)
+    E0=E0, 
+    dE=dE)
 AT (0, 0, 0) RELATIVE origin
 
+// KB start --------------------------------------------------------------------
+
 COMPONENT mirror_curved = Mirror_curved(
-    radius=R,
-    //radius=0.001,
-    length=1,
-    width=1)
-AT (0, 0, 31.5) RELATIVE PREVIOUS
+    radius=R, length=mirror_length, yheight=0.05)
+AT (0, 0, source2kb) RELATIVE PREVIOUS
 ROTATED (0, RAD2DEG*theta, 0) RELATIVE PREVIOUS
 EXTEND
 %{ 
@@ -64,14 +91,16 @@ COMPONENT arm = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
 ROTATED (0, RAD2DEG*theta, 0) RELATIVE PREVIOUS
 
+COMPONENT insideKB = PSD_monitor(
+    xwidth=0.001, 
+    yheight=0.001, nx=100,ny=100, restore_xray=1)
+AT (0, 0, mirror_length/2+0.01) RELATIVE PREVIOUS
+
 COMPONENT arm_2 = Arm()
-AT (0, 0, 1.5) RELATIVE PREVIOUS
+AT (0, 0, mirror_length/2+0.01) RELATIVE PREVIOUS
 ROTATED (0, 0, 90) RELATIVE PREVIOUS
 
-COMPONENT mirror_2 = Mirror_curved(
-    radius=R,   
-    length=1,
-    width=1)
+COMPONENT mirror_2 = COPY(mirror_curved)
 AT (0, 0, 0) RELATIVE PREVIOUS
 ROTATED (0, RAD2DEG*theta, 0) RELATIVE PREVIOUS
 EXTEND
@@ -83,26 +112,42 @@ COMPONENT arm_3 = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
 ROTATED (0, RAD2DEG*theta, 0) RELATIVE PREVIOUS
 
+// KB end   --------------------------------------------------------------------
+// a set of PSD's to monitor focusing
 
-COMPONENT slit = Slit(
-    radius=0.0001)
-    //radius=0.0001)
-AT (0, 0, 0.5 + L) RELATIVE PREVIOUS
+COMPONENT psd = COPY(insideKB)
+AT (0, 0, L-3) RELATIVE arm_3
 
-COMPONENT psd_monitor = PSD_monitor(
-    filename="psd.dat", 
-    xwidth=0.01, 
-    yheight=0.01
-    )
-AT (0, 0, 0.001) RELATIVE PREVIOUS
+COMPONENT COPY(psd) = COPY(insideKB)
+AT (0, 0, L-2) RELATIVE arm_3
 
+COMPONENT COPY(psd) = COPY(insideKB)
+AT (0, 0, L-1) RELATIVE arm_3
+
+COMPONENT COPY(psd) = COPY(insideKB)
+AT (0, 0, L) RELATIVE arm_3
+
+COMPONENT COPY(psd) = COPY(insideKB)
+AT (0, 0, L+1) RELATIVE arm_3
+
+COMPONENT COPY(psd) = COPY(insideKB)
+AT (0, 0, L+2) RELATIVE arm_3
+
+COMPONENT COPY(psd) = COPY(insideKB)
+AT (0, 0, L+3) RELATIVE arm_3
+
+COMPONENT COPY(psd) = COPY(insideKB)
+AT (0, 0, L+4) RELATIVE arm_3
+
+COMPONENT COPY(psd) = COPY(insideKB)
+AT (0, 0, L+5) RELATIVE arm_3
 
 COMPONENT e_monitor = E_monitor(
     filename="energy.dat", 
-    xwidth=0.01, 
-    yheight=0.01,     
-    Emin=23.32-1, 
-    Emax=23.32+1)
+    xwidth=0.001, 
+    yheight=0.001,     
+    Emin=E0-dE, 
+    Emax=E0+dE)
 AT (0, 0, 0) RELATIVE PREVIOUS
 
 

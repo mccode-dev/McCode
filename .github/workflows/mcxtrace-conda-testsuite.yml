@@ -193,7 +193,7 @@ jobs:
              test "$(command -v mxtest)" == "/usr/bin/mxtest"
            fi
            # Run the test with 2 core mpi
-           ${MXTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} --nsigma 5 --nohtml --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
+           ${MXTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} --nsigma 5 --nohtml --displayncount 0 --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
 
     - name: 'Tar output files'
       id: tar-package
@@ -364,7 +364,7 @@ jobs:
         name: mcxtrace-testsuite-comparison
         path: mcxtrace-conda-testsuite-comparison.tgz
 
-    - name: 'Raw data per instrument as release assets in mcxtrace-nightly'
+    - name: 'Raw data per platform as release assets in mcxtrace-nightly'
       id: release
       if: always() && steps.viewtest.outcome == 'success' && github.event_name == 'schedule'
       env:
@@ -380,13 +380,13 @@ jobs:
              [ "$col" = _lib ] && continue
              # same platform key as tools/nightly-site/summarize.py column_key()
              key=$(echo "$col" | cut -d_ -f2- | rev | cut -d_ -f2- | rev)
-             mkdir ../rel
-             for instr in "$col"/*/; do
-               tar czf "../rel/$(basename "$instr").tgz" "${instr%/}"
-             done
+             # one tgz per platform keeps the API calls (and the token's rate limit) low
+             tar czf "../$key.tgz" "$col"
+             # a re-run replaces the night's release
+             gh release delete "${day}_${key}" -R $repo --yes --cleanup-tag 2>/dev/null || true
              gh release create "${day}_${key}" -R $repo --title "${day} ${key}" \
-               --notes "Raw output of $col from https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" ../rel/*.tgz
-             rm -rf ../rel
+               --notes "Raw output of $col from https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" "../$key.tgz"
+             rm "../$key.tgz"
            done
            # ponytail: fixed 14-night retention of the raw data, tune if release storage matters
            gh release list -R $repo --limit 1000 --json tagName,createdAt \

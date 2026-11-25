@@ -391,6 +391,11 @@ int cogen_decls(struct instr_def *instr)
 	} else {
 	  value = str_cat(", value=", exp_tostring(i_formal->default_value), NULL);
 	}
+	if (i_formal->hasunit) {
+	  char *withunit = str_cat(value, ", unit='", i_formal->unit, "'", NULL);
+	  memfree(value);
+	  value = withunit;
+	}
 
 	if (i_formal->type == instr_type_string) {
 	  type="string";
@@ -620,7 +625,7 @@ int cogen_raytrace(struct instr_def *instr)
       for (int lit=0; lit<list_len(comp->metadata); ++lit){
         l_ptr = (struct metadata_struct *) list_access(comp->metadata, lit);
         if (l_ptr->instance) {
-          coutf("    %s.append_METADATA(type='%s', name='%s', lines=", comp->name, l_ptr->type, l_ptr->name);
+          coutf("    %s.add_METADATA(name='%s', type='%s', value=", comp->name, l_ptr->name, l_ptr->type);
           triple_escaped_lines_out(l_ptr->lines);
           coutf("    )");
         }
