@@ -55,6 +55,7 @@ DECLARE
   double Pol_p;
   double Pol_p2;
   double Psum;
+  double Psum2;
   char titlestring[128];
 %}
 
@@ -82,6 +83,7 @@ INITIALIZE
 
   NORM (mx, my, mz);
   Psum = 0;
+  Psum2 = 0;
   Pol_N = 0;
   Pol_p = 0;
   Pol_p2 = 0;
@@ -116,6 +118,9 @@ TRACE
     Psum = Psum + p;
 
     #pragma acc atomic
+    Psum2 = Psum2 + p2;
+
+    #pragma acc atomic
     Pol_p = Pol_p + pp;
 
     #pragma acc atomic
@@ -131,16 +136,7 @@ TRACE
 SAVE
 %{
   if (!nowritefile) {
-    if (Psum && Pol_N) {
-      Pol_p /= Psum;
-      #ifdef USE_MPI
-      Pol_p /= mpi_node_count;
-      #endif
-      Pol_p2 /= Psum;
-      Pol_p2 -= Pol_p * Pol_p;
-      Pol_p2 /= Pol_N;
-    }
-    DETECTOR_OUT_0D (titlestring, Pol_N, Pol_p, Pol_p2);
+    DETECTOR_OUT_0D_MEAN (titlestring, Pol_N, Psum, Psum2, Pol_p, Pol_p2);
   }
 %}
 
