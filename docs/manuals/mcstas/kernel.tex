@@ -1591,6 +1591,52 @@ along the X axis and the second dimension is along the Y axis. This
 means that element $(i_x,i_y)$ can be obtained as $p[i_x*n+i_y]$ if $p$
 is a pointer to the first element.
 
+\paragraph{Detectors/monitors of a mean}
+\label{s:DETECTOR_OUT_MEAN}
+
+\indexMCCH{DETECTOR\_OUT\_0D\_MEAN}{textbf}
+\indexMCCH{DETECTOR\_OUT\_1D\_MEAN}{textbf}
+\indexMCCH{DETECTOR\_OUT\_2D\_MEAN}{textbf}
+The results of a monitor that records the mean of a quantity $v$ (\textit{e.g.}\
+the polarisation) rather than an intensity are written using the following macros:
+\begin{mcstas}
+DETECTOR_OUT_0D_MEAN(t, N, w, w2, wv, wv2)
+
+DETECTOR_OUT_1D_MEAN(t,
+        xlabel, ylabel,
+        xvar, x_min, x_max, m,
+        &N[0], &w[0], &w2[0], &wv[0], &wv2[0],
+       filename)
+
+DETECTOR_OUT_2D_MEAN(t,
+        xlabel, ylabel,
+        x_min, x_max, y_min, y_max, m, n,
+        &N[0][0], &w[0][0], &w2[0][0], &wv[0][0], &wv2[0][0],
+       filename)
+\end{mcstas}
+Here, with the sums taken over the events,
+\begin{itemize}
+\item $N$ is the number of events,
+\item $w$ is $\sum p_j$, the sum of weights,
+\item $\textit{w2}$ is $\sum p_j^2$,
+\item $\textit{wv}$ is $\sum p_j v_j$,
+\item $\textit{wv2}$ is $\sum p_j v_j^2$,
+\end{itemize}
+and the other arguments are as for the macros above. For an unweighted mean, use
+$p_j=1$, \textit{i.e.}\ $N$ for both $w$ and \textit{w2}. The sums are not changed
+by the macros, which also merge them between MPI nodes, so the component
+must not do this itself.
+
+The output in each bin is the mean $\bar{v}=\textit{wv}/w$, with the error
+\begin{equation}
+\sigma = \sqrt{\frac{N}{N-1}\,\frac{\textit{wv2}/w-\bar{v}^2}{N_\mathrm{eff}}}, \qquad
+N_\mathrm{eff} = w^2/\textit{w2} .
+\end{equation}
+As for intensities, the error of a bin with one event is set to its value.
+The total written in the file header and on the \verb+Detector:+ line is
+the mean over all bins, and the header has the field
+\verb+mean: yes+.
+
 \paragraph{Three-dimensional detectors/monitors}
 
 There is no three-dimensional DETECTOR\_OUT macro. Three-dimensional
