@@ -437,12 +437,13 @@ def _rainbow(x):
 
 
 def _monitor_values(a, log):
-    ''' monitor data scaled to 0 - 1: from 0, or log10 (zero and negative bins at a tenth of the smallest positive one) '''
+    ''' monitor data scaled to 0 - 1: from 0, or log10 (zero and negative bins at a tenth of the
+    smallest positive one, at most 6 decades below the largest) '''
     a, lo = np.asarray(a, dtype=np.float64), 0.0
     pos = a[a > 0]
     if log and pos.size:
-        lo = np.log10(pos.min() / 10)
-        a = np.log10(np.where(a > 0, a, pos.min() / 10))
+        floor = max(pos.min() / 10, pos.max() * 1e-6)
+        lo, a = np.log10(floor), np.log10(np.maximum(a, floor))
     hi = a.max()
     return np.clip((a - lo) / ((hi if hi > lo else lo + 1) - lo), 0, 1)
 
