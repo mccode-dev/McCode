@@ -1469,13 +1469,15 @@ int r_has_highest_priority(Coords point,int N,struct geometry_struct **Geometrie
       }
     }
 
-    int volume_index;
+    int volume_index, overlap_index;
     double self_priority;
     self_priority = Geometries[N]->priority_value;
 
-
-    for (volume_index = 1;volume_index<number_of_volumes;volume_index++) {
-      if (volume_index != N && Geometries[volume_index] && Geometries[volume_index]->is_mask_volume == 0) {
+    // Only volumes overlapping N with a higher priority can be above it
+    for (overlap_index = 0;overlap_index<Geometries[N]->overlap_list.num_elements;overlap_index++) {
+      volume_index = Geometries[N]->overlap_list.elements[overlap_index];
+      if (volume_index > 0 && volume_index != N && Geometries[volume_index] && Geometries[volume_index]->is_mask_volume == 0
+          && Geometries[volume_index]->priority_value > self_priority) {
         if (Geometries[volume_index]->within_function(point,Geometries[volume_index])) {
           if (Geometries[volume_index]->is_masked_volume == 1) {
             // Since this volume is masked, the mask status need to be checked
@@ -1555,9 +1557,11 @@ struct lines_to_draw draw_line_with_highest_priority(Coords position1,Coords pos
     double *tmp;
     int *tmpint;
 	
-    // Find intersections
-    for (volume_index = 1;volume_index < number_of_volumes; volume_index++) {
-        if (volume_index != N && Geometries[volume_index]) {
+    // Find intersections, only volumes overlapping N can cross its surface
+    int overlap_index;
+    for (overlap_index = 0;overlap_index < Geometries[N]->overlap_list.num_elements; overlap_index++) {
+        volume_index = Geometries[N]->overlap_list.elements[overlap_index];
+        if (volume_index > 0 && volume_index != N && Geometries[volume_index]) {
          if (Geometries[volume_index]->eShape==mesh){
             tmp = realloc(double_dummy, sizeof(double)*1000);
             tmpint = realloc(int_dummy, sizeof(double)*1000);
