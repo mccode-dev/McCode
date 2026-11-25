@@ -46,16 +46,16 @@ function paintMonitor(canvas, mon, curved, log) {
     canvas.height = 256;
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, w, 256);
-    // flat: +x is on the left looking along the beam: mirror, so it reads from upstream; curved: x is the angle
-    if (!curved) {
-      ctx.translate(w, 0);
-      ctx.scale(-1, 1);
-    }
     ctx.strokeStyle = "blue";
     ctx.lineWidth = 3;
     ctx.beginPath();
     y.forEach((v, i) => ctx.lineTo((w * (i + 0.5)) / n, 248 - (220 * (v - s.min)) / (s.max - s.min))); // bin centres
     ctx.stroke();
+    // flat: +x is on the left looking along the beam: mirror the label, so it reads from upstream
+    if (!curved) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.fillStyle = "black";
     ctx.font = "16px sans-serif";
     ctx.fillText((mon.xlabel || "") + (log ? ", log" : ""), 8, 20);
@@ -109,7 +109,7 @@ export function addMonitorData(group, mon, transparency, log, down) {
     map: tex, transparent: transparency < 1, opacity: transparency, side: THREE.DoubleSide, depthWrite: transparency >= 1,
   }));
   surf.position.copy(pos);
-  if (down && !mon.z) surf.scale.set(curved ? 1 : -1, -1, 1); // flat: turned, curved: x is the angle
+  if (down && !mon.z) surf.scale.y = -1;
   surf.name = mon.title;
   surf.userData.monitor = curved ? "curved" : "flat";
   surf.userData.mon = mon; // to repaint (setMonitorLog)

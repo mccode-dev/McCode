@@ -513,7 +513,7 @@ def monitor_to_parts(comp, mon, segments=64, show=('1D', '2D', 'curved'), log=Fa
     surface = _monitor_surface(comp, mon, segments)
     if surface is None or (surface[0] == 'curved' and 'curved' not in show):
         return []
-    kind, f, du, dv = surface
+    _, f, du, dv = surface
     down = comp.m4[5] < 0  # upside down in the instrument: turn 1D curves upright
     parts = []
     if 'z' in mon:
@@ -530,8 +530,6 @@ def monitor_to_parts(comp, mon, segments=64, show=('1D', '2D', 'curved'), log=Fa
     else:
         val = _monitor_values(mon['y'], log)
         u, v = (np.arange(len(val)) + 0.5) / len(val), (8 + 220 * val) / 256  # bin centres
-        if kind == 'flat' and not down:
-            u = 1 - u  # +x is on the left looking along the beam: mirror, so it reads from upstream
         part = Part(f'{comp.name}_data', (0, 0, 1))
         part.add_polyline(f(u, 1 - v if down else v))
         parts.append(part)
