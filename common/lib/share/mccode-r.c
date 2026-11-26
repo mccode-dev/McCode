@@ -824,6 +824,7 @@ FILE *mcnew_file(char *name, char *ext, int *exists)
 
 /*******************************************************************************
 * mcdetector_statistics: compute detector statistics, error bars, [x I I_err N] 1D
+* total:             as for detector_import, replaces the sums over bins
 * RETURN:            updated detector structure
 * Used by: detector_import
 *******************************************************************************/
@@ -971,6 +972,7 @@ MCDETECTOR mcdetector_statistics(
 /*******************************************************************************
 * detector_import: build detector structure, merge non-lists from MPI
 *                    compute basic stat, write "Detector:" line
+* total:             NULL for an intensity, else see mcdetector_write_1D
 * RETURN:            detector structure. Invalid data if detector.p1 == NULL
 *                    Invalid detector sets m=0 and filename=""
 *                    Simulation data  sets m=0 and filename=siminfo_name
@@ -986,7 +988,7 @@ MCDETECTOR detector_import(
   char *filename,
   double *p0, double *p1, double *p2,
   Coords position, Rotation rotation, int index,
-  const double *total) /* for a mean: its N, mean and p2 over all bins, else NULL */
+  const double *total)
 {
   time_t t;       /* for detector.date */
   long   date_l;  /* date as a long number */
@@ -3194,9 +3196,9 @@ void siminfo_close()
 } /* siminfo_close */
 
 /*******************************************************************************
-* mcdetector_out_0D: wrapper for 0D (single value).
+* mcdetector_write_0D / mcdetector_out_0D: wrapper for 0D (single value).
 *   Output single detector/monitor data (p0, p1, p2).
-*   Title is t, component name is c.
+*   Title is t, component name is c. total is as for mcdetector_write_1D.
 *******************************************************************************/
 static MCDETECTOR mcdetector_write_0D(char *t, double p0, double p1, double p2,
 			     char *c, Coords posa, Rotation rota, int index,
@@ -3229,7 +3231,7 @@ MCDETECTOR mcdetector_out_0D(char *t, double p0, double p1, double p2,
 
 
 /*******************************************************************************
-* mcdetector_out_1D: wrapper for 1D.
+* mcdetector_write_1D / mcdetector_out_1D: wrapper for 1D.
 *   Output 1d detector data (p0, p1, p2) for n bins linearly
 *   distributed across the range x1..x2 (x1 is lower limit of first
 *   bin, x2 is upper limit of last bin). Title is t, axis labels are xl
@@ -3250,6 +3252,10 @@ MCDETECTOR mcdetector_out_0D(char *t, double p0, double p1, double p2,
 *   Not included in the macro, and here forwarded to detector_import:
 *   c:    ?
 *   posa: ?
+*   total: NULL for an intensity (mcdetector_out_1D). For a mean
+*          (mcdetector_out_1D_mean): its N, mean and p2 over all bins,
+*          used for the header total and Detector: line, and the
+*          output is marked "mean: yes".
 *******************************************************************************/
 static MCDETECTOR mcdetector_write_1D(char *t, char *xl, char *yl,
         char *xvar, double x1, double x2,
@@ -3302,7 +3308,7 @@ MCDETECTOR mcdetector_out_1D(char *t, char *xl, char *yl,
 } /* mcdetector_out_1D */
 
 /*******************************************************************************
-* mcdetector_out_2D: wrapper for 2D.
+* mcdetector_write_2D / mcdetector_out_2D: wrapper for 2D.
 *   Special case for list: master creates file first, then slaves append their
 *   blocks without header-
 *
@@ -3324,6 +3330,7 @@ MCDETECTOR mcdetector_out_1D(char *t, char *xl, char *yl,
 *   c:    ?
 *   posa: ?
 *   rota: ?
+*   total: as for mcdetector_write_1D (mcdetector_out_2D_mean for a mean)
 *******************************************************************************/
 static MCDETECTOR mcdetector_write_2D(char *t, char *xl, char *yl,
                   double x1, double x2, double y1, double y2,
