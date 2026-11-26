@@ -18,17 +18,15 @@ var lineSegments = function(list, color)
     return new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({color: color}));
 }
 // --simdir monitor data for the colour map or curve: rows z, as is or log10 (zero and negative bins at a tenth
-// of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
+// of the smallest positive one, at most 6 decades below the largest), with their min and max (min 0 for linear)
 var monitorValues = function(z, log)
 {
-    var pos = Infinity, max = -Infinity;
-    z.forEach(function(r) { r.forEach(function(v) { if (v > 0 && v < pos) { pos = v; } }); });
+    var pos = Infinity, min = 0, max = -Infinity;
+    z.forEach(function(r) { r.forEach(function(v) { if (v > 0 && v < pos) { pos = v; } if (v > max) { max = v; } }); });
     if (log && pos < Infinity) {
-        var floor = Math.log10(pos/10);
-        z = z.map(function(r) { return r.map(function(v) { return v > 0 ? Math.log10(v) : floor; }); });
+        min = Math.log10(Math.max(pos/10, max*1e-6)); max = Math.log10(max);
+        z = z.map(function(r) { return r.map(function(v) { return v > 0 ? Math.max(Math.log10(v), min) : min; }); });
     }
-    z.forEach(function(r) { r.forEach(function(v) { if (v > max) { max = v; } }); });
-    var min = log && pos < Infinity ? Math.log10(pos/10) : 0;
     return {z: z, min: min, max: max > min ? max : min + 1};
 }
 // paint --simdir monitor data on canvas: 2D as a colour map, 1D as a curve (on curved monitors along the angle)
@@ -53,11 +51,11 @@ var paintMonitor = function(canvas, mon, curved, log)
         var w = curved ? 1024 : 256; // curved monitors are long
         canvas.width = w; canvas.height = 256;
         ctx.fillStyle = "white"; ctx.fillRect(0, 0, w, 256);
-        // flat: +x is on the left looking along the beam: mirror, so it reads from upstream; curved: x is the angle
-        if (!curved) { ctx.translate(w, 0); ctx.scale(-1, 1); }
         ctx.strokeStyle = "blue"; ctx.lineWidth = 3; ctx.beginPath();
         for (var i = 0; i < n; i++) { ctx.lineTo(w*(i + 0.5)/n, 248 - 220*(y[i] - s.min)/(s.max - s.min)); } // bin centres
         ctx.stroke();
+        // flat: +x is on the left looking along the beam: mirror the label, so it reads from upstream
+        if (!curved) { ctx.translate(w, 0); ctx.scale(-1, 1); }
         ctx.fillStyle = "black"; ctx.font = "16px sans-serif"; ctx.fillText((mon.xlabel || "") + (log ? ", log" : ""), 8, 20);
     }
 }
@@ -240,14 +238,14 @@ Main.prototype.init = function(campos, invert, box)
 
     this.camera.lookAt(this.controls.target);
 
-    // double-click a component: turn the camera to its centre
+    // double-click a component: turn the camera to its centre, from where it is
     var _this = this;
     this.renderer.domElement.addEventListener('dblclick', function(e) { _this.focusComponent(e); });
 
     this.addLight(new THREE.Vector3(10, 50, 130))
     this.scene.add(this.rootnode);
 }
-//  point the orbit target at the centre of the component under the mouse
+//  turn the orbit target to the centre of the component under the mouse, the camera stays in place
 Main.prototype.focusComponent = function(e)
 {
     var r = e.target.getBoundingClientRect();
@@ -260,8 +258,25 @@ Main.prototype.focusComponent = function(e)
     if (hits.length == 0) { return; }
     var comp = hits[0].object;
     while (nodes.indexOf(comp) < 0) { comp = comp.parent; }
-    new THREE.Box3().setFromObject(comp).center(this.controls.target);
+    // viewing angles from the camera, as in OrbitControls
+    var pos = this.camera.position;
+    var from = new THREE.Spherical().setFromVector3(pos.clone().sub(this.controls.target));
+    var to = new THREE.Spherical().setFromVector3(pos.clone().sub(new THREE.Box3().setFromObject(comp).center()));
+    to.theta -= 2*Math.PI*Math.round((to.theta - from.theta)/(2*Math.PI)); // the short way round
+    this.turn = { from: from, to: to, start: performance.now() };
+}
+//  advance a turn started by focusComponent, called every frame
+Main.prototype.animateTurn = function()
+{
+    if (!this.turn) { return; }
+    var a = this.turn.from, b = this.turn.to;
+    var t = Math.min(1, (performance.now() - this.turn.start) / TURN_MS);
+    var s = t*t*(3 - 2*t);
+    var look = new THREE.Vector3().setFromSpherical(new THREE.Spherical(
+        a.radius + s*(b.radius - a.radius), a.phi + s*(b.phi - a.phi), a.theta + s*(b.theta - a.theta)));
+    this.controls.target.copy(this.camera.position).sub(look);
     this.controls.update();
+    if (t == 1) { this.turn = null; }
 }
 //  tour: the stops, {name, position, quaternion}: the campath file points with usePath, else the components
 Main.prototype.tourStops = function()
@@ -343,6 +358,7 @@ Main.prototype.animate = function()
 //
 Main.prototype.setCameraView = function(campos)
 {
+    this.turn = null;
     this.camera.position.x = campos.x;
     this.camera.position.y = campos.y;
     this.camera.position.z = campos.z;
@@ -469,7 +485,7 @@ Main.prototype.addMonitorData = function(node, mon, down)
     }
     var surf = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({map: tex, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
     surf.position.copy(pos);
-    if (down && !mon.z) { surf.scale.set(curved ? 1 : -1, -1, 1); } // flat: turned, curved: x is the angle
+    if (down && !mon.z) { surf.scale.y = -1; }
     surf.name = mon.title;
     surf.userData.mon = mon; surf.userData.curved = curved; // to repaint (setMonitorLog)
     node.add(surf);
@@ -479,6 +495,7 @@ Main.prototype.addMonitorData = function(node, mon, down)
 Main.prototype.setMonitorLog = function(log)
 {
     this.logMonitors = log;
+    parent.postMessage({simlog: log}, "*"); // plots next to the display (simplots.html)
     this.monnodes.concat(this.curvednodes).forEach(function(m) {
         paintMonitor(m.material.map.image, m.userData.mon, m.userData.curved, log);
         m.material.map.needsUpdate = true;
@@ -758,6 +775,7 @@ Controller.prototype.run = function()
     {
     	requestAnimationFrame(renderLoop);
     	_this.main.animate();
+    	_this.main.animateTurn();
     	_this.main.renderer.render(_this.main.scene, _this.main.camera);
     }
     var busy = false;
@@ -867,6 +885,7 @@ var Y_AXIS = new THREE.Vector3(0, 1, 0);
 var Z_AXIS = new THREE.Vector3(0, 0, 1);
 var SEGMENTS = 24;
 var FLY_MS = 1000; // tour: flight time between components at speed 1
+var TURN_MS = 500; // double-click: time to turn to a component
 
 //  enum for playback state
 //

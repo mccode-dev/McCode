@@ -126,10 +126,9 @@ def _shrink(a, n):
     idx = np.arange(0, m, -(-m // n))
     return np.add.reduceat(a, idx, axis=-1) / np.diff(np.append(idx, m))
 
-def read_simdir(dirname, nbins=256):
-    ''' 1D and 2D monitor data of a simulation output directory (--simdir), by component name:
-    text output (mccode.sim), else NeXus (mccode.h5, its first entry: the first point of a scan);
-    shrunk to at most nbins x nbins (2D) or 4*nbins (1D) bins, to keep the display small (--simbins) '''
+def _load_simdir(dirname):
+    ''' 1D and 2D monitors of a simulation output directory (--simdir): text output (mccode.sim),
+    else NeXus (mccode.h5, its first entry: the first point of a scan) '''
     import sys
     from .mcplotloader import _get_filenames_from_mccodesim, _load_data_from_mcfiles, _nx_monitors_by_entry, Data1D, Data2D
     sim, h5 = Path(dirname, 'mccode.sim'), Path(dirname, 'mccode.h5')
@@ -140,12 +139,17 @@ def read_simdir(dirname, nbins=256):
     else:
         print(f"simulation directory {dirname}: no mccode.sim or mccode.h5")
         sys.exit(-1)
+    return [d for d in (handle.getdata() for handle in handles) if isinstance(d, (Data1D, Data2D))]
+
+def read_simdir(dirname, nbins=256):
+    ''' monitor data of a simulation output directory (_load_simdir), by component name;
+    shrunk to at most nbins x nbins (2D) or 4*nbins (1D) bins, to keep the display small (--simbins) '''
+    from .mcplotloader import Data2D
     monitors = {}
-    for handle in handles:
-        d = handle.getdata()
+    for d in _load_simdir(dirname):
         if isinstance(d, Data2D):
             monitors[d.component] = {'z': _shrink(_shrink(d.zvals, nbins).T, nbins).T.tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel, 'ylabel': d.ylabel}
-        elif isinstance(d, Data1D):
+        else:
             monitors[d.component] = {'y': _shrink(d.yvals, 4 * nbins).tolist(), 'limits': d.xlimits, 'title': d.title, 'xlabel': d.xlabel}
     return monitors
 
@@ -174,6 +178,63 @@ def add_simdir(displaydir, monitors, viewer=None):
     else:
         print(f"display directory {displaydir}: no _instr.js (webgl-classic) or instrument.json (webgl)")
         sys.exit(-1)
+
+def add_simplots(displaydir, simdir):
+    ''' writes plots (png, linear and log) of the monitors in simdir (--simdir) to an existing display in displaydir,
+    and simplots.html: the display with the plots on the right, following its log toggle. Returns the page to open '''
+    try:
+        from matplotlib.figure import Figure
+    except ImportError:
+        print("matplotlib not found: no monitor plots next to the display")
+        return 'index.html'
+    import numpy as np
+    from html import escape
+    from .mcplotloader import Data2D
+    Path(displaydir, 'plots').mkdir(exist_ok=True)
+    links = []
+    for i, d in enumerate(_load_simdir(simdir)):
+        lin = np.array(d.zvals if isinstance(d, Data2D) else d.yvals, dtype=float)
+        for scale in ('linear', 'log'):
+            v = lin
+            if scale == 'log' and (lin > 0).any():  # zero and negative bins, and at most 6 decades, as in the display
+                v = np.maximum(lin, max(lin[lin > 0].min() / 10, lin.max() * 1e-6))
+            fig = Figure(figsize=(3.6, 2.7), layout='constrained')
+            ax = fig.subplots()
+            norm = scale if (v > 0).all() else 'linear'  # log: linear if there is no positive bin
+            if isinstance(d, Data2D):
+                fig.colorbar(ax.imshow(v, norm=norm, origin='lower', extent=d.xlimits, aspect='auto'))
+            else:
+                ax.set_yscale(norm)
+                ax.errorbar(d.xvals, v, d.y_err_vals)
+                if norm == 'log':
+                    ax.set_ylim(bottom=v.min() / 2)  # error bars can go to 0
+            ax.set_xlabel(d.xlabel)
+            ax.set_ylabel(d.ylabel)
+            png = f"plots/{i}_{re.sub(r'[^A-Za-z0-9_]', '_', d.component)}_{scale}.png"  # a component may have several monitors
+            fig.savefig(Path(displaydir, png), dpi=350)
+            links.append(f'<a class="{scale}" href="{png}" target="_blank"><img src="{png}" alt="">'
+                         f'{escape(d.component)}<br>I = {float(d.values[0]):.4g}</a>')
+    Path(displaydir, 'simplots.html').write_text('''<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>%s</title><style>
+body { margin: 0; display: flex; height: 100vh; }
+iframe { border: 0; flex: 1; min-width: 0; }
+nav { width: 10%%; min-width: 150px; box-sizing: border-box; overflow-y: auto; font: 12px sans-serif; background: white; }
+nav a { display: block; padding: 6px; border-bottom: 1px solid #ccc; color: #333; text-decoration: none; overflow-wrap: anywhere; }
+nav a:hover { background: #eef; }
+nav img { display: block; width: 100%%; }
+nav.log .linear, nav:not(.log) .log { display: none; }
+</style></head><body>
+<iframe src="index.html" title="Instrument"></iframe>
+<nav aria-label="Monitor plots">
+%s
+</nav>
+<script>
+addEventListener('message', function(e) {
+  if (e.source === frames[0] && e.data && typeof e.data.simlog === 'boolean') document.querySelector('nav').classList.toggle('log', e.data.simlog);
+});
+</script></body></html>
+''' % (escape(Path(displaydir).resolve().name), '\n'.join(links)), encoding='utf-8')
+    return 'simplots.html'
 
 def make_common_parser(filename, documentation):
     """ Create an argparse.ArgumentParser with arguments (instr, --default, options)"""
