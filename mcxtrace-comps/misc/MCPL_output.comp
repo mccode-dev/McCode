@@ -246,6 +246,9 @@ TRACE
   }
 
   #else
+  #ifndef NOSIGNALS
+  mcsig_busy++; /* handle signals after TRACE: no ABSORB or return before mcsig_end_write */
+  #endif
   double nrm;
   /*positions are in cm*/
   particle->position[0] = x * 100;
@@ -283,6 +286,9 @@ TRACE
   mcpl_add_particle (outputfile, particle);
 
   SCATTER;
+  #ifndef NOSIGNALS
+  mcsig_end_write (NULL);
+  #endif
   #endif
 %}
 
@@ -335,8 +341,12 @@ SAVE
 
 FINALLY
 %{
-  if (weight_mode != 2)
-    mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", (double)mcget_ncount ());
+  if (weight_mode != 2) {
+    if (mcsave_final) /* completed run */
+      mcpl_hdr_add_stat_sum (outputfile, "initial_ray_count", (double)mcget_ncount ());
+    else /* interrupted: leave the reserved -1 */
+      fprintf (stderr, "\nWarning (%s): run interrupted, initial_ray_count left at -1 (unknown).\n", NAME_CURRENT_COMP);
+  }
   mcpl_closeandgzip_outfile (outputfile);
 
   #ifdef USE_MPI
