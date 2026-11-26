@@ -7,14 +7,16 @@ export const curvedOffset = (mon) =>
   /^Longitude/.test(mon.xlabel) ? 0 : /^radial position/.test(mon.xlabel) ? -180 : null;
 
 // --simdir monitor data for the colour map or curve, as in webgl-classic: rows z, as is or log10 (zero and
-// negative bins at a tenth of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
+// negative bins at a tenth of the smallest positive one, at most 6 decades below the largest), with their min and max
+// (min 0 for linear)
 function monitorValues(z, log) {
-  let pos = Infinity, max = -Infinity;
-  z.forEach((r) => r.forEach((v) => { if (v > 0 && v < pos) pos = v; }));
-  const uselog = log && pos < Infinity;
-  const min = uselog ? Math.log10(pos / 10) : 0;
-  if (uselog) z = z.map((r) => r.map((v) => (v > 0 ? Math.log10(v) : min)));
-  z.forEach((r) => r.forEach((v) => { if (v > max) max = v; }));
+  let pos = Infinity, min = 0, max = -Infinity;
+  z.forEach((r) => r.forEach((v) => { if (v > 0 && v < pos) pos = v; if (v > max) max = v; }));
+  if (log && pos < Infinity) {
+    min = Math.log10(Math.max(pos / 10, max * 1e-6));
+    max = Math.log10(max);
+    z = z.map((r) => r.map((v) => (v > 0 ? Math.max(Math.log10(v), min) : min)));
+  }
   return { z, min, max: max > min ? max : min + 1 };
 }
 
@@ -44,16 +46,16 @@ function paintMonitor(canvas, mon, curved, log) {
     canvas.height = 256;
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, w, 256);
-    // flat: +x is on the left looking along the beam: mirror, so it reads from upstream; curved: x is the angle
-    if (!curved) {
-      ctx.translate(w, 0);
-      ctx.scale(-1, 1);
-    }
     ctx.strokeStyle = "blue";
     ctx.lineWidth = 3;
     ctx.beginPath();
     y.forEach((v, i) => ctx.lineTo((w * (i + 0.5)) / n, 248 - (220 * (v - s.min)) / (s.max - s.min))); // bin centres
     ctx.stroke();
+    // flat: +x is on the left looking along the beam: mirror the label, so it reads from upstream
+    if (!curved) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.fillStyle = "black";
     ctx.font = "16px sans-serif";
     ctx.fillText((mon.xlabel || "") + (log ? ", log" : ""), 8, 20);
@@ -107,7 +109,7 @@ export function addMonitorData(group, mon, transparency, log, down) {
     map: tex, transparent: transparency < 1, opacity: transparency, side: THREE.DoubleSide, depthWrite: transparency >= 1,
   }));
   surf.position.copy(pos);
-  if (down && !mon.z) surf.scale.set(curved ? 1 : -1, -1, 1); // flat: turned, curved: x is the angle
+  if (down && !mon.z) surf.scale.y = -1;
   surf.name = mon.title;
   surf.userData.monitor = curved ? "curved" : "flat";
   surf.userData.mon = mon; // to repaint (setMonitorLog)
@@ -118,6 +120,7 @@ export function addMonitorData(group, mon, transparency, log, down) {
 // (remembered on the scene, so a reload by loadComponents keeps the choice)
 export function setMonitorLog(parentnode, log) {
   parentnode.userData.monitorLog = log;
+  window.parent.postMessage({ simlog: log }, "*"); // plots next to the display (simplots.html)
   parentnode.traverse((o) => {
     if (!o.userData.monitor) return;
     paintMonitor(o.material.map.image, o.userData.mon, o.userData.monitor === "curved", log);

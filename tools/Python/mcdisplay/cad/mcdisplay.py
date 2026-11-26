@@ -437,12 +437,13 @@ def _rainbow(x):
 
 
 def _monitor_values(a, log):
-    ''' monitor data scaled to 0 - 1: from 0, or log10 (zero and negative bins at a tenth of the smallest positive one) '''
+    ''' monitor data scaled to 0 - 1: from 0, or log10 (zero and negative bins at a tenth of the
+    smallest positive one, at most 6 decades below the largest) '''
     a, lo = np.asarray(a, dtype=np.float64), 0.0
     pos = a[a > 0]
     if log and pos.size:
-        lo = np.log10(pos.min() / 10)
-        a = np.log10(np.where(a > 0, a, pos.min() / 10))
+        floor = max(pos.min() / 10, pos.max() * 1e-6)
+        lo, a = np.log10(floor), np.log10(np.maximum(a, floor))
     hi = a.max()
     return np.clip((a - lo) / ((hi if hi > lo else lo + 1) - lo), 0, 1)
 
@@ -512,7 +513,7 @@ def monitor_to_parts(comp, mon, segments=64, show=('1D', '2D', 'curved'), log=Fa
     surface = _monitor_surface(comp, mon, segments)
     if surface is None or (surface[0] == 'curved' and 'curved' not in show):
         return []
-    kind, f, du, dv = surface
+    _, f, du, dv = surface
     down = comp.m4[5] < 0  # upside down in the instrument: turn 1D curves upright
     parts = []
     if 'z' in mon:
@@ -529,8 +530,6 @@ def monitor_to_parts(comp, mon, segments=64, show=('1D', '2D', 'curved'), log=Fa
     else:
         val = _monitor_values(mon['y'], log)
         u, v = (np.arange(len(val)) + 0.5) / len(val), (8 + 220 * val) / 256  # bin centres
-        if kind == 'flat' and not down:
-            u = 1 - u  # +x is on the left looking along the beam: mirror, so it reads from upstream
         part = Part(f'{comp.name}_data', (0, 0, 1))
         part.add_polyline(f(u, 1 - v if down else v))
         parts.append(part)
