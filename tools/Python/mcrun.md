@@ -53,7 +53,7 @@ in help text, and the McStas-only `-g`/`--gravitation` flag, differ).
 | `--invcanvas` | Forward request for inverted canvas to plotter |
 | `--autoplotter AUTOPLOTTER` | Specify the plotter used with --autoplot |
 | `--autodisplay` | Open mcdisplay with the monitor data of the generated dataset |
-| `--autodisplayer AUTODISPLAYER` | Specify the mcdisplay (webgl or webgl-classic) used with --autodisplay |
+| `--autodisplayer AUTODISPLAYER` | Specify the mcdisplay (webgl or webgl-classic) used with --autodisplay, options may follow, e.g. `"mcdisplay-webgl --campath FILE"` |
 | `--mpi NB_CPU` | Spread simulation over NB_CPU machines using MPI |
 | `--no-mpi` | Do NOT compile with MPI |
 | `--machines machines` | Defines path of MPI machinefile to use in parallel mode |
