@@ -63,17 +63,19 @@ function paintMonitor(canvas, mon, curved, log) {
 }
 
 // --simdir monitor data on the monitor's drawing (component frame), as in mcplot (first row at ymin), as in
-// webgl-classic: flat monitors: 2D as a colour map on the drawn xy rectangle, 1D as a curve;
+// webgl-classic: flat monitors: 2D as a colour map on the drawn rectangle, in its plane, 1D as a curve;
 // curved monitors (drawn with depth, angle along x): the same on a cylinder or sphere (latitude along y);
 // down: the monitor is upside down in the instrument, turn 1D curves upright
 export function addMonitorData(group, mon, transparency, log, down) {
   group.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(group); // the drawing, before the component transform
-  const w = box.max.x - box.min.x;
-  let h = box.max.y - box.min.y;
+  const s = box.getSize(new THREE.Vector3()).toArray();
+  const n = s.indexOf(Math.min(...s)); // flat: the thinnest axis of the drawing is the normal
+  const [u, v] = [0, 1, 2].filter((i) => i !== n); // data x, y along the other two, in x, y, z order
+  let h = s[1];
   const off = curvedOffset(mon);
-  const curved = box.max.z - box.min.z > 1e-9 && off !== null;
-  if (!curved && !(w > 0 && h > 0)) return;
+  const curved = s[2] > 1e-9 && off !== null;
+  if (!curved && !(s[u] > 0 && s[v] > 0)) return;
   const canvas = document.createElement("canvas");
   paintMonitor(canvas, mon, curved, log);
   const tex = new THREE.CanvasTexture(canvas);
@@ -103,13 +105,14 @@ export function addMonitorData(group, mon, transparency, log, down) {
       pos.set(0, pos.y, 0);
     }
   } else {
-    geometry = new THREE.PlaneGeometry(w, h);
+    const e = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+    geometry = new THREE.PlaneGeometry(s[u], s[v]).applyMatrix4(new THREE.Matrix4().makeBasis(e[u], e[v], e[n]));
   }
   const surf = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
     map: tex, transparent: transparency < 1, opacity: transparency, side: THREE.DoubleSide, depthWrite: transparency >= 1,
   }));
   surf.position.copy(pos);
-  if (down && !mon.z) surf.scale.y = -1;
+  if (down && !mon.z && (curved || n === 2)) surf.scale.y = -1;
   surf.name = mon.title;
   surf.userData.monitor = curved ? "curved" : "flat";
   surf.userData.mon = mon; // to repaint (setMonitorLog)
