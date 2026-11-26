@@ -251,7 +251,7 @@ def add_mcrun_adv_options(parser):
     add('--autodisplayer',
         action='store',
         type=str,
-        help='Specify the mcdisplay (webgl or webgl-classic) used with --autodisplay')
+        help='Specify the mcdisplay (webgl or webgl-classic) used with --autodisplay, options may follow, e.g. "mcdisplay-webgl --campath FILE"')
     parser.add_option_group(plotopt)
 
     mpiopt = OptionGroup(parser, 'MPI options')
