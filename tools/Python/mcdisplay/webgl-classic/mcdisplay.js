@@ -442,17 +442,19 @@ Main.prototype.addComponent = function(compname)
     return comp;
 }
 // --simdir monitor data on the monitor's drawing (component frame), as in mcplot (first row at ymin):
-// flat monitors: 2D as a colour map on the drawn xy rectangle, 1D as a curve;
+// flat monitors: 2D as a colour map on the drawn rectangle, in its plane, 1D as a curve;
 // curved monitors (drawn with depth, angle along x): the same on a cylinder or sphere (latitude along y);
 // down: the monitor is upside down in the instrument, turn 1D curves upright
 Main.prototype.addMonitorData = function(node, mon, down)
 {
     var box = new THREE.Box3().setFromObject(node); // the drawing, before the component transform
-    var w = box.max.x - box.min.x, h = box.max.y - box.min.y;
+    var s = box.size().toArray(), h = s[1]; // three r78: size(), not getSize()
+    var n = s.indexOf(Math.min.apply(null, s)); // flat: the thinnest axis of the drawing is the normal
+    var uv = [0, 1, 2].filter(function(i) { return i !== n; }), u = uv[0], v = uv[1]; // data x, y, in x, y, z order
     // longitude atan2(x, z) in Monitor_nD and PSD_monitor_4PI; PSDcyl_monitor adds 180 deg
     var off = /^Longitude/.test(mon.xlabel) ? 0 : /^radial position/.test(mon.xlabel) ? -180 : null;
-    var curved = box.max.z - box.min.z > 1e-9 && off !== null;
-    if (!curved && !(w > 0 && h > 0)) { return; }
+    var curved = s[2] > 1e-9 && off !== null;
+    if (!curved && !(s[u] > 0 && s[v] > 0)) { return; }
     var canvas = document.createElement("canvas");
     paintMonitor(canvas, mon, curved, this.logMonitors);
     var tex = new THREE.Texture(canvas);
@@ -481,11 +483,13 @@ Main.prototype.addMonitorData = function(node, mon, down)
             pos = new THREE.Vector3(0, pos.y, 0);
         }
     } else {
-        geometry = new THREE.PlaneGeometry(w, h);
+        var e = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+        geometry = new THREE.PlaneGeometry(s[u], s[v]);
+        geometry.applyMatrix(new THREE.Matrix4().makeBasis(e[u], e[v], e[n])); // three r78: applyMatrix
     }
     var surf = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({map: tex, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false}));
     surf.position.copy(pos);
-    if (down && !mon.z) { surf.scale.y = -1; }
+    if (down && !mon.z && (curved || n === 2)) { surf.scale.y = -1; }
     surf.name = mon.title;
     surf.userData.mon = mon; surf.userData.curved = curved; // to repaint (setMonitorLog)
     node.add(surf);
