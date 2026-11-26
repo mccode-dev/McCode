@@ -1,0 +1,79 @@
+/*******************************************************************************
+*
+* Instrument: Test_MCPL_output_noacc
+*
+* %Identification
+* Written by: Erik B Knudsen <erkn@fysik.dtu.dk>
+* Date: Mar 2016
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_MCPL_etc
+*
+* A test instrument for MCPL_output_noacc
+*
+* %Description
+*
+* This is a unit test for the MCPL_output_noacc component, the same as Test_MCPL_output.
+*
+* %Test: Ncount=1e3 Detector: m1_I=2.42284e+11
+*
+* %Parameters
+* Ncount: [1]  Ncount defined via input parameter
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT Test_MCPL_output_noacc(Ncount=1e3)
+
+USERVARS
+%{
+    uint32_t flag;
+%}
+
+INITIALIZE
+%{
+  mcset_ncount((int)ceil(Ncount));
+%}
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) ABSOLUTE
+
+/* the source ============================================================== */
+COMPONENT sa = Source_Maxwell_3( /* flux in n/s/cm2/st/AA */
+  Lmin=1, Lmax=11, dist=1, focus_xw=0.1, focus_yh=0.1,
+  xwidth=0.01, yheight=0.01,
+  T1=216.8,I1=1.24e+13,T2=33.9,I2=1.02e+13, T3=16.7 ,I3=3.0423e+12
+)
+AT (0,0,0) ABSOLUTE
+EXTEND %{
+  t=1e-3*rand01();
+  flag=(uint32_t)mcget_run_num();
+%}
+
+/* the output ============================================================== */
+COMPONENT vout = MCPL_output_noacc(
+     filename="voutput", verbose=1, buffermax=Ncount,
+     userflag="flag", userflagcomment="Neutron Id")
+AT(0,0,0) RELATIVE PREVIOUS
+
+COMPONENT m1 = Monitor_nD(filename="m1",
+  xwidth=0.2, yheight=0.2,
+  options="lambda limits=[1 11] bins=100 parallel", bins=40
+) AT (0,0,0) ABSOLUTE
+
+COMPONENT m2 = Monitor_nD(filename="m2",
+  xwidth=0.2, yheight=0.2,
+  options="x y, parallel", bins=40
+) AT (0,0,0) ABSOLUTE
+
+COMPONENT m3 = Monitor_nD(filename="m3",
+  xwidth=0.2, yheight=0.2,
+  options="t limits=[0 1e-3]parallel", bins=40
+) AT (0,0,0) ABSOLUTE
+
+COMPONENT m4 = Monitor_nD(filename="m4",
+  xwidth=0.2, yheight=0.2,
+  options="E limits=[0 82] parallel", bins=40
+) AT (0,0,0) ABSOLUTE
+
+END
