@@ -7,6 +7,7 @@ e.g. an MPI run with seed s on 2 nodes, and serial runs with seeds s and s+1.
 '''
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -138,6 +139,14 @@ def nexus_run(d, seed, skip=('ev',)):
                     g[k] = v.T
             if x is not None:
                 g['x'] = x
+
+
+def mcpl(path, source, n):
+    ''' MCPL file with n neutrons and an initial ray count of n '''
+    strings = [source, b'stat:sum:initial_ray_count:%24i' % n]
+    with open(path, 'wb') as f:
+        f.write(b'MCPL003L' + struct.pack('<Q4IIiII', n, 1, 0, 0, 0, 1, 2112, 32, 0) +
+                b''.join(struct.pack('<I', len(s)) + s for s in strings) + bytes(32*n))
 
 
 def edit(path, old, new):
@@ -297,6 +306,37 @@ def test_synthetic():
     mcmerge_run('x1', 'a2', error='only in some')
 
 
+def test_mcpl():
+    for i in (1, 2):
+        ascii_run('a%i' % i, i)
+        nexus_run('n%i' % i, i)
+    if shutil.which('mcpltool'):
+        for d, n in (('a1', 2), ('a2', 3), ('n1', 2), ('n2', 3)):
+            mcpl(d + '/m.mcpl', b'same', n)
+            mcpl(d + '/other.mcpl', d.encode(), n)
+        for runs in ('a1 a2', 'n1 n2', 'a1 n2'):
+            p = mcmerge_run(*runs.split(), warning='weight_mode=1')
+            assert 'other.mcpl is not merged' in p.stderr and 'm.mcpl is' not in p.stderr, p.stderr
+            assert not os.path.exists('out/other.mcpl')
+            with open('out/m.mcpl', 'rb') as f:
+                data = f.read()
+            assert data[8:16] == struct.pack('<Q', 5) and b'count:%24i' % 5 in data
+        with open('a1/m.mcpl', 'rb') as f, open('a2/m.mcpl', 'r+b') as g:
+            g.write(f.read()[:-40])     # truncated
+            g.truncate()
+        mcmerge_run('a1', 'a2', warning='m.mcpl is not merged')
+        assert not os.path.exists('out/m.mcpl')
+
+    # only in one input, or no mcpltool
+    mcpl('a2/one.mcpl', b'', 1)
+    path = os.environ['PATH']
+    for os.environ['PATH'] in (path, ''):
+        mcmerge_run('a1', 'a2', warning='one.mcpl is not merged')
+        assert not os.path.exists('out/one.mcpl')
+    assert 'mcpltool not found' in mcmerge_run('a1', 'a2').stderr
+    os.environ['PATH'] = path
+
+
 def test_refused():
     ascii_run('a1', 1)
     nexus_run('n1', 1)
@@ -343,8 +383,8 @@ def test_refused():
         mcmerge_run('n1', 'n2', error=error)
 
     # out exists; left out files; cleanup after an exception
-    put('a2/x.mcpl', '')
-    assert 'x.mcpl' in mcmerge_run('a1', 'a2').stdout and not os.path.exists('out/x.mcpl')
+    put('a2/x.txt', '')
+    assert 'x.txt' in mcmerge_run('a1', 'a2').stdout and not os.path.exists('out/x.txt')
     p = subprocess.run([sys.executable, SCRIPT, '-d', 'out', 'a1', 'a2'], capture_output=True, text=True)
     assert p.returncode == 255 and 'exists' in p.stderr
     edit('a2/m2.dat', '# Errors', 'garbage\n# Errors')
@@ -353,7 +393,7 @@ def test_refused():
 
 if __name__ == '__main__':
     inputs = [os.path.abspath(p) for p in sys.argv[1:]]
-    for test in (test_synthetic, test_refused) if not inputs else (None,):
+    for test in (test_synthetic, test_mcpl, test_refused) if not inputs else (None,):
         with tempfile.TemporaryDirectory() as tmp:
             os.chdir(tmp)
             if test:

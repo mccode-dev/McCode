@@ -9,6 +9,7 @@ import argparse
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 import h5py
@@ -19,6 +20,7 @@ IGNORE = set('Date Directory File Format Seed Nodes Ncount filename values stati
 KEYS = ('Date type Source component position title Ncount mean filename statistics signal '
         'values xvar yvar xlabel ylabel zvar zlabel xlimits xylimits variables').split()
 ARRAYS = ('data', 'errors', 'ncount')
+MCPL = r'.*\.mcpl(\.gz)?'
 FORMAT = {'McCode': 'ASCII', 'NeXus': 'NeXus'}
 
 
@@ -457,6 +459,29 @@ def write_scan(src, dst, tables, n):
         f.writelines(lines)
 
 
+def merge_mcpl(out, runs):
+    ''' Merges the MCPL files of a run with mcpltool '''
+    dirs = [os.path.join(r['path'], r.get('sub', '')) for r in runs]
+    for name in sorted({s for d in dirs for s in os.listdir(d) if re.fullmatch(MCPL, s)}):
+        dst = os.path.join(out, name)
+        if os.path.exists(dst):     # NeXus scans have one file for all points
+            continue
+        # mcpltool compresses in the end
+        new = [s for s in (dst, re.sub(r'\.gz$', '', dst)) if not os.path.exists(s)]
+        try:
+            p = subprocess.run(['mcpltool', '--merge', dst] + [os.path.join(d, name) for d in dirs],
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
+            error = p.returncode and 'mcpltool: ' + p.stdout.strip().split('\n')[0]
+        except FileNotFoundError:
+            error = 'mcpltool not found'
+        if error:
+            warn('%s is not merged: %s' % (name, error))
+            for s in filter(os.path.exists, new):
+                os.remove(s)
+        else:
+            warn('intensities in merged MCPL files are only correct with weight_mode=1 in MCPL_output')
+
+
 def copy(out, datasets, t):
     ''' Copies what is not patched later, and names the files that are left out '''
     other = set()
@@ -465,7 +490,7 @@ def copy(out, datasets, t):
         known.update(m['head']['filename'] for r in runs for m in r['mons'].values())
         for d in {os.path.join(r['path'], r.get('sub', '')) for r in runs} | {runs[0]['path']}:
             other.update(s for s in os.listdir(d) if s not in known and os.path.isfile(os.path.join(d, s))
-                         and not re.fullmatch(r'mccode_node\d+\.h5', s))
+                         and not re.fullmatch(r'mccode_node\d+\.h5|' + MCPL, s))
     if other:
         print('Not merged: ' + ' '.join(sorted(other)))
     os.mkdir(out)
@@ -506,6 +531,7 @@ def main():
         for t, runs in zip(template, points):
             n, merged = sum(r['n'] for r in runs), [s for r in runs for s in r['from']]
             tables.append((write_ascii if fmt == 'ASCII' else write_nexus)(part, t, runs, n, merged))
+            merge_mcpl(os.path.join(part, t.get('sub', '')), runs)
         path = template[0]['path']
         if os.path.isfile(os.path.join(path, 'mccode.dat')):
             write_scan(os.path.join(path, 'mccode.dat'), os.path.join(part, 'mccode.dat'), tables, n)

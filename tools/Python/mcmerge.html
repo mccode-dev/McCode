@@ -81,13 +81,14 @@ em { color: #57606a; }
 </tr>
 </tbody>
 </table>
-<p>Requires <code>numpy</code> and <code>h5py</code>.</p>
+<p>Requires <code>numpy</code> and <code>h5py</code>, and <code>mcpltool</code> for MCPL files.</p>
 <ul>
 <li>Give each run its own seed, e.g. <code>mcrun -s 1000</code> and <code>mcrun -s 2000</code>. With MPI, the nodes use <code>Seed</code> to <code>Seed+Nodes-1</code>, so keep the seeds at least that far apart.</li>
 <li>Scans are merged point by point.</li>
 <li>Event lists (<code>Monitor_nD</code>) are joined, with <code>p</code> scaled by each run's share of <code>Ncount</code>. In NeXus, the output does not need the <code>mccode_node*.h5</code> files of MPI runs.</li>
 <li>The output is a copy of the first dataset in the output format, with new numbers. It lists its inputs as <code>Merged_from</code>, has <code>Seed: -1</code> and no <code>Nodes</code>, and can be merged again.</li>
-<li>Other files, e.g. MCPL, are not merged but listed on screen.</li>
+<li>MCPL files are merged with <code>mcpltool</code>. The intensities are only correct with <code>weight_mode=1</code> (the default) in <code>MCPL_output</code>, see below.</li>
+<li>Other files are not merged but listed on screen.</li>
 </ul>
 <h2 id="what-is-refused">What is refused</h2>
 <ul>
@@ -102,6 +103,9 @@ em { color: #57606a; }
 <ul>
 <li>Polarisation monitors are merged approximately: the mean is weighted with the number of rays <code>N</code>, not with their intensity.</li>
 <li>Neutron or photon IDs (<code>n</code>) in event lists are not unique, as with MPI.</li>
+<li>MCPL files written with <code>weight_mode=2</code> get too high intensities, as their weights are already divided by <code>Ncount</code>. This is not detected, so a warning is always given.</li>
+<li>NeXus scans only have the MCPL file of the last point.</li>
+<li>MCPL files that <code>mcpltool</code> refuses are left out with a warning, e.g. if the runs were started with a different path to the instrument executable.</li>
 <li>Runs that read the same MCPL file are not independent, however different the seeds. This is not detected.</li>
 <li>To ASCII: geometry, component parameters and <code>BINS</code> of the NeXus data are left out.</li>
 </ul>
