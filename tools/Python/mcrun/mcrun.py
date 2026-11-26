@@ -243,6 +243,15 @@ def add_mcrun_adv_options(parser):
         action='store',
         type=str,
         help='Specify the plotter used with --autoplot')
+
+    add('--autodisplay',
+        action='store_true',
+        help='Open mcdisplay with the monitor data of the generated dataset')
+
+    add('--autodisplayer',
+        action='store',
+        type=str,
+        help='Specify the mcdisplay (webgl or webgl-classic) used with --autodisplay')
     parser.add_option_group(plotopt)
 
     mpiopt = OptionGroup(parser, 'MPI options')
@@ -965,6 +974,20 @@ def main():
                 Process(autoplotter).run([options.dir])
             else:
                 Process(autoplotter).run([options.dir, '--invcanvas'])
+
+    if options.autodisplayer is not None:
+        options.autodisplay = True
+
+    if options.autodisplay:
+        if interval_points or options.optimize:
+            LOG.warning('--autodisplay: skipped, scans and optimisation give no single dataset')
+        elif isdir(options.dir):
+            autodisplayer = options.autodisplayer or mccode_config.configuration['MCDISPLAY']
+            LOG.info('Running %s on dataset %s', autodisplayer, options.dir)
+            Process(autodisplayer).run([options.instr, '--simdir', options.dir,
+                                        '-d', join(options.dir, 'mcdisplay'),
+                                        '-n', '%g' % min(options.ncount, 1e3)]
+                                       + ['%s=%s' % kv for kv in fixed_params.items()])
 
 if __name__ == '__main__':
     try:
