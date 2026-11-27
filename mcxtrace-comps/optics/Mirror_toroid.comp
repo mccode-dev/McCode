@@ -23,12 +23,18 @@
 * radius curvature. Secondly, the ray is the intersected with an ellipsoid, with the curvatures
 * matching that of the torus.
 *
-* In the first incarnation we assume the mirror to be curving outwards (a bump).
+* The mirror is either convex (concave=0, default, a bump) or concave (concave=1). Saddle shapes
+* (curvatures of opposite signs) are not supported: concave selects the sign of both curvatures.
+*
 * Orientation: the mirror apex is at the component origin, the surface normal there is +y and the
-* reflecting side is the +y side (rays must arrive from y>0). The surface is convex: it curves
-* downwards (towards -y) when |x| or |z| increases, i.e. the mirror body lies below the surface (y<0).
-* The mirror is one-sided: rays reaching it from the back side (from y<0, i.e. from inside the mirror body)
-* are not reflected nor absorbed, they pass through unaffected.
+* reflecting side is the +y side (rays must arrive from y>0).
+* - convex:  the surface curves downwards (towards -y) when |x| or |z| increases, i.e. the mirror body
+*            lies below the surface (y<0). The mirror diverges the beam.
+* - concave: the surface curves upwards (towards +y) when |x| or |z| increases, i.e. rays travel inside
+*            the curve and are reflected from its lower wall. The mirror can converge the beam.
+* The mirror is one-sided: rays reaching it from the back side (from y<0, i.e. from inside the mirror body
+* for a convex mirror, from outside the curve for a concave one) are not reflected nor absorbed, they pass
+* through unaffected.
 *
 * Example: Mirror_toroid(zdepth=0.340,xwidth=0.020,radius=246.9254,radius_o=246.9254,R0=1)
 *
@@ -41,13 +47,14 @@
 * radius:  [m] Curvature radius (sagittal, in the x-y plane).
 * radius_o:[m] Curvature radius, outwards. The effective meridional curvature
 *              radius at the mirror centre is radius_o + radius.
+* concave: [1] 0: convex mirror (bump, diverging), non-zero: concave mirror (converging).
 *
 * %End
 *******************************************************************************/
 
 DEFINE COMPONENT Mirror_toroid
 
-SETTING PARAMETERS (string coating="", zdepth=0.1, xwidth=0.01, radius, radius_o,R0=1)
+SETTING PARAMETERS (string coating="", zdepth=0.1, xwidth=0.01, radius, radius_o,R0=1, concave=0)
 
 /* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
@@ -65,8 +72,13 @@ DECLARE
 INITIALIZE
 %{
   int status;
+  if (radius * (radius_o + radius) < 0) {
+    fprintf (stderr, "ERROR (%s): Saddle shapes are not supported (sagittal radius=%g and meridional radius=%g have opposite signs). Use concave=1 for a concave mirror.\n",
+             NAME_CURRENT_COMP, radius, radius_o + radius);
+    exit (-1);
+  }
   if (radius <= 0 || radius_o + radius <= 0 || xwidth <= 0 || zdepth <= 0) {
-    fprintf (stderr, "ERROR (%s): Invalid mirror geometry (radius=%g, radius_o=%g).\n", NAME_CURRENT_COMP, radius, radius_o);
+    fprintf (stderr, "ERROR (%s): Invalid mirror geometry (radius=%g, radius_o=%g). Both curvature radii must be positive.\n", NAME_CURRENT_COMP, radius, radius_o);
     exit (-1);
   }
   if (coating && strlen (coating) && strcmp (coating, "NULL")) {
@@ -83,56 +95,66 @@ INITIALIZE
 TRACE
 %{
   int status;
-  double k, l0, l1, l2, l3, tx, ty, tz;
+  double k, l, l0, l1, l2, l3, tx, ty, tz;
   /*half width of the mirror as a chord on the sagittal cylinder*/
   double xmax = sin(xwidth / (2.0 * radius)) * radius;
+  /*the cylinder/ellipsoid centre is at y=-radius (convex) or y=+radius (concave)*/
+  double yoff = concave ? -radius : radius;
 
   do {
     k = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
 
-    /* The permutation is intentional: cylinder_intersect has its axis along its second position argument.
-       Passing (x, z, y+radius) gives the circle x^2+(y+radius)^2=radius^2 with the axis along z and height zdepth. */
-    status = cylinder_intersect (&l0, &l1, x, z, y + radius, kx, kz, ky, radius, zdepth);
+    /*The cylinder pre-filter is only used for the convex mirror. For the concave one the rays start inside the
+      cylinder (and generally outside its finite height), so the exact aperture check on the ellipsoid hit is used alone.*/
+    if (!concave) {
+      /* The permutation is intentional: cylinder_intersect has its axis along its second position argument.
+         Passing (x, z, y+radius) gives the circle x^2+(y+radius)^2=radius^2 with the axis along z and height zdepth. */
+      status = cylinder_intersect (&l0, &l1, x, z, y + radius, kx, kz, ky, radius, zdepth);
+      if (!status)
+        break; /* no interaction with the cylinder*/
+      if (status & (02 | 04))
+        break; /*the ray enters through the z-end caps of the cylinder*/
+      /*if the first intersection is behind the particle - this means the ray is on the wrong (back) side of the mirror.
+        The mirror is one-sided: such rays are transmitted unchanged, neither reflected nor absorbed.*/
+      if (l0 < 0)
+        break;
+
+      tx = x + l0 * kx / k;
+      ty = y + l0 * ky / k;
+      tz = z + l0 * kz / k;
+
+      /*Pre-filter on the (approximate) cylinder hit point. NOT conservative: the ellipsoid hit lies further along
+        the ray by about sag/tan(grazing angle), so edge rays within that distance of the mirror ends can be lost here
+        although their reflection point would be inside the mirror.*/
+      if (tz < -zdepth / 2.0 || tz > zdepth / 2.0)
+        break;
+      if (tx < -xmax || tx > xmax)
+        break;
+    }
+
+    status = ellipsoid_intersect(&l2, &l3, x, y+yoff, z, kx, ky, kz, radius, radius, sqrt(radius*(radius_o+radius)), NULL);
     if (!status)
-      break; /* no interaction with the cylinder*/
-    if (status & (02 | 04))
-      break; /*the ray enters through the z-end caps of the cylinder*/
-    /*if the first intersection is behind the particle - this means the ray is on the wrong (back) side of the mirror.
-      The mirror is one-sided: such rays are transmitted unchanged, neither reflected nor absorbed.*/
-    if (l0 < 0)
       break;
-
-    tx = x + l0 * kx / k;
-    ty = y + l0 * ky / k;
-    tz = z + l0 * kz / k;
-
-    /*Pre-filter on the (approximate) cylinder hit point. NOT conservative: the ellipsoid hit lies further along
-      the ray by about sag/tan(grazing angle), so edge rays within that distance of the mirror ends can be lost here
-      although their reflection point would be inside the mirror.*/
-    if (tz < -zdepth / 2.0 || tz > zdepth / 2.0)
+    /*convex: the ray is outside the ellipsoid and is reflected at the near root l2.
+      concave: the ray is inside (l2<0<l3) and is reflected at the far root l3, which must be on the lower wall.
+      Anything else is the back side: the ray is transmitted unchanged.*/
+    l = concave ? l3 : l2;
+    if (l < 0 || (concave && (l2 > 0 || y + l * ky / k > radius)))
       break;
-    if (tx < -xmax || tx > xmax)
-      break;
-
-    status = ellipsoid_intersect(&l2, &l3, x, y+radius, z, kx, ky, kz, radius, radius, sqrt(radius*(radius_o+radius)), NULL);
-    if (!status)
-      break;
-    if (l2 < 0)
-      break; /*ray starts inside the ellipsoid (back side): transmitted unchanged, as above*/
     /*the mirror is indeed hit*/
     /*check the aperture on the actual (ellipsoid) reflection point, before propagating*/
-    if (fabs (z + l2 * kz / k) > zdepth / 2.0 || fabs (x + l2 * kx / k) > xmax)
+    if (fabs (z + l * kz / k) > zdepth / 2.0 || fabs (x + l * kx / k) > xmax)
       break;
-    PROP_DL (l2);
+    PROP_DL (l);
     SCATTER;
 
     double nx, ny, nz;
     nx = 2 * x / (radius * radius);
-    ny = 2 * (y + radius) / (radius * radius); /*ellipsoid is displaced to put Origin on the surface*/
+    ny = 2 * (y + yoff) / (radius * radius); /*ellipsoid is displaced to put Origin on the surface*/
     nz = 2 * z / (radius*(radius+radius_o));
     NORM (nx, ny, nz);
 
-    /*By definition the normal vector points out from the ellipsoid*/
+    /*n is the outward normal of the ellipsoid. Its sign does not matter for the reflection, and q and the grazing angle use |s|*/
     double s = scalar_prod (kx, ky, kz, nx, ny, nz);
 
     kx = kx - 2 * s * nx;
@@ -155,6 +177,8 @@ MCDISPLAY
   // quartic equations), there's a slight mismatch between the 3D view (exact torus) and the actual toroidal mirror coded above.
 
   double theta, phi, phi_total, theta_total, theta_beginning, phi_beginning, theta_end, phi_end;
+  // sg flips the y coordinate of the convex surface to get the concave one
+  double sg = concave ? -1.0 : 1.0;
   // int N=50; too many points, makes the 3D matlab viewer bug
   int N = 10;
 
@@ -177,10 +201,10 @@ MCDISPLAY
     for (j = 0; j < N; j++) {
       double t0 = DEG2RAD * (theta_beginning + i * theta_total / N), t1 = DEG2RAD * (theta_beginning + (i + 1) * theta_total / N);
       double p0 = DEG2RAD * (phi_beginning + j * phi_total / N), p1 = DEG2RAD * (phi_beginning + (j + 1) * phi_total / N);
-      polygon (4, radius * sin (t0), (radius_o + radius * cos (t0)) * cos (p0) - (radius_o + radius), (radius_o + radius * cos (t0)) * sin (p0),
-               radius * sin (t1), (radius_o + radius * cos (t1)) * cos (p0) - (radius_o + radius), (radius_o + radius * cos (t1)) * sin (p0), radius * sin (t1),
-               (radius_o + radius * cos (t1)) * cos (p1) - (radius_o + radius), (radius_o + radius * cos (t1)) * sin (p1), radius * sin (t0),
-               (radius_o + radius * cos (t0)) * cos (p1) - (radius_o + radius), (radius_o + radius * cos (t0)) * sin (p1));
+      polygon (4, radius * sin (t0), sg * ((radius_o + radius * cos (t0)) * cos (p0) - (radius_o + radius)), (radius_o + radius * cos (t0)) * sin (p0),
+               radius * sin (t1), sg * ((radius_o + radius * cos (t1)) * cos (p0) - (radius_o + radius)), (radius_o + radius * cos (t1)) * sin (p0), radius * sin (t1),
+               sg * ((radius_o + radius * cos (t1)) * cos (p1) - (radius_o + radius)), (radius_o + radius * cos (t1)) * sin (p1), radius * sin (t0),
+               sg * ((radius_o + radius * cos (t0)) * cos (p1) - (radius_o + radius)), (radius_o + radius * cos (t0)) * sin (p1));
     }
   }
   line (-xwidth / 2.0, 0, -zdepth / 2.0, xwidth / 2.0, 0, -zdepth / 2.0);
