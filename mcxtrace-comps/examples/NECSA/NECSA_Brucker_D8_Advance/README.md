@@ -33,7 +33,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| source_material | str | anode type, among Cu.txt, Co.txt, Cr.txt | "Cu.txt" |
+| source_material | str | anode type, e.g. Cu, Co, Cr, W, Mo | "Cu" |
 | Emin | keV | minimum energy at the source | 1 |
 | Emax | keV | maximum energy at the source | 9 |
 | Gobel_radius | m | Gobel curved mirror curvature radius | 0.5 |
