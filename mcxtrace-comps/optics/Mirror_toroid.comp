@@ -18,10 +18,10 @@
 *
 * %Description
 * This is an implementation of a toroidal mirror which may be curved in two dimensions.
-* To avoid solving quartic equations, the intersection is compited as a combination of 
+* To avoid solving quartic equations, the intersection is compited as a combination of
 * two intersections. First, the ray is intersected with a cylinder to catch (almost) the small
 * radius curvature. Secondly, the ray is the intersected with an ellipsoid, with the curvatures
-* matching that of the torus. 
+* matching that of the torus.
 *
 * In the first incarnation we assume the mirror to be curving outwards (a bump).
 *
@@ -33,8 +33,9 @@
 * xwidth:  [m]  Width of mirror.
 * zdepth:  [m]  Length of mirror.
 * coating: [str] Datafile containing either mirror material constants or reflectivity  numbers.
-* radius:  [m] Curvature radius
-* radius_o:[m] Curvature radius, outwards
+* radius:  [m] Curvature radius (sagittal, in the x-y plane).
+* radius_o:[m] Curvature radius, outwards. The effective meridional curvature
+*              radius at the mirror centre is radius_o + radius.
 *
 * %End
 *******************************************************************************/
@@ -43,7 +44,7 @@ DEFINE COMPONENT Mirror_toroid
 
 SETTING PARAMETERS (string coating="", zdepth=0.1, xwidth=0.01, radius, radius_o,R0=1)
 
-/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
 
 SHARE
 %{
@@ -52,7 +53,7 @@ SHARE
 %}
 
 DECLARE
-%{  
+%{
   t_Reflec re;
 %}
 
@@ -78,6 +79,8 @@ TRACE
 %{
   int status;
   double k, l0, l1, l2, l3, tx, ty, tz;
+  /*half width of the mirror as a chord on the sagittal cylinder*/
+  double xmax = sin(xwidth / (2.0 * radius)) * radius;
 
   do {
     k = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
@@ -97,21 +100,24 @@ TRACE
     ty = y + l0 * ky / k;
     tz = z + l0 * kz / k;
 
-    /*check mirror limits of intersection point.*/
+    /*coarse pre-filter: mirror limits of the (approximate) cylinder hit point.*/
     if (tz < -zdepth / 2.0 || tz > zdepth / 2.0)
       break;
-    /*check if the width is OK*/
-    double xmax = sin(xwidth / (2.0 * radius)) * radius;
     if (tx < -xmax || tx > xmax)
       break;
 
-    status = ellipsoid_intersect(&l2, &l3, x, y+radius, z, kx, ky, kz, radius, radius, sqrt(radius*(radius_o+radius)), NULL);    
+    status = ellipsoid_intersect(&l2, &l3, x, y+radius, z, kx, ky, kz, radius, radius, sqrt(radius*(radius_o+radius)), NULL);
     if (!status)
       break;
     if (l2 < 0)
       break; /*This shouldn't be possible*/
     /*the mirror is indeed hit*/
     PROP_DL (l2);
+    /*re-check the aperture on the actual (ellipsoid) reflection point*/
+    if (fabs(z) > zdepth / 2.0 || fabs(x) > xmax) {
+      RESTORE; /*undo the propagation, the ray misses the mirror*/
+      break;
+    }
     SCATTER;
 
     double nx, ny, nz;
@@ -149,9 +155,9 @@ MCDISPLAY
   phi_total = RAD2DEG * (zdepth / (radius + radius_o)); // degrees
   theta_total = RAD2DEG * (xwidth / radius);
 
-  // fix theta=0 and phi=180 degrees respectively
+  // fix theta=0 and phi=0 degrees respectively
   theta = 0;
-  phi = 180;
+  phi = 0;
 
   // then start at the beginning of the theta or phi range in order to map the flat surface (xwidth, zdepth) on the torus.
   theta_beginning = theta - (theta_total / 2);
@@ -165,10 +171,10 @@ MCDISPLAY
     for (j = 0; j < N; j++) {
       double t0 = DEG2RAD * (theta_beginning + i * theta_total / N), t1 = DEG2RAD * (theta_beginning + (i + 1) * theta_total / N);
       double p0 = DEG2RAD * (phi_beginning + j * phi_total / N), p1 = DEG2RAD * (phi_beginning + (j + 1) * phi_total / N);
-      polygon (4, radius * sin (t0), (radius_o + radius * cos (t0)) * cos (p0) + (radius_o + radius), (radius_o + radius * cos (t0)) * sin (p0),
-               radius * sin (t1), (radius_o + radius * cos (t1)) * cos (p0) + (radius_o + radius), (radius_o + radius * cos (t1)) * sin (p0), radius * sin (t1),
-               (radius_o + radius * cos (t1)) * cos (p1) + (radius_o + radius), (radius_o + radius * cos (t1)) * sin (p1), radius * sin (t0),
-               (radius_o + radius * cos (t0)) * cos (p1) + (radius_o + radius), (radius_o + radius * cos (t0)) * sin (p1));
+      polygon (4, radius * sin (t0), (radius_o + radius * cos (t0)) * cos (p0) - (radius_o + radius), (radius_o + radius * cos (t0)) * sin (p0),
+               radius * sin (t1), (radius_o + radius * cos (t1)) * cos (p0) - (radius_o + radius), (radius_o + radius * cos (t1)) * sin (p0), radius * sin (t1),
+               (radius_o + radius * cos (t1)) * cos (p1) - (radius_o + radius), (radius_o + radius * cos (t1)) * sin (p1), radius * sin (t0),
+               (radius_o + radius * cos (t0)) * cos (p1) - (radius_o + radius), (radius_o + radius * cos (t0)) * sin (p1));
     }
   }
   line (-xwidth / 2.0, 0, -zdepth / 2.0, xwidth / 2.0, 0, -zdepth / 2.0);
@@ -178,4 +184,3 @@ MCDISPLAY
 %}
 
 END
-
