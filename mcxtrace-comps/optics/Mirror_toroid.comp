@@ -59,6 +59,10 @@ DECLARE
 INITIALIZE
 %{
   int status;
+  if (radius <= 0 || radius_o + radius <= 0 || xwidth <= 0 || zdepth <= 0) {
+    fprintf (stderr, "ERROR (%s): Invalid mirror geometry (radius=%g, radius_o=%g).\n", NAME_CURRENT_COMP, radius, radius_o);
+    exit (-1);
+  }
   if (coating && strlen (coating) && strcmp (coating, "NULL")) {
     status = reflec_Init (&re, COATING_UNDEFINED, coating, NULL);
   } else {
@@ -78,12 +82,13 @@ TRACE
   do {
     k = sqrt (scalar_prod (kx, ky, kz, kx, ky, kz));
 
-    /*TODO check the permutation of coordinates and the actual position of the cylinder.*/
+    /* The permutation is intentional: cylinder_intersect has its axis along its second position argument.
+       Passing (x, z, y+radius) gives the circle x^2+(y+radius)^2=radius^2 with the axis along z and height zdepth. */
     status = cylinder_intersect (&l0, &l1, x, z, y + radius, kx, kz, ky, radius, zdepth);
     if (!status)
       break; /* no interaction with the cylinder*/
     if (status & (02 | 04))
-      break; /*we exit the top/bottom of the cylinder*/
+      break; /*the ray enters through the z-end caps of the cylinder*/
     /*if the first intersection is behind the particle - this means the ray is on the wrong side of the mirror*/
     if (l0 < 0)
       break;
@@ -124,7 +129,7 @@ TRACE
 
     /*the get ref. by call to reflectivity lib*/
     double R, q;
-    q = 2.0 * s;
+    q = 2.0 * fabs (s);
     R = reflecq (re, q, 0, k, fabs (90 - acos (s / k) * RAD2DEG));
     p *= R;
     phi += M_PI;
@@ -173,3 +178,4 @@ MCDISPLAY
 %}
 
 END
+
