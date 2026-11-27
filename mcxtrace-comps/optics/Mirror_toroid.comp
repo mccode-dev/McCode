@@ -24,6 +24,11 @@
 * matching that of the torus.
 *
 * In the first incarnation we assume the mirror to be curving outwards (a bump).
+* Orientation: the mirror apex is at the component origin, the surface normal there is +y and the
+* reflecting side is the +y side (rays must arrive from y>0). The surface is convex: it curves
+* downwards (towards -y) when |x| or |z| increases, i.e. the mirror body lies below the surface (y<0).
+* The mirror is one-sided: rays reaching it from the back side (from y<0, i.e. from inside the mirror body)
+* are not reflected nor absorbed, they pass through unaffected.
 *
 * Example: Mirror_toroid(zdepth=0.340,xwidth=0.020,radius=246.9254,radius_o=246.9254,R0=1)
 *
@@ -92,7 +97,8 @@ TRACE
       break; /* no interaction with the cylinder*/
     if (status & (02 | 04))
       break; /*the ray enters through the z-end caps of the cylinder*/
-    /*if the first intersection is behind the particle - this means the ray is on the wrong side of the mirror*/
+    /*if the first intersection is behind the particle - this means the ray is on the wrong (back) side of the mirror.
+      The mirror is one-sided: such rays are transmitted unchanged, neither reflected nor absorbed.*/
     if (l0 < 0)
       break;
 
@@ -100,7 +106,9 @@ TRACE
     ty = y + l0 * ky / k;
     tz = z + l0 * kz / k;
 
-    /*coarse pre-filter: mirror limits of the (approximate) cylinder hit point.*/
+    /*Pre-filter on the (approximate) cylinder hit point. NOT conservative: the ellipsoid hit lies further along
+      the ray by about sag/tan(grazing angle), so edge rays within that distance of the mirror ends can be lost here
+      although their reflection point would be inside the mirror.*/
     if (tz < -zdepth / 2.0 || tz > zdepth / 2.0)
       break;
     if (tx < -xmax || tx > xmax)
@@ -110,14 +118,12 @@ TRACE
     if (!status)
       break;
     if (l2 < 0)
-      break; /*This shouldn't be possible*/
+      break; /*ray starts inside the ellipsoid (back side): transmitted unchanged, as above*/
     /*the mirror is indeed hit*/
-    PROP_DL (l2);
-    /*re-check the aperture on the actual (ellipsoid) reflection point*/
-    if (fabs(z) > zdepth / 2.0 || fabs(x) > xmax) {
-      RESTORE; /*undo the propagation, the ray misses the mirror*/
+    /*check the aperture on the actual (ellipsoid) reflection point, before propagating*/
+    if (fabs (z + l2 * kz / k) > zdepth / 2.0 || fabs (x + l2 * kx / k) > xmax)
       break;
-    }
+    PROP_DL (l2);
     SCATTER;
 
     double nx, ny, nz;
@@ -184,3 +190,4 @@ MCDISPLAY
 %}
 
 END
+
