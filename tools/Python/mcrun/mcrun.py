@@ -987,6 +987,7 @@ def main():
             Process(autodisplayer).run([options.instr, '--simdir', options.dir,
                                         '-d', join(options.dir, 'mcdisplay'),
                                         '-n', '%g' % min(options.ncount, 1e3)]
+                                       + (['-y'] if options.yes else [])
                                        + ['%s=%s' % kv for kv in fixed_params.items()])
 
 if __name__ == '__main__':
