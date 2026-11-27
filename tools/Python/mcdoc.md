@@ -21,5 +21,7 @@ Generates browsable documentation for installed and local instrument/component f
 
 *(No `searchterm`/`--install`/`--manual`/`--comps`/`--web` at all &rarr; browse the existing installed docs directly.)*
 
+Math in a `%D` description goes in `<span class="latex">$...$</span>` (or `<div class="latex">`): MathJax renders it in the HTML docs, and the `--tex` output passes it to LaTeX as is.
+
 ---
 [&larr; back to overview](README.md)
