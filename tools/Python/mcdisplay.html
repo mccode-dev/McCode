@@ -59,6 +59,8 @@ em { color: #57606a; }
 <p>All variants wrap <code>mcrun --trace</code> under the hood; <code>INSTR</code> plus any
 <code>name=value</code> instrument parameters are forwarded straight to it. The
 <strong>default</strong> is <code>mcdisplay</code>/<code>mxdisplay</code> &rarr; pyqtgraph.</p>
+<p><code>-n</code> is capped at 1000 particles (a larger value is lowered, with a message); with <code>SPLIT</code> in the
+instrument one particle can give several rays, up to 1e5 rays in all.</p>
 <h2 id="mcdisplay-mxdisplay-default-pyqtgraph">mcdisplay / mxdisplay <em>(default = pyqtgraph)</em></h2>
 <table>
 <thead>
@@ -86,7 +88,11 @@ em { color: #57606a; }
 </tr>
 <tr>
 <td><code>-n</code>, <code>--ncount N</code></td>
-<td>number of particles to trace (default: 300)</td>
+<td>number of particles to trace (default: 300, at most 1000)</td>
+</tr>
+<tr>
+<td><code>-t</code>, <code>--trace N</code></td>
+<td>visualisation mode (default: 2)</td>
 </tr>
 <tr>
 <td><code>--dirname DIR</code></td>
@@ -143,7 +149,7 @@ em { color: #57606a; }
 </tr>
 </tbody>
 </table>
-<h2 id="mcdisplay-webgl-mxdisplay-webgl-nodejsvite-based">mcdisplay-webgl / mxdisplay-webgl <em>(NodeJS/vite-based)</em></h2>
+<h2 id="mcdisplay-webgl-mxdisplay-webgl-prebuilt-threejs-app-served-locally">mcdisplay-webgl / mxdisplay-webgl <em>(prebuilt three.js app, served locally)</em></h2>
 <table>
 <thead>
 <tr>
@@ -154,7 +160,7 @@ em { color: #57606a; }
 <tbody>
 <tr>
 <td><code>INSTR</code></td>
-<td>instrument file</td>
+<td>instrument file, or a display directory from an earlier run (with <code>--simdir</code>)</td>
 </tr>
 <tr>
 <td><code>name=value ...</code></td>
@@ -170,7 +176,7 @@ em { color: #57606a; }
 </tr>
 <tr>
 <td><code>-n</code>, <code>--ncount N</code></td>
-<td>number of particles to trace (default: 300)</td>
+<td>number of particles to trace (default: 300, at most 1000)</td>
 </tr>
 <tr>
 <td><code>-t</code>, <code>--trace N</code></td>
@@ -183,6 +189,22 @@ em { color: #57606a; }
 <tr>
 <td><code>--inspect COMP</code></td>
 <td>show only rays reaching component <code>COMP</code></td>
+</tr>
+<tr>
+<td><code>--campath FILE</code></td>
+<td>camera path for the tour: rows of <code>x y z</code> (m), optionally with viewing direction <code>dx dy dz</code></td>
+</tr>
+<tr>
+<td><code>--simdir DIR</code></td>
+<td>simulation output (<code>mccode.sim</code> or <code>mccode.h5</code>): show its 1D/2D monitor data on the monitors</td>
+</tr>
+<tr>
+<td><code>--simbins N</code></td>
+<td>with <code>--simdir</code>: at most N x N (2D) or 4N (1D) bins shown (default: 256)</td>
+</tr>
+<tr>
+<td><code>--nosimplots</code></td>
+<td>with <code>--simdir</code>: no monitor plots next to the display</td>
 </tr>
 <tr>
 <td><code>--nobrowse</code></td>
@@ -206,7 +228,7 @@ em { color: #57606a; }
 <tbody>
 <tr>
 <td><code>INSTR</code></td>
-<td>instrument file</td>
+<td>instrument file, or a display directory from an earlier run (with <code>--simdir</code>)</td>
 </tr>
 <tr>
 <td><code>name=value ...</code></td>
@@ -222,7 +244,7 @@ em { color: #57606a; }
 </tr>
 <tr>
 <td><code>-n</code>, <code>--ncount N</code></td>
-<td>number of particles to trace (default: 300)</td>
+<td>number of particles to trace (default: 300, at most 1000)</td>
 </tr>
 <tr>
 <td><code>-t</code>, <code>--trace N</code></td>
@@ -235,6 +257,22 @@ em { color: #57606a; }
 <tr>
 <td><code>--inspect COMP</code></td>
 <td>show only rays reaching component <code>COMP</code></td>
+</tr>
+<tr>
+<td><code>--campath FILE</code></td>
+<td>camera path for the tour: rows of <code>x y z</code> (m), optionally with viewing direction <code>dx dy dz</code></td>
+</tr>
+<tr>
+<td><code>--simdir DIR</code></td>
+<td>simulation output (<code>mccode.sim</code> or <code>mccode.h5</code>): show its 1D/2D monitor data on the monitors</td>
+</tr>
+<tr>
+<td><code>--simbins N</code></td>
+<td>with <code>--simdir</code>: at most N x N (2D) or 4N (1D) bins shown (default: 256)</td>
+</tr>
+<tr>
+<td><code>--nosimplots</code></td>
+<td>with <code>--simdir</code>: no monitor plots next to the display</td>
 </tr>
 <tr>
 <td><code>--first COMP</code> / <code>--last COMP</code></td>
@@ -250,8 +288,21 @@ em { color: #57606a; }
 </tr>
 </tbody>
 </table>
+<h3 id="monitor-data-simdir-both-webgl-viewers">Monitor data (<code>--simdir</code>, both webgl viewers)</h3>
+<p>2D data is a colour map on the monitor (as in mcplot), 1D data a curve; on cylinder, banana and
+sphere monitors it follows the curved surface, with the angle along it. Large monitors are shown
+averaged to at most 256 x 256 (1D: 1024) bins, set with <code>--simbins</code>; the output files are
+untouched. The display grows as N^2 (~16 bytes/bin); a large N may exceed the browser's texture size. Toggles: <strong>1D</strong>,
+<strong>2D</strong>, <strong>curved</strong> and <strong>log</strong>, each shown only when there is such data.</p>
+<p>Plots of the same monitors are shown on the right of the browser window (needs matplotlib); click one
+for full size in a new tab. They follow the <strong>log</strong> toggle
+(at most 6 decades are shown). <code>--nosimplots</code> leaves them out.</p>
+<p>To add data to a display made earlier, give its directory in place of the instrument:</p>
+<pre><code>mcdisplay-webgl-classic PSI_DMC_20261121_181652 --simdir sim
+</code></pre>
+<p>No simulation is run; <code>--nobrowse</code> only adds the data. A display from the other webgl viewer
+gives a warning.</p>
 <h2 id="mcdisplay-cad-mxdisplay-cad-bonus-export-instrument-geometry-to-cad">mcdisplay-cad / mxdisplay-cad <em>(bonus: export instrument geometry to CAD)</em></h2>
-<p>Requires the <code>cadquery</code> Python package.</p>
 <table>
 <thead>
 <tr>
@@ -297,11 +348,38 @@ em { color: #57606a; }
 <td>draw lines as solid cylinders (rays too, when <code>-n &gt; 0</code>)</td>
 </tr>
 <tr>
+<td><code>--transparency T</code></td>
+<td>transparency of the component surfaces, 0 (opaque, default) to 1</td>
+</tr>
+<tr>
+<td><code>--simdir DIR</code></td>
+<td>simulation output (<code>mccode.sim</code> or <code>mccode.h5</code>): draw its 1D/2D monitor data on the monitors</td>
+</tr>
+<tr>
+<td><code>--simbins N</code></td>
+<td>with <code>--simdir</code>: at most N x N (2D) or 4N (1D) bins shown (default: 64)</td>
+</tr>
+<tr>
+<td><code>--simshow LIST</code></td>
+<td>with <code>--simdir</code>: comma list of <code>1D</code>, <code>2D</code>, <code>curved</code> (data on curved monitors); default: all</td>
+</tr>
+<tr>
+<td><code>--simlog</code></td>
+<td>with <code>--simdir</code>: log scale (at most 6 decades are shown)</td>
+</tr>
+<tr>
+<td><code>--simtransparency T</code></td>
+<td>with <code>--simdir</code>: transparency of the 2D data, 0 (opaque) to 1 (default: 0.5)</td>
+</tr>
+<tr>
 <td><code>-f</code>, <code>--format FMT</code></td>
 <td>output format: <code>glb</code> (default), <code>gltf</code>, <code>step</code>, <code>stl</code>, <code>vrml</code>, <code>obj</code>, <code>ply</code>, <code>off</code>, <code>xml</code>/<code>x3d</code>, <code>vtk</code>, <code>vtkjs</code></td>
 </tr>
 </tbody>
 </table>
+<p>Lines (and 1D data) are always opaque. Monitor data is not included in <code>stl</code> and <code>off</code> (no colors), 1D data not in
+<code>ply</code> without <code>--tubes</code>; <code>stl</code>, <code>ply</code>, <code>off</code> and <code>vtkjs</code> have no transparency. Monitor data makes <code>step</code> files large
+(<code>--simbins</code>).</p>
 <h2 id="mcdisplay-plopp-mxdisplay-plopp">mcdisplay-plopp / mxdisplay-plopp</h2>
 <p>Requires <code>scipp</code> and <code>plopp</code> (plus <code>ipympl</code> and <code>jupyterlab</code> for the interactive UI). Without <code>-o</code>, opens a 3D JupyterLab UI.</p>
 <table>

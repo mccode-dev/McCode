@@ -16,16 +16,16 @@ Fed by a wiggler, this beamline operates in monochromatic mode with an
 operational energy tunable between 2.3 – 20 keV (0.6 - 5.3 AA).
 The wavelength is chosen by a double monochromator crystal setup where either
 Si 111 or Si 311 may be chosen. Furthermore a double mirror
-setup may be used to to focus the beam onto a sample. The rotation of the
+setup may be used to focus the beam onto a sample. The rotation of the
 first mirror defines the position of the second which is computed automatically.
-If mirrors are in the monochromators are automatically reposistioned to
-accomadate the deflected beam.
+If mirrors are in, the monochromators are automatically repositioned to
+accommodate the deflected beam.
 ```
 
 ## Examples
 
-- **Test: MAXII_811.instr -n1e7 M1=1 M2=1 M1_pitch=1 M2_pitch=1 theta=14.226   Detector: sphere_psd_I=2.2e+08**
-- **Test: MAXII_811.instr M1=0 M2=0 theta=14.226    Detector: hutch_E2_I=2.43e+11**
+- **Test: MAXII_811.instr -n1e7 M1=1 M2=1 M1_pitch=1 M2_pitch=1 theta=14.226   Detector: sphere_psd_I=5.13044e+06**
+- **Test: MAXII_811.instr M1=0 M2=0 theta=14.226    Detector: hutch_E2_I=2.2661e+11**
 
 ## Input parameters
 
@@ -35,17 +35,18 @@ Parameters in **boldface** are required; the others are optional.
 |------|------|-------------|---------|
 | Emin | keV | Minmium energy of radiation emitted from wiggler. | 1e-3 |
 | Emax | keV | Maxmium energy of radiation emitted from wiggler. | 12 |
+| E0 | keV | Central energy to be emitted by the source. 0=set from theta. | 0 |
 | prim_h | m | Horizontal opening of primary slits. | .40e-3 |
 | prim_v | m | Vertical opening of primary slits. | 0.6e-3 |
 | xafs_h | m | XAFS station horizontal slit opening | 3e-3 |
 | xafs_v | m | XAFS station vertical   slit opening | 3e-3 |
 | M1 |  | Is mirror 1 in the beam? | 0 |
 | M1_R | m | Radius of curvature of mirror 1. | 2000 |
-| M1_pitch | deg | Central glancing angle of mirror 1. | 0 |
+| M1_pitch | mrad | Central glancing angle of mirror 1. | 0 |
 | M2 |  | Is mirror 2 in the beam? | 0 |
 | M2_R | m | Radius of curvature of mirror 2. | 800 |
-| M2_pitch | deg | Central glancing angle of mirror 2. | 0 |
-| theta | deg | Scattering angle of monochromators | 14.226 |
+| M2_pitch | mrad | Central glancing angle of mirror 2. | 0 |
+| theta | deg | Scattering angle of monochromators. 0=set from E0. | 14.226 |
 | TTH | deg | Angle at which to put the surface diffraction detector | 0 |
 | ATT1 |  | Should attenuation filter 1 be in the beam? | 0 |
 | ATT2 |  | Should attenuation filter 2 be in the beam? | 0 |
