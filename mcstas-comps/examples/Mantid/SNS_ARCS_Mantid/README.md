@@ -23,7 +23,7 @@ Spallation Neutron Source", Review of Scientific Instruments, 83 , 015114 (2012)
 
 ## Examples
 
-- **Test: Fermi_nu=420 Detector: Full_cyl_I=235445**
+- **Test: Fermi_nu=420 Detector: Full_cyl_I=154237**
 
 ## Input parameters
 
