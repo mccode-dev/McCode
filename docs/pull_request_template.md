@@ -20,7 +20,6 @@ _Please describe what OS you developed and tested your additions on, and if any 
 * ### My contribution includes patches to an **existing component** file
   * [ ] I have reviewed the `mcdoc` page of the component in the `mcdoc-pages` artifact of the `check-doc-params` CI run
   * [ ] I have ensured that basic use of the component is OK (e.g. an instrument using it compiles?)
-  * [ ] I have used the `mccode-clangformat` tool to apply the standard McCode component indentation scheme
   * [ ] I have used the `mcrun --c-lint` "linter" and followed advice to remove most / all warnings that are raised
 * ### My contribution includes patches to an **existing** instrument file
   * [ ] I have reviewed the `mcdoc` page of the instrument in the `mcdoc-pages` artifact of the `check-doc-params` CI run
@@ -31,7 +30,6 @@ _Please describe what OS you developed and tested your additions on, and if any 
   * [ ] I have reviewed the `mcdoc` page of the component in the `mcdoc-pages` artifact of the `check-doc-params` CI run
   * [ ] I have ensured that basic use of the component is OK (e.g. an instrument using it compiles?)
   * [ ] I have included a corresponding **example** instrument and will fill in the **new instrument** section below
-  * [ ] I have used the `mccode-clangformat` tool to apply the standard McCode component indentation scheme
   * [ ] My new component is added within the `contrib` component category
 * ### My contribution includes a **new instrument** file
   * [ ] I have reviewed the `mcdoc` page of the instrument in the `mcdoc-pages` artifact of the `check-doc-params` CI run
