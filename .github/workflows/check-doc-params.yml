@@ -24,5 +24,50 @@ jobs:
       - name: Changed components and instruments document all input parameters
         run: |
           set -euo pipefail
-          git diff -z --name-only --diff-filter=AM "origin/${{ github.base_ref }}..." -- '*.comp' '*.instr' \
-            | xargs -0 -r sh -c './devel/bin/mccode-check-doc-params "$@" || exit 1' _  # exit 255 would stop xargs
+          git diff -z --name-only --diff-filter=AM "origin/${{ github.base_ref }}..." -- '*.comp' '*.instr' > "$RUNNER_TEMP/changed"
+          xargs -0 -r sh -c './devel/bin/mccode-check-doc-params "$@" || exit 1' _ < "$RUNNER_TEMP/changed" \
+            | tee "$RUNNER_TEMP/lint.log"  # exit 255 would stop xargs
+      - name: mcdoc pages of the files that pass
+        if: always()
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/mcdoc"
+          curl -fsSL https://registry.npmjs.org/mathjax/-/mathjax-3.2.2.tgz | tar -xzO package/es5/tex-svg.js > "$RUNNER_TEMP/tex-svg.js"
+          for fl in mcstas mcxtrace; do
+            rm -rf "$RUNNER_TEMP/py" && cp -r tools/Python "$RUNNER_TEMP/py"
+            python3 - "$fl" "$RUNNER_TEMP" <<'EOF'
+          import os, re, sys
+          fl, tmp = sys.argv[1:]
+          lib = os.path.join(tmp, 'py', 'mccodelib')
+          # mccode_config from its CMake templates: library = this checkout, docdir = artifact dir
+          vals = {'FLAVOR': fl, 'MCCODE_PREFIX': 'mc' if fl == 'mcstas' else 'mx', 'MCCODE_IS_CONDA_PKG': '0',
+                  'MCCODE_VERSION': 'PR', 'MCCODE_RELPATH_TOOLDIR2RESOURCEDIR': os.path.realpath(fl + '-comps'),
+                  'MCCODE_RELPATH_TOOLDIR2DOCDIR': os.path.join(tmp, 'mcdoc', fl + '-comps')}
+          for n in ('mccode_config.py', 'mccode_config.json'):
+              with open(os.path.join(lib, n + '.in')) as fi, open(os.path.join(lib, n), 'w') as fo:
+                  fo.write(re.sub(r'@(\w+)@', lambda m: vals.get(m[1], ''), fi.read()))
+          sys.path.insert(0, os.path.join(tmp, 'py', 'mcdoc'))
+          import mcdoc
+          from mccodelib import utils
+          failed = {l.split(': ', 1)[0] for l in open(os.path.join(tmp, 'lint.log'))}
+          for f in open(os.path.join(tmp, 'changed')).read().split('\0'):
+              if not f.startswith(fl + '-comps/') or f in failed or utils.EXCLUDED_INSTR_DIRNAMES & set(f.split('/')):
+                  continue
+              comp = f.endswith('.comp')
+              info = (mcdoc.CompParser if comp else mcdoc.InstrParser)(f).parse()
+              info.filepath = os.path.realpath(f)
+              mcdoc.write_doc_files_or_continue([info] if comp else [], [] if comp else [info],
+                                                [info.filepath] if comp else [], [] if comp else [info.filepath])
+          EOF
+            if [ -d "$out/$fl-comps" ]; then
+              mkdir -p "$out/$fl-comps/mathjax" && cp "$RUNNER_TEMP/tex-svg.js" "$out/$fl-comps/mathjax/"
+            fi
+          done
+          find "$out" -name '*.html' | sort
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mcdoc-pages
+          path: ${{ runner.temp }}/mcdoc
+          if-no-files-found: ignore
+          retention-days: 14
