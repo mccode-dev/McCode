@@ -5389,6 +5389,7 @@ int solve_2nd_order(double *t0, double *t1, double A, double B, double C){
 
   dt0=0;
   dt1=0;
+  *t0=0;
   if(t1){ *t1=0;}
 
   /*protect against rounding errors by locally equating DBL_EPSILON with 0*/
