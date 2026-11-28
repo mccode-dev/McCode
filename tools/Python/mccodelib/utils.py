@@ -625,7 +625,9 @@ def parse_params(params_line):
                 lst.append(m2.group(1))
                 substr = m2.group(2)
             else:
-                # the end
+                # the end: keep the last parameter, which has no trailing comma
+                if substr.strip():
+                    lst.append(substr)
                 return lst
     
             # continue recursion
