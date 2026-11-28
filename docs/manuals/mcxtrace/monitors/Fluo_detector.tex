@@ -11,11 +11,11 @@ Detector for fluorescence, e.g. Silicon Drift Detector (SDD) or High Purity Germ
 \subsection*{Description}
 A detector that records energy spectrum from e.g. fluorescence. This component handles: - fluorescence detector escape (energy shift from detector K-alpha) - fluorescence detector pile-up (sum aka time-coincidence aka pile-up within detector dead-time) - energy resolution (above Fano level)
 
-The detector geometry can be a rectangle xwidth*yheight, or a disk of given 'radius'. When the radius is given negative, a 4PI detector sphere of given radius is assumed.
+The detector geometry can be a rectangle xwidth*yheight, or a disk of given 'radius'. When the radius is given negative, a 4PI detector sphere of given |radius| is assumed.
 
-The detector escape corresponds with a fluorescence excitation within the detector itself that subtracts the K-alpha detector level from the sample scattered energy. The level of escape peaks in set as 'escape\_ratio', e.g. 1-2 \%.
+The detector escape corresponds with a fluorescence excitation within the detector itself that subtracts the K-alpha detector level from the sample scattered energy. This only happens for photons above the detector absorption edge (Si K edge 1.839 keV, Ge K edge 11.103 keV), set as 'escape\_edge', e.g. 1.05*escape\_energy when not given. The level of escape peaks is set as 'escape\_ratio', e.g. 1-2 \%. Zero inactivates.
 
-The detector pile-up is related to the detector dead-time, within which time coincidence between two fluorescence photons are summed-up. The level of pile-up is set as 'pileup\_ratio', e.g. 1-2 \% which can increase for high count rates that saturate the detector.
+The detector pile-up is related to the detector dead-time, within which time coincidence between two fluorescence photons are summed-up. The level of pile-up is set as 'pileup\_ratio', e.g. 1-2 \% which can increase for high count rates that saturate the detector. The summed partner photon is drawn from the current spectrum (intensity weighted, channel center energy). Pile-up gets active once the spectrum holds at least 1000 in-range events (N\_sum\textgreater{}1000).
 
 Last, the fluorescence peak shape is broadened using an electronic noise (at E=0) and a nominal resolution at E=resolution\_energy (in keV). You may set the electronic\_noise to zero for a perfect detector (Fano limit). To use a constant resolution, set the resolution\_energy=0.
 
@@ -34,7 +34,7 @@ xwidth & m & Width  of rectangle detector. & 0 \\
 yheight & m & Height of rectangle detector. & 0 \\
 Emin & keV & Minimum energy to detect. & 1 \\
 Emax & keV & Maximum energy to detect. & 39 \\
-nE & m & Number of energy channels. & 2000 \\
+nE & 1 & Number of energy channels. & 2000 \\
 filename & str & Name of file in which to store the detector image. & 0 \\
 restore\_xray & 0/1 & If set, the monitor does not influence the x-ray state. & 0 \\
 escape\_ratio & 1 & Detector escape peak ratio,  e.g. 0.01-0.02. Zero inactivates. & 0.01 \\
@@ -44,6 +44,7 @@ electronic\_noise & keV & Electronic noise at E=0, FWHM in keV. Use electronic\_
 resolution\_energy & keV & Energy at which resolution is given, e.g. 5.9 keV Mn K-alpha. & 6 \\
 resolution & keV & Resolution FWHM in keV at resolution\_energy. & 0.2 \\
 flag\_lorentzian & 1 & When 1, the line shapes are assumed to be Lorentzian, else Gaussian. & 0 \\
+escape\_edge & keV & Detector K absorption edge, below which no escape occurs, e.g. 1.839 for Si, 11.103 for Ge. Default: 1.05*escape\_energy true for Si. & 0 \\
 \bottomrule
 \end{longtable}
 

@@ -28,10 +28,10 @@
 *
 * %Parameters
 * INPUT PARAMETERS:
-* sld: [1e-6/Ang^2] ([-inf, inf]) Cylinder scattering length density.
-* sld_solvent: [1e-6/Ang^2] ([-inf, inf]) Solvent scattering length density.
-* radius: [Ang] ([0, inf]) Cylinder radius.
-* length: [Ang] ([0, inf]) Cylinder length.
+* sld: [1e-6/AA^2] ([-inf, inf]) Cylinder scattering length density.
+* sld_solvent: [1e-6/AA^2] ([-inf, inf]) Solvent scattering length density.
+* radius: [AA] ([0, inf]) Cylinder radius.
+* length: [AA] ([0, inf]) Cylinder length.
 * Optional parameters:
 * model_abs: [ ] Absorption cross section density at 2200 m/s.
 * model_scale: [ ] Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors can be related to the scattering intensity by the particle volume fraction.
@@ -55,7 +55,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_cylinder
-
 SETTING PARAMETERS (
         sld=4,
         sld_solvent=1,
@@ -636,7 +635,7 @@ form_volume_cylinder(double radius, double length)
 }
 
 static double
-_fq(double qab, double qc, double radius, double length)
+_fq_cylinder(double qab, double qc, double radius, double length)
 {
     return sas_2J1x_x(qab*radius) * sas_sinx_x(qc*0.5*length);
 }
@@ -702,7 +701,7 @@ Fq_cylinder(double q,
         double sin_theta, cos_theta; // slots to hold sincos function output
         // theta (theta,phi) the projection of the cylinder on the detector plane
         SINCOS(theta , sin_theta, cos_theta);
-        const double form = _fq(q*sin_theta, q*cos_theta, radius, length);
+        const double form = _fq_cylinder(q*sin_theta, q*cos_theta, radius, length);
         total_F1 += GAUSS_W[i] * form * sin_theta;
         total_F2 += GAUSS_W[i] * form * form * sin_theta;
     }
@@ -723,7 +722,7 @@ Iqac_cylinder(double qab, double qc,
     double radius,
     double length)
 {
-    const double form = _fq(qab, qc, radius, length);
+    const double form = _fq_cylinder(qab, qc, radius, length);
     const double s = (sld-solvent_sld) * form_volume_cylinder(radius, length);
     return 1.0e-4 * sas_square(s * form);
 }

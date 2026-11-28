@@ -141,22 +141,6 @@ ncrystal_union_setup_conversion (double *vsq2ekin, double *ekin2vsq)
   *ekin2vsq = 1.0 / *vsq2ekin;
 }
 
-static void
-ncrystal_union_setup_rng (void)
-{
-  /* Make sure NCrystal uses the McStas RNG (ok if more than one component instance does this): */
-#ifndef rand01
-  /* Tell NCrystal to use the rand01 function provided by McStas: */
-  ncrystal_setrandgen (rand01);
-#else
-  /* rand01 is actually a macro, not an actual C-function (most likely defined as */
-  /* _rand01(_particle->randstate) for OPENACC purposes), which we can not       */
-  /* register with NCrystal. As a workaround we tell NCrystal to use its own RNG */
-  /* algorithm, with merely the seed provided by McStas:                         */
-  ncrystal_setbuiltinrandgen_withseed (mcseed);
-#endif
-}
-
 static double
 ncrystal_union_get_numberdensity (ncrystal_info_t info, const char *component_name)
 {
@@ -231,7 +215,8 @@ NCrystal_physics_scattering (double *k_final, double *k_initial, double *weight,
   double ekin = vsq2ekin * K2V * k_mag * K2V * k_mag;
   double ekin_final = 0.0;
   // Call NCrystal library, dirout and delta_ekin is updated.
-  ncrystal_samplescatter (data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin, (const double (*)[3]) &dir, &ekin_final, &dirout);
+  ncrystal_samplescatter_rs (_rand01_opague, (void*)_particle->randstate, data_transfer.pointer_to_a_NCrystal_physics_storage_struct->stored_params.scat, ekin,
+                             (const double (*)[3]) &dir, &ekin_final, &dirout);
 
   if (ekin_final <= 0) {
     // not expected to happen much, but an interaction could in principle bring

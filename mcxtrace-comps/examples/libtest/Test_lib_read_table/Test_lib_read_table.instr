@@ -8,13 +8,14 @@
 * Table_Rebin, Table_Read) on tables built in memory. Covers the bracket search
 * for constant-step and monotonic tables, both increasing and decreasing, the
 * 1-row vector case of Table_Value2d, and that Table_Read of a missing file
-* leaves an empty table.
+* leaves an empty table. Also checks that Table_Read_Handle and Table_Free
+* leave no heap block behind for a file with comment and '***' lines.
 *
 * The Arm absorbs every particle if any check failed, so the PSD intensity is
 * Ncount on success and 0 on failure.
 *
 * %D
-* Tests: mccode-dev/McCode#1968, #2565, #3016, #3017
+* Tests: mccode-dev/McCode#1968, #2565, #3016, #3017, #3099
 *
 * %Test: Ncount=1000 Detector: PSD_I=1000
 *
@@ -27,7 +28,18 @@ DEFINE INSTRUMENT Test_lib_read_table(Ncount=1000)
 
 DECLARE
 %{
+  // heap blocks allocated by read_table-lib and not yet freed
+  static long rt_blocks = 0;
+  static void* rt_malloc(size_t size) { rt_blocks++; return malloc(size); }
+  static void* rt_calloc(size_t n, size_t size) { rt_blocks++; return calloc(n, size); }
+  static void rt_free(void* ptr) { if (ptr) rt_blocks--; free(ptr); }
+  #define malloc rt_malloc
+  #define calloc rt_calloc
+  #define free rt_free
 %include "read_table-lib"
+  #undef malloc
+  #undef calloc
+  #undef free
 
 
   static double tbl_y(double x) { return sin(0.37*x) + 2; }
@@ -102,6 +114,26 @@ DECLARE
     return n;
   }
 
+  // reads 3 rows after comment and '***' lines from a file handle, then frees the table
+  static long check_read_frees(void) {
+    t_Table t;
+    long i, n = 0, blocks_before;
+    FILE* f = tmpfile();
+    if (!f) return 1;
+    for (i = 0; i < 5; i++) fprintf(f, "# comment %ld\n", i);
+    fprintf(f, "*** invalid line\n");
+    for (i = 0; i < 3; i++) fprintf(f, "%ld %g\n", i, 0.5*i);
+    rewind(f);
+    blocks_before = rt_blocks;
+    n += Table_Read_Handle(&t, f, 0, 0, NULL) != 6;
+    n += t.rows != 3 || t.columns != 2;
+    n += bad(Table_Index(t, 2, 1), 1);
+    Table_Free(&t);
+    n += rt_blocks != blocks_before;
+    fclose(f);
+    return n;
+  }
+
   // a failed read must leave an empty table, also when the struct held garbage
   static long check_missing_file(void) {
     t_Table t;
@@ -120,7 +152,8 @@ INITIALIZE
   mcset_ncount(Ncount);
   nerr = check_table(1000, 0, 0) + check_table(1000, 0, 1)
        + check_table(1000, 1, 0) + check_table(1000, 1, 1)
-       + check_vector() + check_rebin() + check_missing_file();
+       + check_vector() + check_rebin() + check_read_frees()
+       + check_missing_file();
   if (nerr) {  /* host-side check: TRACE stays free of device globals */
     fprintf(stderr, "read_table: %ld failed checks\n", nerr);
     exit(-1);

@@ -7,8 +7,9 @@ Installation testing / benchmarking tools, under `tools/Python/mctest`.
 ## mctest / mxtest
 
 Runs every test embedded in the instrument library, compiling, displaying
-(single-particle), and running each one, then compares the result against the
-target value recorded in the instrument header. A `%Test:` header line (older
+(`mcdisplay-webgl-classic` with 1000 rays, none with `--openacc`), and running each one, then
+compares the result against the target value recorded in the instrument header. The display
+also shows the monitor data of the first test (first scan point for a scan). A `%Test:` header line (older
 name: `%Example:`) defines a single-value test:
 
     %Test: lambda=2.36 Detector: He3H_I=9.84026e-10
@@ -45,6 +46,7 @@ targets, and where that can mislead, is explained in
 | `--seed S`, `-s S` | seed sent to `mcrun` (default: `1000`; `0`/`NULL` randomises) |
 | `--mpi N` | MPI node count sent to `mcrun` |
 | `--no-mpi` | compile and run without MPI (`--no-mpi` sent to `mcrun`) |
+| `-j`, `--jobs N` | compile up to N instruments in parallel, or `auto` for one per processor (default: 1); test runs are always one at a time |
 | `--openacc` | pass `--openacc` to `mcrun` |
 | `--nexus` | compile/run with NeXus output format everywhere |
 | `--lint` | just run the C-linter (no simulation run) |
@@ -66,9 +68,10 @@ targets, and where that can mislead, is explained in
 | `--pvalue P` | as `--nsigma`, given as a two-sided Gaussian p-value (e.g. `0.0027` = 3σ, `5.7e-7` = 5σ) |
 | `--noscans` | skip the `%TestScan` tests, only run the `%Test` tests |
 | `--noplots` | do not generate plots (`01_overview.pdf`, `02_plots.html`) of the test output |
+| `--nohtml` | generate only the compact `01_overview.pdf` plots, not the interactive `02_plots.html` (which embed all monitor data) |
 | `--permissive` | exit 0 even if some tests fail |
 | `--strict` | let instruments without `%Test`/`%TestScan` line(s) fail immediately (cannot be combined with `--permissive`) |
-| `--verbose` | print a test/no-test status header before each test |
+| `--verbose` | print a test/no-test status header before each test, and the messages from adding monitor data to the displays |
 
 ## mcviewtest / mxviewtest
 

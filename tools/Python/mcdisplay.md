@@ -6,15 +6,19 @@ All variants wrap `mcrun --trace` under the hood; `INSTR` plus any
 `name=value` instrument parameters are forwarded straight to it. The
 **default** is `mcdisplay`/`mxdisplay` &rarr; pyqtgraph.
 
+`-n` is capped at 1000 particles (a larger value is lowered, with a message); with `SPLIT` in the
+instrument one particle can give several rays, up to 1e5 rays in all.
+
 ## mcdisplay / mxdisplay *(default = pyqtgraph)*
 
 | Option | Description |
 |---|---|
 | `INSTR` | instrument file (`.instr` or compiled binary) |
 | `name=value ...` | simulation parameters, passed through to `mcrun` |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
-| `-n`, `--ncount N` | number of particles to trace (default: 300) |
+| `-n`, `--ncount N` | number of particles to trace (default: 300, at most 1000) |
+| `-t`, `--trace N` | visualisation mode (default: 2) |
 | `--dirname DIR` | override output directory name |
 | `--inspect COMP` | show only rays reaching component `COMP` |
 | `--invcanvas` | invert canvas background |
@@ -35,18 +39,22 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `--backend=NAME` | matplotlib backend; `pdf`/`pgf`/`ps`/`svg` save a hardcopy instead of showing a window |
 | `--help` | show wrapper usage and exit |
 
-## mcdisplay-webgl / mxdisplay-webgl *(NodeJS/vite-based)*
+## mcdisplay-webgl / mxdisplay-webgl *(prebuilt three.js app, served locally)*
 
 | Option | Description |
 |---|---|
-| `INSTR` | instrument file |
+| `INSTR` | instrument file, or a display directory from an earlier run (with `--simdir`) |
 | `name=value ...` | simulation parameters |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
-| `-n`, `--ncount N` | number of particles to trace (default: 300) |
+| `-n`, `--ncount N` | number of particles to trace (default: 300, at most 1000) |
 | `-t`, `--trace N` | visualisation mode (default: 2) |
 | `-d`, `--dirname DIR` | override output directory name |
 | `--inspect COMP` | show only rays reaching component `COMP` |
+| `--campath FILE` | camera path for the tour: rows of `x y z` (m), optionally with viewing direction `dx dy dz` |
+| `--simdir DIR` | simulation output (`mccode.sim` or `mccode.h5`): show its 1D/2D monitor data on the monitors |
+| `--simbins N` | with `--simdir`: at most N x N (2D) or 4N (1D) bins shown (default: 256) |
+| `--nosimplots` | with `--simdir`: no monitor plots next to the display |
 | `--nobrowse` | do not open a web browser |
 | `--timeout SEC` | shutdown time of the local viewer web server (default: 300) |
 
@@ -56,34 +64,65 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 
 | Option | Description |
 |---|---|
-| `INSTR` | instrument file |
+| `INSTR` | instrument file, or a display directory from an earlier run (with `--simdir`) |
 | `name=value ...` | simulation parameters |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
-| `-n`, `--ncount N` | number of particles to trace (default: 300) |
+| `-n`, `--ncount N` | number of particles to trace (default: 300, at most 1000) |
 | `-t`, `--trace N` | visualisation mode (default: 2) |
 | `-d`, `--dirname DIR` | override output directory name |
 | `--inspect COMP` | show only rays reaching component `COMP` |
+| `--campath FILE` | camera path for the tour: rows of `x y z` (m), optionally with viewing direction `dx dy dz` |
+| `--simdir DIR` | simulation output (`mccode.sim` or `mccode.h5`): show its 1D/2D monitor data on the monitors |
+| `--simbins N` | with `--simdir`: at most N x N (2D) or 4N (1D) bins shown (default: 256) |
+| `--nosimplots` | with `--simdir`: no monitor plots next to the display |
 | `--first COMP` / `--last COMP` | zoom range start/end component |
 | `--invcanvas` | invert canvas background |
 | `--nobrowse` | do not open a web browser |
 
-## mcdisplay-cad / mxdisplay-cad *(bonus: export instrument geometry to CAD)*
+### Monitor data (`--simdir`, both webgl viewers)
 
-Requires the `cadquery` Python package.
+2D data is a colour map on the monitor (as in mcplot), 1D data a curve; on cylinder, banana and
+sphere monitors it follows the curved surface, with the angle along it. Large monitors are shown
+averaged to at most 256 x 256 (1D: 1024) bins, set with `--simbins`; the output files are
+untouched. The display grows as N^2 (~16 bytes/bin); a large N may exceed the browser's texture size. Toggles: **1D**,
+**2D**, **curved** and **log**, each shown only when there is such data.
+
+Plots of the same monitors are shown on the right of the browser window (needs matplotlib); click one
+for full size in a new tab. They follow the **log** toggle
+(at most 6 decades are shown). `--nosimplots` leaves them out.
+
+To add data to a display made earlier, give its directory in place of the instrument:
+
+    mcdisplay-webgl-classic PSI_DMC_20261121_181652 --simdir sim
+
+No simulation is run; `--nobrowse` only adds the data. A display from the other webgl viewer
+gives a warning.
+
+## mcdisplay-cad / mxdisplay-cad *(bonus: export instrument geometry to CAD)*
 
 | Option | Description |
 |---|---|
 | `INSTR` | instrument file |
 | `name=value ...` | simulation parameters |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--no-mpi` | forward `--no-mpi` to `mcrun` (simulate without MPI) |
 | `-n`, `--ncount N` | number of particle rays to include (default: 0 — geometry only) |
 | `--dirname DIR` | override output directory name |
 | `-t`, `--trace N` | `mcrun --trace` level: 1 (default) legacy wireframe, 2 solid primitives |
 | `-s`, `--segments N` | tessellation resolution (circle segments, default: 16) |
 | `--tubes` | draw lines as solid cylinders (rays too, when `-n > 0`) |
+| `--transparency T` | transparency of the component surfaces, 0 (opaque, default) to 1 |
+| `--simdir DIR` | simulation output (`mccode.sim` or `mccode.h5`): draw its 1D/2D monitor data on the monitors |
+| `--simbins N` | with `--simdir`: at most N x N (2D) or 4N (1D) bins shown (default: 64) |
+| `--simshow LIST` | with `--simdir`: comma list of `1D`, `2D`, `curved` (data on curved monitors); default: all |
+| `--simlog` | with `--simdir`: log scale (at most 6 decades are shown) |
+| `--simtransparency T` | with `--simdir`: transparency of the 2D data, 0 (opaque) to 1 (default: 0.5) |
 | `-f`, `--format FMT` | output format: `glb` (default), `gltf`, `step`, `stl`, `vrml`, `obj`, `ply`, `off`, `xml`/`x3d`, `vtk`, `vtkjs` |
+
+Lines (and 1D data) are always opaque. Monitor data is not included in `stl` and `off` (no colors), 1D data not in
+`ply` without `--tubes`; `stl`, `ply`, `off` and `vtkjs` have no transparency. Monitor data makes `step` files large
+(`--simbins`).
 
 ## mcdisplay-plopp / mxdisplay-plopp
 
@@ -105,7 +144,7 @@ Writes `INSTR.xml`, a Mantid IDF built from the instrument geometry and its Mant
 |---|---|
 | `INSTR` | instrument file |
 | `name=value ...` | simulation parameters |
-| `--default` | automatically use instrument default parameter values |
+| `-y`, `--default` | use instrument default parameter values (forwards `-y` to `mcrun`) |
 | `--dirname DIR` | override output directory name |
 | `-n`, `--ncount N` / `--mpi N` | accepted, but always forced to 1 |
 

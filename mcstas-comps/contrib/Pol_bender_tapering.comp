@@ -144,26 +144,26 @@ SHARE
   #endif
 
   #ifndef to_channel_frame
-   #define to_channel_frame(rot,offset) \
-    do {\
-      mccoordschange(offset,rot,&x,&y,&z,&vx,&vy,&vz,&sx,&sy,&sz);\
-    }while(0);
+  #define to_channel_frame(rot,offset) \
+   do {\
+     mccoordschange(offset,rot,&x,&y,&z,&vx,&vy,&vz,&sx,&sy,&sz);\
+   }while(0);
   #endif
 
   #ifndef from_channel_frame
-   #define from_channel_frame(rot,offset)\
-    do {\
-      double cx,cy,cz;\
-      Rotation trot;\
-      rot_transpose(rot,trot);\
-      coords_get(offset,&cx,&cy,&cz);\
-      x=x-cx;\
-      y=y-cy;\
-      z=z-cz;\
-      mccoordschange_polarisation(trot,&x,&y,&z);\
-      mccoordschange_polarisation(trot,&vx,&vy,&vz);\
-      mccoordschange_polarisation(trot,&sx,&sy,&sz);\
-    }while(0);
+  #define from_channel_frame(rot,offset)\
+   do {\
+     double cx,cy,cz;\
+     Rotation trot;\
+     rot_transpose(rot,trot);\
+     coords_get(offset,&cx,&cy,&cz);\
+     x=x-cx;\
+     y=y-cy;\
+     z=z-cz;\
+     mccoordschange_polarisation(trot,&x,&y,&z);\
+     mccoordschange_polarisation(trot,&vx,&vy,&vz);\
+     mccoordschange_polarisation(trot,&sx,&sy,&sz);\
+   }while(0);
   #endif
 %}
 
@@ -214,7 +214,7 @@ INITIALIZE
   }
   char** header_parsed;
   header_parsed = Table_ParseHeader (R.header, "parameter", NULL);
-  if (strstr (header_parsed[0], "m")) {
+  if (header_parsed[0] && strstr (header_parsed[0], "m")) { /* no "parameter" header: parametrized by q */
     by_q = 0;
   } else {
     by_q = 1;
@@ -314,7 +314,7 @@ TRACE
 
       while (!(x > entry_radius * sin (dx2 / entry_radius) && x < entry_radius * sin (dx1 / entry_radius))) {
         channel_no++;
-        if (channel_no > T.rows) {
+        if (channel_no >= T.rows) {
           // printf("oops I've missed all channels ");
           // printf("%lld %g %g %g %g %g %g %g\n",mcget_run_num(),x,y,z,vx,vy,vz,p);
           ABSORB;

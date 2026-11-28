@@ -142,6 +142,7 @@ SHARE
   struct hkl_info_struct_texture {
     // data structures
     int num_hkl;                   // Number of reflections hkl taken into account
+    int flag_barns;                // 1: F2 in barns, 0: in fm^2
     int num_hkl_scatt;             // Number of possible reflections hkl (below Bragg cutoff)
     struct hkl_data_texture* list; // Reflection array
     struct legendre* lgdr;         // structure with precomputed spherical harmonics
@@ -1080,9 +1081,6 @@ SHARE
                                  "column_j", "Delta_d/d", "lattice_a ", "lattice_b ", "lattice_c ", "lattice_aa", "lattice_bb", "lattice_cc", "nb_atoms",
                                  "multiplicity", NULL);
 
-    printf ("l0\n");
-    fflush (stderr);
-
     if (parsing) {
       if (parsing[0] && !info->sigma_a)
         info->sigma_a = atof (parsing[0]);
@@ -1102,6 +1100,14 @@ SHARE
         info->column_order[3] = atoi (parsing[7]);
       if (parsing[8])
         info->column_order[4] = atoi (parsing[8]);
+      /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'barns' parameter */
+      for (i = 7; i <= 8; i++) /* column_F, column_F2 */
+        if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
+          int hdr_barns = strstr (parsing[i], "barn") != NULL;
+          if (hdr_barns != info->flag_barns)
+            MPI_MASTER (printf ("Texture_process: %s: |F|^2 unit in file header is %s, using barns=%d\n", SC_file, hdr_barns ? "barn" : "fm^2", hdr_barns););
+          info->flag_barns = hdr_barns;
+        }
       if (parsing[9])
         info->column_order[5] = atoi (parsing[9]);
       if (parsing[10] && info->m_delta_d_d < 0)
@@ -1129,9 +1135,6 @@ SHARE
       }
       free (parsing);
     }
-
-    printf ("l1\n");
-    fflush (stderr);
 
     if (nb_atoms > 1) {
       info->sigma_a *= nb_atoms;
@@ -1195,9 +1198,6 @@ SHARE
       return (0);
     }
 
-    printf ("l2\n");
-    fflush (stderr);
-
     // when lengths a,b,c + angles are given (instead of vectors a,b,c)
     if (info->m_aa && info->m_bb && info->m_cc) {
       double as, bs, cs;
@@ -1252,19 +1252,18 @@ SHARE
       info->m_cz = cs;
       */
 
-      // miguel
-      info->m_ax = as * sin (0.5 * info->m_cc * DEG2RAD);
-      info->m_ay = as * cos (0.5 * info->m_cc * DEG2RAD);
+      // miguel: a and b in the xy-plane, symmetric about y; z along c*.
+      // c from a.c = as*cs*cos(beta) and b.c = bs*cs*cos(alpha).
+      double h = 0.5 * info->m_cc * DEG2RAD;
+      info->m_ax = as * sin (h);
+      info->m_ay = as * cos (h);
       info->m_az = 0;
-      info->m_bx = -as * sin (0.5 * info->m_cc * DEG2RAD);
-      info->m_by = as * cos (0.5 * info->m_cc * DEG2RAD);
+      info->m_bx = -bs * sin (h);
+      info->m_by = bs * cos (h);
       info->m_bz = 0;
-      info->m_cx = 0;
-      info->m_cy = 0;
-      info->m_cz = cs;
-
-      printf ("l3\n");
-      fflush (stderr);
+      info->m_cx = cs * (cos (info->m_bb * DEG2RAD) - cos (info->m_aa * DEG2RAD)) / (2 * sin (h));
+      info->m_cy = cs * (cos (info->m_aa * DEG2RAD) + cos (info->m_bb * DEG2RAD)) / (2 * cos (h));
+      info->m_cz = sqrt (cs * cs - info->m_cx * info->m_cx - info->m_cy * info->m_cy);
 
       printf ("Texture: %s structure a=%g b=%g c=%g aa=%g bb=%g cc=%g ", (flag ? "INC" : SC_file), as, bs, cs, info->m_aa, info->m_bb, info->m_cc);
     } else {
@@ -1421,7 +1420,7 @@ SHARE
 
     printf ("readCoef: %s\n", filename);
 
-    filep = fopen (filename, "r");
+    filep = Open_File (filename, "r", NULL);
     if (!filep) {
       printf ("readFourierCoef: fourier coefficient file\n");
       printf ("%s\n", filename);
@@ -2355,6 +2354,7 @@ INITIALIZE
 
   // first neutron is new
   hkl_info_texture.new = 1;
+  hkl_info_texture.flag_barns = barns;
 
   // initialize data
   if (initData (fcoef_fn, crystal_fn, &hkl_info_texture, maxNeutronSaved)) {
@@ -2368,7 +2368,7 @@ INITIALIZE
   // Cross-sections are in barns = 10**-28 m**2, and unit cell volumes are
   // in AA**3 = 10**-30 m**3. Hence a factor of 100 is used to convert
   // scattering lengths to m**-1
-  if (barns) {
+  if (hkl_info_texture.flag_barns) {
     hkl_info_texture.xs2mu *= 100;
   }
   printf ("xs2mu = %.6e\n", hkl_info_texture.xs2mu);
@@ -2400,7 +2400,7 @@ INITIALIZE
   }
 
   // Initialize done in the component
-  Texture_storage.barns_setting = barns;
+  Texture_storage.barns_setting = hkl_info_texture.flag_barns;
   Texture_storage.pack = packing_factor;
   Texture_storage.hkl_info_storage = &hkl_info_texture;
 

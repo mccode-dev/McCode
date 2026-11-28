@@ -1,0 +1,97 @@
+/*******************************************************************************
+* Instrument: Test_lib_metadata
+*
+* %I
+* %INSTRUMENT_SITE: libtest
+*
+* Unit test of common/lib/share/metadata-r (the METADATA table accessors), with
+* METADATA of the instrument and of a component instance. Covers lookup by
+* source and by source:name, quoted names with and without spaces, the
+* --meta-list listing, a missing key, and the key "::".
+* The instrument exits in INITIALIZE if any check failed.
+*
+* %D
+* Tests: mccode-dev/McCode#3180
+*
+* %Test: Ncount=10 Detector: PSD_I=10
+*
+* %P
+* Ncount: [1] Number of particles
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_lib_metadata(Ncount=10)
+METADATA "application/json" config %{
+{"a": "say \"hi\""}
+%}
+METADATA text "plain" %{
+quoted name without spaces
+%}
+METADATA text "two words" %{
+quoted name with spaces
+%}
+
+DECLARE
+%{
+  static long md_fail(const char* what) { fprintf(stderr, "metadata check failed: %s\n", what); return 1; }
+
+  /* the literal contains text; mccode-antlr keeps the newline after the opening %{ */
+  static int md_has(char* key, const char* text) {
+    char* literal = metadata_table_literal(num_metadata, metadata_table, key);
+    return literal != NULL && strstr(literal, text) != NULL;
+  }
+%}
+
+INITIALIZE
+%{
+  long nerr = 0;
+  char *s;
+  mcset_ncount(Ncount);
+
+  /* at least: mccode-antlr adds its build information under the instrument name */
+  if (metadata_table_defined(num_metadata, metadata_table, "Test_lib_metadata") < 3) nerr += md_fail("instrument has 3 blocks");
+  if (metadata_table_defined(num_metadata, metadata_table, "Arm") != 1) nerr += md_fail("instance has 1 block");
+  if (!md_has("Test_lib_metadata:config", "{\"a\": \"say \\\"hi\\\"\"}")) nerr += md_fail("instrument literal");
+  s = metadata_table_type(num_metadata, metadata_table, "Test_lib_metadata:config");
+  if (s == NULL || strcmp(s, "application/json")) nerr += md_fail("instrument type");
+  if (!md_has("Test_lib_metadata:plain", "quoted name without spaces")) nerr += md_fail("quoted name without spaces");
+  if (!md_has("Test_lib_metadata:\"two words\"", "quoted name with spaces")) nerr += md_fail("quoted name with spaces");
+  if (!md_has("Arm:inst", "instance block")) nerr += md_fail("instance literal");
+
+  s = metadata_table_name(num_metadata, metadata_table, "Arm");
+  if (s == NULL || strcmp(s, "inst")) nerr += md_fail("name of the only block");
+  free(s);
+  if (metadata_table_name(num_metadata, metadata_table, "Arm:missing") != NULL) nerr += md_fail("name of a missing key");
+
+  s = metadata_table_key_component("::");
+  if (s == NULL || strcmp(s, "")) nerr += md_fail("source of ::");
+  free(s);
+  if (metadata_table_defined(num_metadata, metadata_table, "::") != 0) nerr += md_fail("blocks of ::");
+
+  /* prints the sources, as --meta-list does */
+  if (metadata_table_print_all_components(num_metadata, metadata_table) != 2) nerr += md_fail("number of sources");
+
+  if (nerr) {
+    fprintf(stderr, "metadata: %ld failed checks\n", nerr);
+    exit(-1);
+  }
+%}
+
+TRACE
+
+COMPONENT Arm = Arm()
+  AT (0,0,0) ABSOLUTE
+EXTEND %{
+  x = rand01()-0.5;
+  y = rand01()-0.5;
+  p = 1;
+  vz = 1000;
+%}
+METADATA text inst %{
+instance block
+%}
+
+COMPONENT PSD = PSD_monitor(xwidth=2.0, yheight=2.0, filename="metadata", nx=10, ny=10)
+  AT (0,0,0) ABSOLUTE
+
+END

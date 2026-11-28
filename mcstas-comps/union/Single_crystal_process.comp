@@ -55,7 +55,6 @@
 * cz: [AA or AA^-1]                                       c on z axis
 * reflections: [string]                                   File name containing structure factors of reflections. Use empty ("") or NULL for incoherent scattering only
 * order: [1]                                              Limit multiple scattering up to given order (0: all, 1: first, 2: second, ...) (Not supported in Union)
-* p_transmit: [1]                                         Monte Carlo probability for neutrons to be transmitted without any scattering. Used to improve statistics from weak reflections
 * aa: [deg]                                               Unit cell angles alpha, beta and gamma. Then uses norms of vectors a,b and c as lattice parameters
 * bb: [deg]                                               Beta angle
 * cc: [deg]                                               Gamma angle
@@ -131,6 +130,7 @@ SHARE
   struct hkl_info_struct_union {
     struct hkl_data_union* list;     /* Reflection array */
     int count;                       /* Number of reflections */
+    int flag_barns;                  /* 1: F2 in barns, 0: in fm^2 */
     struct tau_data_union* tau_list; /* Reflections close to Ewald Sphere */
     double m_delta_d_d;              /* Delta-d/d FWHM */
     double m_ax, m_ay, m_az;         /* First unit cell axis (direct space, AA) */
@@ -249,6 +249,15 @@ SHARE
           info->column_order[3] = atoi (parsing[7]);
         if (parsing[8])
           info->column_order[4] = atoi (parsing[8]);
+        /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'barns' parameter */
+        for (i = 7; i <= 8; i++) /* column_F, column_F2 */
+          if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
+            int hdr_barns = strstr (parsing[i], "barn") != NULL;
+            if (hdr_barns != info->flag_barns)
+              MPI_MASTER (
+                  printf ("Single_crystal_process: %s: |F|^2 unit in file header is %s, using barns=%d\n", SC_file, hdr_barns ? "barn" : "fm^2", hdr_barns););
+            info->flag_barns = hdr_barns;
+          }
         if (parsing[9] && info->m_delta_d_d < 0)
           info->m_delta_d_d = atof (parsing[9]);
         if (parsing[10] && !info->m_a)
@@ -1025,6 +1034,7 @@ INITIALIZE
 
   /* transfer input parameters */
   hkl_info_union.m_delta_d_d = delta_d_d;
+  hkl_info_union.flag_barns = barns;
   hkl_info_union.m_a = 0;
   hkl_info_union.m_b = 0;
   hkl_info_union.m_c = 0;
@@ -1121,7 +1131,7 @@ INITIALIZE
   // Added for single crystal
   Single_crystal_storage.PG_setting = PG;
   Single_crystal_storage.powder_setting = powder;
-  Single_crystal_storage.barns_setting = barns;
+  Single_crystal_storage.barns_setting = hkl_info_union.flag_barns;
   Single_crystal_storage.pack = packing_factor;
   Single_crystal_storage.hkl_info_storage = &hkl_info_union;
 

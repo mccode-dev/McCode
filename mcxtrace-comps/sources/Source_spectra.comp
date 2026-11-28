@@ -193,221 +193,221 @@ INITIALIZE
   /*if noinit is set - skip initialization*/
   if (!noinit) {
 
-  int num, status;
-  long offset, orig_offset;
-  char fnx[256] = "";
-  char fny[256] = "";
+    int num, status;
+    long offset, orig_offset;
+    char fnx[256] = "";
+    char fny[256] = "";
 
-  if (flag4d == 0) {
-    /*flag4d not set - the datafiles are x,x',p and y,y',p projections*/
-    brilliance_column = 2;
-    xproj = calloc (nE, sizeof (t_Table));
-    yproj = calloc (nE, sizeof (t_Table));
-    Ix = calloc (nE, sizeof (double));
-    Iy = calloc (nE, sizeof (double));
-    if (xproj == NULL || yproj == NULL || Ix == NULL || Iy == NULL) {
-      fprintf (stderr, "ERROR (%s): Memory allocation error\n", NAME_CURRENT_COMP);
-      exit (-1);
-    }
-    /*find the offset of the datafiles. Assume to be identical for all of them.*/
-    snprintf (fnx, 255, "%s-%d.%s", spectra_stem_x, initial_serial, spectra_suffix);
-    orig_offset = source_spectra_find_offset (fnx);
-
-    for (num = 0; num < nE; num++) {
-      snprintf (fnx, 255, "%s-%d.%s", spectra_stem_x, num + initial_serial, spectra_suffix);
-      offset = orig_offset; /*Have to do this every time since Table_Read_Offset overwrites offset*/
-      if ((status = Table_Read_Offset (&(xproj[num]), fnx, 0, &offset, 0)) == -1) {
-        fprintf (stderr, "ERROR (%s): Could not parse file \"%s\"\n", NAME_CURRENT_COMP, fnx);
+    if (flag4d == 0) {
+      /*flag4d not set - the datafiles are x,x',p and y,y',p projections*/
+      brilliance_column = 2;
+      xproj = calloc (nE, sizeof (t_Table));
+      yproj = calloc (nE, sizeof (t_Table));
+      Ix = calloc (nE, sizeof (double));
+      Iy = calloc (nE, sizeof (double));
+      if (xproj == NULL || yproj == NULL || Ix == NULL || Iy == NULL) {
+        fprintf (stderr, "ERROR (%s): Memory allocation error\n", NAME_CURRENT_COMP);
         exit (-1);
       }
-      snprintf (fny, 255, "%s-%d.%s", spectra_stem_y, num + initial_serial, spectra_suffix);
-      offset = orig_offset; /*Have to do this every time since Table_Read_Offset overwrites offset*/
-      if ((status = Table_Read_Offset (&(yproj[num]), fny, 0, &offset, 0)) == -1) {
-        fprintf (stderr, "ERROR (%s): Could not parse file \"%s\"\n", NAME_CURRENT_COMP, fny);
-        exit (-1);
-      }
-      Ix[num] = Iy[num] = 0;
-      /*sum the brilliances to get something to normalize to*/
-      int r;
-      for (r = 0; r < xproj[num].rows; r++) {
-        Ix[num] += Table_Index (xproj[num], r, brilliance_column); // xproj.data[r*xproj.columns+ brilliance_column];
-      }
+      /*find the offset of the datafiles. Assume to be identical for all of them.*/
+      snprintf (fnx, 255, "%s-%d.%s", spectra_stem_x, initial_serial, spectra_suffix);
+      orig_offset = source_spectra_find_offset (fnx);
 
-      for (r = 0; r < yproj[num].rows; r++) {
-        Iy[num] += Table_Index (yproj[num], r, brilliance_column); // yproj.data[r*yproj.columns+ brilliance_column];
-      }
-      if (verbose && Ix[num] != Iy[num]) {
-        fprintf (stderr, "WARNING (%s): Integrated intensities do not match up for x and y projections at num %d\n", NAME_CURRENT_COMP, num);
-      }
-      if (verbose)
-        printf ("INFO (%s): Integrated intensity for projections I [%d] = (%g,%g)\n", NAME_CURRENT_COMP, num, Ix[num], Iy[num]);
-
-      if (num == 0) {
-        /*check the data structure for the first two input files*/
-        /*if not given deduce the number of sample-points in datafiles*/
-        if (nx == 0) {
-          int r;
-          double p1, p2;
-          for (r = 0; r < xproj[0].rows; r++) {
-            if (nx == 0 && (p1 = Table_Index (xproj[0], r, 0)) > (p2 = Table_Index (xproj[0], r + 1, 0))) {
-              /*this means we have found where the first coordinate starts over*/
-              nx = r + 1;
-              break;
-            }
-          }
-          if (nx == 0) {
-            nx = 1;
-          }
-          npx /= nx;
-        }
-        if (npx == 0) {
-          npx = xproj[0].rows / nx;
-        }
-
-        if (nx * npx != xproj[0].rows) {
-          fprintf (stderr, "Error (%s): number of read rows (%d) in %s does not match nx*npx = ( %d * %d). Please check the input files. Aborting.\n",
-                   NAME_CURRENT_COMP, xproj[0].rows, fnx, nx, npx);
+      for (num = 0; num < nE; num++) {
+        snprintf (fnx, 255, "%s-%d.%s", spectra_stem_x, num + initial_serial, spectra_suffix);
+        offset = orig_offset; /*Have to do this every time since Table_Read_Offset overwrites offset*/
+        if ((status = Table_Read_Offset (&(xproj[num]), fnx, 0, &offset, 0)) == -1) {
+          fprintf (stderr, "ERROR (%s): Could not parse file \"%s\"\n", NAME_CURRENT_COMP, fnx);
           exit (-1);
         }
-
-        if (ny == 0) {
-          int r;
-          for (r = 0; r < yproj[0].rows; r++) {
-            if (ny == 0 && Table_Index (yproj[0], r, 0) > Table_Index (yproj[0], r + 1, 0)) {
-              /*this means we have found where the first coordinate starts over*/
-              ny = r + 1;
-              break;
-            }
-          }
-          if (ny == 0) {
-            ny = 1;
-          }
-        }
-        if (npy == 0) {
-          npy = yproj[0].rows / ny;
-        }
-        if (ny * npy != yproj[0].rows) {
-          fprintf (stderr, "ERROR (%s): number of read rows (%d) in %s does not match ny*npy = ( %d * %d). Please check the input files. Aborting.\n",
-                   NAME_CURRENT_COMP, yproj[0].rows, fny, ny, npy);
+        snprintf (fny, 255, "%s-%d.%s", spectra_stem_y, num + initial_serial, spectra_suffix);
+        offset = orig_offset; /*Have to do this every time since Table_Read_Offset overwrites offset*/
+        if ((status = Table_Read_Offset (&(yproj[num]), fny, 0, &offset, 0)) == -1) {
+          fprintf (stderr, "ERROR (%s): Could not parse file \"%s\"\n", NAME_CURRENT_COMP, fny);
           exit (-1);
+        }
+        Ix[num] = Iy[num] = 0;
+        /*sum the brilliances to get something to normalize to*/
+        int r;
+        for (r = 0; r < xproj[num].rows; r++) {
+          Ix[num] += Table_Index (xproj[num], r, brilliance_column); // xproj.data[r*xproj.columns+ brilliance_column];
+        }
+
+        for (r = 0; r < yproj[num].rows; r++) {
+          Iy[num] += Table_Index (yproj[num], r, brilliance_column); // yproj.data[r*yproj.columns+ brilliance_column];
+        }
+        if (verbose && Ix[num] != Iy[num]) {
+          fprintf (stderr, "WARNING (%s): Integrated intensities do not match up for x and y projections at num %d\n", NAME_CURRENT_COMP, num);
         }
         if (verbose)
-          printf ("INFO (%s): (nx,nxp) = ( %d %d ), (ny,npy) = ( %d %d )\n", NAME_CURRENT_COMP, nx, npx, ny, npy);
-      } /*if num==0*/
-    }
-    /*find limits in x,x',y, and y', assuming they're the same across all source files.*/
-    /*these would be relevant for a search*/
+          printf ("INFO (%s): Integrated intensity for projections I [%d] = (%g,%g)\n", NAME_CURRENT_COMP, num, Ix[num], Iy[num]);
 
-    t_Table* xptr = &(xproj[0]);
-    t_Table* yptr = &(yproj[0]);
-    xmin = Table_Index (*xptr, 0, 0);
-    xpmin = Table_Index (*xptr, 0, 1);
-    ymin = Table_Index (*yptr, 0, 0);
-    ypmin = Table_Index (*yptr, 0, 1);
-    xmax = Table_Index (*xptr, nx - 1, 0);
-    xpmax = Table_Index (*xptr, nx * npx - 1, 1);
-    ymax = Table_Index (*yptr, ny - 1, 0);
-    ypmax = Table_Index (*yptr, ny * npy - 1, 1);
-    xstep = Table_Index (*xptr, 1, 0) - Table_Index (*xptr, 0, 0);
-    xpstep = Table_Index (*xptr, nx, 1) - Table_Index (*xptr, 0, 1);
-    ystep = Table_Index (*yptr, 1, 0) - Table_Index (*yptr, 0, 0);
-    ypstep = Table_Index (*yptr, ny, 1) - Table_Index (*yptr, 0, 1);
+        if (num == 0) {
+          /*check the data structure for the first two input files*/
+          /*if not given deduce the number of sample-points in datafiles*/
+          if (nx == 0) {
+            int r;
+            double p1, p2;
+            for (r = 0; r < xproj[0].rows; r++) {
+              if (nx == 0 && (p1 = Table_Index (xproj[0], r, 0)) > (p2 = Table_Index (xproj[0], r + 1, 0))) {
+                /*this means we have found where the first coordinate starts over*/
+                nx = r + 1;
+                break;
+              }
+            }
+            if (nx == 0) {
+              nx = 1;
+            }
+            npx /= nx;
+          }
+          if (npx == 0) {
+            npx = xproj[0].rows / nx;
+          }
 
-    if (verbose && xmin == 0 && symmetricx == 0) {
-      fprintf (stderr, "WARNING (%s): Minimum x-value in datafile is 0 but symmetricx is not set.\n", NAME_CURRENT_COMP);
-    }
-    if (verbose && xmin == 0 && symmetricy == 0) {
-      fprintf (stderr, "WARNING (%s): Minimum y-value in datafile is 0 but symmetricy is not set.\n", NAME_CURRENT_COMP);
-    }
-  } else {
-    /*The datafiles are 4D: i.e. x,x',y,y' and p columns;*/
-    brilliance_column = 4;
-    map = calloc (nE, sizeof (t_Table));
-    Imap = calloc (nE, sizeof (double));
-    sprintf (fnx, "%s-%d.%s", spectra_stem, initial_serial, spectra_suffix);
-    orig_offset = source_spectra_find_offset (fnx);
-    for (num = 0; num < nE; num++) {
-      sprintf (fnx, "%s-%d.%s", spectra_stem, num + initial_serial, spectra_suffix);
-      offset = orig_offset; /*Table_Read_Offset overwrites offset*/
-      if ((status = Table_Read_Offset (&(map[num]), fnx, 0, &offset, 0)) == -1) {
-        fprintf (stderr, "Source_spectra(%s) Error: Could not parse file \"%s\"\n", NAME_CURRENT_COMP, fnx);
-        exit (-1);
+          if (nx * npx != xproj[0].rows) {
+            fprintf (stderr, "Error (%s): number of read rows (%d) in %s does not match nx*npx = ( %d * %d). Please check the input files. Aborting.\n",
+                     NAME_CURRENT_COMP, xproj[0].rows, fnx, nx, npx);
+            exit (-1);
+          }
+
+          if (ny == 0) {
+            int r;
+            for (r = 0; r < yproj[0].rows; r++) {
+              if (ny == 0 && Table_Index (yproj[0], r, 0) > Table_Index (yproj[0], r + 1, 0)) {
+                /*this means we have found where the first coordinate starts over*/
+                ny = r + 1;
+                break;
+              }
+            }
+            if (ny == 0) {
+              ny = 1;
+            }
+          }
+          if (npy == 0) {
+            npy = yproj[0].rows / ny;
+          }
+          if (ny * npy != yproj[0].rows) {
+            fprintf (stderr, "ERROR (%s): number of read rows (%d) in %s does not match ny*npy = ( %d * %d). Please check the input files. Aborting.\n",
+                     NAME_CURRENT_COMP, yproj[0].rows, fny, ny, npy);
+            exit (-1);
+          }
+          if (verbose)
+            printf ("INFO (%s): (nx,nxp) = ( %d %d ), (ny,npy) = ( %d %d )\n", NAME_CURRENT_COMP, nx, npx, ny, npy);
+        } /*if num==0*/
       }
-      Imap[num] = 0;
-      /*sum the brilliances to get something to normalize to*/
+      /*find limits in x,x',y, and y', assuming they're the same across all source files.*/
+      /*these would be relevant for a search*/
+
+      t_Table* xptr = &(xproj[0]);
+      t_Table* yptr = &(yproj[0]);
+      xmin = Table_Index (*xptr, 0, 0);
+      xpmin = Table_Index (*xptr, 0, 1);
+      ymin = Table_Index (*yptr, 0, 0);
+      ypmin = Table_Index (*yptr, 0, 1);
+      xmax = Table_Index (*xptr, nx - 1, 0);
+      xpmax = Table_Index (*xptr, nx * npx - 1, 1);
+      ymax = Table_Index (*yptr, ny - 1, 0);
+      ypmax = Table_Index (*yptr, ny * npy - 1, 1);
+      xstep = Table_Index (*xptr, 1, 0) - Table_Index (*xptr, 0, 0);
+      xpstep = Table_Index (*xptr, nx, 1) - Table_Index (*xptr, 0, 1);
+      ystep = Table_Index (*yptr, 1, 0) - Table_Index (*yptr, 0, 0);
+      ypstep = Table_Index (*yptr, ny, 1) - Table_Index (*yptr, 0, 1);
+
+      if (verbose && xmin == 0 && symmetricx == 0) {
+        fprintf (stderr, "WARNING (%s): Minimum x-value in datafile is 0 but symmetricx is not set.\n", NAME_CURRENT_COMP);
+      }
+      if (verbose && xmin == 0 && symmetricy == 0) {
+        fprintf (stderr, "WARNING (%s): Minimum y-value in datafile is 0 but symmetricy is not set.\n", NAME_CURRENT_COMP);
+      }
+    } else {
+      /*The datafiles are 4D: i.e. x,x',y,y' and p columns;*/
+      brilliance_column = 4;
+      map = calloc (nE, sizeof (t_Table));
+      Imap = calloc (nE, sizeof (double));
+      sprintf (fnx, "%s-%d.%s", spectra_stem, initial_serial, spectra_suffix);
+      orig_offset = source_spectra_find_offset (fnx);
+      for (num = 0; num < nE; num++) {
+        sprintf (fnx, "%s-%d.%s", spectra_stem, num + initial_serial, spectra_suffix);
+        offset = orig_offset; /*Table_Read_Offset overwrites offset*/
+        if ((status = Table_Read_Offset (&(map[num]), fnx, 0, &offset, 0)) == -1) {
+          fprintf (stderr, "Source_spectra(%s) Error: Could not parse file \"%s\"\n", NAME_CURRENT_COMP, fnx);
+          exit (-1);
+        }
+        Imap[num] = 0;
+        /*sum the brilliances to get something to normalize to*/
+        int r;
+        for (r = 0; r < map[num].rows; r++) {
+          Imap[num] += Table_Index (map[num], r, brilliance_column);
+        }
+      }
+      /*if the limits are not given, try to deduce the number of steps from the data files*/
       int r;
-      for (r = 0; r < map[num].rows; r++) {
-        Imap[num] += Table_Index (map[num], r, brilliance_column);
+      double p1, p2;
+      for (r = 0; r < map[0].rows; r++) {
+        if (nx == 0 && (p1 = Table_Index (map[0], r, 0)) > (p2 = Table_Index (map[0], r + 1, 0))) {
+          /*this means we have found where the first coordinate starts over*/
+          nx = r + 1;
+        }
+        if (ny == 0 && (p1 = Table_Index (map[0], r, 1)) > (p2 = Table_Index (map[0], r + 1, 1))) {
+          /*this means we have found where the 2nd coordinate starts over*/
+          ny = (r + 1) / nx;
+        }
+        if (npx == 0 && (p1 = Table_Index (map[0], r, 2)) > (p2 = Table_Index (map[0], r + 1, 2))) {
+          /*this means we have found where the 3rd coordinate starts over*/
+          npx = (r + 1) / (nx * ny);
+        }
+        /*if first 3 are set stop searching - set the last later*/
+        if (nx && ny && npx) {
+          break;
+        }
       }
-    }
-    /*if the limits are not given, try to deduce the number of steps from the data files*/
-    int r;
-    double p1, p2;
-    for (r = 0; r < map[0].rows; r++) {
-      if (nx == 0 && (p1 = Table_Index (map[0], r, 0)) > (p2 = Table_Index (map[0], r + 1, 0))) {
-        /*this means we have found where the first coordinate starts over*/
-        nx = r + 1;
+      if (nx == 0) {
+        nx = 1;
       }
-      if (ny == 0 && (p1 = Table_Index (map[0], r, 1)) > (p2 = Table_Index (map[0], r + 1, 1))) {
-        /*this means we have found where the 2nd coordinate starts over*/
-        ny = (r + 1) / nx;
+      if (ny == 0) {
+        ny = 1;
       }
-      if (npx == 0 && (p1 = Table_Index (map[0], r, 2)) > (p2 = Table_Index (map[0], r + 1, 2))) {
-        /*this means we have found where the 3rd coordinate starts over*/
-        npx = (r + 1) / (nx * ny);
+      if (npx == 0) {
+        npx = 1;
       }
-      /*if first 3 are set stop searching - set the last later*/
-      if (nx && ny && npx) {
-        break;
+      /*last one is set frm th evalues of the other ones*/
+      if (npy == 0) {
+        npy = map[0].rows / (nx * ny * npx);
       }
-    }
-    if (nx == 0) {
-      nx = 1;
-    }
-    if (ny == 0) {
-      ny = 1;
-    }
-    if (npx == 0) {
-      npx = 1;
-    }
-    /*last one is set frm th evalues of the other ones*/
-    if (npy == 0) {
-      npy = map[0].rows / (nx * ny * npx);
-    }
-    if (verbose)
-      printf ("INFO (%s): [Nx,Ny,Nx,Ny]= [ %d %d %d %d ] for files: %s-X.%s\n", NAME_CURRENT_COMP, nx, ny, npx, npy, spectra_stem, spectra_suffix);
+      if (verbose)
+        printf ("INFO (%s): [Nx,Ny,Nx,Ny]= [ %d %d %d %d ] for files: %s-X.%s\n", NAME_CURRENT_COMP, nx, ny, npx, npy, spectra_stem, spectra_suffix);
 
-    /*set limit values. Use that the last row contains the maximum value for all 4 dimensions.*/
-    xmin = Table_Index (map[0], 0, 0);
-    xmax = Table_Index (map[0], map[0].rows, 0);
-    xstep = (xmax - xmin) / nx;
-    ymin = Table_Index (map[0], 0, 1);
-    ymax = Table_Index (map[0], map[0].rows, 1);
-    ystep = (ymax - ymin) / ny;
-    xpmin = Table_Index (map[0], 0, 2);
-    xpmax = Table_Index (map[0], map[0].rows, 2);
-    xpstep = (xpmax - xpmin) / npx;
-    ypmin = Table_Index (map[0], 0, 3);
-    ypmax = Table_Index (map[0], map[0].rows, 3);
-    ypstep = (ypmax - ypmin) / npy;
+      /*set limit values. Use that the last row contains the maximum value for all 4 dimensions.*/
+      xmin = Table_Index (map[0], 0, 0);
+      xmax = Table_Index (map[0], map[0].rows, 0);
+      xstep = (xmax - xmin) / nx;
+      ymin = Table_Index (map[0], 0, 1);
+      ymax = Table_Index (map[0], map[0].rows, 1);
+      ystep = (ymax - ymin) / ny;
+      xpmin = Table_Index (map[0], 0, 2);
+      xpmax = Table_Index (map[0], map[0].rows, 2);
+      xpstep = (xpmax - xpmin) / npx;
+      ypmin = Table_Index (map[0], 0, 3);
+      ypmax = Table_Index (map[0], map[0].rows, 3);
+      ypstep = (ypmax - ypmin) / npy;
 
-    if (verbose)
-      printf ("INFO (%s): (xmin,xmax)=( %g %g ), (ymin,ymax)=( %g %g ), (xpmin,xpmax)=( %g %g ), (ypmin,ypmax)=( %g %g )\n", NAME_CURRENT_COMP, xmin, xmax, ymin,
-              ymax, xpmin, xpmax, ypmin, ypmax);
-  }
+      if (verbose)
+        printf ("INFO (%s): (xmin,xmax)=( %g %g ), (ymin,ymax)=( %g %g ), (xpmin,xpmax)=( %g %g ), (ypmin,ypmax)=( %g %g )\n", NAME_CURRENT_COMP, xmin, xmax,
+                ymin, ymax, xpmin, xpmax, ypmin, ypmax);
+    }
 
-  if (E0 - dE - Emin < -FLT_MAX || E0 + dE - Emax > FLT_MAX) {
-    fprintf (stderr, "WARNING(%s): Sampled energy interval (%g+-%g keV) reaches outside what\'s defined by datafiles (%g+-%g keV)\n", NAME_CURRENT_COMP, E0, dE,
-             (Emin + Emax) * 0.5, (Emax - Emin) * 0.5);
-  }
+    if (E0 - dE - Emin < -FLT_MAX || E0 + dE - Emax > FLT_MAX) {
+      fprintf (stderr, "WARNING(%s): Sampled energy interval (%g+-%g keV) reaches outside what\'s defined by datafiles (%g+-%g keV)\n", NAME_CURRENT_COMP, E0, dE,
+               (Emin + Emax) * 0.5, (Emax - Emin) * 0.5);
+    }
 
-  /*downweight accoring to number of rays*/
-  pmul = 1.0 / ((double)mcget_ncount ());
+    /*downweight accoring to number of rays*/
+    pmul = 1.0 / ((double)mcget_ncount ());
 
-  /*downweight for not using the full energy window. Don't do this for deterministic energy (dE=0).*/
-  if (dE && ((E0 - dE > Emin) || E0 + dE < Emax)) {
-    pmul *= 2 * dE / (Emax - Emin);
-  }
+    /*downweight for not using the full energy window. Don't do this for deterministic energy (dE=0).*/
+    if (dE && ((E0 - dE > Emin) || E0 + dE < Emax)) {
+      pmul *= 2 * dE / (Emax - Emin);
+    }
   } /* !noinit */
 %}
 

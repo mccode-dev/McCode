@@ -23,7 +23,7 @@ Algorithm: The general algorithm for the Union system is described elsewhere.
 
 I here give a brief introduction as to what changes occur when using an inhomogenous process in your Union make material. It is expected that you understand the basic algorithm of the Union system before reading this.
 
-In Union, the neutron moves through a network of objects in a 3 dimensional world. When the neutron hits a material, the probability to scatter is calculated, and a Monte Carlo choice is taken, as to whether that neutron should scatter, or pass through. For a homogenous material (i.e constant attenuation coefficient \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{}), this probability is the Beer-Lambert law,
+In Union, the neutron moves through a network of objects in a 3 dimensional world. When the neutron hits a material, the probability to scatter is calculated, and a Monte Carlo choice is taken, as to whether that neutron should scatter, or pass through. For a homogenous material (i.e constant attenuation coefficient $\mu$), this probability is the Beer-Lambert law,
 
 \textless{}div class="latex"\textgreater{}
 
@@ -33,9 +33,9 @@ $P_s = 1 - e^{-\mu l}$
 
 \textless{}/div\textgreater{}
 
-Where \textless{}span class="latex"\textgreater{}\$P\_s\$\textless{}/span\textgreater{} is the scattering probability, and \textless{}span class="latex"\textgreater{}\$l\$\textless{}/span\textgreater{} is length of the neutron path throughout the object.
+Where $P_s$ is the scattering probability, and $l$ is length of the neutron path throughout the object.
 
-For an inhomogenous material, this Beer-Lambert law must be modified, as \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} is a function of the position. Therefore the Beer-Lambert law becomes,
+For an inhomogenous material, this Beer-Lambert law must be modified, as $\mu$ is a function of the position. Therefore the Beer-Lambert law becomes,
 
 \textless{}div class="latex"\textgreater{}
 
@@ -45,17 +45,17 @@ $P_s = \int^l_0 1 -  e^{-\mu(l')l'}dl'$
 
 \textless{}/div\textgreater{}
 
-Calculating this \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} in the inhomogenous case is often trivial, but not feasible, from a software development point of view (seeing as many different functions of \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} might be wanted). Instead the inhomogenous processes performs an approximate integral, by evaluating \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} at a number of points along the neutron path (This number is in fact number\_of\_sample\_points).
+Calculating this $\mu$ in the inhomogenous case is often trivial, but not feasible, from a software development point of view (seeing as many different functions of $\mu$ might be wanted). Instead the inhomogenous processes performs an approximate integral, by evaluating $\mu$ at a number of points along the neutron path (This number is in fact number\_of\_sample\_points).
 
 For this incoherent process, the linear attenuation coefficient is,
 
-\textless{}div class="latex"\textgreater{} \$\textbackslash{}mu = pack/V\_u * 100 * \textbackslash{}sigma\$ \textless{}/div\textgreater{}
+$\mu = pack/V_u * 100 * \sigma$
 
-Where \textless{}span class="latex"\textgreater{}\$pack\$\textless{}/span\textgreater{} is the packing factor of the material (defaults to 1), \textless{}span class="latex"\textgreater{}\$V\_u\$\textless{}/span\textgreater{} is the Unit cell volume, and \textless{}span class="latex"\textgreater{}\$\textbackslash{}sigma\$\textless{}/span\textgreater{} is the scattering cross section in barns. \textless{}span class="latex"\textgreater{}\$\textbackslash{}mu\$\textless{}/span\textgreater{} therefore has units of \textless{}span class="latex"\textgreater{}\$m\textasciicircum{}\{-1\}\$\textless{}/span\textgreater{}.
+Where $pack$ is the packing factor of the material (defaults to 1), $V_u$ is the Unit cell volume, and $\sigma$ is the scattering cross section in barns. $\mu$ therefore has units of $m^{-1}$.
 
-For this component each factor in the attenuation coefficient can be a "tiny expression". This means that it can be a mathematical equation such as \textless{}span class="latex"\textgreater{}\$\textbackslash{}sigma\_\{expr\} = "5.08 + 1000 * z * 2.35"\$\textless{}/span\textgreater{}. When the attenuation coefficient is calculated, then the current value of \textless{}span class="latex"\textgreater{}\$z\$\textless{}/span\textgreater{} is used to get \textless{}span class="latex"\textgreater{}\$\textbackslash{}sigma\$\textless{}/span\textgreater{}.
+For this component each factor in the attenuation coefficient can be a "tiny expression". This means that it can be a mathematical equation such as $\sigma_{expr} = "5.08 + 1000 * z * 2.35"$. When the attenuation coefficient is calculated, then the current value of $z$ is used to get $\sigma$.
 
-The parameters that the tiny expression can rely upon are currently: The positions, \textless{}span class="latex"\textgreater{}\$x, y, z\$\textless{}/span\textgreater{} The velocities \textless{}span class="latex"\textgreater{}\$vx, vy, vz\$\textless{}/span\textgreater{} and the time \textless{}span class="latex"\textgreater{}\$t\$\textless{}/span\textgreater{}
+The parameters that the tiny expression can rely upon are currently: The positions, $x, y, z$ The velocities $vx, vy, vz$ and the time $t$
 
 McStas uses a sligthly modified version of tiny expressions that evaluate exponentials from right to left instead of the standard left to right. Furthermore McStas has added two functions to tiny expressions. These are: A heavy side function hvs(variable, switch\_point, large\_val,small\_val) which returns large val if variable \textgreater{} switch\_point and small val otherwise.
 

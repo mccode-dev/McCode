@@ -44,8 +44,8 @@ int reflec_Init(t_Reflec *R, enum reflec_Type typ, char *file, void *pars){
     case PARRATT:
       {
           /*cast the first address to be a scalar integer. The latter ones are pointers to double arrays.*/
-          int N=(unsigned int)((double **) pars)[0];
           if(pars){
+              int N=(int)(size_t)((double **) pars)[0];
               reflec_Init_parratt(R, N,((double **) pars)[1], ((double **) pars)[2], ((double **) pars)[3]);        
           }else{
               fprintf(stderr,"Warning: %s: No parameters specified to Parratt reflectivity algortihm. Setting R=1.0.\n",
