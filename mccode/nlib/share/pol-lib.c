@@ -104,7 +104,7 @@ int magnetic_field_dispatcher(int func_id, double x, double y, double z, double 
       }
     case none:
       {
-        retval=0;*bx=0;*by=0;bz=0;
+        retval=0;*bx=0;*by=0;*bz=0;
       }
   }
   return retval;

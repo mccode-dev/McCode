@@ -28,11 +28,13 @@
 *
 * %Parameters
 * INPUT PARAMETERS:
-* radius: [Ang] ([0, inf]) Cylinder core radius.
-* thickness: [Ang] ([0, inf]) Cylinder wall thickness.
-* length: [Ang] ([0, inf]) Cylinder total length.
-* sld: [1e-6/Ang^2] ([-inf, inf]) Cylinder sld.
-* sld_solvent: [1e-6/Ang^2] ([-inf, inf]) Solvent sld.
+* radius: [AA] ([0, inf]) Cylinder core radius.
+* thickness: [AA] ([0, inf]) Cylinder wall thickness.
+* length: [AA] ([0, inf]) Cylinder total length.
+* sld: [1e-6/AA^2] ([-inf, inf]) Cylinder sld.
+* sld_solvent: [1e-6/AA^2] ([-inf, inf]) Solvent sld.
+* theta: [deg] ([-360, 360]) Cylinder axis to beam angle.
+* Phi: [deg] ([-360, 360]) Rotation about beam.
 * Optional parameters:
 * model_abs: [ ] Absorption cross section density at 2200 m/s.
 * model_scale: [ ] Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors can be related to the scattering intensity by the particle volume fraction.
@@ -59,7 +61,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_hollow_cylinder_aniso
-
 SETTING PARAMETERS (
         radius=20.0,
         thickness=10.0,
@@ -640,7 +641,7 @@ constant double Gauss76Z[76] = {
 
 #line 1 "hollow_cylinder"
 static double
-shell_volume(double radius, double thickness, double length)
+shell_volume_hollow_cylinder(double radius, double thickness, double length)
 {
     return M_PI*length*(sas_square(radius+thickness) - radius*radius);
 }
@@ -694,7 +695,7 @@ radius_effective_hollow_cylinder(int mode, double radius, double thickness, doub
 }
 
 static double
-_fq(double qab, double qc,
+_fq_hollow_cylinder(double qab, double qc,
     double radius, double thickness, double length)
 {
     const double lam1 = sas_2J1x_x((radius+thickness)*qab);
@@ -719,14 +720,14 @@ Fq_hollow_cylinder(double q, double *F1, double *F2, double radius, double thick
     for (int i=0;i<GAUSS_N;i++) {
         const double cos_theta = 0.5*( GAUSS_Z[i] * (upper-lower) + lower + upper );
         const double sin_theta = sqrt(1.0 - cos_theta*cos_theta);
-        const double form = _fq(q*sin_theta, q*cos_theta,
+        const double form = _fq_hollow_cylinder(q*sin_theta, q*cos_theta,
                                 radius, thickness, length);
         total_F1 += GAUSS_W[i] * form;
         total_F2 += GAUSS_W[i] * form * form;
     }
     total_F1 *= 0.5*(upper-lower);
     total_F2 *= 0.5*(upper-lower);
-    const double s = (sld - solvent_sld) * shell_volume(radius, thickness, length);
+    const double s = (sld - solvent_sld) * shell_volume_hollow_cylinder(radius, thickness, length);
     *F1 = 1e-2 * s * total_F1;
     *F2 = 1e-4 * s*s * total_F2;
 }
@@ -737,8 +738,8 @@ Iqac_hollow_cylinder(double qab, double qc,
     double radius, double thickness, double length,
     double sld, double solvent_sld)
 {
-    const double form = _fq(qab, qc, radius, thickness, length);
-    const double s = (sld - solvent_sld) * shell_volume(radius, thickness, length);
+    const double form = _fq_hollow_cylinder(qab, qc, radius, thickness, length);
+    const double s = (sld - solvent_sld) * shell_volume_hollow_cylinder(radius, thickness, length);
     return 1.0e-4*sas_square(s * form);
 }
 

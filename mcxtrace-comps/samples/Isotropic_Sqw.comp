@@ -462,11 +462,29 @@ SHARE
 
     flag_qSq = (Sqw->powder_columns_order[8] > 0 && Sqw->powder_columns_order[6] > 0);
 
-    MPI_MASTER (if (Sqw->powder_columns_order[0] == 4 && Sqw->barns != 0)
+    /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'powder_barns' parameter */
+    int hdr_unit = 0;
+    char** unit = Table_ParseHeader (sqwTable.header, "column_F2", "column_F ", NULL);
+    if (unit) {
+      for (i = 0; i <= 1; i++)
+        if (unit[i] && (strstr (unit[i], "barn") || strstr (unit[i], "fm"))) {
+          int hdr_barns = strstr (unit[i], "barn") != NULL;
+          if (hdr_barns != Sqw->barns)
+            MPI_MASTER (
+                printf ("Isotropic_Sqw: %s: |F|^2 unit in file header is %s, using powder_barns=%d\n", Sqw->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
+          Sqw->barns = hdr_barns;
+          hdr_unit = 1;
+        }
+      for (i = 0; i <= 1; i++)
+        if (unit[i])
+          free (unit[i]);
+      free (unit);
+    }
+    MPI_MASTER (if (!hdr_unit && Sqw->powder_columns_order[0] == 4 && Sqw->barns != 0)
                     printf ("Isotropic_Sqw: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
                             "WARNING:       but F2 unit is set to powder_barns=1 (barns). Intensity might be 100 times too high.\n",
                             Sqw->compname);
-                if (Sqw->powder_columns_order[0] == 17 && Sqw->barns == 0)
+                if (!hdr_unit && Sqw->powder_columns_order[0] == 17 && Sqw->barns == 0)
                     printf ("Isotropic_Sqw: %s: Powder file probably of type Lazy Pulver (laz)\n"
                             "WARNING:       but F2 unit is set to powder_barns=0 (fm^2). Intensity might be 100 times too low.\n",
                             Sqw->compname););
@@ -1510,11 +1528,8 @@ SHARE
     if (T > 3000)
       T = 0; /* unrealistic */
     if (!T_file && T) {
-      MPI_MASTER(
-      if (Sqw->verbose_output > 0) {
-        printf ("Isotropic_Sqw: %s: Temperature computed from S(q,w) data from %s is T=%g [K].\n", Sqw->compname, file, T);
-      );
-      }
+      MPI_MASTER (
+          if (Sqw->verbose_output > 0) { printf ("Isotropic_Sqw: %s: Temperature computed from S(q,w) data from %s is T=%g [K].\n", Sqw->compname, file, T); });
     }
 
     if (Sqw->Temperature == 0) {
@@ -2595,27 +2610,22 @@ FINALLY
     mc_MPI_Sum (&VarSqw.multi, 1);
   }
   #endif
-    MPI_MASTER(
-    if (VarSqw.photon_removed)
-      printf("Isotropic_Sqw: %s: %li photon events (out of %li) that should have\n"
-             "               scattered were transmitted because scattering conditions\n"
-             "WARNING        could not be satisfied after %i tries.\n",
-            NAME_CURRENT_COMP, VarSqw.photon_removed,
-            VarSqw.photon_exit+VarSqw.photon_removed, VarSqw.maxloop);
-    if (VarSqw.photon_pmult)
-      printf("Isotropic_Sqw: %s: %li photon events (out of %li) reached\n"
-             "WARNING        unrealistic weight. The S(q,w) norm might be too high.\n",
-            NAME_CURRENT_COMP, VarSqw.photon_pmult, VarSqw.photon_exit);
+  MPI_MASTER (if (VarSqw.photon_removed) printf ("Isotropic_Sqw: %s: %li photon events (out of %li) that should have\n"
+                                                 "               scattered were transmitted because scattering conditions\n"
+                                                 "WARNING        could not be satisfied after %i tries.\n",
+                                                 NAME_CURRENT_COMP, VarSqw.photon_removed, VarSqw.photon_exit + VarSqw.photon_removed, VarSqw.maxloop);
+              if (VarSqw.photon_pmult) printf ("Isotropic_Sqw: %s: %li photon events (out of %li) reached\n"
+                                               "WARNING        unrealistic weight. The S(q,w) norm might be too high.\n",
+                                               NAME_CURRENT_COMP, VarSqw.photon_pmult, VarSqw.photon_exit);
 
-    if (VarSqw.verbose_output >= 1 && VarSqw.psum_scatt > 0) {
-    printf ("Isotropic_Sqw: %s: Scattering fraction=%g of incoming intensity\n", NAME_CURRENT_COMP, VarSqw.mean_scatt / VarSqw.psum_scatt);
-    printf ("               Single   scattering intensity =%g\n"
-            "               Multiple scattering intensity =%g\n",
-            VarSqw.single_coh, VarSqw.multi);
-      );
-    }
+              if (VarSqw.verbose_output >= 1 && VarSqw.psum_scatt > 0) {
+                printf ("Isotropic_Sqw: %s: Scattering fraction=%g of incoming intensity\n", NAME_CURRENT_COMP, VarSqw.mean_scatt / VarSqw.psum_scatt);
+                printf ("               Single   scattering intensity =%g\n"
+                        "               Multiple scattering intensity =%g\n",
+                        VarSqw.single_coh, VarSqw.multi);
+              });
 
-    /* end FINALLY */
+  /* end FINALLY */
 %}
 /*****************************************************************************/
 /*****************************************************************************/

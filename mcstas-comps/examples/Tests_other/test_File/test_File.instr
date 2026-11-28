@@ -18,7 +18,7 @@
 *
 * %Description
 * Demonstrates how to use the File.comp component for storing instrument 
-* input-files as METADATA blocks
+* input-files as METADATA blocks, of a component instance or of the instrument
 *
 * %Link
 * From https://github.com/g5t/mccode-file
@@ -26,6 +26,9 @@
 * %End
 *******************************************************************************/
 DEFINE INSTRUMENT test_File()
+METADATA "application/json" header_info %{
+{"defined by": "the instrument"}
+%}
 TRACE
 COMPONENT Origin = Progress_bar() AT (0, 0, 0) ABSOLUTE
 METADATA "mimetype/text" origin_info %{
@@ -43,6 +46,9 @@ Store text to write in first.txt
 %}
 
 COMPONENT second_file = File(filename="second.txt", metadatakey="Origin:origin_info", keep=1)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT third_file = File(filename="third.json", metadatakey="test_File:header_info", keep=1)
 AT (0, 0, 0) ABSOLUTE
 
 END

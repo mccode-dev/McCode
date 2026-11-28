@@ -54,4 +54,37 @@ for exp, ext in ((export_off, '.off'), (export_ply, '.ply')):
     # interoff-lib reads faces right after the vertices; extra face numbers would be supermirror parameters
     assert all(l.split() == ['3'] + [str(i) for i in t] for l, t in zip(faces, m.tris))
     assert 'edge' not in ' '.join(lines[:20])
+
+# VTK: polygon count right also when vertex 3 is used, colors per point, RGBA with transparency
+from mcdisplay import export_vtk, Mesh
+q = Part('q', (1, 0, 0), 0.5)
+q.add_mesh(Mesh([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)], [[0, 1, 2], [0, 2, 3]]))
+fn = os.path.join(tempfile.mkdtemp(), 'x.vtk')
+export_vtk([q], fn)
+lines = open(fn).read().splitlines()
+assert 'POLYGONS 2 8' in lines and 'COLOR_SCALARS component_color 4' in lines and lines[-1] == '1 0 0 0.5'
+
+# --simdir data: flat 2D map (hot bin at +x, -y), flat 1D curve mirrored, and turned upright on an upside-down monitor
+from types import SimpleNamespace
+from mcdisplay import monitor_to_parts
+from mccodelib.instrgeom import DrawMultiline
+frame = DrawMultiline([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0, -1, -1, 0])
+up, turned = np.eye(4).ravel(), np.diag([-1., -1, 1, 1]).ravel()  # turned: ROTATED (0, 0, 180)
+comp = SimpleNamespace(name='m', drawcalls=[frame], m4=up)
+z = np.zeros((4, 4))
+z[0, 3] = 1
+hot = monitor_to_parts(comp, {'z': z, 'limits': [-1, 1, -1, 1], 'xlabel': 'X', 'ylabel': 'Y'}, transparency=0.5)[-1]
+assert np.allclose(hot.mesh.verts.min(0), (0.5, -1, 0)) and np.allclose(hot.mesh.verts.max(0), (1, -0.5, 0)) and hot.transparency == 0.5
+mon = {'y': [0, 0, 0, 1], 'limits': [0, 1], 'xlabel': 'L'}
+for m4 in (up, turned):
+    comp.m4 = m4
+    peak = monitor_to_parts(comp, mon)[0].polylines[0][3]
+    assert np.allclose(peak, (-0.75, 2 * 228 / 256 - 1, 0))
+assert monitor_to_parts(comp, mon, show=['2D']) == []
+# banana: the hot bin at 75 deg
+comp = SimpleNamespace(name='b', drawcalls=[DrawCylinder([0, 0, 0, 2, 1, 0, 0, 1, 0])], m4=up)
+mon = {'y': [0, 1], 'limits': [-60, 120], 'xlabel': 'Longitude [deg]'}
+x, _, zz = monitor_to_parts(comp, mon)[0].polylines[0][1]
+assert np.isclose(np.degrees(np.arctan2(x, zz)), 75) and np.isclose(np.hypot(x, zz), 2)
+assert monitor_to_parts(comp, mon, show=['1D']) == []
 print('ok')

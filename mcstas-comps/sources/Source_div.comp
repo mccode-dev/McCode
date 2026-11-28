@@ -71,119 +71,113 @@ SHARE
 
 DECLARE
 %{
-double sigmah;
-double sigmav;
-double p_init;
-double dist;
-double focus_xw;
-double focus_yh;
+  double sigmah;
+  double sigmav;
+  double p_init;
+  double dist;
+  double focus_xw;
+  double focus_yh;
 %}
 INITIALIZE
 %{
-sigmah = DEG2RAD*focus_aw/(sqrt(8.0*log(2.0)));
-  sigmav = DEG2RAD*focus_ah/(sqrt(8.0*log(2.0)));
+  sigmah = DEG2RAD * focus_aw / (sqrt (8.0 * log (2.0)));
+  sigmav = DEG2RAD * focus_ah / (sqrt (8.0 * log (2.0)));
 
   if (xwidth < 0 || yheight < 0 || focus_aw < 0 || focus_ah < 0) {
-      printf("Source_div: %s: Error in input parameter values!\n"
-             "ERROR       Exiting\n",
-           NAME_CURRENT_COMP);
-      exit(-1);
+    printf ("Source_div: %s: Error in input parameter values!\n"
+            "ERROR       Exiting\n",
+            NAME_CURRENT_COMP);
+    exit (-1);
   }
   if ((!lambda0 && !E0 && !dE && !dlambda)) {
-    printf("Source_div: %s: You must specify either a wavelength or energy range!\n ERROR - Exiting\n",
-           NAME_CURRENT_COMP);
-    exit(-1);
+    printf ("Source_div: %s: You must specify either a wavelength or energy range!\n ERROR - Exiting\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
-  if ((!lambda0 && !dlambda && (E0 <= 0 || dE < 0 || E0-dE <= 0))
-    || (!E0 && !dE && (lambda0 <= 0 || dlambda < 0 || lambda0-dlambda <= 0))) {
-    printf("Source_div: %s: Unmeaningful definition of wavelength or energy range!\n ERROR - Exiting\n",
-           NAME_CURRENT_COMP);
-      exit(-1);
+  if ((!lambda0 && !dlambda && (E0 <= 0 || dE < 0 || E0 - dE <= 0)) || (!E0 && !dE && (lambda0 <= 0 || dlambda < 0 || lambda0 - dlambda <= 0))) {
+    printf ("Source_div: %s: Unmeaningful definition of wavelength or energy range!\n ERROR - Exiting\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
   /* compute distance to next component */
   Coords ToTarget;
-  double tx,ty,tz;
-  ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+1),POS_A_CURRENT_COMP);
-  ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
-  coords_get(ToTarget, &tx, &ty, &tz);
-  dist=sqrt(tx*tx+ty*ty+tz*tz);
+  double tx, ty, tz;
+  ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + 1), POS_A_CURRENT_COMP);
+  ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+  coords_get (ToTarget, &tx, &ty, &tz);
+  dist = sqrt (tx * tx + ty * ty + tz * tz);
   /* compute target area */
   if (dist) {
-    focus_xw=dist*tan(focus_aw*DEG2RAD);
-    focus_yh=dist*tan(focus_ah*DEG2RAD);
+    focus_xw = dist * tan (focus_aw * DEG2RAD);
+    focus_yh = dist * tan (focus_ah * DEG2RAD);
   }
 
-  p_init  = flux*1e4*xwidth*yheight/mcget_ncount();
+  p_init = flux * 1e4 * xwidth * yheight / mcget_ncount ();
   if (!focus_aw || !focus_ah)
-    exit(printf("Source_div: %s: Zero divergence defined. \n"
-                "ERROR       Use non zero values for focus_aw and focus_ah.\n",
-           NAME_CURRENT_COMP));
-  p_init *= 2*fabs(DEG2RAD*focus_aw*sin(DEG2RAD*focus_ah/2));  /* solid angle */
+    exit (printf ("Source_div: %s: Zero divergence defined. \n"
+                  "ERROR       Use non zero values for focus_aw and focus_ah.\n",
+                  NAME_CURRENT_COMP));
+  p_init *= 2 * fabs (DEG2RAD * focus_aw * sin (DEG2RAD * focus_ah / 2)); /* solid angle */
   if (dlambda)
-    p_init *= 2*dlambda;
+    p_init *= 2 * dlambda;
   else if (dE)
-    p_init *= 2*dE;
+    p_init *= 2 * dE;
 %}
 TRACE
 %{
-  double E,lambda,v;
+  double E, lambda, v;
   double tan_h;
   double tan_v;
   double thetah;
   double thetav;
 
-  p=p_init;
-  z=0;
-  t=0;
+  p = p_init;
+  z = 0;
+  t = 0;
 
-  x=randpm1()*xwidth/2.0;
-  y=randpm1()*yheight/2.0;
-  if(lambda0==0) {
+  x = randpm1 () * xwidth / 2.0;
+  y = randpm1 () * yheight / 2.0;
+  if (lambda0 == 0) {
     if (!gauss) {
-      E=E0+dE*randpm1();              /*  Choose from uniform distribution */
+      E = E0 + dE * randpm1 (); /*  Choose from uniform distribution */
     } else {
-      E=E0+randnorm()*dE;
+      E = E0 + randnorm () * dE;
     }
-    v=sqrt(E)*SE2V;
+    v = sqrt (E) * SE2V;
   } else {
     if (!gauss) {
-      lambda=lambda0+dlambda*randpm1();
+      lambda = lambda0 + dlambda * randpm1 ();
     } else {
-      lambda=lambda0+randnorm()*dlambda;
+      lambda = lambda0 + randnorm () * dlambda;
     }
-    v = K2V*(2*PI/lambda);
+    v = K2V * (2 * PI / lambda);
   }
 
-  if (gauss==1) {
-    thetah = randnorm()*sigmah;
-    thetav = randnorm()*sigmav;
+  if (gauss == 1) {
+    thetah = randnorm () * sigmah;
+    thetav = randnorm () * sigmav;
   } else {
-    thetah = randpm1()*focus_aw*DEG2RAD/2;
-    thetav = randpm1()*focus_ah*DEG2RAD/2;
+    thetah = randpm1 () * focus_aw * DEG2RAD / 2;
+    thetav = randpm1 () * focus_ah * DEG2RAD / 2;
   }
 
-  tan_h = tan(thetah);
-  tan_v = tan(thetav);
+  tan_h = tan (thetah);
+  tan_v = tan (thetav);
 
   /* Perform the correct treatment - no small angle approx. here! */
-  vz = v / sqrt(1 + tan_v*tan_v + tan_h*tan_h);
+  vz = v / sqrt (1 + tan_v * tan_v + tan_h * tan_h);
   vy = tan_v * vz;
   vx = tan_h * vz;
 %}
 
 MCDISPLAY
 %{
-  
-  multiline(5, -xwidth/2.0, -yheight/2.0, 0.0,
-                xwidth/2.0, -yheight/2.0, 0.0,
-                xwidth/2.0,  yheight/2.0, 0.0,
-               -xwidth/2.0,  yheight/2.0, 0.0,
-               -xwidth/2.0, -yheight/2.0, 0.0);
+
+  multiline (5, -xwidth / 2.0, -yheight / 2.0, 0.0, xwidth / 2.0, -yheight / 2.0, 0.0, xwidth / 2.0, yheight / 2.0, 0.0, -xwidth / 2.0, yheight / 2.0, 0.0,
+             -xwidth / 2.0, -yheight / 2.0, 0.0);
   if (dist) {
-    dashed_line(0,0,0, -focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2, focus_yh/2,dist, 4);
-    dashed_line(0,0,0, -focus_xw/2, focus_yh/2,dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, focus_yh / 2, dist, 4);
   }
 %}
 

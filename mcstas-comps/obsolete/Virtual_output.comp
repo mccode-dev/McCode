@@ -77,31 +77,33 @@ DECLARE
 INITIALIZE
 %{
 
-  long element_size=85; /* mean size per neutron for ascii storing */
+  long element_size = 85; /* mean size per neutron for ascii storing */
 
-  strcpy(Vars.compcurname, NAME_CURRENT_COMP);
-
-  if (bufsize > 0) sprintf(Vars.option, "list=%g borders", bufsize);
-  else strcpy(Vars.option, "list all borders");
-
-  strcat(Vars.option,", x y z vx vy vz t sx sy sz");
-  Monitor_nD_Init(&DEFS, &Vars, 0.1, 0.1, 0, 0,0,0,0,0,0,0,0); /* dims for mcdisplay */
-  Vars.compcurpos = POS_A_CURRENT_COMP;
-
-  if (filename && strlen(filename) && strcmp(filename,"NULL") && strcmp(filename,"0"))
-    strncpy(Vars.Mon_File, filename, 128);
+  strcpy (Vars.compcurname, NAME_CURRENT_COMP);
 
   if (bufsize > 0)
-    printf("Warning: Virtual_output: %s: buffer size=%g not recommended\n", NAME_CURRENT_COMP, bufsize);
-  if (bufsize > 0) printf(
-           "Virtual_output: %s: Beware virtual output generated file size (max %g Mo)\n"
-           "WARNING         Memory required is %g Mo\n", NAME_CURRENT_COMP,
-           bufsize*element_size/1e6, bufsize*sizeof(double)/1e6);
+    sprintf (Vars.option, "list=%g borders", bufsize);
+  else
+    strcpy (Vars.option, "list all borders");
+
+  strcat (Vars.option, ", x y z vx vy vz t sx sy sz");
+  Monitor_nD_Init (&DEFS, &Vars, 0.1, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0); /* dims for mcdisplay */
+  Vars.compcurpos = POS_A_CURRENT_COMP;
+
+  if (filename && strlen (filename) && strcmp (filename, "NULL") && strcmp (filename, "0"))
+    strncpy (Vars.Mon_File, filename, 128);
+
+  if (bufsize > 0)
+    printf ("Warning: Virtual_output: %s: buffer size=%g not recommended\n", NAME_CURRENT_COMP, bufsize);
+  if (bufsize > 0)
+    printf ("Virtual_output: %s: Beware virtual output generated file size (max %g Mo)\n"
+            "WARNING         Memory required is %g Mo\n",
+            NAME_CURRENT_COMP, bufsize* element_size / 1e6, bufsize * sizeof (double) / 1e6);
 %}
 
 TRACE
 %{
-  double pp=0;
+  double pp = 0;
 
   /* PROP_Z0; */
   /* transfer current neutron to Monitor_nD vars */
@@ -117,7 +119,7 @@ TRACE
   Vars.csz = sz;
   Vars.ct  = t; */
 
-  pp = Monitor_nD_Trace(&DEFS, &Vars, _particle);
+  pp = Monitor_nD_Trace (&DEFS, &Vars, _particle);
 
   SCATTER;
 %}
@@ -125,26 +127,26 @@ TRACE
 SAVE
 %{
 
-  Monitor_nD_Save(&DEFS, &Vars);
-
+  Monitor_nD_Save (&DEFS, &Vars);
 %}
 
 FINALLY
 %{
   /* free pointers */
-  Monitor_nD_Finally(&DEFS, &Vars);
+  Monitor_nD_Finally (&DEFS, &Vars);
   if (bufsize) {
-    printf("Virtual_output: %s: Saved %llu events (from buffer) in file %s\n",
-           NAME_CURRENT_COMP, Vars.Nsum, Vars.Mon_File);
+    printf ("Virtual_output: %s: Saved %llu events (from buffer) in file %s\n", NAME_CURRENT_COMP, Vars.Nsum, Vars.Mon_File);
     if (bufsize < Vars.Nsum)
-      printf("WARNING         When using this source, intensities must be multiplied\n"
-             "                by a factor %g\n", (double)Vars.Nsum/(double)bufsize);
-  } else printf("Virtual_output: %s: Saved %llu events (all) in file %s\n", NAME_CURRENT_COMP, Vars.Nsum, Vars.Mon_File);
+      printf ("WARNING         When using this source, intensities must be multiplied\n"
+              "                by a factor %g\n",
+              (double)Vars.Nsum / (double)bufsize);
+  } else
+    printf ("Virtual_output: %s: Saved %llu events (all) in file %s\n", NAME_CURRENT_COMP, Vars.Nsum, Vars.Mon_File);
 %}
 
 MCDISPLAY
 %{
-  Monitor_nD_McDisplay(&DEFS, &Vars);
+  Monitor_nD_McDisplay (&DEFS, &Vars);
 %}
 
 END

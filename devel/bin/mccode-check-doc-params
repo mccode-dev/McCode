@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Fail if a .comp/.instr header lacks %P, has an empty or repeated description for an
+input parameter, or documents an input that is not a parameter. Also fail if a .comp
+is not formatted with mccode-clangformat.
+
+Usage: mccode-check-doc-params FILE.comp|FILE.instr ...
+"""
+import os
+import re
+import subprocess
+import sys
+
+BIN = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BIN, '..', '..', 'tools', 'Python'))
+from mccodelib import utils
+
+def is_snippet(f):
+    """TRACE snippets in generated_includes/ etc. are not instruments of their own."""
+    return bool(utils.EXCLUDED_INSTR_DIRNAMES & set(os.path.normpath(f).split(os.sep)))
+
+
+def included_params(f):
+    """Parameter names of instruments %include'd by f, which become parameters of f."""
+    root = f
+    while os.path.dirname(root) != root and not root.endswith('-comps'):
+        root = os.path.dirname(root)
+    names = set()
+    with open(f, encoding='utf-8') as fh:
+        incs = re.findall(r'^\s*%include\s+"([^"]+\.instr)"', fh.read(), flags=re.M)
+    for inc in incs:
+        for d in (os.path.dirname(f), root, os.path.join(root, 'examples')):
+            path = os.path.join(d, inc)
+            if os.path.isfile(path):
+                if is_snippet(path):
+                    break
+                with open(path, encoding='utf-8') as fh:
+                    utils.read_header(fh)
+                    names |= {p[1] for p in utils.parse_define_instr(utils.read_define_instr(fh))[1]}
+                names |= included_params(path)
+                break
+    return names
+
+
+bad = 0
+for f in sys.argv[1:]:
+    if is_snippet(f):
+        continue
+    if f.endswith('.comp'):
+        r = subprocess.run([sys.executable, os.path.join(BIN, 'mccode-clangformat'), '--check', '-f', f],
+                           capture_output=True, text=True)
+        if r.returncode or 'Changed:' in r.stdout:
+            print(f'{f}: not formatted with mccode-clangformat {r.stderr.strip()}')
+            bad += 1
+    with open(f, encoding='utf-8') as fh:
+        header = utils.read_header(fh)
+        if not header.lstrip().startswith('/*'):
+            fh.seek(0)  # no header: read_header consumed the DEFINE line
+        if f.endswith('.comp'):
+            define = utils.read_define_comp(fh)
+            _, p1, p2, out = utils.parse_define_comp(define)
+            params = p1 + p2
+            extra = {p[1] for p in out}  # OUTPUT PARAMETERS
+            inherits = re.search(r'DEFINE\s+COMPONENT\s+\w+\s+(INHERIT|COPY)\b', define)
+        else:
+            _, params = utils.parse_define_instr(utils.read_define_instr(fh))
+            extra, inherits = included_params(f), None
+    if params and '%P' not in header:
+        print(f'{f}: header has no %P section for its {len(params)} parameter(s)')
+        bad += 1
+        continue
+    names = {p[1] for p in params}
+    docs = {}
+    for name, _, doc in utils.parse_header(header).params_docs:
+        if name in docs and name in names:
+            print(f'{f}: parameter "{name}" has more than one %P entry')
+            bad += 1
+        docs.setdefault(name, doc)  # first entry wins, as in mcdoc
+    for p in params:
+        if not docs.get(p[1], '').strip():
+            print(f'{f}: parameter "{p[1]}" has no %P description')
+            bad += 1
+    if not inherits:  # INHERIT/COPY parameters live in the parent component
+        inputs = re.split(r'(OUTPUT|CALCULATED|GLOBAL) PARAMETERS', header, flags=re.I)[0]
+        known = names | extra
+        for name, _, _ in utils.parse_header(inputs).params_docs:
+            if name not in known:
+                print(f'{f}: %P entry "{name}" is not a parameter')
+                bad += 1
+                known.add(name)  # report each name once
+
+if bad:
+    sys.exit(-1)

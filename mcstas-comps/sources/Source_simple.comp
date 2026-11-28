@@ -62,43 +62,42 @@ SHARE
 
 DECLARE
 %{
-double pmul;
-double srcArea;
-int square;
-double tx;
-double ty;
-double tz;
+  double pmul;
+  double srcArea;
+  int square;
+  double tx;
+  double ty;
+  double tz;
 %}
 INITIALIZE
 %{
-square = 0;
-/* Determine source area */
-if (radius && !yheight && !xwidth ) {
+  square = 0;
+  /* Determine source area */
+  if (radius && !yheight && !xwidth) {
     square = 0;
-    srcArea = PI*radius*radius;
-  } else if(yheight && xwidth) {
+    srcArea = PI * radius * radius;
+  } else if (yheight && xwidth) {
     square = 1;
     srcArea = xwidth * yheight;
   }
 
   if (flux) {
-    pmul=flux*1e4*srcArea/mcget_ncount();
+    pmul = flux * 1e4 * srcArea / mcget_ncount ();
     if (dlambda)
-      pmul *= 2*dlambda;
+      pmul *= 2 * dlambda;
     else if (dE)
-      pmul *= 2*dE;
+      pmul *= 2 * dE;
   } else {
     gauss = 0;
-    pmul=1.0/(mcget_ncount()*4*PI);
+    pmul = 1.0 / (mcget_ncount () * 4 * PI);
   }
 
-  if (target_index && !dist)
-  {
+  if (target_index && !dist) {
     Coords ToTarget;
-    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),POS_A_CURRENT_COMP);
-    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
-    coords_get(ToTarget, &tx, &ty, &tz);
-    dist=sqrt(tx*tx+ty*ty+tz*tz);
+    ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+    ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+    coords_get (ToTarget, &tx, &ty, &tz);
+    dist = sqrt (tx * tx + ty * ty + tz * tz);
   } else if (dist) {
     tx = 0;
     ty = 0;
@@ -106,88 +105,82 @@ if (radius && !yheight && !xwidth ) {
   }
 
   if (srcArea <= 0) {
-    printf("Source_simple: %s: Source area is <= 0 !\n ERROR - Exiting\n",
-           NAME_CURRENT_COMP);
-    exit(-1);
+    printf ("Source_simple: %s: Source area is <= 0 !\n ERROR - Exiting\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
   if (dist <= 0 || focus_xw <= 0 || focus_yh <= 0) {
-    printf("Source_simple: %s: Target area unmeaningful! (negative dist / focus_xw / focus_yh)\n ERROR - Exiting\n",
-           NAME_CURRENT_COMP);
-    exit(-1);
+    printf ("Source_simple: %s: Target area unmeaningful! (negative dist / focus_xw / focus_yh)\n ERROR - Exiting\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
 
   if ((!lambda0 && !E0 && !dE && !dlambda)) {
-    printf("Source_simple: %s: You must specify either a wavelength or energy range!\n ERROR - Exiting\n",
-           NAME_CURRENT_COMP);
-    exit(-1);
+    printf ("Source_simple: %s: You must specify either a wavelength or energy range!\n ERROR - Exiting\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
-  if ((!lambda0 && !dlambda && (E0 <= 0 || dE < 0 || E0-dE <= 0))
-    || (!E0 && !dE && (lambda0 <= 0 || dlambda < 0 || lambda0-dlambda <= 0))) {
-    printf("Source_simple: %s: Unmeaningful definition of wavelength or energy range!\n ERROR - Exiting\n",
-           NAME_CURRENT_COMP);
-      exit(-1);
+  if ((!lambda0 && !dlambda && (E0 <= 0 || dE < 0 || E0 - dE <= 0)) || (!E0 && !dE && (lambda0 <= 0 || dlambda < 0 || lambda0 - dlambda <= 0))) {
+    printf ("Source_simple: %s: Unmeaningful definition of wavelength or energy range!\n ERROR - Exiting\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
 %}
 TRACE
 %{
- double chi,E,lambda,v,r, xf, yf, rf, dx, dy, pdir;
+  double chi, E, lambda, v, r, xf, yf, rf, dx, dy, pdir;
 
- t=0;
- z=0;
+  t = 0;
+  z = 0;
 
- if (square == 1) {
-   x = xwidth * (rand01() - 0.5);
-   y = yheight * (rand01() - 0.5);
- } else {
-   chi=2*PI*rand01();                          /* Choose point on source */
-   r=sqrt(rand01())*radius;                    /* with uniform distribution. */
-   x=r*cos(chi);
-   y=r*sin(chi);
- }
- randvec_target_rect_real(&xf, &yf, &rf, &pdir,
-			  tx, ty, tz, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
+  if (square == 1) {
+    x = xwidth * (rand01 () - 0.5);
+    y = yheight * (rand01 () - 0.5);
+  } else {
+    chi = 2 * PI * rand01 ();      /* Choose point on source */
+    r = sqrt (rand01 ()) * radius; /* with uniform distribution. */
+    x = r * cos (chi);
+    y = r * sin (chi);
+  }
+  randvec_target_rect_real (&xf, &yf, &rf, &pdir, tx, ty, tz, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
 
- dx = xf-x;
- dy = yf-y;
- rf = sqrt(dx*dx+dy*dy+rf*rf);
+  dx = xf - x;
+  dy = yf - y;
+  rf = sqrt (dx * dx + dy * dy + rf * rf);
 
- p = pdir*pmul;
+  p = pdir * pmul;
 
- if(lambda0==0) {
-   if (!gauss) {
-     E=E0+dE*randpm1();              /*  Choose from uniform distribution */
-   } else {
-     E=E0+randnorm()*dE;
-   }
-   v=sqrt(E)*SE2V;
- } else {
-   if (!gauss) {
-     lambda=lambda0+dlambda*randpm1();
-   } else {
-     lambda=lambda0+randnorm()*dlambda;
-   }
-   v = K2V*(2*PI/lambda);
- }
+  if (lambda0 == 0) {
+    if (!gauss) {
+      E = E0 + dE * randpm1 (); /*  Choose from uniform distribution */
+    } else {
+      E = E0 + randnorm () * dE;
+    }
+    v = sqrt (E) * SE2V;
+  } else {
+    if (!gauss) {
+      lambda = lambda0 + dlambda * randpm1 ();
+    } else {
+      lambda = lambda0 + randnorm () * dlambda;
+    }
+    v = K2V * (2 * PI / lambda);
+  }
 
- vz=v*dist/rf;
- vy=v*dy/rf;
- vx=v*dx/rf;
+  vz = v * dist / rf;
+  vy = v * dy / rf;
+  vx = v * dx / rf;
 %}
 
 MCDISPLAY
 %{
   if (square == 1) {
-    
-    rectangle("xy",0,0,0,xwidth,yheight);
+
+    rectangle ("xy", 0, 0, 0, xwidth, yheight);
   } else {
-    
-    circle("xy",0,0,0,radius);
+
+    circle ("xy", 0, 0, 0, radius);
   }
   if (dist) {
-    dashed_line(0,0,0, -focus_xw/2+tx,-focus_yh/2+ty,tz, 4);
-    dashed_line(0,0,0,  focus_xw/2+tx,-focus_yh/2+ty,tz, 4);
-    dashed_line(0,0,0,  focus_xw/2+tx, focus_yh/2+ty,tz, 4);
-    dashed_line(0,0,0, -focus_xw/2+tx, focus_yh/2+ty,tz, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2 + tx, -focus_yh / 2 + ty, tz, 4);
+    dashed_line (0, 0, 0, focus_xw / 2 + tx, -focus_yh / 2 + ty, tz, 4);
+    dashed_line (0, 0, 0, focus_xw / 2 + tx, focus_yh / 2 + ty, tz, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2 + tx, focus_yh / 2 + ty, tz, 4);
   }
 %}
 

@@ -741,6 +741,11 @@ class McStartSimDialog(QtWidgets.QDialog):
         self.ui.cbxMcdisplays.clear()
         for m in mcdisplays:
             self.ui.cbxMcdisplays.addItem(m)
+        self.ui.cbxAutoDisplays.clear()
+        self.ui.cbxAutoDisplays.addItem("-- None --")
+        for m in mcdisplays:
+            if m.endswith(('webgl', 'webgl-classic')): # those with --simdir
+                self.ui.cbxAutoDisplays.addItem(m)
 
     def set_mcplots(self, mcplots):
         if mcplots == self._last_mcplots:
@@ -772,6 +777,8 @@ class McStartSimDialog(QtWidgets.QDialog):
         self.ui.cbxMcdisplays.setVisible(visible)
         self.ui.lblAutoPlot.setVisible(not visible)
         self.ui.cbxAutoPlotters.setVisible(not visible)
+        self.ui.lblAutoDisplay.setVisible(not visible)
+        self.ui.cbxAutoDisplays.setVisible(not visible)
         self.ui.lblFormat.setVisible(not visible)
         self.ui.cbxFormats.setVisible(not visible)
         if sim_run_idx == 2:
@@ -793,6 +800,7 @@ class McStartSimDialog(QtWidgets.QDialog):
                 8 - autoplotter
                 9 - format
                10 - Monitor_nD buffersize
+               11 - autodisplayer (str or None)
             params[]:
                 [<par_name>, <value>] pairs
         '''
@@ -866,8 +874,13 @@ class McStartSimDialog(QtWidgets.QDialog):
 
         # Monitor_nD buffersize
         p10 = self.ui.edtNDbufsiz.text()
- 
-        fixed_params =[p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10]
+
+        # autodisplay
+        p11 = None
+        if self.ui.cbxAutoDisplays.currentIndex() > 0:
+            p11 = self.ui.cbxAutoDisplays.currentText()
+
+        fixed_params =[p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11]
         
         # get dynamic params
         params = []

@@ -52,7 +52,9 @@ in help text, and the McStas-only `-g`/`--gravitation` flag, differ).
 | `--autoplot` | Open plotter on generated dataset |
 | `--invcanvas` | Forward request for inverted canvas to plotter |
 | `--autoplotter AUTOPLOTTER` | Specify the plotter used with --autoplot |
-| `--mpi NB_CPU` | Spread simulation over NB_CPU machines using MPI |
+| `--autodisplay` | Open mcdisplay with the monitor data of the generated dataset |
+| `--autodisplayer AUTODISPLAYER` | Specify the mcdisplay (webgl or webgl-classic) used with --autodisplay, options may follow, e.g. `"mcdisplay-webgl --campath FILE"` |
+| `--mpi NB_CPU` | Spread simulation over NB_CPU machines using MPI. Runs `mpirun -n NB_CPU`; to use another launcher, e.g. `srun` on Slurm, set `MCSTAS_MPIRUN_OVERRIDE` (`MCXTRACE_MPIRUN_OVERRIDE`) or `MPIRUN` in the user configuration |
 | `--no-mpi` | Do NOT compile with MPI |
 | `--machines machines` | Defines path of MPI machinefile to use in parallel mode |
 | `--openacc` | parallelize using openacc |

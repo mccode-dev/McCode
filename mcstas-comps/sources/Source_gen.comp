@@ -138,56 +138,54 @@ Lmin=0,Lmax=0,Emin=0,Emax=0,T2=0,I2=0,T3=0,I3=0,zdepth=0, int target_index=1)
 SHARE
 %{
   #define MCGPU_PORTED_Source_gen
-%include "read_table-lib"
+  %include "read_table-lib"
 
-#ifndef SOURCE_GEN_DEF
-#define SOURCE_GEN_DEF
-/*******************************************************************************
-* str_dup_numeric: replaces non 'valid name' chars with spaces
-*******************************************************************************/
-char *str_dup_numeric(char *orig)
-  {
+  #ifndef SOURCE_GEN_DEF
+  #define SOURCE_GEN_DEF
+  /*******************************************************************************
+   * str_dup_numeric: replaces non 'valid name' chars with spaces
+   *******************************************************************************/
+  char*
+  str_dup_numeric (char* orig) {
     long i;
 
-    if (!orig || !strlen(orig)) return(NULL);
+    if (!orig || !strlen (orig))
+      return (NULL);
 
-    for (i=0; i < strlen(orig); i++)
-    {
-      if ( (orig[i] > 122)
-        || (orig[i] < 32)
-        || (strchr("!\"#$%&'()*,:;<=>?@[\\]^`/ ", orig[i]) != NULL) )
-      {
+    for (i = 0; i < strlen (orig); i++) {
+      if ((orig[i] > 122) || (orig[i] < 32) || (strchr ("!\"#$%&'()*,:;<=>?@[\\]^`/ ", orig[i]) != NULL)) {
         orig[i] = ' ';
       }
     }
     orig[i] = '\0';
     /* now skip spaces */
-    for (i=0; i < strlen(orig); i++) {
-      if (*orig == ' ') orig++;
-      else break;
+    for (i = 0; i < strlen (orig); i++) {
+      if (*orig == ' ')
+        orig++;
+      else
+        break;
     }
 
-    return(orig);
+    return (orig);
   } /* str_dup_numeric */
 
   /* A normalised Maxwellian distribution : Integral over all l = 1 */
-#pragma acc routine seq
-  double SG_Maxwell(double l, double temp)
-  {
-    double a=949.0/temp;
-    return 2*a*a*exp(-a/(l*l))/(l*l*l*l*l);
+  #pragma acc routine seq
+  double
+  SG_Maxwell (double l, double temp) {
+    double a = 949.0 / temp;
+    return 2 * a * a * exp (-a / (l * l)) / (l * l * l * l * l);
   }
-#endif
-
+  #endif
 %}
 
 DECLARE
 %{
 
   double p_in;
-  double lambda1;  /* first Maxwellian source */
-  double lambda2;  /* second Maxwellian source */
-  double lambda3;  /* third Maxwellian source */
+  double lambda1; /* first Maxwellian source */
+  double lambda2; /* second Maxwellian source */
+  double lambda3; /* third Maxwellian source */
   t_Table pTable;
   t_Table pTable_x;
   t_Table pTable_y;
@@ -201,386 +199,373 @@ DECLARE
   double pTable_dxmax;
   double pTable_dymin;
   double pTable_dymax;
-
 %}
 
 INITIALIZE
 %{
-  pTable_xsum=0;
-  pTable_ysum=0;
-
+  pTable_xsum = 0;
+  pTable_ysum = 0;
 
   double source_area, k;
 
-  if (target_index && !dist)
-  {
+  if (target_index && !dist) {
     Coords ToTarget;
-    double tx,ty,tz;
-    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),POS_A_CURRENT_COMP);
-    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
-    coords_get(ToTarget, &tx, &ty, &tz);
-    dist=sqrt(tx*tx+ty*ty+tz*tz);
+    double tx, ty, tz;
+    ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+    ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+    coords_get (ToTarget, &tx, &ty, &tz);
+    dist = sqrt (tx * tx + ty * ty + tz * tz);
   }
 
   /* spectrum characteristics */
-  if (flux_file && strlen(flux_file) && strcmp(flux_file,"NULL") && strcmp(flux_file,"0")) {
-#ifdef OMPTARGET
-    mcgpu_die("flux_file table is host heap, not transferred", NAME_CURRENT_COMP, "flux_file");
-#endif
-    if (Table_Read(&pTable, flux_file, 1) <= 0) /* read 1st block data from file into pTable */
-      exit(fprintf(stderr, "Source_gen: %s: can not read flux file %s\n", NAME_CURRENT_COMP, flux_file));
+  if (flux_file && strlen (flux_file) && strcmp (flux_file, "NULL") && strcmp (flux_file, "0")) {
+    #ifdef OMPTARGET
+    mcgpu_die ("flux_file table is host heap, not transferred", NAME_CURRENT_COMP, "flux_file");
+    #endif
+    if (Table_Read (&pTable, flux_file, 1) <= 0) /* read 1st block data from file into pTable */
+      exit (fprintf (stderr, "Source_gen: %s: can not read flux file %s\n", NAME_CURRENT_COMP, flux_file));
     /* put table in Log scale */
     int i;
-    if (pTable.columns < 2) exit(fprintf(stderr, "Source_gen: %s: Flux file %s should contain at least 2 columns [wavelength in Angs,flux].\n", NAME_CURRENT_COMP, flux_file));
-    double table_lmin=FLT_MAX, table_lmax=-FLT_MAX;
-    double tmin=FLT_MAX, tmax=-FLT_MAX;
-    for (i=0; i<pTable.rows; i++) {
-      double val = Table_Index(pTable, i,1);
-      val = Table_Index(pTable, i,0); /* lambda */
-      if (val > tmax) tmax=val;
-      if (val < tmin) tmin=val;
+    if (pTable.columns < 2)
+      exit (fprintf (stderr, "Source_gen: %s: Flux file %s should contain at least 2 columns [wavelength in Angs,flux].\n", NAME_CURRENT_COMP, flux_file));
+    double table_lmin = FLT_MAX, table_lmax = -FLT_MAX;
+    double tmin = FLT_MAX, tmax = -FLT_MAX;
+    for (i = 0; i < pTable.rows; i++) {
+      double val = Table_Index (pTable, i, 1);
+      val = Table_Index (pTable, i, 0); /* lambda */
+      if (val > tmax)
+        tmax = val;
+      if (val < tmin)
+        tmin = val;
     }
-    for (i=0; i<pTable.rows; i++) {
-      double val = Table_Index(pTable, i,1);
-      if (val < 0) fprintf(stderr, "Source_gen: %s: File %s has negative flux at row %i.\n", NAME_CURRENT_COMP, flux_file, i+1);
+    for (i = 0; i < pTable.rows; i++) {
+      double val = Table_Index (pTable, i, 1);
+      if (val < 0)
+        fprintf (stderr, "Source_gen: %s: File %s has negative flux at row %i.\n", NAME_CURRENT_COMP, flux_file, i + 1);
       if (flux_file_log)
-        val = log(val > 0 ? val : tmin/10);
-      Table_SetElement(&pTable, i, 1, val);
-      val = Table_Index(pTable, i,0); /* lambda */
-      if (val > table_lmax) table_lmax=val;
-      if (val < table_lmin) table_lmin=val;
+        val = log (val > 0 ? val : tmin / 10);
+      Table_SetElement (&pTable, i, 1, val);
+      val = Table_Index (pTable, i, 0); /* lambda */
+      if (val > table_lmax)
+        table_lmax = val;
+      if (val < table_lmin)
+        table_lmin = val;
     }
     if (!Lmin && !Lmax && !lambda0 && !dlambda && !E0 && !dE && !Emin && !Emax) {
-      Lmin = table_lmin; Lmax = table_lmax;
+      Lmin = table_lmin;
+      Lmax = table_lmax;
     }
     if (Lmax > table_lmax) {
-      if (verbose) fprintf(stderr, "Source_gen: %s: Maximum wavelength %g is beyond table range upper limit %g. Constraining.\n", NAME_CURRENT_COMP, Lmax, table_lmax);
+      if (verbose)
+        fprintf (stderr, "Source_gen: %s: Maximum wavelength %g is beyond table range upper limit %g. Constraining.\n", NAME_CURRENT_COMP, Lmax, table_lmax);
       Lmax = table_lmax;
     }
     if (Lmin < table_lmin) {
-      if (verbose) fprintf(stderr, "Source_gen: %s: Minimum wavelength %g is below table range lower limit %g. Constraining.\n", NAME_CURRENT_COMP, Lmin, table_lmin);
+      if (verbose)
+        fprintf (stderr, "Source_gen: %s: Minimum wavelength %g is below table range lower limit %g. Constraining.\n", NAME_CURRENT_COMP, Lmin, table_lmin);
       Lmin = table_lmin;
     }
-  }  /* end flux file */
-  else
-  {
-    k  = 1.38066e-23; /* k_B */
-    if (T1 > 0)
-    {
-      lambda1  = 1.0e10*sqrt(HBAR*HBAR*4.0*PI*PI/2.0/MNEUTRON/k/T1);
+  } /* end flux file */
+  else {
+    k = 1.38066e-23; /* k_B */
+    if (T1 > 0) {
+      lambda1 = 1.0e10 * sqrt (HBAR * HBAR * 4.0 * PI * PI / 2.0 / MNEUTRON / k / T1);
+    } else {
+      lambda1 = lambda0;
     }
-    else
-      { lambda1 = lambda0; }
 
-    if (T2 > 0)
-    {
-      lambda2  = 1.0e10*sqrt(HBAR*HBAR*4.0*PI*PI/2.0/MNEUTRON/k/T2);
+    if (T2 > 0) {
+      lambda2 = 1.0e10 * sqrt (HBAR * HBAR * 4.0 * PI * PI / 2.0 / MNEUTRON / k / T2);
+    } else {
+      lambda2 = lambda0;
     }
-    else
-      { lambda2 = lambda0; }
 
-    if (T3 > 0)
-    {
-      lambda3  = 1.0e10*sqrt(HBAR*HBAR*4.0*PI*PI/2.0/MNEUTRON/k/T3);
+    if (T3 > 0) {
+      lambda3 = 1.0e10 * sqrt (HBAR * HBAR * 4.0 * PI * PI / 2.0 / MNEUTRON / k / T3);
+    } else {
+      lambda3 = lambda0;
     }
-    else
-      { lambda3 = lambda0; }
   }
 
   /* now read position-divergence files, if any */
-  if (xdiv_file && strlen(xdiv_file) && strcmp(xdiv_file,"NULL") && strcmp(xdiv_file,"0")) {
-    int i,j;
-#ifdef OMPTARGET
-    mcgpu_die("xdiv_file table is host heap, not transferred", NAME_CURRENT_COMP, "xdiv_file");
-#endif
-    if (Table_Read(&pTable_x, xdiv_file, 1) <= 0) /* read 1st block data from file into pTable */
-      exit(fprintf(stderr, "Source_gen: %s: can not read XDiv file %s\n", NAME_CURRENT_COMP, xdiv_file));
+  if (xdiv_file && strlen (xdiv_file) && strcmp (xdiv_file, "NULL") && strcmp (xdiv_file, "0")) {
+    int i, j;
+    #ifdef OMPTARGET
+    mcgpu_die ("xdiv_file table is host heap, not transferred", NAME_CURRENT_COMP, "xdiv_file");
+    #endif
+    if (Table_Read (&pTable_x, xdiv_file, 1) <= 0) /* read 1st block data from file into pTable */
+      exit (fprintf (stderr, "Source_gen: %s: can not read XDiv file %s\n", NAME_CURRENT_COMP, xdiv_file));
     pTable_xsum = 0;
-    for (i=0; i<pTable_x.rows; i++)
-      for (j=0; j<pTable_x.columns; j++)
-        pTable_xsum += Table_Index(pTable_x, i,j);
+    for (i = 0; i < pTable_x.rows; i++)
+      for (j = 0; j < pTable_x.columns; j++)
+        pTable_xsum += Table_Index (pTable_x, i, j);
 
     /* now extract limits */
-    char **parsing;
+    char** parsing;
     char xylimits[1024];
-    strcpy(xylimits, "");
-    parsing = Table_ParseHeader(pTable_x.header,
-      "xlimits", "xylimits",
-      NULL);
+    strcpy (xylimits, "");
+    parsing = Table_ParseHeader (pTable_x.header, "xlimits", "xylimits", NULL);
 
     if (parsing) {
-      if (parsing[0])  strcpy(xylimits, str_dup_numeric(parsing[0]));
-      if (parsing[1] && !strlen(xylimits))
-                       strcpy(xylimits, str_dup_numeric(parsing[1]));
-      for (i=0; i<=1; i++) {
-        if (parsing[i]) free(parsing[i]);
+      if (parsing[0])
+        strcpy (xylimits, str_dup_numeric (parsing[0]));
+      if (parsing[1] && !strlen (xylimits))
+        strcpy (xylimits, str_dup_numeric (parsing[1]));
+      for (i = 0; i <= 1; i++) {
+        if (parsing[i])
+          free (parsing[i]);
       }
-      free(parsing);
+      free (parsing);
     }
-    i = sscanf(xylimits, "%lg %lg %lg %lg",
-      &(pTable_xmin),  &(pTable_xmax),
-      &(pTable_dxmin), &(pTable_dxmax));
+    i = sscanf (xylimits, "%lg %lg %lg %lg", &(pTable_xmin), &(pTable_xmax), &(pTable_dxmin), &(pTable_dxmax));
     if (i != 2 && i != 4 && verbose)
-      fprintf(stderr, "Source_gen: %s: invalid xylimits '%s' from file %s. extracted %i values\n",
-        NAME_CURRENT_COMP, xylimits, xdiv_file, i);
+      fprintf (stderr, "Source_gen: %s: invalid xylimits '%s' from file %s. extracted %i values\n", NAME_CURRENT_COMP, xylimits, xdiv_file, i);
 
-    if (!xwidth) xwidth=pTable_xmax-pTable_xmin;
-    if (!focus_xw && !dist) focus_xw=fabs(pTable_dxmax-pTable_dxmin);
+    if (!xwidth)
+      xwidth = pTable_xmax - pTable_xmin;
+    if (!focus_xw && !dist)
+      focus_xw = fabs (pTable_dxmax - pTable_dxmin);
   } /* end xdiv file */
 
-  if (ydiv_file && strlen(ydiv_file) && strcmp(ydiv_file,"NULL") && strcmp(ydiv_file,"0")) {
-    int i,j;
-#ifdef OMPTARGET
-    mcgpu_die("ydiv_file table is host heap, not transferred", NAME_CURRENT_COMP, "ydiv_file");
-#endif
-    if (Table_Read(&pTable_y, ydiv_file, 1) <= 0) /* read 1st block data from file into pTable */
-      exit(fprintf(stderr, "Source_gen: %s: can not read YDiv file %s\n", NAME_CURRENT_COMP, ydiv_file));
+  if (ydiv_file && strlen (ydiv_file) && strcmp (ydiv_file, "NULL") && strcmp (ydiv_file, "0")) {
+    int i, j;
+    #ifdef OMPTARGET
+    mcgpu_die ("ydiv_file table is host heap, not transferred", NAME_CURRENT_COMP, "ydiv_file");
+    #endif
+    if (Table_Read (&pTable_y, ydiv_file, 1) <= 0) /* read 1st block data from file into pTable */
+      exit (fprintf (stderr, "Source_gen: %s: can not read YDiv file %s\n", NAME_CURRENT_COMP, ydiv_file));
     pTable_ysum = 0;
-    for (i=0; i<pTable_y.rows; i++)
-      for (j=0; j<pTable_y.columns; j++)
-        pTable_ysum += Table_Index(pTable_y, i,j);
+    for (i = 0; i < pTable_y.rows; i++)
+      for (j = 0; j < pTable_y.columns; j++)
+        pTable_ysum += Table_Index (pTable_y, i, j);
 
     /* now extract limits */
-    char **parsing;
+    char** parsing;
     char xylimits[1024];
-    strcpy(xylimits, "");
-    parsing = Table_ParseHeader(pTable_y.header,
-      "xlimits", "xylimits",
-      NULL);
+    strcpy (xylimits, "");
+    parsing = Table_ParseHeader (pTable_y.header, "xlimits", "xylimits", NULL);
 
     if (parsing) {
-      if (parsing[0])  strcpy(xylimits,str_dup_numeric(parsing[0]));
-      if (parsing[1] && !strlen(xylimits))
-                       strcpy(xylimits,str_dup_numeric(parsing[1]));
-      for (i=0; i<=1; i++) {
-        if (parsing[i]) free(parsing[i]);
+      if (parsing[0])
+        strcpy (xylimits, str_dup_numeric (parsing[0]));
+      if (parsing[1] && !strlen (xylimits))
+        strcpy (xylimits, str_dup_numeric (parsing[1]));
+      for (i = 0; i <= 1; i++) {
+        if (parsing[i])
+          free (parsing[i]);
       }
-      free(parsing);
+      free (parsing);
     }
-    i = sscanf(xylimits, "%lg %lg %lg %lg",
-      &(pTable_ymin),  &(pTable_ymax),
-      &(pTable_dymin), &(pTable_dymax));
+    i = sscanf (xylimits, "%lg %lg %lg %lg", &(pTable_ymin), &(pTable_ymax), &(pTable_dymin), &(pTable_dymax));
     if (i != 2 && i != 4 && verbose)
-      fprintf(stderr, "Source_gen: %s: invalid xylimits '%s' from file %s. extracted %i values\n",
-        NAME_CURRENT_COMP, xylimits, ydiv_file, i);
-    if (!yheight)  yheight=pTable_ymax-pTable_ymin;
-    if (!focus_yh && !dist) focus_yh=fabs(pTable_dymax-pTable_dymin);
+      fprintf (stderr, "Source_gen: %s: invalid xylimits '%s' from file %s. extracted %i values\n", NAME_CURRENT_COMP, xylimits, ydiv_file, i);
+    if (!yheight)
+      yheight = pTable_ymax - pTable_ymin;
+    if (!focus_yh && !dist)
+      focus_yh = fabs (pTable_dymax - pTable_dymin);
   } /* end ydiv file */
 
   /* tests for parameter values */
-  if (Emin < 0 || Emax < 0 || Lmin < 0 || Lmax < 0 || E0 < 0 || dE < 0 || lambda0 < 0 || dlambda < 0)
-  {
-    fprintf(stderr,"Source_gen: %s: Error: Negative average\n"
-                   "            or range values for wavelength or energy encountered\n",
-                   NAME_CURRENT_COMP);
-    exit(-1);
+  if (Emin < 0 || Emax < 0 || Lmin < 0 || Lmax < 0 || E0 < 0 || dE < 0 || lambda0 < 0 || dlambda < 0) {
+    fprintf (stderr,
+             "Source_gen: %s: Error: Negative average\n"
+             "            or range values for wavelength or energy encountered\n",
+             NAME_CURRENT_COMP);
+    exit (-1);
   }
-  if ((Emin == 0 && Emax > 0) || (dE > 0 && dE >= E0))
-  {
-    fprintf(stderr,"Source_gen: %s: Error: minimal energy cannot be less or equal zero\n",
-      NAME_CURRENT_COMP);
-    exit(-1);
+  if ((Emin == 0 && Emax > 0) || (dE > 0 && dE >= E0)) {
+    fprintf (stderr, "Source_gen: %s: Error: minimal energy cannot be less or equal zero\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
-  if ((Emax >= Emin) && (Emin > 0))
-  { E0 = (Emax+Emin)/2;
-    dE = (Emax-Emin)/2;
+  if ((Emax >= Emin) && (Emin > 0)) {
+    E0 = (Emax + Emin) / 2;
+    dE = (Emax - Emin) / 2;
   }
-  if ((E0 > dE) && (dE >= 0))
-  {
-    Lmin = sqrt(81.81/(E0+dE)); /* Angstroem */
-    Lmax = sqrt(81.81/(E0-dE));
+  if ((E0 > dE) && (dE >= 0)) {
+    Lmin = sqrt (81.81 / (E0 + dE)); /* Angstroem */
+    Lmax = sqrt (81.81 / (E0 - dE));
   }
-  if (Lmax > 0)
-  { lambda0 = (Lmax+Lmin)/2;
-    dlambda = (Lmax-Lmin)/2;
+  if (Lmax > 0) {
+    lambda0 = (Lmax + Lmin) / 2;
+    dlambda = (Lmax - Lmin) / 2;
   }
-  if (lambda0 <= 0 || (lambda0 < dlambda) || (dlambda < 0))
-  { fprintf(stderr,"Source_gen: %s: Error: Wavelength range %.3f +/- %.3f AA calculated \n",
-      NAME_CURRENT_COMP, lambda0, dlambda);
-    fprintf(stderr,"- whole wavelength range must be >= 0 \n");
-    fprintf(stderr,"- range must be > 0; otherwise intensity gets zero, use other sources in this case \n\n");
-    exit(-1);
+  if (lambda0 <= 0 || (lambda0 < dlambda) || (dlambda < 0)) {
+    fprintf (stderr, "Source_gen: %s: Error: Wavelength range %.3f +/- %.3f AA calculated \n", NAME_CURRENT_COMP, lambda0, dlambda);
+    fprintf (stderr, "- whole wavelength range must be >= 0 \n");
+    fprintf (stderr, "- range must be > 0; otherwise intensity gets zero, use other sources in this case \n\n");
+    exit (-1);
   }
 
-  radius = fabs(radius); xwidth=fabs(xwidth); yheight=fabs(yheight);  I1=fabs(I1);
-  lambda0=fabs(lambda0); dlambda=fabs(dlambda);
-  focus_xw = fabs(focus_xw); focus_yh=fabs(focus_yh); dist=fabs(dist);
+  radius = fabs (radius);
+  xwidth = fabs (xwidth);
+  yheight = fabs (yheight);
+  I1 = fabs (I1);
+  lambda0 = fabs (lambda0);
+  dlambda = fabs (dlambda);
+  focus_xw = fabs (focus_xw);
+  focus_yh = fabs (focus_yh);
+  dist = fabs (dist);
 
-  if ((!focus_ah && !focus_aw) && (!focus_xw && !focus_yh))
-  {
-    fprintf(stderr,"Source_gen: %s: Error: No focusing information.\n"
-                   "            Specify focus_xw, focus_yh or focus_aw, focus_ah\n",
-                   NAME_CURRENT_COMP);
-    exit(-1);
+  if ((!focus_ah && !focus_aw) && (!focus_xw && !focus_yh)) {
+    fprintf (stderr,
+             "Source_gen: %s: Error: No focusing information.\n"
+             "            Specify focus_xw, focus_yh or focus_aw, focus_ah\n",
+             NAME_CURRENT_COMP);
+    exit (-1);
   }
   Lmin = lambda0 - dlambda; /* Angstroem */
   Lmax = lambda0 + dlambda;
 
   /* compute initial weight factor p_in to get [n/s] */
-  if ((I1 > 0  && T1 >= 0)
-     || (flux_file && strlen(flux_file) && strcmp(flux_file,"NULL") && strcmp(flux_file,"0")))
-  { /* the I1,2,3 are usually in [n/s/cm2/st/AA] */
+  if ((I1 > 0 && T1 >= 0)
+      || (flux_file && strlen (flux_file) && strcmp (flux_file, "NULL") && strcmp (flux_file, "0"))) { /* the I1,2,3 are usually in [n/s/cm2/st/AA] */
     if (radius)
-      source_area = radius*radius*PI*1e4; /* circular cm^2 */
+      source_area = radius * radius * PI * 1e4; /* circular cm^2 */
     else
-      source_area = yheight*xwidth*1e4; /* square cm^2 */
-    p_in  = source_area; /* cm2 */
-    p_in *= (Lmax-Lmin); /* AA. 1 bin=AA/n */
-    if (flux_file && strlen(flux_file) && strcmp(flux_file,"NULL") && strcmp(flux_file,"0")
-      && !flux_file_perAA)  p_in *= pTable.rows/(Lmax-Lmin);
-  }
-  else
-    p_in = 1.0/4/PI; /* Small angle approx. */
-  p_in /= mcget_ncount();
-  if (!T1 && I1) p_in *= I1;
+      source_area = yheight * xwidth * 1e4; /* square cm^2 */
+    p_in = source_area;                     /* cm2 */
+    p_in *= (Lmax - Lmin);                  /* AA. 1 bin=AA/n */
+    if (flux_file && strlen (flux_file) && strcmp (flux_file, "NULL") && strcmp (flux_file, "0") && !flux_file_perAA)
+      p_in *= pTable.rows / (Lmax - Lmin);
+  } else
+    p_in = 1.0 / 4 / PI; /* Small angle approx. */
+  p_in /= mcget_ncount ();
+  if (!T1 && I1)
+    p_in *= I1;
 
-  if (radius == 0 && yheight == 0 && xwidth == 0)
-  {
-    fprintf(stderr,"Source_gen: %s: Error: Please specify source geometry (radius, yheight, xwidth)\n",
-      NAME_CURRENT_COMP);
-    exit(-1);
+  if (radius == 0 && yheight == 0 && xwidth == 0) {
+    fprintf (stderr, "Source_gen: %s: Error: Please specify source geometry (radius, yheight, xwidth)\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
-  if (focus_xw*focus_yh == 0)
-  {
-    fprintf(stderr,"Source_gen: %s: Error: Please specify source target (focus_xw, focus_yh)\n",
-      NAME_CURRENT_COMP);
-    exit(-1);
+  if (focus_xw * focus_yh == 0) {
+    fprintf (stderr, "Source_gen: %s: Error: Please specify source target (focus_xw, focus_yh)\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
-  MPI_MASTER(
-  if (verbose)
-  {
-    printf("Source_gen: component %s ", NAME_CURRENT_COMP);
+  MPI_MASTER (if (verbose) {
+    printf ("Source_gen: component %s ", NAME_CURRENT_COMP);
     if ((yheight == 0) || (xwidth == 0))
-      printf("(disk, radius=%g)", radius);
+      printf ("(disk, radius=%g)", radius);
     else
-      printf("(square %g x %g)",xwidth,yheight);
-    if (dist) printf("\n            focusing distance dist=%g area=%g x %g\n", dist, focus_xw, focus_yh);
-    printf("            spectra ");
-    printf("%.3f to %.3f AA (%.3f to %.3f meV)", Lmin, Lmax, 81.81/Lmax/Lmax, 81.81/Lmin/Lmin);
-    printf("\n");
-    if (flux_file && strlen(flux_file) && strcmp(flux_file,"NULL") && strcmp(flux_file,"0"))
-    { printf("  File %s for flux distribution used. Flux is dPhi/dlambda in [n/s/AA]. \n", flux_file);
-      Table_Info(pTable);
+      printf ("(square %g x %g)", xwidth, yheight);
+    if (dist)
+      printf ("\n            focusing distance dist=%g area=%g x %g\n", dist, focus_xw, focus_yh);
+    printf ("            spectra ");
+    printf ("%.3f to %.3f AA (%.3f to %.3f meV)", Lmin, Lmax, 81.81 / Lmax / Lmax, 81.81 / Lmin / Lmin);
+    printf ("\n");
+    if (flux_file && strlen (flux_file) && strcmp (flux_file, "NULL") && strcmp (flux_file, "0")) {
+      printf ("  File %s for flux distribution used. Flux is dPhi/dlambda in [n/s/AA]. \n", flux_file);
+      Table_Info (pTable);
+    } else if (T1 >= 0 && I1) {
+      if (T1 != 0)
+        printf ("            T1=%.1f K (%.3f AA)", T1, lambda1);
+      if (T2 * I2 != 0)
+        printf (", T2=%.1f K (%.3f AA)", T2, lambda2);
+      if (T3 * I3 != 0)
+        printf (", T3=%.1f K (%.3f AA)", T3, lambda3);
+      if (T1)
+        printf ("\n");
+      printf ("  Flux is dPhi/dlambda in [n/s/cm2].\n");
+    } else {
+      printf ("  Flux is Phi in [n/s].\n");
     }
-    else if (T1>=0 && I1)
-    { if (T1 != 0)
-        printf("            T1=%.1f K (%.3f AA)", T1, lambda1);
-      if (T2*I2 != 0)
-        printf(", T2=%.1f K (%.3f AA)", T2, lambda2);
-      if (T3*I3 != 0)
-        printf(", T3=%.1f K (%.3f AA)", T3, lambda3);
-      if (T1) printf("\n");
-      printf("  Flux is dPhi/dlambda in [n/s/cm2].\n");
-    }
-    else
-    { printf("  Flux is Phi in [n/s].\n");
-    }
-    if (xdiv_file && strlen(xdiv_file) && strcmp(xdiv_file,"NULL") && strcmp(xdiv_file,"0"))
-      printf("  File %s x=[%g:%g] [m] xdiv=[%g:%g] [deg] used as horizontal phase space distribution.\n", xdiv_file, pTable_xmin, pTable_xmax, pTable_dxmin, pTable_dxmax);
-    if (ydiv_file && strlen(ydiv_file) && strcmp(ydiv_file,"NULL") && strcmp(ydiv_file,"0"))
-      printf("  File %s y=[%g:%g] [m] ydiv=[%g:%g] [deg] used as vertical phase space distribution.\n", ydiv_file, pTable_ymin, pTable_ymax, pTable_dymin, pTable_dymax);
-  }
-  else
-    if (verbose == -1)
-      printf("Source_gen: component %s inactivated", NAME_CURRENT_COMP);
-  );
+    if (xdiv_file && strlen (xdiv_file) && strcmp (xdiv_file, "NULL") && strcmp (xdiv_file, "0"))
+      printf ("  File %s x=[%g:%g] [m] xdiv=[%g:%g] [deg] used as horizontal phase space distribution.\n", xdiv_file, pTable_xmin, pTable_xmax, pTable_dxmin,
+              pTable_dxmax);
+    if (ydiv_file && strlen (ydiv_file) && strcmp (ydiv_file, "NULL") && strcmp (ydiv_file, "0"))
+      printf ("  File %s y=[%g:%g] [m] ydiv=[%g:%g] [deg] used as vertical phase space distribution.\n", ydiv_file, pTable_ymin, pTable_ymax, pTable_dymin,
+              pTable_dymax);
+  } else if (verbose == -1) printf ("Source_gen: component %s inactivated", NAME_CURRENT_COMP););
 %}
 
 TRACE
 %{
-  double dx=0,dy=0,xf,yf,rf,pdir,chi,v,r, lambda;
+  double dx = 0, dy = 0, xf, yf, rf, pdir, chi, v, r, lambda;
   double Maxwell;
 
-  if (verbose >= 0)
-  {
+  if (verbose >= 0) {
 
-    z=0;
+    z = 0;
 
-    if (radius)
-    {
-      chi=2*PI*rand01();                          /* Choose point on source */
-      r=sqrt(rand01())*radius;                    /* with uniform distribution. */
-      x=r*cos(chi);
-      y=r*sin(chi);
-    }
-    else
-    {
-      x = xwidth*randpm1()/2;   /* select point on source (uniform) */
-      y = yheight*randpm1()/2;
+    if (radius) {
+      chi = 2 * PI * rand01 ();      /* Choose point on source */
+      r = sqrt (rand01 ()) * radius; /* with uniform distribution. */
+      x = r * cos (chi);
+      y = r * sin (chi);
+    } else {
+      x = xwidth * randpm1 () / 2; /* select point on source (uniform) */
+      y = yheight * randpm1 () / 2;
     }
     if (zdepth != 0)
-      z = zdepth*randpm1()/2;
-  /* Assume linear wavelength distribution */
-    lambda = lambda0+dlambda*randpm1();
-    if (lambda <= 0) ABSORB;
-    v = K2V*(2*PI/lambda);
+      z = zdepth * randpm1 () / 2;
+    /* Assume linear wavelength distribution */
+    lambda = lambda0 + dlambda * randpm1 ();
+    if (lambda <= 0)
+      ABSORB;
+    v = K2V * (2 * PI / lambda);
 
     if (!focus_ah && !focus_aw) {
-      randvec_target_rect_real(&xf, &yf, &rf, &pdir,
-       0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
+      randvec_target_rect_real (&xf, &yf, &rf, &pdir, 0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
 
-      dx = xf-x;
-      dy = yf-y;
-      rf = sqrt(dx*dx+dy*dy+dist*dist);
+      dx = xf - x;
+      dy = yf - y;
+      rf = sqrt (dx * dx + dy * dy + dist * dist);
 
-      vz=v*dist/rf;
-      vy=v*dy/rf;
-      vx=v*dx/rf;
+      vz = v * dist / rf;
+      vy = v * dy / rf;
+      vx = v * dx / rf;
     } else {
 
-      randvec_target_rect_angular(&vx, &vy, &vz, &pdir,
-          0, 0, 1, focus_aw*DEG2RAD, focus_ah*DEG2RAD, ROT_A_CURRENT_COMP);
-      dx = vx; dy = vy; /* from unit vector */
-      vx *= v; vy *= v; vz *= v;
+      randvec_target_rect_angular (&vx, &vy, &vz, &pdir, 0, 0, 1, focus_aw * DEG2RAD, focus_ah * DEG2RAD, ROT_A_CURRENT_COMP);
+      dx = vx;
+      dy = vy; /* from unit vector */
+      vx *= v;
+      vy *= v;
+      vz *= v;
     }
-    p = p_in*pdir;
+    p = p_in * pdir;
 
     /* spectral dependency from files or Maxwellians */
 
-#ifndef OMPTARGET
-    if (flux_file && strlen(flux_file) && strcmp(flux_file,"NULL") && strcmp(flux_file,"0"))
-    {
-       double binwidth=Table_Value(pTable, lambda, 1);
-       if (flux_file_log) binwidth=exp(binwidth);
-       p *= binwidth;
-    }
-    else 
-#endif
+    #ifndef OMPTARGET
+    if (flux_file && strlen (flux_file) && strcmp (flux_file, "NULL") && strcmp (flux_file, "0")) {
+      double binwidth = Table_Value (pTable, lambda, 1);
+      if (flux_file_log)
+        binwidth = exp (binwidth);
+      p *= binwidth;
+    } else
+      #endif
 
-if (T1 > 0 && I1 > 0)
-    {
-      Maxwell = I1 * SG_Maxwell(lambda, T1);;  /* 1/AA */
+      if (T1 > 0 && I1 > 0) {
+        Maxwell = I1 * SG_Maxwell (lambda, T1);
+        ; /* 1/AA */
 
-      if ((T2 > 0) && (I2 > 0))
-      {
-        Maxwell += I2 * SG_Maxwell(lambda, T2);
+        if ((T2 > 0) && (I2 > 0)) {
+          Maxwell += I2 * SG_Maxwell (lambda, T2);
+        }
+        if ((T3 > 0) && (I3 > 0)) {
+          Maxwell += I3 * SG_Maxwell (lambda, T3);
+          ;
+        }
+        p *= Maxwell;
       }
-      if ((T3 > 0) && (I3 > 0))
-      {
-        Maxwell += I3 * SG_Maxwell(lambda, T3);;
-      }
-      p *= Maxwell;
-    }
 
-#ifndef OMPTARGET
+    #ifndef OMPTARGET
     /* optional x-xdiv and y-ydiv weightening: position=along columns, div=along rows */
-    if (xdiv_file && strlen(xdiv_file)
-      && strcmp(xdiv_file,"NULL") && strcmp(xdiv_file,"0") && pTable_xsum > 0) {
-      double i,j;
-      j = (x-            pTable_xmin) /(pTable_xmax -pTable_xmin) *pTable_x.columns;
-      i = (atan2(dx,rf)*RAD2DEG-pTable_dxmin)/(pTable_dxmax-pTable_dxmin)*pTable_x.rows;
-      r = Table_Value2d(pTable_x, i,j); /* row, column */
-      p *= r/pTable_xsum;
+    if (xdiv_file && strlen (xdiv_file) && strcmp (xdiv_file, "NULL") && strcmp (xdiv_file, "0") && pTable_xsum > 0) {
+      double i, j;
+      j = (x - pTable_xmin) / (pTable_xmax - pTable_xmin) * pTable_x.columns;
+      i = (atan2 (dx, rf) * RAD2DEG - pTable_dxmin) / (pTable_dxmax - pTable_dxmin) * pTable_x.rows;
+      r = Table_Value2d (pTable_x, i, j); /* row, column */
+      p *= r / pTable_xsum;
     }
-    if (ydiv_file && strlen(ydiv_file)
-       && strcmp(ydiv_file,"NULL") && strcmp(ydiv_file,"0") && pTable_ysum > 0) {
-      double i,j;
-      j = (y-            pTable_ymin) /(pTable_ymax -pTable_ymin) *pTable_y.columns;
-      i = (atan2(dy,rf)*RAD2DEG-  pTable_dymin)/(pTable_dymax-pTable_dymin)*pTable_y.rows;
-      r = Table_Value2d(pTable_y, i,j);
-      p *= r/pTable_ysum;
+    if (ydiv_file && strlen (ydiv_file) && strcmp (ydiv_file, "NULL") && strcmp (ydiv_file, "0") && pTable_ysum > 0) {
+      double i, j;
+      j = (y - pTable_ymin) / (pTable_ymax - pTable_ymin) * pTable_y.columns;
+      i = (atan2 (dy, rf) * RAD2DEG - pTable_dymin) / (pTable_dymax - pTable_dymin) * pTable_y.rows;
+      r = Table_Value2d (pTable_y, i, j);
+      p *= r / pTable_ysum;
     }
-#endif
+    #endif
 
     SCATTER;
   }
@@ -588,9 +573,9 @@ if (T1 > 0 && I1 > 0)
 
 FINALLY
 %{
-  Table_Free(&pTable);
-  Table_Free(&pTable_x);
-  Table_Free(&pTable_y);
+  Table_Free (&pTable);
+  Table_Free (&pTable_x);
+  Table_Free (&pTable_y);
 %}
 
 MCDISPLAY
@@ -600,46 +585,37 @@ MCDISPLAY
   double ymin;
   double ymax;
 
-  if (radius)
-  {
-    
-    circle("xy",0,0,0,radius);
-    if (zdepth) {
-      circle("xy",0,0,-zdepth/2,radius);
-      circle("xy",0,0, zdepth/2,radius);
-    }
-  }
-  else
-  {
-    xmin = -xwidth/2; xmax = xwidth/2;
-    ymin = -yheight/2; ymax = yheight/2;
+  if (radius) {
 
-    
-    multiline(5, (double)xmin, (double)ymin, 0.0,
-             (double)xmax, (double)ymin, 0.0,
-             (double)xmax, (double)ymax, 0.0,
-             (double)xmin, (double)ymax, 0.0,
-             (double)xmin, (double)ymin, 0.0);
+    circle ("xy", 0, 0, 0, radius);
     if (zdepth) {
-      multiline(5, (double)xmin, (double)ymin, -zdepth/2,
-             (double)xmax, (double)ymin, -zdepth/2,
-             (double)xmax, (double)ymax, -zdepth/2,
-             (double)xmin, (double)ymax, -zdepth/2,
-             (double)xmin, (double)ymin, -zdepth/2);
-      multiline(5, (double)xmin, (double)ymin, zdepth/2,
-             (double)xmax, (double)ymin, zdepth/2,
-             (double)xmax, (double)ymax, zdepth/2,
-             (double)xmin, (double)ymax, zdepth/2,
-             (double)xmin, (double)ymin, zdepth/2);
+      circle ("xy", 0, 0, -zdepth / 2, radius);
+      circle ("xy", 0, 0, zdepth / 2, radius);
+    }
+  } else {
+    xmin = -xwidth / 2;
+    xmax = xwidth / 2;
+    ymin = -yheight / 2;
+    ymax = yheight / 2;
+
+    multiline (5, (double)xmin, (double)ymin, 0.0, (double)xmax, (double)ymin, 0.0, (double)xmax, (double)ymax, 0.0, (double)xmin, (double)ymax, 0.0,
+               (double)xmin, (double)ymin, 0.0);
+    if (zdepth) {
+      multiline (5, (double)xmin, (double)ymin, -zdepth / 2, (double)xmax, (double)ymin, -zdepth / 2, (double)xmax, (double)ymax, -zdepth / 2, (double)xmin,
+                 (double)ymax, -zdepth / 2, (double)xmin, (double)ymin, -zdepth / 2);
+      multiline (5, (double)xmin, (double)ymin, zdepth / 2, (double)xmax, (double)ymin, zdepth / 2, (double)xmax, (double)ymax, zdepth / 2, (double)xmin,
+                 (double)ymax, zdepth / 2, (double)xmin, (double)ymin, zdepth / 2);
     }
   }
   if (dist) {
-    if (focus_aw) focus_xw=dist*tan(focus_aw*DEG2RAD);
-    if (focus_ah) focus_yh=dist*tan(focus_ah*DEG2RAD);
-    dashed_line(0,0,0, -focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2, focus_yh/2,dist, 4);
-    dashed_line(0,0,0, -focus_xw/2, focus_yh/2,dist, 4);
+    if (focus_aw)
+      focus_xw = dist * tan (focus_aw * DEG2RAD);
+    if (focus_ah)
+      focus_yh = dist * tan (focus_ah * DEG2RAD);
+    dashed_line (0, 0, 0, -focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, focus_yh / 2, dist, 4);
   }
 %}
 

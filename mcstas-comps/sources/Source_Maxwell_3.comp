@@ -67,12 +67,12 @@ int target_index=1,lambda0=0, dlambda=0)
 
 SHARE
 %{
-/* A normalised Maxwellian distribution : Integral over all l = 1 */
-#pragma acc routine seq
-double SM3_Maxwell(double l, double temp)
-  {
-    double a=949.0/temp;
-    return 2*a*a*exp(-a/(l*l))/(l*l*l*l*l);
+  /* A normalised Maxwellian distribution : Integral over all l = 1 */
+  #pragma acc routine seq
+  double
+  SM3_Maxwell (double l, double temp) {
+    double a = 949.0 / temp;
+    return 2 * a * a * exp (-a / (l * l)) / (l * l * l * l * l);
   }
 %}
 
@@ -86,87 +86,80 @@ DECLARE
 
 INITIALIZE
 %{
-  if (target_index && !dist)
-  {
+  if (target_index && !dist) {
     Coords ToTarget;
-    double tx,ty,tz;
-    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),POS_A_CURRENT_COMP);
-    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
-    coords_get(ToTarget, &tx, &ty, &tz);
-    dist=sqrt(tx*tx+ty*ty+tz*tz);
+    double tx, ty, tz;
+    ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+    ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+    coords_get (ToTarget, &tx, &ty, &tz);
+    dist = sqrt (tx * tx + ty * ty + tz * tz);
   }
 
-  if (size>0) {
+  if (size > 0) {
     w_source = h_source = size;
   } else {
     w_source = xwidth;
     h_source = yheight;
   }
   if (lambda0) {
-    Lmin=lambda0-dlambda;
-    Lmax=lambda0+dlambda;
+    Lmin = lambda0 - dlambda;
+    Lmax = lambda0 + dlambda;
   }
-  l_range = Lmax-Lmin;
-  w_mult = w_source*h_source*1.0e4;     /* source area correction */
-  w_mult *= l_range;            /* wavelength range correction */
-  w_mult *= 1.0/mcget_ncount();   /* correct for # neutron rays */
+  l_range = Lmax - Lmin;
+  w_mult = w_source * h_source * 1.0e4; /* source area correction */
+  w_mult *= l_range;                    /* wavelength range correction */
+  w_mult *= 1.0 / mcget_ncount ();      /* correct for # neutron rays */
 
-  if (w_source <0 || h_source < 0 || Lmin <= 0 || Lmax <= 0 || dist <= 0 || T1 <= 0 || T2 <= 0|| T3 <= 0 || Lmax<=Lmin) {
-      printf("Source_Maxwell_3: %s: Error in input parameter values!\n"
-             "ERROR          Exiting\n",
-           NAME_CURRENT_COMP);
-      exit(-1);
+  if (w_source < 0 || h_source < 0 || Lmin <= 0 || Lmax <= 0 || dist <= 0 || T1 <= 0 || T2 <= 0 || T3 <= 0 || Lmax <= Lmin) {
+    printf ("Source_Maxwell_3: %s: Error in input parameter values!\n"
+            "ERROR          Exiting\n",
+            NAME_CURRENT_COMP);
+    exit (-1);
   }
-
 %}
 
 TRACE
 %{
-  double v,tau_l,E,lambda,k,r,xf,yf,dx,dy,w_focus;
+  double v, tau_l, E, lambda, k, r, xf, yf, dx, dy, w_focus;
 
-  t=0;
-  z=0;
-  x = 0.5*w_source*randpm1();
-  y = 0.5*h_source*randpm1();         /* Choose initial position */
+  t = 0;
+  z = 0;
+  x = 0.5 * w_source * randpm1 ();
+  y = 0.5 * h_source * randpm1 (); /* Choose initial position */
 
-  randvec_target_rect_real(&xf, &yf, &r, &w_focus,
-		      0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
+  randvec_target_rect_real (&xf, &yf, &r, &w_focus, 0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
 
-  dx = xf-x;
-  dy = yf-y;
-  r = sqrt(dx*dx+dy*dy+dist*dist);
+  dx = xf - x;
+  dy = yf - y;
+  r = sqrt (dx * dx + dy * dy + dist * dist);
 
-  lambda = Lmin+l_range*rand01();    /* Choose from uniform distribution */
-  k = 2*PI/lambda;
-  v = K2V*k;
+  lambda = Lmin + l_range * rand01 (); /* Choose from uniform distribution */
+  k = 2 * PI / lambda;
+  v = K2V * k;
 
-  vz = v*dist/r;
-  vy = v*dy/r;
-  vx = v*dx/r;
+  vz = v * dist / r;
+  vy = v * dy / r;
+  vx = v * dx / r;
 
+  /*  printf("pos0 (%g %g %g), pos1 (%g %g %g), r: %g, v (%g %g %g), v %g\n",
+    x,y,z,xf,yf,dist,r,vx,vy,vz, v);
+    printf("l %g, w_focus %g \n", lambda, w_focus);  */
 
-/*  printf("pos0 (%g %g %g), pos1 (%g %g %g), r: %g, v (%g %g %g), v %g\n",
-  x,y,z,xf,yf,dist,r,vx,vy,vz, v);
-  printf("l %g, w_focus %g \n", lambda, w_focus);  */
-
-  p *= w_mult*w_focus;                /* Correct for target focusing etc */
-  p *= I1*SM3_Maxwell(lambda,T1)+I2*SM3_Maxwell(lambda,T2)+I3*SM3_Maxwell(lambda,T3);
-                                        /* Calculate true intensity */
+  p *= w_mult * w_focus; /* Correct for target focusing etc */
+  p *= I1 * SM3_Maxwell (lambda, T1) + I2 * SM3_Maxwell (lambda, T2) + I3 * SM3_Maxwell (lambda, T3);
+  /* Calculate true intensity */
 %}
 
 MCDISPLAY
 %{
-  
-  multiline(5, -(double)focus_xw/2.0, -(double)focus_yh/2.0, 0.0,
-                (double)focus_xw/2.0, -(double)focus_yh/2.0, 0.0,
-                (double)focus_xw/2.0,  (double)focus_yh/2.0, 0.0,
-               -(double)focus_xw/2.0,  (double)focus_yh/2.0, 0.0,
-               -(double)focus_xw/2.0, -(double)focus_yh/2.0, 0.0);
+
+  multiline (5, -(double)focus_xw / 2.0, -(double)focus_yh / 2.0, 0.0, (double)focus_xw / 2.0, -(double)focus_yh / 2.0, 0.0, (double)focus_xw / 2.0,
+             (double)focus_yh / 2.0, 0.0, -(double)focus_xw / 2.0, (double)focus_yh / 2.0, 0.0, -(double)focus_xw / 2.0, -(double)focus_yh / 2.0, 0.0);
   if (dist) {
-    dashed_line(0,0,0, -focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2, focus_yh/2,dist, 4);
-    dashed_line(0,0,0, -focus_xw/2, focus_yh/2,dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, focus_yh / 2, dist, 4);
   }
 %}
 

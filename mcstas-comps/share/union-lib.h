@@ -567,6 +567,8 @@ struct pointer_to_1d_int_list children;
 struct pointer_to_1d_int_list direct_children;
 // List of next possible volumes (only used in tagging)
 struct pointer_to_1d_int_list next_volume_list;
+// List of volumes overlapping this one (only used in polyhedron display)
+struct pointer_to_1d_int_list overlap_list;
 // List of volumes masked by this volume (usually empty)
 struct pointer_to_1d_int_list mask_list;
 // List of volumes masking this volume

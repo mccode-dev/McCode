@@ -285,25 +285,14 @@ Utility functions for parsing instrument and component files.
 '''
 def read_header(file):
     '''
-    Reads lines of a slash-star commented section, from file-object. 
+    Reads the leading /* ... */ comment block from file-object, up to and
+    including the line that closes it. Lines without a leading * are kept.
     Returns acc. read lines as text.
     '''
-    lines = []
-    while True:
-        try:
-            l = file.readline()
-            lines.append(l)
-        except:
-            break
-        if not re.match(r'[ ]*\*', l):
-            if not re.match(r'[ ]*\/\*', l):
-                break
-        elif re.search(r'[ ]*\*\*\*\*', l):
-            break
-        else:
-            # line is still in header but not prefixed by * - we tolerate...
-            pass
-
+    lines = [file.readline()]
+    if lines[0].lstrip().startswith('/*'):
+        while lines[-1] and '*/' not in lines[-1]:
+            lines.append(file.readline())
     return ''.join(lines)
 
 class InstrCompHeaderInfo:
@@ -625,7 +614,9 @@ def parse_params(params_line):
                 lst.append(m2.group(1))
                 substr = m2.group(2)
             else:
-                # the end
+                # the end: keep the last parameter, which has no trailing comma
+                if substr.strip():
+                    lst.append(substr)
                 return lst
     
             # continue recursion
@@ -680,7 +671,7 @@ def parse_define_instr(text):
     Not robust to "junk" in the input string.
     '''
     try:
-        m = re.match(r'DEFINE[ \t]+INSTRUMENT[ \t]+(\w+)\s*\(([\w\,\"\s\n\t\r\.\+:;\-=/]*)\)+', text)
+        m = re.match(r'DEFINE[ \t]+INSTRUMENT[ \t]+(\w+)\s*\(([\w\,\"\s\n\t\r\.\+:;\-=/%]*)\)+', text)
         name = m.group(1)
         params = m.group(2).replace('\n', '').strip()
     except:

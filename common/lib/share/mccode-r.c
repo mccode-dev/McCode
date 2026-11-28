@@ -867,11 +867,12 @@ FILE *mcnew_file(char *name, char *ext, int *exists)
 
 /*******************************************************************************
 * mcdetector_statistics: compute detector statistics, error bars, [x I I_err N] 1D
+* total:             as for detector_import, replaces the sums over bins
 * RETURN:            updated detector structure
 * Used by: detector_import
 *******************************************************************************/
 MCDETECTOR mcdetector_statistics(
-  MCDETECTOR detector)
+  MCDETECTOR detector, const double *total)
 {
 
   if (!detector.p1 || !detector.m)
@@ -960,6 +961,11 @@ MCDETECTOR mcdetector_statistics(
     smon_y = sum_y2z/sum_z-fmon_y*fmon_y; smon_y = smon_y > 0 ? sqrt(smon_y) : 0;
     mean_z = sum_z/detector.n/detector.m/detector.p;
   }
+  if (detector.p0 && strcasestr(detector.format,"list")) { /* p0 is N, see mcdetector_out_list */
+    Nsum = *detector.p0;
+    detector.p0 = NULL;
+  }
+  if (total) { Nsum = total[0]; sum_z = total[1]; P2sum = total[2]; }
   /* store statistics into detector */
   detector.intensity = sum_z;
   detector.error     = Nsum ? (*mcestimate_error_p)(Nsum, sum_z, P2sum) : 0;
@@ -1013,6 +1019,7 @@ MCDETECTOR mcdetector_statistics(
 /*******************************************************************************
 * detector_import: build detector structure, merge non-lists from MPI
 *                    compute basic stat, write "Detector:" line
+* total:             NULL for an intensity, else see mcdetector_write_1D
 * RETURN:            detector structure. Invalid data if detector.p1 == NULL
 *                    Invalid detector sets m=0 and filename=""
 *                    Simulation data  sets m=0 and filename=siminfo_name
@@ -1027,7 +1034,8 @@ MCDETECTOR detector_import(
   double x1, double x2, double y1, double y2, double z1, double z2,
   char *filename,
   double *p0, double *p1, double *p2,
-  Coords position, Rotation rotation, int index)
+  Coords position, Rotation rotation, int index,
+  const double *total)
 {
   time_t t;       /* for detector.date */
   long   date_l;  /* date as a long number */
@@ -1085,6 +1093,7 @@ MCDETECTOR detector_import(
   else
     snprintf(detector.ncount, CHAR_BUF_LENGTH, "%g/%g", (double)mcget_run_num(), (double)mcget_ncount());
 
+  detector.ismean     = total != NULL;
   detector.p0         = p0;
   detector.p1         = p1;
   detector.p2         = p2;
@@ -1186,7 +1195,7 @@ MCDETECTOR detector_import(
 #endif /* USE_MPI */
 
   /* compute statistics, Nsum, intensity, Error bars */
-  detector = mcdetector_statistics(detector);
+  detector = mcdetector_statistics(detector, total);
 
 #ifdef USE_MPI
   /* slaves are done */
@@ -1411,6 +1420,7 @@ mcdatainfo_out(char *pre, FILE *f, MCDETECTOR detector)
   fprintf(f, !mcget_run_num() || mcget_run_num() >= mcget_ncount() ?
              "%sNcount: %s\n" :
              "%sratio: %s\n",  pre, detector.ncount);
+  fprintf(f, "%smean: %s\n", pre, detector.ismean ? "yes" : "no");
 
   if (strlen(detector.filename)) {
     fprintf(f, "%sfilename: %s\n", pre, detector.filename);
@@ -2780,6 +2790,7 @@ mcdatainfo_out_nexus(NXhandle f, MCDETECTOR detector)
 	      nxprintattr(f, !mcget_run_num() || mcget_run_num() >= mcget_ncount() ?
 			  "Ncount" :
 			  "ratio", "%s",  detector.ncount);
+	      nxprintattr(f, "mean", "%s", detector.ismean ? "yes" : "no");
 
 	      if (strlen(detector.filename)) {
 		nxprintattr(f, "filename", "%s", detector.filename);
@@ -3232,12 +3243,13 @@ void siminfo_close()
 } /* siminfo_close */
 
 /*******************************************************************************
-* mcdetector_out_0D: wrapper for 0D (single value).
+* mcdetector_write_0D / mcdetector_out_0D: wrapper for 0D (single value).
 *   Output single detector/monitor data (p0, p1, p2).
-*   Title is t, component name is c.
+*   Title is t, component name is c. total is as for mcdetector_write_1D.
 *******************************************************************************/
-MCDETECTOR mcdetector_out_0D(char *t, double p0, double p1, double p2,
-			     char *c, Coords posa, Rotation rota, int index)
+static MCDETECTOR mcdetector_write_0D(char *t, double p0, double p1, double p2,
+			     char *c, Coords posa, Rotation rota, int index,
+                  const double *total)
 {
   /* import and perform basic detector analysis (and handle MPI reduce) */
   MCDETECTOR detector = detector_import(mcformat,
@@ -3246,7 +3258,7 @@ MCDETECTOR mcdetector_out_0D(char *t, double p0, double p1, double p2,
     "I", "", "",
     "I", "", "",
     0, 0, 0, 0, 0, 0, c,
-    &p0, &p1, &p2, posa, rota, index); /* write Detector: line */
+    &p0, &p1, &p2, posa, rota, index, total); /* write Detector: line */
 
 #ifdef USE_NEXUS
   if (strcasestr(detector.format, "NeXus"))
@@ -3255,12 +3267,18 @@ MCDETECTOR mcdetector_out_0D(char *t, double p0, double p1, double p2,
 #endif
     return(mcdetector_out_0D_ascii(detector));
 
+} /* mcdetector_write_0D */
+
+MCDETECTOR mcdetector_out_0D(char *t, double p0, double p1, double p2,
+			     char *c, Coords posa, Rotation rota, int index)
+{
+  return(mcdetector_write_0D(t, p0, p1, p2, c, posa, rota, index, NULL));
 } /* mcdetector_out_0D */
 
 
 
 /*******************************************************************************
-* mcdetector_out_1D: wrapper for 1D.
+* mcdetector_write_1D / mcdetector_out_1D: wrapper for 1D.
 *   Output 1d detector data (p0, p1, p2) for n bins linearly
 *   distributed across the range x1..x2 (x1 is lower limit of first
 *   bin, x2 is upper limit of last bin). Title is t, axis labels are xl
@@ -3281,12 +3299,17 @@ MCDETECTOR mcdetector_out_0D(char *t, double p0, double p1, double p2,
 *   Not included in the macro, and here forwarded to detector_import:
 *   c:    ?
 *   posa: ?
+*   total: NULL for an intensity (mcdetector_out_1D). For a mean
+*          (mcdetector_out_1D_mean): its N, mean and p2 over all bins,
+*          used for the header total and Detector: line, and the
+*          output is marked "mean: yes".
 *******************************************************************************/
-MCDETECTOR mcdetector_out_1D(char *t, char *xl, char *yl,
+static MCDETECTOR mcdetector_write_1D(char *t, char *xl, char *yl,
         char *xvar, double x1, double x2,
         long n,
         double *p0, double *p1, double *p2, char *f,
-        char *c, Coords posa, Rotation rota, int index)
+        char *c, Coords posa, Rotation rota, int index,
+                  const double *total)
 {
   /* import and perform basic detector analysis (and handle MPI_Reduce) */
   // detector_import calls mcdetector_statistics, which will return different
@@ -3298,7 +3321,7 @@ MCDETECTOR mcdetector_out_1D(char *t, char *xl, char *yl,
     xl, yl, (n > 1 ? "Signal per bin" : " Signal"),
     xvar, "(I,I_err)", "I",
     x1, x2, 0, 0, 0, 0, f,
-    p0, p1, p2, posa, rota, index); /* write Detector: line */
+    p0, p1, p2, posa, rota, index, total); /* write Detector: line */
   if (!detector.p1 || !detector.m) return(detector);
 
 #ifdef USE_NEXUS
@@ -3320,10 +3343,19 @@ MCDETECTOR mcdetector_out_1D(char *t, char *xl, char *yl,
   }
   return detector;
 
+} /* mcdetector_write_1D */
+
+MCDETECTOR mcdetector_out_1D(char *t, char *xl, char *yl,
+        char *xvar, double x1, double x2,
+        long n,
+        double *p0, double *p1, double *p2, char *f,
+        char *c, Coords posa, Rotation rota, int index)
+{
+  return(mcdetector_write_1D(t, xl, yl, xvar, x1, x2, n, p0, p1, p2, f, c, posa, rota, index, NULL));
 } /* mcdetector_out_1D */
 
 /*******************************************************************************
-* mcdetector_out_2D: wrapper for 2D.
+* mcdetector_write_2D / mcdetector_out_2D: wrapper for 2D.
 *   Special case for list: master creates file first, then slaves append their
 *   blocks without header-
 *
@@ -3345,12 +3377,14 @@ MCDETECTOR mcdetector_out_1D(char *t, char *xl, char *yl,
 *   c:    ?
 *   posa: ?
 *   rota: ?
+*   total: as for mcdetector_write_1D (mcdetector_out_2D_mean for a mean)
 *******************************************************************************/
-MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
+static MCDETECTOR mcdetector_write_2D(char *t, char *xl, char *yl,
                   double x1, double x2, double y1, double y2,
                   long m, long n,
                   double *p0, double *p1, double *p2, char *f,
-		  char *c, Coords posa, Rotation rota, int index)
+		  char *c, Coords posa, Rotation rota, int index,
+                  const double *total)
 {
   char xvar[CHAR_BUF_LENGTH];
   char yvar[CHAR_BUF_LENGTH];
@@ -3371,7 +3405,7 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
       yl, "", "Signal per bin",
       yvar, "(I,Ierr)", "I",
       y1, y2, x1, x2, 0, 0, f,
-      p0, p1, p2, posa, rota, index); /* write Detector: line */
+      p0, p1, p2, posa, rota, index, total); /* write Detector: line */
   } else if (labs(n)==1) {/* m>1 on X, n==1 on Y: 1D, no Y axis*/
     detector = detector_import(mcformat,
       c, (t ? t : MCCODE_STRING " 1D data"),
@@ -3379,7 +3413,7 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
       xl, "", "Signal per bin",
       xvar, "(I,Ierr)", "I",
       x1, x2, y1, y2, 0, 0, f,
-      p0, p1, p2, posa, rota, index); /* write Detector: line */
+      p0, p1, p2, posa, rota, index, total); /* write Detector: line */
   }else {
     detector = detector_import(mcformat,
       c, (t ? t : MCCODE_STRING " 2D data"),
@@ -3387,7 +3421,7 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
       xl, yl, "Signal per bin",
       xvar, yvar, "I",
       x1, x2, y1, y2, 0, 0, f,
-      p0, p1, p2, posa, rota, index); /* write Detector: line */
+      p0, p1, p2, posa, rota, index, total); /* write Detector: line */
   }
 
   if (!detector.p1 || !detector.m) return(detector);
@@ -3399,7 +3433,100 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
 #endif
     return(mcdetector_out_2D_ascii(detector));
 
+} /* mcdetector_write_2D */
+
+MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
+                  double x1, double x2, double y1, double y2,
+                  long m, long n,
+                  double *p0, double *p1, double *p2, char *f,
+		  char *c, Coords posa, Rotation rota, int index)
+{
+  return(mcdetector_write_2D(t, xl, yl, x1, x2, y1, y2, m, n, p0, p1, p2, f, c, posa, rota, index, NULL));
 } /* mcdetector_out_2D */
+
+/*******************************************************************************
+* mcdetector_mean: N, mean and its p2 for n bins, from the sums over events of
+*   1, w, w^2, w*v and w*v^2. Returns the 3 arrays in one block, to be freed.
+*   The error is sqrt(variance/Neff), with Neff=sum(w)^2/sum(w^2). p2 is such that
+*   mcestimate_error returns it, as corrected for N-1 (the mean if N=1).
+*   N, mean and p2 over all bins go to total, for the header.
+*   MPI: all is on the root, other nodes have 0, for the later sum over nodes.
+*******************************************************************************/
+static double *mcdetector_mean(long n, double *p0, double *w, double *w2, double *p1, double *p2,
+                  double *total)
+{
+  long    i, j, n1 = n+1;                      /* last one is the sum over bins */
+  double *in[5] = {p0, p1, p2, w, w2};
+  double *b     = (double *)calloc(5*n1, sizeof(double));
+  double *N = b, *P1 = b+n1, *P2 = b+2*n1, *W = b+3*n1, *W2 = b+4*n1;
+  if (!b) {
+    fprintf(stderr, "Error: Out of memory for %li bins (mcdetector_mean)\n", n);
+    exit(-1);
+  }
+  for (j=0; j<5; j++)
+    for (i=0; i<n; i++) {
+      b[j*n1+i]  = in[j][i];
+      b[j*n1+n] += in[j][i];
+    }
+#ifdef USE_MPI
+  if (mpi_node_count > 1) {
+    mc_MPI_Sum(b, 5*n1);
+    if (mpi_node_rank != mpi_node_root) memset(b, 0, 5*n1*sizeof(double));
+  }
+#endif
+  for (i=0; i<n1; i++) {
+    double mean = W[i] ? P1[i]/W[i] : 0;
+    double var  = W[i] ? P2[i]/W[i] - mean*mean : 0;
+    P1[i] = mean;
+    P2[i] = 0;
+    if (W[i] && N[i] > 1)
+      P2[i] = (var > 0 ? var*W2[i]/(W[i]*W[i]) : 0) + mean*mean/(N[i]*N[i]);
+  }
+  for (j=0; j<3; j++) total[j] = b[j*n1+n];
+  return(b);
+} /* mcdetector_mean */
+
+/*******************************************************************************
+* mcdetector_out_0D/1D/2D_mean: as mcdetector_out_0D/1D/2D, for a mean
+*******************************************************************************/
+static MCDETECTOR mcdetector_mean_end(MCDETECTOR detector, double *b)
+{
+  free(b);
+  detector.p0 = detector.p1 = detector.p2 = NULL;
+  return(detector);
+} /* mcdetector_mean_end */
+
+MCDETECTOR mcdetector_out_0D_mean(char *t, double p0, double w, double w2, double p1, double p2,
+                  char *c, Coords posa, Rotation rota, int index)
+{
+  double  total[3];
+  double *b = mcdetector_mean(1, &p0, &w, &w2, &p1, &p2, total);
+  return(mcdetector_mean_end(mcdetector_write_0D(t, b[0], b[2], b[4], c, posa, rota, index, total), b));
+} /* mcdetector_out_0D_mean */
+
+MCDETECTOR mcdetector_out_1D_mean(char *t, char *xl, char *yl,
+                  char *xvar, double x1, double x2, long n,
+                  double *p0, double *w, double *w2, double *p1, double *p2, char *f,
+                  char *c, Coords posa, Rotation rota, int index)
+{
+  long    nb = labs(n), n1 = nb+1;
+  double  total[3];
+  double *b  = mcdetector_mean(nb, p0, w, w2, p1, p2, total);
+  return(mcdetector_mean_end(mcdetector_write_1D(t, xl, yl, xvar, x1, x2, n, b, b+n1, b+2*n1, f,
+    c, posa, rota, index, total), b));
+} /* mcdetector_out_1D_mean */
+
+MCDETECTOR mcdetector_out_2D_mean(char *t, char *xl, char *yl,
+                  double x1, double x2, double y1, double y2, long m, long n,
+                  double *p0, double *w, double *w2, double *p1, double *p2, char *f,
+                  char *c, Coords posa, Rotation rota, int index)
+{
+  long    nb = labs(m*n), n1 = nb+1;
+  double  total[3];
+  double *b  = mcdetector_mean(nb, p0, w, w2, p1, p2, total);
+  return(mcdetector_mean_end(mcdetector_write_2D(t, xl, yl, x1, x2, y1, y2, m, n, b, b+n1, b+2*n1, f,
+    c, posa, rota, index, total), b));
+} /* mcdetector_out_2D_mean */
 
 /*******************************************************************************
 * mcdetector_list_import: build the MCDETECTOR structure for a 2D_list call
@@ -3431,7 +3558,7 @@ static MCDETECTOR mcdetector_list_import(char *t, char *xl, char *yl,
       yl, "", "Signal per bin",
       yvar, "(I,Ierr)", "I",
       y1, y2, x1, x2, 0, 0, f,
-      p0, p1, p2, posa, rota, index); /* write Detector: line */
+      p0, p1, p2, posa, rota, index, NULL); /* write Detector: line */
   } else if (!islist && labs(n)==1) {/* m>1 on X, n==1 on Y: 1D, no Y axis*/
     detector = detector_import(mcformat,
       c, (t ? t : MCCODE_STRING " 1D data"),
@@ -3439,7 +3566,7 @@ static MCDETECTOR mcdetector_list_import(char *t, char *xl, char *yl,
       xl, "", "Signal per bin",
       xvar, "(I,Ierr)", "I",
       x1, x2, y1, y2, 0, 0, f,
-      p0, p1, p2, posa, rota, index); /* write Detector: line */
+      p0, p1, p2, posa, rota, index, NULL); /* write Detector: line */
   }else {
     detector = detector_import(mcformat,
       c, (t ? t : MCCODE_STRING " 2D data"),
@@ -3447,7 +3574,7 @@ static MCDETECTOR mcdetector_list_import(char *t, char *xl, char *yl,
       xl, yl, "Signal per bin",
       xvar, yvar, "I",
       x1, x2, y1, y2, 0, 0, f,
-     p0, p1, p2, posa, rota, index); /* write Detector: line */
+     p0, p1, p2, posa, rota, index, NULL); /* write Detector: line */
   }
 
   if (options && strlen(options)) {
@@ -4070,10 +4197,10 @@ MCDETECTOR mcdetector_out_2D_list(char *t, char *xl, char *yl,
 
 /*******************************************************************************
 * mcdetector_out_list: wrapper for list output (calls out_2D with mcformat+"list").
-*   m=number of events, n=size of each event
+*   m=number of events, n=size of each event, N=events received (more than m if truncated)
 *******************************************************************************/
 MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
-                  long m, long n,
+                  long m, long n, double N,
                   double *p1, char *f,
 			       char *c, Coords posa, Rotation rota, char* options, int index)
 {
@@ -4088,10 +4215,13 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
   strcpy(format_new, mcformat);
   strcat(format_new, " list");
   mcformat = format_new;
+#ifdef USE_MPI
+  if (mcsave_final && mpi_node_count > 1) mc_MPI_Sum(&N, 1);
+#endif
   detector = mcdetector_out_2D_list(t, xl, yl,
                   1,labs(m),1,labs(n),
                   m,n,
-                  NULL, p1, NULL, f,
+                  &N, p1, NULL, f,
 		  c, posa,rota,options, index);
 
   mcformat = format_org;
@@ -5302,6 +5432,7 @@ int solve_2nd_order(double *t0, double *t1, double A, double B, double C){
 
   dt0=0;
   dt1=0;
+  *t0=0;
   if(t1){ *t1=0;}
 
   /*protect against rounding errors by locally equating DBL_EPSILON with 0*/

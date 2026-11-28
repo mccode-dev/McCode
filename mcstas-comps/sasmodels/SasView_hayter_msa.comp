@@ -57,7 +57,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_hayter_msa
-
 SETTING PARAMETERS (
         radius_effective=20.75,
         volfraction=0.0192,
@@ -100,13 +99,13 @@ SHARE %{
 double Iq_hayter_msa(double QQ,
       double radius_effective, double zz, double VolFrac, double Temp, double csalt, double dialec);
 int
-sqcoef(int ir, double gMSAWave[]);
+sqcoef_hayter_msa(int ir, double gMSAWave[]);
 
 int
-sqfun(int ix, int ir, double gMSAWave[]);
+sqfun_hayter_msa(int ix, int ir, double gMSAWave[]);
 
 double
-sqhcal(double qq, double gMSAWave[]);
+sqhcal_hayter_msa(double qq, double gMSAWave[]);
   
 double Iq_hayter_msa(double QQ,
       double radius_effective, double VolFrac, double zz, double Temp, double csalt, double dialec)
@@ -161,9 +160,9 @@ double Iq_hayter_msa(double QQ,
 	//        AND IF SO CALCULATE S(Q*SIG)
 	
 	ierr=0;
-	ierr=sqcoef(ierr, gMSAWave);
+	ierr=sqcoef_hayter_msa(ierr, gMSAWave);
 	if (ierr>=0) {
-		SofQ=sqhcal(Qdiam, gMSAWave);
+		SofQ=sqhcal_hayter_msa(Qdiam, gMSAWave);
 	}else{
        	SofQ=NAN;
 		//	print "Error Level = ",ierr
@@ -198,7 +197,7 @@ double Iq_hayter_msa(double QQ,
 //         < 0:    FAILED TO CONVERGE
 //
 int
-sqcoef(int ir, double gMSAWave[])
+sqcoef_hayter_msa(int ir, double gMSAWave[])
 {	
 	int itm=40,ix,ig,ii;
 	double acc=5.0E-6,del,e1,e2,f1,f2;
@@ -213,7 +212,7 @@ sqcoef(int ir, double gMSAWave[])
 		gMSAWave[15]=gMSAWave[14];
 		gMSAWave[16]=gMSAWave[4];
 		ix=1;
-		ir = sqfun(ix,ir,gMSAWave);
+		ir = sqfun_hayter_msa(ix,ir,gMSAWave);
 		gMSAWave[14]=gMSAWave[15];
 		gMSAWave[4]=gMSAWave[16];
 		if((ir<0.0) || (gMSAWave[14]>=0.0)) {
@@ -239,14 +238,14 @@ sqcoef(int ir, double gMSAWave[])
 			gMSAWave[15]=f1;
 			gMSAWave[16]=e1;
 			ix=2;
-			ir = sqfun(ix,ir,gMSAWave);
+			ir = sqfun_hayter_msa(ix,ir,gMSAWave);
 			f1=gMSAWave[15];
 			e1=gMSAWave[16];
 			e2=gMSAWave[10]*1.01;
 			gMSAWave[15]=f2;
 			gMSAWave[16]=e2;
 			ix=2;
-			ir = sqfun(ix,ir,gMSAWave);
+			ir = sqfun_hayter_msa(ix,ir,gMSAWave);
 			f2=gMSAWave[15];
 			e2=gMSAWave[16];
 			e2=e1-(e2-e1)*f1/(f2-f1);
@@ -256,7 +255,7 @@ sqcoef(int ir, double gMSAWave[])
 		gMSAWave[15]=gMSAWave[14];
 		gMSAWave[16]=e2;
 		ix=4;
-		ir = sqfun(ix,ir,gMSAWave);
+		ir = sqfun_hayter_msa(ix,ir,gMSAWave);
 		gMSAWave[14]=gMSAWave[15];
 		e2=gMSAWave[16];
 		ir=ii;
@@ -267,7 +266,7 @@ sqcoef(int ir, double gMSAWave[])
 	gMSAWave[15]=gMSAWave[14];
 	gMSAWave[16]=gMSAWave[4];
 	ix=3;
-	ir = sqfun(ix,ir,gMSAWave);
+	ir = sqfun_hayter_msa(ix,ir,gMSAWave);
 	gMSAWave[14]=gMSAWave[15];
 	gMSAWave[4]=gMSAWave[16];
 	if ((ir>=0) && (gMSAWave[14]<0.0)) {
@@ -278,7 +277,7 @@ sqcoef(int ir, double gMSAWave[])
 
 
 int
-sqfun(int ix, int ir, double gMSAWave[])
+sqfun_hayter_msa(int ix, int ir, double gMSAWave[])
 {	
 	double acc=1.0e-6;
 	double reta,eta2,eta21,eta22,eta3,eta32,eta2d,eta2d2,eta3d,eta6d,e12,e24,rgek;
@@ -581,7 +580,7 @@ sqfun(int ix, int ir, double gMSAWave[])
 }
 
 double
-sqhcal(double qq, double gMSAWave[])
+sqhcal_hayter_msa(double qq, double gMSAWave[])
 {      	
     double SofQ,etaz,akz,gekz,e24,x1,x2,ck,sk,ak2,qk,q2k,qk2,qk3,qqk,sink,cosk,asink,qcosk,aqk,inter; 		
 	//	WAVE gMSAWave = $"root:HayPenMSA:gMSAWave"
@@ -685,7 +684,7 @@ INITIALIZE
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double t0, t1, vel, l_full, l, l_1, dt, d_phi, my_s;
   double aim_x = 0, aim_y = 0, aim_z = 1, axis_x, axis_y, axis_z;
   double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
   double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
@@ -704,11 +703,11 @@ TRACE
       ABSORB;
 
     /* Neutron enters at t=t0. */
-    v = sqrt (vx * vx + vy * vy + vz * vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
+    vel = sqrt (vx * vx + vy * vy + vz * vz);
+    l_full = vel * (t1 - t0);        /* Length of full path through sample */
     dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
     PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    l = vel * (dt - t0);             /* Penetration in sample */
 
     vx_i = vx;
     vy_i = vy;
@@ -726,9 +725,9 @@ TRACE
       randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
     NORM (vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
+    vx *= vel;
+    vy *= vel;
+    vz *= vel;
     qx = V2K * (vx_i - vx);
     qy = V2K * (vy_i - vy);
     qz = V2K * (vz_i - vz);
@@ -753,8 +752,8 @@ TRACE
     // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
     Iq_out = model_scale * Iq_out / vol * 1.0E2;
 
-    l_1 = v * t1;
-    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / v);
+    l_1 = vel * t1;
+    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / vel);
     SCATTER;
   }
 %}

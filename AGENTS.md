@@ -54,6 +54,9 @@ If you cannot test a platform, say so explicitly rather than assuming it works.
 1. **Never edit generated C files** (the `.c` produced from an `.instr`). Fix the
    component, the runtime, or — only when explicitly asked — the code generator.
    Treat code-generator changes as out of scope unless the maintainer requests them.
+   A requested code-generator or grammar change also adds a record in
+   `docs/GRAMMAR/ADR-records` (copy `template.md`) and, where keywords or syntax
+   change, updates `docs/GRAMMAR/Instrument` / `docs/GRAMMAR/Component`.
 2. **Minimal, targeted changes.** No new flags, options, abstraction layers or
    refactors beyond what the task needs. Prefer the simplest direct fix.
 3. **Propose, then apply.** For non-trivial edits, describe the change and wait for
@@ -177,6 +180,9 @@ MSVC does not implement C99 `_Complex` arithmetic. Use the McCode complex wrappe
   (matplotlib, pyqtgraph, HTML/D3), `mcdoc`, `mcdisplay`, shared `mccodelib`.
 - **Feature parity across plot frontends:** an option added to one
   (matplotlib / pyqtgraph / HTML) should be added to all, with matching behaviour.
+- A change to a tool's options or behaviour updates `tools/Python/<tool>.md` in
+  the same change. Do not hand-edit the `.html` twins — they are regenerated at
+  pre-release by `devel/bin/mccode-tooldocs-html`.
 - Scan output layout: numbered subdirectories per step plus top-level
   `mccode.dat` / `mccode.sim`. 2D `.dat` files stack `I`, `I_err`, `N` blocks —
   parse only the first for intensity.
@@ -216,6 +222,11 @@ MSVC does not implement C99 `_Complex` arithmetic. Use the McCode complex wrappe
 - Distribution is via conda-forge (feedstocks for the McCode suite and related
   libraries such as NCrystal, MCPL), plus conda-based macOS app bundles and
   Windows installers (micromamba-driven).
+- Adding, renaming or removing a tool/package (a `mkdist` line in
+  `buildscripts/build_debs_mcstas` / `build_debs_mcxtrace`) requires checking the
+  metapackage lists — `meta-pkgs/deb/control.*-suite-python*` and
+  `meta-pkgs/windows/*-metapackage64-MinGW.iss` — for both McStas and McXtrace:
+  add the package, or state that it is left out on purpose.
 - Windows compilers come from VS Build Tools (VS2022, toolsets v142/v143) for
   conda-forge compatibility.
 - CI runs on Linux, macOS and Windows — a change is not done until it is green on
@@ -247,7 +258,12 @@ MSVC does not implement C99 `_Complex` arithmetic. Use the McCode complex wrappe
 - **Fill in the PR template.** Use `docs/pull_request_template.md` as the PR
   description: complete the free-form text, the AI-tools declaration, the
   development OS and the checklist sections that apply. Remove sections that do
-  not apply. Tick a box only for a step actually done.
+  not apply. Tick a box only for a step actually done. Keep the reviewer tip at
+  the end.
+- **AI declaration.** A person is responsible for every contribution. Every
+  AI-assisted commit, also from agent accounts, names the tool in a
+  `Co-Authored-By` line; tick the AI-tools box in the PR template. See
+  `CONTRIBUTING.md`.
 - When editing files with tools that may time out, edit in small chunks
   (~10–20 lines) and re-read the region afterwards to confirm the actual state
   before retrying — never re-apply blindly.

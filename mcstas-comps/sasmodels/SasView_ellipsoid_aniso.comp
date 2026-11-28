@@ -32,6 +32,8 @@
 * sld_solvent: [1e-6/AA^2] ([-inf, inf]) Solvent scattering length density.
 * radius_polar: [AA] ([0, inf]) Polar radius.
 * radius_equatorial: [AA] ([0, inf]) Equatorial radius.
+* theta: [deg] ([-360, 360]) ellipsoid axis to beam angle.
+* phi: [deg] ([-360, 360]) rotation about beam.
 * Optional parameters:
 * model_abs: [ ] Absorption cross section density at 2200 m/s.
 * model_scale: [ ] Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors can be related to the scattering intensity by the particle volume fraction.
@@ -57,7 +59,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_ellipsoid_aniso
-
 SETTING PARAMETERS (
         sld=4,
         sld_solvent=1,
@@ -494,7 +495,7 @@ INITIALIZE
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double t0, t1, vel, l_full, l, l_1, dt, d_phi, my_s;
   double aim_x = 0, aim_y = 0, aim_z = 1, axis_x, axis_y, axis_z;
   double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
   double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
@@ -513,11 +514,11 @@ TRACE
       ABSORB;
 
     /* Neutron enters at t=t0. */
-    v = sqrt (vx * vx + vy * vy + vz * vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
+    vel = sqrt (vx * vx + vy * vy + vz * vz);
+    l_full = vel * (t1 - t0);        /* Length of full path through sample */
     dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
     PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    l = vel * (dt - t0);             /* Penetration in sample */
 
     vx_i = vx;
     vy_i = vy;
@@ -535,9 +536,9 @@ TRACE
       randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
     NORM (vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
+    vx *= vel;
+    vy *= vel;
+    vz *= vel;
     qx = V2K * (vx_i - vx);
     qy = V2K * (vy_i - vy);
     qz = V2K * (vz_i - vz);
@@ -576,8 +577,8 @@ TRACE
     // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
     Iq_out = model_scale * Iq_out / vol * 1.0E2;
 
-    l_1 = v * t1;
-    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / v);
+    l_1 = vel * t1;
+    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / vel);
     SCATTER;
   }
 %}

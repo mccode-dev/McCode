@@ -952,6 +952,7 @@ struct mcdetector_struct {
   double centerY;
   double halfwidthY;
   int    rank;                        /* dimensionaly of monitor, e.g. 0 1 2 3 */
+  char   ismean;                      /* data is a mean, not an intensity */
   char   istransposed;                /* flag to transpose matrix for some formats */
 
   long   m,n,p;                       /* dimensions of data block and along axes */
@@ -992,8 +993,20 @@ MCDETECTOR mcdetector_out_2D(char *t, char *xl, char *yl,
                   double x1, double x2, double y1, double y2, long m,
                   long n, double *p0, double *p1, double *p2, char *f,
                   char *c, Coords pos, Rotation rot, int index);
+/* same, for the weighted mean of a quantity v, from sums over events:
+   N, sum(w), sum(w^2), sum(w*v) and sum(w*v^2). The sums are not changed */
+MCDETECTOR mcdetector_out_0D_mean(char *t, double p0, double w, double w2, double p1, double p2,
+                  char *c, Coords pos, Rotation rot, int index);
+MCDETECTOR mcdetector_out_1D_mean(char *t, char *xl, char *yl,
+                  char *xvar, double x1, double x2, long n,
+                  double *p0, double *w, double *w2, double *p1, double *p2, char *f,
+                  char *c, Coords pos, Rotation rot, int index);
+MCDETECTOR mcdetector_out_2D_mean(char *t, char *xl, char *yl,
+                  double x1, double x2, double y1, double y2, long m, long n,
+                  double *p0, double *w, double *w2, double *p1, double *p2, char *f,
+                  char *c, Coords pos, Rotation rot, int index);
 MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
-                  long m, long n,
+                  long m, long n, double N,
                   double *p1, char *f,
 	          char *c, Coords posa, Rotation rot,char* options, int index);
 
@@ -1004,6 +1017,12 @@ MCDETECTOR mcdetector_out_list(char *t, char *xl, char *yl,
      mcdetector_out_1D(t,xl,yl,xvar,x1,x2,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 #define DETECTOR_OUT_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f) \
      mcdetector_out_2D(t,xl,yl,x1,x2,y1,y2,m,n,p0,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
+#define DETECTOR_OUT_0D_MEAN(t,p0,w,w2,p1,p2) \
+     mcdetector_out_0D_mean(t,p0,w,w2,p1,p2,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
+#define DETECTOR_OUT_1D_MEAN(t,xl,yl,xvar,x1,x2,n,p0,w,w2,p1,p2,f) \
+     mcdetector_out_1D_mean(t,xl,yl,xvar,x1,x2,n,p0,w,w2,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
+#define DETECTOR_OUT_2D_MEAN(t,xl,yl,x1,x2,y1,y2,m,n,p0,w,w2,p1,p2,f) \
+     mcdetector_out_2D_mean(t,xl,yl,x1,x2,y1,y2,m,n,p0,w,w2,p1,p2,f,NAME_CURRENT_COMP,POS_A_CURRENT_COMP,ROT_A_CURRENT_COMP,INDEX_CURRENT_COMP)
 
 #ifdef USE_NEXUS
 /* NeXus output: the subset of the frozen NeXus API (napi.h) used by McCode and

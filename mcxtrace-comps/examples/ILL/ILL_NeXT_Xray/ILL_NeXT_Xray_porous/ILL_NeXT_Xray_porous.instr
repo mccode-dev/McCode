@@ -1,0 +1,48 @@
+/*******************************************************************************
+* Instrument: ILL_NeXT_Xray_porous
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Nov 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: ILL
+*
+* NeXT (ILL) X-ray arm with a porous Si sample, water in the pores below fill_y
+*
+* %D
+* ILL_NeXT_Xray_source and ILL_NeXT_Xray_detector (see %include below) with a
+* porous Si cylinder (PowderN_porous, Si.laz / Si.txt), radius 4 mm, height 10 mm,
+* pore channels from pores.off (in the data folder, made with Tests_samples/Test_PowderN_porous/make_pores.py,
+* same mesh as the McStas PSI_ICON_porous models), water (H2O.txt, absorption
+* only) in the pores below fill_y.
+* SOD is redeclared to 0.05 m (M=10, 56 um pixel at the object with det_binning=4).
+* All ILL_NeXT_Xray_source parameters are available as well.
+*
+* %Test: ILL_NeXT_Xray_porous.instr -y Detector: Xray_counts_I=1.77676e+11
+*
+* %P
+* SOD:         [m]   Source - object (rotation axis) distance
+* pores:       [str] Pore mesh file (Tests_samples/Test_PowderN_porous/make_pores.py), "NULL" for none
+* fill_y:      [m]   Water level in the pores, local y (sample spans +-0.005)
+* water:       [1]   1: water below fill_y, 0: void pores
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT ILL_NeXT_Xray_porous(SOD=0.05, string pores="pores.off", fill_y=0, int water=1)
+
+DEPENDENCY " -DGMESH_MAX_HITS=200 "
+
+TRACE
+
+%include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_source/ILL_NeXT_Xray_source.instr"
+
+// Porous Si cylinder, water (H2O) in the pores below fill_y
+COMPONENT Sample = PowderN_porous(reflections="Si.laz", material="Si.txt", mat_format={0,3,0,5,0},
+    radius=0.004, yheight=0.01, p_transmit=0.9, p_inc=0.03, p_interact=0.03,
+    pores=pores, fill_y=fill_y, fill_material=(water ? "H2O.txt" : "NULL"), fill_density=1,
+    fill_col_tot=1, fill_col_scat=0)
+AT (0,0,0) RELATIVE sample_rot
+
+%include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_detector/ILL_NeXT_Xray_detector.instr"
+
+END

@@ -25,11 +25,11 @@ PG 002 oriented examples:
 - **Test: Mono=3 Detector: psd1_I=8.9e-05**
 - **Test: Mono=4 Detector: psd1_I=8.9e-05**
 - **Test: Mono=5 Detector: psd1_I=8.9e-05**
-- **Test: Mono=6 Detector: psd1_I=1.0e-04**
+- **Test: Mono=6 Detector: psd1_I=1.07e-04**
 - **Test: Mono=6 PG=1 Detector: psd1_I=1.3e-04**
 - **Test: Mono=6 powder=1 Moz=60 Detector: psd1_I=5.5e-07**
-- **Test: Mono=6 ay=2.13389 az=-1.232 bz=2.464 cx=6.711 Detector: psd1_I=1.0e-04**
-- **Test: Mono=6 ay=2.94447 by=1.47224 bz=2.54999 cx=0.936252 recip=1 Detector: psd1_I=1.0e-04**
+- **Test: Mono=6 ay=2.13389 az=-1.232 bz=2.464 cx=6.711 Detector: psd1_I=1.07e-04**
+- **Test: Mono=6 ay=2.94447 by=1.47224 bz=2.54999 cx=0.936252 recip=1 Detector: psd1_I=1.07e-04**
 - **Test: Mono=7 ay=2.94447 by=1.47224 bz=2.54999 cx=0.936252 recip=1 Detector: psd1_I=9.6e-05**
 - SiO2 lattice orientation examples:
 - Example: Mono=1 DM=4.25504 lmin=0.1 lmax=7.0 lambda=6.0

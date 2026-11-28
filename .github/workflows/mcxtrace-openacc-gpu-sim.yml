@@ -1,0 +1,123 @@
+name: mcxtrace-openacc-gpu-sim
+# Runs the OpenACC reference tests on a simulated NVIDIA H100 (PantheonSim), as the
+# standard runners have no GPU. The monitor values are checked against the reference
+# values in the instrument files.
+on:
+  workflow_dispatch:
+    inputs:
+      instr:
+        description: mxtest --instr filter (empty with empty comp = run nothing)
+        default: JJ_SAXS,ESRF_BM29,Test_Absorption
+      comp:
+        description: mxtest --comp filter
+        default: ''
+
+env:
+  NVHPC_VERSION: '26.9'
+
+permissions:
+  contents: read
+
+jobs:
+  openacc-gpu-sim:
+    name: ubuntu-24.04.conda.openacc.h100-sim
+    if: inputs.instr != '' || inputs.comp != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        path: src
+
+    # Same nvhpc install as the OpenACC leg in mcxtrace-basictest.yml, in the background.
+    # The simulator action runs apt too, so wait for the dpkg lock rather than fail,
+    # and bound and retry the (5 GB) install: an unbounded one has hung a runner.
+    - name: Start nvhpc install (background)
+      run: |
+           echo "T0=$(date +%s)" >> "$GITHUB_ENV"
+           { (
+             set -euo pipefail
+             sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+             curl -fsSL https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK \
+               | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
+             echo 'deb [signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' \
+               | sudo tee /etc/apt/sources.list.d/nvhpc.list
+             APT="sudo apt-get -o DPkg::Lock::Timeout=600 -y"
+             for attempt in 1 2 3; do
+               echo "nvhpc install attempt $attempt"
+               $APT update && timeout 1200 $APT install --no-install-recommends nvhpc-${NVHPC_VERSION/./-} && break
+               [ $attempt = 3 ] && exit 1
+               sudo dpkg --configure -a || true
+             done
+             sudo apt-get clean
+           ) > nvhpc.log 2>&1; echo $? > nvhpc.done; } < /dev/null > /dev/null 2>&1 &
+
+    # Simulated H100: no GPU on the runner. The simulator is built (cached) from the pinned commit.
+    - name: Simulated NVIDIA H100 (PantheonSim)
+      uses: pantheongpu/pantheonsim@78385cc07a5d86552f4b2fcd16da50cde2e9be9f
+      with:
+        gpu: nvidia/h100
+        cuda-toolkit: '13.0'
+
+    - name: Get conda dependency list
+      run: ./src/devel/bin/mccode-create-conda-yml -m mcxtrace -n mcxtrace -o dependencies.yml
+
+    - uses: mamba-org/setup-micromamba@v3
+      with:
+        environment-name: mcxtrace
+        environment-file: dependencies.yml
+
+    - name: Configure build and install mcxtrace (conda)
+      run: ./src/devel/bin/mccode-build-conda -m mcxtrace -s $PWD/src -b $PWD/build_mcxtrace
+
+    - name: Wait for nvhpc install
+      timeout-minutes: 30
+      run: |
+           trap 'tail -30 nvhpc.log' EXIT
+           while [ ! -f nvhpc.done ]; do sleep 15; done
+           tail -5 nvhpc.log
+           test "$(cat nvhpc.done)" = 0
+           echo /opt/nvidia/hpc_sdk/Linux_x86_64/${NVHPC_VERSION}/compilers/bin >> "$GITHUB_PATH"
+           # The simulated H100 is Hopper: a single GPU target (cc90)
+           CFG=${CONDA_PREFIX}/share/mcxtrace/tools/Python/mccodelib/mccode_config.json
+           sed -i 's/-gpu=mem:managed/-gpu=cc90,mem:managed/' $CFG
+           grep -H OACCFLAGS $CFG | grep -q -- '-gpu=cc90,mem:managed'
+           grep -H OACCFLAGS $CFG
+           echo "setup took $(( $(date +%s) - T0 )) s (simulator, nvhpc and McXtrace)"
+
+    - name: OpenACC reference tests on the simulated H100
+      env:
+        INSTR: ${{ inputs.instr }}
+        COMP: ${{ inputs.comp }}
+        NVCOMPILER_ACC_TIME: 1
+      run: |
+           FILTER=()
+           [ -n "$INSTR" ] && FILTER+=(--instr="$INSTR")
+           [ -n "$COMP" ] && FILTER+=(--comp="$COMP")
+           s=$(date +%s)
+           mxtest --verbose --noplots --openacc --no-mpi -n 1e6 -j auto "${FILTER[@]}" --testdir=run_gpu --suffix=gpusim
+           echo "mxtest took $(( $(date +%s) - s )) s"
+
+    # NVCOMPILER_ACC_TIME makes every OpenACC run report its kernels in run_stdout_*.txt
+    - name: Check that the kernels ran on the (simulated) GPU
+      run: |
+           shopt -s nullglob
+           LOGS=(run_gpu/*/*/run_stdout_*.txt)
+           [ ${#LOGS[@]} -gt 0 ]
+           MISSING=$(grep -L "Accelerator Kernel Timing data" "${LOGS[@]}" || true)
+           [ -z "$MISSING" ] || { echo "No kernel timing in: $MISSING"; exit 1; }
+
+    - name: Tar logs
+      if: always()
+      run: tar czf mcxtrace-openacc-gpu-sim_logs.tgz run_gpu || true
+
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: mcxtrace-openacc-gpu-sim-logs
+        path: mcxtrace-openacc-gpu-sim_logs.tgz
+        if-no-files-found: ignore

@@ -346,6 +346,7 @@ class McGuiState(QtCore.QObject):
                 8 - autoplotter
                 9 - format
                10 - Monitor_nD buffersize
+               11 - autodisplayer (str or None)
             params[]:
                 [<par_name>, <value>] pairs
         '''
@@ -437,6 +438,10 @@ class McGuiState(QtCore.QObject):
         autoplot = fixed_params[8]
         if autoplot and simtrace == 0:
             runstr = runstr + ' --autoplot' +  ' --autoplotter=' + mccode_config.configuration["MCPLOT"]
+
+        # autodisplay
+        if fixed_params[11] and simtrace == 0:
+            runstr = runstr + ' --autodisplayer=' + fixed_params[11]
 
         # format
         Format = fixed_params[9]
