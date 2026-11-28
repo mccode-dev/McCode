@@ -17,10 +17,10 @@ import threading
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from mccodelib import mccode_config
-from mccodelib.mcdisplayutils import McDisplayReader, add_simdir, read_simdir
+from mccodelib.mcdisplayutils import McDisplayReader, add_simdir, add_simplots, read_simdir
 from shutil import copytree
 
-def write_browse(instrument, raybundle, dirname, timeout, nobrowse=None, campath=None, simdir=None, **kwds):
+def write_browse(instrument, raybundle, dirname, timeout, nobrowse=None, campath=None, simdir=None, simplots=None, **kwds):
     ''' writes instrument definitions to html/ js, then serves them as plain static files '''
     print("Launching WebGL... Once launched, server will run for " + str(timeout) + " s")
 
@@ -58,13 +58,15 @@ def write_browse(instrument, raybundle, dirname, timeout, nobrowse=None, campath
         json_particles = '[]'
     file_save(json_particles, dest.joinpath('particles.json'))
 
+    page = add_simplots(dest, simplots) if simplots else ''
+
     # Exit if nobrowse flag has been set
     if nobrowse is not None and nobrowse:
         return
-    serve(dest, timeout)
+    serve(dest, timeout, page)
 
-def serve(dest, timeout):
-    ''' serves the display in dest for timeout s '''
+def serve(dest, timeout, page=''):
+    ''' serves the display in dest for timeout s, opening page '''
     # Serve dest as a plain static site. `dist` is a self-contained, hashed
     # Vite production build (relative fetch()es for instrument.json /
     # particles.json), so no Node/npm/Vite runtime is required to view it -
@@ -80,7 +82,7 @@ def serve(dest, timeout):
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
 
-    url = f"http://127.0.0.1:{port}/"
+    url = f"http://127.0.0.1:{port}/{page}"
     print(f"Serving WebGL viewer at {url}")
     webbrowser.open(url)
 
@@ -111,13 +113,16 @@ def main(instr=None, dirname=None, debug=None, n=None, timeout=None, **kwds):
     sysdir = Path(__file__).resolve().parent
 
     if kwds.get('simdir'):
+        if not kwds.get('nosimplots'):
+            kwds['simplots'] = kwds['simdir']
         kwds['simdir'] = read_simdir(kwds['simdir'], kwds.get('simbins') or 256)
 
     # an existing display directory: add the --simdir monitor data to it, no simulation
     if Path(instr).is_dir():
         add_simdir(instr, kwds.get('simdir'), 'webgl')
+        page = add_simplots(instr, kwds['simplots']) if kwds.get('simplots') else ''
         if not kwds.get('nobrowse'):
-            serve(Path(instr), timeout)
+            serve(Path(instr), timeout, page)
         return
 
     # Build the static webgl app (npm install && npm run build), directly in
@@ -164,6 +169,7 @@ if __name__ == '__main__':
     parser, prefix = make_common_parser(__file__, __doc__)
     parser.add_argument('--dirname', '-d', help='output directory name override')
     parser.add_argument('--inspect', help='display only particle rays reaching this component')
+    parser.add_argument('--nosimplots', action='store_true', help='--simdir: no monitor plots next to the display')
     parser.add_argument('--nobrowse', action='store_true', help='do not open a webbrowser viewer')
     parser.add_argument('-n', '--ncount', dest='n', type=float, default=300, help='Number of particles to simulate')
     parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1, 2], default=2, help='Select visualization mode')

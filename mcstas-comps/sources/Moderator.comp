@@ -44,77 +44,73 @@ SETTING PARAMETERS (radius=0.07, Emin, Emax, dist=0, focus_xw=0.02, focus_yh=0.0
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 DECLARE
 %{
-double p_in;
+  double p_in;
 %}
 INITIALIZE
 %{
-p_in = flux*1e4*PI*radius*radius/mcget_ncount();
-  if (Emin < Emax) p_in *= Emax-Emin;
-  if (target_index && !dist)
-  {
+  p_in = flux * 1e4 * PI * radius * radius / mcget_ncount ();
+  if (Emin < Emax)
+    p_in *= Emax - Emin;
+  if (target_index && !dist) {
     Coords ToTarget;
-    double tx,ty,tz;
-    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),POS_A_CURRENT_COMP);
-    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
-    coords_get(ToTarget, &tx, &ty, &tz);
-    dist=sqrt(tx*tx+ty*ty+tz*tz);
+    double tx, ty, tz;
+    ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+    ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+    coords_get (ToTarget, &tx, &ty, &tz);
+    dist = sqrt (tx * tx + ty * ty + tz * tz);
   }
-  if (radius < 0 || Emin < 0 || Emax < 0 || dist <= 0 || focus_xw < 0 || focus_yh < 0 || Ec < 0 || gamma <= 0 || Emin>=Emax ) {
-      printf("Moderator: %s: Error in input parameter values!\n"
-             "ERROR          Exiting\n",
-           NAME_CURRENT_COMP);
-      exit(-1);
+  if (radius < 0 || Emin < 0 || Emax < 0 || dist <= 0 || focus_xw < 0 || focus_yh < 0 || Ec < 0 || gamma <= 0 || Emin >= Emax) {
+    printf ("Moderator: %s: Error in input parameter values!\n"
+            "ERROR          Exiting\n",
+            NAME_CURRENT_COMP);
+    exit (-1);
   }
 %}
 TRACE
 %{
-   double chi,v,r,tauv,E, xf, yf, rf, dx, dy, pdir;
+  double chi, v, r, tauv, E, xf, yf, rf, dx, dy, pdir;
 
-   z=0;
+  z = 0;
 
-   chi = 2*PI*rand01();          /* Choose point on source */
-   r = sqrt(rand01())*radius;    /* with uniform distribution. */
-   x = r*cos(chi);
-   y = r*sin(chi);
+  chi = 2 * PI * rand01 ();      /* Choose point on source */
+  r = sqrt (rand01 ()) * radius; /* with uniform distribution. */
+  x = r * cos (chi);
+  y = r * sin (chi);
 
-   randvec_target_rect_real(&xf, &yf, &rf, &pdir,
-		       0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
+  randvec_target_rect_real (&xf, &yf, &rf, &pdir, 0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
 
-   dx = xf-x;
-   dy = yf-y;
-   rf = sqrt(dx*dx+dy*dy+dist*dist);
+  dx = xf - x;
+  dy = yf - y;
+  rf = sqrt (dx * dx + dy * dy + dist * dist);
 
-   p = pdir*p_in;
+  p = pdir * p_in;
 
-   E = Emin+(Emax-Emin)*rand01();      /* Assume linear distribution */
-   v = SE2V*sqrt(E);
+  E = Emin + (Emax - Emin) * rand01 (); /* Assume linear distribution */
+  v = SE2V * sqrt (E);
 
-   vz=v*dist/rf;
-   vy=v*dy/rf;
-   vx=v*dx/rf;
+  vz = v * dist / rf;
+  vy = v * dy / rf;
+  vx = v * dx / rf;
 
-   if(E < Ec)
-   {
-     tauv = t0;
-   }
-   else
-   {
-     double tmp = ((E - Ec) / gamma);
-     tauv = t0 / (1 + (tmp*tmp));
-   }
-   t = -tauv*log(rand01())*1E-6;
-   SCATTER;
+  if (E < Ec) {
+    tauv = t0;
+  } else {
+    double tmp = ((E - Ec) / gamma);
+    tauv = t0 / (1 + (tmp * tmp));
+  }
+  t = -tauv * log (rand01 ()) * 1E-6;
+  SCATTER;
 %}
 
 MCDISPLAY
 %{
-  
-  circle("xy",0,0,0,radius);
+
+  circle ("xy", 0, 0, 0, radius);
   if (dist) {
-    dashed_line(0,0,0, -focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2, focus_yh/2,dist, 4);
-    dashed_line(0,0,0, -focus_xw/2, focus_yh/2,dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, focus_yh / 2, dist, 4);
   }
 %}
 

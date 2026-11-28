@@ -22,7 +22,7 @@ Example: Do a scan (scan parameter =1) from x_screw=20 to 103 mm. The calculated
 
 ## Examples
 
-- **Test: x_screw=60 Detector: w_monitor_I=0.0721**
+- **Test: x_screw=60 Detector: w_monitor_I=50747500000.0**
 - **TestScan: mxrun Czerny_Turner.instr -N21 x_screw=20,103 scan=1 -n1e6 Detector: Wavelength_I={21 values}**
 
 ## Input parameters

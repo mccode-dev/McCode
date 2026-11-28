@@ -28,14 +28,14 @@
 *
 * %Parameters
 * INPUT PARAMETERS:
-* thick_core: [Ang] ([0, inf]) Thickness of the core disk.
-* thick_layer: [Ang] ([0, inf]) Thickness of layer each side of core.
-* radius: [Ang] ([0, inf]) Radius of the stacked disk.
+* thick_core: [AA] ([0, inf]) Thickness of the core disk.
+* thick_layer: [AA] ([0, inf]) Thickness of layer each side of core.
+* radius: [AA] ([0, inf]) Radius of the stacked disk.
 * n_stacking: [] ([1, inf]) Number of stacked layer/core/layer disks.
-* sigma_d: [Ang] ([0, inf]) Sigma of nearest neighbor spacing.
-* sld_core: [1e-6/Ang^2] ([-inf, inf]) Core scattering length density.
-* sld_layer: [1e-6/Ang^2] ([-inf, inf]) Layer scattering length density.
-* sld_solvent: [1e-6/Ang^2] ([-inf, inf]) Solvent scattering length density.
+* sigma_d: [AA] ([0, inf]) Sigma of nearest neighbor spacing.
+* sld_core: [1e-6/AA^2] ([-inf, inf]) Core scattering length density.
+* sld_layer: [1e-6/AA^2] ([-inf, inf]) Layer scattering length density.
+* sld_solvent: [1e-6/AA^2] ([-inf, inf]) Solvent scattering length density.
 * Optional parameters:
 * model_abs: [ ] Absorption cross section density at 2200 m/s.
 * model_scale: [ ] Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors can be related to the scattering intensity by the particle volume fraction.
@@ -60,7 +60,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_stacked_disks
-
 SETTING PARAMETERS (
         thick_core=10.0,
         thick_layer=10.0,
@@ -640,7 +639,7 @@ constant double Gauss76Z[76] = {
 
 #line 1 "stacked_disks"
 static double
-stacked_disks_kernel(
+stacked_disks_kernel_stacked_disks(
     double qab,
     double qc,
     double halfheight,
@@ -702,7 +701,7 @@ stacked_disks_kernel(
 
 
 static double
-stacked_disks_1d(
+stacked_disks_1d_stacked_disks(
     double q,
     double thick_core,
     double thick_layer,
@@ -725,7 +724,7 @@ like clay platelets that are not exfoliated
         double zi = (GAUSS_Z[i] + 1.0)*M_PI_4;
         double sin_alpha, cos_alpha; // slots to hold sincos function output
         SINCOS(zi, sin_alpha, cos_alpha);
-        double yyy = stacked_disks_kernel(q*sin_alpha, q*cos_alpha,
+        double yyy = stacked_disks_kernel_stacked_disks(q*sin_alpha, q*cos_alpha,
                            halfheight,
                            thick_layer,
                            radius,
@@ -769,7 +768,7 @@ Iq_stacked_disks(
     double solvent_sld)
 {
     int n_stacking = (int)(fp_n_stacking + 0.5);
-    return stacked_disks_1d(q,
+    return stacked_disks_1d_stacked_disks(q,
                     thick_core,
                     thick_layer,
                     radius,
@@ -795,7 +794,7 @@ Iqac_stacked_disks(double qab, double qc,
     int n_stacking = (int)(fp_n_stacking + 0.5);
     double d = 2.0 * thick_layer + thick_core;
     double halfheight = 0.5*thick_core;
-    double answer = stacked_disks_kernel(qab, qc,
+    double answer = stacked_disks_kernel_stacked_disks(qab, qc,
                      halfheight,
                      thick_layer,
                      radius,

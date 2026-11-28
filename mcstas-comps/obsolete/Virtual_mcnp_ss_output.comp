@@ -76,19 +76,18 @@ NOACC
 
 SHARE
 %{
-#ifndef MCNP_INPUT_DEFS
-#define MCNP_INPUT_DEFS
-/* number of neutron events to read for file pre-analysis */
+  #ifndef MCNP_INPUT_DEFS
+  #define MCNP_INPUT_DEFS
+  /* number of neutron events to read for file pre-analysis */
 
-#include <sys/stat.h>
+  #include <sys/stat.h>
 
-#endif
-
+  #endif
 %}
 
 DECLARE
 %{
-  FILE *hfile;                    /* Neutron input file handle */
+  FILE* hfile; /* Neutron input file handle */
 
   double to_mcstas[8];
   double from_mcstas[8];
@@ -100,88 +99,95 @@ DECLARE
 INITIALIZE
 %{
 
-  char   exit_flag=0;  /* set to 1 if end of simulation */
-  long   filesize  =0;
+  char exit_flag = 0; /* set to 1 if end of simulation */
+  long filesize = 0;
 
   counterout = 0;
 
   struct stat stfile;
-/* Open neutron input file. */
-/* (If empty filename given, present warning in case of verbose, perform nothing) */
+  /* Open neutron input file. */
+  /* (If empty filename given, present warning in case of verbose, perform nothing) */
 
-  if (strcmp(file,"rssa")) {
-    printf("MCNP_input: %s: Given filename is %s, please rename to 'rssa' and rerun!\n", NAME_CURRENT_COMP, file);
+  if (strcmp (file, "rssa")) {
+    printf ("MCNP_input: %s: Given filename is %s, please rename to 'rssa' and rerun!\n", NAME_CURRENT_COMP, file);
   } else {
     if (file) {
-      stat(file,&stfile);
+      stat (file, &stfile);
       filesize = stfile.st_size;
-      hfile = fopen(file, "r");
+      hfile = fopen (file, "r");
     }
-    if(!hfile)
-      {
-	fprintf(stderr, "MCNP_input: %s: Error: Cannot open input file %s.\n", NAME_CURRENT_COMP, file);
-      } else if (verbose)
-	printf("MCNP_input: %s: opening MCNP SSW file '%s'\n", NAME_CURRENT_COMP, file);
+    if (!hfile) {
+      fprintf (stderr, "MCNP_input: %s: Error: Cannot open input file %s.\n", NAME_CURRENT_COMP, file);
+    } else if (verbose)
+      printf ("MCNP_input: %s: opening MCNP SSW file '%s'\n", NAME_CURRENT_COMP, file);
 
     // put hardcoded nhis and ntrk values here
     //    ntrk=10;
     //    nhis=10;
-    ntrk=10;
-    nhis=10;  // Number of histories in MCNP SSW file
-    writeheader_(&ntrk,&nhis);
+    ntrk = 10;
+    nhis = 10; // Number of histories in MCNP SSW file
+    writeheader_ (&ntrk, &nhis);
 
-    if (verbose) printf("Number of histories in MCNP SSW file: %d \n ", nhis);
-    if (verbose) printf("WARNING: #histories & #tracks are copied from orginal MCNP run \n");
-    if (verbose) printf("WARNING: Generally there is a loss of events in the McStas step, \n");
-    if (verbose) printf("WARNING: causing ntrk and nhis to be wrong in subsequent MCNP running. \n");
-    if (verbose) printf("WARNING: MCNP cannot handle this (crashes). \n");
-    if (verbose) printf("WARNING: To resolve, reduce ntrk & nhis by hardcoding numbers in either: \n");
-    if (verbose) printf("WARNING: Virtual_mcnp_ss_output.comp or subs.f \n");
-    if (verbose) printf("WARNING: sorry for the inconvience. \n");
-    if (verbose) printf("Analysing MCNP file: %s \n", file);
+    if (verbose)
+      printf ("Number of histories in MCNP SSW file: %d \n ", nhis);
+    if (verbose)
+      printf ("WARNING: #histories & #tracks are copied from orginal MCNP run \n");
+    if (verbose)
+      printf ("WARNING: Generally there is a loss of events in the McStas step, \n");
+    if (verbose)
+      printf ("WARNING: causing ntrk and nhis to be wrong in subsequent MCNP running. \n");
+    if (verbose)
+      printf ("WARNING: MCNP cannot handle this (crashes). \n");
+    if (verbose)
+      printf ("WARNING: To resolve, reduce ntrk & nhis by hardcoding numbers in either: \n");
+    if (verbose)
+      printf ("WARNING: Virtual_mcnp_ss_output.comp or subs.f \n");
+    if (verbose)
+      printf ("WARNING: sorry for the inconvience. \n");
+    if (verbose)
+      printf ("Analysing MCNP file: %s \n", file);
 
   } /* non-empty filename */
-
 %}
 
 TRACE
 %{
-  char exit_flag=0;  /* set to 1 if end of simulation */
-  int  result_read=1;
+  char exit_flag = 0; /* set to 1 if end of simulation */
+  int result_read = 1;
 
+  while (1) {
+    from_mcstas[0] = x;
+    from_mcstas[1] = y;
+    from_mcstas[2] = z;
+    from_mcstas[3] = vx;
+    from_mcstas[4] = vy;
+    from_mcstas[5] = vz;
+    from_mcstas[6] = p;
+    from_mcstas[7] = t;
 
-  while(1) {
-    from_mcstas[0]=x;
-    from_mcstas[1]=y;
-    from_mcstas[2]=z;
-    from_mcstas[3]=vx;
-    from_mcstas[4]=vy;
-    from_mcstas[5]=vz;
-    from_mcstas[6]=p;
-    from_mcstas[7]=t;
+    writeneutron_ (&from_mcstas);
 
-    writeneutron_(&from_mcstas);
-
-    if ( counterout >= (nhis-1) ) {
-      result_read=EOF;
+    if (counterout >= (nhis - 1)) {
+      result_read = EOF;
       exit_flag = 1;
     }
     counterout++;
 
-  if (exit_flag) {
-    if (verbose) printf("  Finishing simulation\n");
-    mcset_ncount(mcget_run_num()); ABSORB;
+    if (exit_flag) {
+      if (verbose)
+        printf ("  Finishing simulation\n");
+      mcset_ncount (mcget_run_num ());
+      ABSORB;
+    }
+    SCATTER;
+    break;
+    /* end while */
   }
-  SCATTER;
-  break;
- /* end while */
-  }
-
 %}
 
 FINALLY
 %{
-  closefiles_();
+  closefiles_ ();
 %}
 
 MCDISPLAY

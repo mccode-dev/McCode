@@ -445,7 +445,7 @@ paraboloid_intersect(double *l0, double *l1, double x, double y, double z,
   k=sqrt(kx*kx + ky*ky + kz*kz);
 
   A=sign*(kx*kx*a2i + ky*ky*b2i);
-  B=sign*2*kx*x*a2i + sign*ky*y*b2i - kz;
+  B=sign*2*kx*x*a2i + sign*2*ky*y*b2i - kz;
   C=sign*x*x*a2i + sign*y*y*b2i - z;
 
   retval=solve_2nd_order(l0,l1,A,B,C);
@@ -455,7 +455,7 @@ paraboloid_intersect(double *l0, double *l1, double x, double y, double z,
 }
 
 /******************************************************************************
- * paraboloid_normal: Calucate the normal vector to the given paraboloid at the
+ * paraboloid_normal: Calculate the normal vector to the given paraboloid at the
  * point (x,y,z) and put the result i nx,ny,nz. No check is performed if the
  * the point is on th surface. In that case the result is undefined.
  *****************************************************************************/

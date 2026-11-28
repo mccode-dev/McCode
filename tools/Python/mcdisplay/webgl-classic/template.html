@@ -8,6 +8,7 @@
 		#lblTour { margin-left: 12px; }
 		#lblTour input { margin: 0 4px; }
 		#lblTour > * { margin-right: 12px; white-space: nowrap; }
+		#btnTourPause { position: fixed; right: 16px; bottom: 16px; width: 48px; height: 48px; padding: 0; line-height: 0; display: none; }
 	</style>
 </head>
 <body>
@@ -93,16 +94,22 @@
 			controller.setViewHome();
 		}
 		// tour: fly from component to component, sitting the given seconds at each (for movies)
-		var tourTimer = null;
 		var handleTour = function(start)
 		{
-			clearTimeout(tourTimer);
+			controller.main.fly = null;
 			var sel = document.getElementById("selTourComp");
-			if (!document.getElementById("cbxTour").checked) { sel.value = ""; stopRecording(); return; }
+			var on = document.getElementById("cbxTour").checked;
+			document.getElementById("btnTourPause").style.display = on ? "block" : "none";
+			if (!on) { sel.value = ""; handleTourPause(false); stopRecording(); return; }
 			if (start && document.getElementById("cbxRecord").checked) { startRecording(""); }
 			var num = function(id) { return parseFloat(document.getElementById(id).value) || 0; };
+			var sit = controller.main.smooth ? 0 : parseFloat(document.getElementById("numSit").value);
 			sel.value = controller.main.flyToNext(document.getElementById("cbxBeam").checked,
-				["numOffX", "numOffY", "numOffZ"].map(num), ["numViewX", "numViewY", "numViewZ"].map(num));
+				["numOffX", "numOffY", "numOffZ"].map(num), ["numViewX", "numViewY", "numViewZ"].map(num),
+				1000*(sit > 0 ? sit : 0), function() { // a campath file tour stops at its last point
+					var m = controller.main;
+					if (m.usePath && m.tourIdx == m.campath.length - 1) { endTour(); } else { handleTour(); }
+				});
 			if (recorder) {
 				if (!recFirst) { recFirst = sel.value; }
 				else if (recFirst == sel.value) { // one full loop recorded
@@ -110,9 +117,21 @@
 					stopRecording();
 				}
 			}
-			var sit = controller.main.smooth ? 0 : parseFloat(document.getElementById("numSit").value);
-			var last = controller.main.usePath && controller.main.tourIdx == controller.main.campath.length - 1;
-			tourTimer = setTimeout(last ? endTour : handleTour, FLY_MS + 1000*(sit > 0 ? sit : 0));
+		}
+		// tour paused (the camera can be moved) or going on, with the recording; button icon: play when paused, else pause
+		var ICON_PLAY = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M7 4v16l13-8z" fill="currentColor"/></svg>';
+		var ICON_PAUSE = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 4h4v16h-4zM14 4h4v16h-4z" fill="currentColor"/></svg>';
+		var handleTourPause = function(paused)
+		{
+			controller.main.pauseTour(paused);
+			document.getElementById("btnTourPause").innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
+			if (recorder) { if (paused) { recorder.pause(); } else { recorder.resume(); } }
+		}
+		// tour speed slider: 0.1x - 10x
+		var handleTourSpeed = function(v)
+		{
+			controller.main.tourSpeed = Math.pow(10, v);
+			document.getElementById("lblTourSpeed").innerHTML = controller.main.tourSpeed.toPrecision(2) + "x";
 		}
 		// a campath file tour stops at its last point
 		var endTour = function()
@@ -222,7 +241,7 @@
 			<span>sit<input id="numSit" type="number" min="0" step="0.5" value="0" style="width: 45px;">s</span>
 			<label id="lblCampath" style="display: none;">campath file<input id="cbxCampath" type="checkbox" autocomplete="off" onchange="handleCampath(this.checked);"></label>
 			<label title="no stops: travel through the components at a steady pace (sit is ignored)">Smooth<input id="cbxSmooth" type="checkbox" checked autocomplete="off" onchange="controller.main.smooth = this.checked;"></label>
-			<span title="speed of the camera movement">speed<select autocomplete="off" onchange="FLY_MS = 1000/this.value;"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select></span>
+			<span title="speed of the tour, also during a flight or sit">speed<input type="range" min="-1" max="1" step="0.05" value="0" autocomplete="off" style="width: 90px; vertical-align: middle;" oninput="handleTourSpeed(parseFloat(this.value));"><span id="lblTourSpeed" style="display: inline-block; width: 36px;">1.0x</span></span>
 			<label>Move along beam<input id="cbxBeam" type="checkbox" checked autocomplete="off"></label>
 			<span title="camera offset from the component origin (m), in the component frame">offset
 			<input id="numOffX" type="number" step="0.1" value="0" style="width: 45px;"><input id="numOffY" type="number" step="0.1" value="0" style="width: 45px;"><input id="numOffZ" type="number" step="0.1" value="0" style="width: 45px;">m</span>
@@ -232,6 +251,7 @@
 		</span>
 	</div>
 	<div id="3dcanvas"></div>
+	<button id="btnTourPause" title="pause or continue the tour (the camera can be moved while paused)" onclick="handleTourPause(!controller.main.tourPaused);"></button>
 
 	<script>
 		// gui synchronization class
@@ -329,6 +349,7 @@
 			controller.main.usePath = true;
 		}
 		fillTourStops();
+		document.getElementById("btnTourPause").innerHTML = ICON_PAUSE;
     </script>
 </body>
 </html>

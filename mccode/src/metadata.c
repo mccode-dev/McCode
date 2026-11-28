@@ -9,10 +9,11 @@
 /** @brief Assign component metadata to the instrument metadata list
  *
  * @param inst the instrument_definition
+ * @param instr_metadata instrument-level METADATA, with the defining instrument as source
  * @return 0 if successful, non-zero if not
  */
 
-int metadata_construct_table(instr_ptr_t inst){
+int metadata_construct_table(instr_ptr_t inst, List instr_metadata){
   Symtab_handle lit_iter;
   struct Symtab_entry * lit_entry;
   struct comp_inst * comp_ptr;
@@ -57,6 +58,15 @@ int metadata_construct_table(instr_ptr_t inst){
         symtab_add(lit_map, key, (void *) l_ptr);
       }
     }
+  }
+  // instrument-level metadata, keyed by the instrument that defined it; a later duplicate key wins
+  for (int i=0; i<list_len(instr_metadata); ++i){
+    l_ptr = (struct metadata_struct*) list_access(instr_metadata, i);
+    strcpy(key, l_ptr->source);
+    strcat(key, sep);
+    strcat(key, l_ptr->name);
+    if ((lit_entry = symtab_lookup(lit_map, key))) lit_entry->val = (void *) l_ptr;
+    else symtab_add(lit_map, key, (void *) l_ptr);
   }
   // str_cat allocated new memory, and symtab_add only copied the key; so free it now
   if (key) free(key);

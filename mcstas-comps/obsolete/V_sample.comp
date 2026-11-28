@@ -70,11 +70,6 @@
 * f_QE: [1]           Fraction of quasielastic scattering (rest is elastic) 
 * gamma: [1]          Lorentzian width of quasielastic broadening (HWHM) 
 *
-* Variables calculated in the component
-*
-* V_my_s: Attenuation factor due to scattering [m^-1]
-* V_my_a: Attenuation factor due to absorbtion [m^-1]
-*
 * %L
 * <A HREF="http://neutron.risoe.dk/mcstas/components/tests/v_sample/">Test
 * results</A> (not up-to-date).
@@ -95,18 +90,17 @@ focus_aw=0, focus_ah=0, xwidth=0, yheight=0, zthick=0, rad_sphere=0, sig_a=0, si
 
 SHARE
 %{
-struct StructVarsV
-{
-double  sigma_a; /* Absorption cross section per atom (barns) */
-    double  sigma_i; /* Incoherent scattering cross section per atom (barns) */
-    double  rho;     /* Density of atoms (AA-3) */
-    double  my_s;
-    double  my_a_v;
-    int     shapetyp;    /* 0 double well cylynder, 1 box,  3 sphere */
-    double  distance;    /* when non zero, gives rect target distance */
-    double  aw,ah;       /* rectangular angular dimensions */
-    double  xw,yh;       /* rectangular metrical dimensions */
-    double  tx,ty,tz;    /* target coords */
+  struct StructVarsV {
+    double sigma_a; /* Absorption cross section per atom (barns) */
+    double sigma_i; /* Incoherent scattering cross section per atom (barns) */
+    double rho;     /* Density of atoms (AA-3) */
+    double my_s;
+    double my_a_v;
+    int shapetyp;      /* 0 double well cylynder, 1 box,  3 sphere */
+    double distance;   /* when non zero, gives rect target distance */
+    double aw, ah;     /* rectangular angular dimensions */
+    double xw, yh;     /* rectangular metrical dimensions */
+    double tx, ty, tz; /* target coords */
   };
 %}
 
@@ -118,246 +112,239 @@ DECLARE
 INITIALIZE
 %{
   /* Backward compatibility */
-  if (radius) radius_o = radius;
-  if (thickness) radius_i = radius_o - thickness;
-  if (zdepth) zthick = zdepth;
-  if (yheight) h = yheight;
-  if (Vc) V0 = Vc;
-  if (sigma_abs) sig_a = sigma_abs;
-  if (sigma_inc) sig_i = sigma_inc;
+  if (radius)
+    radius_o = radius;
+  if (thickness)
+    radius_i = radius_o - thickness;
+  if (zdepth)
+    zthick = zdepth;
+  if (yheight)
+    h = yheight;
+  if (Vc)
+    V0 = Vc;
+  if (sigma_abs)
+    sig_a = sigma_abs;
+  if (sigma_inc)
+    sig_i = sigma_inc;
 
   VarsV.shapetyp = -1;
-  if (xwidth && yheight && zdepth)  VarsV.shapetyp=1; /* box */
-  else if (radius > 0 && yheight)        VarsV.shapetyp=0; /* cylinder */
-  else if (radius && !yheight)           VarsV.shapetyp=2; /* sphere */
-  
-  if (VarsV.shapetyp < 0)
-    exit(fprintf(stderr,"V_sample: %s: sample has invalid dimensions. Please check parameter values.\n", NAME_CURRENT_COMP));
+  if (xwidth && yheight && zdepth)
+    VarsV.shapetyp = 1; /* box */
+  else if (radius > 0 && yheight)
+    VarsV.shapetyp = 0; /* cylinder */
+  else if (radius && !yheight)
+    VarsV.shapetyp = 2; /* sphere */
 
-  VarsV.sigma_a=sig_a;
-  VarsV.sigma_i=sig_i;
-  VarsV.rho = (pack/V0);
-  VarsV.my_s=(VarsV.rho * 100 * VarsV.sigma_i);
-  VarsV.my_a_v=(VarsV.rho * 100 * VarsV.sigma_a);
+  if (VarsV.shapetyp < 0)
+    exit (fprintf (stderr, "V_sample: %s: sample has invalid dimensions. Please check parameter values.\n", NAME_CURRENT_COMP));
+
+  VarsV.sigma_a = sig_a;
+  VarsV.sigma_i = sig_i;
+  VarsV.rho = (pack / V0);
+  VarsV.my_s = (VarsV.rho * 100 * VarsV.sigma_i);
+  VarsV.my_a_v = (VarsV.rho * 100 * VarsV.sigma_a);
 
   /* now compute target coords if a component index is supplied */
-  VarsV.tx= VarsV.ty=VarsV.tz=0;
-  if (target_index)
-  {
+  VarsV.tx = VarsV.ty = VarsV.tz = 0;
+  if (target_index) {
     Coords ToTarget;
-    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),POS_A_CURRENT_COMP);
-    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
-    coords_get(ToTarget, &VarsV.tx, &VarsV.ty, &VarsV.tz);
+    ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+    ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+    coords_get (ToTarget, &VarsV.tx, &VarsV.ty, &VarsV.tz);
+  } else {
+    VarsV.tx = target_x;
+    VarsV.ty = target_y;
+    VarsV.tz = target_z;
   }
-  else
-  { VarsV.tx = target_x; VarsV.ty = target_y; VarsV.tz = target_z; }
 
   if (!(VarsV.tx || VarsV.ty || VarsV.tz))
-    printf("V_sample: %s: The target is not defined. Using direct beam (Z-axis).\n",
-      NAME_CURRENT_COMP);
+    printf ("V_sample: %s: The target is not defined. Using direct beam (Z-axis).\n", NAME_CURRENT_COMP);
 
-  VarsV.distance=sqrt(VarsV.tx*VarsV.tx+VarsV.ty*VarsV.ty+VarsV.tz*VarsV.tz);
+  VarsV.distance = sqrt (VarsV.tx * VarsV.tx + VarsV.ty * VarsV.ty + VarsV.tz * VarsV.tz);
 
   /* different ways of setting rectangular area */
-  VarsV.aw  = VarsV.ah = 0;
+  VarsV.aw = VarsV.ah = 0;
   if (focus_xw) {
-  VarsV.xw = focus_xw;
+    VarsV.xw = focus_xw;
   }
   if (focus_yh) {
     VarsV.yh = focus_yh;
   }
   if (focus_aw) {
-    VarsV.aw = DEG2RAD*focus_aw;
+    VarsV.aw = DEG2RAD * focus_aw;
   }
   if (focus_ah) {
-    VarsV.ah = DEG2RAD*focus_ah;
+    VarsV.ah = DEG2RAD * focus_ah;
   }
 %}
 
 TRACE
 %{
-  double t0, t3;                /* Entry/exit time for outer cylinder */
-  double t1, t2;                /* Entry/exit time for inner cylinder */
-  double v;                     /* Neutron velocity */
-  double dt0, dt1, dt2, dt;     /* Flight times through sample */
-  double l_full;                /* Flight path length for non-scattered neutron */
-  double l_i, l_o=0;            /* Flight path lenght in/out for scattered neutron */
-  double my_a=0;                  /* Velocity-dependent attenuation factor */
-  double solid_angle=0;         /* Solid angle of target as seen from scattering point */
-  double aim_x=0, aim_y=0, aim_z=1;   /* Position of target relative to scattering point */
-  double v_i, v_f, E_i, E_f; /* initial and final energies and velocities */
-  double dE;                 /* Energy transfer */
-  int    intersect=0;
+  double t0, t3;                          /* Entry/exit time for outer cylinder */
+  double t1, t2;                          /* Entry/exit time for inner cylinder */
+  double v;                               /* Neutron velocity */
+  double dt0, dt1, dt2, dt;               /* Flight times through sample */
+  double l_full;                          /* Flight path length for non-scattered neutron */
+  double l_i, l_o = 0;                    /* Flight path lenght in/out for scattered neutron */
+  double my_a = 0;                        /* Velocity-dependent attenuation factor */
+  double solid_angle = 0;                 /* Solid angle of target as seen from scattering point */
+  double aim_x = 0, aim_y = 0, aim_z = 1; /* Position of target relative to scattering point */
+  double v_i, v_f, E_i, E_f;              /* initial and final energies and velocities */
+  double dE;                              /* Energy transfer */
+  int intersect = 0;
 
   if (VarsV.shapetyp == 2)
-    intersect = sphere_intersect(&t0, &t3, x, y, z, vx, vy, vz, rad_sphere);
+    intersect = sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, rad_sphere);
+  else if (VarsV.shapetyp == 1)
+    intersect = box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zthick);
   else
-    if (VarsV.shapetyp == 1)
-      intersect = box_intersect(&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zthick);
-  else
-    intersect = cylinder_intersect(&t0, &t3, x, y, z, vx, vy, vz, radius_o, h);
-  if(intersect)
-  {
-    if(t0 < 0) ABSORB; /* we already passed the sample; this is illegal */
+    intersect = cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius_o, h);
+  if (intersect) {
+    if (t0 < 0)
+      ABSORB; /* we already passed the sample; this is illegal */
     /* Neutron enters at t=t0. */
-    if(VarsV.shapetyp == 1 || VarsV.shapetyp == 2)
+    if (VarsV.shapetyp == 1 || VarsV.shapetyp == 2)
       t1 = t2 = t3;
-    else
-      if(!radius_i || !cylinder_intersect(&t1, &t2, x, y, z, vx, vy, vz, radius_i, h))
-        t1 = t2 = t3;
+    else if (!radius_i || !cylinder_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius_i, h))
+      t1 = t2 = t3;
 
-    dt0 = t1-t0;                /* Time in sample, ingoing */
-    dt1 = t2-t1;                /* Time in hole */
-    dt2 = t3-t2;                /* Time in sample, outgoing */
-    v = sqrt(vx*vx + vy*vy + vz*vz);
-    l_full = v * (dt0 + dt2);   /* Length of full path through sample */
-    if (v) my_a = VarsV.my_a_v*(2200/v);
+    dt0 = t1 - t0; /* Time in sample, ingoing */
+    dt1 = t2 - t1; /* Time in hole */
+    dt2 = t3 - t2; /* Time in sample, outgoing */
+    v = sqrt (vx * vx + vy * vy + vz * vz);
+    l_full = v * (dt0 + dt2); /* Length of full path through sample */
+    if (v)
+      my_a = VarsV.my_a_v * (2200 / v);
 
-    if (frac >= 1 || rand01()<frac)          /* Scattering */
+    if (frac >= 1 || rand01 () < frac) /* Scattering */
     {
-      dt = rand01()*(dt0+dt2);    /* Time of scattering (relative to t0) */
-      l_i = v*dt;                 /* Penetration in sample: scattering+abs */
+      dt = rand01 () * (dt0 + dt2); /* Time of scattering (relative to t0) */
+      l_i = v * dt;                 /* Penetration in sample: scattering+abs */
       if (dt > dt0)
-        dt += dt1;                /* jump to 2nd side of cylinder */
+        dt += dt1; /* jump to 2nd side of cylinder */
 
-      PROP_DT(dt+t0);             /* Point of scattering */
+      PROP_DT (dt + t0); /* Point of scattering */
 
       if ((VarsV.tx || VarsV.ty || VarsV.tz)) {
-        aim_x = VarsV.tx-x;       /* Vector pointing at target (anal./det.) */
-        aim_y = VarsV.ty-y;
-        aim_z = VarsV.tz-z;
+        aim_x = VarsV.tx - x; /* Vector pointing at target (anal./det.) */
+        aim_y = VarsV.ty - y;
+        aim_z = VarsV.tz - z;
       }
-      if(VarsV.aw && VarsV.ah) {
-        randvec_target_rect_angular(&vx, &vy, &vz, &solid_angle,
-          aim_x, aim_y, aim_z, VarsV.aw, VarsV.ah, ROT_A_CURRENT_COMP);
-      } else if(VarsV.xw && VarsV.yh) {
-        randvec_target_rect(&vx, &vy, &vz, &solid_angle,
-          aim_x, aim_y, aim_z, VarsV.xw, VarsV.yh, ROT_A_CURRENT_COMP);
+      if (VarsV.aw && VarsV.ah) {
+        randvec_target_rect_angular (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, VarsV.aw, VarsV.ah, ROT_A_CURRENT_COMP);
+      } else if (VarsV.xw && VarsV.yh) {
+        randvec_target_rect (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, VarsV.xw, VarsV.yh, ROT_A_CURRENT_COMP);
       } else {
-        randvec_target_circle(&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
+        randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
       }
-      NORM(vx, vy, vz);
+      NORM (vx, vy, vz);
 
-      v_i = v;          /* Store initial velocity in case of quasielastic */
-      if (rand01()<f_QE)	/* Quasielastic contribution */
-	{
-          E_i = VS2E*v_i*v_i;
-          dE = gamma*tan(PI/2*randpm1());
-          E_f = E_i + dE;
-          if (E_f <= 0)
-            ABSORB;
-	  v_f = SE2V*sqrt(E_f);
-          v = v_f;
-	  /*          printf("vi: %g Ei: %g dE: %g Ef %g vf: %g v: %g \n",
-		      v_i,E_i,dE,E_f,v_f,v); */
-	}
+      v_i = v;              /* Store initial velocity in case of quasielastic */
+      if (rand01 () < f_QE) /* Quasielastic contribution */
+      {
+        E_i = VS2E * v_i * v_i;
+        dE = gamma * tan (PI / 2 * randpm1 ());
+        E_f = E_i + dE;
+        if (E_f <= 0)
+          ABSORB;
+        v_f = SE2V * sqrt (E_f);
+        v = v_f;
+        /*          printf("vi: %g Ei: %g dE: %g Ef %g vf: %g v: %g \n",
+                    v_i,E_i,dE,E_f,v_f,v); */
+      }
 
       vx *= v;
       vy *= v;
       vz *= v;
 
-      if(VarsV.shapetyp == 0) {
-        if(!cylinder_intersect(&t0, &t3, x, y, z, vx, vy, vz, radius_o, h)) {
+      if (VarsV.shapetyp == 0) {
+        if (!cylinder_intersect (&t0, &t3, x, y, z, vx, vy, vz, radius_o, h)) {
           /* ??? did not hit cylinder */
-          printf("FATAL ERROR: Did not hit cylinder from inside.\n");
-          //exit(1);
+          printf ("FATAL ERROR: Did not hit cylinder from inside.\n");
+          // exit(1);
         }
         dt = t3; /* outgoing point */
-        if(cylinder_intersect(&t1, &t2, x, y, z, vx, vy, vz, radius_i, h) &&
-           t2 > 0)
-          dt -= (t2-t1);            /* Subtract hollow part */
-      }
-      else {
-        if(VarsV.shapetyp == 1) {
-	      if(!box_intersect(&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zthick)) {
+        if (cylinder_intersect (&t1, &t2, x, y, z, vx, vy, vz, radius_i, h) && t2 > 0)
+          dt -= (t2 - t1); /* Subtract hollow part */
+      } else {
+        if (VarsV.shapetyp == 1) {
+          if (!box_intersect (&t0, &t3, x, y, z, vx, vy, vz, xwidth, yheight, zthick)) {
             /* ??? did not hit box */
-            printf("FATAL ERROR: Did not hit box from inside.\n");
-            //exit(1);
+            printf ("FATAL ERROR: Did not hit box from inside.\n");
+            // exit(1);
+          }
+          dt = t3;
+        } else {
+          if (!sphere_intersect (&t0, &t3, x, y, z, vx, vy, vz, rad_sphere)) {
+            /* ??? did not hit sphere */
+            printf ("FATAL ERROR: Did not hit sphere from inside.\n");
+            // exit(1);
           }
           dt = t3;
         }
-        else {
-	      if(!sphere_intersect(&t0, &t3, x, y, z, vx, vy, vz, rad_sphere)) {
-            /* ??? did not hit sphere */
-            printf("FATAL ERROR: Did not hit sphere from inside.\n");
-            //exit(1);
-          }
-          dt = t3;  
-        }
       }
-      l_o = v*dt; /* trajectory after scattering point: absorption only */
+      l_o = v * dt; /* trajectory after scattering point: absorption only */
 
-      p *= v/v_i*l_full*VarsV.my_s*exp(-my_a*(l_i+v_i/v*l_o)-VarsV.my_s*l_i);
+      p *= v / v_i * l_full * VarsV.my_s * exp (-my_a * (l_i + v_i / v * l_o) - VarsV.my_s * l_i);
       if (!multiples) {
-	/* If no "multiples", correct by applying scattering cross-sec and
-	   implicitly "absorb" further scattering (as in PowderN) 
-	   We are currently (august 2007) having a debate on which solution 
-	   is the most reasonable */
-	p *= exp(-VarsV.my_s*l_o);
+        /* If no "multiples", correct by applying scattering cross-sec and
+           implicitly "absorb" further scattering (as in PowderN)
+           We are currently (august 2007) having a debate on which solution
+           is the most reasonable */
+        p *= exp (-VarsV.my_s * l_o);
       }
       /* We do not consider scattering from 2nd part (outgoing) */
-      p /= 4*PI/solid_angle;
+      p /= 4 * PI / solid_angle;
       p /= frac;
 
       /* Polarisation part (1/3 NSF, 2/3 SF) */
-      sx *= -1.0/3.0;
-      sy *= -1.0/3.0;
-      sz *= -1.0/3.0;
+      sx *= -1.0 / 3.0;
+      sy *= -1.0 / 3.0;
+      sz *= -1.0 / 3.0;
 
       SCATTER;
-    }
-    else /* Transmitting; always elastic */
+    } else /* Transmitting; always elastic */
     {
-      p *= exp(-(my_a+VarsV.my_s)*l_full);
-      p /= (1-frac);
+      p *= exp (-(my_a + VarsV.my_s) * l_full);
+      p /= (1 - frac);
     }
   }
 %}
 
 MCDISPLAY
 %{		
-  
+
   if (VarsV.shapetyp == 0) {
-    circle("xz", 0,  h/2.0, 0, radius_i);
-    circle("xz", 0,  h/2.0, 0, radius_o);
-    circle("xz", 0, -h/2.0, 0, radius_i);
-    circle("xz", 0, -h/2.0, 0, radius_o);
-    line(-radius_i, -h/2.0, 0, -radius_i, +h/2.0, 0);
-    line(+radius_i, -h/2.0, 0, +radius_i, +h/2.0, 0);
-    line(0, -h/2.0, -radius_i, 0, +h/2.0, -radius_i);
-    line(0, -h/2.0, +radius_i, 0, +h/2.0, +radius_i);
-    line(-radius_o, -h/2.0, 0, -radius_o, +h/2.0, 0);
-    line(+radius_o, -h/2.0, 0, +radius_o, +h/2.0, 0);
-    line(0, -h/2.0, -radius_o, 0, +h/2.0, -radius_o);
-    line(0, -h/2.0, +radius_o, 0, +h/2.0, +radius_o);
-  }
-  else { 
-	if (VarsV.shapetyp == 1) {
-      double xmin = -0.5*xwidth;
-      double xmax =  0.5*xwidth;
-      double ymin = -0.5*yheight;
-      double ymax =  0.5*yheight;
-      double zmin = -0.5*zthick;
-      double zmax =  0.5*zthick;
-      multiline(5, xmin, ymin, zmin,
-                   xmax, ymin, zmin,
-                   xmax, ymax, zmin,
-                   xmin, ymax, zmin,
-                   xmin, ymin, zmin);
-      multiline(5, xmin, ymin, zmax,
-                   xmax, ymin, zmax,
-                   xmax, ymax, zmax,
-                   xmin, ymax, zmax,
-                   xmin, ymin, zmax);
-      line(xmin, ymin, zmin, xmin, ymin, zmax);
-      line(xmax, ymin, zmin, xmax, ymin, zmax);
-      line(xmin, ymax, zmin, xmin, ymax, zmax);
-      line(xmax, ymax, zmin, xmax, ymax, zmax);
-    }
-    else {
-      circle("xy", 0,  0.0, 0, rad_sphere);
-      circle("xz", 0,  0.0, 0, rad_sphere);
-      circle("yz", 0,  0.0, 0, rad_sphere);        
+    circle ("xz", 0, h / 2.0, 0, radius_i);
+    circle ("xz", 0, h / 2.0, 0, radius_o);
+    circle ("xz", 0, -h / 2.0, 0, radius_i);
+    circle ("xz", 0, -h / 2.0, 0, radius_o);
+    line (-radius_i, -h / 2.0, 0, -radius_i, +h / 2.0, 0);
+    line (+radius_i, -h / 2.0, 0, +radius_i, +h / 2.0, 0);
+    line (0, -h / 2.0, -radius_i, 0, +h / 2.0, -radius_i);
+    line (0, -h / 2.0, +radius_i, 0, +h / 2.0, +radius_i);
+    line (-radius_o, -h / 2.0, 0, -radius_o, +h / 2.0, 0);
+    line (+radius_o, -h / 2.0, 0, +radius_o, +h / 2.0, 0);
+    line (0, -h / 2.0, -radius_o, 0, +h / 2.0, -radius_o);
+    line (0, -h / 2.0, +radius_o, 0, +h / 2.0, +radius_o);
+  } else {
+    if (VarsV.shapetyp == 1) {
+      double xmin = -0.5 * xwidth;
+      double xmax = 0.5 * xwidth;
+      double ymin = -0.5 * yheight;
+      double ymax = 0.5 * yheight;
+      double zmin = -0.5 * zthick;
+      double zmax = 0.5 * zthick;
+      multiline (5, xmin, ymin, zmin, xmax, ymin, zmin, xmax, ymax, zmin, xmin, ymax, zmin, xmin, ymin, zmin);
+      multiline (5, xmin, ymin, zmax, xmax, ymin, zmax, xmax, ymax, zmax, xmin, ymax, zmax, xmin, ymin, zmax);
+      line (xmin, ymin, zmin, xmin, ymin, zmax);
+      line (xmax, ymin, zmin, xmax, ymin, zmax);
+      line (xmin, ymax, zmin, xmin, ymax, zmax);
+      line (xmax, ymax, zmin, xmax, ymax, zmax);
+    } else {
+      circle ("xy", 0, 0.0, 0, rad_sphere);
+      circle ("xz", 0, 0.0, 0, rad_sphere);
+      circle ("yz", 0, 0.0, 0, rad_sphere);
     }
   }
 %}

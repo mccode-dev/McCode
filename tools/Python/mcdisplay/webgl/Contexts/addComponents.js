@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { RAY } from "./addRays";
 import { addMonitorData, showMonitorData } from "./addMonitorData";
 
@@ -11,7 +12,14 @@ export function clearScene(parentnode) {
   }
 }
 
-function createSurface(geometry, color, transparency) {
+// a shape, to be merged with the others of its component by mergeDrawing
+function createSurface(geometry, color) {
+  const shape = new THREE.Object3D();
+  shape.userData = { geometry, color };
+  return shape;
+}
+
+function addSurface(geometry, color, transparency, parent) {
   const isTransparent = transparency < 1;
   const createMaterial = (side) => new THREE.MeshLambertMaterial({
     color: color,
@@ -34,15 +42,40 @@ function createSurface(geometry, color, transparency) {
     front.renderOrder = 2;
     surface.add(back, front);
   }
-
-  // the shape's edges as lines, shown with or instead of the surface (showShapes)
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geometry),
-    new THREE.LineBasicMaterial({ color: color })
-  );
-  edges.userData.isEdges = true;
-  surface.add(edges);
+  parent.add(surface);
   return surface;
+}
+
+function addLines(geometry, color, parent) {
+  const lines = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: color }));
+  parent.add(lines);
+  return lines;
+}
+
+// draw the shapes and lines of a component: one object per colour, as drawing many objects is slow
+function mergeDrawing(group, transparency) {
+  const shapes = {}, lines = {};
+  group.children.forEach((obj) => {
+    const { geometry, color, points } = obj.userData;
+    if (points) {
+      const list = (lines[color] ??= []);
+      for (let i = 0; i + 5 < points.length; i += 3) for (let k = 0; k < 6; k++) list.push(points[i + k]);
+    } else {
+      const g = geometry.index ? geometry.toNonIndexed() : geometry;
+      g.deleteAttribute("uv"); // not on all shapes
+      obj.updateMatrix();
+      (shapes[color] ??= []).push(g.applyMatrix4(obj.matrix));
+    }
+  });
+  group.clear();
+  Object.entries(shapes).forEach(([color, geometries]) => {
+    const surface = addSurface(mergeGeometries(geometries), color, transparency, group);
+    surface.userData = { geometries, color }; // for the edges, see showShapes
+  });
+  Object.entries(lines).forEach(([color, list]) => {
+    const geometry = new THREE.BufferGeometry();
+    addLines(geometry.setAttribute("position", new THREE.Float32BufferAttribute(list, 3)), color, group);
+  });
 }
 
 export function loadComponents(parentnode, components, monitors) {
@@ -192,6 +225,7 @@ export function loadComponents(parentnode, components, monitors) {
           break;
       }
     }
+    mergeDrawing(compList[i], transparency);
     const mon = monitors && monitors[component.name]; // --simdir
     if (mon) addMonitorData(compList[i], mon, transparency, parentnode.userData.monitorLog, component.m4[5] < 0);
   });
@@ -231,35 +265,28 @@ export function showShapes(parentnode, surfaces, lines) {
   parentnode.userData.shapes = { surfaces, lines };
   parentnode.children
     .filter((child) => child.type === "Group" && !child.name.includes(RAY))
-    .forEach((group) =>
+    .forEach((group) => {
+      if (lines) {
+        group.children.filter((obj) => obj.userData.geometries).forEach((surface) => { // the edges, made when first shown
+          const { geometries, color } = surface.userData;
+          const edges = mergeGeometries(geometries.map((g) => new THREE.EdgesGeometry(g)));
+          addLines(edges, color, group).userData.isEdges = true;
+          surface.userData = {};
+        });
+      }
       group.traverse((obj) => {
         if (obj.isMesh && !obj.userData.monitor) obj.material.visible = surfaces; // monitor data: its own buttons
         if (obj.userData.isEdges) obj.visible = lines;
-      })
-    );
+      });
+    });
 }
 
 // add multiline
-// 		arrVector3  -  an array of THREE.Vector3 instances
-function addMultiLineV3(arrVector3, parent, linecolor) {
-  var multilinematerial = new THREE.LineBasicMaterial({ color: linecolor });
-  var multilinegeometry = new THREE.BufferGeometry().setFromPoints(arrVector3);
-  var multiline = new THREE.Line(multilinegeometry, multilinematerial);
-  parent.add(multiline);
-}
-// add multiline proxy method
-//		points  -  array of single points
+//		points  -  array of coordinates x, y, z, x, y, z, ...
 export function addMultiLine(points, parent, linecolor) {
-  let vectors = [];
-  for (var i = 0; i < points.length / 3; i++) {
-    const v = new THREE.Vector3(
-      points[i * 3],
-      points[i * 3 + 1],
-      points[i * 3 + 2]
-    );
-    vectors.push(v);
-  }
-  addMultiLineV3(vectors, parent, linecolor);
+  const line = new THREE.Object3D();
+  line.userData = { points, color: linecolor };
+  parent.add(line);
 }
 
 // add circle to xy, xz or yz plane

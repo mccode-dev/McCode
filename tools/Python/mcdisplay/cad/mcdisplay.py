@@ -11,9 +11,11 @@ Python), and VTKJS (.vtkjs zip of the vtk.js JSON scene format).
 Each instrument component is assigned a color from a cycling palette, so
 adjacent components are visually distinguishable in the output.
 Color-capable formats: glTF, GLB, OBJ (via companion .mtl), PLY (vertex colors),
-VRML97, X3D. STL, OFF and legacy VTK carry no color information.
+VRML97, X3D, STEP, VTK. STL and OFF carry no color information.
 STL, PLY and OFF hold surfaces only (no lines); PLY and OFF can be read back by
 the McStas OFF components (interoff-lib).
+
+With --simdir, the 1D/2D monitor data of a simulation are drawn on the monitors.
 
 Only dependency: numpy (already required by mccodelib.instrgeom).
 
@@ -40,6 +42,7 @@ from mccodelib.instrgeom import (Vector3d, DrawMagnify, DrawLine, DrawDashedLine
                                   DrawMultiline, DrawRectangle, DrawBox, DrawCircle,
                                   DrawNewCircle, DrawSphere, DrawCone, DrawCylinder,
                                   DrawDisc, DrawAnnulus, DrawPolygon, DrawPolyhedron)
+from mccodelib.instrparser import MantidPixelLine, MantidRectangularDetectorLine, MantidBananaDetectorLine
 from mccodelib import mccode_config
 
 import numpy as np
@@ -95,20 +98,20 @@ class Mesh:
     def transformed(self, m4):
         return Mesh(transform_points(m4, self.verts), self.tris)
 
-    def merge(self, other):
-        if other is None or other.empty():
-            return self
-        if self.empty():
-            return other
-        tris = np.vstack((self.tris, other.tris + len(self.verts)))
-        return Mesh(np.vstack((self.verts, other.verts)), tris)
+    def merge(self, *others):
+        ms = [m for m in (self, *others) if m is not None and not m.empty()]
+        if len(ms) < 2:
+            return ms[0] if ms else self
+        offs = np.cumsum([0] + [len(m.verts) for m in ms[:-1]])
+        return Mesh(np.vstack([m.verts for m in ms]), np.vstack([m.tris + o for m, o in zip(ms, offs)]))
 
 
 class Part:
     ''' one named component: an optional surface mesh plus wireframe polylines '''
-    def __init__(self, name, color=(0.8, 0.8, 0.8)):
+    def __init__(self, name, color=(0.8, 0.8, 0.8), transparency=0.0):
         self.name = name
         self.color = color  # (r, g, b) in [0, 1]
+        self.transparency = transparency  # of the mesh, 0 (opaque) - 1; lines are opaque
         self.mesh = None
         self.polylines = []  # list of (N,3) arrays
 
@@ -121,7 +124,7 @@ class Part:
             self.polylines.append(pts)
 
     def transformed(self, m4):
-        p = Part(self.name, self.color)
+        p = Part(self.name, self.color, self.transparency)
         if self.mesh is not None:
             p.mesh = self.mesh.transformed(m4)
         p.polylines = [transform_points(m4, pl) for pl in self.polylines]
@@ -230,8 +233,8 @@ def _v3(p):
 
 def tessellate(d, segments=64):
     ''' convert one draw call into (mesh_or_None, [polylines]) in local coords '''
-    if isinstance(d, DrawMagnify):
-        return None, []
+    if isinstance(d, (DrawMagnify, MantidPixelLine, MantidRectangularDetectorLine, MantidBananaDetectorLine)):
+        return None, []  # nothing to draw
     if isinstance(d, DrawPolygon):
         return None, []  # awaiting C code upstream; nothing to draw
     if isinstance(d, (DrawLine,)):
@@ -356,15 +359,14 @@ def _polyhedron(json_str):
     try:
         data = json.loads(json_str)
         V = np.asarray(data['vertices'], dtype=np.float64).reshape((-1, 3))
-        mesh, lines = None, []
+        meshes, lines = [], []
         for f in data['faces']:
             f = V[np.asarray(f['face'], dtype=np.int64)]
             if len(f) < 3:
                 continue
-            m = Mesh(f, [[0, i, i + 1] for i in range(1, len(f) - 1)])
-            mesh = m if mesh is None else mesh.merge(m)
+            meshes.append(Mesh(f, [[0, i, i + 1] for i in range(1, len(f) - 1)]))
             lines.append(np.vstack((f, f[0])))
-        return mesh, lines
+        return (meshes[0].merge(*meshes[1:]) if meshes else None), lines
     except Exception as e:
         print(f"Polyhedron interpretation failed ({e}); skipped")
         return None, []
@@ -374,18 +376,21 @@ def _polyhedron(json_str):
 # instrument -> parts
 # ---------------------------------------------------------------------------
 
-def component_to_part(comp, color, segments=64, pen=None):
+def component_to_part(comp, color, segments=64, pen=None, transparency=0.0):
     ''' the component's draw calls with pen colour `pen` ('#rrggbb' from pencolor, None: the component color) '''
     part = Part(comp.name + ('_' + pen[1:] if pen else ''),
-                tuple(int(pen[i:i + 2], 16) / 255 for i in (1, 3, 5)) if pen else color)
+                tuple(int(pen[i:i + 2], 16) / 255 for i in (1, 3, 5)) if pen else color, transparency)
+    meshes = []
     for d in comp.drawcalls:
         if d.color != pen:
             continue
         mesh, lines = tessellate(d, segments)
         if mesh is not None:
-            part.add_mesh(mesh)
+            meshes.append(mesh)
         for l in lines:
             part.add_polyline(l)
+    if meshes:
+        part.mesh = meshes[0].merge(*meshes[1:])
     return part.transformed(comp.m4)
 
 
@@ -401,17 +406,134 @@ def rays_to_part(inst, bundle):
     return part
 
 
-def instrument_to_parts(inst, segments=64):
-    ''' convert components to parts, assigning a cycling color per component '''
+def instrument_to_parts(inst, segments=64, transparency=0.0, lines_only=()):
+    ''' convert components to parts, assigning a cycling color per component;
+    lines_only: names of components drawn without their surfaces (monitors showing --simdir data) '''
     parts = []
     ci = 0  # color index over all components (so colors differ even if some are empty)
     for comp in inst.components:
         for pen in dict.fromkeys(d.color for d in comp.drawcalls) or [None]:  # one part per pen colour
-            part = component_to_part(comp, color_for(ci), segments, pen)
+            part = component_to_part(comp, color_for(ci), segments, pen, transparency)
+            if comp.name in lines_only:
+                part.mesh = None
             if not part.is_empty():
                 parts.append(part)
         ci += 1
     return parts
+
+
+# ---------------------------------------------------------------------------
+# --simdir monitor data -> parts (placed as in the webgl viewers)
+# ---------------------------------------------------------------------------
+
+DATA_LEVELS = 32  # 2D data: number of colors
+DATA_ANGLE = 5  # deg: cells on curved monitors are merged up to this angle
+
+
+def _rainbow(x):
+    ''' color map of the webgl viewers '''
+    stops = ((0, (0, 0, 1)), (0.2, (0, 1, 1)), (0.5, (0, 1, 0)), (0.8, (1, 1, 0)), (1, (1, 0, 0)))
+    return tuple(float(np.interp(x, [s[0] for s in stops], [s[1][i] for s in stops])) for i in range(3))
+
+
+def _monitor_values(a, log):
+    ''' monitor data scaled to 0 - 1: from 0, or log10 (zero and negative bins at a tenth of the
+    smallest positive one, at most 6 decades below the largest) '''
+    a, lo = np.asarray(a, dtype=np.float64), 0.0
+    pos = a[a > 0]
+    if log and pos.size:
+        floor = max(pos.min() / 10, pos.max() * 1e-6)
+        lo, a = np.log10(floor), np.log10(np.maximum(a, floor))
+    hi = a.max()
+    return np.clip((a - lo) / ((hi if hi > lo else lo + 1) - lo), 0, 1)
+
+
+def _monitor_surface(comp, mon, segments):
+    ''' surface of the monitor data, from the component's drawing: (kind, f, du, dv), kind 'flat' or 'curved',
+    f(u, v) the points at u, v in 0 - 1 along the data axes, du, dv the largest cell size; None: no surface '''
+    part = Part(comp.name)
+    for d in comp.drawcalls:
+        mesh, lines = tessellate(d, segments)
+        if mesh is not None:
+            part.add_mesh(mesh)
+        for l in lines:
+            part.add_polyline(l)
+    if part.is_empty():
+        return None
+    pts = np.vstack(part.polylines + ([part.mesh.verts] if part.mesh is not None else []))
+    lo, hi = pts.min(axis=0), pts.max(axis=0)
+    xlabel, ylabel, lim = mon.get('xlabel') or '', mon.get('ylabel') or '', mon['limits']
+    # angle offset from atan2(x, z): longitude in Monitor_nD and PSD_monitor_4PI, PSDcyl_monitor adds 180 deg
+    off = 0 if xlabel.startswith('Longitude') else -180 if xlabel.startswith('radial position') else None
+    if hi[2] - lo[2] > 1e-9 and off is not None:
+        a0, da = np.radians(lim[0] + off), np.radians(lim[1] - lim[0])
+        step = np.radians(DATA_ANGLE)
+        if 'z' in mon and ylabel.startswith('Latitude'):
+            r = np.linalg.norm(pts, axis=1).max()
+            b0, db = np.radians(lim[2]), np.radians(lim[3] - lim[2])
+
+            def sphere(u, v):
+                a, b = a0 + da * u, b0 + db * v
+                return r * np.stack((np.cos(b) * np.sin(a), np.sin(b), np.cos(b) * np.cos(a)), axis=-1)
+            return 'curved', sphere, step / abs(da), step / abs(db)
+        r = np.hypot(pts[:, 0], pts[:, 2]).max()
+        y0, y1 = (lim[2], lim[3]) if 'z' in mon and '[m]' in ylabel else (lo[1], hi[1])  # e.g. PSDcyl_monitor draws no height
+
+        def cylinder(u, v):
+            a = a0 + da * u
+            return np.stack((r * np.sin(a), y0 + (y1 - y0) * v, r * np.cos(a)), axis=-1)
+        return 'curved', cylinder, step / abs(da), 1
+    if not (hi[0] > lo[0] and hi[1] > lo[1]):
+        return None
+    z = (lo[2] + hi[2]) / 2
+    return ('flat', lambda u, v: np.stack((lo[0] + (hi[0] - lo[0]) * u, lo[1] + (hi[1] - lo[1]) * v, z + 0 * u), axis=-1), 1, 1)
+
+
+def _cells(level, nx, ny):
+    ''' (level, x0, x1, y0, y1) blocks of equal level, at most nx x ny bins '''
+    used = np.zeros(level.shape, dtype=bool)
+    blocks = []
+    for y, x in np.ndindex(level.shape):
+        if used[y, x]:
+            continue
+        l, x1, y1 = level[y, x], x + 1, y + 1
+        while x1 < min(level.shape[1], x + nx) and level[y, x1] == l and not used[y, x1]:
+            x1 += 1
+        while y1 < min(level.shape[0], y + ny) and (level[y1, x:x1] == l).all() and not used[y1, x:x1].any():
+            y1 += 1
+        used[y:y1, x:x1] = True
+        blocks.append((l, x, x1, y, y1))
+    return np.array(blocks)
+
+
+def monitor_to_parts(comp, mon, segments=64, show=('1D', '2D', 'curved'), log=False, transparency=0.0):
+    ''' --simdir data of one monitor: 2D one part per color, 1D a line; [] if not shown '''
+    if ('2D' if 'z' in mon else '1D') not in show:
+        return []
+    surface = _monitor_surface(comp, mon, segments)
+    if surface is None or (surface[0] == 'curved' and 'curved' not in show):
+        return []
+    _, f, du, dv = surface
+    down = comp.m4[5] < 0  # upside down in the instrument: turn 1D curves upright
+    parts = []
+    if 'z' in mon:
+        val = _monitor_values(mon['z'], log)
+        ny, nx = val.shape
+        cells = _cells(np.minimum((val * DATA_LEVELS).astype(int), DATA_LEVELS - 1), max(1, int(nx * du)), max(1, int(ny * dv)))
+        for l in np.unique(cells[:, 0]):
+            x0, x1, y0, y1 = (cells[cells[:, 0] == l][:, 1:] / (nx, nx, ny, ny)).T
+            verts = np.stack((f(x0, y0), f(x1, y0), f(x1, y1), f(x0, y1)), axis=1).reshape(-1, 3)
+            q = 4 * np.arange(len(x0))[:, None]
+            part = Part(f'{comp.name}_data{l}', _rainbow((l + 0.5) / DATA_LEVELS), transparency)
+            part.add_mesh(Mesh(verts, np.concatenate((q + (0, 1, 2), q + (0, 2, 3)))))
+            parts.append(part)
+    else:
+        val = _monitor_values(mon['y'], log)
+        u, v = (np.arange(len(val)) + 0.5) / len(val), (8 + 220 * val) / 256  # bin centres
+        part = Part(f'{comp.name}_data', (0, 0, 1))
+        part.add_polyline(f(u, 1 - v if down else v))
+        parts.append(part)
+    return [p.transformed(comp.m4) for p in parts]
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +558,7 @@ def export_obj(parts, path):
         for i, p in enumerate(parts):
             r, g, b = p.color
             mf.write(f'newmtl {mtl_name(i, p)}\n')
-            mf.write(f'Kd {r:.4g} {g:.4g} {b:.4g}\nKa 0 0 0\nKs 0.2 0.2 0.2\nNs 10\n\n')
+            mf.write(f'Kd {r:.4g} {g:.4g} {b:.4g}\nKa 0 0 0\nKs 0.2 0.2 0.2\nNs 10\nd {1 - p.transparency:.4g}\n\n')
     with open(path, 'w') as f:
         f.write('# McCode mcdisplay export (OBJ)\n')
         f.write(f'mtllib {Path(mtl_path).name}\n')
@@ -515,9 +637,7 @@ def export_ply(parts, path):
 def export_off(parts, path):
     ''' plain OFF, surfaces only, all components merged; readable by McStas interoff-lib (OFF components).
     No colors: trailing numbers on a face line are per-face properties there (e.g. m/alpha/W in Guide_anyshape) '''
-    m = Mesh(np.zeros((0, 3)), np.zeros((0, 3)))
-    for p in parts:
-        m = m.merge(p.mesh)
+    m = Mesh(np.zeros((0, 3)), np.zeros((0, 3))).merge(*(p.mesh for p in parts))
     with open(path, 'w') as f:
         f.write(f'OFF\n# McCode mcdisplay export, metres\n{len(m.verts)} {len(m.tris)} 0\n')
         for v in m.verts:
@@ -547,7 +667,7 @@ def export_vrml(parts, path):
             if p.mesh is not None and not p.mesh.empty():
                 m = p.mesh
                 f.write('Shape { appearance Appearance { material Material { diffuseColor '
-                        + _rgb01(p.color) + ' } } geometry IndexedFaceSet { '
+                        + _rgb01(p.color) + f' transparency {p.transparency:.4g} }} }} geometry IndexedFaceSet {{ '
                         'coord Coordinate { point [')
                 f.write(','.join(f'{_fmt(x)} {_fmt(y)} {_fmt(z)}' for x, y, z in m.verts))
                 f.write('] } coordIndex [')
@@ -579,6 +699,7 @@ def export_x3d(parts, path):
                 f.write(f'</Shape></Transform><!-- {nm} lines -->\n')
             if p.mesh is not None and not p.mesh.empty():
                 m = p.mesh
+                mat = mat.replace('/>', f' transparency="{p.transparency:.4g}"/>')
                 pts = ' '.join('%.6g %.6g %.6g' % tuple(v) for v in m.verts)
                 idx = ' '.join(map(str, sum(([int(a), int(b), int(c), -1] for a, b, c in m.tris), [])))
                 f.write(f'<Transform><Shape><Appearance>{mat}</Appearance>')
@@ -610,29 +731,17 @@ def export_vtk(parts, path):
         nlpoly = sum(len(pp.polylines) for pp in parts)
         f.write(f'LINES {nlpoly} {len(lines)}\n')
         f.write(' '.join(map(str, lines)) + '\n')
-        nface = sum(1 for x in faces if x == 3)
-        f.write(f'POLYS {nface} {len(faces)}\n')
-        f.write(' '.join(map(str, faces)) + '\n')
-        # per-point component color scalars (COLORSCALAR names are auto-loaded by many VTK viewers)
+        f.write(f'POLYGONS {len(faces) // 4} {len(faces)}\n')
+        for k in range(0, len(faces), 4):
+            f.write(' '.join(map(str, faces[k:k + 4])) + '\n')
+        # per-point component color scalars, RGBA if anything is transparent
+        rgba = any(p.transparency for p in parts)
         f.write(f'POINT_DATA {len(pts)}\n')
-        f.write('COLORSCALARS component_color 3\n')
+        f.write(f'COLOR_SCALARS component_color {4 if rgba else 3}\n')
         for p in parts:
-            npts = sum(len(pl) for pl in p.polylines)
-            if p.mesh is not None and not p.mesh.empty():
-                npts += len(p.mesh.verts)
-            for _ in range(npts):
-                f.write(' '.join(f'{c:.4g}' for c in p.color) + '\n')
-
-
-def _tube_mesh(p0, p1, radius, segments=4):
-    ''' open 4-sided cylinder (no caps) between two points, as a triangle mesh;
-    viewers see the inside via doubleSided materials '''
-    p0 = np.asarray(p0, dtype=np.float64).reshape(3)
-    p1 = np.asarray(p1, dtype=np.float64).reshape(3)
-    w, u, v = _basis_from_axis(p1 - p0)
-    th = np.linspace(0, 2 * np.pi, segments, endpoint=False)
-    ring = radius * (np.outer(np.cos(th), u) + np.outer(np.sin(th), v))
-    return _strip(p0 + ring, p1 + ring)
+            nmesh = len(p.mesh.verts) if p.mesh is not None and not p.mesh.empty() else 0
+            for n, alpha in ((sum(len(pl) for pl in p.polylines), 1), (nmesh, 1 - p.transparency)):
+                f.write((' '.join(f'{c:.4g}' for c in p.color) + (f' {alpha:.4g}' if rgba else '') + '\n') * n)
 
 
 _G = (1 + 5 ** 0.5) / 2  # icosahedron: the sphere at each polyline corner
@@ -643,9 +752,13 @@ ICO_F = np.array([(0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11), (1,
                   (3, 8, 9), (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1)])
 
 
-def _tubes(xyz, r, k=6):
-    ''' NaN-separated polylines -> Mesh: a k-sided open cylinder per segment, a sphere per corner
-    (same construction as the mcdisplay-plopp 3D view) '''
+def _nan_separated(polylines):
+    nan = np.full((1, 3), np.nan)
+    return np.vstack([a for pl in polylines for a in (pl, nan)])
+
+
+def _cylinders(xyz, r, k):
+    ''' NaN-separated polylines -> Mesh: a k-sided open cylinder per segment '''
     a, b = xyz[:-1], xyz[1:]
     keep = np.isfinite(a).all(1) & np.isfinite(b).all(1) & (np.linalg.norm(b - a, axis=1) > 0)
     a, b = a[keep], b[keep]
@@ -658,15 +771,19 @@ def _tubes(xyz, r, k=6):
     cyl = np.concatenate([a[:, None] + ring, b[:, None] + ring], axis=1).reshape(-1, 3)
     j, j1 = np.arange(k), (np.arange(k) + 1) % k
     side = np.concatenate([np.stack([j, j1, k + j], 1), np.stack([j1, k + j1, k + j], 1)])
-    cyl_f = (side[None] + 2 * k * np.arange(len(a))[:, None, None]).reshape(-1, 3)
+    return Mesh(cyl, side[None] + 2 * k * np.arange(len(a))[:, None, None])
 
+
+def _tubes(xyz, r, k=6):
+    ''' NaN-separated polylines -> Mesh: cylinders plus a sphere per corner
+    (same construction as the mcdisplay-plopp 3D view) '''
     d1, d2 = xyz[1:-1] - xyz[:-2], xyz[2:] - xyz[1:-1]  # joints only where the polyline turns > ~20 deg;
     with np.errstate(invalid='ignore', divide='ignore'):  # NaN breaks, ends and smooth arcs get none
         cos = (d1 * d2).sum(1) / (np.linalg.norm(d1, axis=1) * np.linalg.norm(d2, axis=1))
     pts = xyz[1:-1][cos < 0.94]
     sph = (pts[:, None] + r * ICO_V[None]).reshape(-1, 3)
-    sph_f = (ICO_F[None] + len(cyl) + 12 * np.arange(len(pts))[:, None, None]).reshape(-1, 3)
-    return Mesh(np.concatenate([cyl, sph]), np.concatenate([cyl_f, sph_f]))
+    sph_f = ICO_F[None] + 12 * np.arange(len(pts))[:, None, None]
+    return _cylinders(xyz, r, k).merge(Mesh(sph, sph_f))
 
 
 def lines_to_tubes(parts, thickness=1e-4):
@@ -677,10 +794,16 @@ def lines_to_tubes(parts, thickness=1e-4):
         return
     pts = np.vstack(pts)
     r = thickness * np.linalg.norm(pts.max(0) - pts.min(0))
-    nan = np.full((1, 3), np.nan)
-    for p in parts:
+    for p in list(parts):
         if p.polylines:
-            p.add_mesh(_tubes(np.vstack([np.vstack((pl, nan)) for pl in p.polylines]), r))
+            tubes = p
+            if p.transparency:  # lines stay opaque
+                if p.mesh is None:
+                    p.transparency = 0.0
+                else:
+                    tubes = Part(p.name + '_lines', p.color)
+                    parts.append(tubes)
+            tubes.add_mesh(_tubes(_nan_separated(p.polylines), r))
             p.polylines = []
 
 
@@ -714,11 +837,13 @@ def _gltf_buffers(parts):
         accessors.append(acc)
         return len(accessors) - 1
 
-    def add_material(color):
+    def add_material(color, transparency):
         materials.append({'pbrMetallicRoughness': {
-            'baseColorFactor': [float(c) for c in color] + [1.0],
+            'baseColorFactor': [float(c) for c in color] + [1.0 - transparency],
             'metallicFactor': 0.1, 'roughnessFactor': 0.7},
             'doubleSided': True})  # wireframe tubes have no caps
+        if transparency:
+            materials[-1]['alphaMode'] = 'BLEND'
         return len(materials) - 1
 
     nodes, meshes = [], []
@@ -738,36 +863,19 @@ def _gltf_buffers(parts):
     # Merge all components sharing the same color into ONE mesh: web viewers
     # (castle-model-viewer, three.js) spend memory and time per node/mesh/draw
     # call, so a few large meshes load much faster than hundreds of small ones.
-    by_color = {}  # color tuple -> [merged_mesh, [component names]]
+    by_color = {}  # (color tuple, transparency) -> [meshes, component names]
     for p in parts:
-        mesh = p.mesh
-        if p.polylines:
-            tubes = None
-            for pl in p.polylines:
-                # merge consecutive collinear segments into one tube
-                runs = [[pl[0], pl[1]]]
-                for j in range(1, len(pl) - 1):
-                    a, b = pl[j], pl[j + 1]
-                    prev = runs[-1]
-                    d_prev = prev[1] - prev[0]
-                    d_cur = b - a
-                    n_p, n_c = np.linalg.norm(d_prev), np.linalg.norm(d_cur)
-                    if n_p > 0 and n_c > 0 and abs(np.dot(d_prev / n_p, d_cur / n_c) - 1.0) < 1e-9:
-                        prev[1] = b  # collinear continuation: extend the previous run
-                    else:
-                        runs.append([a, b])
-                for a, b in runs:
-                    t = _tube_mesh(a, b, tube_r)
-                    tubes = t if tubes is None else tubes.merge(t)
-            if tubes is not None:
-                mesh = tubes if mesh is None else mesh.merge(tubes)
-        if mesh is not None and not mesh.empty():
-            entry = by_color.setdefault(tuple(p.color), [None, []])
-            entry[0] = mesh if entry[0] is None else entry[0].merge(mesh)
-            entry[1].append(p.name)
+        tubes = _cylinders(_nan_separated(p.polylines), tube_r, 4) if p.polylines else None
+        for mesh, transparency in ((p.mesh, p.transparency), (tubes, 0.0)):  # lines stay opaque
+            if mesh is not None and not mesh.empty():
+                entry = by_color.setdefault((tuple(p.color), transparency), [[], []])
+                entry[0].append(mesh)
+                if p.name not in entry[1]:
+                    entry[1].append(p.name)
     nodes, meshes = [], []
-    for gi, (color, (mesh, names)) in enumerate(by_color.items()):
-        mat_idx = add_material(color)
+    for gi, (color, (group, names)) in enumerate(by_color.items()):
+        mesh = group[0].merge(*group[1:])
+        mat_idx = add_material(*color)
         pv = add(mesh.verts, 'float32', 34962)
         pi = add(mesh.tris.reshape(-1), 'uint32', 34963)
         meshes.append({'primitives': [{'attributes': {'POSITION': pv}, 'indices': pi,
@@ -870,6 +978,14 @@ def export_step(parts, path):
         rep = None
         if p.mesh is not None and not p.mesh.empty():
             faces = []
+            points = {}  # shared by neighbouring faces, else readers (FreeCAD) make one object per face
+
+            def vertex(v):
+                key = r3(v)
+                if key not in points:
+                    points[key] = pt(v)
+                return points[key]
+
             for tri in p.mesh.verts[p.mesh.tris]:
                 a, b, c = tri
                 n = np.cross(b - a, c - a)
@@ -877,7 +993,7 @@ def export_step(parts, path):
                 if ln < 1e-12:
                     continue  # skip degenerate triangles
                 n = n / ln
-                pa, pb, pc = pt(a), pt(b), pt(c)
+                pa, pb, pc = vertex(a), vertex(b), vertex(c)
                 loop = E(f"POLY_LOOP('',({pa},{pb},{pc}))")
                 fb = E(f'FACE_OUTER_BOUND(\'\',{loop},.T.)')
                 dn = E(f"DIRECTION('',{r3(n)})")
@@ -897,6 +1013,9 @@ def export_step(parts, path):
                 fasc = E(f'FILL_AREA_STYLE_COLOUR(\'\',{col})')
                 fas = E(f'FILL_AREA_STYLE(\'\',({fasc}))')
                 ssf = E(f'SURFACE_STYLE_FILL_AREA({fas})')
+                if p.transparency:
+                    sst = E(f'SURFACE_STYLE_TRANSPARENT({r(p.transparency)})')
+                    ssf += ',' + E(f'SURFACE_STYLE_RENDERING_WITH_PROPERTIES(.NORMAL_SHADING.,{col},({sst}))')
                 sss = E(f"SURFACE_SIDE_STYLE('',({ssf}))")
                 ssu = E(f'SURFACE_STYLE_USAGE(.BOTH.,{sss})')
                 psa = E(f'PRESENTATION_STYLE_ASSIGNMENT(({ssu}))')
@@ -1039,6 +1158,18 @@ def main(instr=None, dirname=None, **kwds):
     fmt = kwds.get('format', 'stl')
     segments = int(kwds.pop('segments', 64) or 64)  # tessellation resolution
     tubes = kwds.pop('tubes', False)
+    transparency, simtransparency = kwds.pop('transparency', 0.0), kwds.pop('simtransparency', 0.5)
+    simdir, simbins = kwds.pop('simdir', None), kwds.pop('simbins', 64)
+    simshow, simlog = kwds.pop('simshow', ('1D', '2D', 'curved')), kwds.pop('simlog', False)
+
+    from mccodelib.mcdisplayutils import McDisplayReader, read_simdir
+    monitors = {}
+    if simdir and fmt in ('stl', 'off'):
+        print(f"{fmt.upper()} has no colors: --simdir data not included")
+    elif simdir:
+        monitors = read_simdir(simdir, simbins)
+    if fmt in ('stl', 'off', 'ply', 'vtkjs') and (transparency or (monitors and simtransparency)):
+        print(f"{fmt.upper()}: no transparency, surfaces are opaque")
 
     # output directory
     if dirname is None:
@@ -1046,7 +1177,6 @@ def main(instr=None, dirname=None, **kwds):
         p = Path(instr).resolve()
         dirname = str(p.parent.joinpath(f"{p.stem}_{dt.strftime(dt.now(), '%Y%m%d_%H%M%S')}"))
 
-    from mccodelib.mcdisplayutils import McDisplayReader
     reader = McDisplayReader(dir=dirname, instr=instr, **kwds)
     instrument = reader.read_instrument()
     bundle = reader.read_particles()  # None unless -n > 0
@@ -1056,14 +1186,17 @@ def main(instr=None, dirname=None, **kwds):
     root.mkdir(parents=True, exist_ok=True)
 
     # Convert the instrument into tessellated parts, then save
-    parts = instrument_to_parts(instrument, segments)
+    data = {c.name: monitor_to_parts(c, monitors[c.name], segments, simshow, simlog, simtransparency)
+            for c in instrument.components if c.name in monitors}
+    parts = instrument_to_parts(instrument, segments, transparency, [name for name, d in data.items() if d])
+    parts += [p for d in data.values() for p in d]
     if bundle and bundle.rays:
         parts.append(rays_to_part(instrument, bundle))
     if tubes:
         lines_to_tubes(parts)
     output = str(root.joinpath(f"{Path(instr).stem}{EXPORTERS[fmt][1]}"))
     EXPORTERS[fmt][0](parts, output)
-    print(f"Wrote {output} ({len(parts)} components)")
+    print(f"Wrote {output} ({len(parts)} parts" + (f", data of {sum(1 for d in data.values() if d)} monitors)" if monitors else ")"))
 
     # Use mccode_config / the OS to open the resulting file...
     if Path(output).is_file():
@@ -1079,6 +1212,26 @@ def output_format(astring):
     return 'stl'
 
 
+def transparency_value(astring):
+    try:
+        x = float(astring)
+    except ValueError:
+        x = -1
+    if not 0 <= x <= 1:
+        print(f"transparency {astring}: give a number from 0 (opaque) to 1 (invisible)")
+        sys.exit(-1)
+    return x
+
+
+def simshow_list(astring):
+    show = {s.lower(): s for s in ('1D', '2D', 'curved')}
+    items = [show.get(s.strip().lower()) for s in astring.split(',')]
+    if None in items or not {'1D', '2D'} & set(items):
+        print(f"--simshow {astring}: give a comma list of 1D, 2D, curved, with at least 1D or 2D")
+        sys.exit(-1)
+    return items
+
+
 if __name__ == '__main__':
     from mccodelib.mcdisplayutils import make_common_parser
     # Only pre-sets instr, --default, options
@@ -1090,6 +1243,13 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--trace', dest='trace', type=int, choices=[1, 2], default=1, help='mcrun --trace level: 1 (default, fastest) gives the legacy wireframe drawing, 2 solid primitives. NB: with 1, surface-only formats (STL) may come out empty and many viewers ignore lines in OBJ/PLY; add --tubes to get solids')
     parser.add_argument('--tubes', action='store_true', help='Draw lines (multiline etc.) as solid cylinders with spheres at the corners, as in mcdisplay-plopp. NB: with -n > 0 the particle rays are tubed too, which can make files very large (e.g. ~150 MB STEP for 100 rays in PSI_DMC)')
     parser.add_argument('-f', '--format', dest='format', type=output_format, default='glb', help='Output CAD file format (STEP, STL, VRML, GLTF, GLB, OBJ, PLY, OFF, XML/X3D, VTK and VTKJS). Default: GLB')
+
+    parser.add_argument('--transparency', type=transparency_value, default=0.0, help='Transparency of the component surfaces, 0 (opaque, default) to 1; lines stay opaque. Not in STL, PLY, OFF and VTKJS')
+    parser.add_argument('--simdir', help='simulation output directory: draw its 1D/2D monitor data on the monitors (not in STL and OFF)')
+    parser.add_argument('--simbins', type=int, default=64, help='--simdir: show monitor data with at most N x N (2D) or 4N (1D) bins, default 64; files grow as N^2, fastest in STEP')
+    parser.add_argument('--simshow', type=simshow_list, default=['1D', '2D', 'curved'], help='--simdir: comma list of the data to show: 1D, 2D, curved (data on curved monitors). Default: 1D,2D,curved')
+    parser.add_argument('--simlog', action='store_true', help='--simdir: log scale')
+    parser.add_argument('--simtransparency', type=transparency_value, default=0.5, help='--simdir: transparency of the 2D data, 0 (opaque) to 1. Default: 0.5')
 
     args, unknown = parser.parse_known_args()
     # if --inspect --first or --last are given after instr, the remaining args become "unknown",
