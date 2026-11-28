@@ -15,12 +15,8 @@ This parser performs 3 main tasks, each in an independent method:
     - generate_indiv_files(OUTPUT_DIR) creates .comp files for each model.
     - generate_tests() creates test folder for each model.
 
-For the moment, vector input models are created but are not working.
-These include:
-    - core_multi_shell
-    - rpa
-    - onion
-    - spherical_sld
+The vector input models core_multi_shell, rpa and onion compile but are
+not validated against SasView. spherical_sld is not created.
 """
 
 import os
