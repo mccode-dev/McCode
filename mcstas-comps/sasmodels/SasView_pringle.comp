@@ -57,7 +57,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_pringle
-
 SETTING PARAMETERS (
         radius=60.0,
         thickness=10.0,
@@ -1139,7 +1138,7 @@ double Iq_pringle(double q,
 
 
 static
-void _integrate_bessel(
+void _integrate_bessel_pringle(
     double radius,
     double alpha,
     double beta,
@@ -1175,7 +1174,7 @@ void _integrate_bessel(
 }
 
 static
-double _sum_bessel_orders(
+double _sum_bessel_orders_pringle(
     double radius,
     double alpha,
     double beta,
@@ -1193,16 +1192,16 @@ double _sum_bessel_orders(
     double Sn, Cn, sum;
     sum = 0.0;
     for (int n=3; n>0; n--) {
-      _integrate_bessel(radius, alpha, beta, q_sin_psi, q_cos_psi, n, &Sn, &Cn);
+      _integrate_bessel_pringle(radius, alpha, beta, q_sin_psi, q_cos_psi, n, &Sn, &Cn);
       sum += 2.0*(Sn*Sn + Cn*Cn);
     }
-    _integrate_bessel(radius, alpha, beta, q_sin_psi, q_cos_psi, 0, &Sn, &Cn);
+    _integrate_bessel_pringle(radius, alpha, beta, q_sin_psi, q_cos_psi, 0, &Sn, &Cn);
     sum += Sn*Sn+ Cn*Cn;
     return sum;
 }
 
 static
-double _integrate_psi(
+double _integrate_psi_pringle(
     double q,
     double radius,
     double thickness,
@@ -1218,7 +1217,7 @@ double _integrate_psi(
         double psi = GAUSS_Z[i]*zm + zb;
         double sin_psi, cos_psi;
         SINCOS(psi, sin_psi, cos_psi);
-        double bessel_term = _sum_bessel_orders(radius, alpha, beta, q*sin_psi, q*cos_psi);
+        double bessel_term = _sum_bessel_orders_pringle(radius, alpha, beta, q*sin_psi, q*cos_psi);
         double sinc_term = sas_square(sas_sinx_x(q * thickness * cos_psi / 2.0));
         double pringle_kernel = 4.0 * sin_psi * bessel_term * sinc_term;
         sum += GAUSS_W[i] * pringle_kernel;
@@ -1261,7 +1260,7 @@ double Iq_pringle(
     double sld,
     double sld_solvent)
 {
-    double form = _integrate_psi(q, radius, thickness, alpha, beta);
+    double form = _integrate_psi_pringle(q, radius, thickness, alpha, beta);
     double contrast = sld - sld_solvent;
     double volume = M_PI*radius*radius*thickness;
     return 1.0e-4*form * sas_square(contrast * volume);
@@ -1316,7 +1315,7 @@ INITIALIZE
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double t0, t1, vel, l_full, l, l_1, dt, d_phi, my_s;
   double aim_x = 0, aim_y = 0, aim_z = 1, axis_x, axis_y, axis_z;
   double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
   double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
@@ -1335,11 +1334,11 @@ TRACE
       ABSORB;
 
     /* Neutron enters at t=t0. */
-    v = sqrt (vx * vx + vy * vy + vz * vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
+    vel = sqrt (vx * vx + vy * vy + vz * vz);
+    l_full = vel * (t1 - t0);        /* Length of full path through sample */
     dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
     PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    l = vel * (dt - t0);             /* Penetration in sample */
 
     vx_i = vx;
     vy_i = vy;
@@ -1357,9 +1356,9 @@ TRACE
       randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
     NORM (vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
+    vx *= vel;
+    vy *= vel;
+    vz *= vel;
     qx = V2K * (vx_i - vx);
     qy = V2K * (vy_i - vy);
     qz = V2K * (vz_i - vz);
@@ -1384,8 +1383,8 @@ TRACE
     // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
     Iq_out = model_scale * Iq_out / vol * 1.0E2;
 
-    l_1 = v * t1;
-    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / v);
+    l_1 = vel * t1;
+    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / vel);
     SCATTER;
   }
 %}

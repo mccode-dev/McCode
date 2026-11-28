@@ -28,12 +28,12 @@
 *
 * %Parameters
 * INPUT PARAMETERS:
-* thickness: [Ang] ([0, inf]) sheet thickness.
+* thickness: [AA] ([0, inf]) sheet thickness.
 * Nlayers: [] ([1, inf]) Number of layers.
-* d_spacing: [Ang] ([0.0, inf]) lamellar spacing of paracrystal stack.
-* sigma_d: [Ang] ([0.0, inf]) Sigma (polydispersity) of the lamellar spacing.
-* sld: [1e-6/Ang^2] ([-inf, inf]) layer scattering length density.
-* sld_solvent: [1e-6/Ang^2] ([-inf, inf]) Solvent scattering length density.
+* d_spacing: [AA] ([0.0, inf]) lamellar spacing of paracrystal stack.
+* sigma_d: [AA] ([0.0, inf]) Sigma (polydispersity) of the lamellar spacing.
+* sld: [1e-6/AA^2] ([-inf, inf]) layer scattering length density.
+* sld_solvent: [1e-6/AA^2] ([-inf, inf]) Solvent scattering length density.
 * Optional parameters:
 * model_abs: [ ] Absorption cross section density at 2200 m/s.
 * model_scale: [ ] Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors can be related to the scattering intensity by the particle volume fraction.
@@ -56,7 +56,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_lamellar_stack_paracrystal
-
 SETTING PARAMETERS (
         thickness=33.0,
         Nlayers=20,
@@ -95,8 +94,8 @@ SHARE %{
 /*	Lamellar_ParaCrystal - Pedersen's model
 
 */
-double paraCryst_sn(double ww, double qval, double davg, int Nlayers, double an);
-double paraCryst_an(double ww, double qval, double davg, int Nlayers);
+double paraCryst_sn_lamellar_stack_paracrystal(double ww, double qval, double davg, int Nlayers, double an);
+double paraCryst_an_lamellar_stack_paracrystal(double ww, double qval, double davg, int Nlayers);
 
 static double
 Iq_lamellar_stack_paracrystal(double qval,
@@ -116,14 +115,14 @@ Iq_lamellar_stack_paracrystal(double qval,
 
 	//calculate the n1 contribution
 	double Znq,Snq,an;
-	an = paraCryst_an(ww,qval,davg,n1);
-	Snq = paraCryst_sn(ww,qval,davg,n1,an);
+	an = paraCryst_an_lamellar_stack_paracrystal(ww,qval,davg,n1);
+	Snq = paraCryst_sn_lamellar_stack_paracrystal(ww,qval,davg,n1,an);
 
 	Znq = xn*Snq;
 
 	//calculate the n2 contribution
-	an = paraCryst_an(ww,qval,davg,n2);
-	Snq = paraCryst_sn(ww,qval,davg,n2,an);
+	an = paraCryst_an_lamellar_stack_paracrystal(ww,qval,davg,n2);
+	Snq = paraCryst_sn_lamellar_stack_paracrystal(ww,qval,davg,n2,an);
 
 	Znq += (1.0-xn)*Snq;
 
@@ -144,7 +143,7 @@ Iq_lamellar_stack_paracrystal(double qval,
 
 // functions for the lamellar paracrystal model
 double
-paraCryst_sn(double ww, double qval, double davg, int Nlayers, double an) {
+paraCryst_sn_lamellar_stack_paracrystal(double ww, double qval, double davg, int Nlayers, double an) {
 
 	double Snq;
 
@@ -154,7 +153,7 @@ paraCryst_sn(double ww, double qval, double davg, int Nlayers, double an) {
 }
 
 double
-paraCryst_an(double ww, double qval, double davg, int Nlayers) {
+paraCryst_an_lamellar_stack_paracrystal(double ww, double qval, double davg, int Nlayers) {
 	double an;
 
 	an = 4.0*ww*ww - 2.0*(ww*ww*ww+ww)*cos(qval*davg);
