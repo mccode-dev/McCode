@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Fail if a .comp/.instr header lacks %P, has an empty or repeated description for an
-input parameter, or documents an input that is not a parameter.
+input parameter, or documents an input that is not a parameter. Also fail if a .comp
+is not formatted with mccode-clangformat.
 
 Usage: mccode-check-doc-params FILE.comp|FILE.instr ...
 """
 import os
 import re
+import subprocess
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tools', 'Python'))
+BIN = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BIN, '..', '..', 'tools', 'Python'))
 from mccodelib import utils
 
 def is_snippet(f):
@@ -42,6 +45,12 @@ bad = 0
 for f in sys.argv[1:]:
     if is_snippet(f):
         continue
+    if f.endswith('.comp'):
+        r = subprocess.run([sys.executable, os.path.join(BIN, 'mccode-clangformat'), '--check', '-f', f],
+                           capture_output=True, text=True)
+        if r.returncode or 'Changed:' in r.stdout:
+            print(f'{f}: not formatted with mccode-clangformat {r.stderr.strip()}')
+            bad += 1
     with open(f, encoding='utf-8') as fh:
         header = utils.read_header(fh)
         if not header.lstrip().startswith('/*'):
