@@ -94,160 +94,167 @@ nps=0,smooth=1)
 
 SHARE
 %{
-#ifndef MCNP_INPUT_DEFS
-#define MCNP_INPUT_DEFS
-/* number of neutron events to read for file pre-analysis */
+  #ifndef MCNP_INPUT_DEFS
+  #define MCNP_INPUT_DEFS
+  /* number of neutron events to read for file pre-analysis */
 
-#include <sys/stat.h>
+  #include <sys/stat.h>
 
-/* mcnp_get_particle: read a neutron event from the MCNP PTRAC file */
-int mcnp_get_particle(FILE *hfile,float * tableau,int *old_surface,int *surface_id,int *informed_event,int *informed_surface)
-{
-    char *c;
-    int exit_flag=0;
-    float arg1=-1;
-    float arg2=-1;
-    float arg3=-1;
-    float arg4=-1;
-    float arg5=-1;
-    float arg6=-1;
-    float arg7=-1;
-    float arg8=-1;
-    float arg9=-1;
-    int count=-1;
-    int new_surface=-1;
+  /* mcnp_get_particle: read a neutron event from the MCNP PTRAC file */
+  int
+  mcnp_get_particle (FILE* hfile, float* tableau, int* old_surface, int* surface_id, int* informed_event, int* informed_surface) {
+    char* c;
+    int exit_flag = 0;
+    float arg1 = -1;
+    float arg2 = -1;
+    float arg3 = -1;
+    float arg4 = -1;
+    float arg5 = -1;
+    float arg6 = -1;
+    float arg7 = -1;
+    float arg8 = -1;
+    float arg9 = -1;
+    int count = -1;
+    int new_surface = -1;
     char str[1024];
-    int serr=0;
-    if (!tableau) exit(fprintf(stderr, "MCNP_input: Error in mem alloc (mcnp_get_particle).\n"));
+    int serr = 0;
+    if (!tableau)
+      exit (fprintf (stderr, "MCNP_input: Error in mem alloc (mcnp_get_particle).\n"));
 
-    c=fgets(str,1024,hfile);
+    c = fgets (str, 1024, hfile);
 
-    while (c!=NULL) {
-      count=sscanf(str,"%e %e %e %e %e %e %e %e %e",&arg1,&arg2,&arg3,&arg4,&arg5,&arg6,&arg7,&arg8,&arg9);
+    while (c != NULL) {
+      count = sscanf (str, "%e %e %e %e %e %e %e %e %e", &arg1, &arg2, &arg3, &arg4, &arg5, &arg6, &arg7, &arg8, &arg9);
 
-      if (count==2) { /* test number of numerical values read from line */
-        if(arg2!=3000 && arg2!=9000){
-          printf("Warning: Unknown event  %g in current file\n",arg2);
+      if (count == 2) { /* test number of numerical values read from line */
+        if (arg2 != 3000 && arg2 != 9000) {
+          printf ("Warning: Unknown event  %g in current file\n", arg2);
         } else if (informed_event)
           *informed_event = arg2;
-      } else if (count==7 || count==6) {
-        new_surface=arg3;
+      } else if (count == 7 || count == 6) {
+        new_surface = arg3;
 
-        if (new_surface!=*surface_id && *surface_id!=-1) serr=1;
+        if (new_surface != *surface_id && *surface_id != -1)
+          serr = 1;
         else
-          *informed_surface=new_surface;
+          *informed_surface = new_surface;
 
-        if (*old_surface!=-1 && !*informed_surface && new_surface!=*old_surface) {
-          printf("Warning: Different surface IDs in current file: previous=%i current=%i\n", *old_surface, new_surface);
+        if (*old_surface != -1 && !*informed_surface && new_surface != *old_surface) {
+          printf ("Warning: Different surface IDs in current file: previous=%i current=%i\n", *old_surface, new_surface);
         }
 
-        *old_surface     =new_surface;
+        *old_surface = new_surface;
 
-      } else if (count==9 && (!informed_surface || *informed_surface)
-          && (!informed_event || (informed_event && (*informed_event==3000 || *informed_event==9000)))) {
-        if(serr==0){
-          tableau[0]=arg1;
-          tableau[1]=arg2;
-          tableau[2]=arg3;
-          tableau[3]=arg4;
-          tableau[4]=arg5;
-          tableau[5]=arg6;
-          tableau[6]=arg7;
-          tableau[7]=arg8;
-          tableau[8]=arg9;
+      } else if (count == 9 && (!informed_surface || *informed_surface)
+                 && (!informed_event || (informed_event && (*informed_event == 3000 || *informed_event == 9000)))) {
+        if (serr == 0) {
+          tableau[0] = arg1;
+          tableau[1] = arg2;
+          tableau[2] = arg3;
+          tableau[3] = arg4;
+          tableau[4] = arg5;
+          tableau[5] = arg6;
+          tableau[6] = arg7;
+          tableau[7] = arg8;
+          tableau[8] = arg9;
           return (exit_flag);
         }
-        serr=0;
+        serr = 0;
       } else {
-        if (informed_event  && *informed_event) {
-          exit_flag=1;
-          printf("MCNP_input: Warning: skip line %s\n", str);
+        if (informed_event && *informed_event) {
+          exit_flag = 1;
+          printf ("MCNP_input: Warning: skip line %s\n", str);
           return (exit_flag);
         }
       }
-      c=fgets(str,1024,hfile);
-
+      c = fgets (str, 1024, hfile);
     }
-    exit_flag=1;
+    exit_flag = 1;
     return (exit_flag);
-}
-
-/* mcnp_create_neutron:
-   function that creates an event
-   and assigns neutron parameters.
-   Warning: mcnp Coord system (x y z) = (-x z y)
- */
-int mcnp_create_neutron(FILE *hfile, double *x,double *y,double *z,
-                                 double *vx, double *vy, double *vz,
-                                 double *t,
-                                 double *sx, double *sy, double *sz,
-                                 double *p,int *old_surface,int *surface_id,int *informed_event,
-                                 int *informed_surface)
-{
-  double Mev2Joule=1.602e-13;
-  double speed;
-  int    exit_flag=0, ifield=0;
-  float field[9];
-  if(mcnp_get_particle(hfile,field,old_surface,surface_id,informed_event,informed_surface)) { exit_flag=1; }
-  else {
-    speed=sqrt(2.* field[6]*Mev2Joule/MNEUTRON);
-    *x=field[0]/100.0;
-    *y=field[1]/100.0;
-    *z=field[2]/100.0;
-    *vx=field[3]*speed;
-    *vy=field[4]*speed;
-    *vz=field[5]*speed;
-    *p=field[7];
-    *sx=1.;*sy=*sz=0;
-    *t=field[8]*1e-8;
-    // now change axis system
-    double tx, ty, tz;
-    tx=*x;  ty=*y;  tz=*z;   *x=-ty;  *y=-tz;  *z=tx;
-    tx=*vx; ty=*vy; tz=*vz; *vx=-ty; *vy=-tz; *vz=tx;
   }
-  return (exit_flag);
 
-}
+  /* mcnp_create_neutron:
+     function that creates an event
+     and assigns neutron parameters.
+     Warning: mcnp Coord system (x y z) = (-x z y)
+   */
+  int
+  mcnp_create_neutron (FILE* hfile, double* x, double* y, double* z, double* vx, double* vy, double* vz, double* t, double* sx, double* sy, double* sz, double* p,
+                       int* old_surface, int* surface_id, int* informed_event, int* informed_surface) {
+    double Mev2Joule = 1.602e-13;
+    double speed;
+    int exit_flag = 0, ifield = 0;
+    float field[9];
+    if (mcnp_get_particle (hfile, field, old_surface, surface_id, informed_event, informed_surface)) {
+      exit_flag = 1;
+    } else {
+      speed = sqrt (2. * field[6] * Mev2Joule / MNEUTRON);
+      *x = field[0] / 100.0;
+      *y = field[1] / 100.0;
+      *z = field[2] / 100.0;
+      *vx = field[3] * speed;
+      *vy = field[4] * speed;
+      *vz = field[5] * speed;
+      *p = field[7];
+      *sx = 1.;
+      *sy = *sz = 0;
+      *t = field[8] * 1e-8;
+      // now change axis system
+      double tx, ty, tz;
+      tx = *x;
+      ty = *y;
+      tz = *z;
+      *x = -ty;
+      *y = -tz;
+      *z = tx;
+      tx = *vx;
+      ty = *vy;
+      tz = *vz;
+      *vx = -ty;
+      *vy = -tz;
+      *vz = tx;
+    }
+    return (exit_flag);
+  }
 
+  /* mcnp_get_header:
+     function that gets/allocate header lines until the MCNP start of data
+   */
+  char*
+  mcnp_get_header (FILE* hfile) {
+    int i;
+    char* head = NULL;
+    char buffer[1024];
+    char* c = NULL;
 
-/* mcnp_get_header:
-   function that gets/allocate header lines until the MCNP start of data
- */
-char *mcnp_get_header(FILE *hfile)
-{
-  int i;
-  char *head=NULL;
-  char buffer[1024];
-  char *c=NULL;
+    c = fgets (buffer, 1024, hfile);
+    head = malloc (2 * 1024 + 1);
+    if (!head)
+      exit (fprintf (stderr, "MCNP_input: Error in mem alloc (mcnp_get_header).\n"));
+    strcpy (head, "");
+    c = fgets (buffer, 1024, hfile);
+    strcat (head, buffer);
+    c = fgets (buffer, 1024, hfile);
+    strcat (head, buffer);
+    /* skip 6 lines */
+    for (i = 0; i <= 6; i++)
+      c = fgets (buffer, 1024, hfile);
 
-  c=fgets(buffer,1024,hfile);
-  head=malloc(2*1024+1);
-  if (!head) exit(fprintf(stderr, "MCNP_input: Error in mem alloc (mcnp_get_header).\n"));
-  strcpy(head,"");
-  c=fgets(buffer,1024,hfile);
-  strcat(head, buffer);
-  c=fgets(buffer,1024,hfile);
-  strcat(head, buffer);
-  /* skip 6 lines */
-  for (i=0; i<=6; i++) c=fgets(buffer,1024,hfile);
+    return head;
+  }
 
-  return head;
-}
-
-#endif
-
+  #endif
 %}
 
 DECLARE
 %{
-  int rep;                    /* Neutron repeat count */
-  int repeat_cnt;             /* Repeat count, MPI taken into account */
-  FILE *hfile;                /* Neutron input file handle */
-
+  int rep;        /* Neutron repeat count */
+  int repeat_cnt; /* Repeat count, MPI taken into account */
+  FILE* hfile;    /* Neutron input file handle */
 
   char do_rotate, do_translate;
   double mean_x, mean_y, mean_z;
-  double bx,by,bz;
+  double bx, by, bz;
   double angle2z;
   long begin_neutrons;
   int old_surface;
@@ -264,295 +271,327 @@ DECLARE
 
 INITIALIZE
 %{
-  rep=1;
-  do_rotate=0;
-  do_translate=0;
-  mean_x=0;
-  mean_y=0;
-  mean_z=0;
-  angle2z=0;
-  begin_neutrons=0;
-  old_surface=-1;
-  informed_event=0;
-  informed_surface=0;
-  n_count_extrapolated=0;
-  min_x=FLT_MAX;
-  min_y=FLT_MAX;
-  min_z=FLT_MAX;
-  max_x=-FLT_MAX;
-  max_y=-FLT_MAX;
-  max_z=-FLT_MAX;
-  min_vx=FLT_MAX;
-  min_vy=FLT_MAX;
-  min_vz=FLT_MAX;
-  max_vx=-FLT_MAX;
-  max_vy=-FLT_MAX;
-  max_vz=-FLT_MAX;
-  mean_dx=0;
-  mean_dy=0;
-  mean_dz=0;
+  rep = 1;
+  do_rotate = 0;
+  do_translate = 0;
+  mean_x = 0;
+  mean_y = 0;
+  mean_z = 0;
+  angle2z = 0;
+  begin_neutrons = 0;
+  old_surface = -1;
+  informed_event = 0;
+  informed_surface = 0;
+  n_count_extrapolated = 0;
+  min_x = FLT_MAX;
+  min_y = FLT_MAX;
+  min_z = FLT_MAX;
+  max_x = -FLT_MAX;
+  max_y = -FLT_MAX;
+  max_z = -FLT_MAX;
+  min_vx = FLT_MAX;
+  min_vy = FLT_MAX;
+  min_vz = FLT_MAX;
+  max_vx = -FLT_MAX;
+  max_vy = -FLT_MAX;
+  max_vz = -FLT_MAX;
+  mean_dx = 0;
+  mean_dy = 0;
+  mean_dz = 0;
 
+  char exit_flag = 0; /* set to 1 if end of simulation */
 
-  char  exit_flag=0;  /* set to 1 if end of simulation */
+  double mean_vx = 0, mean_vy = 0, mean_vz = 0, mean_v = 0;
 
-  double mean_vx=0, mean_vy=0, mean_vz=0, mean_v=0;
-
-  double n_neutrons=0;
-  double n_neutrons_p=0;
-  long   filesize  =0;
-  char *head=NULL;                    /*MCNP header*/
+  double n_neutrons = 0;
+  double n_neutrons_p = 0;
+  long filesize = 0;
+  char* head = NULL; /*MCNP header*/
 
   struct stat stfile;
-  surface=surface_id;
+  surface = surface_id;
   /* Open neutron input file. */
   /* (If empty file given, present warning in case of verbose, perform nothing) */
 
-  if (!filename || !strcmp(filename,"") || !strcmp(filename,"0")  || !strcmp(filename,"NULL"))
-    exit(printf("MCNP_input: %s: Empty file given, doing nothing!. Stop.\n", NAME_CURRENT_COMP));
+  if (!filename || !strcmp (filename, "") || !strcmp (filename, "0") || !strcmp (filename, "NULL"))
+    exit (printf ("MCNP_input: %s: Empty file given, doing nothing!. Stop.\n", NAME_CURRENT_COMP));
 
-
-  if (filename && strlen(filename) && strcmp(filename, "NULL") && strcmp(filename, "0")) {
-    stat(filename,&stfile);
+  if (filename && strlen (filename) && strcmp (filename, "NULL") && strcmp (filename, "0")) {
+    stat (filename, &stfile);
     filesize = stfile.st_size;
-    hfile = fopen(filename, "r");
+    hfile = fopen (filename, "r");
   }
 
-  if(!hfile)
-  {
-    exit(printf("MCNP_input: %s: Error: Cannot open input file %s.\n", NAME_CURRENT_COMP, filename));
+  if (!hfile) {
+    exit (printf ("MCNP_input: %s: Error: Cannot open input file %s.\n", NAME_CURRENT_COMP, filename));
   } else if (verbose)
-    printf("MCNP_input: %s: opening MCNP/PTRAC file '%s'\n", NAME_CURRENT_COMP, filename);
+    printf ("MCNP_input: %s: opening MCNP/PTRAC file '%s'\n", NAME_CURRENT_COMP, filename);
 
-  head = mcnp_get_header(hfile); /*  and reset to filename start */
+  head = mcnp_get_header (hfile); /*  and reset to filename start */
 
-  begin_neutrons = ftell(hfile);
+  begin_neutrons = ftell (hfile);
 
-  if (verbose) fprintf(stdout, "%s\n", head);
-  if (head)  free(head); head=NULL;
+  if (verbose)
+    fprintf (stdout, "%s\n", head);
+  if (head)
+    free (head);
+  head = NULL;
   if (verbose) {
-    printf("Analysing MCNP file %s (", filename);
-    if (MCNP_ANALYSE) printf("%g events)\n", MCNP_ANALYSE);
-    else printf("all events)\n");
+    printf ("Analysing MCNP file %s (", filename);
+    if (MCNP_ANALYSE)
+      printf ("%g events)\n", MCNP_ANALYSE);
+    else
+      printf ("all events)\n");
   }
 
   /* analyse MCNP file: count neutrons, get beam center and mean speed
    * do that for the first 1e4 neutrons, and extrapolates to file size */
 
   while (!exit_flag && (n_neutrons <= MCNP_ANALYSE || !MCNP_ANALYSE)) {
-    double x,y,z,vx,vy,vz,t,p,sx,sy,sz;
-    if (mcnp_create_neutron(
-      hfile,&x,&y,&z,&vx,&vy,&vz,&t,&sx,&sy,&sz,&p,
-      &old_surface,&surface,&informed_event,&informed_surface)) {
+    double x, y, z, vx, vy, vz, t, p, sx, sy, sz;
+    if (mcnp_create_neutron (hfile, &x, &y, &z, &vx, &vy, &vz, &t, &sx, &sy, &sz, &p, &old_surface, &surface, &informed_event, &informed_surface)) {
       /*END OF FILE*/
-      fprintf(stderr, "MCNP_input: %s: Cannot get neutron %g : Error or End of File reached .\n",NAME_CURRENT_COMP,n_neutrons+1);
+      fprintf (stderr, "MCNP_input: %s: Cannot get neutron %g : Error or End of File reached .\n", NAME_CURRENT_COMP, n_neutrons + 1);
       exit_flag = 1;
     } else {
       double v;
-      v = sqrt(vx*vx+vy*vy+vz*vz);
-      mean_x  += p*x;  mean_y  += p*y;  mean_z  += p*z;
-      mean_vx += p*vx; mean_vy += p*vy; mean_vz += p*vz; mean_v += p*v;
-      angle2z += p*vz/v;
+      v = sqrt (vx * vx + vy * vy + vz * vz);
+      mean_x += p * x;
+      mean_y += p * y;
+      mean_z += p * z;
+      mean_vx += p * vx;
+      mean_vy += p * vy;
+      mean_vz += p * vz;
+      mean_v += p * v;
+      angle2z += p * vz / v;
       if (v) {
-        mean_dx += p*fabs(vx/v); mean_dy += p*fabs(vy/v); mean_dz += p*fabs(vz/v); }
-      if (x  < min_x)  min_x  = x;
-      if (y  < min_y)  min_y  = y;
-      if (z  < min_z)  min_z  = z;
-      if (vx < min_vx) min_vx = vx;
-      if (vy < min_vy) min_vy = vy;
-      if (vz < min_vz) min_vz = z;
-      if (x  > max_x)  max_x  = x;
-      if (y  > max_y)  max_y  = y;
-      if (z  > max_z)  max_z  = z;
-      if (vx > max_vx) max_vx = vx;
-      if (vy > max_vy) max_vy = vy;
-      if (vz > max_vz) max_vz = z;
+        mean_dx += p * fabs (vx / v);
+        mean_dy += p * fabs (vy / v);
+        mean_dz += p * fabs (vz / v);
+      }
+      if (x < min_x)
+        min_x = x;
+      if (y < min_y)
+        min_y = y;
+      if (z < min_z)
+        min_z = z;
+      if (vx < min_vx)
+        min_vx = vx;
+      if (vy < min_vy)
+        min_vy = vy;
+      if (vz < min_vz)
+        min_vz = z;
+      if (x > max_x)
+        max_x = x;
+      if (y > max_y)
+        max_y = y;
+      if (z > max_z)
+        max_z = z;
+      if (vx > max_vx)
+        max_vx = vx;
+      if (vy > max_vy)
+        max_vy = vy;
+      if (vz > max_vz)
+        max_vz = z;
       n_neutrons++;
       n_neutrons_p += p;
     }
   } /* end while */
 
   if (n_neutrons) {
-    long   end_analyse=0;
-    double cx,cy,cz;
-    end_analyse = ftell(hfile);
-    mean_x  /= n_neutrons_p;
-    mean_y  /= n_neutrons_p;
-    mean_z  /= n_neutrons_p;
+    long end_analyse = 0;
+    double cx, cy, cz;
+    end_analyse = ftell (hfile);
+    mean_x /= n_neutrons_p;
+    mean_y /= n_neutrons_p;
+    mean_z /= n_neutrons_p;
     mean_vx /= n_neutrons_p;
     mean_vy /= n_neutrons_p;
     mean_vz /= n_neutrons_p;
     mean_dx /= n_neutrons_p;
     mean_dy /= n_neutrons_p;
     mean_dz /= n_neutrons_p;
-    mean_v  /= n_neutrons_p;
+    mean_v /= n_neutrons_p;
     angle2z /= n_neutrons_p;
-    n_count_extrapolated = n_neutrons*(filesize-begin_neutrons)/(end_analyse - begin_neutrons);
+    n_count_extrapolated = n_neutrons * (filesize - begin_neutrons) / (end_analyse - begin_neutrons);
     if (verbose) {
-      double mean_k, mean_w=0, mean_L=0;
+      double mean_k, mean_w = 0, mean_L = 0;
 
-      mean_k = V2K*mean_v;
-      if (mean_k) mean_L = 2*PI/mean_k;
-      mean_w = VS2E*mean_v*mean_v;
-      printf("MCNP file %s\nContains %s%g neutrons from surface %i with event %i\n",
-             filename, MCNP_ANALYSE ? "about " : "",
-             n_count_extrapolated, informed_surface, informed_event);
-      if (n_count_extrapolated > mcget_ncount())
-        printf("    (will use only %.3g %% of file)\n", 100.0*mcget_ncount()/n_count_extrapolated);
+      mean_k = V2K * mean_v;
+      if (mean_k)
+        mean_L = 2 * PI / mean_k;
+      mean_w = VS2E * mean_v * mean_v;
+      printf ("MCNP file %s\nContains %s%g neutrons from surface %i with event %i\n", filename, MCNP_ANALYSE ? "about " : "", n_count_extrapolated,
+              informed_surface, informed_event);
+      if (n_count_extrapolated > mcget_ncount ())
+        printf ("    (will use only %.3g %% of file)\n", 100.0 * mcget_ncount () / n_count_extrapolated);
       else
-        printf("    (limiting simulation to %g neutrons)\n", n_count_extrapolated*repeat_count);
-      printf("  Source size (full width in [m]):      ");
-      printf("    dX=%g dY=%g dZ=%g\n", max_x-min_x, max_y-min_y, max_z-min_z);
-      printf("  Source center (in [m]):               ");
-      printf("    X0=%g Y0=%g Z0=%g\n", mean_x, mean_y, mean_z);
-      printf("  Beam divergence (full width in [deg]):");
-      printf("    dVx=%g dVy=%g dVz=%g\n",
-             atan(mean_dx)*RAD2DEG,
-             atan(mean_dy)*RAD2DEG,
-             atan(mean_dz)*RAD2DEG);
-      printf("  Beam speed (in [m/s]):                ");
-      printf("    Vx=%g Vy=%g Vz=%g\n", mean_vx, mean_vy, mean_vz);
-      printf("  Beam mean energy:\n");
-      printf("    speed=%g [m/s] energy=%g [meV]\n    wavelength=%g [Angs] wavevector=%g [Angs-1]\n", mean_v, mean_w, mean_L, mean_k);
+        printf ("    (limiting simulation to %g neutrons)\n", n_count_extrapolated * repeat_count);
+      printf ("  Source size (full width in [m]):      ");
+      printf ("    dX=%g dY=%g dZ=%g\n", max_x - min_x, max_y - min_y, max_z - min_z);
+      printf ("  Source center (in [m]):               ");
+      printf ("    X0=%g Y0=%g Z0=%g\n", mean_x, mean_y, mean_z);
+      printf ("  Beam divergence (full width in [deg]):");
+      printf ("    dVx=%g dVy=%g dVz=%g\n", atan (mean_dx) * RAD2DEG, atan (mean_dy) * RAD2DEG, atan (mean_dz) * RAD2DEG);
+      printf ("  Beam speed (in [m/s]):                ");
+      printf ("    Vx=%g Vy=%g Vz=%g\n", mean_vx, mean_vy, mean_vz);
+      printf ("  Beam mean energy:\n");
+      printf ("    speed=%g [m/s] energy=%g [meV]\n    wavelength=%g [Angs] wavevector=%g [Angs-1]\n", mean_v, mean_w, mean_L, mean_k);
     }
 
     if (autocenter) {
-      if (strstr(autocenter, "rotate") || strstr(autocenter, "orient")) {
-        do_rotate    = 1;
+      if (strstr (autocenter, "rotate") || strstr (autocenter, "orient")) {
+        do_rotate = 1;
       }
-      if (strstr(autocenter, "translate") || strstr(autocenter, "center"))
+      if (strstr (autocenter, "translate") || strstr (autocenter, "center"))
         do_translate = 1;
-      if (strstr(autocenter, "rescale") && intensity)
-        printf("* Automatic Normalisation factor Intensity/nps = %g [n/s]\n",
-          intensity/nps);
+      if (strstr (autocenter, "rescale") && intensity)
+        printf ("* Automatic Normalisation factor Intensity/nps = %g [n/s]\n", intensity / nps);
     }
     /* compute the rotation matrix to make mean_v along the Z-axis */
     /* first normalize mean velocity (will be Z axis): c=v/|v| */
-    cx = mean_vx/mean_v; cy = mean_vy/mean_v; cz = mean_vz/mean_v;
+    cx = mean_vx / mean_v;
+    cy = mean_vy / mean_v;
+    cz = mean_vz / mean_v;
 
     /* compute angle to rotate in order to come back to Z axis */
-    angle2z = acos(angle2z); /* in RAD */
+    angle2z = acos (angle2z); /* in RAD */
     /* get rotation axis b=c x [0 0 1] */
     if (angle2z) {
-    vec_prod(bx,by,bz, cx,cy,cz, 0,0,1);
+      vec_prod (bx, by, bz, cx, cy, cz, 0, 0, 1);
     } else { /* already well oriented: nothing to do */
-    do_rotate = 0;
+      do_rotate = 0;
     }
     if (verbose && (do_rotate || do_translate || smooth)) {
-      printf("* Beam will be ");
-      if (do_translate) printf("translated (in position) ");
-      if (do_rotate)    printf("rotated (%.3g [deg] to Z-axis) ", angle2z*RAD2DEG);
-      if (smooth)       printf("smoothed ");
-      printf("\n");
+      printf ("* Beam will be ");
+      if (do_translate)
+        printf ("translated (in position) ");
+      if (do_rotate)
+        printf ("rotated (%.3g [deg] to Z-axis) ", angle2z * RAD2DEG);
+      if (smooth)
+        printf ("smoothed ");
+      printf ("\n");
     }
 
   } else {
-    exit(printf("MCNP_input: %s: Error: file %s neutrons does not contain any neutron. \n",NAME_CURRENT_COMP, filename));
+    exit (printf ("MCNP_input: %s: Error: file %s neutrons does not contain any neutron. \n", NAME_CURRENT_COMP, filename));
   }
 
   /* reposition at start of filename (data start) */
-  if (fseek(hfile, begin_neutrons,SEEK_SET)) {
-    fprintf(stderr, "MCNP_input: %s: Error: Can not reset MCNP file (fseek error at analyse). \n",NAME_CURRENT_COMP);
+  if (fseek (hfile, begin_neutrons, SEEK_SET)) {
+    fprintf (stderr, "MCNP_input: %s: Error: Can not reset MCNP file (fseek error at analyse). \n", NAME_CURRENT_COMP);
     exit_flag = 1;
   }
 
-#if defined (USE_MPI)
+  #if defined (USE_MPI)
   if (!smooth && mpi_node_count > 1) {
     if (verbose)
-  printf("MCNP_input: %s: smoothing (smooth=1) is recommended when running MPI execution.\n", NAME_CURRENT_COMP);
+      printf ("MCNP_input: %s: smoothing (smooth=1) is recommended when running MPI execution.\n", NAME_CURRENT_COMP);
   }
-#endif
+  #endif
 
-  double min_dv=fabs(max_vx-min_vx);
-  if (min_dv > fabs(max_vy-min_vy)) min_dv = fabs(max_vy-min_vy);
-  if (min_dv > fabs(max_vz-min_vz)) min_dv = fabs(max_vz-min_vz);
+  double min_dv = fabs (max_vx - min_vx);
+  if (min_dv > fabs (max_vy - min_vy))
+    min_dv = fabs (max_vy - min_vy);
+  if (min_dv > fabs (max_vz - min_vz))
+    min_dv = fabs (max_vz - min_vz);
   min_vx = min_dv;
 
   repeat_cnt = repeat_count;
-#if defined (USE_MPI)
-  repeat_cnt = ceil(1.0*repeat_cnt/mpi_node_count);
-#endif
+  #if defined (USE_MPI)
+  repeat_cnt = ceil (1.0 * repeat_cnt / mpi_node_count);
+  #endif
 
-  informed_event=informed_surface=0; /* reset ids so that new search in TRACE starts from scratch */
-
+  informed_event = informed_surface = 0; /* reset ids so that new search in TRACE starts from scratch */
 %}
 
 TRACE
 %{
-  char exit_flag=0;  /* set to 1 if end of simulation */
-  int  result_read=1;
+  char exit_flag = 0; /* set to 1 if end of simulation */
+  int result_read = 1;
 
-  while(!exit_flag) {
-    if (mcnp_create_neutron(hfile,&x,&y,&z,&vx,&vy,&vz,&t,&sx,&sy,&sz,&p,&old_surface,&surface,&informed_event,&informed_surface)) {
-      result_read=EOF;
+  while (!exit_flag) {
+    if (mcnp_create_neutron (hfile, &x, &y, &z, &vx, &vy, &vz, &t, &sx, &sy, &sz, &p, &old_surface, &surface, &informed_event, &informed_surface)) {
+      result_read = EOF;
       exit_flag = 1;
     } else {
       if (do_translate) { /* translate the beam to origin */
-        x -= mean_x; y -= mean_y; z -= mean_z;
+        x -= mean_x;
+        y -= mean_y;
+        z -= mean_z;
       }
-      if (do_rotate) {    /* rotate the beam so that its main axis is along Z */
+      if (do_rotate) { /* rotate the beam so that its main axis is along Z */
         double nvx, nvy, nvz;
-        rotate(nvx,nvy,nvz, vx,vy,vz, angle2z, bx,by,bz);
-        vx = nvx; vy=nvy; vz=nvz;
-        rotate(nvx,nvy,nvz,  x, y, z, angle2z, bx,by,bz);
-         x = nvx;  y=nvy;  z=nvz;
+        rotate (nvx, nvy, nvz, vx, vy, vz, angle2z, bx, by, bz);
+        vx = nvx;
+        vy = nvy;
+        vz = nvz;
+        rotate (nvx, nvy, nvz, x, y, z, angle2z, bx, by, bz);
+        x = nvx;
+        y = nvy;
+        z = nvz;
       }
 
-      if (intensity && nps) p *= intensity/nps/repeat_cnt;
+      if (intensity && nps)
+        p *= intensity / nps / repeat_cnt;
       SCATTER;
     }
 
-#if defined (USE_MPI)
+    #if defined (USE_MPI)
     if (smooth && n_count_extrapolated)
-#else
-    if (smooth && rep > 1 && n_count_extrapolated)
-#endif
-    {
-      /* apply smmothing */
-      x += randnorm()*(max_x-min_x)/n_count_extrapolated/2;
-      y += randnorm()*(max_y-min_y)/n_count_extrapolated/2;
-      z += randnorm()*(max_z-min_z)/n_count_extrapolated/2;
-      vx += randnorm()*min_vx/n_count_extrapolated/2;
-      vy += randnorm()*min_vx/n_count_extrapolated/2;
-      vx += randnorm()*min_vx/n_count_extrapolated/2;
-    }
+      #else
+      if (smooth && rep > 1 && n_count_extrapolated)
+      #endif
+      {
+        /* apply smmothing */
+        x += randnorm () * (max_x - min_x) / n_count_extrapolated / 2;
+        y += randnorm () * (max_y - min_y) / n_count_extrapolated / 2;
+        z += randnorm () * (max_z - min_z) / n_count_extrapolated / 2;
+        vx += randnorm () * min_vx / n_count_extrapolated / 2;
+        vy += randnorm () * min_vx / n_count_extrapolated / 2;
+        vx += randnorm () * min_vx / n_count_extrapolated / 2;
+      }
 
-
-    if (result_read==EOF) {  /* normal end of file */
+    if (result_read == EOF) { /* normal end of file */
       rep++;
       if (rep <= repeat_cnt) {
         /* reposition at start of file (data start) */
-        int ret = fseek(hfile, begin_neutrons,SEEK_SET);
+        int ret = fseek (hfile, begin_neutrons, SEEK_SET);
         if (ret) {
-          fprintf(stderr, "MCNP_input: %s: Error: Can not repeat MCNP file (fseek error at repeat %d). \n",NAME_CURRENT_COMP, rep);
+          fprintf (stderr, "MCNP_input: %s: Error: Can not repeat MCNP file (fseek error at repeat %d). \n", NAME_CURRENT_COMP, rep);
           exit_flag = 1;
         } else {
-          if (verbose) printf("MCNP_input: %s: Start Neutron Number %ld (iteration %d)\n",NAME_CURRENT_COMP,begin_neutrons, rep);
-          exit_flag=0;
+          if (verbose)
+            printf ("MCNP_input: %s: Start Neutron Number %ld (iteration %d)\n", NAME_CURRENT_COMP, begin_neutrons, rep);
+          exit_flag = 0;
         }
-      }
-      else exit_flag=1;
+      } else
+        exit_flag = 1;
     }
 
     if (exit_flag) {
-      if (verbose) printf("  Finishing simulation\n");
-      mcset_ncount(mcget_run_num()); ABSORB;
+      if (verbose)
+        printf ("  Finishing simulation\n");
+      mcset_ncount (mcget_run_num ());
+      ABSORB;
     }
     SCATTER;
     break;
-  #ifdef USE_MPI
+    #ifdef USE_MPI
     /* We always repeat by the number of nodes in an MPI run */
     p /= mpi_node_count;
-  #endif
+    #endif
   } /* end while */
 %}
 
 FINALLY
 %{
-  if (filename && strlen(filename) && strcmp(filename,"0") && strcmp(filename,"NULL")) {
-    if (hfile) fclose(hfile);
+  if (filename && strlen (filename) && strcmp (filename, "0") && strcmp (filename, "NULL")) {
+    if (hfile)
+      fclose (hfile);
     if (verbose) {
-      printf("MCNP_input: %s: file %s\n", NAME_CURRENT_COMP, filename);
-      printf("                %g neutrons generated\n", (double)mcget_ncount());
+      printf ("MCNP_input: %s: file %s\n", NAME_CURRENT_COMP, filename);
+      printf ("                %g neutrons generated\n", (double)mcget_ncount ());
     }
   }
 %}
@@ -560,14 +599,17 @@ FINALLY
 MCDISPLAY
 %{
   /* a box and a line in the main beam direction */
-  double nx=mean_x, ny=mean_y, nz=mean_z;
-  double dx=mean_dx,dy=mean_dy,dz=mean_dz;
-  if (do_translate) nx=ny=nz=0;
-  if (do_rotate)    { dx=dy=0; dz=.1; }
+  double nx = mean_x, ny = mean_y, nz = mean_z;
+  double dx = mean_dx, dy = mean_dy, dz = mean_dz;
+  if (do_translate)
+    nx = ny = nz = 0;
+  if (do_rotate) {
+    dx = dy = 0;
+    dz = .1;
+  }
 
-  box(nx,ny,nz, max_x-min_x, max_y-min_y, max_z-min_z, 0, 0, 1, 0);
-  line(     nx,ny,nz, dx,dy,dz);
-
+  box (nx, ny, nz, max_x - min_x, max_y - min_y, max_z - min_z, 0, 0, 1, 0);
+  line (nx, ny, nz, dx, dy, dz);
 %}
 
 

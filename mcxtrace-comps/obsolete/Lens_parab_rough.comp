@@ -45,216 +45,216 @@ SETTING PARAMETERS (string material_datafile="Be.txt", r=0.5e-3,yheight=1.4e-3,x
 SHARE
 %{
   %include "read_table-lib"
-  struct datastruct{
+  struct datastruct {
     int Z;
     double Ar, rho;
     double *E, *mu, *f;
-  }; 
+  };
   typedef struct {
-  double coord[3];
-  double k[3];
+    double coord[3];
+    double k[3];
   } incom;
-typedef struct {
-  double constants[8];
-} lens;
-  
-  incom intersection_lens_parab_rough(incom a,lens b){
-    incom result={a.coord[0],a.coord[1],a.coord[2],a.k[0],a.k[1],a.k[2]};  
+  typedef struct {
+    double constants[8];
+  } lens;
+
+  incom
+  intersection_lens_parab_rough (incom a, lens b) {
+    incom result = { a.coord[0], a.coord[1], a.coord[2], a.k[0], a.k[1], a.k[2] };
     int i;
-    double A,B,C,D,rr;
-    double t[2],p[3],knorm[3],k[3],pos1_tmp[3],pos_tmp[3];
-  
-    double nxn,nyn,nzn,Nx,Ny,Nz,NORM,Knorm;
-    double cos_theta,cos_theta1,Arg,Arg1,s,q;
-    double k_new[3],k_new1[3],M,Sign,dd;
-    double yh,xw;
-    
-    double tx,ty,tz,tnorm,txn,tyn,tzn;
-    double v,w;
-    double rough_xy,rough_z;
-  
-    for(i=0;i<=2;i++){
-      k[i]=a.k[i];
-      p[i]=a.coord[i];
+    double A, B, C, D, rr;
+    double t[2], p[3], knorm[3], k[3], pos1_tmp[3], pos_tmp[3];
+
+    double nxn, nyn, nzn, Nx, Ny, Nz, NORM, Knorm;
+    double cos_theta, cos_theta1, Arg, Arg1, s, q;
+    double k_new[3], k_new1[3], M, Sign, dd;
+    double yh, xw;
+
+    double tx, ty, tz, tnorm, txn, tyn, tzn;
+    double v, w;
+    double rough_xy, rough_z;
+
+    for (i = 0; i <= 2; i++) {
+      k[i] = a.k[i];
+      p[i] = a.coord[i];
     }
 
-    Knorm=sqrt(k[0]*k[0]+k[1]*k[1]+k[2]*k[2]);
-    knorm[0]=k[0]/Knorm; 
-    knorm[1]=k[1]/Knorm; 
-    knorm[2]=k[2]/Knorm;
-    
-    rr=b.constants[0];
-    yh=b.constants[1];
-    xw=b.constants[2];
-    dd=b.constants[3];
-    M=b.constants[4]; 
-    Sign=b.constants[5];
-  
-    rough_xy=b.constants[6];
-    rough_z=b.constants[7];
-    
-    A=knorm[0]*knorm[0]+knorm[1]*knorm[1]; 
-    B= 2.0*(p[0]*knorm[0]+p[1]*knorm[1] - Sign*rr*knorm[2]);
-    C=p[0]*p[0]+p[1]*p[1] - Sign*2*rr*p[2] + Sign*rr*2*dd;
-    D=B*B-4.0*A*C;     
-    
-    if (D<0) { /*ray does not intersect the parabola*/
- 	fprintf(stderr,"line 96: D<0 %s\n",NAME_CURRENT_COMP);
-        return result;
+    Knorm = sqrt (k[0] * k[0] + k[1] * k[1] + k[2] * k[2]);
+    knorm[0] = k[0] / Knorm;
+    knorm[1] = k[1] / Knorm;
+    knorm[2] = k[2] / Knorm;
+
+    rr = b.constants[0];
+    yh = b.constants[1];
+    xw = b.constants[2];
+    dd = b.constants[3];
+    M = b.constants[4];
+    Sign = b.constants[5];
+
+    rough_xy = b.constants[6];
+    rough_z = b.constants[7];
+
+    A = knorm[0] * knorm[0] + knorm[1] * knorm[1];
+    B = 2.0 * (p[0] * knorm[0] + p[1] * knorm[1] - Sign * rr * knorm[2]);
+    C = p[0] * p[0] + p[1] * p[1] - Sign * 2 * rr * p[2] + Sign * rr * 2 * dd;
+    D = B * B - 4.0 * A * C;
+
+    if (D < 0) { /*ray does not intersect the parabola*/
+      fprintf (stderr, "line 96: D<0 %s\n", NAME_CURRENT_COMP);
+      return result;
     }
-    if (A==0){ /*incident k-vector is parallel (exactly) to the z-axis. Thus, the eq. becomes linear*/
-      if(B==0){ 
-	fprintf(stderr, "Division by zero in %s\n",NAME_CURRENT_COMP); 
-	return result; 
-      }	  
-      t[0]=-C/B;
-      for(i=0; i<=2; i++){
-        result.coord[i]=p[i]+t[0]*knorm[i];
+    if (A == 0) { /*incident k-vector is parallel (exactly) to the z-axis. Thus, the eq. becomes linear*/
+      if (B == 0) {
+        fprintf (stderr, "Division by zero in %s\n", NAME_CURRENT_COMP);
+        return result;
+      }
+      t[0] = -C / B;
+      for (i = 0; i <= 2; i++) {
+        result.coord[i] = p[i] + t[0] * knorm[i];
       }
     } else {
       double qq;
-        if (B<0){
-          qq=-0.5*(B-sqrt(D));
-        }else{
-          qq=-0.5*(B+sqrt(D)); 
+      if (B < 0) {
+        qq = -0.5 * (B - sqrt (D));
+      } else {
+        qq = -0.5 * (B + sqrt (D));
+      }
+      t[0] = qq / A;
+      t[1] = C / qq;
+
+      for (i = 0; i <= 2; i++) {
+        pos_tmp[i] = p[i] + t[0] * knorm[i];
+        pos1_tmp[i] = p[i] + t[1] * knorm[i];
+      }
+      if (fabs (pos_tmp[1]) <= fabs (yh / 2) && fabs (pos_tmp[0]) <= fabs (xw / 2)) {
+        for (i = 0; i <= 2; i++) {
+          result.coord[i] = pos_tmp[i];
         }
-        t[0]=qq/A; 
-        t[1]=C/qq;
-        
-        for(i=0;i<=2;i++){
-	  pos_tmp[i]=p[i]+t[0]*knorm[i]; 
-	  pos1_tmp[i]=p[i]+t[1]*knorm[i];
-	} 
-	if ( fabs(pos_tmp[1])<=fabs(yh/2) && fabs(pos_tmp[0])<=fabs(xw/2) ){
-	  for(i=0;i<=2;i++){
-	  result.coord[i]=pos_tmp[i];
-	  }
-	} else if ( fabs(pos1_tmp[1])<=fabs(yh/2) && fabs(pos1_tmp[0])<=fabs(xw/2) ){
-	       for(i=0;i<=2;i++){
-		  result.coord[i]=pos1_tmp[i];
-	       }
-	  }
-	else return result; 
-      }     
-    
+      } else if (fabs (pos1_tmp[1]) <= fabs (yh / 2) && fabs (pos1_tmp[0]) <= fabs (xw / 2)) {
+        for (i = 0; i <= 2; i++) {
+          result.coord[i] = pos1_tmp[i];
+        }
+      } else
+        return result;
+    }
+
     // introducing waviness into the code
     double d_xy, d_z;
-    
-    d_xy=rough_xy*randnorm(); 
-    d_z=rough_z*randnorm();
-    
-        /* Calculating tangential vector  */
-	
-    if (result.coord[0]==0 && result.coord[1]==0){ // incoming ray is along the axis, so it does not refract
-	k_new[0]=k[0];
-	k_new[1]=k[1];
-	k_new[2]=k[2];
-	 for(i=0;i<3;i++) { 
-	 result.k[i]=k_new[i]; 
-	 }  
-      return result; 
-    }
-    else if (result.coord[0]!=0 && result.coord[1]!=0){
-	   Nx=-Sign*(result.coord[0]/rr);  // surface normal
-	   Ny=-Sign*(result.coord[1]/rr); 
-	   Nz=1; 
-	   
-	      if (rough_xy) {
-		Nx+=d_xy;  
-		Ny+=d_xy; 
-	      } 
-	      if (rough_z) {
-		  Nz+=d_z;
-	      }
-	   
-	   
-	   NORM=sqrt(Nx*Nx+Ny*Ny+Nz*Nz);
-	   nxn=Nx/NORM;
-	   nyn=Ny/NORM;
-	   nzn=Nz/NORM;
 
-	   double cos_chi;
-	   cos_chi=knorm[0]*nxn+knorm[1]*nyn+knorm[2]*nzn;
-	   w=1/(sqrt(1-cos_chi*cos_chi)); // tangential vector
-	   v=-w*cos_chi;
-	   
-	   tx=v*nxn+w*knorm[0];
-	   ty=v*nyn+w*knorm[1]; 
-	   tz=v*nzn+w*knorm[2]; 
-	    
+    d_xy = rough_xy * randnorm ();
+    d_z = rough_z * randnorm ();
+
+    /* Calculating tangential vector  */
+
+    if (result.coord[0] == 0 && result.coord[1] == 0) { // incoming ray is along the axis, so it does not refract
+      k_new[0] = k[0];
+      k_new[1] = k[1];
+      k_new[2] = k[2];
+      for (i = 0; i < 3; i++) {
+        result.k[i] = k_new[i];
+      }
+      return result;
+    } else if (result.coord[0] != 0 && result.coord[1] != 0) {
+      Nx = -Sign * (result.coord[0] / rr); // surface normal
+      Ny = -Sign * (result.coord[1] / rr);
+      Nz = 1;
+
+      if (rough_xy) {
+        Nx += d_xy;
+        Ny += d_xy;
+      }
+      if (rough_z) {
+        Nz += d_z;
+      }
+
+      NORM = sqrt (Nx * Nx + Ny * Ny + Nz * Nz);
+      nxn = Nx / NORM;
+      nyn = Ny / NORM;
+      nzn = Nz / NORM;
+
+      double cos_chi;
+      cos_chi = knorm[0] * nxn + knorm[1] * nyn + knorm[2] * nzn;
+      w = 1 / (sqrt (1 - cos_chi * cos_chi)); // tangential vector
+      v = -w * cos_chi;
+
+      tx = v * nxn + w * knorm[0];
+      ty = v * nyn + w * knorm[1];
+      tz = v * nzn + w * knorm[2];
+
+    } else if (result.coord[0] == 0) {
+      tx = 0;
+      ty = Sign * (rr / result.coord[1]);
+      tz = 1;
+    } else if (result.coord[1] == 0) {
+      tx = Sign * (rr / result.coord[0]);
+      ty = 0;
+      tz = 1;
     }
-    else if (result.coord[0]==0){
-	    tx=0;
-	    ty=Sign*(rr/result.coord[1]);
-	    tz=1;
-    }
-    else if (result.coord[1]==0){
-	    tx=Sign*(rr/result.coord[0]);
-	    ty=0;
-	    tz=1;
-    }
-	
-    tnorm=sqrt(tx*tx+ty*ty+tz*tz);
-    txn=tx/tnorm;
-    tyn=ty/tnorm;
-    tzn=tz/tnorm;
-    
-    cos_theta=txn*knorm[0]+tyn*knorm[1]+tzn*knorm[2];
-    cos_theta1=M*cos_theta; // Snell's law
+
+    tnorm = sqrt (tx * tx + ty * ty + tz * tz);
+    txn = tx / tnorm;
+    tyn = ty / tnorm;
+    tzn = tz / tnorm;
+
+    cos_theta = txn * knorm[0] + tyn * knorm[1] + tzn * knorm[2];
+    cos_theta1 = M * cos_theta; // Snell's law
 
     /* new k vector */
-    if ((1.0-cos_theta*cos_theta)==0) {
-       fprintf(stderr,"line 134: Division by zero\n"); 
-       return result; 
+    if ((1.0 - cos_theta * cos_theta) == 0) {
+      fprintf (stderr, "line 134: Division by zero\n");
+      return result;
     }
-    
-    Arg=(1.0-cos_theta1*cos_theta1)/(1.0-cos_theta*cos_theta);
-    s=(1/M)*sqrt(Arg);
-    q=(Knorm/tnorm)*((1/M)*cos_theta1-s*cos_theta);
-    
-    k_new[0]=q*tx+s*k[0];
-    k_new[1]=q*ty+s*k[1];
-    k_new[2]=q*tz+s*k[2];
-    
-    for(i=0;i<3;i++) { 
-      result.k[i]=k_new[i]; 
-    } 
-    return result; 
+
+    Arg = (1.0 - cos_theta1 * cos_theta1) / (1.0 - cos_theta * cos_theta);
+    s = (1 / M) * sqrt (Arg);
+    q = (Knorm / tnorm) * ((1 / M) * cos_theta1 - s * cos_theta);
+
+    k_new[0] = q * tx + s * k[0];
+    k_new[1] = q * ty + s * k[1];
+    k_new[2] = q * tz + s * k[2];
+
+    for (i = 0; i < 3; i++) {
+      result.k[i] = k_new[i];
+    }
+    return result;
   }
 
-  const double Re=2.8179402894e-5;     /* Thomson Scattering length [Angstrom] */
-  const double Na=6.02214179e23;       /* Avogadro's number [atoms per gram-mole]*/
+  const double Re = 2.8179402894e-5; /* Thomson Scattering length [Angstrom] */
+  const double Na = 6.02214179e23;   /* Avogadro's number [atoms per gram-mole]*/
 %}
 
 DECLARE
 %{
-  struct datastruct *prms;
+  struct datastruct* prms;
 %} 
 
 INITIALIZE 
 %{
-  int status=0;
+  int status = 0;
   t_Table T;
-  if ( (status=Table_Read(&T,material_datafile,0))==-1){
-    fprintf(stderr,"Error: Could not parse file \"%s\" in COMP %s\n",material_datafile,NAME_CURRENT_COMP);
-    exit(-1);
+  if ((status = Table_Read (&T, material_datafile, 0)) == -1) {
+    fprintf (stderr, "Error: Could not parse file \"%s\" in COMP %s\n", material_datafile, NAME_CURRENT_COMP);
+    exit (-1);
   }
-  char **header_parsed;
-  header_parsed=Table_ParseHeader(T.header,"Z","A[r]","rho",NULL);
-  prms=calloc(1,sizeof(struct datastruct));
-  if (!prms->Z) prms->Z=strtol(header_parsed[0],NULL,10);
-  if (!prms->Ar) prms->Ar=strtod(header_parsed[1],NULL);
-  if (!prms->rho) prms->rho=strtod(header_parsed[2],NULL);
-  prms->E=malloc(sizeof(double)*(T.rows+1));
-  prms->f=malloc(sizeof(double)*(T.rows+1));
-  prms->mu=malloc(sizeof(double)*(T.rows+1));
+  char** header_parsed;
+  header_parsed = Table_ParseHeader (T.header, "Z", "A[r]", "rho", NULL);
+  prms = calloc (1, sizeof (struct datastruct));
+  if (!prms->Z)
+    prms->Z = strtol (header_parsed[0], NULL, 10);
+  if (!prms->Ar)
+    prms->Ar = strtod (header_parsed[1], NULL);
+  if (!prms->rho)
+    prms->rho = strtod (header_parsed[2], NULL);
+  prms->E = malloc (sizeof (double) * (T.rows + 1));
+  prms->f = malloc (sizeof (double) * (T.rows + 1));
+  prms->mu = malloc (sizeof (double) * (T.rows + 1));
   int i;
-  for(i=0;i<T.rows;i++){
-      prms->E[i]=T.data[i*T.columns]; 
-      prms->mu[i]=T.data[5+i*T.columns]*prms->rho*1e2;     /*mu is now in SI, [m^-1]*/          
-      prms->f[i]=T.data[1+i*T.columns];
+  for (i = 0; i < T.rows; i++) {
+    prms->E[i] = T.data[i * T.columns];
+    prms->mu[i] = T.data[5 + i * T.columns] * prms->rho * 1e2; /*mu is now in SI, [m^-1]*/
+    prms->f[i] = T.data[1 + i * T.columns];
   }
-  Table_Free(&T);
+  Table_Free (&T);
 %}
 
 
@@ -262,112 +262,115 @@ INITIALIZE
 
 TRACE 
 %{
-  incom incid,refr,outg;
+  incom incid, refr, outg;
   lens parab;
 
-  double E,mu,f,rhoel,dl,e,k,delta,beta,Refractive_Index_Re,Refractive_Index_Im,w; 
+  double E, mu, f, rhoel, dl, e, k, delta, beta, Refractive_Index_Re, Refractive_Index_Im, w;
 
-  int i=0,nr;
-  
-  parab.constants[0]=r;
-  parab.constants[1]=yheight;
-  parab.constants[2]=xwidth;
-  
-  parab.constants[6]=rough_xy;
-  parab.constants[7]=rough_z;
-  
-  w=(yheight*yheight)/(8.0*r);
-  k=sqrt(kx*kx+ky*ky+kz*kz); 
-  e=K2E*k;  /*Energy in KeV, same unit as datafile */
+  int i = 0, nr;
 
-/*Interpolation of Table Values*/
+  parab.constants[0] = r;
+  parab.constants[1] = yheight;
+  parab.constants[2] = xwidth;
 
-  while (e>prms->E[i]){
+  parab.constants[6] = rough_xy;
+  parab.constants[7] = rough_z;
+
+  w = (yheight * yheight) / (8.0 * r);
+  k = sqrt (kx * kx + ky * ky + kz * kz);
+  e = K2E * k; /*Energy in KeV, same unit as datafile */
+
+  /*Interpolation of Table Values*/
+
+  while (e > prms->E[i]) {
     i++;
-    if (prms->E[i]==-1){
-      fprintf(stderr,"Photon energy (%g keV) is outside of the lens' material data\n",e); ABSORB;
+    if (prms->E[i] == -1) {
+      fprintf (stderr, "Photon energy (%g keV) is outside of the lens' material data\n", e);
+      ABSORB;
     }
   }
-  E=(e-prms->E[i-1])/(prms->E[i]-prms->E[i-1]);
-  mu=(1-E)*prms->mu[i-1]+E*prms->mu[i];
-  //mu= 1e-10*mu;  /*factor conversion from m^-1 to A^-1*/
-  f=(1-E)*prms->f[i-1]+E*prms->f[i]; 
-  
+  E = (e - prms->E[i - 1]) / (prms->E[i] - prms->E[i - 1]);
+  mu = (1 - E) * prms->mu[i - 1] + E * prms->mu[i];
+  // mu= 1e-10*mu;  /*factor conversion from m^-1 to A^-1*/
+  f = (1 - E) * prms->f[i - 1] + E * prms->f[i];
+
   /*Calculation of Refractive Index */
 
-  rhoel= f*Na*(prms->rho*1e-24)/prms->Ar;    /*Material's Number Density of Electrons [e/A^3] incl f' scattering length correction*/
-  
-  delta= 2.0*M_PI*Re*rhoel/(k*k);
-  //beta=mu/(2.0*k);          /*mu and k in  A^-1*/
-  //printf("Delta=%g\n",delta);
-  Refractive_Index_Re = 1.0-delta; 
-  //Refractive_Index_Im = beta; 
+  rhoel = f * Na * (prms->rho * 1e-24) / prms->Ar; /*Material's Number Density of Electrons [e/A^3] incl f' scattering length correction*/
+
+  delta = 2.0 * M_PI * Re * rhoel / (k * k);
+  // beta=mu/(2.0*k);          /*mu and k in  A^-1*/
+  // printf("Delta=%g\n",delta);
+  Refractive_Index_Re = 1.0 - delta;
+  // Refractive_Index_Im = beta;
 
   /*Ray Tracing*/
 
-  incid.k[0]=kx;
-  incid.k[1]=ky; 
-  incid.k[2]=kz;
-  
-  incid.coord[0]=x; 
-  incid.coord[1]=y; 
-  incid.coord[2]=z;
-  
-  for (nr=0;nr<=(N-1);nr++){
-    parab.constants[3]=nr*d+nr*2*w; // d constant
-    parab.constants[4]=1.0/Refractive_Index_Re; // M constant
-    parab.constants[5]=-1.0; // Sign constant
-    
-    refr=intersection_lens_parab_rough(incid,parab);
-    
-    if(refr.k[0]==0 && refr.k[1]==0 && refr.k[2]==0) continue; 
-    
-    dl=sqrt( (refr.coord[0]-x)*(refr.coord[0]-x) + (refr.coord[1]-y)*(refr.coord[1]-y) + (refr.coord[2]-z)*(refr.coord[2]-z) );
-    PROP_DL(dl);
-    SCATTER;	
-    
-    kx=refr.k[0]; 
-    ky=refr.k[1]; 
-    kz=refr.k[2];
-     //alter parabolic input to match second parabola
-     
-    parab.constants[3]=(nr+1)*d+nr*2*w;
-    parab.constants[4]=Refractive_Index_Re;
-    parab.constants[5]=1.0; 
-    
-    outg=intersection_lens_parab_rough(refr,parab);
-    
-    dl=sqrt( (outg.coord[0]-x)*(outg.coord[0]-x) + (outg.coord[1]-y)*(outg.coord[1]-y) + (outg.coord[2]-z)*(outg.coord[2]-z) );
-    PROP_DL(dl);
+  incid.k[0] = kx;
+  incid.k[1] = ky;
+  incid.k[2] = kz;
+
+  incid.coord[0] = x;
+  incid.coord[1] = y;
+  incid.coord[2] = z;
+
+  for (nr = 0; nr <= (N - 1); nr++) {
+    parab.constants[3] = nr * d + nr * 2 * w;       // d constant
+    parab.constants[4] = 1.0 / Refractive_Index_Re; // M constant
+    parab.constants[5] = -1.0;                      // Sign constant
+
+    refr = intersection_lens_parab_rough (incid, parab);
+
+    if (refr.k[0] == 0 && refr.k[1] == 0 && refr.k[2] == 0)
+      continue;
+
+    dl = sqrt ((refr.coord[0] - x) * (refr.coord[0] - x) + (refr.coord[1] - y) * (refr.coord[1] - y) + (refr.coord[2] - z) * (refr.coord[2] - z));
+    PROP_DL (dl);
     SCATTER;
 
-    kx=outg.k[0]; ky=outg.k[1]; kz=outg.k[2];
-    incid=outg;
-  }
-   // transmission calculation
-    double mu_rho, ap;
-    
-    mu_rho=mu/(prms->rho*1e2); // mass absorption coefficient [cm2]
-  
-    ap=mu_rho*((parab.constants[0]*N*delta*prms->Ar*k*k)/(M_PI*Na*Re*1e-10*(prms->Z+f)))*1e16; //1e16 -dimension coefficient
-    // ap - effective aperture
-   
-   if (T==0)
-      ABSORB;
-   else 
-     T=exp(-mu*N*d)*(1/(2*ap))*(1-exp(-2*ap)); 
-   p*=T;
+    kx = refr.k[0];
+    ky = refr.k[1];
+    kz = refr.k[2];
+    // alter parabolic input to match second parabola
 
+    parab.constants[3] = (nr + 1) * d + nr * 2 * w;
+    parab.constants[4] = Refractive_Index_Re;
+    parab.constants[5] = 1.0;
+
+    outg = intersection_lens_parab_rough (refr, parab);
+
+    dl = sqrt ((outg.coord[0] - x) * (outg.coord[0] - x) + (outg.coord[1] - y) * (outg.coord[1] - y) + (outg.coord[2] - z) * (outg.coord[2] - z));
+    PROP_DL (dl);
+    SCATTER;
+
+    kx = outg.k[0];
+    ky = outg.k[1];
+    kz = outg.k[2];
+    incid = outg;
+  }
+  // transmission calculation
+  double mu_rho, ap;
+
+  mu_rho = mu / (prms->rho * 1e2); // mass absorption coefficient [cm2]
+
+  ap = mu_rho * ((parab.constants[0] * N * delta * prms->Ar * k * k) / (M_PI * Na * Re * 1e-10 * (prms->Z + f))) * 1e16; // 1e16 -dimension coefficient
+  // ap - effective aperture
+
+  if (T == 0)
+    ABSORB;
+  else
+    T = exp (-mu * N * d) * (1 / (2 * ap)) * (1 - exp (-2 * ap));
+  p *= T;
 %}
 
 MCDISPLAY
 %{
-  
-  double z_c,zdepth,w;
-  w=(yheight*yheight)/(8*r);
-  zdepth=N*(2*w+d);
-  z_c=zdepth/2.0-w;
-  box(0,0,z_c,yheight/2,yheight/2,zdepth,0, 0, 1, 0);
+
+  double z_c, zdepth, w;
+  w = (yheight * yheight) / (8 * r);
+  zdepth = N * (2 * w + d);
+  z_c = zdepth / 2.0 - w;
+  box (0, 0, z_c, yheight / 2, yheight / 2, zdepth, 0, 0, 1, 0);
 %}
 
 END

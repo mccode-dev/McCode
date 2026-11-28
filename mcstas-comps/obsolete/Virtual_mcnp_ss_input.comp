@@ -76,19 +76,18 @@ NOACC
 
 SHARE
 %{
-#ifndef MCNP_INPUT_DEFS
-#define MCNP_INPUT_DEFS
-/* number of neutron events to read for file pre-analysis */
+  #ifndef MCNP_INPUT_DEFS
+  #define MCNP_INPUT_DEFS
+  /* number of neutron events to read for file pre-analysis */
 
-#include <sys/stat.h>
+  #include <sys/stat.h>
 
-#endif
-
+  #endif
 %}
 
 DECLARE
 %{
-  FILE *hfile;                    /* Neutron input file handle */
+  FILE* hfile; /* Neutron input file handle */
 
   double to_mcstas[8];
   double from_mcstas[8];
@@ -103,78 +102,81 @@ INITIALIZE
   nhis = 0;
   counter = 0;
 
-
-  char  exit_flag=0;  /* set to 1 if end of simulation */
-  long   filesize  =0;
+  char exit_flag = 0; /* set to 1 if end of simulation */
+  long filesize = 0;
 
   struct stat stfile;
-/* Open neutron input file. */
-/* (If empty filename given, present warning in case of verbose, perform nothing) */
+  /* Open neutron input file. */
+  /* (If empty filename given, present warning in case of verbose, perform nothing) */
 
-  if (strcmp(file,"rssa")) {
-    printf("MCNP_input: %s. Given filename is %s, please rename to 'rssa' and rerun!\n", NAME_CURRENT_COMP, file);
+  if (strcmp (file, "rssa")) {
+    printf ("MCNP_input: %s. Given filename is %s, please rename to 'rssa' and rerun!\n", NAME_CURRENT_COMP, file);
   } else {
     if (file) {
-      stat(file,&stfile);
+      stat (file, &stfile);
       filesize = stfile.st_size;
-      hfile = fopen(file, "r");
+      hfile = fopen (file, "r");
     }
-    if(!hfile)
-      {
-	fprintf(stderr, "MCNP_input: %s: Error: Cannot open input file %s.\n", NAME_CURRENT_COMP, file);
-      } else if (verbose)
-      printf("MCNP_input: %s: opening MCNP SSW file '%s' )\n", NAME_CURRENT_COMP, file);
+    if (!hfile) {
+      fprintf (stderr, "MCNP_input: %s: Error: Cannot open input file %s.\n", NAME_CURRENT_COMP, file);
+    } else if (verbose)
+      printf ("MCNP_input: %s: opening MCNP SSW file '%s' )\n", NAME_CURRENT_COMP, file);
 
-    readheader_(&ntrk,&nhis);
-    if (verbose) printf("Number of histories in input MCNP SSW file: %d \n ", nhis);
-    if (verbose) printf("Number of tracks in input MCNP SSW file: %d \n ", ntrk);
-    if (verbose) printf("Analysing MCNP file %s (", file);
-    if (verbose) printf(")\n");
+    readheader_ (&ntrk, &nhis);
+    if (verbose)
+      printf ("Number of histories in input MCNP SSW file: %d \n ", nhis);
+    if (verbose)
+      printf ("Number of tracks in input MCNP SSW file: %d \n ", ntrk);
+    if (verbose)
+      printf ("Analysing MCNP file %s (", file);
+    if (verbose)
+      printf (")\n");
 
   } /* non-empty filename */
-
 %}
 
 TRACE
 %{
-  char exit_flag=0;  /* set to 1 if end of simulation */
-  int  result_read=1;
+  char exit_flag = 0; /* set to 1 if end of simulation */
+  int result_read = 1;
 
-  while(1) {
-    readneutron_(&to_mcstas);
+  while (1) {
+    readneutron_ (&to_mcstas);
 
-    x=to_mcstas[0];
-    y=to_mcstas[1];
-    z=to_mcstas[2];
+    x = to_mcstas[0];
+    y = to_mcstas[1];
+    z = to_mcstas[2];
 
-    vx=to_mcstas[3];
-    vy=to_mcstas[4];
-    vz=to_mcstas[5];
+    vx = to_mcstas[3];
+    vy = to_mcstas[4];
+    vz = to_mcstas[5];
 
     p = to_mcstas[6];
     t = to_mcstas[7];
-    sx=1.;sy=sz=0;
+    sx = 1.;
+    sy = sz = 0;
 
-    if ( counter >= (nhis-1) ) {
-      result_read=EOF;
+    if (counter >= (nhis - 1)) {
+      result_read = EOF;
       exit_flag = 1;
     }
     counter++;
 
-  if (exit_flag) {
-    if (verbose) printf("  Finishing simulation\n");
-    mcset_ncount(mcget_run_num()); ABSORB;
+    if (exit_flag) {
+      if (verbose)
+        printf ("  Finishing simulation\n");
+      mcset_ncount (mcget_run_num ());
+      ABSORB;
+    }
+    SCATTER;
+    break;
+    /* end while */
   }
-  SCATTER;
-  break;
- /* end while */
-  }
-
 %}
 
 FINALLY
 %{
-  closefiles_();
+  closefiles_ ();
 %}
 
 MCDISPLAY
