@@ -671,7 +671,7 @@ def parse_define_instr(text):
     Not robust to "junk" in the input string.
     '''
     try:
-        m = re.match(r'DEFINE[ \t]+INSTRUMENT[ \t]+(\w+)\s*\(([\w\,\"\s\n\t\r\.\+:;\-=/]*)\)+', text)
+        m = re.match(r'DEFINE[ \t]+INSTRUMENT[ \t]+(\w+)\s*\(([\w\,\"\s\n\t\r\.\+:;\-=/%]*)\)+', text)
         name = m.group(1)
         params = m.group(2).replace('\n', '').strip()
     except:
