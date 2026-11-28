@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>mcmerge / mxmerge</title>
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    line-height: 1.6;
+    color: #1a1a1a;
+    background: #fff;
+}
+h1, h2, h3 { line-height: 1.25; }
+h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: 0.4rem; }
+h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.6rem; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+    background: #f6f8fa;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.9em;
+}
+pre {
+    background: #f6f8fa;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.95em;
+}
+th, td {
+    border: 1px solid #d0d7de;
+    padding: 0.5rem 0.8rem;
+    text-align: left;
+    vertical-align: top;
+}
+th { background: #f6f8fa; font-weight: 600; }
+tr:nth-child(even) { background: #fbfbfb; }
+hr { border: none; border-top: 1px solid #e1e4e8; margin: 2rem 0; }
+em { color: #57606a; }
+.nav-top, .nav-bottom { margin-bottom: 1.5rem; }
+.nav-bottom { margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<p><a href="README.html">&larr; back to overview</a></p>
+<h1 id="mcmerge-mxmerge">mcmerge / mxmerge</h1>
+<p>Merges 2 or more datasets (runs or scans, ASCII or NeXus) from separate runs of the same simulation, as if they were one longer run:</p>
+<pre><code>mcmerge -d OUT [--format McCode|NeXus] DATASET DATASET ...
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input</code></td>
+<td>dataset directories, 2 or more</td>
+</tr>
+<tr>
+<td><code>-d OUT</code></td>
+<td>output directory, must not exist</td>
+</tr>
+<tr>
+<td><code>--format FMT</code></td>
+<td><code>McCode</code> (ASCII) or <code>NeXus</code>, one of the input formats (default: NeXus if any input is)</td>
+</tr>
+</tbody>
+</table>
+<p>Requires <code>numpy</code> and <code>h5py</code>, and <code>mcpltool</code> for MCPL files.</p>
+<ul>
+<li>Give each run its own seed, e.g. <code>mcrun -s 1000</code> and <code>mcrun -s 2000</code>. With MPI, the nodes use <code>Seed</code> to <code>Seed+Nodes-1</code>, so keep the seeds at least that far apart.</li>
+<li>Scans are merged point by point.</li>
+<li>Event lists (<code>Monitor_nD</code>) are joined, with <code>p</code> scaled by each run's share of <code>Ncount</code>. In NeXus, the output does not need the <code>mccode_node*.h5</code> files of MPI runs.</li>
+<li>The output is a copy of the first dataset in the output format, with new numbers. It lists its inputs as <code>Merged_from</code>, has <code>Seed: -1</code> and no <code>Nodes</code>, and can be merged again.</li>
+<li>MCPL files are merged with <code>mcpltool</code>. The intensities are only correct with <code>weight_mode=1</code> (the default) in <code>MCPL_output</code>, see below.</li>
+<li>Other files are not merged but listed on screen.</li>
+</ul>
+<h2 id="what-is-refused">What is refused</h2>
+<ul>
+<li>inputs that differ: instrument, parameters, McCode version, monitors, limits or bins, number of scan points</li>
+<li>same or overlapping seeds</li>
+<li>unfinished runs and intermediate saves</li>
+<li>data without <code>mean: yes</code> or <code>mean: no</code> in the monitor headers, or event lists without <code>N</code> in <code>values</code>, i.e. from older McCode versions</li>
+<li>event lists without <code>p</code>, with a second weight <code>I</code>, with missing <code>mccode_node*.h5</code> files, or truncated, i.e. with fewer events than <code>N</code> in <code>values</code> (e.g. <code>list=n</code>, use <code>list all</code>)</li>
+</ul>
+<p>When ASCII and NeXus are merged, what is only in the NeXus data gives a warning instead.</p>
+<h2 id="limitations">Limitations</h2>
+<ul>
+<li>Polarisation monitors are merged approximately: the mean is weighted with the number of rays <code>N</code>, not with their intensity.</li>
+<li>Neutron or photon IDs (<code>n</code>) in event lists are not unique, as with MPI.</li>
+<li>MCPL files written with <code>weight_mode=2</code> get too high intensities, as their weights are already divided by <code>Ncount</code>. This is not detected, so a warning is always given.</li>
+<li>NeXus scans only have the MCPL file of the last point.</li>
+<li>MCPL files that <code>mcpltool</code> refuses are left out with a warning, e.g. if the runs were started with a different path to the instrument executable.</li>
+<li>Runs that read the same MCPL file are not independent, however different the seeds. This is not detected.</li>
+<li>To ASCII: geometry, component parameters and <code>BINS</code> of the NeXus data are left out.</li>
+</ul>
+<hr />
+<p><a href="README.html">&larr; back to overview</a></p>
+</body>
+</html>

@@ -401,6 +401,7 @@ SHARE
                                  "column_sintheta/lambda", "column_q", /* 10 */
                                  "DW", "Debye_Waller", "delta_d/d", "column_F ", "V_rho", "density", "weight", "nb_atoms", "multiplicity", NULL);
 
+    int hdr_unit = 0;
     if (parsing) {
       if (parsing[0] && !info->V_0)
         info->V_0 = atof (parsing[0]);
@@ -442,6 +443,15 @@ SHARE
         info->at_nb = atof (parsing[18]);
       if (parsing[19] && info->at_nb <= 1)
         info->at_nb = atof (parsing[19]);
+      /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'barns' parameter */
+      for (i = 4; i <= 14; i += 10) /* column_F2, column_F */
+        if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
+          int hdr_barns = strstr (parsing[i], "barn") != NULL;
+          if (hdr_barns != info->flag_barns)
+            MPI_MASTER (printf ("PowderN: %s: |F|^2 unit in file header is %s, using barns=%d\n", info->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
+          info->flag_barns = hdr_barns;
+          hdr_unit = 1;
+        }
       for (i = 0; i <= 19; i++)
         if (parsing[i])
           free (parsing[i]);
@@ -459,11 +469,11 @@ SHARE
     MPI_MASTER (Table_Info (sTable););
 
     if (filename == SC_file) { // only when not from cif2hkl
-      if (info->column_order[0] == 4 && info->flag_barns != 0)
+      if (!hdr_unit && info->column_order[0] == 4 && info->flag_barns != 0)
         MPI_MASTER (printf ("PowderN: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
                             "WARNING: but F2 unit is set to barns=1 (barns). Intensity might be 100 times too high.\n",
                             info->compname););
-      if (info->column_order[0] == 17 && info->flag_barns == 0)
+      if (!hdr_unit && info->column_order[0] == 17 && info->flag_barns == 0)
         MPI_MASTER (printf ("PowderN: %s: Powder file probably of type Lazy Pulver (laz)\n"
                             "WARNING: but F2 unit is set to barns=0 (fm^2). Intensity might be 100 times too low.\n",
                             info->compname););
@@ -646,12 +656,14 @@ SHARE
 
   #pragma acc routine
   int
-  calc_inc_xsect (double k, double* inc, struct line_info_struct* line_info) {
+  calc_inc_xsect (double k, double coh, double my_abs, double* inc, struct line_info_struct* line_info) {
     /*TODO choose one of these bits*/
 
     /* compute the incoherent cross section.
      * amounts to a table lookup in material data_file by energy
-     * In time this should be improved to actually handle Compton scattering.*/
+     * In time this should be improved to actually handle Compton scattering.
+     * coh, my_abs: coherent and absorption attenuation [m^-1] at k, subtracted
+     * when the column also holds them.*/
     double e = k * K2E;
 
     double correction;
@@ -670,11 +682,11 @@ SHARE
       break;
     case 3:
       /*inc is given as inc+ćoh in column i*/
-      correction = line_info->my_s_k2_sum / (k * k);
+      correction = coh;
       break;
     case 4:
       /*inc is given as total attenuation = inc+coh+abs in column i*/
-      correction = line_info->my_s_k2_sum / (k * k) + line_info->my_a;
+      correction = coh + my_abs;
       break;
     case 5:
       /*means no non-zero index has been found - set xsect to 0*/
@@ -682,11 +694,11 @@ SHARE
       return 1;
     }
 
-    *inc = Table_Value ((line_info->mat_table), e, line_info->mat_column_order[i] - 1) - correction;
+    /*scale by rho and 100 to get in units m^-1*/
+    *inc = Table_Value ((line_info->mat_table), e, line_info->mat_column_order[i] - 1) * 100 * line_info->rho - correction;
     if (*inc < 0) {
       *inc = 0;
     }
-    *inc *= 100 * line_info->rho; /*scale by rho and 100 to get in units m^-1*/
     return 0;
   }
 
@@ -1012,7 +1024,7 @@ TRACE
       #endif
       Nq = calc_xsect (k, line_info.q, line_info.my_s_k2, line_info.count, &my_s_k2_sum, &line_info);
       calc_abs_xsect (k, &my_a, &line_info);
-      calc_inc_xsect (k, &my_inc, &line_info);
+      calc_inc_xsect (k, my_s_k2_sum / (k * k), my_a, &my_inc, &line_info);
       if (pack != 1) {
         /*apply packing factor correction*/
         my_a *= pack;

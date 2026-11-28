@@ -231,8 +231,10 @@ codeblock_initialize_add(struct code_block *code)
 }
 
 
-/** Output the lines of a metadata block, encased in triple-double quotes
- *
+/** Output the lines of a metadata block as a raw triple-double-quoted Python string,
+ *  so backslashes reach McStasScript as written.
+ *  Not escaped: text containing three double quotes, or ending in a double quote or
+ *  backslash, breaks the generated script (the other code blocks share this with ''').
  */
 static void
 triple_escaped_lines_out(List lines) {
@@ -242,7 +244,7 @@ triple_escaped_lines_out(List lines) {
   if (list_undef(lines) || list_len(lines) <= 0) {
     fprintf(output_handle, "\"\"\"\"\"\"");
   } else {
-    fprintf(output_handle, "\"\"\"");
+    fprintf(output_handle, "r\"\"\"");
     liter = list_iterate(lines);
     while((line = list_next(liter)))
     {
@@ -391,6 +393,11 @@ int cogen_decls(struct instr_def *instr)
 	} else {
 	  value = str_cat(", value=", exp_tostring(i_formal->default_value), NULL);
 	}
+	if (i_formal->hasunit) {
+	  char *withunit = str_cat(value, ", unit='", i_formal->unit, "'", NULL);
+	  memfree(value);
+	  value = withunit;
+	}
 
 	if (i_formal->type == instr_type_string) {
 	  type="string";
@@ -440,6 +447,22 @@ int cogen_decls(struct instr_def *instr)
   coutf("    }");
   symtab_iterate_end(component_metadata_handle);
   symtab_free(component_metadata, NULL);
+
+  // Instrument METADATA, which McStasScript may not support yet:
+  int instr_metadata = 0;
+  liter = list_iterate(instr->metadata);
+  while ((metadataStruct = list_next(liter))) {
+    if (metadataStruct->instance != 2) continue;
+    if (!instr_metadata++) cout("    if hasattr(instr, 'add_METADATA'):");
+    coutf("        instr.add_METADATA(name='%s', type='%s', value=", metadataStruct->name, metadataStruct->type);
+    triple_escaped_lines_out(metadataStruct->lines);
+    cout("        )");
+  }
+  list_iterate_end(liter);
+  if (instr_metadata) {
+    cout("    else:");
+    coutf("        print('Warning: this McStasScript drops the %d instrument METADATA block(s)', file=sys.stderr)", instr_metadata);
+  }
 
   cout("    instr.append_declare(r'''");
   codeblock_out(instr->decls);
@@ -620,7 +643,7 @@ int cogen_raytrace(struct instr_def *instr)
       for (int lit=0; lit<list_len(comp->metadata); ++lit){
         l_ptr = (struct metadata_struct *) list_access(comp->metadata, lit);
         if (l_ptr->instance) {
-          coutf("    %s.append_METADATA(type='%s', name='%s', lines=", comp->name, l_ptr->type, l_ptr->name);
+          coutf("    %s.add_METADATA(name='%s', type='%s', value=", comp->name, l_ptr->name, l_ptr->type);
           triple_escaped_lines_out(l_ptr->lines);
           coutf("    )");
         }
@@ -721,6 +744,7 @@ cogen_header(struct instr_def *instr, char *output_name)
   cout("import mcstasscript as ms");
   cout("import argparse");
   cout("import os");
+  cout("import sys");
   cout("");
 #if MCCODE_PROJECT == 1     /* neutron */
   cout("# Python McStas instrument description");

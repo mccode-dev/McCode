@@ -57,7 +57,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_hollow_cylinder
-
 SETTING PARAMETERS (
         radius=20.0,
         thickness=10.0,
@@ -634,7 +633,7 @@ constant double Gauss76Z[76] = {
 
 #line 1 "hollow_cylinder"
 static double
-shell_volume(double radius, double thickness, double length)
+shell_volume_hollow_cylinder(double radius, double thickness, double length)
 {
     return M_PI*length*(sas_square(radius+thickness) - radius*radius);
 }
@@ -688,7 +687,7 @@ radius_effective_hollow_cylinder(int mode, double radius, double thickness, doub
 }
 
 static double
-_fq(double qab, double qc,
+_fq_hollow_cylinder(double qab, double qc,
     double radius, double thickness, double length)
 {
     const double lam1 = sas_2J1x_x((radius+thickness)*qab);
@@ -713,14 +712,14 @@ Fq_hollow_cylinder(double q, double *F1, double *F2, double radius, double thick
     for (int i=0;i<GAUSS_N;i++) {
         const double cos_theta = 0.5*( GAUSS_Z[i] * (upper-lower) + lower + upper );
         const double sin_theta = sqrt(1.0 - cos_theta*cos_theta);
-        const double form = _fq(q*sin_theta, q*cos_theta,
+        const double form = _fq_hollow_cylinder(q*sin_theta, q*cos_theta,
                                 radius, thickness, length);
         total_F1 += GAUSS_W[i] * form;
         total_F2 += GAUSS_W[i] * form * form;
     }
     total_F1 *= 0.5*(upper-lower);
     total_F2 *= 0.5*(upper-lower);
-    const double s = (sld - solvent_sld) * shell_volume(radius, thickness, length);
+    const double s = (sld - solvent_sld) * shell_volume_hollow_cylinder(radius, thickness, length);
     *F1 = 1e-2 * s * total_F1;
     *F2 = 1e-4 * s*s * total_F2;
 }
@@ -731,8 +730,8 @@ Iqac_hollow_cylinder(double qab, double qc,
     double radius, double thickness, double length,
     double sld, double solvent_sld)
 {
-    const double form = _fq(qab, qc, radius, thickness, length);
-    const double s = (sld - solvent_sld) * shell_volume(radius, thickness, length);
+    const double form = _fq_hollow_cylinder(qab, qc, radius, thickness, length);
+    const double s = (sld - solvent_sld) * shell_volume_hollow_cylinder(radius, thickness, length);
     return 1.0e-4*sas_square(s * form);
 }
 
@@ -785,7 +784,7 @@ INITIALIZE
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double t0, t1, vel, l_full, l, l_1, dt, d_phi, my_s;
   double aim_x = 0, aim_y = 0, aim_z = 1, axis_x, axis_y, axis_z;
   double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
   double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
@@ -804,11 +803,11 @@ TRACE
       ABSORB;
 
     /* Neutron enters at t=t0. */
-    v = sqrt (vx * vx + vy * vy + vz * vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
+    vel = sqrt (vx * vx + vy * vy + vz * vz);
+    l_full = vel * (t1 - t0);        /* Length of full path through sample */
     dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
     PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    l = vel * (dt - t0);             /* Penetration in sample */
 
     vx_i = vx;
     vy_i = vy;
@@ -826,9 +825,9 @@ TRACE
       randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
     NORM (vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
+    vx *= vel;
+    vy *= vel;
+    vz *= vel;
     qx = V2K * (vx_i - vx);
     qy = V2K * (vy_i - vy);
     qz = V2K * (vz_i - vz);
@@ -857,8 +856,8 @@ TRACE
     // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
     Iq_out = model_scale * Iq_out / vol * 1.0E2;
 
-    l_1 = v * t1;
-    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / v);
+    l_1 = vel * t1;
+    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / vel);
     SCATTER;
   }
 %}

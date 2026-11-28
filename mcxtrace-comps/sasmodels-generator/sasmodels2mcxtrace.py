@@ -15,12 +15,8 @@ This parser performs 3 main tasks, each in an independent method:
     - generate_indiv_files(OUTPUT_DIR) creates .comp files for each model.
     - generate_tests() creates test folder for each model.
 
-For the moment, vector input models are created but are not working.
-These include:
-    - core_multi_shell
-    - rpa
-    - onion
-    - spherical_sld
+The vector input models core_multi_shell, rpa and onion compile but are
+not validated against SasView. spherical_sld is not created.
 """
 
 import os
@@ -28,6 +24,7 @@ import re
 import importlib
 import sys
 import shutil
+import subprocess
 
 # Define where to find everything needed.
 DATA_PATH = sys.argv[1]
@@ -113,7 +110,8 @@ def get_params(module_name):
     Returns:
     - param_vals: default values of parameters in SasView.
     - angle_vals: default values of orientational parameters in Sasview.
-    - metadata: extra data from python file: range, description, name"""
+    - metadata: extra data from python file: range, description, units
+    - angle_meta: the same for the orientational parameters"""
     module = importlib.import_module("models." + module_name)
     if hasattr(module, "parameters"):
         params = module.parameters
@@ -121,16 +119,19 @@ def get_params(module_name):
     param_vals = []
     angle_vals = []
     metadata = []
+    angle_meta = []
     for param_list in params:
+        # Save parameter range, description and units
+        meta = [param_list[3], param_list[5], param_list[1].replace("Ang", "AA")]
         if param_list[0] in ["theta", "phi", "Psi", "psi"]:
             # Save angle if anisotropic
             angle_vals.append(param_list[2])
+            angle_meta.append(meta)
         else:
             # Save general parameters
             param_vals.append((param_list[2], param_list[0]))
-        # Save parameter range and description
-        metadata.append([param_list[3], param_list[5], param_list[1]])
-    return param_vals, angle_vals, metadata
+            metadata.append(meta)
+    return param_vals, angle_vals, metadata, angle_meta
 
 
 def search_functions(total_content):
@@ -185,6 +186,18 @@ def __getFormVolumeSign(text):
             return []
 
 
+def suffix_helpers(code, model_name):
+    """Suffix the model's own helper functions with the model name, since
+    models share names such as outer_radius or _fq. The kernel functions
+    are renamed in generate_mcxtrace_models()."""
+    kernel = re.compile(r"(Fq|Iq|Iqac|Iqabc|form_volume|radius_\w+)$")
+    defs = re.findall(r"^(?:static\s+)?(?:inline\s+)?(?:double|float|int|void)\s+(\w+)\s*\(", code, re.M)
+    for name in set(defs):
+        if not kernel.match(name):
+            code = re.sub(r"\b" + name + r"\s*\(", f"{name}_{model_name}(", code)
+    return code
+
+
 def generate_mcxtrace_models():
     """Main function, generates the .c files for each model."""
     model_status = {}
@@ -199,6 +212,8 @@ def generate_mcxtrace_models():
             source = []
 
             for ucode, loc_ucode in user_code:
+                if os.path.basename(loc_ucode) == model_name + ".c":
+                    ucode = suffix_helpers(ucode, model_name)
                 _add_source(source, ucode, loc_ucode)
                 code = "\n".join(source)
                 fname = loc_ucode.split("/")[-1]
@@ -296,7 +311,7 @@ END\n\n"""
             total_content = "".join(lines)
             vol_pars = __getFormVolumeSign(total_content)
             _funcs, names = search_functions(total_content)
-            params, angles, metadata = get_params(MODELS[i])
+            params, angles, metadata, angle_meta = get_params(MODELS[i])
 
             # Create function specific variables.
             content_func = {}
@@ -320,16 +335,19 @@ END\n\n"""
                 for (val, name), meta in zip(params, metadata):
                     if MODELS[i] == "elliptical_cylinder" and name == "axis_ratio":
                         name = "r_ratio"
+                    # sasmodels vector name[n] -> McCode vector name
+                    vec = "[" in name
+                    name = name.split("[")[0]
                     content += f"* {name}: [{meta[2]}] ({meta[0]}) {meta[1]}.\n"
-                    if "[" in name:
+                    if vec:
                         content2 += f"      vector {name}=" + "{" + f"{val}" + "},\n"
                     else:
                         content2 += f"      {name}={val},\n"
                     func_param_str += f", {name}"
 
-                    # include polidispersity
+                    # include polidispersity, not for vectors
                     for pd_par in ["rg", "length", "thick", "radius"]:
-                        if pd_par in name:
+                        if pd_par in name and not vec:
                             pd_pars.append(name)
                             n_pd_params += 1
                             content_pd += f"    trace_{name} = (randnorm()*pd_{name}+1.0)*{name};\n"
@@ -348,7 +366,8 @@ END\n\n"""
                 pd_condition_ang = "    if ("
                 n_pd_angles = 0
                 if ftype in ["Iqac", "Iqabc"]:
-                    for angle, name in zip(angles, ["theta", "Phi", "Psi"]):
+                    for angle, name, meta in zip(angles, ["theta", "Phi", "Psi"], angle_meta):
+                        content += f"* {name}: [deg] ({meta[0]}) {meta[1]}.\n"
                         content2 += f"      {name}={angle},\n"
                         func_param_str += f", {name}"
                         pd_angles.append(name)
@@ -436,10 +455,10 @@ END\n\n"""
                 content_func[
                     ftype
                 ] += f"""DEFINE COMPONENT SasView_{MODELS[i]}{suffix}
-DEFINITION PARAMETERS ()
 SETTING PARAMETERS (\n"""
                 for val, name in params:
                     if "[" in name:
+                        name = name.split("[")[0]
                         content_func[ftype] += (
                             f"        vector {name}=" + "{" + f"{val}" + "},\n"
                         )
@@ -496,10 +515,14 @@ SETTING PARAMETERS (\n"""
         focus_r=0{pd_init})\n\n"""
 
                 # include coresponding c module and header.
+                # fractal_sq needs USE_CUDA on GPU, see #1501
+                cuda_guard = ""
+                if "SAS_HAVE_fractal_sq" in total_content:
+                    cuda_guard = "#ifdef OPENACC\n#define USE_CUDA\n#endif\n"
                 content_func[
                     ftype
                 ] += f"""\nSHARE %{{
-%include "sas_kernel_header.c"
+{cuda_guard}%include "sas_kernel_header.c"
 
 /* BEGIN Required header for SASmodel {MODELS[i]} */
 {total_content}
@@ -744,7 +767,7 @@ def generate_tests():
             lines = fcode.readlines()
             total_content = "\n".join(lines)
             _funcs, names = search_functions(total_content)
-            params, angles, metadata = get_params(MODELS[i])
+            params, angles, metadata, angle_meta = get_params(MODELS[i])
 
             found_funcs = [namesi for namesi in names if namesi != ""]
 
@@ -760,16 +783,19 @@ def generate_tests():
                 for (val, name), meta in zip(params, metadata):
                     if MODELS[i] == "elliptical_cylinder" and name == "axis_ratio":
                         name = "r_ratio"
+                    # sasmodels vector name[n] -> McCode vector name
+                    vec = "[" in name
+                    name = name.split("[")[0]
                     content_func[ftype] += f"* {name}: ({meta[0]}) {meta[1]}.\n"
-                    if "[" in name:
+                    if vec:
                         content2 += f"      vector {name}=" + "{" + f"{val}" + "},\n"
                     else:
                         content2 += f"      {name}={val},\n"
                     func_param_str += f"{name}={name}, "
 
-                    # include polidispersity
+                    # include polidispersity, not for vectors
                     for pd_par in ["rg", "length", "thick", "radius"]:
-                        if pd_par in name:
+                        if pd_par in name and not vec:
                             pd_pars.append(name)
                             pd_def += f"* pd_{name}: [] (0,inf) defined as (dx/x), where x is de mean value and dx the standard devition of the variable.\n"
                             pd_init += f"      pd_{name}=0.0,\n"
@@ -778,7 +804,8 @@ def generate_tests():
                 content2 += "\n"
                 pd_angles = []
                 if ftype in ["Iqac", "Iqabc"]:
-                    for angle, name in zip(angles, ["theta", "Phi", "Psi"]):
+                    for angle, name, meta in zip(angles, ["theta", "Phi", "Psi"], angle_meta):
+                        content_func[ftype] += f"* {name}: ({meta[0]}) {meta[1]}.\n"
                         content2 += f"      {name}={angle},\n"
                         func_param_str += f"{name}={name}, "
                         pd_angles.append(name)
@@ -934,10 +961,21 @@ END\n"""
                 )
 
 
+def format_comps():
+    """Format the C code of the generated comps with mccode-clangformat."""
+    tool = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "..", "..", "devel", "bin", "mccode-clangformat")
+    subprocess.run([sys.executable, tool, "--repo", "indiv_comps"], check=True)
+    for fname in os.listdir("indiv_comps"):
+        if fname.endswith(".orig"):
+            os.remove(os.path.join("indiv_comps", fname))
+
+
 def main():
     _model_status = generate_mcxtrace_models()
     print(_model_status)
     generate_indiv_files()
+    format_comps()
     generate_tests()
 
 

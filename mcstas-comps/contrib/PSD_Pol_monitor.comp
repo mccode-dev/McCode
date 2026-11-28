@@ -61,6 +61,7 @@ DECLARE
   DArray2d PSDpol_p;
   DArray2d PSDpol_p2;
   DArray2d PSDpsum;
+  DArray2d PSDpsum2;
   char titlestring[128];
 %}
 
@@ -98,6 +99,7 @@ INITIALIZE
   PSDpol_p = create_darr2d (nx, ny);
   PSDpol_p2 = create_darr2d (nx, ny);
   PSDpsum = create_darr2d (nx, ny);
+  PSDpsum2 = create_darr2d (nx, ny);
 
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
@@ -132,6 +134,7 @@ TRACE
     PSDpol_p[i][j] += ppol;
     PSDpol_p2[i][j] += ppol2;
     PSDpsum[i][j] += p;
+    PSDpsum2[i][j] += p * p;
     SCATTER;
   }
   if (restore_neutron || !SCATTERED) {
@@ -141,25 +144,9 @@ TRACE
 
 SAVE
 %{
-  #ifdef USE_MPI
-  if (mpi_node_count > 1) {
-    mc_MPI_Sum (&PSDpol_p[0][0], (int)nx * ny);
-    mc_MPI_Sum (&PSDpol_p2[0][0], (int)nx * ny);
-    mc_MPI_Sum (&PSDpol_N[0][0], (int)nx * ny);
-    mc_MPI_Sum (&PSDpsum[0][0], (int)nx * ny);
-  }
-  #endif /* USE_MPI */
   if (!nowritefile) {
-    for (int i = 0; i < nx; i++) {
-      for (int j = 0; j < ny; j++) {
-        if (PSDpsum[i][j] && PSDpol_N[i][j]) {
-          PSDpol_p[i][j] /= PSDpsum[i][j];
-          PSDpol_p2[i][j] /= PSDpsum[i][j];
-        }
-      }
-    }
-    DETECTOR_OUT_2D ("PSD Pol monitor", "X position [cm]", "Y position [cm]", xmin * 100.0, xmax * 100.0, ymin * 100.0, ymax * 100.0, nx, ny, &PSDpol_N[0][0],
-                     &PSDpol_p[0][0], &PSDpol_p2[0][0], filename);
+    DETECTOR_OUT_2D_MEAN ("PSD Pol monitor", "X position [cm]", "Y position [cm]", xmin * 100.0, xmax * 100.0, ymin * 100.0, ymax * 100.0, nx, ny,
+                          &PSDpol_N[0][0], &PSDpsum[0][0], &PSDpsum2[0][0], &PSDpol_p[0][0], &PSDpol_p2[0][0], filename);
   }
 %}
 
@@ -169,6 +156,7 @@ FINALLY
   destroy_darr2d (PSDpol_p);
   destroy_darr2d (PSDpol_p2);
   destroy_darr2d (PSDpsum);
+  destroy_darr2d (PSDpsum2);
 %}
 
 MCDISPLAY
