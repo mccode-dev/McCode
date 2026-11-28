@@ -647,7 +647,7 @@ constant double Gauss76Z[76] = {
 
 #line 1 "stacked_disks"
 static double
-stacked_disks_kernel(
+stacked_disks_kernel_stacked_disks(
     double qab,
     double qc,
     double halfheight,
@@ -709,7 +709,7 @@ stacked_disks_kernel(
 
 
 static double
-stacked_disks_1d(
+stacked_disks_1d_stacked_disks(
     double q,
     double thick_core,
     double thick_layer,
@@ -732,7 +732,7 @@ like clay platelets that are not exfoliated
         double zi = (GAUSS_Z[i] + 1.0)*M_PI_4;
         double sin_alpha, cos_alpha; // slots to hold sincos function output
         SINCOS(zi, sin_alpha, cos_alpha);
-        double yyy = stacked_disks_kernel(q*sin_alpha, q*cos_alpha,
+        double yyy = stacked_disks_kernel_stacked_disks(q*sin_alpha, q*cos_alpha,
                            halfheight,
                            thick_layer,
                            radius,
@@ -776,7 +776,7 @@ Iq_stacked_disks(
     double solvent_sld)
 {
     int n_stacking = (int)(fp_n_stacking + 0.5);
-    return stacked_disks_1d(q,
+    return stacked_disks_1d_stacked_disks(q,
                     thick_core,
                     thick_layer,
                     radius,
@@ -802,7 +802,7 @@ Iqac_stacked_disks(double qab, double qc,
     int n_stacking = (int)(fp_n_stacking + 0.5);
     double d = 2.0 * thick_layer + thick_core;
     double halfheight = 0.5*thick_core;
-    double answer = stacked_disks_kernel(qab, qc,
+    double answer = stacked_disks_kernel_stacked_disks(qab, qc,
                      halfheight,
                      thick_layer,
                      radius,
@@ -869,7 +869,7 @@ INITIALIZE
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double t0, t1, vel, l_full, l, l_1, dt, d_phi, my_s;
   double aim_x = 0, aim_y = 0, aim_z = 1, axis_x, axis_y, axis_z;
   double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
   double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
@@ -888,11 +888,11 @@ TRACE
       ABSORB;
 
     /* Neutron enters at t=t0. */
-    v = sqrt (vx * vx + vy * vy + vz * vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
+    vel = sqrt (vx * vx + vy * vy + vz * vz);
+    l_full = vel * (t1 - t0);        /* Length of full path through sample */
     dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
     PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    l = vel * (dt - t0);             /* Penetration in sample */
 
     vx_i = vx;
     vy_i = vy;
@@ -910,9 +910,9 @@ TRACE
       randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
     NORM (vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
+    vx *= vel;
+    vy *= vel;
+    vz *= vel;
     qx = V2K * (vx_i - vx);
     qy = V2K * (vy_i - vy);
     qz = V2K * (vz_i - vz);
@@ -953,8 +953,8 @@ TRACE
     // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
     Iq_out = model_scale * Iq_out / vol * 1.0E2;
 
-    l_1 = v * t1;
-    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / v);
+    l_1 = vel * t1;
+    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / vel);
     SCATTER;
   }
 %}
