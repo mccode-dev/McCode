@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from mccodelib import mccode_config
-from mccodelib.mcdisplayutils import McDisplayReader, add_simdir, read_simdir
+from mccodelib.mcdisplayutils import McDisplayReader, add_simdir, add_simplots, read_simdir
 from mccodelib.instrgeom import Vector3d
 from mccodelib.utils import get_file_text_direct
 
@@ -61,7 +61,7 @@ def _write_html(instrument, html_filepath, first=None, last=None, invcanvas=Fals
     writer = SimpleWriter(templatefile, campos, box_total, html_filepath, invcanvas)
     writer.write()
 
-def write_browse(instrument, raybundle, dirname, instrname, nobrowse=None, first=None, last=None, invcanvas=None, campath=None, simdir=None, **kwds):
+def write_browse(instrument, raybundle, dirname, instrname, nobrowse=None, first=None, last=None, invcanvas=None, campath=None, simdir=None, simplots=None, **kwds):
     ''' writes instrument definitions to html/ js '''
     from shutil import copy as shutil_copy
     def copy(a, b):
@@ -104,6 +104,9 @@ def write_browse(instrument, raybundle, dirname, instrname, nobrowse=None, first
     # copy McCode instrument (this *may* be a binary!)
     copy(instrname, dest.joinpath(Path(instrname).name))
     
+    if simplots:
+        html_filepath = str(dest.joinpath(add_simplots(dest, simplots)))
+
     # exit if nobrowse flag has been set
     if nobrowse is not None and nobrowse:
         return
@@ -121,13 +124,16 @@ def file_save(data, filename):
 
 def main(instr=None, dirname=None, debug=None, n=None, **kwds):
     if kwds.get('simdir'):
+        if not kwds.get('nosimplots'):
+            kwds['simplots'] = kwds['simdir']
         kwds['simdir'] = read_simdir(kwds['simdir'], kwds.get('simbins') or 256)
 
     # an existing display directory: add the --simdir monitor data to it, no simulation
     if Path(instr).is_dir():
         add_simdir(instr, kwds.get('simdir'), 'webgl-classic')
+        page = add_simplots(instr, kwds['simplots']) if kwds.get('simplots') else 'index.html'
         if not kwds.get('nobrowse'):
-            mccode_config.open_in_browser(str(Path(instr, 'index.html')))
+            mccode_config.open_in_browser(str(Path(instr, page)))
         return
 
     # output directory
@@ -153,6 +159,7 @@ if __name__ == '__main__':
     parser.add_argument('--campath', type=read_campath, help='camera path file for the tour: rows of x y z (m), optionally with viewing direction dx dy dz')
     parser.add_argument('--simdir', help='simulation output directory: show its 1D/2D monitor data on the monitors; with a display directory from an earlier run in place of the instrument, add the data to that display')
     parser.add_argument('--simbins', type=int, default=256, help='--simdir: show monitor data with at most N x N (2D) or 4N (1D) bins, default 256; the display grows as N^2 (~16 bytes/bin), large N may exceed the browser\'s texture size')
+    parser.add_argument('--nosimplots', action='store_true', help='--simdir: no monitor plots next to the display')
     parser.add_argument('--nobrowse', action='store_true', help='do not open a webbrowser viewer')
     parser.add_argument('--invcanvas', action='store_true', help='invert canvas background from black to white')
     parser.add_argument('--first', help='zoom range first component')

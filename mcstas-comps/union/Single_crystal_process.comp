@@ -55,7 +55,6 @@
 * cz: [AA or AA^-1]                                       c on z axis
 * reflections: [string]                                   File name containing structure factors of reflections. Use empty ("") or NULL for incoherent scattering only
 * order: [1]                                              Limit multiple scattering up to given order (0: all, 1: first, 2: second, ...) (Not supported in Union)
-* p_transmit: [1]                                         Monte Carlo probability for neutrons to be transmitted without any scattering. Used to improve statistics from weak reflections
 * aa: [deg]                                               Unit cell angles alpha, beta and gamma. Then uses norms of vectors a,b and c as lattice parameters
 * bb: [deg]                                               Beta angle
 * cc: [deg]                                               Gamma angle
@@ -255,7 +254,8 @@ SHARE
           if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
             int hdr_barns = strstr (parsing[i], "barn") != NULL;
             if (hdr_barns != info->flag_barns)
-              MPI_MASTER (printf ("Single_crystal_process: %s: |F|^2 unit in file header is %s, using barns=%d\n", SC_file, hdr_barns ? "barn" : "fm^2", hdr_barns););
+              MPI_MASTER (
+                  printf ("Single_crystal_process: %s: |F|^2 unit in file header is %s, using barns=%d\n", SC_file, hdr_barns ? "barn" : "fm^2", hdr_barns););
             info->flag_barns = hdr_barns;
           }
         if (parsing[9] && info->m_delta_d_d < 0)

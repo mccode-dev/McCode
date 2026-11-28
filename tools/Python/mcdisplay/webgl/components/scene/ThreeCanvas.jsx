@@ -31,6 +31,8 @@ import InfoView from "./info-view/InfoView";
 import { usePlotRangeContext } from "../../Contexts/PlotRangeContext";
 import { useSceneContext } from "../../Contexts/SceneContext";
 
+const TURN_MS = 500; // double-click: time to turn to a component
+
 const ThreeCanvas = () => {
   const { showXY, showXZ, showYZ, gridSize, gridDivisions, showAxes } =
     useGridContext();
@@ -82,6 +84,7 @@ const ThreeCanvas = () => {
   const sideView = views[3];
 
   const playRef = useRef(play);
+  const turn = useRef(null); // the current turn to a double-clicked component
 
   let cameraZoom = {
     Top: 1,
@@ -255,7 +258,7 @@ const ThreeCanvas = () => {
     initializeDirectionalLight(scene);
     initializeAmbientLight(scene);
 
-    // double-click a component in the 3D view: turn the camera to its centre
+    // double-click a component in the 3D view: turn the camera to its centre, from where it is
     primaryViewRef.current.addEventListener("dblclick", (e) => {
       const r = e.currentTarget.getBoundingClientRect();
       const p = new THREE.Vector2(
@@ -274,12 +277,30 @@ const ThreeCanvas = () => {
       if (!hit) return;
       let comp = hit.object;
       while (!comps.includes(comp)) comp = comp.parent;
-      new THREE.Box3().setFromObject(comp).getCenter(primaryView.controls.target);
-      primaryView.controls.update();
+      // viewing angles from the camera, as in OrbitControls
+      const pos = primaryView.camera.position;
+      const center = new THREE.Box3().setFromObject(comp).getCenter(new THREE.Vector3());
+      const from = new THREE.Spherical().setFromVector3(pos.clone().sub(primaryView.controls.target));
+      const to = new THREE.Spherical().setFromVector3(pos.clone().sub(center));
+      to.theta -= 2 * Math.PI * Math.round((to.theta - from.theta) / (2 * Math.PI)); // the short way round
+      turn.current = { from, to, start: performance.now() };
     });
+
+    function animateTurn() {
+      if (!turn.current) return;
+      const { from: a, to: b, start } = turn.current;
+      const t = Math.min(1, (performance.now() - start) / TURN_MS);
+      const s = t * t * (3 - 2 * t);
+      const look = new THREE.Vector3().setFromSphericalCoords(
+        a.radius + s * (b.radius - a.radius), a.phi + s * (b.phi - a.phi), a.theta + s * (b.theta - a.theta)
+      );
+      primaryView.controls.target.copy(primaryView.camera.position).sub(look);
+      if (t === 1) turn.current = null;
+    }
 
     function animate() {
       requestAnimationFrame(animate);
+      animateTurn();
       render();
     }
 
@@ -287,6 +308,7 @@ const ThreeCanvas = () => {
   }, []);
 
   useEffect(() => {
+    turn.current = null;
     if (primaryCameraRef.current) {
       primaryCameraRef.current.position.set(camPos.x, camPos.y, camPos.z);
       if (primaryControlsRef.current) {

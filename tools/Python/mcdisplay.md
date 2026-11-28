@@ -54,6 +54,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `--campath FILE` | camera path for the tour: rows of `x y z` (m), optionally with viewing direction `dx dy dz` |
 | `--simdir DIR` | simulation output (`mccode.sim` or `mccode.h5`): show its 1D/2D monitor data on the monitors |
 | `--simbins N` | with `--simdir`: at most N x N (2D) or 4N (1D) bins shown (default: 256) |
+| `--nosimplots` | with `--simdir`: no monitor plots next to the display |
 | `--nobrowse` | do not open a web browser |
 | `--timeout SEC` | shutdown time of the local viewer web server (default: 300) |
 
@@ -74,6 +75,7 @@ Thin bash wrapper piping `mcrun --trace` output into a matplotlib 3D viewer — 
 | `--campath FILE` | camera path for the tour: rows of `x y z` (m), optionally with viewing direction `dx dy dz` |
 | `--simdir DIR` | simulation output (`mccode.sim` or `mccode.h5`): show its 1D/2D monitor data on the monitors |
 | `--simbins N` | with `--simdir`: at most N x N (2D) or 4N (1D) bins shown (default: 256) |
+| `--nosimplots` | with `--simdir`: no monitor plots next to the display |
 | `--first COMP` / `--last COMP` | zoom range start/end component |
 | `--invcanvas` | invert canvas background |
 | `--nobrowse` | do not open a web browser |
@@ -85,6 +87,10 @@ sphere monitors it follows the curved surface, with the angle along it. Large mo
 averaged to at most 256 x 256 (1D: 1024) bins, set with `--simbins`; the output files are
 untouched. The display grows as N^2 (~16 bytes/bin); a large N may exceed the browser's texture size. Toggles: **1D**,
 **2D**, **curved** and **log**, each shown only when there is such data.
+
+Plots of the same monitors are shown on the right of the browser window (needs matplotlib); click one
+for full size in a new tab. They follow the **log** toggle
+(at most 6 decades are shown). `--nosimplots` leaves them out.
 
 To add data to a display made earlier, give its directory in place of the instrument:
 
@@ -110,7 +116,7 @@ gives a warning.
 | `--simdir DIR` | simulation output (`mccode.sim` or `mccode.h5`): draw its 1D/2D monitor data on the monitors |
 | `--simbins N` | with `--simdir`: at most N x N (2D) or 4N (1D) bins shown (default: 64) |
 | `--simshow LIST` | with `--simdir`: comma list of `1D`, `2D`, `curved` (data on curved monitors); default: all |
-| `--simlog` | with `--simdir`: log scale |
+| `--simlog` | with `--simdir`: log scale (at most 6 decades are shown) |
 | `--simtransparency T` | with `--simdir`: transparency of the 2D data, 0 (opaque) to 1 (default: 0.5) |
 | `-f`, `--format FMT` | output format: `glb` (default), `gltf`, `step`, `stl`, `vrml`, `obj`, `ply`, `off`, `xml`/`x3d`, `vtk`, `vtkjs` |
 

@@ -35,7 +35,7 @@ Parameters in **boldface** are required; the others are optional.
 
 | Name | Unit | Description | Default |
 |------|------|-------------|---------|
-| Source_material | str | source anode, e.g. W.txt | "W.txt" |
+| Source_material | str | source anode, e.g. Cu, Co, Cr, W, Mo | "W" |
 | Emin | keV | minimum energy at the source | 1 |
 | Emax | keV | maximum energy at the source | 75 |
 | Sample_material | str | sample material, e.g. chemical formulae or CIF file | "Fe2O3Au" |

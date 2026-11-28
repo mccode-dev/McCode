@@ -20,6 +20,7 @@ a dash, e.g. `mcplot-html` / `mxplot-html`.
 | [mcgui](mcgui.md) | `mcgui` / `mxgui` |
 | [mcrun](mcrun.md) | `mcrun` / `mxrun` |
 | [mcplot family](mcplot.md) | `mcplot` / `mxplot`, `mcplotdiff` / `mxplotdiff`, `mccoplot` / `mxcoplot` — html / matplotlib / pyqtgraph / plopp / matlab variants |
+| [mcmerge](mcmerge.md) | `mcmerge` / `mxmerge` |
 | [mcdisplay family](mcdisplay.md) | `mcdisplay` / `mxdisplay` — pyqtgraph (default) / matplotlib / webgl / webgl-classic / plopp / cad / mantid / matlab variants |
 | [mctest family](mctest.md) | `mctest` / `mxtest`, `mcviewtest` / `mxviewtest`; [statistical acceptance](mctest-statistics.md) of test values |
 | [mcdoc](mcdoc.md) | `mcdoc` / `mxdoc` |
@@ -36,6 +37,7 @@ a dash, e.g. `mcplot-html` / `mxplot-html`.
 | Plot one simulation's results | [`mcplot-{html,matplotlib,pyqtgraph,plopp}` <br> `mxplot-{html,matplotlib,pyqtgraph,plopp}`](mcplot.md#mcplot-mxplot) |
 | Compare exactly two simulations (`a - b`) | [`mcplotdiff-{html,matplotlib,pyqtgraph}` <br> `mxplotdiff-{html,matplotlib,pyqtgraph}`](mcplot.md#mcplotdiff-mxplotdiff) |
 | Overlay 2+ simulations for direct comparison | [`mccoplot-{html,matplotlib,pyqtgraph}` <br> `mxcoplot-{html,matplotlib,pyqtgraph}`](mcplot.md#mccoplot-mxcoplot) |
+| Merge separate runs into one with better statistics | [`mcmerge` / `mxmerge`](mcmerge.md) |
 | Visualise instrument geometry + particle trajectories | [`mcdisplay-{pyqtgraph,matplotlib,webgl,webgl-classic,plopp}` <br> `mxdisplay-{pyqtgraph,matplotlib,webgl,webgl-classic,plopp}`](mcdisplay.md) |
 | Export instrument geometry to a CAD file | [`mcdisplay-cad` <br> `mxdisplay-cad`](mcdisplay.md#mcdisplay-cad-mxdisplay-cad-bonus-export-instrument-geometry-to-cad) |
 | Export instrument geometry to a Mantid IDF (`.xml`) | [`mcdisplay-mantid` <br> `mxdisplay-mantid`](mcdisplay.md#mcdisplay-mantid-mxdisplay-mantid-export-mantid-instrument-definition) |

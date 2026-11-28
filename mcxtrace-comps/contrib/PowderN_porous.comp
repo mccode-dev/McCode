@@ -73,8 +73,8 @@ SHARE INHERIT PowderN EXTEND
      2 void. Returns the number of segments, 0 when the shape is not ahead. */
   #pragma acc routine seq
   int
-  ppor_path (int shape, off_struct* od, gmesh_struct* pm, double r, double xw, double yh, double zd, double yfill,
-             double x, double y, double z, double ux, double uy, double uz, double* ls, int* mat, int* nhits) {
+  ppor_path (int shape, off_struct* od, gmesh_struct* pm, double r, double xw, double yh, double zd, double yfill, double x, double y, double z, double ux,
+             double uy, double uz, double* ls, int* mat, int* nhits) {
     gmesh_hit hits[GMESH_MAX_HITS];
     double l0 = 0, l3 = 0, lb, lf;
     int hit = 0, nh = 0, i, n = 0, depth = 0;
@@ -189,8 +189,9 @@ INITIALIZE INHERIT PowderN EXTEND
                         NAME_CURRENT_COMP, (long)pmesh.ntris, GMESH_MAX_HITS););
   }
   fill_on = fill_material && strlen (fill_material) && strcmp (fill_material, "NULL") && strcmp (fill_material, "0");
-  if (fill_on && (Table_Read (&fill_table, fill_material, 0) <= 0 || fill_col_tot < 1 || fill_col_tot >= ppor_ncols (&fill_table)
-                  || fill_col_scat < 0 || fill_col_scat >= ppor_ncols (&fill_table))) {
+  if (fill_on
+      && (Table_Read (&fill_table, fill_material, 0) <= 0 || fill_col_tot < 1 || fill_col_tot >= ppor_ncols (&fill_table) || fill_col_scat < 0
+          || fill_col_scat >= ppor_ncols (&fill_table))) {
     fprintf (stderr, "PowderN_porous: %s: can not use columns %i,%i of the liquid table %s.\n", NAME_CURRENT_COMP, fill_col_tot, fill_col_scat, fill_material);
     exit (-1);
   }
@@ -211,7 +212,9 @@ TRACE
   off_struct od = offdata;
 
   k = sqrt (kx * kx + ky * ky + kz * kz);
-  ux = kx / k; uy = ky / k; uz = kz / k;
+  ux = kx / k;
+  uy = ky / k;
+  uz = kz / k;
   n = ppor_path (line_info.shape, &od, &pm, radius, xwidth, yheight, zdepth, fill_y, x, y, z, ux, uy, uz, ls, mat, &nh);
   if (nh >= 0.8 * GMESH_MAX_HITS) { /* rare: atomics only here */
     #pragma acc atomic
@@ -288,9 +291,13 @@ TRACE
         }
         if (knorm < 0.01) {
           if (fabs (kx) < fabs (kz)) {
-            nx = 1; ny = 0; nz = 0;
+            nx = 1;
+            ny = 0;
+            nz = 0;
           } else {
-            nx = 0; ny = 0; nz = 1;
+            nx = 0;
+            ny = 0;
+            nz = 1;
           }
           vec_prod (tmp_kx, tmp_ky, tmp_kz, kx, ky, kz, nx, ny, nz);
         }
@@ -324,7 +331,9 @@ TRACE
         kz *= k / k1;
         w *= (m ? mu_fs : my_inc) * solid_angle / (4 * PI);
       }
-      ux = kx / k; uy = ky / k; uz = kz / k;
+      ux = kx / k;
+      uy = ky / k;
+      uz = kz / k;
       n = ppor_path (line_info.shape, &od, &pm, radius, xwidth, yheight, zdepth, fill_y, x, y, z, ux, uy, uz, ls, mat, &nh);
       if (!n)
         ABSORB; /* rounding at the surface */
@@ -341,10 +350,9 @@ FINALLY INHERIT PowderN EXTEND
     mc_MPI_Sum (&ppor_nfull, 1);
   }
   #endif
-  MPI_MASTER (if (ppor_nnear > 0)
-    printf ("PowderN_porous: %s: WARNING: %g rays crossed >= 80 %% and %g rays 100 %% of GMESH_MAX_HITS=%d pore surfaces\n"
-            "  (at 100 %%, farther pores may be dropped). Raise with DEPENDENCY \" -DGMESH_MAX_HITS=... \".\n",
-            NAME_CURRENT_COMP, ppor_nnear, ppor_nfull, GMESH_MAX_HITS););
+  MPI_MASTER (if (ppor_nnear > 0) printf ("PowderN_porous: %s: WARNING: %g rays crossed >= 80 %% and %g rays 100 %% of GMESH_MAX_HITS=%d pore surfaces\n"
+                                          "  (at 100 %%, farther pores may be dropped). Raise with DEPENDENCY \" -DGMESH_MAX_HITS=... \".\n",
+                                          NAME_CURRENT_COMP, ppor_nnear, ppor_nfull, GMESH_MAX_HITS););
   gmesh_free (&pmesh);
   if (fill_on)
     Table_Free (&fill_table);

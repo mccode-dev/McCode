@@ -25,7 +25,6 @@
 * yheight: [m]          Height of detector
 * radius: [m]           Radius of detector
 * nr: [1]               Number of pixel (radial) columns
-* ny: [1]               Number of pixel rows
 * thmin: [deg]          Minimum angle covered/measured
 * thmax: [deg]          Maximum angle covered/measured
 * tmin:  [s]            Minimum time measured
@@ -88,7 +87,11 @@ TRACE
           if (phi >= thmin && phi <= thmax) {
             if (t >= tmin && t < tmax) {
               i = floor ((nr) * (phi - thmin) / (thmax - thmin));
+              if (i >= nr)
+                i = nr - 1; /* phi == thmax */
               j = floor ((nt) * (t - tmin) / (tmax - tmin));
+              if (j >= nt)
+                j = nt - 1; /* rounding at tmax */
               double p2 = p * p;
 
               #pragma acc atomic

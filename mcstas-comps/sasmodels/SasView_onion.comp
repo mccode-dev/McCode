@@ -20,11 +20,11 @@
 * SasView_onion component, generated from onion.c in sasmodels.
 *
 * Example: 
-*  SasView_onion(sld_core, radius_core, sld_solvent, n_shells, sld_in[n_shells], sld_out[n_shells], thickness[n_shells], A[n_shells], 
+*  SasView_onion(sld_core, radius_core, sld_solvent, n_shells, sld_in, sld_out, thickness, A, 
 *     model_scale=1.0, model_abs=0.0, xwidth=0.01, yheight=0.01, zdepth=0.005, R=0, 
 *     int target_index=1, target_x=0, target_y=0, target_z=1,
 *     focus_xw=0.5, focus_yh=0.5, focus_aw=0, focus_ah=0, focus_r=0, 
-*     pd_radius_core=0.0, pd_thickness[n_shells]=0.0)
+*     pd_radius_core=0.0)
 *
 * %Parameters
 * INPUT PARAMETERS:
@@ -32,10 +32,10 @@
 * radius_core: [AA] ([0, inf]) Radius of the core.
 * sld_solvent: [1e-6/AA^2] ([-inf, inf]) Solvent scattering length density.
 * n_shells: [] ([0, 10]) number of shells (must be integer).
-* sld_in[n_shells]: [1e-6/Ang^2] ([-inf, inf]) scattering length density at the inner radius of shell k.
-* sld_out[n_shells]: [1e-6/Ang^2] ([-inf, inf]) scattering length density at the outer radius of shell k.
-* thickness[n_shells]: [Ang] ([0, inf]) Thickness of shell k.
-* A[n_shells]: [] ([-inf, inf]) Decay rate of shell k.
+* sld_in: [1e-6/AA^2] ([-inf, inf]) scattering length density at the inner radius of shell k.
+* sld_out: [1e-6/AA^2] ([-inf, inf]) scattering length density at the outer radius of shell k.
+* thickness: [AA] ([0, inf]) Thickness of shell k.
+* A: [] ([-inf, inf]) Decay rate of shell k.
 * Optional parameters:
 * model_abs: [ ] Absorption cross section density at 2200 m/s.
 * model_scale: [ ] Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors can be related to the scattering intensity by the particle volume fraction.
@@ -52,23 +52,21 @@
 * focus_aw: [deg], horiz. angular dimension of a rectangular area.
 * focus_ah: [deg], vert. angular dimension of a rectangular area.
 * focus_r: [m] case of circular focusing, focusing radius.
-* pd_radius_core: [] (0,inf) defined as (dx/x), where x is de mean value and dx the standard devition of the variable.
-* pd_thickness[n_shells]: [] (0,inf) defined as (dx/x), where x is de mean value and dx the standard devition of the variable
+* pd_radius_core: [] (0,inf) defined as (dx/x), where x is de mean value and dx the standard devition of the variable
 *
 * %Link
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_onion
-
 SETTING PARAMETERS (
         sld_core=1.0,
         radius_core=200.0,
         sld_solvent=6.4,
         n_shells=1,
-        vector sld_in[n_shells]={1.7},
-        vector sld_out[n_shells]={2.0},
-        vector thickness[n_shells]={40.0},
-        vector A[n_shells]={1.0},
+        vector sld_in={1.7},
+        vector sld_out={2.0},
+        vector thickness={40.0},
+        vector A={1.0},
         model_scale=1.0,
         model_abs=0.0,
         xwidth=0.01,
@@ -84,8 +82,7 @@ SETTING PARAMETERS (
         focus_aw=0,
         focus_ah=0,
         focus_r=0,
-        pd_radius_core=0.0,
-        pd_thickness[n_shells]=0.0)
+        pd_radius_core=0.0)
 
 
 SHARE %{
@@ -167,7 +164,7 @@ double sas_3j1x_x(double q)
 #line 1 "onion"
 
 static double
-f_exp(double q, double r, double sld_in, double sld_out,
+f_exp_onion(double q, double r, double sld_in, double sld_out,
     double thickness, double A, double side)
 {
   const double vol = M_4PI_3 * sas_cube(r);
@@ -196,7 +193,7 @@ f_exp(double q, double r, double sld_in, double sld_out,
 }
 
 static double
-outer_radius(double radius_core, double n_shells, double thickness[])
+outer_radius_onion(double radius_core, double n_shells, double thickness[])
 {
   int n = (int)(n_shells+0.5);
   double r = radius_core;
@@ -209,14 +206,14 @@ outer_radius(double radius_core, double n_shells, double thickness[])
 static double
 form_volume_onion(double radius_core, double n_shells, double thickness[])
 {
-  return M_4PI_3*sas_cube(outer_radius(radius_core, n_shells, thickness));
+  return M_4PI_3*sas_cube(outer_radius_onion(radius_core, n_shells, thickness));
 }
 
 static double
 radius_effective_onion(int mode, double radius_core, double n_shells, double thickness[])
 {
   // case 1: outer radius
-  return outer_radius(radius_core, n_shells, thickness);
+  return outer_radius_onion(radius_core, n_shells, thickness);
 }
 
 static void
@@ -226,14 +223,14 @@ Fq_onion(double q, double *F1, double *F2, double sld_core, double radius_core, 
 {
   int n = (int)(n_shells+0.5);
   double r_out = radius_core;
-  double f = f_exp(q, r_out, sld_core, 0.0, 0.0, 0.0, 0.0);
+  double f = f_exp_onion(q, r_out, sld_core, 0.0, 0.0, 0.0, 0.0);
   for (int i=0; i < n; i++){
     const double r_in = r_out;
     r_out += thickness[i];
-    f -= f_exp(q, r_in, sld_in[i], sld_out[i], thickness[i], A[i], 0.0);
-    f += f_exp(q, r_out, sld_in[i], sld_out[i], thickness[i], A[i], 1.0);
+    f -= f_exp_onion(q, r_in, sld_in[i], sld_out[i], thickness[i], A[i], 0.0);
+    f += f_exp_onion(q, r_out, sld_in[i], sld_out[i], thickness[i], A[i], 1.0);
   }
-  f -= f_exp(q, r_out, sld_solvent, 0.0, 0.0, 0.0, 0.0);
+  f -= f_exp_onion(q, r_out, sld_solvent, 0.0, 0.0, 0.0, 0.0);
 
   *F1 = 1e-2 * f;
   *F2 = 1e-4 * f * f;
@@ -288,7 +285,7 @@ INITIALIZE
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double t0, t1, vel, l_full, l, l_1, dt, d_phi, my_s;
   double aim_x = 0, aim_y = 0, aim_z = 1, axis_x, axis_y, axis_z;
   double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
   double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
@@ -307,11 +304,11 @@ TRACE
       ABSORB;
 
     /* Neutron enters at t=t0. */
-    v = sqrt (vx * vx + vy * vy + vz * vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
+    vel = sqrt (vx * vx + vy * vy + vz * vz);
+    l_full = vel * (t1 - t0);        /* Length of full path through sample */
     dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
     PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    l = vel * (dt - t0);             /* Penetration in sample */
 
     vx_i = vx;
     vy_i = vy;
@@ -329,19 +326,17 @@ TRACE
       randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
     NORM (vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
+    vx *= vel;
+    vy *= vel;
+    vz *= vel;
     qx = V2K * (vx_i - vx);
     qy = V2K * (vy_i - vy);
     qz = V2K * (vz_i - vz);
     q = sqrt (qx * qx + qy * qy + qz * qz);
 
     double trace_radius_core = radius_core;
-    double trace_thickness[n_shells] = thickness[n_shells];
-    if (pd_radius_core != 0.0 || pd_thickness[n_shells] != 0.0) {
+    if (pd_radius_core != 0.0) {
       trace_radius_core = (randnorm () * pd_radius_core + 1.0) * radius_core;
-      trace_thickness[n_shells] = (randnorm () * pd_thickness[n_shells] + 1.0) * thickness[n_shells];
     }
 
     // Sample dependent. Retrieved from SasView./////////////////////
@@ -349,7 +344,7 @@ TRACE
     Iq_out = 1;
 
     double F1 = 0.0, F2 = 0.0;
-    Fq_onion (q, &F1, &F2, sld_core, trace_radius_core, sld_solvent, n_shells, sld_in[n_shells], sld_out[n_shells], trace_thickness[n_shells], A[n_shells]);
+    Fq_onion (q, &F1, &F2, sld_core, trace_radius_core, sld_solvent, n_shells, sld_in, sld_out, thickness, A);
     Iq_out = F2;
 
     float vol;
@@ -358,8 +353,8 @@ TRACE
     // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
     Iq_out = model_scale * Iq_out / vol * 1.0E2;
 
-    l_1 = v * t1;
-    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / v);
+    l_1 = vel * t1;
+    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / vel);
     SCATTER;
   }
 %}

@@ -472,14 +472,14 @@ class McStas:
             LOG.debug('Running via MPI: %s', self.binpath)
             binpath = self.options.mpirun
             if self.options.mpi == "auto":
-                LOG.info('Using system default number of mpirun -np processes')
+                LOG.info('Using system default number of MPI processes')
                 if os.name == 'nt':
                     mpi_flags = [''] # msmpi mpiexec.exe does not accept --
-                    mpi_flags = ['-np', str(psutil.cpu_count(logical=False))] # probe number of available (non-logical) CPU's
+                    mpi_flags = ['-n', str(psutil.cpu_count(logical=False))] # probe number of available (non-logical) CPU's
                 else:
                     mpi_flags = ['--'] # ... whereas openmpi mpirun does.
             elif int(self.options.mpi) >= 1:
-                mpi_flags = ['-np', str(self.options.mpi)]
+                mpi_flags = ['-n', str(self.options.mpi)] # -n is accepted by mpirun, mpiexec and srun
             else:
                 mpi_flags = []
             if self.options.machines:
