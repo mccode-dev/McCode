@@ -53,159 +53,161 @@ SHARE
 
 DECLARE
 %{
-  double *z_KL;
-  double *x_KL;
+  double* z_KL;
+  double* x_KL;
   int Z;
-  double Ar; 
-  double rho; 
-  double *E;
-  double *Mu;
-  double *F;
+  double Ar;
+  double rho;
+  double* E;
+  double* Mu;
+  double* F;
 %}   
   
 INITIALIZE
 %{
   // parsing the geometrical dimensions file
-  int status=0;
+  int status = 0;
   t_Table T;
-  if ( (status=Table_Read(&T,datafile,0))==-1){
-    fprintf(stderr,"Error: Could not parse file \"%s\" in COMP %s\n",datafile,NAME_CURRENT_COMP);
-    exit(-1);
+  if ((status = Table_Read (&T, datafile, 0)) == -1) {
+    fprintf (stderr, "Error: Could not parse file \"%s\" in COMP %s\n", datafile, NAME_CURRENT_COMP);
+    exit (-1);
   }
-  z_KL=malloc(sizeof(double)*(T.rows+1));
-  x_KL=malloc(sizeof(double)*(T.rows+1));
+  z_KL = malloc (sizeof (double) * (T.rows + 1));
+  x_KL = malloc (sizeof (double) * (T.rows + 1));
   int i;
-  for(i=0;i<T.rows;i++){
-      z_KL[i]=T.data[i*T.columns]; 
-      x_KL[i]=T.data[1+i*T.columns];               
-      
+  for (i = 0; i < T.rows; i++) {
+    z_KL[i] = T.data[i * T.columns];
+    x_KL[i] = T.data[1 + i * T.columns];
   }
-  Table_Free(&T);
-  
-  
+  Table_Free (&T);
+
   // parsing the material datafile
-  int st=0;
+  int st = 0;
   t_Table TT;
-  if ( (st=Table_Read(&TT,material_datafile,0))==-1){
-    fprintf(stderr,"Error: Could not parse file \"%s\" in COMP %s\n",material_datafile,NAME_CURRENT_COMP);
-    exit(-1);
+  if ((st = Table_Read (&TT, material_datafile, 0)) == -1) {
+    fprintf (stderr, "Error: Could not parse file \"%s\" in COMP %s\n", material_datafile, NAME_CURRENT_COMP);
+    exit (-1);
   }
-  char **header_parsed;
-  header_parsed=Table_ParseHeader(TT.header,"Z","A[r]","rho",NULL);
-  if (!Z) Z=strtol(header_parsed[0],NULL,10);
-  if (!Ar) Ar=strtod(header_parsed[1],NULL);
-  if (!rho) rho=strtod(header_parsed[2],NULL);
-  E=malloc(sizeof(double)*(TT.rows+1));
-  F=malloc(sizeof(double)*(TT.rows+1));
-  Mu=malloc(sizeof(double)*(TT.rows+1));
+  char** header_parsed;
+  header_parsed = Table_ParseHeader (TT.header, "Z", "A[r]", "rho", NULL);
+  if (!Z)
+    Z = strtol (header_parsed[0], NULL, 10);
+  if (!Ar)
+    Ar = strtod (header_parsed[1], NULL);
+  if (!rho)
+    rho = strtod (header_parsed[2], NULL);
+  E = malloc (sizeof (double) * (TT.rows + 1));
+  F = malloc (sizeof (double) * (TT.rows + 1));
+  Mu = malloc (sizeof (double) * (TT.rows + 1));
   int nr;
-  for(nr=0;nr<TT.rows;nr++){
-      E[nr]=TT.data[nr*TT.columns]; 
-      Mu[nr]=TT.data[5+nr*TT.columns]*rho*1e2;     /*mu is now in SI, [m^-1]*/          
-      F[nr]=TT.data[1+nr*TT.columns];
+  for (nr = 0; nr < TT.rows; nr++) {
+    E[nr] = TT.data[nr * TT.columns];
+    Mu[nr] = TT.data[5 + nr * TT.columns] * rho * 1e2; /*mu is now in SI, [m^-1]*/
+    F[nr] = TT.data[1 + nr * TT.columns];
   }
-  Table_Free(&TT);
+  Table_Free (&TT);
 %}
 
 TRACE
 %{
-  double FF,k,di;
-  double kxN,kyN,kzN;
-  double EE, mu,f,rhoel,e,delta,beta,T;
-  double x_tmp,z_int;
-  int i,nr;
-  k=sqrt(kx*kx+ky*ky+kz*kz);
-  e=K2E*k; 
+  double FF, k, di;
+  double kxN, kyN, kzN;
+  double EE, mu, f, rhoel, e, delta, beta, T;
+  double x_tmp, z_int;
+  int i, nr;
+  k = sqrt (kx * kx + ky * ky + kz * kz);
+  e = K2E * k;
 
-  // determining delta 
-  
-  while (e>E[i]){
-    i++; 
-    if (E[i]==-1){
-      fprintf(stderr,"Lens_Kinoform: %s: Photon energy (%g keV) is outside of the kinoform's material data\n",
-        NAME_CURRENT_COMP, k); ABSORB;
+  // determining delta
+
+  while (e > E[i]) {
+    i++;
+    if (E[i] == -1) {
+      fprintf (stderr, "Lens_Kinoform: %s: Photon energy (%g keV) is outside of the kinoform's material data\n", NAME_CURRENT_COMP, k);
+      ABSORB;
     }
-  } 
-  EE=(e-E[i-1])/(E[i]-E[i-1]); 
-  mu=(1-EE)*Mu[i-1]+EE*Mu[i];
-  f=(1-EE)*F[i-1]+EE*F[i]; 
-  rhoel= f*NA*(rho*1e-24)/Ar; 
- 
-  if (deltaN==0) {
-      delta= 2.0*M_PI*RE*rhoel/(k*k); 
-  } else delta=deltaN; 
-  mu*=1e-10; // factor conversion from m^-1 to A^-1
-  beta=mu/(2.0*k); 
-  
+  }
+  EE = (e - E[i - 1]) / (E[i] - E[i - 1]);
+  mu = (1 - EE) * Mu[i - 1] + EE * Mu[i];
+  f = (1 - EE) * F[i - 1] + EE * F[i];
+  rhoel = f * NA * (rho * 1e-24) / Ar;
+
+  if (deltaN == 0) {
+    delta = 2.0 * M_PI * RE * rhoel / (k * k);
+  } else
+    delta = deltaN;
+  mu *= 1e-10; // factor conversion from m^-1 to A^-1
+  beta = mu / (2.0 * k);
+
   PROP_Z0;
-  
-  if (x> -xwidth/2 && x< xwidth/2 &&
-      y> -yheight/2 && y< yheight/2){ 
-	   /*Interpolation of Table Values*/ 
- 
-        while (fabs(x)>x_KL[nr]){
-	    nr++; 
-	    if (nr<=1) nr=1;
-	    if (nr>=1345) nr=1345;
-	    if (x_KL[nr]==-1){
-        fprintf(stderr,"Lens_Kinoform: %s: An error with parsing the kinoform dimensions' file\n", 
-          NAME_CURRENT_COMP); ABSORB;
-	    }
-	}
-    x_tmp=x_KL[nr];z_int=z_KL[nr];
 
-    PROP_DL(z_int);
+  if (x > -xwidth / 2 && x < xwidth / 2 && y > -yheight / 2 && y < yheight / 2) {
+    /*Interpolation of Table Values*/
+
+    while (fabs (x) > x_KL[nr]) {
+      nr++;
+      if (nr <= 1)
+        nr = 1;
+      if (nr >= 1345)
+        nr = 1345;
+      if (x_KL[nr] == -1) {
+        fprintf (stderr, "Lens_Kinoform: %s: An error with parsing the kinoform dimensions' file\n", NAME_CURRENT_COMP);
+        ABSORB;
+      }
+    }
+    x_tmp = x_KL[nr];
+    z_int = z_KL[nr];
+
+    PROP_DL (z_int);
     SCATTER;
-    
-    FF=((x*x)/(2*delta*z)) - (((2*delta-delta*delta)*z)/(2*delta));
 
-    di=sqrt(x*x+(z-FF)*(z-FF)); // distance to the focal point with the subsequent calculation of a new k vector
-    kxN=-(k*x)/di;
-    kyN=0;
-    kzN=(k*(FF-z))/di;
-    
-    double knew_x,knew_y,knew_z;
-    double NN,Nx,Ny,Nz,aa, aa1;
-    
-    NN=sqrt(kxN*kxN+kyN*kyN+kzN*kzN);
-    Nx=kxN/NN;
-    Ny=kyN/NN;
-    Nz=kzN/NN; 
-    
-    aa=Nz;
-    aa1=sqrt(1-aa*aa); 
+    FF = ((x * x) / (2 * delta * z)) - (((2 * delta - delta * delta) * z) / (2 * delta));
+
+    di = sqrt (x * x + (z - FF) * (z - FF)); // distance to the focal point with the subsequent calculation of a new k vector
+    kxN = -(k * x) / di;
+    kyN = 0;
+    kzN = (k * (FF - z)) / di;
+
+    double knew_x, knew_y, knew_z;
+    double NN, Nx, Ny, Nz, aa, aa1;
+
+    NN = sqrt (kxN * kxN + kyN * kyN + kzN * kzN);
+    Nx = kxN / NN;
+    Ny = kyN / NN;
+    Nz = kzN / NN;
+
+    aa = Nz;
+    aa1 = sqrt (1 - aa * aa);
     // Rotation of the incoming k vector by an angle alpha:
-    
-    if (x<0){
-	    knew_x=aa*kx+aa1*kz;	// rotation around Y axis
-	    knew_y=ky;
-	    knew_z=-aa1*kx+aa*kz;	
-    } else if (x>0){
-      knew_x=-aa*kx+aa1*kz;
-      knew_y=ky;
-      knew_z=-aa1-aa*kz;
-    }	
-   
-    kx=knew_x;
-    ky=knew_y;
-    kz=knew_z;
- 
-    
-  } else  
-  SCATTER;
- 
-    // transmission calculation
-   T=exp(-2*M_PI*(beta/delta));  
-   p*=T;
 
+    if (x < 0) {
+      knew_x = aa * kx + aa1 * kz; // rotation around Y axis
+      knew_y = ky;
+      knew_z = -aa1 * kx + aa * kz;
+    } else if (x > 0) {
+      knew_x = -aa * kx + aa1 * kz;
+      knew_y = ky;
+      knew_z = -aa1 - aa * kz;
+    }
+
+    kx = knew_x;
+    ky = knew_y;
+    kz = knew_z;
+
+  } else
+    SCATTER;
+
+  // transmission calculation
+  T = exp (-2 * M_PI * (beta / delta));
+  p *= T;
 %}
 
 MCDISPLAY
 %{
-   // zdepth=0.002033
-  double zdepth=0.002033,w;
-  w=xwidth/2;
-  box(0,0,zdepth,w,yheight/2,zdepth,0, 0, 1, 0);
+  // zdepth=0.002033
+  double zdepth = 0.002033, w;
+  w = xwidth / 2;
+  box (0, 0, zdepth, w, yheight / 2, zdepth, 0, 0, 1, 0);
 %}
 
 END

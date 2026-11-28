@@ -24,3 +24,4 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ```
 
 AI agents working in this repository should also read [AGENTS.md](AGENTS.md).
+It also gives a good overview of the project for humans.

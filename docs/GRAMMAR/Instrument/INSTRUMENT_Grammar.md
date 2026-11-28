@@ -42,6 +42,7 @@ a `vector` default like `axis={0,1,0}`). The two never mean "optional" in this d
 DEFINE INSTRUMENT name(parameters)
 
 [SHELL "command"]                    // rare, pre-parse shell command(s)
+[METADATA type name %{ ... %}]       // zero or more, see §12
 [DEPENDENCY "linker/compiler flags"] // linker-instructions
 
 DECLARE
@@ -369,7 +370,8 @@ Here is some data to go into a file.
 
 * `METADATA type name %{ ...text... %}` attaches a named, typed block of arbitrary text to
   a component **instance** (as shown above, placed after the instance's
-  positioning/`EXTEND`/`JUMP` clauses in `TRACE`) or to an **instrument**. It has zero
+  positioning/`EXTEND`/`JUMP` clauses in `TRACE`) or to an **instrument** (in the header,
+  between `SHELL` and `DEPENDENCY`; look it up with the instrument name as `comp`). It has zero
   effect on the simulated physics — it's purely for downstream tools (IDF fragments, JSON
   geometry blobs, CIF snippets, free-form notes) to retrieve without parsing generated C.
   `type`/`name` are bare identifiers or quoted strings (quote for MIME-style types like

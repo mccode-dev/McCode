@@ -48,7 +48,6 @@
 * weight:            [g/mol]     Atomic/molecular weight of material.
 * density:           [g/cm^3]    Density of material. rho=density/weight/1e24*N_A.
 * nb_atoms:          [1]         Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell
-* target_index:      [1]         Relative index of component to focus at, e.g. next is +1
 * material:          [str]       Reflection list for power
 * mat_format:        [vector]    List order in reflection list file
 * init:              [string]    Deprecated and unused. Accepted so that instruments written for McStas/McXtrace 3.8.7 and earlier, which name the Union_init component here, still compile.
@@ -237,6 +236,7 @@ SHARE
                                  "column_sintheta/lambda", "column_q", /* 10 */
                                  "DW", "Debye_Waller", "delta_d/d", "column_F ", "V_rho", "density", "weight", "nb_atoms", "multiplicity", NULL);
 
+    int hdr_unit = 0;
     if (parsing) {
       if (parsing[0] && !info->V_0)
         info->V_0 = atof (parsing[0]);
@@ -278,6 +278,16 @@ SHARE
         info->at_nb = atof (parsing[18]);
       if (parsing[19] && info->at_nb <= 1)
         info->at_nb = atof (parsing[19]);
+      /* a |F| or |F|^2 unit (barn or fm) in the header overrides the 'barns' parameter */
+      for (i = 4; i <= 14; i += 10) /* column_F2, column_F */
+        if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
+          int hdr_barns = strstr (parsing[i], "barn") != NULL;
+          if (hdr_barns != info->flag_barns)
+            MPI_MASTER (
+                printf ("Powder_process: %s: |F|^2 unit in file header is %s, using barns=%d\n", info->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
+          info->flag_barns = hdr_barns;
+          hdr_unit = 1;
+        }
       for (i = 0; i <= 19; i++)
         if (parsing[i])
           free (parsing[i]);
@@ -295,11 +305,11 @@ SHARE
     Table_Info (sTable);
     printf ("PowderN: %s: Reading %d rows from %s\n", info->compname, size, SC_file);
 
-    if (info->column_order[0] == 4 && info->flag_barns != 0)
+    if (!hdr_unit && info->column_order[0] == 4 && info->flag_barns != 0)
       printf ("PowderN: %s: Powder file probably of type Crystallographica/Fullprof (lau)\n"
               "WARNING: but F2 unit is set to barns=1 (barns). Intensity might be 100 times too high.\n",
               info->compname);
-    if (info->column_order[0] == 17 && info->flag_barns == 0)
+    if (!hdr_unit && info->column_order[0] == 17 && info->flag_barns == 0)
       printf ("PowderN: %s: Powder file probably of type Lazy Pulver (laz)\n"
               "WARNING: but F2 unit is set to barns=0 (fm^2). Intensity might be 100 times too low.\n",
               info->compname);

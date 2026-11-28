@@ -63,36 +63,36 @@ SETTING PARAMETERS (E0=0, dE=0, lambda0=0,dlambda=0,
 SHARE
 %{
 
-#ifndef MCCODE_BESSELKNU
-#define MCCODE_BESSELKNU 1
+  #ifndef MCCODE_BESSELKNU
+  #define MCCODE_BESSELKNU 1
 
-#pragma acc routine seq
-double besselKnu(double nu, double x){
-    const double h=0.5;
-    double KK=0,dK;
-    int r=0;
-    const int maxiter=1000;
-    KK=exp(-x)/2.0;
-    dK=1;
-    while (dK>DBL_EPSILON && r<maxiter){
+  #pragma acc routine seq
+  double
+  besselKnu (double nu, double x) {
+    const double h = 0.5;
+    double KK = 0, dK;
+    int r = 0;
+    const int maxiter = 1000;
+    KK = exp (-x) / 2.0;
+    dK = 1;
+    while (dK > DBL_EPSILON && r < maxiter) {
       r++;
-      dK=exp(-x*cosh(r*h))*cosh(nu*r*h);
-      KK+=dK;
+      dK = exp (-x * cosh (r * h)) * cosh (nu * r * h);
+      KK += dK;
     }
-#ifndef OPENACC
-    if (r>=maxiter) {
-      fprintf(stderr,"Warning: Maximum number of iterations exceeded in besselKnu(%g,%g).\n",nu,x);
+    #ifndef OPENACC
+    if (r >= maxiter) {
+      fprintf (stderr, "Warning: Maximum number of iterations exceeded in besselKnu(%g,%g).\n", nu, x);
     }
-#endif
-    KK*=h;
+    #endif
+    KK *= h;
     return KK;
   }
-#endif /*MCCODE_BESSELKNU*/
+  #endif /*MCCODE_BESSELKNU*/
 
-#ifndef M_SQRT1_2
-#define M_SQRT1_2 0.70710678118654752440
-#endif
-
+  #ifndef M_SQRT1_2
+  #define M_SQRT1_2 0.70710678118654752440
+  #endif
 %}
 
 DECLARE
@@ -113,197 +113,198 @@ DECLARE
 INITIALIZE
 %{
 
-  if(B<=0 || Ee<=0 || Ie<=0 ){
-    fprintf(stderr, "Error (%s): B, Ee, and Ie must all be > 0. Found (%g %g %g). Aborting.\n",NAME_CURRENT_COMP,B,Ee,Ie);
-    exit(1);
+  if (B <= 0 || Ee <= 0 || Ie <= 0) {
+    fprintf (stderr, "Error (%s): B, Ee, and Ie must all be > 0. Found (%g %g %g). Aborting.\n", NAME_CURRENT_COMP, B, Ee, Ie);
+    exit (1);
   }
-  if (!E0 && lambda0 > 0 && dlambda > 0 && lambda0-dlambda > 0) {
+  if (!E0 && lambda0 > 0 && dlambda > 0 && lambda0 - dlambda > 0) {
     // compute equivalent E0 and dE
-    double E1 = (2 * M_PI / (lambda0+dlambda)) * K2E;
-    double E2 = (2 * M_PI / (lambda0-dlambda)) * K2E;
-    E0 =     (E1 + E2)/2;
-    dE = fabs(E1 - E2)/2;
+    double E1 = (2 * M_PI / (lambda0 + dlambda)) * K2E;
+    double E2 = (2 * M_PI / (lambda0 - dlambda)) * K2E;
+    E0 = (E1 + E2) / 2;
+    dE = fabs (E1 - E2) / 2;
   }
-  if (E0 <= 0 || dE <= 0 || E0-dE <= 0) {
+  if (E0 <= 0 || dE <= 0 || E0 - dE <= 0) {
     fprintf (stderr, "Error (%s): E0 and dE>0 (or lambda0 and dlambda>0) need to be set, with E0-dE>0. Aborting.\n", NAME_CURRENT_COMP);
     exit (1);
   }
-  if (sigex <0 || sigey<0){
-    fprintf(stderr, "Error (%s): sigex and sigey must be > 0. Negative beam size isn't meaningful. Aborting.\n",NAME_CURRENT_COMP);
-    exit(1);
+  if (sigex < 0 || sigey < 0) {
+    fprintf (stderr, "Error (%s): sigex and sigey must be > 0. Negative beam size isn't meaningful. Aborting.\n", NAME_CURRENT_COMP);
+    exit (1);
   }
-  if (dist<=0){
-    fprintf(stderr,"Error (%s): Target undefined.\n",NAME_CURRENT_COMP);
-    exit(1);
+  if (dist <= 0) {
+    fprintf (stderr, "Error (%s): Target undefined.\n", NAME_CURRENT_COMP);
+    exit (1);
   }
 
   /*compute gamma*/
-  gamma=(Ee*1e9)/(MELECTRON/CELE*M_C*M_C);/*the extra CELE is to convert to eV*/
-  gamma2=gamma*gamma;
-  igamma=1.0/gamma;
+  gamma = (Ee * 1e9) / (MELECTRON / CELE * M_C * M_C); /*the extra CELE is to convert to eV*/
+  gamma2 = gamma * gamma;
+  igamma = 1.0 / gamma;
 
-  ctemult=(3.0*ALPHA/(4.0*M_PI*M_PI))*(gamma2)*(Ie/CELE);
+  ctemult = (3.0 * ALPHA / (4.0 * M_PI * M_PI)) * (gamma2) * (Ie / CELE);
 
-  //printf("Bending_magnet (%s): gamma=%g, divergence is 1/gamma=%g rad.\n",NAME_CURRENT_COMP,gamma,igamma);
+  // printf("Bending_magnet (%s): gamma=%g, divergence is 1/gamma=%g rad.\n",NAME_CURRENT_COMP,gamma,igamma);
   /*compute characteristic energy in keV*/
-  double Ec=0.665*Ee*Ee*B;
-  //double Ec=1.5*gamma2*HBAR*CELE*B/MELECTRON *1e-3; /*check units on this one. The 1e-3 factor is because energy is assumed to be in keV*/
+  double Ec = 0.665 * Ee * Ee * B;
+  // double Ec=1.5*gamma2*HBAR*CELE*B/MELECTRON *1e-3; /*check units on this one. The 1e-3 factor is because energy is assumed to be in keV*/
   /*We normally do computations in k so use that for transfer*/
-  kc=E2K*Ec;
+  kc = E2K * Ec;
 
-  muc = kc*M_C/(2.0*M_PI);
+  muc = kc * M_C / (2.0 * M_PI);
 
-  if (focus_xw){
-    s1x=focus_xw/2.0;
+  if (focus_xw) {
+    s1x = focus_xw / 2.0;
   }
-  if (focus_yh){
-    s1y=focus_yh/2.0;  
+  if (focus_yh) {
+    s1y = focus_yh / 2.0;
   }
-  p0=1.0/mcget_ncount();
+  p0 = 1.0 / mcget_ncount ();
 
-  qe = 1.0/(2.0*dE);    // energy sampling density, dE > 0 checked above
+  qe = 1.0 / (2.0 * dE); // energy sampling density, dE > 0 checked above
 %}
 
 
 TRACE
 %{
 
-  double xx,yy,x1,y1,z1;
-  double k,e;
-  double dx,dy,dz;
+  double xx, yy, x1, y1, z1;
+  double k, e;
+  double dx, dy, dz;
   double dl;
 
-  const double angle=2.5e-3; /*without focus, psi and theta are sampled uniformly in (-angle,angle)*/
+  const double angle = 2.5e-3; /*without focus, psi and theta are sampled uniformly in (-angle,angle)*/
   double psi, theta, xcap, oneplusxsquared, chi, K23, K13;
 
   // initial source area
-  xx=randnorm();
-  yy=randnorm();
-  x=xx*sigex;
-  y=yy*sigey;
-  z=0;
+  xx = randnorm ();
+  yy = randnorm ();
+  x = xx * sigex;
+  y = yy * sigey;
+  z = 0;
 
   // Gaussian distribution at origin
-  p=p0;/*initial weight is p0*/
+  p = p0; /*initial weight is p0*/
   // E0 and dE are defined
-  e=randpm1()*dE + E0;
-  k=E2K*e;
+  e = randpm1 () * dE + E0;
+  k = E2K * e;
 
-  double mu = k*M_C/(2*M_PI);
-  double mumuc = mu/muc;
+  double mu = k * M_C / (2 * M_PI);
+  double mumuc = mu / muc;
 
   // targeted area calculation
-  if (focus_xw){
-    if (!gauss_t){
+  if (focus_xw) {
+    if (!gauss_t) {
       /*sample uniformly but adjust weight*/
-      x1=randpm1()*focus_xw/2.0;
-      theta = atan((x1-x)/dist);
-      p*=focus_xw; //sampling probability density is 1.0/focus_xw
-      p*= dist/(dist*dist + (x1-x)*(x1-x)); //take into account the fact that we are sampling a length, not an angle (and our flux is angular). So need to apply that correction also.
-    }else {
+      x1 = randpm1 () * focus_xw / 2.0;
+      theta = atan ((x1 - x) / dist);
+      p *= focus_xw;                                   // sampling probability density is 1.0/focus_xw
+      p *= dist / (dist * dist + (x1 - x) * (x1 - x)); // take into account the fact that we are sampling a length, not an angle (and our flux is angular). So
+                                                       // need to apply that correction also.
+    } else {
       do {
-        x1=randnorm()*s1x;
-      }while (fabs(x1)>focus_xw/2.0);
-      theta = atan((x1-x)/dist);
-      /*adjust for restricted sampling window*/            
-      p*=erf(focus_xw*0.5*M_SQRT1_2/s1x)*s1x*sqrt(2.0*M_PI)*exp((x1*x1)/(2*s1x*s1x)); // 1/sampling probability density
-      p*= dist/(dist*dist + (x1-x)*(x1-x));
+        x1 = randnorm () * s1x;
+      } while (fabs (x1) > focus_xw / 2.0);
+      theta = atan ((x1 - x) / dist);
+      /*adjust for restricted sampling window*/
+      p *= erf (focus_xw * 0.5 * M_SQRT1_2 / s1x) * s1x * sqrt (2.0 * M_PI) * exp ((x1 * x1) / (2 * s1x * s1x)); // 1/sampling probability density
+      p *= dist / (dist * dist + (x1 - x) * (x1 - x));
     }
-  }else{    
-    theta = randpm1()*angle;
-    p*=2*angle; // 1/sampling probability density
-    x1=x+dist*tan(theta);
+  } else {
+    theta = randpm1 () * angle;
+    p *= 2 * angle; // 1/sampling probability density
+    x1 = x + dist * tan (theta);
   }
-  if (focus_yh){
-    if (!gauss_t){
+  if (focus_yh) {
+    if (!gauss_t) {
       /*sample uniformly but adjust weight*/
-      y1=randpm1()*focus_yh/2.0;
-      psi = atan((y1-y)/dist);
-      p*=focus_yh; //sampling probability density is 1.0/focus_yh
-      p*= dist/(dist*dist + (y1-y)*(y1-y));
-    }else {
+      y1 = randpm1 () * focus_yh / 2.0;
+      psi = atan ((y1 - y) / dist);
+      p *= focus_yh; // sampling probability density is 1.0/focus_yh
+      p *= dist / (dist * dist + (y1 - y) * (y1 - y));
+    } else {
       do {
-        y1=randnorm()*s1y;
-      }while (fabs(y1)>focus_yh/2.0);
-      psi = atan((y1-y)/dist);
-      /*adjust for restricted sampling window*/      
-      p*=erf(focus_yh*0.5*M_SQRT1_2/s1y)*s1y*sqrt(2.0*M_PI)*exp((y1*y1)/(2*s1y*s1y)); // 1/sampling probability density
-      p*= dist/(dist*dist + (y1-y)*(y1-y));
+        y1 = randnorm () * s1y;
+      } while (fabs (y1) > focus_yh / 2.0);
+      psi = atan ((y1 - y) / dist);
+      /*adjust for restricted sampling window*/
+      p *= erf (focus_yh * 0.5 * M_SQRT1_2 / s1y) * s1y * sqrt (2.0 * M_PI) * exp ((y1 * y1) / (2 * s1y * s1y)); // 1/sampling probability density
+      p *= dist / (dist * dist + (y1 - y) * (y1 - y));
     }
-  }else{      
-    psi = randpm1()*angle;
-    p*=2*angle; // 1/sampling probability density
-    y1=y+dist*tan(psi);
+  } else {
+    psi = randpm1 () * angle;
+    p *= 2 * angle; // 1/sampling probability density
+    y1 = y + dist * tan (psi);
   }
-  
-  xcap = gamma*psi;
-  oneplusxsquared = 1+xcap*xcap;
 
-  chi = mumuc*pow(oneplusxsquared,1.5)*(1.0/2.0);
-  
-  K23 = besselKnu(0.666666666666666666666666667,chi);
-  K13 = besselKnu(0.333333333333333333333333334,chi);
-  
-  z1=z+dist;
-  dx=x1-x;
-  dy=y1-y;  
-  dz=z1-z;
-    
-  dl = sqrt(dx*dx+dy*dy+dz*dz);
-    
-  kx=(k*dx)/dl;
-  ky=(k*dy)/dl;
-  kz=(k*dz)/dl;  
-  
-  p*=ctemult*mumuc*mumuc*(oneplusxsquared*oneplusxsquared)*(K23*K23+(xcap*xcap/(oneplusxsquared))*K13*K13);
+  xcap = gamma * psi;
+  oneplusxsquared = 1 + xcap * xcap;
 
-  p*= 1.0/(qe*e);  // energy sampling density 1.0/qe and 1/e coming from the physical flux
+  chi = mumuc * pow (oneplusxsquared, 1.5) * (1.0 / 2.0);
+
+  K23 = besselKnu (0.666666666666666666666666667, chi);
+  K13 = besselKnu (0.333333333333333333333333334, chi);
+
+  z1 = z + dist;
+  dx = x1 - x;
+  dy = y1 - y;
+  dz = z1 - z;
+
+  dl = sqrt (dx * dx + dy * dy + dz * dz);
+
+  kx = (k * dx) / dl;
+  ky = (k * dy) / dl;
+  kz = (k * dz) / dl;
+
+  p *= ctemult * mumuc * mumuc * (oneplusxsquared * oneplusxsquared) * (K23 * K23 + (xcap * xcap / (oneplusxsquared)) * K13 * K13);
+
+  p *= 1.0 / (qe * e); // energy sampling density 1.0/qe and 1/e coming from the physical flux
 
   /*randomly pick phase*/
-  if (randomphase){
-    phi=rand01()*2*M_PI;
-  }else{
-    phi=phase;
+  if (randomphase) {
+    phi = rand01 () * 2 * M_PI;
+  } else {
+    phi = phase;
   }
 
   /*set polarization vector*/
-  Ex=Ey=Ez=0;
+  Ex = Ey = Ez = 0;
 %}
 
 MCDISPLAY
 %{
 
-  double radius,D;
-  radius=3.3*Ee/B;
-  D=0.1;
-  double x0,x1,z0,z1;
-  const double phimin=-2.0*DEG2RAD, phimax=2.0*DEG2RAD;
-  double phi=phimin,dphi;  
-  dphi=(phimax-phimin)/32;
-  while (phi<phimax){
-    x0=radius*(1-cos(phi));
-    x1=radius*(1-cos(phi+dphi));
-    z0=radius*sin(phi);
-    z1=radius*sin(phi+dphi);
-    line(x0,0.0,z0,x1,0.0,z1);
-    phi+=dphi;
+  double radius, D;
+  radius = 3.3 * Ee / B;
+  D = 0.1;
+  double x0, x1, z0, z1;
+  const double phimin = -2.0 * DEG2RAD, phimax = 2.0 * DEG2RAD;
+  double phi = phimin, dphi;
+  dphi = (phimax - phimin) / 32;
+  while (phi < phimax) {
+    x0 = radius * (1 - cos (phi));
+    x1 = radius * (1 - cos (phi + dphi));
+    z0 = radius * sin (phi);
+    z1 = radius * sin (phi + dphi);
+    line (x0, 0.0, z0, x1, 0.0, z1);
+    phi += dphi;
   }
 
-  line(0.0,0.0,0.0, D*sin(igamma), 0.0, D);
-  line(0.0,0.0,0.0,-D*sin(igamma), 0.0, D);
-  line(0.0,0.0,0.0, 0.0, D*sin(igamma), D);
-  line(0.0,0.0,0.0, 0.0,-D*sin(igamma), D);
+  line (0.0, 0.0, 0.0, D* sin (igamma), 0.0, D);
+  line (0.0, 0.0, 0.0, -D* sin (igamma), 0.0, D);
+  line (0.0, 0.0, 0.0, 0.0, D* sin (igamma), D);
+  line (0.0, 0.0, 0.0, 0.0, -D* sin (igamma), D);
 
-  phi =-igamma;
-  dphi= 2.0*igamma/32;
-  while(phi<igamma){
-    x0=D*sin(phi);
-    x1=D*sin(phi+dphi);
-    z0=D*cos(phi);
-    z1=D*cos(phi+dphi);
-    line(x0,0.0,z0,x1,0.0,z1);
-    line(0.0,x0,z0,0.0,x1,z1);
-    phi+=dphi;
+  phi = -igamma;
+  dphi = 2.0 * igamma / 32;
+  while (phi < igamma) {
+    x0 = D * sin (phi);
+    x1 = D * sin (phi + dphi);
+    z0 = D * cos (phi);
+    z1 = D * cos (phi + dphi);
+    line (x0, 0.0, z0, x1, 0.0, z1);
+    line (0.0, x0, z0, 0.0, x1, z1);
+    phi += dphi;
   }
 %}
 

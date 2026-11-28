@@ -60,6 +60,7 @@ DECLARE
   DArray1d PolL_p;
   DArray1d PolL_p2;
   DArray1d HelpArray;
+  DArray1d HelpArray2;
 %}
 
 INITIALIZE
@@ -96,6 +97,7 @@ INITIALIZE
   PolL_p = create_darr1d (nL);
   PolL_p2 = create_darr1d (nL);
   HelpArray = create_darr1d (nL);
+  HelpArray2 = create_darr1d (nL);
 
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
@@ -128,10 +130,13 @@ TRACE
     HelpArray[i] = HelpArray[i] + p;
 
     #pragma acc atomic
+    HelpArray2[i] = HelpArray2[i] + p2;
+
+    #pragma acc atomic
     PolL_p[i] = PolL_p[i] + pol_proj * p;
 
     #pragma acc atomic
-    PolL_p2[i] = PolL_p2[i] + pol_proj * pol_proj * p; /* Shouldn't this be p2?? */
+    PolL_p2[i] = PolL_p2[i] + pol_proj * pol_proj * p;
 
     SCATTER;
   }
@@ -143,32 +148,8 @@ TRACE
 SAVE
 %{
   if (!nowritefile) {
-    int i;
-    double mpifactor = 1;
-
-    /*1st order correction: As polarisation is not an additive signal we should downweight by the node count.
-      This asssumes that all nodes have equal weight sum.*/
-    #ifdef USE_MPI
-    mpifactor = mpi_node_count;
-    #endif
-
-    // Average output
-    for (i = 0; i < nL; i++) {
-
-      if (HelpArray[i] == 0)
-        continue;
-
-      PolL_p[i] /= HelpArray[i] * mpifactor;
-      // Mcstas uses the error sigma**2=sum p_i**2 for intensities
-      // But here we have the mean so the error**2 should be VAR/N:
-      // sigma**2 = [sum s_i*s_i*p_i/sum p_i - (sum s_i*p_i/sum p_i)**2]/N
-      PolL_p2[i] /= HelpArray[i] * mpifactor;
-      PolL_p2[i] -= PolL_p[i] * PolL_p[i];
-      PolL_p2[i] /= PolL_N[i];
-    }
-
-    DETECTOR_OUT_1D ("Pol-wavelength monitor", "Wavelength [AA]", "Mean Polarisation", "Wavelength", Lmin, Lmax, nL, &PolL_N[0], &PolL_p[0], &PolL_p2[0],
-                     filename);
+    DETECTOR_OUT_1D_MEAN ("Pol-wavelength monitor", "Wavelength [AA]", "Mean Polarisation", "Wavelength", Lmin, Lmax, nL, &PolL_N[0], &HelpArray[0],
+                          &HelpArray2[0], &PolL_p[0], &PolL_p2[0], filename);
   }
 %}
 
@@ -177,6 +158,8 @@ FINALLY
   destroy_darr1d (PolL_N);
   destroy_darr1d (PolL_p);
   destroy_darr1d (PolL_p2);
+  destroy_darr1d (HelpArray);
+  destroy_darr1d (HelpArray2);
 %}
 
 MCDISPLAY

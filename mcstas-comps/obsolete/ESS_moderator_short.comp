@@ -96,15 +96,15 @@ branchframe=0, int target_index=1)
 
 SHARE
 %{
-double Mezei_M_fct(double l, double temp)
-  {
-    double a=949.0/temp;
-    return 2*a*a*exp(-a/(l*l))/(l*l*l*l*l);
+  double
+  Mezei_M_fct (double l, double temp) {
+    double a = 949.0 / temp;
+    return 2 * a * a * exp (-a / (l * l)) / (l * l * l * l * l);
   }
 
-  double Mezei_F_fct(double t, double tau, int n)
-  {
-    return (exp(-t/tau)-exp(-n*t/tau))*n/(n-1)/tau;
+  double
+  Mezei_F_fct (double t, double tau, int n) {
+    return (exp (-t / tau) - exp (-n * t / tau)) * n / (n - 1) / tau;
   }
 %}
 
@@ -117,121 +117,107 @@ DECLARE
 
 INITIALIZE
 %{
-  if (target_index && !dist)
-  {
+  if (target_index && !dist) {
     Coords ToTarget;
-    double tx,ty,tz;
-    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),POS_A_CURRENT_COMP);
-    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
-    coords_get(ToTarget, &tx, &ty, &tz);
-    dist=sqrt(tx*tx+ty*ty+tz*tz);
+    double tx, ty, tz;
+    ToTarget = coords_sub (POS_A_COMP_INDEX (INDEX_CURRENT_COMP + target_index), POS_A_CURRENT_COMP);
+    ToTarget = rot_apply (ROT_A_CURRENT_COMP, ToTarget);
+    coords_get (ToTarget, &tx, &ty, &tz);
+    dist = sqrt (tx * tx + ty * ty + tz * tz);
   }
 
-  if (n == 1 || n2 == 1 || Lmin<=0 || Lmax <=0 || dist == 0
-    || branch1 == 1 || branch2 == 1 || tau == 0)
-  {
-    printf("ESS_moderator_short: %s: Check parameters (lead to Math Error).\n Avoid 0 value for {Lmin Lmax dist tau} and 1 value for {n n2 branch1/2/frame}\n", NAME_CURRENT_COMP);
-    exit(-1);
+  if (n == 1 || n2 == 1 || Lmin <= 0 || Lmax <= 0 || dist == 0 || branch1 == 1 || branch2 == 1 || tau == 0) {
+    printf ("ESS_moderator_short: %s: Check parameters (lead to Math Error).\n Avoid 0 value for {Lmin Lmax dist tau} and 1 value for {n n2 branch1/2/frame}\n",
+            NAME_CURRENT_COMP);
+    exit (-1);
   }
 
-  Delta_t = 1.0/(double)nu;
-  l_range = Lmax-Lmin;
-  w_mult = size*size*1.0e4;     /* source area correction */
-  w_mult *= l_range;            /* wavelength range correction */
-  w_mult *= 1.0/mcget_ncount();  /* Flux value */
+  Delta_t = 1.0 / (double)nu;
+  l_range = Lmax - Lmin;
+  w_mult = size * size * 1.0e4;    /* source area correction */
+  w_mult *= l_range;               /* wavelength range correction */
+  w_mult *= 1.0 / mcget_ncount (); /* Flux value */
 %}
 
 TRACE
 %{
-  double v,tau_l,E,lambda,k,r,xf,yf,dx,dy,w_focus;
+  double v, tau_l, E, lambda, k, r, xf, yf, dx, dy, w_focus;
 
-  z=0;
+  z = 0;
 
-  x = 0.5*size*randpm1();
-  y = 0.5*size*randpm1();         /* Choose initial position */
+  x = 0.5 * size * randpm1 ();
+  y = 0.5 * size * randpm1 (); /* Choose initial position */
 
-  randvec_target_rect_real(&xf, &yf, &r, &w_focus,
-			   0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
+  randvec_target_rect_real (&xf, &yf, &r, &w_focus, 0, 0, dist, focus_xw, focus_yh, ROT_A_CURRENT_COMP, x, y, z, 2);
 
-  dx = xf-x;
-  dy = yf-y;
-  r = sqrt(dx*dx+dy*dy+dist*dist);
+  dx = xf - x;
+  dy = yf - y;
+  r = sqrt (dx * dx + dy * dy + dist * dist);
 
-  lambda = Lmin+l_range*rand01();    /* Choose from uniform distribution */
-  k = 2*PI/lambda;
-  v = K2V*k;
+  lambda = Lmin + l_range * rand01 (); /* Choose from uniform distribution */
+  k = 2 * PI / lambda;
+  v = K2V * k;
 
-  vz = v*dist/r;
-  vy = v*dy/r;
-  vx = v*dx/r;
+  vz = v * dist / r;
+  vy = v * dy / r;
+  vx = v * dx / r;
 
+  /*  printf("pos0 (%g %g %g), pos1 (%g %g %g), r: %g, v (%g %g %g), v %g\n",
+    x,y,z,xf,yf,dist,r,vx,vy,vz, v);
+    printf("l %g, w_focus %g \n", lambda, w_focus);  */
 
-/*  printf("pos0 (%g %g %g), pos1 (%g %g %g), r: %g, v (%g %g %g), v %g\n",
-  x,y,z,xf,yf,dist,r,vx,vy,vz, v);
-  printf("l %g, w_focus %g \n", lambda, w_focus);  */
-
-  if (rand01() < branch2)
-  {
-    if (tau1>0)  /* coupled water */
-      if (rand01() < branch1)
-      {  /* FIRST CASE a */
+  if (rand01 () < branch2) {
+    if (tau1 > 0)                /* coupled water */
+      if (rand01 () < branch1) { /* FIRST CASE a */
         tau_l = tau;
-        p = 1/(branch1*branch2);            /* Correct for switching prob. */
-      }
-      else
-      {  /* FIRST CASE b */
+        p = 1 / (branch1 * branch2); /* Correct for switching prob. */
+      } else {                       /* FIRST CASE b */
         tau_l = tau1;
-        p = 1/((1-branch1)*branch2);        /* Correct for switching prob. */
+        p = 1 / ((1 - branch1) * branch2); /* Correct for switching prob. */
       }
     else /* all other moderators */
-      {
-        tau_l = tau;
-        p = 1/branch2;            /* Correct for switching prob. */
-      }
-    t = -tau_l*log(1e-12+rand01());       /* Sample from long-time tail a */
-    p *= n/(n-1)*(1-exp(-(n-1)*t/tau_l)); /* Correct for true pulse shape */
-    p *= w_focus;                         /* Correct for target focusing */
-    p *= I0*w_mult*Mezei_M_fct(lambda,T);           /* Calculate true intensity */
-  }
-  else
-  {
+    {
+      tau_l = tau;
+      p = 1 / branch2; /* Correct for switching prob. */
+    }
+    t = -tau_l * log (1e-12 + rand01 ());                /* Sample from long-time tail a */
+    p *= n / (n - 1) * (1 - exp (-(n - 1) * t / tau_l)); /* Correct for true pulse shape */
+    p *= w_focus;                                        /* Correct for target focusing */
+    p *= I0 * w_mult * Mezei_M_fct (lambda, T);          /* Calculate true intensity */
+  } else {
     /* SECOND CASE */
-    tau_l = tau2*lambda;  /* CHECK THIS */
-    t = -tau_l*log(1e-12+rand01());       /* Sample from long-time tail */
-    p = n2/(n2-1)*(1-exp(-(n2-1)*t/tau_l));/* Correct for true pulse shape */
-    p /= (1-branch2);                     /* Correct for switching prob. */
-    p *= w_focus;                         /* Correct for target focusing */
-    p *= I2*w_mult/(1+exp(chi2*lambda-2.2))/lambda;
-                                          /* Calculate true intensity */
+    tau_l = tau2 * lambda;                                 /* CHECK THIS */
+    t = -tau_l * log (1e-12 + rand01 ());                  /* Sample from long-time tail */
+    p = n2 / (n2 - 1) * (1 - exp (-(n2 - 1) * t / tau_l)); /* Correct for true pulse shape */
+    p /= (1 - branch2);                                    /* Correct for switching prob. */
+    p *= w_focus;                                          /* Correct for target focusing */
+    p *= I2 * w_mult / (1 + exp (chi2 * lambda - 2.2)) / lambda;
+    /* Calculate true intensity */
   }
 
- if (branchframe > 0 && rand01() <= branchframe)
-  {
-   p /= branchframe;
-  }
- else
-  {
-   if (rand01() < 0.5)
-     t += Delta_t;
-   else
-     t -= Delta_t;
-   p *= 2.0/(1-branchframe);
+  if (branchframe > 0 && rand01 () <= branchframe) {
+    p /= branchframe;
+  } else {
+    if (rand01 () < 0.5)
+      t += Delta_t;
+    else
+      t -= Delta_t;
+    p *= 2.0 / (1 - branchframe);
   }
 
- /* Go to per-second units */
- p*=nu;
-
+  /* Go to per-second units */
+  p *= nu;
 %}
 
 MCDISPLAY
 %{
-  
-  rectangle("xy", 0, 0, 0, size, size);
+
+  rectangle ("xy", 0, 0, 0, size, size);
   if (dist) {
-    dashed_line(0,0,0, -focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2,-focus_yh/2,dist, 4);
-    dashed_line(0,0,0,  focus_xw/2, focus_yh/2,dist, 4);
-    dashed_line(0,0,0, -focus_xw/2, focus_yh/2,dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, -focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, focus_xw / 2, focus_yh / 2, dist, 4);
+    dashed_line (0, 0, 0, -focus_xw / 2, focus_yh / 2, dist, 4);
   }
 %}
 

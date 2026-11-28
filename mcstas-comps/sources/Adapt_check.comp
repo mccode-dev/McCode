@@ -37,25 +37,23 @@ SETTING PARAMETERS (string source_comp)
 
 DECLARE
 %{
-#ifndef ADAPT_TREE_LIB_H
-#error Adapt_check : needs Source_adapt component and %include "adapt_tree-lib"
-#endif
+  #ifndef ADAPT_TREE_LIB_H
+  #error Adapt_check : needs Source_adapt component and %include "adapt_tree-lib"
+  #endif
 %}
 
 TRACE
 %{
   double new_v, psi;
-  struct source_adapt *adpt = COMP_GETPAR3(Source_adapt, source_comp, adpt);
+  struct source_adapt* adpt = COMP_GETPAR3 (Source_adapt, source_comp, adpt);
 
-  if(p == 0)
+  if (p == 0)
     ABSORB;
-  psi = p/adpt->pi;
+  psi = p / adpt->pi;
   adpt->psi[adpt->idx] += psi;
-  adpt->psi_tot += psi/adpt->n[adpt->idx];
-  new_v = (1 - adpt->a_beta)*adpt->factor*adpt->psi[adpt->idx]/
-                (adpt->n[adpt->idx]*adpt->psi_tot) +
-          adpt->a_beta/adpt->num;
-  adapt_tree_add(adpt->atree, adpt->idx, new_v - adpt->atree->v[adpt->idx]);
+  adpt->psi_tot += psi / adpt->n[adpt->idx];
+  new_v = (1 - adpt->a_beta) * adpt->factor * adpt->psi[adpt->idx] / (adpt->n[adpt->idx] * adpt->psi_tot) + adpt->a_beta / adpt->num;
+  adapt_tree_add (adpt->atree, adpt->idx, new_v - adpt->atree->v[adpt->idx]);
 %}
 
 END
