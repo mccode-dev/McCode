@@ -99,31 +99,31 @@ DECLARE
 INITIALIZE
 %{
   int status = 0;
-  
+
   /* Compatibility with older use */
-  if (length) zdepth  = length;
-  if (width)  {
+  if (length)
+    zdepth = length;
+  if (width) {
     yheight = width;
-    MPI_MASTER(
-      printf("WARNING: %S: Using 'width' compatibility. Better use 'yheight' for explicit orientation of mirror.\n", NAME_CURRENT_COMP)
-    );
+    MPI_MASTER (printf ("WARNING: %S: Using 'width' compatibility. Better use 'yheight' for explicit orientation of mirror.\n", NAME_CURRENT_COMP));
   }
 
   if (yheight <= 0 && xwidth <= 0) {
-    fprintf (stderr, "ERROR (%s): Mirror_curved requires xwidth > 0 "
-                     "(or yheight > 0 for a YZ-plane mirror). Aborting.\n",
+    fprintf (stderr,
+             "ERROR (%s): Mirror_curved requires xwidth > 0 "
+             "(or yheight > 0 for a YZ-plane mirror). Aborting.\n",
              NAME_CURRENT_COMP);
     exit (-1);
   }
-  
-  if (radius && !Rz) Rz=radius;
-  
+
+  if (radius && !Rz)
+    Rz = radius;
+
   if ((Rx && fabs (Rx) < 1e-6) || (Rz && fabs (Rz) < 1e-6)) {
-    fprintf (stderr, "ERROR (%s): |radius| < 1 um is physically meaningless. Aborting.\n",
-             NAME_CURRENT_COMP);
+    fprintf (stderr, "ERROR (%s): |radius| < 1 um is physically meaningless. Aborting.\n", NAME_CURRENT_COMP);
     exit (-1);
   }
-  
+
   /* User convention: R > 0 = concave towards the incoming side (+N), i.e. focusing.
      Internal surface is N = -(T^2/(2Rx) + z^2/(2Rz)), so flip the signs. */
   Rx = -Rx;
@@ -149,17 +149,17 @@ TRACE
      T : mirror transverse axis     (x for XZ mirror, y for YZ mirror)
      specular plane is the local (T,N) plane at z=0, beam along +z        */
   int yzplane = (yheight > 0);
-  double T    = (yzplane ? y : x);
-  double N    = (yzplane ? x : y);
-  double halfT= (yzplane ? yheight : xwidth) / 2.0;
-  double uT, uN;                       /* unit-vector components */
+  double T = (yzplane ? y : x);
+  double N = (yzplane ? x : y);
+  double halfT = (yzplane ? yheight : xwidth) / 2.0;
+  double uT, uN; /* unit-vector components */
 
-  int    intersect = 1;
+  int intersect = 1;
   double nN = 1, nT = 0, nz = 0;
   double t0 = 0, t1 = 0, tt = 0;
   double A, B, C, k;
 
-  k  = sqrt (kx * kx + ky * ky + kz * kz);
+  k = sqrt (kx * kx + ky * ky + kz * kz);
   uT = (yzplane ? ky : kx) / k;
   uN = (yzplane ? kx : ky) / k;
 
@@ -184,14 +184,15 @@ TRACE
       C = T * T + N * N + 2 * N * R;
     } else { // Rz-only
       double uk = kz / k;
-      double pc = N + R;                  /* circle centre at z=0, N=-R */
+      double pc = N + R; /* circle centre at z=0, N=-R */
       A = uk * uk + uN * uN;
       B = 2 * (z * uk + pc * uN);
       C = z * z + N * N + 2 * N * R;
     }
     if (A == 0) {
       /* ray parallel to the cylinder axis: no solve possible */
-      t0 = 0; t1 = 0;
+      t0 = 0;
+      t1 = 0;
     } else {
       solve_2nd_order (&t0, &t1, A, B, C);
     }
@@ -215,7 +216,8 @@ TRACE
     tc[1] = (t0 < t1 ? t1 : t0);
     intersect = 0;
     for (i = 0; i < 2 && !intersect; i++) {
-      if (tc[i] <= 1e-12) continue;
+      if (tc[i] <= 1e-12)
+        continue;
       if (fabs (T + tc[i] * uT) <= halfT && fabs (z + tc[i] * uk) <= zdepth / 2.0) {
         tt = tc[i];
         intersect = 1;
@@ -251,7 +253,9 @@ TRACE
       }
     } else {
       /* flat */
-      nN = 1; nT = 0; nz = 0;
+      nN = 1;
+      nT = 0;
+      nz = 0;
     }
 
     double s, q;
@@ -259,20 +263,22 @@ TRACE
     double nx, ny, nzg;
 
     /* map local normal back to global (x,y,z) */
-    nx  = (yzplane ? nN : nT);
-    ny  = (yzplane ? nT : nN);
+    nx = (yzplane ? nN : nT);
+    ny = (yzplane ? nT : nN);
     nzg = nz;
-    nx /= nn; ny /= nn; nzg /= nn;
+    nx /= nn;
+    ny /= nn;
+    nzg /= nn;
 
-    s  = scalar_prod (kx, ky, kz, nx, ny, nzg);
+    s = scalar_prod (kx, ky, kz, nx, ny, nzg);
     kx = kx - 2 * s * nx;
     ky = ky - 2 * s * ny;
     kz = kz - 2 * s * nzg;
     SCATTER;
     /* surface normal points towards +N, hence s < 0 for the incoming beam */
-    q  = 2.0 * fabs (s);
+    q = 2.0 * fabs (s);
     cdouble R = refleccq (re, q, 0.0, k, fabs (90 - acos (s / k) * RAD2DEG));
-    p   *= cabs(R);
+    p *= cabs (R);
     phi += atan2 (cimag (R), creal (R));
   }
 %}
@@ -281,8 +287,8 @@ MCDISPLAY
 %{
   /* Draw two meridian outlines of the sagged surface.
      Local frame: T across the mirror, N = surface normal (sag axis). */
-  int i, Nseg  = 12;
-  int yzplane  = (yheight > 0);
+  int i, Nseg = 12;
+  int yzplane = (yheight > 0);
   double halfT = (yzplane ? yheight : xwidth) / 2.0;
   double halfz = zdepth / 2.0;
   /* sag of the surface N = -T^2/(2 Rx) - z^2/(2 Rz); each term vanishes
@@ -303,11 +309,19 @@ MCDISPLAY
       double P0[3], Pt[3];
       /* point at (T0, N=sT, z=-halfz) and (T0, N=sT, z=+halfz) */
       if (yzplane) {
-        P0[0] = sT; P0[1] = T0; P0[2] = -halfz;
-        Pt[0] = sT; Pt[1] = T0; Pt[2] = halfz;
+        P0[0] = sT;
+        P0[1] = T0;
+        P0[2] = -halfz;
+        Pt[0] = sT;
+        Pt[1] = T0;
+        Pt[2] = halfz;
       } else {
-        P0[0] = T0; P0[1] = sT; P0[2] = -halfz;
-        Pt[0] = T0; Pt[1] = sT; Pt[2] = halfz;
+        P0[0] = T0;
+        P0[1] = sT;
+        P0[2] = -halfz;
+        Pt[0] = T0;
+        Pt[1] = sT;
+        Pt[2] = halfz;
       }
       line (P0[0], P0[1], P0[2], Pt[0], Pt[1], Pt[2]);
     }
@@ -317,11 +331,19 @@ MCDISPLAY
       double sz = -(Rz != 0 ? z0 * z0 / (2.0 * Rz) : 0);
       double P0[3], Pt[3];
       if (yzplane) {
-        P0[0] = sz; P0[1] = -halfT; P0[2] = z0;
-        Pt[0] = sz; Pt[1] = halfT; Pt[2] = z0;
+        P0[0] = sz;
+        P0[1] = -halfT;
+        P0[2] = z0;
+        Pt[0] = sz;
+        Pt[1] = halfT;
+        Pt[2] = z0;
       } else {
-        P0[0] = -halfT; P0[1] = sz; P0[2] = z0;
-        Pt[0] = halfT; Pt[1] = sz; Pt[2] = z0;
+        P0[0] = -halfT;
+        P0[1] = sz;
+        P0[2] = z0;
+        Pt[0] = halfT;
+        Pt[1] = sz;
+        Pt[2] = z0;
       }
       line (P0[0], P0[1], P0[2], Pt[0], Pt[1], Pt[2]);
     }

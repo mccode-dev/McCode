@@ -77,121 +77,139 @@ DECLARE
 
 INITIALIZE
 %{
-  n_neutrons=0;
-  n_neutrons_p=0;
-  n_neutrons_p2=0;
+  n_neutrons = 0;
+  n_neutrons_p = 0;
+  n_neutrons_p2 = 0;
 
-  mean_x=0;
-  mean_y=0;
-  mean_z=0;
+  mean_x = 0;
+  mean_y = 0;
+  mean_z = 0;
 
-  mean_vx=0;
-  mean_vy=0;
-  mean_vz=0;
+  mean_vx = 0;
+  mean_vy = 0;
+  mean_vz = 0;
 
-  mean_dx=0;
-  mean_dy=0;
-  mean_dz=0;
+  mean_dx = 0;
+  mean_dy = 0;
+  mean_dz = 0;
 
-  mean_t=0;
-  mean_v=0;
+  mean_t = 0;
+  mean_v = 0;
 
-  min_x=FLT_MAX;
-  min_y=FLT_MAX;
-  min_z=FLT_MAX;
+  min_x = FLT_MAX;
+  min_y = FLT_MAX;
+  min_z = FLT_MAX;
 
-  max_x=-FLT_MAX;
-  max_y=-FLT_MAX;
-  max_z=-FLT_MAX;
+  max_x = -FLT_MAX;
+  max_y = -FLT_MAX;
+  max_z = -FLT_MAX;
 
-  min_vx=FLT_MAX;
-  min_vy=FLT_MAX;
-  min_vz=FLT_MAX;
+  min_vx = FLT_MAX;
+  min_vy = FLT_MAX;
+  min_vz = FLT_MAX;
 
-  max_vx=-FLT_MAX;
-  max_vy=-FLT_MAX;
-  max_vz=-FLT_MAX;
+  max_vx = -FLT_MAX;
+  max_vy = -FLT_MAX;
+  max_vz = -FLT_MAX;
 %}
 
 TRACE
 %{
   double v;
 
-  mean_x  += p*x;  mean_y  += p*y;  mean_z  += p*z;
-  mean_vx += p*vx; mean_vy += p*vy; mean_vz += p*vz;
-  mean_t  += p*t;
-  v = sqrt(vx*vx+vy*vy+vz*vz);
-  if (v)
-    { mean_dx += p*fabs(vx/v); mean_dy += p*fabs(vy/v); mean_dz += p*fabs(vz/v); mean_v += p*v; }
-  if (x  < min_x)  min_x  = x;
-  if (y  < min_y)  min_y  = y;
-  if (z  < min_z)  min_z  = z;
-  if (vx < min_vx) min_vx = vx;
-  if (vy < min_vy) min_vy = vy;
-  if (vz < min_vz) min_vz = vz;
-  if (x  > max_x)  max_x  = x;
-  if (y  > max_y)  max_y  = y;
-  if (z  > max_z)  max_z  = z;
-  if (vx > max_vx) max_vx = vx;
-  if (vy > max_vy) max_vy = vy;
-  if (vz > max_vz) max_vz = vz;
+  mean_x += p * x;
+  mean_y += p * y;
+  mean_z += p * z;
+  mean_vx += p * vx;
+  mean_vy += p * vy;
+  mean_vz += p * vz;
+  mean_t += p * t;
+  v = sqrt (vx * vx + vy * vy + vz * vz);
+  if (v) {
+    mean_dx += p * fabs (vx / v);
+    mean_dy += p * fabs (vy / v);
+    mean_dz += p * fabs (vz / v);
+    mean_v += p * v;
+  }
+  if (x < min_x)
+    min_x = x;
+  if (y < min_y)
+    min_y = y;
+  if (z < min_z)
+    min_z = z;
+  if (vx < min_vx)
+    min_vx = vx;
+  if (vy < min_vy)
+    min_vy = vy;
+  if (vz < min_vz)
+    min_vz = vz;
+  if (x > max_x)
+    max_x = x;
+  if (y > max_y)
+    max_y = y;
+  if (z > max_z)
+    max_z = z;
+  if (vx > max_vx)
+    max_vx = vx;
+  if (vy > max_vy)
+    max_vy = vy;
+  if (vz > max_vz)
+    max_vz = vz;
   n_neutrons++;
-  n_neutrons_p  += p;
-  n_neutrons_p2 += p*p;
+  n_neutrons_p += p;
+  n_neutrons_p2 += p * p;
 %}
 
 SAVE
 %{
-  double mean_k, mean_w=0, mean_L=0;
+  double mean_k, mean_w = 0, mean_L = 0;
   double smean_vx, smean_vy, smean_vz, smean_dx, smean_dy, smean_dz;
   double smean_x, smean_y, smean_z, smean_t, smean_v;
   Coords c;
 
   c = POS_A_CURRENT_COMP;
   /* display statitics */
-  smean_x  = mean_x  / n_neutrons_p;
-  smean_y  = mean_y  / n_neutrons_p;
-  smean_z  = mean_z  / n_neutrons_p;
+  smean_x = mean_x / n_neutrons_p;
+  smean_y = mean_y / n_neutrons_p;
+  smean_z = mean_z / n_neutrons_p;
   smean_vx = mean_vx / n_neutrons_p;
   smean_vy = mean_vy / n_neutrons_p;
   smean_vz = mean_vz / n_neutrons_p;
   smean_dx = mean_dx / n_neutrons_p;
   smean_dy = mean_dy / n_neutrons_p;
   smean_dz = mean_dz / n_neutrons_p;
-  smean_t  = mean_t  / n_neutrons_p;
-  smean_v  = mean_v  / n_neutrons_p;
+  smean_t = mean_t / n_neutrons_p;
+  smean_v = mean_v / n_neutrons_p;
   /* now estimates total ncount */
 
-  mean_k = V2K*smean_v;
-  if (mean_k) mean_L = 2*PI/mean_k;
-  mean_w = VS2E*smean_v*smean_v;
-  printf("Beam analysis for Component preceeding %s\n", NAME_CURRENT_COMP);
-  printf("Absolute position AT (%g, %g, %g)\n", c.x, c.y, c.z);
+  mean_k = V2K * smean_v;
+  if (mean_k)
+    mean_L = 2 * PI / mean_k;
+  mean_w = VS2E * smean_v * smean_v;
+  printf ("Beam analysis for Component preceeding %s\n", NAME_CURRENT_COMP);
+  printf ("Absolute position AT (%g, %g, %g)\n", c.x, c.y, c.z);
 
-  printf("  Beam size (full width in [m]):      ");
-  printf("    dX=%g dY=%g dZ=%g\n", max_x-min_x, max_y-min_y, max_z-min_z);
-  printf("  Beam center (in [m]):               ");
-  printf("    X0=%g Y0=%g Z0=%g\n", smean_x, smean_y, smean_z);
-  printf("  Beam velocity divergence (half width in [deg]):");
-  printf("  dVx=%g dVy=%g dVz=%g\n",
-    atan(smean_dx)*RAD2DEG,
-    atan(smean_dy)*RAD2DEG,
-    atan(smean_dz)*RAD2DEG);
-  printf("  Beam speed (in [m/s]):                ");
-  printf("  Vx=%g Vy=%g Vz=%g\n", smean_vx, smean_vy, smean_vz);
-  printf("  Beam mean energy:\n");
-  printf("    speed=%g [m/s] energy=%g [meV]\n    wavelength=%g [Angs] wavevector=%g [Angs-1]\n", smean_v, mean_w, mean_L, mean_k);
-  printf("  Mean arrival time: t=%g [s]\n", smean_t);
-  DETECTOR_OUT_0D("Beam analyzer " NAME_CURRENT_COMP, n_neutrons, n_neutrons_p, n_neutrons_p2);
+  printf ("  Beam size (full width in [m]):      ");
+  printf ("    dX=%g dY=%g dZ=%g\n", max_x - min_x, max_y - min_y, max_z - min_z);
+  printf ("  Beam center (in [m]):               ");
+  printf ("    X0=%g Y0=%g Z0=%g\n", smean_x, smean_y, smean_z);
+  printf ("  Beam velocity divergence (half width in [deg]):");
+  printf ("  dVx=%g dVy=%g dVz=%g\n", atan (smean_dx) * RAD2DEG, atan (smean_dy) * RAD2DEG, atan (smean_dz) * RAD2DEG);
+  printf ("  Beam speed (in [m/s]):                ");
+  printf ("  Vx=%g Vy=%g Vz=%g\n", smean_vx, smean_vy, smean_vz);
+  printf ("  Beam mean energy:\n");
+  printf ("    speed=%g [m/s] energy=%g [meV]\n    wavelength=%g [Angs] wavevector=%g [Angs-1]\n", smean_v, mean_w, mean_L, mean_k);
+  printf ("  Mean arrival time: t=%g [s]\n", smean_t);
+  DETECTOR_OUT_0D ("Beam analyzer " NAME_CURRENT_COMP, n_neutrons, n_neutrons_p, n_neutrons_p2);
 %}
 
 MCDISPLAY
 %{
   /* A bit ugly; hard-coded dimensions. */
-  
-  line(0,0,0,0.2,0,0);
-  line(0,0,0,0,0.2,0);
-  line(0,0,0,0,0,0.2);
+
+  line (0, 0, 0, 0.2, 0, 0);
+  line (0, 0, 0, 0, 0.2, 0);
+  line (0, 0, 0, 0, 0, 0.2);
 %}
 
 END

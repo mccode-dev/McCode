@@ -77,12 +77,15 @@ INITIALIZE
 %{
   int status;
   if (radius * (radius_o + radius) < 0) {
-    fprintf (stderr, "ERROR (%s): Saddle shapes are not supported (sagittal radius=%g and meridional radius=%g have opposite signs). Use concave=1 for a concave mirror.\n",
-             NAME_CURRENT_COMP, radius, radius_o + radius);
+    fprintf (
+        stderr,
+        "ERROR (%s): Saddle shapes are not supported (sagittal radius=%g and meridional radius=%g have opposite signs). Use concave=1 for a concave mirror.\n",
+        NAME_CURRENT_COMP, radius, radius_o + radius);
     exit (-1);
   }
   if (radius <= 0 || radius_o + radius <= 0 || xwidth <= 0 || zdepth <= 0) {
-    fprintf (stderr, "ERROR (%s): Invalid mirror geometry (radius=%g, radius_o=%g). Both curvature radii must be positive.\n", NAME_CURRENT_COMP, radius, radius_o);
+    fprintf (stderr, "ERROR (%s): Invalid mirror geometry (radius=%g, radius_o=%g). Both curvature radii must be positive.\n", NAME_CURRENT_COMP, radius,
+             radius_o);
     exit (-1);
   }
   if (coating && strlen (coating) && strcmp (coating, "NULL")) {
@@ -101,7 +104,7 @@ TRACE
   int status;
   double k, l, l0, l1, l2, l3, tx, ty, tz;
   /*half width of the mirror as a chord on the sagittal cylinder*/
-  double xmax = sin(xwidth / (2.0 * radius)) * radius;
+  double xmax = sin (xwidth / (2.0 * radius)) * radius;
   /*the cylinder/ellipsoid centre is at y=-radius (convex) or y=+radius (concave)*/
   double yoff = concave ? -radius : radius;
 
@@ -136,7 +139,7 @@ TRACE
         break;
     }
 
-    status = ellipsoid_intersect(&l2, &l3, x, y+yoff, z, kx, ky, kz, radius, radius, sqrt(radius*(radius_o+radius)), NULL);
+    status = ellipsoid_intersect (&l2, &l3, x, y + yoff, z, kx, ky, kz, radius, radius, sqrt (radius * (radius_o + radius)), NULL);
     if (!status)
       break;
     /*convex: the ray is outside the ellipsoid and is reflected at the near root l2.
@@ -155,7 +158,7 @@ TRACE
     double nx, ny, nz;
     nx = 2 * x / (radius * radius);
     ny = 2 * (y + yoff) / (radius * radius); /*ellipsoid is displaced to put Origin on the surface*/
-    nz = 2 * z / (radius*(radius+radius_o));
+    nz = 2 * z / (radius * (radius + radius_o));
     NORM (nx, ny, nz);
 
     /*n is the outward normal of the ellipsoid. Its sign does not matter for the reflection, and q and the grazing angle use |s|*/
@@ -206,9 +209,9 @@ MCDISPLAY
       double t0 = DEG2RAD * (theta_beginning + i * theta_total / N), t1 = DEG2RAD * (theta_beginning + (i + 1) * theta_total / N);
       double p0 = DEG2RAD * (phi_beginning + j * phi_total / N), p1 = DEG2RAD * (phi_beginning + (j + 1) * phi_total / N);
       polygon (4, radius * sin (t0), sg * ((radius_o + radius * cos (t0)) * cos (p0) - (radius_o + radius)), (radius_o + radius * cos (t0)) * sin (p0),
-               radius * sin (t1), sg * ((radius_o + radius * cos (t1)) * cos (p0) - (radius_o + radius)), (radius_o + radius * cos (t1)) * sin (p0), radius * sin (t1),
-               sg * ((radius_o + radius * cos (t1)) * cos (p1) - (radius_o + radius)), (radius_o + radius * cos (t1)) * sin (p1), radius * sin (t0),
-               sg * ((radius_o + radius * cos (t0)) * cos (p1) - (radius_o + radius)), (radius_o + radius * cos (t0)) * sin (p1));
+               radius * sin (t1), sg * ((radius_o + radius * cos (t1)) * cos (p0) - (radius_o + radius)), (radius_o + radius * cos (t1)) * sin (p0),
+               radius * sin (t1), sg * ((radius_o + radius * cos (t1)) * cos (p1) - (radius_o + radius)), (radius_o + radius * cos (t1)) * sin (p1),
+               radius * sin (t0), sg * ((radius_o + radius * cos (t0)) * cos (p1) - (radius_o + radius)), (radius_o + radius * cos (t0)) * sin (p1));
     }
   }
   line (-xwidth / 2.0, 0, -zdepth / 2.0, xwidth / 2.0, 0, -zdepth / 2.0);
