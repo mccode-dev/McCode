@@ -71,7 +71,7 @@ Al or Nb container, inside an Al shield (phi=10 cm).
 
 ## Examples
 
-- **Test: coh="V.lau" Detector: Detector_I=31.55**
+- **Test: coh="V.lau" Detector: Detector_I=33.11**
 
 ## Input parameters
 

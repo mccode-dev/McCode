@@ -33,7 +33,7 @@ hollow sphere:   radius and thickness>0 (yheight=0)
 any shape:       geometry=OFF_file
 \end{verbatim}
 
-The complex geometry option handles any closed non-convex polyhedra. It computes the intersection points of the neutron ray with the object transparently, so that it can be used like a regular sample object. It supports the PLY, OFF and NOFF file format but not COFF (colored faces). Such files may be generated from XYZ data using: qhull \textless{} coordinates.xyz Qx Qv Tv o \textgreater{} geomview.off or powercrust coordinates.xyz and viewed with geomview or java -jar jroff.jar (see below). The default size of the object depends of the OFF file data, but its bounding box may be resized using xwidth,yheight and zdepth.
+The complex geometry option handles any closed non-convex polyhedra. It computes the intersection points of the neutron ray with the object transparently, so that it can be used like a regular sample object. It supports the OFF (incl. NOFF, COFF), PLY and STL file formats. A mesh must be a single, closed object: the neutron path through it is taken from the first entry and exit only, so a second part of the mesh further along the path (disjoint parts, or a concave shape the path re-enters) is not seen. Such files may be generated from XYZ data using: qhull \textless{} coordinates.xyz Qx Qv Tv o \textgreater{} geomview.off or powercrust coordinates.xyz and viewed with geomview or java -jar jroff.jar (see below). The default size of the object depends of the OFF file data, but its bounding box may be resized using xwidth,yheight and zdepth.
 
 If you use this component and produce valuable scientific results, please cite authors with references bellow (in \htmladdnormallink{Links}{\#links}).
 
@@ -91,7 +91,7 @@ At last, the format may be overridden by direct definition of the column indexes
 
 Last, CIF, FullProf and ShelX files can be read, and converted to F2(hkl) lists if 'cif2hkl' is installed. The CIF2HKL env variable can be used to point to a proper executable, else the McCode, then the system installed versions are used.
 
-\textbf{NCrystal materials} The 'reflections' parameter can also be an NCrystal cfg-string (containing ".ncmat" or "::"), e.g. "stdlib::Al\_sg225.ncmat" or "mycrystal.ncmat". The reflections, unit cell and cross sections are then taken from NCrystal. Multiphase materials are supported, e.g. "phases\textless{}0.3*stdlib::Al\_sg225.ncmat\&0.7*stdlib::Cu\_sg225.ncmat\textgreater{}" but oriented materials are not. Only Bragg diffraction, absorption and incoherent scattering are modelled. For the full NCrystal physics, use the NCrystal\_sample component, or the NCrystal\_process component with Union. \textbf{Concentricity}
+\textbf{NCrystal materials} The 'reflections' parameter can also be an NCrystal cfg-string (containing ".ncmat" or "::"), e.g. "stdlib::Al\_sg225.ncmat" or "mycrystal.ncmat". The reflections, unit cell and cross sections are then taken from NCrystal. Multiphase materials are supported, e.g. "phases\textless{}0.3*stdlib::Al\_sg225.ncmat\&0.7*stdlib::Cu\_sg225.ncmat\textgreater{}" but oriented materials are not. Only Bragg diffraction, absorption and incoherent scattering are modelled. For the full NCrystal physics, use the NCrystal\_sample component, or the NCrystal\_process component with Union. NCrystal |F|\textasciicircum{}2 already includes the Debye-Waller factor, so 'DW' is ignored for cfg-strings. The same holds for files made with ncrystal\_ncmat2hkl: use them with the default DW (or DW=1), or the Debye-Waller factor is applied twice. \textbf{Concentricity}
 
 PowderN assumes 'concentric' shape, i.e. can contain other components inside its optional inner hollow. Example, Sample in Al cryostat:
 
@@ -114,7 +114,7 @@ Parameters in \textbf{boldface} are required; the others are optional.
 \midrule
 \endhead
 reflections & string & Input file for reflections (LAZ LAU CIF, FullProf, ShelX, NCrystal). Use only incoherent scattering if NULL or "" & "NULL" \\
-geometry & str & Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust. & "NULL" \\
+geometry & str & Name of an OFF, PLY or STL file for complex geometry. An OFF file may be generated from XYZ coordinates using qhull/powercrust. & "NULL" \\
 format & no quotes & Name of the format, or list of column indexes (see Description). & \{0, 0, 0, 0, 0, 0, 0, 0, 0\} \\
 radius & m & Outer radius of sample in (x,z) plane & 0 \\
 yheight & m & Height of sample y direction & 0 \\
@@ -128,7 +128,7 @@ sigma\_inc & barns & Incoherent cross section per unit cell. Use a negative valu
 delta\_d\_d & 0/1 & Global relative delta\_d\_d/d broadening when the 'w' column is not available. Use 0 if ideal. & 0 \\
 p\_inc & 1 & Fraction of incoherently scattered neutron rays. & 0.1 \\
 p\_transmit & 1 & Fraction of transmitted (only attenuated) neutron rays. & 0.1 \\
-DW & 1 & Global Debye-Waller factor when the 'DW' column is not available. Use 1 if included in F2 & 0 \\
+DW & 1 & Global Debye-Waller factor when the 'DW' column is not available. Use 1 if included in F2 (as from NCrystal). Ignored for NCrystal cfg-strings & 0 \\
 nb\_atoms & 1 & Number of sub-unit per unit cell, that is ratio of sigma for chemical formula to sigma per unit cell & 1 \\
 d\_omega & deg & Horizontal focus range (only for incoherent scattering), 0 for no focusing. & 0 \\
 d\_phi & deg & Angle corresponding to the vertical angular range to focus to, e.g. detector height. 0 for no focusing. & 0 \\

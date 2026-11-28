@@ -1,0 +1,104 @@
+/*******************************************************************************
+* Instrument: Test_PowderN_porous_Union
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Nov 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: Tests_samples
+*
+* Union version of Test_PowderN_porous: Si matrix with pore channels, water below fill_y
+*
+* %D
+* Same geometry and materials as Test_PowderN_porous, built from Union parts:
+* Si cylinder (Powder_process), water and void cylinders below/above fill_y
+* (1 um inside the matrix, no coincident surfaces) masked by the pore mesh
+* (pores.off, see Test_PowderN_porous for make_pores.py).
+* McXtrace Union absorption is a constant my_absorption, so the attenuation
+* coefficients are those PowderN_porous computes at 15 keV (narrow band only):
+*   Si:    photoelectric 2207.14 /m (Si.txt col 3, 2.33 g/cm^3), Bragg from Si.laz,
+*          incoherent 107.247 /m (Si.txt col 4 minus Bragg, isotropic)
+*   water: O.txt at 0.888 g/cm^3: total 158.917 /m, of which 27.7025 /m scatters
+*          isotropically (Incoherent_process), 131.2145 /m absorbed
+* Unlike PowderN_porous this has multiple scattering.
+*
+* %Test: Test_PowderN_porous_Union.instr -y Detector: Banana_I=1.43865e-10
+*
+* %P
+* E0: [keV]      Mean energy (keep near 15 keV, see above)
+* pores: [str]   Pore mesh file
+* fill_y: [m]    Water level in the pores (local y), sample spans +-0.001
+* water: [1]     1: water in the pores below fill_y, 0: void pores
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_PowderN_porous_Union(E0=15, string pores="pores.off", fill_y=0, int water=1)
+
+DEPENDENCY " -DGMESH_MAX_HITS=200 "
+
+DECLARE
+%{
+  double R_s, H_s, eps_s, h_w, h_v, y_w, y_v;
+  char fill_mat[16];
+%}
+
+INITIALIZE
+%{
+  R_s = 5e-4; H_s = 2e-3; eps_s = 1e-6;
+  double yb = -H_s/2 + eps_s, yt = H_s/2 - eps_s;
+  double fy = fmin(fmax(fill_y, yb + eps_s), yt - eps_s);
+  h_w = fy - yb;          y_w = (fy + yb)/2;
+  h_v = yt - fy + eps_s;  y_v = (yt + fy - eps_s)/2;
+  strcpy(fill_mat, water ? "Water" : "Vacuum");
+%}
+
+TRACE
+
+COMPONENT Origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+COMPONENT Si_powder = Powder_process(reflections="Si.laz")
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Si_inc = Incoherent_process(sigma=1.07247, unit_cell_volume=1)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Si = Union_make_material(process_string="Si_powder,Si_inc", my_absorption=2207.14)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT water_diffuse = Incoherent_process(sigma=0.277025, unit_cell_volume=1)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Water = Union_make_material(process_string="water_diffuse", my_absorption=131.2145)
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT Source = Source_flat(xwidth=1e-4, yheight=1e-4, dist=1, focus_xw=1.2e-3, focus_yh=2.2e-3,
+  E0=E0, dE=0.01*E0)
+AT (0, 0, 0) RELATIVE Origin
+
+COMPONENT Sample_pos = Arm()
+AT (0, 0, 1) RELATIVE Source
+
+COMPONENT matrix_vol = Union_cylinder(material_string="Si", priority=1, radius=R_s, yheight=H_s, p_interact=0.3)
+AT (0, 0, 0) RELATIVE Sample_pos
+
+COMPONENT water_vol = Union_cylinder(material_string=fill_mat, priority=2, radius=R_s-eps_s, yheight=h_w, p_interact=0.1)
+AT (0, y_w, 0) RELATIVE Sample_pos
+
+COMPONENT void_vol = Union_cylinder(material_string="Vacuum", priority=3, radius=R_s-eps_s, yheight=h_v)
+AT (0, y_v, 0) RELATIVE Sample_pos
+
+COMPONENT pore_mask = Union_mesh(filename=pores, coordinate_scale=1, priority=4,
+  mask_string="water_vol,void_vol", mask_setting="Any")
+AT (0, 0, 0) RELATIVE Sample_pos
+
+COMPONENT Sample = Union_master()
+AT (0, 0, 0) RELATIVE Sample_pos
+
+COMPONENT Banana = Monitor_nD(radius=0.5, yheight=0.1, options="banana, theta limits=[5 175] bins=340", restore_xray=1)
+AT (0, 0, 0) RELATIVE Sample
+
+COMPONENT Transm = PSD_monitor(xwidth=2e-3, yheight=3e-3, nx=200, ny=300, restore_xray=1, filename="transm")
+AT (0, 0, 0.1) RELATIVE Sample
+
+END

@@ -26,14 +26,14 @@ One unit of intensity is emitted from a 1x1 m.
 - **Test: SAMPLE=2 SPLITS=10 Detector: PSD_I=10**
 - **Test: SAMPLE=2 SPLITS=100 Detector: PSD_I=100**
 - **Test: SAMPLE=3 SPLITS=1 Detector: PSD_I=0.999001**
-- **Test: SAMPLE=3 SPLITS=1 Detector: PSD_transmission_I=0.00071068**
-- **Test: SAMPLE=3 SPLITS=1 Detector: PSD_scattered_I=0.00182805**
+- **Test: SAMPLE=3 SPLITS=1 Detector: PSD_transmission_I=0.000669**
+- **Test: SAMPLE=3 SPLITS=1 Detector: PSD_scattered_I=0.000118**
 - **Test: SAMPLE=3 SPLITS=10 Detector: PSD_I=9.99001**
-- **Test: SAMPLE=3 SPLITS=10 Detector: PSD_transmission_I=0.007122**
-- **Test: SAMPLE=3 SPLITS=10 Detector: PSD_scattered_I=0.0183156**
+- **Test: SAMPLE=3 SPLITS=10 Detector: PSD_transmission_I=0.006716**
+- **Test: SAMPLE=3 SPLITS=10 Detector: PSD_scattered_I=0.001073**
 - **Test: SAMPLE=3 SPLITS=100 Detector: PSD_I=99.9001**
-- **Test: SAMPLE=3 SPLITS=100 Detector: PSD_transmission_I=0.070845**
-- **Test: SAMPLE=3 SPLITS=100 Detector: PSD_scattered_I=0.182056**
+- **Test: SAMPLE=3 SPLITS=100 Detector: PSD_transmission_I=0.067187**
+- **Test: SAMPLE=3 SPLITS=100 Detector: PSD_scattered_I=0.010716**
 
 ## Input parameters
 

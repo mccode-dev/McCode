@@ -85,8 +85,6 @@ SHARE
   #ifndef MASTER_DETECTOR
   #define MASTER_DETECTOR dummy
   #endif
-
-
 %}
 
 DECLARE
@@ -1563,7 +1561,7 @@ TRACE
           // If any process in this material needs focusing, sample scattering position and update focus_data accordingly
           if (current_p_physics->any_process_needs_cross_section_focus == 1) {
             focus_in_cross_section_set_forced_point_and_dir (&forced_length_to_scattering, safety_distance, safety_distance2, length_to_boundary, _particle,
-                                                       &ray_velocity, &ray_position_geometry, &ray_position, Volumes[current_volume], this_focus_data);
+                                                             &ray_velocity, &ray_position_geometry, &ray_position, Volumes[current_volume], this_focus_data);
           } else {
             forced_length_to_scattering = -1.0; // Signals that no forcing needed, could also if on the selected process struct
           }
@@ -1608,8 +1606,7 @@ TRACE
                 *p_my_trace += mu / current_p_physics->sampling_points;
               }
               coords_get (original_position, &x, &y, &z);
-            }
-            else {//  process does not need inhomogenous sampling 
+            } else { //  process does not need inhomogenous sampling
               UNION_PHYSICS_MY (physics_output, process, p_my_trace, k_rotated, this_focus_data, _particle);
               if (current_p_physics->sampling_points != -1) {
                 current_p_physics->mus[p_index][0] = *p_my_trace;
@@ -1690,8 +1687,8 @@ TRACE
                                                &selected_process);
                 }
               } else {
-                p_interact_select_process (Volumes[current_volume], _particle, my_trace_fraction_control, my_trace, &total_process_interact, &culmative_probability,
-                                           &mc_prop, &p, my_sum, &selected_process);
+                p_interact_select_process (Volumes[current_volume], _particle, my_trace_fraction_control, my_trace, &total_process_interact,
+                                           &culmative_probability, &mc_prop, &p, my_sum, &selected_process);
               }
             }
 
@@ -3045,6 +3042,8 @@ FINALLY
       free (Volumes[volume_index]->geometry.mask_intersect_list.elements);
     if (Volumes[volume_index]->geometry.next_volume_list.num_elements > 0)
       free (Volumes[volume_index]->geometry.next_volume_list.elements);
+    if (Volumes[volume_index]->geometry.overlap_list.num_elements > 0)
+      free (Volumes[volume_index]->geometry.overlap_list.elements);
 
     if (finally_verbal)
       printf ("  Freeing physics\n");

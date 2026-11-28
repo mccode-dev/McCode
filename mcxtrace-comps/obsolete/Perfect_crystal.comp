@@ -57,108 +57,102 @@ SETTING PARAMETERS (string form_factors="FormFactors.txt", string material="Si.t
 
 SHARE 
 %{
-  %include "read_table-lib"  
+  %include "read_table-lib"
   %include "mccode-complex-lib"
-/* something that would be relevant for ALL crystals */
-  void DarwinReflectivity(double *R, double *Thetah, double *Theta0, double *DeltaTheta0,
-			  double f00, double f0h, double fp, double fpp, double V, double alpha, double h, double k, double l, double M, double E, double Thetain, int pol )
-  {
+  /* something that would be relevant for ALL crystals */
+  void
+  DarwinReflectivity (double* R, double* Thetah, double* Theta0, double* DeltaTheta0, double f00, double f0h, double fp, double fpp, double V, double alpha,
+                      double h, double k, double l, double M, double E, double Thetain, int pol) {
 
-    double r0,lambda,theta,theta0,DeltaThetas,a,d,b,C,W,kappa,g,L;
-    double F0r,F0i,Fhr,Fhi,psi0r,psi0i,psihr,psihi;
+    double r0, lambda, theta, theta0, DeltaThetas, a, d, b, C, W, kappa, g, L;
+    double F0r, F0i, Fhr, Fhi, psi0r, psi0i, psihr, psihi;
 
-    r0 = 2.82e-5;				/* Thomson scattering length in AA */
-    lambda = 12.398/E;  			/* wavelength in AA, E in keV    */
-    a = cbrt(V); 				/* side length of unit cubic cell (AA)*/
-    d = a/sqrt(h*h + k*k + l*l); 		/* d-spacing (AA)*/ 
-    theta = asin(lambda/(2*d));  		/* kinematical bragg angle (rad) */
-    b = sin(theta - alpha)/sin(theta + alpha);  /* asymmetry factor */
+    r0 = 2.82e-5;                                  /* Thomson scattering length in AA */
+    lambda = 12.398 / E;                           /* wavelength in AA, E in keV    */
+    a = cbrt (V);                                  /* side length of unit cubic cell (AA)*/
+    d = a / sqrt (h * h + k * k + l * l);          /* d-spacing (AA)*/
+    theta = asin (lambda / (2 * d));               /* kinematical bragg angle (rad) */
+    b = sin (theta - alpha) / sin (theta + alpha); /* asymmetry factor */
 
-    *Theta0 = Thetain - alpha; 			/* (rad) angle between Bragg planes and incident ray */ 
-    *Thetah = b*(*Theta0 - theta) + theta;   	/* (rad) Angle betweeb Bragg planes and reflected ray */
+    *Theta0 = Thetain - alpha;               /* (rad) angle between Bragg planes and incident ray */
+    *Thetah = b * (*Theta0 - theta) + theta; /* (rad) Angle betweeb Bragg planes and reflected ray */
     /*check if Bragg angle is less than alpha. If so return 0 reflectivity*/
-    if (theta<alpha) {
-      *R=0;
+    if (theta < alpha) {
+      *R = 0;
       *DeltaTheta0 = -1; /*to mark it irrelevant*/
     }
-    
+
     /* Define polarization factor: */
-    switch(pol){
-      case 0:
-	C = (1 + fabs(cos(2*theta)))/2;         	/* unpolarized */
-	break;
-      case 1:
-	C = fabs(cos(2*theta));  		/* polarization in the scattering plane */
-	break;
-      case 2:
-	C = 1;                          	/* polarization perpendicular to the scattering plane*/
-	break;
+    switch (pol) {
+    case 0:
+      C = (1 + fabs (cos (2 * theta))) / 2; /* unpolarized */
+      break;
+    case 1:
+      C = fabs (cos (2 * theta)); /* polarization in the scattering plane */
+      break;
+    case 2:
+      C = 1; /* polarization perpendicular to the scattering plane*/
+      break;
     }
 
     /* STRUCTURE FACTOR CALCULATION: */
     /* NOTE: these structurefactors are valid for single atom diamond lattice structures like Si or Ge only: */
-    
 
+    F0r = 8 * (f00 + fp); /* Q=0, real part of structure factor for forward scattering */
+    F0i = 8 * (fpp);      /* Q=0, imag part of structure factor for forward scattering */
 
-    F0r = 8*(f00 + fp);				/* Q=0, real part of structure factor for forward scattering */
-    F0i = 8*(fpp); 				/* Q=0, imag part of structure factor for forward scattering */
+    if (h == 1 && k == 1 && l == 1) {        /* (111) reflection */
+      Fhr = sqrt (17) * (f0h + fp);          /* |(4-i)| = sqrt(17) */
+      Fhi = sqrt (17) * (fpp);               /* |(4-i)| = sqrt(17) */
+    } else if (h == 2 && k == 2 && l == 0) { /* (220) reflection */
+      Fhr = 8 * (f0h + fp);
+      Fhi = 8 * (fpp);
+    } else if (h == 4 && k == 0 && l == 0) { /* (400) reflection */
+      Fhr = 8 * (f0h + fp);
+      Fhi = 8 * (fpp);
+    } else {
+      // complex double f_hkl = (1+cexp(I*M_PI*(h+k))+cexp(I*M_PI*(k+l)) + cexp(I*M_PI*(h+l)))*(1+cexp(I*M_PI*(h/4.0 + k/4.0 + l/4.0)));
 
-    if (h==1 && k==1 && l==1){ 		/* (111) reflection */
-      Fhr = sqrt(17)*(f0h + fp); 	/* |(4-i)| = sqrt(17) */
-      Fhi = sqrt(17)*(fpp); 		/* |(4-i)| = sqrt(17) */   
-      }
-    else if (h==2 && k==2 && l==0){ 		/* (220) reflection */
-      Fhr = 8*(f0h + fp); 	
-      Fhi = 8*(fpp); 		
-      }
-    else if (h==4 && k==0 && l==0){ 		/* (400) reflection */
-      Fhr = 8*(f0h + fp); 	
-      Fhi = 8*(fpp); 		
-      }
-    else {
-      //complex double f_hkl = (1+cexp(I*M_PI*(h+k))+cexp(I*M_PI*(k+l)) + cexp(I*M_PI*(h+l)))*(1+cexp(I*M_PI*(h/4.0 + k/4.0 + l/4.0)));
-      
-      cdouble f_hkl=cadd(cadd(radd(1,cexp(rmul(M_PI*(h+k),cplx(0,1)))),cexp(rmul(M_PI*(k+l),cplx(0,1)))),
-				cmul(cexp(rmul(M_PI*(h+l),cplx(0,1))),radd(1,cexp(rmul(M_PI*(h/4.0 + k/4.0 + l/4.0),cplx(0,1))))));
-      
-      Fhr = cabs(f_hkl)*(f0h + fp);
-      Fhi = cabs(f_hkl)*(fpp);
-      F0r = cabs(f_hkl)*(f00 + fp);				/* Q=0, real part of structure factor for forward scattering */
-      F0i = cabs(f_hkl)*(fpp); 				/* Q=0, imag part of structure factor for forward scattering */
+      cdouble f_hkl = cadd (cadd (radd (1, cexp (rmul (M_PI * (h + k), cplx (0, 1)))), cexp (rmul (M_PI * (k + l), cplx (0, 1)))),
+                            cmul (cexp (rmul (M_PI * (h + l), cplx (0, 1))), radd (1, cexp (rmul (M_PI * (h / 4.0 + k / 4.0 + l / 4.0), cplx (0, 1))))));
+
+      Fhr = cabs (f_hkl) * (f0h + fp);
+      Fhi = cabs (f_hkl) * (fpp);
+      F0r = cabs (f_hkl) * (f00 + fp); /* Q=0, real part of structure factor for forward scattering */
+      F0i = cabs (f_hkl) * (fpp);      /* Q=0, imag part of structure factor for forward scattering */
     }
 
-    psi0r = fabs(F0r*exp(-M)*r0*lambda*lambda/(PI*V)); 
-    psi0i = (-1)*fabs(F0i*exp(-M)*r0*lambda*lambda/(PI*V)); /* here multiplied by (1-) to compensate for the fabs throwing away the minus sign*/  
-    psihr = fabs(Fhr*exp(-M)*r0*lambda*lambda/(PI*V));  /* Eq 23*/
-    psihi = (-1)*fabs(Fhi*exp(-M)*r0*lambda*lambda/(PI*V));  /*here multiplied by (-1) to compensate for the fabs throwing away the minus sign...*/
-    
-    W = 0.5 * (sqrt(b) + 1/sqrt(b)) * psi0r/(C * psihr) +  sqrt(b)*sin(2*theta)*(theta - *Theta0)/(C * psihr); /* eq 28*/
-    kappa = psihi/psihr;                                              	/* eq 22 */
-    g = 0.5*(sqrt(b) + 1/sqrt(b))*psi0i/(C*psihr);               	/* eq 21 */
-    L = (1/(1 + kappa*kappa))*( W*W + g*g + sqrt(SQR(W*W - g*g - 1 + kappa*kappa) + 4*SQR(g*W - kappa)));
-    *R = L - sqrt(L*L - 1);
-    DeltaThetas = r0*(lambda*lambda)*F0r/(sin(2*theta)*PI*V);               	/* eq 32 */
-#ifdef MCDEBUG
-    printf("E,lambda= %f , %f \n",E,lambda);
-    printf("theta= %f \n",theta*180/PI);
-    printf("Theta0= %f \n",*Theta0*180/PI);
-    printf("theta = %g rad, alpha=%g rad.\n",theta,alpha);
-    printf("b,sqrt(b)= %f %f\n",b,sqrt(b));
-    printf("1/sqrt(b)= %f \n",1/sqrt(b));
-    printf("Fhr, Fhi, F0r, F0i= %g %g %g %g\n",Fhr, Fhi, F0r, F0i);
-    printf("psihr, psihi, psi0r, psi0i= %g %g %g %g\n",psihr, psihi, psi0r, psi0i);
-    printf("sqrt(b)*sin(2*theta)= %g \n",sqrt(b)*sin(2*theta));
-    printf("C, pis0r,C * psihr= %g %g %g\n",C, psi0r,C * psihr);
-    printf("W= %f \n",W);
-    printf("kappa= %f \n",kappa);
-    printf("g= %f \n",g);
-    printf("L= %f \n",L);
-    printf("R= %f \n",*R);						
-    printf("DeltaThetas %f \n",3600*DeltaThetas*180/PI);				
-#endif
-    *DeltaTheta0 = 0.5*(1 + 1/b)*DeltaThetas;                        	/* center of reflectivity curve is at theta + DeltaTheta0 eq 31 */ 
-  }
+    psi0r = fabs (F0r * exp (-M) * r0 * lambda * lambda / (PI * V));
+    psi0i = (-1) * fabs (F0i * exp (-M) * r0 * lambda * lambda / (PI * V)); /* here multiplied by (1-) to compensate for the fabs throwing away the minus sign*/
+    psihr = fabs (Fhr * exp (-M) * r0 * lambda * lambda / (PI * V));        /* Eq 23*/
+    psihi = (-1) * fabs (Fhi * exp (-M) * r0 * lambda * lambda / (PI * V)); /*here multiplied by (-1) to compensate for the fabs throwing away the minus sign...*/
 
+    W = 0.5 * (sqrt (b) + 1 / sqrt (b)) * psi0r / (C * psihr) + sqrt (b) * sin (2 * theta) * (theta - *Theta0) / (C * psihr); /* eq 28*/
+    kappa = psihi / psihr;                                                                                                    /* eq 22 */
+    g = 0.5 * (sqrt (b) + 1 / sqrt (b)) * psi0i / (C * psihr);                                                                /* eq 21 */
+    L = (1 / (1 + kappa * kappa)) * (W * W + g * g + sqrt (SQR (W * W - g * g - 1 + kappa * kappa) + 4 * SQR (g * W - kappa)));
+    *R = L - sqrt (L * L - 1);
+    DeltaThetas = r0 * (lambda * lambda) * F0r / (sin (2 * theta) * PI * V); /* eq 32 */
+                                                                             #ifdef MCDEBUG
+    printf ("E,lambda= %f , %f \n", E, lambda);
+    printf ("theta= %f \n", theta * 180 / PI);
+    printf ("Theta0= %f \n", *Theta0 * 180 / PI);
+    printf ("theta = %g rad, alpha=%g rad.\n", theta, alpha);
+    printf ("b,sqrt(b)= %f %f\n", b, sqrt (b));
+    printf ("1/sqrt(b)= %f \n", 1 / sqrt (b));
+    printf ("Fhr, Fhi, F0r, F0i= %g %g %g %g\n", Fhr, Fhi, F0r, F0i);
+    printf ("psihr, psihi, psi0r, psi0i= %g %g %g %g\n", psihr, psihi, psi0r, psi0i);
+    printf ("sqrt(b)*sin(2*theta)= %g \n", sqrt (b) * sin (2 * theta));
+    printf ("C, pis0r,C * psihr= %g %g %g\n", C, psi0r, C * psihr);
+    printf ("W= %f \n", W);
+    printf ("kappa= %f \n", kappa);
+    printf ("g= %f \n", g);
+    printf ("L= %f \n", L);
+    printf ("R= %f \n", *R);
+    printf ("DeltaThetas %f \n", 3600 * DeltaThetas * 180 / PI);
+    #endif
+    *DeltaTheta0 = 0.5 * (1 + 1 / b) * DeltaThetas; /* center of reflectivity curve is at theta + DeltaTheta0 eq 31 */
+  }
 %}
 
 DECLARE
@@ -175,128 +169,136 @@ DECLARE
 INITIALIZE
 %{
   int status;
-  if (material){
-    if (status=Table_Read(&(m_t),material,0)==-1){
-      fprintf(stderr,"Error(%s): Could not parse file \"%s\"\n",NAME_CURRENT_COMP,material);
-      exit(-1);
+  if (material) {
+    if (status = Table_Read (&(m_t), material, 0) == -1) {
+      fprintf (stderr, "Error(%s): Could not parse file \"%s\"\n", NAME_CURRENT_COMP, material);
+      exit (-1);
     }
-    char **header_parsed;
-    header_parsed=Table_ParseHeader(m_t.header,"Z","A[r]","rho","Z/A","sigma[a]",NULL);
-    if(header_parsed[2]){rho=strtod(header_parsed[2],NULL);}
-    if(header_parsed[0]){Z=strtod(header_parsed[0],NULL);}
-    if(header_parsed[1]){At=strtod(header_parsed[1],NULL);}
-  }else{
-    fprintf(stderr,"Error(%s): No material file specified\n",NAME_CURRENT_COMP,material);
+    char** header_parsed;
+    header_parsed = Table_ParseHeader (m_t.header, "Z", "A[r]", "rho", "Z/A", "sigma[a]", NULL);
+    if (header_parsed[2]) {
+      rho = strtod (header_parsed[2], NULL);
+    }
+    if (header_parsed[0]) {
+      Z = strtod (header_parsed[0], NULL);
+    }
+    if (header_parsed[1]) {
+      At = strtod (header_parsed[1], NULL);
+    }
+  } else {
+    fprintf (stderr, "Error(%s): No material file specified\n", NAME_CURRENT_COMP, material);
   }
-  if(form_factors){
-    if (status=Table_Read(&(f0_t),form_factors,0)==-1){
-      fprintf(stderr,"Error(%s): Could not parse file \"%s\"\n",NAME_CURRENT_COMP,form_factors);
-      exit(-1);
+  if (form_factors) {
+    if (status = Table_Read (&(f0_t), form_factors, 0) == -1) {
+      fprintf (stderr, "Error(%s): Could not parse file \"%s\"\n", NAME_CURRENT_COMP, form_factors);
+      exit (-1);
     }
   }
 %}
 
 TRACE
 %{
-  int pol;                              // beam polarization:: pol=0, umpolarized; pol=1, vert pol; pol=2 
-  double E;				// (keV) x-ray energy 
-  double K; 				// length of k-vector
-  double kxout,kyout,kzout;		// unit vector in the direction of the reflected ray
-  double kxu,kyu,kzu;			// unit vector in the direction of k-vector.
-  double tin;				// 'time' of intersection of ray with y=0 plane (which include the crystal surface)
-  double x_int,y_int,z_int;		// intersection with the y=0 plane
-  double dist;				// distance from position at t=0 to the y=0 plane
-  double M;		// volume of unit cell (AA^3), asymmetry angle (rad), indices of reflection and a temperature factor
-  double f00, f0h, fp, fpp;		// atomic form factors for Q=0 is (f00 + fp + i*fpp) and for Q= ha*+kb*+lc* it is (f0h + fp + i*fpp).
-  double Thetain;			// (rad) angle between the crystal surface and the incident ray
-  double Theta0;			// (rad) angle between the Bragg planes and the incident ray
-  double Thetah;			// (rad) angle between the Bragg planes and the reflected ray
-  double Thetaout;			// (rad) angle between the crystal surface and the reflected ray
-  double DeltaTheta0;			// (rad) the center of the reflectivity curve is at asin(n*lambda/(2*d)) + DeltaTheta0
-  double R;                             // Reflectivity value calculated by DarwinReflectivity() function for each incoming photon
+  int pol;                    // beam polarization:: pol=0, umpolarized; pol=1, vert pol; pol=2
+  double E;                   // (keV) x-ray energy
+  double K;                   // length of k-vector
+  double kxout, kyout, kzout; // unit vector in the direction of the reflected ray
+  double kxu, kyu, kzu;       // unit vector in the direction of k-vector.
+  double tin;                 // 'time' of intersection of ray with y=0 plane (which include the crystal surface)
+  double x_int, y_int, z_int; // intersection with the y=0 plane
+  double dist;                // distance from position at t=0 to the y=0 plane
+  double M;                   // volume of unit cell (AA^3), asymmetry angle (rad), indices of reflection and a temperature factor
+  double f00, f0h, fp, fpp;   // atomic form factors for Q=0 is (f00 + fp + i*fpp) and for Q= ha*+kb*+lc* it is (f0h + fp + i*fpp).
+  double Thetain;             // (rad) angle between the crystal surface and the incident ray
+  double Theta0;              // (rad) angle between the Bragg planes and the incident ray
+  double Thetah;              // (rad) angle between the Bragg planes and the reflected ray
+  double Thetaout;            // (rad) angle between the crystal surface and the reflected ray
+  double DeltaTheta0;         // (rad) the center of the reflectivity curve is at asin(n*lambda/(2*d)) + DeltaTheta0
+  double R;                   // Reflectivity value calculated by DarwinReflectivity() function for each incoming photon
 
   /* let's assume umpolarized beam */
   pol = 0;
   /* temperature factor for perfect crystal */
   M = 0.0;
 
-
   /* get the photon's kvector and energy */
-  K=sqrt(kx*kx+ky*ky+kz*kz);
-  E = 12.398/(2*PI/K);  
+  K = sqrt (kx * kx + ky * ky + kz * kz);
+  E = 12.398 / (2 * PI / K);
   /* make unit vector in the direction of k :*/
-  kxu = kx; kyu = ky; kzu = kz;
-  NORM(kxu,kyu,kzu);
-  
-  /*intersection calculation*/
-  tin = -y/kyu;
-  if (tin>=0){
-    /* check whether our intersection lies within the boundaries of the crystal*/
-    x_int=x+kxu*tin;
-    y_int=y+kyu*tin;V,
-    z_int=z+kzu*tin;
-    
-    if (fabs(x_int)<=width/2 && fabs(z_int)<=length/2){
-        dist=sqrt(SQR(x-x_int)+SQR(y-y_int)+SQR(z-z_int));
-	PROP_DL(dist); 			/* now the photon is on the crystal surface, ready to be reflected... */ 
-        SCATTER;
-        /*Check which quadrant the k vector is in to determine sense of alpha. This to allow for hitting the crystal from behind.*/
-        int quadrant;
-        Thetain=fabs(atan(ky/kz));
-        double d=cbrt(V)/(sqrt(h*h+k*k+l*l));/*this is valid only for cubic structures*/
-        f00 = Z;
-        f0h = Table_Value(f0_t,1/(2*d),Z);
-        fp  = Table_Value(m_t,E,1)-Z;
-        fpp = Table_Value(m_t,E,2);
-        
-        if (ky<0 && kz>0){
-          /*4th quadrant - forward hit from above. No change.*/ 
-          DarwinReflectivity(&R, &Thetah, &Theta0, &DeltaTheta0, f00, f0h, fp, fpp, V, alpha, h, k, l, M, E, Thetain,pol);
-        }else if(ky<0 && kz<0){
-          /*3rd quadrant - backward hit from above. Sense of alpha is reversed.*/
-          DarwinReflectivity(&R, &Thetah, &Theta0, &DeltaTheta0, f00, f0h, fp, fpp, V, -alpha, h, k, l, M, E, Thetain,pol);
-        }else if(ky>0 && kz>0){
-          /*1st quadrant - forward hit from below. Sense of alpha is reversed.*/
-          DarwinReflectivity(&R, &Thetah, &Theta0, &DeltaTheta0, f00, f0h, fp, fpp, V, -alpha, h, k, l, M, E, Thetain,pol);
-        }else if(ky>0 && kz<0){
-          /*2nd quadrant - backward hit from below. No change.*/
-          DarwinReflectivity(&R, &Thetah, &Theta0, &DeltaTheta0, f00, f0h, fp, fpp, V, alpha, h, k, l, M, E, Thetain,pol);
-        }
-	Thetaout = Thetah - alpha; 	/* (rad) the angle between the crystal surface and the reflected ray */
-        
-        /*reflect ray in normal to crystal planes*/
-        do {
-          double ax,ay,az,vnx,vny,vnz;
-          ax=0;ay=-sin(alpha);az=cos(alpha);
-          vnx=kx-scalar_prod(kx,ky,kz,ax,ay,az)*ax;
-          vny=ky-scalar_prod(kx,ky,kz,ax,ay,az)*ay;
-          vnz=kz-scalar_prod(kx,ky,kz,ax,ay,az)*az;
-          //printf("a=[ %g %g %g ] vn=[ %g %g %g ]\n",ax,ay,az,vnx,vny,vnz);
-          kx=kx-2*vnx;
-          ky=ky-2*vny;
-          kz=kz-2*vnz;
-        }while(0);
+  kxu = kx;
+  kyu = ky;
+  kzu = kz;
+  NORM (kxu, kyu, kzu);
 
-        /* apply Darwin reflectivity if not is supplied from outside*/
-        if (!R0){
-          p*=R;
-        }else{
-          p*=R0;
-        } 
-        /*catch dead rays*/
-        if (p==0) ABSORB;
+  /*intersection calculation*/
+  tin = -y / kyu;
+  if (tin >= 0) {
+    /* check whether our intersection lies within the boundaries of the crystal*/
+    x_int = x + kxu * tin;
+    y_int = y + kyu * tin;
+    V, z_int = z + kzu * tin;
+
+    if (fabs (x_int) <= width / 2 && fabs (z_int) <= length / 2) {
+      dist = sqrt (SQR (x - x_int) + SQR (y - y_int) + SQR (z - z_int));
+      PROP_DL (dist); /* now the photon is on the crystal surface, ready to be reflected... */
+      SCATTER;
+      /*Check which quadrant the k vector is in to determine sense of alpha. This to allow for hitting the crystal from behind.*/
+      int quadrant;
+      Thetain = fabs (atan (ky / kz));
+      double d = cbrt (V) / (sqrt (h * h + k * k + l * l)); /*this is valid only for cubic structures*/
+      f00 = Z;
+      f0h = Table_Value (f0_t, 1 / (2 * d), Z);
+      fp = Table_Value (m_t, E, 1) - Z;
+      fpp = Table_Value (m_t, E, 2);
+
+      if (ky < 0 && kz > 0) {
+        /*4th quadrant - forward hit from above. No change.*/
+        DarwinReflectivity (&R, &Thetah, &Theta0, &DeltaTheta0, f00, f0h, fp, fpp, V, alpha, h, k, l, M, E, Thetain, pol);
+      } else if (ky < 0 && kz < 0) {
+        /*3rd quadrant - backward hit from above. Sense of alpha is reversed.*/
+        DarwinReflectivity (&R, &Thetah, &Theta0, &DeltaTheta0, f00, f0h, fp, fpp, V, -alpha, h, k, l, M, E, Thetain, pol);
+      } else if (ky > 0 && kz > 0) {
+        /*1st quadrant - forward hit from below. Sense of alpha is reversed.*/
+        DarwinReflectivity (&R, &Thetah, &Theta0, &DeltaTheta0, f00, f0h, fp, fpp, V, -alpha, h, k, l, M, E, Thetain, pol);
+      } else if (ky > 0 && kz < 0) {
+        /*2nd quadrant - backward hit from below. No change.*/
+        DarwinReflectivity (&R, &Thetah, &Theta0, &DeltaTheta0, f00, f0h, fp, fpp, V, alpha, h, k, l, M, E, Thetain, pol);
+      }
+      Thetaout = Thetah - alpha; /* (rad) the angle between the crystal surface and the reflected ray */
+
+      /*reflect ray in normal to crystal planes*/
+      do {
+        double ax, ay, az, vnx, vny, vnz;
+        ax = 0;
+        ay = -sin (alpha);
+        az = cos (alpha);
+        vnx = kx - scalar_prod (kx, ky, kz, ax, ay, az) * ax;
+        vny = ky - scalar_prod (kx, ky, kz, ax, ay, az) * ay;
+        vnz = kz - scalar_prod (kx, ky, kz, ax, ay, az) * az;
+        // printf("a=[ %g %g %g ] vn=[ %g %g %g ]\n",ax,ay,az,vnx,vny,vnz);
+        kx = kx - 2 * vnx;
+        ky = ky - 2 * vny;
+        kz = kz - 2 * vnz;
+      } while (0);
+
+      /* apply Darwin reflectivity if not is supplied from outside*/
+      if (!R0) {
+        p *= R;
+      } else {
+        p *= R0;
+      }
+      /*catch dead rays*/
+      if (p == 0)
+        ABSORB;
     } else {
-      RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
-    } 
+      RESTORE_XRAY (INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+    }
   }
-  
-  
 %}
 
 MCDISPLAY
 %{
-  
-  rectangle("xz",0,0,0,width,length); 
+
+  rectangle ("xz", 0, 0, 0, width, length);
 %}
 
 END

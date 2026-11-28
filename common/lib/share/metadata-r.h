@@ -20,7 +20,7 @@ typedef struct metadata_table_struct metadata_table_t;
 /** \brief Extract the `source` part of a "source:metadata_name" key,
  *
  * @param key Ideally "source:metadata_name" but "" or "source" handled as well
- * @return `NULL` if there is no "source" part of the key
+ * @return the "source" part of the key, or "" if there is none (never `NULL`)
  * @note A non-null returned `char *` was allocated in the function, please handle `free`ing it when finished.
 */
 char * metadata_table_key_component(char* key);

@@ -129,7 +129,7 @@ endif()
   # <tool>.md.in -> <tool>.md configure/install steps (now removed from
   # each tool's own CMakeLists.txt); mcdoc installs the full set once,
   # to the same DEST_DATADIR_DOC destination those used to go to.
-set(TOOLDOCS_PAGES README codegen mcrun mcgui mcplot mcdisplay mctest mctest-statistics mcdoc)
+set(TOOLDOCS_PAGES README codegen mcrun mcgui mcplot mcmerge mcdisplay mctest mctest-statistics mcdoc)
 
 foreach(TOOLDOCS_PAGE ${TOOLDOCS_PAGES})
   get_filename_component(TOOLDOCS_PAGE_REAL "${PROJECT_SOURCE_DIR}/${TOOLDOCS_PAGE}.md" REALPATH)
@@ -143,7 +143,7 @@ endforeach()
 # keeps that one as mcdoc_tool.html, since a plain mcdoc.html would clash
 # with the mcdoc/mxdoc master overview page that `mcdoc --install`
 # (re)generates at this same DEST_DATADIR_DOC destination.
-set(TOOLDOCS_HTML_PAGES README codegen mcrun mcgui mcplot mcdisplay mctest mctest-statistics mcdoc_tool)
+set(TOOLDOCS_HTML_PAGES README codegen mcrun mcgui mcplot mcmerge mcdisplay mctest mctest-statistics mcdoc_tool)
 
 foreach(TOOLDOCS_HTML_PAGE ${TOOLDOCS_HTML_PAGES})
   get_filename_component(TOOLDOCS_HTML_PAGE_REAL "${PROJECT_SOURCE_DIR}/${TOOLDOCS_HTML_PAGE}.html" REALPATH)
