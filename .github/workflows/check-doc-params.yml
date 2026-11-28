@@ -1,0 +1,24 @@
+name: check-doc-params
+on:
+  pull_request:
+    paths:
+      - '**/*.comp'
+      - '**/*.instr'
+      - 'devel/bin/mccode-check-doc-params'
+      - '.github/workflows/check-doc-params.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Changed components and instruments document all input parameters
+        run: |
+          set -euo pipefail
+          git diff -z --name-only --diff-filter=AM "origin/${{ github.base_ref }}..." -- '*.comp' '*.instr' \
+            | xargs -0 -r ./devel/bin/mccode-check-doc-params
