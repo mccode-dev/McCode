@@ -59,21 +59,26 @@ SETTING PARAMETERS (
 
 DECLARE
 %{
-#ifndef Source_Optimizer_Here
-#error McStas : Source_Optimizer component has to be used before Monitor_Optimizer
-#endif
+  #ifndef Source_Optimizer_Here
+  #error McStas : Source_Optimizer component has to be used before Monitor_Optimizer
+  #endif
 
-int This_Monitor_id;
+  int This_Monitor_id;
 %}
 
 INITIALIZE
 %{
 
-  struct Optim_Variables *Vars = 
-    (struct Optim_Variables *)(COMP_GETPAR3(Source_Optimizer, optim_comp, Vars));
+  struct Optim_Variables* Vars = (struct Optim_Variables*)(COMP_GETPAR3 (Source_Optimizer, optim_comp, Vars));
 
-  if (xwidth  > 0) { xmax = xwidth/2;  xmin = -xmax; }
-  if (yheight > 0) { ymax = yheight/2; ymin = -ymax; }
+  if (xwidth > 0) {
+    xmax = xwidth / 2;
+    xmin = -xmax;
+  }
+  if (yheight > 0) {
+    ymax = yheight / 2;
+    ymin = -ymax;
+  }
 
   Vars->Monitor_Number++;
   This_Monitor_id = Vars->Monitor_Number;
@@ -81,191 +86,192 @@ INITIALIZE
 
 TRACE
 %{
-  struct Optim_Defines *DEFS   = 
-    (struct Optim_Defines *)(COMP_GETPAR3(Source_Optimizer, optim_comp, DEFS));
-  struct Optim_Variables *Vars = 
-    (struct Optim_Variables *)(COMP_GETPAR3(Source_Optimizer, optim_comp, Vars));
+  struct Optim_Defines* DEFS = (struct Optim_Defines*)(COMP_GETPAR3 (Source_Optimizer, optim_comp, DEFS));
+  struct Optim_Variables* Vars = (struct Optim_Variables*)(COMP_GETPAR3 (Source_Optimizer, optim_comp, Vars));
 
   PROP_Z0;
-  if ((Vars->Phase != DEFS->PHASE_UNACTIVATE)
-&& (x>xmin && x<xmax && y>ymin && y<ymax))
-  {
+  if ((Vars->Phase != DEFS->PHASE_UNACTIVATE) && (x > xmin && x < xmax && y > ymin && y < ymax)) {
 
     Vars->cur_p = p;
 
-    Vars->Monitor_Counts++; /* initialized to 0 in DEFS->PHASE_SET_REF */
-    if (Vars->Flag_Smooth )
-    { /* to evaluate correctly the un-optimized flux, we restore original weight in these phases */
+    Vars->Monitor_Counts++;  /* initialized to 0 in DEFS->PHASE_SET_REF */
+    if (Vars->Flag_Smooth) { /* to evaluate correctly the un-optimized flux, we restore original weight in these phases */
       if ((Vars->Phase == DEFS->PHASE_GET_REF) || (Vars->Phase == DEFS->PHASE_GET_LIMITS))
-             Vars->cur_p /= Vars->dkeep;
+        Vars->cur_p /= Vars->dkeep;
     }
-    if (This_Monitor_id == 1)  /* only count flux once !!  */
+    if (This_Monitor_id == 1) /* only count flux once !!  */
     {
       Vars->Monitor_Flux += Vars->cur_p;
     }
 
     Vars->Total_Monitor_Counts++;
 
-    if (Vars->Flag_Auto
-    && (Vars->Phase == DEFS->PHASE_GET_REF))
-      {
-      if (((Vars->Reference_Counts > (double)mcget_ncount()*Vars->dstep) && (Vars->Monitor_Counts >= Vars->nbins*10))
-      || (Vars->Monitor_Counts >= Vars->nbins*100) || (Vars->Reference_Counts > 2.0*mcget_ncount()*Vars->dstep))
-      {
-        Vars->Phase_Counts_R = 0;        /* enough counts on monitor */
-        if (Vars->Flag_Verbose)
-        {
-          printf(">> AUTO monitor has reached %.1f counts (non optimized",Vars->Monitor_Counts);
-          if (Vars->Flag_Smooth) printf(", smoothed");
-          printf(")\n");
+    if (Vars->Flag_Auto && (Vars->Phase == DEFS->PHASE_GET_REF)) {
+      if (((Vars->Reference_Counts > (double)mcget_ncount () * Vars->dstep) && (Vars->Monitor_Counts >= Vars->nbins * 10))
+          || (Vars->Monitor_Counts >= Vars->nbins * 100) || (Vars->Reference_Counts > 2.0 * mcget_ncount () * Vars->dstep)) {
+        Vars->Phase_Counts_R = 0; /* enough counts on monitor */
+        if (Vars->Flag_Verbose) {
+          printf (">> AUTO monitor has reached %.1f counts (non optimized", Vars->Monitor_Counts);
+          if (Vars->Flag_Smooth)
+            printf (", smoothed");
+          printf (")\n");
         }
-        Vars->Phase_Counts = (Vars->Reference_Counts+Vars->Limits_Counts);
-        Vars->dstep = (double)Vars->Phase_Counts/(double)mcget_ncount();
+        Vars->Phase_Counts = (Vars->Reference_Counts + Vars->Limits_Counts);
+        Vars->dstep = (double)Vars->Phase_Counts / (double)mcget_ncount ();
 
-/*        Vars->dkeep = Vars->nbins*10/Vars->Monitor_Counts;
-        if (Vars->dkeep < Vars->dkeep_target) Vars->dkeep = Vars->dkeep_target;
-        if (Vars->dkeep > .9) Vars->dkeep = 0.9; */
+        /*        Vars->dkeep = Vars->nbins*10/Vars->Monitor_Counts;
+                if (Vars->dkeep < Vars->dkeep_target) Vars->dkeep = Vars->dkeep_target;
+                if (Vars->dkeep > .9) Vars->dkeep = 0.9; */
 
-        if (Vars->Monitor_Counts < 3*Vars->nbins)
-        {
-          printf("Source_Optimizer: monitor only reached %.1f counts. \n", Vars->Monitor_Counts);
-          printf("* WARNING *       You'd better inactivate it or increase number of neutrons\n");
+        if (Vars->Monitor_Counts < 3 * Vars->nbins) {
+          printf ("Source_Optimizer: monitor only reached %.1f counts. \n", Vars->Monitor_Counts);
+          printf ("* WARNING *       You'd better inactivate it or increase number of neutrons\n");
         }
       }
     }
 
-   if ((Vars->Phase == DEFS->PHASE_GET_REF)
-    || ((Vars->Phase == DEFS->PHASE_OPTIM) && (Vars->Flag_Continuous) ))        /* build the Optimized Source distributions */
-   {
-     if (Vars->vx_max-Vars->vx_min)
-       Vars->index = (int)rint(Vars->nbins * (Vars->dvx -Vars->vx_min)/(Vars->vx_max-Vars->vx_min));
-     else
-       Vars->index = 0;
-     if (Vars->index < 0)     Vars->index = 0;
-     if (Vars->index >= Vars->nbins) Vars->index = Vars->nbins - 1;
-     Vars->New_Source_vx[Vars->index]++;
+    if ((Vars->Phase == DEFS->PHASE_GET_REF) || ((Vars->Phase == DEFS->PHASE_OPTIM) && (Vars->Flag_Continuous))) /* build the Optimized Source distributions */
+    {
+      if (Vars->vx_max - Vars->vx_min)
+        Vars->index = (int)rint (Vars->nbins * (Vars->dvx - Vars->vx_min) / (Vars->vx_max - Vars->vx_min));
+      else
+        Vars->index = 0;
+      if (Vars->index < 0)
+        Vars->index = 0;
+      if (Vars->index >= Vars->nbins)
+        Vars->index = Vars->nbins - 1;
+      Vars->New_Source_vx[Vars->index]++;
 
-     if (Vars->vy_max-Vars->vy_min)
-       Vars->index = (int)rint(Vars->nbins * (Vars->dvy -Vars->vy_min)/(Vars->vy_max-Vars->vy_min));
-     else
-       Vars->index = 0;
-     if (Vars->index < 0)     Vars->index = 0;
-     if (Vars->index >= Vars->nbins) Vars->index = Vars->nbins - 1;
-     Vars->New_Source_vy[Vars->index]++;
+      if (Vars->vy_max - Vars->vy_min)
+        Vars->index = (int)rint (Vars->nbins * (Vars->dvy - Vars->vy_min) / (Vars->vy_max - Vars->vy_min));
+      else
+        Vars->index = 0;
+      if (Vars->index < 0)
+        Vars->index = 0;
+      if (Vars->index >= Vars->nbins)
+        Vars->index = Vars->nbins - 1;
+      Vars->New_Source_vy[Vars->index]++;
 
-     if (Vars->vz_max-Vars->vz_min)
-       Vars->index = (int)rint(Vars->nbins * (Vars->dvz -Vars->vz_min)/(Vars->vz_max-Vars->vz_min));
-     else
-       Vars->index = 0;
-     if (Vars->index < 0)     Vars->index = 0;
-     if (Vars->index >= Vars->nbins) Vars->index = Vars->nbins - 1;
-     Vars->New_Source_vz[Vars->index]++;
+      if (Vars->vz_max - Vars->vz_min)
+        Vars->index = (int)rint (Vars->nbins * (Vars->dvz - Vars->vz_min) / (Vars->vz_max - Vars->vz_min));
+      else
+        Vars->index = 0;
+      if (Vars->index < 0)
+        Vars->index = 0;
+      if (Vars->index >= Vars->nbins)
+        Vars->index = Vars->nbins - 1;
+      Vars->New_Source_vz[Vars->index]++;
 
-     if (Vars->x_max-Vars->x_min)
-       Vars->index = (int)rint(Vars->nbins * (Vars->cur_x -Vars->x_min)/(Vars->x_max-Vars->x_min));
-     else
-       Vars->index = 0;
-     if (Vars->index < 0)     Vars->index = 0;
-     if (Vars->index >= Vars->nbins) Vars->index = Vars->nbins - 1;
-     Vars->New_Source_x[Vars->index]++;
+      if (Vars->x_max - Vars->x_min)
+        Vars->index = (int)rint (Vars->nbins * (Vars->cur_x - Vars->x_min) / (Vars->x_max - Vars->x_min));
+      else
+        Vars->index = 0;
+      if (Vars->index < 0)
+        Vars->index = 0;
+      if (Vars->index >= Vars->nbins)
+        Vars->index = Vars->nbins - 1;
+      Vars->New_Source_x[Vars->index]++;
 
-     if (Vars->y_max-Vars->y_min)
-       Vars->index = (int)rint(Vars->nbins * (Vars->cur_y -Vars->y_min)/(Vars->y_max-Vars->y_min));
-     else
-       Vars->index = 0;
-     if (Vars->index < 0)     Vars->index = 0;
-     if (Vars->index >= Vars->nbins) Vars->index = Vars->nbins - 1;
-     Vars->New_Source_y[Vars->index]++;
+      if (Vars->y_max - Vars->y_min)
+        Vars->index = (int)rint (Vars->nbins * (Vars->cur_y - Vars->y_min) / (Vars->y_max - Vars->y_min));
+      else
+        Vars->index = 0;
+      if (Vars->index < 0)
+        Vars->index = 0;
+      if (Vars->index >= Vars->nbins)
+        Vars->index = Vars->nbins - 1;
+      Vars->New_Source_y[Vars->index]++;
 
-     if (Vars->sx_max-Vars->sx_min)
-       Vars->index = (int)rint(Vars->nbins * (Vars->dsx -Vars->sx_min)/(Vars->sx_max-Vars->sx_min));
-     else
-       Vars->index = 0;
-     if (Vars->index < 0)     Vars->index = 0;
-     if (Vars->index >= Vars->nbins) Vars->index = Vars->nbins - 1;
-     Vars->New_Source_sx[Vars->index]++;
+      if (Vars->sx_max - Vars->sx_min)
+        Vars->index = (int)rint (Vars->nbins * (Vars->dsx - Vars->sx_min) / (Vars->sx_max - Vars->sx_min));
+      else
+        Vars->index = 0;
+      if (Vars->index < 0)
+        Vars->index = 0;
+      if (Vars->index >= Vars->nbins)
+        Vars->index = Vars->nbins - 1;
+      Vars->New_Source_sx[Vars->index]++;
 
-     if (Vars->sy_max-Vars->sy_min)
-       Vars->index = (int)rint(Vars->nbins * (Vars->dsy -Vars->sy_min)/(Vars->sy_max-Vars->sy_min));
-     else
-       Vars->index = 0;
-     if (Vars->index < 0)     Vars->index = 0;
-     if (Vars->index >= Vars->nbins) Vars->index = Vars->nbins - 1;
-     Vars->New_Source_sy[Vars->index]++;
+      if (Vars->sy_max - Vars->sy_min)
+        Vars->index = (int)rint (Vars->nbins * (Vars->dsy - Vars->sy_min) / (Vars->sy_max - Vars->sy_min));
+      else
+        Vars->index = 0;
+      if (Vars->index < 0)
+        Vars->index = 0;
+      if (Vars->index >= Vars->nbins)
+        Vars->index = Vars->nbins - 1;
+      Vars->New_Source_sy[Vars->index]++;
 
-     if (Vars->sz_max-Vars->sz_min)
-       Vars->index = (int)rint(Vars->nbins * (Vars->dsz -Vars->sz_min)/(Vars->sz_max-Vars->sz_min));
-     else
-       Vars->index = 0;
-     if (Vars->index < 0)     Vars->index = 0;
-     if (Vars->index >= Vars->nbins) Vars->index = Vars->nbins - 1;
-     Vars->New_Source_sz[Vars->index]++;
+      if (Vars->sz_max - Vars->sz_min)
+        Vars->index = (int)rint (Vars->nbins * (Vars->dsz - Vars->sz_min) / (Vars->sz_max - Vars->sz_min));
+      else
+        Vars->index = 0;
+      if (Vars->index < 0)
+        Vars->index = 0;
+      if (Vars->index >= Vars->nbins)
+        Vars->index = Vars->nbins - 1;
+      Vars->New_Source_sz[Vars->index]++;
 
-   } /* end if Vars->Phase */
+    } /* end if Vars->Phase */
 
   } /* end if xy in optimizer */
-/* end trace */
+  /* end trace */
 %}
 
 FINALLY
 %{
-  struct Optim_Variables *Vars = 
-    (struct Optim_Variables *)(COMP_GETPAR3(Source_Optimizer, optim_comp, Vars));
+  struct Optim_Variables* Vars = (struct Optim_Variables*)(COMP_GETPAR3 (Source_Optimizer, optim_comp, Vars));
 
-  if (Vars->Monitor_Number == 0)
-  {
-  /* initial Reference distribution arrays (for weights) */
-    free(Vars->Reference_x);
-    free(Vars->Reference_y);
-    free(Vars->Reference_vx);
-    free(Vars->Reference_vy);
-    free(Vars->Reference_vz);
-    free(Vars->Reference_sx);
-    free(Vars->Reference_sy);
-    free(Vars->Reference_sz);
+  if (Vars->Monitor_Number == 0) {
+    /* initial Reference distribution arrays (for weights) */
+    free (Vars->Reference_x);
+    free (Vars->Reference_y);
+    free (Vars->Reference_vx);
+    free (Vars->Reference_vy);
+    free (Vars->Reference_vz);
+    free (Vars->Reference_sx);
+    free (Vars->Reference_sy);
+    free (Vars->Reference_sz);
 
-  /* optimized Source distribution arrays (to reach) */
-    free(Vars->Source_x);
-    free(Vars->Source_y);
-    free(Vars->Source_vx);
-    free(Vars->Source_vy);
-    free(Vars->Source_vz);
-    free(Vars->Source_sx);
-    free(Vars->Source_sy);
-    free(Vars->Source_sz);
+    /* optimized Source distribution arrays (to reach) */
+    free (Vars->Source_x);
+    free (Vars->Source_y);
+    free (Vars->Source_vx);
+    free (Vars->Source_vy);
+    free (Vars->Source_vz);
+    free (Vars->Source_sx);
+    free (Vars->Source_sy);
+    free (Vars->Source_sz);
 
-  /* optimized New_Source distribution arrays (to reach in next step, passed to Source) */
-    free(Vars->New_Source_x);
-    free(Vars->New_Source_y);
-    free(Vars->New_Source_vx);
-    free(Vars->New_Source_vy);
-    free(Vars->New_Source_vz);
-    free(Vars->New_Source_sx);
-    free(Vars->New_Source_sy);
-    free(Vars->New_Source_sz);
+    /* optimized New_Source distribution arrays (to reach in next step, passed to Source) */
+    free (Vars->New_Source_x);
+    free (Vars->New_Source_y);
+    free (Vars->New_Source_vx);
+    free (Vars->New_Source_vy);
+    free (Vars->New_Source_vz);
+    free (Vars->New_Source_sx);
+    free (Vars->New_Source_sy);
+    free (Vars->New_Source_sz);
 
-  /* Passing distribution arrays (should grow to reach Source) */
-    free(Vars->Passing_x);
-    free(Vars->Passing_y);
-    free(Vars->Passing_vx);
-    free(Vars->Passing_vy);
-    free(Vars->Passing_vz);
-    free(Vars->Passing_sx);
-    free(Vars->Passing_sy);
-    free(Vars->Passing_sz);
+    /* Passing distribution arrays (should grow to reach Source) */
+    free (Vars->Passing_x);
+    free (Vars->Passing_y);
+    free (Vars->Passing_vx);
+    free (Vars->Passing_vy);
+    free (Vars->Passing_vz);
+    free (Vars->Passing_sx);
+    free (Vars->Passing_sy);
+    free (Vars->Passing_sz);
 
-    Vars->Monitor_Number = 1;  /* to only free once */
+    Vars->Monitor_Number = 1; /* to only free once */
   }
 %}
 
 MCDISPLAY
 %{
 
-  multiline(5, (double)xmin, (double)ymin, 0.0,
-               (double)xmax, (double)ymin, 0.0,
-               (double)xmax, (double)ymax, 0.0,
-               (double)xmin, (double)ymax, 0.0,
-               (double)xmin, (double)ymin, 0.0);
+  multiline (5, (double)xmin, (double)ymin, 0.0, (double)xmax, (double)ymin, 0.0, (double)xmax, (double)ymax, 0.0, (double)xmin, (double)ymax, 0.0, (double)xmin,
+             (double)ymin, 0.0);
 %}
 
 END
