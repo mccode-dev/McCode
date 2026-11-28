@@ -11,7 +11,7 @@ in help text, and the McStas-only `-g`/`--gravitation` flag, differ).
 |---|---|
 | `-c`, `--force-compile` | force rebuilding of instrument |
 | `--cogen cogen` | Choice of code-generator (implies -c) |
-| `-C`, `--c-lint` | Use c-linter (e.g. cppcheck) to lint the generated code. Configure linter via mccode_config.json. Implies -c and -v, but also NO simulation will be run. |
+| `-C`, `--c-lint` | Use a C linter (default: clang --analyze) to lint the generated code. Configure linter via mccode_config.json. Implies -c and -v, but also NO simulation will be run. |
 | `-I I` | Append to McCode search path (implies -c) |
 | `--D1 D1` | Set extra -D args (implies -c) |
 | `--D2 D2` | Set extra -D args (implies -c) |

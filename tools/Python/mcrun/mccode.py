@@ -360,11 +360,11 @@ class McStas:
                 # Everthing else
                 else:
                     if flag.startswith("-std="): # -std
-                        flag.replace("-std=","/std:")
+                        flag = flag.replace("-std=","/std:",1)
                     if flag.startswith("-D"): # -D defines
-                        flag.replace("-D","/D")
+                        flag = flag.replace("-D","/D",1)
                     if flag.startswith("-U"): # -U undefines
-                        flag.replace("-U","/U")
+                        flag = flag.replace("-U","/U",1)
                     otherflags.append(flag)
 
             cflags = lexer.join(otherflags) + " /link " + lexer.join(libflags)
@@ -376,12 +376,17 @@ class McStas:
 
         # Lint or compile?
         if options.c_lint is not None:
-            args = [self.cpath] + lexer.split(mccode_config.compilation['CLINTERFLAGS'])
+            # The build's include paths and defines, so the linter finds the same headers
+            defs = lexer.split(cflags)
+            if os.name == 'nt': # cl.exe style /I /D /U
+                defs = [re.sub(r'^/([IDU])', r'-\1', f) for f in defs]
+            defs = [f for f in defs if f.startswith(('-I', '-D', '-U'))]
+            args = [self.cpath] + lexer.split(mccode_config.compilation['CLINTERFLAGS']) + defs
             try:
                 Process(lexer.quote(mccode_config.compilation['CLINT'])).run(args)
                 LOG.info('End of linting %s', self.cpath)
             except:
-                LOG.error('Linting failed on %s - you may need to install the %s package?', self.cpath, mccode_config.compilation['CLINT'])
+                LOG.error('Linting failed on %s - is %s installed, and are all headers found?', self.cpath, mccode_config.compilation['CLINT'])
             exit()
         else:
             # Final assembly of compiler commandline
