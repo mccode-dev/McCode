@@ -7,14 +7,16 @@ export const curvedOffset = (mon) =>
   /^Longitude/.test(mon.xlabel) ? 0 : /^radial position/.test(mon.xlabel) ? -180 : null;
 
 // --simdir monitor data for the colour map or curve, as in webgl-classic: rows z, as is or log10 (zero and
-// negative bins at a tenth of the smallest positive one, as mcplot --log), with their min and max (min 0 for linear)
+// negative bins at a tenth of the smallest positive one, at most 6 decades below the largest), with their min and max
+// (min 0 for linear)
 function monitorValues(z, log) {
-  let pos = Infinity, max = -Infinity;
-  z.forEach((r) => r.forEach((v) => { if (v > 0 && v < pos) pos = v; }));
-  const uselog = log && pos < Infinity;
-  const min = uselog ? Math.log10(pos / 10) : 0;
-  if (uselog) z = z.map((r) => r.map((v) => (v > 0 ? Math.log10(v) : min)));
-  z.forEach((r) => r.forEach((v) => { if (v > max) max = v; }));
+  let pos = Infinity, min = 0, max = -Infinity;
+  z.forEach((r) => r.forEach((v) => { if (v > 0 && v < pos) pos = v; if (v > max) max = v; }));
+  if (log && pos < Infinity) {
+    min = Math.log10(Math.max(pos / 10, max * 1e-6));
+    max = Math.log10(max);
+    z = z.map((r) => r.map((v) => (v > 0 ? Math.max(Math.log10(v), min) : min)));
+  }
   return { z, min, max: max > min ? max : min + 1 };
 }
 
@@ -44,16 +46,16 @@ function paintMonitor(canvas, mon, curved, log) {
     canvas.height = 256;
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, w, 256);
-    // flat: +x is on the left looking along the beam: mirror, so it reads from upstream; curved: x is the angle
-    if (!curved) {
-      ctx.translate(w, 0);
-      ctx.scale(-1, 1);
-    }
     ctx.strokeStyle = "blue";
     ctx.lineWidth = 3;
     ctx.beginPath();
     y.forEach((v, i) => ctx.lineTo((w * (i + 0.5)) / n, 248 - (220 * (v - s.min)) / (s.max - s.min))); // bin centres
     ctx.stroke();
+    // flat: +x is on the left looking along the beam: mirror the label, so it reads from upstream
+    if (!curved) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.fillStyle = "black";
     ctx.font = "16px sans-serif";
     ctx.fillText((mon.xlabel || "") + (log ? ", log" : ""), 8, 20);
@@ -61,17 +63,19 @@ function paintMonitor(canvas, mon, curved, log) {
 }
 
 // --simdir monitor data on the monitor's drawing (component frame), as in mcplot (first row at ymin), as in
-// webgl-classic: flat monitors: 2D as a colour map on the drawn xy rectangle, 1D as a curve;
+// webgl-classic: flat monitors: 2D as a colour map on the drawn rectangle, in its plane, 1D as a curve;
 // curved monitors (drawn with depth, angle along x): the same on a cylinder or sphere (latitude along y);
 // down: the monitor is upside down in the instrument, turn 1D curves upright
 export function addMonitorData(group, mon, transparency, log, down) {
   group.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(group); // the drawing, before the component transform
-  const w = box.max.x - box.min.x;
-  let h = box.max.y - box.min.y;
+  const s = box.getSize(new THREE.Vector3()).toArray();
+  const n = s.indexOf(Math.min(...s)); // flat: the thinnest axis of the drawing is the normal
+  const [u, v] = [0, 1, 2].filter((i) => i !== n); // data x, y along the other two, in x, y, z order
+  let h = s[1];
   const off = curvedOffset(mon);
-  const curved = box.max.z - box.min.z > 1e-9 && off !== null;
-  if (!curved && !(w > 0 && h > 0)) return;
+  const curved = s[2] > 1e-9 && off !== null;
+  if (!curved && !(s[u] > 0 && s[v] > 0)) return;
   const canvas = document.createElement("canvas");
   paintMonitor(canvas, mon, curved, log);
   const tex = new THREE.CanvasTexture(canvas);
@@ -101,13 +105,14 @@ export function addMonitorData(group, mon, transparency, log, down) {
       pos.set(0, pos.y, 0);
     }
   } else {
-    geometry = new THREE.PlaneGeometry(w, h);
+    const e = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+    geometry = new THREE.PlaneGeometry(s[u], s[v]).applyMatrix4(new THREE.Matrix4().makeBasis(e[u], e[v], e[n]));
   }
   const surf = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
     map: tex, transparent: transparency < 1, opacity: transparency, side: THREE.DoubleSide, depthWrite: transparency >= 1,
   }));
   surf.position.copy(pos);
-  if (down && !mon.z) surf.scale.set(curved ? 1 : -1, -1, 1); // flat: turned, curved: x is the angle
+  if (down && !mon.z && (curved || n === 2)) surf.scale.y = -1;
   surf.name = mon.title;
   surf.userData.monitor = curved ? "curved" : "flat";
   surf.userData.mon = mon; // to repaint (setMonitorLog)
@@ -118,6 +123,7 @@ export function addMonitorData(group, mon, transparency, log, down) {
 // (remembered on the scene, so a reload by loadComponents keeps the choice)
 export function setMonitorLog(parentnode, log) {
   parentnode.userData.monitorLog = log;
+  window.parent.postMessage({ simlog: log }, "*"); // plots next to the display (simplots.html)
   parentnode.traverse((o) => {
     if (!o.userData.monitor) return;
     paintMonitor(o.material.map.image, o.userData.mon, o.userData.monitor === "curved", log);

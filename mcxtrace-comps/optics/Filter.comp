@@ -43,7 +43,7 @@
 * geometry:   [str] File containing the polygon definition of a general shape object. When xwidth is also given, the object is rescaled accordingly (OFF/PLY)
 * fixed_delta:[0/1] Use a fixed delta to compute refraction - useful for debugging.
 * mu_col:     [idx] Column index to pick up absorption length mu, counted from 0. Use with non-standard input file, e.g. 2-3 column files. -1 means attempt autodetect.
-* refraction: [0/1] If nonzero, refraction is enabled. (Only functional for basic geometries, does not yet work for OFF)
+* refraction: [0/1] If nonzero, refraction is enabled. Rays hitting the surface below the critical angle are reflected.
 *
 * %Link
 * <a href="https://www.meshlab.net/">Meshlab</a> - viewer for OFF files
@@ -73,7 +73,8 @@ SHARE
 
   #pragma acc routine
   int
-  filter_refract (double* kx, double* ky, double* kz, double nx, double ny, double nz, double delta0, double delta1) {
+  filter_refract (double* kx, double* ky, double* kz, Coords n, double delta0, double delta1) {
+    double nx = n.x, ny = n.y, nz = n.z;
     const double n2 = scalar_prod (nx, ny, nz, nx, ny, nz);
     const double k = sqrt (scalar_prod (*kx, *ky, *kz, *kx, *ky, *kz));
     const double nr = (1.0 - delta0) / (1.0 - delta1);
@@ -88,6 +89,13 @@ SHARE
     }
     // kinv=1.0/sqrt(k2);
     s = scalar_prod (nx, ny, nz, kxi, kyi, kzi);
+    if (nr * nr * (1.0 - s * s) > 1.0) {
+      /*below the critical angle: total external reflection*/
+      *kx -= 2 * s * k * nx;
+      *ky -= 2 * s * k * ny;
+      *kz -= 2 * s * k * nz;
+      return 0;
+    }
     if (s > 0) {
       /*n points in the direction of k - i.e. into material 1, so use -n instead*/
       double sinth2 = nr * nr * (1.0 - (s) * (s));
@@ -105,6 +113,50 @@ SHARE
     *ky *= k;
     *kz *= k;
     return 1;
+  }
+
+  /*intersection with the filter; n0, n1 are set for OFF shapes only*/
+  #pragma acc routine
+  int
+  filter_intersect (int shape, double* l0, double* l1, Coords* n0, Coords* n1, double x, double y, double z, double kx, double ky, double kz, double xwidth,
+                    double yheight, double zdepth, double radius, off_struct offdata) {
+    if (shape == CYLINDER)
+      return cylinder_intersect (l0, l1, x, y, z, kx, ky, kz, radius, yheight);
+    if (shape == SPHERE)
+      return sphere_intersect (l0, l1, x, y, z, kx, ky, kz, radius);
+    if (shape == CUBE)
+      return box_intersect (l0, l1, x, y, z, kx, ky, kz, xwidth, yheight, zdepth);
+    if (shape == ANY)
+      return off_x_intersect (l0, l1, n0, n1, x, y, z, kx, ky, kz, offdata);
+    return 0;
+  }
+
+  /*surface normal (unnormalised, either sign) of a basic shape at a point on its surface*/
+  #pragma acc routine
+  void
+  filter_normal (int shape, double x, double y, double z, double xwidth, double yheight, double zdepth, double radius, Coords* n) {
+    n->x = n->y = n->z = 0;
+    if (shape == SPHERE) {
+      n->x = x;
+      n->y = y;
+      n->z = z;
+    } else if (shape == CYLINDER) {
+      if (fabs (y) / yheight > sqrt (x * x + z * z) / (2 * radius)) {
+        n->y = 1; /*on a cap*/
+      } else {
+        n->x = x;
+        n->z = z;
+      }
+    } else if (shape == CUBE) {
+      /*the face whose coordinate is closest to its half-size*/
+      double ax = fabs (x) / xwidth, ay = fabs (y) / yheight, az = fabs (z) / zdepth;
+      if (ax >= ay && ax >= az)
+        n->x = 1;
+      else if (ay >= az)
+        n->y = 1;
+      else
+        n->z = 1;
+    }
   }
 %}
 
@@ -189,32 +241,19 @@ INITIALIZE
     Table_Rebin (&(table));
     printf ("done\n");
   }
-  if (shape != CUBE) {
-    if (refraction) {
-      fprintf (stderr, "Warning(%s): refraction=1 not supported with chosen geometry\n", NAME_CURRENT_COMP);
-      refraction = 0;
-    }
-  }
 %}
 
 TRACE
 %{
-  double alpha, e, k, mu, mu0, delta, beta, f;
-  double l0, l1, nx, ny, nz;
-  int i, status = 0;
-  if (shape == CYLINDER) {
-    status = cylinder_intersect (&l0, &l1, x, y, z, kx, ky, kz, radius, yheight);
-  } else if (shape == SPHERE) {
-    status = sphere_intersect (&l0, &l1, x, y, z, kx, ky, kz, radius);
-  } else if (shape == CUBE) {
-    status = box_intersect (&l0, &l1, x, y, z, kx, ky, kz, xwidth, yheight, zdepth);
-  } else if (shape == ANY) {
-    status = off_x_intersect (&l0, &l1, NULL, NULL, x, y, z, kx, ky, kz, offdata);
-  }
+  double e, k, mu0, delta, f;
+  double l0, l1;
+  Coords n0, n1;
+  int inside = 0;
 
-  if (status) {
+  if (filter_intersect (shape, &l0, &l1, &n0, &n1, x, y, z, kx, ky, kz, xwidth, yheight, zdepth, radius, offdata)) {
     PROP_DL (l0);
     l1 -= l0;
+    inside = 1;
 
     k = sqrt (kx * kx + ky * ky + kz * kz);
     e = k * K2E;
@@ -222,58 +261,23 @@ TRACE
     f = Table_Value (table, e, 1);
     delta = (fixed_delta ? fixed_delta : f / (k * k) * delta_prefactor);
     mu0 = Table_Value (table, e, mu_c) * rho * 1e2;
-    beta = mu0 / (2 * k);
 
-    /*change direction of ray due to refraction*/
+    /*change direction of ray due to refraction at the entry surface*/
     if (refraction) {
-      switch (shape) {
-      case CUBE:
-        if (fabs (x - xwidth * 0.5) < FLT_EPSILON || fabs (x + xwidth * 0.5) < FLT_EPSILON) {
-          nx = 1.0;
-          ny = 0.0;
-          nz = 0.0;
-        } else if (fabs (y - yheight * 0.5) < FLT_EPSILON || fabs (y + yheight * 0.5) < FLT_EPSILON) {
-          nx = 0.0;
-          ny = 1.0;
-          nz = 0.0;
-        } else if (fabs (z - zdepth * 0.5) < FLT_EPSILON || fabs (z + zdepth * 0.5) < FLT_EPSILON) {
-          nx = 0.0;
-          ny = 0.0;
-          nz = 1.0;
-        };
-        break;
-      case SPHERE:
-        nx = x;
-        ny = y;
-        nz = z;
-        NORM (nx, ny, nz);
-        break;
-      case CYLINDER:
-        if (fabs (y - yheight * 0.5) < FLT_EPSILON || fabs (y + yheight * 0.5) < FLT_EPSILON) {
-          x = 0.0;
-          y = 1.0;
-          z = 0.0;
-        } else {
-          nx = x;
-          nz = z;
-          ny = 0.0;
-          NORM (nx, ny, nz);
-        }
-        break;
-      default:
-        1;
-      }
-      status = filter_refract (&kx, &ky, &kz, nx, ny, nz, 0.0, delta);
+      if (shape != ANY)
+        filter_normal (shape, x, y, z, xwidth, yheight, zdepth, radius, &n0);
       SCATTER;
-
-      /*change of direction - we must now intersect again*/
-      if (shape == CUBE) {
-        status = box_intersect (&l0, &l1, x, y, z, kx, ky, kz, xwidth, yheight, zdepth);
-      } else if (shape == ANY) {
-        status = off_x_intersect (&l0, &l1, NULL, NULL, x, y, z, kx, ky, kz, offdata);
+      if (!filter_refract (&kx, &ky, &kz, n0, 0.0, delta)) {
+        inside = 0; /*reflected off the surface: the ray does not enter*/
+      } else if (!filter_intersect (shape, &l0, &l1, &n0, &n1, x, y, z, kx, ky, kz, xwidth, yheight, zdepth, radius, offdata)) {
+        /*ponytail: no exit found from the surface point (numerical edge case); absorb rather than guess a path*/
+        ABSORB;
       }
+      /*change of direction - intersected again from the surface, so l1 is the path inside*/
     }
+  }
 
+  if (inside) {
     /*change k ' we're now inside some material*/
     kx *= 1 - delta;
     ky *= 1 - delta;
@@ -284,47 +288,12 @@ TRACE
     SCATTER;
     PROP_DL (l1);
 
-    /*change direction of ray due to refraction*/
+    /*change direction of ray due to refraction at the exit surface*/
     if (refraction) {
-      switch (shape) {
-      case CUBE:
-        if (fabs (x - xwidth * 0.5) < FLT_EPSILON || fabs (x + xwidth * 0.5) < FLT_EPSILON) {
-          nx = 1.0;
-          ny = 0.0;
-          nz = 0.0;
-        } else if (fabs (y - yheight * 0.5) < FLT_EPSILON || fabs (y + yheight * 0.5) < FLT_EPSILON) {
-          nx = 0.0;
-          ny = 1.0;
-          nz = 0.0;
-        } else if (fabs (z - zdepth * 0.5) < FLT_EPSILON || fabs (z + zdepth * 0.5) < FLT_EPSILON) {
-          nx = 0.0;
-          ny = 0.0;
-          nz = 1.0;
-        };
-        break;
-      case SPHERE:
-        nx = x;
-        ny = y;
-        nz = z;
-        NORM (nx, ny, nz);
-        break;
-      case CYLINDER:
-        if (fabs (y - yheight * 0.5) < FLT_EPSILON || fabs (y + yheight * 0.5) < FLT_EPSILON) {
-          x = 0.0;
-          y = 1.0;
-          z = 0.0;
-        } else {
-          nx = x;
-          nz = z;
-          ny = 0.0;
-          NORM (nx, ny, nz);
-        }
-        break;
-      default:
-        1;
-      }
+      if (shape != ANY)
+        filter_normal (shape, x, y, z, xwidth, yheight, zdepth, radius, &n1);
       SCATTER;
-      status = filter_refract (&kx, &ky, &kz, nx, ny, nz, delta, 0.0);
+      filter_refract (&kx, &ky, &kz, n1, delta, 0.0);
     }
 
     /*correct for optical path length through the material*/

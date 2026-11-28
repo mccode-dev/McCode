@@ -36,8 +36,6 @@
 *
 * %Parameters
 * Input parameters:
-* radius_m: [m]  Ring radius of the upper (reflecting) plate of the pore at the intersection with the hyperbolic section.
-* radius_p: [m]  Ring radius of the upper (reflecting) plate of the pore at the edge furthest away from the focal point.
 * pore_height: [m] Height of the pore.
 * chamfer_width: [m] Width of side walls.
 * gap: [m] Gap between the plate and the intersection plane with the hyperbolic section.
@@ -54,6 +52,10 @@
 * non_specular_file: [str] Data file describing non-specular reflectivity
 * waviness: [rad] Waviness of the reflecting surface. The slope error is assumed to be uniformly distributed in the interval [-waviness:waviness].
 * longw: [1] If non-zero, waviness is 1D and along the pore axis.
+*
+* CALCULATED PARAMETERS:
+* radius_m: [m]  Ring radius of the upper (reflecting) plate of the pore at the intersection with the hyperbolic section. Read from size_file.
+* radius_p: [m]  Ring radius of the upper (reflecting) plate of the pore at the edge furthest away from the focal point. Read from size_file.
 *
 * %End
 *******************************************************************************/
@@ -112,20 +114,20 @@ SHARE
   #endif
 
   #ifndef PROP_Z
-   #define PROP_Z(zz)\
-      mcPROP_Z(zz)
+  #define PROP_Z(zz)\
+     mcPROP_Z(zz)
   #endif
 
   #ifndef mcPROP_Z
-   #define mcPROP_Z(zz) \
-    do { \
-      MCNUM mc_dl,mc_k; \
-      if(kz == 0) { ABSORB; }; \
-      mc_k=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz)); \
-      mc_dl= ((zz)-z) * mc_k / kz; \
-      if(mc_dl<0 && allow_backprop==0) { ABSORB; };\
-      PROP_DL(mc_dl); \
-    } while(0)
+  #define mcPROP_Z(zz) \
+   do { \
+     MCNUM mc_dl,mc_k; \
+     if(kz == 0) { ABSORB; }; \
+     mc_k=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz)); \
+     mc_dl= ((zz)-z) * mc_k / kz; \
+     if(mc_dl<0 && allow_backprop==0) { ABSORB; };\
+     PROP_DL(mc_dl); \
+   } while(0)
   #endif
 
   #ifndef DISTRIBUTIONS

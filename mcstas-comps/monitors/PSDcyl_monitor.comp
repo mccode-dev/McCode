@@ -85,8 +85,12 @@ TRACE
           yprime = y + yheight / 2.0;
 
           if (phi >= thmin && phi < thmax) {
-            i = floor ((nr - 1) * (phi - thmin) / (thmax - thmin));
-            j = floor ((ny - 1) * yprime / yheight);
+            i = floor (nr * (phi - thmin) / (thmax - thmin));
+            if (i >= nr)
+              i = nr - 1; /* rounding at thmax */
+            j = floor (ny * yprime / yheight);
+            if (j >= ny)
+              j = ny - 1; /* rounding at yheight/2 */
 
             double p2 = p * p;
             #pragma acc atomic

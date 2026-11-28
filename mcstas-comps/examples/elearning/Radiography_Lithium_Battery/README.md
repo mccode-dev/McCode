@@ -21,7 +21,7 @@ Radiography_Lithium_Battery was derived from Radiography_absorbing_edge. by Lind
 
 ## Examples
 
-- **Test: Radiography_Lithium_Battery -y Detector: PSD_1cm_detector_50mum_I=9.97993e-16**
+- **Test: Radiography_Lithium_Battery -y Detector: PSD_1cm_detector_50mum_I=9.63899e-16**
 
 ## Input parameters
 
