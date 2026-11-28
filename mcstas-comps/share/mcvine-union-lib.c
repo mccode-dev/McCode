@@ -8,19 +8,20 @@
 #endif
 
 int
-MCViNE_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data, _class_particle* _particle) {
+MCViNE_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
   *my = data_transfer.pointer_to_a_MCViNE_physics_storage_struct->m_my_scattering;
   return 1;
 }
 
 int
-MCViNE_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                           _class_particle* _particle) {
+MCViNE_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
   struct MCViNE_physics_storage_struct* st = data_transfer.pointer_to_a_MCViNE_physics_storage_struct;
   double v[3], r[3] = { 0, 0, 0 };
-  int ok, i;
-  for (i = 0; i < 3; i++)
-    v[i] = k_initial[i] * K2V;
+  double weight = _particle->p;
+  int ok;
+  v[0] = _particle->vx;
+  v[1] = _particle->vy;
+  v[2] = _particle->vz;
   if (st->m_kind == MCVINE_UNION_DGSSXRES) {
     /* aim with the Union focusing set on the geometry (target_index, focus_r, ...) */
     Coords k_out;
@@ -28,19 +29,23 @@ MCViNE_physics_scattering (double* k_final, double* k_initial, double* weight, u
     L = sqrt (focus_data->RayAim.x * focus_data->RayAim.x + focus_data->RayAim.y * focus_data->RayAim.y + focus_data->RayAim.z * focus_data->RayAim.z);
     if (!(L > 0))
       return 0;
-    focus_data->focusing_function (&k_out, &solid_angle, focus_data);
+    focus_data->focusing_function (&k_out, &solid_angle, focus_data, _particle);
     n = sqrt (k_out.x * k_out.x + k_out.y * k_out.y + k_out.z * k_out.z);
+    if (!(n > 0))
+      return 0;
     d[0] = k_out.x / n;
     d[1] = k_out.y / n;
     d[2] = k_out.z / n;
-    ok = mcvine_DGSSXRes_final ((mcvine_kernel_DGSSXRes*)st->m_kernel, d, solid_angle, L, v, _particle->t, weight, _particle);
+    ok = mcvine_DGSSXRes_final ((mcvine_kernel_DGSSXRes*)st->m_kernel, d, solid_angle, L, v, _particle->t, &weight, _particle);
   } else {
-    ok = st->m_S (st->m_kernel, r, v, _particle->t, weight, _particle);
+    ok = st->m_S (st->m_kernel, r, v, _particle->t, &weight, _particle);
   }
-  if (!ok || !(*weight > 0) || v[0] != v[0] || v[1] != v[1] || v[2] != v[2])
+  if (!ok || !(weight > 0) || v[0] != v[0] || v[1] != v[1] || v[2] != v[2])
     return 0;
-  for (i = 0; i < 3; i++)
-    k_final[i] = v[i] * V2K;
+  _particle->vx = v[0];
+  _particle->vy = v[1];
+  _particle->vz = v[2];
+  _particle->p = weight;
   return 1;
 }
 

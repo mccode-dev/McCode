@@ -758,7 +758,7 @@ SHARE
     *sum = 0;
     for (j = 0; j < tau_count; j++) {
       *sum += T[j].refl;
-      if (*sum > r)
+      if (*sum > r || (j == tau_count - 1 && *sum >= r))
         break;
     }
     return j;
@@ -826,8 +826,8 @@ SHARE
   // Function for calculating my, the inverse penetration depth (for only this scattering process).
   // The input for this function and its order may not be changed, but the names may be updated.
   int
-  Single_crystal_physics_my (double* my, double* k_initial, union data_transfer_union data_transfer, struct focus_data_struct* focus_data,
-                             _class_particle* _particle) {
+  Single_crystal_physics_my (double* my, _class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
     // *k_initial is a pointer to a simple vector with 3 doubles, k[0], k[1], k[2] which describes the wavevector
     double kix = k_initial[0], kiy = k_initial[1], kiz = k_initial[2];
     double ki = sqrt (k_initial[0] * k_initial[0] + k_initial[1] * k_initial[1] + k_initial[2] * k_initial[2]);
@@ -910,8 +910,10 @@ SHARE
   // Function that provides description of a basic scattering event.
   // Do not change the
   int
-  Single_crystal_physics_scattering (double* k_final, double* k_initial, double* weight, union data_transfer_union data_transfer,
-                                     struct focus_data_struct* focus_data, _class_particle* _particle) {
+  Single_crystal_physics_scattering (_class_particle* _particle, union data_transfer_union data_transfer, struct focus_data_struct* focus_data) {
+    double k_initial[3] = { V2K * _particle->vx, V2K * _particle->vy, V2K * _particle->vz };
+    double k_final[3];
+    double* weight = &_particle->p;
 
     int i;                    /* Index into structure factor list */
     struct hkl_data_union* L; /* Structure factor list */
@@ -934,7 +936,7 @@ SHARE
     T = hkl_info->tau_list;
 
     // Taken from Single_crystal.comp
-    if (hkl_info->coh_refl <= 0) {
+    if (hkl_info->tau_count <= 0 || hkl_info->coh_refl <= 0) {
       return 0; // Return 0 will use ABSORB in main component (as it is not allowed in a function)
     }
     sum = 0;
@@ -994,6 +996,7 @@ SHARE
     hkl_info->k = L[i].k;
     hkl_info->l = L[i].l;
 
+    union_particle_set_wavevector (_particle, k_final);
     return 1;
   };
 

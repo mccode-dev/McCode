@@ -1,0 +1,43 @@
+/*******************************************************************************
+* Instrument: Test_lib_union_ncrystal
+*
+* %I
+* %INSTRUMENT_SITE: libtest
+*
+* Smoke test: builds and runs with the Union NCrystal library in the
+* instrument. Requires the external NCrystal package.
+*
+* %Test: Ncount=10 Detector: PSD_I=10
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT Test_lib_union_ncrystal(Ncount=10)
+DEPENDENCY "@NCRYSTALFLAGS@"
+
+DECLARE
+%{
+  %include "union-lib"
+  %include "mccode-ncrystal-lib"
+  %include "union_ncrystal.c"
+%}
+
+INITIALIZE
+%{
+  mcset_ncount(Ncount);
+%}
+
+TRACE
+
+COMPONENT Arm = Arm()
+  AT (0,0,0) ABSOLUTE
+EXTEND %{
+  x = rand01()-0.5;
+  y = rand01()-0.5;
+  p = 1;
+  vz = 1000;
+%}
+
+COMPONENT PSD = PSD_monitor(xwidth=2.0, yheight=2.0, filename="union-ncrystal", nx=10, ny=10)
+  AT (0,0,0) ABSOLUTE
+
+END
