@@ -60,116 +60,109 @@ DEPENDENCY "@MCCODE_LIB@/libs/neutronics/neutronics-subs.o -Wl,-rpath,@MCCODE_LI
 SHARE
 %{
 
-#include <time.h>
+  #include <time.h>
 
-/**************************************
-*Function that returns current time to*
-*include into the output file header  *
-**************************************/
-char *get_current_time(){
-	time_t tp;
-	if(time(&tp)!=-1){
-		return asctime(localtime(&tp));
-	}
-	return NULL;
-}
+  /**************************************
+   *Function that returns current time to*
+   *include into the output file header  *
+   **************************************/
+  char*
+  get_current_time () {
+    time_t tp;
+    if (time (&tp) != -1) {
+      return asctime (localtime (&tp));
+    }
+    return NULL;
+  }
 %}
 DECLARE
 %{
   int n_neutron;
-  FILE *hfile;
+  FILE* hfile;
 %}
 
 INITIALIZE
 %{
-  n_neutron=1;
-  
+  n_neutron = 1;
+
   int i;
-  char ** head;
+  char** head;
   long nl;
 
-#if defined (USE_MPI)
-  exit(printf("MCNP_output: %s: ERROR: This component can not be used in parallel execution mode (MPI). Abort.\n", NAME_CURRENT_COMP));
-#endif
+  #if defined (USE_MPI)
+  exit (printf ("MCNP_output: %s: ERROR: This component can not be used in parallel execution mode (MPI). Abort.\n", NAME_CURRENT_COMP));
+  #endif
 
   /* Open neutron output file. */
-  if(filename && strcmp(filename,"NULL") && strcmp(filename,"0") && strcmp(filename,"stdout"))
-    hfile = fopen(filename, "w");
+  if (filename && strcmp (filename, "NULL") && strcmp (filename, "0") && strcmp (filename, "stdout"))
+    hfile = fopen (filename, "w");
   else
     hfile = stdout;
-  if(!hfile)
-  {
-    fprintf(stderr, "MCNP_output: %s: Error: Cannot open output file %s.\n", 
-      NAME_CURRENT_COMP, 
-      (filename && strcmp(filename,"NULL") && strcmp(filename,"0") && strcmp(filename,"stdout") ? filename : "stdout"));
-    exit(1);
+  if (!hfile) {
+    fprintf (stderr, "MCNP_output: %s: Error: Cannot open output file %s.\n", NAME_CURRENT_COMP,
+             (filename && strcmp (filename, "NULL") && strcmp (filename, "0") && strcmp (filename, "stdout") ? filename : "stdout"));
+    exit (1);
   }
-
-
 
   /* generates a default MCNP5 header */
-  fprintf(hfile,"-1\n");
-  char *tp =get_current_time();
-  if(tp==NULL){
-  	fprintf(hfile,"mcnpx \n");
+  fprintf (hfile, "-1\n");
+  char* tp = get_current_time ();
+  if (tp == NULL) {
+    fprintf (hfile, "mcnpx \n");
+  } else {
+    fprintf (hfile, "mcnpx %s\n", get_current_time ());
   }
-  else{
-  	fprintf(hfile,"mcnpx %s\n",get_current_time());
-  }
-  fprintf(hfile,"HFR05h: MCNP run (reaction rates ,capture, fission, total) HFR Grenoble\n");
-  fprintf(hfile,"   1.3000E+01  1.0000E+00  1.0000E+02  0.0000E+00  1.0000E+00  3.0000E+00  1.0000E+00  1.0000E+00  3.0000E+00  4.0000E+01\n");
-  fprintf(hfile,"   4.0000E+01  1.8000E+01  1.0000E+00  1.0000E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00\n");
-  fprintf(hfile,"   1.0000E+00  2.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00\n");
-  fprintf(hfile,"     2    6    9    7    9    7    9    7    9    7    9    1    4    0    0    0    0    0    0    0\n");
-  fprintf(hfile,"    1   2   7   8   9  17  18  19  20  21  22  23  24  25  26  27  28   7   8  10  11  17  18  19  20  21  22  23  24  25\n");
-  fprintf(hfile,"   26  27  28   7   8  12  13  17  18  19  20  21  22  23  24  25  26  27  28   7   8  10  11  17  18  19  20  21  22  23\n");
-  fprintf(hfile,"   24  25  26  27  28   7   8  14  15  17  18  19  20  21  22  23  24  25  26  27  28\n");
+  fprintf (hfile, "HFR05h: MCNP run (reaction rates ,capture, fission, total) HFR Grenoble\n");
+  fprintf (hfile, "   1.3000E+01  1.0000E+00  1.0000E+02  0.0000E+00  1.0000E+00  3.0000E+00  1.0000E+00  1.0000E+00  3.0000E+00  4.0000E+01\n");
+  fprintf (hfile, "   4.0000E+01  1.8000E+01  1.0000E+00  1.0000E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00\n");
+  fprintf (hfile, "   1.0000E+00  2.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00\n");
+  fprintf (hfile, "     2    6    9    7    9    7    9    7    9    7    9    1    4    0    0    0    0    0    0    0\n");
+  fprintf (hfile, "    1   2   7   8   9  17  18  19  20  21  22  23  24  25  26  27  28   7   8  10  11  17  18  19  20  21  22  23  24  25\n");
+  fprintf (hfile, "   26  27  28   7   8  12  13  17  18  19  20  21  22  23  24  25  26  27  28   7   8  10  11  17  18  19  20  21  22  23\n");
+  fprintf (hfile, "   24  25  26  27  28   7   8  14  15  17  18  19  20  21  22  23  24  25  26  27  28\n");
 %}
 
 TRACE
 %{
   double Mev2Joule = 1.602e-13;
-  double Mneutron  = 1.6749543e-27;
-  long   begin_filename=0;
+  double Mneutron = 1.6749543e-27;
+  long begin_filename = 0;
 
   double energy, speed, weight;
-  double ux,uy,uz,pos_x,pos_y,pos_z;
-
-
+  double ux, uy, uz, pos_x, pos_y, pos_z;
 
   /* writes MCNP file line by line */
-  speed = vx*vx + vy*vy + vz*vz;
+  speed = vx * vx + vy * vy + vz * vz;
   energy = speed / 2. * Mneutron / Mev2Joule;
 
-  speed = sqrt(speed);
-  ux = vx/speed;
-  uy = vy/speed;
-  uz = vz/speed;
+  speed = sqrt (speed);
+  ux = vx / speed;
+  uy = vy / speed;
+  uz = vz / speed;
 
   pos_x = x * 100.;
   pos_y = y * 100.;
   pos_z = z * 100.;
 
   weight = p;
-  fprintf(hfile,"\t %d \t 1000 \n",n_neutron);
-  fprintf(hfile,"\t 1000 \t 0 \t %d \t 0 \t 0 \t 0 \t 0 \n",INDEX_CURRENT_COMP);
-  fprintf(hfile,"\t %e \t %e \t %e \t %e \t %e \t %e \t %e \t %e \n",pos_x, pos_y, pos_z, ux, uy, uz, weight,energy);
+  fprintf (hfile, "\t %d \t 1000 \n", n_neutron);
+  fprintf (hfile, "\t 1000 \t 0 \t %d \t 0 \t 0 \t 0 \t 0 \n", INDEX_CURRENT_COMP);
+  fprintf (hfile, "\t %e \t %e \t %e \t %e \t %e \t %e \t %e \t %e \n", pos_x, pos_y, pos_z, ux, uy, uz, weight, energy);
   n_neutron++;
-
 %}
 
 SAVE
 %{
   if (hfile) {
 
-    fflush(hfile);
+    fflush (hfile);
   }
-
 %}
 
 FINALLY
 %{
-  if (hfile) fclose(hfile);
+  if (hfile)
+    fclose (hfile);
 %}
 
 MCDISPLAY

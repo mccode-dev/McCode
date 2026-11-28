@@ -65,8 +65,8 @@ SHARE INHERIT PowderN EXTEND
      Returns the number of segments, 0 when the shape is not ahead. */
   #pragma acc routine seq
   int
-  ppor_path (int shape, gmesh_struct* om, gmesh_struct* pm, double r, double xw, double yh, double zd, double yfill,
-             double x, double y, double z, double vx, double vy, double vz, double* ts, int* mat, int* nhits) {
+  ppor_path (int shape, gmesh_struct* om, gmesh_struct* pm, double r, double xw, double yh, double zd, double yfill, double x, double y, double z, double vx,
+             double vy, double vz, double* ts, int* mat, int* nhits) {
     gmesh_hit hits[GMESH_MAX_HITS];
     double t0 = 0, t3 = 0, tb, tf;
     int hit = 0, nh = 0, i, n = 0, depth = 0;
@@ -258,9 +258,13 @@ TRACE
         }
         if (vnorm < 0.01) {
           if (fabs (vx) < fabs (vz)) {
-            nx = 1; ny = 0; nz = 0;
+            nx = 1;
+            ny = 0;
+            nz = 0;
           } else {
-            nx = 0; ny = 0; nz = 1;
+            nx = 0;
+            ny = 0;
+            nz = 1;
           }
           vec_prod (tmp_vx, tmp_vy, tmp_vz, vx, vy, vz, nx, ny, nz);
         }
@@ -304,10 +308,9 @@ FINALLY INHERIT PowderN EXTEND
     mc_MPI_Sum (&ppor_nfull, 1);
   }
   #endif
-  MPI_MASTER (if (ppor_nnear > 0)
-    printf ("PowderN_porous: %s: WARNING: %g rays crossed >= 80 %% and %g rays 100 %% of GMESH_MAX_HITS=%d pore surfaces\n"
-            "  (at 100 %%, farther pores may be dropped). Raise with DEPENDENCY \" -DGMESH_MAX_HITS=... \".\n",
-            NAME_CURRENT_COMP, ppor_nnear, ppor_nfull, GMESH_MAX_HITS););
+  MPI_MASTER (if (ppor_nnear > 0) printf ("PowderN_porous: %s: WARNING: %g rays crossed >= 80 %% and %g rays 100 %% of GMESH_MAX_HITS=%d pore surfaces\n"
+                                          "  (at 100 %%, farther pores may be dropped). Raise with DEPENDENCY \" -DGMESH_MAX_HITS=... \".\n",
+                                          NAME_CURRENT_COMP, ppor_nnear, ppor_nfull, GMESH_MAX_HITS););
   gmesh_free (&pmesh);
 %}
 

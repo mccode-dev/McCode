@@ -139,9 +139,8 @@ SETTING PARAMETERS (bins=10, step=0.1, keep=0.1, string options=0)
 SHARE
 %{
 
-/* here we define a structure of constants (some kind of DEFINES) */
-  struct Optim_Defines
-  {
+  /* here we define a structure of constants (some kind of DEFINES) */
+  struct Optim_Defines {
     char PHASE_UNACTIVATE; /* to inactivate Optimizer */
     char PHASE_SET_LIMITS; /* set array limits to 0, then ask for GET_LIMITS */
     char PHASE_GET_LIMITS; /* compute array limits, then ask for SET_REF */
@@ -150,7 +149,7 @@ SHARE
     char PHASE_SET_SOURCE; /* set Source to Ref*x%+New_Source, normalize to Ref, Passing to 0, then ask for OPTIM */
     char PHASE_OPTIM;      /* Optimize and get New_Source (continuous optimization), then reask SET_SOURCE when required */
 
-    char MOD_X;            /* what was modified in last optim */
+    char MOD_X; /* what was modified in last optim */
     char MOD_Y;
     char MOD_VX;
     char MOD_VY;
@@ -159,25 +158,24 @@ SHARE
     char MOD_SY;
     char MOD_SZ;
 
-    char DO_XY;            /* what to optimize */
+    char DO_XY; /* what to optimize */
     char DO_V;
     char DO_S;
-    char DO_DIVV;          /* (overrides with DO_V) */
-    char DO_DIVS;          /* (overrides with DO_S) */
+    char DO_DIVV; /* (overrides with DO_V) */
+    char DO_DIVS; /* (overrides with DO_S) */
 
     /* token modifiers */
-    char COORD_VAR;        /* normal token */
-    char COORD_STEP;       /* next token is a min value */
-    char COORD_KEEP;       /* next token is a max value */
-    char COORD_DIM;        /* next token is a bin value */
-    char COORD_FIL;        /* next token is a filename */
+    char COORD_VAR;  /* normal token */
+    char COORD_STEP; /* next token is a min value */
+    char COORD_KEEP; /* next token is a max value */
+    char COORD_DIM;  /* next token is a bin value */
+    char COORD_FIL;  /* next token is a filename */
 
-    char TOKEN_DEL[32];    /* token separators */
+    char TOKEN_DEL[32]; /* token separators */
   }
 
   /* here we define a structure containing all informations */
-  struct Optim_Variables
-  {
+  struct Optim_Variables {
     /* These are distribution arrays[bins] within limits
      * flux is kept during optimisation
      * NOT stored : z is the position of previous component
@@ -185,51 +183,51 @@ SHARE
      */
 
     /* initial Reference distribution arrays (for weights) */
-    double *Reference_x;
-    double *Reference_y;
-    double *Reference_vx; /* will be used either as 'v' or divergence on x,y */
-    double *Reference_vy;
-    double *Reference_vz;
-    double *Reference_sx;
-    double *Reference_sy;
-    double *Reference_sz;
+    double* Reference_x;
+    double* Reference_y;
+    double* Reference_vx; /* will be used either as 'v' or divergence on x,y */
+    double* Reference_vy;
+    double* Reference_vz;
+    double* Reference_sx;
+    double* Reference_sy;
+    double* Reference_sz;
 
     /* optimized Source distribution arrays (to reach) */
-    double *Source_x;
-    double *Source_y;
-    double *Source_vx;    /* will be used either as 'v' or divergence on x,y */
-    double *Source_vy;
-    double *Source_vz;
-    double *Source_sx;
-    double *Source_sy;
-    double *Source_sz;
+    double* Source_x;
+    double* Source_y;
+    double* Source_vx; /* will be used either as 'v' or divergence on x,y */
+    double* Source_vy;
+    double* Source_vz;
+    double* Source_sx;
+    double* Source_sy;
+    double* Source_sz;
 
     /* optimized New_Source distribution arrays (to reach in next step, passed to Source) */
-    double *New_Source_x;
-    double *New_Source_y;
-    double *New_Source_vx;  /* will be used either as 'v' or divergence on x,y */
-    double *New_Source_vy;
-    double *New_Source_vz;
-    double *New_Source_sx;
-    double *New_Source_sy;
-    double *New_Source_sz;
+    double* New_Source_x;
+    double* New_Source_y;
+    double* New_Source_vx; /* will be used either as 'v' or divergence on x,y */
+    double* New_Source_vy;
+    double* New_Source_vz;
+    double* New_Source_sx;
+    double* New_Source_sy;
+    double* New_Source_sz;
 
     /* Passing distribution arrays (should grow to reach Source) */
-    double *Passing_x;
-    double *Passing_y;
-    double *Passing_vx; /* will be used either as 'v' or divergence on x,y */
-    double *Passing_vy;
-    double *Passing_vz;
-    double *Passing_sx;
-    double *Passing_sy;
-    double *Passing_sz;
+    double* Passing_x;
+    double* Passing_y;
+    double* Passing_vx; /* will be used either as 'v' or divergence on x,y */
+    double* Passing_vy;
+    double* Passing_vz;
+    double* Passing_sx;
+    double* Passing_sy;
+    double* Passing_sz;
 
     /* limits for state parameters */
 
     /* x and y are Optimizer dimensions (input parameters) */
-    double x_min,  x_max;
-    double y_min,  y_max;
-    double vx_min, vx_max;  /* will be used either as 'v' or divergence on x,y */
+    double x_min, x_max;
+    double y_min, y_max;
+    double vx_min, vx_max; /* will be used either as 'v' or divergence on x,y */
     double vy_min, vy_max;
     double vz_min, vz_max;
     double sx_min, sx_max;
@@ -246,35 +244,35 @@ SHARE
     int good_sz;
 
     int nbins;
-    long n_redirect;             /* number of consecutive ABSORB */
-    int Phase;              /* Optimizer function */
-    long Phase_Counts;  /* neutron counts to achieve in each Phase */
+    long n_redirect;      /* number of consecutive ABSORB */
+    int Phase;            /* Optimizer function */
+    long Phase_Counts;    /* neutron counts to achieve in each Phase */
     long Phase_Counts_L;  /* neutron counts to achieve in Limits Phase */
     long Phase_Counts_R;  /* neutron counts to achieve in Reference Phase */
-    char Flag_Continuous;  /* 1 : continuous Source optimization */
-    char Flag_Verbose;  /* displays optimization informations */
-    char Flag_Smooth;  /* 1 means that first steps non optimized neutrons are smoothed */
-    char Flag_Auto;  /* 1 is for minimum counts in 2 first steps */
-    char Flag_Type;  /* what to act on */
-    long Limits_Counts;  /* passing neutron counts in each Phase */
+    char Flag_Continuous; /* 1 : continuous Source optimization */
+    char Flag_Verbose;    /* displays optimization informations */
+    char Flag_Smooth;     /* 1 means that first steps non optimized neutrons are smoothed */
+    char Flag_Auto;       /* 1 is for minimum counts in 2 first steps */
+    char Flag_Type;       /* what to act on */
+    long Limits_Counts;   /* passing neutron counts in each Phase */
     long Reference_Counts;
     long Passing_Counts;
     double Monitor_Counts;
 
-    double Limits_Flux;   /* passing neutron flux in each Phase */
+    double Limits_Flux; /* passing neutron flux in each Phase */
     double Reference_Flux;
     double Passing_Flux;
     double Monitor_Flux;
     double Smoothed_Weigth;
 
-    float dkeep;   /* percent of kept reference source */
-    float keep_target;   /* to be reached */
+    float dkeep;       /* percent of kept reference source */
+    float keep_target; /* to be reached */
     float dstep;
-    long Normal_Monitor_Counts;     /* counts without optim */
-    long Total_Monitor_Counts;     /* final monitor counts */
+    long Normal_Monitor_Counts; /* counts without optim */
+    long Total_Monitor_Counts;  /* final monitor counts */
 
-    double cur_vx;        /* save neutron characteristics for Monitor and ABSORDed->Redirected neutrons */
-    double cur_vy;       /* will be used either as 'v' or divergence on x,y */
+    double cur_vx; /* save neutron characteristics for Monitor and ABSORDed->Redirected neutrons */
+    double cur_vy; /* will be used either as 'v' or divergence on x,y */
     double cur_vz;
     double cur_x;
     double cur_y;
@@ -283,26 +281,26 @@ SHARE
     double cur_sz;
     double cur_p;
 
-    double dvx, dvy, dvz;  /* for divergence x,y + v2, or velocity */
-    double dsx, dsy, dsz;  /* for divergence sx,sy + s2, or spin */
+    double dvx, dvy, dvz; /* for divergence x,y + v2, or velocity */
+    double dsx, dsy, dsz; /* for divergence sx,sy + s2, or spin */
 
-    char file[64];        /* output file name */
+    char file[64]; /* output file name */
 
-    double t1;          /* tempo vars */
+    double t1; /* tempo vars */
     double t2;
     double t3;
-    double u1;          /* tempo vars */
+    double u1; /* tempo vars */
     double u2;
     double u3;
-    int i1;          /* tempo vars */
+    int i1; /* tempo vars */
     int i2;
     int i3;
 
-    int index;      /* a running Vars.index */
+    int index; /* a running Vars.index */
 
-    int index_x ;   /* indexes for last neutron that passed through */
-    int index_y ;
-    int index_vx;   /* will be used either as 'v' or divergence on x,y */
+    int index_x; /* indexes for last neutron that passed through */
+    int index_y;
+    int index_vx; /* will be used either as 'v' or divergence on x,y */
     int index_vy;
     int index_vz;
     int index_sx;
@@ -311,7 +309,7 @@ SHARE
 
     double v2;
     double S2;
-    char Flag_Recycle;    /* record of neutron state changes : DEFS.MOD_xx */
+    char Flag_Recycle; /* record of neutron state changes : DEFS.MOD_xx */
 
     int Monitor_Number;
   }
@@ -320,7 +318,7 @@ SHARE
 DECLARE
 %{
   #ifndef FLT_MAX
-    #define FLT_MAX 1e37
+  #define FLT_MAX 1e37
   #endif
 
   Optim_Defines DEFS;
@@ -332,319 +330,451 @@ INITIALIZE
   unsigned char carg = 1;
   char *option_copy, *token;
   char Flag_New_Token = 1;
-  char Flag_End       = 1;
-  char Flag_No        = 0;
-  char Token_Mode     = DEFS.COORD_VAR;
+  char Flag_End = 1;
+  char Flag_No = 0;
+  char Token_Mode = DEFS.COORD_VAR;
 
-/* init OPTIM */
-  DEFS.PHASE_UNACTIVATE =0; /* to inactivate Optimizer */
-  DEFS.PHASE_SET_LIMITS =1; /* set array limits to 0, then ask for GET_LIMITS */
-  DEFS.PHASE_GET_LIMITS =2; /* compute array limits, then ask for SET_REF */
-  DEFS.PHASE_SET_REF    =3; /* set Ref and New_Source to to 0, then ask for GET_REF */
-  DEFS.PHASE_GET_REF    =4; /* compute Ref (and New_Source in Monitor), then ask for SET_SOURCE */
-  DEFS.PHASE_SET_SOURCE =5; /* set Source to Ref*x%+New_Source, normalize to Ref, Passing to 0, then ask for OPTIM */
-  DEFS.PHASE_OPTIM      =6; /* Optimize and get New_Source (continuous optimization), then reask SET_SOURCE when required */
+  /* init OPTIM */
+  DEFS.PHASE_UNACTIVATE = 0; /* to inactivate Optimizer */
+  DEFS.PHASE_SET_LIMITS = 1; /* set array limits to 0, then ask for GET_LIMITS */
+  DEFS.PHASE_GET_LIMITS = 2; /* compute array limits, then ask for SET_REF */
+  DEFS.PHASE_SET_REF = 3;    /* set Ref and New_Source to to 0, then ask for GET_REF */
+  DEFS.PHASE_GET_REF = 4;    /* compute Ref (and New_Source in Monitor), then ask for SET_SOURCE */
+  DEFS.PHASE_SET_SOURCE = 5; /* set Source to Ref*x%+New_Source, normalize to Ref, Passing to 0, then ask for OPTIM */
+  DEFS.PHASE_OPTIM = 6;      /* Optimize and get New_Source (continuous optimization), then reask SET_SOURCE when required */
 
-  DEFS.MOD_X            =1; /* what was modified in last optim */
-  DEFS.MOD_Y            =2;
-  DEFS.MOD_VX           =4; /* will be used either as 'v' or divergence on x,y */
-  DEFS.MOD_VY           =8;
-  DEFS.MOD_VZ           =16;
-  DEFS.MOD_SX           =32;
-  DEFS.MOD_SY           =64;
-  DEFS.MOD_SZ           =128;
+  DEFS.MOD_X = 1; /* what was modified in last optim */
+  DEFS.MOD_Y = 2;
+  DEFS.MOD_VX = 4; /* will be used either as 'v' or divergence on x,y */
+  DEFS.MOD_VY = 8;
+  DEFS.MOD_VZ = 16;
+  DEFS.MOD_SX = 32;
+  DEFS.MOD_SY = 64;
+  DEFS.MOD_SZ = 128;
 
-  DEFS.DO_XY            =1; /* what to optimize */
-  DEFS.DO_V             =2;
-  DEFS.DO_S             =4;
-  DEFS.DO_DIVV          =8; /* (overrides with DO_V) */
-  DEFS.DO_DIVS          =16; /* (overrides with DO_S) */
+  DEFS.DO_XY = 1; /* what to optimize */
+  DEFS.DO_V = 2;
+  DEFS.DO_S = 4;
+  DEFS.DO_DIVV = 8;  /* (overrides with DO_V) */
+  DEFS.DO_DIVS = 16; /* (overrides with DO_S) */
 
   /* token modifiers */
-  DEFS.COORD_VAR              =0; /* normal token */
-  DEFS.COORD_STEP             =1; /* next token is a step value */
-  DEFS.COORD_KEEP             =2; /* next token is a keep value */
-  DEFS.COORD_DIM              =3; /* next token is a bin value */
-  DEFS.COORD_FIL              =4; /* next token is a filename */
+  DEFS.COORD_VAR = 0;  /* normal token */
+  DEFS.COORD_STEP = 1; /* next token is a step value */
+  DEFS.COORD_KEEP = 2; /* next token is a keep value */
+  DEFS.COORD_DIM = 3;  /* next token is a bin value */
+  DEFS.COORD_FIL = 4;  /* next token is a filename */
 
-  strcpy(DEFS.TOKEN_DEL, " =,;[](){}:");        /* token separators */
+  strcpy (DEFS.TOKEN_DEL, " =,;[](){}:"); /* token separators */
 
   /* init Optim */
-  Vars.good_x           =0;  /* indexes for last 'good' neutron that passed through */
-  Vars.good_y           =0;
-  Vars.good_vx           =0;  /* will be used either as 'v' or divergence on x,y */
-  Vars.good_vy           =0;
-  Vars.good_vz           =0;
-  Vars.good_sx           =0;
-  Vars.good_sy           =0;
-  Vars.good_sz           =0;
+  Vars.good_x = 0; /* indexes for last 'good' neutron that passed through */
+  Vars.good_y = 0;
+  Vars.good_vx = 0; /* will be used either as 'v' or divergence on x,y */
+  Vars.good_vy = 0;
+  Vars.good_vz = 0;
+  Vars.good_sx = 0;
+  Vars.good_sy = 0;
+  Vars.good_sz = 0;
 
-  Vars.nbins             = (int)bins;
-  Vars.n_redirect  =0;                /* number of consecutive ABSORB */
-  Vars.Phase_Counts     =0;  /* neutron counts to achieve in each Phase */
-  Vars.Phase_Counts_L   =0;  /* neutron counts to achieve in Limits Phase */
-  Vars.Phase_Counts_R   =0;  /* neutron counts to achieve in Reference Phase */
-  Vars.Flag_Continuous  =1;  /* 1 : continuous Source optimization */
-  Vars.Phase            = DEFS.PHASE_SET_LIMITS;
-  Vars.n_redirect       =0;
-  Vars.Flag_Verbose     =0;  /* displays optimization informations */
-  Vars.Flag_Smooth        =1;  /* 1 means that first steps non optimized neutrons are smoothed */
-  Vars.Flag_Auto        =1;  /* 1 is for minimum counts in 2 first steps */
-  Vars.Flag_Type        =0;  /* what to act on */
-  Vars.Limits_Counts    =0;  /* passing neutron counts in each Phase */
-  Vars.Reference_Counts =0;
-  Vars.Passing_Counts   =0;
-  Vars.Monitor_Counts   =0;
+  Vars.nbins = (int)bins;
+  Vars.n_redirect = 0;      /* number of consecutive ABSORB */
+  Vars.Phase_Counts = 0;    /* neutron counts to achieve in each Phase */
+  Vars.Phase_Counts_L = 0;  /* neutron counts to achieve in Limits Phase */
+  Vars.Phase_Counts_R = 0;  /* neutron counts to achieve in Reference Phase */
+  Vars.Flag_Continuous = 1; /* 1 : continuous Source optimization */
+  Vars.Phase = DEFS.PHASE_SET_LIMITS;
+  Vars.n_redirect = 0;
+  Vars.Flag_Verbose = 0;  /* displays optimization informations */
+  Vars.Flag_Smooth = 1;   /* 1 means that first steps non optimized neutrons are smoothed */
+  Vars.Flag_Auto = 1;     /* 1 is for minimum counts in 2 first steps */
+  Vars.Flag_Type = 0;     /* what to act on */
+  Vars.Limits_Counts = 0; /* passing neutron counts in each Phase */
+  Vars.Reference_Counts = 0;
+  Vars.Passing_Counts = 0;
+  Vars.Monitor_Counts = 0;
 
-  Vars.Limits_Flux        =0;    /* passing neutron flux in each Phase */
-  Vars.Reference_Flux   =0;
-  Vars.Passing_Flux     =0;
-  Vars.Monitor_Flux     =0;
-  Vars.Smoothed_Weigth  =0;
+  Vars.Limits_Flux = 0; /* passing neutron flux in each Phase */
+  Vars.Reference_Flux = 0;
+  Vars.Passing_Flux = 0;
+  Vars.Monitor_Flux = 0;
+  Vars.Smoothed_Weigth = 0;
 
-  Vars.dkeep             = keep;
-  Vars.dstep             = step;
-  Vars.Normal_Monitor_Counts = 0;         /* counts without optim */
-  Vars.Total_Monitor_Counts  = 0;         /* final monitor counts */
+  Vars.dkeep = keep;
+  Vars.dstep = step;
+  Vars.Normal_Monitor_Counts = 0; /* counts without optim */
+  Vars.Total_Monitor_Counts = 0;  /* final monitor counts */
 
-  Vars.Monitor_Number  = 0;
+  Vars.Monitor_Number = 0;
 
   /* we parse the option string just as in monitor_nD */
 
+  strcpy (Vars.file, "");
 
-  strcpy(Vars.file,"");
-
-  if (options != NULL)
-  {
-    option_copy = (char*)malloc(strlen(options));
-    if (option_copy == NULL)
-    {
-      printf("Optimizer: %s cannot allocate option_copy (%i). Fatal.\n", NAME_CURRENT_COMP, strlen(options));
-      exit(-1);
+  if (options != NULL) {
+    option_copy = (char*)malloc (strlen (options));
+    if (option_copy == NULL) {
+      printf ("Optimizer: %s cannot allocate option_copy (%i). Fatal.\n", NAME_CURRENT_COMP, strlen (options));
+      exit (-1);
     }
-  }
-  else
-  {
-    option_copy = (char*)malloc(128);
-    strcpy(option_copy, "");
+  } else {
+    option_copy = (char*)malloc (128);
+    strcpy (option_copy, "");
   }
 
-
-  if (strlen(options))
-  {
+  if (strlen (options)) {
     Flag_End = 0;
-    strcpy(option_copy, options);
+    strcpy (option_copy, options);
   }
 
   /* general keywords */
 
-  if (strstr(option_copy,"Set"))         Vars.Flag_Type       = 0;
-  if (strstr(option_copy,"SetXY"))       Vars.Flag_Type       |= DEFS.DO_XY;
-  if (strstr(option_copy,"SetDivV"))     Vars.Flag_Type       |= DEFS.DO_DIVV;
-  else
-    if (strstr(option_copy,"SetV"))      Vars.Flag_Type       |= DEFS.DO_V;
-  if (strstr(option_copy,"SetDivS"))     Vars.Flag_Type       |= DEFS.DO_DIVS;
-  else
-    if (strstr(option_copy,"SetS"))      Vars.Flag_Type       |= DEFS.DO_S;
-  if (strstr(option_copy,"inactivate"))  Vars.Phase = DEFS.PHASE_UNACTIVATE;
+  if (strstr (option_copy, "Set"))
+    Vars.Flag_Type = 0;
+  if (strstr (option_copy, "SetXY"))
+    Vars.Flag_Type |= DEFS.DO_XY;
+  if (strstr (option_copy, "SetDivV"))
+    Vars.Flag_Type |= DEFS.DO_DIVV;
+  else if (strstr (option_copy, "SetV"))
+    Vars.Flag_Type |= DEFS.DO_V;
+  if (strstr (option_copy, "SetDivS"))
+    Vars.Flag_Type |= DEFS.DO_DIVS;
+  else if (strstr (option_copy, "SetS"))
+    Vars.Flag_Type |= DEFS.DO_S;
+  if (strstr (option_copy, "inactivate"))
+    Vars.Phase = DEFS.PHASE_UNACTIVATE;
 
-  if (Vars.Flag_Type == 0) Vars.Flag_Type = (DEFS.DO_XY|DEFS.DO_DIVV|DEFS.DO_DIVS);
+  if (Vars.Flag_Type == 0)
+    Vars.Flag_Type = (DEFS.DO_XY | DEFS.DO_DIVV | DEFS.DO_DIVS);
 
   carg = 1;
-  while((Flag_End == 0) && (carg < 128))
-  {
+  while ((Flag_End == 0) && (carg < 128)) {
     if (Flag_New_Token) /* to get the previous token sometimes */
     {
-      if (carg == 1) token=(char *)strtok(option_copy,DEFS.TOKEN_DEL);
-      else token=(char *)strtok(NULL,DEFS.TOKEN_DEL);
-      if (token == NULL) Flag_End=1;
+      if (carg == 1)
+        token = (char*)strtok (option_copy, DEFS.TOKEN_DEL);
+      else
+        token = (char*)strtok (NULL, DEFS.TOKEN_DEL);
+      if (token == NULL)
+        Flag_End = 1;
     }
     Flag_New_Token = 1;
-    if ((token != NULL) && (strlen(token) != 0))
-    {
-    /* first handle option values from preceeding keyword token detected */
-      if (Token_Mode == DEFS.COORD_STEP)
-      {
-        Vars.dstep = atof(token);
+    if ((token != NULL) && (strlen (token) != 0)) {
+      /* first handle option values from preceeding keyword token detected */
+      if (Token_Mode == DEFS.COORD_STEP) {
+        Vars.dstep = atof (token);
         Token_Mode = DEFS.COORD_VAR;
       }
-      if (Token_Mode == DEFS.COORD_KEEP)
-      {
-        Vars.dkeep = atof(token);
+      if (Token_Mode == DEFS.COORD_KEEP) {
+        Vars.dkeep = atof (token);
         Token_Mode = DEFS.COORD_VAR;
       }
-      if (Token_Mode == DEFS.COORD_DIM)
-      {
-        Vars.nbins = atoi(token);
+      if (Token_Mode == DEFS.COORD_DIM) {
+        Vars.nbins = atoi (token);
         Token_Mode = DEFS.COORD_VAR;
       }
-      if (Token_Mode == DEFS.COORD_FIL)
-      {
-        if (!Flag_No) strcpy(Vars.file,token);
-        else { strcpy(Vars.file,""); }
+      if (Token_Mode == DEFS.COORD_FIL) {
+        if (!Flag_No)
+          strcpy (Vars.file, token);
+        else {
+          strcpy (Vars.file, "");
+        }
         Token_Mode = DEFS.COORD_VAR;
       }
 
       /* now look for general option keywords */
 
-      if (!strcmp(token, "continuous"))
-      { if (Flag_No) { Vars.Flag_Continuous = 0; Flag_No = 0; }
-        else Vars.Flag_Continuous      = 1; }
-      if (!strcmp(token, "verbose"))
-      { if (Flag_No) { Vars.Flag_Verbose = 0; Flag_No = 0; }
-        else Vars.Flag_Verbose      = 1; }
+      if (!strcmp (token, "continuous")) {
+        if (Flag_No) {
+          Vars.Flag_Continuous = 0;
+          Flag_No = 0;
+        } else
+          Vars.Flag_Continuous = 1;
+      }
+      if (!strcmp (token, "verbose")) {
+        if (Flag_No) {
+          Vars.Flag_Verbose = 0;
+          Flag_No = 0;
+        } else
+          Vars.Flag_Verbose = 1;
+      }
 
-      if (!strcmp(token, "auto"))
-      { if (Flag_No) { Vars.Flag_Auto = 0; Flag_No = 0; }
-        else Vars.Flag_Auto = 1; }
-      if (!strcmp(token, "smooth"))
-      { if (Flag_No) { Vars.Flag_Smooth = 0; Flag_No = 0; }
-        else Vars.Flag_Smooth      = 1; }
+      if (!strcmp (token, "auto")) {
+        if (Flag_No) {
+          Vars.Flag_Auto = 0;
+          Flag_No = 0;
+        } else
+          Vars.Flag_Auto = 1;
+      }
+      if (!strcmp (token, "smooth")) {
+        if (Flag_No) {
+          Vars.Flag_Smooth = 0;
+          Flag_No = 0;
+        } else
+          Vars.Flag_Smooth = 1;
+      }
 
-      if (!strcmp(token, "bins")) Token_Mode = DEFS.COORD_DIM;
-      if (!strcmp(token, "step")) Token_Mode = DEFS.COORD_STEP;
-      if (!strcmp(token, "keep")) Token_Mode = DEFS.COORD_KEEP;
-      if (!strcmp(token, "file")) { Token_Mode = DEFS.COORD_FIL; if (Flag_No) strcpy(Vars.file,""); else strncpy(Vars.file,NAME_CURRENT_COMP,64); }
-      if (!strcmp(token, "no") || !strcmp(token, "not")) Flag_No = 1;
+      if (!strcmp (token, "bins"))
+        Token_Mode = DEFS.COORD_DIM;
+      if (!strcmp (token, "step"))
+        Token_Mode = DEFS.COORD_STEP;
+      if (!strcmp (token, "keep"))
+        Token_Mode = DEFS.COORD_KEEP;
+      if (!strcmp (token, "file")) {
+        Token_Mode = DEFS.COORD_FIL;
+        if (Flag_No)
+          strcpy (Vars.file, "");
+        else
+          strncpy (Vars.file, NAME_CURRENT_COMP, 64);
+      }
+      if (!strcmp (token, "no") || !strcmp (token, "not"))
+        Flag_No = 1;
 
       carg++;
     } /* end if token */
   } /* end while carg */
-  free(option_copy);
-  if (carg == 128) printf("Source_Optimizer: %s reached max number of tokens (%i). Skipping.\n", NAME_CURRENT_COMP, 128);
+  free (option_copy);
+  if (carg == 128)
+    printf ("Source_Optimizer: %s reached max number of tokens (%i). Skipping.\n", NAME_CURRENT_COMP, 128);
 
-  if (Vars.dstep < 0) Vars.dstep = .1;        /* default values if -1 is given */
-  if (Vars.nbins < 0) Vars.nbins = 10;
-  if (Vars.dkeep < 0) Vars.dkeep = .1;
+  if (Vars.dstep < 0)
+    Vars.dstep = .1; /* default values if -1 is given */
+  if (Vars.nbins < 0)
+    Vars.nbins = 10;
+  if (Vars.dkeep < 0)
+    Vars.dkeep = .1;
 
-  if (Vars.dstep >= 1)   Vars.dstep = Vars.dstep/100; /* in case user gives % in 1-100 */
-  if (Vars.dstep < .01)  Vars.dstep = .01;  /* max 100 steps */
-  if (Vars.dstep > 0.5)  Vars.dstep = 0.5;  /* min 2 steps */
+  if (Vars.dstep >= 1)
+    Vars.dstep = Vars.dstep / 100; /* in case user gives % in 1-100 */
+  if (Vars.dstep < .01)
+    Vars.dstep = .01; /* max 100 steps */
+  if (Vars.dstep > 0.5)
+    Vars.dstep = 0.5; /* min 2 steps */
 
-  if (Vars.dkeep >= 1)    Vars.dkeep = Vars.dkeep/100; /* in case user gives % in 1-100 */
-  if (Vars.dkeep < .1)    Vars.dkeep = .1;  /* at least keeps 10 % of Ref */
-  if (Vars.dkeep > .99)   Vars.dkeep = .99;
+  if (Vars.dkeep >= 1)
+    Vars.dkeep = Vars.dkeep / 100; /* in case user gives % in 1-100 */
+  if (Vars.dkeep < .1)
+    Vars.dkeep = .1; /* at least keeps 10 % of Ref */
+  if (Vars.dkeep > .99)
+    Vars.dkeep = .99;
 
-  if (Vars.nbins < 1)    Vars.nbins = 1;  /* this means no optimisation, but loss of time... */
-  if (Vars.nbins > 100)  Vars.nbins = 100;
+  if (Vars.nbins < 1)
+    Vars.nbins = 1; /* this means no optimisation, but loss of time... */
+  if (Vars.nbins > 100)
+    Vars.nbins = 100;
 
-  if (Vars.Flag_Auto)
-  {
-    if (Vars.nbins*10 < Vars.Phase_Counts) Vars.Phase_Counts_L = Vars.nbins*100;        /* need at least 10 counts per bin for Limits */
-    else Vars.Phase_Counts_L = (long)(mcget_ncount() * Vars.dstep / 4);
-    Vars.Phase_Counts_R   = (double)mcget_ncount();
-    Vars.Phase_Counts     = (double)mcget_ncount();
+  if (Vars.Flag_Auto) {
+    if (Vars.nbins * 10 < Vars.Phase_Counts)
+      Vars.Phase_Counts_L = Vars.nbins * 100; /* need at least 10 counts per bin for Limits */
+    else
+      Vars.Phase_Counts_L = (long)(mcget_ncount () * Vars.dstep / 4);
+    Vars.Phase_Counts_R = (double)mcget_ncount ();
+    Vars.Phase_Counts = (double)mcget_ncount ();
     Vars.keep_target = Vars.dkeep;
     Vars.dkeep = 0.5;
-  }
-  else
-  {
-    Vars.Phase_Counts     = (long)(mcget_ncount() * Vars.dstep);
-    Vars.Phase_Counts_L = (long)rint(Vars.Phase_Counts/4);
-    Vars.Phase_Counts_R = Vars.Phase_Counts - Vars.Phase_Counts_L;  /* will make one step */
+  } else {
+    Vars.Phase_Counts = (long)(mcget_ncount () * Vars.dstep);
+    Vars.Phase_Counts_L = (long)rint (Vars.Phase_Counts / 4);
+    Vars.Phase_Counts_R = Vars.Phase_Counts - Vars.Phase_Counts_L; /* will make one step */
     Vars.keep_target = Vars.dkeep;
   }
 
-  if ((Vars.Source_x  = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Source_y  = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Source_vx = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Source_vy = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Source_vz = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Source_sx = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Source_sy = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Source_sz = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
+  if ((Vars.Source_x = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Source_y = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Source_vx = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Source_vy = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Source_vz = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Source_sx = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Source_sy = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Source_sz = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
 
-  if ((Vars.New_Source_x  = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.New_Source_y  = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.New_Source_vx = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.New_Source_vy = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.New_Source_vz = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.New_Source_sx = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.New_Source_sy = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.New_Source_sz = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
+  if ((Vars.New_Source_x = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.New_Source_y = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.New_Source_vx = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.New_Source_vy = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.New_Source_vz = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.New_Source_sx = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.New_Source_sy = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.New_Source_sz = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
 
-  if ((Vars.Passing_x  = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Passing_y  = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Passing_vx = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Passing_vy = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Passing_vz = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Passing_sx = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Passing_sy = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Passing_sz = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
+  if ((Vars.Passing_x = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Passing_y = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Passing_vx = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Passing_vy = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Passing_vz = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Passing_sx = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Passing_sy = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Passing_sz = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
 
-  if ((Vars.Reference_x  = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Reference_y  = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Reference_vx = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Reference_vy = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Reference_vz = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Reference_sx = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Reference_sy = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
-  if ((Vars.Reference_sz = (double*)malloc(Vars.nbins * sizeof(double))) == NULL) { fprintf(stderr,"Optimizer : not enough memory\n"); exit(-1); }
+  if ((Vars.Reference_x = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Reference_y = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Reference_vx = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Reference_vy = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Reference_vz = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Reference_sx = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Reference_sy = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
+  if ((Vars.Reference_sz = (double*)malloc (Vars.nbins * sizeof (double))) == NULL) {
+    fprintf (stderr, "Optimizer : not enough memory\n");
+    exit (-1);
+  }
 
-  if (Vars.Phase == DEFS.PHASE_UNACTIVATE)
-    { if (Vars.Flag_Verbose) printf("Source_Optimizer: %s is inactivated\n", NAME_CURRENT_COMP);
-      Vars.Flag_Verbose = 0; }
-/* end initialize */
+  if (Vars.Phase == DEFS.PHASE_UNACTIVATE) {
+    if (Vars.Flag_Verbose)
+      printf ("Source_Optimizer: %s is inactivated\n", NAME_CURRENT_COMP);
+    Vars.Flag_Verbose = 0;
+  }
+  /* end initialize */
 %}
 
 TRACE
 %{
 
-  Vars.index=0;     /* a running Vars.index */
+  Vars.index = 0; /* a running Vars.index */
 
-  Vars.index_x=0;   /* indexes for last neutron that passed through */
-  Vars.index_y=0;
-  Vars.index_vx=0;  /* will be used either as 'v' or divergence on x,y */
-  Vars.index_vy=0;
-  Vars.index_vz=0;
-  Vars.index_sx=0;
-  Vars.index_sy=0;
-  Vars.index_sz=0;
+  Vars.index_x = 0; /* indexes for last neutron that passed through */
+  Vars.index_y = 0;
+  Vars.index_vx = 0; /* will be used either as 'v' or divergence on x,y */
+  Vars.index_vy = 0;
+  Vars.index_vz = 0;
+  Vars.index_sx = 0;
+  Vars.index_sy = 0;
+  Vars.index_sz = 0;
 
-  Vars.Flag_Recycle     =0;    /* record of neutron state changes : DEFS.MOD_xx */
+  Vars.Flag_Recycle = 0; /* record of neutron state changes : DEFS.MOD_xx */
 
-
-  if (Vars.Phase != DEFS.PHASE_UNACTIVATE)
-  {
+  if (Vars.Phase != DEFS.PHASE_UNACTIVATE) {
 
     PROP_Z0;
-    Vars.cur_vx = vx;        /* save neutron characteristics for Monitor */
-    Vars.cur_vy = vy;   /* will be used either as 'v' or divergence on x,y */
+    Vars.cur_vx = vx; /* save neutron characteristics for Monitor */
+    Vars.cur_vy = vy; /* will be used either as 'v' or divergence on x,y */
     Vars.cur_vz = vz;
-    Vars.cur_x  = x;
-    Vars.cur_y  = y;
+    Vars.cur_x = x;
+    Vars.cur_y = y;
     Vars.cur_sx = sx;
     Vars.cur_sy = sy;
     Vars.cur_sz = sz;
-    Vars.cur_p  = p;
-    Vars.v2 = vx*vx+vy*vy+vz*vz;        /* squared velocity */
-    Vars.S2 = sx*sx+sy*sy+sz*sz;        /* squared polarisation */
+    Vars.cur_p = p;
+    Vars.v2 = vx * vx + vy * vy + vz * vz; /* squared velocity */
+    Vars.S2 = sx * sx + sy * sy + sz * sz; /* squared polarisation */
 
-    if (Vars.Flag_Type & DEFS.DO_DIVV)        /* use divergence */
+    if (Vars.Flag_Type & DEFS.DO_DIVV) /* use divergence */
     {
       Vars.dvz = Vars.v2; /* v2 */
-      if (Vars.dvz == 0) Vars.t1 = 1e-10;
-      else Vars.t1 = Vars.dvz;
-      Vars.dvx = vx/Vars.t1;  /* vx/v2 */
-      Vars.dvy = vy/Vars.t1;  /* vy/v2 */
-    }
-    else
-    {
+      if (Vars.dvz == 0)
+        Vars.t1 = 1e-10;
+      else
+        Vars.t1 = Vars.dvz;
+      Vars.dvx = vx / Vars.t1; /* vx/v2 */
+      Vars.dvy = vy / Vars.t1; /* vy/v2 */
+    } else {
       Vars.dvx = vx;
       Vars.dvy = vy;
       Vars.dvz = vz;
     }
 
-    if (Vars.Flag_Type & DEFS.DO_DIVS)        /* use spin 'divergence' */
+    if (Vars.Flag_Type & DEFS.DO_DIVS) /* use spin 'divergence' */
     {
       Vars.dsz = Vars.S2; /* s2 */
-      if (Vars.dsz == 0) Vars.t1 = 1e-10;
-      else Vars.t1 = Vars.dsz;
-      Vars.dsx = sx/Vars.t1;  /* sx/s2 */
-      Vars.dsy = sy/Vars.t1;  /* sy/s2 */
-    }
-    else
-    {
+      if (Vars.dsz == 0)
+        Vars.t1 = 1e-10;
+      else
+        Vars.t1 = Vars.dsz;
+      Vars.dsx = sx / Vars.t1; /* sx/s2 */
+      Vars.dsy = sy / Vars.t1; /* sy/s2 */
+    } else {
       Vars.dsx = sx;
       Vars.dsy = sy;
       Vars.dsz = sz;
@@ -652,143 +782,160 @@ TRACE
 
     /* handle Phase sequence */
 
-    if ((Vars.Phase == DEFS.PHASE_GET_LIMITS)
-     && (Vars.Limits_Counts >= Vars.Phase_Counts_L))
-     {
-        Vars.Phase = DEFS.PHASE_SET_REF;
+    if ((Vars.Phase == DEFS.PHASE_GET_LIMITS) && (Vars.Limits_Counts >= Vars.Phase_Counts_L)) {
+      Vars.Phase = DEFS.PHASE_SET_REF;
 
-        if (Vars.Flag_Verbose)
-        {
-          printf(">> DEFS.PHASE_SET_REF (%i neutrons)\n", Vars.Limits_Counts);
-          if (Vars.Monitor_Number > 1) printf("         using %i Monitor_Optimizer components.\n", Vars.Monitor_Number);
-        }
-        if (Vars.Monitor_Number == 0)
-        {
-          Vars.Phase = DEFS.PHASE_UNACTIVATE;
-          printf("Source_Optimizer: %s is inactivated (no Monitor_Optimizer found)\n", NAME_CURRENT_COMP);
-        }
-     }
+      if (Vars.Flag_Verbose) {
+        printf (">> DEFS.PHASE_SET_REF (%i neutrons)\n", Vars.Limits_Counts);
+        if (Vars.Monitor_Number > 1)
+          printf ("         using %i Monitor_Optimizer components.\n", Vars.Monitor_Number);
+      }
+      if (Vars.Monitor_Number == 0) {
+        Vars.Phase = DEFS.PHASE_UNACTIVATE;
+        printf ("Source_Optimizer: %s is inactivated (no Monitor_Optimizer found)\n", NAME_CURRENT_COMP);
+      }
+    }
 
-     if ((Vars.Phase == DEFS.PHASE_GET_REF)
-     && (Vars.Reference_Counts >= Vars.Phase_Counts_R))
-     {
-        Vars.Phase = DEFS.PHASE_SET_SOURCE;
-        Vars.t1 = (double)Vars.Phase_Counts/(double)Vars.Reference_Counts;
-        Vars.Phase_Counts = Vars.Reference_Counts+Vars.Limits_Counts;
-        Vars.Phase_Counts_R = Vars.Phase_Counts; /* should be Vars.Reference_Counts+Vars.Limits_Counts */
+    if ((Vars.Phase == DEFS.PHASE_GET_REF) && (Vars.Reference_Counts >= Vars.Phase_Counts_R)) {
+      Vars.Phase = DEFS.PHASE_SET_SOURCE;
+      Vars.t1 = (double)Vars.Phase_Counts / (double)Vars.Reference_Counts;
+      Vars.Phase_Counts = Vars.Reference_Counts + Vars.Limits_Counts;
+      Vars.Phase_Counts_R = Vars.Phase_Counts; /* should be Vars.Reference_Counts+Vars.Limits_Counts */
 
-        for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++)
-        {
-          Vars.Reference_x[Vars.index]  *= Vars.t1;
-          Vars.Reference_y[Vars.index]  *= Vars.t1;
-          Vars.Reference_vx[Vars.index] *= Vars.t1;
-          Vars.Reference_vy[Vars.index] *= Vars.t1;
-          Vars.Reference_vz[Vars.index] *= Vars.t1;
-          Vars.Reference_sx[Vars.index] *= Vars.t1;
-          Vars.Reference_sy[Vars.index] *= Vars.t1;
-          Vars.Reference_sz[Vars.index] *= Vars.t1;
-        }
-        Vars.Reference_Counts = (long)(Vars.t1*(double)Vars.Reference_Counts);
-        Vars.Reference_Flux *= Vars.t1;
+      for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++) {
+        Vars.Reference_x[Vars.index] *= Vars.t1;
+        Vars.Reference_y[Vars.index] *= Vars.t1;
+        Vars.Reference_vx[Vars.index] *= Vars.t1;
+        Vars.Reference_vy[Vars.index] *= Vars.t1;
+        Vars.Reference_vz[Vars.index] *= Vars.t1;
+        Vars.Reference_sx[Vars.index] *= Vars.t1;
+        Vars.Reference_sy[Vars.index] *= Vars.t1;
+        Vars.Reference_sz[Vars.index] *= Vars.t1;
+      }
+      Vars.Reference_Counts = (long)(Vars.t1 * (double)Vars.Reference_Counts);
+      Vars.Reference_Flux *= Vars.t1;
 
-        if (Vars.Flag_Auto)
-        {
-         Vars.dkeep = Vars.nbins*10/Vars.Monitor_Counts;
-         if (Vars.dkeep < Vars.keep_target) Vars.dkeep = Vars.keep_target;
-         if (Vars.dkeep > .9) Vars.dkeep = 0.9;
-        }
+      if (Vars.Flag_Auto) {
+        Vars.dkeep = Vars.nbins * 10 / Vars.Monitor_Counts;
+        if (Vars.dkeep < Vars.keep_target)
+          Vars.dkeep = Vars.keep_target;
+        if (Vars.dkeep > .9)
+          Vars.dkeep = 0.9;
+      }
 
-        if (Vars.Flag_Verbose)
-        {
-          printf(">> DEFS.PHASE_SET_SOURCE (%i neutrons) from REF\n", Vars.Reference_Counts);
-          printf("Counts : reference = %i, passing = %i, monitor = %.1f\n", Vars.Reference_Counts, Vars.Phase_Counts, Vars.Monitor_Counts);
-          printf("Flux   : reference = %.2g, passing = %.2g, monitor = %.2g\n", Vars.Reference_Flux, Vars.Reference_Flux, Vars.Monitor_Flux);
-        }
+      if (Vars.Flag_Verbose) {
+        printf (">> DEFS.PHASE_SET_SOURCE (%i neutrons) from REF\n", Vars.Reference_Counts);
+        printf ("Counts : reference = %i, passing = %i, monitor = %.1f\n", Vars.Reference_Counts, Vars.Phase_Counts, Vars.Monitor_Counts);
+        printf ("Flux   : reference = %.2g, passing = %.2g, monitor = %.2g\n", Vars.Reference_Flux, Vars.Reference_Flux, Vars.Monitor_Flux);
+      }
+    }
 
-     }
-
-    if ((Vars.Phase == DEFS.PHASE_OPTIM)
-     && (Vars.Passing_Counts >= Vars.Phase_Counts))
-    {
+    if ((Vars.Phase == DEFS.PHASE_OPTIM) && (Vars.Passing_Counts >= Vars.Phase_Counts)) {
       Vars.Phase = DEFS.PHASE_SET_SOURCE;
 
-      if (Vars.Flag_Auto)
-        {
-         Vars.dkeep = Vars.nbins*10/(double)Vars.Monitor_Counts;
-         if (Vars.dkeep < Vars.keep_target) Vars.dkeep = Vars.keep_target;
-         if (Vars.dkeep > .9) Vars.dkeep = 0.9;
-        }
+      if (Vars.Flag_Auto) {
+        Vars.dkeep = Vars.nbins * 10 / (double)Vars.Monitor_Counts;
+        if (Vars.dkeep < Vars.keep_target)
+          Vars.dkeep = Vars.keep_target;
+        if (Vars.dkeep > .9)
+          Vars.dkeep = 0.9;
+      }
 
-      if (Vars.Flag_Verbose)
-      {
-        printf(">> DEFS.PHASE_SET_SOURCE (%i neutrons)\n", Vars.Passing_Counts);
-        printf("Number of redirections : %i\n",Vars.n_redirect);
-        printf("Counts : reference = %i, passing = %i, monitor = %.1f\n", Vars.Reference_Counts, Vars.Passing_Counts, Vars.Monitor_Counts);
-        printf("Flux   : reference = %.2g, passing = %.2g, monitor = %.2g\n", Vars.Reference_Flux, Vars.Passing_Flux, Vars.Monitor_Flux);
+      if (Vars.Flag_Verbose) {
+        printf (">> DEFS.PHASE_SET_SOURCE (%i neutrons)\n", Vars.Passing_Counts);
+        printf ("Number of redirections : %i\n", Vars.n_redirect);
+        printf ("Counts : reference = %i, passing = %i, monitor = %.1f\n", Vars.Reference_Counts, Vars.Passing_Counts, Vars.Monitor_Counts);
+        printf ("Flux   : reference = %.2g, passing = %.2g, monitor = %.2g\n", Vars.Reference_Flux, Vars.Passing_Flux, Vars.Monitor_Flux);
       }
     }
 
     /* handle Vars.Phase functions */
 
-    if (Vars.Phase == DEFS.PHASE_SET_LIMITS)        /* init : need to compute limits and flux */
+    if (Vars.Phase == DEFS.PHASE_SET_LIMITS) /* init : need to compute limits and flux */
     {
-      Vars.Limits_Counts    = 0;
-      Vars.Limits_Flux      = 0;
+      Vars.Limits_Counts = 0;
+      Vars.Limits_Flux = 0;
 
-      Vars.x_min  = FLT_MAX;  Vars.x_max  = -FLT_MAX;
-      Vars.y_min  = FLT_MAX;  Vars.y_max  = -FLT_MAX;
-      Vars.vx_min = FLT_MAX;  Vars.vx_max = -FLT_MAX;
-      Vars.vy_min = FLT_MAX;  Vars.vy_max = -FLT_MAX;
-      Vars.vz_min = FLT_MAX;  Vars.vz_max = -FLT_MAX;
-      Vars.sx_min = FLT_MAX;  Vars.sx_max = -FLT_MAX;
-      Vars.sy_min = FLT_MAX;  Vars.sy_max = -FLT_MAX;
-      Vars.sz_min = FLT_MAX;  Vars.sz_max = -FLT_MAX;
+      Vars.x_min = FLT_MAX;
+      Vars.x_max = -FLT_MAX;
+      Vars.y_min = FLT_MAX;
+      Vars.y_max = -FLT_MAX;
+      Vars.vx_min = FLT_MAX;
+      Vars.vx_max = -FLT_MAX;
+      Vars.vy_min = FLT_MAX;
+      Vars.vy_max = -FLT_MAX;
+      Vars.vz_min = FLT_MAX;
+      Vars.vz_max = -FLT_MAX;
+      Vars.sx_min = FLT_MAX;
+      Vars.sx_max = -FLT_MAX;
+      Vars.sy_min = FLT_MAX;
+      Vars.sy_max = -FLT_MAX;
+      Vars.sz_min = FLT_MAX;
+      Vars.sz_max = -FLT_MAX;
 
       Vars.Phase = DEFS.PHASE_GET_LIMITS;
     } /* end DEFS.PHASE_SET_LIMITS */
 
-    if (Vars.Phase == DEFS.PHASE_GET_LIMITS)        /* init : need to compute limits and flux */
+    if (Vars.Phase == DEFS.PHASE_GET_LIMITS) /* init : need to compute limits and flux */
     {
       Vars.Limits_Counts++;
       Vars.Limits_Flux += p;
 
-      if (x < Vars.x_min)   Vars.x_min = x;
-      if (y < Vars.y_min)   Vars.y_min = y;
-      if (x > Vars.x_max)   Vars.x_max = x;
-      if (y > Vars.y_max)   Vars.y_max = y;
+      if (x < Vars.x_min)
+        Vars.x_min = x;
+      if (y < Vars.y_min)
+        Vars.y_min = y;
+      if (x > Vars.x_max)
+        Vars.x_max = x;
+      if (y > Vars.y_max)
+        Vars.y_max = y;
 
-      if (Vars.dvx < Vars.vx_min) Vars.vx_min = Vars.dvx;
-      if (Vars.dvx > Vars.vx_max) Vars.vx_max = Vars.dvx;
-      if (Vars.dvy < Vars.vy_min) Vars.vy_min = Vars.dvy;
-      if (Vars.dvy > Vars.vy_max) Vars.vy_max = Vars.dvy;
-      if (Vars.dvz < Vars.vz_min) Vars.vz_min = Vars.dvz;
-      if (Vars.dvz > Vars.vz_max) Vars.vz_max = Vars.dvz;
+      if (Vars.dvx < Vars.vx_min)
+        Vars.vx_min = Vars.dvx;
+      if (Vars.dvx > Vars.vx_max)
+        Vars.vx_max = Vars.dvx;
+      if (Vars.dvy < Vars.vy_min)
+        Vars.vy_min = Vars.dvy;
+      if (Vars.dvy > Vars.vy_max)
+        Vars.vy_max = Vars.dvy;
+      if (Vars.dvz < Vars.vz_min)
+        Vars.vz_min = Vars.dvz;
+      if (Vars.dvz > Vars.vz_max)
+        Vars.vz_max = Vars.dvz;
 
-      if (Vars.dsx < Vars.sx_min) Vars.sx_min = Vars.dsx;
-      if (Vars.dsx > Vars.sx_max) Vars.sx_max = Vars.dsx;
-      if (Vars.dsy < Vars.sy_min) Vars.sy_min = Vars.dsy;
-      if (Vars.dsy > Vars.sy_max) Vars.sy_max = Vars.dsy;
-      if (Vars.dsz < Vars.sz_min) Vars.sz_min = Vars.dsz;
-      if (Vars.dsz > Vars.sz_max) Vars.sz_max = Vars.dsz;
+      if (Vars.dsx < Vars.sx_min)
+        Vars.sx_min = Vars.dsx;
+      if (Vars.dsx > Vars.sx_max)
+        Vars.sx_max = Vars.dsx;
+      if (Vars.dsy < Vars.sy_min)
+        Vars.sy_min = Vars.dsy;
+      if (Vars.dsy > Vars.sy_max)
+        Vars.sy_max = Vars.dsy;
+      if (Vars.dsz < Vars.sz_min)
+        Vars.sz_min = Vars.dsz;
+      if (Vars.dsz > Vars.sz_max)
+        Vars.sz_max = Vars.dsz;
 
-      if (Vars.Flag_Smooth) { p *= Vars.dkeep; Vars.cur_p *= Vars.dkeep; Vars.Smoothed_Weigth += Vars.dkeep; }
-      else Vars.Smoothed_Weigth++;
-
+      if (Vars.Flag_Smooth) {
+        p *= Vars.dkeep;
+        Vars.cur_p *= Vars.dkeep;
+        Vars.Smoothed_Weigth += Vars.dkeep;
+      } else
+        Vars.Smoothed_Weigth++;
 
     } /* end if DEFS.PHASE_GET_LIMITS  */
 
-    if (Vars.Phase == DEFS.PHASE_SET_REF)        /* Set Ref and New_Source to 0 */
+    if (Vars.Phase == DEFS.PHASE_SET_REF) /* Set Ref and New_Source to 0 */
     {
       Vars.Reference_Counts = 0;
-      Vars.Reference_Flux   = 0;
+      Vars.Reference_Flux = 0;
 
-      Vars.Monitor_Counts   = 0;      /* also counted as New_Source */
-      Vars.Monitor_Flux     = 0;
+      Vars.Monitor_Counts = 0; /* also counted as New_Source */
+      Vars.Monitor_Flux = 0;
 
-      for (Vars.index=0; Vars.index < Vars.nbins; Vars.index++)
-      {
-        Vars.Reference_x[Vars.index]  = 0; /* initial distribution will be recorded first */
-        Vars.Reference_y[Vars.index]  = 0;
+      for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++) {
+        Vars.Reference_x[Vars.index] = 0; /* initial distribution will be recorded first */
+        Vars.Reference_y[Vars.index] = 0;
         Vars.Reference_vx[Vars.index] = 0;
         Vars.Reference_vy[Vars.index] = 0;
         Vars.Reference_vz[Vars.index] = 0;
@@ -796,9 +943,9 @@ TRACE
         Vars.Reference_sy[Vars.index] = 0;
         Vars.Reference_sz[Vars.index] = 0;
 
-        Vars.New_Source_x[Vars.index]  = 0;        /* Monitor_Optimizer will compute the */
-        Vars.New_Source_y[Vars.index]  = 0;        /* optimized New_Source distribution */
-        Vars.New_Source_vx[Vars.index] = 0;        /* that will become Source for Optim Vars.dstep */
+        Vars.New_Source_x[Vars.index] = 0;  /* Monitor_Optimizer will compute the */
+        Vars.New_Source_y[Vars.index] = 0;  /* optimized New_Source distribution */
+        Vars.New_Source_vx[Vars.index] = 0; /* that will become Source for Optim Vars.dstep */
         Vars.New_Source_vy[Vars.index] = 0;
         Vars.New_Source_vz[Vars.index] = 0;
         Vars.New_Source_sx[Vars.index] = 0;
@@ -806,79 +953,99 @@ TRACE
         Vars.New_Source_sz[Vars.index] = 0;
       } /* end for */
       Vars.Phase = DEFS.PHASE_GET_REF;
-    }        /* end DEFS.PHASE_SET_REF */
+    } /* end DEFS.PHASE_SET_REF */
 
-    if (Vars.Phase == DEFS.PHASE_GET_REF)        /* now build the Reference in limits */
-    {                         /* New_Source is set by Monitor_Optimizer */
+    if (Vars.Phase == DEFS.PHASE_GET_REF) /* now build the Reference in limits */
+    {                                     /* New_Source is set by Monitor_Optimizer */
       Vars.Reference_Counts++;
       Vars.Reference_Flux += p;
 
-      if (Vars.vx_max-Vars.vx_min)
-        Vars.index = (int)rint(Vars.nbins * (Vars.dvx -Vars.vx_min)/(Vars.vx_max-Vars.vx_min));
+      if (Vars.vx_max - Vars.vx_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dvx - Vars.vx_min) / (Vars.vx_max - Vars.vx_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)     Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
       Vars.Reference_vx[Vars.index]++;
 
-      if (Vars.vy_max-Vars.vy_min)
-        Vars.index = (int)rint(Vars.nbins * (Vars.dvy -Vars.vy_min)/(Vars.vy_max-Vars.vy_min));
+      if (Vars.vy_max - Vars.vy_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dvy - Vars.vy_min) / (Vars.vy_max - Vars.vy_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)     Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
       Vars.Reference_vy[Vars.index]++;
 
-      if (Vars.vz_max-Vars.vz_min)
-        Vars.index = (int)rint(Vars.nbins * (Vars.dvz -Vars.vz_min)/(Vars.vz_max-Vars.vz_min));
+      if (Vars.vz_max - Vars.vz_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dvz - Vars.vz_min) / (Vars.vz_max - Vars.vz_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)     Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
       Vars.Reference_vz[Vars.index]++;
 
-      if (Vars.x_max-Vars.x_min)
-        Vars.index = (int)rint(Vars.nbins * (x -Vars.x_min)/(Vars.x_max-Vars.x_min));
+      if (Vars.x_max - Vars.x_min)
+        Vars.index = (int)rint (Vars.nbins * (x - Vars.x_min) / (Vars.x_max - Vars.x_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)     Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
       Vars.Reference_x[Vars.index]++;
 
-      if (Vars.y_max-Vars.y_min)
-        Vars.index = (int)rint(Vars.nbins * (y -Vars.y_min)/(Vars.y_max-Vars.y_min));
+      if (Vars.y_max - Vars.y_min)
+        Vars.index = (int)rint (Vars.nbins * (y - Vars.y_min) / (Vars.y_max - Vars.y_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)     Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
       Vars.Reference_y[Vars.index]++;
 
-      if (Vars.sx_max-Vars.sx_min)
-        Vars.index = (int)rint(Vars.nbins * (Vars.dsx -Vars.sx_min)/(Vars.sx_max-Vars.sx_min));
+      if (Vars.sx_max - Vars.sx_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dsx - Vars.sx_min) / (Vars.sx_max - Vars.sx_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)     Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
       Vars.Reference_sx[Vars.index]++;
 
-      if (Vars.sy_max-Vars.sy_min)
-        Vars.index = (int)rint(Vars.nbins * (Vars.dsy -Vars.sy_min)/(Vars.sy_max-Vars.sy_min));
+      if (Vars.sy_max - Vars.sy_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dsy - Vars.sy_min) / (Vars.sy_max - Vars.sy_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)     Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
       Vars.Reference_sy[Vars.index]++;
 
-      if (Vars.sz_max-Vars.sz_min)
-        Vars.index = (int)rint(Vars.nbins * (Vars.dsz -Vars.sz_min)/(Vars.sz_max-Vars.sz_min));
+      if (Vars.sz_max - Vars.sz_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dsz - Vars.sz_min) / (Vars.sz_max - Vars.sz_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)     Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
       Vars.Reference_sz[Vars.index]++;
 
-      if (Vars.Flag_Smooth) { p *= Vars.dkeep; Vars.cur_p *= Vars.dkeep; Vars.Smoothed_Weigth += Vars.dkeep; }
-      else Vars.Smoothed_Weigth++;
+      if (Vars.Flag_Smooth) {
+        p *= Vars.dkeep;
+        Vars.cur_p *= Vars.dkeep;
+        Vars.Smoothed_Weigth += Vars.dkeep;
+      } else
+        Vars.Smoothed_Weigth++;
 
       /*
        * Each Optim phase lasts for (or at the end of this phase)
@@ -898,33 +1065,32 @@ TRACE
 
     } /* end if DEFS.PHASE_GET_REF */
 
-    if (Vars.Phase == DEFS.PHASE_SET_SOURCE)        /* Define optimized Source (normalized to Reference) */
+    if (Vars.Phase == DEFS.PHASE_SET_SOURCE) /* Define optimized Source (normalized to Reference) */
     {
-      if (Vars.Monitor_Counts)
-      {
-              Vars.t1 = (1 - Vars.dkeep) * (double)Vars.Phase_Counts/(double)Vars.Monitor_Counts;
+      if (Vars.Monitor_Counts) {
+        Vars.t1 = (1 - Vars.dkeep) * (double)Vars.Phase_Counts / (double)Vars.Monitor_Counts;
         Vars.t2 = Vars.dkeep;
         /* so that total counts remains the same for each Optim phase */
+      } else {
+        Vars.t1 = 0;
+        Vars.t2 = 1;
       }
-      else
-        { Vars.t1 = 0; Vars.t2 = 1; }
-
 
       Vars.Passing_Counts = 0;
-      Vars.Passing_Flux   = 0;
+      Vars.Passing_Flux = 0;
 
-      if (Vars.Normal_Monitor_Counts == 0) Vars.Normal_Monitor_Counts = Vars.Total_Monitor_Counts;        /* first un-optimized steps */
+      if (Vars.Normal_Monitor_Counts == 0)
+        Vars.Normal_Monitor_Counts = Vars.Total_Monitor_Counts; /* first un-optimized steps */
 
-      Vars.Monitor_Counts   = 0;      /* also counted as New_Source */
-      Vars.Monitor_Flux     = 0;
+      Vars.Monitor_Counts = 0; /* also counted as New_Source */
+      Vars.Monitor_Flux = 0;
 
-      for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++)
-      { /* get Vars.dkeep % of Reference, and 1-Vars.dkeep% of New_Source normalized to Reference Counts */
+      for (Vars.index = 0; Vars.index < Vars.nbins;
+           Vars.index++) { /* get Vars.dkeep % of Reference, and 1-Vars.dkeep% of New_Source normalized to Reference Counts */
 
-        if (Vars.Flag_Continuous || (Vars.n_redirect == 0))
-        {
-          Vars.Source_x[Vars.index]  = Vars.t2 * Vars.Reference_x[Vars.index]  + Vars.t1 * Vars.New_Source_x[Vars.index];
-          Vars.Source_y[Vars.index]  = Vars.t2 * Vars.Reference_y[Vars.index]  + Vars.t1 * Vars.New_Source_y[Vars.index];
+        if (Vars.Flag_Continuous || (Vars.n_redirect == 0)) {
+          Vars.Source_x[Vars.index] = Vars.t2 * Vars.Reference_x[Vars.index] + Vars.t1 * Vars.New_Source_x[Vars.index];
+          Vars.Source_y[Vars.index] = Vars.t2 * Vars.Reference_y[Vars.index] + Vars.t1 * Vars.New_Source_y[Vars.index];
           Vars.Source_vx[Vars.index] = Vars.t2 * Vars.Reference_vx[Vars.index] + Vars.t1 * Vars.New_Source_vx[Vars.index];
           Vars.Source_vy[Vars.index] = Vars.t2 * Vars.Reference_vy[Vars.index] + Vars.t1 * Vars.New_Source_vy[Vars.index];
           if (Vars.Flag_Type & DEFS.DO_DIVV)
@@ -938,18 +1104,26 @@ TRACE
           else
             Vars.Source_sz[Vars.index] = Vars.t2 * Vars.Reference_sz[Vars.index] + Vars.t1 * Vars.New_Source_sz[Vars.index];
 
-          if (Vars.New_Source_x[Vars.index]  > Vars.New_Source_x[Vars.good_x])  Vars.good_x  = Vars.index;
-          if (Vars.New_Source_y[Vars.index]  > Vars.New_Source_y[Vars.good_y])  Vars.good_y  = Vars.index;
-          if (Vars.New_Source_vx[Vars.index] > Vars.New_Source_vx[Vars.good_vx]) Vars.good_vx = Vars.index;
-          if (Vars.New_Source_vy[Vars.index] > Vars.New_Source_vy[Vars.good_vy]) Vars.good_vy = Vars.index;
-          if (Vars.New_Source_vz[Vars.index] > Vars.New_Source_vz[Vars.good_vz]) Vars.good_vz = Vars.index;
-          if (Vars.New_Source_sx[Vars.index] > Vars.New_Source_sx[Vars.good_sx]) Vars.good_sx = Vars.index;
-          if (Vars.New_Source_sy[Vars.index] > Vars.New_Source_sy[Vars.good_sy]) Vars.good_sy = Vars.index;
-          if (Vars.New_Source_sz[Vars.index] > Vars.New_Source_sz[Vars.good_sz]) Vars.good_sz = Vars.index;
+          if (Vars.New_Source_x[Vars.index] > Vars.New_Source_x[Vars.good_x])
+            Vars.good_x = Vars.index;
+          if (Vars.New_Source_y[Vars.index] > Vars.New_Source_y[Vars.good_y])
+            Vars.good_y = Vars.index;
+          if (Vars.New_Source_vx[Vars.index] > Vars.New_Source_vx[Vars.good_vx])
+            Vars.good_vx = Vars.index;
+          if (Vars.New_Source_vy[Vars.index] > Vars.New_Source_vy[Vars.good_vy])
+            Vars.good_vy = Vars.index;
+          if (Vars.New_Source_vz[Vars.index] > Vars.New_Source_vz[Vars.good_vz])
+            Vars.good_vz = Vars.index;
+          if (Vars.New_Source_sx[Vars.index] > Vars.New_Source_sx[Vars.good_sx])
+            Vars.good_sx = Vars.index;
+          if (Vars.New_Source_sy[Vars.index] > Vars.New_Source_sy[Vars.good_sy])
+            Vars.good_sy = Vars.index;
+          if (Vars.New_Source_sz[Vars.index] > Vars.New_Source_sz[Vars.good_sz])
+            Vars.good_sz = Vars.index;
         }
 
-        Vars.Passing_x[Vars.index]  = 0; /* Passing neutrons will then reach Source */
-        Vars.Passing_y[Vars.index]  = 0; /* weights will be adapted to match Reference */
+        Vars.Passing_x[Vars.index] = 0; /* Passing neutrons will then reach Source */
+        Vars.Passing_y[Vars.index] = 0; /* weights will be adapted to match Reference */
         Vars.Passing_vx[Vars.index] = 0;
         Vars.Passing_vy[Vars.index] = 0;
         Vars.Passing_vz[Vars.index] = 0;
@@ -957,8 +1131,8 @@ TRACE
         Vars.Passing_sy[Vars.index] = 0;
         Vars.Passing_sz[Vars.index] = 0;
 
-        Vars.New_Source_x[Vars.index]  = 0; /* Init of next Source */
-        Vars.New_Source_y[Vars.index]  = 0;
+        Vars.New_Source_x[Vars.index] = 0; /* Init of next Source */
+        Vars.New_Source_y[Vars.index] = 0;
         Vars.New_Source_vx[Vars.index] = 0;
         Vars.New_Source_vy[Vars.index] = 0;
         Vars.New_Source_vz[Vars.index] = 0;
@@ -970,139 +1144,135 @@ TRACE
 
     } /* end DEFS.PHASE_SET_SOURCE */
 
-    if (Vars.Phase == DEFS.PHASE_OPTIM)        /* Use optimized Source */
+    if (Vars.Phase == DEFS.PHASE_OPTIM) /* Use optimized Source */
     {
       Vars.Flag_Recycle = 0;
 
       Vars.index_x = Vars.good_x;
       Vars.index_y = Vars.good_y;
-      Vars.index_vx= Vars.good_vx;
-      Vars.index_vy= Vars.good_vy;
-      Vars.index_vz= Vars.good_vz;
-      Vars.index_sx= Vars.good_sx;
-      Vars.index_sy= Vars.good_sy;
-      Vars.index_sz= Vars.good_sz;
+      Vars.index_vx = Vars.good_vx;
+      Vars.index_vy = Vars.good_vy;
+      Vars.index_vz = Vars.good_vz;
+      Vars.index_sx = Vars.good_sx;
+      Vars.index_sy = Vars.good_sy;
+      Vars.index_sz = Vars.good_sz;
 
       /* ----------------------- VX VY VZ ----------------------- */
 
-      if (Vars.vz_max-Vars.vz_min)
-        Vars.index = (int)rint(Vars.nbins * (Vars.dvz -Vars.vz_min)/(Vars.vz_max-Vars.vz_min));
+      if (Vars.vz_max - Vars.vz_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dvz - Vars.vz_min) / (Vars.vz_max - Vars.vz_min));
       else
-              Vars.index = 0;
-      if (Vars.index < 0)    Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
-      if ((Vars.Flag_Type & DEFS.DO_V) && (Vars.Passing_vz[Vars.index] >= Vars.Source_vz[Vars.index]))
-      {  /* distribution achieved : redirect neutron near last neutron characteristic */
+        Vars.index = 0;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
+      if ((Vars.Flag_Type & DEFS.DO_V)
+          && (Vars.Passing_vz[Vars.index] >= Vars.Source_vz[Vars.index])) { /* distribution achieved : redirect neutron near last neutron characteristic */
         Vars.Flag_Recycle |= DEFS.MOD_VZ;
-        Vars.dvz += (Vars.index_vz-Vars.index)*(Vars.vz_max - Vars.vz_min)/Vars.nbins;
-      }
-      else
+        Vars.dvz += (Vars.index_vz - Vars.index) * (Vars.vz_max - Vars.vz_min) / Vars.nbins;
+      } else
         Vars.index_vz = Vars.index;
 
-      if (Vars.vx_max-Vars.vx_min)
-              Vars.index = (int)rint(Vars.nbins * (Vars.dvx -Vars.vx_min)/(Vars.vx_max-Vars.vx_min));
+      if (Vars.vx_max - Vars.vx_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dvx - Vars.vx_min) / (Vars.vx_max - Vars.vx_min));
       else
-              Vars.index = 0;
-      if (Vars.index < 0)    Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
-      if ((Vars.Flag_Type & (DEFS.DO_V|DEFS.DO_DIVV)) && (Vars.Passing_vx[Vars.index] >= Vars.Source_vx[Vars.index]))
-      {
+        Vars.index = 0;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
+      if ((Vars.Flag_Type & (DEFS.DO_V | DEFS.DO_DIVV)) && (Vars.Passing_vx[Vars.index] >= Vars.Source_vx[Vars.index])) {
         Vars.Flag_Recycle |= DEFS.MOD_VX;
-        Vars.dvx += (Vars.index_vx-Vars.index)*(Vars.vx_max - Vars.vx_min)/Vars.nbins;
-      }
-      else
-         Vars.index_vx = Vars.index;
+        Vars.dvx += (Vars.index_vx - Vars.index) * (Vars.vx_max - Vars.vx_min) / Vars.nbins;
+      } else
+        Vars.index_vx = Vars.index;
 
-      if (Vars.vy_max-Vars.vy_min)
-        Vars.index = (int)rint(Vars.nbins * (Vars.dvy -Vars.vy_min)/(Vars.vy_max-Vars.vy_min));
+      if (Vars.vy_max - Vars.vy_min)
+        Vars.index = (int)rint (Vars.nbins * (Vars.dvy - Vars.vy_min) / (Vars.vy_max - Vars.vy_min));
       else
-              Vars.index = 0;
-        if (Vars.index < 0)    Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
-      if ((Vars.Flag_Type & (DEFS.DO_V|DEFS.DO_DIVV)) && (Vars.Passing_vy[Vars.index] >= Vars.Source_vy[Vars.index]))
-      {
+        Vars.index = 0;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
+      if ((Vars.Flag_Type & (DEFS.DO_V | DEFS.DO_DIVV)) && (Vars.Passing_vy[Vars.index] >= Vars.Source_vy[Vars.index])) {
         Vars.Flag_Recycle |= DEFS.MOD_VY;
-        Vars.dvy += (Vars.index_vy-Vars.index)*(Vars.vy_max - Vars.vy_min)/Vars.nbins;
-      }
-      else
+        Vars.dvy += (Vars.index_vy - Vars.index) * (Vars.vy_max - Vars.vy_min) / Vars.nbins;
+      } else
         Vars.index_vy = Vars.index;
 
-      if (Vars.Flag_Type & DEFS.DO_DIVV)
-      {
-        Vars.cur_vz = Vars.v2;  /* use original v^2 to keep energy */
+      if (Vars.Flag_Type & DEFS.DO_DIVV) {
+        Vars.cur_vz = Vars.v2; /* use original v^2 to keep energy */
         /* now new vx,vy,vz */
         Vars.cur_vx = Vars.cur_vz * Vars.dvx;
         Vars.cur_vy = Vars.cur_vz * Vars.dvy;
-        Vars.cur_vz /= (1+Vars.dvx*Vars.dvx+Vars.dvy*Vars.dvy); /* always > 0 */
-        Vars.cur_vz = sqrt(Vars.cur_vz);
+        Vars.cur_vz /= (1 + Vars.dvx * Vars.dvx + Vars.dvy * Vars.dvy); /* always > 0 */
+        Vars.cur_vz = sqrt (Vars.cur_vz);
         /* now should try the two z signs, but vz > 0 (see sz) */
-        Vars.Flag_Recycle |= (DEFS.MOD_VX|DEFS.MOD_VY|DEFS.MOD_VZ);
-      }
-      else
-      {
-        if (Vars.Flag_Type & DEFS.DO_V)
-        {
-          if (Vars.Flag_Recycle & (DEFS.MOD_VX|DEFS.MOD_VY|DEFS.MOD_VZ))
-          {        /* now try to keep E distribution */
-            Vars.cur_vx = Vars.dvx; /* may have been translated in vx,vy,vz 3 tests up-there */
+        Vars.Flag_Recycle |= (DEFS.MOD_VX | DEFS.MOD_VY | DEFS.MOD_VZ);
+      } else {
+        if (Vars.Flag_Type & DEFS.DO_V) {
+          if (Vars.Flag_Recycle & (DEFS.MOD_VX | DEFS.MOD_VY | DEFS.MOD_VZ)) { /* now try to keep E distribution */
+            Vars.cur_vx = Vars.dvx;                                            /* may have been translated in vx,vy,vz 3 tests up-there */
             Vars.cur_vy = Vars.dvy;
             Vars.cur_vz = Vars.dvz;
-            Vars.t1 = Vars.v2 - Vars.cur_vz*Vars.cur_vz - Vars.cur_vy*Vars.cur_vy;
-            Vars.t2 = Vars.v2 - Vars.cur_vz*Vars.cur_vz - Vars.cur_vx*Vars.cur_vx;
-            Vars.t3 = Vars.v2 - Vars.cur_vx*Vars.cur_vx - Vars.cur_vy*Vars.cur_vy;
+            Vars.t1 = Vars.v2 - Vars.cur_vz * Vars.cur_vz - Vars.cur_vy * Vars.cur_vy;
+            Vars.t2 = Vars.v2 - Vars.cur_vz * Vars.cur_vz - Vars.cur_vx * Vars.cur_vx;
+            Vars.t3 = Vars.v2 - Vars.cur_vx * Vars.cur_vx - Vars.cur_vy * Vars.cur_vy;
             /* we affect the component wich is the most optimized  (largest Source/Ref) */
-            if ((Vars.vx_max-Vars.vx_min) && (Vars.t1 > 0))
-            {
-              Vars.t1 = sqrt(Vars.t1);
-              if (vx < 0) Vars.t1 = -Vars.t1;
-                    Vars.i1 = (int)rint(Vars.nbins * (Vars.t1 -Vars.vx_min)/(Vars.vx_max-Vars.vx_min));
-              if (Vars.i1 < 0)     Vars.i1 = 0;
-              if (Vars.i1 >= Vars.nbins) Vars.i1 = Vars.nbins - 1;
-              Vars.u1 = Vars.Source_vx[Vars.i1]/(Vars.Reference_vx[Vars.i1]+1);
-            }
-            else
+            if ((Vars.vx_max - Vars.vx_min) && (Vars.t1 > 0)) {
+              Vars.t1 = sqrt (Vars.t1);
+              if (vx < 0)
+                Vars.t1 = -Vars.t1;
+              Vars.i1 = (int)rint (Vars.nbins * (Vars.t1 - Vars.vx_min) / (Vars.vx_max - Vars.vx_min));
+              if (Vars.i1 < 0)
+                Vars.i1 = 0;
+              if (Vars.i1 >= Vars.nbins)
+                Vars.i1 = Vars.nbins - 1;
+              Vars.u1 = Vars.Source_vx[Vars.i1] / (Vars.Reference_vx[Vars.i1] + 1);
+            } else
               Vars.u1 = 0;
 
-            if ((Vars.vy_max-Vars.vy_min) && (Vars.t2 > 0))
-            {
-              Vars.t2 = sqrt(Vars.t2);
-              if (vy < 0) Vars.t2 = -Vars.t2;
-                    Vars.i2 = (int)rint(Vars.nbins * (Vars.t2 -Vars.vy_min)/(Vars.vy_max-Vars.vy_min));
-              if (Vars.i2 < 0)     Vars.i2 = 0;
-              if (Vars.i2 >= Vars.nbins) Vars.i2 = Vars.nbins - 1;
-              Vars.u2 = Vars.Source_vy[Vars.i2]/(Vars.Reference_vy[Vars.i2]+1);
-            }
-            else
+            if ((Vars.vy_max - Vars.vy_min) && (Vars.t2 > 0)) {
+              Vars.t2 = sqrt (Vars.t2);
+              if (vy < 0)
+                Vars.t2 = -Vars.t2;
+              Vars.i2 = (int)rint (Vars.nbins * (Vars.t2 - Vars.vy_min) / (Vars.vy_max - Vars.vy_min));
+              if (Vars.i2 < 0)
+                Vars.i2 = 0;
+              if (Vars.i2 >= Vars.nbins)
+                Vars.i2 = Vars.nbins - 1;
+              Vars.u2 = Vars.Source_vy[Vars.i2] / (Vars.Reference_vy[Vars.i2] + 1);
+            } else
               Vars.u2 = 0;
 
-            if ((Vars.vz_max-Vars.vz_min) && (Vars.t3 > 0))
-            {
-              Vars.t3 = sqrt(Vars.t3);
-              if (vz < 0) Vars.t3 = -Vars.t3;
-                    Vars.i3 = (int)rint(Vars.nbins * (Vars.t3 -Vars.vz_min)/(Vars.vz_max-Vars.vz_min));
-              if (Vars.i3 < 0)     Vars.i3 = 0;
-              if (Vars.i3 >= Vars.nbins) Vars.i3 = Vars.nbins - 1;
-              Vars.u3 = Vars.Source_vz[Vars.i3]/(Vars.Reference_vz[Vars.i3]+1);
-            }
-            else
+            if ((Vars.vz_max - Vars.vz_min) && (Vars.t3 > 0)) {
+              Vars.t3 = sqrt (Vars.t3);
+              if (vz < 0)
+                Vars.t3 = -Vars.t3;
+              Vars.i3 = (int)rint (Vars.nbins * (Vars.t3 - Vars.vz_min) / (Vars.vz_max - Vars.vz_min));
+              if (Vars.i3 < 0)
+                Vars.i3 = 0;
+              if (Vars.i3 >= Vars.nbins)
+                Vars.i3 = Vars.nbins - 1;
+              Vars.u3 = Vars.Source_vz[Vars.i3] / (Vars.Reference_vz[Vars.i3] + 1);
+            } else
               Vars.u3 = 0;
 
-            if ((Vars.u1 > Vars.u2) && (Vars.u1 > Vars.u3))
-            {
+            if ((Vars.u1 > Vars.u2) && (Vars.u1 > Vars.u3)) {
               Vars.cur_vx = Vars.t1;
               Vars.index_vx = Vars.i1;
               Vars.Flag_Recycle |= DEFS.MOD_VX;
               Vars.index = -1;
             }
-            if ((Vars.u2 > Vars.u1) && (Vars.u2 > Vars.u3) )
-            {
+            if ((Vars.u2 > Vars.u1) && (Vars.u2 > Vars.u3)) {
               Vars.cur_vy = Vars.t2;
               Vars.index_vy = Vars.i2;
               Vars.Flag_Recycle |= DEFS.MOD_VY;
               Vars.index = -1;
             }
-            if ((Vars.u3 > Vars.u1) && (Vars.u3 > Vars.u1))
-            {
+            if ((Vars.u3 > Vars.u1) && (Vars.u3 > Vars.u1)) {
               Vars.cur_vz = Vars.t3;
               Vars.index_vz = Vars.i3;
               Vars.Flag_Recycle |= DEFS.MOD_VZ;
@@ -1118,177 +1288,176 @@ TRACE
 
       /* ----------------------- X Y ----------------------- */
 
-      if (Vars.x_max-Vars.x_min)
-        Vars.index = (int)rint(Vars.nbins * (x -Vars.x_min)/(Vars.x_max-Vars.x_min));
+      if (Vars.x_max - Vars.x_min)
+        Vars.index = (int)rint (Vars.nbins * (x - Vars.x_min) / (Vars.x_max - Vars.x_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)    Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
-      if ((Vars.Flag_Type & DEFS.DO_XY) && (Vars.Passing_x[Vars.index] >= Vars.Source_x[Vars.index]))
-      {
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
+      if ((Vars.Flag_Type & DEFS.DO_XY) && (Vars.Passing_x[Vars.index] >= Vars.Source_x[Vars.index])) {
         Vars.Flag_Recycle |= DEFS.MOD_X;
-        Vars.cur_x += (Vars.index_x-Vars.index)*(Vars.x_max - Vars.x_min)/Vars.nbins;
+        Vars.cur_x += (Vars.index_x - Vars.index) * (Vars.x_max - Vars.x_min) / Vars.nbins;
         x = Vars.cur_x;
-      }
-      else
+      } else
         Vars.index_x = Vars.index;
 
-      if (Vars.y_max-Vars.y_min)
-        Vars.index = (int)rint(Vars.nbins * (y -Vars.y_min)/(Vars.y_max-Vars.y_min));
+      if (Vars.y_max - Vars.y_min)
+        Vars.index = (int)rint (Vars.nbins * (y - Vars.y_min) / (Vars.y_max - Vars.y_min));
       else
         Vars.index = 0;
-      if (Vars.index < 0)    Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
-      if ((Vars.Flag_Type & DEFS.DO_XY) && (Vars.Passing_y[Vars.index] >= Vars.Source_y[Vars.index]))
-      {
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
+      if ((Vars.Flag_Type & DEFS.DO_XY) && (Vars.Passing_y[Vars.index] >= Vars.Source_y[Vars.index])) {
         Vars.Flag_Recycle |= DEFS.MOD_Y;
-        Vars.cur_y += (Vars.index_y-Vars.index)*(Vars.y_max - Vars.y_min)/Vars.nbins;
+        Vars.cur_y += (Vars.index_y - Vars.index) * (Vars.y_max - Vars.y_min) / Vars.nbins;
         y = Vars.cur_y;
-      }
-      else
+      } else
         Vars.index_y = Vars.index;
 
       /* ----------------------- SX SY SZ ----------------------- */
 
-      if (Vars.sx_max-Vars.sx_min)
-        Vars.index = (int)rint(Vars.nbins * (sx -Vars.sx_min)/(Vars.sx_max-Vars.sx_min));
+      if (Vars.sx_max - Vars.sx_min)
+        Vars.index = (int)rint (Vars.nbins * (sx - Vars.sx_min) / (Vars.sx_max - Vars.sx_min));
       else
-              Vars.index = 0;
-      if (Vars.index < 0)    Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
-      if ((Vars.Flag_Type & (DEFS.DO_S|DEFS.DO_DIVS)) && (Vars.Passing_sx[Vars.index] >= Vars.Source_sx[Vars.index]))
-      {
+        Vars.index = 0;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
+      if ((Vars.Flag_Type & (DEFS.DO_S | DEFS.DO_DIVS)) && (Vars.Passing_sx[Vars.index] >= Vars.Source_sx[Vars.index])) {
         Vars.Flag_Recycle |= DEFS.MOD_SX;
-        Vars.dsx += (Vars.index_sx-Vars.index)*(Vars.sx_max - Vars.sx_min)/Vars.nbins;
-      }
-      else
+        Vars.dsx += (Vars.index_sx - Vars.index) * (Vars.sx_max - Vars.sx_min) / Vars.nbins;
+      } else
         Vars.index_sx = Vars.index;
 
-      if (Vars.sy_max-Vars.sy_min)
-        Vars.index = (int)rint(Vars.nbins * (sy -Vars.sy_min)/(Vars.sy_max-Vars.sy_min));
+      if (Vars.sy_max - Vars.sy_min)
+        Vars.index = (int)rint (Vars.nbins * (sy - Vars.sy_min) / (Vars.sy_max - Vars.sy_min));
       else
-              Vars.index = 0;
-      if (Vars.index < 0)    Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
-      if ((Vars.Flag_Type & (DEFS.DO_S|DEFS.DO_DIVS)) && (Vars.Passing_sy[Vars.index] >= Vars.Source_sy[Vars.index]))
-      {
+        Vars.index = 0;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
+      if ((Vars.Flag_Type & (DEFS.DO_S | DEFS.DO_DIVS)) && (Vars.Passing_sy[Vars.index] >= Vars.Source_sy[Vars.index])) {
         Vars.Flag_Recycle |= DEFS.MOD_SY;
-        Vars.dsy += (Vars.index_sy-Vars.index)*(Vars.sy_max - Vars.sy_min)/Vars.nbins;
-      }
-      else
+        Vars.dsy += (Vars.index_sy - Vars.index) * (Vars.sy_max - Vars.sy_min) / Vars.nbins;
+      } else
         Vars.index_sy = Vars.index;
 
-      if (Vars.sz_max-Vars.sz_min)
-        Vars.index = (int)rint(Vars.nbins * (sz -Vars.sz_min)/(Vars.sz_max-Vars.sz_min));
+      if (Vars.sz_max - Vars.sz_min)
+        Vars.index = (int)rint (Vars.nbins * (sz - Vars.sz_min) / (Vars.sz_max - Vars.sz_min));
       else
-              Vars.index = 0;
-      if (Vars.index < 0)    Vars.index = 0;
-      if (Vars.index >= Vars.nbins) Vars.index = Vars.nbins - 1;
-      if ((Vars.Flag_Type & DEFS.DO_S) && (Vars.Passing_sz[Vars.index] >= Vars.Source_sz[Vars.index]))
-      {
+        Vars.index = 0;
+      if (Vars.index < 0)
+        Vars.index = 0;
+      if (Vars.index >= Vars.nbins)
+        Vars.index = Vars.nbins - 1;
+      if ((Vars.Flag_Type & DEFS.DO_S) && (Vars.Passing_sz[Vars.index] >= Vars.Source_sz[Vars.index])) {
         Vars.Flag_Recycle |= DEFS.MOD_SZ;
-        Vars.dsz += (Vars.index_sz-Vars.index)*(Vars.sz_max - Vars.sz_min)/Vars.nbins;
-      }
-      else
+        Vars.dsz += (Vars.index_sz - Vars.index) * (Vars.sz_max - Vars.sz_min) / Vars.nbins;
+      } else
         Vars.index_sz = Vars.index;
 
-      if (Vars.Flag_Type & DEFS.DO_DIVS)
-      {
+      if (Vars.Flag_Type & DEFS.DO_DIVS) {
         /* use original s^2 to keep polarisation */
         Vars.cur_sz = Vars.S2;
         /* now new sx,sy,sz */
         Vars.cur_sx = Vars.cur_sz * Vars.dsx;
         Vars.cur_sy = Vars.cur_sz * Vars.dsy;
-        Vars.cur_sz /= (1+Vars.dsx*Vars.dsx+Vars.dsy*Vars.dsy); /* always > 0 */
+        Vars.cur_sz /= (1 + Vars.dsx * Vars.dsx + Vars.dsy * Vars.dsy); /* always > 0 */
         /* now try the two z signs for sz */
-        Vars.t1 = sqrt(Vars.cur_sz);
-        if (Vars.sy_max-Vars.sy_min)
-          Vars.i1 = (int)rint(Vars.nbins * (Vars.t1 -Vars.sz_min)/(Vars.sz_max-Vars.sz_min));
+        Vars.t1 = sqrt (Vars.cur_sz);
+        if (Vars.sy_max - Vars.sy_min)
+          Vars.i1 = (int)rint (Vars.nbins * (Vars.t1 - Vars.sz_min) / (Vars.sz_max - Vars.sz_min));
         else
           Vars.i1 = 0;
-        if (Vars.i1 < 0)     Vars.i1 = 0;
-        if (Vars.i1 >= Vars.nbins) Vars.i1 = Vars.nbins - 1;
-        Vars.u1 = Vars.Source_sz[Vars.i1]/(Vars.Reference_sz[Vars.i1]+1);
+        if (Vars.i1 < 0)
+          Vars.i1 = 0;
+        if (Vars.i1 >= Vars.nbins)
+          Vars.i1 = Vars.nbins - 1;
+        Vars.u1 = Vars.Source_sz[Vars.i1] / (Vars.Reference_sz[Vars.i1] + 1);
         Vars.t1 *= -1;
-        if (Vars.sy_max-Vars.sy_min)
-          Vars.i2 = (int)rint(Vars.nbins * (Vars.t1 -Vars.sz_min)/(Vars.sz_max-Vars.sz_min));
+        if (Vars.sy_max - Vars.sy_min)
+          Vars.i2 = (int)rint (Vars.nbins * (Vars.t1 - Vars.sz_min) / (Vars.sz_max - Vars.sz_min));
         else
           Vars.i2 = 0;
-        if (Vars.i2 < 0)     Vars.i2 = 0;
-        if (Vars.i2 >= Vars.nbins) Vars.i2 = Vars.nbins - 1;
-        Vars.u2 = Vars.Source_sz[Vars.i2]/(Vars.Reference_sz[Vars.i2]+1);
+        if (Vars.i2 < 0)
+          Vars.i2 = 0;
+        if (Vars.i2 >= Vars.nbins)
+          Vars.i2 = Vars.nbins - 1;
+        Vars.u2 = Vars.Source_sz[Vars.i2] / (Vars.Reference_sz[Vars.i2] + 1);
         if (Vars.u1 > Vars.u2)
           Vars.cur_sz = -Vars.t1;
         else
           Vars.cur_sz = Vars.t1;
-        Vars.Flag_Recycle |= (DEFS.MOD_SX|DEFS.MOD_SY|DEFS.MOD_SZ);
-      }
-      else
-      {
+        Vars.Flag_Recycle |= (DEFS.MOD_SX | DEFS.MOD_SY | DEFS.MOD_SZ);
+      } else {
 
-        if (Vars.Flag_Type & DEFS.DO_S)
-        {
-          if (Vars.Flag_Recycle & (DEFS.MOD_SX|DEFS.MOD_SY|DEFS.MOD_SZ))
-          {        /* now try to keep polarisation distribution */
-            Vars.cur_sx = Vars.dsx; /* may have been translated in vx,vy,vz 3 tests up-there */
+        if (Vars.Flag_Type & DEFS.DO_S) {
+          if (Vars.Flag_Recycle & (DEFS.MOD_SX | DEFS.MOD_SY | DEFS.MOD_SZ)) { /* now try to keep polarisation distribution */
+            Vars.cur_sx = Vars.dsx;                                            /* may have been translated in vx,vy,vz 3 tests up-there */
             Vars.cur_sy = Vars.dsy;
             Vars.cur_sz = Vars.dsz;
-            Vars.t1 = Vars.S2 - Vars.cur_sz*Vars.cur_sz - Vars.cur_sy*Vars.cur_sy;
-            Vars.t2 = Vars.S2 - Vars.cur_sz*Vars.cur_sz - Vars.cur_sx*Vars.cur_sx;
-            Vars.t3 = Vars.S2 - Vars.cur_sx*Vars.cur_sx - Vars.cur_sy*Vars.cur_sy;
+            Vars.t1 = Vars.S2 - Vars.cur_sz * Vars.cur_sz - Vars.cur_sy * Vars.cur_sy;
+            Vars.t2 = Vars.S2 - Vars.cur_sz * Vars.cur_sz - Vars.cur_sx * Vars.cur_sx;
+            Vars.t3 = Vars.S2 - Vars.cur_sx * Vars.cur_sx - Vars.cur_sy * Vars.cur_sy;
             /* we affect the component wich is the most optimized  (largest Source/Ref) */
-            if ((Vars.sx_max-Vars.sx_min) && (Vars.t1 > 0))
-            {
-              Vars.t1 = sqrt(Vars.t1);
-              if (vx < 0) Vars.t1 = -Vars.t1;
-                    Vars.i1 = (int)rint(Vars.nbins * (Vars.t1 -Vars.sx_min)/(Vars.sx_max-Vars.sx_min));
-              if (Vars.i1 < 0)     Vars.i1 = 0;
-              if (Vars.i1 >= Vars.nbins) Vars.i1 = Vars.nbins - 1;
-              Vars.u1 = Vars.Source_sx[Vars.i1]/(Vars.Reference_sx[Vars.i1]+1);
-            }
-            else
+            if ((Vars.sx_max - Vars.sx_min) && (Vars.t1 > 0)) {
+              Vars.t1 = sqrt (Vars.t1);
+              if (vx < 0)
+                Vars.t1 = -Vars.t1;
+              Vars.i1 = (int)rint (Vars.nbins * (Vars.t1 - Vars.sx_min) / (Vars.sx_max - Vars.sx_min));
+              if (Vars.i1 < 0)
+                Vars.i1 = 0;
+              if (Vars.i1 >= Vars.nbins)
+                Vars.i1 = Vars.nbins - 1;
+              Vars.u1 = Vars.Source_sx[Vars.i1] / (Vars.Reference_sx[Vars.i1] + 1);
+            } else
               Vars.u1 = 0;
 
-            if ((Vars.sy_max-Vars.sy_min) && (Vars.t2 > 0))
-            {
-              Vars.t2 = sqrt(Vars.t2);
-              if (vy < 0) Vars.t2 = -Vars.t2;
-                    Vars.i2 = (int)rint(Vars.nbins * (Vars.t2 -Vars.sy_min)/(Vars.sy_max-Vars.sy_min));
-              if (Vars.i2 < 0)     Vars.i2 = 0;
-              if (Vars.i2 >= Vars.nbins) Vars.i2 = Vars.nbins - 1;
-              Vars.u2 = Vars.Source_sy[Vars.i2]/(Vars.Reference_sy[Vars.i2]+1);
-            }
-            else
+            if ((Vars.sy_max - Vars.sy_min) && (Vars.t2 > 0)) {
+              Vars.t2 = sqrt (Vars.t2);
+              if (vy < 0)
+                Vars.t2 = -Vars.t2;
+              Vars.i2 = (int)rint (Vars.nbins * (Vars.t2 - Vars.sy_min) / (Vars.sy_max - Vars.sy_min));
+              if (Vars.i2 < 0)
+                Vars.i2 = 0;
+              if (Vars.i2 >= Vars.nbins)
+                Vars.i2 = Vars.nbins - 1;
+              Vars.u2 = Vars.Source_sy[Vars.i2] / (Vars.Reference_sy[Vars.i2] + 1);
+            } else
               Vars.u2 = 0;
 
-            if ((Vars.sz_max-Vars.sz_min) && (Vars.t3 > 0))
-            {
-              Vars.t3 = sqrt(Vars.t3);
-              if (vz < 0) Vars.t3 = -Vars.t3;
-                    Vars.i3 = (int)rint(Vars.nbins * (Vars.t3 -Vars.sz_min)/(Vars.sz_max-Vars.sz_min));
-              if (Vars.i3 < 0)     Vars.i3 = 0;
-              if (Vars.i3 >= Vars.nbins) Vars.i3 = Vars.nbins - 1;
-              Vars.u3 = Vars.Source_sz[Vars.i3]/(Vars.Reference_sz[Vars.i3]+1);
-            }
-            else
+            if ((Vars.sz_max - Vars.sz_min) && (Vars.t3 > 0)) {
+              Vars.t3 = sqrt (Vars.t3);
+              if (vz < 0)
+                Vars.t3 = -Vars.t3;
+              Vars.i3 = (int)rint (Vars.nbins * (Vars.t3 - Vars.sz_min) / (Vars.sz_max - Vars.sz_min));
+              if (Vars.i3 < 0)
+                Vars.i3 = 0;
+              if (Vars.i3 >= Vars.nbins)
+                Vars.i3 = Vars.nbins - 1;
+              Vars.u3 = Vars.Source_sz[Vars.i3] / (Vars.Reference_sz[Vars.i3] + 1);
+            } else
               Vars.u3 = 0;
 
-            if ((Vars.u1 > Vars.u2) && (Vars.u1 > Vars.u3))
-            {
+            if ((Vars.u1 > Vars.u2) && (Vars.u1 > Vars.u3)) {
               Vars.cur_sx = Vars.t1;
               Vars.index_sx = Vars.i1;
               Vars.Flag_Recycle |= DEFS.MOD_SX;
               Vars.index = -1;
             }
-            if ((Vars.u2 > Vars.u1) && (Vars.u2 > Vars.u3) )
-            {
+            if ((Vars.u2 > Vars.u1) && (Vars.u2 > Vars.u3)) {
               Vars.cur_sy = Vars.t2;
               Vars.index_sy = Vars.i2;
               Vars.Flag_Recycle |= DEFS.MOD_SY;
               Vars.index = -1;
             }
-            if ((Vars.u3 > Vars.u1) && (Vars.u3 > Vars.u1))
-            {
+            if ((Vars.u3 > Vars.u1) && (Vars.u3 > Vars.u1)) {
               Vars.cur_sz = Vars.t3;
               Vars.index_sz = Vars.i3;
               Vars.Flag_Recycle |= DEFS.MOD_SZ;
@@ -1302,93 +1471,86 @@ TRACE
       sy = Vars.cur_sy;
       sz = Vars.cur_sz;
 
-        /* neutron has passed ! */
+      /* neutron has passed ! */
 
-      if (Vars.Source_vx[Vars.index_vx]
-       && Vars.Source_vy[Vars.index_vy]
-       && Vars.Source_vz[Vars.index_vz]
-       && Vars.Source_x[Vars.index_x]
-       && Vars.Source_y[Vars.index_y]
-       && Vars.Source_sx[Vars.index_sx]
-       && Vars.Source_sy[Vars.index_sy]
-       && Vars.Source_sz[Vars.index_sz]
-       && Vars.Reference_vx[Vars.index_vx]
-       && Vars.Reference_vy[Vars.index_vy]
-       && Vars.Reference_vz[Vars.index_vz]
-       && Vars.Reference_x[Vars.index_x]
-       && Vars.Reference_y[Vars.index_y]
-       && Vars.Reference_sx[Vars.index_sx]
-       && Vars.Reference_sy[Vars.index_sy]
-       && Vars.Reference_sz[Vars.index_sz])
-      {
+      if (Vars.Source_vx[Vars.index_vx] && Vars.Source_vy[Vars.index_vy] && Vars.Source_vz[Vars.index_vz] && Vars.Source_x[Vars.index_x]
+          && Vars.Source_y[Vars.index_y] && Vars.Source_sx[Vars.index_sx] && Vars.Source_sy[Vars.index_sy] && Vars.Source_sz[Vars.index_sz]
+          && Vars.Reference_vx[Vars.index_vx] && Vars.Reference_vy[Vars.index_vy] && Vars.Reference_vz[Vars.index_vz] && Vars.Reference_x[Vars.index_x]
+          && Vars.Reference_y[Vars.index_y] && Vars.Reference_sx[Vars.index_sx] && Vars.Reference_sy[Vars.index_sy] && Vars.Reference_sz[Vars.index_sz]) {
         Vars.t1 = 1;
 
-/*
- * good neutrons have an improved distribution, so Ref/Source < 1
- * unmodified (form Ref kept fraction) neutrons have Passing < Ref*Vars.dkeep.
- * their weight should be about 1/keep for each variable
- * at the end there will be of those :
- * 2*Vars.dstep*Vars.dkeep + (1-2*Vars.dstep)*Vars.dkeep
- * = Vars.dkeep % of unmodified neutrons
- * the remaining part (1-Vars.dkeep neutrons) should have an
- * integrated flux of (1-Vars.dkeep)
- */
-        if (Vars.Flag_Type & (DEFS.DO_V|DEFS.DO_DIVV))
-        {
-          Vars.t2 = Vars.Reference_vx[Vars.index_vx]/Vars.Source_vx[Vars.index_vx];
-          if (Vars.t2 < 1) Vars.good_vx = Vars.index_vx;
+        /*
+         * good neutrons have an improved distribution, so Ref/Source < 1
+         * unmodified (form Ref kept fraction) neutrons have Passing < Ref*Vars.dkeep.
+         * their weight should be about 1/keep for each variable
+         * at the end there will be of those :
+         * 2*Vars.dstep*Vars.dkeep + (1-2*Vars.dstep)*Vars.dkeep
+         * = Vars.dkeep % of unmodified neutrons
+         * the remaining part (1-Vars.dkeep neutrons) should have an
+         * integrated flux of (1-Vars.dkeep)
+         */
+        if (Vars.Flag_Type & (DEFS.DO_V | DEFS.DO_DIVV)) {
+          Vars.t2 = Vars.Reference_vx[Vars.index_vx] / Vars.Source_vx[Vars.index_vx];
+          if (Vars.t2 < 1)
+            Vars.good_vx = Vars.index_vx;
           Vars.t1 *= Vars.t2;
 
-          Vars.t2 = Vars.Reference_vy[Vars.index_vy]/Vars.Source_vy[Vars.index_vy];
-          if (Vars.t2 < 1) Vars.good_vy = Vars.index_vy;
+          Vars.t2 = Vars.Reference_vy[Vars.index_vy] / Vars.Source_vy[Vars.index_vy];
+          if (Vars.t2 < 1)
+            Vars.good_vy = Vars.index_vy;
           Vars.t1 *= Vars.t2;
 
-          Vars.t2 = Vars.Reference_vz[Vars.index_vz]/Vars.Source_vz[Vars.index_vz];
-          if (Vars.t2 < 1) Vars.good_vz = Vars.index_vz;
-          Vars.t1 *= Vars.t2;
-        }
-
-        if (Vars.Flag_Type & DEFS.DO_XY)
-        {
-          Vars.t2 = Vars.Reference_x[Vars.index_x]/Vars.Source_x[Vars.index_x];
-          if (Vars.t2 < 1) Vars.good_x = Vars.index_x;
-          Vars.t1 *= Vars.t2;
-
-          Vars.t2 = Vars.Reference_y[Vars.index_y]/Vars.Source_y[Vars.index_y];
-          if (Vars.t2 < 1) Vars.good_y = Vars.index_y;
+          Vars.t2 = Vars.Reference_vz[Vars.index_vz] / Vars.Source_vz[Vars.index_vz];
+          if (Vars.t2 < 1)
+            Vars.good_vz = Vars.index_vz;
           Vars.t1 *= Vars.t2;
         }
 
-        if (Vars.Flag_Type & (DEFS.DO_S|DEFS.DO_DIVS))
-        {
-          Vars.t2 = Vars.Reference_sx[Vars.index_sx]/Vars.Source_sx[Vars.index_sx];
-          if (Vars.t2 < 1) Vars.good_sx= Vars.index_sx;
+        if (Vars.Flag_Type & DEFS.DO_XY) {
+          Vars.t2 = Vars.Reference_x[Vars.index_x] / Vars.Source_x[Vars.index_x];
+          if (Vars.t2 < 1)
+            Vars.good_x = Vars.index_x;
           Vars.t1 *= Vars.t2;
 
-          Vars.t2 = Vars.Reference_sy[Vars.index_sy]/Vars.Source_sy[Vars.index_sy];
-          if (Vars.t2 < 1) Vars.good_sy= Vars.index_sy;
-          Vars.t1 *= Vars.t2;
-
-          Vars.t2 = Vars.Reference_sz[Vars.index_sz]/Vars.Source_sz[Vars.index_sz];
-          if (Vars.t2 < 1) Vars.good_sz= Vars.index_sz;
+          Vars.t2 = Vars.Reference_y[Vars.index_y] / Vars.Source_y[Vars.index_y];
+          if (Vars.t2 < 1)
+            Vars.good_y = Vars.index_y;
           Vars.t1 *= Vars.t2;
         }
 
-        if (Vars.Flag_Recycle) { Vars.n_redirect++; }
+        if (Vars.Flag_Type & (DEFS.DO_S | DEFS.DO_DIVS)) {
+          Vars.t2 = Vars.Reference_sx[Vars.index_sx] / Vars.Source_sx[Vars.index_sx];
+          if (Vars.t2 < 1)
+            Vars.good_sx = Vars.index_sx;
+          Vars.t1 *= Vars.t2;
+
+          Vars.t2 = Vars.Reference_sy[Vars.index_sy] / Vars.Source_sy[Vars.index_sy];
+          if (Vars.t2 < 1)
+            Vars.good_sy = Vars.index_sy;
+          Vars.t1 *= Vars.t2;
+
+          Vars.t2 = Vars.Reference_sz[Vars.index_sz] / Vars.Source_sz[Vars.index_sz];
+          if (Vars.t2 < 1)
+            Vars.good_sz = Vars.index_sz;
+          Vars.t1 *= Vars.t2;
+        }
+
+        if (Vars.Flag_Recycle) {
+          Vars.n_redirect++;
+        }
 
         /* now normalize to initial distribution */
 
-        if (fabs(Vars.Smoothed_Weigth - (double)Vars.Phase_Counts) >= 1)
-          Vars.t1 *= ((double)mcget_ncount()-Vars.Smoothed_Weigth)/((double)mcget_ncount()-(double)Vars.Phase_Counts);
+        if (fabs (Vars.Smoothed_Weigth - (double)Vars.Phase_Counts) >= 1)
+          Vars.t1 *= ((double)mcget_ncount () - Vars.Smoothed_Weigth) / ((double)mcget_ncount () - (double)Vars.Phase_Counts);
 
         Vars.cur_p *= Vars.t1;
 
         p = Vars.cur_p;
         SCATTER;
 
-      }
-      else
-        ABSORB;  /* can't modify neutron weight -> eject */
+      } else
+        ABSORB; /* can't modify neutron weight -> eject */
 
       Vars.Passing_vx[Vars.index_vx]++;
       Vars.Passing_vy[Vars.index_vy]++;
@@ -1405,190 +1567,200 @@ TRACE
 
   } /* end if (Vars.Phase != DEFS.PHASE_UNACTIVATE)  */
 
-/* end trace */
+  /* end trace */
 %}
 
 FINALLY
 %{
-  FILE  *hfile;
+  FILE* hfile;
 
-  if (Vars.Flag_Verbose && (Vars.Phase != DEFS.PHASE_UNACTIVATE))
-    {
-      printf("Source_Optimizer: End of optimization (%s)\n", NAME_CURRENT_COMP);
-      printf("Source_Optimizer: Vars.Normal_Monitor_Counts = %i, Vars.Total_Monitor_Counts = %i \n",Vars.Normal_Monitor_Counts, Vars.Total_Monitor_Counts);
+  if (Vars.Flag_Verbose && (Vars.Phase != DEFS.PHASE_UNACTIVATE)) {
+    printf ("Source_Optimizer: End of optimization (%s)\n", NAME_CURRENT_COMP);
+    printf ("Source_Optimizer: Vars.Normal_Monitor_Counts = %i, Vars.Total_Monitor_Counts = %i \n", Vars.Normal_Monitor_Counts, Vars.Total_Monitor_Counts);
+    if (Vars.Normal_Monitor_Counts != 0)
+      printf ("Source_Optimizer: Optimizer speedup : %.3g \n",
+              (double)(Vars.Total_Monitor_Counts / (Vars.Normal_Monitor_Counts * (double)mcget_ncount () / Vars.Phase_Counts)));
+    printf ("Source_Optimizer: Number of redirections : %i\n", Vars.n_redirect);
+    printf ("Counts : reference = %i, passing = %i, monitor = %.1f\n", Vars.Reference_Counts, Vars.Passing_Counts, Vars.Monitor_Counts);
+    printf ("Flux   : reference = %.2g, passing = %.2g, monitor = %.2g\n", Vars.Reference_Flux, Vars.Passing_Flux, Vars.Monitor_Flux);
+  }
+
+  if ((Vars.Phase != DEFS.PHASE_UNACTIVATE) && (strlen (Vars.file) > 0)) {
+    if (strchr (Vars.file, '.') == NULL)
+      strcat (Vars.file, ".src");
+
+    hfile = fopen (Vars.file, "w");
+    if (!hfile) {
+      fprintf (stderr, "Error: %s : could not open output file '%s'\n", NAME_CURRENT_COMP, Vars.file);
+    } else {
+      if (Vars.Flag_Verbose)
+        printf ("Source_Optimizer: %s write source description file %s.\n", NAME_CURRENT_COMP, Vars.file);
+      fprintf (hfile, "# Instrument-source: %s\n", instrument_source);
+      fprintf (hfile, "# type: array_2d(%i,6) \n", Vars.nbins);
+      fprintf (hfile, "# component: %s\n", NAME_CURRENT_COMP);
+      fprintf (hfile, "# title: General Optimizer distributions\n");
+      fprintf (hfile, "# filename: '%s'\n", Vars.file);
+      fprintf (hfile, "# variables: x nx y ny ");
+      if (Vars.Flag_Type & DEFS.DO_V)
+        fprintf (hfile, "vx nvx vy nvy vz nvz ");
+      if (Vars.Flag_Type & DEFS.DO_DIVV)
+        fprintf (hfile, "vx/v2 ndivvx vy/v2 ndivvy v2 nv2 ");
+      if (Vars.Flag_Type & DEFS.DO_S)
+        fprintf (hfile, "sx nsx sy nsy sz nsz ");
+      if (Vars.Flag_Type & DEFS.DO_DIVS)
+        fprintf (hfile, "sx/s2 ndivsx sy/s2 ndivsy s2 ns2 ");
+      fprintf (hfile, "\n");
+      fprintf (hfile, "# xvar: (x y ");
+      if (Vars.Flag_Type & DEFS.DO_V)
+        fprintf (hfile, "vx vy vz ");
+      if (Vars.Flag_Type & DEFS.DO_DIVV)
+        fprintf (hfile, "vx/v2 vy/v2 v2 ");
+      if (Vars.Flag_Type & DEFS.DO_S)
+        fprintf (hfile, "sx sy sz ");
+      if (Vars.Flag_Type & DEFS.DO_DIVS)
+        fprintf (hfile, "sx/s2 sy/s2 s2 ");
+      fprintf (hfile, ")\n");
+      fprintf (hfile, "# yvar: (nx ny ");
+      if (Vars.Flag_Type & DEFS.DO_V)
+        fprintf (hfile, "nvx nvy nvz ");
+      if (Vars.Flag_Type & DEFS.DO_DIVV)
+        fprintf (hfile, "n(vx/v2) n(vy/v2) nv2 ");
+      if (Vars.Flag_Type & DEFS.DO_S)
+        fprintf (hfile, "nsx nsy nsz ");
+      if (Vars.Flag_Type & DEFS.DO_DIVS)
+        fprintf (hfile, "n(sx/s2) n(sy/s2) ns2 ");
+      fprintf (hfile, ")\n");
+
+      fprintf (hfile, "# xlabel: 'Distributions'\n");
+      fprintf (hfile, "# ylabel: 'Counts'\n");
       if (Vars.Normal_Monitor_Counts != 0)
-	printf("Source_Optimizer: Optimizer speedup : %.3g \n", (double)(Vars.Total_Monitor_Counts/(Vars.Normal_Monitor_Counts*(double)mcget_ncount()/Vars.Phase_Counts)));
-      printf("Source_Optimizer: Number of redirections : %i\n",Vars.n_redirect);
-      printf("Counts : reference = %i, passing = %i, monitor = %.1f\n", Vars.Reference_Counts, Vars.Passing_Counts, Vars.Monitor_Counts);
-      printf("Flux   : reference = %.2g, passing = %.2g, monitor = %.2g\n", Vars.Reference_Flux, Vars.Passing_Flux, Vars.Monitor_Flux);
-    }
+        fprintf (hfile, "# Optimizer speedup estimate: %.3g [Monitor Normal counts %i (extrapolated), Optimized %i ]\n",
+                 (double)(Vars.Total_Monitor_Counts / (Vars.Normal_Monitor_Counts * (double)mcget_ncount () / Vars.Phase_Counts)),
+                 (long)ceil (Vars.Normal_Monitor_Counts * (double)mcget_ncount () / Vars.Phase_Counts), Vars.Total_Monitor_Counts);
 
-  if ((Vars.Phase != DEFS.PHASE_UNACTIVATE) && (strlen(Vars.file) > 0))
-  {
-    if (strchr(Vars.file,'.') == NULL) strcat(Vars.file, ".src");
+      fprintf (hfile, "# Optimizer options: ");
+      if (Vars.Flag_Continuous)
+        fprintf (hfile, "continuous ");
+      else
+        fprintf (hfile, "fixed ");
+      if (Vars.Flag_Auto)
+        fprintf (hfile, "auto ");
+      if (Vars.Flag_Smooth)
+        fprintf (hfile, "smooth ");
+      if (Vars.Flag_Verbose)
+        fprintf (hfile, "verbose ");
+      if (Vars.Flag_Type & DEFS.DO_XY)
+        fprintf (hfile, "SetXY ");
+      if (Vars.Flag_Type & DEFS.DO_DIVV)
+        fprintf (hfile, "SetDivV ");
+      if (Vars.Flag_Type & DEFS.DO_V)
+        fprintf (hfile, "SetV ");
+      if (Vars.Flag_Type & DEFS.DO_S)
+        fprintf (hfile, "SetS ");
+      if (Vars.Flag_Type & DEFS.DO_DIVS)
+        fprintf (hfile, "SetDivS ");
+      fprintf (hfile, "bins=%i, step=%.2f, keep=%.2f ", Vars.nbins, Vars.dstep, Vars.keep_target);
 
-    hfile = fopen(Vars.file, "w");
-    if(!hfile)
-    {
-       fprintf(stderr, "Error: %s : could not open output file '%s'\n", NAME_CURRENT_COMP, Vars.file);
-    }
-    else
-    {
-       if (Vars.Flag_Verbose) printf("Source_Optimizer: %s write source description file %s.\n", NAME_CURRENT_COMP, Vars.file);
-       fprintf(hfile,"# Instrument-source: %s\n", instrument_source);
-       fprintf(hfile,"# type: array_2d(%i,6) \n",Vars.nbins);
-       fprintf(hfile,"# component: %s\n", NAME_CURRENT_COMP);
-       fprintf(hfile,"# title: General Optimizer distributions\n");
-       fprintf(hfile,"# filename: '%s'\n",Vars.file);
-       fprintf(hfile,"# variables: x nx y ny ");
-       if (Vars.Flag_Type & DEFS.DO_V) fprintf(hfile,"vx nvx vy nvy vz nvz ");
-       if (Vars.Flag_Type & DEFS.DO_DIVV) fprintf(hfile,"vx/v2 ndivvx vy/v2 ndivvy v2 nv2 ");
-       if (Vars.Flag_Type & DEFS.DO_S) fprintf(hfile,"sx nsx sy nsy sz nsz ");
-       if (Vars.Flag_Type & DEFS.DO_DIVS) fprintf(hfile,"sx/s2 ndivsx sy/s2 ndivsy s2 ns2 ");
-       fprintf(hfile,"\n");
-       fprintf(hfile,"# xvar: (x y ");
-       if (Vars.Flag_Type & DEFS.DO_V) fprintf(hfile,"vx vy vz ");
-       if (Vars.Flag_Type & DEFS.DO_DIVV) fprintf(hfile,"vx/v2 vy/v2 v2 ");
-       if (Vars.Flag_Type & DEFS.DO_S) fprintf(hfile,"sx sy sz ");
-       if (Vars.Flag_Type & DEFS.DO_DIVS) fprintf(hfile,"sx/s2 sy/s2 s2 ");
-       fprintf(hfile,")\n");
-       fprintf(hfile,"# yvar: (nx ny ");
-       if (Vars.Flag_Type & DEFS.DO_V) fprintf(hfile,"nvx nvy nvz ");
-       if (Vars.Flag_Type & DEFS.DO_DIVV) fprintf(hfile,"n(vx/v2) n(vy/v2) nv2 ");
-       if (Vars.Flag_Type & DEFS.DO_S) fprintf(hfile,"nsx nsy nsz ");
-       if (Vars.Flag_Type & DEFS.DO_DIVS) fprintf(hfile,"n(sx/s2) n(sy/s2) ns2 ");
-       fprintf(hfile,")\n");
+      fprintf (hfile, "\n");
 
-       fprintf(hfile,"# xlabel: 'Distributions'\n");
-       fprintf(hfile,"# ylabel: 'Counts'\n");
-       if (Vars.Normal_Monitor_Counts != 0)
-	 fprintf(hfile,"# Optimizer speedup estimate: %.3g [Monitor Normal counts %i (extrapolated), Optimized %i ]\n", (double)(Vars.Total_Monitor_Counts/(Vars.Normal_Monitor_Counts*(double)mcget_ncount()/Vars.Phase_Counts)),(long)ceil(Vars.Normal_Monitor_Counts*(double)mcget_ncount()/Vars.Phase_Counts), Vars.Total_Monitor_Counts);
-
-       fprintf(hfile,"# Optimizer options: ");
-       if (Vars.Flag_Continuous) fprintf(hfile,"continuous "); else fprintf(hfile,"fixed ");
-       if (Vars.Flag_Auto)       fprintf(hfile,"auto ");
-       if (Vars.Flag_Smooth)     fprintf(hfile,"smooth ");
-       if (Vars.Flag_Verbose)    fprintf(hfile,"verbose ");
-       if (Vars.Flag_Type & DEFS.DO_XY) fprintf(hfile,"SetXY ");
-       if (Vars.Flag_Type & DEFS.DO_DIVV) fprintf(hfile,"SetDivV ");
-       if (Vars.Flag_Type & DEFS.DO_V)  fprintf(hfile,"SetV ");
-       if (Vars.Flag_Type & DEFS.DO_S)  fprintf(hfile,"SetS ");
-       if (Vars.Flag_Type & DEFS.DO_DIVS)  fprintf(hfile,"SetDivS ");
-       fprintf(hfile,"bins=%i, step=%.2f, keep=%.2f ", Vars.nbins, Vars.dstep, Vars.keep_target);
-
-       fprintf(hfile,"\n");
-
-       fprintf(hfile,"# Redirected neutrons: %i (%.2f %%)\n",Vars.n_redirect,(double)(100.0*Vars.n_redirect/mcget_ncount()));
-       fprintf(hfile,"# data: Optimized Source (%.1f Counts, Flux %.4g)\n", Vars.Monitor_Counts, Vars.Monitor_Flux);
-       for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++)
-       {
-         fprintf(hfile,"%10.4g ",(Vars.x_min+((Vars.index+0.5)/Vars.nbins)*(Vars.x_max - Vars.x_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Source_x[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.y_min+((Vars.index+0.5)/Vars.nbins)*(Vars.y_max - Vars.y_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Source_y[Vars.index]);
-         if (Vars.Flag_Type & (DEFS.DO_V|DEFS.DO_DIVV))
-         {
-         fprintf(hfile,"%10.4g ",(Vars.vx_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vx_max - Vars.vx_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Source_vx[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.vy_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vy_max - Vars.vy_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Source_vy[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.vz_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vz_max - Vars.vz_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Source_vz[Vars.index]);
-         }
-         if (Vars.Flag_Type & (DEFS.DO_S|DEFS.DO_DIVS))
-         {
-         fprintf(hfile,"%10.4g ",(Vars.sx_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sx_max - Vars.sx_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Source_sx[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.sy_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sy_max - Vars.sy_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Source_sy[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.sz_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sz_max - Vars.sz_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Source_sz[Vars.index]);
-         }
-         fprintf(hfile,"\n");
-       }
-       fprintf(hfile,"# data: Reference Source (%i Counts, Flux %.4g)\n", Vars.Reference_Counts, Vars.Reference_Flux);
-       for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++)
-       {
-         fprintf(hfile,"%10.4g ",(Vars.x_min+((Vars.index+0.5)/Vars.nbins)*(Vars.x_max - Vars.x_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Reference_x[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.y_min+((Vars.index+0.5)/Vars.nbins)*(Vars.y_max - Vars.y_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Reference_y[Vars.index]);
-         if (Vars.Flag_Type & (DEFS.DO_V|DEFS.DO_DIVV))
-         {
-         fprintf(hfile,"%10.4g ",(Vars.vx_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vx_max - Vars.vx_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Reference_vx[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.vy_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vy_max - Vars.vy_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Reference_vy[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.vz_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vz_max - Vars.vz_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Reference_vz[Vars.index]);
-         }
-         if (Vars.Flag_Type & (DEFS.DO_S|DEFS.DO_DIVS))
-         {
-         fprintf(hfile,"%10.4g ",(Vars.sx_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sx_max - Vars.sx_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Reference_sx[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.sy_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sy_max - Vars.sy_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Reference_sy[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.sz_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sz_max - Vars.sz_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Reference_sz[Vars.index]);
-         }
-         fprintf(hfile,"\n");
-       }
-       fprintf(hfile,"# data: Passing (%i Counts, Flux %.4g)\n", Vars.Passing_Counts, Vars.Passing_Flux);
-       for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++)
-       {
-         fprintf(hfile,"%10.4g ",(Vars.x_min+((Vars.index+0.5)/Vars.nbins)*(Vars.x_max - Vars.x_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Passing_x[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.y_min+((Vars.index+0.5)/Vars.nbins)*(Vars.y_max - Vars.y_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Passing_y[Vars.index]);
-         if (Vars.Flag_Type & (DEFS.DO_V|DEFS.DO_DIVV))
-         {
-         fprintf(hfile,"%10.4g ",(Vars.vx_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vx_max - Vars.vx_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Passing_vx[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.vy_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vy_max - Vars.vy_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Passing_vy[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.vz_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vz_max - Vars.vz_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Passing_vz[Vars.index]);
-         }
-         if (Vars.Flag_Type & (DEFS.DO_S|DEFS.DO_DIVS))
-         {
-         fprintf(hfile,"%10.4g ",(Vars.sx_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sx_max - Vars.sx_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Passing_sx[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.sy_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sy_max - Vars.sy_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Passing_sy[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.sz_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sz_max - Vars.sz_min)));
-         fprintf(hfile,"%10.4g\t",Vars.Passing_sz[Vars.index]);
-         }
-         fprintf(hfile,"\n");
-       }
-       fprintf(hfile,"# data: New_Source\n");
-       for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++)
-       {
-         fprintf(hfile,"%10.4g ",(Vars.x_min+((Vars.index+0.5)/Vars.nbins)*(Vars.x_max - Vars.x_min)));
-         fprintf(hfile,"%10.4g\t",Vars.New_Source_x[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.y_min+((Vars.index+0.5)/Vars.nbins)*(Vars.y_max - Vars.y_min)));
-         fprintf(hfile,"%10.4g\t",Vars.New_Source_y[Vars.index]);
-         if (Vars.Flag_Type & (DEFS.DO_V|DEFS.DO_DIVV))
-         {
-         fprintf(hfile,"%10.4g ",(Vars.vx_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vx_max - Vars.vx_min)));
-         fprintf(hfile,"%10.4g\t",Vars.New_Source_vx[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.vy_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vy_max - Vars.vy_min)));
-         fprintf(hfile,"%10.4g\t",Vars.New_Source_vy[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.vz_min+((Vars.index+0.5)/Vars.nbins)*(Vars.vz_max - Vars.vz_min)));
-         fprintf(hfile,"%10.4g\t",Vars.New_Source_vz[Vars.index]);
-         }
-         if (Vars.Flag_Type & (DEFS.DO_S|DEFS.DO_DIVS))
-         {
-         fprintf(hfile,"%10.4g ",(Vars.sx_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sx_max - Vars.sx_min)));
-         fprintf(hfile,"%10.4g\t",Vars.New_Source_sx[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.sy_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sy_max - Vars.sy_min)));
-         fprintf(hfile,"%10.4g\t",Vars.New_Source_sy[Vars.index]);
-         fprintf(hfile,"%10.4g ",(Vars.sz_min+((Vars.index+0.5)/Vars.nbins)*(Vars.sz_max - Vars.sz_min)));
-         fprintf(hfile,"%10.4g\t",Vars.New_Source_sz[Vars.index]);
-         }
-         fprintf(hfile,"\n");
-       }
-       fclose(hfile);
-
+      fprintf (hfile, "# Redirected neutrons: %i (%.2f %%)\n", Vars.n_redirect, (double)(100.0 * Vars.n_redirect / mcget_ncount ()));
+      fprintf (hfile, "# data: Optimized Source (%.1f Counts, Flux %.4g)\n", Vars.Monitor_Counts, Vars.Monitor_Flux);
+      for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++) {
+        fprintf (hfile, "%10.4g ", (Vars.x_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.x_max - Vars.x_min)));
+        fprintf (hfile, "%10.4g\t", Vars.Source_x[Vars.index]);
+        fprintf (hfile, "%10.4g ", (Vars.y_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.y_max - Vars.y_min)));
+        fprintf (hfile, "%10.4g\t", Vars.Source_y[Vars.index]);
+        if (Vars.Flag_Type & (DEFS.DO_V | DEFS.DO_DIVV)) {
+          fprintf (hfile, "%10.4g ", (Vars.vx_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vx_max - Vars.vx_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Source_vx[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.vy_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vy_max - Vars.vy_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Source_vy[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.vz_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vz_max - Vars.vz_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Source_vz[Vars.index]);
+        }
+        if (Vars.Flag_Type & (DEFS.DO_S | DEFS.DO_DIVS)) {
+          fprintf (hfile, "%10.4g ", (Vars.sx_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sx_max - Vars.sx_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Source_sx[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.sy_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sy_max - Vars.sy_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Source_sy[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.sz_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sz_max - Vars.sz_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Source_sz[Vars.index]);
+        }
+        fprintf (hfile, "\n");
+      }
+      fprintf (hfile, "# data: Reference Source (%i Counts, Flux %.4g)\n", Vars.Reference_Counts, Vars.Reference_Flux);
+      for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++) {
+        fprintf (hfile, "%10.4g ", (Vars.x_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.x_max - Vars.x_min)));
+        fprintf (hfile, "%10.4g\t", Vars.Reference_x[Vars.index]);
+        fprintf (hfile, "%10.4g ", (Vars.y_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.y_max - Vars.y_min)));
+        fprintf (hfile, "%10.4g\t", Vars.Reference_y[Vars.index]);
+        if (Vars.Flag_Type & (DEFS.DO_V | DEFS.DO_DIVV)) {
+          fprintf (hfile, "%10.4g ", (Vars.vx_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vx_max - Vars.vx_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Reference_vx[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.vy_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vy_max - Vars.vy_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Reference_vy[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.vz_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vz_max - Vars.vz_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Reference_vz[Vars.index]);
+        }
+        if (Vars.Flag_Type & (DEFS.DO_S | DEFS.DO_DIVS)) {
+          fprintf (hfile, "%10.4g ", (Vars.sx_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sx_max - Vars.sx_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Reference_sx[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.sy_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sy_max - Vars.sy_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Reference_sy[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.sz_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sz_max - Vars.sz_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Reference_sz[Vars.index]);
+        }
+        fprintf (hfile, "\n");
+      }
+      fprintf (hfile, "# data: Passing (%i Counts, Flux %.4g)\n", Vars.Passing_Counts, Vars.Passing_Flux);
+      for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++) {
+        fprintf (hfile, "%10.4g ", (Vars.x_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.x_max - Vars.x_min)));
+        fprintf (hfile, "%10.4g\t", Vars.Passing_x[Vars.index]);
+        fprintf (hfile, "%10.4g ", (Vars.y_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.y_max - Vars.y_min)));
+        fprintf (hfile, "%10.4g\t", Vars.Passing_y[Vars.index]);
+        if (Vars.Flag_Type & (DEFS.DO_V | DEFS.DO_DIVV)) {
+          fprintf (hfile, "%10.4g ", (Vars.vx_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vx_max - Vars.vx_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Passing_vx[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.vy_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vy_max - Vars.vy_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Passing_vy[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.vz_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vz_max - Vars.vz_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Passing_vz[Vars.index]);
+        }
+        if (Vars.Flag_Type & (DEFS.DO_S | DEFS.DO_DIVS)) {
+          fprintf (hfile, "%10.4g ", (Vars.sx_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sx_max - Vars.sx_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Passing_sx[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.sy_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sy_max - Vars.sy_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Passing_sy[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.sz_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sz_max - Vars.sz_min)));
+          fprintf (hfile, "%10.4g\t", Vars.Passing_sz[Vars.index]);
+        }
+        fprintf (hfile, "\n");
+      }
+      fprintf (hfile, "# data: New_Source\n");
+      for (Vars.index = 0; Vars.index < Vars.nbins; Vars.index++) {
+        fprintf (hfile, "%10.4g ", (Vars.x_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.x_max - Vars.x_min)));
+        fprintf (hfile, "%10.4g\t", Vars.New_Source_x[Vars.index]);
+        fprintf (hfile, "%10.4g ", (Vars.y_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.y_max - Vars.y_min)));
+        fprintf (hfile, "%10.4g\t", Vars.New_Source_y[Vars.index]);
+        if (Vars.Flag_Type & (DEFS.DO_V | DEFS.DO_DIVV)) {
+          fprintf (hfile, "%10.4g ", (Vars.vx_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vx_max - Vars.vx_min)));
+          fprintf (hfile, "%10.4g\t", Vars.New_Source_vx[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.vy_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vy_max - Vars.vy_min)));
+          fprintf (hfile, "%10.4g\t", Vars.New_Source_vy[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.vz_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.vz_max - Vars.vz_min)));
+          fprintf (hfile, "%10.4g\t", Vars.New_Source_vz[Vars.index]);
+        }
+        if (Vars.Flag_Type & (DEFS.DO_S | DEFS.DO_DIVS)) {
+          fprintf (hfile, "%10.4g ", (Vars.sx_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sx_max - Vars.sx_min)));
+          fprintf (hfile, "%10.4g\t", Vars.New_Source_sx[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.sy_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sy_max - Vars.sy_min)));
+          fprintf (hfile, "%10.4g\t", Vars.New_Source_sy[Vars.index]);
+          fprintf (hfile, "%10.4g ", (Vars.sz_min + ((Vars.index + 0.5) / Vars.nbins) * (Vars.sz_max - Vars.sz_min)));
+          fprintf (hfile, "%10.4g\t", Vars.New_Source_sz[Vars.index]);
+        }
+        fprintf (hfile, "\n");
+      }
+      fclose (hfile);
     }
     Vars.Monitor_Number = 0; /* ask Monitor_Optimizer to free arrays */
   }
@@ -1596,8 +1768,8 @@ FINALLY
 
 MCDISPLAY
 %{
-  
-  circle("xy",0,0,0,0.1);
+
+  circle ("xy", 0, 0, 0, 0.1);
 %}
 
 END

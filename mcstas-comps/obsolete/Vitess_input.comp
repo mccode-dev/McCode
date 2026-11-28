@@ -51,52 +51,51 @@ SHARE
 
 DECLARE
 %{
-char *file;		/* path + filename */
-FILE *hfile;		/* Neutron input filename handle */
-Neutron *ibuf;	/* Neutron input buffer */
-int size;		/* Number of neutrons currently in buffer */
-int pos;		/* Current position in buffer */
-int rep;		/* Neutron repeat count */
-int finished;		/* Set to 1 when last neutron read */
+  char* file;    /* path + filename */
+  FILE* hfile;   /* Neutron input filename handle */
+  Neutron* ibuf; /* Neutron input buffer */
+  int size;      /* Number of neutrons currently in buffer */
+  int pos;       /* Current position in buffer */
+  int rep;       /* Neutron repeat count */
+  int finished;  /* Set to 1 when last neutron read */
 %}
 
 INITIALIZE
 %{
-file=NULL;
-hfile=NULL;
-ibuf=NULL;
-size=0;
-pos=0;
-rep=0;
-finished=0;
+  file = NULL;
+  hfile = NULL;
+  ibuf = NULL;
+  size = 0;
+  pos = 0;
+  rep = 0;
+  finished = 0;
 
-/* Open neutron input filename. */
-if (!filename || !strcmp(filename,"NULL") || !strcmp(filename,"0") || !strcmp(filename,"stdin")) {
+  /* Open neutron input filename. */
+  if (!filename || !strcmp (filename, "NULL") || !strcmp (filename, "0") || !strcmp (filename, "stdin")) {
     hfile = stdin;
-  } else if (!strlen(filename)) {
+  } else if (!strlen (filename)) {
     hfile = NULL;
   } else {
-    hfile = fopen((file=FullParName(filename)), "rb");
-    if(!hfile) {
-      fprintf(stderr, "Vitess_input: Error: Cannot open input file %s.\n", file);
-      exit(1);
+    hfile = fopen ((file = FullParName (filename)), "rb");
+    if (!hfile) {
+      fprintf (stderr, "Vitess_input: Error: Cannot open input file %s.\n", file);
+      exit (1);
     }
   }
-#ifdef WIN32
-  if(hfile==stdin)
-  { if( _setmode(_fileno( stdin ), _O_BINARY ) == -1)
-    { fprintf(stderr,"Can't set stdin to binary mode\n");
-      exit(1);
+  #ifdef WIN32
+  if (hfile == stdin) {
+    if (_setmode (_fileno (stdin), _O_BINARY) == -1) {
+      fprintf (stderr, "Can't set stdin to binary mode\n");
+      exit (1);
     }
   }
-#endif
+  #endif
   if (hfile) {
     /* Allocate neutron input buffer. */
-    ibuf = calloc(bufsize, sizeof(Neutron));
-    if(!ibuf)
-    {
-      fprintf(stderr, "Vitess_input: Error: Cannot allocate neutron buffer.\n");
-      exit(1);
+    ibuf = calloc (bufsize, sizeof (Neutron));
+    if (!ibuf) {
+      fprintf (stderr, "Vitess_input: Error: Cannot allocate neutron buffer.\n");
+      exit (1);
     }
   }
 %}
@@ -104,24 +103,24 @@ if (!filename || !strcmp(filename,"NULL") || !strcmp(filename,"0") || !strcmp(fi
 TRACE
 %{
   if (hfile && ibuf) {
-    if(pos >= size) {
+    if (pos >= size) {
       /* Buffer is empty. */
-      size = fread(ibuf, sizeof(Neutron), bufsize, hfile);
-      if(size <= 0) {
-        if(ferror(hfile))
-          fprintf(stderr, "Vitess_input: Error during read of neutron file %s.\n", file);
-        if(feof(hfile) || ferror(hfile))
-          finished = 1;		/* End of filename or error reached */
+      size = fread (ibuf, sizeof (Neutron), bufsize, hfile);
+      if (size <= 0) {
+        if (ferror (hfile))
+          fprintf (stderr, "Vitess_input: Error during read of neutron file %s.\n", file);
+        if (feof (hfile) || ferror (hfile))
+          finished = 1; /* End of filename or error reached */
       } else {
-        pos = 0;			/* Reposition at start of buffer */
+        pos = 0; /* Reposition at start of buffer */
       }
     }
     /* When no more neutron records are available in the neutron filename,
       any remaining iterations are skipped by immediately ABSORB'ing
       the neutron. */
-    if(finished)
+    if (finished)
       ABSORB;
-    vitess2mcstas(ibuf[pos], &x, &y, &z, &vx, &vy, &vz, &t, &sx, &sy, &sz, &p);
+    vitess2mcstas (ibuf[pos], &x, &y, &z, &vx, &vy, &vz, &t, &sx, &sy, &sz, &p);
     /* The following three lines have references to things that are no longer
       in the McStas vitess libs */
     /*  vitess_col       =      ibuf[pos].Color;
@@ -131,7 +130,7 @@ TRACE
     /* Repeat the same neutron state parameters the required number of
       times. */
     ++rep;
-    if(rep >= repeat_count) {
+    if (rep >= repeat_count) {
       rep = 0;
       ++pos;
     }
@@ -139,10 +138,10 @@ TRACE
 %}
 FINALLY
 %{
-  if(hfile && ibuf)
-    free(ibuf);
-  if(hfile && filename)
-    fclose(hfile);
+  if (hfile && ibuf)
+    free (ibuf);
+  if (hfile && filename)
+    fclose (hfile);
 %}
 MCDISPLAY
 %{

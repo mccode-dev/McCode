@@ -588,7 +588,8 @@ SHARE
         if (parsing[i] && (strstr (parsing[i], "barn") || strstr (parsing[i], "fm"))) {
           int hdr_barns = strstr (parsing[i], "barn") != NULL;
           if (hdr_barns != info->flag_barns)
-            MPI_MASTER (printf ("Single_crystal: %s: |F|^2 unit in file header is %s, using barns=%d\n", info->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
+            MPI_MASTER (
+                printf ("Single_crystal: %s: |F|^2 unit in file header is %s, using barns=%d\n", info->compname, hdr_barns ? "barn" : "fm^2", hdr_barns););
           info->flag_barns = hdr_barns;
         }
       if (parsing[9] && info->m_delta_d_d <= 0)
@@ -968,7 +969,7 @@ SHARE
           tau_b[2] = M_2_PI * ((SC_mosaic_AB[5] / info->m_a) * info->asz + (SC_mosaic_AB[6] / info->m_b) * info->bsz + (SC_mosaic_AB[7] / info->m_c) * info->csz);
 
           /*check determinants to see how we should compute the linear combination of a and b (to match c)*/
-	  c1 = c2 = 0;
+          c1 = c2 = 0;
           if ((det = tau_a[0] * tau_b[1] - tau_a[1] * tau_b[0]) != 0) {
             c1 = (l->tau_x * tau_b[1] - l->tau_y * tau_b[0]) / det;
             c2 = (tau_a[0] * l->tau_y - tau_a[1] * l->tau_x) / det;
@@ -1349,10 +1350,10 @@ INITIALIZE
 
   if (hkl_info.shape < 0)
     MPI_MASTER (fprintf (stderr,
-                   "Single_crystal: %s: sample has invalid dimensions.\n"
-                   "WARNING         Please check parameter values (xwidth, yheight, zdepth, radius).\n"
-                   "                Component will be ignored.\n",
-                   NAME_CURRENT_COMP););
+                         "Single_crystal: %s: sample has invalid dimensions.\n"
+                         "WARNING         Please check parameter values (xwidth, yheight, zdepth, radius).\n"
+                         "                Component will be ignored.\n",
+                         NAME_CURRENT_COMP););
 
   /* determine if we have a surface broadening/truncation rods (CTR) */
   hkl_info.ctr_size = surf_size;
@@ -1439,12 +1440,11 @@ INITIALIZE
   /* ought to be cleaned up as mosaic_AB now is a proper vector/array and not a define */
   double* mosaic_ABin = mosaic_AB;
   /* Read in structure factors, and do some pre-calculations. */
-  if (!read_hkl_data (reflections, &hkl_info, &hkl_list, 
-       mosaic, mosaic_a, mosaic_b, mosaic_c, mosaic_ABin, 
-       hkl_info.ctr_size, hkl_info.ctr_k, hkl_info.ctr_FT2,
-       hkl_info.ctr_dir)) {
+  if (!read_hkl_data (reflections, &hkl_info, &hkl_list, mosaic, mosaic_a, mosaic_b, mosaic_c, mosaic_ABin, hkl_info.ctr_size, hkl_info.ctr_k, hkl_info.ctr_FT2,
+                      hkl_info.ctr_dir)) {
     MPI_MASTER (printf ("Single_crystal: %s: Can not set crystal structure.\n"
-                        "WARNING             Check file and mosaic. Ignoring.\n", NAME_CURRENT_COMP););
+                        "WARNING             Check file and mosaic. Ignoring.\n",
+                        NAME_CURRENT_COMP););
     hkl_info.shape = -1; // ignore component. The failed read_hkl_data has set hkl_info.count = 0
   }
   if (!sx_read_abs_data (material_datafile, &abs_info, hkl_info))
@@ -1454,26 +1454,20 @@ INITIALIZE
     hkl_info.sigma_i = 0;
 
   // final information
-  MPI_MASTER (
-    if (hkl_info.count) { 
-      printf ("Single_crystal: %s: Read %d reflections from file '%s'\n", 
-        NAME_CURRENT_COMP, hkl_info.count, reflections); 
-    }
+  MPI_MASTER (if (hkl_info.count) { printf ("Single_crystal: %s: Read %d reflections from file '%s'\n", NAME_CURRENT_COMP, hkl_info.count, reflections); }
 
-    printf ("Single_crystal: %s: Vc=%g [Angs^3] sigma_inc=%g [barn] reflections=%s\n", 
-            NAME_CURRENT_COMP, hkl_info.V0, hkl_info.sigma_i,
-            reflections&& strlen (reflections) ? reflections : "NULL");
-    printf ("Direct space lattice orientation:\n"); printf ("  a  = [%g %g %g]\n", hkl_info.m_ax, hkl_info.m_ay, hkl_info.m_az);
-    printf ("  b  = [%g %g %g]\n", hkl_info.m_bx, hkl_info.m_by, hkl_info.m_bz);
-    printf ("  c  = [%g %g %g]\n", hkl_info.m_cx, hkl_info.m_cy, hkl_info.m_cz); printf ("Reciprocal space lattice orientation:\n");
-    printf ("  a* = [%g %g %g]\n", hkl_info.asx, hkl_info.asy, hkl_info.asz); printf ("  b* = [%g %g %g]\n", hkl_info.bsx, hkl_info.bsy, hkl_info.bsz);
-    printf ("  c* = [%g %g %g]\n", hkl_info.csx, hkl_info.csy, hkl_info.csz);
-  );
+              printf ("Single_crystal: %s: Vc=%g [Angs^3] sigma_inc=%g [barn] reflections=%s\n", NAME_CURRENT_COMP, hkl_info.V0, hkl_info.sigma_i,
+                      reflections&& strlen (reflections) ? reflections : "NULL");
+              printf ("Direct space lattice orientation:\n"); printf ("  a  = [%g %g %g]\n", hkl_info.m_ax, hkl_info.m_ay, hkl_info.m_az);
+              printf ("  b  = [%g %g %g]\n", hkl_info.m_bx, hkl_info.m_by, hkl_info.m_bz);
+              printf ("  c  = [%g %g %g]\n", hkl_info.m_cx, hkl_info.m_cy, hkl_info.m_cz); printf ("Reciprocal space lattice orientation:\n");
+              printf ("  a* = [%g %g %g]\n", hkl_info.asx, hkl_info.asy, hkl_info.asz); printf ("  b* = [%g %g %g]\n", hkl_info.bsx, hkl_info.bsy, hkl_info.bsz);
+              printf ("  c* = [%g %g %g]\n", hkl_info.csx, hkl_info.csy, hkl_info.csz););
 %}
 
 TRACE
 %{
-  double l1, l2 = -1;  /* Entry and exit lengths in sample */
+  double l1, l2 = -1; /* Entry and exit lengths in sample */
   struct hkl_data* L; /* Structure factor list */
   int i;              /* Index into structure factor list */
                       #ifndef OPENACC
