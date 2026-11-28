@@ -20,6 +20,7 @@ A test instrument to compare Monitor_nD output against basic 1D and 2D monitors.
 - **Test: Test_Cyl_monitors.instr lambda=5 Detector: PSD_I=4825.57**
 - **Test: Test_Cyl_monitors.instr lambda=5 Detector: CylMon_I=4825.57**
 - **Test: Test_Cyl_monitors.instr lambda=5 Detector: CylMonPSD_I=4825.57**
+- **Test: Test_Cyl_monitors.instr lambda=5 Detector: PSDcylMon_I=4825.57**
 - **Test: Test_Cyl_monitors.instr lambda=5 Detector: CylMonTOF_I=4825.57**
 - **Test: Test_Cyl_monitors.instr lambda=5 Detector: NDcyl_I=4825.57**
 - **Test: Test_Cyl_monitors.instr lambda=5 Detector: NDcylPSD_I=4825.57**
@@ -27,10 +28,14 @@ A test instrument to compare Monitor_nD output against basic 1D and 2D monitors.
 - **Test: Test_Cyl_monitors.instr lambda=5 tz=0.05 Detector: PSD_I=2921.65**
 - **Test: Test_Cyl_monitors.instr lambda=5 tz=0.05 Detector: CylMon_I=2921.65**
 - **Test: Test_Cyl_monitors.instr lambda=5 tz=0.05 Detector: CylMonPSD_I=2921.65**
+- **Test: Test_Cyl_monitors.instr lambda=5 tz=0.05 Detector: PSDcylMon_I=2921.65**
 - **Test: Test_Cyl_monitors.instr lambda=5 tz=0.05 Detector: CylMonTOF_I=2921.65**
 - **Test: Test_Cyl_monitors.instr lambda=5 tz=0.05 Detector: NDcyl_I=2921.65**
 - **Test: Test_Cyl_monitors.instr lambda=5 tz=0.05 Detector: NDcylPSD_I=2921.65**
 - **Test: Test_Cyl_monitors.instr lambda=5 tz=0.05 Detector: NDcylTOF_I=2921.65**
+- **Test: Test_Cyl_monitors.instr lambda=5 thmin=80 thmax=120 bins=2 Detector: CylMon_I=4825.57**
+- **Test: Test_Cyl_monitors.instr lambda=5 thmin=80 thmax=120 bins=2 Detector: CylMonPSD_I=4825.57**
+- **Test: Test_Cyl_monitors.instr lambda=5 thmin=80 thmax=120 bins=2 Detector: PSDcylMon_I=4825.57**
 
 ## Input parameters
 

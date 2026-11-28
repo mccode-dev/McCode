@@ -1112,8 +1112,8 @@ TRACE
   double v_length;
   double abs_distance;
   // Keep the ray used by cached intersections fixed until the cache is cleared.
-  double reference_position[3] = {x, y, z};
-  double reference_direction[3] = {vx, vy, vz};
+  double reference_position[3] = { x, y, z };
+  double reference_direction[3] = { vx, vy, vz };
   _class_particle particle_copy; // Master-frame state before scattering.
 
   // Initialize logic
@@ -1268,11 +1268,10 @@ TRACE
                 intersection_time_table.surface_index[*check][1]);
         #endif
         // GPU Flexible intersect_function call
-        geometry_output
-            = intersect_function (intersection_time_table.intersection_times[*check], intersection_time_table.normal_vector_x[*check],
-                                           intersection_time_table.normal_vector_y[*check], intersection_time_table.normal_vector_z[*check],
-                                  intersection_time_table.surface_index[*check], number_of_solutions, reference_position, reference_direction,
-                                  &Volumes[*check]->geometry);
+        geometry_output = intersect_function (intersection_time_table.intersection_times[*check], intersection_time_table.normal_vector_x[*check],
+                                              intersection_time_table.normal_vector_y[*check], intersection_time_table.normal_vector_z[*check],
+                                              intersection_time_table.surface_index[*check], number_of_solutions, reference_position, reference_direction,
+                                              &Volumes[*check]->geometry);
 
         intersection_time_table.calculated[*check] = 1;
         #ifdef Union_trace_verbal_setting
@@ -1301,10 +1300,10 @@ TRACE
           // GPU allowed
           int selected_index;
           selected_index = Volumes[current_volume]->geometry.mask_intersect_list.elements[mask_iterator];
-          geometry_output = intersect_function (
-              intersection_time_table.intersection_times[selected_index], intersection_time_table.normal_vector_x[selected_index],
-              intersection_time_table.normal_vector_y[selected_index], intersection_time_table.normal_vector_z[selected_index],
-              intersection_time_table.surface_index[selected_index], number_of_solutions, reference_position, reference_direction, &Volumes[selected_index]->geometry);
+          geometry_output = intersect_function (intersection_time_table.intersection_times[selected_index],
+                                                intersection_time_table.normal_vector_x[selected_index], intersection_time_table.normal_vector_y[selected_index],
+                                                intersection_time_table.normal_vector_z[selected_index], intersection_time_table.surface_index[selected_index],
+                                                number_of_solutions, reference_position, reference_direction, &Volumes[selected_index]->geometry);
 
           intersection_time_table.calculated[Volumes[current_volume]->geometry.mask_intersect_list.elements[mask_iterator]] = 1;
           // if printf("succesfully calculated intersection times for volume *check = %d \n",*check);
@@ -1374,10 +1373,10 @@ TRACE
       #endif
       if (intersection_with_children == 0) {
         // GPU Allowed
-        geometry_output = intersect_function (
-            intersection_time_table.intersection_times[current_volume], intersection_time_table.normal_vector_x[current_volume],
-            intersection_time_table.normal_vector_y[current_volume], intersection_time_table.normal_vector_z[current_volume],
-            intersection_time_table.surface_index[current_volume], number_of_solutions, reference_position, reference_direction, &Volumes[current_volume]->geometry);
+        geometry_output = intersect_function (intersection_time_table.intersection_times[current_volume], intersection_time_table.normal_vector_x[current_volume],
+                                              intersection_time_table.normal_vector_y[current_volume], intersection_time_table.normal_vector_z[current_volume],
+                                              intersection_time_table.surface_index[current_volume], number_of_solutions, reference_position, reference_direction,
+                                              &Volumes[current_volume]->geometry);
 
         intersection_time_table.calculated[current_volume] = 1;
       }
@@ -1563,37 +1562,48 @@ TRACE
             // In safe modes isolate arbitrary callback writes, including instrument USERVARS.
             union_particle_snapshot query_state;
             _class_particle query_copy, query_before;
-            _class_particle *query_particle = safe_mode ? &query_copy : _particle;
-            if (!safe_mode) union_particle_snapshot_capture (&query_state, _particle);
+            _class_particle* query_particle = safe_mode ? &query_copy : _particle;
+            if (!safe_mode)
+              union_particle_snapshot_capture (&query_state, _particle);
 
             if (process_needs_inhomogenous_sampling (current_p_physics, process)) {
               // If mulitple sampling is required for this process, populate the neutron distance and probability arrays:
               *p_my_trace = 0;
               for (int i = 0; i < current_p_physics->sampling_points; i++) {
                 inhomogenous_set_cumul_dist_array (current_p_physics, i);
-                if (safe_mode) query_copy = *_particle;
+                if (safe_mode)
+                  query_copy = *_particle;
                 move_and_aim_neutron (current_p_physics, i, process, query_particle, Volumes[current_volume], this_focus_data);
                 // Calculate mu and probability
-                if (safe_mode == 2) query_before = query_copy;
+                if (safe_mode == 2)
+                  query_before = query_copy;
                 UNION_PHYSICS_MY (physics_output, process, &mu, this_focus_data, query_particle);
-                if (safe_mode == 2) union_particle_check (&query_before, query_particle, 1, "process", process->name);
-                if (safe_mode) union_particle_copy_rng (_particle, query_particle);
-                else union_particle_snapshot_restore (_particle, &query_state);
+                if (safe_mode == 2)
+                  union_particle_check (&query_before, query_particle, 1, "process", process->name);
+                if (safe_mode)
+                  union_particle_copy_rng (_particle, query_particle);
+                else
+                  union_particle_snapshot_restore (_particle, &query_state);
                 current_p_physics->mus[p_index][i] = mu;
                 *p_my_trace += mu / current_p_physics->sampling_points;
               }
             } else { // process does not need inhomogenous sampling
-              if (safe_mode) query_copy = *_particle;
+              if (safe_mode)
+                query_copy = *_particle;
               if (process->non_isotropic_rot_index != -1)
                 union_particle_to_local (query_particle, Volumes[current_volume]->geometry.center,
                                          Volumes[current_volume]->geometry.process_rot_matrix_array[process->non_isotropic_rot_index]);
               else
                 union_particle_translate_to_local (query_particle, Volumes[current_volume]->geometry.center);
-              if (safe_mode == 2) query_before = query_copy;
+              if (safe_mode == 2)
+                query_before = query_copy;
               UNION_PHYSICS_MY (physics_output, process, p_my_trace, this_focus_data, query_particle);
-              if (safe_mode == 2) union_particle_check (&query_before, query_particle, 1, "process", process->name);
-              if (safe_mode) union_particle_copy_rng (_particle, query_particle);
-              else union_particle_snapshot_restore (_particle, &query_state);
+              if (safe_mode == 2)
+                union_particle_check (&query_before, query_particle, 1, "process", process->name);
+              if (safe_mode)
+                union_particle_copy_rng (_particle, query_particle);
+              else
+                union_particle_snapshot_restore (_particle, &query_state);
               if (current_p_physics->sampling_points != -1) {
                 current_p_physics->mus[p_index][0] = *p_my_trace;
               }
@@ -1738,8 +1748,8 @@ TRACE
             printf ("Running abs_logger system for specific volumes \n");
             #endif
             for (log_index = 0; log_index < Volumes[current_volume]->abs_loggers.num_elements; log_index++) {
-              union_record_absorption (Volumes[current_volume]->abs_loggers.p_abs_logger[log_index], _particle, absorbed_weight,
-                                       scattered_flag[current_volume], number_of_scattering_events, &abs_loggers_with_data_array, safe_mode);
+              union_record_absorption (Volumes[current_volume]->abs_loggers.p_abs_logger[log_index], _particle, absorbed_weight, scattered_flag[current_volume],
+                                       number_of_scattering_events, &abs_loggers_with_data_array, safe_mode);
               union_particle_snapshot_restore (_particle, &absorption_state);
             }
 
@@ -1798,7 +1808,8 @@ TRACE
         // Save information before scattering event needed in logging section
         particle_copy = *_particle;
         union_particle_snapshot scattering_state;
-        if (!safe_mode) union_particle_snapshot_capture (&scattering_state, _particle);
+        if (!safe_mode)
+          union_particle_snapshot_capture (&scattering_state, _particle);
 
         // Find correct focus_data_array index for this volume/process and correct for ray position
         focus_data_index = Volumes[current_volume]->geometry.focus_array_indices.elements[selected_process];
@@ -1828,14 +1839,18 @@ TRACE
         }
         int scattering_output;
         _class_particle process_before;
-        if (safe_mode == 2) process_before = *_particle;
+        if (safe_mode == 2)
+          process_before = *_particle;
         UNION_PHYSICS_SCATTERING (scattering_output, process, this_focus_data, _particle);
-        if (safe_mode == 2) union_particle_check (&process_before, _particle, 1, "process", process->name);
+        if (safe_mode == 2)
+          union_particle_check (&process_before, _particle, 1, "process", process->name);
         if (process_rotation_index != -1) {
           mccoordschange_polarisation (Volumes[current_volume]->geometry.transpose_process_rot_matrix_array[process_rotation_index], &vx, &vy, &vz);
         }
-        if (safe_mode) union_particle_restore (_particle, &particle_copy, 1);
-        else union_particle_snapshot_restore_except_direction_weight (_particle, &scattering_state);
+        if (safe_mode)
+          union_particle_restore (_particle, &particle_copy, 1);
+        else
+          union_particle_snapshot_restore_except_direction_weight (_particle, &scattering_state);
         if (0 == scattering_output) {
           /*
           // PowderN and Single_crystal requires the option of absorbing the neutron, which is weird. If there is a scattering probability, there should be a new
@@ -1865,9 +1880,9 @@ TRACE
           // Logging for detector components associated with this volume.
           for (log_index = 0; log_index < Volumes[current_volume]->loggers.num_elements; log_index++) {
             if (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process] != NULL) {
-              union_record_scattering (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process], &particle_copy,
-                                       _particle, scattered_flag[current_volume], scattered_flag_VP[current_volume][selected_process],
-                                       number_of_scattering_events, &loggers_with_data_array, safe_mode);
+              union_record_scattering (Volumes[current_volume]->loggers.p_logger_volume[log_index].p_logger_process[selected_process], &particle_copy, _particle,
+                                       scattered_flag[current_volume], scattered_flag_VP[current_volume][selected_process], number_of_scattering_events,
+                                       &loggers_with_data_array, safe_mode);
             }
           }
 
@@ -1875,9 +1890,8 @@ TRACE
           printf ("Running logger system for all volumes \n");
           #endif
           for (log_index = 0; log_index < global_all_volume_logger_list_master->num_elements; log_index++) {
-            union_record_scattering (global_all_volume_logger_list_master->elements[log_index].logger, &particle_copy, _particle,
-                                     scattered_flag[current_volume], scattered_flag_VP[current_volume][selected_process], number_of_scattering_events,
-                                     &loggers_with_data_array, safe_mode);
+            union_record_scattering (global_all_volume_logger_list_master->elements[log_index].logger, &particle_copy, _particle, scattered_flag[current_volume],
+                                     scattered_flag_VP[current_volume][selected_process], number_of_scattering_events, &loggers_with_data_array, safe_mode);
           }
         }
         #ifdef Union_trace_verbal_setting
@@ -2690,9 +2704,8 @@ TRACE
           printf ("Checking conditional number %d for logger named %s \n", iterator, loggers_with_data_array.logger_pointers[log_index]->name);
           #endif
           if (0
-              == union_check_conditional(this_logger->conditional_list.conditional_functions[iterator],
-                                         this_logger->conditional_list.p_data_unions[iterator], _particle, &current_volume,
-                                         &number_of_scattering_events, scattered_flag, scattered_flag_VP, safe_mode)) {
+              == union_check_conditional (this_logger->conditional_list.conditional_functions[iterator], this_logger->conditional_list.p_data_unions[iterator],
+                                          _particle, &current_volume, &number_of_scattering_events, scattered_flag, scattered_flag_VP, safe_mode)) {
             conditional_status = 0;
             break;
           }
@@ -2743,9 +2756,9 @@ TRACE
           printf ("Checking conditional number %d for abs logger named %s \n", iterator, abs_loggers_with_data_array.abs_logger_pointers[log_index]->name);
           #endif
           if (0
-              == union_check_conditional(this_abs_logger->conditional_list.conditional_functions[iterator],
-                                         this_abs_logger->conditional_list.p_data_unions[iterator], _particle, &current_volume,
-                                         &number_of_scattering_events, scattered_flag, scattered_flag_VP, safe_mode)) {
+              == union_check_conditional (this_abs_logger->conditional_list.conditional_functions[iterator],
+                                          this_abs_logger->conditional_list.p_data_unions[iterator], _particle, &current_volume, &number_of_scattering_events,
+                                          scattered_flag, scattered_flag_VP, safe_mode)) {
             conditional_status = 0;
             break;
           }
@@ -2792,9 +2805,8 @@ TRACE
         printf ("Checking tagging conditional number %d\n", iterator);
         #endif
         if (0
-            == union_check_conditional(tagging_conditional_list->conditional_functions[iterator],
-                                       tagging_conditional_list->p_data_unions[iterator], _particle, &current_volume,
-                                       &number_of_scattering_events, scattered_flag, scattered_flag_VP, safe_mode)) {
+            == union_check_conditional (tagging_conditional_list->conditional_functions[iterator], tagging_conditional_list->p_data_unions[iterator], _particle,
+                                        &current_volume, &number_of_scattering_events, scattered_flag, scattered_flag_VP, safe_mode)) {
           conditional_status = 0;
           break;
         }
