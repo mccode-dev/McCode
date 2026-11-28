@@ -44,6 +44,8 @@ for f in sys.argv[1:]:
         continue
     with open(f, encoding='utf-8') as fh:
         header = utils.read_header(fh)
+        if not header.lstrip().startswith('/*'):
+            fh.seek(0)  # no header: read_header consumed the DEFINE line
         if f.endswith('.comp'):
             define = utils.read_define_comp(fh)
             _, p1, p2, out = utils.parse_define_comp(define)
