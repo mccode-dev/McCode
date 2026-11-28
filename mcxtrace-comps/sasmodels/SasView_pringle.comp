@@ -1138,7 +1138,7 @@ double Iq_pringle(double q,
 
 
 static
-void _integrate_bessel(
+void _integrate_bessel_pringle(
     double radius,
     double alpha,
     double beta,
@@ -1174,7 +1174,7 @@ void _integrate_bessel(
 }
 
 static
-double _sum_bessel_orders(
+double _sum_bessel_orders_pringle(
     double radius,
     double alpha,
     double beta,
@@ -1192,16 +1192,16 @@ double _sum_bessel_orders(
     double Sn, Cn, sum;
     sum = 0.0;
     for (int n=3; n>0; n--) {
-      _integrate_bessel(radius, alpha, beta, q_sin_psi, q_cos_psi, n, &Sn, &Cn);
+      _integrate_bessel_pringle(radius, alpha, beta, q_sin_psi, q_cos_psi, n, &Sn, &Cn);
       sum += 2.0*(Sn*Sn + Cn*Cn);
     }
-    _integrate_bessel(radius, alpha, beta, q_sin_psi, q_cos_psi, 0, &Sn, &Cn);
+    _integrate_bessel_pringle(radius, alpha, beta, q_sin_psi, q_cos_psi, 0, &Sn, &Cn);
     sum += Sn*Sn+ Cn*Cn;
     return sum;
 }
 
 static
-double _integrate_psi(
+double _integrate_psi_pringle(
     double q,
     double radius,
     double thickness,
@@ -1217,7 +1217,7 @@ double _integrate_psi(
         double psi = GAUSS_Z[i]*zm + zb;
         double sin_psi, cos_psi;
         SINCOS(psi, sin_psi, cos_psi);
-        double bessel_term = _sum_bessel_orders(radius, alpha, beta, q*sin_psi, q*cos_psi);
+        double bessel_term = _sum_bessel_orders_pringle(radius, alpha, beta, q*sin_psi, q*cos_psi);
         double sinc_term = sas_square(sas_sinx_x(q * thickness * cos_psi / 2.0));
         double pringle_kernel = 4.0 * sin_psi * bessel_term * sinc_term;
         sum += GAUSS_W[i] * pringle_kernel;
@@ -1260,7 +1260,7 @@ double Iq_pringle(
     double sld,
     double sld_solvent)
 {
-    double form = _integrate_psi(q, radius, thickness, alpha, beta);
+    double form = _integrate_psi_pringle(q, radius, thickness, alpha, beta);
     double contrast = sld - sld_solvent;
     double volume = M_PI*radius*radius*thickness;
     return 1.0e-4*form * sas_square(contrast * volume);

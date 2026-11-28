@@ -642,7 +642,7 @@ constant double Gauss76Z[76] = {
 #line 1 "barbell"
 //barbell kernel - same as dumbbell
 static double
-_bell_kernel(double qab, double qc, double h, double radius_bell,
+_bell_kernel_barbell(double qab, double qc, double h, double radius_bell,
              double half_length)
 {
     // translate a point in [-1,1] to a point in [lower,upper]
@@ -676,10 +676,10 @@ _bell_kernel(double qab, double qc, double h, double radius_bell,
 }
 
 static double
-_fq(double qab, double qc, double h,
+_fq_barbell(double qab, double qc, double h,
     double radius_bell, double radius, double half_length)
 {
-    const double bell_fq = _bell_kernel(qab, qc, h, radius_bell, half_length);
+    const double bell_fq = _bell_kernel_barbell(qab, qc, h, radius_bell, half_length);
     const double bj = sas_2J1x_x(radius*qab);
     const double si = sas_sinx_x(half_length*qc);
     const double cyl_fq = 2.0*M_PI*radius*radius*half_length*bj*si;
@@ -763,7 +763,7 @@ Fq_barbell(double q,double *F1, double *F2, double sld, double solvent_sld,
         SINCOS(theta, sin_theta, cos_theta);
         const double qab = q*sin_theta;
         const double qc = q*cos_theta;
-        const double Aq = _fq(qab, qc, h, radius_bell, radius, half_length);
+        const double Aq = _fq_barbell(qab, qc, h, radius_bell, radius, half_length);
         // scale by sin_theta for spherical coord integration
         total_F1 += GAUSS_W[i] * Aq * sin_theta;
         total_F2 += GAUSS_W[i] * Aq * Aq * sin_theta;
@@ -784,7 +784,7 @@ Iqac_barbell(double qab, double qc,
     double radius_bell, double radius, double length)
 {
     const double h = sqrt(sas_square(radius_bell) - sas_square(radius));
-    const double Aq = _fq(qab, qc, h, radius_bell, radius, 0.5*length);
+    const double Aq = _fq_barbell(qab, qc, h, radius_bell, radius, 0.5*length);
 
     // Multiply by contrast^2 and convert to cm-1
     const double s = (sld - solvent_sld);

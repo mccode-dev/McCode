@@ -530,7 +530,7 @@ constant double Gauss150Wt[152]={
 
 #line 1 "sc_paracrystal"
 static double
-sc_Zq(double qa, double qb, double qc, double dnn, double d_factor)
+sc_Zq_sc_paracrystal(double qa, double qb, double qc, double dnn, double d_factor)
 {
     // Equations from Matsuoka 9-10-11, multiplied by |q|
     const double a1 = qa;
@@ -558,7 +558,7 @@ sc_Zq(double qa, double qb, double qc, double dnn, double d_factor)
 
 // occupied volume fraction calculated from lattice symmetry and sphere radius
 static double
-sc_volume_fraction(double radius, double dnn)
+sc_volume_fraction_sc_paracrystal(double radius, double dnn)
 {
     return sphere_volume(radius/dnn);
 }
@@ -597,7 +597,7 @@ Iq_sc_paracrystal(double q, double dnn,
             SINCOS(phi, sin_phi, cos_phi);
             const double qa = qab*cos_phi;
             const double qb = qab*sin_phi;
-            const double form = sc_Zq(qa, qb, qc, dnn, d_factor);
+            const double form = sc_Zq_sc_paracrystal(qa, qb, qc, dnn, d_factor);
             inner_sum += GAUSS_W[j] * form;
         }
         inner_sum *= phi_m;  // sum(f(x)dx) = sum(f(x)) dx
@@ -607,7 +607,7 @@ Iq_sc_paracrystal(double q, double dnn,
     const double Zq = outer_sum/M_PI_2;
     const double Pq = sphere_form(q, radius, sld, solvent_sld);
 
-    return sc_volume_fraction(radius, dnn) * Pq * Zq;
+    return sc_volume_fraction_sc_paracrystal(radius, dnn) * Pq * Zq;
 }
 
 static double
@@ -617,8 +617,8 @@ Iqabc_sc_paracrystal(double qa, double qb, double qc,
 {
     const double q = sqrt(qa*qa + qb*qb + qc*qc);
     const double Pq = sphere_form(q, radius, sld, solvent_sld);
-    const double Zq = sc_Zq(qa, qb, qc, dnn, d_factor);
-    return sc_volume_fraction(radius, dnn) * Pq * Zq;
+    const double Zq = sc_Zq_sc_paracrystal(qa, qb, qc, dnn, d_factor);
+    return sc_volume_fraction_sc_paracrystal(radius, dnn) * Pq * Zq;
 }
 
 #endif // SAS_HAVE_sc_paracrystal

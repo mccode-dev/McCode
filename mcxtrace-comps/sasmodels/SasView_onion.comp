@@ -164,7 +164,7 @@ double sas_3j1x_x(double q)
 #line 1 "onion"
 
 static double
-f_exp(double q, double r, double sld_in, double sld_out,
+f_exp_onion(double q, double r, double sld_in, double sld_out,
     double thickness, double A, double side)
 {
   const double vol = M_4PI_3 * sas_cube(r);
@@ -193,7 +193,7 @@ f_exp(double q, double r, double sld_in, double sld_out,
 }
 
 static double
-outer_radius(double radius_core, double n_shells, double thickness[])
+outer_radius_onion(double radius_core, double n_shells, double thickness[])
 {
   int n = (int)(n_shells+0.5);
   double r = radius_core;
@@ -206,14 +206,14 @@ outer_radius(double radius_core, double n_shells, double thickness[])
 static double
 form_volume_onion(double radius_core, double n_shells, double thickness[])
 {
-  return M_4PI_3*sas_cube(outer_radius(radius_core, n_shells, thickness));
+  return M_4PI_3*sas_cube(outer_radius_onion(radius_core, n_shells, thickness));
 }
 
 static double
 radius_effective_onion(int mode, double radius_core, double n_shells, double thickness[])
 {
   // case 1: outer radius
-  return outer_radius(radius_core, n_shells, thickness);
+  return outer_radius_onion(radius_core, n_shells, thickness);
 }
 
 static void
@@ -223,14 +223,14 @@ Fq_onion(double q, double *F1, double *F2, double sld_core, double radius_core, 
 {
   int n = (int)(n_shells+0.5);
   double r_out = radius_core;
-  double f = f_exp(q, r_out, sld_core, 0.0, 0.0, 0.0, 0.0);
+  double f = f_exp_onion(q, r_out, sld_core, 0.0, 0.0, 0.0, 0.0);
   for (int i=0; i < n; i++){
     const double r_in = r_out;
     r_out += thickness[i];
-    f -= f_exp(q, r_in, sld_in[i], sld_out[i], thickness[i], A[i], 0.0);
-    f += f_exp(q, r_out, sld_in[i], sld_out[i], thickness[i], A[i], 1.0);
+    f -= f_exp_onion(q, r_in, sld_in[i], sld_out[i], thickness[i], A[i], 0.0);
+    f += f_exp_onion(q, r_out, sld_in[i], sld_out[i], thickness[i], A[i], 1.0);
   }
-  f -= f_exp(q, r_out, sld_solvent, 0.0, 0.0, 0.0, 0.0);
+  f -= f_exp_onion(q, r_out, sld_solvent, 0.0, 0.0, 0.0, 0.0);
 
   *F1 = 1e-2 * f;
   *F2 = 1e-4 * f * f;

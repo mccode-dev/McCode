@@ -643,7 +643,7 @@ form_volume_cylinder(double radius, double length)
 }
 
 static double
-_fq(double qab, double qc, double radius, double length)
+_fq_cylinder(double qab, double qc, double radius, double length)
 {
     return sas_2J1x_x(qab*radius) * sas_sinx_x(qc*0.5*length);
 }
@@ -709,7 +709,7 @@ Fq_cylinder(double q,
         double sin_theta, cos_theta; // slots to hold sincos function output
         // theta (theta,phi) the projection of the cylinder on the detector plane
         SINCOS(theta , sin_theta, cos_theta);
-        const double form = _fq(q*sin_theta, q*cos_theta, radius, length);
+        const double form = _fq_cylinder(q*sin_theta, q*cos_theta, radius, length);
         total_F1 += GAUSS_W[i] * form * sin_theta;
         total_F2 += GAUSS_W[i] * form * form * sin_theta;
     }
@@ -730,7 +730,7 @@ Iqac_cylinder(double qab, double qc,
     double radius,
     double length)
 {
-    const double form = _fq(qab, qc, radius, length);
+    const double form = _fq_cylinder(qab, qc, radius, length);
     const double s = (sld-solvent_sld) * form_volume_cylinder(radius, length);
     return 1.0e-4 * sas_square(s * form);
 }

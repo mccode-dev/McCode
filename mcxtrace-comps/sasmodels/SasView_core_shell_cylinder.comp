@@ -637,7 +637,7 @@ constant double Gauss76Z[76] = {
 // vd = volume * delta_rho
 // besarg = q * R * sin(theta)
 // siarg = q * L/2 * cos(theta)
-static double _cyl(double vd, double besarg, double siarg)
+static double _cyl_core_shell_cylinder(double vd, double besarg, double siarg)
 {
     return vd * sas_sinx_x(siarg) * sas_2J1x_x(besarg);
 }
@@ -721,8 +721,8 @@ Fq_core_shell_cylinder(double q,
         SINCOS(theta, sin_theta,  cos_theta);
         const double qab = q*sin_theta;
         const double qc = q*cos_theta;
-        const double fq = _cyl(core_vd, core_r*qab, core_h*qc)
-            + _cyl(shell_vd, shell_r*qab, shell_h*qc);
+        const double fq = _cyl_core_shell_cylinder(core_vd, core_r*qab, core_h*qc)
+            + _cyl_core_shell_cylinder(shell_vd, shell_r*qab, shell_h*qc);
         total_F1 += GAUSS_W[i] * fq * sin_theta;
         total_F2 += GAUSS_W[i] * fq * fq * sin_theta;
     }
@@ -748,8 +748,8 @@ Iqac_core_shell_cylinder(double qab, double qc,
     const double shell_h = (0.5*length + thickness);
     const double shell_vd = form_volume_core_shell_cylinder(radius,thickness,length) * (shell_sld-solvent_sld);
 
-    const double fq = _cyl(core_vd, core_r*qab, core_h*qc)
-        + _cyl(shell_vd, shell_r*qab, shell_h*qc);
+    const double fq = _cyl_core_shell_cylinder(core_vd, core_r*qab, core_h*qc)
+        + _cyl_core_shell_cylinder(shell_vd, shell_r*qab, shell_h*qc);
     return 1.0e-4 * fq * fq;
 }
 
