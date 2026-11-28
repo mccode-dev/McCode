@@ -23,5 +23,7 @@ Generates browsable documentation for installed and local instrument/component f
 
 Math in a `%D` description goes in `<span class="latex">$...$</span>` (or `<div class="latex">`): MathJax renders it in the HTML docs, and the `--tex` output passes it to LaTeX as is.
 
+In `%P`, a line that does not start with `name:` or `name [unit]` continues the parameter above it. Start such a line with `- ` when it would otherwise begin with `word:` (e.g. `- NOTE: ...`, `- 0: ...`), or it is read as a parameter of its own.
+
 ---
 [&larr; back to overview](README.md)
