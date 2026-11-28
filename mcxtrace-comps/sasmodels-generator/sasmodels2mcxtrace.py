@@ -190,6 +190,18 @@ def __getFormVolumeSign(text):
             return []
 
 
+def suffix_helpers(code, model_name):
+    """Suffix the model's own helper functions with the model name, since
+    models share names such as outer_radius or _fq. The kernel functions
+    are renamed in generate_mcxtrace_models()."""
+    kernel = re.compile(r"(Fq|Iq|Iqac|Iqabc|form_volume|radius_\w+)$")
+    defs = re.findall(r"^(?:static\s+)?(?:inline\s+)?(?:double|float|int|void)\s+(\w+)\s*\(", code, re.M)
+    for name in set(defs):
+        if not kernel.match(name):
+            code = re.sub(r"\b" + name + r"\s*\(", f"{name}_{model_name}(", code)
+    return code
+
+
 def generate_mcxtrace_models():
     """Main function, generates the .c files for each model."""
     model_status = {}
@@ -204,6 +216,8 @@ def generate_mcxtrace_models():
             source = []
 
             for ucode, loc_ucode in user_code:
+                if os.path.basename(loc_ucode) == model_name + ".c":
+                    ucode = suffix_helpers(ucode, model_name)
                 _add_source(source, ucode, loc_ucode)
                 code = "\n".join(source)
                 fname = loc_ucode.split("/")[-1]

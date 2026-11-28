@@ -190,6 +190,18 @@ def __getFormVolumeSign(text):
             return []
 
 
+def suffix_helpers(code, model_name):
+    """Suffix the model's own helper functions with the model name, since
+    models share names such as outer_radius or _fq. The kernel functions
+    are renamed in generate_mcstas_models()."""
+    kernel = re.compile(r"(Fq|Iq|Iqac|Iqabc|form_volume|radius_\w+)$")
+    defs = re.findall(r"^(?:static\s+)?(?:inline\s+)?(?:double|float|int|void)\s+(\w+)\s*\(", code, re.M)
+    for name in set(defs):
+        if not kernel.match(name):
+            code = re.sub(r"\b" + name + r"\s*\(", f"{name}_{model_name}(", code)
+    return code
+
+
 def generate_mcstas_models():
     """Main function, generates the .c files for each model."""
     model_status = {}
@@ -204,6 +216,8 @@ def generate_mcstas_models():
             source = []
 
             for ucode, loc_ucode in user_code:
+                if os.path.basename(loc_ucode) == model_name + ".c":
+                    ucode = suffix_helpers(ucode, model_name)
                 _add_source(source, ucode, loc_ucode)
                 code = "\n".join(source)
                 fname = loc_ucode.split("/")[-1]
@@ -563,7 +577,7 @@ if (xwidth && yheight && zdepth)
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double t0, t1, vel, l_full, l, l_1, dt, d_phi, my_s;
   double aim_x=0, aim_y=0, aim_z=1, axis_x, axis_y, axis_z;
   double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
   double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
@@ -582,11 +596,11 @@ TRACE
       ABSORB;
 
     /* Neutron enters at t=t0. */
-    v = sqrt(vx*vx + vy*vy + vz*vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
+    vel = sqrt(vx*vx + vy*vy + vz*vz);
+    l_full = vel * (t1 - t0);          /* Length of full path through sample */
     dt = rand01()*(t1 - t0) + t0;    /* Time of scattering */
     PROP_DT(dt);                     /* Point of scattering */
-    l = v*(dt-t0);                   /* Penetration in sample */
+    l = vel*(dt-t0);                   /* Penetration in sample */
 
     vx_i=vx;
     vy_i=vy;
@@ -606,9 +620,9 @@ TRACE
       randvec_target_circle(&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
     NORM(vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
+    vx *= vel;
+    vy *= vel;
+    vz *= vel;
     qx = V2K*(vx_i-vx);
     qy = V2K*(vy_i-vy);
     qz = V2K*(vz_i-vz);
@@ -712,8 +726,8 @@ TRACE
     // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
     Iq_out = model_scale*Iq_out / vol * 1.0E2;
 
-    l_1 = v*t1;
-    p *= l_full*solid_angle/(4*PI)*Iq_out*exp(-my_a_v*(l+l_1)/v);"""
+    l_1 = vel*t1;
+    p *= l_full*solid_angle/(4*PI)*Iq_out*exp(-my_a_v*(l+l_1)/vel);"""
 
                 # Save functions
                 content_func[ftype] += final_content
