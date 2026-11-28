@@ -48,6 +48,7 @@ targets, and where that can mislead, is explained in
 | `--no-mpi` | compile and run without MPI (`--no-mpi` sent to `mcrun`) |
 | `-j`, `--jobs N` | compile up to N instruments in parallel, or `auto` for one per processor (default: 1); test runs are always one at a time |
 | `--openacc` | pass `--openacc` to `mcrun` |
+| `--openmp` | pass `--openmp` to `mcrun` (excludes `--openacc`) |
 | `--nexus` | compile/run with NeXus output format everywhere |
 | `--lint` | just run the C-linter (no simulation run) |
 | `--config CONFIG` | test only this specific config — label name (regex) or absolute path |

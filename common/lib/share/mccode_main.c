@@ -53,8 +53,25 @@ int mccode_main(int argc, char *argv[])
   }
 #endif /* USE_MPI */
 
-#ifdef OPENACC
+#ifdef MCGPU
 #ifdef USE_MPI
+#ifdef OMPTARGET
+  {
+    /* Spread the ranks on each node over that node's devices */
+    MPI_Comm node_comm;
+    int local_rank, num_devices = omp_get_num_devices();
+    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, mpi_node_rank, MPI_INFO_NULL, &node_comm);
+    MPI_Comm_rank(node_comm, &local_rank);
+    MPI_Comm_free(&node_comm);
+    if (num_devices > 0) {
+      omp_set_default_device(local_rank % num_devices);
+      printf("[mcgpu] rank %d (node-local %d) uses device %d of %d\n", mpi_node_rank, local_rank, local_rank % num_devices, num_devices);
+    } else {
+      printf("[mcgpu] rank %d found no offload device\n", mpi_node_rank);
+    }
+    fflush(stdout);
+  }
+#else
   int num_devices = acc_get_num_devices(acc_device_nvidia);
   if(num_devices>0){
     int my_device = mpi_node_rank % num_devices;
@@ -64,6 +81,7 @@ int mccode_main(int argc, char *argv[])
     printf("There was an issue probing acc_get_num_devices, fallback to host\n");
     acc_set_device_type( acc_device_host );
   }
+#endif
 #endif
 #endif
 

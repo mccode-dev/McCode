@@ -57,11 +57,19 @@ SETTING PARAMETERS ( int nowritefile=0,
 
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
 
+SHARE
+%{
+  #define MCGPU_PORTED_TOFLambda_monitor
+%}
+
 DECLARE
 %{
   DArray2d TOFL_N;
   DArray2d TOFL_p;
   DArray2d TOFL_p2;
+  double* TOFL_N_d;
+  double* TOFL_p_d;
+  double* TOFL_p2_d;
   double tt_0;
   double tt_1;
 %}
@@ -93,6 +101,12 @@ INITIALIZE
   // Use instance name for monitor output if no input was given
   if (!strcmp (filename, "\0"))
     sprintf (filename, "%s", NAME_CURRENT_COMP);
+
+  #ifdef OMPTARGET
+  TOFL_N_d = mcgpu_to_device (NAME_CURRENT_COMP, "TOFL_N", TOFL_N[0], (size_t)nt * nL * sizeof (double));
+  TOFL_p_d = mcgpu_to_device (NAME_CURRENT_COMP, "TOFL_p", TOFL_p[0], (size_t)nt * nL * sizeof (double));
+  TOFL_p2_d = mcgpu_to_device (NAME_CURRENT_COMP, "TOFL_p2", TOFL_p2[0], (size_t)nt * nL * sizeof (double));
+  #endif
 %}
 
 TRACE
@@ -114,11 +128,11 @@ TRACE
        */
       double p2 = p * p;
       #pragma acc atomic
-      TOFL_N[j][i] = TOFL_N[j][i] + 1;
+      MC2D (TOFL_N, j, i, nL) = MC2D (TOFL_N, j, i, nL) + 1;
       #pragma acc atomic
-      TOFL_p[j][i] = TOFL_p[j][i] + p;
+      MC2D (TOFL_p, j, i, nL) = MC2D (TOFL_p, j, i, nL) + p;
       #pragma acc atomic
-      TOFL_p2[j][i] = TOFL_p2[j][i] + p2;
+      MC2D (TOFL_p2, j, i, nL) = MC2D (TOFL_p2, j, i, nL) + p2;
     }
   }
   if (restore_neutron || !SCATTERED) {
@@ -128,6 +142,11 @@ TRACE
 
 SAVE
 %{
+  #ifdef OMPTARGET
+  mcgpu_from_device (NAME_CURRENT_COMP, "TOFL_N", TOFL_N[0], TOFL_N_d, (size_t)nt * nL * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "TOFL_p", TOFL_p[0], TOFL_p_d, (size_t)nt * nL * sizeof (double));
+  mcgpu_from_device (NAME_CURRENT_COMP, "TOFL_p2", TOFL_p2[0], TOFL_p2_d, (size_t)nt * nL * sizeof (double));
+  #endif
   if (!nowritefile) {
     DETECTOR_OUT_2D ("TOF-wavelength monitor", "Time-of-flight [\\gms]", "Wavelength [AA]", tmin, tmax, Lmin, Lmax, nt, nL, &TOFL_N[0][0], &TOFL_p[0][0],
                      &TOFL_p2[0][0], filename);
@@ -136,6 +155,11 @@ SAVE
 
 FINALLY
 %{
+  #ifdef OMPTARGET
+  mcgpu_free (TOFL_N_d);
+  mcgpu_free (TOFL_p_d);
+  mcgpu_free (TOFL_p2_d);
+  #endif
   destroy_darr2d (TOFL_N);
   destroy_darr2d (TOFL_p);
   destroy_darr2d (TOFL_p2);
