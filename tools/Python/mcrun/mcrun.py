@@ -70,7 +70,7 @@ def add_mcrun_cogen_options(parser):
 
     add('-C','--c-lint',
         action='store_true',
-        help='Use c-linter (e.g. cppcheck) to lint the generated code. Configure linter via mccode_config.json. Implies -c and -v, but also NO simulation will be run. ')
+        help='Use a C linter (default: clang --analyze) to lint the generated code. Configure linter via mccode_config.json. Implies -c and -v, but also NO simulation will be run. ')
 
     add('-I',
         metavar='I',
