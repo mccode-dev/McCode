@@ -75,7 +75,6 @@
 DEFINE COMPONENT Phonon_BvK_PG
 SETTING PARAMETERS (hh=0,kk=0,ll=0,radius=0, xwidth=0, yheight=0, zdepth=0, sigma_abs=0,sigma_inc=0,DW=1,T=2,
 focus_r=0,focus_xw=0,focus_yh=0,focus_aw=0,focus_ah=0,target_x=0, target_y=0, target_z=0, int target_index=0, int mode_input=12, int e_steps_low=100, int e_steps_high=100, int verbose_input=0, int dispersion=0)
-NOACC
 
 SHARE
 %{
@@ -89,13 +88,14 @@ SHARE
   // ---------------- THINGS THAT COULD BE GENERAL FOR McStas --------------
 
   #define T2E (1/11.605)   // Kelvin to meV converter
-  #define sqrt3 1.73205080756887729352744634150587236694280525381038L
+  #define sqrt3 1.73205080756887729352744634150587236694280525381038 /* double, not long double: no x87 on the GPU */
   #define THz2meV 4.13566 // THz to meV converter
 
   #define Da2kg 1.66054e-27 //Dalton to kg converter
   #define dyn2N 1e-3 // dyn/cm to N/m converter
   #define BVK_MEV2J 1.6022E-22 // meV to J converter
 
+  #pragma acc routine seq
   double
   bvk_nbose (double omega, double T) /* Give it another name ?? */
   {
@@ -115,14 +115,18 @@ SHARE
     exit (-1);
   }
 
+  #pragma acc routine seq
   void
   nrerror (const char* error_text) {
+    #ifndef OPENACC
     fprintf (stderr, "Numerical Recipes run-time error ...\n");
     fprintf (stderr, "%s\n", error_text);
     fprintf (stderr, "... now exiting to system.\n");
     exit (-1);
+    #endif
   }
 
+  #pragma acc routine seq
   void
   bvk_fatalerror (char* s) {
     #ifndef OPENACC
@@ -130,6 +134,7 @@ SHARE
     #endif
   }
 
+  #pragma acc routine seq
   void
   bubblesort (int size, double* inputarray, int* index)
   // this function modifies the inputarray by bubble sorting, and also modifies the index array as the
@@ -264,6 +269,10 @@ SHARE
   // 4th nn: A to C atoms
   double r_4ucA[2][3] = { { 0, 0, 0 }, { 0, 0, -c_latt } };
 
+  // Globals read in TRACE / bvk_omega_q; copied to the device at the end of INITIALIZE
+  #pragma acc declare create(M, Delta, astar, cstar, r_j13, r_1ucA, r_1ucC, r_3ucA, r_3ucC, r_4ucA)
+  #pragma acc declare create(Phi1, Phi2, Phi3, Phi4, Phi5, Phi6, Phi7, Phi8, Phi9, Phi10, Phi11, Phi12, Phi13, Phi14)
+
   // ----------------- END SPECIFIC FOR THE PG COMPONENT --------------------------
 
   /* TODO: Det er meget langsomt at bruge pointere. Erstat med flad memory. */
@@ -296,6 +305,7 @@ SHARE
   }
 
   /* Returns e^{i q.r_j} using the wrapper-safe cplx() constructor instead of the I literal. */
+  #pragma acc routine seq
   cdouble
   complexexp_qdotr (double* q, double* rj) {
     double qrj = *(q) * *(rj) + *(q + 1) * *(rj + 1) + *(q + 2) * *(rj + 2);
@@ -319,6 +329,7 @@ SHARE
 
   //---------------------------- START CENTRAL FUNCTION OMEGA-Q ----------------------------
 
+  #pragma acc routine seq
   double
   bvk_omega_q (cdouble* parms, cdouble* eigenvectorgood) {
 
@@ -331,6 +342,7 @@ SHARE
     int mode = (int)creal (parms[13]);
     int verbose = (int)creal (parms[14]);
 
+    #ifndef OPENACC
     for (int ii = 0; ii < 8; ii++)
       if (isnan (creal (parms[ii])) || isnan (cimag (parms[ii]))) {
         fprintf (stderr, "omega_q: Array parms contains a nan at position %d.\n", ii);
@@ -339,6 +351,7 @@ SHARE
           fprintf (stderr, "%g + i%g%s", creal (parms[i]), cimag (parms[i]), i + 1 < 8 ? ", " : "]\n");
         exit (-1);
       }
+    #endif
 
     /* Extract real-valued parameters from the cdouble parms array. */
     vf = creal (parms[0]);
@@ -580,14 +593,15 @@ SHARE
 
   // ------------------START OF THE GENERAL ROOT-FINDING CODE--------------------
 
+  #pragma acc routine seq
   double
-  bvk_zridd (double (*func) (cdouble*, cdouble*), double x1, double x2, cdouble* parms, cdouble* vector, double xacc, double* last_fh, double* last_x2) {
+  bvk_zridd (double x1, double x2, cdouble* parms, cdouble* vector, double xacc, double* last_fh, double* last_x2) {
     int j;
     double ans, fh, fl, fm, fnew, s, xh, xl, xm, xnew;
 
     parms[0] = cplx (x1, 0.0);
     if (xacc > 0) {
-      fl = (*func) (parms, vector);
+      fl = bvk_omega_q (parms, vector);
     } else {
       fl = *last_fh;
       xacc = -xacc;
@@ -595,7 +609,7 @@ SHARE
         printf ("*** error in zridd *** x1: %g last_x2: %g \n", x1, *last_x2);
     }
     parms[0] = cplx (x2, 0.0);
-    *last_fh = fh = (*func) (parms, vector);
+    *last_fh = fh = bvk_omega_q (parms, vector);
     *last_x2 = x2;
     if (fl * fh >= 0) {
       if (fl == 0)
@@ -610,7 +624,7 @@ SHARE
       for (j = 1; j < MAXRIDD; j++) {
         xm = 0.5 * (xl + xh);
         parms[0] = cplx (xm, 0.0);
-        fm = (*func) (parms, vector);
+        fm = bvk_omega_q (parms, vector);
         s = sqrt (fm * fm - fl * fh);
         if (s == 0.0)
           return ans;
@@ -619,7 +633,7 @@ SHARE
           return ans;
         ans = xnew;
         parms[0] = cplx (ans, 0.0);
-        fnew = (*func) (parms, vector);
+        fnew = bvk_omega_q (parms, vector);
         if (fnew == 0.0)
           return ans;
         if (fabs (fm) * SIGN (fnew) != fm) {
@@ -640,24 +654,29 @@ SHARE
       }
       bvk_fatalerror ("zridd exceeded maximum iterations");
     }
-    return 0.0; /* Never get here */
+    return UNUSED; /* Never get here on the CPU; on the GPU, drop this bracket */
   }
 
   #define ROOTACC 1e-8
   #define BVK_MAX_ROOTS 20 /* size of vf_list in TRACE */
 
+  #pragma acc routine seq
   void
   bvk_addroot (double* list, int* index, double root) {
-    static int warned = 0; // ponytail: benign race under threads, only guards a one-time warning
     if (*index < BVK_MAX_ROOTS)
       list[(*index)++] = root;
-    else if (!warned++)
-      fprintf (stderr, "Phonon_BvK_PG: more than %d roots found, extra roots dropped (intensity biased low)\n", BVK_MAX_ROOTS);
+    #ifndef OPENACC
+    else {
+      static int warned = 0; // ponytail: benign race under threads, only guards a one-time warning
+      if (!warned++)
+        fprintf (stderr, "Phonon_BvK_PG: more than %d roots found, extra roots dropped (intensity biased low)\n", BVK_MAX_ROOTS);
+    }
+    #endif
   }
 
+  #pragma acc routine seq
   void
-  bvk_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, double (*f) (cdouble*, cdouble*), cdouble* parms,
-                 cdouble* vector, int low_steps, int high_steps) {
+  bvk_findroots (double brack_low, double brack_mid, double brack_high, double* list, int* index, cdouble* parms, cdouble* vector, int low_steps, int high_steps) {
     double root, range;
     double last_fh = 0, last_x2 = 0;
     int i;
@@ -670,9 +689,9 @@ SHARE
     range = brack_mid - brack_low;
     for (i = 0; i < (low_steps - 1); i++) {
       if (i == 0)
-        root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, ROOTACC, &last_fh, &last_x2);
+        root = bvk_zridd (brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, ROOTACC, &last_fh, &last_x2);
       else
-        root = bvk_zridd (f, brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, -ROOTACC, &last_fh, &last_x2);
+        root = bvk_zridd (brack_low + range * i / low_steps, brack_low + range * (i + 1) / low_steps, parms, vector, -ROOTACC, &last_fh, &last_x2);
       if (root != UNUSED) {
         bvk_addroot (list, index, root);
         if (verbose >= 4)
@@ -683,10 +702,10 @@ SHARE
     range = (brack_mid - brack_low) / (double)low_steps;
     for (i = 0; i < low_steps; i++) {
       if (low_steps == 1)
-        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps),
+        root = bvk_zridd (brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps),
                           parms, vector, ROOTACC, &last_fh, &last_x2);
       else
-        root = bvk_zridd (f, brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps),
+        root = bvk_zridd (brack_low + range * (low_steps - 1 + i / (double)low_steps), brack_low + range * (low_steps - 1 + (i + 1) / (double)low_steps),
                           parms, vector, -ROOTACC, &last_fh, &last_x2);
       if (root != UNUSED) {
         bvk_addroot (list, index, root);
@@ -699,10 +718,10 @@ SHARE
     range = (brack_high - brack_mid) / (double)high_steps;
     for (i = 0; i < high_steps; i++) {
       if (i == 0)
-        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, ROOTACC, &last_fh,
+        root = bvk_zridd (brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, ROOTACC, &last_fh,
                           &last_x2);
       else
-        root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh,
+        root = bvk_zridd (brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh,
                           &last_x2);
       if (root != UNUSED) {
         bvk_addroot (list, index, root);
@@ -713,7 +732,7 @@ SHARE
 
     range = brack_high - brack_mid;
     for (i = 1; i < high_steps; i++) {
-      root = bvk_zridd (f, brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh,
+      root = bvk_zridd (brack_mid + range * i / (double)high_steps, brack_mid + range * (i + 1) / (double)high_steps, parms, vector, -ROOTACC, &last_fh,
                         &last_x2);
       if (root != UNUSED) {
         bvk_addroot (list, index, root);
@@ -767,6 +786,9 @@ INITIALIZE
   }
   initialize_omega_q ();
   verbose = verbose_input;
+
+  #pragma acc update device(M, Delta, astar, cstar, r_j13, r_1ucA, r_1ucC, r_3ucA, r_3ucC, r_4ucA)
+  #pragma acc update device(Phi1, Phi2, Phi3, Phi4, Phi5, Phi6, Phi7, Phi8, Phi9, Phi10, Phi11, Phi12, Phi13, Phi14)
 %}
 
 TRACE
@@ -844,6 +866,7 @@ TRACE
     {
       printf ("mode = %d ", mode);
       nrerror ("illegal value of mode");
+      ABSORB; /* reached only on the GPU, where nrerror does not exit */
     }
 
     /* Load the parameter vector.  All values are real-valued physics quantities;
@@ -871,7 +894,7 @@ TRACE
 
     if (verbose >= 2)
       printf ("Call findroots \n");
-    bvk_findroots (0, v_i, v_i + V_HIGH, vf_list, &nf, bvk_omega_q, p_call, eigenvectormode, e_steps_low, e_steps_high);
+    bvk_findroots (0, v_i, v_i + V_HIGH, vf_list, &nf, p_call, eigenvectormode, e_steps_low, e_steps_high);
     if (verbose >= 2)
       printf ("Findroots returned %d roots \n", nf);
 
