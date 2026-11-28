@@ -28,13 +28,13 @@
 *
 * %Parameters
 * INPUT PARAMETERS:
-* radius_equat_core: [Ang] ([0, inf]) Equatorial radius of core.
+* radius_equat_core: [AA] ([0, inf]) Equatorial radius of core.
 * x_core: [None] ([0, inf]) axial ratio of core, X = r_polar/r_equatorial.
-* thick_shell: [Ang] ([0, inf]) thickness of shell at equator.
+* thick_shell: [AA] ([0, inf]) thickness of shell at equator.
 * x_polar_shell: [] ([0, inf]) ratio of thickness of shell at pole to that at equator.
-* sld_core: [1e-6/Ang^2] ([-inf, inf]) Core scattering length density.
-* sld_shell: [1e-6/Ang^2] ([-inf, inf]) Shell scattering length density.
-* sld_solvent: [1e-6/Ang^2] ([-inf, inf]) Solvent scattering length density.
+* sld_core: [1e-6/AA^2] ([-inf, inf]) Core scattering length density.
+* sld_shell: [1e-6/AA^2] ([-inf, inf]) Shell scattering length density.
+* sld_solvent: [1e-6/AA^2] ([-inf, inf]) Solvent scattering length density.
 * Optional parameters:
 * model_abs: [ ] Absorption cross section density at 2200 m/s.
 * model_scale: [ ] Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors can be related to the scattering intensity by the particle volume fraction.
@@ -58,7 +58,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_core_shell_ellipsoid
-
 SETTING PARAMETERS (
         radius_equat_core=20,
         x_core=3,
@@ -353,7 +352,7 @@ constant double Gauss76Z[76] = {
 //
 //       <OBLATE ELLIPSOID>
 static double
-_cs_ellipsoid_kernel(double qab, double qc,
+_cs_ellipsoid_kernel_core_shell_ellipsoid(double qab, double qc,
     double equat_core, double polar_core,
     double equat_shell, double polar_shell,
     double sld_core_shell, double sld_shell_solvent)
@@ -458,7 +457,7 @@ Fq_core_shell_ellipsoid(double q,
     for(int i=0;i<GAUSS_N;i++) {
         const double cos_theta = GAUSS_Z[i]*m + b;
         const double sin_theta = sqrt(1.0 - cos_theta*cos_theta);
-        double fq = _cs_ellipsoid_kernel(q*sin_theta, q*cos_theta,
+        double fq = _cs_ellipsoid_kernel_core_shell_ellipsoid(q*sin_theta, q*cos_theta,
             radius_equat_core, polar_core,
             equat_shell, polar_shell,
             sld_core_shell, sld_shell_solvent);
@@ -491,7 +490,7 @@ Iqac_core_shell_ellipsoid(double qab, double qc,
     const double equat_shell = radius_equat_core + thick_shell;
     const double polar_shell = radius_equat_core*x_core + thick_shell*x_polar_shell;
 
-    double fq = _cs_ellipsoid_kernel(qab, qc,
+    double fq = _cs_ellipsoid_kernel_core_shell_ellipsoid(qab, qc,
                   radius_equat_core, polar_core,
                   equat_shell, polar_shell,
                   sld_core_shell, sld_shell_solvent);

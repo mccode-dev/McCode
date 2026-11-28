@@ -56,7 +56,7 @@ jobs:
            echo "idle=$([ "${N:-0}" -gt 0 ] && echo true || echo false)" | tee -a "$GITHUB_OUTPUT"
 
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         path: src
         fetch-depth: 0
@@ -168,7 +168,7 @@ jobs:
       run: rm -rf "${GITHUB_WORKSPACE:?}"/*
 
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         path: src
         # Full history (rather than the old fetch-depth: 2) is needed so the
@@ -206,7 +206,7 @@ jobs:
            ) > nvhpc.log 2>&1; echo $? > nvhpc.done; } < /dev/null > /dev/null 2>&1 &
 
     - name: Setup python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       if: matrix.method == 'source'
       with:
         python-version: ${{ matrix.python }}
@@ -702,6 +702,8 @@ jobs:
            ${PY} -m pip install h5py || ${PY} -m pip install h5py --break-system-packages
            ${PY} src/mcstas-comps/examples/Tests_other/Test_NeXus_output/test_nexus_output.py --np 2 --mcrun mcrun${SUFFIX} --workdir run_nexusoutput
            ${PY} src/mcstas-comps/examples/Tests_other/Test_mcplot_loader/test_mcplot_loader.py --mcrun mcrun${SUFFIX} --workdir run_mcplotloader
+           ${PY} src/mcstas-comps/examples/Tests_MCPL_etc/Test_MCPL_output/test_mcpl_interrupt.py --mcrun mcrun${SUFFIX} --workdir run_mcplinterrupt
+           ${PY} src/mcstas-comps/examples/Tests_MCPL_etc/Test_MCPL_output/test_mcpl_interrupt.py --mcrun mcrun${SUFFIX} --workdir run_mcplinterrupt_noacc --instr src/mcstas-comps/examples/Tests_MCPL_etc/Test_MCPL_output_noacc/Test_MCPL_output_noacc.instr
 
     - name: Check for modified instruments
       id: instr-test
@@ -768,7 +770,7 @@ jobs:
 
     - name: 'Upload Artifact'
       id: tar-upload
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always() && needs.changes.outputs.run == 'true' && !matrix.openacc
       with:
         name: mcstas-artefacts-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
@@ -792,7 +794,7 @@ jobs:
 
     - name: 'Upload failed-test logs'
       id: failedlogs-upload
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: mcstas-failedlogs-${{ matrix.cogen }}.${{ matrix.method }}.${{ matrix.os }}.${{ matrix.CC }}.${{ matrix.mpi }}.python-${{ matrix.python }}
@@ -830,12 +832,12 @@ jobs:
       LABEL: ${{ matrix.flavor }}-classic.freebsd.freebsd-14.2.cc.mpich.python-pkg
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: src
 
       - name: FreeBSD
-        uses: cross-platform-actions/action@v1.3.0
+        uses: cross-platform-actions/action@v1.7.0
         with:
           operating_system: freebsd
           version: '14.2'
@@ -901,7 +903,7 @@ jobs:
              tar cvfz ${LABEL}_output.tgz run_*
 
       - name: 'Upload Artifact'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ${{ matrix.flavor }}-artefacts-classic.freebsd.freebsd-14.2.cc.mpich.python-pkg
@@ -919,7 +921,7 @@ jobs:
              if [ -s failed_logs.txt ]; then tar cvfz ${LABEL}_failedlogs.tgz -T failed_logs.txt; fi
 
       - name: 'Upload failed-test logs'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ${{ matrix.flavor }}-failedlogs-classic.freebsd.freebsd-14.2.cc.mpich.python-pkg
@@ -938,7 +940,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         path: src
 
@@ -964,7 +966,7 @@ jobs:
 
     - name: 'Download all platform test artifacts'
       id: download
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v8
       with:
         pattern: mcstas-artefacts-*
         path: downloaded_artifacts
@@ -1052,7 +1054,7 @@ jobs:
 
     - name: 'Upload comparison artifact'
       id: comparison-upload
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: mcstas-basictest-comparison
         path: mcstas-basictest-comparison.tgz

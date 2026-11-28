@@ -52,7 +52,7 @@ jobs:
       run: rm -rf "${GITHUB_WORKSPACE:?}"/*
 
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         path: src
 
@@ -235,7 +235,7 @@ jobs:
              test "$(command -v mctest)" == "/usr/bin/mctest"
            fi
            # Run the test with 2 core mpi
-           ${MCTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} ${MCTEST_OACC} --nsigma 5 --nohtml --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
+           ${MCTEST_EXECUTABLE} --verbose ${MCTEST_JOBS} ${MCTEST_OACC} --nsigma 5 --nohtml --displayncount 0 --testdir $PWD --suffix ${{ matrix.cogen }}_${{ matrix.os }}_${{ matrix.mpi }}${{ matrix.method == 'debian' && '_debian' || '' }} --mpi=${{ matrix.nmpi }} --uid=${MYWORKERID}
     - name: 'Tar output files'
       id: tar-package
       if: always()
@@ -251,7 +251,7 @@ jobs:
 
     - name: 'Upload Artifact'
       id: tar-upload
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: mcstas-artefacts-${{ matrix.os }}.${{ matrix.cogen }}.${{ matrix.mpi }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite
@@ -275,7 +275,7 @@ jobs:
 
     - name: 'Upload failed-test logs'
       id: failedlogs-upload
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: mcstas-failedlogs-${{ matrix.os }}.${{ matrix.cogen }}.${{ matrix.mpi }}${{ matrix.method == 'debian' && '.debian' || '' }}.conda-testsuite
@@ -305,7 +305,7 @@ jobs:
            df -h .
 
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         path: src
 
@@ -331,7 +331,7 @@ jobs:
 
     - name: 'Download all platform test artifacts'
       id: download
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v8
       with:
         # matches mcstas-artefacts-ubuntu-latest.openmpi.conda-testsuite,
         # mcstas-artefacts-macos-latest.openmpi.conda-testsuite,
@@ -397,14 +397,14 @@ jobs:
 
     - name: 'Upload comparison artifact'
       id: comparison-upload
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       # Full merged data only for manual comparison runs; nightlies keep it in the platform artifacts
       if: always() && github.event_name != 'schedule'
       with:
         name: mcstas-testsuite-comparison
         path: mcstas-conda-testsuite-comparison.tgz
 
-    - name: 'Raw data per instrument as release assets in mcstas-nightly'
+    - name: 'Raw data per platform as release assets in mcstas-nightly'
       id: release
       if: always() && steps.viewtest.outcome == 'success' && github.event_name == 'schedule'
       env:
@@ -420,13 +420,13 @@ jobs:
              [ "$col" = _lib ] && continue
              # same platform key as tools/nightly-site/summarize.py column_key()
              key=$(echo "$col" | cut -d_ -f2- | rev | cut -d_ -f2- | rev)
-             mkdir ../rel
-             for instr in "$col"/*/; do
-               tar czf "../rel/$(basename "$instr").tgz" "${instr%/}"
-             done
+             # one tgz per platform keeps the API calls (and the token's rate limit) low
+             tar czf "../$key.tgz" "$col"
+             # a re-run replaces the night's release
+             gh release delete "${day}_${key}" -R $repo --yes --cleanup-tag 2>/dev/null || true
              gh release create "${day}_${key}" -R $repo --title "${day} ${key}" \
-               --notes "Raw output of $col from https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" ../rel/*.tgz
-             rm -rf ../rel
+               --notes "Raw output of $col from https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" "../$key.tgz"
+             rm "../$key.tgz"
            done
            # ponytail: fixed 14-night retention of the raw data, tune if release storage matters
            gh release list -R $repo --limit 1000 --json tagName,createdAt \
@@ -447,7 +447,7 @@ jobs:
 
     - name: 'Upload nightly site artifact'
       id: site-upload
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always() && steps.site.outcome == 'success'
       with:
         name: mcstas-nightly-site

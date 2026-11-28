@@ -1,0 +1,80 @@
+/*******************************************************************************
+* Instrument: PSI_ICON_porous_Union_NCrystal
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Nov 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: PSI
+*
+* PSI ICON imaging beamline with a porous quartz sample (Union + NCrystal), water in the pores below fill_y
+*
+* %D
+* As PSI_ICON_porous_Union, but matrix and water are Union_NCrystal_material:
+* full NCrystal physics (Bragg, incoherent, inelastic, absorption) for both.
+* Pore channels from pores.off (in the data folder, made with Tests_samples/Test_PowderN_porous/make_pores.py).
+* All PSI_ICON_beamline parameters are available as well.
+*
+* %Test: PSI_ICON_porous_Union_NCrystal.instr -y Detector: VarDetectorZoom_I=750841
+*
+* %P
+* matrix:      [str] NCrystal cfg-string of the porous matrix
+* liquid:      [str] NCrystal cfg-string of the pore liquid
+* pores:       [str] Pore mesh file, "NULL" for none
+* fill_y:      [m]   Liquid level in the pores, local y (sample spans +-0.005)
+* water:       [1]   1: liquid below fill_y, 0: void pores
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT PSI_ICON_porous_Union_NCrystal(string matrix="stdlib::SiO2-alpha_sg154_AlphaQuartz.ncmat",
+  string liquid="stdlib::LiquidWaterH2O_T293.6K.ncmat", string pores="pores.off", fill_y=0, int water=1)
+
+DEPENDENCY " -DGMESH_MAX_HITS=200 "
+
+DECLARE
+%{
+  double R_s, H_s, eps_s, h_w, h_v, y_w, y_v;
+  char fill_mat[16];
+%}
+
+INITIALIZE
+%{
+  R_s = 0.004; H_s = 0.01; eps_s = 1e-6;
+  double yb = -H_s/2 + eps_s, yt = H_s/2 - eps_s;
+  double fy = fmin(fmax(fill_y, yb + eps_s), yt - eps_s);
+  h_w = fy - yb;          y_w = (fy + yb)/2;
+  h_v = yt - fy + eps_s;  y_v = (yt + fy - eps_s)/2;
+  strcpy(fill_mat, water ? "Liquid" : "Vacuum");
+%}
+
+TRACE
+
+%include "PSI/PSI_ICON/PSI_ICON_beamline/PSI_ICON_beamline.instr"
+
+// Porous NCrystal matrix, NCrystal liquid in the pores below fill_y, as Union:
+// matrix cylinder, liquid/void cylinders below/above fill_y, masked by the pore mesh
+COMPONENT Matrix = Union_NCrystal_material(cfg=matrix)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT Liquid = Union_NCrystal_material(cfg=liquid)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT matrix_vol = Union_cylinder(material_string="Matrix", priority=1, radius=R_s, yheight=H_s)
+AT (0,0,0) RELATIVE Goniometer
+
+COMPONENT liquid_vol = Union_cylinder(material_string=fill_mat, priority=2, radius=R_s-eps_s, yheight=h_w)
+AT (0,y_w,0) RELATIVE Goniometer
+
+COMPONENT void_vol = Union_cylinder(material_string="Vacuum", priority=3, radius=R_s-eps_s, yheight=h_v)
+AT (0,y_v,0) RELATIVE Goniometer
+
+COMPONENT pore_mask = Union_mesh(filename=pores, coordinate_scale=1, priority=4,
+    mask_string="liquid_vol,void_vol", mask_setting="Any")
+AT (0,0,0) RELATIVE Goniometer
+
+COMPONENT Sample = Union_master()
+AT (0,0,0) RELATIVE Goniometer
+
+%include "PSI/PSI_ICON/PSI_ICON_camera/PSI_ICON_camera.instr"
+
+END

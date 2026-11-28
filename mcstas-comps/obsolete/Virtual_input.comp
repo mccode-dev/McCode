@@ -68,21 +68,22 @@ NOACC
 
 SHARE
 %{
-%include "read_table-lib"
+  %include "read_table-lib"
 
-long Virtual_input_Read_Input(char *aFile, t_Table *aTable, long *aOffset)
-  {
+  long
+  Virtual_input_Read_Input (char* aFile, t_Table* aTable, long* aOffset) {
     long max_lines = 50000;
-    long length=0;
+    long length = 0;
 
-    if (!aFile) return (0);
+    if (!aFile)
+      return (0);
 
-    Table_Free(aTable);
+    Table_Free (aTable);
 
     /* Open neutron input text filename. */
-    Table_Read_Offset(aTable, aFile, 0, aOffset, max_lines);  /* read data from filename into rTable */
+    Table_Read_Offset (aTable, aFile, 0, aOffset, max_lines); /* read data from filename into rTable */
 
-    return(aTable->rows);
+    return (aTable->rows);
   }
 %}
 
@@ -95,7 +96,7 @@ DECLARE
   long Offset;            /* offset in filename */
   double filename_ncount; /* total number of neutrons in filename */
   double n_neutrons;
-  char read_block;        /* flag to start by reading block */
+  char read_block; /* flag to start by reading block */
   char first_block;
   char end_reading;
   t_Table rTable;
@@ -110,14 +111,14 @@ DECLARE
   double mean_dx;
   double mean_dy;
   double mean_dz;
-  double min_x; 
+  double min_x;
   double min_y;
   double min_z;
   double max_x;
   double max_y;
   double max_z;
   double min_vx;
-  double min_vy; 
+  double min_vy;
   double min_vz;
   double max_vx;
   double max_vy;
@@ -127,149 +128,171 @@ DECLARE
 
 INITIALIZE
 %{
-  repeat_number=1;
-  pos=0;
-  nrows=0;
-  Offset=0;
-  filename_ncount=0;
-  n_neutrons=0;
-  read_block=1;
-  first_block=1;
-  end_reading=0;
-  mean_x=0;
-  mean_y=0;
-  mean_z=0;
-  mean_vx=0;
-  mean_vy=0;
-  mean_vz=0;
-  mean_dx=0;
-  mean_dy=0;
-  mean_dz=0;
-  min_x=FLT_MAX;
-  min_y=FLT_MAX;
-  min_z=FLT_MAX;
-  max_x=-FLT_MAX;
-  max_y=-FLT_MAX;
-  max_z=-FLT_MAX;
-  min_vx=FLT_MAX;
-  min_vy=FLT_MAX;
-  min_vz=FLT_MAX;
-  max_vx=-FLT_MAX;
-  max_vy=-FLT_MAX;
-  max_vz=-FLT_MAX;
-  n_count_extrapolated=0;
+  repeat_number = 1;
+  pos = 0;
+  nrows = 0;
+  Offset = 0;
+  filename_ncount = 0;
+  n_neutrons = 0;
+  read_block = 1;
+  first_block = 1;
+  end_reading = 0;
+  mean_x = 0;
+  mean_y = 0;
+  mean_z = 0;
+  mean_vx = 0;
+  mean_vy = 0;
+  mean_vz = 0;
+  mean_dx = 0;
+  mean_dy = 0;
+  mean_dz = 0;
+  min_x = FLT_MAX;
+  min_y = FLT_MAX;
+  min_z = FLT_MAX;
+  max_x = -FLT_MAX;
+  max_y = -FLT_MAX;
+  max_z = -FLT_MAX;
+  min_vx = FLT_MAX;
+  min_vy = FLT_MAX;
+  min_vz = FLT_MAX;
+  max_vx = -FLT_MAX;
+  max_vy = -FLT_MAX;
+  max_vz = -FLT_MAX;
+  n_count_extrapolated = 0;
 
-  Table_Init(&rTable, 0, 0);
+  Table_Init (&rTable, 0, 0);
 
-  if (!filename || !repeat_count)
-  {
-    fprintf(stderr,"Virtual_input: %s: please give me a filename name (filename) to read (repeat_count>0).\n", NAME_CURRENT_COMP);
-    exit(-1);
+  if (!filename || !repeat_count) {
+    fprintf (stderr, "Virtual_input: %s: please give me a filename name (filename) to read (repeat_count>0).\n", NAME_CURRENT_COMP);
+    exit (-1);
   }
 
-  if (filename && strlen(filename) && strcmp(filename, "NULL") && strcmp(filename,"0") && repeat_count>0) {
+  if (filename && strlen (filename) && strcmp (filename, "NULL") && strcmp (filename, "0") && repeat_count > 0) {
 
     if (verbose)
-      printf("Virtual_input: %s: Reading neutron events from filename '%s'. Repeat %g time(s)\n", NAME_CURRENT_COMP, filename, repeat_count);
+      printf ("Virtual_input: %s: Reading neutron events from filename '%s'. Repeat %g time(s)\n", NAME_CURRENT_COMP, filename, repeat_count);
 
-#if defined (USE_MPI)
+    #if defined (USE_MPI)
     if (!smooth && mpi_node_count > 1) {
       if (verbose)
-      printf("Virtual_input: %s: smoothing (smooth=1) is recommended when running MPI execution\n", NAME_CURRENT_COMP);
+        printf ("Virtual_input: %s: smoothing (smooth=1) is recommended when running MPI execution\n", NAME_CURRENT_COMP);
     }
-#endif
+    #endif
 
-    double min_dv=fabs(max_vx-min_vx);
-    if (min_dv > fabs(max_vy-min_vy)) min_dv = fabs(max_vy-min_vy);
-    if (min_dv > fabs(max_vz-min_vz)) min_dv = fabs(max_vz-min_vz);
+    double min_dv = fabs (max_vx - min_vx);
+    if (min_dv > fabs (max_vy - min_vy))
+      min_dv = fabs (max_vy - min_vy);
+    if (min_dv > fabs (max_vz - min_vz))
+      min_dv = fabs (max_vz - min_vz);
     min_vx = min_dv;
 
     if (verbose && smooth)
-        printf("* Beam will be smoothed\n");
+      printf ("* Beam will be smoothed\n");
   } else if (!filename)
-    exit(fprintf(stderr,"Virtual_input: %s: please give me a filename name (filename).\n", NAME_CURRENT_COMP));
+    exit (fprintf (stderr, "Virtual_input: %s: please give me a filename name (filename).\n", NAME_CURRENT_COMP));
 
   repeat_cnt = repeat_count;
-#if defined (USE_MPI)
-  repeat_cnt = ceil(1.0*repeat_cnt/mpi_node_count);
-#endif
+  #if defined (USE_MPI)
+  repeat_cnt = ceil (1.0 * repeat_cnt / mpi_node_count);
+  #endif
 %}
 
 TRACE
 %{
-  if (filename && strlen(filename) && strcmp(filename, "NULL") && strcmp(filename,"0")) {
+  if (filename && strlen (filename) && strcmp (filename, "NULL") && strcmp (filename, "0")) {
     while (read_block && !end_reading) {
       /* read block and increase Offset for next reading */
-      nrows = Virtual_input_Read_Input(filename, &rTable, &Offset);
+      nrows = Virtual_input_Read_Input (filename, &rTable, &Offset);
       if (!nrows) { /* nrows is 0 if end of filename/no filename */
         if (!filename_ncount) {
-          filename_ncount = (double)mcget_run_num();  /* ncount in filename */
+          filename_ncount = (double)mcget_run_num (); /* ncount in filename */
           if (verbose)
-            printf("Virtual_input: %s: filename '%s' contains %g events\n", NAME_CURRENT_COMP, filename, filename_ncount);
+            printf ("Virtual_input: %s: filename '%s' contains %g events\n", NAME_CURRENT_COMP, filename, filename_ncount);
           /* set ncount from filename length */
-          mcset_ncount(filename_ncount*repeat_cnt);
+          mcset_ncount (filename_ncount * repeat_cnt);
         }
-        Offset = 0;       /* reposition to begining of filename */
-        repeat_number++;  /* we start a new repeat_cnt loop */
+        Offset = 0;      /* reposition to begining of filename */
+        repeat_number++; /* we start a new repeat_cnt loop */
 
         /* end of simulation if ... */
         if (repeat_number > repeat_cnt) {
           if (verbose)
-            printf("Virtual_input: %s: Ending after %g events (%li repeat count)\n", NAME_CURRENT_COMP, (double)mcget_run_num(), (long)repeat_cnt);
-          read_block=0; mcset_ncount(mcget_run_num()); pos=0;
+            printf ("Virtual_input: %s: Ending after %g events (%li repeat count)\n", NAME_CURRENT_COMP, (double)mcget_run_num (), (long)repeat_cnt);
+          read_block = 0;
+          mcset_ncount (mcget_run_num ());
+          pos = 0;
           end_reading = 1;
         }
         /* else continue reading blocks */
 
-      } else { /* block at Offset could be read */
-        pos = 0;  /* position at begining of new block */
+      } else {   /* block at Offset could be read */
+        pos = 0; /* position at begining of new block */
         read_block = 0;
       }
     }
 
-      /* &p, &x, &y, &z, &vx, &vy, &vz, &t, &sx, &sy, &sz */
+    /* &p, &x, &y, &z, &vx, &vy, &vz, &t, &sx, &sy, &sz */
     if (!end_reading) {
-      double *dptr = &rTable.data[11*pos];
-      p  =  *dptr++;
-      x  =  *dptr++;
-      y  =  *dptr++;
-      z =  *dptr++;
-      vx =  *dptr++;
-      vy =  *dptr++;
-      vz  =  *dptr++;
-      t =  *dptr++;
-      sx =  *dptr++;
-      sy =  *dptr++;
-      sz  =  *dptr;
+      double* dptr = &rTable.data[11 * pos];
+      p = *dptr++;
+      x = *dptr++;
+      y = *dptr++;
+      z = *dptr++;
+      vx = *dptr++;
+      vy = *dptr++;
+      vz = *dptr++;
+      t = *dptr++;
+      sx = *dptr++;
+      sy = *dptr++;
+      sz = *dptr;
 
       if (first_block) {
         double v;
-        mean_x  += p*x;  mean_y  += p*y;  mean_z  += p*z;
-        mean_vx += p*vx; mean_vy += p*vy; mean_vz += p*vz;
-        v = sqrt(vx*vx+vy*vy+vz*vz);
-        if (v)
-          { mean_dx += p*fabs(vx/v); mean_dy += p*fabs(vy/v); mean_dz += p*fabs(vz/v); }
-        if (x  < min_x)  min_x  = x;
-        if (y  < min_y)  min_y  = y;
-        if (z  < min_z)  min_z  = z;
-        if (vx < min_vx) min_vx = vx;
-        if (vy < min_vy) min_vy = vy;
-        if (vz < min_vz) min_vz = z;
-        if (x  > max_x)  max_x  = x;
-        if (y  > max_y)  max_y  = y;
-        if (z  > max_z)  max_z  = z;
-        if (vx > max_vx) max_vx = vx;
-        if (vy > max_vy) max_vy = vy;
-        if (vz > max_vz) max_vz = z;
+        mean_x += p * x;
+        mean_y += p * y;
+        mean_z += p * z;
+        mean_vx += p * vx;
+        mean_vy += p * vy;
+        mean_vz += p * vz;
+        v = sqrt (vx * vx + vy * vy + vz * vz);
+        if (v) {
+          mean_dx += p * fabs (vx / v);
+          mean_dy += p * fabs (vy / v);
+          mean_dz += p * fabs (vz / v);
+        }
+        if (x < min_x)
+          min_x = x;
+        if (y < min_y)
+          min_y = y;
+        if (z < min_z)
+          min_z = z;
+        if (vx < min_vx)
+          min_vx = vx;
+        if (vy < min_vy)
+          min_vy = vy;
+        if (vz < min_vz)
+          min_vz = z;
+        if (x > max_x)
+          max_x = x;
+        if (y > max_y)
+          max_y = y;
+        if (z > max_z)
+          max_z = z;
+        if (vx > max_vx)
+          max_vx = vx;
+        if (vy > max_vy)
+          max_vy = vy;
+        if (vz > max_vz)
+          max_vz = z;
         n_neutrons += p;
       }
 
       pos++;
       p /= repeat_cnt;
-#ifdef USE_MPI
+      #ifdef USE_MPI
       /* We always repeat by the number of nodes in an MPI run */
       p /= mpi_node_count;
-#endif
+      #endif
 
       SCATTER;
 
@@ -278,9 +301,9 @@ TRACE
         if (first_block) {
           double mean_v;
           /* display statitics for 1st block */
-          mean_x  /= n_neutrons;
-          mean_y  /= n_neutrons;
-          mean_z  /= n_neutrons;
+          mean_x /= n_neutrons;
+          mean_y /= n_neutrons;
+          mean_z /= n_neutrons;
           mean_vx /= n_neutrons;
           mean_vy /= n_neutrons;
           mean_vz /= n_neutrons;
@@ -288,83 +311,84 @@ TRACE
           mean_dy /= n_neutrons;
           mean_dz /= n_neutrons;
           /* now estimates total ncount */
-          mean_v = sqrt(mean_vx*mean_vx+mean_vy*mean_vy+mean_vz*mean_vz);
-          n_count_extrapolated = (double)nrows*rTable.filesize/Offset;
+          mean_v = sqrt (mean_vx * mean_vx + mean_vy * mean_vy + mean_vz * mean_vz);
+          n_count_extrapolated = (double)nrows * rTable.filesize / Offset;
           if (verbose) {
-            double mean_k, mean_w=0, mean_L=0;
+            double mean_k, mean_w = 0, mean_L = 0;
 
-            mean_k = V2K*mean_v;
-            if (mean_k) mean_L = 2*PI/mean_k;
-            mean_w = VS2E*mean_v*mean_v;
-            printf("McStas Virtual Source filename %s\nContains about %g events, intensity=%g\n", filename, n_count_extrapolated, n_neutrons*rTable.filesize/Offset);
+            mean_k = V2K * mean_v;
+            if (mean_k)
+              mean_L = 2 * PI / mean_k;
+            mean_w = VS2E * mean_v * mean_v;
+            printf ("McStas Virtual Source filename %s\nContains about %g events, intensity=%g\n", filename, n_count_extrapolated,
+                    n_neutrons * rTable.filesize / Offset);
 
-            printf("  Source size (full width in [m]):      ");
-            printf("    dX=%g dY=%g dZ=%g\n", max_x-min_x, max_y-min_y, max_z-min_z);
-            printf("  Source center (in [m]):               ");
-            printf("    X0=%g Y0=%g Z0=%g\n", mean_x, mean_y, mean_z);
-            printf("  Beam divergence (full width in [deg]):");
-            printf("    dVx=%g dVy=%g dVz=%g\n",
-              atan(mean_dx)*RAD2DEG,
-              atan(mean_dy)*RAD2DEG,
-              atan(mean_dz)*RAD2DEG);
-            printf("  Beam speed (in [m/s]):                ");
-            printf("    Vx=%g Vy=%g Vz=%g\n", mean_vx, mean_vy, mean_vz);
-            printf("  Beam mean energy:\n");
-            printf("    speed=%g [m/s] energy=%g [meV]\n    wavelength=%g [Angs] wavevector=%g [Angs-1]\n", mean_v, mean_w, mean_L, mean_k);
+            printf ("  Source size (full width in [m]):      ");
+            printf ("    dX=%g dY=%g dZ=%g\n", max_x - min_x, max_y - min_y, max_z - min_z);
+            printf ("  Source center (in [m]):               ");
+            printf ("    X0=%g Y0=%g Z0=%g\n", mean_x, mean_y, mean_z);
+            printf ("  Beam divergence (full width in [deg]):");
+            printf ("    dVx=%g dVy=%g dVz=%g\n", atan (mean_dx) * RAD2DEG, atan (mean_dy) * RAD2DEG, atan (mean_dz) * RAD2DEG);
+            printf ("  Beam speed (in [m/s]):                ");
+            printf ("    Vx=%g Vy=%g Vz=%g\n", mean_vx, mean_vy, mean_vz);
+            printf ("  Beam mean energy:\n");
+            printf ("    speed=%g [m/s] energy=%g [meV]\n    wavelength=%g [Angs] wavevector=%g [Angs-1]\n", mean_v, mean_w, mean_L, mean_k);
           }
           /* set ncount from estimate with security margin 10 % */
-          mcset_ncount(n_count_extrapolated*repeat_cnt*1.1);
+          mcset_ncount (n_count_extrapolated * repeat_cnt * 1.1);
         }
-        first_block= 0;
+        first_block = 0;
       }
-  #if defined (USE_MPI)
+      #if defined (USE_MPI)
       if (smooth && n_count_extrapolated)
-  #else
-      if (smooth && repeat_number>1 && n_count_extrapolated)
-  #endif
-      {
-        /* apply smmothing */
-        x += randnorm()*(max_x-min_x)/n_count_extrapolated/2;
-        y += randnorm()*(max_y-min_y)/n_count_extrapolated/2;
-        z += randnorm()*(max_z-min_z)/n_count_extrapolated/2;
-        vx += randnorm()*min_vx/n_count_extrapolated/2;
-        vy += randnorm()*min_vx/n_count_extrapolated/2;
-        vx += randnorm()*min_vx/n_count_extrapolated/2;
-      }
-    } else { ABSORB; }
+        #else
+        if (smooth && repeat_number > 1 && n_count_extrapolated)
+        #endif
+        {
+          /* apply smmothing */
+          x += randnorm () * (max_x - min_x) / n_count_extrapolated / 2;
+          y += randnorm () * (max_y - min_y) / n_count_extrapolated / 2;
+          z += randnorm () * (max_z - min_z) / n_count_extrapolated / 2;
+          vx += randnorm () * min_vx / n_count_extrapolated / 2;
+          vy += randnorm () * min_vx / n_count_extrapolated / 2;
+          vx += randnorm () * min_vx / n_count_extrapolated / 2;
+        }
+    } else {
+      ABSORB;
+    }
   }
 %}
 
 FINALLY
 %{
-  Table_Free(&rTable);
+  Table_Free (&rTable);
   if (!filename_ncount) {
-    printf("Warning: Virtual_input: %s: filename '%s' was not used entirely.\n"
-           "               Intensities may be wrong. Increase ncount value\n",
-           NAME_CURRENT_COMP, filename);
+    printf ("Warning: Virtual_input: %s: filename '%s' was not used entirely.\n"
+            "               Intensities may be wrong. Increase ncount value\n",
+            NAME_CURRENT_COMP, filename);
   } else {
     double tmp;
-    tmp = (double)mcget_ncount()/filename_ncount;
-    if (fabs(rint(tmp)/tmp-1) > 0.02)
-      printf("Warning: Virtual_input: %s: simulation finished in the middle of filename '%s'\n"
-             "               ncount=%g but filename contains %g events\n"
-             "               Intensities may be wrong.\n"
-             "               Increase ncount value to %g or higher.\n",
-	     NAME_CURRENT_COMP, filename, (double)mcget_ncount(), filename_ncount, filename_ncount*repeat_cnt);
-    if (mcget_ncount() < filename_ncount*repeat_cnt)
-      printf("Warning: Virtual_input: %s: not all source %s repetitions were generated.\n"
-             "               Intensities may be wrong.\n"
-             "               Increase ncount value to %g or higher.\n",
-             NAME_CURRENT_COMP, filename, filename_ncount*repeat_cnt);
+    tmp = (double)mcget_ncount () / filename_ncount;
+    if (fabs (rint (tmp) / tmp - 1) > 0.02)
+      printf ("Warning: Virtual_input: %s: simulation finished in the middle of filename '%s'\n"
+              "               ncount=%g but filename contains %g events\n"
+              "               Intensities may be wrong.\n"
+              "               Increase ncount value to %g or higher.\n",
+              NAME_CURRENT_COMP, filename, (double)mcget_ncount (), filename_ncount, filename_ncount * repeat_cnt);
+    if (mcget_ncount () < filename_ncount * repeat_cnt)
+      printf ("Warning: Virtual_input: %s: not all source %s repetitions were generated.\n"
+              "               Intensities may be wrong.\n"
+              "               Increase ncount value to %g or higher.\n",
+              NAME_CURRENT_COMP, filename, filename_ncount * repeat_cnt);
   }
 %}
 
 MCDISPLAY
 %{
   if (verbose) {
-    box(mean_x, mean_y, mean_z, max_x-min_x, max_y-min_y, max_z-min_z,0, 0, 1, 0);
+    box (mean_x, mean_y, mean_z, max_x - min_x, max_y - min_y, max_z - min_z, 0, 0, 1, 0);
     /* a line in the main beam direction */
-    line(mean_x, mean_y, mean_z,mean_dx,mean_dy,mean_dz);
+    line (mean_x, mean_y, mean_z, mean_dx, mean_dy, mean_dz);
   }
 %}
 

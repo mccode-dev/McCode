@@ -20,7 +20,7 @@
 * spectroscopy (XANES), X-ray diffraction (XRD), and 
 * X-ray-excited optical luminescence spectroscopy (XEOL)
 *
-* %Test: PUMA_E0=10 -n 1e7 Detector: PUMA_mon_sample_e_I=1.2410e+11
+* %Test: PUMA_E0=10 -n 1e7 Detector: PUMA_mon_sample_e_I=1.25503e+11
 *
 * %Parameters
 * PUMA_E0:         [keV]  Central energy selected by the DCM. Set to 0 to derive it from PUMA_DCM_theta.
@@ -62,7 +62,7 @@ USERVARS
 INITIALIZE
 %{
     PUMA_HFM_angle *= RAD2DEG/1000;
-    PUMA_KB_angle *= RAD2DEG/1000;
+    PUMA_KB_angle  *= RAD2DEG/1000;
 
     {
       // HFM mirror
@@ -99,6 +99,11 @@ INITIALIZE
       // KB HFM
       double p_KB_HFM = 62.975, q_KB_HFM = 0.325;
       PUMA_KB_HFM_radius = 2*p_KB_HFM*q_KB_HFM / ((p_KB_HFM+q_KB_HFM) * (sin(PUMA_KB_angle/2*DEG2RAD)));
+      
+      MPI_MASTER(
+        printf("%s: focusing: HFM=%g KB_VFM=%g KB_HFM=%g [m]\n", 
+          NAME_INSTRUMENT, PUMA_HFM_radius, PUMA_KB_VFM_radius, PUMA_KB_HFM_radius);
+      );
     }
 %}
 
@@ -132,7 +137,7 @@ AT (0, 0, (19.433-19.4292)) RELATIVE PREVIOUS
 
 // Monitors
 COMPONENT PUMA_mon_src_e = E_monitor(
-    Emin=4, Emax=60, nE=100, restore_xray=1
+    Emin=PUMA_E0-PUMA_dE, Emax=PUMA_E0+PUMA_dE, nE=100, restore_xray=1
 )
 AT (0, 0, 0) RELATIVE PREVIOUS
 
@@ -162,7 +167,7 @@ EXTEND %{
 */
 COMPONENT PUMA_mirror_HFM = Mirror_curved(
     radius = PUMA_HFM_radius, length = 1.1, 
-    width = 0.01, coating = "Ir.txt"
+    yheight = 0.01, coating = "Ir.txt"
 )
 AT(0, 0, 0)RELATIVE PUMA_HFM_rotated
 ROTATED (0, 0, 0) RELATIVE PUMA_HFM_rotated
@@ -225,7 +230,7 @@ AT (0, 0, 0.5) RELATIVE PREVIOUS
 
 // Monitor
 COMPONENT PUMA_mon_DCM_out_xy = PSD_monitor(
-    xwidth=0.07, yheight=0.05,
+    xwidth=0.01, yheight=0.01,
     nx=100, ny=100, restore_xray=1, 
     filename="PUMA_Position_after_Mono_DCM"
 )
@@ -251,90 +256,50 @@ COMPONENT PUMA_slit5 = Slit(
 )
 AT (0, 0, (40 - 23.658)) RELATIVE PREVIOUS
 
-/* -------------------------------------------------- Mirror KB VFM */   
-COMPONENT PUMA_KB_VFM_location = Arm()
-AT (0, 0, (62.515 - 40)) RELATIVE PREVIOUS
+/* -------------------------------------------------- Mirror KB VFM + HFM */   
 
-// Monitor
-COMPONENT PUMA_mon_KB_in_xy = PSD_monitor(
-    xwidth=0.05, yheight=0.03,
-    nx=100, ny=100, restore_xray=1
-)
-AT (0, 0, 0) RELATIVE PREVIOUS
-
-COMPONENT PUMA_KB_VFM_rotated = Arm()
-AT(0, 0, 0) RELATIVE PUMA_KB_VFM_location
-ROTATED (PUMA_KB_angle/2, 0, 0) RELATIVE PUMA_KB_VFM_location
-
-/*
-COMPONENT PUMA_mirror_KB_VFM = Mirror_elliptic(
-    x_a = 0, y_b = 0.0203, z_c = 31.65,
-    zdepth = 0.3, xwidth= 0.04,
-    coating = PUMA_KB_coating // Rh or B4C
-)
-AT(0, 0.0203, 0)RELATIVE PUMA_KB_VFM_rotated
-ROTATED (0, 0, 0) RELATIVE PUMA_KB_VFM_rotated
-EXTEND %{
-  if (!SCATTERED) ABSORB;
-%}*/
-
+COMPONENT PUMA_KB_VFM_in = PSD_monitor(
+    xwidth=0.01, yheight=0.01, nx=100,ny=100)
+AT (0, 0, (62.515 - 40-0.151)) RELATIVE PREVIOUS
 
 COMPONENT PUMA_mirror_KB_VFM = Mirror_curved(
     radius = PUMA_KB_VFM_radius, length = 0.3,
-    width = 0.04, coating = PUMA_KB_coating // Rh or B4C
+    yheight = 0.04, coating = PUMA_KB_coating // Rh or B4C
 )
-AT(0, 0, 0)RELATIVE PUMA_KB_VFM_rotated
-ROTATED (0, 0, -90) RELATIVE PUMA_KB_VFM_rotated // Mirror_curved deflects in its XZ plane: roll it to focus vertically
-EXTEND %{
-  if (!SCATTERED) ABSORB;
+AT (0, 0, 0.15) RELATIVE PREVIOUS
+ROTATED (0, PUMA_KB_angle/2, 0) RELATIVE PREVIOUS
+EXTEND
+%{ 
+	if (!SCATTERED) ABSORB; 
 %}
 
-COMPONENT PUMA_KB_VFM_out = Arm()
-AT(0, 0, 0) RELATIVE PUMA_KB_VFM_rotated
-ROTATED (PUMA_KB_angle/2, 0, 0) RELATIVE PUMA_KB_VFM_rotated
-
-// Monitor
-COMPONENT PUMA_mon_KB_VFM_out_xy = PSD_monitor(
-    xwidth=0.05, yheight=0.03,
-    nx=100, ny =100, restore_xray=1,
-    filename="PUMA_Position_after_KB_VFM_Mirror"
-)
+COMPONENT PUMA_KB_VFM_rotated = Arm()
 AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, PUMA_KB_angle/2, 0) RELATIVE PREVIOUS
 
-/* -------------------------------------------------- Mirror KB HFM */   
-COMPONENT PUMA_KB_HFM_location = Arm()
-AT (0, 0, (62.975 - 62.515)) RELATIVE PREVIOUS
+COMPONENT PUMA_KB_VFM_out = PSD_monitor(
+    xwidth=0.01, yheight=0.01, nx=100,ny=100, restore_xray=1)
+AT (0, 0, 0.3/2+0.01) RELATIVE PREVIOUS
 
 COMPONENT PUMA_KB_HFM_rotated = Arm()
-AT(0, 0, 0) RELATIVE PUMA_KB_HFM_location
-ROTATED (0, PUMA_KB_angle/2, 0) RELATIVE PUMA_KB_HFM_location
-
-/*
-COMPONENT PUMA_mirror_KB_HFM = Mirror_elliptic(
-    x_a = 0, y_b = 0.0131, z_c = 31.65,
-    zdepth = 0.3, xwidth = 0.04,
-    coating = PUMA_KB_coating // Rh or B4C
-)
-AT(0, 0, 0)RELATIVE PUMA_KB_HFM_rotated
-ROTATED (0, 0, 0) RELATIVE PUMA_KB_HFM_rotated
-EXTEND %{
-  if (!SCATTERED) ABSORB;
-%}
-*/
+AT (0, 0, (62.975 - 62.515)) RELATIVE PREVIOUS
+ROTATED (0, 0, 90) RELATIVE PREVIOUS
 
 COMPONENT PUMA_mirror_KB_HFM = Mirror_curved(
     radius = PUMA_KB_HFM_radius, length = 0.3,
-    width = 0.04, coating = PUMA_KB_coating // Rh or B4C
+    yheight = 0.04, coating = PUMA_KB_coating // Rh or B4C
 )
-AT(0, 0, 0)RELATIVE PUMA_KB_HFM_rotated
-ROTATED (0, 0, 0) RELATIVE PUMA_KB_HFM_rotated
-EXTEND %{
-  if (!SCATTERED) ABSORB;
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, PUMA_KB_angle/2, 0) RELATIVE PREVIOUS
+EXTEND
+%{ 
+	if (!SCATTERED) ABSORB; 
 %}
 
 COMPONENT PUMA_KB_HFM_out = Arm()
-AT(0, 0, 0) RELATIVE PUMA_KB_HFM_rotated
-ROTATED (0, PUMA_KB_angle/2, 0) RELATIVE PUMA_KB_HFM_rotated
+AT (0, 0, 0) RELATIVE PREVIOUS
+ROTATED (0, PUMA_KB_angle/2, 0) RELATIVE PREVIOUS
+
 
 // Monitor
 COMPONENT PUMA_mon_KB_HFM_out_xy = PSD_monitor(

@@ -33,6 +33,9 @@
 * radius: [AA] ([0, inf]) Particle radius.
 * sld: [1e-6/AA^2] ([-inf, inf]) Particle scattering length density.
 * sld_solvent: [1e-6/AA^2] ([-inf, inf]) Solvent scattering length density.
+* theta: [deg] ([-360, 360]) c axis to beam angle.
+* phi: [deg] ([-360, 360]) rotation about beam.
+* Psi: [deg] ([-360, 360]) rotation about c axis.
 * Optional parameters:
 * model_abs: [ ] Absorption cross section density at 2200 m/s.
 * model_scale: [ ] Global scale factor for scattering kernel. For systems without inter-particle interference, the form factors can be related to the scattering intensity by the particle volume fraction.
@@ -58,7 +61,6 @@
 * %End
 *******************************************************************************/
 DEFINE COMPONENT SasView_fcc_paracrystal_aniso
-
 SETTING PARAMETERS (
         dnn=220,
         d_factor=0.06,
@@ -528,7 +530,7 @@ double sphere_form(double q, double radius, double sld, double solvent_sld)
 
 #line 1 "fcc_paracrystal"
 static double
-fcc_Zq(double qa, double qb, double qc, double dnn, double d_factor)
+fcc_Zq_fcc_paracrystal(double qa, double qb, double qc, double dnn, double d_factor)
 {
     // Equations from Matsuoka 17-18-19, multiplied by |q|
     const double a1 = ( qa + qb)/2.0;
@@ -558,7 +560,7 @@ fcc_Zq(double qa, double qb, double qc, double dnn, double d_factor)
 
 // occupied volume fraction calculated from lattice symmetry and sphere radius
 static double
-fcc_volume_fraction(double radius, double dnn)
+fcc_volume_fraction_fcc_paracrystal(double radius, double dnn)
 {
     return 4.0*sphere_volume(M_SQRT1_2*radius/dnn);
 }
@@ -595,7 +597,7 @@ static double Iq_fcc_paracrystal(double q, double dnn,
             SINCOS(phi, sin_phi, cos_phi);
             const double qa = qab*cos_phi;
             const double qb = qab*sin_phi;
-            const double form = fcc_Zq(qa, qb, qc, dnn, d_factor);
+            const double form = fcc_Zq_fcc_paracrystal(qa, qb, qc, dnn, d_factor);
             inner_sum += GAUSS_W[j] * form;
         }
         inner_sum *= phi_m;  // sum(f(x)dx) = sum(f(x)) dx
@@ -605,7 +607,7 @@ static double Iq_fcc_paracrystal(double q, double dnn,
     const double Zq = outer_sum/(4.0*M_PI);
     const double Pq = sphere_form(q, radius, sld, solvent_sld);
 
-    return fcc_volume_fraction(radius, dnn) * Pq * Zq;
+    return fcc_volume_fraction_fcc_paracrystal(radius, dnn) * Pq * Zq;
 }
 
 static double Iqabc_fcc_paracrystal(double qa, double qb, double qc,
@@ -614,8 +616,8 @@ static double Iqabc_fcc_paracrystal(double qa, double qb, double qc,
 {
     const double q = sqrt(qa*qa + qb*qb + qc*qc);
     const double Pq = sphere_form(q, radius, sld, solvent_sld);
-    const double Zq = fcc_Zq(qa, qb, qc, dnn, d_factor);
-    return fcc_volume_fraction(radius, dnn) * Pq * Zq;
+    const double Zq = fcc_Zq_fcc_paracrystal(qa, qb, qc, dnn, d_factor);
+    return fcc_volume_fraction_fcc_paracrystal(radius, dnn) * Pq * Zq;
 }
 
 #endif // SAS_HAVE_fcc_paracrystal
@@ -666,7 +668,7 @@ INITIALIZE
 
 TRACE
 %{
-  double t0, t1, v, l_full, l, l_1, dt, d_phi, my_s;
+  double t0, t1, vel, l_full, l, l_1, dt, d_phi, my_s;
   double aim_x = 0, aim_y = 0, aim_z = 1, axis_x, axis_y, axis_z;
   double arg, tmp_vx, tmp_vy, tmp_vz, vout_x, vout_y, vout_z;
   double f, solid_angle, vx_i, vy_i, vz_i, q, qx, qy, qz;
@@ -685,11 +687,11 @@ TRACE
       ABSORB;
 
     /* Neutron enters at t=t0. */
-    v = sqrt (vx * vx + vy * vy + vz * vz);
-    l_full = v * (t1 - t0);          /* Length of full path through sample */
+    vel = sqrt (vx * vx + vy * vy + vz * vz);
+    l_full = vel * (t1 - t0);        /* Length of full path through sample */
     dt = rand01 () * (t1 - t0) + t0; /* Time of scattering */
     PROP_DT (dt);                    /* Point of scattering */
-    l = v * (dt - t0);               /* Penetration in sample */
+    l = vel * (dt - t0);             /* Penetration in sample */
 
     vx_i = vx;
     vy_i = vy;
@@ -707,9 +709,9 @@ TRACE
       randvec_target_circle (&vx, &vy, &vz, &solid_angle, aim_x, aim_y, aim_z, focus_r);
     }
     NORM (vx, vy, vz);
-    vx *= v;
-    vy *= v;
-    vz *= v;
+    vx *= vel;
+    vy *= vel;
+    vz *= vel;
     qx = V2K * (vx_i - vx);
     qy = V2K * (vy_i - vy);
     qz = V2K * (vz_i - vz);
@@ -749,8 +751,8 @@ TRACE
     // Scale by 1.0E2 [SasView: 1/cm  ->   McStas: 1/m]
     Iq_out = model_scale * Iq_out / vol * 1.0E2;
 
-    l_1 = v * t1;
-    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / v);
+    l_1 = vel * t1;
+    p *= l_full * solid_angle / (4 * PI) * Iq_out * exp (-my_a_v * (l + l_1) / vel);
     SCATTER;
   }
 %}

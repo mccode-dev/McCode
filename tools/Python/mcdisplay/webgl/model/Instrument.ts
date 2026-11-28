@@ -8,4 +8,5 @@ export interface Instrument {
   params_values: string;
   cmd: string;
   components: Component[];
+  monitors?: Record<string, any>; // --simdir monitor data, by component name
 }

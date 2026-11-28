@@ -1,97 +1,109 @@
-# The `ILL_NeXT_Xray` Instrument
+# ILL NeXT X-ray arm models
 
-*McXtrace: NeXT (ILL) - the X-ray cone-beam tomography arm, operated simultaneously with
-and perpendicular to the neutron beam (companion to ILL_H521_NeXT.instr)*
+DRAFT McXtrace models of the X-ray cone-beam tomography arm of NeXT-Grenoble at
+the ILL, operated together with, and perpendicular to, the neutron beam (McStas
+`ILL_H521_NeXT`). The tube and flat panel are written once and `%include`d by
+every model, so each model file holds only its sample.
 
-## Identification
+## Models
 
-- **Site:** ILL
-- **Author:** DRAFT, Peter Willendrup with Claude from public ILL / NeXT-Grenoble information
-- **Origin:** ILL
-- **Date:** September 2026
+| Folder / instrument | Sample | Purpose |
+|---|---|---|
+| [ILL_NeXT_Xray](ILL_NeXT_Xray/ILL_NeXT_Xray.instr) | Fe rod, optional inner cylinder or OFF shape; `sample=0` gives the flat field | Bimodal comparison with the neutron NeXT model; spectra behind the sample and in the open beam |
+| [ILL_NeXT_Xray_porous](ILL_NeXT_Xray_porous/ILL_NeXT_Xray_porous.instr) | porous Si cylinder, water in the pores (PowderN_porous) | Imaging of water uptake in a porous material |
+| [ILL_NeXT_Xray_porous_Union](ILL_NeXT_Xray_porous_Union/ILL_NeXT_Xray_porous_Union.instr) | same sample, Union components | Union reference for ILL_NeXT_Xray_porous, multiple scattering, one effective energy |
 
-## Description
+Building blocks:
 
-```text
-DRAFT model of the X-ray imaging option of NeXT-Grenoble at the ILL.
+| Folder / instrument | Content |
+|---|---|
+| [ILL_NeXT_Xray_source](ILL_NeXT_Xray_source/ILL_NeXT_Xray_source.instr) | Microfocus tube (Source_lab, W), Be window, optional pre-filter, sample axis at `SOD` (`sample_axis`, rotated `sample_rot`). Runs standalone for the tube spectrum |
+| [ILL_NeXT_Xray_detector](ILL_NeXT_Xray_detector/ILL_NeXT_Xray_detector.instr) | Varex PaxScan 2530HE flat panel at `SDD`: photon counts and energy-weighted image |
 
-Hardware (Tengattini et al., NIM A 968 (2020) 163939):
-- source:   Hamamatsu L12161-07 sealed microfocus tube, W target, Be window,
-up to 150 kV / 500 uA, minimum focal spot 5 um, 43 deg cone
-- detector: Varex PaxScan 2530HE flat panel, CsI scintillator,
-1792 x 2176 pixels of 139 um (portrait), up to 9 Hz (33 Hz bin 2)
-- source-detector distance: >= 500 mm (set by the 43 deg cone covering the
-~25 x 30 cm panel), four source positions 20 mm apart
--> SDD = 0.50, 0.52, 0.54, 0.56 m
-- the sample sits on the common (neutron) rotation axis; the source-object
-distance SOD sets the magnification M = SDD/SOD. The quoted 5 um
-resolution needs M ~ 28, i.e. SOD ~ 18-20 mm.
-- the ILL web page (2026) quotes a 20-300 kV source, i.e. the tube may have
-been upgraded; kV > 150 is allowed here but flagged.
+## Building your own sample model
 
-Geometry: the X-ray axis is the McXtrace z axis. At NeXT it is horizontal and
-perpendicular to the neutron beam (neutrons travel along -x or +x here, depending
-on the side of the source); the source/detector pivot (+-20 deg) is not modelled.
+```
+DEFINE INSTRUMENT My_NeXT_sample(...)
+...
+TRACE
+%include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_source/ILL_NeXT_Xray_source.instr"
 
-The sample defaults to the same object as in ILL_H521_NeXT: a vertical Fe rod,
-radius 5 mm, for direct bimodal comparison (the neutron model gives T~0.4 at the
-rod centre in white beam). An inner inclusion (e.g. an H2O-filled bore) can be added.
+COMPONENT Sample = ...
+AT (0,0,0) RELATIVE sample_rot
 
-Detector: two ideal pixelated monitors on the flat-panel plane
-Xray_counts:  photon counts (photon-counting response)
-Xray_energy:  energy-weighted intensity [keV/s per pixel], a first-order model
-of the energy-integrating CsI flat panel.
-NOT modelled: CsI absorption efficiency vs energy, scintillator/optical blur,
-focal-spot growth with tube power, heel effect, scatter from the sample
-environment, and the 6 mm Pb / 10 mm + 5 mm B4C neutron shielding of the panel
-(5 mm B4C over the active area transmits roughly 80-90 % at 40-150 keV).
-
-ASSUMPTIONS (to be checked):
-- Be exit window 0.2 mm (the L12161-07 datasheet value should be checked)
-- focal spot = electron-beam footprint on the anode (square, focal_spot)
-- anode take-off angle 12 deg (reflection-type microfocus tube, typical)
-- Source_lab is a thick-target Kramers model; absolute intensity is indicative
+%include "ILL/ILL_NeXT_Xray/ILL_NeXT_Xray_detector/ILL_NeXT_Xray_detector.instr"
+END
 ```
 
-## Examples
+All tube and detector parameters (`kV`, `tube_current`, `filter`, `SOD`, `SDD`,
+`omega`, `det_binning`, ...) become parameters of the including instrument;
+redeclaring one in your `DEFINE INSTRUMENT` overrides its default (as
+the porous variants do for `SOD`). The include paths are relative to the
+McXtrace `examples` folder, so they resolve from any working directory.
 
-- **Test: kV=150 SOD=0.1 SDD=0.5 Detector: Xray_counts_I=162607000000**
+## Porous sample variants
 
-## Input parameters
+Si cylinder (radius 4 mm, height 10 mm) with pore channels along y from
+`pores.off` in the McXtrace data folder (the same mesh as the McStas PSI_ICON
+porous models), made with `Tests_samples/Test_PowderN_porous/make_pores.py`:
 
-Parameters in **boldface** are required; the others are optional.
+```
+python make_pores.py --radius 0.004 --yheight 0.01 --diameter 3e-4 --diameter_sigma 5e-5 --length 1.5e-3 --length_sigma 5e-4 --tilt 15 --seed 1
+```
 
-| Name | Unit | Description | Default |
-|------|------|-------------|---------|
-| kV | kV | Tube acceleration voltage (<=150 for L12161-07; 20-300 per ILL web) | 150 |
-| tube_current | A | Electron beam current (<= 500e-6) | 100e-6 |
-| focal_spot | m | Focal spot size (square electron footprint on the anode) | 5e-6 |
-| Emin | keV | Lowest photon energy simulated | 5 |
-| anode | str | Anode material file | "W.txt" |
-| take_off | deg | Anode take-off angle | 12 |
-| Be_window | m | Be exit window thickness | 0.2e-3 |
-| filter | str | Pre-filter material file (e.g. "Cu.txt", "Al.txt", "Sn.txt") | "Cu.txt" |
-| filter_t | m | Pre-filter thickness (0: no filter) | 0 |
-| SOD | m | Source - object (rotation axis) distance | 0.1 |
-| SDD | m | Source - detector distance (0.50, 0.52, 0.54, 0.56) | 0.5 |
-| sample | 1 | 1: sample in beam, 0: flat field (open beam) | 1 |
-| sample_mat | str | Sample (outer) material file | "Fe.txt" |
-| sample_rho | g/cm3 | Sample density (0: take nominal density from file) | 0 |
-| sample_radius | m | Radius of the cylindrical sample | 0.005 |
-| sample_height | m | Height of the cylindrical sample | 0.05 |
-| incl_mat | str | Material of a coaxial inner cylinder ("NULL" for none) | "NULL" |
-| incl_radius | m | Radius of the inner cylinder (0 for none) | 0 |
-| incl_rho | g/cm3 | Density of the inner cylinder (0: nominal) | 0 |
-| sample_off | str | Optional OFF/PLY geometry for the outer sample, overrides the cylinder ("NULL": none) | "NULL" |
-| omega | deg | Tomography rotation angle of the sample about the vertical axis | 0 |
-| det_binning | 1 | Detector binning (1: 1792x2176 native, 2, 4, ...) | 4 |
+`water=1` fills the pores below `fill_y` (default 0, the sample centre), above
+that they are void; `water=0` gives the dry reference. Both variants set
+`SOD=0.05` m: M=10, 56 µm pixels at the object (`det_binning=4`).
+
+| Variant | Si | Water |
+|---|---|---|
+| ILL_NeXT_Xray_porous | PowderN_porous: `Si.laz` Bragg lines, `Si.txt` attenuation vs energy | `H2O.txt`, 1 g/cm³, attenuation vs energy, no scattering |
+| ILL_NeXT_Xray_porous_Union | `Si.txt` at `E_eff`: photoelectric as absorption, coherent + incoherent as isotropic `Incoherent_process` | `H2O.txt` at `E_eff`, absorption only |
+
+McXtrace Union materials have a single constant absorption coefficient, so the
+Union variant takes all coefficients at one effective energy. `E_eff=34.4` keV
+reproduces the dry transmission of ILL_NeXT_Xray_porous at 150 kV without a
+filter; for other tube settings, adjust it.
+
+PowderN_porous is single scattering with forced transmission; Union is analog,
+with multiple scattering.
+
+### Comparison
+
+![PowderN_porous vs Union, dry and wet](ILL_NeXT_Xray_porous_compare.jpg)
+
+All runs: `mxrun -y -n 4e7 --mpi=4 -s 1000`, default parameters, `water=0`
+(dry) or `water=1` (wet); macOS arm64.
+
+| Variant | I dry | I wet | T dry (centre) | wet/dry, wet half | wet/dry, dry half | t [s] |
+|---|---|---|---|---|---|---|
+| PowderN_porous | 1.794e11 ± 0.18e9 | 1.793e11 ± 0.18e9 | 0.210 | 0.9851 | 1.0000 | 11 |
+| Union, `E_eff=34.4` keV | 1.812e11 ± 0.18e9 | 1.811e11 ± 0.18e9 | 0.215 | 0.9776 | 1.0000 | 20-24 |
+
+`Xray_counts` totals; T dry = mean sample counts (|x| < 2.8 mm, |y| < 4.4 mm)
+over an open-beam strip at the panel edge; wet/dry over the same 100 px wide
+column below and above `fill_y`.
+
+### Findings
+
+- **The water shows only below `fill_y`, in both variants**: behind the wet
+  half, PowderN_porous gives a 1.5 % drop, against dry; above it the ratio is
+  1.0000.
+- **Union overestimates the water contrast (2.2 % vs 1.5 %)**: the Si matrix
+  hardens the beam, so behind the sample the photons are on average harder than
+  `E_eff` and see a weaker water attenuation. One `E_eff` cannot fit both the Si
+  and the water.
+- **Union puts 1 % more counts on the panel**: probably the coherent part, scattered
+  isotropically (no Bragg cones), of which the 250 x 300 mm panel catches
+  much (not verified). The Union dry image is also noisier (analog transport, fewer
+  photons per pixel).
+- **Use PowderN_porous for polychromatic tube spectra**; the Union variant is a
+  check of geometry and transport, and works for a narrow band (set `E_eff` to it).
+- The pores are 0.3 mm channels; `det_binning=1` (14 µm at the object) resolves
+  them better.
 
 ## Links
 
-- [Source code](ILL_NeXT_Xray.instr) for `ILL_NeXT_Xray.instr`.
 - https://www.ill.eu/en/for-ill-users/instruments/instruments-list/next/
-- A. Tengattini et al., NeXT-Grenoble, the Neutron and X-ray tomograph in Grenoble,
-- Nucl. Instrum. Meth. A 968 (2020) 163939, doi:10.1016/j.nima.2020.163939
-- NECSA_MIXRAD_Nikon_Tomo.instr (McXtrace examples) - similar lab-source tomograph
-
----
+- A. Tengattini et al., NIM A 968 (2020) 163939, doi:10.1016/j.nima.2020.163939
+- McStas: `mcstas-comps/examples/ILL/ILL_H521_NeXT`, `mcstas-comps/examples/PSI/PSI_ICON`

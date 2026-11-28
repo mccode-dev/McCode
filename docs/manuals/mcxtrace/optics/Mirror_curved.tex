@@ -1,17 +1,36 @@
 \section{The \texttt{Mirror\_curved} McXtrace Component}
-A cylindrically curved mirror (in YZ)
+Rectangular curved mirror (paraboloid/quasi-spherical/cylindrical) or flat
 
 \subsection*{Identification}
 \begin{itemize}
-  \item \textbf{Author:} Erik Knudsen
-  \item \textbf{Origin:} Risoe
-  \item \textbf{Date:} September 25th, 2009
+  \item \textbf{Author:} Emmanuel Farhi, adapted from Mirror by Erik B Knudsen
+  \item \textbf{Origin:} SOLEIL
+  \item \textbf{Date:} November 2026
 \end{itemize}
 
 \subsection*{Description}
-mirror is in the YZ-plane curved towards positive X if radius is positive
+Like the Mirror component, the mirror is by default tangent to the local XZ plane (mirror surface at y=0, nominal beam along +z), and placed in the local YZ plane instead by setting 'yheight' or 'width'. The surface has two principal curvature radii: Rx: radius bending the surface across the mirror width, i.e. in the local XZ plane for an XZ mirror, or in the YZ plane for a YZ mirror (perpendicular, sagittal radius). Rz: radius bending the surface along the mirror length (in the local YZ plane), i.e. focusing along the beam (meridional, tangential radius). A radius equal to 0 means the surface is NOT curved in that direction.
 
-Example: Mirror\_curved( radius=2, length=20e-3, width=40e-3, coating="AlMgF2\_disco.dat")
+\begin{verbatim}
+- Rx  =   Rz      -> quasi-spherical mirror (paraxial toroid, large Rx=Rz).
+- Rx !=   Rz      -> toroidal/astigmatic mirror (paraxial sag intersection).
+\end{verbatim}
+
+- Rx !=0 Rz =0 -\textgreater{} cylindrical - Rx =0 Rz !=0 -\textgreater{} bent mirror (along beam, e.g. for KB)
+
+\begin{verbatim}
+- Rx  =   Rz  =0  -> perfectly flat mirror, equivalent to Mirror.
+\end{verbatim}
+
+The radii usually follow f\_t=Rz*sin(theta)/2 and f\_s=Rx/sin(theta)/2 where theta is the tilt angle, and f\_t and f\_s are tangential and sagittal focus distances.
+
+Sign convention: R \textgreater{} 0 means the surface sags towards the normal side (towards +y for an XZ mirror): the centre of curvature lies upstream and a beam along +z is focused. R \textgreater{} 0 converges (concave).
+
+Surface: N = ( T\textasciicircum{}2/(2 Rx) + z\textasciicircum{}2/(2 Rz) ), where N is the surface normal (y for an XZ mirror, x for a YZ mirror) and T the transverse coordinate (x for an XZ mirror, y for a YZ mirror). The mirror is truncated to the aperture |T| \textless{}= (xwidth|yheight)/2 and |z| \textless{}= zdepth/2. With one non-zero radius the ray/cylinder intersection is exact (the surface stays flat along the other direction); with two non-zero radii the sag equation (paraxial toroid) is used, exact in the limit of aperture \textless{}\textless{} R. Use Rx=Rz for quasi-spherical optics. The mirror is located at its center. Default geometry is a mirror in the XZ plane, as the Mirror component. When using the 'width' or 'yheight' parameter, the mirror flips in the YZ plane. To model a toroid, better use the Mirror\_toroid component.
+
+Reflectivity is handled exactly as in Mirror: either constant (R0) or from a datafile/coating recipe ('coating').
+
+Example: Mirror\_curved(xwidth=1e-3, zdepth=1e-2, Rx=1.0, Rz=0, R0=1, coating="B4C.dat") Example: Mirror\_curved(xwidth=2e-3, zdepth=5e-2, Rx=0.5, Rz=0.7) Example: Mirror\_curved(yheight=1e-3, zdepth=1e-2, Rx=0.3) (YZ-plane mirror)
 
 \subsection*{Input parameters}
 Parameters in \textbf{boldface} are required; the others are optional.
@@ -21,13 +40,16 @@ Parameters in \textbf{boldface} are required; the others are optional.
 \textbf{Name} & \textbf{Unit} & \textbf{Description} & \textbf{Default} \\
 \midrule
 \endhead
-radius & m & Radius of curvature, along Z. & 1 \\
-R0 & 1 & Constant reflectivity value (mostly relevant for debugging, when coating=""). & 1 \\
-coating & str & Name of file containing the material data (i.e. f1 and f2) for the coating & "Be.txt" \\
-zdepth & m & Length of the unbent mirror along Z. & 0.2 \\
-yheight & m & Width of the mirror along Y. & 0.2 \\
-length & m & Length of the unbent mirror along Z = zdepth & 0 \\
-width & m & Width of the mirror along Y = yheight & 0 \\
+zdepth & m & Mirror aperture length along local z (beam direction) & 0.1 \\
+xwidth & m & Mirror aperture width along local x (XZ mirror, default) & 0.01 \\
+yheight & m & Setting yheight \textgreater{} 0 overrides xwidth and places the mirror in the YZ plane (aperture along local y), as for Mirror. & 0 \\
+Rx & m & Sagittal curvature radius (across the mirror width). 0 = flat. & 0 \\
+Rz & m & Tangential curvature radius (along the beam). 0 = flat. & 0 \\
+coating & str & Filename containing reflectivities (or coating). & "" \\
+R0 & 0-1 & Constant reflectivity & 1 \\
+radius & m & Radius of tangential curvature along Z = Rz (compatibility). & 0 \\
+length & m & Length of the unbent mirror along Z = zdepth (compatibility). & 0 \\
+width & m & Width of the mirror along Y = yheight (compatibility). & 0 \\
 \bottomrule
 \end{longtable}
 

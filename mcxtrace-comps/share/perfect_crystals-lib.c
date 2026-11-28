@@ -35,7 +35,10 @@ void Mx_CubicCrystalChi(cdouble *chi0, cdouble *chih, double *k0mag, double *hsc
     
     switch(crystal_type) {
         case Mx_crystal_explicit:
-            /* use explicitly provided structure factor scale factor */
+            /* use explicitly provided structure factor scale factor,
+               F0 scaled by 8 as in Mx_DarwinReflectivity */
+            fscaleh=cplx(fscaler,fscalei);
+            fscale0=8;
             break;
         case Mx_crystal_diamond: /* diamond lattice rules */
             if (((h+k+l)%2) != 0){ 		/* (111) etc. odd sum eflection */

@@ -1096,6 +1096,17 @@ void Monitor_nD_EnsureCapacity(MonitornD_Defines_type *DEFS, MonitornD_Variables
   }
 }
 
+/* Histogram index of coord, kept within [-1:bins] so the conversion to long
+   is defined for huge, infinite or NaN coordinates (NaN gives -1) */
+#pragma acc routine seq
+long Monitor_nD_Index(double coord, double min, double range, long bins)
+{
+  double idx = floor((coord-min)*bins/range);
+  if (!(idx >= -1)) return -1;
+  if (idx > bins)   return bins;
+  return (long)idx;
+}
+
 int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Vars, _class_particle* _particle)
 {
 
@@ -1155,7 +1166,7 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
           XY = (Vars->Coord_Max[i]-Vars->Coord_Min[i]);
 
           Coord[i] = Vars->Mon2D_Buffer[i+While_Buffer*(Vars->Coord_Number+1)];
-          if (XY > 0) Coord_Index[i] = floor((Coord[i]-Vars->Coord_Min[i])*Vars->Coord_Bin[i]/XY);
+          if (XY > 0) Coord_Index[i] = Monitor_nD_Index(Coord[i], Vars->Coord_Min[i], XY, Vars->Coord_Bin[i]);
           else        Coord_Index[i] = 0;
           if (Vars->Flag_With_Borders)
           {
@@ -1405,7 +1416,7 @@ int Monitor_nD_Trace(MonitornD_Defines_type *DEFS, MonitornD_Variables_type *Var
           if ((!Vars->Flag_Auto_Limits || !(Vars->Coord_Type[i] & DEFS->COORD_AUTO)) && Vars->Coord_Bin[i]>1)
           { /* compute index in histograms for each variable to monitor */
             XY = (Vars->Coord_Max[i]-Vars->Coord_Min[i]);
-            if (XY > 0) Coord_Index[i] = floor((Coord[i]-Vars->Coord_Min[i])*Vars->Coord_Bin[i]/XY);
+            if (XY > 0) Coord_Index[i] = Monitor_nD_Index(Coord[i], Vars->Coord_Min[i], XY, Vars->Coord_Bin[i]);
             if (Vars->Flag_With_Borders)
             {
               if (Coord_Index[i] >= Vars->Coord_Bin[i]) Coord_Index[i] = Vars->Coord_Bin[i] - 1;
@@ -1553,6 +1564,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
     char    While_End = 0;
     long    While_Buffer = 0;
     double  XY=0, pp=0;
+    int     ismean = (Vars->Flag_signal != DEFS->COORD_P && !Vars->Flag_log); /* mean of the signal variable */
     double  Coord[MONnD_COORD_NMAX];
     long    Coord_Index[MONnD_COORD_NMAX];
     char    label[CHAR_BUF_LENGTH];
@@ -1620,7 +1632,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
             else {
               XY = (Vars->Coord_Max[i]-Vars->Coord_Min[i]);
               Coord[i] = Vars->Mon2D_Buffer[i+While_Buffer*(Vars->Coord_Number+1)];
-              if (XY > 0) Coord_Index[i] = floor((Coord[i]-Vars->Coord_Min[i])*Vars->Coord_Bin[i]/XY);
+              if (XY > 0) Coord_Index[i] = Monitor_nD_Index(Coord[i], Vars->Coord_Min[i], XY, Vars->Coord_Bin[i]);
               else Coord_Index[i] = 0;
               if (Vars->Flag_With_Borders)
               {
@@ -1711,9 +1723,11 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
       Nsum = Vars->Nsum;
       psum = Vars->psum;
       p2sum= Vars->p2sum;
-      if (Vars->Flag_signal != DEFS->COORD_P && Nsum > 0)
-      { psum /=Nsum; p2sum /= Nsum*Nsum; }
       /* DETECTOR_OUT_0D(Vars->Monitor_Label, Vars->Nsum, Vars->psum, Vars->p2sum); */
+      if (Vars->Flag_signal != DEFS->COORD_P)
+        detector = mcdetector_out_0D_mean(Vars->Monitor_Label, Vars->Nsum, Vars->Nsum, Vars->Nsum, Vars->psum, Vars->p2sum,
+          Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->compcurindex);
+      else
       detector = mcdetector_out_0D(Vars->Monitor_Label, Nsum, psum, p2sum, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->compcurindex);
     }
     else
@@ -1755,7 +1769,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
         
         detector = mcdetector_out_list(
               label, "List of neutron events", Coord_X_Label,
-              -Vars->Buffer_Size, Vars->Coord_Number+1,
+              -Vars->Buffer_Size, Vars->Coord_Number+1, Vars->Neutron_Counter,
               Vars->Mon2D_Buffer,
               fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot, Vars->option,Vars->compcurindex);
       }
@@ -1774,6 +1788,18 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
             min1d = Vars->Coord_Min[i+1];
             max1d = Vars->Coord_Max[i+1];
             if (min1d == max1d) max1d = min1d+1e-6;
+            if (ismean) {
+              detector = mcdetector_out_1D_mean(
+                label,
+                Vars->Coord_Label[i+1],
+                Vars->Coord_Label[0],
+                Vars->Coord_Var[i+1],
+                min1d, max1d,
+                Vars->Coord_Bin[i+1],
+                Vars->Mon2D_N[i],Vars->Mon2D_N[i],Vars->Mon2D_N[i],Vars->Mon2D_p[i],Vars->Mon2D_p2[i],
+                fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->compcurindex);
+              continue;
+            }
             p1m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
             p2m = (double *)malloc(Vars->Coord_Bin[i+1]*sizeof(double));
             if (p1m == NULL || p2m == NULL) /* use Raw Buffer line output */
@@ -1879,7 +1905,7 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
               p0m[index] = Vars->Mon2D_N[i][j];
               p1m[index] = Vars->Mon2D_p[i][j];
               p2m[index] = Vars->Mon2D_p2[i][j];
-              if (Vars->Flag_signal != DEFS->COORD_P && p0m[index] > 0)
+              if (Vars->Flag_signal != DEFS->COORD_P && p0m[index] > 0 && !(ismean && !Vars->Flag_List))
               {
                   p1m[index] /= p0m[index];
                   p2m[index] /= p0m[index]*p0m[index];
@@ -1927,6 +1953,17 @@ MCDETECTOR Monitor_nD_Save(MonitornD_Defines_type *DEFS, MonitornD_Variables_typ
 	      Vars->Coord_Bin[2],
 	      p0m,p1m,p2m,
 	      fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->option,Vars->compcurindex);
+	  } else if (ismean) {
+            detector = mcdetector_out_2D_mean(
+              label,
+              Vars->Coord_Label[1],
+              Vars->Coord_Label[2],
+              min1d, max1d,
+              min2d, max2d,
+              Vars->Coord_Bin[1],
+              Vars->Coord_Bin[2],
+              p0m,p0m,p0m,p1m,p2m,
+              fname, Vars->compcurname, Vars->compcurpos, Vars->compcurrot,Vars->compcurindex);
 	  } else {
             detector = mcdetector_out_2D(
               label,
@@ -2204,37 +2241,6 @@ void Monitor_nD_McDisplay(MonitornD_Defines_type *DEFS,
 /* Mesh geometry: the two following routines only apply to detectors         */
 /* defined by a mesh file (geometry parameter)                               */
 /* ========================================================================= */
-
-// Hits of the line position + t*velocity with mesh ahead of the neutron
-// (t > 0). Inside a closed mesh, t0 is 0 and t1 the first exit; otherwise
-// t0 is the first hit and t1 the next one (t0 when there is a single hit).
-// face is the face of the first hit ahead. Returns 1 on a hit, 0 otherwise.
-#pragma acc routine seq
-int Monitor_nD_MeshIntersect(gmesh_struct* mesh, Coords position, Coords velocity, double* t0, double* t1, int* face)
-{
-  gmesh_hit hits[GMESH_MAX_HITS];
-  double t_min = 0;
-  int nhits = gmesh_intersect(mesh, position, velocity, t_min, hits);
-  int inside = 0;
-  if (!nhits)
-    return 0;
-  // normals of a closed, oriented mesh point outward: leaving first means inside
-  if (mesh->closed && mesh->oriented)
-    inside = hits[0].in_out < 0;
-  else if (mesh->closed)
-    inside = gmesh_inside(mesh, position);
-  if (inside) {
-    *t0 = 0;
-    *t1 = hits[0].t;
-  } else {
-    *t0 = hits[0].t;
-    *t1 = hits[0].t;
-    if (nhits > 1)
-      *t1 = hits[1].t;
-  }
-  *face = hits[0].face;
-  return 1;
-}
 
 // Warns when mantid is combined with a closed mesh: pixel IDs are panels.
 void Monitor_nD_CheckMantidMesh(gmesh_struct* mesh, int flag_mantid, char* name)

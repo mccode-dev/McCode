@@ -52,58 +52,51 @@ SHARE
 
 DECLARE
 %{
-char *file;			/* path + filename             */
-FILE *hfile;			/* Neutron output filename handle  */
-Neutron *obuf;			/* Neutron output buffer       */
-int pos;			/* Current position in buffer  */
-double p_out;                   /* sum of output weight        */
-double p2_out;                  /* square sum of output weight */
+  char* file;    /* path + filename             */
+  FILE* hfile;   /* Neutron output filename handle  */
+  Neutron* obuf; /* Neutron output buffer       */
+  int pos;       /* Current position in buffer  */
+  double p_out;  /* sum of output weight        */
+  double p2_out; /* square sum of output weight */
 %}
 
 INITIALIZE
 %{
-file=NULL;
-hfile=NULL;
+  file = NULL;
+  hfile = NULL;
 
-#if defined (USE_MPI)
-    if (mpi_node_count > 1) {
-      exit(printf("Vitess_output: %s: ERROR: This component can not be used in parallel execution mode (MPI). Abort.\n", NAME_CURRENT_COMP));
-    }
-#endif
+  #if defined (USE_MPI)
+  if (mpi_node_count > 1) {
+    exit (printf ("Vitess_output: %s: ERROR: This component can not be used in parallel execution mode (MPI). Abort.\n", NAME_CURRENT_COMP));
+  }
+  #endif
 
   /* Open neutron output filename. */
-  if (!filename || !strcmp(filename,"NULL") || !strcmp(filename,"0") || !strcmp(filename,"stdout"))
-  {
+  if (!filename || !strcmp (filename, "NULL") || !strcmp (filename, "0") || !strcmp (filename, "stdout")) {
     hfile = stdout;
-  }
-  else if (!strlen(filename) || !strcmp(filename, "no_filename"))
-  {
+  } else if (!strlen (filename) || !strcmp (filename, "no_filename")) {
     hfile = NULL;
-  }
-  else
-  {
-    hfile = fopen((file=FullParName(filename)), "wb");
-    if(!hfile)
-    {
-      fprintf(stderr, "Vitess_output: Error: Cannot open output filename %s.\n", file);
-      exit(1);
+  } else {
+    hfile = fopen ((file = FullParName (filename)), "wb");
+    if (!hfile) {
+      fprintf (stderr, "Vitess_output: Error: Cannot open output filename %s.\n", file);
+      exit (1);
     }
   }
-#ifdef WIN32
-  if(hfile==stdout)
-  { if(_setmode(_fileno( stdout ), _O_BINARY ) == -1)
-    { fprintf(stderr,"Can't set stdout to binary mode\n");
-      exit(1);
+  #ifdef WIN32
+  if (hfile == stdout) {
+    if (_setmode (_fileno (stdout), _O_BINARY) == -1) {
+      fprintf (stderr, "Can't set stdout to binary mode\n");
+      exit (1);
     }
   }
-#endif
+  #endif
 
   /* Allocate neutron output buffer. */
-  obuf = calloc(bufsize, sizeof(Neutron));
-  if(!obuf)
-  {
-    fprintf(stderr, "Vitess_output: Error: Cannot allocate neutron buffer.\n");
-    exit(1);
+  obuf = calloc (bufsize, sizeof (Neutron));
+  if (!obuf) {
+    fprintf (stderr, "Vitess_output: Error: Cannot allocate neutron buffer.\n");
+    exit (1);
   }
   /* Initialize buffer. */
   pos = 0;
@@ -114,32 +107,28 @@ TRACE
   int count;
 
   /* Flush output buffer if full. */
-  if(hfile && pos >= bufsize)
-  { count = fwrite(obuf, sizeof(Neutron), bufsize, hfile);
-    if(progress)
-    {
-      fputc('.', stderr);	/* Output progress indicator. */
-      fflush(stderr);
+  if (hfile && pos >= bufsize) {
+    count = fwrite (obuf, sizeof (Neutron), bufsize, hfile);
+    if (progress) {
+      fputc ('.', stderr); /* Output progress indicator. */
+      fflush (stderr);
     }
-    if(count != bufsize)
-    {
-      fprintf(stderr, "Vitess_output: Error during write of neutron filename.\n");
-      exit(1);
-    }
-    else
-    {
-      pos = 0;			/* Reposition at start of buffer */
+    if (count != bufsize) {
+      fprintf (stderr, "Vitess_output: Error during write of neutron filename.\n");
+      exit (1);
+    } else {
+      pos = 0; /* Reposition at start of buffer */
     }
   }
-  obuf[pos] = mcstas2vitess(x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+  obuf[pos] = mcstas2vitess (x, y, z, vx, vy, vz, t, sx, sy, sz, p);
   /* The following three lines have references to things that are no longer
      in the McStas vitess libs */
   /* obuf[pos].Color   = vitess_col;
      obuf[pos].ID.IDNo = vitess_ID.IDNo;
      memcpy(obuf[pos].ID.IDGrp, vitess_ID.IDGrp, 2); */
 
-  p_out  += p;
-  p2_out += p*p;
+  p_out += p;
+  p2_out += p * p;
   ++pos;
 %}
 FINALLY
@@ -147,20 +136,19 @@ FINALLY
   int count;
 
   /* Flush output buffer if necessary. */
-  if(hfile && pos > 0)
-  { count = fwrite(obuf, sizeof(Neutron), pos, hfile);
-    if(count != pos)
-    {
-      fprintf(stderr, "Vitess_output: Error during write of neutron file %s.\n", file);
-      exit(1);
+  if (hfile && pos > 0) {
+    count = fwrite (obuf, sizeof (Neutron), pos, hfile);
+    if (count != pos) {
+      fprintf (stderr, "Vitess_output: Error during write of neutron file %s.\n", file);
+      exit (1);
     }
   }
-  if(progress)
-    fprintf(stderr, ".\n");	/* Output final progress indicator. */
-  if(obuf)
-    free(obuf);
-  if(hfile && filename)
-    fclose(hfile);
+  if (progress)
+    fprintf (stderr, ".\n"); /* Output final progress indicator. */
+  if (obuf)
+    free (obuf);
+  if (hfile && filename)
+    fclose (hfile);
 %}
 MCDISPLAY
 %{

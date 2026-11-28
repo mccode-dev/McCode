@@ -171,6 +171,12 @@ def _convert_inline_markup(s):
         tokens.append(repl)
         return '\x01%d\x02' % (len(tokens) - 1)
 
+    # <span class="latex">/<div class="latex"> hold TeX math (MathJax in
+    # the HTML docs): pass it through unescaped
+    s = re.sub(r'<(span|div)\s+class\s*=\s*"latex"\s*>(.*?)</\1\s*>',
+               lambda m: stash(re.sub(r'\s+', ' ', m.group(2)).strip()),
+               s, flags=re.IGNORECASE | re.DOTALL)
+
     # <a href="URL">text</a>  ->  \htmladdnormallink{text}{URL}
     # (single DOTALL pass so link text spanning a hard line-wrap is seen
     # as one unit, rather than being processed line-by-line beforehand)

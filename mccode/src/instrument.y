@@ -93,7 +93,8 @@ int yyerror(const char *s);
 List list_cat(List, List);
 Symtab symtab_cat(Symtab, Symtab);
 void run_command_to_add_search_dir(char * input);
-int metadata_construct_table(instr_ptr_t);
+int metadata_construct_table(instr_ptr_t, List);
+static List instrument_metadata = NULL; /* instrument-level METADATA, incl. %include-d */
 void metadata_assign_from_definition(List metadata);
 void metadata_assign_from_instance(List metadata);
 static void dependency_add(char *s);
@@ -216,6 +217,7 @@ static struct code_block *codeblock_present(struct code_block *cb, struct code_b
 %type <ori>     orientation
 %type <string>  instname
 %type <metadatum> metadatum
+%type <string> metaword
 %type <metadata> metadata metadata1
 %type <jump>    jump
 %type <jumps>   jumps jumps1
@@ -979,19 +981,30 @@ instrument:   "DEFINE" "INSTRUMENT" TOK_ID instrpar_list
         if (!instrument_definition->finals) instrument_definition->finals = $14;
         else list_cat(instrument_definition->finals->lines, $14->lines);
 */
-//    $6    $7         $8      $9       $10        $11         $12  $13      $14
-      shell dependency comp_declare comp_uservars comp_initialize instr_trace comp_save comp_finally "END"
+/* Instrument METADATA goes in the header: after TRACE a METADATA would be
+   ambiguous with the trailing METADATA of the last component instance. */
+//    $6    $7       $8         $9           $10           $11             $12         $13       $14          $15
+      shell metadata dependency comp_declare comp_uservars comp_initialize instr_trace comp_save comp_finally "END"
       {
-        if (!instrument_definition->decls) instrument_definition->decls = $8;
-        else list_cat(instrument_definition->decls->lines, $8->lines);
-        if (!instrument_definition->vars) instrument_definition->vars = $9;
-        else list_cat(instrument_definition->vars->lines, $9->lines);
-        if (!instrument_definition->inits) instrument_definition->inits = $10;
-        else list_cat(instrument_definition->inits->lines, $10->lines);
-        if (!instrument_definition->saves) instrument_definition->saves = $12;
-        else list_cat(instrument_definition->saves->lines, $12->lines);
-        if (!instrument_definition->finals) instrument_definition->finals = $13;
-        else list_cat(instrument_definition->finals->lines, $13->lines);
+        /* each instrument's METADATA keeps its own name as source, as in mccode-antlr */
+        for (int i=0; i<list_len($7); ++i) {
+          struct metadata_struct * m = (struct metadata_struct *) list_access($7, i);
+          m->source = $3;
+          m->instance = 2;
+        }
+        if (!instrument_metadata) instrument_metadata = list_create();
+        list_cat(instrument_metadata, $7);
+
+        if (!instrument_definition->decls) instrument_definition->decls = $9;
+        else list_cat(instrument_definition->decls->lines, $9->lines);
+        if (!instrument_definition->vars) instrument_definition->vars = $10;
+        else list_cat(instrument_definition->vars->lines, $10->lines);
+        if (!instrument_definition->inits) instrument_definition->inits = $11;
+        else list_cat(instrument_definition->inits->lines, $11->lines);
+        if (!instrument_definition->saves) instrument_definition->saves = $13;
+        else list_cat(instrument_definition->saves->lines, $13->lines);
+        if (!instrument_definition->finals) instrument_definition->finals = $14;
+        else list_cat(instrument_definition->finals->lines, $14->lines);
 
         instrument_definition->compmap = comp_instances;
         instrument_definition->groupmap = group_instances;
@@ -1000,7 +1013,7 @@ instrument:   "DEFINE" "INSTRUMENT" TOK_ID instrpar_list
 
         instrument_definition->metadata = list_create();
         if (verbose) fprintf(stderr, "Combine metadata blocks into table\n");
-        if (metadata_construct_table(instrument_definition)) {
+        if (metadata_construct_table(instrument_definition, instrument_metadata)) {
           print_error(MCCODE_NAME ": Combining metadata blocks into table failed for %s\n", instr_current_filename);
           exit(1);
         }
@@ -1751,54 +1764,25 @@ metadata1: metadatum
 ;
 
 
+/* type and name are identifiers or quoted strings, stored without the quotes.
+   As in mccode-antlr, a name with spaces keeps them (escaped for the generated C),
+   so it stays one entry in the space-separated --meta-defined output. */
+metaword: TOK_ID | TOK_STRING
+;
+
 metadatum:
-"METADATA" TOK_ID TOK_ID codeblock
+"METADATA" metaword metaword codeblock
 {
   struct metadata_struct * metadatum;
   palloc(metadatum);
   metadatum->source = NULL;
-  metadatum->type = str_dup($2);
-  metadatum->name = str_dup($3);
-  metadatum->lines = list_create(); if (list_len($4->lines)) list_cat(metadatum->lines, $4->lines);
-  $$ = metadatum; // This would be very bad to omit. Don't do that!
-}
-|
-"METADATA" TOK_ID TOK_STRING codeblock
-{
-  struct metadata_struct * metadatum;
-  palloc(metadatum);
-  metadatum->source = NULL;
-  metadatum->type = str_dup($2);
-  char * tmp_key = malloc(((strlen($3)+3)*sizeof(char)));
-  sprintf(tmp_key, "\"%s\"", $3);
-  metadatum->name = str_quote(tmp_key);
-  free(tmp_key);
-  metadatum->lines = list_create(); if (list_len($4->lines)) list_cat(metadatum->lines, $4->lines);
-  $$ = metadatum; // This would be very bad to omit. Don't do that!
-}
-// Add variants to accept string-valued type information for MIME types
-|
-"METADATA" TOK_STRING TOK_ID codeblock
-{
-  struct metadata_struct * metadatum;
-  palloc(metadatum);
-  metadatum->source = NULL;
-  metadatum->type = str_dup($2);
-  metadatum->name = str_dup($3);
-  metadatum->lines = list_create(); if (list_len($4->lines)) list_cat(metadatum->lines, $4->lines);
-  $$ = metadatum; // This would be very bad to omit. Don't do that!
-}
-|
-"METADATA" TOK_STRING TOK_STRING codeblock
-{
-  struct metadata_struct * metadatum;
-  palloc(metadatum);
-  metadatum->source = NULL;
-  metadatum->type = str_dup($2);
-  char * tmp_key = malloc(((strlen($3)+3)*sizeof(char)));
-  sprintf(tmp_key, "\"%s\"", $3);
-  metadatum->name = str_quote(tmp_key);
-  free(tmp_key);
+  metadatum->type = $2;
+  if (strchr($3, ' ')) {
+    char * quoted = malloc(strlen($3) + 3);
+    sprintf(quoted, "\"%s\"", $3);
+    metadatum->name = str_quote(quoted);
+    free(quoted);
+  } else metadatum->name = $3;
   metadatum->lines = list_create(); if (list_len($4->lines)) list_cat(metadatum->lines, $4->lines);
   $$ = metadatum; // This would be very bad to omit. Don't do that!
 }

@@ -93,6 +93,10 @@ TRACE
   } else {
     phi = atan2 (x, z);
     j = floor ((double)nphi / 2.0 + RAD2DEG * phi / (double)binphi);
+    if (j < 0)
+      j = 0; /* rounding at phi == -PI */
+    if (j >= nphi)
+      j = nphi - 1; /* phi == PI */
     double p2 = p * p;
     #pragma acc atomic
     TOF_N[i][j] = TOF_N[i][j] + 1;

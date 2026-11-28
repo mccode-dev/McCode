@@ -1,0 +1,85 @@
+/*******************************************************************************
+* Instrument: PSI_ICON_porous_Union
+*
+* %I
+* Written by: Peter Willendrup
+* Date: Nov 2026
+* Origin: DTU
+* %INSTRUMENT_SITE: PSI
+*
+* PSI ICON imaging beamline with a porous quartz sample (Union), water in the pores below fill_y
+*
+* %D
+* PSI_ICON_beamline and PSI_ICON_camera (see %include below) with a porous quartz
+* cylinder, pore channels from pores.off (in the data folder, made with Tests_samples/Test_PowderN_porous/make_pores.py), water in the pores
+* below fill_y, built from Union components: quartz cylinder, water/void cylinders below/above fill_y
+* (1 um inside the matrix), masked by the pore mesh. Same sample as PSI_ICON_porous.
+* All PSI_ICON_beamline parameters are available as well.
+*
+* %Test: PSI_ICON_porous_Union.instr -y Detector: VarDetectorZoom_I=763244
+*
+* %P
+* matrix:      [str] Reflection file of the porous matrix
+* pores:       [str] Pore mesh file (Tests_samples/Test_PowderN_porous/make_pores.py), "NULL" for none
+* fill_y:      [m]   Water level in the pores, local y (sample spans +-0.005)
+* water:       [1]   1: water below fill_y, 0: void pores
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT PSI_ICON_porous_Union(string matrix="SiO2_quartza.laz", string pores="pores.off", fill_y=0, int water=1)
+
+DEPENDENCY " -DGMESH_MAX_HITS=200 "
+
+DECLARE
+%{
+  double R_s, H_s, eps_s, h_w, h_v, y_w, y_v;
+  char fill_mat[16];
+%}
+
+INITIALIZE
+%{
+  R_s = 0.004; H_s = 0.01; eps_s = 1e-6;
+  double yb = -H_s/2 + eps_s, yt = H_s/2 - eps_s;
+  double fy = fmin(fmax(fill_y, yb + eps_s), yt - eps_s);
+  h_w = fy - yb;          y_w = (fy + yb)/2;
+  h_v = yt - fy + eps_s;  y_v = (yt + fy - eps_s)/2;
+  strcpy(fill_mat, water ? "Water" : "Vacuum");
+%}
+
+TRACE
+
+%include "PSI/PSI_ICON/PSI_ICON_beamline/PSI_ICON_beamline.instr"
+
+// Porous quartz cylinder, water (H2O) in the pores below fill_y, as Union:
+// matrix cylinder, water/void cylinders below/above fill_y, masked by the pore mesh
+COMPONENT quartz_powder = Powder_process(reflections=matrix)
+AT (0,0,0) ABSOLUTE
+COMPONENT quartz_inc = Incoherent_process(sigma=3*0.0056, unit_cell_volume=112.35)
+AT (0,0,0) ABSOLUTE
+COMPONENT Quartz = Union_make_material(process_string="quartz_powder,quartz_inc", my_absorption=100*3*0.1714/112.35)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT water_inc = Incoherent_process(sigma=160.5, unit_cell_volume=29.9)
+AT (0,0,0) ABSOLUTE
+COMPONENT Water = Union_make_material(process_string="water_inc", my_absorption=100*0.665/29.9)
+AT (0,0,0) ABSOLUTE
+
+COMPONENT matrix_vol = Union_cylinder(material_string="Quartz", priority=1, radius=R_s, yheight=H_s)
+AT (0,0,0) RELATIVE Goniometer
+
+COMPONENT water_vol = Union_cylinder(material_string=fill_mat, priority=2, radius=R_s-eps_s, yheight=h_w)
+AT (0,y_w,0) RELATIVE Goniometer
+
+COMPONENT void_vol = Union_cylinder(material_string="Vacuum", priority=3, radius=R_s-eps_s, yheight=h_v)
+AT (0,y_v,0) RELATIVE Goniometer
+
+COMPONENT pore_mask = Union_mesh(filename=pores, coordinate_scale=1, priority=4,
+    mask_string="water_vol,void_vol", mask_setting="Any")
+AT (0,0,0) RELATIVE Goniometer
+
+COMPONENT Sample = Union_master()
+AT (0,0,0) RELATIVE Goniometer
+
+%include "PSI/PSI_ICON/PSI_ICON_camera/PSI_ICON_camera.instr"
+
+END
